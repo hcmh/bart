@@ -12,4 +12,5 @@ extern void calc_phantom3d_noncart(const long dims[3], complex float* out, const
 extern void calc_circ3d(const long dims[DIMS], complex float* out, _Bool kspace);
 
 extern void calc_moving_circ(const long dims[DIMS], complex float* out, bool kspace);
+extern void calc_heart(const long dims[DIMS], complex float* out, bool kspace);
 

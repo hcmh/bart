@@ -297,12 +297,10 @@ void calc_ring(const long dims[DIMS], complex float* out, bool kspace)
 	sample(DIMS, dims, out, 4, phantom_ring, kspace);
 }
 
-void calc_moving_circ(const long dims[DIMS], complex float* out, bool kspace)
-{
-	struct ellipsis_s disc[1] = { phantom_disc[0] };
-	disc[0].axis[0] /= 3;
-	disc[0].axis[1] /= 3;
 
+
+static void calc_moving_discs(const long dims[DIMS], complex float* out, bool kspace, int N, const struct ellipsis_s disc[N], float cen, float size)
+{
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, sizeof(complex float));
 
@@ -310,12 +308,47 @@ void calc_moving_circ(const long dims[DIMS], complex float* out, bool kspace)
 	md_select_dims(DIMS, ~MD_BIT(TE_DIM), dims1, dims);
 
 	for (int i = 0; i < dims[TE_DIM]; i++) {
+#if 1
+		float x = sin(2. * M_PI * (float)i / (float)dims[TE_DIM]);
+		float y = cos(2. * M_PI * (float)i / (float)dims[TE_DIM]);
 
-		disc[0].center[0] = 0.5 * sin(2. * M_PI * (float)i / (float)dims[TE_DIM]);
-		disc[0].center[1] = 0.5 * cos(2. * M_PI * (float)i / (float)dims[TE_DIM]);
-		sample(DIMS, dims1, (void*)out + strs[TE_DIM] * i, 1, disc, kspace);
+		struct ellipsis_s disc2[N];
+
+		for (int j = 0; j < N; j++) {
+
+			disc2[j] = disc[j];
+			disc2[j].center[0] = cen * x;
+			disc2[j].center[1] = cen * y;
+			disc2[j].axis[0] *= 1. + size * y;
+			disc2[j].axis[1] *= 1. + size * y;
+		}
+#endif
+		sample(DIMS, dims1, (void*)out + strs[TE_DIM] * i, N, disc2, kspace);
 	}
 }
+
+
+void calc_moving_circ(const long dims[DIMS], complex float* out, bool kspace)
+{
+	struct ellipsis_s disc[1] = { phantom_disc[0] };
+	disc[0].axis[0] /= 3;
+	disc[0].axis[1] /= 3;
+
+	calc_moving_discs(dims, out, kspace, ARRAY_SIZE(disc), disc, 0.5, 0.);
+}
+
+
+void calc_heart(const long dims[DIMS], complex float* out, bool kspace)
+{
+	struct ellipsis_s disc[] = {
+		{	 1.0, { 0.5, 0.5 }, { 0., 0. }, 0. },
+		{	-1.0, { 0.4, 0.4 }, { 0., 0. }, 0. },
+		{	 0.5, { 0.4, 0.4 }, { 0., 0. }, 0. },
+	};
+
+	calc_moving_discs(dims, out, kspace, ARRAY_SIZE(disc), disc, 0.1, 0.1);
+}
+
 
 
 

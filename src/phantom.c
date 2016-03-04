@@ -1,14 +1,15 @@
 /* Copyright 2014. The Regents of the University of California.
- * Copyright 2015. Martin Uecker.
+ * Copyright 2015-2016. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors: 
- * 2013, 2015 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2013-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
 #include <complex.h>
+#include <stdio.h>
 
 #include "num/multind.h"
 
@@ -37,6 +38,7 @@ int main_phantom(int argc, char* argv[])
 	bool out_sens = false;
 	bool tecirc = false;
 	bool circ = false;
+	bool heart = false;
 	const char* traj = NULL;
 
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
@@ -56,17 +58,15 @@ int main_phantom(int argc, char* argv[])
 		OPT_SET('m', &tecirc, "()"),
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_SET('3', &d3, "3D"),
+		OPT_SET('C', &heart, "heart"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 
 
-	if (tecirc) {
-
-		circ = true;
+	if (tecirc || heart)
 		dims[TE_DIM] = 32;
-	}
 
 	if (-1 != osens) {
 
@@ -94,10 +94,12 @@ int main_phantom(int argc, char* argv[])
 	}
 
 
-	if (sens)
+	if (sens > 0)
 		dims[3] = sens;
 
 	complex float* out = create_cfl(argv[1], DIMS, dims);
+
+	md_clear(DIMS, dims, out, sizeof(complex float));
 
 	if (out_sens) {
 
@@ -107,7 +109,17 @@ int main_phantom(int argc, char* argv[])
 		calc_sens(dims, out);
 
 	} else
-	if (circ) {
+	if (heart) {
+
+		printf("Here!\n");
+
+		assert(NULL == traj);
+		assert(!d3);
+
+		calc_heart(dims, out, kspace);
+
+	} else
+	if (circ || tecirc) {
 
 		assert(NULL == traj);
 
