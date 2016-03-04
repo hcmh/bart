@@ -86,7 +86,10 @@ static complex float nosens(unsigned int c, double mpos[3], void* data, krn_t fu
 	return fun(data, mpos);
 }
 
-struct data1 {
+struct data {
+
+	const complex float* traj;
+	const long* tstrs;
 
 	bool sens;
 	const long dims[3];
@@ -96,7 +99,7 @@ struct data1 {
 
 static complex float xkernel(void* _data, const long pos[])
 {
-	struct data1* data = _data;
+	struct data* data = _data;
 
 	double mpos[3] = { (double)(pos[0] - data->dims[0] / 2) / (0.5 * (double)data->dims[0]),
                            (double)(pos[1] - data->dims[1] / 2) / (0.5 * (double)data->dims[1]),
@@ -107,45 +110,55 @@ static complex float xkernel(void* _data, const long pos[])
 
 static complex float kkernel(void* _data, const long pos[])
 {
-	struct data1* data = _data;
+	struct data* data = _data;
 
-	double mpos[3] = { (double)(pos[0] - data->dims[0] / 2) / 2.,
-			   (double)(pos[1] - data->dims[1] / 2) / 2.,
-			   (double)(pos[2] - data->dims[2] / 2) / 2. };
-
-	return (data->sens ? ksens : nosens)(pos[COIL_DIM], mpos, data->data, data->fun);
-}
-
-struct data2 {
-
-	const complex float* traj;
-	long istrs[DIMS];
-	bool sens;
-	void* data;
-	krn_t fun;
-};
-
-static complex float nkernel(void* _data, const long pos[])
-{
-	struct data2* data = _data;
 	double mpos[3];
-	mpos[0] = data->traj[md_calc_offset(3, data->istrs, pos) + 0] / 2.;
-	mpos[1] = data->traj[md_calc_offset(3, data->istrs, pos) + 1] / 2.;
-	mpos[2] = data->traj[md_calc_offset(3, data->istrs, pos) + 2] / 2.;
+
+	if (NULL == data->traj) {
+
+		mpos[0] = (double)(pos[0] - data->dims[0] / 2) / 2.;
+		mpos[1] = (double)(pos[1] - data->dims[1] / 2) / 2.;
+		mpos[2] = (double)(pos[2] - data->dims[2] / 2) / 2.;
+
+	} else {
+
+		assert(0 == pos[0]);
+		mpos[0] = (&MD_ACCESS(DIMS, data->tstrs, pos, data->traj))[0] / 2.;
+		mpos[1] = (&MD_ACCESS(DIMS, data->tstrs, pos, data->traj))[1] / 2.;
+		mpos[2] = (&MD_ACCESS(DIMS, data->tstrs, pos, data->traj))[2] / 2.;
+	}
 
 	return (data->sens ? ksens : nosens)(pos[COIL_DIM], mpos, data->data, data->fun);
 }
 
-struct krn_data {
+static void sample(const long dims[DIMS], complex float* out, const long tstrs[DIMS], const complex float* traj, void* krn_data, krn_t krn, bool kspace)
+{
+	struct data data = {
+
+		.traj = traj,
+		.sens = (dims[COIL_DIM] > 1),
+		.dims = { dims[0], dims[1], dims[2] },
+		.data = krn_data,
+		.tstrs = tstrs,
+		.fun = krn,
+	};
+
+	md_parallel_zsample(DIMS, dims, out, &data, kspace ? kkernel : xkernel);
+}
+
+
+
+
+struct krn2d_data {
 
 	bool kspace;
 	unsigned int N;
 	const struct ellipsis_s* el;
 };
 
-static complex float krn(void* _data, const double mpos[3])
+static complex float krn2d(void* _data, const double mpos[3])
 {
-	struct krn_data* data = _data;
+	struct krn2d_data* data = _data;
 	return phantom(data->N, data->el, mpos, data->kspace);
 }
 
@@ -162,101 +175,15 @@ static complex float krn3d(void* _data, const double mpos[3])
 	return phantom3d(data->N, data->el, mpos, data->kspace);
 }
 
-static void sample(unsigned int N, const long dims[N], complex float* out, unsigned int D, const struct ellipsis_s* el, bool kspace)
+
+void calc_phantom(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
-	struct data1 data = {
-
-		.sens = (dims[COIL_DIM] > 1),
-		.dims = { dims[0], dims[1], dims[2] },
-		.data = &(struct krn_data){ kspace, D, el },
-		.fun = krn,
-	};
-
-	md_parallel_zsample(N, dims, out, &data, kspace ? kkernel : xkernel);
+	if (!d3)
+		sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(shepplogan_mod), shepplogan_mod }, krn2d, kspace);
+	else
+		sample(dims, out, tstrs, traj, &(struct krn3d_data){ kspace, ARRAY_SIZE(shepplogan3d), shepplogan3d }, krn3d, kspace);
 }
 
-
-void calc_phantom(const long dims[DIMS], complex float* out, bool kspace)
-{
-	sample(DIMS, dims, out, 10, shepplogan_mod, kspace);
-}
-
-
-static void sample3d(unsigned int N, const long dims[N], complex float* out, unsigned int D, const struct ellipsis3d_s* el, bool kspace)
-{
-	struct data1 data = {
-
-		.sens = (dims[COIL_DIM] > 1),
-		.dims = { dims[0], dims[1], dims[2] },
-		.data = &(struct krn3d_data){ kspace, D, el },
-		.fun = krn3d,
-	};
-
-	md_parallel_zsample(N, dims, out, &data, kspace ? kkernel : xkernel);
-}
-
-
-void calc_phantom3d(const long dims[DIMS], complex float* out, bool kspace)
-{
-	sample3d(DIMS, dims, out, 10, shepplogan3d, kspace);
-}
-
-
-static void sample_noncart(const long dims[DIMS], complex float* out, const complex float* traj, unsigned int D, const struct ellipsis_s* el)
-{
-	struct data2 data = {
-
-		.traj = traj,
-		.sens = (dims[COIL_DIM] > 1),
-		.data = &(struct krn_data){ true, D, el },
-		.fun = krn,
-	};
-
-	assert(3 == dims[0]);
-
-	long odims[DIMS];
-	md_select_dims(DIMS, 2 + 4 + 8, odims, dims);
-
-	long sdims[DIMS];
-	md_select_dims(DIMS, 1 + 2 + 4, sdims, dims);
-	md_calc_strides(DIMS, data.istrs, sdims, 1);
-
-	md_parallel_zsample(DIMS, odims, out, &data, nkernel);
-}
-
-
-static void sample3d_noncart(const long dims[DIMS], complex float* out, const complex float* traj, unsigned int D, const struct ellipsis3d_s* el)
-{
-	struct data2 data = {
-
-		.traj = traj,
-		.sens = (dims[COIL_DIM] > 1),
-		.data = &(struct krn3d_data){ true, D, el },
-		.fun = krn3d,
-	};
-
-	assert(3 == dims[0]);
-
-	long odims[DIMS];
-	md_select_dims(DIMS, 2 + 4 + 8, odims, dims);
-
-	long sdims[DIMS];
-	md_select_dims(DIMS, 1 + 2 + 4, sdims, dims);
-	md_calc_strides(DIMS, data.istrs, sdims, 1);
-
-	md_parallel_zsample(DIMS, odims, out, &data, nkernel);
-}
-
-
-void calc_phantom_noncart(const long dims[DIMS], complex float* out, const complex float* traj)
-{
-	sample_noncart(dims, out, traj, 10, shepplogan_mod);
-}
-
-void calc_phantom3d_noncart(const long dims[DIMS], complex float* out, const complex float* traj)
-{
-	sample3d_noncart(dims, out, traj, 10, shepplogan3d);
-}
 
 
 static complex float cnst_one(void* _data, const double mpos[2])
@@ -268,8 +195,9 @@ static complex float cnst_one(void* _data, const double mpos[2])
 
 void calc_sens(const long dims[DIMS], complex float* sens)
 {
-	struct data1 data = {
+	struct data data = {
 
+		.traj = NULL,
 		.sens = true,
 		.dims = { dims[0], dims[1], dims[2] },
 		.data = NULL,
@@ -282,24 +210,23 @@ void calc_sens(const long dims[DIMS], complex float* sens)
 
 
 
-void calc_circ(const long dims[DIMS], complex float* out, bool kspace)
+void calc_circ(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
-	sample(DIMS, dims, out, 1, phantom_disc, kspace);
+	if (!d3)
+		sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_disc), phantom_disc }, krn2d, kspace);
+	else
+		sample(dims, out, tstrs, traj, &(struct krn3d_data){ kspace, ARRAY_SIZE(phantom_disc3d), phantom_disc3d }, krn3d, kspace);
 }
 
-void calc_circ3d(const long dims[DIMS], complex float* out, bool kspace)
+void calc_ring(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
-	sample3d(DIMS, dims, out, 1, phantom_disc3d, kspace);
-}
-
-void calc_ring(const long dims[DIMS], complex float* out, bool kspace)
-{
-	sample(DIMS, dims, out, 4, phantom_ring, kspace);
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_ring), phantom_ring }, krn2d, kspace);
 }
 
 
 
-static void calc_moving_discs(const long dims[DIMS], complex float* out, bool kspace, int N, const struct ellipsis_s disc[N], float cen, float size)
+static void calc_moving_discs(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj,
+				int N, const struct ellipsis_s disc[N], float cen, float size)
 {
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, sizeof(complex float));
@@ -323,30 +250,32 @@ static void calc_moving_discs(const long dims[DIMS], complex float* out, bool ks
 			disc2[j].axis[1] *= 1. + size * y;
 		}
 #endif
-		sample(DIMS, dims1, (void*)out + strs[TE_DIM] * i, N, disc2, kspace);
+		sample(dims1, (void*)out + i * strs[TE_DIM], tstrs, (void*)traj + i * tstrs[TE_DIM], &(struct krn2d_data){ kspace, N, disc2 }, krn2d, kspace);
 	}
 }
 
 
-void calc_moving_circ(const long dims[DIMS], complex float* out, bool kspace)
+void calc_moving_circ(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
 	struct ellipsis_s disc[1] = { phantom_disc[0] };
+
 	disc[0].axis[0] /= 3;
 	disc[0].axis[1] /= 3;
 
-	calc_moving_discs(dims, out, kspace, ARRAY_SIZE(disc), disc, 0.5, 0.);
+	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc, 0.5, 0.);
 }
 
 
-void calc_heart(const long dims[DIMS], complex float* out, bool kspace)
+void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
 	struct ellipsis_s disc[] = {
+
 		{	 1.0, { 0.5, 0.5 }, { 0., 0. }, 0. },
 		{	-1.0, { 0.4, 0.4 }, { 0., 0. }, 0. },
 		{	 0.5, { 0.4, 0.4 }, { 0., 0. }, 0. },
 	};
 
-	calc_moving_discs(dims, out, kspace, ARRAY_SIZE(disc), disc, 0.1, 0.1);
+	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc, 0.1, 0.1);
 }
 
 

@@ -35,10 +35,7 @@ int main_phantom(int argc, char* argv[])
 	int sens = 0;
 	int osens = -1;
 	int xdim = -1;
-	bool out_sens = false;
-	bool tecirc = false;
-	bool circ = false;
-	bool heart = false;
+	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS } ptype = SHEPPLOGAN;
 	const char* traj = NULL;
 
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
@@ -46,31 +43,30 @@ int main_phantom(int argc, char* argv[])
 	dims[1] = 128;
 	dims[2] = 1;
 
-
-
 	const struct opt_s opts[] = {
 
 		OPT_INT('s', &sens, "nc", "nc sensitivities"),
-		OPT_INT('S', &osens, "", "Output nc sensitivities"),
+		OPT_INT('S', &osens, "nc", "Output nc sensitivities"),
 		OPT_SET('k', &kspace, "k-space"),
 		OPT_STRING('t', &traj, "file", "trajectory"),
-		OPT_SET('c', &circ, "()"),
-		OPT_SET('m', &tecirc, "()"),
+		OPT_SELECT('c', enum ptype_e, &ptype, CIRC, "()"),
+		OPT_SELECT('m', enum ptype_e, &ptype, TIME, "()"),
+		OPT_SELECT('C', enum ptype_e, &ptype, HEART, "heart"),
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_SET('3', &d3, "3D"),
-		OPT_SET('C', &heart, "heart"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 
 
-	if (tecirc || heart)
+	if ((TIME == ptype) || (HEART == ptype))
 		dims[TE_DIM] = 32;
 
 	if (-1 != osens) {
 
-		out_sens = true;
+		assert(SHEPPLOGAN == ptype);
+		ptype = SENS;
 		sens = osens;
 	}
 
@@ -82,15 +78,22 @@ int main_phantom(int argc, char* argv[])
 
 
 	long sdims[DIMS];
+	long sstrs[DIMS];
 	complex float* samples = NULL;
 
 	if (NULL != traj) {
 
+		assert(kspace);
+
 		samples = load_cfl(traj, DIMS, sdims);
+
+		md_calc_strides(DIMS, sstrs, sdims, sizeof(complex float));
 
 		dims[0] = 1;
 		dims[1] = sdims[1];
 		dims[2] = sdims[2];
+
+		assert(dims[TE_DIM] == sdims[TE_DIM]);
 	}
 
 
@@ -101,53 +104,37 @@ int main_phantom(int argc, char* argv[])
 
 	md_clear(DIMS, dims, out, sizeof(complex float));
 
-	if (out_sens) {
+	switch (ptype) {
+
+	case SENS:
 
 		assert(NULL == traj);
 		assert(!kspace);
 
 		calc_sens(dims, out);
+		break;
 
-	} else
-	if (heart) {
+	case HEART:
 
-		printf("Here!\n");
-
-		assert(NULL == traj);
 		assert(!d3);
+		calc_heart(dims, out, kspace, sstrs, samples);
+		break;
 
-		calc_heart(dims, out, kspace);
+	case TIME:
 
-	} else
-	if (circ || tecirc) {
+		assert(!d3);
+		calc_moving_circ(dims, out, kspace, sstrs, samples);
+		break;
 
-		assert(NULL == traj);
+	case CIRC:
 
-		if (1 < dims[TE_DIM]) {
+		calc_circ(dims, out, d3, kspace, sstrs, samples);
+		break;
 
-			assert(!d3);
-			calc_moving_circ(dims, out, kspace);
+	case SHEPPLOGAN:
 
-		} else {
-
-			(d3 ? calc_circ3d : calc_circ)(dims, out, kspace);
-//		calc_ring(dims, out, kspace);
-		}
-
-	} else {
-
-		//assert(1 == dims[COIL_DIM]);
-
-		if (NULL == samples) {
-
-			(d3 ? calc_phantom3d : calc_phantom)(dims, out, kspace);
-
-		} else {
-
-			dims[0] = 3;
-			(d3 ? calc_phantom3d_noncart : calc_phantom_noncart)(dims, out, samples);
-			dims[0] = 1;
-		}
+		calc_phantom(dims, out, d3, kspace, sstrs, samples);
+		break;
 	}
 
 	if (NULL != traj)
