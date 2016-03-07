@@ -82,17 +82,25 @@ To install the required libraries on Debian and Ubuntu run:
 
 Xcode is required and it is recommended to install a newer version 
 of gcc (4.7 seems to work) from MacPorts (http://www.macports.org/).
+These instructions use Macports. It is also possible to use Homebrew.
 
 
     $ sudo port install fftw-3-single
     $ sudo port install gcc47
     $ sudo port install libpng
+    $ sudo port install OpenBLAS
 
     (optional)
     $ sudo port install octave
 
     (optional)
     install version 0.5.2 of the ISMRMRD library
+
+
+	 Modify the base directories in a local Makefile,
+
+	 $ echo "FFTW_BASE := /opt/local/" > Makefile.local
+	 $ echo "BLAS_BASE := /opt/local/" >> Makefile.local
 
 
 
