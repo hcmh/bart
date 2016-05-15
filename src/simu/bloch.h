@@ -16,4 +16,7 @@
 
 extern void bloch_ode(float out[3], const float in[3], float m0, float t1, float t2, const float gb[3]);
 extern void bloch_relaxation(float out[3], float t, const float in[3], float m0, float t1, float t2, const float gb[3]);
+extern void bloch_excitation(float out[3], float t, const float in[3], float m0, float t1, float t2, const float gb[3]);
+
+extern void bloch_matrix_ode(float matrix[4][4], float m0, float t1, float t2, const float gb[3]);
 

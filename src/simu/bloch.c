@@ -27,7 +27,32 @@ void bloch_relaxation(float out[3], float t, const float in[3], float m0, float 
 }
 
 
+void bloch_excitation(float out[3], float t, const float in[3], float m0, float t1, float t2, const float gb[3])
+{
+	assert(0. == gb[2]); // no gradient, rotating frame
 
+	out[0] = in[0];
+	out[1] = (in[2] * sinf(gb[0] * t) + in[0] * sinf(gb[0] * t));
+	out[2] = (in[2] * cosf(gb[0] * t) - in[0] * sinf(gb[0] * t));
+}
+
+
+
+
+
+void bloch_matrix_ode(float matrix[4][4], float m0, float t1, float t2, const float gb[3])
+{
+	float m[4][4] = {
+		{	-1. / t2,	gb[2],		-gb[1],		0.	},
+		{	-gb[2],		-1. / t2,	gb[0],		0.	},
+		{	gb[1],		-gb[0],		-1. / t1,	m0 / t1 },
+		{	0.,		0.,		0.,		0.	},
+	};
+
+	for (unsigned int i = 0; i < 4; i++)
+		for (unsigned int j = 0; j < 4; j++)
+			matrix[i][j] = m[i][j];
+}
 
 
 
