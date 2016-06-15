@@ -59,7 +59,6 @@ int main_phantom(int argc, char* argv[])
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 
-
 	if ((TIME == ptype) || (HEART == ptype))
 		dims[TE_DIM] = 32;
 
@@ -83,7 +82,7 @@ int main_phantom(int argc, char* argv[])
 
 	if (NULL != traj) {
 
-		assert(kspace);
+		kspace = true;
 
 		samples = load_cfl(traj, DIMS, sdims);
 

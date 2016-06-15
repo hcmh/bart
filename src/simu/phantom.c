@@ -224,9 +224,25 @@ void calc_ring(const long dims[DIMS], complex float* out, bool kspace, const lon
 }
 
 
+struct moving_ellipsis_s {
+
+	struct ellipsis_s geom;
+	complex float fourier_coeff_size[2][3];
+	complex float fourier_coeff_pos[2][3];
+};
+
+static complex float fourier_series(float t, unsigned int N, const complex float coeff[static N])
+{
+	complex float val = 0.;
+
+	for (unsigned int i = 0; i < N; i++)
+		val += coeff[i] * cexpf(2.i * M_PI * t * (float)i);
+
+	return val;
+}
 
 static void calc_moving_discs(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj,
-				int N, const struct ellipsis_s disc[N], float cen, float size)
+				int N, const struct moving_ellipsis_s disc[N])
 {
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, sizeof(complex float));
@@ -236,46 +252,57 @@ static void calc_moving_discs(const long dims[DIMS], complex float* out, bool ks
 
 	for (int i = 0; i < dims[TE_DIM]; i++) {
 #if 1
-		float x = sin(2. * M_PI * (float)i / (float)dims[TE_DIM]);
-		float y = cos(2. * M_PI * (float)i / (float)dims[TE_DIM]);
-
 		struct ellipsis_s disc2[N];
 
 		for (int j = 0; j < N; j++) {
 
-			disc2[j] = disc[j];
-			disc2[j].center[0] = cen * x;
-			disc2[j].center[1] = cen * y;
-			disc2[j].axis[0] *= 1. + size * y;
-			disc2[j].axis[1] *= 1. + size * y;
+			disc2[j] = disc[j].geom;
+			disc2[j].center[0] = crealf(fourier_series(i / (float)dims[TE_DIM], 3, disc[j].fourier_coeff_pos[0]));
+			disc2[j].center[1] = crealf(fourier_series(i / (float)dims[TE_DIM], 3, disc[j].fourier_coeff_pos[1]));
+			disc2[j].axis[0] = crealf(fourier_series(i / (float)dims[TE_DIM], 3, disc[j].fourier_coeff_size[0]));
+			disc2[j].axis[1] = crealf(fourier_series(i / (float)dims[TE_DIM], 3, disc[j].fourier_coeff_size[1]));
 		}
 #endif
-		sample(dims1, (void*)out + i * strs[TE_DIM], tstrs, (void*)traj + i * tstrs[TE_DIM], &(struct krn2d_data){ kspace, N, disc2 }, krn2d, kspace);
+		void* traj2 = (NULL == traj) ? NULL : ((void*)traj + i * tstrs[TE_DIM]);
+
+		sample(dims1, (void*)out + i * strs[TE_DIM], tstrs, traj2, &(struct krn2d_data){ kspace, N, disc2 }, krn2d, kspace);
 	}
 }
 
 
 void calc_moving_circ(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
-	struct ellipsis_s disc[1] = { phantom_disc[0] };
+	struct moving_ellipsis_s disc[1] = { {
+			.geom = phantom_disc[0],
+			.fourier_coeff_size = { { 0.3, 0., 0, }, { 0.3, 0., 0. }, },
+			.fourier_coeff_pos = { { 0, 0.5, 0., }, { 0., 0.5i, 0. } },
+	} };
 
-	disc[0].axis[0] /= 3;
-	disc[0].axis[1] /= 3;
-
-	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc, 0.5, 0.);
+	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc);
 }
 
 
 void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
-	struct ellipsis_s disc[] = {
-
-		{	 1.0, { 0.5, 0.5 }, { 0., 0. }, 0. },
-		{	-1.0, { 0.4, 0.4 }, { 0., 0. }, 0. },
-		{	 0.5, { 0.4, 0.4 }, { 0., 0. }, 0. },
+	struct moving_ellipsis_s disc[] = {
+		{	.geom = { 0.4, { 0.5, 0.5 }, { 0., 0. }, 0. },
+			.fourier_coeff_size = { { 0.5, 0.08, 0. }, { 0.5, 0.08, 0., }, },
+			.fourier_coeff_pos = { { 0., 0.1, 0., }, { 0., 0.1i, 0., }, }, },
+		{	.geom = { -0.4, { 0.4, 0.4 }, { 0., 0. }, 0. },
+			.fourier_coeff_size = { { 0.4, 0.05, 0. }, { 0.4, 0.05, 0., }, },
+			.fourier_coeff_pos = { { 0., 0.1, 0., }, { 0., 0.1i, 0., }, }, },
+		{	.geom = { 1., { 0.4, 0.4 }, { 0., 0. }, 0. },
+			.fourier_coeff_size = { { 0.4, 0.05, 0., }, { 0.4, 0.05, 0., }, },
+			.fourier_coeff_pos = { { 0., 0.1, 0., }, { 0., 0.1i, 0., }, }, },
+		{	.geom = { 0.5, { 0.9, 0.8 }, { 0, 0. }, 0. },
+			.fourier_coeff_size = { { 0.9, 0.00, 0., }, { 0.8, 0.00, 0., }, },
+			.fourier_coeff_pos = { { 0., 0., 0., }, { 0., 0., 0., }, }, },
+		{	.geom = { -0.5, { 0.8, 0.7 }, { 0, 0. }, 0. },
+			.fourier_coeff_size = { { 0.8, 0.00, 0., }, { 0.7, 0.00, 0., }, },
+			.fourier_coeff_pos = { { 0., 0., 0., }, { 0., 0., 0., }, }, },
 	};
 
-	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc, 0.1, 0.1);
+	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc);
 }
 
 
