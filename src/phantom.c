@@ -12,6 +12,7 @@
 #include <stdio.h>
 
 #include "num/multind.h"
+#include "num/init.h"
 
 #include "misc/mri.h"
 #include "misc/mmio.h"
@@ -57,6 +58,8 @@ int main_phantom(int argc, char* argv[])
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	num_init();
 
 
 	if ((TIME == ptype) || (HEART == ptype))

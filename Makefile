@@ -24,6 +24,7 @@ FFTWTHREADS?=1
 ISMRMRD?=0
 
 DESTDIR ?= /
+PREFIX ?= usr/
 
 BUILDTYPE = Linux
 UNAME = $(shell uname -s)
@@ -126,7 +127,7 @@ ISMRM_BASE ?= /usr/local/ismrmrd/
 # Main build targets
 
 TBASE=show slice crop resize join transpose zeros ones flip circshift extract repmat bitmask reshape version
-TFLP=scale conj fmac saxpy sdot spow cpyphs creal carg normalize cdf97 pattern nrmse mip wavg
+TFLP=scale conj fmac saxpy sdot spow cpyphs creal carg normalize cdf97 pattern nrmse mip avg
 TNUM=fft fftmod fftshift noise bench threshold conv rss filter
 TRECO=pics pocsense rsense sqpics bpsense itsense nlinv nufft rof sake wave lrmatrix estdims
 TCALIB=ecalib ecaltwo caldir walsh cc calmat svd estvar
@@ -464,11 +465,11 @@ endif	# MAKESTAGE
 
 
 install: bart $(root)/doc/commands.txt
-	install -d $(DESTDIR)/usr/bin/
-	install bart $(DESTDIR)/usr/bin/
-	install -d $(DESTDIR)/usr/share/doc/bart/
-	install $(root)/doc/*.txt $(root)/README $(DESTDIR)/usr/share/doc/bart/
-	install -d $(DESTDIR)/usr/lib/bart/commands/
+	install -d $(DESTDIR)/$(PREFIX)/bin/
+	install bart $(DESTDIR)/$(PREFIX)/bin/
+	install -d $(DESTDIR)/$(PREFIX)/share/doc/bart/
+	install $(root)/doc/*.txt $(root)/README $(DESTDIR)/$(PREFIX)/share/doc/bart/
+	install -d $(DESTDIR)/$(PREFIX)/lib/bart/commands/
 
 
 # generate release tar balls (identical to github)

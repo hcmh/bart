@@ -11,6 +11,7 @@
 
 #include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/init.h"
 
 #include "misc/mmio.h"
 #include "misc/opts.h"
@@ -21,12 +22,21 @@
 #endif
 
 static const char usage_str[] = "<bitmask> <input> <output>";
-static const char help_str[] = "Calculates weighted average along dimensions specified by bitmask.\n";
+static const char help_str[] = "Calculates (weighted) average along dimensions specified by bitmask.";
 
 
-int main_wavg(int argc, char* argv[argc])
+int main_avg(int argc, char* argv[argc])
 {
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, 0, NULL);
+	bool wavg = false;
+
+	const struct opt_s opts[] = {
+
+		OPT_SET('w', &wavg, "weighted average"),
+	};
+
+	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	num_init();
 
 	int N = DIMS;
 
@@ -40,7 +50,7 @@ int main_wavg(int argc, char* argv[argc])
 
 	complex float* out = create_cfl(argv[3], N, odims);
 
-	md_zwavg(N, idims, flags, out, data);
+	(wavg ? md_zwavg : md_zavg)(N, idims, flags, out, data);
 
 	unmap_cfl(N, idims, data);
 	unmap_cfl(N, odims, out);

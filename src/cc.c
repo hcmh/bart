@@ -21,6 +21,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/fft.h"
+#include "num/init.h"
 
 #include "calib/cc.h"
 
@@ -49,12 +50,14 @@ int main_cc(int argc, char* argv[])
 		OPT_VEC3('r', &calsize, "S", "size of calibration region"),
 		OPT_VEC3('R', &calsize, "", "(size of calibration region)"),
 		OPT_SET('A', &all, "use all data to compute coefficients"),
-		OPT_SELECT('S', enum cc_type, &cc_type, SCC, "|G|E\t\ttype: SVD, Geometric, ESPIRiT"),
-		OPT_SELECT('G', enum cc_type, &cc_type, GCC, "()"),
-		OPT_SELECT('E', enum cc_type, &cc_type, ECC, "()"),
+		OPT_SELECT('S', enum cc_type, &cc_type, SCC, "type: SVD"),
+		OPT_SELECT('G', enum cc_type, &cc_type, GCC, "type: Geometric"),
+		OPT_SELECT('E', enum cc_type, &cc_type, ECC, "type: ESPIRiT"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	num_init();
 
 	if (-1 != P)
 		proj = true;
