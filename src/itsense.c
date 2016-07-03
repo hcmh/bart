@@ -1,9 +1,10 @@
 /* Copyright 2013-2014. The Regents of the University of California.
- * All rights reserved. Use of this source code is governed by 
+ * Copyright 2016. Martin Uecker.
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  * 
  * Authors:
- * 2012, 2014 Martin Uecker <uecker@eecs.berkeley.edu>
+ * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  *
  * 
  * Basic iterative sense reconstruction
@@ -20,9 +21,9 @@
 #include "num/flpmath.h"
 #include "num/fft.h"
 #include "num/init.h"
+#include "num/ops.h"
 
-#include "iter/italgos.h"
-#include "iter/vec.h"
+#include "iter/iter.h"
 
 #include "misc/misc.h"
 #include "misc/mmio.h"
@@ -30,6 +31,8 @@
 
 
 struct sense_data {
+
+	operator_data_t base;
 
 	long sens_dims[DIMS];
 	long sens_strs[DIMS];
@@ -52,10 +55,8 @@ struct sense_data {
 
 
 
-static void sense_forward(const void* _data, complex float* out, const complex float* imgs)
+static void sense_forward(const struct sense_data* data, complex float* out, const complex float* imgs)
 {
-	const struct sense_data* data = _data;
-
 	md_clear(DIMS, data->data_dims, out, CFL_SIZE);
 	md_zfmac2(DIMS, data->sens_dims, data->data_strs, out, data->sens_strs, data->sens, data->imgs_strs, imgs); 
 
@@ -66,10 +67,8 @@ static void sense_forward(const void* _data, complex float* out, const complex f
 }
 
 
-static void sense_adjoint(const void* _data, complex float* imgs, const complex float* out)
+static void sense_adjoint(const struct sense_data* data, complex float* imgs, const complex float* out)
 {
-	const struct sense_data* data = _data;
-
 	md_zmulc2(DIMS, data->data_dims, data->data_strs, data->tmp, data->data_strs, out, data->mask_strs, data->pattern);
 
 	ifftc(DIMS, data->data_dims, FFT_FLAGS, data->tmp, data->tmp);
@@ -80,9 +79,12 @@ static void sense_adjoint(const void* _data, complex float* imgs, const complex 
 }
 
 
-static void sense_normal(void* _data, float* out, const float* in)
+static void sense_normal(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-	const struct sense_data* data = _data;
+	assert(2 == N);
+	float* out = args[0];
+	const float* in = args[1];
+	const struct sense_data* data = CONTAINER_OF(_data, const struct sense_data, base);
 
 	sense_forward(data, data->tmp, (const complex float*)in);
 	sense_adjoint(data, (complex float*)out, data->tmp);
@@ -102,8 +104,19 @@ static void sense_reco(struct sense_data* data, complex float* imgs, const compl
 
 	long size = md_calc_size(DIMS, data->imgs_dims);
 
-	conjgrad(100, data->alpha, 1.E-3, 2 * size, data, &cpu_iter_ops, sense_normal,
-	(float*)imgs, (const float*)adj, NULL, NULL, NULL);
+	const struct operator_s* op = operator_create(DIMS, data->imgs_dims, DIMS, data->imgs_dims,
+		&data->base, sense_normal, NULL);
+
+	struct iter_conjgrad_conf conf = iter_conjgrad_defaults;
+	conf.maxiter = 100;
+	conf.l2lambda = data->alpha;
+	conf.tol = 1.E-3;
+
+	iter_conjgrad(&conf.base,
+		op, NULL, size, (float*)imgs, (const float*)adj,
+		NULL, NULL, NULL);
+
+	operator_free(op);
 
 	md_free(adj);
 }
