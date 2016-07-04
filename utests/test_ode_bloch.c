@@ -53,7 +53,7 @@ static bool test_ode_bloch(void)
 
 		if (err > tol) {
 
-			h = h_new;		
+			h = h_new;
 			bloch_fun(NULL, k[0], t, x);	// recreate correct k[0] which has been overwritten
 			goto repeat;
 		}
@@ -100,4 +100,3 @@ static bool test_bloch_matrix(void)
 }
 
 UT_REGISTER_TEST(test_bloch_matrix);
-	
