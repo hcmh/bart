@@ -1,6 +1,6 @@
 
 // rad s^-1 T^-1
-#define GAMMA_H1 267.513e6  
+#define GAMMA_H1 267.513e6
 
 //  @3T
 #define WATER_T1 3.0
