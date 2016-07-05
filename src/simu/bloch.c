@@ -29,15 +29,21 @@ void bloch_relaxation(float out[3], float t, const float in[3], float m0, float 
 
 void bloch_excitation(float out[3], float t, const float in[3], float m0, float t1, float t2, const float gb[3])
 {
+	(void)m0; (void)t1; (void)t2;
 	assert(0. == gb[2]); // no gradient, rotating frame
 
 	out[0] = in[0];
-	out[1] = (in[2] * sinf(gb[0] * t) + in[0] * sinf(gb[0] * t));
+	out[1] = (in[2] * sinf(gb[0] * t) + in[0] * cosf(gb[0] * t));
 	out[2] = (in[2] * cosf(gb[0] * t) - in[0] * sinf(gb[0] * t));
 }
 
 
-
+static void matf_copy(int N, int M, float out[N][M], const float in[N][M])
+{
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < M; j++)
+			out[i][j] = in[i][j];
+}
 
 
 void bloch_matrix_ode(float matrix[4][4], float m0, float t1, float t2, const float gb[3])
@@ -49,9 +55,7 @@ void bloch_matrix_ode(float matrix[4][4], float m0, float t1, float t2, const fl
 		{	0.,		0.,		0.,		0.	},
 	};
 
-	for (unsigned int i = 0; i < 4; i++)
-		for (unsigned int j = 0; j < 4; j++)
-			matrix[i][j] = m[i][j];
+	matf_copy(4, 4, matrix, m);
 }
 
 
