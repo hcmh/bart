@@ -30,7 +30,6 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <math.h>
-#include <strings.h>
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -39,10 +38,6 @@
 
 #include "misc/misc.h"
 #include "misc/debug.h"
-
-// automatic parallelization
-extern bool num_auto_parallelize;
-bool num_auto_parallelize = true;
 
 
 #ifdef USE_CUDA
@@ -55,26 +50,6 @@ bool num_auto_parallelize = true;
 #endif
 
 
-#ifdef USE_CUDA
-static bool use_gpu(int p, void* ptr[p])
-{
-	bool gpu = false;
-
-	for (int i = 0; i < p; i++)
-		gpu |= cuda_ondevice(ptr[i]);
-
-	for (int i = 0; i < p; i++)
-		gpu &= cuda_accessible(ptr[i]);
-
-	if (!gpu) {
-
-		for (int i = 0; i < p; i++)
-			assert(!cuda_ondevice(ptr[i]));
-	}
-
-	return gpu;
-}
-#endif
 typedef void (*md_2op_t)(unsigned int D, const long dims[D], const long ostrs[D], float* optr, const long istrs1[D], const float* iptr1);
 typedef void (*md_z2op_t)(unsigned int D, const long dims[D], const long ostrs[D], complex float* optr, const long istrs1[D], const complex float* iptr1);
 typedef void (*md_2opf_t)(unsigned int D, const long dims[D], const long ostrs[D], float* optr, const long istrs1[D], const double* iptr1);
@@ -113,87 +88,6 @@ static void make_2op_simple(md_2op_t fun, unsigned int D, const long dims[D], fl
 
 
 
-struct data_s { 
-
-	long size;
-	const struct vec_ops* ops;
-	void* data_ptr;
-};
-
-
-
-
-/**
- * Optimized n-op.
- *
- * @param N number of arguments
- ' @param io bitmask indicating input/output
- * @param D number of dimensions
- * @param dim dimensions
- * @param nstr strides for arguments and dimensions
- * @param nptr argument pointers
- * @param sizes size of data for each argument, e.g. complex float
- * @param too n-op function
- * @param data_ptr pointer to additional data used by too
- */
-static void optimized_nop(unsigned int N, unsigned int io, unsigned int D, const long dim[D], const long (*nstr[N])[D], void* const nptr[N], size_t sizes[N], md_nary_fun_t too, void* data_ptr)
-{
-	long tdims[D];
-	md_copy_dims(D, tdims, dim);
-
-	long tstrs[N][D];
-	long (*nstr1[N])[D];
-	void* nptr1[N];
-
-	for (unsigned int i = 0; i < N; i++) {
-
-		md_copy_strides(D, tstrs[i], *nstr[i]);
-		nstr1[i] = &tstrs[i];
-		nptr1[i] = nptr[i];
-	}
-
-	int ND = optimize_dims(N, D, tdims, nstr1);
-
-	int skip = min_blockdim(N, ND, tdims, nstr1, sizes);
-	unsigned int flags = 0;
-
-#ifdef USE_CUDA
-	if (num_auto_parallelize && !use_gpu(N, nptr1)) {
-#else
-	if (num_auto_parallelize) {
-#endif
-		flags = dims_parallel(N, io, ND, tdims, nstr1, sizes);
-
-		debug_printf(DP_DEBUG4, "Skip: %d %d\n", skip, ffs(flags));
-
-		while ((0 != flags) && (ffs(flags) <= skip))
-			skip--;
-
-		debug_print_dims(DP_DEBUG4, D, dim);
-		debug_print_dims(DP_DEBUG4, ND, tdims);
-		debug_printf(DP_DEBUG4, "Io: %d, Parallel: %d, Skip: %d\n", io, flags, skip);
-
-		flags = flags >> skip;
-	}
-
-	const long* nstr2[N];
-
-	for (unsigned int i = 0; i < N; i++)
-		nstr2[i] = *nstr1[i] + skip;
-
-#ifdef USE_CUDA
-	struct data_s data = { md_calc_size(skip, tdims), use_gpu(N, nptr1) ? &gpu_ops : &cpu_ops, data_ptr };
-#else
-	struct data_s data = { md_calc_size(skip, tdims), &cpu_ops, data_ptr };
-#endif
-
-	md_parallel_nary(N, ND - skip, tdims + skip, flags, nstr2, nptr1, &data, too);
-}
-
-
-
-
-
 
 
 /**
@@ -209,7 +103,7 @@ static void optimized_nop(unsigned int N, unsigned int io, unsigned int D, const
  * @param too two-op multiply function
  * @param data_ptr pointer to additional data used by too
  */
-static void optimized_twoop_oi(unsigned int D, const long dim[D], const long ostr[D], void* optr, const long istr1[D], const void* iptr1, size_t sizes[2], md_nary_fun_t too, void* data_ptr)
+static void optimized_twoop_oi(unsigned int D, const long dim[D], const long ostr[D], void* optr, const long istr1[D], const void* iptr1, size_t sizes[2], md_nary_opt_fun_t too, void* data_ptr)
 {
 	const long (*nstr[2])[D] = { (const long (*)[D])ostr, (const long (*)[D])istr1 };
 	void *nptr[2] = { optr, (void*)iptr1 };
@@ -239,7 +133,7 @@ static void optimized_twoop_oi(unsigned int D, const long dim[D], const long ost
  * @param too three-op multiply function
  * @param data_ptr pointer to additional data used by too
  */
-static void optimized_threeop_oii(unsigned int D, const long dim[D], const long ostr[D], void* optr, const long istr1[D], const void* iptr1, const long istr2[D], const void* iptr2, size_t sizes[3], md_nary_fun_t too, void* data_ptr)
+static void optimized_threeop_oii(unsigned int D, const long dim[D], const long ostr[D], void* optr, const long istr1[D], const void* iptr1, const long istr2[D], const void* iptr2, size_t sizes[3], md_nary_opt_fun_t too, void* data_ptr)
 {
 	const long (*nstr[3])[D] = { (const long (*)[D])ostr, (const long (*)[D])istr1, (const long (*)[D])istr2 };
 	void *nptr[3] = { optr, (void*)iptr1, (void*)iptr2 };
@@ -348,9 +242,8 @@ static void make_2opd_simple(md_2opd_t fun, unsigned int D, const long dims[D], 
 	fun(D, dims, strs_double, optr, strs_single, iptr1);
 }
 
-static void nary_z3op(void* _data, void* ptr[])
+static void nary_z3op(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
 
 	(*(z3op_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1], ptr[2]);
@@ -362,9 +255,8 @@ static void make_z3op(size_t offset, unsigned int D, const long dim[D], const lo
 				(size_t[3]){ [0 ... 2] = CFL_SIZE }, nary_z3op, &offset);
 }
 
-static void nary_3op(void* _data, void* ptr[])
+static void nary_3op(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
 
 	(*(r3op_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1], ptr[2]);
@@ -376,9 +268,8 @@ static void make_3op(size_t offset, unsigned int D, const long dim[D], const lon
 				(size_t[3]){ [0 ... 2] = FL_SIZE }, nary_3op, &offset);
 }
 
-static void nary_z3opd(void* _data, void* ptr[])
+static void nary_z3opd(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
 
 	(*(z3opd_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1], ptr[2]);
@@ -390,9 +281,8 @@ static void make_z3opd(size_t offset, unsigned int D, const long dim[D], const l
 			(size_t[3]){ CDL_SIZE, CFL_SIZE, CFL_SIZE }, nary_z3opd, &offset);
 }
 
-static void nary_3opd(void* _data, void* ptr[])
+static void nary_3opd(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
 
 	(*(r3opd_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1], ptr[2]);
@@ -404,9 +294,8 @@ static void make_3opd(size_t offset, unsigned int D, const long dim[D], const lo
 			(size_t[3]){ DL_SIZE, FL_SIZE, FL_SIZE }, nary_3opd, &offset);
 }
 
-static void nary_z2op(void* _data, void* ptr[])
+static void nary_z2op(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
 
 	(*(z2op_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1]);
@@ -417,9 +306,8 @@ static void make_z2op(size_t offset, unsigned int D, const long dim[D], const lo
 	optimized_twoop_oi(D, dim, ostr, optr, istr1, iptr1, (size_t[2]){ CFL_SIZE, CFL_SIZE }, nary_z2op, &offset);
 }
 
-static void nary_2op(void* _data, void* ptr[])
+static void nary_2op(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
 
 	(*(r2op_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1]);
@@ -430,12 +318,8 @@ static void make_2op(size_t offset, unsigned int D, const long dim[D], const lon
 	optimized_twoop_oi(D, dim, ostr, optr, istr1, iptr1, (size_t[2]){ FL_SIZE, FL_SIZE }, nary_2op, &offset);
 }
 
-#if 0
-// UNUSED
-
-static void nary_z2opd(void* _data, void* ptr[])
+static void nary_z2opd(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
 
 	(*(z2opd_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1]);
@@ -447,11 +331,11 @@ static void make_z2opd(size_t offset, unsigned int D, const long dim[D], const l
 
 	optimized_twoop_oi(D, dim, ostr, optr, istr1, iptr1, sizes, nary_z2opd, &offset);
 }
-#endif
 
-static void nary_2opd(void* _data, void* ptr[])
+void* unsued = make_z2opd;
+
+static void nary_2opd(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
 
 	(*(r2opd_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1]);
@@ -462,12 +346,10 @@ static void make_2opd(size_t offset, unsigned int D, const long dim[D], const lo
 	optimized_twoop_oi(D, dim, ostr, optr, istr1, iptr1, (size_t[2]){ DL_SIZE, FL_SIZE }, nary_2opd, &offset);
 }
 
-#if 0
-// UNUSED
-static void nary_z2opf(void* _data, void* ptr[])
+static void nary_z2opf(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
+
 	(*(z2opf_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1]);
 }
 
@@ -476,11 +358,11 @@ static void make_z2opf(size_t offset, unsigned int D, const long dim[D], const l
 	size_t sizes[2] = { sizeof(complex float), sizeof(complex double) };
 	optimized_twoop_oi(D, dim, ostr, optr, istr1, iptr1, sizes, nary_z2opf, &offset);
 }
-#endif
 
-static void nary_2opf(void* _data, void* ptr[])
+void* unused2 = make_z2opf;
+
+static void nary_2opf(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = _data;
 	size_t offset = *(size_t*)data->data_ptr;
 
 	(*(r2opf_t*)(((char*)data->ops) + offset))(data->size, ptr[0], ptr[1]);
@@ -1448,7 +1330,12 @@ void md_axpy2(unsigned int D, const long dims[D], const long ostr[D], float* opt
 	if (0. == val)
 		return;
 
-	// (1. == val) -> md_sadd
+	// strength reduction
+	if (1. == val) {
+
+		md_add2(D, dims, ostr, optr, ostr, optr, istr, iptr);
+		return;
+	}
 
 #ifdef USE_CUDA
 	if (cuda_ondevice(iptr)) {
@@ -2606,9 +2493,8 @@ extern void md_zfill(unsigned int D, const long dim[D], complex float* ptr, comp
  *
  * return SoftThresh(ptr)
  */
-static void nary_zsoftthresh_half(void* _data, void* ptr[])
+static void nary_zsoftthresh_half(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = (struct data_s*)_data;
 	data->ops->zsoftthresh_half(data->size, *(float*)data->data_ptr, ptr[0], ptr[1]);
 }
 
@@ -2636,9 +2522,8 @@ void md_zsoftthresh_half2(unsigned int D, const long dim[D], float lambda, const
  *
  * return SoftThresh(ptr)
  */
-static void nary_softthresh_half(void* _data, void* ptr[])
+static void nary_softthresh_half(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = (struct data_s*)_data;
 	data->ops->softthresh_half(data->size, *(float*)data->data_ptr, ptr[0], ptr[1]);
 }
 
@@ -2701,9 +2586,8 @@ void md_softthresh_core2(unsigned int D, const long dims[D], float lambda, unsig
  *
  * return SoftThresh(ptr)
  */
-static void nary_softthresh(void* _data, void* ptr[])
+static void nary_softthresh(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = (struct data_s*)_data;
 	data->ops->softthresh(data->size, *(float*)data->data_ptr, ptr[0], ptr[1]);
 }
 
@@ -2762,9 +2646,8 @@ void md_zsoftthresh_core2(unsigned int D, const long dims[D], float lambda, unsi
 
 
 
-static void nary_zsoftthresh(void* _data, void* ptr[])
+static void nary_zsoftthresh(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = (struct data_s*)_data;
 	data->ops->zsoftthresh(data->size, *(float*)data->data_ptr, ptr[0], ptr[1]);
 }
 
@@ -3021,9 +2904,8 @@ struct zfftmod_s {
 	unsigned int N;
 };
 
-static void nary_zfftmod(void* _data, void* ptr[])
+static void nary_zfftmod(struct nary_opt_data_s* data, void* ptr[])
 {
-	struct data_s* data = (struct data_s*)_data;
 	struct zfftmod_s* mdata = (struct zfftmod_s*)data->data_ptr;
 
 	data->ops->zfftmod(data->size, ptr[0], ptr[1], mdata->N, mdata->inv, mdata->phase);

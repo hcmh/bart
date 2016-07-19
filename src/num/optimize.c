@@ -1,9 +1,10 @@
 /* Copyright 2014. The Regents of the University of California.
- * All rights reserved. Use of this source code is governed by 
+ * Copyright 2016. Martin Uecker.
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2013-2014 Martin Uecker <uecker@eecs.berkeley.edu>
+ * 2013-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  *
  * 
  * Optimization framework for operations on multi-dimensional arrays.
@@ -14,15 +15,18 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <math.h>
 
 #include "misc/misc.h"
 #include "misc/debug.h"
 
 #include "num/multind.h"
-#ifdef BERKELEY_SVN
-#include "num/simplex.h"
+#include "num/vecops.h"
+#ifdef USE_CUDA
+#include "num/gpuops.h"
 #endif
+#include "num/simplex.h"
 
 #include "optimize.h"
 
@@ -179,7 +183,6 @@ static void reorder_long(unsigned int N, unsigned int ord[N], long x[N])
 }
 
 
-#ifdef BERKELEY_SVN
 /*
  * Jim Demmel's generic blocking theorem
  */
@@ -201,7 +204,6 @@ static void demmel_factors(unsigned int D, unsigned int N, float blocking[N], lo
 
 	simplex(D, N, blocking, ones, ones, (const float (*)[N])delta);
 }
-#endif
 
 
 static long find_factor(long x, float blocking)
@@ -224,17 +226,15 @@ static bool split_dims(unsigned int D, unsigned int N, long dims[N + 1], long (*
 
 	long f;
 	if ((dims[N - 1] > 1024) && (1 < (f = find_factor(dims[N - 1], blocking[N - 1])))) {
-//	if ((dims[N - 1] > 64) && (1 < (f = find_factor(dims[N - 1], blocking[N - 1])))) {
 #if 1
-		//printf("Split with %ld=%ldx%ld\n", dims[N - 1], f, dims[N - 1] / f);
-
-		dims[N] = dims[N - 1] / f;
-		dims[N - 1] = f;
+		dims[N - 1] = dims[N - 1] / f;
+		dims[N] = f;
 
 		for (unsigned int j = 0; j < D; j++)
-			(*ostrs[j])[N] = (*ostrs[j])[N - 1] * f;
+			(*ostrs[j])[N] = (*ostrs[j])[N - 1] * dims[N - 1];
 
-		blocking[N] = 1.;
+		blocking[N - 1] = blocking[N - 1];
+		blocking[N] = blocking[N - 1];
 #else
 		dims[N] = 1;
 		for (unsigned int j = 0; j < D; j++)
@@ -284,12 +284,10 @@ unsigned int optimize_dims(unsigned int D, unsigned int N, long dims[N], long (*
 	debug_print_dims(DP_DEBUG4, ND, dims);
 
 	float blocking[N];
-#ifdef BERKELEY_SVN
 	// actually those are not the blocking factors
 	// as used below but relative to fast memory
 	//demmel_factors(D, ND, blocking, strs);
 	UNUSED(demmel_factors);
-#endif
 #if 0
 	debug_printf(DP_DEBUG4, "DB: ");
 	for (unsigned int i = 0; i < ND; i++)
@@ -445,7 +443,6 @@ static unsigned int parallelizable(unsigned int D, unsigned int io, unsigned int
 
 
 #define CHUNK (32 * 1024)
-#define CORES (64)
 
 
 /**
@@ -456,14 +453,13 @@ unsigned int dims_parallel(unsigned int D, unsigned int io, unsigned int N, cons
 {
 	unsigned int flags = parallelizable(D, io, N, dims, strs, size);
 
-	unsigned int i = D;
-	unsigned int count = 1;
+	unsigned int i = N;
 
 	long reps = md_calc_size(N, dims);
 
 	unsigned int oflags = 0;
 
-	while ((count < CORES) && (i-- > 0)) {
+	while (i-- > 0) {
 
 		if (MD_IS_SET(flags, i)) {
 
@@ -473,8 +469,6 @@ unsigned int dims_parallel(unsigned int D, unsigned int io, unsigned int N, cons
 				break;
 
 			oflags = MD_SET(oflags, i);
-
-			//break; // only 1
 		}
 	}
 
@@ -482,6 +476,123 @@ unsigned int dims_parallel(unsigned int D, unsigned int io, unsigned int N, cons
 }
 
 
+#ifdef USE_CUDA
+static bool use_gpu(int p, void* ptr[p])
+{
+	bool gpu = false;
 
+	for (int i = 0; i < p; i++)
+		gpu |= cuda_ondevice(ptr[i]);
+
+	for (int i = 0; i < p; i++)
+		gpu &= cuda_accessible(ptr[i]);
+
+#if 0
+	// FIXME: fails for copy
+	if (!gpu) {
+
+		for (int i = 0; i < p; i++)
+			assert(!cuda_ondevice(ptr[i]));
+	}
+#endif
+	return gpu;
+}
+#endif
+
+extern double md_flp_total_time;
+double md_flp_total_time = 0.;
+
+// automatic parallelization
+extern bool num_auto_parallelize;
+bool num_auto_parallelize = true;
+
+struct nary_opt_s {
+
+	md_nary_opt_fun_t fun;
+	struct nary_opt_data_s* data;
+};
+
+static void nary_opt(void* _data, void* ptr[])
+{
+	struct nary_opt_s* data = _data;
+	data->fun(data->data, ptr);	
+}
+
+
+/**
+ * Optimized n-op.
+ *
+ * @param N number of arguments
+ ' @param io bitmask indicating input/output
+ * @param D number of dimensions
+ * @param dim dimensions
+ * @param nstr strides for arguments and dimensions
+ * @param nptr argument pointers
+ * @param sizes size of data for each argument, e.g. complex float
+ * @param too n-op function
+ * @param data_ptr pointer to additional data used by too
+ */
+void optimized_nop(unsigned int N, unsigned int io, unsigned int D, const long dim[D], const long (*nstr[N])[D], void* const nptr[N], size_t sizes[N], md_nary_opt_fun_t too, void* data_ptr)
+{
+	long tdims[D];
+	md_copy_dims(D, tdims, dim);
+
+	long tstrs[N][D];
+	long (*nstr1[N])[D];
+	void* nptr1[N];
+
+	for (unsigned int i = 0; i < N; i++) {
+
+		md_copy_strides(D, tstrs[i], *nstr[i]);
+		nstr1[i] = &tstrs[i];
+		nptr1[i] = nptr[i];
+	}
+
+	int ND = optimize_dims(N, D, tdims, nstr1);
+
+	int skip = min_blockdim(N, ND, tdims, nstr1, sizes);
+	unsigned int flags = 0;
+
+	debug_printf(DP_DEBUG4, "MD-Fun. Io: %d Input: ", io);
+	debug_print_dims(DP_DEBUG4, D, dim);
+
+#ifdef USE_CUDA
+	if (num_auto_parallelize && !use_gpu(N, nptr1)) {
+#else
+	if (num_auto_parallelize) {
+#endif
+		flags = dims_parallel(N, io, ND, tdims, nstr1, sizes);
+
+		while ((0 != flags) && (ffs(flags) <= skip))
+			skip--;
+
+		flags = flags >> skip;
+	}
+
+	const long* nstr2[N];
+
+	for (unsigned int i = 0; i < N; i++)
+		nstr2[i] = *nstr1[i] + skip;
+
+#ifdef USE_CUDA
+	struct nary_opt_data_s data = { md_calc_size(skip, tdims), use_gpu(N, nptr1) ? &gpu_ops : &cpu_ops, data_ptr };
+#else
+	struct nary_opt_data_s data = { md_calc_size(skip, tdims), &cpu_ops, data_ptr };
+#endif
+
+	debug_printf(DP_DEBUG4, "Vec: %d (%ld) Opt.: ", skip, data.size);
+	debug_print_dims(DP_DEBUG4, ND, tdims);
+
+	double start = timestamp();
+
+	md_parallel_nary(N, ND - skip, tdims + skip, flags, nstr2, nptr1, &(struct nary_opt_s){ too, &data }, nary_opt);
+
+	double end = timestamp();
+
+#pragma omp critical
+	md_flp_total_time += end - start;
+
+	debug_printf(DP_DEBUG4, "MD time: %f\n", end - start);
+}
 
 
