@@ -42,6 +42,8 @@ static bool test_ode_bloch(void)
 	float k[6][3];
 	bloch_fun(NULL, k[0], 0., x);
 
+	bool ok = true;
+
 	for (float t = 0.; t < end; ) {
 
 		float ynp[3];
@@ -65,9 +67,16 @@ static bool test_ode_bloch(void)
 			x[i] = ynp[i];
 
 		bloch_relaxation(x2, t, x0, 1., WATER_T1, WATER_T2, (float[3]){ 0., 0., GAMMA_H1 * SKYRA_GRADIENT * 0.0001 });
+
+		float err2 = 0.;
+
+		for (int i = 0; i < 3; i++)
+			err2 += powf(x[i] - x2[i], 2.);
+
+		ok &= (err2 < 1.E-7);
 	}
 
-	return (x[0] - x[2] < 1.E-4);
+	return ok;
 }
 
 UT_REGISTER_TEST(test_ode_bloch);
