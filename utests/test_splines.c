@@ -95,19 +95,28 @@ UT_REGISTER_TEST(test_cspline);
 static bool test_bspline(void)
 {
 	const double knots[11] = { 0., 0.0, 0.0, 0., 0.25, 0.5, 0.75, 1., 1., 1., 1. };
-	const double coord[7] = { 0., 0., 0., 1., 0., 0., 0. };
 
-	double err = 0.;
+	bool ok = true;
 
-	for (double x = 0.; x < 1.; x += 0.01) {
+	for (int i = 0; i < 7; i++) {
 
-		double a = bspline(10, 3, 2, knots, x);
-		double b = bspline_curve(10, 2, knots, coord, x);
+		double coord[7] = { 0., 0., 0., 0., 0., 0., 0. };
+		coord[i] = 1.;
 
-		err += pow(a - b, 2);
+		double err = 0.;
+
+		for (double x = 0.; x <= 1.; x += 0.01) {
+
+			double a = bspline(10, i, 3, knots, x);
+			double b = bspline_curve(10, 3, knots, coord, x);
+
+			err += pow(a - b, 2);
+		}
+
+		ok &= (err < 1.E-28);
 	}
 
-	return (err < 1.E-28);
+	return ok;
 }
 
 

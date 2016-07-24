@@ -153,7 +153,7 @@ static double frac(double u, double v)
 {
 	if (0. == v) {
 
-		assert(0. == u);
+		// assert(0. == u);
 		return 0.;
 	}
 
@@ -169,12 +169,12 @@ double bspline(unsigned int n, unsigned int i, unsigned int p, const double tau[
 {
 	assert(i + p < n);
 	assert(tau[i] <= tau[i + 1]);
-	assert((tau[0] <= u) && (u < tau[n]));
+	assert((tau[0] <= u) && (u <= tau[n]));
 
 	if (0 == p)
 		return ((tau[i] <= u) && (u < tau[i + 1])) ? 1. : 0.;
 
-	assert(tau[i] < tau[i + p + 1]);
+	assert(tau[i] <= tau[i + p + 1]);
 
 	double a = frac(u - tau[i], tau[i + p] - tau[i]);
 	double b = frac(tau[i + p + 1] - u, tau[i + p + 1] - tau[i + 1]);
