@@ -76,6 +76,22 @@ UT_REGISTER_TEST(test_bezier_split);
 
 
 
+static bool test_cspline(void)
+{
+	const double coeff[4] = { 0., 1., 1., 1. };
+
+	bool ok = true;
+
+	for (double x = 0.; x < 1.; x += 0.1)
+		ok &= (fabs(x - cspline(x, coeff)) < 1.E-15);
+
+	return ok;
+}
+
+
+UT_REGISTER_TEST(test_cspline);
+
+
 static bool test_bspline(void)
 {
 	const double knots[11] = { 0., 0.0, 0.0, 0., 0.25, 0.5, 0.75, 1., 1., 1., 1. };

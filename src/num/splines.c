@@ -119,6 +119,33 @@ double bezier_patch(double u, double v, const double k[4][4])
 
 
 
+static void cspline2bezier(double out[4], const double in[4])
+{
+	const double m[4][4] = {
+		{	1.,	1.,	0.,	0.,	},
+		{	0.,	1./ 3.,	0.,	0.,	},
+		{	0.,	0.,	1.,	1.,	},
+		{	0.,	0.,	-1./3.,	0.,	},
+	};
+
+	for (int i = 0; i < 4; i++) {
+
+		out[i] = 0.;
+
+		for (int j = 0; j < 4; j++)
+			out[i] += m[j][i] * in[j];
+	}
+}
+
+
+// cubic hermite spline
+double cspline(double t, const double coeff[4])
+{
+	double coeff2[4];
+	cspline2bezier(coeff2, coeff);
+
+	return bezier_curve(t, 3, coeff2);
+}
 
 
 
