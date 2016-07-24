@@ -122,3 +122,60 @@ static bool test_bspline(void)
 
 UT_REGISTER_TEST(test_bspline);
 
+static bool test_nurbs(void)
+{
+	const double knots[11] = { 0., 0.0, 0.0, 0., 0.25, 0.5, 0.75, 1., 1., 1., 1. };
+
+	bool ok = true;
+
+	for (int i = 0; i < 7; i++) {
+
+		double coord[7] = { 0., 0., 0., 0., 0., 0., 0. };
+		double weights[7] = { 1., 1., 1., 1., 1., 1., 1. };
+		coord[i] = 1.;
+
+		double err = 0.;
+
+		for (double x = 0.; x <= 1.; x += 0.01) {
+
+			double a = nurbs(10, 3, knots, coord, weights, x);
+			double b = bspline_curve(10, 3, knots, coord, x);
+			double c = bspline_curve(10, 3, knots, weights, x);
+
+			err += pow(a - b / c, 2);
+		}
+
+		ok &= (err < 1.E-28);
+	}
+
+	return ok;
+}
+
+
+UT_REGISTER_TEST(test_nurbs);
+
+
+static bool test_nurbs_arc(void)
+{
+	const double knots[6] = { 0., 0., 0., 1., 1., 1. };
+
+	double coordx[3] = { 0., 1., 1. };
+	double coordy[3] = { 1., 1., 0. };
+	double weights[3] = { sqrt(2.), 1., sqrt(2.) };
+
+	bool ok = true;
+
+	for (double t = 0.; t <= 1.; t += 0.01) {
+
+		double x = nurbs(5, 2, knots, coordx, weights, t);
+		double y = nurbs(5, 2, knots, coordy, weights, t);
+
+		ok &= fabs(pow(x, 2.) + pow(y, 2.) - 1.) < 1.E-15;
+	}
+
+	return ok;
+}
+
+
+UT_REGISTER_TEST(test_nurbs_arc);
+

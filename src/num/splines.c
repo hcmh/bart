@@ -195,20 +195,29 @@ double bspline_derivative(unsigned int n, unsigned int i, unsigned int p, const 
 }
 
 
-double nurbs(unsigned int n, unsigned int p, const double tau[static n + 1], const double coord[static n + 1 - p],
-	const double w[static n + 1 - p], double x)
+double nurbs(unsigned int n, unsigned int p, const double tau[static n + 1], const double coord[static n - p],
+	const double w[static n - p], double x)
 {
+#if 0
 	double sum = 0.;
 	double nrm = 0.;
 
-	for (unsigned int i = 0; i < n + 1 - p; i++) {
+	for (unsigned int i = 0; i < n + 0 - p; i++) {
 
 		double b = bspline(n, i, p, tau, x);
 
 		sum += w[i] * coord[i] * b;
 		nrm += w[i] * b;
 	}
+#else
+	double coordw[n - p];
 
+	for (unsigned int i = 0; i < n + 0 - p; i++)
+		coordw[i] = w[i] * coord[i];
+
+	double sum = bspline_curve(n, p, tau, coordw, x);
+	double nrm = bspline_curve(n, p, tau, w, x);
+#endif
 	return sum / nrm;
 }
 
@@ -267,7 +276,7 @@ static double cox_deboor(unsigned int n, unsigned int p, const double t[static n
 }
 
 
-double bspline_curve(unsigned int n, unsigned int p, const double t[static n + 1], const double v[static n + 1 - p], double x)
+double bspline_curve(unsigned int n, unsigned int p, const double t[static n + 1], const double v[static n - p], double x)
 {
 	return cox_deboor(n, p, t, v, x);
 }

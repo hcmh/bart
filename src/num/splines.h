@@ -12,8 +12,8 @@ extern double bezier_patch(double u, double v, const double k[4][4]);
 
 extern double bspline(unsigned int n, unsigned int i, unsigned int p, const double tau[static n + 1], double x);
 extern double bspline_derivative(unsigned int n, unsigned int i, unsigned int p, const double tau[static n + 1], double x);
-extern double bspline_curve(unsigned int n, unsigned int p, const double t[static n + 1], const double v[static n + 1], double x);
+extern double bspline_curve(unsigned int n, unsigned int p, const double t[static n + 1], const double v[static n - p], double x);
 
-extern double nurbs(unsigned int n, unsigned int p, const double tau[static n + 1], const double coord[static n + 1 - p],
-	const double w[static n + 1 - p], double x);
+extern double nurbs(unsigned int n, unsigned int p, const double tau[static n + 1], const double coord[static n - p],
+	const double w[static n - p], double x);
 
