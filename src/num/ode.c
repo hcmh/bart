@@ -142,4 +142,37 @@ float dormand_prince_step2(float h, unsigned int N, float ynp[N], float tn, cons
 }
 
 
+void ode_interval(float h, float tol, unsigned int N, float x[N], float st, float end, void* data, void (*f)(void* data, float* out, float t, const float* yn))
+{
+	float k[6][N];
+	f(data, k[0], 0., x);
 
+	if (h > end - st)
+		h = end - st;
+
+	for (float t = st; t < end; ) {
+
+		float ynp[N];
+	repeat:
+		;
+		float err = dormand_prince_step2(h, N, ynp, t, x, k, data, f);
+
+		float h_new = h * dormand_prince_scale(tol, err);
+
+		if (err > tol) {
+
+			h = h_new;
+			f(data, k[0], t, x);	// recreate correct k[0] which has been overwritten
+			goto repeat;
+		}
+
+		t += h;
+		h = h_new;
+
+		if (t + h > end)
+			h = end - t;
+
+		for (unsigned int i = 0; i < N; i++)
+			x[i] = ynp[i];
+	}
+}
