@@ -179,3 +179,45 @@ static bool test_nurbs_arc(void)
 
 UT_REGISTER_TEST(test_nurbs_arc);
 
+
+
+static bool test_nurbs_circle(void)
+{
+	const double knots[10] = { 0., 0., 0., 1., 1., 2., 2., 3., 3., 3. };
+
+	double coordx[7] = {
+		cos(0. * 2. * M_PI / 3.) + cos(1. * 2. * M_PI / 3.),
+		cos(1. * 2. * M_PI / 3.) * 2.,
+		cos(1. * 2. * M_PI / 3.) + cos(2. * 2. * M_PI / 3.),
+		cos(2. * 2. * M_PI / 3.) * 2.,
+		cos(2. * 2. * M_PI / 3.) + cos(3. * 2. * M_PI / 3.),
+		cos(3. * 2. * M_PI / 3.) * 2.,
+		cos(3. * 2. * M_PI / 3.) + cos(1. * 2. * M_PI / 3.),
+	};
+	double coordy[7] = {
+		sin(0. * 2. * M_PI / 3.) + sin(1. * 2. * M_PI / 3.),
+		sin(1. * 2. * M_PI / 3.) * 2.,
+		sin(1. * 2. * M_PI / 3.) + sin(2. * 2. * M_PI / 3.),
+		sin(2. * 2. * M_PI / 3.) * 2.,
+		sin(2. * 2. * M_PI / 3.) + sin(3. * 2. * M_PI / 3.),
+		sin(3. * 2. * M_PI / 3.) * 2.,
+		sin(3. * 2. * M_PI / 3.) + sin(1. * 2. * M_PI / 3.),
+	};
+	double weights[7] = { 1., 0.5, 1., 0.5, 1., 0.5, 1. };
+
+	bool ok = true;
+
+	for (double t = 0.; t <= 3.; t += 0.01) {
+
+		double x = nurbs(9, 2, knots, coordx, weights, t);
+		double y = nurbs(9, 2, knots, coordy, weights, t);
+
+		ok &= fabs(pow(x, 2.) + pow(y, 2.) - 1.) < 1.E-15;
+	}
+
+	return ok;
+}
+
+
+UT_REGISTER_TEST(test_nurbs_circle);
+
