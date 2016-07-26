@@ -138,11 +138,11 @@ int main_nlinv(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-	float scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data) * dims[2]; // dims[2]: Multiband factor
+	float scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data) * dims[2]; // dims[2]: Multiband factor (Multislice k-space contains dims[2] times as much energy as single slice)
 #endif
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
-
+	
 	if (-1. == restrict_fov) {
 
 		mask = md_alloc(DIMS, msk_dims, CFL_SIZE);
