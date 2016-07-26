@@ -122,6 +122,39 @@ static bool test_bspline(void)
 
 UT_REGISTER_TEST(test_bspline);
 
+
+
+static bool test_bspline_derivative(void)
+{
+	const double knots[11] = { 0., 0.0, 0.0, 0., 0.25, 0.5, 0.75, 1., 1., 1., 1. };
+
+	bool ok = true;
+
+	for (int i = 0; i < 7; i++) {
+
+		double coord[7] = { 0., 0., 0., 0., 0., 0., 0. };
+		coord[i] = 1.;
+
+		double err = 0.;
+
+		for (double x = 0.; x <= 1.; x += 0.01) {
+
+			double a = bspline_derivative(10, i, 3, knots, x);
+			double b = bspline_curve_derivative(10, 3, knots, coord, x);
+
+			err += pow(a - b, 2);
+		}
+
+		ok &= (err < 1.E-28);
+	}
+
+	return ok;
+}
+
+UT_REGISTER_TEST(test_bspline_derivative);
+
+
+
 static bool test_nurbs(void)
 {
 	const double knots[11] = { 0., 0.0, 0.0, 0., 0.25, 0.5, 0.75, 1., 1., 1., 1. };

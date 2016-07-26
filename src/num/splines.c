@@ -282,4 +282,56 @@ double bspline_curve(unsigned int n, unsigned int p, const double t[static n + 1
 }
 
 
+static void bspline_coeff_derivative(unsigned int n, unsigned int p, double t2[static n - 1], double v2[n - p - 2], const double t[static n + 1], const double v[static n - p])
+{
+	for (unsigned int i = 1; i < n; i++)
+		t2[i - 1] = t[i];
+
+	for (unsigned int i = 0; i < n - p - 1; i++)
+		v2[i] = (float)p / (t[i + p + 1] - t[i + 1]) * (v[i + 1] - v[i]);
+}
+
+
+double bspline_curve_derivative(unsigned int n, unsigned int p, const double t[static n + 1], const double v[static n - p], double x)
+{
+	double t2[n - 1];
+	double v2[n - p - 2];
+	bspline_coeff_derivative(n, p, t2, v2, t, v);
+
+	return cox_deboor(n - 1, p - 1, t2, v2, x);
+}
+
+
+static double newton_raphson(int iter, double x0, void* data, double (*fun)(void* data, double x), double (*der)(void* data, double x))
+{
+	for (int i = 0; i < iter; i++)
+		x0 = x0 - fun(data, x0) / der(data, x0);
+
+	return x0;
+}
+
+struct bspline_s {
+
+	unsigned int n;
+	unsigned int p;
+	const double* t;
+	const double* v;
+};
+
+static double n_fun(void* _data, double x)
+{
+	struct bspline_s* data = _data;
+	return bspline_curve(data->n, data->p, data->t, data->v, x);
+}
+
+static double n_der(void* _data, double x)
+{
+	struct bspline_s* data = _data;
+	return bspline_curve_derivative(data->n, data->p, data->t, data->v, x);
+}
+
+double bspline_curve_zero(unsigned int n, unsigned int p, const double tau[static n + 1], const double v[static n - p])
+{
+	return newton_raphson(10, (tau[n] + tau[0]) / 2., &(struct bspline_s){ n, p, tau, v }, n_fun, n_der);
+}
 
