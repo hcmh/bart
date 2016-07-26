@@ -40,7 +40,6 @@ int main_nlinv(int argc, char* argv[])
 {
 	bool waterfat = false;
 	bool normalize = true;
-	bool sms = false;
 	float restrict_fov = -1.;
 	float csh[3] = { 0., 0., 0. };
 	const char* psf = NULL;
@@ -63,13 +62,11 @@ int main_nlinv(int argc, char* argv[])
 
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
-	if(conf.sms){ // fftmod to get correct slice order in image
-	    fftmod(DIMS, ksp_dims, 4, kspace_data, kspace_data);
+	if(conf.sms){ 
+  	  assert(ksp_dims[2] != 1 && "No multislice information in z-dimension!");
+	  fftmod(DIMS, ksp_dims, 4, kspace_data, kspace_data); // fftmod to get correct slice order in output
 	}
 	
-	if(sms) {
-	  assert(ksp_dims[2] != 1 && "No multislice information in z-dimension!");
-	}
 	long dims[DIMS];
 	md_copy_dims(DIMS, dims, ksp_dims);
 
