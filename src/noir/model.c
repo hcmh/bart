@@ -141,7 +141,7 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 
 	noir_calc_weights(dims, weights, data->sms);
 	
-	if(data->sms){
+	if(data->sms){ // For SMS the FFT of the z-dimension is just for (dis)entangling the slices --> no fftmod/fftscale necessary!
 	    fftmod(DIMS, data->wght_dims, XY_FLAGS, weights, weights);
 	    fftscale(DIMS, data->wght_dims, XY_FLAGS, weights, weights);
 	} else {
@@ -183,8 +183,13 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	}
 
 //	fftmod(DIMS, data->mask_dims, 7, msk, msk);
-	fftscale(DIMS, data->mask_dims, FFT_FLAGS, msk, msk); //TODO
-
+	if(sms) {
+	      	fftscale(DIMS, data->mask_dims, XY_FLAGS, msk, msk); 
+	} else {
+		fftscale(DIMS, data->mask_dims, FFT_FLAGS, msk, msk); 
+	}
+	
+	
 	data->mask = msk;
 
 	data->sens = my_alloc(DIMS, data->coil_dims, CFL_SIZE);
@@ -207,7 +212,7 @@ void noir_free(struct noir_data* data)
 }
 
 
-void noir_forw_coils(struct noir_data* data, complex float* dst, const complex float* src)
+void noir_forw_coils(struct noir_data* data, complex float* dst, const complex float* src) // Convert to actual coil profiles. x = Wx'
 {
 	md_zmul2(DIMS, data->coil_dims, data->coil_strs, dst, data->coil_strs, src, data->wght_strs, data->weights);
 	if(data->sms) { 
@@ -219,7 +224,7 @@ void noir_forw_coils(struct noir_data* data, complex float* dst, const complex f
 }
 
 
-void noir_back_coils(struct noir_data* data, complex float* dst, const complex float* src)
+void noir_back_coils(struct noir_data* data, complex float* dst, const complex float* src) // Convert to transformed coil profiles. x' = W^-1 x
 {
 //	fftmod(DIMS, data->coil_dims, 7, dst);
 	if(data->sms) { 
@@ -231,7 +236,7 @@ void noir_back_coils(struct noir_data* data, complex float* dst, const complex f
 }
 
 
-void noir_fun(struct noir_data* data, complex float* dst, const complex float* src)
+void noir_fun(struct noir_data* data, complex float* dst, const complex float* src) // y = Fx
 {	
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
@@ -240,6 +245,7 @@ void noir_fun(struct noir_data* data, complex float* dst, const complex float* s
 
 	md_clear(DIMS, data->sign_dims, data->tmp, CFL_SIZE);
 	md_zfmac2(DIMS, data->sign_dims, data->sign_strs, data->tmp, data->imgs_strs, src, data->coil_strs, data->sens);
+	//							    \ proton densities  /  \ weighted coil profiles  /
 
 	// could be moved to the benning, but see comment below
 	md_zmul2(DIMS, data->sign_dims, data->sign_strs, data->tmp, data->sign_strs, data->tmp, data->mask_strs, data->mask);
