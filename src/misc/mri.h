@@ -53,7 +53,6 @@ enum mri_dims {
 #define LEVEL_FLAG (1u << LEVEL_DIM)
 
 #define FFT_FLAGS (READ_FLAG|PHS1_FLAG|PHS2_FLAG)
-#define XY_FLAGS (READ_FLAG|PHS1_FLAG)
 #define SENS_FLAGS (COIL_FLAG|MAPS_FLAG)
 
 

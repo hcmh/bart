@@ -70,10 +70,11 @@ const struct noir_conf_s noir_defaults = {
 	.usegpu = false,
 	.alpha = 1.,
 	.redu = 2.,
+	.sms = false,
 };
 
 
-void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* outbuf, complex float* sensout, const complex float* psf, const complex float* mask, const complex float* kspace, bool sms)
+void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* outbuf, complex float* sensout, const complex float* psf, const complex float* mask, const complex float* kspace)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -104,7 +105,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	md_clear(DIMS, imgs_dims, imgH, CFL_SIZE);
 	md_clear(DIMS, coil_dims, imgH + skip, CFL_SIZE);
 
-	struct noir_data* ndata = noir_init(dims, mask, psf, conf->rvc, conf->usegpu, sms);
+	struct noir_data* ndata = noir_init(dims, mask, psf, conf->rvc, conf->usegpu, conf->sms);
 	struct data data = { ndata };
 
 	struct iter3_irgnm_conf irgnm_conf = { .iter = conf->iter, .alpha = conf->alpha, .redu = conf->redu };

@@ -16,11 +16,12 @@ struct noir_conf_s {
 	_Bool usegpu;
 	float alpha;
 	float redu;
+	_Bool sms;
 };
 
 extern const struct noir_conf_s noir_defaults;
 
-extern void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], _Complex float* image, _Complex float* sens, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data, bool sms);
+extern void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], _Complex float* image, _Complex float* sens, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data);
 
 #include "misc/cppwrap.h"
 

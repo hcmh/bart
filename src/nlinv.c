@@ -50,7 +50,7 @@ int main_nlinv(int argc, char* argv[])
 
 		OPT_UINT('i', &conf.iter, "iter", ""),
 		OPT_SET('c', &conf.rvc, ""),
-		OPT_SET('s', &sms, "SMS"),
+		OPT_SET('s', &conf.sms, "SMS"),
 		OPT_CLEAR('N', &normalize, ""),
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
@@ -63,7 +63,10 @@ int main_nlinv(int argc, char* argv[])
 
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
-
+	if(conf.sms){ // fftmod to get correct slice order in image
+	    fftmod(DIMS, ksp_dims, 4, kspace_data, kspace_data);
+	}
+	
 	if(sms) {
 	  assert(ksp_dims[2] != 1 && "No multislice information in z-dimension!");
 	}
@@ -138,7 +141,7 @@ int main_nlinv(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-	float scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data) * dims[2];
+	float scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data) * dims[2]; // dims[2]: Multiband factor
 #endif
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
@@ -162,14 +165,14 @@ int main_nlinv(int argc, char* argv[])
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
-		noir_recon(&conf, dims, image, NULL, pattern, mask, kspace_gpu, sms);
+		noir_recon(&conf, dims, image, NULL, pattern, mask, kspace_gpu);
 		md_free(kspace_gpu);
 
 		md_zfill(DIMS, ksp_dims, sens, 1.);
 
 	} else
 #endif
-	noir_recon(&conf, dims, image, sens, pattern, mask, kspace_data, sms);
+	noir_recon(&conf, dims, image, sens, pattern, mask, kspace_data);
 
 	if (normalize) {
 

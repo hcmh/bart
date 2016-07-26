@@ -66,31 +66,24 @@ struct noir_data {
 
 	complex float* tmp;
 	
-	bool sms;
 	bool rvc;
+	unsigned int flags;
 };
 
 
 
-static void noir_calc_weights(const long dims[3], complex float* dst, bool sms)
+static void noir_calc_weights(const long dims[3], complex float* dst)
 {
 	unsigned int flags = 0;
 	
-	long dims_loc[3]; // Local version
-	for (int i = 0; i<3; i++)
-	  dims_loc[i] = dims[i];
-	
-	if(sms){ dims_loc[2] = 1; } // SMS weights only for x & y
-	
 	for (int i = 0; i < 3; i++)
-	  if (1 != dims_loc[i]) // Set flag where dims[i]!=1
+	  if (1 != dims[i]) // Set flag where dims[i]!=1
 		flags = MD_SET(flags, i); 
 
-
-	klaplace(3, dims_loc, flags, dst);
-	md_zsmul(3, dims_loc, dst, dst, 220.);
-	md_zsadd(3, dims_loc, dst, dst, 1.);
-	md_zspow(3, dims_loc, dst, dst, -16.);	// 1 + 222. \Laplace^16
+	klaplace(3, dims, flags, dst);
+	md_zsmul(3, dims, dst, dst, 220.);
+	md_zsadd(3, dims, dst, dst, 1.);
+	md_zspow(3, dims, dst, dst, -16.);	// 1 + 222. \Laplace^16
 }
 
 
@@ -107,7 +100,11 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 
 
 	data->rvc = rvc;
-	data->sms = sms;
+	if(sms) { 
+	    data->flags = 3;
+	} else {
+	    data->flags = FFT_FLAGS;
+	}
 	
 	md_copy_dims(DIMS, data->dims, dims);
 
@@ -126,11 +123,8 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	md_select_dims(DIMS, FFT_FLAGS, data->mask_dims, dims);
 	md_calc_strides(DIMS, data->mask_strs, data->mask_dims, CFL_SIZE);
 
-	if(data->sms) {
-	    md_select_dims(DIMS, XY_FLAGS, data->wght_dims, dims);
-	} else {
-	    md_select_dims(DIMS, FFT_FLAGS, data->wght_dims, dims);
-	}
+	md_select_dims(DIMS, data->flags, data->wght_dims, dims);
+
 	md_calc_strides(DIMS, data->wght_strs, data->wght_dims, CFL_SIZE);
 
 	md_select_dims(DIMS, FFT_FLAGS|CSHIFT_FLAG, data->ptrn_dims, dims);
@@ -139,15 +133,17 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 
 	complex float* weights = md_alloc(DIMS, data->wght_dims, CFL_SIZE);
 
-	noir_calc_weights(dims, weights, data->sms);
-	
-	if(data->sms){ // For SMS the FFT of the z-dimension is just for (dis)entangling the slices --> no fftmod/fftscale necessary!
-	    fftmod(DIMS, data->wght_dims, XY_FLAGS, weights, weights);
-	    fftscale(DIMS, data->wght_dims, XY_FLAGS, weights, weights);
-	} else {
-	    fftmod(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
-	    fftscale(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
+	// Dimensions for weights
+	long dims_loc[3]; 
+	for (int i = 0; i<3; i++) {
+	    dims_loc[i] = dims[i];
 	}
+	if(sms){
+	    dims_loc[2] = 1; // SMS weights only for x & y
+	} 
+	noir_calc_weights(dims_loc, weights);
+	fftmod(DIMS, data->wght_dims, FFT_FLAGS, weights, weights); //TODO
+	fftscale(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
 	
 	data->weights = weights;
 
@@ -162,11 +158,7 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	complex float* ptr = my_alloc(DIMS, data->ptrn_dims, CFL_SIZE);
 
 	md_copy(DIMS, data->ptrn_dims, ptr, psf, CFL_SIZE);
-	if(data->sms) {
-	    fftmod(DIMS, data->ptrn_dims, XY_FLAGS, ptr, ptr);
-	} else {
-	    fftmod(DIMS, data->ptrn_dims, FFT_FLAGS, ptr, ptr);
-	}
+	fftmod(DIMS, data->ptrn_dims, FFT_FLAGS, ptr, ptr);
 
 	data->pattern = ptr;
 
@@ -183,13 +175,8 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	}
 
 //	fftmod(DIMS, data->mask_dims, 7, msk, msk);
-	if(sms) {
-	      	fftscale(DIMS, data->mask_dims, XY_FLAGS, msk, msk); 
-	} else {
-		fftscale(DIMS, data->mask_dims, FFT_FLAGS, msk, msk); 
-	}
-	
-	
+      	fftscale(DIMS, data->mask_dims, data->flags, msk, msk); 
+		
 	data->mask = msk;
 
 	data->sens = my_alloc(DIMS, data->coil_dims, CFL_SIZE);
@@ -215,11 +202,7 @@ void noir_free(struct noir_data* data)
 void noir_forw_coils(struct noir_data* data, complex float* dst, const complex float* src) // Convert to actual coil profiles. x = Wx'
 {
 	md_zmul2(DIMS, data->coil_dims, data->coil_strs, dst, data->coil_strs, src, data->wght_strs, data->weights);
-	if(data->sms) { 
-	    ifft(DIMS, data->coil_dims, XY_FLAGS, dst, dst);
-	} else {
-	    ifft(DIMS, data->coil_dims, FFT_FLAGS, dst, dst);
-	}
+        ifft(DIMS, data->coil_dims, data->flags, dst, dst);
 //	fftmod(DIMS, data->coil_dims, 7, dst);
 }
 
@@ -227,11 +210,8 @@ void noir_forw_coils(struct noir_data* data, complex float* dst, const complex f
 void noir_back_coils(struct noir_data* data, complex float* dst, const complex float* src) // Convert to transformed coil profiles. x' = W^-1 x
 {
 //	fftmod(DIMS, data->coil_dims, 7, dst);
-	if(data->sms) { 
-	    fft(DIMS, data->coil_dims, XY_FLAGS, dst, src);
-	} else { 
-	    fft(DIMS, data->coil_dims, FFT_FLAGS, dst, src);
-	}
+	fft(DIMS, data->coil_dims, data->flags, dst, src);
+
 	md_zmulc2(DIMS, data->coil_dims, data->coil_strs, dst, data->coil_strs, dst, data->wght_strs, data->weights);
 }
 
