@@ -64,6 +64,9 @@ int main_nlinv(int argc, char* argv[])
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
 
+	if(sms) {
+	  assert(ksp_dims[2] != 1 && "No multislice information in z-dimension!");
+	}
 	long dims[DIMS];
 	md_copy_dims(DIMS, dims, ksp_dims);
 
@@ -135,7 +138,7 @@ int main_nlinv(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-	float scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data);
+	float scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data) * dims[2];
 #endif
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
