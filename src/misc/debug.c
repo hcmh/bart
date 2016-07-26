@@ -53,6 +53,7 @@ void dump_cfl(const char* name, int D, const long dimensions[D], const complex f
 
 
 int debug_level = -1;
+// int debug_level = DP_DEBUG3;
 bool debug_logging = false;
 
 static const char* level_strings[] = {

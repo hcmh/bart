@@ -752,6 +752,7 @@ void irgnm(unsigned int iter, float alpha, float redu, void* data, long N, long 
 
 		vops->xpay(M, -1., r, y);	// r = y - F x
 
+		printf("It: %d/%d, Res: %f\n", i+1, iter, vops->norm(M, r));
 		debug_printf(DP_DEBUG3, "Res: %f\n", vops->norm(M, r));
 
 		adj(data, p, r);	
