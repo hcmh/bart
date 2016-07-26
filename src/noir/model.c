@@ -65,28 +65,36 @@ struct noir_data {
 	complex float* xn;
 
 	complex float* tmp;
-
+	
+	bool sms;
 	bool rvc;
 };
 
 
 
-static void noir_calc_weights(const long dims[3], complex float* dst)
+static void noir_calc_weights(const long dims[3], complex float* dst, bool sms)
 {
 	unsigned int flags = 0;
-
+	
+	long dims_loc[3]; // Local version
+	for (int i = 0; i<3; i++)
+	  dims_loc[i] = dims[i];
+	
+	if(sms){ dims_loc[2] = 1; } // SMS weights only for x & y
+	
 	for (int i = 0; i < 3; i++)
-		if (1 != dims[i])
-			flags = MD_SET(flags, i);
+	  if (1 != dims_loc[i]) // Set flag where dims[i]!=1
+		flags = MD_SET(flags, i); 
 
-	klaplace(3, dims, flags, dst);
-	md_zsmul(3, dims, dst, dst, 220.);
-	md_zsadd(3, dims, dst, dst, 1.);
-	md_zspow(3, dims, dst, dst, -16.);	// 1 + 222. \Laplace^16
+
+	klaplace(3, dims_loc, flags, dst);
+	md_zsmul(3, dims_loc, dst, dst, 220.);
+	md_zsadd(3, dims_loc, dst, dst, 1.);
+	md_zspow(3, dims_loc, dst, dst, -16.);	// 1 + 222. \Laplace^16
 }
 
 
-struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, const complex float* psf, bool rvc, bool use_gpu)
+struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, const complex float* psf, bool rvc, bool use_gpu, bool sms)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
@@ -99,7 +107,8 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 
 
 	data->rvc = rvc;
-
+	data->sms = sms;
+	
 	md_copy_dims(DIMS, data->dims, dims);
 
 	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|CSHIFT_FLAG, data->sign_dims, dims);
@@ -117,7 +126,11 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	md_select_dims(DIMS, FFT_FLAGS, data->mask_dims, dims);
 	md_calc_strides(DIMS, data->mask_strs, data->mask_dims, CFL_SIZE);
 
-	md_select_dims(DIMS, FFT_FLAGS, data->wght_dims, dims);
+	if(data->sms) {
+	    md_select_dims(DIMS, XY_FLAGS, data->wght_dims, dims);
+	} else {
+	    md_select_dims(DIMS, FFT_FLAGS, data->wght_dims, dims);
+	}
 	md_calc_strides(DIMS, data->wght_strs, data->wght_dims, CFL_SIZE);
 
 	md_select_dims(DIMS, FFT_FLAGS|CSHIFT_FLAG, data->ptrn_dims, dims);
@@ -126,10 +139,16 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 
 	complex float* weights = md_alloc(DIMS, data->wght_dims, CFL_SIZE);
 
-	noir_calc_weights(dims, weights);
-	fftmod(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
-	fftscale(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
-
+	noir_calc_weights(dims, weights, data->sms);
+	
+	if(data->sms){
+	    fftmod(DIMS, data->wght_dims, XY_FLAGS, weights, weights);
+	    fftscale(DIMS, data->wght_dims, XY_FLAGS, weights, weights);
+	} else {
+	    fftmod(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
+	    fftscale(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
+	}
+	
 	data->weights = weights;
 
 #ifdef USE_CUDA
@@ -143,7 +162,11 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	complex float* ptr = my_alloc(DIMS, data->ptrn_dims, CFL_SIZE);
 
 	md_copy(DIMS, data->ptrn_dims, ptr, psf, CFL_SIZE);
-	fftmod(DIMS, data->ptrn_dims, FFT_FLAGS, ptr, ptr);
+	if(data->sms) {
+	    fftmod(DIMS, data->ptrn_dims, XY_FLAGS, ptr, ptr);
+	} else {
+	    fftmod(DIMS, data->ptrn_dims, FFT_FLAGS, ptr, ptr);
+	}
 
 	data->pattern = ptr;
 
@@ -160,7 +183,7 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	}
 
 //	fftmod(DIMS, data->mask_dims, 7, msk, msk);
-	fftscale(DIMS, data->mask_dims, FFT_FLAGS, msk, msk);
+	fftscale(DIMS, data->mask_dims, FFT_FLAGS, msk, msk); //TODO
 
 	data->mask = msk;
 
@@ -187,7 +210,11 @@ void noir_free(struct noir_data* data)
 void noir_forw_coils(struct noir_data* data, complex float* dst, const complex float* src)
 {
 	md_zmul2(DIMS, data->coil_dims, data->coil_strs, dst, data->coil_strs, src, data->wght_strs, data->weights);
-	ifft(DIMS, data->coil_dims, FFT_FLAGS, dst, dst);
+	if(data->sms) { 
+	    ifft(DIMS, data->coil_dims, XY_FLAGS, dst, dst);
+	} else {
+	    ifft(DIMS, data->coil_dims, FFT_FLAGS, dst, dst);
+	}
 //	fftmod(DIMS, data->coil_dims, 7, dst);
 }
 
@@ -195,7 +222,11 @@ void noir_forw_coils(struct noir_data* data, complex float* dst, const complex f
 void noir_back_coils(struct noir_data* data, complex float* dst, const complex float* src)
 {
 //	fftmod(DIMS, data->coil_dims, 7, dst);
-	fft(DIMS, data->coil_dims, FFT_FLAGS, dst, src);
+	if(data->sms) { 
+	    fft(DIMS, data->coil_dims, XY_FLAGS, dst, src);
+	} else { 
+	    fft(DIMS, data->coil_dims, FFT_FLAGS, dst, src);
+	}
 	md_zmulc2(DIMS, data->coil_dims, data->coil_strs, dst, data->coil_strs, dst, data->wght_strs, data->weights);
 }
 

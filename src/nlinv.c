@@ -40,6 +40,7 @@ int main_nlinv(int argc, char* argv[])
 {
 	bool waterfat = false;
 	bool normalize = true;
+	bool sms = false;
 	float restrict_fov = -1.;
 	float csh[3] = { 0., 0., 0. };
 	const char* psf = NULL;
@@ -49,6 +50,7 @@ int main_nlinv(int argc, char* argv[])
 
 		OPT_UINT('i', &conf.iter, "iter", ""),
 		OPT_SET('c', &conf.rvc, ""),
+		OPT_SET('s', &sms, "SMS"),
 		OPT_CLEAR('N', &normalize, ""),
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
@@ -157,14 +159,14 @@ int main_nlinv(int argc, char* argv[])
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
-		noir_recon(&conf, dims, image, NULL, pattern, mask, kspace_gpu);
+		noir_recon(&conf, dims, image, NULL, pattern, mask, kspace_gpu, sms);
 		md_free(kspace_gpu);
 
 		md_zfill(DIMS, ksp_dims, sens, 1.);
 
 	} else
 #endif
-	noir_recon(&conf, dims, image, sens, pattern, mask, kspace_data);
+	noir_recon(&conf, dims, image, sens, pattern, mask, kspace_data, sms);
 
 	if (normalize) {
 
