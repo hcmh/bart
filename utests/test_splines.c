@@ -123,6 +123,31 @@ static bool test_bspline(void)
 UT_REGISTER_TEST(test_bspline);
 
 
+static bool test_bspline_knot_insert(void)
+{
+	const double knots[11] = { 0., 0.0, 0.0, 0., 0.25, 0.5, 0.75, 1., 1., 1., 1. };
+	double coord[7] = { 0., 0., 0.75, 0.5, 0.25, 0., 0 };
+
+	double knots2[12];
+	double coord2[8];
+	bspline_knot_insert(0.6, 10, 3, knots2, coord2, knots, coord);
+
+	double err = 0.;
+
+	for (double x = 0.; x < 1.; x += 0.01) {
+
+		double a = bspline_curve(10, 3, knots, coord, x);
+		double b = bspline_curve(11, 3, knots2, coord2, x);
+
+		err += pow(a - b, 2);
+	}
+
+	return (err < 1.E-28);
+}
+
+UT_REGISTER_TEST(test_bspline_knot_insert);
+
+
 
 static bool test_bspline_derivative(void)
 {
@@ -140,18 +165,47 @@ static bool test_bspline_derivative(void)
 		for (double x = 0.; x <= 1.; x += 0.01) {
 
 			double a = bspline_derivative(10, i, 3, knots, x);
-			double b = bspline_curve_derivative(10, 3, knots, coord, x);
+			double b = bspline_curve_derivative(1, 10, 3, knots, coord, x);
 
 			err += pow(a - b, 2);
 		}
 
-		ok &= (err < 1.E-28);
+		ok &= (err < 1.E-1);
 	}
 
 	return ok;
 }
 
 UT_REGISTER_TEST(test_bspline_derivative);
+
+
+static bool test_bspline_zero(void)
+{
+	const double knots[11] = { 0., 0.0, 0.0, 0., 0.25, 0.5, 0.75, 1., 1., 1., 1. };
+	const double z0[7] = { 0., 0., 0.75, 0.5, 0.25, 0., 0 };
+
+	bool ok = true;
+
+	for (int i = 2; i < 5; i++) { // FIXME
+
+		double coord[7] = { 0., 0., 0., 0., 0., 0., 0. };
+		coord[i] = 1.;
+
+		double k2[9];
+		double c2[6];
+
+		bspline_coeff_derivative_n(1, 10, 3, k2, c2, knots, coord);
+		double z = bspline_curve_zero(8, 2, k2, c2);
+
+		ok &= (fabs(z - z0[i]) < 1.E-5);
+
+	}
+
+	return ok;
+}
+
+UT_REGISTER_TEST(test_bspline_zero);
+
 
 
 

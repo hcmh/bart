@@ -260,7 +260,7 @@ static double cox_deboor_r(unsigned int n, unsigned int p, unsigned int k, unsig
 }
 #endif
 
-static double cox_deboor(unsigned int n, unsigned int p, const double t[static n + 1], const double v[static n + 1 - p], double x)
+static unsigned int find_span(unsigned int n, const double t[static n + 1], double x)
 {
 	assert(x >= t[0]);
 
@@ -270,6 +270,14 @@ static double cox_deboor(unsigned int n, unsigned int p, const double t[static n
 		i++;
 
 	i--;
+
+	return i;
+}
+
+
+static double cox_deboor(unsigned int n, unsigned int p, const double t[static n + 1], const double v[static n + 1 - p], double x)
+{
+	int i = find_span(n, t, x);
 
 //	return cox_deboor_r(n, p, p, p, t + i - p, v + i - p, x);
 	return cox_deboor_i(x, p, p, t + i - p, v + i - p);
@@ -282,7 +290,7 @@ double bspline_curve(unsigned int n, unsigned int p, const double t[static n + 1
 }
 
 
-static void bspline_coeff_derivative(unsigned int n, unsigned int p, double t2[static n - 1], double v2[n - p - 2], const double t[static n + 1], const double v[static n - p])
+static void bspline_coeff_derivative(unsigned int n, unsigned int p, double t2[static n - 1], double v2[static n - p - 1], const double t[static n + 1], const double v[static n - p])
 {
 	for (unsigned int i = 1; i < n; i++)
 		t2[i - 1] = t[i];
@@ -292,22 +300,40 @@ static void bspline_coeff_derivative(unsigned int n, unsigned int p, double t2[s
 }
 
 
-double bspline_curve_derivative(unsigned int n, unsigned int p, const double t[static n + 1], const double v[static n - p], double x)
+void bspline_coeff_derivative_n(unsigned int k, unsigned int n, unsigned int p, double t2[static n + 1 - 2 * k], double v2[static n - p - k], const double t[static n + 1], const double v[static n - p])
 {
-	double t2[n - 1];
-	double v2[n - p - 2];
-	bspline_coeff_derivative(n, p, t2, v2, t, v);
+	if (0 == k) {
 
-	return cox_deboor(n - 1, p - 1, t2, v2, x);
+		for (unsigned int i = 0; i < n + 1; i++)
+			t2[i] = t[i];
+
+		for (unsigned int i = 0; i < n - p; i++)
+			v2[i] = v[i];
+
+	} else {
+
+		double t1[n - 1];
+		double v1[n - p - 1];
+
+		bspline_coeff_derivative(n, p, t1, v1, t, v);
+		bspline_coeff_derivative_n(k - 1, n - 1, p - 1, t2, v2, t1, v1);
+	}
+}
+
+
+double bspline_curve_derivative(unsigned int k, unsigned int n, unsigned int p, const double t[static n + 1], const double v[static n - p], double x)
+{
+	double t2[n + 1 - 2 * k];
+	double v2[n - p - k];
+	bspline_coeff_derivative_n(k, n, p, t2, v2, t, v);
+
+	return cox_deboor(n - 2 * k, p - k, t2, v2, x);
 }
 
 
 static double newton_raphson(int iter, double x0, void* data, double (*fun)(void* data, double x), double (*der)(void* data, double x))
 {
-	for (int i = 0; i < iter; i++)
-		x0 = x0 - fun(data, x0) / der(data, x0);
-
-	return x0;
+	return (0 == iter) ? x0 : newton_raphson(iter - 1, x0 - fun(data, x0) / der(data, x0), data, fun, der);
 }
 
 struct bspline_s {
@@ -327,11 +353,50 @@ static double n_fun(void* _data, double x)
 static double n_der(void* _data, double x)
 {
 	struct bspline_s* data = _data;
-	return bspline_curve_derivative(data->n, data->p, data->t, data->v, x);
+	return bspline_curve_derivative(1, data->n, data->p, data->t, data->v, x);
 }
 
 double bspline_curve_zero(unsigned int n, unsigned int p, const double tau[static n + 1], const double v[static n - p])
 {
-	return newton_raphson(10, (tau[n] + tau[0]) / 2., &(struct bspline_s){ n, p, tau, v }, n_fun, n_der);
+	return newton_raphson(20, (tau[n] + tau[0]) / 2., &(struct bspline_s){ n, p, tau, v }, n_fun, n_der);
 }
+
+
+
+
+void bspline_knot_insert(double x, unsigned int n, unsigned int p, double t2[static n + 2], double v2[n - p + 1], const double tau[static n + 1], const double v[static n - p])
+{
+	unsigned int k = find_span(n, tau, x);
+
+	// knots
+
+	for (unsigned int i = 0; i <= k; i++)
+		t2[i] = tau[i];
+
+	t2[k + 1] = x;
+
+	for (unsigned int i = k + 1; i < n; i++)
+		t2[i + 1] = tau[i];
+
+	unsigned int r = k - p + 1;
+	unsigned int s = k;
+
+	for (unsigned int i = 0; i < r; i++)
+		v2[i] = v[i];
+
+	for (unsigned int i = r; i <= s; i++) {
+
+		double a = (x - tau[i]) / (tau[i + p] - tau[i]);
+
+		v2[i] = (1. - a) * v[i - 1] + a * v[i];
+	}
+
+	for (unsigned int i = s; i < n - p; i++)
+		v2[i + 1] = v[i];
+}
+
+
+
+
+
 
