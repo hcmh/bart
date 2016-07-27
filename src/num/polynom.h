@@ -10,3 +10,5 @@ extern void polynom_from_roots(int N, complex double coeff[N + 1], const complex
 extern void polynom_scale(int N, complex double out[N + 1], complex double scale, const complex double in[N + 1]);
 extern void polynom_shift(int N, complex double out[N + 1], complex double shift, const complex double in[N + 1]);
 
+extern void quadratic_formula(complex double x[2], complex double coeff[3]);
+

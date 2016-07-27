@@ -41,13 +41,11 @@ void polynom_from_roots(int N, complex double coeff[N + 1], const complex double
 {
 	// Vieta's formulas
 
-	for (int i = 0; i < N; i++)
+	for (int i = 0; i <= N; i++)
 		coeff[i] = 0.;
 
-	coeff[N] = 1.;
-
 	// assert N < 
-	for (unsigned long b = 1; b < (1u << N); b++) {
+	for (unsigned long b = 0; b < (1u << N); b++) {
 
 		complex double prod = 1.;
 		int count = 0;
@@ -56,16 +54,13 @@ void polynom_from_roots(int N, complex double coeff[N + 1], const complex double
 
 			if (b & (1 << i)) {
 
-				prod *= root[i];
+				prod *= -root[i];
 				count++;
 			}
 		}
 
-		coeff[count - 1] += prod;
+		coeff[N - count] += prod;
 	}
-
-	for (int i = 0; i <= N; i += 2)
-		coeff[i] *= -1.;
 }
 
 
@@ -95,15 +90,35 @@ void polynom_shift(int N, complex double out[N + 1], complex double shift, const
 
 	complex double prod = 1.;
 
-	for (int i = N; i >= 0; i--) {
+	for (int i = 0; i <= N; i++) {
 
-		for (int j = 0; j < i; j++)
-			out[i] += prod * tmp[i];
+		for (int j = 0; j <= (N - i); j++)
+			out[j] += prod * tmp[j];
 
-		polynom_derivative(i, tmp, tmp);
+		polynom_derivative(N - i, tmp, tmp);
 
 		prod *= shift;
+		prod /= (i + 1);
 	}
 }
+
+
+void quadratic_formula(complex double x[2], complex double coeff[3])
+{
+	complex double c = coeff[0];
+	complex double b = coeff[1];
+	complex double a = coeff[2];
+
+	complex double t = csqrt(cpow(b, 2.) - 4. * a * c);
+
+	x[0] = (-b + t) / (2. * a);
+	x[1] = (-b - t) / (2. * a);
+
+	// FIXME: precision
+	// Citardauq Formula
+	//	x[1] = 2. * c / (-b + s * t);
+}
+
+
 
 
