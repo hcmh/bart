@@ -22,6 +22,11 @@ static bool test_polynom_eval(void)
 UT_REGISTER_TEST(test_polynom_eval);
 
 
+static bool array_eq(int N, const complex double c1[N], const complex double c2[N], double eps)
+{
+	return (0 == N) ? true : ((cabs(c1[0] - c2[0]) <= eps) && array_eq(N - 1, c1 + 1, c2 + 1, eps));
+}
+
 
 static bool test_polynom_derivative(void)
 {
@@ -30,7 +35,7 @@ static bool test_polynom_derivative(void)
 	
 	polynom_derivative(2, coeff2, coeff);
 
-	return ((0. == coeff2[0]) && (2. == coeff2[1]));
+	return array_eq(2, coeff2, (const complex double[]){ 0., 2. }, 0.);
 }
 
 
@@ -74,9 +79,7 @@ static bool test_polynom_from_roots1(void)
 
 	polynom_from_roots(2, coeff, roots);
 
-	return (   (coeff0[0] == coeff[0])
-		&& (coeff0[1] == coeff[1])
-		&& (coeff0[2] == coeff[2]));
+	return array_eq(3, coeff0, coeff, 0.);
 }
 
 UT_REGISTER_TEST(test_polynom_from_roots1);
@@ -122,7 +125,6 @@ static bool test_polynom_scale(void)
 UT_REGISTER_TEST(test_polynom_scale);
 
 
-#if 1
 static bool test_polynom_shift(void)
 {
 	const complex double coeff[3] = { 1., 0., 1. };
@@ -132,12 +134,11 @@ static bool test_polynom_shift(void)
 
 	polynom_shift(2, coeff2, 1., coeff);
 
-	return ((2. == coeff2[0]) && (2. == coeff2[1]) && (1. == coeff2[2]));
+	return array_eq(3, coeff2, (const complex double[]){ 2., 2., 1. }, 0.);
 }
 
 
 UT_REGISTER_TEST(test_polynom_shift);
-#endif
 
 
 
@@ -150,7 +151,32 @@ static bool test_quadratic_formula(void)
 	complex double r2[2];
 	quadratic_formula(r2, coeff);
 
-	return ((roots[0] == r2[0]) && (roots[1] == r2[1]));
+	return array_eq(2, r2, roots, 0.);
 }
 
 UT_REGISTER_TEST(test_quadratic_formula);
+
+
+
+static bool test_cubic_formula(void)
+{
+	const complex double roots[3] = { 1., 0.5, -2.i };
+
+	complex double coeff[4];
+	polynom_from_roots(3, coeff, roots);
+
+	complex double r2[3];
+	cubic_formula(r2, coeff);
+
+	return array_eq(3, r2, roots, 1.E-15);
+}
+
+UT_REGISTER_TEST(test_cubic_formula);
+
+
+
+
+
+
+
+

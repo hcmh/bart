@@ -11,4 +11,6 @@ extern void polynom_scale(int N, complex double out[N + 1], complex double scale
 extern void polynom_shift(int N, complex double out[N + 1], complex double shift, const complex double in[N + 1]);
 
 extern void quadratic_formula(complex double x[2], complex double coeff[3]);
+extern void cubic_formula(complex double x[3], complex double coeff[4]);
+
 

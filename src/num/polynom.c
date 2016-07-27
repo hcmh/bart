@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <complex.h>
+#include <math.h>
+#include <assert.h>
 
 #include "polynom.h"
 
@@ -109,6 +110,8 @@ void quadratic_formula(complex double x[2], complex double coeff[3])
 	complex double b = coeff[1];
 	complex double a = coeff[2];
 
+	assert(0. != a);
+
 	complex double t = csqrt(cpow(b, 2.) - 4. * a * c);
 
 	x[0] = (-b + t) / (2. * a);
@@ -120,5 +123,39 @@ void quadratic_formula(complex double x[2], complex double coeff[3])
 }
 
 
+void cubic_formula(complex double x[3], complex double coeff[4])
+{
+	complex double a = coeff[3];
+	complex double b = coeff[2];
+	complex double c = coeff[1];
+	complex double d = coeff[0];
+
+	assert(0. != a);
+
+	// depressed form t^3 + p t + q with t = -b / (3 a)
+	complex double p = (3. * a * c - cpow(b, 2.)) / (3. * cpow(a, 2.));
+	complex double q = (2. * cpow(b, 3.) - 9. * a * b * c + 27. * cpow(a, 2.) * d) / (27. * cpow(a, 3.)); 
+
+	// Vieta's substitution: quadratic in w^3 with t = w - p / (3 w)
+	complex double qp[3] = { -cpow(p, 3.) / 27., q, 1. };
+	complex double qw[2];
+
+	quadratic_formula(qw, qp);
+
+	if (0. == qw[0])
+		qw[0] = qw[1];
+
+	complex double w1 = cpow(qw[0], 1. / 3.);
+
+	complex double ksi = 0.5 * (-1. + sqrt(3.) * 1.i);
+
+	for (int i = 0; i < 3; i++) {
+
+		complex double wi = cpow(ksi, i) * w1;
+		complex double ti = (0. == wi) ? 0. : (wi - p / (3. * wi));
+
+		x[i] = ti - b / (3. * a);
+	}
+}
 
 
