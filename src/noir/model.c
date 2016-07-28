@@ -142,7 +142,7 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	    dims_loc[2] = 1; // SMS weights only for x & y
 	} 
 	noir_calc_weights(dims_loc, weights);
-	fftmod(DIMS, data->wght_dims, FFT_FLAGS, weights, weights); //TODO
+	fftmod(DIMS, data->wght_dims, FFT_FLAGS, weights, weights); 
 	fftscale(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
 	
 	data->weights = weights;
@@ -174,7 +174,6 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 		md_copy(DIMS, data->mask_dims, msk, mask, CFL_SIZE);
 	}
 
-//	fftmod(DIMS, data->mask_dims, 7, msk, msk);
       	fftscale(DIMS, data->mask_dims, data->flags, msk, msk); 
 		
 	data->mask = msk;
@@ -203,15 +202,12 @@ void noir_forw_coils(struct noir_data* data, complex float* dst, const complex f
 {
 	md_zmul2(DIMS, data->coil_dims, data->coil_strs, dst, data->coil_strs, src, data->wght_strs, data->weights);
         ifft(DIMS, data->coil_dims, data->flags, dst, dst);
-//	fftmod(DIMS, data->coil_dims, 7, dst);
 }
 
 
 void noir_back_coils(struct noir_data* data, complex float* dst, const complex float* src) // Convert to transformed coil profiles. x' = W^-1 x
 {
-//	fftmod(DIMS, data->coil_dims, 7, dst);
 	fft(DIMS, data->coil_dims, data->flags, dst, src);
-
 	md_zmulc2(DIMS, data->coil_dims, data->coil_strs, dst, data->coil_strs, dst, data->wght_strs, data->weights);
 }
 
@@ -222,12 +218,11 @@ void noir_fun(struct noir_data* data, complex float* dst, const complex float* s
 
 	md_copy(DIMS, data->imgs_dims, data->xn, src, CFL_SIZE);
 	noir_forw_coils(data, data->sens, src + split);
-
 	md_clear(DIMS, data->sign_dims, data->tmp, CFL_SIZE);
 	md_zfmac2(DIMS, data->sign_dims, data->sign_strs, data->tmp, data->imgs_strs, src, data->coil_strs, data->sens);
 	//							    \ proton densities  /  \ weighted coil profiles  /
 
-	// could be moved to the benning, but see comment below
+	// could be moved to the begining, but see comment below
 	md_zmul2(DIMS, data->sign_dims, data->sign_strs, data->tmp, data->sign_strs, data->tmp, data->mask_strs, data->mask);
 
 	fft(DIMS, data->sign_dims, FFT_FLAGS, data->tmp, data->tmp);

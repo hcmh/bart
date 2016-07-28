@@ -63,7 +63,7 @@ int main_nlinv(int argc, char* argv[])
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
 	if(conf.sms){ 
-  	  assert(ksp_dims[2] != 1 && "No multislice information in z-dimension!");
+  	  assert(ksp_dims[2] != 1 && "No multislice information in z-dimension available!");
 	  fftmod(DIMS, ksp_dims, 4, kspace_data, kspace_data); // fftmod to get correct slice order in output
 	}
 	
@@ -186,7 +186,7 @@ int main_nlinv(int argc, char* argv[])
 		if (norm)
 			md_zdiv2(DIMS, ksp_dims, strs, sens, strs, sens, img_strs, norm);
 
-		fftmod(DIMS, ksp_dims, FFT_FLAGS, sens, sens);
+		fftmod(DIMS, ksp_dims, FFT_FLAGS, sens, sens); // FFT_FLAGS needed also for SMS!
 	}
 
 
