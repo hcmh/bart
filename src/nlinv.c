@@ -182,10 +182,10 @@ int main_nlinv(int argc, char* argv[])
 		long strs[DIMS];
 
 		md_calc_strides(DIMS, strs, ksp_dims, CFL_SIZE);
-
+/*
 		if (norm)
 			md_zdiv2(DIMS, ksp_dims, strs, sens, strs, sens, img_strs, norm);
-
+*/
 		fftmod(DIMS, ksp_dims, FFT_FLAGS, sens, sens); // FFT_FLAGS needed also for SMS!
 	}
 
