@@ -26,6 +26,7 @@
 #include "iter/iter.h"
 
 #include "misc/misc.h"
+#include "misc/types.h"
 #include "misc/mmio.h"
 #include "misc/mri.h"
 
@@ -112,9 +113,7 @@ static void sense_reco(struct sense_data* data, complex float* imgs, const compl
 	conf.l2lambda = data->alpha;
 	conf.tol = 1.E-3;
 
-	iter_conjgrad(&conf.base,
-		op, NULL, size, (float*)imgs, (const float*)adj,
-		NULL, NULL, NULL);
+	iter_conjgrad(CAST_UP(&conf), op, NULL, size, (float*)imgs, (const float*)adj, NULL);
 
 	operator_free(op);
 

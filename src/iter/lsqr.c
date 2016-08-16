@@ -21,6 +21,7 @@
 #include "linops/someops.h"
 
 #include "misc/debug.h"
+#include "misc/types.h"
 #include "misc/misc.h"
 
 #include "iter/iter.h"
@@ -30,12 +31,12 @@
 #include "lsqr.h"
 
 
-const struct lsqr_conf lsqr_defaults = { 0. };
+const struct lsqr_conf lsqr_defaults = { .lambda = 0., .it_gpu = false };
 
 
 struct lsqr_data {
 
-	operator_data_t base;
+	INTERFACE(operator_data_t);
 
 	float l2_lambda;
 	long size;
@@ -43,10 +44,11 @@ struct lsqr_data {
 	const struct linop_s* model_op;
 };
 
+DEF_TYPEID(lsqr_data);
 
 static void normaleq_l2_apply(const operator_data_t* _data, unsigned int N, void* args[static N])
 {
-	const struct lsqr_data* data = CONTAINER_OF(_data, struct lsqr_data, base);
+	const struct lsqr_data* data = CAST_DOWN(lsqr_data, _data);
 
 	assert(2 == N);
 
@@ -57,7 +59,7 @@ static void normaleq_l2_apply(const operator_data_t* _data, unsigned int N, void
 
 static void normaleq_del(const operator_data_t* _data)
 {
-	const struct lsqr_data* data = CONTAINER_OF(_data, struct lsqr_data, base);
+	const struct lsqr_data* data = CAST_DOWN(lsqr_data, _data);
 
 	linop_free(data->model_op);
 
@@ -71,6 +73,7 @@ static void normaleq_del(const operator_data_t* _data)
  */
 const struct operator_s* lsqr2_create(const struct lsqr_conf* conf,
 				      italgo_fun2_t italgo, void* iconf,
+				      const float* init,
 				      const struct linop_s* model_op,
 				      const struct operator_s* precond_op,
 			              unsigned int num_funs,
@@ -78,6 +81,7 @@ const struct operator_s* lsqr2_create(const struct lsqr_conf* conf,
 				      const struct linop_s* prox_linops[static num_funs])
 {
 	PTR_ALLOC(struct lsqr_data, data);
+	SET_TYPEID(lsqr_data, data);
 
 	const struct iovec_s* iov = operator_domain(model_op->forward);
 
@@ -85,7 +89,7 @@ const struct operator_s* lsqr2_create(const struct lsqr_conf* conf,
 	data->model_op = linop_clone(model_op);
 	data->size = 2 * md_calc_size(iov->N, iov->dims);	// FIXME: assume complex
 
-	const struct operator_s* normaleq_op = operator_create(iov->N, iov->dims, iov->N, iov->dims, &PTR_PASS(data)->base, normaleq_l2_apply, normaleq_del);
+	const struct operator_s* normaleq_op = operator_create(iov->N, iov->dims, iov->N, iov->dims, CAST_UP(PTR_PASS(data)), normaleq_l2_apply, normaleq_del);
 	const struct operator_s* adjoint = operator_ref(model_op->adjoint);
 
 	if (NULL != precond_op) {
@@ -101,7 +105,11 @@ const struct operator_s* lsqr2_create(const struct lsqr_conf* conf,
 		operator_free(tmp);
 	}
 
-	const struct operator_s* itop_op = itop_create(italgo, iconf, normaleq_op, num_funs, prox_funs, prox_linops);
+	const struct operator_s* itop_op = itop_create(italgo, iconf, init, normaleq_op, num_funs, prox_funs, prox_linops);
+
+	if (conf->it_gpu)
+		itop_op = operator_gpu_wrapper(itop_op);
+
 	const struct operator_s* lsqr_op = operator_chain(adjoint, itop_op);
 
 	operator_free(normaleq_op);
@@ -125,9 +133,7 @@ void lsqr2(unsigned int N, const struct lsqr_conf* conf,
 	   const long x_dims[static N], complex float* x,
 	   const long y_dims[static N], const complex float* y,
 	   const struct operator_s* precond_op,
-	   const complex float* x_truth,
-	   void* obj_eval_data,
-	   float (*obj_eval)(const void*, const float*))
+	   struct iter_monitor_s* monitor)
 {
 #if 1
 	// -----------------------------------------------------------
@@ -149,10 +155,12 @@ void lsqr2(unsigned int N, const struct lsqr_conf* conf,
 		.size = 2 * md_calc_size(N, x_dims),
 	};
 
+	SET_TYPEID(lsqr_data, &data);
+
 	// -----------------------------------------------------------
 	// run recon
 
-	const struct operator_s* normaleq_op = operator_create(N, x_dims, N, x_dims, &data.base, normaleq_l2_apply, NULL);
+	const struct operator_s* normaleq_op = operator_create(N, x_dims, N, x_dims, CAST_UP(&data), normaleq_l2_apply, NULL);
 
 	if (NULL != precond_op) {
 
@@ -166,8 +174,8 @@ void lsqr2(unsigned int N, const struct lsqr_conf* conf,
 	debug_printf(DP_DEBUG1, "lsqr: solve normal equations\n");
 
 	italgo(iconf, normaleq_op, num_funs, prox_funs, prox_linops, NULL, 
-			data.size, (float*)x, (const float*)x_adj,
-			(const float*)x_truth, obj_eval_data, obj_eval);
+			NULL, data.size, (float*)x, (const float*)x_adj,
+			monitor);
 
 
 	// -----------------------------------------------------------
@@ -177,7 +185,7 @@ void lsqr2(unsigned int N, const struct lsqr_conf* conf,
 	operator_free(normaleq_op);
 #else
 	// nicer, but is still missing some features
-	const struct operator_s* op = lsqr2_create(conf, italgo, iconf, model_op, precond_op,
+	const struct operator_s* op = lsqr2_create(conf, italgo, iconf, NULL, model_op, precond_op,
 						num_funs, prox_funs, prox_linops);
 
 	operator_apply(op, N, x_dims, x, N, y_dims, y);
@@ -203,14 +211,15 @@ void lsqr(unsigned int N,
 	  const complex float* y,
 	  const struct operator_s* precond_op)
 {
-	lsqr2(N, conf, iter2_call_iter, &((struct iter_call_s){ { }, italgo, iconf }).base,
+	lsqr2(N, conf, iter2_call_iter, CAST_UP(&((struct iter_call_s){ { &TYPEID(iter_call_s) }, italgo, iconf })),
 		model_op, (NULL != thresh_op) ? 1 : 0, &thresh_op, NULL,
-		x_dims, x, y_dims, y, precond_op, NULL, NULL, NULL);
+		x_dims, x, y_dims, y, precond_op, NULL);
 }
 
 
 const struct operator_s* wlsqr2_create(	const struct lsqr_conf* conf,
 					italgo_fun2_t italgo, void* iconf,
+					const float* init,
 					const struct linop_s* model_op,
 					const struct linop_s* weights,
 					const struct operator_s* precond_op,
@@ -220,8 +229,10 @@ const struct operator_s* wlsqr2_create(	const struct lsqr_conf* conf,
 {
 	struct linop_s* op = linop_chain(model_op, weights);
 
-	const struct operator_s* lsqr_op = lsqr2_create(conf, italgo, iconf, op, precond_op,
+	const struct operator_s* lsqr_op = lsqr2_create(conf, italgo, iconf, init,
+						op, precond_op,
 						num_funs, prox_funs, prox_linops);
+
 	const struct operator_s* wlsqr_op = operator_chain(weights->forward, lsqr_op);
 
 	operator_free(lsqr_op);
@@ -255,7 +266,7 @@ void wlsqr2(unsigned int N, const struct lsqr_conf* conf,
 
 	linop_forward(weights, N, y_dims, wy, N, y_dims, y);
 
-	lsqr2(N, conf, italgo, iconf, op, num_funs, prox_funs, prox_linops, x_dims, x, y_dims, wy, precond_op, NULL, NULL, NULL);
+	lsqr2(N, conf, italgo, iconf, op, num_funs, prox_funs, prox_linops, x_dims, x, y_dims, wy, precond_op, NULL);
 
 	md_free(wy);
 
@@ -279,105 +290,7 @@ void wlsqr(unsigned int N, const struct lsqr_conf* conf,
 	   const long w_dims[static N], const complex float* w,
 	   const struct operator_s* precond_op)
 {
-	wlsqr2(N, conf, iter2_call_iter, &((struct iter_call_s){ { }, italgo, iconf }).base,
+	wlsqr2(N, conf, iter2_call_iter, CAST_UP(&((struct iter_call_s){ { &TYPEID(iter_call_s) }, italgo, iconf })),
 	       model_op, (NULL != thresh_op) ? 1 : 0, &thresh_op, NULL,
 	       x_dims, x, y_dims, y, w_dims, w, precond_op);
 }
-
-
-/**
- * Wrapper for lsqr on GPU
- */
-#ifdef USE_CUDA
-extern void lsqr_gpu(unsigned int N, const struct lsqr_conf* conf,
-		     italgo_fun_t italgo, iter_conf* iconf,
-		     const struct linop_s* model_op,
-		     const struct operator_p_s* thresh_op,
-		     const long x_dims[static N], complex float* x, 
-		     const long y_dims[static N], const complex float* y,
-		     const struct operator_s* precond_op)
-{
-
-	complex float* gpu_y = md_gpu_move(N, y_dims, y, CFL_SIZE);
-	complex float* gpu_x = md_gpu_move(N, x_dims, x, CFL_SIZE);
-
-	lsqr(N, conf, italgo, iconf, model_op, thresh_op, x_dims, gpu_x, y_dims, gpu_y, precond_op);
-
-	md_copy(N, x_dims, x, gpu_x, CFL_SIZE);
-
-	md_free(gpu_x);
-	md_free(gpu_y);
-}
-
-
-#endif
-
-
-
-
-
-/**
- * Wrapper for wlsqr on GPU
- */
-#ifdef USE_CUDA
-extern void wlsqr_gpu(	unsigned int N, const struct lsqr_conf* conf,
-			italgo_fun_t italgo, iter_conf* iconf,
-			const struct linop_s* model_op,
-			const struct operator_p_s* thresh_op,
-			const long x_dims[N], complex float* x, 
-			const long y_dims[N], const complex float* y,
-			const long w_dims[N], const complex float* w,
-			const struct operator_s* precond_op)
-{
-
-	complex float* gpu_y = md_gpu_move(N, y_dims, y, CFL_SIZE);
-	complex float* gpu_x = md_gpu_move(N, x_dims, x, CFL_SIZE);
-	complex float* gpu_w = md_gpu_move(N, w_dims, w, CFL_SIZE);
-
-	wlsqr(N, conf, italgo, iconf, model_op, thresh_op,
-	      x_dims, gpu_x, y_dims, gpu_y, w_dims, gpu_w, precond_op);
-
-	md_copy(N, x_dims, x, gpu_x, CFL_SIZE);
-
-	md_free(gpu_x);
-	md_free(gpu_y);
-	md_free(gpu_w);
-}
-
-
-#endif
-
-/**
- * Wrapper for lsqr2 on GPU
- */
-#ifdef USE_CUDA
-extern void lsqr2_gpu(	unsigned int N, const struct lsqr_conf* conf,
-			italgo_fun2_t italgo, iter_conf* iconf,
-			const struct linop_s* model_op,
-			unsigned int num_funs,
-			const struct operator_p_s* prox_funs[static num_funs],
-			const struct linop_s* prox_linops[static num_funs],
-			const long x_dims[N], complex float* x,
-			const long y_dims[N], const complex float* y,
-			const struct operator_s* precond_op,
-			const complex float* x_truth,
-			void* obj_eval_data,
-			float (*obj_eval)(const void*, const float*))
-{
-
-	complex float* gpu_y = md_gpu_move(N, y_dims, y, CFL_SIZE);
-	complex float* gpu_x = md_gpu_move(N, x_dims, x, CFL_SIZE);
-	complex float* gpu_x_truth = md_gpu_move(N, x_dims, x_truth, CFL_SIZE);
-
-	lsqr2(N, conf, italgo, iconf, model_op, num_funs, prox_funs, prox_linops,
-	      x_dims, gpu_x, y_dims, gpu_y,
-	      precond_op,
-	      gpu_x_truth, obj_eval_data, obj_eval);
-
-	md_copy(N, x_dims, x, gpu_x, CFL_SIZE);
-
-	md_free(gpu_x_truth);
-	md_free(gpu_x);
-	md_free(gpu_y);
-}
-#endif

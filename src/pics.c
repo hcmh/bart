@@ -47,15 +47,15 @@ static const char usage_str[] = "<kspace> <sensitivities> <output>";
 static const char help_str[] = "Parallel-imaging compressed-sensing reconstruction.";
 
 
-static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long map_dims[DIMS], const complex float* maps, const long ksp_dims[DIMS], const long traj_dims[DIMS], const complex float* traj, struct nufft_conf_s conf, const complex float* weights, bool use_gpu, struct operator_s** precond_op)
+static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long map_dims[DIMS], const complex float* maps, const long ksp_dims[DIMS], const long traj_dims[DIMS], const complex float* traj, struct nufft_conf_s conf, const complex float* weights, struct operator_s** precond_op)
 {
 	long coilim_dims[DIMS];
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~MAPS_FLAG, coilim_dims, max_dims);
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, max_dims);
 
-	const struct linop_s* fft_op = nufft_create(DIMS, ksp_dims, coilim_dims, traj_dims, traj, weights, conf, use_gpu);
-	const struct linop_s* maps_op = maps2_create(coilim_dims, map_dims, img_dims, maps, use_gpu);
+	const struct linop_s* fft_op = nufft_create(DIMS, ksp_dims, coilim_dims, traj_dims, traj, weights, conf);
+	const struct linop_s* maps_op = maps2_create(coilim_dims, map_dims, img_dims, maps);
 
 	//precond_op[0] = (struct operator_s*) nufft_precond_create( fft_op );
 	precond_op[0] = NULL;
@@ -76,8 +76,6 @@ int main_pics(int argc, char* argv[])
 	struct sense_conf conf = sense_defaults;
 
 
-
-	bool use_gpu = false;
 
 	bool randshift = true;
 	unsigned int maxiter = 30;
@@ -114,6 +112,7 @@ int main_pics(int argc, char* argv[])
 	struct opt_reg_s ropts;
 	assert(0 == opt_reg_init(&ropts));
 
+	unsigned int loop_flags = 0u;
 
 	const struct opt_s opts[] = {
 
@@ -125,7 +124,7 @@ int main_pics(int argc, char* argv[])
 		OPT_UINT('i', &maxiter, "iter", "max. number of iterations"),
 		OPT_STRING('t', &traj_file, "file", "k-space trajectory"),
 		OPT_CLEAR('n', &randshift, "disable random wavelet cycle spinning"),
-		OPT_SET('g', &use_gpu, "use GPU"),
+		OPT_SET('g', &conf.gpu, "use GPU"),
 		OPT_STRING('p', &pat_file, "file", "pattern or weights"),
 		OPT_SELECT('I', enum algo_t, &ropts.algo, IST, "(select IST)"),
 		OPT_UINT('b', &llr_blk, "blk", "Lowrank block size"),
@@ -141,9 +140,10 @@ int main_pics(int argc, char* argv[])
 		OPT_UINT('C', &admm_maxitercg, "iter", "ADMM max. CG iterations"),
 		OPT_FLOAT('q', &conf.cclambda, "cclambda", "(cclambda)"),
 		OPT_FLOAT('f', &restrict_fov, "rfov", "restrict FOV"),
-		OPT_SELECT('m', enum algo_t, &ropts.algo, ADMM, "Select ADMM"),
+		OPT_SELECT('m', enum algo_t, &ropts.algo, ADMM, "select ADMM"),
 		OPT_FLOAT('w', &scaling, "val", "scaling"),
-		OPT_SET('S', &scale_im, "Re-scale the image after reconstruction"),
+		OPT_SET('S', &scale_im, "re-scale the image after reconstruction"),
+		OPT_UINT('B', &loop_flags, "flags", "batch-mode"),
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -189,11 +189,11 @@ int main_pics(int argc, char* argv[])
 	assert(1 == ksp_dims[MAPS_DIM]);
 
 
-	(use_gpu ? num_init_gpu : num_init)();
+	(conf.gpu ? num_init_gpu : num_init)();
 
 	// print options
 
-	if (use_gpu)
+	if (conf.gpu)
 		debug_printf(DP_INFO, "GPU reconstruction\n");
 
 	if (map_dims[MAPS_DIM] > 1) 
@@ -267,9 +267,9 @@ int main_pics(int argc, char* argv[])
 	const struct operator_s* precond_op = NULL;
 
 	if (NULL == traj_file)
-		forward_op = sense_init(max_dims, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, maps, use_gpu);
+		forward_op = sense_init(max_dims, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, maps);
 	else
-		forward_op = sense_nc_init(max_dims, map_dims, maps, ksp_dims, traj_dims, traj, nuconf, pattern, use_gpu, (struct operator_s**) &precond_op);
+		forward_op = sense_nc_init(max_dims, map_dims, maps, ksp_dims, traj_dims, traj, nuconf, pattern, (struct operator_s**) &precond_op);
 
 	// apply scaling
 
@@ -296,16 +296,6 @@ int main_pics(int argc, char* argv[])
 		md_zsmul(DIMS, ksp_dims, kspace, kspace, 1. / scaling);
 
 
-	// initialize prox functions
-	const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
-	const struct linop_s* trafos[NUM_REGS] = { NULL };
-
-	opt_reg_configure(DIMS, img_dims, &ropts, thresh_ops, trafos, llr_blk, randshift, use_gpu);
-
-	int nr_penalties = ropts.r;
-	struct reg_s* regs = ropts.regs;
-	enum algo_t algo = ropts.algo;
-
 
 	complex float* image = create_cfl(argv[3], DIMS, img_dims);
 	md_clear(DIMS, img_dims, image, CFL_SIZE);
@@ -318,6 +308,8 @@ int main_pics(int argc, char* argv[])
 
 		image_truth = load_cfl(image_truth_file, DIMS, img_truth_dims);
 		//md_zsmul(DIMS, img_dims, image_truth, image_truth, 1. / scaling);
+
+		xfree(image_truth_file);
 	}
 
 	long img_start_dims[DIMS];
@@ -326,30 +318,79 @@ int main_pics(int argc, char* argv[])
 	if (warm_start) { 
 
 		debug_printf(DP_DEBUG1, "Warm start: %s\n", image_start_file);
-		image_start = load_cfl(image_start_file, DIMS, img_start_dims);
-		assert(md_check_compat(DIMS, 0u, img_start_dims, img_dims));
-		md_copy(DIMS, img_dims, image, image_start, CFL_SIZE);
 
-		free((void*)image_start_file);
-		unmap_cfl(DIMS, img_dims, image_start);
+		image_start = load_cfl(image_start_file, DIMS, img_start_dims);
+
+		assert(md_check_compat(DIMS, 0u, img_start_dims, img_dims));
+
+		xfree(image_start_file);
 
 		// if rescaling at the end, assume the input has also been rescaled
-		if (scale_im && scaling != 0.)
-			md_zsmul(DIMS, img_dims, image, image, 1. /  scaling);
+		if (scale_im && (scaling != 0.))
+			md_zsmul(DIMS, img_dims, image_start, image_start, 1. /  scaling);
 	}
+
+
+
+	assert((0u == loop_flags) || (NULL == image_start));
+	assert((0u == loop_flags) || (NULL == traj_file));
+	assert(!(loop_flags & COIL_FLAG));
+
+	const complex float* image_start1 = image_start;
+
+	long loop_dims[DIMS];
+	md_select_dims(DIMS,  loop_flags, loop_dims, max_dims);
+
+	long img1_dims[DIMS];
+	md_select_dims(DIMS, ~loop_flags, img1_dims, img_dims);
+
+	long ksp1_dims[DIMS];
+	md_select_dims(DIMS, ~loop_flags, ksp1_dims, ksp_dims);
+
+	long max1_dims[DIMS];
+	md_select_dims(DIMS, ~loop_flags, max1_dims, max_dims);
+
+	long pat1_dims[DIMS];
+	md_select_dims(DIMS, ~loop_flags, pat1_dims, pat_dims);
+
+	complex float* pattern1 = NULL;
+
+	if (NULL != pattern) {
+
+		pattern1 = md_alloc(DIMS, pat1_dims, CFL_SIZE);
+		md_slice(DIMS, loop_flags, (const long[DIMS]){ [0 ... DIMS - 1] = 0 }, pat_dims, pattern1, pattern, CFL_SIZE);
+	}
+
+	// FIXME: re-initialize forward_op and precond_op
+
+	if (NULL == traj_file)
+		forward_op = sense_init(max1_dims, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, maps);
+
+
+	// initialize prox functions
+
+	const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
+	const struct linop_s* trafos[NUM_REGS] = { NULL };
+
+	opt_reg_configure(DIMS, img1_dims, &ropts, thresh_ops, trafos, llr_blk, randshift, conf.gpu);
+
+	int nr_penalties = ropts.r;
+	struct reg_s* regs = ropts.regs;
+	enum algo_t algo = ropts.algo;
 
 
 	// initialize algorithm
 
 	italgo_fun2_t italgo = iter2_call_iter;
 	struct iter_call_s iter2_data;
+	SET_TYPEID(iter_call_s, &iter2_data);
 
-	iter_conf* iconf = &iter2_data.base;
+	iter_conf* iconf = CAST_UP(&iter2_data);
 
-	struct iter_conjgrad_conf cgconf;
-	struct iter_fista_conf fsconf;
-	struct iter_ist_conf isconf;
-	struct iter_admm_conf mmconf;
+	struct iter_conjgrad_conf cgconf = iter_conjgrad_defaults;
+	struct iter_fista_conf fsconf = iter_fista_defaults;
+	struct iter_ist_conf isconf = iter_ist_defaults;
+	struct iter_admm_conf mmconf = iter_admm_defaults;
 
 	if ((CG == algo) && (1 == nr_penalties) && (L2IMG != regs[0].xform))
 		algo = FISTA;
@@ -397,7 +438,7 @@ int main_pics(int argc, char* argv[])
 			cgconf.l2lambda = (0 == nr_penalties) ? 0. : regs[0].lambda;
 
 			iter2_data.fun = iter_conjgrad;
-			iter2_data._conf = &cgconf.base;
+			iter2_data._conf = CAST_UP(&cgconf);
 
 			nr_penalties = 0;
 
@@ -415,7 +456,7 @@ int main_pics(int argc, char* argv[])
 			isconf.hogwild = hogwild;
 
 			iter2_data.fun = iter_ist;
-			iter2_data._conf = &isconf.base;
+			iter2_data._conf = CAST_UP(&isconf);
 
 			break;
 
@@ -434,7 +475,7 @@ int main_pics(int argc, char* argv[])
 			mmconf.RELTOL = 0.;
 
 			italgo = iter2_admm;
-			iconf = &mmconf.base;
+			iconf = CAST_UP(&mmconf);
 
 			break;
 
@@ -450,7 +491,7 @@ int main_pics(int argc, char* argv[])
 			fsconf.hogwild = hogwild;
 
 			iter2_data.fun = iter_fista;
-			iter2_data._conf = &fsconf.base;
+			iter2_data._conf = CAST_UP(&fsconf);
 
 			break;
 
@@ -461,17 +502,28 @@ int main_pics(int argc, char* argv[])
 
 
 
-	const struct operator_s* op = sense_recon_create(&conf, max_dims, forward_op,
-				pat_dims, (NULL == traj_file) ? pattern : NULL,
-				italgo, iconf, nr_penalties, thresh_ops,
-				(ADMM == algo) ? trafos : NULL, ksp_dims, precond_op);
+	const struct operator_s* op = sense_recon_create(&conf, max1_dims, forward_op,
+				pat1_dims, (NULL != traj_file) ? NULL : pattern1,
+				italgo, iconf, image_start1, nr_penalties, thresh_ops,
+				(ADMM == algo) ? trafos : NULL, ksp1_dims, precond_op);
 
-	if (use_gpu) 
-#ifdef USE_CUDA
-		op = operator_gpu_wrapper(op);
-#else
-		assert(0);
-#endif
+	long strsx[2][DIMS];
+	const long* strs[2] = { strsx[0], strsx[1] };
+
+	md_calc_strides(DIMS, strsx[0], img_dims, CFL_SIZE);
+	md_calc_strides(DIMS, strsx[1], ksp_dims, CFL_SIZE);
+
+	for (unsigned int i = 0; i < DIMS; i++) {
+
+		if (MD_IS_SET(loop_flags, i)) {
+
+			strsx[0][i] = 0;
+			strsx[1][i] = 0;
+		}
+	}
+
+	op = operator_copy_wrapper(2, strs, op);
+	op = operator_loop(DIMS, loop_dims, op);
 
 	operator_apply(op, DIMS, img_dims, image, DIMS, ksp_dims, kspace);
 
@@ -489,6 +541,9 @@ int main_pics(int argc, char* argv[])
 	else
 		md_free(pattern);
 
+	if (NULL != pattern1)
+		md_free(pattern1);
+
 
 	unmap_cfl(DIMS, map_dims, maps);
 	unmap_cfl(DIMS, ksp_dims, kspace);
@@ -497,12 +552,11 @@ int main_pics(int argc, char* argv[])
 	if (NULL != traj)
 		unmap_cfl(DIMS, traj_dims, traj);
 
-	if (im_truth) {
-
-		free((void*)image_truth_file);
+	if (im_truth)
 		unmap_cfl(DIMS, img_dims, image_truth);
-	}
 
+	if (image_start)
+		unmap_cfl(DIMS, img_dims, image_start);
 
 	double end_time = timestamp();
 

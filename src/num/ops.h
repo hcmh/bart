@@ -1,4 +1,5 @@
 /* Copyright 2014-2015. The Regents of the University of California.
+ * Copyright 2016. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  */
@@ -7,8 +8,9 @@
 #define __OPS_H
 
 #include "misc/cppwrap.h"
+#include "misc/types.h"
 
-typedef struct operator_data_s { int:0; } operator_data_t;
+typedef struct operator_data_s { TYPEID* TYPEID; } operator_data_t;
 
 
 typedef void (*operator_fun_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)]);
@@ -95,10 +97,9 @@ extern operator_data_t* operator_get_data(const struct operator_s* op);
 extern operator_data_t* operator_p_get_data(const struct operator_p_s* x);
 
 
+extern const struct operator_s* operator_copy_wrapper(unsigned int N, const long* strs[N], const struct operator_s* op);
 
-#ifdef USE_CUDA
 extern const struct operator_s* operator_gpu_wrapper(const struct operator_s* op);
-#endif
 
 extern const struct operator_s* operator_loop2(unsigned int N, const unsigned int D,
 				const long dims[D], const long (*strs)[D],

@@ -23,35 +23,64 @@
 #include "num/ops.h"
 #include "num/iovec.h"
 #include "num/blas.h"
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
 
 #include "linops/linop.h"
 
 #include "someops.h"
 
+DEF_TYPEID(cdiag_s);
+
 struct cdiag_s {
 
-	linop_data_t base;
+	INTERFACE(linop_data_t);
 
 	unsigned int N;
 	const long* dims;
 	const long* strs;
 	const long* dstrs;
 	const complex float* diag;
+#ifdef USE_CUDA
+	const complex float* gpu_diag;
+#endif
 	bool rmul;
 };
 
+
 static void cdiag_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct cdiag_s* data = CONTAINER_OF(_data, const struct cdiag_s, base);
+	const struct cdiag_s* data = CAST_DOWN(cdiag_s, _data);
 
-	(data->rmul ? md_zrmul2 : md_zmul2)(data->N, data->dims, data->strs, dst, data->strs, src, data->dstrs, data->diag);
+	const complex float* diag = data->diag;
+#ifdef USE_CUDA
+	if (cuda_ondevice(src)) {
+
+		if (NULL == data->gpu_diag)
+			((struct cdiag_s*)data)->gpu_diag = md_gpu_move(data->N, data->dims, data->diag, CFL_SIZE);
+
+		diag = data->gpu_diag;
+	}
+#endif
+	(data->rmul ? md_zrmul2 : md_zmul2)(data->N, data->dims, data->strs, dst, data->strs, src, data->dstrs, diag);
 }
 
 static void cdiag_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct cdiag_s* data = CONTAINER_OF(_data, const struct cdiag_s, base);
+	const struct cdiag_s* data = CAST_DOWN(cdiag_s, _data);
 
-	(data->rmul ? md_zrmul2 : md_zmulc2)(data->N, data->dims, data->strs, dst, data->strs, src, data->dstrs, data->diag);
+	const complex float* diag = data->diag;
+#ifdef USE_CUDA
+	if (cuda_ondevice(src)) {
+
+		if (NULL == data->gpu_diag)
+			((struct cdiag_s*)data)->gpu_diag = md_gpu_move(data->N, data->dims, data->diag, CFL_SIZE);
+
+		diag = data->gpu_diag;
+	}
+#endif
+	(data->rmul ? md_zrmul2 : md_zmulc2)(data->N, data->dims, data->strs, dst, data->strs, src, data->dstrs, diag);
 }
 
 static void cdiag_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
@@ -62,8 +91,11 @@ static void cdiag_normal(const linop_data_t* _data, complex float* dst, const co
 
 static void cdiag_free(const linop_data_t* _data)
 {
-	const struct cdiag_s* data = CONTAINER_OF(_data, const struct cdiag_s, base);
+	const struct cdiag_s* data = CAST_DOWN(cdiag_s, _data);
 
+#ifdef USE_CUDA
+	md_free((void*)data->gpu_diag);
+#endif
 	free((void*)data->dims);
 	free((void*)data->dstrs);
 	free((void*)data->strs);
@@ -73,6 +105,7 @@ static void cdiag_free(const linop_data_t* _data)
 static struct linop_s* linop_gdiag_create(unsigned int N, const long dims[N], unsigned int flags, const complex float* diag, bool rdiag)
 {
 	PTR_ALLOC(struct cdiag_s, data);
+	SET_TYPEID(cdiag_s, data);
 
 	data->rmul = rdiag;
 
@@ -91,8 +124,11 @@ static struct linop_s* linop_gdiag_create(unsigned int N, const long dims[N], un
 	data->strs = *PTR_PASS(strs);
 	data->dstrs = *PTR_PASS(dstrs);
 	data->diag = diag;	// make a copy?
+#ifdef USE_CUDA
+	data->gpu_diag = NULL;
+#endif
 
-	return linop_create(N, dims, N, dims, &PTR_PASS(data)->base, cdiag_apply, cdiag_adjoint, cdiag_normal, NULL, cdiag_free);
+	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), cdiag_apply, cdiag_adjoint, cdiag_normal, NULL, cdiag_free);
 }
 
 
@@ -128,21 +164,23 @@ struct linop_s* linop_rdiag_create(unsigned int N, const long dims[N], unsigned 
 
 struct identity_data_s {
 
-	linop_data_t base;
+	INTERFACE(linop_data_t);
 
 	const struct iovec_s* domain;
 };
 
+DEF_TYPEID(identity_data_s);
+
 static void identity_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct iovec_s* domain = CONTAINER_OF(_data, const struct identity_data_s, base)->domain;
+	const struct iovec_s* domain = CAST_DOWN(identity_data_s, _data)->domain;
 
 	md_copy2(domain->N, domain->dims, domain->strs, dst, domain->strs, src, CFL_SIZE);
 }
 
 static void identity_free(const linop_data_t* _data)
 {	
-	const struct identity_data_s* data = CONTAINER_OF(_data, const struct identity_data_s, base);
+	const struct identity_data_s* data = CAST_DOWN(identity_data_s, _data);
 
 	iovec_free(data->domain);
 
@@ -157,39 +195,42 @@ static void identity_free(const linop_data_t* _data)
 struct linop_s* linop_identity_create(unsigned int N, const long dims[N])
 {
 	PTR_ALLOC(struct identity_data_s, data);
+	SET_TYPEID(identity_data_s, data);
 
 	data->domain = iovec_create(N, dims, CFL_SIZE);
 
-	return linop_create(N, dims, N, dims, &PTR_PASS(data)->base, identity_apply, identity_apply, identity_apply, NULL, identity_free);
+	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), identity_apply, identity_apply, identity_apply, NULL, identity_free);
 }
 
 
 struct resize_op_s {
 
-	linop_data_t base;
+	INTERFACE(linop_data_t);
 
 	unsigned int N;
 	const long* out_dims;
 	const long* in_dims;
 };
 
+DEF_TYPEID(resize_op_s);
+
 static void resize_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct resize_op_s* data = CONTAINER_OF(_data, const struct resize_op_s, base);
+	const struct resize_op_s* data = CAST_DOWN(resize_op_s, _data);
 
 	md_resize_center(data->N, data->out_dims, dst, data->in_dims, src, CFL_SIZE);
 }
 
 static void resize_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct resize_op_s* data = CONTAINER_OF(_data, const struct resize_op_s, base);
+	const struct resize_op_s* data = CAST_DOWN(resize_op_s, _data);
 
 	md_resize_center(data->N, data->in_dims, dst, data->out_dims, src, CFL_SIZE);
 }
 
 static void resize_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct resize_op_s* data = CONTAINER_OF(_data, const struct resize_op_s, base);
+	const struct resize_op_s* data = CAST_DOWN(resize_op_s, _data);
 
 	complex float* tmp = md_alloc_sameplace(data->N, data->out_dims, CFL_SIZE, dst);
 
@@ -201,7 +242,7 @@ static void resize_normal(const linop_data_t* _data, complex float* dst, const c
 
 static void resize_free(const linop_data_t* _data)
 {
-	const struct resize_op_s* data = CONTAINER_OF(_data, const struct resize_op_s, base);
+	const struct resize_op_s* data = CAST_DOWN(resize_op_s, _data);
 
 	free((void*)data->out_dims);
 	free((void*)data->in_dims);
@@ -222,6 +263,7 @@ static void resize_free(const linop_data_t* _data)
 struct linop_s* linop_resize_create(unsigned int N, const long out_dims[N], const long in_dims[N])
 {
 	PTR_ALLOC(struct resize_op_s, data);
+	SET_TYPEID(resize_op_s, data);
 
 	data->N = N;
 	data->out_dims = *TYPE_ALLOC(long[N]);
@@ -230,13 +272,13 @@ struct linop_s* linop_resize_create(unsigned int N, const long out_dims[N], cons
 	md_copy_dims(N, (long*)data->out_dims, out_dims);
 	md_copy_dims(N, (long*)data->in_dims, in_dims);
 
-	return linop_create(N, out_dims, N, in_dims, &PTR_PASS(data)->base, resize_forward, resize_adjoint, resize_normal, NULL, resize_free);
+	return linop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), resize_forward, resize_adjoint, resize_normal, NULL, resize_free);
 }
 
 
 struct operator_matrix_s {
 
-	linop_data_t base;
+	INTERFACE(linop_data_t);
 
 	const complex float* mat;
 	const complex float* mat_conj;
@@ -255,6 +297,7 @@ struct operator_matrix_s {
 	unsigned int T;
 };
 
+DEF_TYPEID(operator_matrix_s);
 
 /**
  * case 1: all singleton dimensions between T_dim and K_dim, all singleton dimensions after K_dim.
@@ -296,7 +339,7 @@ static bool cgemm_forward_standard(const struct operator_matrix_s* data)
 
 static void linop_matrix_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct operator_matrix_s* data = CONTAINER_OF(_data, const struct operator_matrix_s, base);
+	const struct operator_matrix_s* data = CAST_DOWN(operator_matrix_s, _data);
 
 	long N = data->mat_iovec->N;
 	//debug_printf(DP_DEBUG1, "compute forward\n");
@@ -322,7 +365,7 @@ static void linop_matrix_apply(const linop_data_t* _data, complex float* dst, co
 
 static void linop_matrix_apply_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct operator_matrix_s* data = CONTAINER_OF(_data, const struct operator_matrix_s, base);
+	const struct operator_matrix_s* data = CAST_DOWN(operator_matrix_s, _data);
 
 	unsigned int N = data->mat_iovec->N;
 	//debug_printf(DP_DEBUG1, "compute adjoint\n");
@@ -348,7 +391,7 @@ static void linop_matrix_apply_adjoint(const linop_data_t* _data, complex float*
 
 static void linop_matrix_apply_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct operator_matrix_s* data = CONTAINER_OF(_data, const struct operator_matrix_s, base);
+	const struct operator_matrix_s* data = CAST_DOWN(operator_matrix_s, _data);
 
 	unsigned int N = data->mat_iovec->N;
 	// FIXME check all the cases where computation can be done with blas
@@ -388,7 +431,7 @@ static void linop_matrix_apply_normal(const linop_data_t* _data, complex float* 
 
 static void linop_matrix_del(const linop_data_t* _data)
 {
-	const struct operator_matrix_s* data = CONTAINER_OF(_data, const struct operator_matrix_s, base);
+	const struct operator_matrix_s* data = CAST_DOWN(operator_matrix_s, _data);
 
 	iovec_free(data->mat_iovec);
 	iovec_free(data->mat_gram_iovec);
@@ -549,6 +592,7 @@ struct linop_s* linop_matrix_altcreate(unsigned int N, const long out_dims[N], c
 	const struct iovec_s* gram_iovec = compute_gram_matrix(N, T_dim, T, K_dim, K, &gram, matrix_dims, matrix);
 
 	PTR_ALLOC(struct operator_matrix_s, data);
+	SET_TYPEID(operator_matrix_s, data);
 
 	data->mat_iovec = iovec_create(N, matrix_dims, CFL_SIZE);
 	data->mat_gram_iovec = gram_iovec;
@@ -567,7 +611,7 @@ struct linop_s* linop_matrix_altcreate(unsigned int N, const long out_dims[N], c
 	data->domain_iovec = iovec_create(N, in_dims, CFL_SIZE);
 	data->codomain_iovec = iovec_create(N, out_dims, CFL_SIZE);
 
-	return linop_create(N, out_dims, N, in_dims, &PTR_PASS(data)->base, linop_matrix_apply, linop_matrix_apply_adjoint, linop_matrix_apply_normal, NULL, linop_matrix_del);
+	return linop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), linop_matrix_apply, linop_matrix_apply_adjoint, linop_matrix_apply_normal, NULL, linop_matrix_del);
 }
 
 
@@ -668,13 +712,10 @@ struct linop_s* linop_matrix_chain(const struct linop_s* a, const struct linop_s
 
 struct fft_linop_s {
 
-	linop_data_t base;
+	INTERFACE(linop_data_t);
 
 	const struct operator_s* frw;
 	const struct operator_s* adj;
-
-	complex float* fftmod_mat;
-	complex float* fftmodk_mat;
 
 	bool center;
 	float nscale;
@@ -684,53 +725,31 @@ struct fft_linop_s {
 	long* strs;
 };
 
+DEF_TYPEID(fft_linop_s);
+
 static void fft_linop_apply(const linop_data_t* _data, complex float* out, const complex float* in)
 {
-	const struct fft_linop_s* data = CONTAINER_OF(_data, const struct fft_linop_s, base);
+	const struct fft_linop_s* data = CAST_DOWN(fft_linop_s, _data);
 
-	// fftmod + fftscale
-	if (data->center) {
-
-		md_zmul2(data->N, data->dims, data->strs, out, data->strs, in, data->strs, data->fftmod_mat);
-
-	} else {
-
-		if (in != out)
-			md_copy2(data->N, data->dims, data->strs, out, data->strs, in, CFL_SIZE);
-	}
+	if (in != out)
+		md_copy2(data->N, data->dims, data->strs, out, data->strs, in, CFL_SIZE);
 
 	operator_apply(data->frw, data->N, data->dims, out, data->N, data->dims, out);
-
-	// fftmodk
-	if (data->center)
-		md_zmul2(data->N, data->dims, data->strs, out, data->strs, out, data->strs, data->fftmodk_mat);
 }
 
 static void fft_linop_adjoint(const linop_data_t* _data, complex float* out, const complex float* in)
 {
-	const struct fft_linop_s* data = CONTAINER_OF(_data, const struct fft_linop_s, base);
+	const struct fft_linop_s* data = CAST_DOWN(fft_linop_s, _data);
 
-	// fftmod
-	if (data->center) {
-
-		md_zmulc2(data->N, data->dims, data->strs, out, data->strs, in, data->strs, data->fftmodk_mat);
-
-	} else {
-
-		if (in != out)
-			md_copy2(data->N, data->dims, data->strs, out, data->strs, in, CFL_SIZE);
-	}
+	if (in != out)
+		md_copy2(data->N, data->dims, data->strs, out, data->strs, in, CFL_SIZE);
 
 	operator_apply(data->adj, data->N, data->dims, out, data->N, data->dims, out);
-
-	// fftmod + fftscale
-	if (data->center)
-		md_zmulc2(data->N, data->dims, data->strs, out, data->strs, out, data->strs, data->fftmod_mat);
 }
 
 static void fft_linop_free(const linop_data_t* _data)
 {
-	const struct fft_linop_s* data = CONTAINER_OF(_data, const struct fft_linop_s, base);
+	const struct fft_linop_s* data = CAST_DOWN(fft_linop_s, _data);
 
 	fft_free(data->frw);
 	fft_free(data->adj);
@@ -738,15 +757,12 @@ static void fft_linop_free(const linop_data_t* _data)
 	free(data->dims);
 	free(data->strs);
 
-	md_free(data->fftmod_mat);
-	md_free(data->fftmodk_mat);
-
 	free((void*)data);
 }
 
 static void fft_linop_normal(const linop_data_t* _data, complex float* out, const complex float* in)
 {
-	const struct fft_linop_s* data = CONTAINER_OF(_data, const struct fft_linop_s, base);
+	const struct fft_linop_s* data = CAST_DOWN(fft_linop_s, _data);
 
 	if (data->center)
 		md_copy(data->N, data->dims, out, in, CFL_SIZE);
@@ -755,23 +771,13 @@ static void fft_linop_normal(const linop_data_t* _data, complex float* out, cons
 }
 
 
-static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned int flags, bool gpu, bool forward, bool center)
+static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned int flags, bool forward, bool center)
 {
-#ifdef USE_CUDA
-	md_alloc_fun_t alloc = (gpu ? md_alloc_gpu : md_alloc);
-#else
-	UNUSED(gpu);
-	md_alloc_fun_t alloc = md_alloc;
-#endif
-
-	// FIXME: we allocate only to communicate the gpu flag
-	// and that need in-place plans
-	complex float* tmp = alloc(N, dims, CFL_SIZE);
-	const struct operator_s* plan = fft_create(N, dims, flags, tmp, tmp, false);
-	const struct operator_s* iplan = fft_create(N, dims, flags, tmp, tmp, true);
-	md_free(tmp);
+	const struct operator_s* plan = fft_measure_create(N, dims, flags, true, false);
+	const struct operator_s* iplan = fft_measure_create(N, dims, flags, true, true);
 
 	PTR_ALLOC(struct fft_linop_s, data);
+	SET_TYPEID(fft_linop_s, data);
 
 	data->frw = plan;
 	data->adj = iplan;
@@ -785,52 +791,43 @@ static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned
 	data->strs = *TYPE_ALLOC(long[N]);
 	md_calc_strides(N, data->strs, data->dims, CFL_SIZE);
 
+	long fft_dims[N];
+	md_select_dims(N, flags, fft_dims, dims);
+	data->nscale = (float)md_calc_size(N, fft_dims);
+
+	lop_fun_t apply = forward ? fft_linop_apply : fft_linop_adjoint;
+	lop_fun_t adjoint = forward ? fft_linop_adjoint : fft_linop_apply;
+
+	struct linop_s* lop =  linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), apply, adjoint, fft_linop_normal, NULL, fft_linop_free);
 
 	if (center) {
 
 		// FIXME: should only allocate flagged dims
 
 		complex float* fftmod_mat = md_alloc(N, dims, CFL_SIZE);
+		complex float* fftmodk_mat = md_alloc(N, dims, CFL_SIZE);
+
+		// we need fftmodk only because we want to apply scaling only once
 
 		complex float one[1] = { 1. };
 		md_fill(N, dims, fftmod_mat, one, CFL_SIZE);
-		fftscale(N, dims, flags, fftmod_mat, fftmod_mat);
-		fftmod(N, dims, flags, fftmod_mat, fftmod_mat);
+		fftmod(N, dims, flags, fftmodk_mat, fftmod_mat);
+		fftscale(N, dims, flags, fftmod_mat, fftmodk_mat);
 
-		// we need it only because we want to apply scaling only once
+		struct linop_s* mod = linop_cdiag_create(N, dims, ~0u, fftmod_mat);
+		struct linop_s* modk = linop_cdiag_create(N, dims, ~0u, fftmodk_mat);
 
-		complex float* fftmodk_mat = md_alloc(N, dims, CFL_SIZE);
+		struct linop_s* tmp = linop_chain(mod, lop);
+		tmp = linop_chain(tmp, modk);
 
-		md_fill(N, dims, fftmodk_mat, one, CFL_SIZE);
-		fftmod(N, dims, flags, fftmodk_mat, fftmodk_mat);
+		linop_free(lop);
+		linop_free(mod);
+		linop_free(modk);
 
-		data->fftmod_mat = fftmod_mat;
-		data->fftmodk_mat = fftmodk_mat;
-
-#ifdef USE_CUDA
-		if (gpu) {
-
-			data->fftmod_mat = md_gpu_move(N, dims, fftmod_mat, CFL_SIZE);
-			data->fftmodk_mat = md_gpu_move(N, dims, fftmodk_mat, CFL_SIZE);
-
-			md_free(fftmod_mat);
-			md_free(fftmodk_mat);
-		}
-#endif
-	} else {
-
-		data->fftmod_mat = NULL;
-		data->fftmodk_mat = NULL;
-
-		long fft_dims[N];
-		md_select_dims(N, flags, fft_dims, dims);
-		data->nscale = (float)md_calc_size(N, fft_dims);
+		lop = tmp;
 	}
 
-	lop_fun_t apply = forward ? fft_linop_apply : fft_linop_adjoint;
-	lop_fun_t adjoint = forward ? fft_linop_adjoint : fft_linop_apply;
-
-	return linop_create(N, dims, N, dims, &PTR_PASS(data)->base, apply, adjoint, fft_linop_normal, NULL, fft_linop_free);
+	return lop;
 }
 
 
@@ -842,9 +839,9 @@ static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned
  * @param flags bitmask of the dimensions to apply the Fourier transform
  * @param gpu use gpu
  */
-struct linop_s* linop_fft_create(int N, const long dims[N], unsigned int flags, bool gpu)
+struct linop_s* linop_fft_create(int N, const long dims[N], unsigned int flags)
 {
-	return linop_fft_create_priv(N, dims, flags, gpu, true, false);
+	return linop_fft_create_priv(N, dims, flags, true, false);
 }
 
 
@@ -854,11 +851,10 @@ struct linop_s* linop_fft_create(int N, const long dims[N], unsigned int flags, 
  * @param N number of dimensions
  * @param dims dimensions of input
  * @param flags bitmask of the dimensions to apply the Fourier transform
- * @param gpu use gpu
  */
-struct linop_s* linop_ifft_create(int N, const long dims[N], unsigned int flags, bool gpu)
+struct linop_s* linop_ifft_create(int N, const long dims[N], unsigned int flags)
 {
-	return linop_fft_create_priv(N, dims, flags, gpu, false, false);
+	return linop_fft_create_priv(N, dims, flags, false, false);
 }
 
 
@@ -868,11 +864,10 @@ struct linop_s* linop_ifft_create(int N, const long dims[N], unsigned int flags,
  * @param N number of dimensions
  * @param dims dimensions of input
  * @param flags bitmask of the dimensions to apply the Fourier transform
- * @param gpu use gpu
  */
-struct linop_s* linop_fftc_create(int N, const long dims[N], unsigned int flags, bool gpu)
+struct linop_s* linop_fftc_create(int N, const long dims[N], unsigned int flags)
 {
-	return linop_fft_create_priv(N, dims, flags, gpu, true, true);
+	return linop_fft_create_priv(N, dims, flags, true, true);
 }
 
 
@@ -882,11 +877,10 @@ struct linop_s* linop_fftc_create(int N, const long dims[N], unsigned int flags,
  * @param N number of dimensions
  * @param dims dimensions of input
  * @param flags bitmask of the dimensions to apply the Fourier transform
- * @param gpu use gpu
  */
-struct linop_s* linop_ifftc_create(int N, const long dims[N], unsigned int flags, bool gpu)
+struct linop_s* linop_ifftc_create(int N, const long dims[N], unsigned int flags)
 {
-	return linop_fft_create_priv(N, dims, flags, gpu, false, true);
+	return linop_fft_create_priv(N, dims, flags, false, true);
 }
 
 
@@ -894,16 +888,18 @@ struct linop_s* linop_ifftc_create(int N, const long dims[N], unsigned int flags
 
 struct linop_cdf97_s {
 
-	linop_data_t base;
+	INTERFACE(linop_data_t);
 
 	unsigned int N;
 	const long* dims;
 	unsigned int flags;
 };
 
+DEF_TYPEID(linop_cdf97_s);
+
 static void linop_cdf97_apply(const linop_data_t* _data, complex float* out, const complex float* in)
 {
-	const struct linop_cdf97_s* data = CONTAINER_OF(_data, struct linop_cdf97_s, base);
+	const struct linop_cdf97_s* data = CAST_DOWN(linop_cdf97_s, _data);
 
 	md_copy(data->N, data->dims, out, in, CFL_SIZE);
 	md_cdf97z(data->N, data->dims, data->flags, out);
@@ -911,7 +907,7 @@ static void linop_cdf97_apply(const linop_data_t* _data, complex float* out, con
 
 static void linop_cdf97_adjoint(const linop_data_t* _data, complex float* out, const complex float* in)
 {
-	const struct linop_cdf97_s* data = CONTAINER_OF(_data, struct linop_cdf97_s, base);
+	const struct linop_cdf97_s* data = CAST_DOWN(linop_cdf97_s, _data);
 
 	md_copy(data->N, data->dims, out, in, CFL_SIZE);
 	md_icdf97z(data->N, data->dims, data->flags, out);
@@ -919,14 +915,14 @@ static void linop_cdf97_adjoint(const linop_data_t* _data, complex float* out, c
 
 static void linop_cdf97_normal(const linop_data_t* _data, complex float* out, const complex float* in)
 {
-	const struct linop_cdf97_s* data = CONTAINER_OF(_data, struct linop_cdf97_s, base);
+	const struct linop_cdf97_s* data = CAST_DOWN(linop_cdf97_s, _data);
 
 	md_copy(data->N, data->dims, out, in, CFL_SIZE);
 }
 
 static void linop_cdf97_free(const linop_data_t* _data)
 {
-	const struct linop_cdf97_s* data = CONTAINER_OF(_data, struct linop_cdf97_s, base);
+	const struct linop_cdf97_s* data = CAST_DOWN(linop_cdf97_s, _data);
 
 	free((void*)data->dims);
 
@@ -945,6 +941,7 @@ static void linop_cdf97_free(const linop_data_t* _data)
 struct linop_s* linop_cdf97_create(int N, const long dims[N], unsigned int flags)
 {
 	PTR_ALLOC(struct linop_cdf97_s, data);
+	SET_TYPEID(linop_cdf97_s, data);
 
 	PTR_ALLOC(long[N], ndims);
 	md_copy_dims(N, *ndims, dims);
@@ -953,35 +950,37 @@ struct linop_s* linop_cdf97_create(int N, const long dims[N], unsigned int flags
 	data->dims = *ndims;
 	data->flags = flags;
 
-	return linop_create(N, dims, N, dims, &data->base, linop_cdf97_apply, linop_cdf97_adjoint, linop_cdf97_normal, NULL, linop_cdf97_free);
+	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), linop_cdf97_apply, linop_cdf97_adjoint, linop_cdf97_normal, NULL, linop_cdf97_free);
 }
 
 
 
 struct conv_data_s {
 
-	linop_data_t base;
+	INTERFACE(linop_data_t);
 
 	struct conv_plan* plan;
 };
 
+DEF_TYPEID(conv_data_s);
+
 static void linop_conv_forward(const linop_data_t* _data, complex float* out, const complex float* in)
 {
-	struct conv_data_s* data = CONTAINER_OF(_data, struct conv_data_s, base);
+	struct conv_data_s* data = CAST_DOWN(conv_data_s, _data);
 
 	conv_exec(data->plan, out, in);
 }
 
 static void linop_conv_adjoint(const linop_data_t* _data, complex float* out, const complex float* in)
 {
-	struct conv_data_s* data = CONTAINER_OF(_data, struct conv_data_s, base);
+	struct conv_data_s* data = CAST_DOWN(conv_data_s, _data);
 
 	conv_adjoint(data->plan, out, in);
 }
 
 static void linop_conv_free(const linop_data_t* _data)
 {
-	struct conv_data_s* data = CONTAINER_OF(_data, struct conv_data_s, base);
+	struct conv_data_s* data = CAST_DOWN(conv_data_s, _data);
 
 	conv_free(data->plan);
 
@@ -1005,10 +1004,11 @@ struct linop_s* linop_conv_create(int N, unsigned int flags, enum conv_type ctyp
                 const long idims[N], const long kdims[N], const complex float* krn)
 {
 	PTR_ALLOC(struct conv_data_s, data);
+	SET_TYPEID(conv_data_s, data);
 
 	data->plan = conv_plan(N, flags, ctype, cmode, odims, idims, kdims, krn);
 
-	return linop_create(N, odims, N, idims, &PTR_PASS(data)->base, linop_conv_forward, linop_conv_adjoint, NULL, NULL, linop_conv_free);
+	return linop_create(N, odims, N, idims, CAST_UP(PTR_PASS(data)), linop_conv_forward, linop_conv_adjoint, NULL, NULL, linop_conv_free);
 }
 
 

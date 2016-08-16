@@ -9,6 +9,7 @@
 #include <assert.h>
 
 #include "misc/misc.h"
+#include "misc/types.h"
 
 #include "num/multind.h"
 #include "num/ops.h"
@@ -23,7 +24,7 @@
 
 struct itop_s {
 
-	operator_data_t base;
+	INTERFACE(operator_data_t);
 
 	italgo_fun2_t italgo;
 	iter_conf* iconf;
@@ -31,26 +32,42 @@ struct itop_s {
 	unsigned int num_funs;
 	long size;
 
+	const float* init;
+
 	const struct operator_p_s** prox_funs;
 	const struct linop_s** prox_linops;
 };
 
+DEF_TYPEID(itop_s);
+
 static void itop_apply(const operator_data_t* _data, unsigned int N, void* args[static N])
 {
 	assert(2 == N);
-	const struct itop_s* data = CONTAINER_OF(_data, const struct itop_s, base);
+	const struct itop_s* data = CAST_DOWN(itop_s, _data);
 
-	md_clear(1, MD_DIMS(data->size), args[0], sizeof(float));
-		
+	if (NULL == data->init) {
+
+		md_clear(1, MD_DIMS(data->size), args[0], sizeof(float));
+
+	} else {
+
+		const struct iovec_s* iov = operator_domain(data->op);
+
+		md_copy(iov->N, iov->dims, args[0], data->init, iov->size);
+	}
+
 	data->italgo(data->iconf, data->op, data->num_funs, data->prox_funs, data->prox_linops, NULL, 
-			data->size, args[0], args[1], NULL, NULL, NULL);
+			NULL, data->size, args[0], args[1], NULL);
 }
 
 static void itop_del(const operator_data_t* _data)
 {
-	const struct itop_s* data = CONTAINER_OF(_data, const struct itop_s, base);
+	const struct itop_s* data = CAST_DOWN(itop_s, _data);
 
 	operator_free(data->op);
+
+	if (NULL != data->init)
+		md_free(data->init);
 
 	if (NULL != data->prox_funs) {
 
@@ -73,12 +90,14 @@ static void itop_del(const operator_data_t* _data)
 
 
 const struct operator_s* itop_create(	italgo_fun2_t italgo, iter_conf* iconf,
+					const float* init,
 					const struct operator_s* op,
 					unsigned int num_funs,
 					const struct operator_p_s* prox_funs[static num_funs],
 					const struct linop_s* prox_linops[static num_funs])
 {
 	PTR_ALLOC(struct itop_s, data);
+	SET_TYPEID(itop_s, data);
 
 	const struct iovec_s* iov = operator_domain(op);
 
@@ -89,6 +108,14 @@ const struct operator_s* itop_create(	italgo_fun2_t italgo, iter_conf* iconf,
 	data->size = 2 * md_calc_size(iov->N, iov->dims);	// FIXME: do not assume complex
 	data->prox_funs = NULL;
 	data->prox_linops = NULL;
+	data->init = NULL;
+
+	if (NULL != init) {
+
+		float* init2 = md_alloc(iov->N, iov->dims, iov->size);
+		md_copy(iov->N, iov->dims, init2, init, iov->size);
+		data->init = init2;
+	}
 
 	if (NULL != prox_funs) {
 
@@ -106,7 +133,7 @@ const struct operator_s* itop_create(	italgo_fun2_t italgo, iter_conf* iconf,
 			data->prox_linops[i] = linop_clone(prox_linops[i]);
 	}
 
-	return operator_create(iov->N, iov->dims, iov->N, iov->dims, &PTR_PASS(data)->base, itop_apply, itop_del);
+	return operator_create(iov->N, iov->dims, iov->N, iov->dims, CAST_UP(PTR_PASS(data)), itop_apply, itop_del);
 }
 
 

@@ -37,15 +37,15 @@
 #include "num/flpmath.h"
 #include "num/ops.h"
 #include "num/iovec.h"
-#include "num/gpuops.h"
 
 #include "linops/linop.h"
 #include "linops/someops.h"
-#include "linops/rvc.h"
+#include "linops/realval.h"
 #include "linops/sampling.h"
 
 #include "iter/iter2.h"
 #include "iter/prox.h"
+#include "iter/monitor.h"
 
 
 #include "misc/debug.h"
@@ -145,13 +145,6 @@ void bpsense_recon(struct bpsense_conf* conf, const long dims[DIMS], complex flo
 		 const struct operator_p_s* l1prox,
 		 const long ksp_dims[DIMS], const complex float* kspace, const complex float* image_truth)
 {
-
-#ifdef USE_CUDA
-	bool use_gpu = cuda_ondevice(kspace);
-#else
-	bool use_gpu = false;
-#endif
-	
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
 
@@ -159,11 +152,11 @@ void bpsense_recon(struct bpsense_conf* conf, const long dims[DIMS], complex flo
 	// -----------------------------------------------------------
 	// forward model
 
-	struct linop_s* sense_op = sense_init(dims, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, maps, use_gpu);
+	struct linop_s* sense_op = sense_init(dims, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, maps);
 
 	if (conf->rvc) {
 
-		struct linop_s* rvc = rvc_create(DIMS, img_dims);
+		struct linop_s* rvc = linop_realval_create(DIMS, img_dims);
 		struct linop_s* tmp_op = linop_chain(rvc, sense_op);
 
 		linop_free(rvc);
@@ -171,7 +164,7 @@ void bpsense_recon(struct bpsense_conf* conf, const long dims[DIMS], complex flo
 		sense_op = tmp_op;
 	}
 
-	const struct linop_s* sample_op = sampling_create(dims, pat_dims, pattern);
+	const struct linop_s* sample_op = linop_sampling_create(dims, pat_dims, pattern);
 	const struct linop_s* Aop = linop_chain(sense_op, sample_op);
 	linop_free(sense_op);
 	linop_free(sample_op);
@@ -204,7 +197,7 @@ void bpsense_recon(struct bpsense_conf* conf, const long dims[DIMS], complex flo
 	// -----------------------------------------------------------
 	// recon
 	
-	iter2_admm(conf->iconf, NULL, conf->lambda == 0. ? 2 : 3, prox_ops, linops, NULL, size, (float*)image, NULL, (const float*)image_truth, data, bpsense_objective);
+	iter2_admm(conf->iconf, NULL, conf->lambda == 0. ? 2 : 3, prox_ops, linops, NULL, NULL, size, (float*)image, NULL, create_monitor(size, (const float*)image_truth, data, bpsense_objective));
 
 
 	// -----------------------------------------------------------

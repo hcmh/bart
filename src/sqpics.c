@@ -34,7 +34,7 @@
 #include "linops/sampling.h"
 
 #include "iter/iter.h"
-#include "iter/iter2_affine.h"
+#include "iter/iter2.h"
 
 #include "noncart/nufft.h"
 
@@ -79,15 +79,15 @@ static void help_reg(void)
 
  
 static
-const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long map_dims[DIMS], const complex float* maps, const long ksp_dims[DIMS], const long traj_dims[DIMS], const complex float* traj, struct nufft_conf_s conf, bool use_gpu, struct operator_s** precond_op)
+const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long map_dims[DIMS], const complex float* maps, const long ksp_dims[DIMS], const long traj_dims[DIMS], const complex float* traj, struct nufft_conf_s conf, struct operator_s** precond_op)
 {
 	long coilim_dims[DIMS];
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~MAPS_FLAG, coilim_dims, max_dims);
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, max_dims);
 
-	const struct linop_s* fft_op = nufft_create(DIMS, ksp_dims, coilim_dims, traj_dims, traj, NULL, conf, use_gpu);
-	const struct linop_s* maps_op = maps2_create(coilim_dims, map_dims, img_dims, maps, use_gpu);
+	const struct linop_s* fft_op = nufft_create(DIMS, ksp_dims, coilim_dims, traj_dims, traj, NULL, conf);
+	const struct linop_s* maps_op = maps2_create(coilim_dims, map_dims, img_dims, maps);
 
 	//precond_op[0] = (struct operator_s*) nufft_precond_create( fft_op );
 	precond_op[0] = NULL;
@@ -437,9 +437,9 @@ int main_sqpics(int argc, char* argv[])
 	const struct operator_s* precond_op = NULL;
 
 	if (NULL == traj_file)
-		forward_op = sense_init(max_dims, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, maps, use_gpu);
+		forward_op = sense_init(max_dims, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, maps);
 	else
-		forward_op = sense_nc_init(max_dims, map_dims, maps, ksp_dims, traj_dims, traj, nuconf, use_gpu, (struct operator_s**) &precond_op);
+		forward_op = sense_nc_init(max_dims, map_dims, maps, ksp_dims, traj_dims, traj, nuconf, (struct operator_s**) &precond_op);
 
 	// apply scaling
 
@@ -538,7 +538,7 @@ int main_sqpics(int argc, char* argv[])
 		case TV:
 			debug_printf(DP_INFO, "TV regularization: %f\n", regs[nr].lambda);
 
-			trafos[nr] = grad_init(DIMS, img_dims, regs[nr].xflags);
+			trafos[nr] = linop_grad_create(DIMS, img_dims, regs[nr].xflags);
 			thresh_ops[nr] = prox_thresh_create(DIMS + 1,
 					linop_codomain(trafos[nr])->dims,
 					regs[nr].lambda, regs[nr].jflags | MD_BIT(DIMS), use_gpu);
@@ -580,7 +580,7 @@ int main_sqpics(int argc, char* argv[])
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, 0, use_gpu);
 
-			const struct linop_s* decom_op = sum_create( img_dims, use_gpu );
+			const struct linop_s* decom_op = linop_sum_create(img_dims, use_gpu);
 			const struct linop_s* tmp_op = forward_op;
 			forward_op = linop_chain(decom_op, forward_op);
 
@@ -621,7 +621,7 @@ int main_sqpics(int argc, char* argv[])
 	}
 
 	int nr = nr_penalties;
-	struct linop_s* sampling = sampling_create(max_dims, pat_dims, pattern);
+	struct linop_s* sampling = linop_sampling_create(max_dims, pat_dims, pattern);
 	struct linop_s* tmp_op = linop_chain(forward_op, sampling);
 	linop_free(sampling);
 	linop_free(forward_op);
@@ -688,7 +688,7 @@ int main_sqpics(int argc, char* argv[])
 
 
 	long size = 2 * md_calc_size(DIMS, img_dims);
-	iter2a_admm(&mmconf, NULL, nr_penalties, thresh_ops, trafos, biases, NULL, size, (float*)image, NULL, NULL, NULL, NULL);
+	iter2_admm(CAST_UP(&mmconf), NULL, nr_penalties, thresh_ops, trafos, biases, NULL, size, (float*)image, NULL, NULL);
 
 
 #if 0

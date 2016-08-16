@@ -36,6 +36,7 @@
 #ifdef USE_CUDA
 #include "num/gpuops.h"
 #include "fft-cuda.h"
+#define LAZY_CUDA
 #endif
 
 
@@ -184,18 +185,28 @@ void fftshift(unsigned int N, const long dimensions[N], unsigned long flags, com
 
 struct fft_plan_s {
 
-	operator_data_t base;
+	INTERFACE(operator_data_t);
 
 	fftwf_plan fftw;
-	
+
 #ifdef  USE_CUDA
+#ifdef	LAZY_CUDA
+	unsigned int D;
+	unsigned long flags;
+	bool backwards;
+	const long* dims;
+	const long* istrs;
+	const long* ostrs;
+#endif
 	struct fft_cuda_plan_s* cuplan;
 #endif
 };
 
+DEF_TYPEID(fft_plan_s);
 
 
-static fftwf_plan fft_fftwf_plan(unsigned int D, const long dimensions[D], unsigned long flags, const long ostrides[D], complex float* dst, const long istrides[D], const complex float* src, bool backwards)
+
+static fftwf_plan fft_fftwf_plan(unsigned int D, const long dimensions[D], unsigned long flags, const long ostrides[D], complex float* dst, const long istrides[D], const complex float* src, bool backwards, bool measure)
 {
 	unsigned int N = D;
 	fftwf_iodim dims[N];
@@ -227,7 +238,8 @@ static fftwf_plan fft_fftwf_plan(unsigned int D, const long dimensions[D], unsig
 	fftwf_plan fftwf;
 
 	#pragma omp critical
-	fftwf = fftwf_plan_guru_dft(k, dims, l, hmdims, (complex float*)src, dst, backwards ? 1 : (-1), FFTW_ESTIMATE);
+	fftwf = fftwf_plan_guru_dft(k, dims, l, hmdims, (complex float*)src, dst,
+				backwards ? 1 : (-1), measure ? FFTW_MEASURE : FFTW_ESTIMATE);
 
 	return fftwf;
 }
@@ -237,13 +249,15 @@ static void fft_apply(const operator_data_t* _plan, unsigned int N, void* args[N
 {
 	complex float* dst = args[0];
 	const complex float* src = args[1];
-	const struct fft_plan_s* plan = CONTAINER_OF(_plan, const struct fft_plan_s, base);
+	const struct fft_plan_s* plan = CAST_DOWN(fft_plan_s, _plan);
 
 	assert(2 == N);
 
 #ifdef  USE_CUDA
 	if (cuda_ondevice(src)) {
-
+#ifdef	LAZY_CUDA
+		((struct fft_plan_s*)plan)->cuplan = fft_cuda_plan(plan->D, plan->dims, plan->flags, plan->ostrs, plan->istrs, plan->backwards);
+#endif
 		assert(NULL != plan->cuplan);
 		fft_cuda_exec(plan->cuplan, dst, src);
 
@@ -258,30 +272,95 @@ static void fft_apply(const operator_data_t* _plan, unsigned int N, void* args[N
 
 static void fft_free_plan(const operator_data_t* _data)
 {
-	const struct fft_plan_s* plan = CONTAINER_OF(_data, const struct fft_plan_s, base);
+	const struct fft_plan_s* plan = CAST_DOWN(fft_plan_s, _data);
 
 	fftwf_destroy_plan(plan->fftw);
 #ifdef	USE_CUDA
+#ifdef	LAZY_CUDA
+	xfree(plan->dims);
+	xfree(plan->istrs);
+	xfree(plan->ostrs);
+#endif
 	if (NULL != plan->cuplan)
 		fft_cuda_free_plan(plan->cuplan);
 #endif
-	free((void*)plan);
+	xfree(plan);
 }
 
-const struct operator_s* fft_create2(unsigned int D, const long dimensions[D], unsigned long flags, const long ostrides[D], complex float* dst, const long istrides[D], const complex float* src, bool backwards)
+
+const struct operator_s* fft_measure_create(unsigned int D, const long dimensions[D], unsigned long flags, bool inplace, bool backwards)
 {
 	PTR_ALLOC(struct fft_plan_s, plan);
+	SET_TYPEID(fft_plan_s, plan);
 
-	plan->fftw = fft_fftwf_plan(D, dimensions, flags, ostrides, dst, istrides, src, backwards);
+	complex float* src = md_alloc(D, dimensions, CFL_SIZE);
+	complex float* dst = inplace ? src : md_alloc(D, dimensions, CFL_SIZE);
+
+	long strides[D];
+	md_calc_strides(D, strides, dimensions, CFL_SIZE);
+
+	plan->fftw = fft_fftwf_plan(D, dimensions, flags, strides, dst, strides, src, backwards, true);
+
+	md_free(src);
+
+	if (!inplace)
+		md_free(dst);
 
 #ifdef  USE_CUDA
 	plan->cuplan = NULL;
 
+	plan->D = D;
+	plan->flags = flags;
+	plan->backwards = backwards;
+
+	PTR_ALLOC(long[D], dims);
+	md_copy_dims(D, *dims, dimensions);
+	plan->dims = *PTR_PASS(dims);
+
+	PTR_ALLOC(long[D], istrs);
+	md_copy_strides(D, *istrs, strides);
+	plan->istrs = *PTR_PASS(istrs);
+
+	PTR_ALLOC(long[D], ostrs);
+	md_copy_strides(D, *ostrs, strides);
+	plan->ostrs = *PTR_PASS(ostrs);
+#endif
+	return operator_create2(D, dimensions, strides, D, dimensions, strides, CAST_UP(PTR_PASS(plan)), fft_apply, fft_free_plan);
+}
+
+
+const struct operator_s* fft_create2(unsigned int D, const long dimensions[D], unsigned long flags, const long ostrides[D], complex float* dst, const long istrides[D], const complex float* src, bool backwards)
+{
+	PTR_ALLOC(struct fft_plan_s, plan);
+	SET_TYPEID(fft_plan_s, plan);
+
+	plan->fftw = fft_fftwf_plan(D, dimensions, flags, ostrides, dst, istrides, src, backwards, false);
+
+#ifdef  USE_CUDA
+	plan->cuplan = NULL;
+#ifndef LAZY_CUDA
 	if (cuda_ondevice(src))
 		plan->cuplan = fft_cuda_plan(D, dimensions, flags, ostrides, istrides, backwards);
+#else
+	plan->D = D;
+	plan->flags = flags;
+	plan->backwards = backwards;
+
+	PTR_ALLOC(long[D], dims);
+	md_copy_dims(D, *dims, dimensions);
+	plan->dims = *PTR_PASS(dims);
+
+	PTR_ALLOC(long[D], istrs);
+	md_copy_strides(D, *istrs, istrides);
+	plan->istrs = *PTR_PASS(istrs);
+
+	PTR_ALLOC(long[D], ostrs);
+	md_copy_strides(D, *ostrs, ostrides);
+	plan->ostrs = *PTR_PASS(ostrs);
+#endif
 #endif
 
-	return operator_create2(D, dimensions, ostrides, D, dimensions, istrides, &PTR_PASS(plan)->base, fft_apply, fft_free_plan);
+	return operator_create2(D, dimensions, ostrides, D, dimensions, istrides, CAST_UP(PTR_PASS(plan)), fft_apply, fft_free_plan);
 }
 
 const struct operator_s* fft_create(unsigned int D, const long dimensions[D], unsigned long flags, complex float* dst, const complex float* src, bool backwards)
