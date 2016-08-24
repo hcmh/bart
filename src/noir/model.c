@@ -142,6 +142,7 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	    dims_loc[2] = 1; // SMS weights only for x & y
 	} 
 	noir_calc_weights(dims_loc, weights);
+	
 	fftmod(DIMS, data->wght_dims, FFT_FLAGS, weights, weights); 
 	fftscale(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
 	

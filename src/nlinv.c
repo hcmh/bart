@@ -138,7 +138,13 @@ int main_nlinv(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-	float scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data) * dims[2]; // dims[2]: Multiband factor (Multislice k-space contains dims[2] times as much energy as single slice)
+	float scaling;
+	if(conf.sms){
+	   scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data) * dims[2]; // dims[2]: Multiband factor (Multislice k-space contains dims[2] times as much energy as single slice)
+	}
+	else{
+	   scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data);
+	}
 #endif
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
