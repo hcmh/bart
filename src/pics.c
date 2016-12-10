@@ -126,7 +126,7 @@ int main_pics(int argc, char* argv[])
 		OPT_CLEAR('n', &randshift, "disable random wavelet cycle spinning"),
 		OPT_SET('g', &conf.gpu, "use GPU"),
 		OPT_STRING('p', &pat_file, "file", "pattern or weights"),
-		OPT_SELECT('I', enum algo_t, &ropts.algo, IST, "(select IST)"),
+		OPT_SELECT('I', enum algo_t, &ropts.algo, IST, "select IST"),
 		OPT_UINT('b', &llr_blk, "blk", "Lowrank block size"),
 		OPT_SET('e', &eigen, "Scale stepsize based on max. eigenvalue"),
 		OPT_SET('H', &hogwild, "(hogwild)"),
@@ -144,6 +144,7 @@ int main_pics(int argc, char* argv[])
 		OPT_FLOAT('w', &scaling, "val", "scaling"),
 		OPT_SET('S', &scale_im, "re-scale the image after reconstruction"),
 		OPT_UINT('B', &loop_flags, "flags", "batch-mode"),
+		OPT_SET('K', &nuconf.pcycle, "randshift for NUFFT"),
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
