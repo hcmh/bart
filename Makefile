@@ -155,7 +155,7 @@ MODULES_fakeksp = -lsense -llinops
 MODULES_lrmatrix = -llowrank -liter -llinops
 MODULES_estdims = -lnoncart -llinops
 MODULES_ismrmrd = -lismrm
-
+MODULES_hornschunck = -liter -llinops
 
 MAKEFILES = $(root)/Makefiles/Makefile.*
 
