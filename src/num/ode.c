@@ -176,3 +176,91 @@ void ode_interval(float h, float tol, unsigned int N, float x[N], float st, floa
 			x[i] = ynp[i];
 	}
 }
+
+
+struct ode_matrix_s {
+
+	unsigned int N;
+	const float* matrix;
+};
+
+static void ode_matrix_fun(void* _data, float* x, float t, const float* in)
+{
+	struct ode_matrix_s* data = _data;
+	(void)t;
+
+	unsigned int N = data->N;
+
+	for (unsigned int i = 0; i < N; i++) {
+
+		x[i] = 0.;
+
+		for (unsigned int j = 0; j < N; j++)
+			x[i] += (*(const float(*)[N][N])data->matrix)[i][j] * in[j];
+	}
+}
+
+void ode_matrix_interval(float h, float tol, unsigned int N, float x[N], float st, float end, /*const*/ float matrix[N][N])
+{
+	struct ode_matrix_s data = { N, &matrix[0][0] };
+	ode_interval(h, tol, N, x, st, end, &data, ode_matrix_fun);
+}
+
+
+
+// the direct method for sensitivity analysis
+// ode: d/dt y_i = f_i(y, t, p_j), y_i(0) = a_i
+// d/dp_j y_i(0) = ...
+// d/dt d/dp_j y_i(t) = d/dp_j f_i(y, t, p) = \sum_k d/dy_k f_i(y, t, p) * dy_k/dp_j + df_i / dp_j
+
+struct seq_data {
+
+	unsigned int N;
+	unsigned int P;
+
+	void* data;
+	void (*f)(void* data, float* out, float t, const float* yn);
+	void (*pdy)(void* data, float* out, float t, const float* yn);
+	void (*pdp)(void* data, float* out, float t, const float* yn);
+};
+
+static void seq(void* _data, float* out, float t, const float* yn)
+{
+	struct seq_data* data = _data;
+
+	data->f(data->data, out, t, yn);
+
+	float dy[data->N][data->N];
+	data->pdy(data->data, &dy[0][0], t, yn);
+
+	float dp[data->P][data->N];
+	data->pdp(data->data, &dp[0][0], t, yn);
+
+	for (unsigned int i = 0; i < data->P; i++) {
+		for (unsigned int j = 0; j < data->N; j++) {
+
+			out[(1 + i) * data->N + j] = 0.;
+
+			for (unsigned int k = 0; k < data->N; k++)
+				out[(1 + i) * data->N + j] += dy[k][j] * yn[(1 + i) * data->N + k] + dp[i][j];
+		}
+	}
+}
+
+void ode_direct_sa(float h, float tol, unsigned int N, unsigned int P, float x[P + 1][N],
+	float st, float end, void* data,
+	void (*f)(void* data, float* out, float t, const float* yn),
+	void (*pdy)(void* data, float* out, float t, const float* yn),
+	void (*pdp)(void* data, float* out, float t, const float* yn))
+{
+	struct seq_data data2 = { N, P, data, f, pdy, pdp };
+
+	ode_interval(h, tol, N * (1 + P), &x[0][0], st, end, &data2, seq);
+}
+
+
+
+
+
+
+
