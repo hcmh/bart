@@ -679,6 +679,9 @@ struct op_loop_s {
 	const long** dims;
 	const long* dims0;
 	const struct operator_s* op;
+
+	unsigned int parallel;
+	bool gpu;
 };
 
 DEF_TYPEID(op_loop_s);
@@ -710,7 +713,24 @@ static void op_loop_fun(const operator_data_t* _data, unsigned int N, void* args
 {
 	const struct op_loop_s* data = CAST_DOWN(op_loop_s, _data);
 	assert(N == data->N);
-	md_nary(N, data->D, data->dims0, data->strs, args, (void*)data, op_loop_nary);
+
+	if (data->gpu) {
+#ifdef USE_CUDA
+                int nr_cuda_devices = cuda_devices();
+                omp_set_num_threads(nr_cuda_devices * 2);
+//              fft_set_num_threads(1);
+#else
+                assert(0);
+#endif
+	}
+
+	extern bool num_auto_parallelize;
+	bool ap_save = num_auto_parallelize;
+	num_auto_parallelize = false;
+
+	md_parallel_nary(N, data->D, data->dims0, data->parallel, data->strs, args, (void*)data, op_loop_nary);
+
+	num_auto_parallelize = ap_save;
 }
 
 static void merge_dims(unsigned int D, long odims[D], const long idims1[D], const long idims2[D])
@@ -726,9 +746,11 @@ static void merge_dims(unsigned int D, long odims[D], const long idims1[D], cons
 	}
 }
 
-const struct operator_s* (operator_loop2)(unsigned int N, const unsigned int D,
+const struct operator_s* (operator_loop_parallel2)(unsigned int N, const unsigned int D,
 				const long dims[D], const long (*strs)[D],
-				const struct operator_s* op)
+				const struct operator_s* op,
+				unsigned int flags, bool gpu)
+
 {
 	assert(N == operator_nr_args(op));
 
@@ -776,6 +798,9 @@ const struct operator_s* (operator_loop2)(unsigned int N, const unsigned int D,
 	data->dims = */*PTR_PASS*/(dims2);
 	data->strs = */*PTR_PASS*/(strs2);
 
+	data->parallel = flags;
+	data->gpu = gpu;
+
 	const struct operator_s* rop = operator_generic_create2(N, op->io_flags, D2, *dims2, *strs2, CAST_UP(PTR_PASS(data)), op_loop_fun, op_loop_del);
 
 	PTR_PASS(dims2);
@@ -784,7 +809,14 @@ const struct operator_s* (operator_loop2)(unsigned int N, const unsigned int D,
 	return rop;
 }
 
-const struct operator_s* operator_loop(unsigned int D, const long dims[D], const struct operator_s* op)
+const struct operator_s* (operator_loop2)(unsigned int N, const unsigned int D,
+				const long dims[D], const long (*strs)[D],
+				const struct operator_s* op)
+{
+	return operator_loop_parallel2(N, D, dims, strs, op, 0u, false);
+}
+
+const struct operator_s* operator_loop_parallel(unsigned int D, const long dims[D], const struct operator_s* op, unsigned int parallel, bool gpu)
 {
 	unsigned int N = operator_nr_args(op);
 	long strs[N][D];
@@ -796,7 +828,12 @@ const struct operator_s* operator_loop(unsigned int D, const long dims[D], const
 		md_calc_strides(D, strs[i], tdims, operator_arg_domain(op, i)->size);
 	}
 
-	return operator_loop2(N, D, dims, strs, op);
+	return operator_loop_parallel2(N, D, dims, strs, op, parallel, gpu);
+}
+
+const struct operator_s* operator_loop(unsigned int D, const long dims[D], const struct operator_s* op)
+{
+	return operator_loop_parallel(D, dims, op, 0u, false);
 }
 
 struct copy_data_s {
@@ -904,6 +941,14 @@ struct gpu_data_s {
 
 DEF_TYPEID(gpu_data_s);
 
+
+#ifdef USE_CUDA
+#include <omp.h>
+#define MAX_CUDA_DEVICES 16
+omp_lock_t gpulock[MAX_CUDA_DEVICES];
+#endif
+
+
 static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 #ifdef USE_CUDA
@@ -913,6 +958,11 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 	assert(N == operator_nr_args(op));
 
 	debug_printf(DP_DEBUG1, "GPU start.\n");
+
+        int nr_cuda_devices = MIN(cuda_devices(), MAX_CUDA_DEVICES);
+        int gpun = omp_get_thread_num() % nr_cuda_devices;
+
+        cuda_init(gpun);
 
 	for (unsigned int i = 0; i < N; i++) {
 
@@ -924,7 +974,9 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 			gpu_ptr[i] = md_gpu_move(io->N, io->dims, args[i], io->size);
 	}
 
+	omp_set_lock(&gpulock[gpun]);
 	operator_generic_apply_unchecked(op, N, gpu_ptr);
+	omp_unset_lock(&gpulock[gpun]);
 	
 	for (unsigned int i = 0; i < N; i++) {
 
