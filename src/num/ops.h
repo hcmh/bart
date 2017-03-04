@@ -132,9 +132,6 @@ extern const struct operator_s* operator_loop(unsigned int D, const long dims[D]
 extern const struct operator_s* operator_loop_parallel(unsigned int D, const long dims[D], const struct operator_s* op, unsigned int parallel, bool gpu);
 
 
-// iter helper functions
-extern void operator_iter(void* _o, float* _dst, const float* _src);
-extern void operator_p_iter(void* _o, float lambda, float* _dst, const float* _src);
 
 #include "misc/cppwrap.h"
 
