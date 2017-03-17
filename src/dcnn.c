@@ -36,7 +36,14 @@ static const char help_str[] = "Applies a pre-trained convolutional neural netwo
 
 int main_dcnn(int argc, char* argv[])
 {
-	cmdline(&argc, argv, 4, 4, usage_str, help_str, 0, NULL);
+	bool subinp = false;
+
+	const struct opt_s opts[] = {
+
+		OPT_SET('r', &subinp, "subtract output from input"),
+	};
+
+	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -55,7 +62,8 @@ int main_dcnn(int argc, char* argv[])
 
 	simple_dcnn(dims, krn_dims, krn, bias_dims, bias, out, in);
 
-	md_zsub(N, dims, out, in, out);
+	if (subinp)
+		md_zsub(N, dims, out, in, out);
 
 	unmap_cfl(N, dims, out);
 	unmap_cfl(N, krn_dims, krn);
