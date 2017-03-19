@@ -12,5 +12,8 @@ simuobjs := $(simusrcs:.c=.o)
 
 lib/libsimu.a: libsimu.a($(simuobjs))
 
-
+UTARGETS += test_ode_bloch test_tsegf test_biot_savart
+MODULES_test_ode_bloch += -lsimu
+MODULES_test_tsegf += -lsimu
+MODULES_test_biot_savart += -lsimu
 
