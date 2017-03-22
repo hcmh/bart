@@ -100,7 +100,7 @@ int main_estdelay(int argc, char* argv[])
 	long tdims1[DIMS];
 	md_select_dims(DIMS, ~MD_BIT(1), tdims1, tdims);
 
-	complex float* traj1 = md_alloc(DIMS, tdims, CFL_SIZE);
+	complex float* traj1 = md_alloc(DIMS, tdims1, CFL_SIZE);
 	md_slice(DIMS, MD_BIT(1), (long[DIMS]){ 0 }, tdims, traj1, traj, CFL_SIZE);
 
 	unsigned int N = tdims[2];
