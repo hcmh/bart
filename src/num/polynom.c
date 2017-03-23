@@ -1,3 +1,11 @@
+/* Copyright 2017. Martin Uecker.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors:
+ * 2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ */
+
 #include <complex.h>
 #include <math.h>
 #include <assert.h>
