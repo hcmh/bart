@@ -25,6 +25,11 @@ struct iter3_irgnm_conf {
 	int iter;
 	float alpha;
 	float redu;
+
+	int cgiter;
+	float cgtol;
+
+	_Bool nlinv_legacy;
 };
 
 extern DEF_TYPEID(iter3_irgnm_conf);
@@ -47,4 +52,6 @@ extern DEF_TYPEID(iter3_landweber_conf);
 iter3_fun_f iter3_landweber;
 
 
+extern const struct iter3_irgnm_conf iter3_irgnm_defaults;
+// extern const struct iter3_landweber_conf iter3_landweber_defaults;
 

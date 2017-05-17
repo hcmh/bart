@@ -111,15 +111,17 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	struct noir_data* ndata = noir_init(dims, mask, psf, conf->rvc, conf->usegpu);
 	struct data data = { { &TYPEID(data) }, ndata };
 
-	struct iter3_irgnm_conf irgnm_conf = { .iter = conf->iter, .alpha = conf->alpha, .redu = conf->redu };
-	SET_TYPEID(iter3_irgnm_conf, &irgnm_conf);
+	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
+	irgnm_conf.iter = conf->iter;
+	irgnm_conf.alpha = conf->alpha;
+	irgnm_conf.redu = conf->redu;
 
 	iter3_irgnm(CAST_UP(&irgnm_conf),
 			(struct iter_op_s){ frw, CAST_UP(&data) },
 			(struct iter_op_s){ der, CAST_UP(&data) },
 			(struct iter_op_s){ adj, CAST_UP(&data) },
 			size * 2, (float*)img, NULL,
-				data_size * 2, (const float*)kspace);
+			data_size * 2, (const float*)kspace);
 
 	md_copy(DIMS, imgs_dims, outbuf, img, CFL_SIZE);
 
