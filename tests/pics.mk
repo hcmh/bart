@@ -116,15 +116,14 @@ tests/test-pics-tedim: phantom fmac fft pics nrmse
 
 
 
-tests/test-pics-basis: phantom ones delta fmac pics nrmse repmat scale slice $(TESTS_OUT)/shepplogan_coil.ra
+tests/test-pics-basis: ones delta fmac pics nrmse repmat scale slice $(TESTS_OUT)/shepplogan_coil_ksp.ra $(TESTS_OUT)/coils.ra
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
-	$(TOOLDIR)/phantom -S8 coils.ra							;\
-	$(TOOLDIR)/pics -S $(TESTS_OUT)/shepplogan_coil.ra coils.ra gold.ra		;\
+	$(TOOLDIR)/pics -S $(TESTS_OUT)/shepplogan_coil_ksp.ra $(TESTS_OUT)/coils.ra gold.ra	;\
 	$(TOOLDIR)/delta 16 33 128 p.ra 						;\
-	$(TOOLDIR)/fmac $(TESTS_OUT)/shepplogan_coil.ra p.ra pk.ra			;\
+	$(TOOLDIR)/fmac $(TESTS_OUT)/shepplogan_coil_ksp.ra p.ra pk.ra			;\
 	$(TOOLDIR)/ones 6 1 1 1 1 1 128 o.ra						;\
 	$(TOOLDIR)/repmat 6 2 o.ra o2.ra						;\
-	$(TOOLDIR)/pics -S -Bo2.ra pk.ra coils.ra reco.ra				;\
+	$(TOOLDIR)/pics -S -Bo2.ra pk.ra $(TESTS_OUT)/coils.ra reco.ra			;\
 	$(TOOLDIR)/scale 2. reco.ra reco2.ra						;\
 	$(TOOLDIR)/slice 6 0 reco2.ra reco20.ra						;\
 	$(TOOLDIR)/nrmse -t 0.00001 gold.ra reco20.ra	 				;\
