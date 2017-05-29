@@ -156,8 +156,10 @@ MODULES_fakeksp = -lsense -llinops
 MODULES_lrmatrix = -llowrank -liter -llinops
 MODULES_estdims = -lnoncart -llinops
 MODULES_ismrmrd = -lismrm
+MODULES_wavelet = -llinops -lwavelet3
 MODULES_hornschunck = -liter -llinops
 MODULES_ncsense = -liter -llinops -lnoncart -lsense
+
 
 MAKEFILES = $(root)/Makefiles/Makefile.*
 
@@ -196,7 +198,7 @@ else
 
 
 CPPFLAGS += $(DEPFLAG) -I$(srcdir)/
-CFLAGS += -std=c99 -I$(srcdir)/
+CFLAGS += -std=gnu11 -I$(srcdir)/
 CXXFLAGS += -I$(srcdir)/
 
 

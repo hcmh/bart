@@ -179,10 +179,9 @@ int main_pics(int argc, char* argv[])
 	complex float* kspace = load_cfl(argv[1], DIMS, ksp_dims);
 	complex float* maps = load_cfl(argv[2], DIMS, map_dims);
 
-	unsigned int map_flags = FFT_FLAGS | SENS_FLAGS;
-	for (unsigned int d = 0; d < DIMS; d++)
-		if (map_dims[d] > 1)
-			map_flags = MD_SET(map_flags, d);
+	unsigned int map_flags = md_nontriv_dims(DIMS, map_dims);
+
+	map_flags |= FFT_FLAGS | SENS_FLAGS;
 
 
 
@@ -278,10 +277,23 @@ int main_pics(int argc, char* argv[])
 	}
 
 
-	if ((NULL != traj_file) && (NULL == pat_file)) {
+	if (NULL != traj_file) {
 
-		md_free(pattern);
-		pattern = NULL;
+		if (NULL == pat_file) {
+
+			md_free(pattern);
+			pattern = NULL;
+
+		} else {
+
+			long ksp_strs[DIMS];
+			md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
+
+			long pat_strs[DIMS];
+			md_calc_strides(DIMS, pat_strs, pat_dims, CFL_SIZE);
+
+			md_zmul2(DIMS, ksp_dims, ksp_strs, kspace, ksp_strs, kspace, pat_strs, pattern);
+		}
 
 	} else {
 
