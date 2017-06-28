@@ -1,21 +1,31 @@
 
 Contributors:
 
-Marcus T. Alley
+(source code and bug fixes)
+
 Dara Bahri
 Joseph Y. Cheng
+Nguyen Damien
 Siddharth Iyer
-Miki Lustig
-Mark Murphy
+Hans Johnson
+Christian Holme
+Gregory R. Lee
+Tim Loderhose
 Frank Ong
-Jonathan Tamir
+David Smith
+Jonathan I. Tamir
 Martin Uecker
-Shreyas S. Vasanawala
-Sana Vaziri
-Pat Virtue
-Tao Zhang
+Patrick Virtue
 
-Logo designed by: Michelle Tamir
+(other)
+
+Marcus T. Alley (data)
+Michael Lustig (funding)
+Michelle Tamir (logo)
+Sana Vaziri (examples)
+Shreyas S. Vasanawala (data)
+Tao Zhang (data)
+
 
 
 Different parts of this software have been written for
@@ -26,8 +36,10 @@ NIH Grant P41RR09784 and Grant R01EB009690
 UC Discovery Grant 193037
 Sloan Research Fellowship
 GE Healthcare
-
 A personal donation by David Donoho
+German Centre for Cardiovascular Research (DZHK)
+Physics-to-Medicine Initiative Göttingen (LM der Niedersachsischen Vorab)
+
 
 
 
