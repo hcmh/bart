@@ -334,7 +334,7 @@ static void make_z2opd(size_t offset, unsigned int D, const long dim[D], const l
 	optimized_twoop_oi(D, dim, ostr, optr, istr1, iptr1, sizes, nary_z2opd, &offset);
 }
 
-void* unsued = make_z2opd;
+static void* unused = make_z2opd;
 
 static void nary_2opd(struct nary_opt_data_s* data, void* ptr[])
 {
