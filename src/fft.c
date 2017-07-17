@@ -31,11 +31,13 @@ int main_fft(int argc, char* argv[])
 {
 	bool unitary = false;
 	bool inv = false;
+	bool center = true;
 
 	const struct opt_s opts[] = {
 
 		OPT_SET('u', &unitary, "unitary"),
 		OPT_SET('i', &inv, "inverse"),
+		OPT_CLEAR('n', &center, "un-centered"),
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -50,12 +52,14 @@ int main_fft(int argc, char* argv[])
 	na_copy(out, in);
 	na_free(in);
 
-	__typeof__(na_fft)* ffts[2][2] = {
-		{ na_fftc, na_ifftc },
-		{ na_fftuc, na_ifftuc },
+	__typeof__(na_fft)* ffts[2][2][2] = {
+		{ { na_fft, na_ifft },
+		  { na_fftu, na_ifftu }, },
+		{ { na_fftc, na_ifftc },
+		  { na_fftuc, na_ifftuc }, },
 	};
 
-	ffts[unitary][inv](flags, out, out);
+	ffts[center][unitary][inv](flags, out, out);
 
 	na_free(out);
 	exit(0);
