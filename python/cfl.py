@@ -5,37 +5,62 @@
 # Authors: 
 # 2013 Martin Uecker <uecker@eecs.berkeley.edu>
 # 2015 Jonathan Tamir <jtamir@eecs.berkeley.edu>
+# 2017 Christian Holme <christian.holme@med.uni-goettingen.de>
 
 
 import numpy as np
 
 def readcfl(name):
+    """
+    Read cfl-file into numpy-array.
+
+    Parameters
+    ----------
+    name: str
+        name of the cfl-file, without '.cfl' or '.hdr'
+
+    Returns
+    -------
+    numpy.ndarray
+        The array in complex64 format
+    """
+
     # get dims from .hdr
-    h = open(name + ".hdr", "r")
-    h.readline() # skip
-    l = h.readline()
-    h.close()
+    with open(name + ".hdr", "r") as h:
+        h.readline() # skip
+        l = h.readline()
     dims = [int(i) for i in l.split( )]
 
     # remove singleton dimensions from the end
-    n = np.prod(dims)
     dims_prod = np.cumprod(dims)
+    n = dims_prod[-1]
     dims = dims[:np.searchsorted(dims_prod, n)+1]
 
     # load data and reshape into dims
-    d = open(name + ".cfl", "r")
-    a = np.fromfile(d, dtype=np.complex64, count=n);
-    d.close()
+    with open(name + ".cfl", "r") as d:
+        a = np.fromfile(d, dtype=np.complex64, count=n);
     return a.reshape(dims, order='F') # column-major
 
 	
 def writecfl(name, array):
-    h = open(name + ".hdr", "w")
-    h.write('# Dimensions\n')
-    for i in (array.shape):
-            h.write("%d " % i)
-    h.write('\n')
-    h.close()
-    d = open(name + ".cfl", "w")
-    array.T.astype(np.complex64).tofile(d) # tranpose for column-major order
-    d.close()
+    """
+    Write numpy array to cfl-file.
+
+    Parameters
+    ----------
+    name: str
+        name of the cfl-file, without '.cfl' or '.hdr'
+    array: array_like
+        The numpy array to be written to disk
+
+    Returns
+    -------
+    None
+    """
+    with open(name + ".hdr", "w") as h:
+        h.write('# Dimensions\n')
+        for i in (array.shape):
+                h.write("%d " % i)
+        h.write('\n')
+    with open(name + ".cfl", "w") as d:
+        array.T.astype(np.complex64).tofile(d) # tranpose for column-major order
