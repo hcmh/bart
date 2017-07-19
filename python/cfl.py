@@ -39,7 +39,7 @@ def readcfl(name):
     # load data and reshape into dims
     with open(name + ".cfl", "r") as d:
         a = np.fromfile(d, dtype=np.complex64, count=n);
-    return a.reshape(dims, order='F') # column-major
+    return np.ascontiguousarray(a.reshape(dims, order='F')) # Change to C-order (row-major) for numpy
 
 	
 def writecfl(name, array):
@@ -59,8 +59,8 @@ def writecfl(name, array):
     """
     with open(name + ".hdr", "w") as h:
         h.write('# Dimensions\n')
-        for i in (array.shape):
+        for i in array.shape:
                 h.write("%d " % i)
         h.write('\n')
     with open(name + ".cfl", "w") as d:
-        array.T.astype(np.complex64).tofile(d) # tranpose for column-major order
+        np.asfortranarray(array).astype(np.complex64).tofile(d) # Change to Fortran-order (column-major) for bart
