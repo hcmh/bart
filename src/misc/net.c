@@ -11,14 +11,14 @@
 
 #include "net.h"
 
-int connect_to(const char* addr_str)
+int connect_to(const char* addr_str, int port)
 {
 	int sockfd;
 	struct sockaddr_in addr;
 
 	bzero(&addr, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(2111);
+	addr.sin_port = htons(port);
 
 	if (0 > (sockfd = socket(AF_INET, SOCK_STREAM, 0)))
 		return -1;

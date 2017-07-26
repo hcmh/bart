@@ -48,7 +48,7 @@ int main_client(int argc, char* argv[])
 
 	int fd;
 
-	if (-1 == (fd = connect_to(host)))
+	if (-1 == (fd = connect_to(host, port)))
 		goto err1;
 
 	debug_printf(DP_INFO, "Connected. Sending header...\n");
