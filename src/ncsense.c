@@ -137,7 +137,7 @@ int main_ncsense(int argc, char* argv[])
 				      NULL,
 				      forward_op,
 				      NULL,
-					0, NULL, NULL);
+					0, NULL, NULL, NULL);
 
 	operator_apply(op, DIMS, idims, out_data, DIMS, ksp_dims, kspace);
 
