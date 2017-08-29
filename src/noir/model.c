@@ -53,6 +53,7 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 	.noncart = false,
 	.a = 220.,
 	.b = 32.,
+	.pattern_for_each_coil = false,
 };
 
 
@@ -128,7 +129,17 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	md_select_dims(DIMS, FFT_FLAGS, wght_dims, dims);
 
 	long ptrn_dims[DIMS];
-	md_select_dims(DIMS, conf->fft_flags|CSHIFT_FLAG, ptrn_dims, dims);
+	unsigned int ptrn_flags;
+	if (!conf->pattern_for_each_coil) {
+
+		md_select_dims(DIMS, conf->fft_flags|CSHIFT_FLAG, ptrn_dims, dims);
+		ptrn_flags = ~(conf->fft_flags|CSHIFT_FLAG);
+	} else {
+
+		md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|CSHIFT_FLAG, ptrn_dims, dims);
+		ptrn_flags = ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG);
+	}
+
 
 
 	complex float* weights = md_alloc(DIMS, wght_dims, CFL_SIZE);
@@ -151,7 +162,8 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	md_copy(DIMS, ptrn_dims, ptr, psf, CFL_SIZE);
 	fftmod(DIMS, ptrn_dims, conf->fft_flags, ptr, ptr);
 
-	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG), ~(conf->fft_flags|CSHIFT_FLAG), ptr);
+
+	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG), ptrn_flags, ptr);
 
 	const struct linop_s* lop_adj_pattern;
 
@@ -165,7 +177,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 		md_zfill(DIMS, ptrn_dims, adj_pattern, 1.);
 		fftmod(DIMS, ptrn_dims, conf->fft_flags, adj_pattern, adj_pattern);
 
-		lop_adj_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG), ~(conf->fft_flags|CSHIFT_FLAG), adj_pattern);
+		lop_adj_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG), ptrn_flags, adj_pattern);
 	}
 
 
