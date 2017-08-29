@@ -63,6 +63,7 @@ const struct noir_conf_s noir_defaults = {
 	.redu = 2.,
 	.a = 220.,
 	.b = 32.,
+	.pattern_for_each_coil = false,
 };
 
 void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
@@ -104,6 +105,8 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	mconf.fft_flags = fft_flags;
 	mconf.a = conf->a;
 	mconf.b = conf->b;
+	mconf.pattern_for_each_coil = conf->pattern_for_each_coil;
+
 
 	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
 

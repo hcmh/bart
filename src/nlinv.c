@@ -67,6 +67,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
+		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -163,10 +164,14 @@ int main_nlinv(int argc, char* argv[])
 		unmap_cfl(DIMS, pat_dims, tmp_psf);
 		// FIXME: check compatibility
 
-		if (-1 == restrict_fov)
-			restrict_fov = 0.5;
+		if (conf.pattern_for_each_coil) {
+			assert( 1 != pat_dims[COIL_DIM] );
+		} else {
+			if (-1 == restrict_fov)
+				restrict_fov = 0.5;
 
-		conf.noncart = true;
+			conf.noncart = true;
+		}
 
 	} else {
 
