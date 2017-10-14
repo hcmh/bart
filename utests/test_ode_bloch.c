@@ -136,7 +136,7 @@ static bool test_ode_matrix_bloch(void)
 	for (int i = 0; i < 3; i++)
 		err2 += powf(x[i] - x2[i], 2.);
 
-	return (err2 < 1.E-7);
+	return (err2 < 1.E-6);
 }
 
 UT_REGISTER_TEST(test_ode_matrix_bloch);
