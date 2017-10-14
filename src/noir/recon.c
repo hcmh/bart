@@ -42,7 +42,7 @@ struct data {
 	struct noir_data* ndata;
 };
 
-DEF_TYPEID(data);
+static DEF_TYPEID(data);
 
 
 static void frw(iter_op_data* ptr, float* _dst, const float* _src)
@@ -72,6 +72,7 @@ const struct noir_conf_s noir_defaults = {
 	.iter = 8,
 	.rvc = false,
 	.usegpu = false,
+	.noncart = false,
 	.alpha = 1.,
 	.redu = 2.,
 };
@@ -95,7 +96,6 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	long d1[1] = { size };
 	complex float* img = md_alloc_sameplace(1, d1, CFL_SIZE, kspace);
-	complex float* imgH = md_alloc_sameplace(1, d1, CFL_SIZE, kspace);
 
 
 	md_clear(DIMS, imgs_dims, img, CFL_SIZE);
@@ -105,16 +105,20 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	md_clear(DIMS, coil_dims, img + skip, CFL_SIZE);
 
-	md_clear(DIMS, imgs_dims, imgH, CFL_SIZE);
-	md_clear(DIMS, coil_dims, imgH + skip, CFL_SIZE);
+	struct noir_model_conf_s mconf = noir_model_conf_defaults;
+	mconf.rvc = conf->rvc;
+	mconf.use_gpu = conf->usegpu;
+	mconf.noncart = conf->noncart;
 
-	struct noir_data* ndata = noir_init(dims, mask, psf, conf->rvc, conf->usegpu);
+	struct noir_data* ndata = noir_init(dims, mask, psf, &mconf);
 	struct data data = { { &TYPEID(data) }, ndata };
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 	irgnm_conf.iter = conf->iter;
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
+	irgnm_conf.cgtol = 0.1f;
+	irgnm_conf.nlinv_legacy = true;
 
 	iter3_irgnm(CAST_UP(&irgnm_conf),
 			(struct iter_op_s){ frw, CAST_UP(&data) },
@@ -134,7 +138,6 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	noir_free(ndata);
 
 	md_free(img);
-	md_free(imgH);
 }
 
 

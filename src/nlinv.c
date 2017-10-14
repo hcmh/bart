@@ -42,6 +42,8 @@ int main_nlinv(int argc, char* argv[])
 	float restrict_fov = -1.;
 	const char* psf = NULL;
 	struct noir_conf_s conf = noir_defaults;
+	bool out_sens = false;
+	bool scale_im = false;
 
 	const struct opt_s opts[] = {
 
@@ -51,9 +53,15 @@ int main_nlinv(int argc, char* argv[])
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
 		OPT_SET('g', &conf.usegpu, "use gpu"),
+		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	if (4 == argc)
+		out_sens = true;
+
+
 
 	num_init();
 
@@ -81,7 +89,7 @@ int main_nlinv(int argc, char* argv[])
 
 	complex float* mask; 
 	complex float* norm = md_alloc(DIMS, msk_dims, CFL_SIZE);
-	complex float* sens = ((4 == argc) ? create_cfl : anon_cfl)((4 == argc) ? argv[3] : "", DIMS, ksp_dims);
+	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, ksp_dims);
 
 
 	complex float* pattern = NULL;
@@ -90,8 +98,13 @@ int main_nlinv(int argc, char* argv[])
 	if (NULL != psf) {
 
 		pattern = load_cfl(psf, DIMS, pat_dims);
-
 		// FIXME: check compatibility
+
+		if (-1 == restrict_fov)
+			restrict_fov = 0.5;
+
+		conf.noncart = true;
+
 	} else {
 
 		md_copy_dims(DIMS, pat_dims, img_dims);
@@ -141,18 +154,20 @@ int main_nlinv(int argc, char* argv[])
 		md_zmul2(DIMS, img_dims, img_strs, image, img_strs, image, msk_strs, norm);
 	}
 
-	if (4 == argc) {
+	if (out_sens) {
 
 		long strs[DIMS];
 
 		md_calc_strides(DIMS, strs, ksp_dims, CFL_SIZE);
 
-		if (norm)
+		if (normalize)
 			md_zdiv2(DIMS, ksp_dims, strs, sens, strs, sens, img_strs, norm);
 
 		fftmod(DIMS, ksp_dims, FFT_FLAGS, sens, sens);
 	}
 
+	if (scale_im)
+		md_zsmul(DIMS, img_dims, image, image, 1. / scaling);
 
 	md_free(norm);
 	md_free(mask);

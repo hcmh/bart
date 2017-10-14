@@ -1,5 +1,6 @@
 /* Copyright 2013-2015. The Regents of the University of California.
  * Copyright 2016. Martin Uecker.
+ * Copyright 2017. University of Oxford.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
@@ -7,6 +8,7 @@
  * 2011-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 Frank Ong <frankong@berkeley.edu>
  * 2014-2015 Jonathan Tamir <jtamir@eecs.berkeley.edu>
+ * 2017 Sofia Dimoudi <sofia.dimoudi@cardiov.ox.ac.uk>
  *
  *
  * This file defines basic operations on vectors of floats/complex floats
@@ -23,7 +25,12 @@
 #include <complex.h>
 #include <stdbool.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include "misc/misc.h"
+#include "misc/debug.h"
 
 #include "vecops.h"
 
@@ -398,6 +405,69 @@ static void softthresh(long N, float lambda, float* d, const float* x)
 	}
 }
 
+/**
+ * Return the absolute value of the kth largest array element
+ * To be used for hard thresholding
+ *
+ * @param N number of elements
+ * @param k the sorted element index to pick
+ * @param ar the input complex array
+ *
+ * @returns the absolute value of the kth largest array element.
+ *
+ */
+
+static float klargest_complex_partsort( unsigned int N,  unsigned int k, const complex float* ar)
+{
+	assert(k <= N);
+	
+	complex float* tmp =  (complex float*)xmalloc(N * sizeof(complex float));
+	copy(2 * N, (float*)tmp, (float*)ar);
+	
+	float thr = quickselect_complex(tmp, N, k);
+
+	xfree(tmp);
+
+	return thr;
+}
+
+/**
+ * Hard thesholding, y = HT(x, thr).
+ * computes the thresholded vector, y = x * (abs(x) >= t(kmax))
+ * 
+ * @param N number of elements
+ * @param k threshold parameter, index of kth largest element of sorted x 
+ * @param d pointer to destination, y
+ * @param x pointer to input
+ */
+
+static void zhardthresh(long N,  unsigned int k, complex float* d, const complex float* x)
+{
+	
+	float thr = klargest_complex_partsort(N, k, x);
+   
+	for (long i = 0; i < N; i++) {
+
+		float norm = cabsf(x[i]);
+		d[i] = (norm > thr) ? x[i] : 0.;
+	}
+}
+
+/* Apply the non-zero support of one vector to another, complex numbers */ 
+static void nzsupport(long N, float* out, const float* in)
+{
+#ifdef _OPENMP
+	int par = 0;
+
+	par = omp_in_parallel();
+#endif
+	
+#pragma omp parallel for if (par == 0)	// if not already in a parallel region
+	for (long i = 0; i < N; ++i){
+		if (in[i] == 0.)
+			out[i] = 0.; 
+	}
+}
 
 static void swap(long N, float* a, float* b)
 {
@@ -499,6 +569,8 @@ const struct vec_ops cpu_ops = {
 	.zsoftthresh_half = zsoftthresh_half,
 	.softthresh = softthresh,
 	.softthresh_half = softthresh_half,
+	.zhardthresh = zhardthresh,
+	.nzsupport = nzsupport,
 };
 
 
@@ -521,6 +593,7 @@ struct vec_iter_s {
 	void (*smul)(long N, float alpha, float* a, const float* x);
 	void (*xpay)(long N, float alpha, float* a, const float* x);
 	void (*axpy)(long N, float* a, float alpha, const float* x);
+	void (*nzsupport)(long N, float* out, const float* in);
 };
 
 
@@ -539,6 +612,7 @@ const struct vec_iter_s cpu_iter_ops = {
 	.add = add,
 	.sub = sub,
 	.swap = swap,
+	.nzsupport = nzsupport,
 };
 
 

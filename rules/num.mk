@@ -17,6 +17,6 @@ endif
 lib/libnum.a: libnum.a($(numobjs))
 
 
-UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_mat2x2
+UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2
 UTARGETS += test_blas
 

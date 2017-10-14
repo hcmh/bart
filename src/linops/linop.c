@@ -43,7 +43,7 @@ struct shared_data_s {
 	} u;
 };
 
-DEF_TYPEID(shared_data_s);
+static DEF_TYPEID(shared_data_s);
 
 
 

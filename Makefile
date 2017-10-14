@@ -41,7 +41,14 @@ ifeq ($(BUILDTYPE), MacOSX)
 	MACPORTS?=1
 endif
 
-ARFLAGS = rU
+ifeq ($(BUILDTYPE), Linux)
+	# as the defaults changed on most Linux distributions
+	# explicitly specify non-deterministic archives to not break make
+	ARFLAGS ?= rsU
+else
+	ARFLAGS ?= rs
+endif
+
 
 
 # Paths
@@ -130,11 +137,11 @@ include build_targets.mk
 
 MODULES = -lnum -lmisc -lnum -lmisc -lna
 
-MODULES_pics = -lgrecon -lsense -liter -llinops -lwavelet3 -llowrank -lnoncart
-MODULES_sqpics = -lsense -liter -llinops -lwavelet3 -llowrank -lnoncart
-MODULES_pocsense = -lsense -liter -llinops -lwavelet3
+MODULES_pics = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart
+MODULES_sqpics = -lsense -liter -llinops -lwavelet -llowrank -lnoncart
+MODULES_pocsense = -lsense -liter -llinops -lwavelet
 MODULES_nlinv = -lnoir -liter
-MODULES_bpsense = -lsense -lnoncart -liter -llinops -lwavelet3
+MODULES_bpsense = -lsense -lnoncart -liter -llinops -lwavelet
 MODULES_itsense = -liter -llinops
 MODULES_ecalib = -lcalib
 MODULES_ecaltwo = -lcalib
@@ -146,17 +153,17 @@ MODULES_ccapply = -lcalib
 MODULES_estvar = -lcalib
 MODULES_nufft = -lnoncart -liter -llinops
 MODULES_rof = -liter -llinops
-MODULES_bench = -lwavelet3 -llinops
+MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet3 -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet
 MODULES_sake = -lsake
-MODULES_wave = -liter -lwavelet3 -llinops -lsense
-MODULES_threshold = -llowrank -liter -ldfwavelet -llinops -lwavelet3
+MODULES_wave = -liter -lwavelet -llinops -lsense
+MODULES_threshold = -llowrank -liter -ldfwavelet -llinops -lwavelet
 MODULES_fakeksp = -lsense -llinops
 MODULES_lrmatrix = -llowrank -liter -llinops
 MODULES_estdims = -lnoncart -llinops
 MODULES_ismrmrd = -lismrm
-MODULES_wavelet = -llinops -lwavelet3
+MODULES_wavelet = -llinops -lwavelet
 MODULES_hornschunck = -liter -llinops
 MODULES_ncsense = -liter -llinops -lnoncart -lsense
 
@@ -230,7 +237,9 @@ CUDA_H :=
 CUDA_L :=  
 endif
 
-NVCCFLAGS = -DUSE_CUDA -Xcompiler -fPIC -Xcompiler -fopenmp -O3 -arch=sm_20 -I$(srcdir)/ -m64 -ccbin $(CC)
+# sm_20 no longer supported in CUDA 9
+GPUARCH_FLAGS ?= 
+NVCCFLAGS = -DUSE_CUDA -Xcompiler -fPIC -Xcompiler -fopenmp -O3 $(GPUARCH_FLAGS) -I$(srcdir)/ -m64 -ccbin $(CC)
 #NVCCFLAGS = -Xcompiler -fPIC -Xcompiler -fopenmp -O3  -I$(srcdir)/
 
 
