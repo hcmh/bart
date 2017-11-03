@@ -59,11 +59,65 @@ complex float median_complex_float(int N, const complex float ar[N])
 	return (1 == N % 2) ? tmp[(N - 1) / 2] : ((tmp[(N - 1) / 2 + 0] + tmp[(N - 1) / 2 + 1]) / 2.);
 }
 
+static float vec_dist(int D, const float x[D], const float y[D])
+{
+	float sum = 0.;
+
+	for (int i = 0; i < D; i++)
+		sum += powf(x[i] - y[i], 2.);
+
+	return sqrtf(sum);
+}
+
+void weiszfeld(int iter, int N, int D, float x[D], const float in[N][D])
+{
+	for (int i = 0; i < D; i++)
+		x[i] = 0.;
+
+	for (int l = 0; l < iter; l++) {
+
+		float sum = 0;
+		float d[N];
+
+		for (int i = 0; i < N; i++) {
+
+			d[i] = vec_dist(D, x, in[i]);
+
+			if (0. == d[i])
+				return;
+
+			sum += 1. / d[i];
+		}
+
+		for (int i = 0; i < D; i++)
+			x[i] = 0.;
+
+		for (int i = 0; i < N; i++)
+			for (int j = 0; j < D; j++)
+				x[j] += in[i][j] / d[i];
+
+		for (int i = 0; i < D; i++)
+			x[i] /= sum;
+	}
+}
+
+static complex float median_geometric_complex_float(int N, const complex float ar[N])
+{
+	complex float x;
+
+	// Weiszfeld's algorithm
+	weiszfeld(10, N, 2, *(float(*)[2])&x, *(float(*)[N][2])ar);
+
+	return x;
+}
+
+
 
 struct median_s {
 
 	long length;
 	long stride;
+	complex float (*median_fun)(int N, const complex float[N]);
 };
 
 static void nary_medianz(void* _data, void* ptr[])
@@ -75,7 +129,7 @@ static void nary_medianz(void* _data, void* ptr[])
 	for (long i = 0; i < data->length; i++)
 		tmp[i] = *((complex float*)(ptr[1] + i * data->stride));
 
-	*(complex float*)ptr[0] = median_complex_float(data->length, tmp);
+	*(complex float*)ptr[0] = data->median_fun(data->length, tmp);
 }
 
 void md_medianz2(int D, int M, const long dim[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
@@ -84,13 +138,11 @@ void md_medianz2(int D, int M, const long dim[D], const long ostr[D], complex fl
 	const long* nstr[2] = { ostr, istr };
 	void* nptr[2] = { optr, (void*)iptr };
 
-	struct median_s data = { dim[M], istr[M] };
+	struct median_s data = { dim[M], istr[M], median_complex_float };
 
 	long dim2[D];
-	for (int i = 0; i < D; i++)
-		dim2[i] = dim[i];
 
-	dim2[M] = 1;
+	md_select_dims(D, ~(1u << M), dim2, dim);
 
 	md_nary(2, D, dim2, nstr, nptr, (void*)&data, &nary_medianz);
 }
@@ -100,20 +152,49 @@ void md_medianz(int D, int M, const long dim[D], complex float* optr, const comp
 	assert(M < D);
 
 	long dim2[D];
-	for (int i = 0; i < D; i++)
-		dim2[i] = dim[i];
 
-	dim2[M] = 1;
+	md_select_dims(D, ~(1u << M), dim2, dim);
 
 	long istr[D];
 	long ostr[D];
 
-	md_calc_strides(D, istr, dim, 8);
-	md_calc_strides(D, ostr, dim2, 8);
+	md_calc_strides(D, istr, dim, CFL_SIZE);
+	md_calc_strides(D, ostr, dim2, CFL_SIZE);
 
 	md_medianz2(D, M, dim, ostr, optr, istr, iptr);
 }
 
+void md_geometric_medianz2(int D, int M, const long dim[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
+{
+	assert(M < D);
+	const long* nstr[2] = { ostr, istr };
+	void* nptr[2] = { optr, (void*)iptr };
+
+	struct median_s data = { dim[M], istr[M], median_geometric_complex_float };
+
+	long dim2[D];
+
+	md_select_dims(D, ~(1u << M), dim2, dim);
+
+	md_nary(2, D, dim2, nstr, nptr, (void*)&data, &nary_medianz);
+}
+
+void md_geometric_medianz(int D, int M, const long dim[D], complex float* optr, const complex float* iptr)
+{
+	assert(M < D);
+
+	long dim2[D];
+
+	md_select_dims(D, ~(1u << M), dim2, dim);
+
+	long istr[D];
+	long ostr[D];
+
+	md_calc_strides(D, istr, dim, CFL_SIZE);
+	md_calc_strides(D, ostr, dim2, CFL_SIZE);
+
+	md_medianz2(D, M, dim, ostr, optr, istr, iptr);
+}
 
 
 
