@@ -46,7 +46,7 @@ static const char help_str[] = "Estimate optical flow along dims <flags>.\n";
 	
 int main_hornschunck(int argc, char* argv[])
 {
-	mini_cmdline(argc, argv, 5, usage_str, help_str);
+	mini_cmdline(&argc, argv, 5, usage_str, help_str);
 
 	num_init();
 
