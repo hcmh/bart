@@ -145,7 +145,7 @@ float dormand_prince_step2(float h, unsigned int N, float ynp[N], float tn, cons
 void ode_interval(float h, float tol, unsigned int N, float x[N], float st, float end, void* data, void (*f)(void* data, float* out, float t, const float* yn))
 {
 	float k[6][N];
-	f(data, k[0], 0., x);
+	f(data, k[0], st, x);
 
 	if (h > end - st)
 		h = end - st;
