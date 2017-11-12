@@ -52,14 +52,12 @@ static void sptr_op_del(const struct shared_ptr_s* sptr)
 	struct nlop_op_data_s* data = CONTAINER_OF(sptr, struct nlop_op_data_s, sptr);
 
 	data->del(data->data);
-	xfree(data);
 }
 
 static void sptr_linop_del(const struct shared_ptr_s* sptr)
 {
 	struct nlop_linop_data_s* data = CONTAINER_OF(sptr, struct nlop_linop_data_s, sptr);
 	data->del(data->data);
-//	xfree(data);
 }
 
 static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)])
@@ -73,9 +71,8 @@ static void op_del(const operator_data_t* _data)
 {
 	const struct nlop_op_data_s* data = CAST_DOWN(nlop_op_data_s, _data);
 
-//	shared_ptr_destroy(&data->sptr);
-
-//	xfree(data);
+	shared_ptr_destroy(&data->sptr);
+	xfree(data);
 }
 
 static void lop_der(const linop_data_t* _data, complex float* dst, const complex float* src)
@@ -96,10 +93,10 @@ static void lop_del(const linop_data_t* _data)
 {
 	const struct nlop_linop_data_s* data = CAST_DOWN(nlop_linop_data_s, _data);
 
-//	shared_ptr_destroy(&data->sptr);
-
-//	xfree(data);
+	shared_ptr_destroy(&data->sptr);
+	xfree(data);
 }
+
 struct nlop_s* nlop_create2(unsigned int ON, const long odims[__VLA(ON)], const long ostrs[__VLA(ON)],
 				unsigned int IN, const long idims[__VLA(IN)], const long istrs[__VLA(IN)], nlop_data_t* data,
 				nlop_fun_t forward, nlop_fun_t deriv, nlop_fun_t adjoint, nlop_fun_t normal, nlop_p_fun_t norm_inv, nlop_del_fun_t del)
@@ -115,19 +112,22 @@ struct nlop_s* nlop_create2(unsigned int ON, const long odims[__VLA(ON)], const 
 
 	shared_ptr_init(&d->sptr, sptr_op_del);
 
-	n->op = operator_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(PTR_PASS(d)), op_fun, op_del);
 
 	PTR_ALLOC(struct nlop_linop_data_s, d2);
 	SET_TYPEID(nlop_linop_data_s, d2);
 
 	d2->data = data;
+	d2->del = del;
 	d2->deriv = deriv;
 	d2->adjoint = adjoint;
 
 	assert(NULL == normal);
 	assert(NULL == norm_inv);
 
-	shared_ptr_init(&d2->sptr, sptr_linop_del);
+	shared_ptr_copy(&d2->sptr, &d->sptr);
+	d2->sptr.del = sptr_linop_del;
+
+	n->op = operator_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(PTR_PASS(d)), op_fun, op_del);
 
 	n->derivative = linop_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(PTR_PASS(d2)), lop_der, lop_adj, NULL, NULL, lop_del);
 
