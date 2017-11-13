@@ -158,3 +158,18 @@ nlop_data_t* nlop_get_data(struct nlop_s* op)
 	return data2->data;
 }
 
+void nlop_apply(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src)
+{
+	operator_apply(op->op, IN, idims, dst, ON, odims, src);
+}
+
+void nlop_derivative(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src)
+{
+	linop_forward(op->derivative, IN, idims, dst, ON, odims, src);
+}
+
+void nlop_adjoint(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src)
+{
+	linop_adjoint(op->derivative, IN, idims, dst, ON, odims, src);
+}
+
