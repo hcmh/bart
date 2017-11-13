@@ -9,4 +9,6 @@ nlopsobjs := $(nlopssrcs:.c=.o)
 lib/libnlops.a: libnlops.a($(nlopsobjs))
 
 
+UTARGETS += test_nlop_zexp
+MODULES_test_nlop_zexp += -lnlops -llinops
 
