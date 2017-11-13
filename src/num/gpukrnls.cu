@@ -1,9 +1,10 @@
 /* Copyright 2013-2017. The Regents of the University of California.
- * All rights reserved. Use of this source code is governed by 
+ * Copyright 2017. Martin Uecker.
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-03-24 Martin Uecker <uecker@eecs.berkeley.edu>
+ * 2012,2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2015,2017 Jon Tamir <jtamir@eecs.berkeley.edu>
  *
  * 
@@ -485,6 +486,20 @@ extern "C" void cuda_zphsr(long N, _Complex float* dst, const _Complex float* sr
 	kern_zphsr<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
 }
 
+
+__global__ void kern_zexp(int N, cuFloatComplex* dst, const cuFloatComplex* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = zexp(src[i]);
+}
+
+extern "C" void cuda_zexp(long N, _Complex float* dst, const _Complex float* src)
+{
+	kern_zexp<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
+}
 
 
 __global__ void kern_zexpj(int N, cuFloatComplex* dst, const cuFloatComplex* src)
