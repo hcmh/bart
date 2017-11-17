@@ -27,6 +27,13 @@
 #include "misc/debug.h"
 #include "misc/shrdptr.h"
 
+#ifdef USE_CUDA
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+#include "num/gpuops.h"
+#endif
+
 #include "ops.h"
 
 #ifndef CFL_SIZE
