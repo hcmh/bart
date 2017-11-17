@@ -181,3 +181,14 @@ void nlop_adjoint(const struct nlop_s* op, int ON, const long odims[ON], complex
 	linop_adjoint(op->derivative, IN, idims, dst, ON, odims, src);
 }
 
+
+const struct iovec_s* nlop_domain(const struct nlop_s* op)
+{
+	return linop_domain(op->derivative);
+}
+
+const struct iovec_s* nlop_codomain(const struct nlop_s* op)
+{
+	return linop_codomain(op->derivative);
+}
+

@@ -46,3 +46,9 @@ extern nlop_data_t* nlop_get_data(struct nlop_s* op);
 extern void nlop_apply(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src);
 extern void nlop_derivative(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src);
 extern void nlop_adjoint(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src);
+
+
+struct iovec_s;
+extern const struct iovec_s* nlop_domain(const struct nlop_s* op);
+extern const struct iovec_s* nlop_codomain(const struct nlop_s* op);
+
