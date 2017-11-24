@@ -89,7 +89,7 @@ struct iter_chambolle_pock_conf {
 	float theta;
 	float decay;
 	float tol;
-	bool fast;
+	_Bool fast;
 };
 
 extern DEF_TYPEID(iter_chambolle_pock_conf);
@@ -137,7 +137,7 @@ struct iter_niht_conf {
 
 	unsigned int maxiter;
 	float tol;
-	_Bool do_warmstart;	
+	_Bool do_warmstart;
 };
 
 extern DEF_TYPEID(iter_niht_conf);

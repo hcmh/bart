@@ -32,6 +32,8 @@
 
 #include "init.h"
 
+extern unsigned long num_chunk_size;	// num/optimize.c
+
 
 void num_init(void)
 {
@@ -62,6 +64,22 @@ void num_init(void)
 #ifdef FFTWTHREADS
 	fft_set_num_threads(p);
 #endif
+
+	const char* chunk_str;
+
+	if (NULL != (chunk_str = getenv("BART_PARALLEL_CHUNK_SIZE"))) {
+
+		long chunk_size = strtoul(chunk_str, NULL, 10);
+
+		if (0 < chunk_size) {
+
+			num_chunk_size = chunk_size;
+
+		} else {
+
+			debug_printf(DP_WARN, "invalid chunk size\n");
+		}
+	}
 }
 
 

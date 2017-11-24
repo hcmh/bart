@@ -451,7 +451,8 @@ static unsigned long parallelizable(unsigned int D, unsigned int io, unsigned in
 }
 
 
-#define CHUNK (32 * 1024)
+extern long num_chunk_size;
+long num_chunk_size = 32 * 1024;
 
 
 /**
@@ -474,7 +475,7 @@ unsigned long dims_parallel(unsigned int D, unsigned int io, unsigned int N, con
 
 			reps /= dims[i];
 
-			if (reps < CHUNK)
+			if (reps < num_chunk_size)
 				break;
 
 			oflags = MD_SET(oflags, i);
@@ -528,6 +529,8 @@ static void nary_opt(void* _data, void* ptr[])
 }
 
 
+
+
 /**
  * Optimized n-op.
  *
@@ -543,6 +546,25 @@ static void nary_opt(void* _data, void* ptr[])
  */
 void optimized_nop(unsigned int N, unsigned int io, unsigned int D, const long dim[D], const long (*nstr[N])[D], void* const nptr[N], size_t sizes[N], md_nary_opt_fun_t too, void* data_ptr)
 {
+	assert(N > 0);
+
+	if (0 == D) {
+
+		long dim1[1] = { 1 };
+		long tstrs[N][1];
+		long (*nstr1[N])[1];
+
+		for (unsigned int i = 0; i < N; i++) {
+
+			tstrs[i][0] = 0;
+			nstr1[i] = &tstrs[i];
+		}
+
+		optimized_nop(N, io, 1, dim1, (void*)nstr1, nptr, sizes, too, data_ptr);
+
+		return;
+	}
+
 	long tdims[D];
 	md_copy_dims(D, tdims, dim);
 
@@ -553,6 +575,7 @@ void optimized_nop(unsigned int N, unsigned int io, unsigned int D, const long d
 	for (unsigned int i = 0; i < N; i++) {
 
 		md_copy_strides(D, tstrs[i], *nstr[i]);
+
 		nstr1[i] = &tstrs[i];
 		nptr1[i] = nptr[i];
 	}
