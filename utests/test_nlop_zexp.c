@@ -14,6 +14,7 @@
 
 #include "nlops/zexp.h"
 #include "nlops/nlop.h"
+#include "nlops/nltest.h"
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -54,4 +55,28 @@ static bool test_nlop_zexp(void)
 
 
 UT_REGISTER_TEST(test_nlop_zexp);
+
+
+
+
+
+
+static bool test_nlop_zexp_derivative(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	struct nlop_s* zexp = nlop_zexp_create(N, dims);
+
+	double err = nlop_test_derivative(zexp);
+
+	nlop_free(zexp);
+
+	return (err < 1.E-2);
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_zexp_derivative);
+
 
