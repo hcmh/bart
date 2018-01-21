@@ -50,6 +50,8 @@ struct nlop_linop_data_s {
 
 	nlop_fun_t deriv;
 	nlop_fun_t adjoint;
+	nlop_fun_t normal;
+	nlop_p_fun_t norm_inv;
 };
 
 static DEF_TYPEID(nlop_linop_data_s);
@@ -97,6 +99,21 @@ static void lop_adj(const linop_data_t* _data, complex float* dst, const complex
 	data->adjoint(data->data, dst, src);
 }
 
+static void lop_nrm_inv(const linop_data_t* _data, float lambda, complex float* dst, const complex float* src)
+{
+	const struct nlop_linop_data_s* data = CAST_DOWN(nlop_linop_data_s, _data);
+
+	data->norm_inv(data->data, lambda, dst, src);
+}
+
+static void lop_nrm(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const struct nlop_linop_data_s* data = CAST_DOWN(nlop_linop_data_s, _data);
+
+	data->normal(data->data, dst, src);
+}
+
+
 static void lop_del(const linop_data_t* _data)
 {
 	const struct nlop_linop_data_s* data = CAST_DOWN(nlop_linop_data_s, _data);
@@ -128,16 +145,15 @@ struct nlop_s* nlop_create2(unsigned int ON, const long odims[__VLA(ON)], const 
 	d2->del = del;
 	d2->deriv = deriv;
 	d2->adjoint = adjoint;
-
-	assert(NULL == normal);
-	assert(NULL == norm_inv);
+	d2->normal = normal;
+	d2->norm_inv = norm_inv;
 
 	shared_ptr_copy(&d2->sptr, &d->sptr);
 	d2->sptr.del = sptr_linop_del;
 
 	n->op = operator_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(PTR_PASS(d)), op_fun, op_del);
 
-	n->derivative = linop_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(PTR_PASS(d2)), lop_der, lop_adj, NULL, NULL, lop_del);
+	n->derivative = linop_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(PTR_PASS(d2)), lop_der, lop_adj, lop_nrm, lop_nrm_inv, lop_del);
 
 	//linop_create
 	return PTR_PASS(n);
