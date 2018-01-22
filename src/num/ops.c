@@ -204,6 +204,37 @@ unsigned int operator_nr_args(const struct operator_s* op)
  
 
 /**
+ * Return the number of input args
+ *
+ * @param op operator
+ */
+unsigned int operator_nr_in_args(const struct operator_s* op)
+{
+	return operator_nr_args(op) - operator_nr_out_args(op);
+}
+
+
+/**
+ * Return the number of input args
+ *
+ * @param op operator
+ */
+unsigned int operator_nr_out_args(const struct operator_s* op)
+{
+	unsigned int N = operator_nr_args(op);
+	unsigned int O = 0;
+
+	for (unsigned int i = 0; i < N; i++)
+		if (MD_IS_SET(op->io_flags, i))
+			O++;
+
+	return O;
+}
+
+
+
+
+/**
  * Return the iovec of arg n
  *
  * @param op operator

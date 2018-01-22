@@ -88,6 +88,9 @@ extern void operator_p_apply_unchecked(const struct operator_p_s* op, float mu, 
 // get functions
 struct iovec_s;
 extern unsigned int operator_nr_args(const struct operator_s* op);
+extern unsigned int operator_nr_in_args(const struct operator_s* op);
+extern unsigned int operator_nr_out_args(const struct operator_s* op);
+
 
 extern const struct iovec_s* operator_arg_domain(const struct operator_s* op, unsigned int n);
 extern const struct iovec_s* operator_domain(const struct operator_s* op);
