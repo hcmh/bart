@@ -21,7 +21,7 @@ struct nlop_s* nlop_chain(const struct nlop_s* a, const struct nlop_s* b)
 	const struct linop_s* la = linop_from_nlop(a);
 	const struct linop_s* lb = linop_from_nlop(b);
 
-	if ((NULL != a) && (NULL != b))
+	if ((NULL != la) && (NULL != lb))
 		return nlop_from_linop(linop_chain(la, lb));
 #endif
 	PTR_ALLOC(struct nlop_s, n);
