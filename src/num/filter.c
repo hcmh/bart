@@ -106,7 +106,7 @@ static complex float median_geometric_complex_float(int N, const complex float a
 	complex float x;
 
 	// Weiszfeld's algorithm
-	weiszfeld(10, N, 2, *(float(*)[2])&x, *(float(*)[N][2])ar);
+	weiszfeld(10, N, 2, *(float(*)[2])&x, *(const float(*)[N][2])ar);
 
 	return x;
 }
