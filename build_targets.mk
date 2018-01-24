@@ -5,6 +5,6 @@ TFLP=scale invert conj fmac saxpy sdot spow cpyphs creal carg normalize cdf97 pa
 TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavelet window var std
 TRECO=pics pocsense sqpics itsense nlinv nufft rof sake wave lrmatrix estdims estshift estdelay wavepsf hornschunck ncsense
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten
-TMRI=homodyne poisson twixread fakeksp
+TMRI=homodyne poisson twixread fakeksp umgread
 TSIM=phantom traj
 TIO=toimg
