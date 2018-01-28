@@ -1,10 +1,10 @@
 /* Copyright 2015. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+ * Copyright 2016-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2013-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2013-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 Jonathan Tamir <jtamir@eecs.berkeley.edu>
  * 2014 Frank Ong <frankong@berkeley.edu>
  *
@@ -338,7 +338,7 @@ static void op_p_del(const operator_data_t* _data)
 {
 	const struct op_p_data_s* data = CAST_DOWN(op_p_data_s, _data);
 	data->del(data->data);
-	free((void*)data);
+	xfree(data);
 }
 
 operator_data_t* operator_p_get_data(const struct operator_p_s* _data)
@@ -436,7 +436,7 @@ static void identity_free(const operator_data_t* _data)
         const struct identity_s* d = CAST_DOWN(identity_s, _data);
         iovec_free(d->domain);
         iovec_free(d->codomain);
-	free((void*)d);
+	xfree(d);
 }
 
 
@@ -503,7 +503,7 @@ static void chain_free(const operator_data_t* _data)
 	operator_free(data->a);
 	operator_free(data->b);
 
-	free((void*)data);
+	xfree(data);
 }
 
 
@@ -587,7 +587,7 @@ static void stack_free(const operator_data_t* _data)
 	operator_free(data->a);
 	operator_free(data->b);
 
-	free((void*)data);
+	xfree(data);
 }
 
 static bool stack_compatible(unsigned int D, const struct iovec_s* a, const struct iovec_s* b)
@@ -822,10 +822,10 @@ static void op_loop_del(const operator_data_t* _data)
 		free((void*)data->strs[i]);
 	}
 
-	free((void*)data->strs);
-	free((void*)data->dims);
-	free((void*)data->dims0);
-	free((void*)data);
+	xfree(data->strs);
+	xfree(data->dims);
+	xfree(data->dims0);
+	xfree(data);
 }
 
 static void op_loop_nary(void* _data, void* ptr[])
@@ -1127,7 +1127,7 @@ static void gpuwrp_del(const operator_data_t* _data)
 
 	operator_free(data->op);
 
-	free((void*)data);
+	xfree(data);
 }
 
 const struct operator_s* operator_gpu_wrapper(const struct operator_s* op)
