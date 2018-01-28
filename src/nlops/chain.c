@@ -1,5 +1,6 @@
 
 #include <stddef.h>
+#include <assert.h>
 
 #include "num/ops.h"
 
@@ -17,6 +18,11 @@
 
 struct nlop_s* nlop_chain(const struct nlop_s* a, const struct nlop_s* b)
 {
+	assert(1 == nlop_get_nr_in_args(a));
+	assert(1 == nlop_get_nr_out_args(a));
+	assert(1 == nlop_get_nr_in_args(b));
+	assert(1 == nlop_get_nr_out_args(b));
+
 	const struct linop_s* la = linop_from_nlop(a);
 	const struct linop_s* lb = linop_from_nlop(b);
 
@@ -25,14 +31,17 @@ struct nlop_s* nlop_chain(const struct nlop_s* a, const struct nlop_s* b)
 
 	PTR_ALLOC(struct nlop_s, n);
 
+	const struct linop_s* (*der)[1][1] = TYPE_ALLOC(const struct linop_s*[1][1]);
+	n->derivative = &(*der)[0][0];
+
 	if (NULL == la)
-		la = a->derivative;
+		la = a->derivative[0];
 
 	if (NULL == lb)
-		lb = b->derivative;
+		lb = b->derivative[0];
 
 	n->op = operator_chain(a->op, b->op);
-	n->derivative = linop_chain(la, lb);
+	n->derivative[0] = linop_chain(la, lb);
 
 	return PTR_PASS(n);
 }

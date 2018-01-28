@@ -3,6 +3,8 @@
  * a BSD-style license which can be found in the LICENSE file.
  */
 
+#include <assert.h>
+
 #include "num/ops.h"
 
 #include "nlops/nlop.h"
@@ -28,6 +30,7 @@ static void nlop_for_iter(iter_op_data* _o, float* _dst, const float* _src)
 {
 	const struct iter4_nlop_s* nlop = CAST_DOWN(iter4_nlop_s, _o);
 
+	assert(2 == operator_nr_args(nlop->nlop.op));
 	operator_apply_unchecked(nlop->nlop.op, (complex float*)_dst, (const complex float*)_src);
 }
 
@@ -35,14 +38,16 @@ static void nlop_der_iter(iter_op_data* _o, float* _dst, const float* _src)
 {
 	const struct iter4_nlop_s* nlop = CAST_DOWN(iter4_nlop_s, _o);
 
-	linop_forward_unchecked(nlop->nlop.derivative, (complex float*)_dst, (const complex float*)_src);
+	assert(2 == operator_nr_args(nlop->nlop.op));
+	linop_forward_unchecked(nlop->nlop.derivative[0], (complex float*)_dst, (const complex float*)_src);
 }
 
 static void nlop_adj_iter(iter_op_data* _o, float* _dst, const float* _src)
 {
 	const struct iter4_nlop_s* nlop = CAST_DOWN(iter4_nlop_s, _o);
 
-	linop_adjoint_unchecked(nlop->nlop.derivative, (complex float*)_dst, (const complex float*)_src);
+	assert(2 == operator_nr_args(nlop->nlop.op));
+	linop_adjoint_unchecked(nlop->nlop.derivative[0], (complex float*)_dst, (const complex float*)_src);
 }
 
 
