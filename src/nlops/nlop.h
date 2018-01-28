@@ -60,6 +60,13 @@ extern void nlop_adjoint(const struct nlop_s* op, int ON, const long odims[ON], 
 extern void nlop_generic_apply_unchecked(const struct nlop_s* op, int N, void* args[N]);
 
 
+extern const struct linop_s* nlop_get_derivative(const struct nlop_s* op, int o, int i);
+
+extern const struct iovec_s* nlop_generic_domain(const struct nlop_s* op, int o, int i);
+extern const struct iovec_s* nlop_generic_codomain(const struct nlop_s* op, int o, int i);
+
+
+
 struct iovec_s;
 extern const struct iovec_s* nlop_domain(const struct nlop_s* op);
 extern const struct iovec_s* nlop_codomain(const struct nlop_s* op);

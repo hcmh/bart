@@ -63,19 +63,19 @@ static DEF_TYPEID(nlop_linop_data_s);
 
 static void sptr_op_del(const struct shared_ptr_s* sptr)
 {
-	struct nlop_op_data_s* data = CONTAINER_OF(sptr, struct nlop_op_data_s, sptr);
+	auto data = CONTAINER_OF(sptr, struct nlop_op_data_s, sptr);
 	data->del(data->data);
 }
 
 static void sptr_linop_del(const struct shared_ptr_s* sptr)
 {
-	struct nlop_linop_data_s* data = CONTAINER_OF(sptr, struct nlop_linop_data_s, sptr);
+	auto data = CONTAINER_OF(sptr, struct nlop_linop_data_s, sptr);
 	data->del(data->data);
 }
 
 static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)])
 {
-	const struct nlop_op_data_s* data = CAST_DOWN(nlop_op_data_s, _data);
+	auto data = CAST_DOWN(nlop_op_data_s, _data);
 
 	if (NULL != data->forward1) {
 
@@ -90,7 +90,7 @@ static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VL
 
 static void op_del(const operator_data_t* _data)
 {
-	const struct nlop_op_data_s* data = CAST_DOWN(nlop_op_data_s, _data);
+	auto data = CAST_DOWN(nlop_op_data_s, _data);
 
 	shared_ptr_destroy(&data->sptr);
 	xfree(data);
@@ -98,28 +98,28 @@ static void op_del(const operator_data_t* _data)
 
 static void lop_der(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct nlop_linop_data_s* data = CAST_DOWN(nlop_linop_data_s, _data);
+	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
 	data->deriv(data->data, dst, src);
 }
 
 static void lop_adj(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct nlop_linop_data_s* data = CAST_DOWN(nlop_linop_data_s, _data);
+	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
 	data->adjoint(data->data, dst, src);
 }
 
 static void lop_nrm_inv(const linop_data_t* _data, float lambda, complex float* dst, const complex float* src)
 {
-	const struct nlop_linop_data_s* data = CAST_DOWN(nlop_linop_data_s, _data);
+	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
 	data->norm_inv(data->data, lambda, dst, src);
 }
 
 static void lop_nrm(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const struct nlop_linop_data_s* data = CAST_DOWN(nlop_linop_data_s, _data);
+	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
 	data->normal(data->data, dst, src);
 }
@@ -127,7 +127,7 @@ static void lop_nrm(const linop_data_t* _data, complex float* dst, const complex
 
 static void lop_del(const linop_data_t* _data)
 {
-	const struct nlop_linop_data_s* data = CAST_DOWN(nlop_linop_data_s, _data);
+	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
 	shared_ptr_destroy(&data->sptr);
 	xfree(data);
@@ -155,17 +155,17 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 
 	unsigned int D[OO + II];
 	for (int i = 0; i < OO + II; i++)
-		D[i] = (i < II) ? IN : ON;
+		D[i] = (i < OO) ? ON : IN;
 
 	const long* dims[OO + II];
 
 	for (int i = 0; i < OO + II; i++)
-		dims[i] = (i < II) ? idims[i] : odims[i - II];
+		dims[i] = (i < OO) ? odims[i] : idims[i - OO];
 
 	const long* strs[OO + II];
 
 	for (int i = 0; i < OO + II; i++)
-		strs[i] = (i < II) ? istr[i] : ostr[i - II];
+		strs[i] = (i < OO) ? ostr[i] : istr[i - OO];
 
 
 	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[II][OO]);
@@ -193,7 +193,7 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 		}
 	}
 
-	n->op = operator_generic_create2(OO + II, (1u << II) - 1u, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del);
+	n->op = operator_generic_create2(OO + II, (1u << OO) - 1u, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del);
 
 
 	return PTR_PASS(n);
@@ -255,9 +255,9 @@ void nlop_free(const struct nlop_s* op)
 
 nlop_data_t* nlop_get_data(struct nlop_s* op)
 {
-	struct nlop_op_data_s* data2 = CAST_DOWN(nlop_op_data_s, operator_get_data(op->op));
+	auto data2 = CAST_DOWN(nlop_op_data_s, operator_get_data(op->op));
 #if 1
-	struct nlop_linop_data_s* data3 = CAST_DOWN(nlop_linop_data_s, linop_get_data(op->derivative[0]));
+	auto data3 = CAST_DOWN(nlop_linop_data_s, linop_get_data(op->derivative[0]));
 	assert(data3->data == data2->data);
 #endif
 	return data2->data;
@@ -270,14 +270,18 @@ void nlop_apply(const struct nlop_s* op, int ON, const long odims[ON], complex f
 
 void nlop_derivative(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src)
 {
-	assert(2 == operator_nr_args(op->op));
-	linop_forward(op->derivative[0], IN, idims, dst, ON, odims, src);
+	assert(1 == nlop_get_nr_in_args(op));
+	assert(1 == nlop_get_nr_out_args(op));
+
+	linop_forward(nlop_get_derivative(op, 0, 0), IN, idims, dst, ON, odims, src);
 }
 
 void nlop_adjoint(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src)
 {
-	assert(2 == operator_nr_args(op->op));
-	linop_adjoint(op->derivative[0], IN, idims, dst, ON, odims, src);
+	assert(1 == nlop_get_nr_in_args(op));
+	assert(1 == nlop_get_nr_out_args(op));
+
+	linop_adjoint(nlop_get_derivative(op, 0, 0), IN, idims, dst, ON, odims, src);
 }
 
 
@@ -287,18 +291,43 @@ void nlop_generic_apply_unchecked(const struct nlop_s* op, int N, void* args[N])
 	operator_generic_apply_unchecked(op->op, N, args);
 }
 
+const struct linop_s* nlop_get_derivative(const struct nlop_s* op, int o, int i)
+{
+	int II = nlop_get_nr_in_args(op);
+	int OO = nlop_get_nr_out_args(op);
+
+	assert((i < II) && (o < OO));
+
+	const struct linop_s* (*der)[II][OO] = (void*)op->derivative;
+
+	return (*der)[i][o];
+}
+
+const struct iovec_s* nlop_generic_domain(const struct nlop_s* op, int o, int i)
+{
+	return linop_domain(nlop_get_derivative(op, o, i));
+}
+
+const struct iovec_s* nlop_generic_codomain(const struct nlop_s* op, int o, int i)
+{
+	return linop_codomain(nlop_get_derivative(op, o, i));
+}
 
 
 
 const struct iovec_s* nlop_domain(const struct nlop_s* op)
 {
-	assert(2 == operator_nr_args(op->op));
-	return linop_domain(op->derivative[0]);
+	assert(1 == nlop_get_nr_in_args(op));
+	assert(1 == nlop_get_nr_out_args(op));
+
+	return nlop_generic_domain(op, 0, 0);
 }
 
 const struct iovec_s* nlop_codomain(const struct nlop_s* op)
 {
-	assert(2 == operator_nr_args(op->op));
-	return linop_codomain(op->derivative[0]);
+	assert(1 == nlop_get_nr_in_args(op));
+	assert(1 == nlop_get_nr_out_args(op));
+
+	return nlop_generic_codomain(op, 0, 0);
 }
 
