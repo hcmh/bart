@@ -24,8 +24,6 @@
 #include <cuda.h>
 #include <cublas.h>
 
-#include <omp.h>
-
 #include "num/vecops.h"
 #include "num/gpuops.h"
 #include "num/gpukrnls.h"
@@ -256,7 +254,7 @@ void cuda_hostfree(void* ptr)
 	struct cuda_mem_s* nptr = search(ptr, true);
 	assert(nptr->ptr == ptr);
 	assert(!nptr->device);
-	free(nptr);
+	xfree(nptr);
 
 	cudaFreeHost(ptr);
 }
@@ -334,7 +332,6 @@ const struct vec_ops gpu_ops = {
 	.sqrt = cuda_sqrt,
 
 	.le = cuda_le,
-	.ge = cuda_ge,
 
 	.zmul = cuda_zmul,
 	.zdiv = cuda_zdiv,
@@ -350,6 +347,7 @@ const struct vec_ops gpu_ops = {
 	.zexpj = cuda_zexpj,
 	.zexp = cuda_zexp,
 	.zarg = cuda_zarg,
+	.zabs = cuda_zabs,
 
 	.zcmp = cuda_zcmp,
 	.zdiv_reg = cuda_zdiv_reg,

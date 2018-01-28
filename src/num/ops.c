@@ -13,7 +13,6 @@
 
 #include <complex.h>
 #include <stdbool.h>
-#include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -818,8 +817,8 @@ static void op_loop_del(const operator_data_t* _data)
 
 	for (unsigned int i = 0; i < data->N; i++) {
 
-		free((void*)data->dims[i]);
-		free((void*)data->strs[i]);
+		xfree(data->dims[i]);
+		xfree(data->strs[i]);
 	}
 
 	xfree(data->strs);

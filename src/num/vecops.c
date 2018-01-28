@@ -25,10 +25,6 @@
 #include <complex.h>
 #include <stdbool.h>
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
 #include "misc/misc.h"
 #include "misc/debug.h"
 
@@ -50,7 +46,7 @@ static float* allocate(long N)
 
 static void del(float* vec)
 {
-	free(vec);
+	xfree(vec);
 }
 
 static void copy(long N, float* dst, const float* src)
@@ -320,6 +316,12 @@ static void zarg(long N, complex float* dst, const complex float* src)
 		dst[i] = cargf(src[i]);
 }
 
+static void zabs(long N, complex float* dst, const complex float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = cabsf(src[i]);
+}
+
 
 static void max(long N, float* dst, const float* src1, const float* src2)
 {
@@ -353,12 +355,6 @@ static void vec_le(long N, float* dst, const float* src1, const float* src2)
 {
 	for (long i = 0; i < N; i++)
 		dst[i] = (src1[i] <= src2[i]);
-}
-
-static void vec_ge(long N, float* dst, const float* src1, const float* src2)
-{
-	for (long i = 0; i < N; i++)
-		dst[i] = (src1[i] >= src2[i]);
 }
 
 /**
@@ -453,7 +449,6 @@ static float klargest_complex_partsort( unsigned int N,  unsigned int k, const c
 
 static void zhardthresh(long N,  unsigned int k, complex float* d, const complex float* x)
 {
-	
 	float thr = klargest_complex_partsort(N, k, x);
    
 	for (long i = 0; i < N; i++) {
@@ -476,7 +471,6 @@ static void zhardthresh(long N,  unsigned int k, complex float* d, const complex
 
 static void zhardthresh_mask(long N,  unsigned int k, complex float* d, const complex float* x)
 {
-	
 	float thr = klargest_complex_partsort(N, k, x);
 
 	for (long i = 0; i < N; i++) {
@@ -559,7 +553,6 @@ const struct vec_ops cpu_ops = {
 	.sqrt = vec_sqrt,
 
 	.le = vec_le,
-	.ge = vec_ge,
 
 	.zmul = zmul,
 	.zdiv = zdiv,
@@ -575,6 +568,7 @@ const struct vec_ops cpu_ops = {
 	.zexpj = zexpj,
 	.zexp = zexp,
 	.zarg = zarg,
+	.zabs = zabs,
 
 	.zcmp = zcmp,
 	.zdiv_reg = zdiv_reg,

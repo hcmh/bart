@@ -25,7 +25,6 @@ struct vec_ops {
 	void (*sqrt)(long N, float* dst, const float* src);
 
 	void (*le)(long N, float* dst, const float* src1, const float* src2);
-	void (*ge)(long N, float* dst, const float* src1, const float* src2);
 
 	void (*add)(long N, float* dst, const float* src1, const float* src2);
 	void (*sub)(long N, float* dst, const float* src1, const float* src2);
@@ -48,6 +47,7 @@ struct vec_ops {
 	void (*zexpj)(long N, _Complex float* dst, const _Complex float* src);
 	void (*zexp)(long N, _Complex float* dst, const _Complex float* src);
 	void (*zarg)(long N, _Complex float* dst, const _Complex float* src);
+	void (*zabs)(long N, _Complex float* dst, const _Complex float* src);
 
 	void (*zcmp)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2);
 	void (*zdiv_reg)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2, _Complex float lambda);

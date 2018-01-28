@@ -39,20 +39,26 @@ static const char help_str[] =
 
 int main_nlinv(int argc, char* argv[])
 {
+	double start_time = timestamp();
+
 	bool normalize = true;
 	float restrict_fov = -1.;
 	const char* psf = NULL;
+	const char* init_file = NULL;
 	struct noir_conf_s conf = noir_defaults;
 	bool out_sens = false;
 	bool scale_im = false;
 
 	const struct opt_s opts[] = {
 
-		OPT_UINT('i', &conf.iter, "iter", ""),
-		OPT_SET('c', &conf.rvc, ""),
-		OPT_CLEAR('N', &normalize, ""),
+		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
+		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+		OPT_INT('d', &debug_level, "level", "Debug level"),
+		OPT_SET('c', &conf.rvc, "Real-value constraint"),
+		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
+		OPT_STRING('I', &init_file, "file", "File for initialization"),
 		OPT_SET('g', &conf.usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 	};
@@ -90,7 +96,7 @@ int main_nlinv(int argc, char* argv[])
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
 
-	complex float* image = create_cfl(argv[2], DIMS, img_dims);
+	complex float* img = create_cfl(argv[2], DIMS, img_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, dims);
@@ -98,10 +104,27 @@ int main_nlinv(int argc, char* argv[])
 	long msk_strs[DIMS];
 	md_calc_strides(DIMS, msk_strs, msk_dims, CFL_SIZE);
 
-	complex float* mask;
+	complex float* mask = NULL;
 	complex float* norm = md_alloc(DIMS, img_dims, CFL_SIZE);
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, ksp_dims);
 
+	// initialization
+	if (NULL != init_file) {
+
+		long skip = md_calc_size(DIMS, img_dims);
+		long init_dims[DIMS];
+		complex float* init = load_cfl(init_file, DIMS, init_dims);
+
+		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
+
+		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
+		fftmod(DIMS, ksp_dims, FFT_FLAGS|SLICE_FLAG, sens, init + skip);
+
+	} else {
+
+		md_zfill(DIMS, img_dims, img, 1.);
+		md_clear(DIMS, ksp_dims, sens, CFL_SIZE);
+	}
 
 	complex float* pattern = NULL;
 	long pat_dims[DIMS];
@@ -154,19 +177,17 @@ int main_nlinv(int argc, char* argv[])
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
-		noir_recon(&conf, dims, image, NULL, pattern, mask, kspace_gpu);
+
+		noir_recon(&conf, dims, img, sens, pattern, mask, kspace_gpu);
 		md_free(kspace_gpu);
-
-		md_zfill(DIMS, ksp_dims, sens, 1.);
-
 	} else
 #endif
-	noir_recon(&conf, dims, image, sens, pattern, mask, kspace_data);
+	noir_recon(&conf, dims, img, sens, pattern, mask, kspace_data);
 
 	if (normalize) {
 
 		md_zrss(DIMS, ksp_dims, COIL_FLAG, norm, sens);
-                md_zmul2(DIMS, img_dims, img_strs, image, img_strs, image, img_strs, norm);
+                md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, img_strs, norm);
 	}
 
 	if (out_sens) {
@@ -181,15 +202,18 @@ int main_nlinv(int argc, char* argv[])
 	}
 
 	if (scale_im)
-		md_zsmul(DIMS, img_dims, image, image, 1. / scaling);
+		md_zsmul(DIMS, img_dims, img, img, 1. / scaling);
 
 	md_free(norm);
 	md_free(mask);
 
 	unmap_cfl(DIMS, ksp_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
-	unmap_cfl(DIMS, img_dims, image);
+	unmap_cfl(DIMS, img_dims, img );
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
+
+	double recosecs = timestamp() - start_time;
+	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
 	exit(0);
 }
 

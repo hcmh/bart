@@ -108,24 +108,24 @@ static char* file_name(const long kernel_dims[3], const long calreg_dims[4]) {
  *  L              - Number of elements in E.
  *  E              - Load simulated noise singular values to.
  */
-static int load_noise_sv(const long kernel_dims[3], const long calreg_dims[4], long L, float* E) {
-
+static int load_noise_sv(const long kernel_dims[3], const long calreg_dims[4], long L, float* E)
+{
     char* name = file_name(kernel_dims, calreg_dims);
-    FILE* fp   = fopen(name, "rb");
+    FILE* fp = fopen(name, "rb");
 
     if (!fp) {
-        free(name);
+
+        xfree(name);
         return 0;
     }
 
     int c = fread(E, sizeof(float), L, fp);
     assert(c == L);
     
-    free(name);
+    xfree(name);
     fclose(fp);
 
     return 1;
-
 }
 
 /**
@@ -139,13 +139,14 @@ static int load_noise_sv(const long kernel_dims[3], const long calreg_dims[4], l
  *  L              - Number of elements in E.
  *  E              - Load simulated noise singular values to.
  */
-static void save_noise_sv(const long kernel_dims[3], const long calreg_dims[4], long L, float* E) {
-
+static void save_noise_sv(const long kernel_dims[3], const long calreg_dims[4], long L, float* E)
+{
     char* name = file_name(kernel_dims, calreg_dims);
-    FILE* fp   = fopen(name, "wb");
+    FILE* fp = fopen(name, "wb");
 
     if (!fp) {
-        free(name);
+
+        xfree(name);
         return;
     }
 
@@ -153,7 +154,6 @@ static void save_noise_sv(const long kernel_dims[3], const long calreg_dims[4], 
 
     free(name);
     fclose(fp);
-
 }
 
 /**
@@ -288,6 +288,7 @@ extern float estvar_calreg(const long kernel_dims[3], const long calreg_dims[4],
     PTR_ALLOC(complex float[N][N], vec);
     covariance_function(kernel_dims, N, *vec, calreg_dims, calreg);
     lapack_eig(N, tmpE, *vec);
+    PTR_FREE(vec);
 
     for (int idx = 0; idx < L; idx ++)
         S[idx] = sqrtf(tmpE[N-idx-1]);
@@ -296,13 +297,12 @@ extern float estvar_calreg(const long kernel_dims[3], const long calreg_dims[4],
 
 }
 
-extern float estvar_kspace(long N, const long kernel_dims[3], const long calib_size[3], const long kspace_dims[N], const complex float* kspace) {
-
+extern float estvar_kspace(long N, const long kernel_dims[3], const long calib_size[3], const long kspace_dims[N], const complex float* kspace)
+{
     long calreg_dims[N];
     complex float* calreg = NULL;
     calreg = extract_calib(calreg_dims, calib_size, kspace_dims, kspace, false);
     float variance = estvar_calreg(kernel_dims, calreg_dims, calreg);
     md_free(calreg);
     return variance;
-
 }

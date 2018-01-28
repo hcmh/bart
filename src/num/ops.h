@@ -120,17 +120,6 @@ const struct operator_s* operator_loop_parallel2(unsigned int N, const unsigned 
 				unsigned int flags, _Bool gpu);
 
 
-#if __GNUC__ < 5
-#include "misc/pcaa.h"
-
-#define operator_loop2(N, D, dims, strs, op) \
-	operator_loop2(N, D, dims, AR2D_CAST(long, N, D, strs), op)
-
-#define operator_loop_parallel2(N, D, dims, strs, op, parallel, gpu) \
-	operator_loop_parallel2(N, D, dims, AR2D_CAST(long, N, D, strs), op, parallel, gpu)
-
-#endif
-
 extern const struct operator_s* operator_loop(unsigned int D, const long dims[D], const struct operator_s* op);
 extern const struct operator_s* operator_loop_parallel(unsigned int D, const long dims[D], const struct operator_s* op, unsigned int parallel, _Bool gpu);
 

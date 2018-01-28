@@ -383,6 +383,11 @@ __device__ float zarg(cuFloatComplex x)
 	return atan2(cuCimagf(x), cuCrealf(x));
 }
 
+__device__ float zabs(cuFloatComplex x)
+{
+	return cuCabsf(x);
+}
+
 __device__ cuFloatComplex zlog(cuFloatComplex x)
 {
 	return make_cuFloatComplex(log(cuCabsf(x)), zarg(x));
@@ -536,6 +541,21 @@ extern "C" void cuda_zarg(long N, _Complex float* dst, const _Complex float* src
 }
 
 
+__global__ void kern_zabs(int N, cuFloatComplex* dst, const cuFloatComplex* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = make_cuFloatComplex(zabs(src[i]), 0.);
+}
+
+extern "C" void cuda_zabs(long N, _Complex float* dst, const _Complex float* src)
+{
+	kern_zabs<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
+}
+
+
 /**
  * (GPU) Step (1) of soft thesholding, y = ST(x, lambda).
  * Only computes the residual, resid = MAX( (abs(x) - lambda)/abs(x)), 0 )
@@ -652,20 +672,6 @@ __global__ void kern_le(int N, float* dst, const float* src1, const float* src2)
 extern "C" void cuda_le(long N, float* dst, const float* src1, const float* src2)
 {
 	kern_le<<<gridsize(N), blocksize(N)>>>(N, dst, src1, src2);
-}
-
-__global__ void kern_ge(int N, float* dst, const float* src1, const float* src2)
-{
-	int start = threadIdx.x + blockDim.x * blockIdx.x;
-	int stride = blockDim.x * gridDim.x;
-
-	for (int i = start; i < N; i += stride)
-		dst[i] = (src1[i] >= src2[i]);
-}
-
-extern "C" void cuda_ge(long N, float* dst, const float* src1, const float* src2)
-{
-	kern_ge<<<gridsize(N), blocksize(N)>>>(N, dst, src1, src2);
 }
 
 __device__ cuFloatComplex cuDouble2Float(cuDoubleComplex x)
