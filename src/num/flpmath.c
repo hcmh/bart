@@ -1990,6 +1990,7 @@ float md_scalar2(unsigned int D, const long dim[D], const long str1[D], const fl
 
 #ifdef USE_CUDA
 	if (cuda_ondevice(ptr1)) {
+
 		md_copy(1, (long[1]){ 1 }, &ret, retp, DL_SIZE);
 		md_free(retp);
 	}
@@ -2140,6 +2141,7 @@ complex float md_zscalar2(unsigned int D, const long dim[D], const long str1[D],
 
 #ifdef USE_CUDA
 	if (cuda_ondevice(ptr1)) {
+
 		md_copy(1, (long[1]){ 1 }, &ret, retp, CDL_SIZE);
 		md_free(retp);
 	}
@@ -2621,7 +2623,6 @@ void md_zavg2(unsigned int D, const long dims[D], unsigned int flags, const long
 	md_singleton_strides(D, ss);
 	md_zfmac2(D, dims, ostr, optr, istr, iptr, ss, o);
 	md_free(o);
-
 #else
 	md_zaxpy2(D, dims, ostr, optr, 1., istr, iptr);
 #endif
@@ -2989,6 +2990,7 @@ static void nary_zhardthresh_mask(struct nary_opt_data_s* data, void* ptr[])
 void md_zhardthresh_mask2(unsigned int D, const long dim[D], unsigned int k, unsigned int flags, complex float* tmp_norm, const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
 {
 	if (0 == flags) {
+
 		optimized_twoop_oi(D, dim, ostr, optr, istr, iptr, (size_t[2]){ CFL_SIZE, CFL_SIZE }, nary_zhardthresh_mask, &k);
 		return;
 	}
@@ -3028,7 +3030,6 @@ void md_zhardthresh_mask(unsigned int D, const long dim[D], unsigned int k, unsi
 	md_zhardthresh_mask2(D, dim, k, flags, tmp_norm, str, optr, str, iptr);
 
 	md_free(tmp_norm);
-
 }
 
 /**
@@ -3123,7 +3124,6 @@ void md_zhardthresh(unsigned int D, const long dims[D], unsigned int k, unsigned
 	md_calc_strides(D, strs, dims, CFL_SIZE);
 
 	md_zhardthresh2(D, dims, k, flags, strs, optr, strs, iptr);
-
 }
 
 /**
