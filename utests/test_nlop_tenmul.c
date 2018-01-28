@@ -19,7 +19,6 @@
 #include "linops/linop.h"
 
 #include "misc/misc.h"
-#include "misc/debug.h"
 
 #include "utest.h"
 
@@ -103,8 +102,6 @@ static bool test_nlop_tenmul_der(void)
 	md_free(src2);
 	md_free(dst1);
 	md_free(dst2);
-
-	debug_printf(DP_INFO, "ERR: %f\n", err);
 
 	return (err < UT_TOL);
 }
