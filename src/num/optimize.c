@@ -20,6 +20,7 @@
 
 #include "misc/misc.h"
 #include "misc/debug.h"
+#include "misc/nested.h"
 
 #include "num/multind.h"
 #include "num/vecops.h"
@@ -516,17 +517,7 @@ double md_flp_total_time = 0.;
 extern bool num_auto_parallelize;
 bool num_auto_parallelize = true;
 
-struct nary_opt_s {
 
-	md_nary_opt_fun_t fun;
-	struct nary_opt_data_s* data;
-};
-
-static void nary_opt(void* _data, void* ptr[])
-{
-	struct nary_opt_s* data = _data;
-	data->fun(data->data, ptr);	
-}
 
 
 
@@ -544,7 +535,7 @@ static void nary_opt(void* _data, void* ptr[])
  * @param too n-op function
  * @param data_ptr pointer to additional data used by too
  */
-void optimized_nop(unsigned int N, unsigned int io, unsigned int D, const long dim[D], const long (*nstr[N])[D], void* const nptr[N], size_t sizes[N], md_nary_opt_fun_t too, void* data_ptr)
+void optimized_nop(unsigned int N, unsigned int io, unsigned int D, const long dim[D], const long (*nstr[N])[D], void* const nptr[N], size_t sizes[N], md_nary_opt_fun_t too)
 {
 	assert(N > 0);
 
@@ -560,7 +551,7 @@ void optimized_nop(unsigned int N, unsigned int io, unsigned int D, const long d
 			nstr1[i] = &tstrs[i];
 		}
 
-		optimized_nop(N, io, 1, dim1, (void*)nstr1, nptr, sizes, too, data_ptr);
+		optimized_nop(N, io, 1, dim1, (void*)nstr1, nptr, sizes, too);
 
 		return;
 	}
@@ -609,18 +600,22 @@ void optimized_nop(unsigned int N, unsigned int io, unsigned int D, const long d
 #ifdef USE_CUDA
 	debug_printf(DP_DEBUG4, "This is a %s call\n.", use_gpu(N, nptr1) ? "gpu" : "cpu");
 
-	struct nary_opt_data_s data = { md_calc_size(skip, tdims), use_gpu(N, nptr1) ? &gpu_ops : &cpu_ops, data_ptr };
+	__block struct nary_opt_data_s data = { md_calc_size(skip, tdims), use_gpu(N, nptr1) ? &gpu_ops : &cpu_ops };
 #else
-	struct nary_opt_data_s data = { md_calc_size(skip, tdims), &cpu_ops, data_ptr };
+	__block struct nary_opt_data_s data = { md_calc_size(skip, tdims), &cpu_ops };
 #endif
 
 	debug_printf(DP_DEBUG4, "Vec: %d (%ld) Opt.: ", skip, data.size);
 	debug_print_dims(DP_DEBUG4, ND, tdims);
 
+	NESTED(void, nary_opt, (void* ptr[]))
+	{
+		too(&data, ptr);
+	};
 
 	double start = timestamp();
 
-	md_parallel_nary(N, ND - skip, tdims + skip, flags, nstr2, nptr1, &(struct nary_opt_s){ too, &data }, nary_opt);
+	md_parallel_nary(N, ND - skip, tdims + skip, flags, nstr2, nptr1, nary_opt);
 
 	double end = timestamp();
 

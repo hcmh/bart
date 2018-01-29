@@ -14,58 +14,42 @@
 
 #include "num/multind.h"
 
+#include "misc/nested.h"
+
 #include "loop.h"
 
 
 // typedef complex float (*sample_fun_t)(void* _data, const long pos[]);
 
-struct sample_data {
-
-	unsigned int N;
-	const long* strs;
-	complex float* out;
-	void* data;
-	sample_fun_t fun;
-};
-
-static void sample_kernel(void* _data, const long pos[])
-{
-	struct sample_data* data = _data;
-	data->out[md_calc_offset(data->N, data->strs, pos)] = data->fun(data->data, pos);
-}
-
 void md_zsample(unsigned int N, const long dims[N], complex float* out, void* data, sample_fun_t fun)
 {
-	struct sample_data sdata;
-
-	sdata.N = N;
-
 	long strs[N];
 	md_calc_strides(N, strs, dims, 1);	// we use size = 1 here
-	sdata.strs = strs;
 
-	sdata.out = out;
-	sdata.data = data;
-	sdata.fun = fun;
+	long* strsp = strs;	// because of clang
 
-	md_loop(N, dims, &sdata, sample_kernel);
+	NESTED(void, sample_kernel, (const long pos[]))
+	{
+		out[md_calc_offset(N, strsp, pos)] = fun(data, pos);
+	};
+
+	md_loop(N, dims, sample_kernel);
 }
+
 
 void md_parallel_zsample(unsigned int N, const long dims[N], complex float* out, void* data, sample_fun_t fun)
 {
-	struct sample_data sdata;
-
-	sdata.N = N;
-
 	long strs[N];
 	md_calc_strides(N, strs, dims, 1);	// we use size = 1 here
-	sdata.strs = strs;
 
-	sdata.out = out;
-	sdata.data = data;
-	sdata.fun = fun;
+	long* strsp = strs;	// because of clang
 
-	md_parallel_loop(N, dims, ~0u, &sdata, sample_kernel);
+	NESTED(void, sample_kernel, (const long pos[]))
+	{
+		out[md_calc_offset(N, strsp, pos)] = fun(data, pos);
+	};
+
+	md_parallel_loop(N, dims, ~0u, sample_kernel);
 }
 
 

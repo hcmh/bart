@@ -25,6 +25,7 @@
 #include "misc/types.h"
 #include "misc/debug.h"
 #include "misc/shrdptr.h"
+#include "misc/nested.h"
 
 #ifdef USE_CUDA
 #ifdef _OPENMP
@@ -827,12 +828,6 @@ static void op_loop_del(const operator_data_t* _data)
 	xfree(data);
 }
 
-static void op_loop_nary(void* _data, void* ptr[])
-{
-	const struct op_loop_s* data = _data;
-	operator_generic_apply_unchecked(data->op, data->N, ptr);
-}
-
 static void op_loop_fun(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 	const struct op_loop_s* data = CAST_DOWN(op_loop_s, _data);
@@ -852,7 +847,12 @@ static void op_loop_fun(const operator_data_t* _data, unsigned int N, void* args
 	bool ap_save = num_auto_parallelize;
 	num_auto_parallelize = false;
 
-	md_parallel_nary(N, data->D, data->dims0, data->parallel, data->strs, args, (void*)data, op_loop_nary);
+	NESTED(void, op_loop_nary, (void* ptr[]))
+	{
+		operator_generic_apply_unchecked(data->op, data->N, ptr);
+	};
+
+	md_parallel_nary(N, data->D, data->dims0, data->parallel, data->strs, args, op_loop_nary);
 
 	num_auto_parallelize = ap_save;
 }

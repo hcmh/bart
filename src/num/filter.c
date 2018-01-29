@@ -19,6 +19,7 @@
 #include "num/loop.h"
 
 #include "misc/misc.h"
+#include "misc/nested.h"
 
 #include "filter.h"
 
@@ -113,24 +114,6 @@ static complex float median_geometric_complex_float(int N, const complex float a
 
 
 
-struct median_s {
-
-	long length;
-	long stride;
-	complex float (*median_fun)(int N, const complex float[N]);
-};
-
-static void nary_medianz(void* _data, void* ptr[])
-{
-	struct median_s* data = (struct median_s*)_data;
-
-	complex float tmp[data->length];
-
-	for (long i = 0; i < data->length; i++)
-		tmp[i] = *((complex float*)(ptr[1] + i * data->stride));
-
-	*(complex float*)ptr[0] = data->median_fun(data->length, tmp);
-}
 
 void md_medianz2(int D, int M, const long dim[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
 {
@@ -138,13 +121,24 @@ void md_medianz2(int D, int M, const long dim[D], const long ostr[D], complex fl
 	const long* nstr[2] = { ostr, istr };
 	void* nptr[2] = { optr, (void*)iptr };
 
-	struct median_s data = { dim[M], istr[M], median_complex_float };
+	long length = dim[M];
+	long stride = istr[M];
 
 	long dim2[D];
 
 	md_select_dims(D, ~(1u << M), dim2, dim);
 
-	md_nary(2, D, dim2, nstr, nptr, (void*)&data, &nary_medianz);
+	NESTED(void, nary_medianz, (void* ptr[]))
+	{
+		complex float tmp[length];
+
+		for (long i = 0; i < length; i++)
+			tmp[i] = *((complex float*)(ptr[1] + i * stride));
+
+		*(complex float*)ptr[0] = median_complex_float(length, tmp);
+	};
+
+	md_nary(2, D, dim2, nstr, nptr, nary_medianz);
 }
 
 void md_medianz(int D, int M, const long dim[D], complex float* optr, const complex float* iptr)
@@ -170,13 +164,23 @@ void md_geometric_medianz2(int D, int M, const long dim[D], const long ostr[D], 
 	const long* nstr[2] = { ostr, istr };
 	void* nptr[2] = { optr, (void*)iptr };
 
-	struct median_s data = { dim[M], istr[M], median_geometric_complex_float };
-
 	long dim2[D];
+	long length = dim[M];
+	long stride = istr[M];
 
 	md_select_dims(D, ~(1u << M), dim2, dim);
 
-	md_nary(2, D, dim2, nstr, nptr, (void*)&data, &nary_medianz);
+	NESTED(void, nary_medianz, (void* ptr[]))
+	{
+		complex float tmp[length];
+
+		for (long i = 0; i < length; i++)
+			tmp[i] = *((complex float*)(ptr[1] + i * stride));
+
+		*(complex float*)ptr[0] = median_geometric_complex_float(length, tmp);
+	};
+
+	md_nary(2, D, dim2, nstr, nptr, nary_medianz);
 }
 
 void md_geometric_medianz(int D, int M, const long dim[D], complex float* optr, const complex float* iptr)
