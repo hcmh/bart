@@ -47,24 +47,4 @@ extern void na_copy(na dst, na src);
 extern void na_clear(na dst);
 
 
-#if __GNUC__ < 5
-#include "misc/pcaa.h"
-
-#define ty_create(N, dims, size) \
-	ty_create(N, AR2D_CAST(const long, 1, N, dims), size)
-
-#define na_wrap_cb(t, N, strs, data, size, del) \
-	na_wrap_cb(t, N, AR2D_CAST(const long, 1, N, strs), data, size, del)
-
-#define na_wrap2(N, dims, strs, data, elsize, size, del) \
-	na_wrap2(N, AR2D_CAST(const long, 1, N, dims), AR2D_CAST(const long, 1, N, strs), data, elsize, size, del)
-
-#define na_slice(x, flags, N, pos) \
-	na_slice(x, flags, N, AR2D_CAST(const long, 1, N, pos))
-
-#define na_new(N, dims, size) \
-	na_new(N, AR2D_CAST(const long, 1, N, dims), size)
-
-#endif
-
 
