@@ -65,7 +65,7 @@ static void toimg(bool dicom, const char* name, long inum, float max, long h, lo
 			} else {
 
 				(*buf)[i][j][0] = (value >> 0) & 0xFF;
-				(*buf)[i][j][2] = (value >> 8) & 0xFF;
+				(*buf)[i][j][1] = (value >> 8) & 0xFF;
 			}
 		}
 	}

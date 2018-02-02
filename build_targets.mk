@@ -7,4 +7,4 @@ TRECO=pics pocsense sqpics itsense nlinv nufft rof sake wave lrmatrix estdims es
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten
 TMRI=homodyne poisson twixread fakeksp umgread
 TSIM=phantom traj
-TIO=toimg
+TIO=toimg dcmread
