@@ -17,6 +17,9 @@ int main_dcmread(int argc, char* argv[])
 	int dims[2];
 	unsigned char* img = dicom_read(argv[1], dims);
 
+	if (NULL == img)
+		error("reading dicom file");
+
 	printf("Size: %d-%d\n", dims[0], dims[1]);
 
 	long d[2] = { dims[0], dims[1] };
@@ -28,7 +31,7 @@ int main_dcmread(int argc, char* argv[])
 						+ (img[(i * dims[1] + j) * 2 + 1] << 8))
 						/ 65535.;
 
-	free(img);
+	xfree(img);
 	unmap_cfl(2, d, out);
 	exit(0);
 }

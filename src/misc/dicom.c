@@ -324,6 +324,39 @@ cleanup:
 }
 
 
+static bool dicom_query(size_t len, unsigned char buf[len], bool use_implicit, int N, struct element ellist[N])
+{
+	bool ret = false;
+	size_t off = 0;
+
+	for (int i = 0; i < N; i++) {
+
+		struct element element;
+
+		do {
+			size_t l;
+
+			assert(off < len);
+
+			l = (use_implicit ? dicom_read_implicit : dicom_read_element)(&element, len - off, buf + off);
+
+			off += l;
+
+		} while(0 > dicom_tag_compare(element.tag,
+				ellist[i].tag));
+
+		if (0 != dicom_tag_compare(element.tag, ellist[i].tag))
+			goto cleanup;
+
+		memcpy(&ellist[i], &element, sizeof(element));
+	}
+
+	ret = true;
+cleanup:
+	return ret;
+}
+
+
 
 unsigned char* dicom_read(const char* name, int dims[2])
 {
@@ -354,41 +387,20 @@ unsigned char* dicom_read(const char* name, int dims[2])
 	size_t len = st.st_size;
 
 	struct element dicom_elements[NR_ENTRIES];
+	memcpy(dicom_elements, dicom_elements_default, sizeof(dicom_elements_default));
 
 	bool implicit = false;
 
-	for (int i = 0; i < NR_ENTRIES; i++) {
+	// read META TAGS
+	if (!dicom_query(len - off, buf + off, false, 2, dicom_elements))
+		goto cleanup;
 
-		do {
-			size_t l;
+	off += 12; // size of meta tag
+	off += *(uint32_t*)dicom_elements[ITAG_META_SIZE].data;
+	implicit = (0 == memcmp(dicom_elements[ITAG_TRANSFER_SYNTAX].data, LITTLE_ENDIAN_IMPLICIT, dicom_elements[ITAG_TRANSFER_SYNTAX].len)); // FIXME
 
-			assert(off < len);
-
-			size_t meta = (i == 0) ? 0 : *(uint32_t*)dicom_elements[0].data + 12 + 128 + 4;
-
-			bool use_implicit = implicit && (off >= meta);
-
-
-			l = (use_implicit ? dicom_read_implicit : dicom_read_element)(&dicom_elements[i], len - off, buf + off);
-
-			if (ITAG_TRANSFER_SYNTAX == i)
-				implicit = (0 == memcmp(dicom_elements[i].data, LITTLE_ENDIAN_IMPLICIT, dicom_elements[i].len));
-
-#if 0
-			printf("%d %d H: %x - %x %d\n", (int)off, i, dicom_elements[i].group, dicom_elements[i].element, (int)l);
-			printf("%d %d E: %x - %x\n", (int)off, i, dicom_elements_default[i].group, dicom_elements_default[i].element);
-#endif
-
-			off += l;
-
-		} while(0 > dicom_tag_compare(dicom_elements[i].tag,
-				dicom_elements_default[i].tag));
-
-		if (       (0 != dicom_tag_compare(dicom_elements[i].tag,
-						   dicom_elements_default[i].tag))
-			&& (ITAG_COMMENT != i))
-			abort();
-	}
+	if (!dicom_query(len - off, buf + off, implicit, NR_ENTRIES - 4, dicom_elements + 4))
+		goto cleanup;
 
 	int rows = *(uint16_t*)dicom_elements[ITAG_IMAGE_ROWS].data;
 	int cols = *(uint16_t*)dicom_elements[ITAG_IMAGE_COLS].data;
