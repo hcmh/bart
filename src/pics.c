@@ -1,4 +1,4 @@
-/* Copyright 2013-2017. The Regents of the University of California.
+/* Copyright 2013-2018. The Regents of the University of California.
  * Copyright 2015-2017. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
@@ -6,7 +6,7 @@
  * Authors:
  * 2012-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014-2016 Frank Ong <frankong@berkeley.edu>
- * 2014-2017 Jon Tamir <jtamir@eecs.berkeley.edu>
+ * 2014-2018 Jon Tamir <jtamir@eecs.berkeley.edu>
  *
  */
 
@@ -127,12 +127,15 @@ int main_pics(int argc, char* argv[])
 	bool warm_start = false;
 
 	const char* basis_file = NULL;
-	bool dynamic_rho = false;
+
+	bool admm_dynamic_rho = false;
+	bool admm_dynamic_tau = false;
+	bool admm_relative_norm = false;
+	float admm_rho = iter_admm_defaults.rho;
+	unsigned int admm_maxitercg = iter_admm_defaults.maxitercg;
 
 	bool hogwild = false;
 	bool fast = false;
-	float admm_rho = iter_admm_defaults.rho;
-	unsigned int admm_maxitercg = iter_admm_defaults.maxitercg;
 
 	unsigned int gpun = 0;
 
@@ -158,8 +161,9 @@ int main_pics(int argc, char* argv[])
 		OPT_UINT('b', &llr_blk, "blk", "Lowrank block size"),
 		OPT_SET('e', &eigen, "Scale stepsize based on max. eigenvalue"),
 		OPT_SET('H', &hogwild, "(hogwild)"),
-		OPT_SET('D', &dynamic_rho, "(dynamic_rho)"),
+		OPT_SET('D', &admm_dynamic_rho, "(ADMM dynamic step size)"),
 		OPT_SET('F', &fast, "(fast)"),
+		OPT_SET('J', &admm_relative_norm, "(ADMM residual balancing)"),
 		OPT_STRING('T', &image_truth_file, "file", "(truth file)"),
 		OPT_STRING('W', &image_start_file, "<img>", "Warm start with <img>"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
@@ -190,6 +194,8 @@ int main_pics(int argc, char* argv[])
 
 	if (0 <= bpsense_eps)
 		conf.bpsense = true;
+
+	admm_dynamic_tau = admm_relative_norm;
 
 
 
@@ -294,8 +300,11 @@ int main_pics(int argc, char* argv[])
 	if (hogwild)
 		debug_printf(DP_INFO, "Hogwild stepsize\n");
 
-	if (dynamic_rho)
+	if (admm_dynamic_rho)
 		debug_printf(DP_INFO, "ADMM Dynamic stepsize\n");
+
+	if (admm_relative_norm)
+		debug_printf(DP_INFO, "ADMM residual balancing\n");
 
 	if (im_truth)
 		debug_printf(DP_INFO, "Compare to truth\n");
@@ -629,7 +638,9 @@ int main_pics(int argc, char* argv[])
 			mmconf.rho = admm_rho;
 			mmconf.hogwild = hogwild;
 			mmconf.fast = fast;
-			mmconf.dynamic_rho = dynamic_rho;
+			mmconf.dynamic_rho = admm_dynamic_rho;
+			mmconf.dynamic_tau = admm_dynamic_tau;
+			mmconf.relative_norm = admm_relative_norm;
 			mmconf.ABSTOL = 0.;
 			mmconf.RELTOL = 0.;
 

@@ -56,7 +56,7 @@ static void wthresh(unsigned int D, const long dims[D], float lambda, unsigned i
 	md_calc_strides(D, strs, dims, CFL_SIZE);
 
 	const struct linop_s* w = linop_wavelet_create(D, wflags, dims, strs, minsize, false);
-	const struct operator_p_s* p = prox_unithresh_create(D, w, lambda, flags, false);
+	const struct operator_p_s* p = prox_unithresh_create(D, w, lambda, flags);
 
 	operator_p_apply(p, 1., D, dims, out, D, dims, in);
 
@@ -71,7 +71,7 @@ static void lrthresh(unsigned int D, const long dims[D], int llrblk, float lambd
 	int levels = llr_blkdims(blkdims, ~flags, dims, llrblk);
 	UNUSED(levels);
 
-	const struct operator_p_s* p = lrthresh_create(dims, false, ~flags, (const long (*)[])blkdims, lambda, false, false, false);
+	const struct operator_p_s* p = lrthresh_create(dims, false, ~flags, (const long (*)[])blkdims, lambda, false, false);
 
 	operator_p_apply(p, 1., D, dims, out, D, dims, in);
 

@@ -1,10 +1,10 @@
 /* Copyright 2014. The Regents of the University of California.
- * Copyright 2015-2017. Martin Uecker.
+ * Copyright 2015-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  * 
  * Authors: 
- * 2014-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2014-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 Jonathan Tamir <jtamir@eecs.berkeley.edu>
  */
 
@@ -19,6 +19,8 @@
 #include "num/rand.h"
 #include "num/init.h"
 #include "num/ops.h"
+#include "num/mdfft.h"
+#include "num/fft.h"
 
 #include "wavelet/wavthresh.h"
 
@@ -414,6 +416,94 @@ static double bench_wavelet(long scale)
 }
 
 
+static double bench_generic_mdfft(long dims[DIMS], unsigned long flags)
+{
+	complex float* x = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* y = md_alloc(DIMS, dims, CFL_SIZE);
+
+	md_gaussian_rand(DIMS, dims, x);
+
+	double tic = timestamp();
+
+	md_fft(DIMS, dims, flags, 0u, y, x);
+
+	double toc = timestamp();
+
+	md_free(x);
+	md_free(y);
+
+	return toc - tic;
+}
+
+static double bench_mdfft(long scale)
+{
+	long dims[DIMS] = { 1, 128 * scale, 128 * scale, 1, 1, 4, 1, 4 };
+	return bench_generic_mdfft(dims, 6ul);
+}
+
+
+
+static double bench_generic_fft(long dims[DIMS], unsigned long flags)
+{
+	complex float* x = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* y = md_alloc(DIMS, dims, CFL_SIZE);
+
+	md_gaussian_rand(DIMS, dims, x);
+
+	double tic = timestamp();
+
+	fft(DIMS, dims, flags, y, x);
+
+	double toc = timestamp();
+
+	md_free(x);
+	md_free(y);
+
+	return toc - tic;
+}
+
+
+
+static double bench_fft(long scale)
+{
+	long dims[DIMS] = { 1, 256 * scale, 256 * scale, 1, 1, 16, 1, 8 };
+	return bench_generic_fft(dims, 6ul);
+}
+
+
+
+
+static double bench_generic_fftmod(long dims[DIMS], unsigned long flags)
+{
+	complex float* x = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* y = md_alloc(DIMS, dims, CFL_SIZE);
+
+	md_gaussian_rand(DIMS, dims, x);
+
+	double tic = timestamp();
+
+	fftmod(DIMS, dims, flags, y, x);
+
+	double toc = timestamp();
+
+	md_free(x);
+	md_free(y);
+
+	return toc - tic;
+}
+
+
+
+static double bench_fftmod(long scale)
+{
+	long dims[DIMS] = { 1, 256 * scale, 256 * scale, 1, 1, 16, 1, 16 };
+	return bench_generic_fftmod(dims, 6ul);
+}
+
+
+
+
+
 enum bench_indices { REPETITION_IND, SCALE_IND, THREADS_IND, TESTS_IND, BENCH_DIMS };
 
 typedef double (*bench_fun)(long scale);
@@ -472,6 +562,9 @@ const struct benchmark_s {
 	{ bench_copy1,		"copy 1" },
 	{ bench_copy2,		"copy 2" },
 	{ bench_wavelet,	"wavelet soft thresh" },
+	{ bench_mdfft,		"(MD-)FFT" },
+	{ bench_fft,		"FFT" },
+	{ bench_fftmod,		"fftmod" },
 };
 
 

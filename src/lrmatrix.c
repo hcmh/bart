@@ -173,7 +173,7 @@ int main_lrmatrix(int argc, char* argv[])
 
 	// Initialize operators
 
-	const struct linop_s* sum_op = linop_sum_create(odims, use_gpu);
+	const struct linop_s* sum_op = linop_sum_create(odims);
 	const struct linop_s* sampling_op = NULL;
 
         if (!decom) {
@@ -184,7 +184,7 @@ int main_lrmatrix(int argc, char* argv[])
         }
 	
 	const struct operator_p_s* sum_prox = prox_lineq_create( sum_op, idata );
-	const struct operator_p_s* lr_prox = lrthresh_create(odims, randshift, mflags, (const long (*)[])blkdims, 1., noise, remove_mean, use_gpu);
+	const struct operator_p_s* lr_prox = lrthresh_create(odims, randshift, mflags, (const long (*)[])blkdims, 1., noise, remove_mean);
 
         assert(use_gpu == false);
 

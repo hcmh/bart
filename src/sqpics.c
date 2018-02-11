@@ -530,7 +530,7 @@ int main_sqpics(int argc, char* argv[])
 			trafos[nr] = linop_grad_create(DIMS, img_dims, regs[nr].xflags);
 			thresh_ops[nr] = prox_thresh_create(DIMS + 1,
 					linop_codomain(trafos[nr])->dims,
-					regs[nr].lambda, regs[nr].jflags | MD_BIT(DIMS), use_gpu);
+					regs[nr].lambda, regs[nr].jflags | MD_BIT(DIMS));
 			break;
 
 		case LLR:
@@ -552,7 +552,7 @@ int main_sqpics(int argc, char* argv[])
 			int remove_mean = 0;
 
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
-			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, remove_mean, use_gpu);
+			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, remove_mean);
 			break;
        
 		case MLR:
@@ -567,9 +567,9 @@ int main_sqpics(int argc, char* argv[])
 				blkdims[l][MAPS_DIM] = 1;
 
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
-			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, 0, use_gpu);
+			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, 0);
 
-			const struct linop_s* decom_op = linop_sum_create(img_dims, use_gpu);
+			const struct linop_s* decom_op = linop_sum_create(img_dims);
 			const struct linop_s* tmp_op = forward_op;
 			forward_op = linop_chain(decom_op, forward_op);
 
@@ -582,7 +582,7 @@ int main_sqpics(int argc, char* argv[])
 			debug_printf(DP_INFO, "l1 regularization of imaginary part: %f\n", regs[nr].lambda);
 
 			trafos[nr] = linop_rdiag_create(DIMS, img_dims, 0, &(complex float){ 1.i });
-			thresh_ops[nr] = prox_thresh_create(DIMS, img_dims, regs[nr].lambda, regs[nr].jflags, use_gpu);
+			thresh_ops[nr] = prox_thresh_create(DIMS, img_dims, regs[nr].lambda, regs[nr].jflags);
 			break;
 
 		case IMAGL2:
@@ -596,7 +596,7 @@ int main_sqpics(int argc, char* argv[])
 			debug_printf(DP_INFO, "l1 regularization: %f\n", regs[nr].lambda);
 
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
-			thresh_ops[nr] = prox_thresh_create(DIMS, img_dims, regs[nr].lambda, regs[nr].jflags, use_gpu);
+			thresh_ops[nr] = prox_thresh_create(DIMS, img_dims, regs[nr].lambda, regs[nr].jflags);
 			break;
 
 		case L2IMG:
