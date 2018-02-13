@@ -28,24 +28,21 @@
 
 
 
+static const char* usage_str = "<kern> <traj> <kmat> <data> <output>\n";
+static const char* help_str = "\n";
 
 
 
-
-int main(int argc, const char* argv[])
+int main_approx(int argc, char* argv[])
 {
-	if (argc != 6) {
-
-		fprintf(stderr, "Usage: %s <kern> <traj> <kmat> <data> <output>\n", argv[0]);
-		exit(1);
-	}
+	mini_cmdline(&argc, argv, 5, usage_str, help_str);
 
 	const int D = 5;
 	long dims[D];
 	complex float* kern = load_cfl(argv[1], D, dims);
 
-	long sdims[2];
-	complex float* samples = load_cfl(argv[2], 2, sdims);
+	long sdims[3];
+	complex float* samples = load_cfl(argv[2], 3, sdims);
 
 //	long ddims[8];
 //	complex float* data = load_cfl(argv[4], 8, ddims);
@@ -62,7 +59,7 @@ int main(int argc, const char* argv[])
 	assert(1 == kdims[6]);
 
 	assert(3 == sdims[0]);
-	assert(kdims[0] == sdims[1]);
+	assert(kdims[0] == sdims[1] * sdims[2]);
 
 
 	int C = kdims[3];
@@ -136,7 +133,7 @@ int main(int argc, const char* argv[])
 	printf("\nDone.\n");
 
 	unmap_cfl(D, dims, kern);
-	unmap_cfl(2, sdims, samples);
+	unmap_cfl(3, sdims, samples);
 	unmap_cfl(8, kdims, kmat);
 	unmap_cfl(8, sample_dims, sample_data);
 	unmap_cfl(8, odims, odata);

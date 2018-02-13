@@ -32,7 +32,7 @@
 #endif
 
 
-int main(int argc, const char* argv[])
+int main_kernel(int argc, char* argv[])
 {
 	if (argc != 3) {
 

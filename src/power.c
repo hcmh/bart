@@ -29,7 +29,7 @@
 
 
 
-int main(int argc, const char* argv[])
+int main_power(int argc, char* argv[])
 {
 	if ((argc != 6) && (argc != 7)) {
 
@@ -40,8 +40,8 @@ int main(int argc, const char* argv[])
 	long dims[5];
 	complex float* kern = load_cfl(argv[1], 5, dims);
 
-	long sdims[2];
-	complex float* samples = load_cfl(argv[2], 2, sdims);
+	long sdims[3];
+	complex float* samples = load_cfl(argv[2], 3, sdims);
 
 	long kdims[8];
 	complex float* kmat = load_cfl(argv[3], 8, kdims);
@@ -54,7 +54,7 @@ int main(int argc, const char* argv[])
 	assert(1 == kdims[6]);
 
 	assert(3 == sdims[0]);
-	assert(kdims[0] == sdims[1]);
+	assert(kdims[0] == sdims[1] * sdims[2]);
 
 
 	int C = kdims[3];

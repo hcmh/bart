@@ -16,69 +16,43 @@
 #include <complex.h>
 #include <stdio.h>
 #include <math.h>
-#include <getopt.h>
 
 #include "num/multind.h"
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
 #include "misc/debug.h"
+#include "misc/opts.h"
 
 #include "rkhs/rkhs.h"
 
 
-static void usage(const char* name, FILE* fp)
-{
-	fprintf(fp, "Usage: %s <kern> <traj> <kmat>\n", name);
-}
-
-static void help(void)
-{
-	printf("\tComputes kernel matrix.\n"
-		"\t-c alpha\tcompute Cholesky factorization with shift\n");
-}
+static const char* usage_str = "<kern> <traj> <kmat>";
+static const char* help_str ="\tComputes kernel matrix.\n"
+		"\t-c alpha\tcompute Cholesky factorization with shift\n";
 
 
-int main(int argc, char* argv[])
+int main_kmat(int argc, char* argv[])
 {
 	bool do_cholesky = false;
-	double alpha = 0.;
+	float alpha = 0.;
 
-	char c;
-	while (-1 != (c = getopt(argc, argv, "hc:"))) {
+	const struct opt_s opts[] = {
 
-		switch (c) {
+		OPT_SET('c', &do_cholesky, "cholesky"),
+		OPT_FLOAT('a', &alpha, "a", "alpha"),
+	};
 
-		case 'c':
-			do_cholesky = true;
-			alpha = atof(optarg);
-			break;
-
-		case 'h':
-			usage(argv[0], stdout);
-			help();
-			exit(0);
-
-		default:
-			usage(argv[0], stderr);
-			exit(1);
-		}
-	}
-
-	if (argc - optind != 3) {
-
-		usage(argv[0], stderr);
-		exit(1);
-	}
+	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 
 	const int D = 5;
 	long dims[D];
-	complex float* kern = load_cfl(argv[optind + 0], D, dims);
+	complex float* kern = load_cfl(argv[1], D, dims);
 
-	long sdims[2];
-	complex float* samples = load_cfl(argv[optind + 1], 2, sdims);
-	int N = sdims[1];
+	long sdims[3];
+	complex float* samples = load_cfl(argv[2], 3, sdims);
+	int N = sdims[1] * sdims[2];
 	assert(3 == sdims[0]);
 
 	int C = dims[3];
@@ -87,7 +61,7 @@ int main(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Generate kernel matrix\n");
 
-	complex float* kmat = create_cfl(argv[optind + 2], 8, kdims);
+	complex float* kmat = create_cfl(argv[3], 8, kdims);
 	calculate_kernelmatrix(kdims, kmat, N, samples, dims, kern);
 
 	if (do_cholesky) {
@@ -99,7 +73,7 @@ int main(int argc, char* argv[])
 	}
 
 	unmap_cfl(D, dims, kern);
-	unmap_cfl(2, sdims, samples);
+	unmap_cfl(3, sdims, samples);
 	unmap_cfl(8, kdims, kmat);
 
 	exit(0);

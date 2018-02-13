@@ -18,7 +18,7 @@
 #include "misc/misc.h"
 
 #include "num/multind.h"
-#include "num/la.h"
+#include "num/linalg.h"
 
 #include "rkhs.h"
 
