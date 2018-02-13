@@ -31,14 +31,13 @@
 #include "noncart/grid.h"
 #endif
 
+static const char* usage_str = "<input> <output>";
+static const char* help_str = "";
+
 
 int main_kernel(int argc, char* argv[])
 {
-	if (argc != 3) {
-
-		fprintf(stderr, "Usage: %s <input> <output>\n", argv[0]);
-		exit(1);
-	}
+	mini_cmdline(&argc, argv, 2, usage_str, help_str);
 
 	const int N = DIMS;
 	long idims[N];

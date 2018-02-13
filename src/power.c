@@ -22,20 +22,22 @@
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
+#include "misc/opts.h"
 
 #include "rkhs/rkhs.h"
 
 
+static const char* usage_str = "<kern> <traj> <kmat> <power> <stability> [<cardinal>]";
+static const char* help_str = "";
 
 
 
 int main_power(int argc, char* argv[])
 {
-	if ((argc != 6) && (argc != 7)) {
+	const struct opt_s opts[1];
 
-		fprintf(stderr, "Usage: %s <kern> <traj> <kmat> <power> <stability> [<cardinal>]\n", argv[0]);
-		exit(1);
-	}
+	cmdline(&argc, argv, 5, 6, usage_str, help_str, 0, opts);
+
 
 	long dims[5];
 	complex float* kern = load_cfl(argv[1], 5, dims);
@@ -196,6 +198,7 @@ int main_power(int argc, char* argv[])
 
 	free(kmat0);
 	printf("\nDone.\n");
+	exit(0);
 }
 
 
