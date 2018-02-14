@@ -124,6 +124,8 @@ extern const struct operator_s* operator_loop(unsigned int D, const long dims[D]
 extern const struct operator_s* operator_loop_parallel(unsigned int D, const long dims[D], const struct operator_s* op, unsigned int parallel, _Bool gpu);
 
 
+extern const struct operator_s* operator_combi_create(int N, const struct operator_s* x[N]);
+extern const struct operator_s* operator_link_create(const struct operator_s* op, unsigned int o, unsigned int i);
 
 #include "misc/cppwrap.h"
 
