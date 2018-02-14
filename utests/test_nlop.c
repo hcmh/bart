@@ -3,7 +3,7 @@
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 #include <complex.h>
@@ -12,15 +12,99 @@
 #include "num/flpmath.h"
 #include "num/rand.h"
 
-#include "nlops/tenmul.h"
-#include "nlops/nlop.h"
-#include "nlops/nltest.h"
+#include "misc/misc.h"
+#include "misc/debug.h"
 
 #include "linops/linop.h"
+#include "linops/someops.h"
 
-#include "misc/misc.h"
+#include "nlops/zexp.h"
+#include "nlops/tenmul.h"
+#include "nlops/nlop.h"
+#include "nlops/cast.h"
+#include "nlops/chain.h"
+#include "nlops/nltest.h"
 
 #include "utest.h"
+
+
+
+
+
+
+
+static bool test_nlop_cast_pos(void)
+{
+	bool ok = true;
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	struct linop_s* l = linop_identity_create(N, dims);
+	struct nlop_s* d = nlop_from_linop(l);
+
+	if (l == linop_from_nlop(d)) // maybe just require != NULL ?
+		ok = false;
+
+	linop_free(l);
+	nlop_free(d);
+
+	return ok;
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_cast_pos);
+
+
+
+static bool test_nlop_cast_neg(void)
+{
+	bool ok = true;
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	struct nlop_s* d = nlop_zexp_create(N, dims);
+
+	if (NULL != linop_from_nlop(d))
+		ok = false;
+
+	nlop_free(d);
+
+	return ok;
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_cast_neg);
+
+
+
+
+
+
+
+
+static bool test_nlop_chain(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	complex float val = 2.;
+	struct nlop_s* diag = nlop_from_linop(linop_cdiag_create(N, dims, 0, &val));
+	struct nlop_s* zexp = nlop_zexp_create(N, dims);
+	struct nlop_s* zexp2 = nlop_chain(zexp, diag);
+
+	double err = nlop_test_derivative(zexp2);
+
+	nlop_free(zexp2);
+	nlop_free(zexp);
+
+	return (err < 1.E-2);
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_chain);
 
 
 
@@ -107,5 +191,63 @@ static bool test_nlop_tenmul_der(void)
 }
 
 UT_REGISTER_TEST(test_nlop_tenmul_der);
+
+
+
+
+static bool test_nlop_zexp(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	complex float* dst1 = md_alloc(N, dims, CFL_SIZE);
+	complex float* dst2 = md_alloc(N, dims, CFL_SIZE);
+	complex float* src = md_alloc(N, dims, CFL_SIZE);
+
+	md_gaussian_rand(N, dims, src);
+
+	struct nlop_s* zexp = nlop_zexp_create(N, dims);
+
+	md_zexp(N, dims, dst1, src);
+
+	nlop_apply(zexp, N, dims, dst2, N, dims, src);
+
+	double err = md_znrmse(N, dims, dst2, dst1);
+
+	nlop_free(zexp);
+
+	md_free(src);
+	md_free(dst1);
+	md_free(dst2);
+
+	return (err < UT_TOL);
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_zexp);
+
+
+
+
+
+
+static bool test_nlop_zexp_derivative(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	struct nlop_s* zexp = nlop_zexp_create(N, dims);
+
+	double err = nlop_test_derivative(zexp);
+
+	nlop_free(zexp);
+
+	return (err < 1.E-2);
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_zexp_derivative);
 
 
