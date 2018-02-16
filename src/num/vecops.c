@@ -527,6 +527,19 @@ static complex double fftmod_phase2(long n, int j, bool inv, double phase)
 
 static void zfftmod(long N, complex float* dst, const complex float* src, unsigned int n, bool inv, double phase)
 {
+#if 1
+	if (0 == n % 2) {
+
+		complex float ph = fftmod_phase2(n, 0, inv, phase);
+
+		for (long i = 0; i < N; i++)
+			for (unsigned int j = 0; j < n; j++)
+				dst[i * n + j] = src[i * n + j] * ((0 == j % 2) ? ph : -ph);
+
+		return;
+	}
+#endif
+
 	for (long i = 0; i < N; i++)
 		for (unsigned int j = 0; j < n; j++)
 			dst[i * n + j] = src[i * n + j] * fftmod_phase2(n, j, inv, phase);
