@@ -127,6 +127,8 @@ extern const struct operator_s* operator_loop_parallel(unsigned int D, const lon
 extern const struct operator_s* operator_combi_create(int N, const struct operator_s* x[N]);
 extern const struct operator_s* operator_link_create(const struct operator_s* op, unsigned int o, unsigned int i);
 
+extern const struct operator_s* operator_permute(const struct operator_s* op, int N, const int perm[N]);
+
 #include "misc/cppwrap.h"
 
 #endif

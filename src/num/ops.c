@@ -1328,3 +1328,83 @@ const struct operator_s* operator_link_create(const struct operator_s* op, unsig
 
 	return operator_generic_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del);
 }
+
+
+
+struct permute_data_s {
+
+	INTERFACE(operator_data_t);
+
+	const int* perm;
+	const struct operator_s* op;
+};
+
+static DEF_TYPEID(permute_data_s);
+
+
+
+static void permute_fun(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+	auto data = CAST_DOWN(permute_data_s, _data);
+
+	assert(N == operator_nr_args(data->op));
+
+	void* ptr[N];
+
+	for (int i = 0; i < N; i++)
+		ptr[i] = args[data->perm[i]];
+
+	operator_generic_apply_unchecked(data->op, N, ptr);
+}
+
+
+static void permute_del(const operator_data_t* _data)
+{
+	auto data = CAST_DOWN(permute_data_s, _data);
+
+	operator_free(data->op);
+
+	xfree(data->perm);
+
+	xfree(data);
+}
+
+const struct operator_s* operator_permute(const struct operator_s* op, int N, const int perm[N])
+{
+	assert(N == operator_nr_args(op));
+
+	unsigned long flags = 0;
+	unsigned long io_flags = 0;
+	unsigned int D[N];
+	const long* dims[N];
+	const long* strs[N];
+
+	for (int i = 0; i < N; i++) {
+
+		assert(perm[i] < N);
+		flags |= MD_BIT(perm[i]);
+
+		const struct iovec_s* io = operator_arg_domain(op, perm[i]);
+
+		D[i] = io->N;
+		dims[i] = io->dims;
+		strs[i] = io->strs;
+
+		if (op->io_flags & MD_BIT(perm[i]))
+			io_flags |= 1 << i;
+	}
+
+	assert(MD_BIT(N) == flags + 1);
+
+	// op = operator_ref(op);
+	PTR_ALLOC(struct permute_data_s, data);
+	SET_TYPEID(permute_data_s, data);
+	data->op = op;
+
+	int* nperm = *TYPE_ALLOC(int[N]);
+	memcpy(nperm, perm, sizeof(int[N]));
+
+	data->perm = nperm;
+
+	return operator_generic_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del);
+}
