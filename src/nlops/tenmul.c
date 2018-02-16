@@ -95,7 +95,7 @@ static void tenmul_del(const nlop_data_t* _data)
 
 
 struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N],
-		const long istr1[N], const long istr2[2])
+		const long istr1[N], const long istr2[N])
 {
 	PTR_ALLOC(struct tenmul_s, data);
 	SET_TYPEID(tenmul_s, data);
@@ -147,7 +147,7 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 }
 
 
-struct nlop_s* nlop_tenmul_create(int N, const long odim[N], const long idim1[N], const long idim2[2])
+struct nlop_s* nlop_tenmul_create(int N, const long odim[N], const long idim1[N], const long idim2[N])
 {
 	long dims[N];
 	md_tenmul_dims(N, dims, odim, idim1, idim2);
