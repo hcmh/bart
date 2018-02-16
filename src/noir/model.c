@@ -27,6 +27,9 @@
 #include "linops/someops.h"
 #include "linops/fmac.h"
 
+#include "nlops/nlop.h"
+#include "nlops/tenmul.h"
+
 #include "num/fft.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -51,19 +54,17 @@ struct noir_data {
 	long dims[DIMS];
 
 	long sign_dims[DIMS];
-	long sign_strs[DIMS];
-
 	long data_dims[DIMS];
-
 	long coil_dims[DIMS];
-	long coil_strs[DIMS];
-
 	long imgs_dims[DIMS];
-	long imgs_strs[DIMS];
 
 	const struct linop_s* weights;
 	const struct linop_s* frw;
 	const struct linop_s* adj;
+
+	const struct nlop_s* nl;
+	const struct linop_s* der1;
+	const struct linop_s* der2;
 
 	complex float* sens;
 	complex float* xn;
@@ -106,13 +107,10 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	md_copy_dims(DIMS, data->dims, dims);
 
 	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|CSHIFT_FLAG, data->sign_dims, dims);
-	md_calc_strides(DIMS, data->sign_strs, data->sign_dims, CFL_SIZE);
 
 	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|MAPS_FLAG, data->coil_dims, dims);
-	md_calc_strides(DIMS, data->coil_strs, data->coil_dims, CFL_SIZE);
 
 	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG|CSHIFT_FLAG, data->imgs_dims, dims);
-	md_calc_strides(DIMS, data->imgs_strs, data->imgs_dims, CFL_SIZE);
 
 	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG, data->data_dims, dims);
 
@@ -192,6 +190,11 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	data->xn = my_alloc(DIMS, data->imgs_dims, CFL_SIZE);
 	data->tmp = my_alloc(DIMS, data->sign_dims, CFL_SIZE);
 
+
+	data->nl = nlop_tenmul_create(DIMS, data->sign_dims, data->imgs_dims, data->coil_dims);
+	data->der1 = nlop_get_derivative(data->nl, 0, 0);
+	data->der2 = nlop_get_derivative(data->nl, 0, 1);
+
 	return PTR_PASS(data);
 }
 
@@ -204,6 +207,8 @@ void noir_free(struct noir_data* data)
 
 	linop_free(data->frw);
 	linop_free(data->adj);
+
+	nlop_free(data->nl);
 
 	xfree(data);
 }
@@ -227,8 +232,7 @@ void noir_fun(struct noir_data* data, complex float* dst, const complex float* s
 	md_copy(DIMS, data->imgs_dims, data->xn, src, CFL_SIZE);
 	noir_forw_coils(data, data->sens, src + split);
 
-	md_clear(DIMS, data->sign_dims, data->tmp, CFL_SIZE);
-	md_zfmac2(DIMS, data->sign_dims, data->sign_strs, data->tmp, data->imgs_strs, src, data->coil_strs, data->sens);
+	nlop_generic_apply_unchecked(data->nl, 3, (void*[3]){ data->tmp, (void*)src, data->sens });
 
 	linop_forward(data->frw, DIMS, data->data_dims, dst, DIMS, data->sign_dims, data->tmp);
 }
@@ -238,12 +242,16 @@ void noir_der(struct noir_data* data, complex float* dst, const complex float* s
 {
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
-	md_clear(DIMS, data->sign_dims, data->tmp, CFL_SIZE);
-	md_zfmac2(DIMS, data->sign_dims, data->sign_strs, data->tmp, data->imgs_strs, src, data->coil_strs, data->sens);
+	linop_forward(data->der1, DIMS, data->sign_dims, data->tmp, DIMS, data->imgs_dims, src);
 
 	complex float* delta_coils = md_alloc_sameplace(DIMS, data->coil_dims, CFL_SIZE, src);
 	noir_forw_coils(data, delta_coils, src + split);
-	md_zfmac2(DIMS, data->sign_dims, data->sign_strs, data->tmp, data->coil_strs, delta_coils, data->imgs_strs, data->xn);
+
+	complex float* tmp2 = md_alloc_sameplace(DIMS, data->sign_dims, CFL_SIZE, src);
+	linop_forward(data->der2, DIMS, data->sign_dims, tmp2, DIMS, data->coil_dims, delta_coils);
+	md_zadd(DIMS, data->sign_dims, data->tmp, data->tmp, tmp2);
+	md_free(tmp2);
+
 	md_free(delta_coils);
 
 	linop_forward(data->frw, DIMS, data->data_dims, dst, DIMS, data->sign_dims, data->tmp);
@@ -256,14 +264,11 @@ void noir_adj(struct noir_data* data, complex float* dst, const complex float* s
 
 	linop_adjoint(data->adj, DIMS, data->sign_dims, data->tmp, DIMS, data->data_dims, src);
 
-
-	md_clear(DIMS, data->coil_dims, dst + split, CFL_SIZE);
-	md_zfmacc2(DIMS, data->sign_dims, data->coil_strs, dst + split, data->sign_strs, data->tmp, data->imgs_strs, data->xn);
+	linop_adjoint(data->der2, DIMS, data->coil_dims, dst + split, DIMS, data->sign_dims, data->tmp);
 
 	noir_back_coils(data, dst + split, dst + split);
 
-	md_clear(DIMS, data->imgs_dims, dst, CFL_SIZE);
-	md_zfmacc2(DIMS, data->sign_dims, data->imgs_strs, dst, data->sign_strs, data->tmp, data->coil_strs, data->sens);
+	linop_adjoint(data->der1, DIMS, data->imgs_dims, dst, DIMS, data->sign_dims, data->tmp);
 
 	if (data->conf.rvc)
 		md_zreal(DIMS, data->imgs_dims, dst, dst);
