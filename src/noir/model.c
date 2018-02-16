@@ -1,10 +1,10 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2017. Martin Uecker.
- * All rights reserved. Use of this source code is governed by 
+ * Copyright 2017-2018. Martin Uecker.
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2011-2012,2017 Martin Uecker
+ * 2011-2018 Martin Uecker
  *
  *
  * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized nonlinear
@@ -22,6 +22,9 @@
 #include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/debug.h"
+
+#include "linops/linop.h"
+#include "linops/someops.h"
 
 #include "num/fft.h"
 #include "num/multind.h"
@@ -64,14 +67,13 @@ struct noir_data {
 	long ptrn_dims[DIMS];
 	long ptrn_strs[DIMS];
 
-	long wght_dims[DIMS];
-	long wght_strs[DIMS];
 
 
 	const complex float* pattern;
 	const complex float* adj_pattern;
 	const complex float* mask;
-	const complex float* weights;
+
+	const struct linop_s* weights;
 
 	complex float* sens;
 	complex float* xn;
@@ -128,28 +130,23 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	md_select_dims(DIMS, FFT_FLAGS, data->mask_dims, dims);
 	md_calc_strides(DIMS, data->mask_strs, data->mask_dims, CFL_SIZE);
 
-	md_select_dims(DIMS, FFT_FLAGS, data->wght_dims, dims);
-	md_calc_strides(DIMS, data->wght_strs, data->wght_dims, CFL_SIZE);
+	long wght_dims[DIMS];
+
+	md_select_dims(DIMS, FFT_FLAGS, wght_dims, dims);
 
 	md_select_dims(DIMS, conf->fft_flags|CSHIFT_FLAG, data->ptrn_dims, dims);
 	md_calc_strides(DIMS, data->ptrn_strs, data->ptrn_dims, CFL_SIZE);
 
 
-	complex float* weights = md_alloc(DIMS, data->wght_dims, CFL_SIZE);
+	complex float* weights = md_alloc(DIMS, wght_dims, CFL_SIZE);
 
 	noir_calc_weights(dims, weights);
-	fftmod(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
-	fftscale(DIMS, data->wght_dims, FFT_FLAGS, weights, weights);
+	fftmod(DIMS, wght_dims, FFT_FLAGS, weights, weights);
+	fftscale(DIMS, wght_dims, FFT_FLAGS, weights, weights);
 
-	data->weights = weights;
-
-#ifdef USE_CUDA
-	if (conf->use_gpu) {
-
-		data->weights = md_gpu_move(DIMS, data->wght_dims, weights, CFL_SIZE);
-		md_free(weights);
-	}
-#endif
+	data->weights = linop_chain(
+		linop_cdiag_create(DIMS, data->coil_dims, FFT_FLAGS, weights),
+		linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS));
 
 
 	complex float* ptr = my_alloc(DIMS, data->ptrn_dims, CFL_SIZE);
@@ -205,27 +202,24 @@ void noir_free(struct noir_data* data)
 	md_free(data->mask);
 	md_free(data->xn);
 	md_free(data->sens);
-	md_free(data->weights);
 	md_free(data->tmp);
 	md_free(data->adj_pattern);
+
+	linop_free(data->weights);
+
 	xfree(data);
 }
 
-
 void noir_forw_coils(struct noir_data* data, complex float* dst, const complex float* src)
 {
-	md_zmul2(DIMS, data->coil_dims, data->coil_strs, dst, data->coil_strs, src, data->wght_strs, data->weights);
-	ifft(DIMS, data->coil_dims, FFT_FLAGS, dst, dst);
-//	fftmod(DIMS, data->coil_dims, 7, dst);
+	linop_forward_unchecked(data->weights, dst, src);
 }
-
 
 void noir_back_coils(struct noir_data* data, complex float* dst, const complex float* src)
 {
-//	fftmod(DIMS, data->coil_dims, 7, dst);
-	fft(DIMS, data->coil_dims, FFT_FLAGS, dst, src);
-	md_zmulc2(DIMS, data->coil_dims, data->coil_strs, dst, data->coil_strs, dst, data->wght_strs, data->weights);
+	linop_adjoint_unchecked(data->weights, dst, src);
 }
+
 
 
 void noir_fun(struct noir_data* data, complex float* dst, const complex float* src)
