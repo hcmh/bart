@@ -56,6 +56,14 @@ extern const struct operator_s* operator_identity_create(unsigned int N, const l
 extern const struct operator_s* operator_identity_create2(unsigned int N, const long dims[__VLA(N)],
 					const long ostr[__VLA(N)], const long istr[__VLA(N)]);
 
+
+extern const struct operator_s* operator_zero_create(unsigned int N, const long dims[N]);
+extern const struct operator_s* operator_zero_create2(unsigned int N, const long dims[N], const long ostrs[N]);
+extern const struct operator_s* operator_null_create(unsigned int N, const long dims[N]);
+extern const struct operator_s* operator_null_create2(unsigned int N, const long dims[N], const long ostrs[N]);
+
+
+
 extern const struct operator_s* operator_chain(const struct operator_s* a, const struct operator_s* b);
 extern const struct operator_s* operator_chainN(unsigned int N, const struct operator_s* ops[__VLA(N)]);
 

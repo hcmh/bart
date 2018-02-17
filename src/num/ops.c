@@ -467,6 +467,84 @@ const struct operator_s* operator_identity_create(unsigned int N, const long dim
 
 
 
+struct zero_s {
+
+	INTERFACE(operator_data_t);
+
+	const struct iovec_s* codomain;
+};
+
+static DEF_TYPEID(zero_s);
+
+static void zero_apply(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+        auto d = CAST_DOWN(zero_s, _data);
+	assert(1 == N);
+        md_clear2(d->codomain->N, d->codomain->dims, d->codomain->strs, args[0], d->codomain->size);
+}
+
+static void zero_free(const operator_data_t* _data)
+{
+        auto d = CAST_DOWN(zero_s, _data);
+        iovec_free(d->codomain);
+	xfree(d);
+}
+
+const struct operator_s* operator_zero_create2(unsigned int N, const long dims[N], const long strs[N])
+{
+
+	PTR_ALLOC(struct zero_s, data);
+	SET_TYPEID(zero_s, data);
+
+        data->codomain = iovec_create2(N, dims, strs, CFL_SIZE);
+
+        return operator_generic_create2(1, 1u, (unsigned int[1]){ N },
+			(const long*[1]){ dims },
+			(const long*[2]){ strs }, CAST_UP(PTR_PASS(data)), zero_apply, zero_free);
+}
+
+const struct operator_s* operator_zero_create(unsigned int N, const long dims[N])
+{
+        return operator_zero_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
+}
+
+
+
+struct null_s {
+
+	INTERFACE(operator_data_t);
+};
+
+static DEF_TYPEID(null_s);
+
+static void null_apply(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+	UNUSED(_data);
+	assert(1 == N);
+	UNUSED(args[0]);
+}
+
+static void null_free(const operator_data_t* _data)
+{
+        xfree(CAST_DOWN(null_s, _data));
+}
+
+const struct operator_s* operator_null_create2(unsigned int N, const long dims[N], const long strs[N])
+{
+	PTR_ALLOC(struct null_s, data);
+	SET_TYPEID(null_s, data);
+
+        return operator_generic_create2(1, 0u, (unsigned int[1]){ N },
+			(const long*[1]){ dims },
+			(const long*[2]){ strs }, CAST_UP(PTR_PASS(data)), null_apply, null_free);
+}
+
+const struct operator_s* operator_null_create(unsigned int N, const long dims[N])
+{
+        return operator_null_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
+}
+
+
 
 /**
  * Create a new operator that first applies a, then applies b:
