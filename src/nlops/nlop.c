@@ -1,15 +1,16 @@
-/* Copyright 2017. Martin Uecker.
+/* Copyright 2017-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 
 #include "num/multind.h"
 
 #include "num/ops.h"
+#include "num/iovec.h"
 
 #include "linops/linop.h"
 
@@ -18,7 +19,6 @@
 #include "misc/types.h"
 
 #include "misc/debug.h"
-#include "num/iovec.h"
 
 #include "nlop.h"
 
@@ -253,6 +253,29 @@ void nlop_free(const struct nlop_s* op)
 }
 
 
+const struct nlop_s* nlop_clone(const struct nlop_s* op)
+{
+	PTR_ALLOC(struct nlop_s, n);
+
+	int II = nlop_get_nr_in_args(op);
+	int OO = nlop_get_nr_out_args(op);
+
+	n->op = operator_ref(op->op);
+
+	const struct linop_s* (*der)[II][OO] = (void*)op->derivative;
+
+	PTR_ALLOC(const struct linop_s*[II][OO], nder);
+
+	for (int i = 0; i < II; i++)
+		for (int o = 0; o < OO; o++)
+			(*nder)[i][o] = linop_clone((*der)[i][o]);
+
+	n->derivative = *PTR_PASS(nder);
+	return PTR_PASS(n);
+}
+
+
+
 nlop_data_t* nlop_get_data(struct nlop_s* op)
 {
 	auto data2 = CAST_DOWN(nlop_op_data_s, operator_get_data(op->op));
@@ -303,14 +326,14 @@ const struct linop_s* nlop_get_derivative(const struct nlop_s* op, int o, int i)
 	return (*der)[i][o];
 }
 
-const struct iovec_s* nlop_generic_domain(const struct nlop_s* op, int o, int i)
+const struct iovec_s* nlop_generic_domain(const struct nlop_s* op, int i)
 {
-	return linop_domain(nlop_get_derivative(op, o, i));
+	return linop_domain(nlop_get_derivative(op, 0, i));
 }
 
-const struct iovec_s* nlop_generic_codomain(const struct nlop_s* op, int o, int i)
+const struct iovec_s* nlop_generic_codomain(const struct nlop_s* op, int o)
 {
-	return linop_codomain(nlop_get_derivative(op, o, i));
+	return linop_codomain(nlop_get_derivative(op, o, 0));
 }
 
 
@@ -320,7 +343,7 @@ const struct iovec_s* nlop_domain(const struct nlop_s* op)
 	assert(1 == nlop_get_nr_in_args(op));
 	assert(1 == nlop_get_nr_out_args(op));
 
-	return nlop_generic_domain(op, 0, 0);
+	return nlop_generic_domain(op, 0);
 }
 
 const struct iovec_s* nlop_codomain(const struct nlop_s* op)
@@ -328,6 +351,139 @@ const struct iovec_s* nlop_codomain(const struct nlop_s* op)
 	assert(1 == nlop_get_nr_in_args(op));
 	assert(1 == nlop_get_nr_out_args(op));
 
-	return nlop_generic_codomain(op, 0, 0);
+	return nlop_generic_codomain(op, 0);
 }
+
+
+struct flatten_s {
+
+	INTERFACE(nlop_data_t);
+
+	size_t* off;
+	const struct nlop_s* op;
+};
+
+DEF_TYPEID(flatten_s);
+
+static void flatten_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(flatten_s, _data);
+
+	int OO = nlop_get_nr_out_args(data->op);
+	int II = nlop_get_nr_in_args(data->op);
+
+	void* args[OO + II];
+
+	for (int o = 0; o < OO; o++)
+		args[o] = (void*)dst + data->off[o];
+
+	for (int i = 0; i < II; i++)
+		args[OO + i] = (void*)src + data->off[OO + i];
+
+
+	nlop_generic_apply_unchecked(data->op, OO + II, args);
+}
+
+static void flatten_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(flatten_s, _data);
+
+	int OO = nlop_get_nr_out_args(data->op);
+	int II = nlop_get_nr_in_args(data->op);
+
+	for (int o = 0; o < OO; o++) {
+
+		for (int i = 0; i < II; i++) {
+
+			const struct linop_s* der = nlop_get_derivative(data->op, o, i);
+
+			linop_forward_unchecked(der,	// FIXME: overrites
+				(void*)dst + data->off[o],
+				(void*)src + data->off[OO + i]);
+		}
+	}
+}
+
+static void flatten_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(flatten_s, _data);
+
+	int OO = nlop_get_nr_out_args(data->op);
+	int II = nlop_get_nr_in_args(data->op);
+
+	for (int o = 0; o < OO; o++) {
+
+		for (int i = 0; i < II; i++) {
+
+			const struct linop_s* der = nlop_get_derivative(data->op, o, i);
+
+			linop_adjoint_unchecked(der,
+				(void*)dst + data->off[OO + i],
+				(void*)src + data->off[o]);
+		}
+	}
+}
+
+static void flatten_del(const nlop_data_t* _data)
+{
+	auto data = CAST_DOWN(flatten_s, _data);
+
+	nlop_free(data->op);
+	xfree(data->off);
+
+	xfree(data);
+}
+
+
+
+
+struct nlop_s* nlop_flatten(const struct nlop_s* op)
+{
+	int II = nlop_get_nr_in_args(op);
+	int OO = nlop_get_nr_out_args(op);
+
+	long odims[1] = { 0 };
+	long ostrs[] = { CFL_SIZE };
+	size_t olast = 0;
+
+	PTR_ALLOC(size_t[OO + II], offs);
+
+	for (int o = 0; o < OO; o++) {
+
+		auto iov = nlop_generic_codomain(op, o);
+
+		assert(CFL_SIZE == iov->size);
+		assert(iov->N == md_calc_blockdim(iov->N, iov->dims, iov->strs, iov->size));
+
+		odims[0] += md_calc_size(iov->N, iov->dims);
+		(*offs)[o] = 0;
+		olast = odims[0] * CFL_SIZE;
+	}
+
+
+	long idims[1] = { 0 };
+	long istrs[1] = { CFL_SIZE };
+	size_t ilast = 0;
+
+	for (int i = 0; i < II; i++) {
+
+		auto iov = nlop_generic_domain(op, i);
+
+		assert(CFL_SIZE == iov->size);
+		assert(iov->N == md_calc_blockdim(iov->N, iov->dims, iov->strs, iov->size));
+
+		idims[0] += md_calc_size(iov->N, iov->dims);
+		(*offs)[OO + i] = ilast;
+		ilast = idims[0] * CFL_SIZE;
+	}
+
+	PTR_ALLOC(struct flatten_s, data);
+	SET_TYPEID(flatten_s, data);
+
+	data->op = nlop_clone(op);
+	data->off = *PTR_PASS(offs);
+
+	return nlop_create2(1, odims, ostrs, 1, idims, istrs, CAST_UP(PTR_PASS(data)), flatten_fun, flatten_der, flatten_adj, NULL, NULL, flatten_del);
+}
+
 

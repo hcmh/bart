@@ -251,3 +251,27 @@ static bool test_nlop_zexp_derivative(void)
 UT_REGISTER_TEST(test_nlop_zexp_derivative);
 
 
+
+
+static bool test_nlop_combine_derivative(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	struct nlop_s* zexp = nlop_zexp_create(N, dims);
+	struct nlop_s* id = nlop_from_linop(linop_identity_create(N, dims));
+	struct nlop_s* comb = nlop_combine(zexp, id);
+	struct nlop_s* flat = nlop_flatten(comb);
+
+	double err = nlop_test_derivative(flat);
+
+	nlop_free(flat);
+
+	return (err < 1.E-2);
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_combine_derivative);
+
+

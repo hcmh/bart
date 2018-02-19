@@ -3,6 +3,7 @@
 #include <assert.h>
 
 #include "num/ops.h"
+#include "num/iovec.h"
 
 #include "misc/misc.h"
 
@@ -47,5 +48,65 @@ struct nlop_s* nlop_chain(const struct nlop_s* a, const struct nlop_s* b)
 }
 
 
+
+
+struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
+{
+	int ai = nlop_get_nr_in_args(a);
+	int ao = nlop_get_nr_out_args(a);
+	int bi = nlop_get_nr_in_args(b);
+	int bo = nlop_get_nr_out_args(b);
+
+	PTR_ALLOC(struct nlop_s, n);
+
+	int II = ai + bi;
+	int OO = ao + bo;
+
+	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[1][1]);
+	n->derivative = &(*der)[0][0];
+
+	for (int i = 0; i < II; i++) {
+		for (int o = 0; o < OO; o++) {
+
+			if ((i < ai) && (o < ao))
+				(*der)[i][o] = linop_clone(nlop_get_derivative(a, o, i));
+			else
+			if ((ai <= i) && (ao <= o))
+				(*der)[i][o] = linop_clone(nlop_get_derivative(b, o - ao, i - ai));
+			else
+			if ((i < ai) && (ao <= o)) {
+
+				auto dom = nlop_generic_domain(a, i);
+				auto cod = nlop_generic_codomain(b, o - ao);
+
+				//assert(dom->N == cod->N);
+				assert(sizeof(complex float) == dom->size);
+				assert(sizeof(complex float) == cod->size);
+
+				(*der)[i][o] = linop_null_create2(dom->N,
+					cod->dims, cod->strs, dom->dims, dom->strs);
+
+			} else
+			if ((ai <= i) && (o < ao)) {
+
+				auto dom = nlop_generic_domain(b, i - ai);
+				auto cod = nlop_generic_codomain(a, o);
+
+				assert(dom->N == cod->N);
+				assert(sizeof(complex float) == dom->size);
+				assert(sizeof(complex float) == cod->size);
+
+				(*der)[i][o] = linop_null_create2(dom->N,
+					cod->dims, cod->strs, dom->dims, dom->strs);
+			}
+		}
+	}
+
+
+	n->op = operator_combi_create(2, (const struct operator_s*[]){
+			operator_ref(a->op), operator_ref(b->op) });
+
+	return PTR_PASS(n);
+}
 
 
