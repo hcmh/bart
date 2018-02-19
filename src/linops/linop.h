@@ -1,5 +1,5 @@
 /* Copyright 2014-2015. The Regents of the University of California.
- * Copyright 2016. Martin Uecker.
+ * Copyright 2016-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  */
@@ -82,6 +82,8 @@ extern struct linop_s* linop_loop(unsigned int D, const long dims[D], struct lin
 // extern const struct linop_s* linop_matrix(unsigned int N, const long out_dims[N], const long in_dims[N], const long matrix_dims[N], const _Complex float* matrix, _Bool use_gpu);
 extern const struct linop_s* linop_join(unsigned int D, const struct linop_s* a, const struct linop_s* b);
 
+
+extern struct linop_s* linop_null_create2(unsigned int N, const long odims[N], const long ostrs[N], const long idims[N], const long istrs[N]);
 
 
 #include "misc/cppwrap.h"

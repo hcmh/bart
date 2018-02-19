@@ -1,10 +1,10 @@
 /* Copyright 2014. The Regents of the University of California.
- * Copyright 2016. Martin Uecker.
+ * Copyright 2016-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2014-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2014-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 Frank Ong <frankong@berkeley.edu>
  */
 
@@ -369,6 +369,30 @@ const struct iovec_s* linop_codomain(const struct linop_s* op)
 {
 	return operator_codomain(op->forward);
 }
+
+
+
+
+
+struct linop_s* linop_null_create2(unsigned int N, const long odims[N], const long ostrs[N], const long idims[N], const long istrs[N])
+{
+	PTR_ALLOC(struct linop_s, c);
+
+	const struct operator_s* nudo = operator_null_create2(N, idims, istrs);
+	const struct operator_s* zedo = operator_zero_create2(N, idims, istrs);
+	const struct operator_s* nuco = operator_null_create2(N, odims, ostrs);
+	const struct operator_s* zeco = operator_zero_create2(N, odims, ostrs);
+
+	c->forward = operator_combi_create(2, MAKE_ARRAY(zeco, nudo));
+	c->adjoint = operator_combi_create(2, MAKE_ARRAY(zedo, nuco));
+	c->normal = operator_combi_create(2, MAKE_ARRAY(zedo, nudo));
+	c->norm_inv = NULL;
+
+	return PTR_PASS(c);
+}
+
+
+
 
 
 /**
