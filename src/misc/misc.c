@@ -429,3 +429,10 @@ unsigned int bitcount(unsigned int flags)
 
 	return N;
 }
+
+ __attribute__((optimize("-fno-finite-math-only")))
+bool safe_isnanf(float x)
+{
+	return isnanf(x);
+}
+
