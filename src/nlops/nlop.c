@@ -288,7 +288,7 @@ nlop_data_t* nlop_get_data(struct nlop_s* op)
 
 void nlop_apply(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src)
 {
-	operator_apply(op->op, IN, idims, dst, ON, odims, src);
+	operator_apply(op->op, ON, odims, dst, IN, idims, src);
 }
 
 void nlop_derivative(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src)
@@ -296,7 +296,7 @@ void nlop_derivative(const struct nlop_s* op, int ON, const long odims[ON], comp
 	assert(1 == nlop_get_nr_in_args(op));
 	assert(1 == nlop_get_nr_out_args(op));
 
-	linop_forward(nlop_get_derivative(op, 0, 0), IN, idims, dst, ON, odims, src);
+	linop_forward(nlop_get_derivative(op, 0, 0), ON, odims, dst, IN, idims, src);
 }
 
 void nlop_adjoint(const struct nlop_s* op, int ON, const long odims[ON], complex float* dst, int IN, const long idims[IN], const complex float* src)
@@ -304,7 +304,7 @@ void nlop_adjoint(const struct nlop_s* op, int ON, const long odims[ON], complex
 	assert(1 == nlop_get_nr_in_args(op));
 	assert(1 == nlop_get_nr_out_args(op));
 
-	linop_adjoint(nlop_get_derivative(op, 0, 0), IN, idims, dst, ON, odims, src);
+	linop_adjoint(nlop_get_derivative(op, 0, 0), ON, odims, dst, IN, idims, src);
 }
 
 
@@ -456,7 +456,7 @@ struct nlop_s* nlop_flatten(const struct nlop_s* op)
 		assert(iov->N == md_calc_blockdim(iov->N, iov->dims, iov->strs, iov->size));
 
 		odims[0] += md_calc_size(iov->N, iov->dims);
-		(*offs)[o] = 0;
+		(*offs)[o] = olast;
 		olast = odims[0] * CFL_SIZE;
 	}
 
