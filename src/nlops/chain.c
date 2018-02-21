@@ -62,7 +62,7 @@ struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
 	int II = ai + bi;
 	int OO = ao + bo;
 
-	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[1][1]);
+	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[II][OO]);
 	n->derivative = &(*der)[0][0];
 
 	for (int i = 0; i < II; i++) {
@@ -105,6 +105,25 @@ struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
 
 	n->op = operator_combi_create(2, (const struct operator_s*[]){
 			operator_ref(a->op), operator_ref(b->op) });
+
+	int perm[II + OO];	// ao ai bo bi -> ao bo ai bi
+	int p = 0;
+
+	for (int i = 0; i < ao; i++)
+		perm[p++] = i;
+
+	for (int i = 0; i < bo; i++)
+		perm[p++] = (ao + ai + i);
+
+	for (int i = 0; i < ai; i++)
+		perm[p++] = (ao + i);
+
+	for (int i = 0; i < bi; i++)
+		perm[p++] = (ao + ai + bo + i);
+
+	assert(II + OO == p);
+
+	n->op = operator_permute(n->op, II + OO, perm);
 
 	return PTR_PASS(n);
 }

@@ -229,6 +229,27 @@ UT_REGISTER_TEST(test_nlop_zexp);
 
 
 
+static bool test_nlop_tenmul_der2(void)
+{
+	enum { N = 3 };
+	long odims[N] = { 10, 1, 3 };
+	long idims1[N] = { 1, 7, 3 };
+	long idims2[N] = { 10, 7, 1 };
+
+	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2);
+
+	struct nlop_s* flat = nlop_flatten(tenmul);
+
+	double err = nlop_test_derivative(flat);
+
+	nlop_free(flat);
+
+	UT_ASSERT((!safe_isnanf(err)) && (err < 1.E-2));
+}
+
+UT_REGISTER_TEST(test_nlop_tenmul_der2);
+
+
 
 
 
@@ -259,8 +280,7 @@ static bool test_nlop_combine_derivative(void)
 	long dims[N] = { 10, 7, 3 };	// FIXME: this test is broken
 
 	struct nlop_s* zexp = nlop_zexp_create(N, dims);
-	struct nlop_s* id = nlop_from_linop(linop_identity_create(N, dims));
-	struct nlop_s* comb = nlop_combine(zexp, id);
+	struct nlop_s* comb = nlop_combine(zexp, zexp);
 	struct nlop_s* flat = nlop_flatten(comb);
 
 	double err = nlop_test_derivative(flat);

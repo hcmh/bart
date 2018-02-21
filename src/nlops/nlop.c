@@ -11,6 +11,7 @@
 
 #include "num/ops.h"
 #include "num/iovec.h"
+#include "num/flpmath.h"
 
 #include "linops/linop.h"
 
@@ -391,16 +392,27 @@ static void flatten_der(const nlop_data_t* _data, complex float* dst, const comp
 	int OO = nlop_get_nr_out_args(data->op);
 	int II = nlop_get_nr_in_args(data->op);
 
+
 	for (int o = 0; o < OO; o++) {
+
+		auto iov = linop_codomain(nlop_get_derivative(data->op, o, 0));
+
+		complex float* tmp = md_alloc(iov->N, iov->dims, iov->size);
+
+		md_clear(iov->N, iov->dims, (void*)dst + data->off[o], iov->size);
 
 		for (int i = 0; i < II; i++) {
 
 			const struct linop_s* der = nlop_get_derivative(data->op, o, i);
 
-			linop_forward_unchecked(der,	// FIXME: overrites
-				(void*)dst + data->off[o],
+			linop_forward_unchecked(der,
+				tmp,
 				(void*)src + data->off[OO + i]);
+
+			md_zadd(iov->N, iov->dims, (void*)dst + data->off[o], (void*)dst + data->off[o], tmp);
 		}
+
+		md_free(tmp);
 	}
 }
 
@@ -411,16 +423,26 @@ static void flatten_adj(const nlop_data_t* _data, complex float* dst, const comp
 	int OO = nlop_get_nr_out_args(data->op);
 	int II = nlop_get_nr_in_args(data->op);
 
-	for (int o = 0; o < OO; o++) {
+	for (int i = 0; i < II; i++) {
 
-		for (int i = 0; i < II; i++) {
+		auto iov = linop_codomain(nlop_get_derivative(data->op, 0, i));
+
+		complex float* tmp = md_alloc(iov->N, iov->dims, iov->size);
+
+		md_clear(iov->N, iov->dims, (void*)dst + data->off[OO + i], iov->size);
+
+		for (int o = 0; o < OO; o++) {	// FIXME
 
 			const struct linop_s* der = nlop_get_derivative(data->op, o, i);
 
 			linop_adjoint_unchecked(der,
-				(void*)dst + data->off[OO + i],
+				tmp,
 				(void*)src + data->off[o]);
+
+			md_zadd(iov->N, iov->dims, (void*)dst + data->off[OO + i], (void*)dst + data->off[OO + i], tmp);
 		}
+
+		md_free(tmp);
 	}
 }
 
