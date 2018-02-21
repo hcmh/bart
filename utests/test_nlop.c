@@ -99,7 +99,7 @@ static bool test_nlop_chain(void)
 	nlop_free(zexp2);
 	nlop_free(zexp);
 
-	return (err < 1.E-2);
+	UT_ASSERT(err < 1.E-2);
 }
 
 
@@ -139,7 +139,7 @@ static bool test_nlop_tenmul(void)
 	md_free(dst1);
 	md_free(dst2);
 
-	return (err < UT_TOL);
+	UT_ASSERT(err < UT_TOL);
 }
 
 
@@ -187,7 +187,7 @@ static bool test_nlop_tenmul_der(void)
 	md_free(dst1);
 	md_free(dst2);
 
-	return (err < UT_TOL);
+	UT_ASSERT(err < UT_TOL);
 }
 
 UT_REGISTER_TEST(test_nlop_tenmul_der);
@@ -220,7 +220,7 @@ static bool test_nlop_zexp(void)
 	md_free(dst1);
 	md_free(dst2);
 
-	return (err < UT_TOL);
+	UT_ASSERT(err < UT_TOL);
 }
 
 
@@ -243,7 +243,7 @@ static bool test_nlop_zexp_derivative(void)
 
 	nlop_free(zexp);
 
-	return (err < 1.E-2);
+	UT_ASSERT(err < 1.E-2);
 }
 
 
@@ -256,7 +256,7 @@ UT_REGISTER_TEST(test_nlop_zexp_derivative);
 static bool test_nlop_combine_derivative(void)
 {
 	enum { N = 3 };
-	long dims[N] = { 10, 7, 3 };
+	long dims[N] = { 10, 7, 3 };	// FIXME: this test is broken
 
 	struct nlop_s* zexp = nlop_zexp_create(N, dims);
 	struct nlop_s* id = nlop_from_linop(linop_identity_create(N, dims));
@@ -267,7 +267,7 @@ static bool test_nlop_combine_derivative(void)
 
 	nlop_free(flat);
 
-	return (err < 1.E-2);
+	UT_ASSERT((!safe_isnanf(err)) && (err < 1.E-2));
 }
 
 
