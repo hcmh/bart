@@ -254,6 +254,8 @@ const struct iovec_s* operator_arg_domain(const struct operator_s* op, unsigned 
  */
 const struct iovec_s* operator_domain(const struct operator_s* op)
 {
+	assert(2 == op->N);
+	assert(1u == op->io_flags);
 	return operator_arg_domain(op, 1);
 }
 
@@ -265,6 +267,8 @@ const struct iovec_s* operator_domain(const struct operator_s* op)
  */
 const struct iovec_s* operator_codomain(const struct operator_s* op)
 {
+	assert(2 == op->N);
+	assert(1u == op->io_flags);
 	return operator_arg_domain(op, 0);
 }
 
@@ -292,6 +296,7 @@ const struct operator_p_s* operator_p_ref(const struct operator_p_s* x)
 const struct iovec_s* operator_p_domain(const struct operator_p_s* op)
 {
 	assert(3 == op->op.N);
+	assert(1u == op->op.io_flags);
 	return op->op.domain[2];
 }
 
@@ -304,6 +309,7 @@ const struct iovec_s* operator_p_domain(const struct operator_p_s* op)
 const struct iovec_s* operator_p_codomain(const struct operator_p_s* op)
 {
 	assert(3 == op->op.N);
+	assert(1u == op->op.io_flags);
 	return op->op.domain[1];
 }
 
@@ -692,6 +698,7 @@ const struct operator_s* operator_stack(unsigned int D, unsigned int E, const st
 
 void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int N, void* args[N])
 {
+	assert(op->N == N);
 	debug_trace("ENTER %p\n", op->apply);
 	op->apply(op->data, N, args);
 	debug_trace("LEAVE %p\n", op->apply);
@@ -700,6 +707,7 @@ void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int 
 
 void operator_apply_unchecked(const struct operator_s* op, complex float* dst, const complex float* src)
 {
+	assert(1u == op->io_flags);
 	operator_generic_apply_unchecked(op, 2, (void*[2]){ (void*)dst, (void*)src });
 }
 
