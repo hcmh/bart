@@ -425,7 +425,7 @@ static void flatten_adj(const nlop_data_t* _data, complex float* dst, const comp
 
 	for (int i = 0; i < II; i++) {
 
-		auto iov = linop_codomain(nlop_get_derivative(data->op, 0, i));
+		auto iov = linop_domain(nlop_get_derivative(data->op, 0, i));
 
 		complex float* tmp = md_alloc(iov->N, iov->dims, iov->size);
 

@@ -11,11 +11,13 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/rand.h"
+#include "num/iovec.h"
 
 #include "misc/misc.h"
 #include "misc/debug.h"
 
 #include "linops/linop.h"
+#include "linops/lintest.h"
 #include "linops/someops.h"
 
 #include "nlops/zexp.h"
@@ -237,17 +239,39 @@ static bool test_nlop_tenmul_der2(void)
 	long idims2[N] = { 10, 7, 1 };
 
 	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2);
-
 	struct nlop_s* flat = nlop_flatten(tenmul);
 
 	double err = nlop_test_derivative(flat);
 
 	nlop_free(flat);
 
-	UT_ASSERT((!safe_isnanf(err)) && (err < 1.E-2));
+	UT_ASSERT((!safe_isnanf(err)) && (err < 1.5E-2));
 }
 
 UT_REGISTER_TEST(test_nlop_tenmul_der2);
+
+
+
+static bool test_nlop_tenmul_der_adj(void)
+{
+	enum { N = 3 };
+	long odims[N] = { 10, 1, 3 };
+	long idims1[N] = { 1, 7, 3 };
+	long idims2[N] = { 10, 7, 1 };
+
+	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2);
+
+	struct nlop_s* flat = nlop_flatten(tenmul);
+
+	double err = linop_test_adjoint(nlop_get_derivative(flat, 0, 0));
+
+	nlop_free(flat);
+
+	UT_ASSERT((!safe_isnanf(err)) && (err < 5.E-2));
+}
+
+UT_REGISTER_TEST(test_nlop_tenmul_der_adj);
+
 
 
 
@@ -270,6 +294,38 @@ static bool test_nlop_zexp_derivative(void)
 
 
 UT_REGISTER_TEST(test_nlop_zexp_derivative);
+
+
+
+
+static bool test_nlop_zexp_der_adj(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	struct nlop_s* zexp = nlop_zexp_create(N, dims);
+
+	complex float* dst = md_alloc(N, dims, CFL_SIZE);
+	complex float* src = md_alloc(N, dims, CFL_SIZE);
+
+	md_gaussian_rand(N, dims, src);
+
+	nlop_apply(zexp, N, dims, dst, N, dims, src);
+
+	md_free(src);
+	md_free(dst);
+
+	float err = linop_test_adjoint(nlop_get_derivative(zexp, 0, 0));
+
+	nlop_free(zexp);
+
+	UT_ASSERT(err < 1.E-2);
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_zexp_der_adj);
+
 
 
 
@@ -319,20 +375,112 @@ static bool test_nlop_combine(void)
 UT_REGISTER_TEST(test_nlop_combine);
 
 
-static bool test_nlop_combine_derivative(void)
+
+static bool test_nlop_combine_der1(void)
 {
 	enum { N = 3 };
 	long dims[N] = { 10, 7, 3 };	// FIXME: this test is broken
 
 	struct nlop_s* zexp = nlop_zexp_create(N, dims);
+	struct nlop_s* id = nlop_from_linop(linop_identity_create(N, dims));
+	struct nlop_s* comb = nlop_combine(zexp, id);
+
+
+	complex float* in1 = md_alloc(N, dims, CFL_SIZE);
+
+	md_gaussian_rand(N, dims, in1);
+
+	complex float* out1 = md_alloc(N, dims, CFL_SIZE);
+	complex float* out2 = md_alloc(N, dims, CFL_SIZE);
+	complex float* out3 = md_alloc(N, dims, CFL_SIZE);
+	complex float* out4 = md_alloc(N, dims, CFL_SIZE);
+
+	linop_forward(nlop_get_derivative(comb, 0, 1), N, dims, out1, N, dims, in1);
+
+	if (0. != md_znorm(N, dims, out1))
+		return false;
+
+	linop_forward(nlop_get_derivative(comb, 1, 0), N, dims, out1, N, dims, in1);
+
+	if (0. != md_znorm(N, dims, out1))
+		return false;
+
+	nlop_derivative(zexp, N, dims, out1, N, dims, in1);
+
+	linop_forward(nlop_get_derivative(comb, 0, 0), N, dims, out2, N, dims, in1);
+
+	nlop_derivative(id, N, dims, out3, N, dims, in1);
+
+	linop_forward(nlop_get_derivative(comb, 1, 1), N, dims, out4, N, dims, in1);
+
+	md_free(in1);
+	md_free(out1);
+	md_free(out2);
+	md_free(out3);
+	md_free(out4);
+
+	double err = md_znrmse(N, dims, out1, out2);
+
+	nlop_free(comb);
+
+	return (0. == err);
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_combine_der1);
+
+
+
+static bool test_nlop_comb_flat_der(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	struct nlop_s* zexp = nlop_zexp_create(N, dims);
 	struct nlop_s* comb = nlop_combine(zexp, zexp);
+	struct nlop_s* flat = nlop_flatten(comb);
+
+	auto iov = nlop_domain(flat);
+
+	complex float* in = md_alloc(iov->N, iov->dims, iov->size);
+	complex float* dst2 = md_alloc(iov->N, iov->dims, iov->size);
+	complex float* dst = md_alloc(N, dims, CFL_SIZE);
+
+	md_gaussian_rand(N, dims, in);
+
+	nlop_derivative(zexp, N, dims, dst, N, dims, in);
+
+	nlop_derivative(flat, iov->N, iov->dims, dst2, iov->N, iov->dims, in);
+
+	double err = md_znrmse(N, dims, dst2, dst);
+
+	nlop_free(flat);
+
+	UT_ASSERT((!safe_isnanf(err)) && (err < 1.E-2));
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_comb_flat_der);
+
+
+
+static bool test_nlop_combine_derivative(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };	// FIXME: this test is broken
+
+	struct nlop_s* zexp1 = nlop_zexp_create(N, dims);
+	struct nlop_s* zexp2 = nlop_zexp_create(N, dims);
+	struct nlop_s* comb = nlop_combine(zexp1, zexp2);
 	struct nlop_s* flat = nlop_flatten(comb);
 
 	double err = nlop_test_derivative(flat);
 
 	nlop_free(flat);
 
-	UT_ASSERT((!safe_isnanf(err)) && (err < 1.E-2));
+	UT_ASSERT((!safe_isnanf(err)) && (err < 2.E-2));
 }
 
 
