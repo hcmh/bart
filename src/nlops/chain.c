@@ -50,8 +50,14 @@ struct nlop_s* nlop_chain(const struct nlop_s* a, const struct nlop_s* b)
 
 
 
+/*
+ * CAVE: if we pass the same operator twice, it might not
+ * as they store state with respect to the derivative
+ */
 struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
 {
+	assert(a != b);	// could also be deeply nested, but we do not detect it
+
 	int ai = nlop_get_nr_in_args(a);
 	int ao = nlop_get_nr_out_args(a);
 	int bi = nlop_get_nr_in_args(b);
