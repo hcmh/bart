@@ -14,6 +14,7 @@
 
 #include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/iovec.h"
 #include "num/ops.h"
 
 #include "misc/misc.h"
@@ -461,6 +462,79 @@ void linop_free(const struct linop_s* op)
 	operator_free(op->normal);
 	operator_p_free(op->norm_inv);
 	xfree(op);
+}
+
+
+
+
+struct plus_data_s {
+
+	INTERFACE(linop_data_t);
+
+	const struct linop_s* a;
+	const struct linop_s* b;
+};
+
+static DEF_TYPEID(plus_data_s);
+
+static void plus_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(plus_data_s, _data);
+	auto iov = linop_codomain(data->a);
+
+	complex float* tmp = md_alloc_sameplace(iov->N, iov->dims, iov->size, dst);
+
+	linop_forward_unchecked(data->a, dst, src);
+	linop_forward_unchecked(data->b, tmp, src);
+
+	md_zadd(iov->N, iov->dims, dst, dst, tmp);
+	md_free(tmp);
+}
+
+static void plus_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(plus_data_s, _data);
+	auto iov = linop_domain(data->a);
+
+	complex float* tmp = md_alloc_sameplace(iov->N, iov->dims, iov->size, dst);
+
+	linop_adjoint_unchecked(data->a, dst, src);
+	linop_adjoint_unchecked(data->b, tmp, src);
+
+	md_zadd(iov->N, iov->dims, dst, dst, tmp);
+	md_free(tmp);
+}
+
+
+static void plus_free(const linop_data_t* _data)
+{
+	auto data = CAST_DOWN(plus_data_s, _data);
+
+	linop_free(data->a);
+	linop_free(data->b);
+
+	xfree(data);
+}
+
+struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
+{
+	auto bdo = linop_domain(b);
+	assert(CFL_SIZE == bdo->size);
+	iovec_check(linop_domain(a), bdo->N, bdo->dims, bdo->strs);
+
+	auto bco = linop_codomain(b);
+	assert(CFL_SIZE == bco->size);
+	iovec_check(linop_codomain(a), bco->N, bco->dims, bco->strs);
+
+	PTR_ALLOC(struct plus_data_s, data);
+	SET_TYPEID(plus_data_s, data);
+
+	// maybe detect null operations and just clone
+
+	data->a = linop_clone(a);
+	data->b = linop_clone(b);
+
+	return linop_create(bdo->N, bdo->dims, bco->N, bco->dims, CAST_UP(PTR_PASS(data)), plus_apply, plus_adjoint, NULL, NULL, plus_free);
 }
 
 
