@@ -389,6 +389,11 @@ struct linop_s* linop_null_create2(unsigned int N, const long odims[N], const lo
 	c->normal = operator_combi_create(2, MAKE_ARRAY(zedo, nudo));
 	c->norm_inv = NULL;
 
+	operator_free(nudo);
+	operator_free(zedo);
+	operator_free(nuco);
+	operator_free(zeco);
+
 	return PTR_PASS(c);
 }
 

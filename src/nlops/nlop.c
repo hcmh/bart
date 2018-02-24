@@ -405,8 +405,11 @@ static void flatten_der(const nlop_data_t* _data, complex float* dst, const comp
 
 			const struct linop_s* der = nlop_get_derivative(data->op, o, i);
 
-			linop_forward_unchecked(der,
-				tmp,
+			auto iov2 = linop_domain(der);
+
+			linop_forward(der,
+				iov->N, iov->dims, tmp,
+				iov2->N, iov2->dims,
 				(void*)src + data->off[OO + i]);
 
 			md_zadd(iov->N, iov->dims, (void*)dst + data->off[o], (void*)dst + data->off[o], tmp);

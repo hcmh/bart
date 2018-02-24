@@ -90,6 +90,11 @@ static void tenmul_del(const nlop_data_t* _data)
 	md_free(data->x2);
 
 	xfree(data->dims);
+	xfree(data->ostr);
+	xfree(data->dims1);
+	xfree(data->istr1);
+	xfree(data->dims2);
+	xfree(data->istr2);
 	xfree(data);
 }
 

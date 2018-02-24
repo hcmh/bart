@@ -232,6 +232,11 @@ unsigned int operator_nr_out_args(const struct operator_s* op)
 }
 
 
+unsigned int operator_ioflags(const struct operator_s* op)
+{
+	return op->io_flags;
+}
+
 
 
 /**
@@ -582,7 +587,9 @@ const struct operator_s* operator_chain(const struct operator_s* a, const struct
 
 	assert((MD_BIT(0) | MD_BIT(2)) == op->io_flags);
 
-	return operator_link_create(op, 1, 2);
+	auto op2 = operator_link_create(op, 2, 1);
+	operator_free(op);
+	return op2;
 }
 
 
@@ -1373,8 +1380,8 @@ const struct operator_s* operator_link_create(const struct operator_s* op, unsig
 	assert(o < N);
 	assert(i != o);
 
-	assert(~(op->io_flags & MD_BIT(o)));
-	assert( (op->io_flags & MD_BIT(i)));
+	assert( (op->io_flags & MD_BIT(o)));
+	assert(~(op->io_flags & MD_BIT(i)));
 
 	unsigned int io_flags = 0u;
 	unsigned int D[N - 2];
@@ -1404,13 +1411,12 @@ const struct operator_s* operator_link_create(const struct operator_s* op, unsig
 	assert(ioo->N == md_calc_blockdim(ioo->N, ioo->dims, ioo->strs, ioo->size));
 
 
-	// op = operator_ref(op);
 	PTR_ALLOC(struct operator_link_s, data);
 	SET_TYPEID(operator_link_s, data);
 
 	data->a = i;
 	data->b = o;
-	data->x = op;
+	data->x = operator_ref(op);
 
 	return operator_generic_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del);
 }

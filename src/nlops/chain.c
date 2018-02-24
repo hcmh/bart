@@ -1,3 +1,6 @@
+/* Copyright 2018. Martin Uecker.
+ * All rights reserved.
+ */
 
 #include <stddef.h>
 #include <assert.h>
@@ -109,8 +112,10 @@ struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
 	}
 
 
-	n->op = operator_combi_create(2, (const struct operator_s*[]){
-			operator_ref(a->op), operator_ref(b->op) });
+	n->op = operator_combi_create(2, (const struct operator_s*[]){ a->op, b->op });
+
+	assert(II == operator_nr_in_args(n->op));
+	assert(OO == operator_nr_out_args(n->op));
 
 	int perm[II + OO];	// ao ai bo bi -> ao bo ai bi
 	int p = 0;
@@ -130,6 +135,47 @@ struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
 	assert(II + OO == p);
 
 	n->op = operator_permute(n->op, II + OO, perm);
+
+	return PTR_PASS(n);
+}
+
+
+
+struct nlop_s* nlop_link(const struct nlop_s* x, int oo, int ii)
+{
+	int II = nlop_get_nr_in_args(x);
+	int OO = nlop_get_nr_out_args(x);
+
+	assert(ii < II);
+	assert(oo < OO);
+
+	PTR_ALLOC(struct nlop_s, n);
+	PTR_ALLOC(const struct linop_s*[II - 1][OO - 1], der);
+
+	assert(operator_ioflags(x->op) == ((1 << OO) - 1));
+
+	n->op = operator_link_create(x->op, oo, OO + ii);
+
+	// f(x_1, ..., g(x_n+1, ..., x_n+m), ..., xn)
+
+	for (int i = 0, ip = 0; i < II - 1; i++, ip++) {
+
+		if (i == ii)
+			ip++;
+
+		for (int o = 0, op = 0; o < OO - 1; o++, op++) {
+
+			if (o == oo)
+				op++;
+
+			(*der)[i][o] = linop_plus(
+				linop_clone(nlop_get_derivative(x, op, ip)),
+				linop_chain(linop_clone(nlop_get_derivative(x, op, ii)),
+					linop_clone(nlop_get_derivative(x, oo, ip))));
+		}
+	}
+
+	n->derivative = &(*PTR_PASS(der))[0][0];
 
 	return PTR_PASS(n);
 }

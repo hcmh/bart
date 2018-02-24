@@ -34,6 +34,9 @@ static bool test_mdfft(void)
 
 	float err = md_znrmse(N, dims, x, y);
 
+	md_free(x);
+	md_free(y);
+
 	return (err < 1.E-6);
 }
 

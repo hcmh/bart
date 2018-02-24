@@ -92,7 +92,9 @@ static bool test_nlop_chain(void)
 	long dims[N] = { 10, 7, 3 };
 
 	complex float val = 2.;
-	struct nlop_s* diag = nlop_from_linop(linop_cdiag_create(N, dims, 0, &val));
+
+	struct linop_s* cdiag = linop_cdiag_create(N, dims, 0, &val);
+	struct nlop_s* diag = nlop_from_linop(cdiag);
 	struct nlop_s* zexp = nlop_zexp_create(N, dims);
 	struct nlop_s* zexp2 = nlop_chain(zexp, diag);
 
@@ -100,6 +102,8 @@ static bool test_nlop_chain(void)
 
 	nlop_free(zexp2);
 	nlop_free(zexp);
+	nlop_free(diag);
+	linop_free(cdiag);
 
 	UT_ASSERT(err < 1.E-2);
 }
@@ -188,6 +192,7 @@ static bool test_nlop_tenmul_der(void)
 	md_free(src2);
 	md_free(dst1);
 	md_free(dst2);
+	md_free(dst3);
 
 	UT_ASSERT(err < UT_TOL);
 }
@@ -244,12 +249,30 @@ static bool test_nlop_tenmul_der2(void)
 	double err = nlop_test_derivative(flat);
 
 	nlop_free(flat);
+	nlop_free(tenmul);
 
 	UT_ASSERT((!safe_isnanf(err)) && (err < 1.5E-2));
 }
 
 UT_REGISTER_TEST(test_nlop_tenmul_der2);
 
+
+static void random_application(const struct nlop_s* nlop)
+{
+	auto dom = nlop_domain(nlop);
+	auto cod = nlop_codomain(nlop);
+
+	complex float* in = md_alloc(dom->N, dom->dims, dom->size);
+	complex float* dst = md_alloc(cod->N, cod->dims, cod->size);
+
+	md_gaussian_rand(dom->N, dom->dims, in);
+
+	// define position for derivatives
+	nlop_apply(nlop, cod->N, cod->dims, dst, dom->N, dom->dims, in);
+
+	md_free(in);
+	md_free(dst);
+}
 
 
 static bool test_nlop_tenmul_der_adj(void)
@@ -263,11 +286,14 @@ static bool test_nlop_tenmul_der_adj(void)
 
 	struct nlop_s* flat = nlop_flatten(tenmul);
 
+	random_application(flat);
+
 	double err = linop_test_adjoint(nlop_get_derivative(flat, 0, 0));
 
 	nlop_free(flat);
+	nlop_free(tenmul);
 
-	UT_ASSERT((!safe_isnanf(err)) && (err < 5.E-2));
+	UT_ASSERT((!safe_isnanf(err)) && (err < 6.E-2));
 }
 
 UT_REGISTER_TEST(test_nlop_tenmul_der_adj);
@@ -335,7 +361,9 @@ static bool test_nlop_combine(void)
 	long dims[N] = { 10, 7, 3 };
 
 	struct nlop_s* zexp = nlop_zexp_create(N, dims);
-	struct nlop_s* id = nlop_from_linop(linop_identity_create(N, dims));
+	struct linop_s* lid = linop_identity_create(N, dims);
+	struct nlop_s* id = nlop_from_linop(lid);
+	linop_free(lid);
 	struct nlop_s* comb = nlop_combine(zexp, id);
 
 	complex float* in1 = md_alloc(N, dims, CFL_SIZE);
@@ -366,6 +394,8 @@ static bool test_nlop_combine(void)
 	md_free(out4);
 
 	nlop_free(comb);
+	nlop_free(id);
+	nlop_free(zexp);
 
 	UT_ASSERT((!safe_isnanf(err)) && (err < 1.E-2));
 }
@@ -382,9 +412,12 @@ static bool test_nlop_combine_der1(void)
 	long dims[N] = { 10, 7, 3 };	// FIXME: this test is broken
 
 	struct nlop_s* zexp = nlop_zexp_create(N, dims);
-	struct nlop_s* id = nlop_from_linop(linop_identity_create(N, dims));
+	struct linop_s* lid = linop_identity_create(N, dims);
+	struct nlop_s* id = nlop_from_linop(lid);
+	linop_free(lid);
 	struct nlop_s* comb = nlop_combine(zexp, id);
 
+	random_application(zexp);
 
 	complex float* in1 = md_alloc(N, dims, CFL_SIZE);
 
@@ -413,15 +446,18 @@ static bool test_nlop_combine_der1(void)
 
 	linop_forward(nlop_get_derivative(comb, 1, 1), N, dims, out4, N, dims, in1);
 
+	double err = md_znrmse(N, dims, out1, out2);
+
 	md_free(in1);
 	md_free(out1);
 	md_free(out2);
 	md_free(out3);
 	md_free(out4);
 
-	double err = md_znrmse(N, dims, out1, out2);
 
 	nlop_free(comb);
+	nlop_free(id);
+	nlop_free(zexp);
 
 	return (0. == err);
 }
@@ -437,8 +473,13 @@ static bool test_nlop_comb_flat_der(void)
 	enum { N = 3 };
 	long dims[N] = { 10, 7, 3 };
 
-	struct nlop_s* zexp = nlop_zexp_create(N, dims);
-	struct nlop_s* comb = nlop_combine(zexp, zexp);
+	struct nlop_s* zexp1 = nlop_zexp_create(N, dims);
+	struct nlop_s* zexp2 = nlop_zexp_create(N, dims);
+
+	random_application(zexp1);
+	random_application(zexp2);
+
+	struct nlop_s* comb = nlop_combine(zexp1, zexp2);
 	struct nlop_s* flat = nlop_flatten(comb);
 
 	auto iov = nlop_domain(flat);
@@ -447,15 +488,23 @@ static bool test_nlop_comb_flat_der(void)
 	complex float* dst2 = md_alloc(iov->N, iov->dims, iov->size);
 	complex float* dst = md_alloc(N, dims, CFL_SIZE);
 
+
 	md_gaussian_rand(N, dims, in);
 
-	nlop_derivative(zexp, N, dims, dst, N, dims, in);
+	nlop_derivative(zexp1, N, dims, dst, N, dims, in);
 
 	nlop_derivative(flat, iov->N, iov->dims, dst2, iov->N, iov->dims, in);
 
 	double err = md_znrmse(N, dims, dst2, dst);
 
+	md_free(in);
+	md_free(dst);
+	md_free(dst2);
+
 	nlop_free(flat);
+	nlop_free(comb);
+	nlop_free(zexp1);
+	nlop_free(zexp2);
 
 	UT_ASSERT((!safe_isnanf(err)) && (err < 1.E-2));
 }
@@ -479,6 +528,9 @@ static bool test_nlop_combine_derivative(void)
 	double err = nlop_test_derivative(flat);
 
 	nlop_free(flat);
+	nlop_free(comb);
+	nlop_free(zexp1);
+	nlop_free(zexp2);
 
 	UT_ASSERT((!safe_isnanf(err)) && (err < 2.E-2));
 }
@@ -486,5 +538,52 @@ static bool test_nlop_combine_derivative(void)
 
 
 UT_REGISTER_TEST(test_nlop_combine_derivative);
+
+
+
+
+static bool test_nlop_link(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	complex float val = 2.;
+
+	struct linop_s* cdiag = linop_cdiag_create(N, dims, 0, &val);
+	struct nlop_s* diag = nlop_from_linop(cdiag);
+	linop_free(cdiag);
+
+	struct nlop_s* zexp = nlop_zexp_create(N, dims);
+	struct nlop_s* zexp2 = nlop_chain(zexp, diag);
+	struct nlop_s* zexp3 = nlop_combine(diag, zexp);
+	struct nlop_s* zexp4 = nlop_link(zexp3, 1, 0);
+
+	complex float* in = md_alloc(N, dims, CFL_SIZE);
+	complex float* dst1 = md_alloc(N, dims, CFL_SIZE);
+	complex float* dst2 = md_alloc(N, dims, CFL_SIZE);
+
+	md_gaussian_rand(N, dims, in);
+
+	nlop_apply(zexp2, N, dims, dst1, N, dims, in);
+	nlop_apply(zexp4, N, dims, dst2, N, dims, in);
+
+	double err = md_znrmse(N, dims, dst2, dst1);
+
+	md_free(in);
+	md_free(dst1);
+	md_free(dst2);
+
+	nlop_free(zexp4);
+	nlop_free(zexp3);
+	nlop_free(zexp2);
+	nlop_free(zexp);
+	nlop_free(diag);
+
+	UT_ASSERT(err < 1.E-6);
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_link);
 
 
