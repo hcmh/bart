@@ -170,8 +170,8 @@ struct nlop_s* nlop_link(const struct nlop_s* x, int oo, int ii)
 
 			(*der)[i][o] = linop_plus(
 				linop_clone(nlop_get_derivative(x, op, ip)),
-				linop_chain(linop_clone(nlop_get_derivative(x, op, ii)),
-					linop_clone(nlop_get_derivative(x, oo, ip))));
+				linop_chain(linop_clone(nlop_get_derivative(x, oo, ip)),
+					linop_clone(nlop_get_derivative(x, op, ii))));
 		}
 	}
 
