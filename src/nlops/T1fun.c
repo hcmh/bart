@@ -114,7 +114,8 @@ static void T1_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long TI_dims[N])
+struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], 
+                const long TI_dims[N], const complex float* TI)
 {
 	PTR_ALLOC(struct T1_s, data);
 	SET_TYPEID(T1_s, data);
@@ -152,7 +153,8 @@ struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims
 	data->R1s = md_alloc(N, map_dims, CFL_SIZE);
 	data->tmp = md_alloc(N, map_dims, CFL_SIZE);
 	data->TI = md_alloc(N, TI_dims, CFL_SIZE);
-
-	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
+    md_copy(N, TI_dims, data->TI, TI, CFL_SIZE); 
+	
+    return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
 }
 
