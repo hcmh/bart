@@ -1232,11 +1232,10 @@ static void combi_apply(const operator_data_t* _data, unsigned int N, void* args
 
 		int A = operator_nr_args(data->x[i]);
 
+		off -= A;
 
 		for (int a = 0; a < A; a++)
 			debug_printf(DP_DEBUG4, "op: %d arg: %d %p\n", i, a, args[off + a]);
-
-		off -= A;
 
 		assert(0 <= off);
 		assert(off < N);
@@ -1444,7 +1443,7 @@ static void permute_fun(const operator_data_t* _data, unsigned int N, void* args
 	void* ptr[N];
 
 	for (int i = 0; i < N; i++)
-		ptr[i] = args[data->perm[i]];
+		ptr[data->perm[i]] = args[i];
 
 	operator_generic_apply_unchecked(data->op, N, ptr);
 }
