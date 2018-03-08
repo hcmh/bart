@@ -156,6 +156,8 @@ struct nlop_s* nlop_link(const struct nlop_s* x, int oo, int ii)
 
 	n->op = operator_link_create(x->op, oo, OO + ii);
 
+	assert(operator_ioflags(n->op) == ((1 << (OO - 1)) - 1));
+
 	// f(x_1, ..., g(x_n+1, ..., x_n+m), ..., xn)
 
 	for (int i = 0, ip = 0; i < II - 1; i++, ip++) {
