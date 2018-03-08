@@ -188,14 +188,14 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 
 
 	data->nl = nlop_tenmul_create(DIMS, data->sign_dims, data->imgs_dims, data->coil_dims);
-	data->der1 = nlop_get_derivative(data->nl, 0, 0);
-	data->der2 = nlop_get_derivative(data->nl, 0, 1);
 
 	const struct nlop_s* nlw = nlop_from_linop(data->weights);
-//	const struct nlop_s* nlw = nlop_from_linop(linop_identity_create(DIMS, data->coil_dims));
+
 
 	data->nl2 = nlop_combine(data->nl, nlw);
 	data->nl2 = nlop_link(data->nl2, 1, 1);
+	data->der1 = nlop_get_derivative(data->nl2, 0, 0);
+	data->der2 = nlop_get_derivative(data->nl2, 0, 1);
 
 	return PTR_PASS(data);
 }
@@ -242,17 +242,11 @@ void noir_der(struct noir_data* data, complex float* dst, const complex float* s
 
 	linop_forward(data->der1, DIMS, data->sign_dims, data->tmp, DIMS, data->imgs_dims, src);
 
-	complex float* delta_coils = md_alloc_sameplace(DIMS, data->coil_dims, CFL_SIZE, src);
-
-	linop_forward(data->weights, DIMS, data->coil_dims, delta_coils, DIMS, data->coil_dims, src + split);
-
 	complex float* tmp2 = md_alloc_sameplace(DIMS, data->sign_dims, CFL_SIZE, src);
 
-	linop_forward(data->der2, DIMS, data->sign_dims, tmp2, DIMS, data->coil_dims, delta_coils);
+	linop_forward(data->der2, DIMS, data->sign_dims, tmp2, DIMS, data->coil_dims, src + split);
 	md_zadd(DIMS, data->sign_dims, data->tmp, data->tmp, tmp2);
 	md_free(tmp2);
-
-	md_free(delta_coils);
 
 	linop_forward(data->frw, DIMS, data->data_dims, dst, DIMS, data->sign_dims, data->tmp);
 }
@@ -265,8 +259,6 @@ void noir_adj(struct noir_data* data, complex float* dst, const complex float* s
 	linop_adjoint(data->adj, DIMS, data->sign_dims, data->tmp, DIMS, data->data_dims, src);
 
 	linop_adjoint(data->der2, DIMS, data->coil_dims, dst + split, DIMS, data->sign_dims, data->tmp);
-
-	linop_adjoint(data->weights, DIMS, data->coil_dims, dst + split, DIMS, data->coil_dims, dst + split);
 
 	linop_adjoint(data->der1, DIMS, data->imgs_dims, dst, DIMS, data->sign_dims, data->tmp);
 
