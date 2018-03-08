@@ -1224,7 +1224,7 @@ static void combi_apply(const operator_data_t* _data, unsigned int N, void* args
 {
 	auto data = CAST_DOWN(operator_combi_s, _data);
 
-	debug_printf(DP_DEBUG4, "combi ops: %d args: %d\n", data->N, N);
+	debug_printf(DP_DEBUG4, "combi apply: ops: %d args: %d\n", data->N, N);
 
 	int off = N;
 
@@ -1235,7 +1235,7 @@ static void combi_apply(const operator_data_t* _data, unsigned int N, void* args
 		off -= A;
 
 		for (int a = 0; a < A; a++)
-			debug_printf(DP_DEBUG4, "op: %d arg: %d %p\n", i, a, args[off + a]);
+			debug_printf(DP_DEBUG4, "combi apply: op[%d].arg[%d] == %p\n", i, a, args[off + a]);
 
 		assert(0 <= off);
 		assert(off < N);
@@ -1322,20 +1322,20 @@ static void link_apply(const operator_data_t* _data, unsigned int N, void* args[
 {
 	auto data = CAST_DOWN(operator_link_s, _data);
 
-	debug_printf(DP_DEBUG4, "link: %d %d-%d (io: %d)\n", N + 2,
-				data->a, data->b, data->x->io_flags);
+	debug_printf(DP_DEBUG4, "link apply: linking %d-%d of %d (io flags: %d)\n",
+				data->a, data->b, N + 2, data->x->io_flags);
 
 	void* args2[N + 2];
 
 	for (int i = 0, j = 0; j < (int)(N + 2); j++) {
 
-		debug_printf(DP_DEBUG4, "arg %d %p\n", i, args[i]);
-
 
 		if ((data->a == j) || (data->b == j))
 			continue;
 
-		debug_printf(DP_DEBUG4, "%d -> %d\n", i, j);
+		debug_printf(DP_DEBUG4, "link apply: in arg[%d] = %p\n", i, args[i]);
+		debug_printf(DP_DEBUG4, "link apply: mapping %d -> %d\n", i, j);
+
 		args2[j] = args[i++];
 	}
 
@@ -1353,9 +1353,10 @@ static void link_apply(const operator_data_t* _data, unsigned int N, void* args[
 	args2[data->a] = tmp;
 	args2[data->b] = tmp;
 
+	debug_printf(DP_DEBUG4, "link apply: %d-%d == %p\n", data->a, data->b, tmp);
 
 	for (int i = 0; i < (int)(N + 2); i++)
-		debug_printf(DP_DEBUG4, "o arg %d %p\n", i, args2[i]);
+		debug_printf(DP_DEBUG4, "link apply: out arg[%d] = %p\n", i, args2[i]);
 
 
 	operator_generic_apply_unchecked(data->x, N + 2, args2);
@@ -1386,6 +1387,8 @@ const struct operator_s* operator_link_create(const struct operator_s* op, unsig
 	unsigned int D[N - 2];
 	const long* dims[N - 2];
 	const long* strs[N - 2];
+
+	debug_printf(DP_DEBUG3, "Linking args %d-%d of %d.\n", i, o, N);
 
 	for (unsigned int s = 0, t = 0; s < N; s++) {
 
@@ -1444,6 +1447,12 @@ static void permute_fun(const operator_data_t* _data, unsigned int N, void* args
 
 	for (int i = 0; i < N; i++)
 		ptr[data->perm[i]] = args[i];
+
+	for (int i = 0; i < (int)N; i++)
+		debug_printf(DP_DEBUG4, "permute apply: in arg[%d] = %p\n", i, args[i]);
+
+	for (int i = 0; i < (int)N; i++)
+		debug_printf(DP_DEBUG4, "permute apply: out arg[%d] = %p\n", i, ptr[i]);
 
 	operator_generic_apply_unchecked(data->op, N, ptr);
 }
