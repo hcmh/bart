@@ -539,7 +539,7 @@ struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
 	data->a = linop_clone(a);
 	data->b = linop_clone(b);
 
-	return linop_create(bdo->N, bdo->dims, bco->N, bco->dims, CAST_UP(PTR_PASS(data)), plus_apply, plus_adjoint, NULL, NULL, plus_free);
+	return linop_create(bco->N, bco->dims, bdo->N, bdo->dims, CAST_UP(PTR_PASS(data)), plus_apply, plus_adjoint, NULL, NULL, plus_free);
 }
 
 
