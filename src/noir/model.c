@@ -29,6 +29,8 @@
 
 #include "nlops/nlop.h"
 #include "nlops/tenmul.h"
+#include "nlops/chain.h"
+#include "nlops/cast.h"
 
 #include "num/fft.h"
 #include "num/multind.h"
@@ -66,7 +68,8 @@ struct noir_data {
 	const struct linop_s* der1;
 	const struct linop_s* der2;
 
-	complex float* sens;
+	const struct nlop_s* nl2;
+
 
 	complex float* tmp;
 
@@ -181,16 +184,18 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	data->frw = linop_chain(lop_fft, lop_pattern);
 	data->adj = linop_chain(lop_fft, lop_adj_pattern);
 
-	data->sens = my_alloc(DIMS, data->coil_dims, CFL_SIZE);
 	data->tmp = my_alloc(DIMS, data->sign_dims, CFL_SIZE);
 
 
 	data->nl = nlop_tenmul_create(DIMS, data->sign_dims, data->imgs_dims, data->coil_dims);
-
-//	nlop_nlop_combi(data->nl, nlop_from_linop(data->weights));
-
 	data->der1 = nlop_get_derivative(data->nl, 0, 0);
 	data->der2 = nlop_get_derivative(data->nl, 0, 1);
+
+	const struct nlop_s* nlw = nlop_from_linop(data->weights);
+//	const struct nlop_s* nlw = nlop_from_linop(linop_identity_create(DIMS, data->coil_dims));
+
+	data->nl2 = nlop_combine(data->nl, nlw);
+	data->nl2 = nlop_link(data->nl2, 1, 1);
 
 	return PTR_PASS(data);
 }
@@ -198,7 +203,6 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 
 void noir_free(struct noir_data* data)
 {
-	md_free(data->sens);
 	md_free(data->tmp);
 
 	linop_free(data->frw);
@@ -226,10 +230,7 @@ void noir_fun(struct noir_data* data, complex float* dst, const complex float* s
 {	
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
-
-	linop_forward(data->weights, DIMS, data->coil_dims, data->sens, DIMS, data->coil_dims, src + split);
-
-	nlop_generic_apply_unchecked(data->nl, 3, (void*[3]){ data->tmp, (void*)src, data->sens });
+	nlop_generic_apply_unchecked(data->nl2, 3, (void*[3]){ data->tmp, (void*)(src), (void*)(src + split) });
 
 	linop_forward(data->frw, DIMS, data->data_dims, dst, DIMS, data->sign_dims, data->tmp);
 }
