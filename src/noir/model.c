@@ -65,9 +65,6 @@ struct noir_data {
 	const struct linop_s* adj;
 
 	const struct nlop_s* nl;
-	const struct linop_s* der1;
-	const struct linop_s* der2;
-
 	const struct nlop_s* nl2;
 
 
@@ -191,11 +188,14 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 
 	const struct nlop_s* nlw = nlop_from_linop(data->weights);
 
+	data->nl = nlop_combine(data->nl, nlw);
+	data->nl = nlop_link(data->nl, 1, 1);
 
-	data->nl2 = nlop_combine(data->nl, nlw);
-	data->nl2 = nlop_link(data->nl2, 1, 1);
-	data->der1 = nlop_get_derivative(data->nl2, 0, 0);
-	data->der2 = nlop_get_derivative(data->nl2, 0, 1);
+
+	const struct nlop_s* frw = nlop_from_linop(data->frw);
+
+	data->nl2 = nlop_combine(frw, data->nl);
+	data->nl2 = nlop_link(data->nl2, 1, 0);
 
 	return PTR_PASS(data);
 }
@@ -230,25 +230,38 @@ void noir_fun(struct noir_data* data, complex float* dst, const complex float* s
 {	
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
-	nlop_generic_apply_unchecked(data->nl2, 3, (void*[3]){ data->tmp, (void*)(src), (void*)(src + split) });
-
-	linop_forward(data->frw, DIMS, data->data_dims, dst, DIMS, data->sign_dims, data->tmp);
+	nlop_generic_apply_unchecked(data->nl2, 3, (void*[3]){ dst, (void*)(src), (void*)(src + split) });
 }
 
 
 void noir_der(struct noir_data* data, complex float* dst, const complex float* src)
 {
 	long split = md_calc_size(DIMS, data->imgs_dims);
+#if 1
+	auto der1 = nlop_get_derivative(data->nl, 0, 0);
+	auto der2 = nlop_get_derivative(data->nl, 0, 1);
 
-	linop_forward(data->der1, DIMS, data->sign_dims, data->tmp, DIMS, data->imgs_dims, src);
+	linop_forward(der1, DIMS, data->sign_dims, data->tmp, DIMS, data->imgs_dims, src);
 
 	complex float* tmp2 = md_alloc_sameplace(DIMS, data->sign_dims, CFL_SIZE, src);
 
-	linop_forward(data->der2, DIMS, data->sign_dims, tmp2, DIMS, data->coil_dims, src + split);
+	linop_forward(der2, DIMS, data->sign_dims, tmp2, DIMS, data->coil_dims, src + split);
 	md_zadd(DIMS, data->sign_dims, data->tmp, data->tmp, tmp2);
 	md_free(tmp2);
 
 	linop_forward(data->frw, DIMS, data->data_dims, dst, DIMS, data->sign_dims, data->tmp);
+#else
+	auto der1 = nlop_get_derivative(data->nl2, 0, 0);
+	auto der2 = nlop_get_derivative(data->nl2, 0, 1);
+
+	linop_forward(der1, DIMS, data->data_dims, dst, DIMS, data->imgs_dims, src);
+
+	complex float* tmp2 = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, src);
+
+	linop_forward(der2, DIMS, data->data_dims, tmp2, DIMS, data->coil_dims, src + split);
+	md_zadd(DIMS, data->data_dims, dst, dst, tmp2);
+	md_free(tmp2);
+#endif
 }
 
 
@@ -256,11 +269,14 @@ void noir_adj(struct noir_data* data, complex float* dst, const complex float* s
 {
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
+	auto der1 = nlop_get_derivative(data->nl, 0, 0);
+	auto der2 = nlop_get_derivative(data->nl, 0, 1);
+
 	linop_adjoint(data->adj, DIMS, data->sign_dims, data->tmp, DIMS, data->data_dims, src);
 
-	linop_adjoint(data->der2, DIMS, data->coil_dims, dst + split, DIMS, data->sign_dims, data->tmp);
+	linop_adjoint(der2, DIMS, data->coil_dims, dst + split, DIMS, data->sign_dims, data->tmp);
 
-	linop_adjoint(data->der1, DIMS, data->imgs_dims, dst, DIMS, data->sign_dims, data->tmp);
+	linop_adjoint(der1, DIMS, data->imgs_dims, dst, DIMS, data->sign_dims, data->tmp);
 
 	if (data->conf.rvc)
 		md_zreal(DIMS, data->imgs_dims, dst, dst);
