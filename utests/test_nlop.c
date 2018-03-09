@@ -15,6 +15,7 @@
 
 #include "misc/misc.h"
 #include "misc/debug.h"
+#include "misc/mmio.h"
 
 #include "linops/linop.h"
 #include "linops/lintest.h"
@@ -588,7 +589,7 @@ static bool test_nlop_link(void)
 UT_REGISTER_TEST(test_nlop_link);
 
 
-static bool test_nlop_T1fun(void)
+static bool test_nlop_T1fun(void) 
 {
 	enum { N = 16 };
 	long map_dims[N] = {16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
@@ -600,15 +601,13 @@ static bool test_nlop_T1fun(void)
 	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
 
 	complex float* TI = load_cfl("/home/xwang/Python/multiband/model_based/TI", N, TI_dims);
-	md_gaussian_rand(N, in_dims, src);
+	md_zfill(N, in_dims, src, 1.0);
 
 	struct nlop_s* T1 = nlop_T1_create(N, map_dims, out_dims, in_dims, TI_dims, TI);
 
-    //md_zexp(N, in_dims, dst, src);
-
 	nlop_apply(T1, N, out_dims, dst, N, in_dims, src);
-
-	//double err = md_znrmse(N, dims, dst2, dst1);
+	
+    float err = linop_test_adjoint(nlop_get_derivative(T1, 0, 0));
 
 	nlop_free(T1);
 
@@ -616,10 +615,8 @@ static bool test_nlop_T1fun(void)
 	md_free(dst);
 	unmap_cfl(N, TI_dims, TI);
 
-	//UT_ASSERT(err < UT_TOL);
+    UT_ASSERT(err < 1.E-3);
 }
-
-
 
 UT_REGISTER_TEST(test_nlop_T1fun);
 

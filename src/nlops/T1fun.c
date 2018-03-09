@@ -33,22 +33,24 @@ struct T1_s {
 	complex float* Mss;
 	complex float* M0;
 	complex float* R1s;
-    complex float* tmp;
 
-    // Time vector
+    complex float* tmp_map;
+    complex float* tmp_ones;
+    complex float* tmp_data;
+
 	complex float* TI;
 };
 
 DEF_TYPEID(T1_s);
 
-// Calculate: Mss - (M1 + Mss) * exp(-t.*R1s)
+// Calculate: Mss - (M0 + Mss) * exp(-t.*R1s)
 static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	struct T1_s* data = CAST_DOWN(T1_s, _data);
     long pos[data->N];
 
     for (int i = 0; i < data->N; i++)
-            pos[i] = data->map_dims[i];
+            pos[i] = 0;
     
     // Mss                                                                 
     pos[MAPS_DIM] = 0;
@@ -68,10 +70,10 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
     md_zexp(data->N, data->out_dims, dst, dst);
     
     // Mss + M0
-	md_zadd(data->N, data->map_dims, data->tmp, data->Mss, data->M0);
+	md_zadd(data->N, data->map_dims, data->tmp_map, data->Mss, data->M0);
 
     // -(Mss + M0).*exp(-t.*R1s)
-    md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp, data->out_strs, dst);
+    md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, dst);
     md_zsmul2(data->N, data->out_dims, data->out_strs, dst, data->out_strs, dst, -1);
 	
     // Mss - (Mss + M0).*exp(-t.*R1s)
@@ -81,13 +83,124 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 static void T1_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	struct T1_s* data = CAST_DOWN(T1_s, _data);
-//	md_zmul(data->N, data->dims, dst, src, data->xn);
+    long pos[data->N];
+
+    for (int i = 0; i < data->N; i++)
+            pos[i] = 0;
+    
+    // tmp = dM0
+    pos[MAPS_DIM] = 1;
+    md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE); 	
+
+    // M0' = -exp(-t.*R1s)
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->map_strs, data->R1s, data->TI_strs, data->TI);
+    md_zsmul(data->N, data->out_dims, data->tmp_data, data->tmp_data, -1);
+    md_zexp(data->N, data->out_dims, data->tmp_data, data->tmp_data);
+    md_zsmul(data->N, data->out_dims, data->tmp_data, data->tmp_data, -1);
+
+    // dst = M0' * dM0
+    md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_data);
+    
+    // tmp = dMss
+    pos[MAPS_DIM] = 0;
+    md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE); 	
+
+    // Mss' = 1 - exp(-t.*R1s)                                             
+    md_zfill(data->N, data->map_dims, data->tmp_ones, 1.0);
+    md_zadd2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->map_strs, data->tmp_ones, data->out_strs, data->tmp_data);
+
+    // dst = dst + dMss * Mss'
+    md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_data);
+    
+    // tmp =  dR1s                                             
+    pos[MAPS_DIM] = 2;
+    md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE); 	
+   
+    // exp(-t.*R1s)
+    md_zsmul(data->N, data->out_dims, data->tmp_data, data->tmp_data, -1);
+    md_zadd2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->map_strs, data->tmp_ones, data->out_strs, data->tmp_data);
+    
+    // Mss + M0
+	md_zadd(data->N, data->map_dims, data->tmp_ones, data->Mss, data->M0);
+   
+    // R1s' = (Mss + M0) * exp(-t.*R1s) * t
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->map_strs, data->tmp_ones, data->out_strs, data->tmp_data);
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->TI_strs, data->TI, data->out_strs, data->tmp_data);
+    
+    // dst = dst + dR1s * R1s'
+    md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_data);
 }
 
 static void T1_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	struct T1_s* data = CAST_DOWN(T1_s, _data);
-//	md_zmulc(data->N, data->dims, dst, src, data->xn);
+
+    long pos[data->N];
+
+    for (int i = 0; i < data->N; i++)
+            pos[i] = 0;
+    
+    // M0' = -exp(-t.*R1s)
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->map_strs, data->R1s, data->TI_strs, data->TI);
+    md_zsmul(data->N, data->out_dims, data->tmp_data, data->tmp_data, -1);
+    md_zexp(data->N, data->out_dims, data->tmp_data, data->tmp_data);
+    md_zsmul(data->N, data->out_dims, data->tmp_data, data->tmp_data, -1);
+
+    // conj(M0') * src
+    md_zconj(data->N, data->out_dims, data->tmp_data, data->tmp_data);
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->out_strs, data->tmp_data, data->out_strs, src);
+
+    // sum (conj(M0') * src, t)
+    md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE); 
+    md_zadd2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->map_strs, data->tmp_map, data->out_strs, data->tmp_data);
+    
+    // dst[1] = sum (conj(M0') * src, t) 
+    pos[MAPS_DIM] = 1;
+    md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE); 	
+    
+    // Mss' = 1 - exp(-t.*R1s)                                             
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->map_strs, data->R1s, data->TI_strs, data->TI);
+    md_zsmul(data->N, data->out_dims, data->tmp_data, data->tmp_data, -1);
+    md_zexp(data->N, data->out_dims, data->tmp_data, data->tmp_data);
+    md_zsmul(data->N, data->out_dims, data->tmp_data, data->tmp_data, -1);
+    md_zfill(data->N, data->map_dims, data->tmp_ones, 1.0);
+    md_zadd2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->map_strs, data->tmp_ones, data->out_strs, data->tmp_data);
+    
+    // conj(Mss') * src
+    md_zconj(data->N, data->out_dims, data->tmp_data, data->tmp_data);
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->out_strs, data->tmp_data, data->out_strs, src);
+    
+    // sum (conj(Mss') * src, t)
+    md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE); 
+    md_zadd2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->map_strs, data->tmp_map, data->out_strs, data->tmp_data);
+    
+    // dst[0] = sum (conj(Mss') * src, t) 
+    pos[MAPS_DIM] = 0;
+    md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE); 	
+    
+    // Mss + M0
+	md_zadd(data->N, data->map_dims, data->tmp_ones, data->Mss, data->M0);
+   
+    // R1s' = (Mss + M0) * exp(-t.*R1s) * t
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->map_strs, data->R1s, data->TI_strs, data->TI);
+    md_zsmul(data->N, data->out_dims, data->tmp_data, data->tmp_data, -1);
+    md_zexp(data->N, data->out_dims, data->tmp_data, data->tmp_data);
+
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->map_strs, data->tmp_ones, data->out_strs, data->tmp_data);
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->TI_strs, data->TI, data->out_strs, data->tmp_data);
+    
+    // conj(R1s') * src
+    md_zconj(data->N, data->out_dims, data->tmp_data, data->tmp_data);
+    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->out_strs, data->tmp_data, data->out_strs, src);
+    
+    // sum (conj(R1s') * src, t)
+    md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE); 
+    md_zadd2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->map_strs, data->tmp_map, data->out_strs, data->tmp_data);
+    //md_zreal(data->N, data->map_dims, data->tmp_map, data->tmp_map);
+    
+    // dst[2] = sum (conj(R1s') * src, t) 
+    pos[MAPS_DIM] = 2;
+    md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE); 	
 }
 
 static void T1_del(const nlop_data_t* _data)
@@ -97,8 +210,12 @@ static void T1_del(const nlop_data_t* _data)
 	md_free(data->Mss);
 	md_free(data->M0);
 	md_free(data->R1s);
+
 	md_free(data->TI);
-	md_free(data->tmp);
+
+	md_free(data->tmp_map);
+	md_free(data->tmp_ones);
+	md_free(data->tmp_data);
 
 	xfree(data->map_dims);
 	xfree(data->TI_dims);
@@ -120,38 +237,46 @@ struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims
 	PTR_ALLOC(struct T1_s, data);
 	SET_TYPEID(T1_s, data);
 
-	PTR_ALLOC(long[N], ndims);
 
+	PTR_ALLOC(long[N], ndims);
 	md_copy_dims(N, *ndims, map_dims);
 	data->map_dims = *PTR_PASS(ndims);
-	
-	md_copy_dims(N, *ndims, out_dims);
-	data->out_dims = *PTR_PASS(ndims);
-	
-    md_copy_dims(N, *ndims, in_dims);
-	data->in_dims = *PTR_PASS(ndims);
-    
-    md_copy_dims(N, *ndims, TI_dims);
-	data->TI_dims = *PTR_PASS(ndims);
-	
-	PTR_ALLOC(long[N], nostr);
-	md_calc_strides(N, *nostr, map_dims, CFL_SIZE);
-    data->map_strs = *PTR_PASS(nostr);
 
+	PTR_ALLOC(long[N], nodims);
+	md_copy_dims(N, *nodims, out_dims);
+	data->out_dims = *PTR_PASS(nodims);
+	
+	PTR_ALLOC(long[N], nidims);
+    md_copy_dims(N, *nidims, in_dims);
+	data->in_dims = *PTR_PASS(nidims);
+    
+	PTR_ALLOC(long[N], ntidims);
+    md_copy_dims(N, *ntidims, TI_dims);
+	data->TI_dims = *PTR_PASS(ntidims);
+	
+	PTR_ALLOC(long[N], nmstr);
+	md_calc_strides(N, *nmstr, map_dims, CFL_SIZE);
+    data->map_strs = *PTR_PASS(nmstr);
+
+	PTR_ALLOC(long[N], nostr);
 	md_calc_strides(N, *nostr, out_dims, CFL_SIZE);
     data->out_strs = *PTR_PASS(nostr);
     
-	md_calc_strides(N, *nostr, in_dims, CFL_SIZE);
-    data->in_strs = *PTR_PASS(nostr);
+	PTR_ALLOC(long[N], nistr);
+	md_calc_strides(N, *nistr, in_dims, CFL_SIZE);
+    data->in_strs = *PTR_PASS(nistr);
 	
-    md_calc_strides(N, *nostr, TI_dims, CFL_SIZE);
-    data->TI_strs = *PTR_PASS(nostr);
+	PTR_ALLOC(long[N], ntistr);
+    md_calc_strides(N, *ntistr, TI_dims, CFL_SIZE);
+    data->TI_strs = *PTR_PASS(ntistr);
     
     data->N = N;
 	data->Mss = md_alloc(N, map_dims, CFL_SIZE);
 	data->M0 = md_alloc(N, map_dims, CFL_SIZE);
 	data->R1s = md_alloc(N, map_dims, CFL_SIZE);
-	data->tmp = md_alloc(N, map_dims, CFL_SIZE);
+	data->tmp_map = md_alloc(N, map_dims, CFL_SIZE);
+	data->tmp_ones = md_alloc(N, map_dims, CFL_SIZE);
+	data->tmp_data = md_alloc(N, out_dims, CFL_SIZE);
 	data->TI = md_alloc(N, TI_dims, CFL_SIZE);
     md_copy(N, TI_dims, data->TI, TI, CFL_SIZE); 
 	
