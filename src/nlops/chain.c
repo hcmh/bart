@@ -51,6 +51,14 @@ struct nlop_s* nlop_chain(const struct nlop_s* a, const struct nlop_s* b)
 }
 
 
+struct nlop_s* nlop_chain2(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
+{
+	int II = nlop_get_nr_in_args(a);
+	struct nlop_s* nl = nlop_combine(a, b);
+
+	return nlop_link(nl, o, II + i);
+}
+
 
 
 /*

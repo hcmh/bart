@@ -32,7 +32,7 @@
 #include "misc/debug.h"
 
 #include "noir/model.h"
-#include "noir/nl.h"
+#include "nlops/nlop.h"
 
 #include "recon.h"
 
@@ -101,11 +101,11 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 #ifdef USE_CUDA
 		if (conf->usegpu) {
 
-			noir_forw_coils(noir_get_data(nlop), x + skip, x + skip);
+			noir_forw_coils(nlop, x + skip, x + skip);
 			md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
 		} else
 #endif
-			noir_forw_coils(noir_get_data(nlop), sens, x + skip);
+			noir_forw_coils(nlop, sens, x + skip);
 		fftmod(DIMS, coil_dims, fft_flags, sens, sens);
 	}
 

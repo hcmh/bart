@@ -51,7 +51,9 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 
 
 
-struct noir_data {
+struct noir_op_s {
+
+	INTERFACE(nlop_data_t);
 
 	long dims[DIMS];
 
@@ -74,6 +76,7 @@ struct noir_data {
 };
 
 
+DEF_TYPEID(noir_op_s);
 
 static void noir_calc_weights(const long dims[3], complex float* dst)
 {
@@ -90,7 +93,7 @@ static void noir_calc_weights(const long dims[3], complex float* dst)
 }
 
 
-struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
+static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = conf->use_gpu ? md_alloc_gpu : md_alloc;
@@ -99,7 +102,9 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 	md_alloc_fun_t my_alloc = md_alloc;
 #endif
 
-	PTR_ALLOC(struct noir_data, data);
+	PTR_ALLOC(struct noir_op_s, data);
+	SET_TYPEID(noir_op_s, data);
+
 
 	data->conf = *conf;
 
@@ -201,8 +206,10 @@ struct noir_data* noir_init(const long dims[DIMS], const complex float* mask, co
 }
 
 
-void noir_free(struct noir_data* data)
+static void noir_free(const nlop_data_t* _data)
 {
+	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+
 	md_free(data->tmp);
 
 	linop_free(data->frw);
@@ -214,28 +221,33 @@ void noir_free(struct noir_data* data)
 	xfree(data);
 }
 
-void noir_forw_coils(struct noir_data* data, complex float* dst, const complex float* src)
+void noir_forw_coils(struct nlop_s* op, complex float* dst, const complex float* src)
 {
+	auto data = CAST_DOWN(noir_op_s, nlop_get_data(op));
 	linop_forward_unchecked(data->weights, dst, src);
 }
 
-void noir_back_coils(struct noir_data* data, complex float* dst, const complex float* src)
+void noir_back_coils(struct nlop_s* op, complex float* dst, const complex float* src)
 {
+	auto data = CAST_DOWN(noir_op_s, nlop_get_data(op));
 	linop_adjoint_unchecked(data->weights, dst, src);
 }
 
 
-
-void noir_fun(struct noir_data* data, complex float* dst, const complex float* src)
+static void noir_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {	
+	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
 	nlop_generic_apply_unchecked(data->nl2, 3, (void*[3]){ dst, (void*)(src), (void*)(src + split) });
 }
 
 
-void noir_der(struct noir_data* data, complex float* dst, const complex float* src)
+static void noir_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+
 	long split = md_calc_size(DIMS, data->imgs_dims);
 #if 1
 	auto der1 = nlop_get_derivative(data->nl, 0, 0);
@@ -265,8 +277,10 @@ void noir_der(struct noir_data* data, complex float* dst, const complex float* s
 }
 
 
-void noir_adj(struct noir_data* data, complex float* dst, const complex float* src)
+static void noir_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
 	auto der1 = nlop_get_derivative(data->nl, 0, 0);
@@ -280,6 +294,20 @@ void noir_adj(struct noir_data* data, complex float* dst, const complex float* s
 
 	if (data->conf.rvc)
 		md_zreal(DIMS, data->imgs_dims, dst, dst);
+}
+
+
+
+
+
+struct nlop_s* noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
+{
+	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
+
+	long idims[DIMS];
+	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG|CSHIFT_FLAG, idims, dims);
+
+	return nlop_create(DIMS, dims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_free);
 }
 
 
