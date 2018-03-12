@@ -68,7 +68,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	long d1[1] = { size };
 	// variable which is optimized by the IRGNM
-	complex float* x = md_alloc_sameplace(1, d1, CFL_SIZE, kspace_data );
+	complex float* x = md_alloc_sameplace(1, d1, CFL_SIZE, kspace_data);
 
 	md_copy(DIMS, imgs_dims, x, img, CFL_SIZE);
 	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
@@ -91,12 +91,12 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nlop,
-			size * 2, (float*) x, NULL,
-			data_size * 2, (const float*) kspace_data );
+			size * 2, (float*)x, NULL,
+			data_size * 2, (const float*)kspace_data);
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
 
-	if (NULL != sens ) {
+	if (NULL != sens) {
 
 #ifdef USE_CUDA
 		if (conf->usegpu) {
@@ -106,6 +106,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 		} else
 #endif
 			noir_forw_coils(nlop, sens, x + skip);
+
 		fftmod(DIMS, coil_dims, fft_flags, sens, sens);
 	}
 
