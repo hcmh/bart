@@ -21,6 +21,7 @@ struct noir_model_conf_s {
 
 extern struct noir_model_conf_s noir_model_conf_defaults;
 
+extern struct nlop_s* noir_create2(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
 extern struct nlop_s* noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
 
 

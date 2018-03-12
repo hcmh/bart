@@ -67,7 +67,7 @@ struct noir_op_s {
 	const struct linop_s* adj;
 
 	const struct nlop_s* nl;
-	const struct nlop_s* nl2;
+	/*const*/ struct nlop_s* nl2;
 
 
 	complex float* tmp;
@@ -205,11 +205,8 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	return PTR_PASS(data);
 }
 
-
-static void noir_free(const nlop_data_t* _data)
+static void noir_free(struct noir_op_s* data)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
-
 	md_free(data->tmp);
 
 	linop_free(data->frw);
@@ -219,6 +216,11 @@ static void noir_free(const nlop_data_t* _data)
 	nlop_free(data->nl);
 
 	xfree(data);
+}
+
+static void noir_del(const nlop_data_t* _data)
+{
+	noir_free(CAST_DOWN(noir_op_s, _data));
 }
 
 void noir_forw_coils(struct nlop_s* op, complex float* dst, const complex float* src)
@@ -298,16 +300,30 @@ static void noir_adj(const nlop_data_t* _data, complex float* dst, const complex
 
 
 
+struct nlop_s* noir_create2(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
+{
+	assert(!conf->noncart);
+	assert(!conf->rvc);
 
+	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
+	struct nlop_s* nlop = data->nl2;
+//	noir_free(data);
+	return nlop;
+}
 
 struct nlop_s* noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
 {
+#if 1
 	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
 
 	long idims[DIMS];
 	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG|CSHIFT_FLAG, idims, dims);
+	idims[COIL_DIM]++; // add image
 
-	return nlop_create(DIMS, dims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_free);
+	return nlop_create(DIMS, dims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_del);
+#else
+	return nlop_flatten(noir_create2(dims, mask, psf, conf));
+#endif
 }
 
 
