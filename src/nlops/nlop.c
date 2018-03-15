@@ -512,3 +512,10 @@ struct nlop_s* nlop_flatten(const struct nlop_s* op)
 }
 
 
+struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
+{
+	auto data = CAST_MAYBE(flatten_s, nlop_get_data(op));
+
+	return (NULL == data) ? NULL : data->op;
+}
+
