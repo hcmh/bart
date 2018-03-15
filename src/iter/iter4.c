@@ -6,6 +6,8 @@
 #include <assert.h>
 
 #include "num/ops.h"
+#include "num/multind.h"
+#include "num/iovec.h"
 
 #include "nlops/nlop.h"
 
@@ -59,6 +61,12 @@ void iter4_irgnm(iter3_conf* _conf,
 		long M, const float* src)
 {
 	struct iter4_nlop_s data = { { &TYPEID(iter4_nlop_s) }, *nlop };
+
+	auto cd = nlop_codomain(nlop);
+	auto dm = nlop_domain(nlop);
+
+	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
+	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
 
 	iter3_irgnm(_conf,
 		(struct iter_op_s){ nlop_for_iter, CAST_UP(&data) },
