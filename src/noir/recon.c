@@ -79,7 +79,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	mconf.noncart = conf->noncart;
 	mconf.fft_flags = fft_flags;
 
-	struct nlop_s* nlop = noir_create(dims, mask, pattern, &mconf);
+	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
@@ -90,7 +90,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.nlinv_legacy = true;
 
 	iter4_irgnm(CAST_UP(&irgnm_conf),
-			nlop,
+			nl.nlop,
 			size * 2, (float*)x, NULL,
 			data_size * 2, (const float*)kspace_data);
 
@@ -101,16 +101,16 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 #ifdef USE_CUDA
 		if (conf->usegpu) {
 
-			noir_forw_coils(nlop, x + skip, x + skip);
+			noir_forw_coils(nl.linop, x + skip, x + skip);
 			md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
 		} else
 #endif
-			noir_forw_coils(nlop, sens, x + skip);
+			noir_forw_coils(nl.linop, sens, x + skip);
 
 		fftmod(DIMS, coil_dims, fft_flags, sens, sens);
 	}
 
-	nlop_free(nlop);
+	nlop_free(nl.nlop);
 
 	md_free(x);
 }

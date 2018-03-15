@@ -223,16 +223,14 @@ static void noir_del(const nlop_data_t* _data)
 	noir_free(CAST_DOWN(noir_op_s, _data));
 }
 
-void noir_forw_coils(struct nlop_s* op, complex float* dst, const complex float* src)
+void noir_forw_coils(const struct linop_s* op, complex float* dst, const complex float* src)
 {
-	auto data = CAST_DOWN(noir_op_s, nlop_get_data(op));
-	linop_forward_unchecked(data->weights, dst, src);
+	linop_forward_unchecked(op, dst, src);
 }
 
-void noir_back_coils(struct nlop_s* op, complex float* dst, const complex float* src)
+void noir_back_coils(const struct linop_s* op, complex float* dst, const complex float* src)
 {
-	auto data = CAST_DOWN(noir_op_s, nlop_get_data(op));
-	linop_adjoint_unchecked(data->weights, dst, src);
+	linop_adjoint_unchecked(op, dst, src);
 }
 
 
@@ -300,7 +298,7 @@ static void noir_adj(const nlop_data_t* _data, complex float* dst, const complex
 
 
 
-struct nlop_s* noir_create2(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
+struct noir_s noir_create2(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
 {
 	assert(!conf->noncart);
 	assert(!conf->rvc);
@@ -308,10 +306,10 @@ struct nlop_s* noir_create2(const long dims[DIMS], const complex float* mask, co
 	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
 	struct nlop_s* nlop = data->nl2;
 //	noir_free(data);
-	return nlop;
+	return (struct noir_s){ .nlop = nlop, .linop = data->weights };
 }
 
-struct nlop_s* noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
+struct noir_s noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
 {
 #if 1
 	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
@@ -320,9 +318,16 @@ struct nlop_s* noir_create(const long dims[DIMS], const complex float* mask, con
 	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG|CSHIFT_FLAG, idims, dims);
 	idims[COIL_DIM] = dims[COIL_DIM] + 1; // add image
 
-	return nlop_create(DIMS, dims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_del);
+	struct noir_s ret = { .linop = data->weights };
+	ret.nlop = nlop_create(DIMS, dims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_del);
+
+	return ret;
 #else
-	return nlop_flatten(noir_create2(dims, mask, psf, conf));
+	// less efficient than the manuel coded functions
+
+	struct noir_s ret = noir_create2(dims, mask, psf, conf);
+	ret.nlop = nlop_flatten(ret.nlop);
+	return ret;
 #endif
 }
 

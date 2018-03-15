@@ -7,9 +7,9 @@
 
 #include "misc/mri.h"
 
-struct nlop_s;
-extern void noir_forw_coils(struct nlop_s* data, complex float* dst, const complex float* src);
-extern void noir_back_coils(struct nlop_s* data, complex float* dst, const complex float* src);
+struct linop_s;
+extern void noir_forw_coils(const struct linop_s* op, complex float* dst, const complex float* src);
+extern void noir_back_coils(const struct linop_s* op, complex float* dst, const complex float* src);
 
 struct noir_model_conf_s {
 
@@ -21,7 +21,15 @@ struct noir_model_conf_s {
 
 extern struct noir_model_conf_s noir_model_conf_defaults;
 
-extern struct nlop_s* noir_create2(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
-extern struct nlop_s* noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
+struct nlop_s;
+
+struct noir_s {
+
+	struct nlop_s* nlop;
+	const struct linop_s* linop;
+};
+
+extern struct noir_s noir_create2(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
+extern struct noir_s noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
 
 
