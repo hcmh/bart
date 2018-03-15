@@ -318,7 +318,7 @@ struct nlop_s* noir_create(const long dims[DIMS], const complex float* mask, con
 
 	long idims[DIMS];
 	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG|CSHIFT_FLAG, idims, dims);
-	idims[COIL_DIM]++; // add image
+	idims[COIL_DIM] = dims[COIL_DIM] + 1; // add image
 
 	return nlop_create(DIMS, dims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_del);
 #else
