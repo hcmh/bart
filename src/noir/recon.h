@@ -17,6 +17,8 @@ struct noir_conf_s {
 	_Bool noncart;
 	float alpha;
 	float redu;
+	float a;
+	float b;
 };
 
 extern const struct noir_conf_s noir_defaults;
