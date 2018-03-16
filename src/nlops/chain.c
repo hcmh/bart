@@ -53,10 +53,20 @@ struct nlop_s* nlop_chain(const struct nlop_s* a, const struct nlop_s* b)
 
 struct nlop_s* nlop_chain2(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
 {
-	int II = nlop_get_nr_in_args(a);
-	struct nlop_s* nl = nlop_combine(a, b);
+	int ai = nlop_get_nr_in_args(a);
+	int ao = nlop_get_nr_out_args(a);
+	int bi = nlop_get_nr_in_args(b);
+	int bo = nlop_get_nr_out_args(b);
+#if 0
+	if ((1 == ai) && (1 == ao) && (1 == bi) && (1 == bo)) {
 
-	return nlop_link(nl, o, II + i);
+		assert((0 == o) && (0 == i));
+		return nlop_chain(a, b);
+	}
+#endif
+	struct nlop_s* nl = nlop_combine(b, a);
+
+	return nlop_link(nl, ao + o, i);
 }
 
 

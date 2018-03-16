@@ -193,14 +193,11 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	const struct nlop_s* nlw = nlop_from_linop(data->weights);
 
-	data->nl = nlop_combine(data->nl, nlw);
-	data->nl = nlop_link(data->nl, 1, 1);
-
+	data->nl = nlop_chain2(nlw, 0, data->nl, 1);
 
 	const struct nlop_s* frw = nlop_from_linop(data->frw);
 
-	data->nl2 = nlop_combine(frw, data->nl);
-	data->nl2 = nlop_link(data->nl2, 1, 0);
+	data->nl2 = nlop_chain2(data->nl, 0, frw, 0);
 
 	return PTR_PASS(data);
 }
