@@ -167,7 +167,7 @@ MODULES_nufft = -lnoncart -liter -llinops
 MODULES_rof = -liter -llinops
 MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn
 MODULES_sake = -lsake
 MODULES_wave = -liter -lwavelet -llinops -lsense
 MODULES_threshold = -llowrank -liter -ldfwavelet -llinops -lwavelet
@@ -182,6 +182,7 @@ MODULES_kernel = -lrkhs -lnoncart
 MODULES_power = -lrkhs -lnoncart
 MODULES_approx = -lrkhs -lnoncart
 MODULES_kmat = -lrkhs -lnoncart
+MODULES_dcnn = -lnn -llinops
 
 
 MAKEFILES = $(root)/Makefiles/Makefile.*
