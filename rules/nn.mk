@@ -1,4 +1,4 @@
-# Copyright 2017. Martin Uecker.
+# Copyright 2017-2018. Martin Uecker.
 # All rights reserved. Use of this source code is governed by
 # a BSD-style license which can be found in the LICENSE file.
 
@@ -12,4 +12,6 @@ nnobjs := $(nnsrcs:.c=.o)
 
 lib/libnn.a: libnn.a($(nnobjs))
 
+UTARGETS += test_nn
+MODULES_test_nn += -lnn -lnlops -llinops
 
