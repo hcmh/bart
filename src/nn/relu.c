@@ -47,7 +47,7 @@ static void relu_apply(const nlop_data_t* _data, complex float* dst, const compl
 
         md_smax2(d->domain->N, d->domain->dims, d->codomain->strs, (float*)dst, d->tmpdom->strs, (const float*)d->tmp, 0.);
 
-       md_sgreatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->tmpdom->strs, (const float*)d->tmp, 0.);
+	md_sgreatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)dst, d->tmpdom->strs, (const float*)d->tmp, 0.);
 }
 
 
@@ -56,7 +56,6 @@ static void relu_deriv(const nlop_data_t* _data, complex float* dst, const compl
         const struct relu_s* d = CAST_DOWN(relu_s, _data);
 
 	assert(NULL != d->tmp);
-
 
 	md_zrmul2(d->codomain->N, d->domain->dims, d->domain->strs, dst,
 				  d->codomain->strs, src, d->tmpdom->strs, d->tmp);
@@ -100,6 +99,7 @@ const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])
 {
 	long strs[N];
 	md_calc_strides(N, strs, dims, CFL_SIZE);
+
         return nlop_relu_create2(N, dims, strs, strs);
 }
 
