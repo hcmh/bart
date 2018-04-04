@@ -189,7 +189,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	data->tmp = my_alloc(DIMS, data->sign_dims, CFL_SIZE);
 
 
-	data->nl = nlop_tenmul_create(DIMS, data->sign_dims, data->imgs_dims, data->coil_dims);
+	data->nl = nlop_tenmul_create(DIMS, data->sign_dims, data->imgs_dims, data->coil_dims, conf->use_gpu);
 
 	const struct nlop_s* nlw = nlop_from_linop(data->weights);
 

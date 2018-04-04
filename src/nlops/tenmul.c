@@ -100,8 +100,15 @@ static void tenmul_del(const nlop_data_t* _data)
 
 
 struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N],
-		const long istr1[N], const long istr2[N])
+		const long istr1[N], const long istr2[N], bool use_gpu)
 {
+#ifdef USE_CUDA
+	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
+#else
+	assert(!use_gpu);
+	md_alloc_fun_t my_alloc = md_alloc;
+#endif
+
 	PTR_ALLOC(struct tenmul_s, data);
 	SET_TYPEID(tenmul_s, data);
 
@@ -130,8 +137,8 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 	data->dims2 = *PTR_PASS(ndims2);
 	data->istr2 = *PTR_PASS(nistr2);
 
-	data->x1 = md_alloc(N, data->dims1, CFL_SIZE);
-	data->x2 = md_alloc(N, data->dims2, CFL_SIZE);
+	data->x1 = my_alloc(N, data->dims1, CFL_SIZE);
+	data->x2 = my_alloc(N, data->dims2, CFL_SIZE);
 
 	long nl_odims[1][N];
 	md_select_dims(N, md_nontriv_strides(N, ostr), nl_odims[0], dims);
@@ -152,14 +159,14 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 }
 
 
-struct nlop_s* nlop_tenmul_create(int N, const long odim[N], const long idim1[N], const long idim2[N])
+struct nlop_s* nlop_tenmul_create(int N, const long odim[N], const long idim1[N], const long idim2[N], bool use_gpu)
 {
 	long dims[N];
 	md_tenmul_dims(N, dims, odim, idim1, idim2);
 
 	return nlop_tenmul_create2(N, dims, MD_STRIDES(N, odim, CFL_SIZE),
 					MD_STRIDES(N, idim1, CFL_SIZE),
-					MD_STRIDES(N, idim2, CFL_SIZE));
+					MD_STRIDES(N, idim2, CFL_SIZE), use_gpu);
 }
 
 
