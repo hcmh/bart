@@ -22,6 +22,8 @@ struct noir_conf_s {
 	float b;
 	float cgtol;
 	_Bool pattern_for_each_coil;
+	_Bool out_all_steps;
+	_Complex float* out;
 };
 
 extern const struct noir_conf_s noir_defaults;

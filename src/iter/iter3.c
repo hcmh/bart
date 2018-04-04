@@ -16,6 +16,7 @@
 
 #include "misc/types.h"
 #include "misc/misc.h"
+#include "misc/debug.h"
 
 #include "iter/italgos.h"
 #include "iter/vec.h"
@@ -86,7 +87,6 @@ static void inverse(iter_op_data* _data, float alpha, float* dst, const float* s
 			(struct iter_op_s){ normal, CAST_UP(data) }, dst, src, NULL);
 }
 
-
 void iter3_irgnm(iter3_conf* _conf,
 		struct iter_op_s frw,
 		struct iter_op_s der,
@@ -99,6 +99,7 @@ void iter3_irgnm(iter3_conf* _conf,
 
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(M), FL_SIZE, src);
 	struct irgnm_s data = { { &TYPEID(irgnm_s) }, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy };
+
 
 
 	irgnm(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),

@@ -22,6 +22,7 @@
 #include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/debug.h"
+#include "misc/mmio.h"
 
 #include "linops/linop.h"
 #include "linops/someops.h"
@@ -48,12 +49,15 @@
 struct noir_model_conf_s noir_model_conf_defaults = {
 
 	.fft_flags = FFT_FLAGS,
+	.iter = 8,
 	.rvc = false,
 	.use_gpu = false,
 	.noncart = false,
 	.a = 220.,
 	.b = 32.,
 	.pattern_for_each_coil = false,
+	.out_all_steps = false,
+	.out = NULL,
 };
 
 
@@ -192,7 +196,6 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 		md_copy(DIMS, mask_dims, msk, mask, CFL_SIZE);
 	}
 
-//	fftmod(DIMS, data->mask_dims, 7, msk, msk);
 	fftscale(DIMS, mask_dims, FFT_FLAGS, msk, msk);
 
 	const struct linop_s* lop_mask = linop_cdiag_create(DIMS, data->data_dims, FFT_FLAGS, msk);
@@ -319,7 +322,6 @@ struct noir_s noir_create2(const long dims[DIMS], const complex float* mask, con
 
 	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
 	struct nlop_s* nlop = data->nl2;
-//	noir_free(data);
 	return (struct noir_s){ .nlop = nlop, .linop = data->weights };
 }
 
@@ -346,6 +348,51 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 	ret.nlop = nlop_flatten(ret.nlop);
 	return ret;
 #endif
+}
+
+
+void noir_dump(struct noir_s* op, const complex float* img, const complex float* coils)
+{
+	UNUSED(coils);
+	static unsigned int i = 0;
+
+
+	struct noir_op_s* data = op->noir_op;
+	if (NULL == data) {
+		if (0 == i++)
+			debug_printf(DP_INFO, "Cannot dump Newton steps\n");
+		return;
+	}
+
+	if (!data->conf.out_all_steps)
+		return;
+
+	complex float* out = data->conf.out;
+
+	long out_dims[DIMS];
+	md_copy_dims(DIMS, out_dims, data->data_dims);
+	out_dims[COIL_DIM] += 1;
+	long out_single_dims[DIMS];
+	md_copy_dims(DIMS, out_single_dims, out_dims);
+	out_dims[ITER_DIM] = data->conf.iter;
+
+
+	long split = md_calc_size(DIMS, data->imgs_dims);
+	complex float* out_img = out + i*md_calc_size(DIMS, out_single_dims);
+	complex float* out_sens = out + i*md_calc_size(DIMS, out_single_dims) + split;
+
+	complex float* tmp_sens = md_alloc_sameplace(DIMS, data->coil_dims, CFL_SIZE, img);
+
+	md_copy(DIMS, data->imgs_dims, out_img, img, CFL_SIZE);
+	noir_forw_coils(data->weights, tmp_sens, img + split);
+	md_copy(DIMS, data->coil_dims, out_sens, tmp_sens, CFL_SIZE);
+	md_free(tmp_sens);
+
+	fftmod(DIMS, data->coil_dims, data->conf.fft_flags, out_sens, out_sens);
+
+
+
+	i++;
 }
 
 

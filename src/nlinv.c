@@ -72,11 +72,13 @@ int main_nlinv(int argc, char* argv[])
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 	};
 
-	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
-	if (4 == argc)
+	if (argc >= 4)
 		out_sens = true;
 
+	if (argc >= 5)
+		conf.out_all_steps = true;
 
 
 	num_init();
@@ -133,6 +135,18 @@ int main_nlinv(int argc, char* argv[])
 	complex float* mask = NULL;
 
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, sens_dims);
+
+	// outputfile for all steps:
+	complex float* out_all_steps = NULL;
+	long out_all_dims[DIMS];
+	if (conf.out_all_steps) {
+
+		md_copy_dims(DIMS, out_all_dims, ksp_dims);
+		out_all_dims[COIL_DIM] += 1;
+		out_all_dims[ITER_DIM] = conf.iter;
+		out_all_steps = create_cfl(argv[4], DIMS, out_all_dims);
+		conf.out = out_all_steps;
+	}
 
 	// initialization
 	if (NULL != init_file) {
@@ -274,6 +288,10 @@ int main_nlinv(int argc, char* argv[])
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_output_dims, img_output);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
+	if (conf.out_all_steps) {
+
+		unmap_cfl(DIMS, out_all_dims, out_all_steps);
+	}
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
