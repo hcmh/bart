@@ -95,7 +95,6 @@ int main_nlinv(int argc, char* argv[])
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
-
 	complex float* img = create_cfl(argv[2], DIMS, img_dims);
 
 	long msk_dims[DIMS];
@@ -106,6 +105,7 @@ int main_nlinv(int argc, char* argv[])
 
 	complex float* mask = NULL;
 	complex float* norm = md_alloc(DIMS, img_dims, CFL_SIZE);
+
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, ksp_dims);
 
 	// initialization
@@ -172,17 +172,25 @@ int main_nlinv(int argc, char* argv[])
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 	}
 
+	long skip = md_calc_size(DIMS, img_dims);
+	long size = skip + md_calc_size(DIMS, ksp_dims);
+
+	long d1[1] = { size };
+	complex float* ref = md_alloc(1, d1, CFL_SIZE);
+	md_clear(DIMS, img_dims, ref, CFL_SIZE);
+	md_clear(DIMS, ksp_dims, ref + skip, CFL_SIZE);
+
 #ifdef  USE_CUDA
 	if (conf.usegpu) {
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
 
-		noir_recon(&conf, dims, img, sens, pattern, mask, kspace_gpu);
+		noir_recon(&conf, dims, img, sens, ref, pattern, mask, kspace_gpu);
 		md_free(kspace_gpu);
 	} else
 #endif
-	noir_recon(&conf, dims, img, sens, pattern, mask, kspace_data);
+	noir_recon(&conf, dims, img, sens, ref, pattern, mask, kspace_data);
 
 	if (normalize) {
 
