@@ -425,15 +425,24 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 
 		debug_printf(DP_DEBUG3, "#%d: %f\n", i, (double)sqrtf(rsnew));
 
+		if ((i != 0) && (0 == (i % 20))) {
+
+			// restart
+			iter_op_call(linop, r, x);		// r = A x
+			vops->axpy(N, r, l2lambda, x);
+			vops->xpay(N, -1., r, b);	// r = b - r = b - A x
+			vops->copy(N, p, r);		// p = r
+		}
+
 		iter_op_call(linop, Ap, p);	// Ap = A p
 		vops->axpy(N, Ap, l2lambda, p);
 
 		float pAp = (float)vops->dot(N, p, Ap);
 
-		if (0. == pAp)
-			break;
-
 		float alpha = rsold / pAp;
+
+		if (!safe_isfinite(alpha))
+			break;
 
 		vops->axpy(N, x, +alpha, p);
 		vops->axpy(N, r, -alpha, Ap);
