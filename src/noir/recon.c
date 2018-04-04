@@ -63,6 +63,7 @@ const struct noir_conf_s noir_defaults = {
 	.redu = 2.,
 	.a = 220.,
 	.b = 32.,
+	.cgtol = 0.1f,
 	.pattern_for_each_coil = false,
 };
 
@@ -115,7 +116,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.iter = conf->iter;
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
-	irgnm_conf.cgtol = 0.1f;
+	irgnm_conf.cgtol = conf->cgtol;
 	irgnm_conf.nlinv_legacy = true;
 
 	struct nlop_wrapper_s nlw;

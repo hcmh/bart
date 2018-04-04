@@ -19,6 +19,7 @@ struct noir_conf_s {
 	float redu;
 	float a;
 	float b;
+	float cgtol;
 	_Bool pattern_for_each_coil;
 };
 
