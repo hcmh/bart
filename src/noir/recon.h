@@ -34,6 +34,7 @@ struct noir_conf_s {
 	float b;
 	float cgtol;
 	_Bool pattern_for_each_coil;
+	unsigned int algo;
 	_Bool out_im_steps;
 	_Bool out_coils_steps;
 	_Complex float* out_im;

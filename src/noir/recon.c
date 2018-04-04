@@ -77,6 +77,7 @@ const struct noir_conf_s noir_defaults = {
 	.b = 32.,
 	.cgtol = 0.1f,
 	.pattern_for_each_coil = false,
+	.algo = 0,
 	.out_im_steps = false,
 	.out_coils_steps = false,
 	.out_im = NULL,
@@ -170,11 +171,31 @@ void noir_recon(const struct noir_conf_s* conf, struct nufft_conf_s* nufft_conf,
 	nlw.noir = &nl;
 	nlw.split = skip;
 
-	iter4_irgnm(CAST_UP(&irgnm_conf),
-			nl.nlop,
-			size * 2, (float*)x, (const float*)xref,
-			data_size * 2, (const float*)kspace_data,
-			(struct iter_op_s){ callback, CAST_UP(&nlw)});
+	switch(conf->algo) {
+		case 0:
+			debug_printf(DP_DEBUG2, "Using IRGNM\n");
+			iter4_irgnm(CAST_UP(&irgnm_conf),
+					nl.nlop,
+					size * 2, (float*)x, (const float*)xref,
+					data_size * 2, (const float*)kspace_data, (struct iter_op_s){ callback, CAST_UP(&nlw)});
+			break;
+
+		case 1:
+			debug_printf(DP_DEBUG2, "Using Levenberg–Marquardt\n");
+			iter4_levmar(CAST_UP(&irgnm_conf),
+					nl.nlop,
+					size * 2, (float*)x, (const float*)xref,
+					data_size * 2, (const float*)kspace_data, (struct iter_op_s){ callback, CAST_UP(&nlw)});
+			break;
+
+		case 2:
+			debug_printf(DP_DEBUG2, "Using Hybrid\n");
+			iter4_irgnm_levmar_hybrid(CAST_UP(&irgnm_conf),
+					nl.nlop,
+					size * 2, (float*)x, (const float*)xref,
+					data_size * 2, (const float*)kspace_data, (struct iter_op_s){ callback, CAST_UP(&nlw)});
+			break;
+	}
 
 	md_copy(DIMS, conf->dims.img_dims, img, x, CFL_SIZE);
 

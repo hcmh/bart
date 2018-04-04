@@ -526,6 +526,94 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 }
 
 
+
+void levmar(unsigned int iter, float alpha, float redu, long N, long M,
+	   const struct vec_iter_s* vops,
+	   struct iter_op_s op,
+	   struct iter_op_s adj,
+	   struct iter_op_p_s inv,
+	   float* x, const float* xref, const float* y,
+	   struct iter_op_s callback)
+{
+	UNUSED(xref);
+	float* r = vops->allocate(M);
+	float* p = vops->allocate(N);
+	float* h = vops->allocate(N);
+
+	for (unsigned int i = 0; i < iter; i++) {
+
+		//		printf("#--------\n");
+
+		iter_op_call(op, r, x);			// r = F x
+
+		vops->xpay(M, -1., r, y);	// r = y - F x
+
+		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
+
+		iter_op_call(adj, p, r);
+
+		iter_op_p_call(inv, alpha, h, p);
+
+
+		vops->axpy(N, x, 1., h);
+		alpha /= redu;
+		if (NULL != callback.fun)
+			iter_op_call(callback, x, x);
+	}
+
+	vops->del(h);
+	vops->del(p);
+	vops->del(r);
+}
+
+
+
+
+void irgnm_levmar_hybrid(unsigned int iter, float alpha, float redu, long N, long M,
+	    const struct vec_iter_s* vops,
+	    struct iter_op_s op,
+	    struct iter_op_s adj,
+	    struct iter_op_p_s inv,
+	    float* x, const float* xref, const float* y,
+	    struct iter_op_s callback)
+{
+	float* r = vops->allocate(M);
+	float* p = vops->allocate(N);
+	float* h = vops->allocate(N);
+
+	for (unsigned int i = 0; i < iter; i++) {
+
+		//		printf("#--------\n");
+
+		iter_op_call(op, r, x);			// r = F x
+
+		vops->xpay(M, -1., r, y);	// r = y - F x
+
+		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
+
+		iter_op_call(adj, p, r);
+
+		float beta = alpha*(1. - powf(3./4., i));
+
+		if (NULL != xref)
+			vops->axpy(N, p, +beta, xref);
+
+		vops->axpy(N, p, -beta, x);
+
+		iter_op_p_call(inv, alpha, h, p);
+
+		vops->axpy(N, x, 1., h);
+		alpha /= redu;
+		if (NULL != callback.fun)
+			iter_op_call(callback, x, x);
+	}
+
+	vops->del(h);
+	vops->del(p);
+	vops->del(r);
+}
+
+
 /**
  * Projection onto Convex Sets
  *

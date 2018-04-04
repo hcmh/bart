@@ -109,7 +109,54 @@ void iter3_irgnm(iter3_conf* _conf,
 		dst, ref, src,
 		cb);
 	md_free(tmp);
+}
 
+
+void iter3_levmar(iter3_conf* _conf,
+		 struct iter_op_s frw,
+		 struct iter_op_s der,
+		 struct iter_op_s adj,
+		 long N, float* dst, const float* ref,
+		 long M, const float* src,
+		 struct iter_op_s cb)
+{
+	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
+
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(M), FL_SIZE, src);
+	struct irgnm_s data = { { &TYPEID(irgnm_s) }, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy };
+
+
+	levmar(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
+		frw,
+		adj,
+		(struct iter_op_p_s){ inverse, CAST_UP(&data) },
+		dst, ref, src,
+		cb);
+	md_free(tmp);
+
+}
+
+void iter3_irgnm_levmar_hybrid(iter3_conf* _conf,
+		 struct iter_op_s frw,
+		 struct iter_op_s der,
+		 struct iter_op_s adj,
+		 long N, float* dst, const float* ref,
+		 long M, const float* src,
+		 struct iter_op_s cb)
+{
+	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
+
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(M), FL_SIZE, src);
+	struct irgnm_s data = { { &TYPEID(irgnm_s) }, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy };
+
+
+	irgnm_levmar_hybrid(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
+		frw,
+		adj,
+		(struct iter_op_p_s){ inverse, CAST_UP(&data) },
+		dst, ref, src,
+		cb);
+	md_free(tmp);
 }
 
 

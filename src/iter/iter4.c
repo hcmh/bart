@@ -76,6 +76,48 @@ void iter4_irgnm(iter3_conf* _conf,
 		N, dst, ref, M, src, cb);
 }
 
+void iter4_levmar(iter3_conf* _conf,
+		 struct nlop_s* nlop,
+		 long N, float* dst, const float* ref,
+		 long M, const float* src,
+		 struct iter_op_s cb)
+{
+	struct iter4_nlop_s data = { { &TYPEID(iter4_nlop_s) }, *nlop };
+
+	auto cd = nlop_codomain(nlop);
+	auto dm = nlop_domain(nlop);
+
+	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
+	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
+
+	iter3_levmar(_conf,
+		    (struct iter_op_s){ nlop_for_iter, CAST_UP(&data) },
+		    (struct iter_op_s){ nlop_der_iter, CAST_UP(&data) },
+		    (struct iter_op_s){ nlop_adj_iter, CAST_UP(&data) },
+		    N, dst, ref, M, src, cb);
+}
+
+void iter4_irgnm_levmar_hybrid(iter3_conf* _conf,
+		 struct nlop_s* nlop,
+		 long N, float* dst, const float* ref,
+		 long M, const float* src,
+		 struct iter_op_s cb)
+{
+	struct iter4_nlop_s data = { { &TYPEID(iter4_nlop_s) }, *nlop };
+
+	auto cd = nlop_codomain(nlop);
+	auto dm = nlop_domain(nlop);
+
+	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
+	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
+
+	iter3_irgnm_levmar_hybrid(_conf,
+		    (struct iter_op_s){ nlop_for_iter, CAST_UP(&data) },
+		    (struct iter_op_s){ nlop_der_iter, CAST_UP(&data) },
+		    (struct iter_op_s){ nlop_adj_iter, CAST_UP(&data) },
+		    N, dst, ref, M, src, cb);
+}
+
 void iter4_landweber(iter3_conf* _conf,
 		struct nlop_s* nlop,
 		long N, float* dst, const float* ref,

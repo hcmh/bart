@@ -76,6 +76,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_SET('l', &conf.nlinv_legacy, "(use legacy termination criterion)"),
 		OPT_FLOAT('C', &conf.cgtol, "", "(cgtol, default: 0.1f)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
+		OPT_UINT('A', &conf.algo, "algo", "0: IRGNM, 1: LevMar, 2: hybrid"),
 	};
 
 	cmdline(&argc, argv, 2, 5, usage_str, help_str, ARRAY_SIZE(opts), opts);

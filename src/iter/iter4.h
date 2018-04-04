@@ -21,6 +21,8 @@ typedef void iter4_irgnm_f(iter3_conf* _conf,
 		struct iter_op_s cb);
 
 iter4_irgnm_f iter4_irgnm;
+iter4_irgnm_f iter4_levmar;
+iter4_irgnm_f iter4_irgnm_levmar_hybrid;
 iter4_fun_f iter4_landweber;
 
 
