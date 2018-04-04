@@ -48,7 +48,7 @@ const struct noir_conf_s noir_defaults = {
 	.redu = 2.,
 };
 
-void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
+void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -73,6 +73,13 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	md_copy(DIMS, imgs_dims, x, img, CFL_SIZE);
 	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
 
+	complex float* xref = NULL;
+	if (NULL != ref) {
+
+		xref = md_alloc_sameplace(1, d1, CFL_SIZE, kspace_data);
+		md_copy(1, d1, xref, ref, CFL_SIZE);
+	}
+
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = conf->rvc;
 	mconf.use_gpu = conf->usegpu;
@@ -91,7 +98,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
-			size * 2, (float*)x, NULL,
+			size * 2, (float*)x, (const float*)xref,
 			data_size * 2, (const float*)kspace_data);
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
@@ -113,6 +120,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	nlop_free(nl.nlop);
 
 	md_free(x);
+	md_free(xref);
 }
 
 
