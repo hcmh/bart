@@ -1432,6 +1432,32 @@ void md_min2(unsigned int D, const long dims[D], const long ostr[D], float* optr
 }
 
 
+/**
+ * Max of inputs (without strides)
+ *
+ * optr = max(iptr1, iptr2)
+ */
+void md_zmax(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr1, const complex float* iptr2)
+{
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	md_zmax2(D, dims, strs, optr, strs, iptr1, strs, iptr2);
+}
+
+
+/**
+ * Max of inputs (with strides)
+ *
+ * optr = max(iptr1, iptr2)
+ */
+void md_zmax2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
+{
+	MAKE_Z3OP(zmax, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
+}
+
+
+
 
 /**
  * Multiply complex array with a scalar and add to output (without strides)
@@ -1757,6 +1783,29 @@ void md_zcmp(unsigned int D, const long dims[D], complex float* optr, const comp
 	make_z3op_simple(md_zcmp2, D, dims, optr, iptr1, iptr2);
 }
 
+/**
+ * Elementwise less than or equal to (with strides)
+ *
+ * optr = (iptr1 <= iptr2)
+ */
+void md_zlessequal2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
+{
+	MAKE_Z3OP(zle, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
+}
+
+
+
+/**
+ * Elementwise less than or equal to (without strides)
+ *
+ * optr = (iptr1 <= iptr2)
+ */
+void md_zlessequal(unsigned int D, const long dims[D], float* optr, const complex float* iptr1, const complex float* iptr2)
+{
+	make_z3op_simple(md_zlessequal2, D, dims, optr, iptr1, iptr2);
+}
+
+
 
 
 /**
@@ -1809,6 +1858,29 @@ void md_slessequal(unsigned int D, const long dims[D], float* optr, const float*
 }
 
 
+/**
+ * Elementwise greater than or equal to (with strides)
+ *
+ * optr = (iptr1 => iptr2)
+ */
+void md_zgreatequal2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
+{
+	md_zlessequal2(D, dims, ostr, optr, istr2, iptr2, istr1, iptr1);
+}
+
+
+
+/**
+ * Elementwise greater than or equal to (without strides)
+ *
+ * optr = (iptr1 >= iptr2)
+ */
+void md_zgreatequal(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr1, const complex float* iptr2)
+{
+	make_z3op_simple(md_zgreatequal2, D, dims, optr, iptr1, iptr2);
+}
+
+
 
 /**
  * Elementwise greater than or equal to (with strides)
@@ -1857,6 +1929,33 @@ void md_sgreatequal(unsigned int D, const long dims[D], float* optr, const float
 	md_calc_strides(D, strs, dims, FL_SIZE);
 
 	md_sgreatequal2(D, dims, strs, optr, strs, iptr, val);
+}
+
+
+
+/**
+ * Elementwise greater than or equal to scalar (with strides)
+ *
+ * optr = (iptr >= val)
+ */
+void md_zsgreatequal2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr, float val)
+{
+	make_z3op_scalar(md_zgreatequal2, D, dims, ostr, optr, istr, iptr, val);
+}
+
+
+
+/**
+ * Elementwise greater than or equal to scalar (without strides)
+ *
+ * optr = (iptr >= val)
+ */
+void md_zsgreatequal(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr, float val)
+{
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	md_zsgreatequal2(D, dims, strs, optr, strs, iptr, val);
 }
 
 
@@ -3181,6 +3280,24 @@ void md_smax2(unsigned int D, const long dim[D], const long ostr[D], float* optr
 	md_free(tmp);
 #else
 	make_3op_scalar(md_max2, D, dim, ostr, optr, istr, iptr, val);
+#endif
+}
+
+
+/**
+ * Elementwise maximum of input and scalar (with strides)
+ *
+ * optr = max(val, iptr)
+ */
+void md_zsmax2(unsigned int D, const long dim[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr, float val)
+{
+#if 0
+	complex float* tmp = md_alloc_sameplace(D, dim, CFL_SIZE, iptr);
+	md_zsgreatequal2(D, dim, ostr, tmp, istr, iptr, val);
+	md_zmul2(D, dim, ostr, optr, istr, iptr, istr, tmp);
+	md_free(tmp);
+#else
+	make_z3op_scalar(md_zmax2, D, dim, ostr, optr, istr, iptr, val);
 #endif
 }
 

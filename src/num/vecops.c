@@ -328,6 +328,13 @@ static void zabs(long N, complex float* dst, const complex float* src)
 }
 
 
+static void zmax(long N, complex float* dst, const complex float* src1, const complex float* src2)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = (crealf(src1[i]) > crealf(src2[i])) ? src1[i] : src2[i];
+}
+
+
 static void max(long N, float* dst, const float* src1, const float* src2)
 {
 	for (long i = 0; i < N; i++)
@@ -353,6 +360,13 @@ static void vec_sqrt(long N, float* dst, const float* src)
 {
 	for (long i = 0; i < N; i++)
 		dst[i] = sqrtf(src[i]);
+}
+
+
+static void vec_zle(long N, complex float* dst, const complex float* src1, const complex float* src2)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = (crealf(src1[i]) <= crealf(src2[i]));
 }
 
 
@@ -572,6 +586,7 @@ const struct vec_ops cpu_ops = {
 	.pow = vec_pow,
 	.sqrt = vec_sqrt,
 
+	.zle = vec_zle,
 	.le = vec_le,
 
 	.zmul = zmul,
@@ -595,6 +610,8 @@ const struct vec_ops cpu_ops = {
 	.zcmp = zcmp,
 	.zdiv_reg = zdiv_reg,
 	.zfftmod = zfftmod,
+
+	.zmax = zmax,
 
 	.max = max,
 	.min = min,
