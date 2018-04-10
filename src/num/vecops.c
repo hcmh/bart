@@ -1,5 +1,5 @@
-/* Copyright 2013-2017. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+/* Copyright 2013-2018. The Regents of the University of California.
+ * Copyright 2016-2018. Martin Uecker.
  * Copyright 2017. University of Oxford.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
@@ -7,7 +7,7 @@
  * Authors:
  * 2011-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 Frank Ong <frankong@berkeley.edu>
- * 2014-2017 Jon Tamir <jtamir@eecs.berkeley.edu>
+ * 2014-2018 Jon Tamir <jtamir@eecs.berkeley.edu>
  * 2017 Sofia Dimoudi <sofia.dimoudi@cardiov.ox.ac.uk>
  *
  *
@@ -341,6 +341,12 @@ static void max(long N, float* dst, const float* src1, const float* src2)
 		dst[i] = MAX(src1[i], src2[i]);
 }
 
+static void smax(long N, float* dst, const float* src1, const float val)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = MAX(src1[i], val);
+}
+
 
 static void min(long N, float* dst, const float* src1, const float* src2)
 {
@@ -613,6 +619,7 @@ const struct vec_ops cpu_ops = {
 
 	.zmax = zmax,
 
+	.smax = smax,
 	.max = max,
 	.min = min,
 

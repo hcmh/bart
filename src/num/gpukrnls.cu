@@ -1,11 +1,11 @@
-/* Copyright 2013-2017. The Regents of the University of California.
- * Copyright 2017. Martin Uecker.
+/* Copyright 2013-2018. The Regents of the University of California.
+ * Copyright 2017-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012,2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2015,2017 Jon Tamir <jtamir@eecs.berkeley.edu>
+ * 2012-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2015-2018 Jon Tamir <jtamir@eecs.berkeley.edu>
  *
  * 
  * This file defines basic operations on vectors of floats/complex floats
@@ -779,6 +779,22 @@ extern "C" void cuda_zmax(long N, _Complex float* dst, const _Complex float* src
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
+
+__global__ void kern_smax(int N, float* dst, const float* src1, const float val)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = MAX(src1[i], val);
+}
+
+
+extern "C" void cuda_smax(long N, float* dst, const float* src1, const float val)
+{
+	kern_smax<<<gridsize(N), blocksize(N)>>>(N, dst, src1, val);
+}
 
 
 __global__ void kern_max(int N, float* dst, const float* src1, const float* src2)
