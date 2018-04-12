@@ -90,7 +90,7 @@ int main_nlinv(int argc, char* argv[])
 
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|CSHIFT_FLAG|SLICE_FLAG, img_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|CSHIFT_FLAG|SLICE_FLAG|TE_FLAG, img_dims, dims);
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
@@ -104,8 +104,15 @@ int main_nlinv(int argc, char* argv[])
 	long msk_strs[DIMS];
 	md_calc_strides(DIMS, msk_strs, msk_dims, CFL_SIZE);
 
-	complex float* mask = NULL;
+    long norm_dims[DIMS];
+	md_select_dims(DIMS, FFT_FLAGS|CSHIFT_FLAG|SLICE_FLAG, norm_dims, dims);
+    
+	long norm_strs[DIMS];
+	md_calc_strides(DIMS, norm_strs, norm_dims, CFL_SIZE);
+
 	complex float* norm = md_alloc(DIMS, img_dims, CFL_SIZE);
+
+	complex float* mask = NULL;
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, ksp_dims);
 
 	// initialization
@@ -187,7 +194,7 @@ int main_nlinv(int argc, char* argv[])
 	if (normalize) {
 
 		md_zrss(DIMS, ksp_dims, COIL_FLAG, norm, sens);
-                md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, img_strs, norm);
+        md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, norm_strs, norm);
 	}
 
 	if (out_sens) {
