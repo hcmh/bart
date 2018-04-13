@@ -95,6 +95,11 @@ int main_nlinv(int argc, char* argv[])
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
+	long coil_dims[DIMS];
+	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
+
+	long coil_strs[DIMS];
+	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[2], DIMS, img_dims);
 
@@ -113,7 +118,7 @@ int main_nlinv(int argc, char* argv[])
 	complex float* norm = md_alloc(DIMS, img_dims, CFL_SIZE);
 
 	complex float* mask = NULL;
-	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, ksp_dims);
+	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, coil_dims);
 
 	// initialization
 	if (NULL != init_file) {
@@ -130,7 +135,7 @@ int main_nlinv(int argc, char* argv[])
 	} else {
 
 		md_zfill(DIMS, img_dims, img, 1.);
-		md_clear(DIMS, ksp_dims, sens, CFL_SIZE);
+		md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 	}
 
 	complex float* pattern = NULL;
@@ -200,12 +205,12 @@ int main_nlinv(int argc, char* argv[])
 	if (out_sens) {
 
 		long strs[DIMS];
-		md_calc_strides(DIMS, strs, ksp_dims, CFL_SIZE);
+		md_calc_strides(DIMS, strs, coil_dims, CFL_SIZE);
 
 		if (normalize)
-			md_zdiv2(DIMS, ksp_dims, strs, sens, strs, sens, img_strs, norm);
+			md_zdiv2(DIMS, coil_dims, strs, sens, strs, sens, img_strs, norm);
 
-		fftmod(DIMS, ksp_dims, FFT_FLAGS, sens, sens);
+		//fftmod(DIMS, coil_dims, FFT_FLAGS, sens, sens);
 	}
 
 	if (scale_im)
@@ -214,7 +219,7 @@ int main_nlinv(int argc, char* argv[])
 	md_free(norm);
 	md_free(mask);
 
-	unmap_cfl(DIMS, ksp_dims, sens);
+	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_dims, img );
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
