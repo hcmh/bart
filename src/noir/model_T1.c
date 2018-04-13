@@ -21,6 +21,7 @@ s */
 
 #include "misc/misc.h"
 #include "misc/mri.h"
+#include "misc/mmio.h"
 #include "misc/debug.h"
 
 #include "nlops/nlop.h"
@@ -28,6 +29,7 @@ s */
 #include "nlops/cast.h"
 #include "nlops/T1fun.h"
 
+#include "num/multind.h"
 #include "num/flpmath.h"
 
 #include "model_T1.h"
@@ -49,12 +51,12 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	md_select_dims(DIMS, conf->fft_flags, map_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|TE_FLAG, out_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG, in_dims, dims);
-	md_select_dims(DIMS, TE_FLAG, TI_dims, dims);
+	//md_select_dims(DIMS, TE_FLAG, TI_dims, dims);
 
     in_dims[COEFF_DIM] = 3;
 
-	complex float TI[TI_dims[TE_DIM]];
-    *TI = load_cfl("/home/xwang/IR_scripts/TI0", DIMS, TI_dims);
+//	complex float TI[TI_dims[TE_DIM]];
+    complex float* TI = load_cfl("/home/xwang/IR_scripts/TI_index", DIMS, TI_dims);
 
 #if 1 
     // chain T1 model
@@ -68,6 +70,5 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 
 	return ret;
 }
-
 
 

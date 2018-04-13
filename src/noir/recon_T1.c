@@ -48,8 +48,8 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 
 	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
 
-	md_select_dims(DIMS, fft_flags|COEFF_FLAG|CSHIFT_FLAG, imgs_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG, coil_dims, dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, imgs_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG, data_dims, dims);
 	md_select_dims(DIMS, fft_flags|COEFF_FLAG, img1_dims, dims);
 
