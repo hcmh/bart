@@ -52,7 +52,7 @@ int main_nlinv(int argc, char* argv[])
 	const char* init_file = NULL;
 	struct noir_conf_s conf = noir_defaults;
 	struct nufft_conf_s nufft_conf = nufft_conf_defaults;
-	nufft_conf.toeplitz = false;
+// 	nufft_conf.toeplitz = false;
 	bool out_sens = false;
 	bool scale_im = false;
 
@@ -76,7 +76,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_SET('l', &conf.nlinv_legacy, "(use legacy termination criterion)"),
 		OPT_FLOAT('C', &conf.cgtol, "", "(cgtol, default: 0.1f)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
-		OPT_UINT('A', &conf.algo, "algo", "0: IRGNM, 1: LevMar, 2: hybrid"),
+		OPT_UINT('A', &conf.algo, "algo", "0: IRGNM, 1: LevMar, 2: hybrid, 3: altmin"),
 	};
 
 	cmdline(&argc, argv, 2, 5, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -190,6 +190,8 @@ int main_nlinv(int argc, char* argv[])
 
 		md_copy_dims(DIMS, out_im_steps_dims, img_dims);
 		out_im_steps_dims[ITER_DIM] = conf.iter;
+		if (3 == conf.algo)
+			out_im_steps_dims[ITER_DIM] *= 2;
 		conf.out_im = create_cfl(argv[4], DIMS, out_im_steps_dims);
 	}
 
@@ -199,6 +201,8 @@ int main_nlinv(int argc, char* argv[])
 
 		md_copy_dims(DIMS, out_coils_steps_dims, sens_dims);
 		out_coils_steps_dims[ITER_DIM] = conf.iter;
+		if (3 == conf.algo)
+			out_coils_steps_dims[ITER_DIM] *= 2;
 		conf.out_coils = create_cfl(argv[5], DIMS, out_coils_steps_dims);
 	}
 
@@ -289,6 +293,7 @@ int main_nlinv(int argc, char* argv[])
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
+
 
 		noir_recon(&conf, &nufft_conf, img, sens, ref, pattern, mask, kspace_gpu, (NULL == traj_file) ? NULL : traj);
 		md_free(kspace_gpu);

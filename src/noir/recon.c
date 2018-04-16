@@ -35,6 +35,7 @@
 
 #include "noir/model.h"
 #include "nlops/nlop.h"
+#include "nlops/chain.h"
 
 #include "recon.h"
 
@@ -53,6 +54,15 @@ static void callback(iter_op_data* ptr, float* _dst, const float* _src)
 	struct nlop_wrapper_s* nlw = CAST_DOWN(nlop_wrapper_s, ptr);
 	noir_dump(nlw->noir, (const complex float*) _dst, (const complex float*) _dst + nlw->split);
 	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
+}
+
+
+static void nlop_dump(iter_op_data* ptr, int N, float* args[N])
+{
+	assert(2 == N);
+	struct nlop_wrapper_s* nlw = CAST_DOWN(nlop_wrapper_s, ptr);
+	noir_dump(nlw->noir, (const complex float*) args[1], (const complex float*) args[0]);
+	noir_orthogonalize(nlw->noir, (complex float*) args[0]);
 }
 
 
@@ -156,7 +166,11 @@ void noir_recon(const struct noir_conf_s* conf, struct nufft_conf_s* nufft_conf,
 	mconf.out_coils = conf->out_coils;
 
 
-	struct noir_s nl = noir_create(&conf->dims, mask, pattern, traj, nufft_conf, &mconf);
+	struct noir_s nl;
+	if (conf->algo != 3) // not altmin
+		nl = noir_create(&conf->dims, mask, pattern, traj, nufft_conf, &mconf);
+	else
+		nl = noir_create2(&conf->dims, mask, pattern, traj, nufft_conf, &mconf);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
@@ -169,7 +183,10 @@ void noir_recon(const struct noir_conf_s* conf, struct nufft_conf_s* nufft_conf,
 	struct nlop_wrapper_s nlw;
 	SET_TYPEID(nlop_wrapper_s, &nlw);
 	nlw.noir = &nl;
-	nlw.split = skip;
+	if (conf->algo != 3)
+		nlw.split = skip;
+	else
+		nlw.split = -1;
 
 	switch(conf->algo) {
 		case 0:
@@ -195,6 +212,17 @@ void noir_recon(const struct noir_conf_s* conf, struct nufft_conf_s* nufft_conf,
 					size * 2, (float*)x, (const float*)xref,
 					data_size * 2, (const float*)kspace_data, (struct iter_op_s){ callback, CAST_UP(&nlw)});
 			break;
+		case 3:
+			debug_printf(DP_DEBUG2, "Using Alternating Minimization\n");
+			struct nlop_s* nl_perm = nlop_permute_inputs(nl.nlop, 2, (int[2]){(int)1, (int)0});
+			complex float* im = x;
+			complex float* coils = x + skip;
+			iter4_altmin(CAST_UP(&irgnm_conf),
+					nl_perm,
+					2, (float*[2]){(float*) coils, (float*) im},
+					data_size * 2, (const float*)kspace_data, (struct iter_nlop_s){ nlop_dump, CAST_UP(&nlw)});
+			nlop_free(nl_perm);
+			break;
 	}
 
 	md_copy(DIMS, conf->dims.img_dims, img, x, CFL_SIZE);
@@ -210,7 +238,7 @@ void noir_recon(const struct noir_conf_s* conf, struct nufft_conf_s* nufft_conf,
 #endif
 			noir_forw_coils(nl.linop, sens, x + skip);
 
-		if (NULL == conf->dims.traj_dims)
+		if (conf->algo != 3 && NULL == conf->dims.traj_dims)
 			fftmod(DIMS, conf->dims.sens_dims, fft_flags, sens, sens);
 	}
 

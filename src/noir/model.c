@@ -313,7 +313,6 @@ struct noir_s noir_create(const struct noir_dims_s* dims, const complex float* m
 
 void noir_dump(struct noir_s* op, const complex float* img, const complex float* coils)
 {
-	UNUSED(coils);
 	static unsigned int i = 0;
 
 
@@ -321,6 +320,7 @@ void noir_dump(struct noir_s* op, const complex float* img, const complex float*
 	if (NULL == data) {
 		if (0 == i++)
 			debug_printf(DP_INFO, "Cannot dump Newton steps\n");
+
 		return;
 	}
 
@@ -354,7 +354,6 @@ void noir_dump(struct noir_s* op, const complex float* img, const complex float*
 		if (NULL == data->dims->traj_dims)
 			fftmod(DIMS, data->dims->sens_dims, data->conf.fft_flags, out_sens, out_sens);
 	}
-
 
 	i++;
 }
