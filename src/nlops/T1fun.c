@@ -88,6 +88,11 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	
     // Mss -(Mss + scaling_M0*M0).*exp(-t.*scaling_R1s*R1s)
     md_zadd2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->Mss, data->out_strs, dst);
+    
+    static int i = 0;
+    char name[255] = {'\0'};
+    sprintf(name, "/tmp/step_fwd_%02d", i++);
+    dump_cfl(name, data->N, data->out_dims, dst);
 
 }
 
