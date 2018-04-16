@@ -51,10 +51,10 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, imgs_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG, data_dims, dims);
-	md_select_dims(DIMS, fft_flags|COEFF_FLAG, img1_dims, dims);
+	md_select_dims(DIMS, fft_flags, img1_dims, dims);
 
     imgs_dims[COEFF_DIM] = 3;
-    img1_dims[COEFF_DIM] = 3;
+    //img1_dims[COEFF_DIM] = 3;
 
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);

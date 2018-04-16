@@ -94,6 +94,11 @@ int main_mdbT1(int argc, char* argv[])
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
+	long coil_dims[DIMS];
+	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
+
+	long coil_strs[DIMS];
+	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[2], DIMS, img_dims);
 
@@ -105,7 +110,7 @@ int main_mdbT1(int argc, char* argv[])
 
 	complex float* mask = NULL;
 	complex float* norm = md_alloc(DIMS, img_dims, CFL_SIZE);
-	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, ksp_dims);
+	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, coil_dims);
 
 	// initialization
 	if (NULL != init_file) {
@@ -117,12 +122,12 @@ int main_mdbT1(int argc, char* argv[])
 		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
 
 		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
-		fftmod(DIMS, ksp_dims, FFT_FLAGS|SLICE_FLAG, sens, init + skip);
+		fftmod(DIMS, coil_dims, FFT_FLAGS|SLICE_FLAG, sens, init + skip);
 
 	} else {
 
 		md_zfill(DIMS, img_dims, img, 1.);
-		md_clear(DIMS, ksp_dims, sens, CFL_SIZE);
+		md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 	}
 
 	complex float* pattern = NULL;
@@ -148,7 +153,7 @@ int main_mdbT1(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-	double scaling = 20000. / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling = 30000. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
 			scaling *= sqrt(ksp_dims[SLICE_DIM]); 
@@ -186,7 +191,7 @@ int main_mdbT1(int argc, char* argv[])
 	if (normalize) {
 
 		md_zrss(DIMS, ksp_dims, COIL_FLAG, norm, sens);
-                md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, img_strs, norm);
+        md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, img_strs, norm);
 	}
 
 	if (out_sens) {
@@ -195,9 +200,9 @@ int main_mdbT1(int argc, char* argv[])
 		md_calc_strides(DIMS, strs, ksp_dims, CFL_SIZE);
 
 		if (normalize)
-			md_zdiv2(DIMS, ksp_dims, strs, sens, strs, sens, img_strs, norm);
+			md_zdiv2(DIMS, coil_dims, strs, sens, strs, sens, img_strs, norm);
 
-		fftmod(DIMS, ksp_dims, FFT_FLAGS, sens, sens);
+		//fftmod(DIMS, coil_dims, FFT_FLAGS, sens, sens);
 	}
 
 	if (scale_im)
@@ -206,7 +211,7 @@ int main_mdbT1(int argc, char* argv[])
 	md_free(norm);
 	md_free(mask);
 
-	unmap_cfl(DIMS, ksp_dims, sens);
+	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_dims, img );
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
