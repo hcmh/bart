@@ -63,8 +63,8 @@ struct nlop_s* nlop_from_linop(const struct linop_s* x)
 	const struct iovec_s* dom = linop_domain(x);
 	const struct iovec_s* cod = linop_codomain(x);
 	
-	return nlop_create2(dom->N, dom->dims, dom->strs,
-			cod->N, cod->dims, cod->strs,
+	return nlop_create2(cod->N, cod->dims, cod->strs,
+			dom->N, dom->dims, dom->strs,
 			CAST_UP(PTR_PASS(data)), lop_fun, lop_fun, lop_adj,
 			lop_norm, lop_inv, lop_del);
 }
