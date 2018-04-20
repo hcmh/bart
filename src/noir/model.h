@@ -29,9 +29,12 @@ struct noir_s {
 
 	struct nlop_s* nlop;
 	const struct linop_s* linop;
+	struct noir_op_s* noir_op;
 };
 
 extern struct noir_s noir_create2(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
 extern struct noir_s noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
 
 
+struct nlop_data_s;
+extern void noir_orthogonalize(struct noir_s* op, complex float* coils);

@@ -37,6 +37,21 @@
 #include "recon.h"
 
 
+struct nlop_wrapper_s {
+	INTERFACE(struct iter_op_data_s);
+	struct noir_s* noir;
+	long split;
+
+};
+DEF_TYPEID(nlop_wrapper_s);
+
+
+static void orthogonalize(iter_op_data* ptr, float* _dst, const float* _src)
+{
+	UNUSED(_src);
+	struct nlop_wrapper_s* nlw = CAST_DOWN(nlop_wrapper_s, ptr);
+	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
+}
 
 const struct noir_conf_s noir_defaults = {
 
@@ -100,10 +115,16 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
 
+	struct nlop_wrapper_s nlw;
+	SET_TYPEID(nlop_wrapper_s, &nlw);
+	nlw.noir = &nl;
+	nlw.split = skip;
+
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
 			size * 2, (float*)x, (const float*)xref,
-			data_size * 2, (const float*)kspace_data);
+			data_size * 2, (const float*)kspace_data,
+			(struct iter_op_s){ orthogonalize, CAST_UP(&nlw)});
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
 
