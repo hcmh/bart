@@ -109,7 +109,8 @@ void iter3_irgnm(iter3_conf* _conf,
 		struct iter_op_s der,
 		struct iter_op_s adj,
 		long N, float* dst, const float* ref,
-		long M, const float* src)
+		long M, const float* src,
+		struct iter_op_s cb)
 {
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
 
@@ -121,7 +122,7 @@ void iter3_irgnm(iter3_conf* _conf,
 		(struct iter_op_s){ adjoint, CAST_UP(&data) },
 		(struct iter_op_p_s){ inverse, CAST_UP(&data) },
 		dst, ref, src,
-		(struct iter_op_s){NULL, NULL});
+		cb);
 
 	md_free(tmp);
 }
