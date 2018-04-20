@@ -66,6 +66,7 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	// chain T1 model
 	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI);
 	nlinv.nlop = nlop_chain2(T1, 0, nlinv.nlop, 0);
+	nlinv.nlop = nlop_permute_inputs(nlinv.nlop, 2, (const int[2]){ 1, 0 });
 #endif
 
 	ret.nlop = nlop_flatten(nlinv.nlop);
