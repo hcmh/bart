@@ -56,8 +56,10 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 	.a = 220.,
 	.b = 32.,
 	.pattern_for_each_coil = false,
-	.out_all_steps = false,
-	.out = NULL,
+	.out_im_steps = false,
+	.out_coils_steps = false,
+	.out_im = NULL,
+	.out_coils = NULL,
 };
 
 
@@ -364,32 +366,35 @@ void noir_dump(struct noir_s* op, const complex float* img, const complex float*
 		return;
 	}
 
-	if (!data->conf.out_all_steps)
-		return;
+	if (data->conf.out_im_steps) {
 
-	complex float* out = data->conf.out;
+		long out_im_dims[DIMS];
+		md_copy_dims(DIMS, out_im_dims, data->imgs_dims);
+		long out_im_single_dims[DIMS];
+		md_copy_dims(DIMS, out_im_single_dims, out_im_dims);
+		out_im_dims[ITER_DIM] = data->conf.iter;
 
-	long out_dims[DIMS];
-	md_copy_dims(DIMS, out_dims, data->data_dims);
-	out_dims[COIL_DIM] += 1;
-	long out_single_dims[DIMS];
-	md_copy_dims(DIMS, out_single_dims, out_dims);
-	out_dims[ITER_DIM] = data->conf.iter;
+		complex float* out_img = data->conf.out_im + i*md_calc_size(DIMS, out_im_single_dims);
 
+		md_copy(DIMS, data->imgs_dims, out_img, img, CFL_SIZE);
+	}
+	if (data->conf.out_coils_steps) {
 
-	long split = md_calc_size(DIMS, data->imgs_dims);
-	complex float* out_img = out + i*md_calc_size(DIMS, out_single_dims);
-	complex float* out_sens = out + i*md_calc_size(DIMS, out_single_dims) + split;
+		long out_coils_dims[DIMS];
+		md_copy_dims(DIMS, out_coils_dims, data->coil_dims);
+		long out_coils_single_dims[DIMS];
+		md_copy_dims(DIMS, out_coils_single_dims, out_coils_dims);
+		out_coils_dims[ITER_DIM] = data->conf.iter;
 
-	complex float* tmp_sens = md_alloc_sameplace(DIMS, data->coil_dims, CFL_SIZE, img);
+		complex float* tmp_sens = md_alloc_sameplace(DIMS, data->coil_dims, CFL_SIZE, coils);
+		complex float* out_sens = data->conf.out_coils + i*md_calc_size(DIMS, out_coils_single_dims);
 
-	md_copy(DIMS, data->imgs_dims, out_img, img, CFL_SIZE);
-	noir_forw_coils(data->weights, tmp_sens, img + split);
-	md_copy(DIMS, data->coil_dims, out_sens, tmp_sens, CFL_SIZE);
-	md_free(tmp_sens);
+		noir_forw_coils(data->weights, tmp_sens, coils);
+		md_copy(DIMS, data->coil_dims, out_sens, tmp_sens, CFL_SIZE);
+		md_free(tmp_sens);
 
-	fftmod(DIMS, data->coil_dims, data->conf.fft_flags, out_sens, out_sens);
-
+		fftmod(DIMS, data->coil_dims, data->conf.fft_flags, out_sens, out_sens);
+	}
 
 
 	i++;

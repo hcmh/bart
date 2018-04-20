@@ -53,6 +53,7 @@ static void callback(iter_op_data* ptr, float* _dst, const float* _src)
 	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
 }
 
+
 const struct noir_conf_s noir_defaults = {
 
 	.iter = 8,
@@ -66,8 +67,10 @@ const struct noir_conf_s noir_defaults = {
 	.b = 32.,
 	.cgtol = 0.1f,
 	.pattern_for_each_coil = false,
-	.out_all_steps = false,
-	.out = NULL,
+	.out_im_steps = false,
+	.out_coils_steps = false,
+	.out_im = NULL,
+	.out_coils = NULL,
 };
 
 void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
@@ -111,8 +114,11 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	mconf.b = conf->b;
 	mconf.pattern_for_each_coil = conf->pattern_for_each_coil;
 	mconf.iter = conf->iter;
-	mconf.out_all_steps = conf->out_all_steps;
-	mconf.out = conf->out;
+	mconf.out_im_steps = conf->out_im_steps;
+	mconf.out_im = conf->out_im;
+	mconf.out_coils_steps = conf->out_coils_steps;
+	mconf.out_coils = conf->out_coils;
+
 
 	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
 
@@ -156,6 +162,3 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	md_free(x);
 	md_free(xref);
 }
-
-
-

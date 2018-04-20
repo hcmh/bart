@@ -21,8 +21,10 @@ struct noir_model_conf_s {
 	float a;
 	float b;
 	_Bool pattern_for_each_coil;
-	_Bool out_all_steps;
-	_Complex float* out;
+	_Bool out_im_steps;
+	_Bool out_coils_steps;
+	_Complex float* out_im;
+	_Complex float* out_coils;
 };
 
 extern struct noir_model_conf_s noir_model_conf_defaults;
