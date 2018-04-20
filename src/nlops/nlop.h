@@ -76,3 +76,6 @@ extern const struct iovec_s* nlop_codomain(const struct nlop_s* op);
 extern struct nlop_s* nlop_flatten(const struct nlop_s* op);
 extern struct nlop_s* nlop_flatten_get_op(struct nlop_s* op);
 
+enum debug_levels;
+extern void nlop_debug(enum debug_levels dl, const struct nlop_s* x);
+
