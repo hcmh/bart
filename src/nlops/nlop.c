@@ -18,7 +18,6 @@
 #include "misc/shrdptr.h"
 #include "misc/misc.h"
 #include "misc/types.h"
-
 #include "misc/debug.h"
 
 #include "nlop.h"
@@ -519,3 +518,26 @@ struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
 	return (NULL == data) ? NULL : data->op;
 }
 
+
+void nlop_debug(enum debug_levels dl, const struct nlop_s* x)
+{
+	int II = nlop_get_nr_in_args(x);
+
+	debug_printf(dl, "NLOP\ninputs: %d\n", II);
+
+	for (int i = 0; i < II; i++) {
+
+		auto io = nlop_generic_domain(x, i);
+		debug_print_dims(dl, io->N, io->dims);
+	}
+
+	int OO = nlop_get_nr_out_args(x);
+
+	debug_printf(dl, "outputs: %d\n", OO);
+
+	for (int o = 0; o < OO; o++) {
+
+		auto io = nlop_generic_codomain(x, o);
+		debug_print_dims(dl, io->N, io->dims);
+	}
+}

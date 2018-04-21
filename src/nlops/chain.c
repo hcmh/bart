@@ -64,6 +64,7 @@ struct nlop_s* nlop_chain2(const struct nlop_s* a, int o, const struct nlop_s* b
 		return nlop_chain(a, b);
 	}
 #endif
+
 	struct nlop_s* nl = nlop_combine(b, a);
 
 	return nlop_link(nl, ao + o, i);
@@ -196,6 +197,34 @@ struct nlop_s* nlop_link(const struct nlop_s* x, int oo, int ii)
 	}
 
 	n->derivative = &(*PTR_PASS(der))[0][0];
+
+	return PTR_PASS(n);
+}
+
+
+
+struct nlop_s* nlop_permute_inputs(const struct nlop_s* x, int I2, const int perm[I2])
+{
+	int II = nlop_get_nr_in_args(x);
+	int OO = nlop_get_nr_out_args(x);
+
+	assert(II == I2);
+
+	PTR_ALLOC(struct nlop_s, n);
+
+	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[II][OO]);
+	n->derivative = &(*der)[0][0];
+
+	for (int i = 0; i < II; i++)
+		for (int o = 0; o < OO; o++)
+			(*der)[i][o] = linop_clone(nlop_get_derivative(x, o, perm[i]));
+
+	int perm2[II + OO];
+
+	for (int i = 0; i < II + OO; i++)
+		perm2[i] = (i < OO) ? i : (OO + perm[i - OO]);
+
+	n->op = operator_permute(operator_ref(x->op), II + OO, perm2);
 
 	return PTR_PASS(n);
 }
