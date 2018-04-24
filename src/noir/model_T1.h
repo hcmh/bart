@@ -14,6 +14,6 @@ struct T1_s {
 };
 
 
-extern struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
+extern struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf);
 
 

@@ -38,7 +38,7 @@ s */
 
 
 
-struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
+struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf)
 {
 	struct noir_s nlinv = noir_create2(dims, mask, psf, conf);
 	struct T1_s ret;
@@ -51,20 +51,13 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	md_select_dims(DIMS, conf->fft_flags, map_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|TE_FLAG, out_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG, in_dims, dims);
+	md_select_dims(DIMS, TE_FLAG, TI_dims, dims);
 
 	in_dims[COEFF_DIM] = 3;
 
-	md_singleton_dims(DIMS, TI_dims);
-	TI_dims[TE_DIM] = 3;
-
-	complex float* TI = md_calloc(DIMS, TI_dims, CFL_SIZE);
-
-	// complex float* TI = load_cfl("/home/xwang/IR_scripts/TI_index", DIMS, TI_dims);
-	assert(TI_dims[TE_DIM] == out_dims[TE_DIM]);
-
 #if 1 
 	// chain T1 model
-	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI);
+	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, conf);
 	nlinv.nlop = nlop_chain2(T1, 0, nlinv.nlop, 0);
 	nlinv.nlop = nlop_permute_inputs(nlinv.nlop, 2, (const int[2]){ 1, 0 });
 #endif

@@ -39,7 +39,7 @@
 
 
 
-void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
+void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* kspace_data )
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -54,7 +54,6 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	md_select_dims(DIMS, fft_flags, img1_dims, dims);
 
     imgs_dims[COEFF_DIM] = 3;
-    //img1_dims[COEFF_DIM] = 3;
 
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);
@@ -74,7 +73,7 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	mconf.fft_flags = fft_flags;
 
 	//struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
-	struct T1_s nl = T1_create(dims, mask, pattern, &mconf);
+	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 

@@ -29,7 +29,7 @@
 
 
 
-static const char usage_str[] = "<kspace> <output> [<sensitivities>]";
+static const char usage_str[] = "<kspace> <TI> <output> [<sensitivities>]";
 static const char help_str[] =
 		"Model-based nonlinear inverse reconstruction\n";
 
@@ -60,7 +60,7 @@ int main_mdbT1(int argc, char* argv[])
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 	};
 
-	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	if (4 == argc)
 		out_sens = true;
@@ -71,6 +71,11 @@ int main_mdbT1(int argc, char* argv[])
 
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
+	
+    long TI_dims[DIMS];
+	complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
+
+	assert(TI_dims[TE_DIM] == ksp_dims[TE_DIM]);
 
 	// SMS
 	if (1 != ksp_dims[SLICE_DIM]) {
@@ -84,7 +89,6 @@ int main_mdbT1(int argc, char* argv[])
 
 	long dims[DIMS];
 	md_copy_dims(DIMS, dims, ksp_dims);
-
 
 	long img_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, img_dims, dims);
@@ -100,7 +104,7 @@ int main_mdbT1(int argc, char* argv[])
 	long coil_strs[DIMS];
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
-	complex float* img = create_cfl(argv[2], DIMS, img_dims);
+	complex float* img = create_cfl(argv[3], DIMS, img_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, dims);
@@ -110,7 +114,7 @@ int main_mdbT1(int argc, char* argv[])
 
 	complex float* mask = NULL;
 	complex float* norm = md_alloc(DIMS, img_dims, CFL_SIZE);
-	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, coil_dims);
+	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[4] : "", DIMS, coil_dims);
 
 	// initialization
 	if (NULL != init_file) {
@@ -126,7 +130,7 @@ int main_mdbT1(int argc, char* argv[])
 
 	} else {
 
-		md_zfill(DIMS, img_dims, img, 1.);
+		md_zfill(DIMS, img_dims, img, 1.0);
 		md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 	}
 
@@ -153,7 +157,7 @@ int main_mdbT1(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-	double scaling = 30000. / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling = 800. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
 			scaling *= sqrt(ksp_dims[SLICE_DIM]); 
@@ -181,12 +185,17 @@ int main_mdbT1(int argc, char* argv[])
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
+		
+        complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
+		md_copy(DIMS, TI_dims, TI_gpu, TI, CFL_SIZE);
 
-		T1_recon(&conf, dims, img, sens, pattern, mask, kspace_gpu);
+		T1_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu);
+
 		md_free(kspace_gpu);
+		md_free(TI_gpu);
 	} else
 #endif
-	T1_recon(&conf, dims, img, sens, pattern, mask, kspace_data);
+	T1_recon(&conf, dims, img, sens, pattern, mask, TI, kspace_data);
 
 	if (normalize) {
 
@@ -215,6 +224,7 @@ int main_mdbT1(int argc, char* argv[])
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_dims, img );
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
+	unmap_cfl(DIMS, TI_dims, TI);
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);

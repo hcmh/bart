@@ -11,6 +11,7 @@
 #include "nlops/nlop.h"
 
 #include "T1fun.h"
+#include "noir/model.h"
 
 
 struct T1_s {
@@ -88,11 +89,6 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	
     // Mss -(Mss + scaling_M0*M0).*exp(-t.*scaling_R1s*R1s)
     md_zadd2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->Mss, data->out_strs, dst);
-    
-    static int i = 0;
-    char name[255] = {'\0'};
-    sprintf(name, "/tmp/step_fwd_%02d", i++);
-    dump_cfl(name, data->N, data->out_dims, dst);
 
 }
 
@@ -228,12 +224,12 @@ static void T1_adj(const nlop_data_t* _data, complex float* dst, const complex f
     md_zconj(data->N, data->out_dims, data->tmp_data, data->tmp_data);
     md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_data, data->out_strs, data->tmp_data, data->out_strs, src);
     
-    // sum (conj(R1s') * src, t)
+    // real(sum (conj(R1s') * src, t)))
     md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE); 
     md_zadd2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->map_strs, data->tmp_map, data->out_strs, data->tmp_data);
-    //md_zreal(data->N, data->map_dims, data->tmp_map, data->tmp_map);
+    md_zreal(data->N, data->map_dims, data->tmp_map, data->tmp_map);
     
-    // dst[2] = sum (conj(R1s') * src, t) 
+    // dst[2] = real(sum (conj(R1s') * src, t)) 
     pos[COEFF_DIM] = 2;
     md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE); 	
 }
@@ -266,8 +262,14 @@ static void T1_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long TI_dims[N], const complex float* TI)
+struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long TI_dims[N], const complex float* TI, const struct noir_model_conf_s* conf)
 {
+#ifdef USE_CUDA
+	md_alloc_fun_t my_alloc = conf->use_gpu ? md_alloc_gpu : md_alloc;
+#else
+	assert(!conf->use_gpu);
+	md_alloc_fun_t my_alloc = md_alloc;
+#endif
 	PTR_ALLOC(struct T1_s, data);
 	SET_TYPEID(T1_s, data);
 
@@ -305,18 +307,17 @@ struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims
     data->TI_strs = *PTR_PASS(ntistr);
     
     data->N = N;
-	data->Mss = md_alloc(N, map_dims, CFL_SIZE);
-	data->M0 = md_alloc(N, map_dims, CFL_SIZE);
-	data->R1s = md_alloc(N, map_dims, CFL_SIZE);
-	data->tmp_map = md_alloc(N, map_dims, CFL_SIZE);
-	data->tmp_ones = md_alloc(N, map_dims, CFL_SIZE);
-	data->tmp_data = md_alloc(N, out_dims, CFL_SIZE);
-	data->TI = md_alloc(N, TI_dims, CFL_SIZE);
+	data->Mss = my_alloc(N, map_dims, CFL_SIZE);
+	data->M0 = my_alloc(N, map_dims, CFL_SIZE);
+	data->R1s = my_alloc(N, map_dims, CFL_SIZE);
+	data->tmp_map = my_alloc(N, map_dims, CFL_SIZE);
+	data->tmp_ones = my_alloc(N, map_dims, CFL_SIZE);
+	data->tmp_data = my_alloc(N, out_dims, CFL_SIZE);
+	data->TI = my_alloc(N, TI_dims, CFL_SIZE);
     md_copy(N, TI_dims, data->TI, TI, CFL_SIZE); 
     
-//    data->TI = load_cfl("/home/xwang/IR_scripts/TI0", N, TI_dims);
     data->scaling_M0 = 2.0;
-    data->scaling_R1s = 1.0;
+    data->scaling_R1s = 1.5;
 	
     return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
 }
