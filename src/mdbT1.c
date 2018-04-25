@@ -91,7 +91,7 @@ int main_mdbT1(int argc, char* argv[])
 	md_copy_dims(DIMS, dims, ksp_dims);
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, img_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|SLICE_FLAG, img_dims, dims);
 
     img_dims[COEFF_DIM] = 3;
 
@@ -99,7 +99,7 @@ int main_mdbT1(int argc, char* argv[])
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
 	long coil_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG, coil_dims, dims);
 
 	long coil_strs[DIMS];
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);

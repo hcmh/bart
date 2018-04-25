@@ -96,7 +96,7 @@ int main_nlinv(int argc, char* argv[])
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
 	long coil_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG, coil_dims, dims);
 
 	long coil_strs[DIMS];
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
