@@ -108,7 +108,6 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	data->conf = *conf;
 
-	md_copy_dims(DIMS, data->dims, dims);
 
 	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG, data->sign_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|MAPS_FLAG, data->coil_dims, dims);
@@ -136,7 +135,12 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 		linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS));
 
 
-	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->sign_dims, conf->fft_flags);
+	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->sign_dims, FFT_FLAGS);
+    
+    if( dims[SLICE_DIM] != 1 ){ //SMS
+            const struct linop_s* tmp_fft = linop_fft_create(DIMS, data->sign_dims, SLICE_FLAG);
+            lop_fft = linop_chain(lop_fft, tmp_fft);
+    }
 
 
 	complex float* ptr = my_alloc(DIMS, ptrn_dims, CFL_SIZE);
