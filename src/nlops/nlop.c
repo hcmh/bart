@@ -270,7 +270,7 @@ const struct nlop_s* nlop_clone(const struct nlop_s* op)
 		for (int o = 0; o < OO; o++)
 			(*nder)[i][o] = linop_clone((*der)[i][o]);
 
-	n->derivative = *PTR_PASS(nder);
+	n->derivative = &(*PTR_PASS(nder))[0][0];
 	return PTR_PASS(n);
 }
 
@@ -511,7 +511,7 @@ struct nlop_s* nlop_flatten(const struct nlop_s* op)
 }
 
 
-struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
+const struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
 {
 	auto data = CAST_MAYBE(flatten_s, nlop_get_data(op));
 

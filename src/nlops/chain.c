@@ -53,10 +53,10 @@ struct nlop_s* nlop_chain(const struct nlop_s* a, const struct nlop_s* b)
 
 struct nlop_s* nlop_chain2(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
 {
-	int ai = nlop_get_nr_in_args(a);
+//	int ai = nlop_get_nr_in_args(a);
 	int ao = nlop_get_nr_out_args(a);
-	int bi = nlop_get_nr_in_args(b);
-	int bo = nlop_get_nr_out_args(b);
+//	int bi = nlop_get_nr_in_args(b);
+//	int bo = nlop_get_nr_out_args(b);
 #if 0
 	if ((1 == ai) && (1 == ao) && (1 == bi) && (1 == bo)) {
 
@@ -133,8 +133,8 @@ struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
 
 	n->op = operator_combi_create(2, (const struct operator_s*[]){ a->op, b->op });
 
-	assert(II == operator_nr_in_args(n->op));
-	assert(OO == operator_nr_out_args(n->op));
+	assert(II == (int)operator_nr_in_args(n->op));
+	assert(OO == (int)operator_nr_out_args(n->op));
 
 	int perm[II + OO];	// ao ai bo bi -> ao bo ai bi
 	int p = 0;
@@ -171,11 +171,11 @@ struct nlop_s* nlop_link(const struct nlop_s* x, int oo, int ii)
 	PTR_ALLOC(struct nlop_s, n);
 	PTR_ALLOC(const struct linop_s*[II - 1][OO - 1], der);
 
-	assert(operator_ioflags(x->op) == ((1 << OO) - 1));
+	assert(operator_ioflags(x->op) == ((1u << OO) - 1));
 
 	n->op = operator_link_create(x->op, oo, OO + ii);
 
-	assert(operator_ioflags(n->op) == ((1 << (OO - 1)) - 1));
+	assert(operator_ioflags(n->op) == ((1u << (OO - 1)) - 1));
 
 	// f(x_1, ..., g(x_n+1, ..., x_n+m), ..., xn)
 
