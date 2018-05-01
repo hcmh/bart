@@ -421,7 +421,7 @@ void print_complex(unsigned int D, const complex float arr[D])
 }
 
 
-unsigned int bitcount(unsigned int flags)
+unsigned int bitcount(unsigned long flags)
 {
 	unsigned int N = 0;
 
