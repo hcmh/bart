@@ -46,13 +46,14 @@
  */
 static complex float* compute_precond(unsigned int N, const long* pre_dims, const long* pre_strs, const long* psf_dims, const long* psf_strs, const complex float* psf, const complex float* linphase)
 {
-	unsigned int ND = N + 1;
+	int ND = N + 1;
+	unsigned long flags = FFT_FLAGS;
 
 	complex float* pre = md_alloc(ND, pre_dims, CFL_SIZE);
 	complex float* psft = md_alloc(ND, psf_dims, CFL_SIZE);
 
 	// Transform psf to image domain
-	ifftuc(ND, psf_dims, FFT_FLAGS, psft, psf);
+	ifftuc(ND, psf_dims, flags, psft, psf);
 
 	// Compensate for linear phase to get cropped psf
 	md_clear(ND, pre_dims, pre, CFL_SIZE);
@@ -61,11 +62,9 @@ static complex float* compute_precond(unsigned int N, const long* pre_dims, cons
         md_free(psft);
         
 	// Transform to Fourier domain
-	fftuc(N, pre_dims, FFT_FLAGS, pre, pre);
+	fftuc(N, pre_dims, flags, pre, pre);
 
-	for(int i = 0; i < md_calc_size( N, pre_dims ); i++)
-		pre[i] = cabsf(pre[i]);
-	
+	md_zabs(N, pre_dims, pre, pre);
 	md_zsadd(N, pre_dims, pre, pre, 1e-3);
 	
 	return pre;
@@ -133,8 +132,8 @@ const struct operator_s* nufft_precond_create(const struct linop_s* nufft_op)
 
 	assert(data->conf.toeplitz);
 
-	unsigned int N = data->N;
-	unsigned int ND = N + 1;
+	int N = data->N;
+	int ND = N + 1;
 
 	pdata->N = N;
 	pdata->cim_dims = *TYPE_ALLOC(long[ND]);
@@ -143,14 +142,14 @@ const struct operator_s* nufft_precond_create(const struct linop_s* nufft_op)
 	pdata->pre_strs = *TYPE_ALLOC(long[ND]);
 
 	md_copy_dims(ND, pdata->cim_dims, data->cim_dims);
-	md_select_dims(ND, FFT_FLAGS, pdata->pre_dims, pdata->cim_dims);
+	md_select_dims(ND, data->flags, pdata->pre_dims, pdata->cim_dims);
 
 	md_calc_strides(ND, pdata->cim_strs, pdata->cim_dims, CFL_SIZE);
 	md_calc_strides(ND, pdata->pre_strs, pdata->pre_dims, CFL_SIZE);
 
 	pdata->pre = compute_precond(pdata->N, pdata->pre_dims, pdata->pre_strs, data->psf_dims, data->psf_strs, data->psf, data->linphase);
 
-	pdata->fft_op = linop_fft_create(pdata->N, pdata->cim_dims, FFT_FLAGS);
+	pdata->fft_op = linop_fft_create(pdata->N, pdata->cim_dims, data->flags);
 
 	const long* cim_dims = pdata->cim_dims;	// need to dereference pdata before PTR_PASS
 

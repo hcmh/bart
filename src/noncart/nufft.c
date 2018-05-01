@@ -55,8 +55,8 @@ static void nufft_apply_normal(const linop_data_t* _data, complex float* dst, co
 
 static void toeplitz_mult(const struct nufft_data* data, complex float* dst, const complex float* src);
 static void toeplitz_mult_pcycle(const struct nufft_data* data, complex float* dst, const complex float* src);
-static complex float* compute_linphases(unsigned int N, long lph_dims[N + 1], const long img_dims[N]);
-static complex float* compute_psf2(unsigned int N, const long psf_dims[N + 1], const long trj_dims[N], const complex float* traj, const complex float* weights);
+static complex float* compute_linphases(int N, long lph_dims[N + 1], const long img_dims[N]);
+static complex float* compute_psf2(int N, const long psf_dims[N + 1], const long trj_dims[N], const complex float* traj, const complex float* weights);
 
 
 /**
@@ -77,12 +77,15 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 	data->N = N;
 	data->traj = traj;
 	data->conf = conf;
+	data->flags = FFT_FLAGS;
 
 	data->width = 3.;
 	data->beta = calc_beta(2., data->width);
 
-
-	assert(md_check_compat(N - 3, 0, ksp_dims + 3, cim_dims + 3));
+	// dim 0 must be transformed (we treat this special in the trajectory)
+	assert(MD_IS_SET(data->flags, 0));
+	assert(md_check_bounds(N, ~data->flags, ksp_dims, cim_dims));
+	assert(md_check_bounds(N, ~data->flags, cim_dims, ksp_dims));
 
 	// extend internal dimensions by one for linear phases
 	unsigned int ND = N + 1;
@@ -119,13 +122,15 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 	data->ksp_dims[N] = 1;
 
 
-	md_select_dims(ND, FFT_FLAGS, data->img_dims, data->cim_dims);
+	md_select_dims(ND, data->flags, data->img_dims, data->cim_dims);
 
-	assert(3 == traj_dims[0]);
-	assert(traj_dims[1] == ksp_dims[1]);
-	assert(traj_dims[2] == ksp_dims[2]);
-	assert(md_check_compat(N - 3, ~0, traj_dims + 3, ksp_dims + 3));
-	assert(md_check_bounds(N - 3, ~0, traj_dims + 3, ksp_dims + 3));
+	assert(bitcount(data->flags) == traj_dims[0]);
+
+	long chk_dims[N];
+	md_select_dims(N, ~data->flags, chk_dims, traj_dims);
+	assert(md_check_compat(N, ~0ul, chk_dims, ksp_dims));
+	assert(md_check_bounds(N, ~0ul, chk_dims, ksp_dims));
+
 
 	md_copy_dims(N, data->trj_dims, traj_dims);
 	data->trj_dims[N] = 1;
@@ -165,19 +170,19 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 		md_zmul2(ND, data->lph_dims, data->lph_strs, linphase, data->lph_strs, linphase, data->img_strs, data->roll);
 
 
-	fftmod(ND, data->lph_dims, FFT_FLAGS, linphase, linphase);
-	fftscale(ND, data->lph_dims, FFT_FLAGS, linphase, linphase);
+	fftmod(ND, data->lph_dims, data->flags, linphase, linphase);
+	fftscale(ND, data->lph_dims, data->flags, linphase, linphase);
 
 	float scale = 1.;
-	for (unsigned int i = 0; i < N; i++)
-		scale *= ((data->lph_dims[i] > 1) && (i < 3)) ? 0.5 : 1.;
+	for (int i = 0; i < (int)N; i++)
+		scale *= ((data->lph_dims[i] > 1) && (MD_IS_SET(data->flags, i))) ? 0.5 : 1.;
 
 	md_zsmul(ND, data->lph_dims, linphase, linphase, scale);
 
 
 	complex float* fftm = md_alloc(ND, data->img_dims, CFL_SIZE);
 	md_zfill(ND, data->img_dims, fftm, 1.);
-	fftmod(ND, data->img_dims, FFT_FLAGS, fftm, fftm);
+	fftmod(ND, data->img_dims, data->flags, fftm, fftm);
 	data->fftmod = fftm;
 
 
@@ -193,9 +198,11 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 
 		debug_printf(DP_DEBUG1, "NUFFT: Toeplitz mode\n");
 
-		md_copy_dims(3, data->psf_dims, data->lph_dims);
-		md_copy_dims(ND - 3, data->psf_dims + 3, data->trj_dims + 3);
-		data->psf_dims[N] = data->lph_dims[N];
+		md_copy_dims(ND, data->psf_dims, data->lph_dims);
+
+		for (int i = 0; i < (int)N; i++)
+			if (!MD_IS_SET(data->flags, i))
+				data->psf_dims[i] = data->trj_dims[i];
 
 		md_calc_strides(ND, data->psf_strs, data->psf_dims, CFL_SIZE);
 		data->psf = compute_psf2(N, data->psf_dims, data->trj_dims, data->traj, data->weights);
@@ -212,20 +219,21 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 	// !
 	md_copy_dims(ND, data->cm2_dims, data->cim_dims);
 
-	for (int i = 0; i < 3; i++)
-		data->cm2_dims[i] = (1 == cim_dims[i]) ? 1 : (2 * cim_dims[i]);
+	for (int i = 0; i < (int)N; i++)
+		if (MD_IS_SET(data->flags, i))
+			data->cm2_dims[i] = (1 == cim_dims[i]) ? 1 : (2 * cim_dims[i]);
 
 
 
 	data->grid = md_alloc(ND, data->cml_dims, CFL_SIZE);
 
-	data->fft_op = linop_fft_create(ND, data->cml_dims, FFT_FLAGS);
+	data->fft_op = linop_fft_create(ND, data->cml_dims, data->flags);
 
 	if (conf.pcycle) {
 
 		debug_printf(DP_DEBUG1, "NUFFT: Pcycle Mode\n");
 		data->cycle = 0;
-		data->cfft_op = linop_fft_create(N, data->cim_dims, FFT_FLAGS);
+		data->cfft_op = linop_fft_create(N, data->cim_dims, data->flags);
 	}
 
 
@@ -236,16 +244,18 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 
 
 
-static complex float* compute_linphases(unsigned int N, long lph_dims[N + 1], const long img_dims[N + 1])
+static complex float* compute_linphases(int N, long lph_dims[N + 1], const long img_dims[N + 1])
 {
-	float shifts[8][3];
+	unsigned long flags = FFT_FLAGS;
+	int T = bitcount(flags);
+	float shifts[1 << T][T];
 
 	int s = 0;
-	for(int i = 0; i < 8; i++) {
+	for(int i = 0; i < (1 << T); i++) {
 
 		bool skip = false;
 
-		for(int j = 0; j < 3; j++) {
+		for(int j = 0; j < T; j++) {
 
 			shifts[s][j] = 0.;
 
@@ -260,21 +270,21 @@ static complex float* compute_linphases(unsigned int N, long lph_dims[N + 1], co
 			s++;
 	}
 
-	unsigned int ND = N + 1;
-	md_select_dims(ND, FFT_FLAGS, lph_dims, img_dims);
-	lph_dims[N + 0] = s;
+	int ND = N + 1;
+	md_select_dims(ND, flags, lph_dims, img_dims);
+	lph_dims[N] = s;
 
 	complex float* linphase = md_alloc(ND, lph_dims, CFL_SIZE);
 
 	for(int i = 0; i < s; i++) {
 
 		float shifts2[ND];
-		for (unsigned int j = 0; j < ND; j++)
+		for (int j = 0; j < ND; j++)
 			shifts2[j] = 0.;
 
-		shifts2[0] = shifts[i][0];
-		shifts2[1] = shifts[i][1];
-		shifts2[2] = shifts[i][2];
+		for (int j = 0, t = 0; j < N; j++)
+			if (MD_IS_SET(flags, j))
+				shifts2[j] = shifts[i][t++];
 
 		linear_phase(ND, img_dims, shifts2, 
 				linphase + i * md_calc_size(ND, img_dims));
@@ -314,9 +324,10 @@ complex float* compute_psf(unsigned int N, const long img2_dims[N], const long t
 }
 
 
-static complex float* compute_psf2(unsigned int N, const long psf_dims[N + 1], const long trj_dims[N + 1], const complex float* traj, const complex float* weights)
+static complex float* compute_psf2(int N, const long psf_dims[N + 1], const long trj_dims[N + 1], const complex float* traj, const complex float* weights)
 {
-	unsigned int ND = N + 1;
+	int ND = N + 1;
+	unsigned long flags = FFT_FLAGS;
 
 	long img_dims[ND];
 	long img_strs[ND];
@@ -331,8 +342,9 @@ static complex float* compute_psf2(unsigned int N, const long psf_dims[N + 1], c
 
 	md_copy_dims(ND, img2_dims, img_dims);
 
-	for (int i = 0; i < 3; i++)
-		img2_dims[i] = (1 == img_dims[i]) ? 1 : (2 * img_dims[i]);
+	for (int i = 0; i < N; i++)
+		if (MD_IS_SET(flags, i))
+			img2_dims[i] = (1 == img_dims[i]) ? 1 : (2 * img_dims[i]);
 
 	md_calc_strides(ND, img2_strs, img2_dims, CFL_SIZE);
 
@@ -342,11 +354,11 @@ static complex float* compute_psf2(unsigned int N, const long psf_dims[N + 1], c
 	complex float* psft = compute_psf(ND, img2_dims, trj_dims, traj2, weights);
 	md_free(traj2);
 
-	fftuc(ND, img2_dims, FFT_FLAGS, psft, psft);
+	fftuc(ND, img2_dims, flags, psft, psft);
 
 	float scale = 1.;
-	for (unsigned int i = 0; i < N; i++)
-		scale *= ((img2_dims[i] > 1) && (i < 3)) ? 4. : 1.;
+	for (int i = 0; i < N; i++)
+		scale *= ((img2_dims[i] > 1) && (MD_IS_SET(flags, i))) ? 4. : 1.;
 
 	md_zsmul(ND, img2_dims, psft, psft, scale);
 
@@ -356,8 +368,8 @@ static complex float* compute_psf2(unsigned int N, const long psf_dims[N + 1], c
 
 	long factors[N];
 
-	for (unsigned int i = 0; i < N; i++)
-		factors[i] = ((img_dims[i] > 1) && (i < 3)) ? 2 : 1;
+	for (int i = 0; i < N; i++)
+		factors[i] = ((img_dims[i] > 1) && (MD_IS_SET(flags, i))) ? 2 : 1;
 
 	md_decompose(N + 0, factors, psf_dims, psf, img2_dims, psft, CFL_SIZE);
 
@@ -432,7 +444,7 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 #endif
 	assert(!data->conf.toeplitz); // if toeplitz linphase has no roll, so would need to be added
 
-	unsigned int ND = data->N + 1;
+	int ND = data->N + 1;
 
 	md_zmul2(ND, data->cml_dims, data->cml_strs, data->grid, data->cim_strs, src, data->lph_strs, data->linphase);
 	linop_forward(data->fft_op, ND, data->cml_dims, data->grid, ND, data->cml_dims, data->grid);
@@ -444,8 +456,8 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 
 	long factors[data->N];
 
-	for (unsigned int i = 0; i < data->N; i++)
-		factors[i] = ((data->img_dims[i] > 1) && (i < 3)) ? 2 : 1;
+	for (int i = 0; i < (int)data->N; i++)
+		factors[i] = ((data->img_dims[i] > 1) && MD_IS_SET(data->flags, i)) ? 2 : 1;
 
 	md_recompose(data->N, factors, data->cm2_dims, gridX, data->cml_dims, data->grid, CFL_SIZE);
 
@@ -466,7 +478,7 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 #ifdef USE_CUDA
 	assert(!cuda_ondevice(src));
 #endif
-	unsigned int ND = data->N + 1;
+	int ND = data->N + 1;
 
 	complex float* gridX = md_calloc(data->N, data->cm2_dims, CFL_SIZE);
 
@@ -485,8 +497,8 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 
 	long factors[data->N];
 
-	for (unsigned int i = 0; i < data->N; i++)
-		factors[i] = ((data->img_dims[i] > 1) && (i < 3)) ? 2 : 1;
+	for (int i = 0; i < (int)data->N; i++)
+		factors[i] = ((data->img_dims[i] > 1) && MD_IS_SET(data->flags, i)) ? 2 : 1;
 
 	md_decompose(data->N, factors, data->cml_dims, data->grid, data->cm2_dims, gridX, CFL_SIZE);
 	md_free(gridX);
@@ -587,16 +599,30 @@ static void toeplitz_mult_pcycle(const struct nufft_data* data, complex float* d
 /**
  * Estimate image dimensions from trajectory
  */
-void estimate_im_dims(unsigned int N, long dims[3], const long tdims[N], const complex float* traj)
+void estimate_im_dims(int N, unsigned long flags, long dims[N], const long tdims[N], const complex float* traj)
 {
-	float max_dims[3] = { 0., 0., 0. };
+	int T = tdims[0];
+
+	assert(T == (int)bitcount(flags));
+
+	float max_dims[T];
+	for (int i = 0; i < T; i++)
+		max_dims[i] = 0.;
 
 	for (long i = 0; i < md_calc_size(N - 1, tdims + 1); i++)
-		for(int j = 0; j < 3; j++)
+		for(int j = 0; j < tdims[0]; j++)
 			max_dims[j] = MAX(cabsf(traj[j + tdims[0] * i]), max_dims[j]);
 
-	for (int j = 0; j < 3; j++)
-		dims[j] = (0. == max_dims[j]) ? 1 : (2 * (long)((2. * max_dims[j] + 1.5) / 2.));
+	for (int j = 0, t = 0; j < N; j++) {
+
+		dims[j] = 1;
+
+		if (MD_IS_SET(flags, j)) {
+
+			dims[t] = (0. == max_dims[t]) ? 1 : (2 * (long)((2. * max_dims[t] + 1.5) / 2.));
+			t++;
+		}
+	}
 }
 
 

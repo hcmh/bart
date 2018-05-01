@@ -101,7 +101,7 @@ int main_nufft(int argc, char* argv[])
 
 		if (0 == md_calc_size(DIMS, coilim_dims)) {
 
-			estimate_im_dims(DIMS, coilim_dims, traj_dims, traj);
+			estimate_im_dims(DIMS, FFT_FLAGS, coilim_dims, traj_dims, traj);
 			debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", coilim_dims[0], coilim_dims[1], coilim_dims[2]);
 		}
 

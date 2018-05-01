@@ -25,11 +25,6 @@ extern struct linop_s* nufft_create(unsigned int N,			///< Number of dimensions
 				    const _Complex float* weights,	///< Weights, ex, density-compensation
 				    struct nufft_conf_s conf);		///< NUFFT configuration
 
-extern void estimate_im_dims(unsigned int N,			///< Number of dimensions
-			     long dims[3],			///< Output estimated image dimensions
-			     const long tdims[__VLA(N)],	///< Trajectory dimesion
-			     const _Complex float* traj);	///< Trajectory
-
 
 extern _Complex float* compute_psf(unsigned int N,
 				   const long img2_dims[__VLA(N)],
@@ -37,6 +32,7 @@ extern _Complex float* compute_psf(unsigned int N,
 				   const complex float* traj,
 				   const complex float* weights);
 
+extern void estimate_im_dims(int N, unsigned long flags, long dims[__VLA(N)], const long tdims[__VLA(N)], const complex float* traj);
 
 #include "misc/cppwrap.h"
 

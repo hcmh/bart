@@ -14,6 +14,7 @@ struct nufft_data {
 	struct nufft_conf_s conf;	///< NUFFT configuration structure
 
 	unsigned int N;			///< Number of dimension
+	unsigned long flags;
 
 	const complex float* linphase;	///< Linear phase for pruned FFT
 	const complex float* traj;	///< Trajectory
