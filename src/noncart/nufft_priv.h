@@ -57,14 +57,6 @@ struct nufft_data {
 
 	const struct linop_s* cfft_op;   ///< Pcycle FFT operator
 	unsigned int cycle;
-	long* rcml_dims;		///< Pcycle Coil + linear phase dimension
-	long* rlph_dims;		///< Pcycle Linear phase dimension
-	long* rpsf_dims;		///< Pcycle Point spread function dimension
-	
-	long* rcml_strs;		
-	long* rlph_strs;		
-	long* rpsf_strs;		
-	
 };
 
 

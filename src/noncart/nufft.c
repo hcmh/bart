@@ -108,12 +108,6 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 	data->psf_strs = *TYPE_ALLOC(long[ND]);
 	data->wgh_strs = *TYPE_ALLOC(long[ND]);
 	
-	data->rlph_dims = *TYPE_ALLOC(long[ND]);
-	data->rpsf_dims = *TYPE_ALLOC(long[ND]);
-	data->rcml_dims = *TYPE_ALLOC(long[ND]);
-	data->rlph_strs = *TYPE_ALLOC(long[ND]);
-	data->rpsf_strs = *TYPE_ALLOC(long[ND]);
-	data->rcml_strs = *TYPE_ALLOC(long[ND]);
 
 	md_copy_dims(N, data->cim_dims, cim_dims);
 	data->cim_dims[N] = 1;
@@ -403,13 +397,6 @@ static void nufft_free_data(const linop_data_t* _data)
 	xfree(data->psf_strs);
 	xfree(data->wgh_strs);
 
-	xfree(data->rlph_dims);
-	xfree(data->rpsf_dims);
-	xfree(data->rcml_dims);
-	xfree(data->rlph_strs);
-	xfree(data->rpsf_strs);
-	xfree(data->rcml_strs);
-
 	xfree(data->cm2_dims);
 
 	md_free(data->grid);
@@ -425,6 +412,7 @@ static void nufft_free_data(const linop_data_t* _data)
 	md_free(data->grid_gpu);
 #endif
 	linop_free(data->fft_op);
+
 	if (data->conf.pcycle)
 		linop_free(data->cfft_op);
 
