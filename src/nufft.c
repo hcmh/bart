@@ -30,7 +30,7 @@
 
 #include "noncart/nufft.h"
 #include "noncart/nudft.h"
-
+#include "noncart/precond.h"
 
 
 static const char usage_str[] = "<traj> <input> <output>";
