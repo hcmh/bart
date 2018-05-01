@@ -55,8 +55,8 @@ static void nufft_apply_normal(const linop_data_t* _data, complex float* dst, co
 
 static void toeplitz_mult(const struct nufft_data* data, complex float* dst, const complex float* src);
 static void toeplitz_mult_pcycle(const struct nufft_data* data, complex float* dst, const complex float* src);
-static complex float* compute_linphases(unsigned int N, long lph_dims[N + 3], const long img_dims[N]);
-static complex float* compute_psf2(unsigned int N, const long psf_dims[N + 3], const long trj_dims[N], const complex float* traj, const complex float* weights);
+static complex float* compute_linphases(unsigned int N, long lph_dims[N + 1], const long img_dims[N]);
+static complex float* compute_psf2(unsigned int N, const long psf_dims[N + 1], const long trj_dims[N], const complex float* traj, const complex float* weights);
 
 
 /**
@@ -81,11 +81,11 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 	data->width = 3.;
 	data->beta = calc_beta(2., data->width);
 
-	// get dims
 
 	assert(md_check_compat(N - 3, 0, ksp_dims + 3, cim_dims + 3));
 
-	unsigned int ND = N + 3;
+	// extend internal dimensions by one for linear phases
+	unsigned int ND = N + 1;
 
 	data->ksp_dims = *TYPE_ALLOC(long[ND]);
 	data->cim_dims = *TYPE_ALLOC(long[ND]);
@@ -112,11 +112,11 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 	data->rpsf_strs = *TYPE_ALLOC(long[ND]);
 	data->rcml_strs = *TYPE_ALLOC(long[ND]);
 
-	md_singleton_dims(ND, data->cim_dims);
-	md_singleton_dims(ND, data->ksp_dims);
-
 	md_copy_dims(N, data->cim_dims, cim_dims);
+	data->cim_dims[N] = 1;
+
 	md_copy_dims(N, data->ksp_dims, ksp_dims);
+	data->ksp_dims[N] = 1;
 
 
 	md_select_dims(ND, FFT_FLAGS, data->img_dims, data->cim_dims);
@@ -127,11 +127,9 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 	assert(md_check_compat(N - 3, ~0, traj_dims + 3, ksp_dims + 3));
 	assert(md_check_bounds(N - 3, ~0, traj_dims + 3, ksp_dims + 3));
 
-	md_singleton_dims(ND, data->trj_dims);
 	md_copy_dims(N, data->trj_dims, traj_dims);
+	data->trj_dims[N] = 1;
 
-
-	// get strides
 
 	md_calc_strides(ND, data->cim_strs, data->cim_dims, CFL_SIZE);
 	md_calc_strides(ND, data->img_strs, data->img_dims, CFL_SIZE);
@@ -143,8 +141,9 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 
 	if (NULL != weights) {
 
-		md_singleton_dims(ND, data->wgh_dims);
 		md_select_dims(N, ~MD_BIT(0), data->wgh_dims, data->trj_dims);
+		data->wgh_dims[N] = 1;
+
 		md_calc_strides(ND, data->wgh_strs, data->wgh_dims, CFL_SIZE);
 
 		complex float* tmp = md_alloc(ND, data->wgh_dims, CFL_SIZE);
@@ -194,13 +193,10 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 
 		debug_printf(DP_DEBUG1, "NUFFT: Toeplitz mode\n");
 
-#if 0
-		md_copy_dims(ND, data->psf_dims, data->lph_dims);
-#else
 		md_copy_dims(3, data->psf_dims, data->lph_dims);
 		md_copy_dims(ND - 3, data->psf_dims + 3, data->trj_dims + 3);
 		data->psf_dims[N] = data->lph_dims[N];
-#endif
+
 		md_calc_strides(ND, data->psf_strs, data->psf_dims, CFL_SIZE);
 		data->psf = compute_psf2(N, data->psf_dims, data->trj_dims, data->traj, data->weights);
 	}
@@ -240,7 +236,7 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 
 
 
-static complex float* compute_linphases(unsigned int N, long lph_dims[N + 3], const long img_dims[N + 3])
+static complex float* compute_linphases(unsigned int N, long lph_dims[N + 1], const long img_dims[N + 1])
 {
 	float shifts[8][3];
 
@@ -264,7 +260,7 @@ static complex float* compute_linphases(unsigned int N, long lph_dims[N + 3], co
 			s++;
 	}
 
-	unsigned int ND = N + 3;
+	unsigned int ND = N + 1;
 	md_select_dims(ND, FFT_FLAGS, lph_dims, img_dims);
 	lph_dims[N + 0] = s;
 
@@ -318,9 +314,9 @@ complex float* compute_psf(unsigned int N, const long img2_dims[N], const long t
 }
 
 
-static complex float* compute_psf2(unsigned int N, const long psf_dims[N + 3], const long trj_dims[N + 3], const complex float* traj, const complex float* weights)
+static complex float* compute_psf2(unsigned int N, const long psf_dims[N + 1], const long trj_dims[N + 1], const complex float* traj, const complex float* weights)
 {
-	unsigned int ND = N + 3;
+	unsigned int ND = N + 1;
 
 	long img_dims[ND];
 	long img_strs[ND];
@@ -436,7 +432,7 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 #endif
 	assert(!data->conf.toeplitz); // if toeplitz linphase has no roll, so would need to be added
 
-	unsigned int ND = data->N + 3;
+	unsigned int ND = data->N + 1;
 
 	md_zmul2(ND, data->cml_dims, data->cml_strs, data->grid, data->cim_strs, src, data->lph_strs, data->linphase);
 	linop_forward(data->fft_op, ND, data->cml_dims, data->grid, ND, data->cml_dims, data->grid);
@@ -470,7 +466,7 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 #ifdef USE_CUDA
 	assert(!cuda_ondevice(src));
 #endif
-	unsigned int ND = data->N + 3;
+	unsigned int ND = data->N + 1;
 
 	complex float* gridX = md_calloc(data->N, data->cm2_dims, CFL_SIZE);
 
@@ -522,7 +518,7 @@ static void nufft_apply_normal(const linop_data_t* _data, complex float* dst, co
 
 	} else {
 
-		complex float* tmp_ksp = md_alloc(data->N + 3, data->ksp_dims, CFL_SIZE);
+		complex float* tmp_ksp = md_alloc(data->N + 1, data->ksp_dims, CFL_SIZE);
 
 		nufft_apply(_data, tmp_ksp, src);
 		nufft_apply_adjoint(_data, dst, tmp_ksp);
@@ -535,7 +531,7 @@ static void nufft_apply_normal(const linop_data_t* _data, complex float* dst, co
 
 static void toeplitz_mult(const struct nufft_data* data, complex float* dst, const complex float* src)
 {
-	unsigned int ND = data->N + 3;
+	unsigned int ND = data->N + 1;
 
 	const complex float* linphase = data->linphase;
 	const complex float* psf = data->psf;

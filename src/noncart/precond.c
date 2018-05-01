@@ -46,7 +46,7 @@
  */
 static complex float* compute_precond(unsigned int N, const long* pre_dims, const long* pre_strs, const long* psf_dims, const long* psf_strs, const complex float* psf, const complex float* linphase)
 {
-	unsigned int ND = N + 3;
+	unsigned int ND = N + 1;
 
 	complex float* pre = md_alloc(ND, pre_dims, CFL_SIZE);
 	complex float* psft = md_alloc(ND, psf_dims, CFL_SIZE);
@@ -134,7 +134,7 @@ const struct operator_s* nufft_precond_create(const struct linop_s* nufft_op)
 	assert(data->conf.toeplitz);
 
 	unsigned int N = data->N;
-	unsigned int ND = N + 3;
+	unsigned int ND = N + 1;
 
 	pdata->N = N;
 	pdata->cim_dims = *TYPE_ALLOC(long[ND]);
