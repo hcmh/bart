@@ -64,7 +64,6 @@ struct noir_op_s {
 
 	long dims[DIMS];
 
-	long sign_dims[DIMS];
 	long data_dims[DIMS];
 	long coil_dims[DIMS];
 	long imgs_dims[DIMS];
@@ -117,9 +116,8 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	md_copy_dims(DIMS, data->dims, dims);
 
-	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|CSHIFT_FLAG, data->sign_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|MAPS_FLAG, data->coil_dims, dims);
-	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG|CSHIFT_FLAG, data->imgs_dims, dims);
+	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG, data->imgs_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG, data->data_dims, dims);
 
 	long mask_dims[DIMS];
@@ -132,12 +130,12 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	unsigned int ptrn_flags;
 	if (!conf->pattern_for_each_coil) {
 
-		md_select_dims(DIMS, conf->fft_flags|CSHIFT_FLAG, ptrn_dims, dims);
-		ptrn_flags = ~(conf->fft_flags|CSHIFT_FLAG);
+		md_select_dims(DIMS, conf->fft_flags, ptrn_dims, dims);
+		ptrn_flags = ~(conf->fft_flags);
 	} else {
 
-		md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|CSHIFT_FLAG, ptrn_dims, dims);
-		ptrn_flags = ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG);
+		md_select_dims(DIMS, conf->fft_flags|COIL_FLAG, ptrn_dims, dims);
+		ptrn_flags = ~(conf->fft_flags|COIL_FLAG);
 	}
 
 
@@ -154,7 +152,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 		linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS));
 
 
-	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->sign_dims, conf->fft_flags);
+	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->data_dims, conf->fft_flags);
 
 
 	complex float* ptr = my_alloc(DIMS, ptrn_dims, CFL_SIZE);
@@ -163,7 +161,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	fftmod(DIMS, ptrn_dims, conf->fft_flags, ptr, ptr);
 
 
-	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG), ptrn_flags, ptr);
+	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG), ptrn_flags, ptr);
 
 	const struct linop_s* lop_adj_pattern;
 
@@ -177,7 +175,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 		md_zfill(DIMS, ptrn_dims, adj_pattern, 1.);
 		fftmod(DIMS, ptrn_dims, conf->fft_flags, adj_pattern, adj_pattern);
 
-		lop_adj_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG), ptrn_flags, adj_pattern);
+		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG), ptrn_flags, adj_pattern);
 	}
 
 
@@ -197,7 +195,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 //	fftmod(DIMS, data->mask_dims, 7, msk, msk);
 	fftscale(DIMS, mask_dims, FFT_FLAGS, msk, msk);
 
-	const struct linop_s* lop_mask = linop_cdiag_create(DIMS, data->sign_dims, FFT_FLAGS, msk);
+	const struct linop_s* lop_mask = linop_cdiag_create(DIMS, data->data_dims, FFT_FLAGS, msk);
 
 	// could be moved to the benning, but see comment below
 	lop_fft = linop_chain(lop_mask, lop_fft);
@@ -205,10 +203,10 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	data->frw = linop_chain(lop_fft, lop_pattern);
 	data->adj = linop_chain(lop_fft, lop_adj_pattern);
 
-	data->tmp = my_alloc(DIMS, data->sign_dims, CFL_SIZE);
+	data->tmp = my_alloc(DIMS, data->data_dims, CFL_SIZE);
 
 
-	data->nl = nlop_tenmul_create(DIMS, data->sign_dims, data->imgs_dims, data->coil_dims);
+	data->nl = nlop_tenmul_create(DIMS, data->data_dims, data->imgs_dims, data->coil_dims);
 
 	const struct nlop_s* nlw = nlop_from_linop(data->weights);
 
@@ -269,15 +267,15 @@ static void noir_der(const nlop_data_t* _data, complex float* dst, const complex
 	auto der1 = nlop_get_derivative(data->nl, 0, 0);
 	auto der2 = nlop_get_derivative(data->nl, 0, 1);
 
-	linop_forward(der1, DIMS, data->sign_dims, data->tmp, DIMS, data->imgs_dims, src);
+	linop_forward(der1, DIMS, data->data_dims, data->tmp, DIMS, data->imgs_dims, src);
 
-	complex float* tmp2 = md_alloc_sameplace(DIMS, data->sign_dims, CFL_SIZE, src);
+	complex float* tmp2 = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, src);
 
-	linop_forward(der2, DIMS, data->sign_dims, tmp2, DIMS, data->coil_dims, src + split);
-	md_zadd(DIMS, data->sign_dims, data->tmp, data->tmp, tmp2);
+	linop_forward(der2, DIMS, data->data_dims, tmp2, DIMS, data->coil_dims, src + split);
+	md_zadd(DIMS, data->data_dims, data->tmp, data->tmp, tmp2);
 	md_free(tmp2);
 
-	linop_forward(data->frw, DIMS, data->data_dims, dst, DIMS, data->sign_dims, data->tmp);
+	linop_forward(data->frw, DIMS, data->data_dims, dst, DIMS, data->data_dims, data->tmp);
 #else
 	auto der1 = nlop_get_derivative(data->nl2, 0, 0);
 	auto der2 = nlop_get_derivative(data->nl2, 0, 1);
@@ -302,11 +300,11 @@ static void noir_adj(const nlop_data_t* _data, complex float* dst, const complex
 	auto der1 = nlop_get_derivative(data->nl, 0, 0);
 	auto der2 = nlop_get_derivative(data->nl, 0, 1);
 
-	linop_adjoint(data->adj, DIMS, data->sign_dims, data->tmp, DIMS, data->data_dims, src);
+	linop_adjoint(data->adj, DIMS, data->data_dims, data->tmp, DIMS, data->data_dims, src);
 
-	linop_adjoint(der2, DIMS, data->coil_dims, dst + split, DIMS, data->sign_dims, data->tmp);
+	linop_adjoint(der2, DIMS, data->coil_dims, dst + split, DIMS, data->data_dims, data->tmp);
 
-	linop_adjoint(der1, DIMS, data->imgs_dims, dst, DIMS, data->sign_dims, data->tmp);
+	linop_adjoint(der1, DIMS, data->imgs_dims, dst, DIMS, data->data_dims, data->tmp);
 
 	if (data->conf.rvc)
 		md_zreal(DIMS, data->imgs_dims, dst, dst);
