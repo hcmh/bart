@@ -37,6 +37,8 @@ struct iter3_irgnm_conf {
 	float cgtol;
 
 	_Bool nlinv_legacy;
+	_Bool fista;
+	_Bool wavelets;
 };
 
 extern DEF_TYPEID(iter3_irgnm_conf);

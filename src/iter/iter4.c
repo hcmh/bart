@@ -4,6 +4,7 @@
  */
 
 #include <assert.h>
+#include <math.h>
 
 #include "num/ops.h"
 #include "num/multind.h"
@@ -12,13 +13,20 @@
 
 #include "nlops/nlop.h"
 
+#include "misc/mri.h"
 #include "misc/misc.h"
 #include "misc/types.h"
 #include "misc/debug.h"
 
 #include "iter/italgos.h"
 #include "iter/vec.h"
+#include "iter/iter.h"
+#include "iter/iter2.h"
 #include "iter/iter3.h"
+#include "iter/prox.h"
+#include "wavelet/wavthresh.h"
+#include "iter/thresh.h"
+#include "num/rand.h"
 
 #include "iter/iter4.h"
 
@@ -166,22 +174,61 @@ static void altmin_normal_img(iter_op_data* _o, float* dst, const float* src)
 
 static void altmin_inverse(iter_op_data* _o, float alpha, float* dst, const float* src, unsigned int i)
 {
-	const struct iter4_altmin_s* nlop = CAST_DOWN(iter4_altmin_s, _o);
+	struct iter4_altmin_s* nlop = CAST_DOWN(iter4_altmin_s, _o);
 
-	long DIMS = 16;
-	long size = 2*md_calc_size(DIMS, nlop_generic_domain(&nlop->nlop, i)->dims);
+	long size = md_calc_size(DIMS, nlop_generic_domain(&nlop->nlop, i)->dims);
 
-	float* AHy = md_alloc_sameplace(1, MD_DIMS(size), FL_SIZE, src);
+	float* AHy = md_alloc_sameplace(1, MD_DIMS(size), CFL_SIZE, src);
 
 	linop_adjoint_unchecked(nlop_get_derivative(&nlop->nlop, 0, i), (complex float*) AHy, (const complex float*) src);
 
 	float eps = nlop->conf.cgtol * md_norm(DIMS, nlop_generic_domain(&nlop->nlop, i)->dims, AHy);
 
-	if (1 == i)
-		conjgrad(nlop->conf.cgiter, alpha, eps, size, select_vecops(src),
-			 (struct iter_op_s){ altmin_normal_img, _o }, dst, AHy, NULL);
+	if (1 == i) {
+		if (nlop->conf.fista) {
+
+			float* tmp = md_alloc_sameplace(1, MD_DIMS(size), CFL_SIZE, src);
+			md_gaussian_rand(1, MD_DIMS(size), (complex float*) tmp);
+			double maxeigen = power(60, 2*size, select_vecops(src), (struct iter_op_s){ altmin_normal_img, _o }, tmp);
+			md_free(tmp);
+
+			double step = fmin(iter_fista_defaults.step / maxeigen, iter_fista_defaults.step); // 0.95f is FISTA standard
+			debug_printf(DP_INFO, "\tFISTA Stepsize: %.2e\n", step);
+
+
+			const struct operator_p_s* prox;
+			if (nlop->conf.wavelets) {
+				// for FISTA
+				bool randshift = true;
+				long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
+				const long* dims = nlop_generic_domain(&nlop->nlop, i)->dims;
+				unsigned int wflags = 0;
+				for (unsigned int i = 0; i < DIMS; i++) {
+					if ((1 < dims[i]) && MD_IS_SET(FFT_FLAGS|SLICE_FLAG, i)) {
+
+						wflags = MD_SET(wflags, i);
+						minsize[i] = MIN(dims[i], 16);
+					}
+				}
+				prox = prox_wavelet_thresh_create(DIMS, dims, wflags, 0L, minsize, alpha, randshift);
+			} else {
+				prox = prox_leastsquares_create(DIMS, nlop_generic_domain(&nlop->nlop, i)->dims, alpha, NULL);
+			}
+
+			fista(4*nlop->conf.cgiter, eps, step,
+				iter_fista_defaults.continuation, iter_fista_defaults.hogwild,
+				2*size, select_vecops(src),
+				(struct iter_op_s){ altmin_normal_img, _o },
+				OPERATOR_P2ITOP(prox),
+				dst, AHy, NULL);
+		} else {
+			conjgrad(nlop->conf.cgiter, alpha, eps, 2*size, select_vecops(src),
+				(struct iter_op_s){ altmin_normal_img, _o }, dst, AHy, NULL);
+		}
+
+	}
 	else
-		conjgrad(nlop->conf.cgiter, alpha, eps, size, select_vecops(src),
+		conjgrad(nlop->conf.cgiter, alpha, eps, 2*size, select_vecops(src),
 			 (struct iter_op_s){ altmin_normal_coils, _o }, dst, AHy, NULL);
 
 	md_free(AHy);

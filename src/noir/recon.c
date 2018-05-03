@@ -92,6 +92,8 @@ const struct noir_conf_s noir_defaults = {
 	.out_coils_steps = false,
 	.out_im = NULL,
 	.out_coils = NULL,
+	.fista = false,
+	.wavelets = false,
 };
 
 
@@ -179,6 +181,8 @@ void noir_recon(const struct noir_conf_s* conf, struct nufft_conf_s* nufft_conf,
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.cgtol = conf->cgtol;
 	irgnm_conf.nlinv_legacy = conf->nlinv_legacy;
+	irgnm_conf.fista = conf->fista;
+	irgnm_conf.wavelets = conf->wavelets;
 
 	struct nlop_wrapper_s nlw;
 	SET_TYPEID(nlop_wrapper_s, &nlw);

@@ -39,6 +39,8 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 	.cgtol = 0.1,
 
 	.nlinv_legacy = false,
+	.fista = false,
+	.wavelets = false,
 };
 
 

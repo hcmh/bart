@@ -39,6 +39,8 @@ struct noir_conf_s {
 	_Bool out_coils_steps;
 	_Complex float* out_im;
 	_Complex float* out_coils;
+	_Bool fista;
+	_Bool wavelets;
 };
 
 
