@@ -351,7 +351,6 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 
 
 
-__attribute__((optimize("-fno-finite-math-only")))
 static void proj(unsigned int D, const long dims[D],
 		 complex float* optr, complex float* v1, complex float* v2)
 {
@@ -364,7 +363,7 @@ static void proj(unsigned int D, const long dims[D],
 
 	complex float v12 = md_zscalar(D, dims, v1, v2) / v22;
 
-	if (!isfinite(crealf(v12)) || !isfinite(cimagf(v12)) ) {
+	if (!safe_isfinite(crealf(v12)) || !safe_isfinite(cimagf(v12)) ) {
 
 		v12 = 0.;
 	}
