@@ -17,11 +17,14 @@ struct noir_conf_s {
 	_Bool noncart;
 	float alpha;
 	float redu;
+	float a;
+	float b;
+	_Bool pattern_for_each_coil;
 };
 
 extern const struct noir_conf_s noir_defaults;
 
-extern void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], _Complex float* img, _Complex float* sens, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data);
+extern void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], _Complex float* img, _Complex float* sens, const _Complex float* ref, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data);
 
 #include "misc/cppwrap.h"
 

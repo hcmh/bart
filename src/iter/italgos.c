@@ -324,6 +324,7 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	}
 
 	debug_printf(DP_DEBUG3, "\n");
+	debug_printf(DP_DEBUG2, "\t\tFISTA iterations: %u\n", itrdata.iter);
 
 	vops->del(o);
 	vops->del(r);
@@ -410,13 +411,15 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 
 	float eps_squared = pow(epsilon, 2.);
 
+
+	unsigned int i = 0;
+
 	if (0. == rsold) {
 
 		debug_printf(DP_DEBUG3, "CG: early out\n");
 		goto cleanup;
 	}
-
-	for (unsigned int i = 0; i < maxiter; i++) {
+	for (i = 0; i < maxiter; i++) {
 
 		iter_monitor(monitor, vops, x);
 
@@ -453,6 +456,7 @@ cleanup:
 	vops->del(Ap);
 	vops->del(p);
 	vops->del(r);
+	debug_printf(DP_DEBUG2, "\t cg: %3d\n", i);
 
 	return sqrtf(rsnew);
 }

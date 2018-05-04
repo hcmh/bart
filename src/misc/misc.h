@@ -81,6 +81,7 @@ extern const char* command_line;
 extern void save_command_line(int argc, char* argv[__VLA(argc)]);
 
 extern _Bool safe_isnanf(float x);
+extern _Bool safe_isfinite(float x);
 
 #include "misc/cppwrap.h"
 

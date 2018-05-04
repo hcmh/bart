@@ -37,6 +37,21 @@
 #include "recon.h"
 
 
+struct nlop_wrapper_s {
+	INTERFACE(struct iter_op_data_s);
+	struct noir_s* noir;
+	long split;
+
+};
+DEF_TYPEID(nlop_wrapper_s);
+
+
+static void orthogonalize(iter_op_data* ptr, float* _dst, const float* _src)
+{
+	UNUSED(_src);
+	struct nlop_wrapper_s* nlw = CAST_DOWN(nlop_wrapper_s, ptr);
+	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
+}
 
 const struct noir_conf_s noir_defaults = {
 
@@ -46,9 +61,12 @@ const struct noir_conf_s noir_defaults = {
 	.noncart = false,
 	.alpha = 1.,
 	.redu = 2.,
+	.a = 220.,
+	.b = 32.,
+	.pattern_for_each_coil = false,
 };
 
-void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
+void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -57,7 +75,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
 
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG, imgs_dims, dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG, imgs_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG, data_dims, dims);
 	md_select_dims(DIMS, fft_flags, img1_dims, dims);
@@ -73,11 +91,22 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	md_copy(DIMS, imgs_dims, x, img, CFL_SIZE);
 	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
 
+	complex float* xref = NULL;
+	if (NULL != ref) {
+
+		xref = md_alloc_sameplace(1, d1, CFL_SIZE, kspace_data);
+		md_copy(1, d1, xref, ref, CFL_SIZE);
+	}
+
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = conf->rvc;
 	mconf.use_gpu = conf->usegpu;
 	mconf.noncart = conf->noncart;
 	mconf.fft_flags = fft_flags;
+	mconf.a = conf->a;
+	mconf.b = conf->b;
+	mconf.pattern_for_each_coil = conf->pattern_for_each_coil;
+
 
 	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
 
@@ -89,10 +118,16 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
 
+	struct nlop_wrapper_s nlw;
+	SET_TYPEID(nlop_wrapper_s, &nlw);
+	nlw.noir = &nl;
+	nlw.split = skip;
+
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
-			size * 2, (float*)x, NULL,
-			data_size * 2, (const float*)kspace_data);
+			size * 2, (float*)x, (const float*)xref,
+			data_size * 2, (const float*)kspace_data,
+			(struct iter_op_s){ orthogonalize, CAST_UP(&nlw)});
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
 
@@ -113,6 +148,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	nlop_free(nl.nlop);
 
 	md_free(x);
+	md_free(xref);
 }
 
 
