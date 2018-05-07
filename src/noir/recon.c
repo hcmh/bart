@@ -48,6 +48,8 @@ const struct noir_conf_s noir_defaults = {
 	.redu = 2.,
 };
 
+
+
 void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
 {
 	long imgs_dims[DIMS];
@@ -91,7 +93,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
-			size * 2, (float*)x, NULL,
+			size * 2, (float*)x, (float*)x,
 			data_size * 2, (const float*)kspace_data);
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
