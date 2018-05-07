@@ -42,6 +42,8 @@
 
 #include "italgos.h"
 
+#define MPI_CGtol
+
 extern inline void iter_op_call(struct iter_op_s op, float* dst, const float* src);
 extern inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src);
 
@@ -296,7 +298,7 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
 
-		iter_op_p_call(thresh, lambda_scale * tau, x, x);
+ 		iter_op_p_call(thresh, lambda_scale * tau, x, x);
 
 		ravine(vops, N, &ra, x, o);	// FISTA
 		iter_op_call(op, r, x);		// r = A x
@@ -416,6 +418,8 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 		goto cleanup;
 	}
 
+    float kappa = 1.0;
+
 	for (unsigned int i = 0; i < maxiter; i++) {
 
 		iter_monitor(monitor, vops, x);
@@ -440,7 +444,12 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 		
 		rsold = rsnew;
 
-		if (rsnew <= eps_squared) {
+        kappa = 1 + beta*kappa;
+#ifdef MPI_CGtol
+		if (sqrt(rsnew / rsnot) <= sqrt(kappa) * 1.0/3.0 * l2lambda) {
+#else
+		if (rsnew <= sqrt(kappa) * eps_squared) {
+#endif
 			//debug_printf(DP_DEBUG3, "%d ", i);
 			break;
 		}
@@ -509,6 +518,59 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 
 	vops->del(h);
 	vops->del(p);
+	vops->del(r);
+}
+
+/**
+* Iteratively Regularized Gauss-Newton Method
+* (Bakushinsky 1993)
+*
+* y = F(x) = F x0 + DF dx + ...
+*
+* IRGNM: DF^H ((y - F x_0) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
+*        DF^H ((y - F x_0)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
+*/
+
+void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_s der,
+	struct iter_op_s adj,
+	struct iter_op_p_s inv,
+	float* x, const float* xref, const float* y,
+	struct iter_op_s callback)
+{
+	//x: N
+	//y: M
+	float* r = vops->allocate(M);
+	float* t = vops->allocate(M);
+	float* p = vops->allocate(N);
+
+	for (unsigned int i = 0; i < iter; i++) {
+		//		printf("#--------\n");
+		iter_op_call(op, r, x);		// r = F x
+
+		vops->xpay(M, -1., r, y);	// r = y - F x
+		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
+		
+		iter_op_call(der, t, x);	// t = DF x
+		vops->axpy(M, r, 1.f, t);   // r = y - F x + DF x
+
+		iter_op_call(adj, p, r);		
+		
+		if (NULL != xref)
+			vops->axpy(N, p, 0.5*alpha, xref);
+
+		iter_op_p_call(inv, alpha, x, p);
+	///	debug_printf(DP_DEBUG2, "\t\tx %f\n", vops->norm(N, x));
+		
+        alpha /= redu;
+		if (NULL != callback.fun){
+			iter_op_call(callback, x, x);
+		}
+	}
+	vops->del(p);
+	vops->del(t);
 	vops->del(r);
 }
 

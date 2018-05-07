@@ -101,6 +101,15 @@ void irgnm(unsigned int iter, float alpha, float redu,
 	float* x, const float* x0, const float* y,
 	struct iter_op_s callback);
 
+void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_s der,
+	struct iter_op_s adj,
+	struct iter_op_p_s inv,
+	float* x, const float* xref, const float* y,
+	struct iter_op_s callback);
+
 void pocs(unsigned int maxiter,
 	unsigned int D, struct iter_op_p_s proj_ops[__VLA(D)],
 	const struct vec_iter_s* vops,
