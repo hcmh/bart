@@ -23,7 +23,7 @@ typedef void iter4_irgnm_f(iter3_conf* _conf,
 
 typedef void iter4_altmin_f(iter3_conf* _conf,
 			struct nlop_s* nlop,
-			long NI, float* dst[NI],
+			long NI, float* dst[NI], const float* ref[NI],
 			long M, const float* src,
 			struct iter_nlop_s cb);
 

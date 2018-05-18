@@ -221,9 +221,11 @@ void noir_recon(const struct noir_conf_s* conf, struct nufft_conf_s* nufft_conf,
 			struct nlop_s* nl_perm = nlop_permute_inputs(nl.nlop, 2, (int[2]){(int)1, (int)0});
 			complex float* im = x;
 			complex float* coils = x + skip;
+			const complex float* iref = xref;
+			const complex float* cref = NULL == xref ? NULL : xref + skip;
 			iter4_altmin(CAST_UP(&irgnm_conf),
 					nl_perm,
-					2, (float*[2]){(float*) coils, (float*) im},
+					2, (float*[2]){(float*) coils, (float*) im}, (const float*[2]){(const float*) cref, (const float*) iref},
 					data_size * 2, (const float*)kspace_data, (struct iter_nlop_s){ nlop_dump, CAST_UP(&nlw)});
 			nlop_free(nl_perm);
 			break;

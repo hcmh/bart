@@ -45,6 +45,8 @@ struct iter4_altmin_s {
 	struct nlop_s nlop;
 
 	struct iter3_irgnm_conf conf;
+
+	const float** ref;
 };
 
 DEF_TYPEID(iter4_altmin_s);
@@ -176,19 +178,24 @@ static void altmin_inverse(iter_op_data* _o, float alpha, float* dst, const floa
 {
 	struct iter4_altmin_s* nlop = CAST_DOWN(iter4_altmin_s, _o);
 
-	long size = md_calc_size(DIMS, nlop_generic_domain(&nlop->nlop, i)->dims);
+	const long* dims = nlop_generic_domain(&nlop->nlop, i)->dims;
+	long size = md_calc_size(DIMS, dims);
 
-	float* AHy = md_alloc_sameplace(1, MD_DIMS(size), CFL_SIZE, src);
+	float* AHy = md_alloc_sameplace(DIMS, dims, CFL_SIZE, src);
+	md_clear(DIMS, dims, AHy, CFL_SIZE);
 
 	linop_adjoint_unchecked(nlop_get_derivative(&nlop->nlop, 0, i), (complex float*) AHy, (const complex float*) src);
 
 	float eps = nlop->conf.cgtol * md_norm(DIMS, nlop_generic_domain(&nlop->nlop, i)->dims, AHy);
 
+	if (NULL != nlop->ref[i])
+		md_zaxpy(DIMS, dims, (complex float*) AHy, alpha, (const complex float*) nlop->ref[i]);
+
 	if (1 == i) {
 		if (nlop->conf.fista) {
 
-			float* tmp = md_alloc_sameplace(1, MD_DIMS(size), CFL_SIZE, src);
-			md_gaussian_rand(1, MD_DIMS(size), (complex float*) tmp);
+			float* tmp = md_alloc_sameplace(DIMS, dims, CFL_SIZE, src);
+			md_gaussian_rand(DIMS, dims, (complex float*) tmp);
 			double maxeigen = power(60, 2*size, select_vecops(src), (struct iter_op_s){ altmin_normal_img, _o }, tmp);
 			md_free(tmp);
 
@@ -212,7 +219,7 @@ static void altmin_inverse(iter_op_data* _o, float alpha, float* dst, const floa
 				}
 				prox = prox_wavelet_thresh_create(DIMS, dims, wflags, 0L, minsize, alpha, randshift);
 			} else {
-				prox = prox_leastsquares_create(DIMS, nlop_generic_domain(&nlop->nlop, i)->dims, alpha, NULL);
+				prox = prox_leastsquares_create(DIMS, dims, alpha, NULL);
 			}
 
 			fista(4*nlop->conf.cgiter, eps, step,
@@ -251,13 +258,13 @@ static void altmin_inverse_img(iter_op_data* _o, float alpha, float* dst, const 
 
 void iter4_altmin(iter3_conf* _conf,
 		struct nlop_s* nlop,
-		long NI, float* dst[NI],
+		long NI, float* dst[NI], const float* ref[NI],
 		long M, const float* src,
 		struct iter_nlop_s cb)
 {
 
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
-	struct iter4_altmin_s data = { { &TYPEID(iter4_altmin_s) }, *nlop, *conf};
+	struct iter4_altmin_s data = { { &TYPEID(iter4_altmin_s) }, *nlop, *conf, ref};
 
 	assert( 2 == NI);
 

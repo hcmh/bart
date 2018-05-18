@@ -347,6 +347,7 @@ int main_nlinv(int argc, char* argv[])
 
 	md_free(mask);
 	md_free(img);
+	md_free(ref);
 
 	unmap_cfl(DIMS, sens_dims, sens);
 	unmap_cfl(DIMS, img_output_dims, img_output);
