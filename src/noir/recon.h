@@ -24,9 +24,22 @@ struct noir_conf_s {
 	_Bool sms;
 };
 
+struct ds_s {
+
+	long dims_full[DIMS];
+	long dims_singleFrame[DIMS];
+	long dims_output[DIMS];
+
+	long strs_full[DIMS];
+	long strs_singleFrame[DIMS];
+	long strs_output[DIMS];
+};
+
 extern const struct noir_conf_s noir_defaults;
 
 extern void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], _Complex float* img, _Complex float* sens, const _Complex float* ref, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data);
+
+extern void ds_init(struct ds_s* dims, size_t size);
 
 #include "misc/cppwrap.h"
 

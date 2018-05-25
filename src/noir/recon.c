@@ -171,5 +171,18 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	md_free(xref);
 }
 
+// Initialize dimensions and strides
+void ds_init(struct ds_s* in, size_t size)
+{
+	md_select_dims(DIMS, ~TIME_FLAG, in->dims_singleFrame, in->dims_full);
+	md_select_dims(DIMS, FFT_FLAGS|SLICE_FLAG, in->dims_output, in->dims_full);
+
+
+	md_calc_strides(DIMS, in->strs_full, in->dims_full, size);
+	md_calc_strides(DIMS, in->strs_singleFrame, in->dims_singleFrame, size);
+	md_calc_strides(DIMS, in->strs_output, in->dims_output, size);
+
+}
+
 
 
