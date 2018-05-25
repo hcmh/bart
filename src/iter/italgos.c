@@ -512,6 +512,7 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 
 		vops->axpy(N, p, -alpha, x);
 
+		vops->clear(N, h);
 		iter_op_p_call(inv, alpha, h, p);
 
 		vops->axpy(N, x, 1., h);
@@ -522,6 +523,60 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 
 	vops->del(h);
 	vops->del(p);
+	vops->del(r);
+}
+
+
+/**
+ * Iteratively Regularized Gauss-Newton Method
+ * (Bakushinsky 1993)
+ *
+ * y = F(x) = F x0 + DF dx + ...
+ *
+ * IRGNM: DF^H ((y - F x_0) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
+ *        DF^H ((y - F x_0)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
+ */
+void irgnm_alternate(unsigned int iter, float alpha, float redu, long N, long M,
+	   const struct vec_iter_s* vops,
+	   struct iter_op_s op,
+	   struct iter_op_s der,
+	   struct iter_op_s adj,
+	   struct iter_op_p_s inv,
+	   float* x, const float* xref, const float* y,
+	   struct iter_op_s callback)
+{
+	float* r = vops->allocate(M);
+	float* t = vops->allocate(M);
+	float* p = vops->allocate(N);
+
+	for (unsigned int i = 0; i < iter; i++) {
+
+		//		printf("#--------\n");
+
+		iter_op_call(op, r, x);			// r = F x
+
+		vops->xpay(M, -1., r, y);	// r = y - F x
+
+		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
+
+		iter_op_call(der, t, x); 	// t = DF x
+
+		vops->add(M, r, r, t); 	// r = y - F x + DF x
+
+		iter_op_call(adj, p, r);	// p = DH^H (y - F x + DF x)
+
+		if (NULL != xref)
+			vops->axpy(N, p, +alpha, xref);
+
+		iter_op_p_call(inv, alpha, x, p);
+
+		alpha /= redu;
+		if (NULL != callback.fun)
+			iter_op_call(callback, x, x);
+	}
+
+	vops->del(p);
+	vops->del(t);
 	vops->del(r);
 }
 
@@ -552,6 +607,7 @@ void levmar(unsigned int iter, float alpha, float redu, long N, long M,
 
 		iter_op_call(adj, p, r);
 
+		vops->clear(N, h);
 		iter_op_p_call(inv, alpha, h, p);
 
 
@@ -563,6 +619,49 @@ void levmar(unsigned int iter, float alpha, float redu, long N, long M,
 
 	vops->del(h);
 	vops->del(p);
+	vops->del(r);
+}
+
+
+void levmar_alternate(unsigned int iter, float alpha, float redu, long N, long M,
+	    const struct vec_iter_s* vops,
+	    struct iter_op_s op,
+	    struct iter_op_s der,
+	    struct iter_op_s adj,
+	    struct iter_op_p_s inv,
+	    float* x, const float* xref, const float* y,
+	    struct iter_op_s callback)
+{
+	UNUSED(xref);
+	float* r = vops->allocate(M);
+	float* t = vops->allocate(M);
+	float* p = vops->allocate(N);
+
+	for (unsigned int i = 0; i < iter; i++) {
+
+		//		printf("#--------\n");
+
+		iter_op_call(op, r, x);			// r = F x
+
+		vops->xpay(M, -1., r, y);	// r = y - F x
+
+		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
+
+		iter_op_call(der, t, x); 	// t = DF x
+
+		vops->axpy(M, r, 1., t); 	// r = y - F x + DF x
+
+		iter_op_call(adj, p, r);
+
+		iter_op_p_call(inv, alpha, x, p);
+
+		alpha /= redu;
+		if (NULL != callback.fun)
+			iter_op_call(callback, x, x);
+	}
+
+	vops->del(p);
+	vops->del(t);
 	vops->del(r);
 }
 
@@ -600,6 +699,7 @@ void irgnm_levmar_hybrid(unsigned int iter, float alpha, float redu, long N, lon
 
 		vops->axpy(N, p, -beta, x);
 
+		vops->clear(N, h);
 		iter_op_p_call(inv, alpha, h, p);
 
 		vops->axpy(N, x, 1., h);
@@ -613,6 +713,53 @@ void irgnm_levmar_hybrid(unsigned int iter, float alpha, float redu, long N, lon
 	vops->del(r);
 }
 
+
+void irgnm_levmar_hybrid_alternate(unsigned int iter, float alpha, float redu, long N, long M,
+			 const struct vec_iter_s* vops,
+			 struct iter_op_s op,
+			 struct iter_op_s der,
+			 struct iter_op_s adj,
+			 struct iter_op_p_s inv,
+			 float* x, const float* xref, const float* y,
+			 struct iter_op_s callback)
+{
+	float* r = vops->allocate(M);
+	float* t = vops->allocate(M);
+	float* p = vops->allocate(N);
+
+
+	for (unsigned int i = 0; i < iter; i++) {
+
+		//		printf("#--------\n");
+
+		iter_op_call(op, r, x);			// r = F x
+
+		vops->xpay(M, -1., r, y);	// r = y - F x
+
+		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
+
+		iter_op_call(der, t, x); 	// t = DF x
+
+		vops->axpy(M, r, 1., t); 	// r = y - F x + DF x
+
+		iter_op_call(adj, p, r);
+
+		float beta = alpha*(1. - powf(3./4., i));
+
+		if (NULL != xref)
+			vops->axpy(N, p, +beta, xref);
+
+		iter_op_p_call(inv, alpha, x, p);
+
+		alpha /= redu;
+		if (NULL != callback.fun)
+			iter_op_call(callback, x, x);
+	}
+
+	vops->del(p);
+	vops->del(t);
+	vops->del(r);
+}
 
 
 

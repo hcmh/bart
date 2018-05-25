@@ -74,8 +74,6 @@ static void inverse(iter_op_data* _data, float alpha, float* dst, const float* s
 {
 	struct irgnm_s* data = CAST_DOWN(irgnm_s, _data);
 
-	md_clear(1, MD_DIMS(data->size), dst, FL_SIZE);
-
         float eps = data->cgtol * md_norm(1, MD_DIMS(data->size), src);
 
 
@@ -88,6 +86,7 @@ static void inverse(iter_op_data* _data, float alpha, float* dst, const float* s
         conjgrad(data->cgiter, alpha, eps, data->size, select_vecops(src),
 			(struct iter_op_s){ normal, CAST_UP(data) }, dst, src, NULL);
 }
+
 
 void iter3_irgnm(iter3_conf* _conf,
 		struct iter_op_s frw,
@@ -104,15 +103,25 @@ void iter3_irgnm(iter3_conf* _conf,
 
 
 
-	irgnm(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
-		frw,
-		adj,
-		(struct iter_op_p_s){ inverse, CAST_UP(&data) },
-		dst, ref, src,
-		cb);
+	if (conf->fista) {
+		debug_printf(DP_INFO, "alternate\n");
+		irgnm_alternate(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
+				frw,
+				der,
+				adj,
+				(struct iter_op_p_s){ inverse, CAST_UP(&data) },
+				dst, ref, src,
+				cb);
+	} else {
+		irgnm(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
+			frw,
+			adj,
+			(struct iter_op_p_s){ inverse, CAST_UP(&data) },
+			dst, ref, src,
+			cb);
+	}
 	md_free(tmp);
 }
-
 
 void iter3_levmar(iter3_conf* _conf,
 		 struct iter_op_s frw,
@@ -128,12 +137,24 @@ void iter3_levmar(iter3_conf* _conf,
 	struct irgnm_s data = { { &TYPEID(irgnm_s) }, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy };
 
 
-	levmar(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
-		frw,
-		adj,
-		(struct iter_op_p_s){ inverse, CAST_UP(&data) },
-		dst, ref, src,
-		cb);
+	if (conf->fista) {
+		debug_printf(DP_INFO, "alternate\n");
+		levmar_alternate(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
+				frw,
+				der,
+				adj,
+				(struct iter_op_p_s){ inverse, CAST_UP(&data) },
+				dst, ref, src,
+					cb);
+	} else {
+		levmar(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
+			frw,
+			adj,
+			(struct iter_op_p_s){ inverse, CAST_UP(&data) },
+			dst, ref, src,
+			cb);
+	}
+
 	md_free(tmp);
 
 }
@@ -152,12 +173,23 @@ void iter3_irgnm_levmar_hybrid(iter3_conf* _conf,
 	struct irgnm_s data = { { &TYPEID(irgnm_s) }, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy };
 
 
-	irgnm_levmar_hybrid(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
-		frw,
-		adj,
-		(struct iter_op_p_s){ inverse, CAST_UP(&data) },
-		dst, ref, src,
-		cb);
+	if (conf->fista) {
+		debug_printf(DP_INFO, "alternate\n");
+		irgnm_levmar_hybrid_alternate(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
+				frw,
+				der,
+				adj,
+				(struct iter_op_p_s){ inverse, CAST_UP(&data) },
+				dst, ref, src,
+				cb);
+	} else {
+		irgnm_levmar_hybrid(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
+			frw,
+			adj,
+			(struct iter_op_p_s){ inverse, CAST_UP(&data) },
+			dst, ref, src,
+			cb);
+	}
 	md_free(tmp);
 }
 

@@ -115,6 +115,17 @@ void irgnm(unsigned int iter, float alpha, float redu,
 	float* x, const float* x0, const float* y,
 	struct iter_op_s callback);
 
+void irgnm_alternate(unsigned int iter, float alpha, float redu,
+	long N, long M,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_s der,
+	struct iter_op_s adj,
+	struct iter_op_p_s inv,
+	float* x, const float* x0, const float* y,
+	struct iter_op_s callback);
+
+
 void levmar(unsigned int iter, float alpha, float redu,
 	long N, long M,
 	const struct vec_iter_s* vops,
@@ -124,10 +135,30 @@ void levmar(unsigned int iter, float alpha, float redu,
 	float* x, const float* x0, const float* y,
 	struct iter_op_s callback);
 
+void levmar_alternate(unsigned int iter, float alpha, float redu,
+	long N, long M,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_s der,
+	struct iter_op_s adj,
+	struct iter_op_p_s inv,
+	float* x, const float* x0, const float* y,
+	struct iter_op_s callback);
+
 void irgnm_levmar_hybrid(unsigned int iter, float alpha, float redu,
 	long N, long M,
 	const struct vec_iter_s* vops,
 	struct iter_op_s op,
+	struct iter_op_s adj,
+	struct iter_op_p_s inv,
+	float* x, const float* x0, const float* y,
+	struct iter_op_s callback);
+
+void irgnm_levmar_hybrid_alternate(unsigned int iter, float alpha, float redu,
+	long N, long M,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_s der,
 	struct iter_op_s adj,
 	struct iter_op_p_s inv,
 	float* x, const float* x0, const float* y,
