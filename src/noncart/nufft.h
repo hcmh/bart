@@ -54,6 +54,10 @@ extern _Complex float* compute_psf(unsigned int N,
 extern void estimate_im_dims(int N, unsigned long flags, long dims[__VLA(N)], const long tdims[__VLA(N)], const complex float* traj);
 
 extern const struct operator_s* nufft_precond_create(const struct linop_s* nufft_op);
+extern void estimate_fast_sq_im_dims(unsigned int N, 		///< Number of dimensions
+			      long dims[3], 			///< Output estimated image dimensions
+			      const long tdims[N], 		///< Trajectory dimesion
+			      const complex float* traj);	///< Trajectory
 
 #include "misc/cppwrap.h"
 
