@@ -25,6 +25,11 @@
 
 #include "noir/recon.h"
 
+#include "noncart/nufft.h"
+
+#include "linops/linop.h"
+
+
 
 
 
@@ -41,16 +46,22 @@ int main_rtnlinv(int argc, char* argv[])
 {
 	double start_time = timestamp();
 
+	struct nufft_conf_s nufft_conf = nufft_conf_defaults;
+	nufft_conf.toeplitz = false;
+
 	bool normalize = true;
 	bool combine = true;
 	unsigned int nmaps = 1;
 	float restrict_fov = -1.;
+	float oversampling = 1.5f;
 	const char* psf = NULL;
 	const char* trajectory = NULL;
 	const char* init_file = NULL;
 	struct noir_conf_s conf = noir_defaults;
 	bool out_sens = false;
 	bool scale_im = false;
+	bool ungridded_data = false;
+
 
 	const struct opt_s opts[] = {
 
@@ -70,6 +81,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
+		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.5]"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -153,6 +165,8 @@ int main_rtnlinv(int argc, char* argv[])
 	complex float* traj = NULL;
 	struct ds_s* traj_s = (struct ds_s*) malloc(sizeof(struct ds_s));
 
+	unsigned int turns = 1;
+
 	if (NULL != psf) {
 
 		complex float* tmp_psf =load_cfl(psf, DIMS, pat_s->dims_full);
@@ -172,10 +186,14 @@ int main_rtnlinv(int argc, char* argv[])
 			conf.noncart = true;
 		}
 
+		turns = pat_s->dims_full[TIME_DIM];
+
 	} else if (NULL != trajectory) {
 
 		traj = load_cfl(trajectory, DIMS, traj_s->dims_full);
 		ds_init(traj_s, CFL_SIZE);
+
+		turns = traj_s->dims_full[TIME_DIM];
 
 	} else {
 
@@ -184,6 +202,60 @@ int main_rtnlinv(int argc, char* argv[])
 		estimate_pattern(DIMS, k_s->dims_full, COIL_FLAG, pattern, kspace_data);
 	}
 
+	// Gridding
+	if (NULL != trajectory) {
+
+		ungridded_data = true;
+		// apply oversampling
+		md_zsmul(DIMS, traj_s->dims_full, traj, traj, oversampling);
+
+		estimate_fast_sq_im_dims(3, sens_s->dims_full, traj_s->dims_full, traj);
+		ds_init(sens_s, CFL_SIZE);
+
+		md_select_dims(DIMS, ~(COIL_FLAG|MAPS_FLAG), pat_s->dims_full, sens_s->dims_full);
+		pat_s->dims_full[TIME_DIM] = turns;
+		ds_init(pat_s, CFL_SIZE);
+
+		// calculate pattern by nufft gridding:
+		// we generate an array of ones, and grid it in the same way we
+		// would grid real data. This pretty picture gets slightly more
+		// complicated when we consider (zero-padded) asymmetric echoes:
+		// Here we do not want ones in the zero-padded beginning.
+		// Therefore, we generate an array of ones ONLY where the
+		// original data is != 0.
+
+		long ones_dims[DIMS];
+		md_copy_dims(DIMS, ones_dims, traj_s->dims_full);
+		ones_dims[READ_DIM] = 1L;
+		complex float* ones = md_alloc(DIMS, ones_dims, CFL_SIZE);
+		md_clear(DIMS, ones_dims, ones, CFL_SIZE);
+
+		complex float* k_dummy = md_alloc(DIMS, ones_dims, CFL_SIZE);
+		md_clear(DIMS, ones_dims, k_dummy, CFL_SIZE);
+
+		// copy k-space data of one coil into k_dummy
+		long pos0[DIMS] = { 0 };
+		md_copy_block(DIMS, pos0, ones_dims, k_dummy, k_s->dims_full, kspace_data, CFL_SIZE);
+
+		// divide kspace-dummy data by itself.
+		// zdiv makes sure that division by zero is set to 0
+		md_zdiv(DIMS, ones_dims, ones, k_dummy, k_dummy);
+
+		const struct linop_s* nufft_op = nufft_create(DIMS, ones_dims, pat_s->dims_full, traj_s->dims_full, traj, NULL, nufft_conf);
+		pattern = md_alloc(DIMS, pat_s->dims_full, CFL_SIZE);
+		linop_adjoint(nufft_op, DIMS, pat_s->dims_full, pattern, DIMS, ones_dims, ones);
+
+		fftscale(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
+		fftc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
+
+		scale_psf_k(pat_s, pattern, k_s, kspace_data, traj_s, traj);
+
+		linop_free(nufft_op);
+		md_free(ones);
+		md_free(k_dummy);
+	}
+
+	// k-space normalization
 #if 0
 	float scaling = 1. / estimate_scaling(k_s->dims_full, NULL, kspace_data);
 #else
@@ -193,8 +265,6 @@ int main_rtnlinv(int argc, char* argv[])
 			scaling *= sqrt(k_s->dims_full[SLICE_DIM]);
 
 #endif
-	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
-	md_zsmul(DIMS, k_s->dims_full, kspace_data, kspace_data, scaling);
 
 	if (-1. == restrict_fov) {
 

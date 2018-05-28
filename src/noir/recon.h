@@ -28,10 +28,14 @@ struct ds_s {
 
 	long dims_full[DIMS];
 	long dims_singleFrame[DIMS];
+	long dims_singlePart[DIMS];
+	long dims_singleFramePart[DIMS];
 	long dims_output[DIMS];
 
 	long strs_full[DIMS];
 	long strs_singleFrame[DIMS];
+	long strs_singlePart[DIMS];
+	long strs_singleFramePart[DIMS];
 	long strs_output[DIMS];
 };
 
@@ -41,5 +45,6 @@ extern void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], _C
 
 extern void ds_init(struct ds_s* dims, size_t size);
 
+extern void scale_psf_k(struct ds_s* pat_s, complex float* pattern, struct ds_s* k_s, complex float* kspace_data, struct ds_s* traj_s, complex float* traj);
 #include "misc/cppwrap.h"
 
