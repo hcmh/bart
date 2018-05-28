@@ -31,12 +31,16 @@ struct ds_s {
 	long dims_singlePart[DIMS];
 	long dims_singleFramePart[DIMS];
 	long dims_output[DIMS];
+	long dims_output_singleFrame[DIMS];
+
 
 	long strs_full[DIMS];
 	long strs_singleFrame[DIMS];
 	long strs_singlePart[DIMS];
 	long strs_singleFramePart[DIMS];
 	long strs_output[DIMS];
+	long strs_output_singleFrame[DIMS];
+
 };
 
 extern const struct noir_conf_s noir_defaults;

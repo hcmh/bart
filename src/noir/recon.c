@@ -175,7 +175,8 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 void ds_init(struct ds_s* in, size_t size)
 {
 	md_select_dims(DIMS, ~TIME_FLAG, in->dims_singleFrame, in->dims_full);
-	md_select_dims(DIMS, FFT_FLAGS|SLICE_FLAG, in->dims_output, in->dims_full);
+	md_select_dims(DIMS, FFT_FLAGS|SLICE_FLAG, in->dims_output_singleFrame, in->dims_full);
+	md_select_dims(DIMS, FFT_FLAGS|SLICE_FLAG|TIME_FLAG, in->dims_output, in->dims_full);
 	md_select_dims(DIMS, ~SLICE_FLAG, in->dims_singlePart, in->dims_full);
 	md_select_dims(DIMS, ~(TIME_FLAG|SLICE_FLAG), in->dims_singleFramePart, in->dims_full);
 
@@ -184,6 +185,7 @@ void ds_init(struct ds_s* in, size_t size)
 	md_calc_strides(DIMS, in->strs_singlePart, in->dims_singlePart, size);
 	md_calc_strides(DIMS, in->strs_singleFramePart, in->dims_singleFramePart, size);
 	md_calc_strides(DIMS, in->strs_output, in->dims_output, size);
+	md_calc_strides(DIMS, in->strs_output_singleFrame, in->dims_output_singleFrame, size);
 
 }
 
