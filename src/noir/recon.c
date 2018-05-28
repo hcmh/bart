@@ -38,19 +38,19 @@
 
 
 struct nlop_wrapper_s {
-	INTERFACE(struct iter_op_data_s);
-	struct noir_s* noir;
-	long split;
 
+	INTERFACE(struct iter_op_data_s);
+
+	struct nlop_s* noir;
+	long split;
 };
+
 DEF_TYPEID(nlop_wrapper_s);
 
 
 static void orthogonalize(iter_op_data* ptr, float* _dst, const float* _src)
 {
-	UNUSED(_src);
-	struct nlop_wrapper_s* nlw = CAST_DOWN(nlop_wrapper_s, ptr);
-	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
+	noir_orthogonalize(nlop_get_data(CAST_DOWN(nlop_wrapper_s, ptr)->noir), (complex float*)_dst, (const complex float*)_src);
 }
 
 const struct noir_conf_s noir_defaults = {
@@ -103,9 +103,9 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	mconf.use_gpu = conf->usegpu;
 	mconf.noncart = conf->noncart;
 	mconf.fft_flags = fft_flags;
+	mconf.pattern_for_each_coil = conf->pattern_for_each_coil;
 	mconf.a = conf->a;
 	mconf.b = conf->b;
-	mconf.pattern_for_each_coil = conf->pattern_for_each_coil;
 
 
 	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
@@ -120,7 +120,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	struct nlop_wrapper_s nlw;
 	SET_TYPEID(nlop_wrapper_s, &nlw);
-	nlw.noir = &nl;
+	nlw.noir = nl.nlop;
 	nlw.split = skip;
 
 	iter4_irgnm(CAST_UP(&irgnm_conf),

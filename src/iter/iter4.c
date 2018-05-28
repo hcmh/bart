@@ -19,6 +19,8 @@
 
 #include "iter/iter4.h"
 
+
+
 struct iter4_nlop_s {
 
 	INTERFACE(iter_op_data);
@@ -75,6 +77,8 @@ void iter4_irgnm(iter3_conf* _conf,
 		(struct iter_op_s){ nlop_adj_iter, CAST_UP(&data) },
 		N, dst, ref, M, src, cb);
 }
+
+
 
 void iter4_landweber(iter3_conf* _conf,
 		struct nlop_s* nlop,

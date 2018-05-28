@@ -187,7 +187,6 @@ extern void md_zarg2(unsigned int D, const long dim[__VLA(D)], const long ostr[_
 
 extern void md_zlessequal(unsigned int D, const long dim[__VLA(D)], _Complex float* optr, const _Complex float* iptr1, const _Complex float* iptr2);
 extern void md_zlessequal2(unsigned int D, const long dims[__VLA(D)], const long ostr[__VLA(D)], _Complex float* optr, const long istr1[__VLA(D)], const _Complex float* iptr1, const long istr2[__VLA(D)], const _Complex float* iptr2);
-extern void md_zlessequal(unsigned int D, const long dims[__VLA(D)], _Complex float* optr, const _Complex float* iptr1, const _Complex float* iptr2);
 
 extern void md_lessequal(unsigned int D, const long dim[__VLA(D)], float* optr, const float* iptr1, const float* iptr2);
 extern void md_lessequal2(unsigned int D, const long dim[__VLA(D)], const long ostr[__VLA(D)], float* optr, const long istr1[__VLA(D)], const float* iptr1, const long istr2[__VLA(D)], const float* iptr2);
@@ -291,6 +290,8 @@ extern void md_zfdiff_backwards(unsigned int D, const long dims[__VLA(D)], unsig
 
 extern void md_zfftmod(unsigned int D, const long dim[__VLA(D)], _Complex float* optr, const _Complex float* iptr, _Bool inv, double phase);
 extern void md_zfftmod2(unsigned int D, const long dim[__VLA(D)], const long ostr[__VLA(D)], _Complex float* optr, const long istr[__VLA(D)], const _Complex float* iptr, _Bool inv, double phase);
+
+extern void md_zsum(unsigned int D, const long dims[__VLA(D)], unsigned int flags, _Complex float* dst, const _Complex float* src);
 
 
 #include "misc/cppwrap.h"

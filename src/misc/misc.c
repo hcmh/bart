@@ -444,3 +444,4 @@ bool safe_isfinite(float x)
 	// return isfinite(x); <- is sometimes true when x is NaN.
 }
 
+

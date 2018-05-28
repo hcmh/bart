@@ -58,19 +58,20 @@ int main_nlinv(int argc, char* argv[])
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
-		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconsctruction"),
+		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps"),
 		OPT_CLEAR('U', &combine, "Do not combine ENLIVE maps in output"),
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
 		OPT_SET('g', &conf.usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
+		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
-		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
 
 	if (4 == argc)
 		out_sens = true;
@@ -112,14 +113,19 @@ int main_nlinv(int argc, char* argv[])
 
 	long img_output_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|SLICE_FLAG, img_output_dims, sens_dims);
+
 	if (!combine)
 		img_output_dims[MAPS_DIM] = nmaps;
 
 	long img_output_strs[DIMS];
 	md_calc_strides(DIMS, img_output_strs, img_output_dims, CFL_SIZE);
 
+
 	complex float* img_output = create_cfl(argv[2], DIMS, img_output_dims);
+
 	md_clear(DIMS, img_output_dims, img_output, CFL_SIZE);
+
+
 	complex float* img = md_alloc(DIMS, img_dims, CFL_SIZE);
 
 	long msk_dims[DIMS];
@@ -131,6 +137,7 @@ int main_nlinv(int argc, char* argv[])
 	complex float* mask = NULL;
 
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, sens_dims);
+
 
 	// initialization
 	if (NULL != init_file) {
@@ -165,8 +172,11 @@ int main_nlinv(int argc, char* argv[])
 		// FIXME: check compatibility
 
 		if (conf.pattern_for_each_coil) {
-			assert( 1 != pat_dims[COIL_DIM] );
+
+			assert(1 != pat_dims[COIL_DIM]);
+
 		} else {
+
 			if (-1 == restrict_fov)
 				restrict_fov = 0.5;
 
@@ -220,11 +230,11 @@ int main_nlinv(int argc, char* argv[])
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
 
-		noir_recon(&conf, sens_dims, img, sens, ref, pattern, mask, kspace_gpu);
+		noir_recon(&conf, sens_dims, img, sens, NULL, pattern, mask, kspace_gpu);
 		md_free(kspace_gpu);
 	} else
 #endif
-		noir_recon(&conf, sens_dims, img, sens, ref, pattern, mask, kspace_data);
+	noir_recon(&conf, sens_dims, img, sens, NULL, pattern, mask, kspace_data);
 
 
 	// image output
@@ -237,6 +247,7 @@ int main_nlinv(int argc, char* argv[])
 
 			md_zfmac2(DIMS, sens_dims, ksp_strs, buf, img_strs, img, sens_strs, sens);
 			md_zrss(DIMS, ksp_dims, COIL_FLAG, img_output, buf);
+
 		} else {
 
 			md_zfmac2(DIMS, sens_dims, sens_strs, buf, img_strs, img, sens_strs, sens);
@@ -244,7 +255,7 @@ int main_nlinv(int argc, char* argv[])
 		}
 		md_zmul2(DIMS, img_output_dims, img_output_strs, img_output, img_output_strs, img_output, msk_strs, mask);
 
-		if (1 == nmaps || !combine) {
+		if ((1 == nmaps) || !combine) {
 
 			//restore phase
 			md_zphsr(DIMS, img_output_dims, buf, img);
@@ -252,6 +263,7 @@ int main_nlinv(int argc, char* argv[])
 		}
 
 		md_free(buf);
+
 	} else {
 
 		if (combine) {
@@ -268,6 +280,7 @@ int main_nlinv(int argc, char* argv[])
 	if (scale_im)
 		md_zsmul(DIMS, img_output_dims, img_output, img_output, 1. / scaling);
 
+
 	md_free(mask);
 	md_free(img);
 
@@ -277,7 +290,9 @@ int main_nlinv(int argc, char* argv[])
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
 
 	double recosecs = timestamp() - start_time;
+
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
+
 	exit(0);
 }
 

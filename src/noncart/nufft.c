@@ -40,6 +40,7 @@ struct nufft_conf_s nufft_conf_defaults = {
 
 	.toeplitz = true,
 	.pcycle = false,
+	.periodic = false,
 };
 
 #include "nufft_priv.h"
@@ -294,6 +295,7 @@ complex float* compute_psf(unsigned int N, const long img2_dims[N], const long t
 	md_select_dims(N, ~MD_BIT(0), ksp_dims1, trj_dims);
 
 	struct nufft_conf_s conf = nufft_conf_defaults;
+	conf.periodic = true; // FIXME: periodic ???
 	conf.toeplitz = false;	// avoid infinite loop
 
 	struct linop_s* op2 = nufft_create(N, ksp_dims1, img2_dims, trj_dims, traj, NULL, conf);
@@ -449,7 +451,15 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 
 	md_recompose(data->N, factors, data->cm2_dims, gridX, data->cml_dims, data->grid, CFL_SIZE);
 
-	grid2H(2., data->width, data->beta, ND, data->trj_dims, data->traj, data->ksp_dims, dst, data->cm2_dims, gridX);
+	struct grid_conf_s conf = {
+
+		.width = data->width,
+		.os = 2.,
+		.periodic = data->conf.periodic,
+		.beta = data->beta,
+	};
+
+	grid2H(&conf, ND, data->trj_dims, data->traj, data->ksp_dims, dst, data->cm2_dims, gridX);
 
 	md_free(gridX);
 
@@ -479,7 +489,15 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 		src = wdat;
 	}
 
-	grid2(2., data->width, data->beta, ND, data->trj_dims, data->traj, data->cm2_dims, gridX, data->ksp_dims, src);
+	struct grid_conf_s conf = {
+
+		.width = data->width,
+		.os = 2.,
+		.periodic = data->conf.periodic,
+		.beta = data->beta,
+	};
+
+	grid2(&conf, ND, data->trj_dims, data->traj, data->cm2_dims, gridX, data->ksp_dims, src);
 
 	md_free(wdat);
 

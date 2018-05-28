@@ -55,7 +55,7 @@ complex float evaluate_kernel(int l, int k, const long dims[5], const complex fl
 	float width = 3.; // see grid.c
 	int kb_size = 128;
 	complex float val[C * C];
-	grid_pointH(C * C, dims, pos2, val, kern, width, kb_size, kb_table128);
+	grid_pointH(C * C, dims, pos2, val, kern, width, kb_size, false, kb_table128);
 	return val[l * C + k]; // FIXME wasteful
 #else
 	long d[3] = { 0, 0, 0 };

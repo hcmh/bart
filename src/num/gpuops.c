@@ -34,6 +34,7 @@
 
 #include "gpuops.h"
 
+#define MiBYTE (1024*1024)
 
 
 static void cuda_error(int line, cudaError_t code)
@@ -42,7 +43,26 @@ static void cuda_error(int line, cudaError_t code)
 	error("cuda error: %d %s \n", line, err_str);
 }
 
+
 #define CUDA_ERROR(x)	({ cudaError_t errval = (x); if (cudaSuccess != errval) cuda_error(__LINE__, errval); })
+
+// Print free and used memory on GPU.
+void print_cuda_meminfo(void)
+{
+    size_t byte_tot;
+    size_t byte_free;
+    cudaError_t cuda_status = cudaMemGetInfo(&byte_free, &byte_tot);
+
+    if (cuda_status != cudaSuccess)
+	    error("ERROR: cudaMemGetInfo failed. %s\n", cudaGetErrorString(cuda_status));
+
+
+    double dbyte_tot = (double)byte_tot;
+    double dbyte_free = (double)byte_free;
+    double dbyte_used = dbyte_tot - dbyte_free;
+
+    debug_printf(DP_INFO , "GPU memory usage: used = %.4f MiB, free = %.4f MiB, total = %.4f MiB\n", dbyte_used/MiBYTE, dbyte_free/MiBYTE, dbyte_tot/MiBYTE);
+}
 
 int cuda_devices(void)
 {

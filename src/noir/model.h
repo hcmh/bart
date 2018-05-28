@@ -17,9 +17,9 @@ struct noir_model_conf_s {
 	_Bool rvc;
 	_Bool use_gpu;
 	_Bool noncart;
+	_Bool pattern_for_each_coil;
 	float a;
 	float b;
-	_Bool pattern_for_each_coil;
 };
 
 extern struct noir_model_conf_s noir_model_conf_defaults;
@@ -38,4 +38,6 @@ extern struct noir_s noir_create(const long dims[DIMS], const complex float* mas
 
 
 struct nlop_data_s;
-extern void noir_orthogonalize(struct noir_s* op, complex float* coils);
+extern void noir_orthogonalize(struct nlop_data_s*, complex float* dst, const complex float* src);
+
+

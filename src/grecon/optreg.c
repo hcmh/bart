@@ -160,6 +160,13 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			assert(2 == ret);
 			regs[r].xflags = 0u;
 		}
+		else if (strcmp(rt, "S") == 0) {
+
+			regs[r].xform = POS;
+			regs[r].lambda = 0u;
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
+		}
 		else if (strcmp(rt, "Q") == 0) {
 
 			regs[r].xform = L2IMG;
@@ -308,7 +315,7 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 			debug_printf(DP_INFO, "NIHT with wavelets regularization: k = %d%% of total elements in each wavelet transform\n", regs[nr].k);
 
 			if (use_gpu)
-				error("GPU operation is not currently implemented for NIHT.\nContinuing with CPU.\n");
+				error("GPU operation is not currently implemented for NIHT.\n");
 
 			long img_strs[N];
 			md_calc_strides(N, img_strs, img_dims, CFL_SIZE);
@@ -351,16 +358,15 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 		{
 			debug_printf(DP_INFO, "NIHT regularization in the image domain: k = %d%% of total elements in image vector\n", regs[nr].k);
 
-			if (use_gpu){
-
-				error("GPU operation is not currently implemented for NIHT.\nContinuing with CPU.\n");
-			}
+			if (use_gpu)
+				error("GPU operation is not currently implemented for NIHT.\n");
 
 			long thresh_dims[N];
 			md_select_dims(N, regs[nr].xflags, thresh_dims, img_dims);		
 			unsigned int K = (md_calc_size(N, thresh_dims) / 100) * regs[nr].k;
 			debug_printf(DP_INFO, "k = %d%%, actual K = %d\n", regs[nr].k, K);
 
+			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			prox_ops[nr] = prox_niht_thresh_create(N, img_dims, K, regs[nr].jflags);
 			debug_printf(DP_INFO, "NIHTIM initialization complete\n");
 			break;
@@ -400,6 +406,10 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 		case LLR:
 
 			debug_printf(DP_INFO, "lowrank regularization: %f\n", regs[nr].lambda);
+
+			if (use_gpu)
+				error("GPU operation is not currently implemented for lowrank regularization.\n");
+
 
 			// add locally lowrank penalty
 			levels = llr_blkdims(blkdims, regs[nr].jflags, img_dims, llr_blk);
@@ -445,7 +455,7 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 			linop_free(decom_op);
 			linop_free(tmp_op);
 #else
-			debug_printf(DP_WARN, "multi-scale lowrank regularization not yet supported: %f\n", regs[nr].lambda);
+			error("multi-scale lowrank regularization not supported.\n");
 #endif
 
 			break;
@@ -470,6 +480,14 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			prox_ops[nr] = prox_thresh_create(DIMS, img_dims, regs[nr].lambda, regs[nr].jflags);
 			break;
+
+		case POS:
+			debug_printf(DP_INFO, "non-negative constraint\n");
+
+			trafos[nr] = linop_identity_create(DIMS, img_dims);
+			prox_ops[nr] = prox_nonneg_create(DIMS, img_dims);
+			break;
+
 
 		case L2IMG:
 			debug_printf(DP_INFO, "l2 regularization: %f\n", regs[nr].lambda);
@@ -498,6 +516,5 @@ void opt_reg_free(struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[N
 
 		operator_p_free(prox_ops[nr]);
 		linop_free(trafos[nr]);
-
 	}
 }
