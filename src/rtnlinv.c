@@ -441,6 +441,14 @@ int main_rtnlinv(int argc, char* argv[])
 	md_free(sens_output_singleFrame);
 	md_free(img_output_singleFrame);
 	md_free(sens_singleFrame);
+	md_free(ksens_singleFrame);
+	md_free(ref);
+
+	if (NULL != trajectory) {
+		md_free(traj_singleFrame);
+		md_free(kgrid_singleFrame);
+		md_free(fftc_mod);
+	}
 
 	unmap_cfl(DIMS, sens_s->dims_full, sens);
 	unmap_cfl(DIMS, pat_s->dims_full, pattern);
