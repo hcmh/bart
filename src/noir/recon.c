@@ -104,6 +104,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	complex float* x = md_alloc_sameplace(1, d1, CFL_SIZE, kspace_data);
 
 	md_copy(DIMS, imgs_dims, x, img, CFL_SIZE);
+
 	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
 
 	complex float* xref = NULL;
@@ -122,7 +123,6 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	mconf.a = conf->a;
 	mconf.b = conf->b;
 	mconf.pattern_for_each_coil = conf->pattern_for_each_coil;
-
 
 	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
 
