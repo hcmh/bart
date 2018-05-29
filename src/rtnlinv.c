@@ -196,7 +196,6 @@ int main_rtnlinv(int argc, char* argv[])
 	// initialization
 	if (NULL != init_file) {
 
-		long skip = md_calc_size(DIMS, img_s->dims_singleFrame);
 		long init_dims[DIMS];
 		complex float* init = load_cfl(init_file, DIMS, init_dims);
 
@@ -204,7 +203,7 @@ int main_rtnlinv(int argc, char* argv[])
 			error("Image dimensions and init dimensions to not match!");
 
 		md_copy(DIMS, img_s->dims_singleFrame, img_singleFrame, init, CFL_SIZE);
-		fftmod(DIMS, sens_s->dims_singleFrame, FFT_FLAGS|SLICE_FLAG, ksens_singleFrame, init + skip);
+		md_clear(DIMS, sens_s->dims_singleFrame, ksens_singleFrame, CFL_SIZE);
 
 		unmap_cfl(DIMS, init_dims, init);
 
