@@ -62,6 +62,8 @@ int main_rtnlinv(int argc, char* argv[])
 	bool out_sens = false;
 	bool scale_im = false;
 	unsigned int turns = 1;
+	int reduced_frames = 0;
+
 
 
 	const struct opt_s opts[] = {
@@ -84,6 +86,8 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.5]"),
 		OPT_FLOAT('T', &temp_damp, "temp_damp", "temporal damping [default: 0.9]"),
+		OPT_INT('F', &reduced_frames, "Frames", "Reconstruct only 'noFrames' frames."),
+
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -102,6 +106,16 @@ int main_rtnlinv(int argc, char* argv[])
 	ds_init(k_s, CFL_SIZE);
 	long frames = k_s->dims_full[TIME_DIM];
 
+	// Reduce kspace (-F)
+	if( reduced_frames > 0 ) {
+
+		if(reduced_frames > k_s->dims_full[TIME_DIM])
+			error("Number of frames to be reconstructed (-F) must be smaller than number of acquired frames!");
+
+		reduce_frames(reduced_frames, k_s->dims_full, &k);
+		ds_init(k_s, CFL_SIZE);
+		frames = reduced_frames;
+	}
 	// SMS
 	if (1 != k_s->dims_full[SLICE_DIM]) {
 
@@ -128,6 +142,11 @@ int main_rtnlinv(int argc, char* argv[])
 		md_copy(DIMS, pat_s->dims_full, pattern, tmp_psf, CFL_SIZE);
 		unmap_cfl(DIMS, pat_s->dims_full, tmp_psf);
 
+		if (reduced_frames > 0) {
+			reduce_frames(reduced_frames, pat_s->dims_full, &pattern);
+			ds_init(pat_s, CFL_SIZE);
+		}
+
 		turns = pat_s->dims_full[TIME_DIM];
 
 	} else if (NULL != trajectory) {
@@ -137,6 +156,11 @@ int main_rtnlinv(int argc, char* argv[])
 		// apply oversampling
 		md_zsmul(DIMS, traj_s->dims_full, traj, traj, oversampling);
 		ds_init(traj_s, CFL_SIZE);
+
+		if (reduced_frames > 0) {
+			reduce_frames(reduced_frames, traj_s->dims_full, &traj);
+			ds_init(traj_s, CFL_SIZE);
+		}
 
 		turns = traj_s->dims_full[TIME_DIM];
 
