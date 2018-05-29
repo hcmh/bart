@@ -60,6 +60,7 @@ int main_rtnlinv(int argc, char* argv[])
 	struct noir_conf_s conf = noir_defaults;
 	bool out_sens = false;
 	bool scale_im = false;
+	unsigned int turns = 1;
 
 
 	const struct opt_s opts[] = {
@@ -88,44 +89,89 @@ int main_rtnlinv(int argc, char* argv[])
 	if (4 == argc)
 		out_sens = true;
 
-
-
 	num_init();
+
+	if (NULL != psf && NULL != trajectory)
+		error("Pass either trajectory (-t) OR PSF (-p)!\n");
 
 	// kspace dimensions and strides struct
 	struct ds_s* k_s = (struct ds_s*) malloc(sizeof(struct ds_s));
-
-	complex float* kspace_data = load_cfl(argv[1], DIMS, k_s->dims_full);
+	complex float* k = load_cfl(argv[1], DIMS, k_s->dims_full);
 	ds_init(k_s, CFL_SIZE);
+	long frames = k_s->dims_full[TIME_DIM];
 
 	// SMS
 	if (1 != k_s->dims_full[SLICE_DIM]) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", k_s->dims_full[SLICE_DIM]);
-		fftmod(DIMS, k_s->dims_full, SLICE_FLAG, kspace_data, kspace_data); // fftmod to get correct slice order in output
+		fftmod(DIMS, k_s->dims_full, SLICE_FLAG, k, k); // fftmod to get correct slice order in output
 	}
 
-	// The only multimap we understand with is the one we do ourselves, where
-	// we allow multiple images and sensitivities during the reconsctruction
-	assert(1 == k_s->dims_full[MAPS_DIM]);
+	complex float* pattern = NULL;
+	struct ds_s* pat_s = (struct ds_s*) malloc(sizeof(struct ds_s));
+
+	complex float* traj = NULL;
+	struct ds_s* traj_s = (struct ds_s*) malloc(sizeof(struct ds_s));
 
 	struct ds_s* sens_s = (struct ds_s*) malloc(sizeof(struct ds_s));
 	md_copy_dims(DIMS, sens_s->dims_full, k_s->dims_full);
+
+
+	if (NULL != psf) {
+		conf.noncart = true;
+		complex float* tmp_psf =load_cfl(psf, DIMS, pat_s->dims_full);
+		ds_init(pat_s, CFL_SIZE);
+		pattern = anon_cfl("", DIMS, pat_s->dims_full);
+
+		md_copy(DIMS, pat_s->dims_full, pattern, tmp_psf, CFL_SIZE);
+		unmap_cfl(DIMS, pat_s->dims_full, tmp_psf);
+
+		turns = pat_s->dims_full[TIME_DIM];
+
+	} else if (NULL != trajectory) {
+		conf.noncart = true;
+		traj = load_cfl(trajectory, DIMS, traj_s->dims_full);
+
+		// apply oversampling
+		md_zsmul(DIMS, traj_s->dims_full, traj, traj, oversampling);
+		ds_init(traj_s, CFL_SIZE);
+
+		turns = traj_s->dims_full[TIME_DIM];
+
+		estimate_fast_sq_im_dims(3, sens_s->dims_full, traj_s->dims_full, traj);
+
+	} else {
+		error("Pass either trajectory (-t) or PSF (-p)!\n");
+	}
 	sens_s->dims_full[MAPS_DIM] = nmaps;
 	ds_init(sens_s, CFL_SIZE);
 
+
+	if (conf.pattern_for_each_coil)
+		assert( 1 != pat_s->dims_full[COIL_DIM] );
+	else if (-1 == restrict_fov)
+		restrict_fov = 0.5;
+
+
+	// The only multimap we understand with is the one we do ourselves, where
+	// we allow multiple images and sensitivities during the reconsctruction (ENLIVE)
+	assert(1 == k_s->dims_full[MAPS_DIM]);
+
 	struct ds_s* img_s = (struct ds_s*) malloc(sizeof(struct ds_s));
-	md_select_dims(DIMS, ~COIL_FLAG, img_s->dims_full, sens_s->dims_full); // we never have frames for img
+	md_select_dims(DIMS, ~COIL_FLAG, img_s->dims_full, sens_s->dims_full);
 	ds_init(img_s, CFL_SIZE);
 
 	if (!combine) {
+		// The conventional img-dimensions contain only one map.
+		// The 'output' dimensions might contain multiple maps (ENLIVE)
 		img_s->dims_output[MAPS_DIM] = nmaps;
 		img_s->dims_output_singleFrame[MAPS_DIM] = nmaps;
 	}
 
 	complex float* img_output = create_cfl(argv[2], DIMS, img_s->dims_output);
 	md_clear(DIMS, img_s->dims_output, img_output, CFL_SIZE);
-	complex float* img = md_alloc(DIMS, img_s->dims_singleFrame, CFL_SIZE);
+
+	complex float* img_singleFrame = md_alloc(DIMS, img_s->dims_singleFrame, CFL_SIZE);
 
 	struct ds_s* msk_s = (struct ds_s*) malloc(sizeof(struct ds_s));
 	md_select_dims(DIMS, FFT_FLAGS, msk_s->dims_full, img_s->dims_singleFrame);
@@ -134,6 +180,10 @@ int main_rtnlinv(int argc, char* argv[])
 	complex float* mask = NULL;
 
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, sens_s->dims_full);
+
+	complex float* sens_singleFrame = md_alloc(DIMS, sens_s->dims_singleFrame, CFL_SIZE);
+	md_clear(DIMS, sens_s->dims_singleFrame, sens_singleFrame, CFL_SIZE);
+
 
 	// initialization
 	if (NULL != init_file) {
@@ -145,74 +195,25 @@ int main_rtnlinv(int argc, char* argv[])
 		if (!md_check_bounds(DIMS, 0, img_s->dims_singleFrame, init_dims))
 			error("Image dimensions and init dimensions to not match!");
 
-		md_copy(DIMS, img_s->dims_singleFrame, img, init, CFL_SIZE);
-		fftmod(DIMS, sens_s->dims_singleFrame, FFT_FLAGS|SLICE_FLAG, sens, init + skip);
+		md_copy(DIMS, img_s->dims_singleFrame, img_singleFrame, init, CFL_SIZE);
+		fftmod(DIMS, sens_s->dims_singleFrame, FFT_FLAGS|SLICE_FLAG, sens_singleFrame, init + skip);
 
 		unmap_cfl(DIMS, init_dims, init);
 
 	} else {
 
-		md_zfill(DIMS, img_s->dims_singleFrame, img, 1.);
-		md_clear(DIMS, sens_s->dims_singleFrame, sens, CFL_SIZE);
+		md_zfill(DIMS, img_s->dims_singleFrame, img_singleFrame, 1.);
+		md_clear(DIMS, sens_s->dims_singleFrame, sens_singleFrame, CFL_SIZE);
 	}
 
-	if (NULL != psf && NULL != trajectory)
-		error("Pass either trajectory (-t) OR PSF (-p)!\n");
 
-	complex float* pattern = NULL;
-	struct ds_s* pat_s = (struct ds_s*) malloc(sizeof(struct ds_s));
-	complex float* traj = NULL;
-	struct ds_s* traj_s = (struct ds_s*) malloc(sizeof(struct ds_s));
-
-	unsigned int turns = 1;
-
-	if (NULL != psf) {
-
-		complex float* tmp_psf =load_cfl(psf, DIMS, pat_s->dims_full);
-		ds_init(pat_s, CFL_SIZE);
-		pattern = anon_cfl("", DIMS, pat_s->dims_full);
-
-		md_copy(DIMS, pat_s->dims_full, pattern, tmp_psf, CFL_SIZE);
-		unmap_cfl(DIMS, pat_s->dims_full, tmp_psf);
-		// FIXME: check compatibility
-
-		if (conf.pattern_for_each_coil) {
-			assert( 1 != pat_s->dims_full[COIL_DIM] );
-		} else {
-			if (-1 == restrict_fov)
-				restrict_fov = 0.5;
-
-			conf.noncart = true;
-		}
-
-		turns = pat_s->dims_full[TIME_DIM];
-
-	} else if (NULL != trajectory) {
-
-		traj = load_cfl(trajectory, DIMS, traj_s->dims_full);
-		ds_init(traj_s, CFL_SIZE);
-
-		turns = traj_s->dims_full[TIME_DIM];
-
-	} else {
-
-		md_copy_dims(DIMS, pat_s->dims_full, img_s->dims_singleFrame);
-		pattern = anon_cfl("", DIMS, pat_s->dims_full);
-		estimate_pattern(DIMS, k_s->dims_full, COIL_FLAG, pattern, kspace_data);
-	}
 
 	// Gridding
 	if (NULL != trajectory) {
 		debug_printf(DP_DEBUG3, "Start gridding...");
 
-		// apply oversampling
-		md_zsmul(DIMS, traj_s->dims_full, traj, traj, oversampling);
-
-		estimate_fast_sq_im_dims(3, sens_s->dims_full, traj_s->dims_full, traj);
-		ds_init(sens_s, CFL_SIZE);
 
 		md_select_dims(DIMS, ~(COIL_FLAG|MAPS_FLAG), pat_s->dims_full, sens_s->dims_full);
-		pat_s->dims_full[TIME_DIM] = turns;
 		ds_init(pat_s, CFL_SIZE);
 
 		// calculate pattern by nufft gridding:
@@ -234,7 +235,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 		// copy k-space data of one coil into k_dummy
 		long pos0[DIMS] = { 0 };
-		md_copy_block(DIMS, pos0, ones_dims, k_dummy, k_s->dims_full, kspace_data, CFL_SIZE);
+		md_copy_block(DIMS, pos0, ones_dims, k_dummy, k_s->dims_full, k, CFL_SIZE);
 
 		// divide kspace-dummy data by itself.
 		// zdiv makes sure that division by zero is set to 0
@@ -247,7 +248,7 @@ int main_rtnlinv(int argc, char* argv[])
 		fftscale(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
 		fftc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
 
-		scale_psf_k(pat_s, pattern, k_s, kspace_data, traj_s, traj);
+		scale_psf_k(pat_s, pattern, k_s, k, traj_s, traj);
 
 		linop_free(nufft_op);
 		md_free(ones);
@@ -256,20 +257,9 @@ int main_rtnlinv(int argc, char* argv[])
 
 	}
 
-	// k-space normalization
-#if 0
-	float scaling = 1. / estimate_scaling(k_s->dims_full, NULL, kspace_data);
-#else
-	double scaling = 100. / md_znorm(DIMS, k_s->dims_full, kspace_data);
-
-	if (1 != k_s->dims_full[SLICE_DIM]) // SMS
-			scaling *= sqrt(k_s->dims_full[SLICE_DIM]);
-
-#endif
-	struct ds_s* gridded_k_s = (struct ds_s*) malloc(sizeof(struct ds_s));
-	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|SLICE_FLAG, gridded_k_s->dims_full, sens_s->dims_full);
-	ds_init(gridded_k_s, CFL_SIZE);
-
+	struct ds_s* kgrid_s = (struct ds_s*) malloc(sizeof(struct ds_s));
+	md_select_dims(DIMS, ~MAPS_FLAG, kgrid_s->dims_full, sens_s->dims_full);
+	ds_init(kgrid_s, CFL_SIZE);
 
 	if (-1. == restrict_fov) {
 
@@ -286,29 +276,26 @@ int main_rtnlinv(int argc, char* argv[])
 	}
 
 	long skip = md_calc_size(DIMS, img_s->dims_singleFrame);
-	long size = skip + md_calc_size(DIMS, sens_s->dims_full);
+	long size = skip + md_calc_size(DIMS, sens_s->dims_singleFrame);
 
 
-	complex float* sensout;
-//	complex float* kspace_sens_out;
+	complex float* sens_output;
+//	complex float* sens_singleFrame_out;
 
 	if (out_sens){
-		sensout = create_cfl(argv[4], DIMS, sens_s->dims_full);
-		md_clear(DIMS, sens_s->dims_full, sensout, CFL_SIZE);
+		sens_output = create_cfl(argv[4], DIMS, sens_s->dims_full);
+		md_clear(DIMS, sens_s->dims_full, sens_output, CFL_SIZE);
 
 		// kspace sensitivities
 // 		char s0[36] = "k";
 // 		strcat(s0, argv[4]);
-// 		kspace_sens_out = create_cfl(s0, DIMS, sens_s->dims->full);
-//		md_clear(DIMS, sens_s->dims->full, kspace_sens_out, CFL_SIZE);
+// 		sens_singleFrame_out = create_cfl(s0, DIMS, sens_s->dims->full);
+//		md_clear(DIMS, sens_s->dims->full, sens_singleFrame_out, CFL_SIZE);
 
 	} else if (normalize)
-		sensout = anon_cfl("", DIMS, sens_s->dims_singleFrame);
+		sens_output = anon_cfl("", DIMS, sens_s->dims_full);
 	else
-		sensout = NULL;
-
-	complex float* kspace_sens = md_alloc(DIMS, sens_s->dims_singleFrame, CFL_SIZE);
-	md_clear(DIMS, sens_s->dims_singleFrame, kspace_sens, CFL_SIZE);
+		sens_output = NULL;
 
 
 	long ref_dim[1] = { size };
@@ -316,106 +303,161 @@ int main_rtnlinv(int argc, char* argv[])
 	md_clear(1, ref_dim, ref, CFL_SIZE);
 
 	struct linop_s* nufft_ops[turns];
-	complex float* ksp_frame = NULL;
+	complex float* kgrid_singleFrame = NULL;
 
 	const struct operator_s* fftc = NULL;
 	complex float* fftc_mod = NULL;
-	complex float* traj_single = NULL;
+	complex float* traj_singleFrame = NULL;
 
 	if (NULL != trajectory) { 	// Crecte nufft objects
 		debug_printf(DP_DEBUG3, "Start creating nufft-objects...");
 
 		for (unsigned int i = 0; i < turns; ++i) {
 			// pick trajectory for current frame
-			traj_single = md_alloc(DIMS, traj_s->dims_singleFrame, CFL_SIZE);
+			traj_singleFrame = md_alloc(DIMS, traj_s->dims_singleFrame, CFL_SIZE);
 			long pos[DIMS] = { 0 };
 			pos[TIME_DIM] = i;
-			md_slice(DIMS, TIME_FLAG, pos, traj_s->dims_full, traj_single, traj, CFL_SIZE);
+			md_slice(DIMS, TIME_FLAG, pos, traj_s->dims_full, traj_singleFrame, traj, CFL_SIZE);
 
-			nufft_ops[i] = nufft_create(DIMS, k_s->dims_singleFrame, gridded_k_s->dims_singleFrame, traj_s->dims_singleFrame, traj_single, NULL, nufft_conf);
+			nufft_ops[i] = nufft_create(DIMS, k_s->dims_singleFrame, kgrid_s->dims_singleFrame, traj_s->dims_singleFrame, traj_singleFrame, NULL, nufft_conf);
 		}
 
-		ksp_frame = md_alloc(DIMS, gridded_k_s->dims_singleFrame, CFL_SIZE);
+		kgrid_singleFrame = md_alloc(DIMS, kgrid_s->dims_singleFrame, CFL_SIZE);
 
-		fftc = fft_measure_create(DIMS, gridded_k_s->dims_singleFrame, FFT_FLAGS, true, false);
+		fftc = fft_measure_create(DIMS, kgrid_s->dims_singleFrame, FFT_FLAGS, true, false);
 
-		fftc_mod = md_alloc(DIMS, gridded_k_s->dims_singleFrame, CFL_SIZE);
+		fftc_mod = md_alloc(DIMS, kgrid_s->dims_singleFrame, CFL_SIZE);
 
-		md_zfill(DIMS, gridded_k_s->dims_singleFrame, fftc_mod, 1.);
-		fftmod(DIMS, gridded_k_s->dims_singleFrame, FFT_FLAGS, fftc_mod, fftc_mod);
+		md_zfill(DIMS, kgrid_s->dims_singleFrame, fftc_mod, 1.);
+		fftmod(DIMS, kgrid_s->dims_singleFrame, FFT_FLAGS, fftc_mod, fftc_mod);
 		debug_printf(DP_DEBUG3, "finished\n");
 
 	}
 
 
-	complex float* kspace_gpu = NULL;
-#ifdef USE_CUDA
-	if (conf.usegpu)
-		kspace_gpu = md_alloc_gpu(DIMS, gridded_ksp_dims, CFL_SIZE);
-#endif
+	debug_printf(DP_DEBUG3, "Start reconstruction\n");
+	complex float* img_output_singleFrame = md_alloc(DIMS, img_s->dims_output_singleFrame, CFL_SIZE);
+	complex float* sens_output_singleFrame = md_alloc(DIMS, sens_s->dims_singleFrame, CFL_SIZE);
+	complex float* k_singleFrame = md_alloc(DIMS, k_s->dims_singleFrame, CFL_SIZE);
+	complex float* pat_singleFrame = md_alloc(DIMS, pat_s->dims_singleFrame, CFL_SIZE);
 
+	for (unsigned int frame = 0; frame < frames; ++frame) {
 
+		debug_printf(DP_DEBUG1, "Reconstructing frame %d\n", frame);
 
-	// image output
-	if (normalize) {
+		// pick k-space and pattern for current frame
+		long pos[DIMS] = { 0 };
+		pos[TIME_DIM] = frame;
+		md_slice(DIMS, TIME_FLAG, pos, k_s->dims_full, k_singleFrame, k, CFL_SIZE);
+		pos[TIME_DIM] = frame%turns;
+		md_slice(DIMS, TIME_FLAG, pos, pat_s->dims_full, pat_singleFrame, pattern, CFL_SIZE);
 
-		complex float* buf = md_alloc(DIMS, sens_s->dims_full, CFL_SIZE);
-		md_clear(DIMS, sens_s->dims_full, buf, CFL_SIZE);
+		if (NULL != trajectory)  {
+			// grid data frame by frame
+			linop_adjoint(nufft_ops[frame % turns], DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, DIMS, k_s->dims_singleFrame, k_singleFrame);
 
-		if (combine) {
-
-			md_zfmac2(DIMS, sens_s->dims_full, k_s->strs_full, buf, img_s->strs_singleFrame, img, sens_s->strs_full, sens);
-			md_zrss(DIMS, k_s->dims_full, COIL_FLAG, img_output, buf);
+			md_zmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, fftc_mod);
+			fft_exec(fftc, kgrid_singleFrame, kgrid_singleFrame);
+			md_zmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, fftc_mod);
 		} else {
 
-			md_zfmac2(DIMS, sens_s->dims_full, sens_s->strs_full, buf, img_s->strs_singleFrame, img, sens_s->strs_full, sens);
-			md_zrss(DIMS, sens_s->dims_full, COIL_FLAG, img_output, buf);
-		}
-		md_zmul2(DIMS, img_s->dims_output, img_s->strs_output, img_output, img_s->strs_output, img_output, msk_s->strs_full, mask);
-
-		if (1 == nmaps || !combine) {
-
-			//restore phase
-			md_zphsr(DIMS, img_s->dims_output, buf, img);
-			md_zmul(DIMS, img_s->dims_output, img_output, img_output, buf);
+			kgrid_singleFrame = k_singleFrame;
 		}
 
-		md_free(buf);
-	} else {
 
-		if (combine) {
+		double scaling = 100. / md_znorm(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame);
+		if (1 != kgrid_s->dims_singleFrame[SLICE_DIM]) // SMS
+			scaling *= sqrt(kgrid_s->dims_singleFrame[SLICE_DIM]);
+		md_zsmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, scaling);
 
-			// just sum up the map images
-			md_zaxpy2(DIMS, img_s->dims_full, img_s->strs_output, img_output, 1., img_s->strs_singleFrame, img);
-		} else { /*!normalize && !combine */
+#ifdef  USE_CUDA
+		if (conf.usegpu) {
 
-			// Just copy
-			md_copy(DIMS, img_s->dims_output, img_output, img, CFL_SIZE);
+			complex float* kgrid_gpu_singleFrame = md_alloc_gpu(DIMS, k_s->dims_singleFrame, CFL_SIZE);
+			md_copy(DIMS, k_s->dims_singleFrame, kgrid_gpu_singleFrame, k, CFL_SIZE);
+
+			noir_recon(&conf, sens_s->dims_singleFrame, img_singleFrame, sens_singleFrame, ref, pat_singleFrame, mask, kgrid_gpu_singleFrame);
+			md_free(kgrid_gpu_singleFrame);
+		} else
+#endif
+			noir_recon(&conf, sens_s->dims_singleFrame, img_singleFrame, sens_singleFrame, ref, pat_singleFrame, mask, kgrid_singleFrame);
+
+
+
+		// image output
+		if (normalize) {
+
+			complex float* buf = md_alloc(DIMS, sens_s->dims_singleFrame, CFL_SIZE);
+			md_clear(DIMS, sens_s->dims_singleFrame, buf, CFL_SIZE);
+
+			if (combine) {
+
+				md_zfmac2(DIMS, sens_s->dims_singleFrame, kgrid_s->strs_singleFrame, buf, img_s->strs_singleFrame, img_singleFrame, sens_s->strs_singleFrame, sens_singleFrame);
+				md_zrss(DIMS, kgrid_s->dims_singleFrame, COIL_FLAG, img_output_singleFrame, buf);
+
+			} else {
+
+				md_zfmac2(DIMS, sens_s->dims_singleFrame, sens_s->strs_singleFrame, buf, img_s->strs_singleFrame, img_singleFrame, sens_s->strs_singleFrame, sens_singleFrame);
+				md_zrss(DIMS, sens_s->dims_singleFrame, COIL_FLAG, img_output_singleFrame, buf);
+
+
+			}
+			md_zmul2(DIMS, img_s->dims_output_singleFrame, img_s->strs_output_singleFrame, img_output_singleFrame, img_s->strs_output_singleFrame, img_output_singleFrame, msk_s->strs_singleFrame, mask);
+
+			if (1 == nmaps || !combine) {
+
+				// restore phase
+				md_zphsr(DIMS, img_s->dims_output_singleFrame, buf, img_singleFrame);
+				md_zmul(DIMS, img_s->dims_output_singleFrame, img_output_singleFrame, img_output_singleFrame, buf);
+			}
+
+			md_free(buf);
+		} else {
+
+			if (combine) {
+
+				// just sum up the map images
+				md_zaxpy2(DIMS, img_s->dims_singleFrame, img_s->strs_output_singleFrame, img_output_singleFrame, 1., img_s->strs_singleFrame, img_singleFrame);
+			} else { // !normalize && !combine
+
+				// just copy
+				md_copy(DIMS, img_s->dims_output_singleFrame, img_output_singleFrame, img_singleFrame, CFL_SIZE);
+			}
 		}
+
+		if (scale_im)
+			md_zsmul(DIMS, img_s->dims_output_singleFrame, img_output_singleFrame, img_output_singleFrame, 1. / scaling);
+
+		// Copy frame to correct position in output array
+		long pos2[DIMS] = { 0 };
+		pos2[TIME_DIM] = frame;
+		md_copy_block(DIMS, pos2, img_s->dims_output, img_output, img_s->dims_output_singleFrame, img_output_singleFrame, CFL_SIZE);
 	}
 
-	if (scale_im)
-		md_zsmul(DIMS, img_s->dims_output, img_output, img_output, 1. / scaling);
-
 	md_free(mask);
-	md_free(img);
+	md_free(img_singleFrame);
+	md_free(k_singleFrame);
+	md_free(pat_singleFrame);
+	md_free(sens_output_singleFrame);
+	md_free(img_output_singleFrame);
+	md_free(sens_singleFrame);
 
 	unmap_cfl(DIMS, sens_s->dims_full, sens);
 	unmap_cfl(DIMS, pat_s->dims_full, pattern);
 	unmap_cfl(DIMS, img_s->dims_output, img_output);
-	unmap_cfl(DIMS, k_s->dims_full, kspace_data);
+	unmap_cfl(DIMS, k_s->dims_full, k);
 
 	if (out_sens)
-		unmap_cfl(DIMS, sens_s->dims_full, sensout);
+		unmap_cfl(DIMS, sens_s->dims_full, sens_output);
 	else if (normalize)
-		unmap_cfl(DIMS, sens_s->dims_singleFrame, sensout);
+		unmap_cfl(DIMS, sens_s->dims_singleFrame, sens_output);
 
 
 	free(k_s);
 	free(img_s);
 	free(sens_s);
 	free(msk_s);
-	free(gridded_k_s);
+	free(kgrid_s);
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
