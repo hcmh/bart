@@ -78,7 +78,7 @@ const struct noir_conf_s noir_defaults = {
 };
 
 
-void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
+void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, complex float* ksens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -105,7 +105,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	md_copy(DIMS, imgs_dims, x, img, CFL_SIZE);
 
-	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
+	md_copy(DIMS, coil_dims, x + skip, ksens, CFL_SIZE);
 
 	complex float* xref = NULL;
 
@@ -150,20 +150,20 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 			(struct iter_op_s){ orthogonalize, CAST_UP(&nlw)});
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
+	md_copy(DIMS, coil_dims, ksens, x + skip, CFL_SIZE);
 
-	if (NULL != sens) {
 
 #ifdef USE_CUDA
-		if (conf->usegpu) {
+	if (conf->usegpu) {
 
-			noir_forw_coils(nl.linop, x + skip, x + skip);
-			md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
-		} else
+		noir_forw_coils(nl.linop, x + skip, x + skip);
+		md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
+	} else
 #endif
-			noir_forw_coils(nl.linop, sens, x + skip);
+		noir_forw_coils(nl.linop, sens, x + skip);
 
-		fftmod(DIMS, coil_dims, fft_flags, sens, sens);
-	}
+	fftmod(DIMS, coil_dims, fft_flags, sens, sens);
+
 
 	nlop_free(nl.nlop);
 

@@ -179,10 +179,16 @@ int main_rtnlinv(int argc, char* argv[])
 
 	complex float* mask = NULL;
 
+	// Full output sensitivities
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, sens_s->dims_full);
 
+	// Sensitivities in image domain (relevant for output and normalization)
 	complex float* sens_singleFrame = md_alloc(DIMS, sens_s->dims_singleFrame, CFL_SIZE);
 	md_clear(DIMS, sens_s->dims_singleFrame, sens_singleFrame, CFL_SIZE);
+
+	// Sensitivities in kspace-domain (relevant for reference and initialization)
+	complex float* ksens_singleFrame = md_alloc(DIMS, sens_s->dims_singleFrame, CFL_SIZE);
+	md_clear(DIMS, sens_s->dims_singleFrame, ksens_singleFrame, CFL_SIZE);
 
 
 	// initialization
@@ -196,14 +202,14 @@ int main_rtnlinv(int argc, char* argv[])
 			error("Image dimensions and init dimensions to not match!");
 
 		md_copy(DIMS, img_s->dims_singleFrame, img_singleFrame, init, CFL_SIZE);
-		fftmod(DIMS, sens_s->dims_singleFrame, FFT_FLAGS|SLICE_FLAG, sens_singleFrame, init + skip);
+		fftmod(DIMS, sens_s->dims_singleFrame, FFT_FLAGS|SLICE_FLAG, ksens_singleFrame, init + skip);
 
 		unmap_cfl(DIMS, init_dims, init);
 
 	} else {
 
 		md_zfill(DIMS, img_s->dims_singleFrame, img_singleFrame, 1.);
-		md_clear(DIMS, sens_s->dims_singleFrame, sens_singleFrame, CFL_SIZE);
+		md_clear(DIMS, sens_s->dims_singleFrame, ksens_singleFrame, CFL_SIZE);
 	}
 
 
@@ -278,24 +284,6 @@ int main_rtnlinv(int argc, char* argv[])
 	long skip = md_calc_size(DIMS, img_s->dims_singleFrame);
 	long size = skip + md_calc_size(DIMS, sens_s->dims_singleFrame);
 
-
-	complex float* sens_output;
-//	complex float* sens_singleFrame_out;
-
-	if (out_sens){
-		sens_output = create_cfl(argv[4], DIMS, sens_s->dims_full);
-		md_clear(DIMS, sens_s->dims_full, sens_output, CFL_SIZE);
-
-		// kspace sensitivities
-// 		char s0[36] = "k";
-// 		strcat(s0, argv[4]);
-// 		sens_singleFrame_out = create_cfl(s0, DIMS, sens_s->dims->full);
-//		md_clear(DIMS, sens_s->dims->full, sens_singleFrame_out, CFL_SIZE);
-
-	} else if (normalize)
-		sens_output = anon_cfl("", DIMS, sens_s->dims_full);
-	else
-		sens_output = NULL;
 
 
 	long ref_dim[1] = { size };
@@ -373,14 +361,14 @@ int main_rtnlinv(int argc, char* argv[])
 #ifdef  USE_CUDA
 		if (conf.usegpu) {
 
-			complex float* kgrid_gpu_singleFrame = md_alloc_gpu(DIMS, k_s->dims_singleFrame, CFL_SIZE);
-			md_copy(DIMS, k_s->dims_singleFrame, kgrid_gpu_singleFrame, k, CFL_SIZE);
+			complex float* kgrid_gpu_singleFrame = md_alloc_gpu(DIMS, kgrid_s->dims_singleFrame, CFL_SIZE);
+			md_copy(DIMS, kgrid_s->dims_singleFrame, kgrid_gpu_singleFrame, kgrid_singleFrame, CFL_SIZE);
 
-			noir_recon(&conf, sens_s->dims_singleFrame, img_singleFrame, sens_singleFrame, ref, pat_singleFrame, mask, kgrid_gpu_singleFrame);
+			noir_recon(&conf, sens_s->dims_singleFrame, img_singleFrame, sens_singleFrame, ksens_singleFrame, ref, pat_singleFrame, mask, kgrid_gpu_singleFrame);
 			md_free(kgrid_gpu_singleFrame);
 		} else
 #endif
-			noir_recon(&conf, sens_s->dims_singleFrame, img_singleFrame, sens_singleFrame, ref, pat_singleFrame, mask, kgrid_singleFrame);
+			noir_recon(&conf, sens_s->dims_singleFrame, img_singleFrame, sens_singleFrame, ksens_singleFrame, ref, pat_singleFrame, mask, kgrid_singleFrame);
 
 
 
@@ -432,6 +420,8 @@ int main_rtnlinv(int argc, char* argv[])
 		long pos2[DIMS] = { 0 };
 		pos2[TIME_DIM] = frame;
 		md_copy_block(DIMS, pos2, img_s->dims_output, img_output, img_s->dims_output_singleFrame, img_output_singleFrame, CFL_SIZE);
+		if(out_sens)
+			md_copy_block(DIMS, pos2, sens_s->dims_full, sens, sens_s->dims_singleFrame, sens_singleFrame, CFL_SIZE);
 	}
 
 	md_free(mask);
@@ -454,11 +444,6 @@ int main_rtnlinv(int argc, char* argv[])
 	unmap_cfl(DIMS, pat_s->dims_full, pattern);
 	unmap_cfl(DIMS, img_s->dims_output, img_output);
 	unmap_cfl(DIMS, k_s->dims_full, k);
-
-	if (out_sens)
-		unmap_cfl(DIMS, sens_s->dims_full, sens_output);
-	else if (normalize)
-		unmap_cfl(DIMS, sens_s->dims_singleFrame, sens_output);
 
 
 	free(k_s);
