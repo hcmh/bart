@@ -54,6 +54,7 @@ int main_rtnlinv(int argc, char* argv[])
 	unsigned int nmaps = 1;
 	float restrict_fov = -1.;
 	float oversampling = 1.5f;
+	float temp_damp = 0.9f;
 	const char* psf = NULL;
 	const char* trajectory = NULL;
 	const char* init_file = NULL;
@@ -82,6 +83,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.5]"),
+		OPT_FLOAT('T', &temp_damp, "temp_damp", "temporal damping [default: 0.9]"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -371,6 +373,9 @@ int main_rtnlinv(int argc, char* argv[])
 			noir_recon(&conf, sens_s->dims_singleFrame, img_singleFrame, sens_singleFrame, ksens_singleFrame, ref, pat_singleFrame, mask, kgrid_singleFrame);
 
 
+		// Temporal regularization
+		md_zsmul(DIMS, img_s->dims_singleFrame, ref, img_singleFrame, temp_damp);
+		md_zsmul(DIMS, sens_s->dims_singleFrame, ref + skip, ksens_singleFrame, temp_damp);
 
 		// image output
 		if (normalize) {
@@ -422,6 +427,7 @@ int main_rtnlinv(int argc, char* argv[])
 		md_copy_block(DIMS, pos2, img_s->dims_output, img_output, img_s->dims_output_singleFrame, img_output_singleFrame, CFL_SIZE);
 		if(out_sens)
 			md_copy_block(DIMS, pos2, sens_s->dims_full, sens, sens_s->dims_singleFrame, sens_singleFrame, CFL_SIZE);
+
 	}
 
 	md_free(mask);
