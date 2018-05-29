@@ -106,7 +106,7 @@ int main_rtnlinv(int argc, char* argv[])
 	if (1 != k_s->dims_full[SLICE_DIM]) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", k_s->dims_full[SLICE_DIM]);
-		fftmod(DIMS, k_s->dims_full, SLICE_FLAG, k, k); // fftmod to get correct slice order in output
+		//fftmod(DIMS, k_s->dims_full, SLICE_FLAG, k, k); // fftmod to get correct slice order in output
 	}
 
 	complex float* pattern = NULL;
@@ -355,8 +355,8 @@ int main_rtnlinv(int argc, char* argv[])
 
 
 		double scaling = 100. / md_znorm(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame);
-		if (1 != kgrid_s->dims_singleFrame[SLICE_DIM]) // SMS
-			scaling *= sqrt(kgrid_s->dims_singleFrame[SLICE_DIM]);
+// 		if (1 != kgrid_s->dims_singleFrame[SLICE_DIM]) // SMS
+// 			scaling *= sqrt(kgrid_s->dims_singleFrame[SLICE_DIM]);
 		md_zsmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, scaling);
 
 #ifdef  USE_CUDA
