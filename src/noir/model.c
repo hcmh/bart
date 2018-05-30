@@ -140,15 +140,27 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
     if( dims[SLICE_DIM] != 1 ){ //SMS
             const struct linop_s* tmp_fft = linop_fft_create(DIMS, data->sign_dims, SLICE_FLAG);
             lop_fft = linop_chain(lop_fft, tmp_fft);
+            linop_free(tmp_fft);
     }
 
-
-	complex float* ptr = my_alloc(DIMS, ptrn_dims, CFL_SIZE);
+    const struct linop_s* lop_pattern;
+    
+	complex float* ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
 
 	md_copy(DIMS, ptrn_dims, ptr, psf, CFL_SIZE);
 	fftmod(DIMS, ptrn_dims, conf->fft_flags, ptr, ptr);
-
-	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), ptr);
+    
+#ifdef USE_CUDA
+	if (conf->use_gpu) {
+        complex float* ptr_gpu = my_alloc(DIMS, ptrn_dims, CFL_SIZE);
+		md_copy(DIMS, ptrn_dims, ptr_gpu, ptr, CFL_SIZE);
+		md_free(ptr);
+        lop_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), ptr_gpu);
+	}else  
+#endif
+    {
+        lop_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), ptr);
+    }
 
 	const struct linop_s* lop_adj_pattern;
 
@@ -158,14 +170,22 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	} else {
 
-		complex float* adj_pattern = my_alloc(DIMS, ptrn_dims, CFL_SIZE);
+		complex float* adj_pattern = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
 		md_zfill(DIMS, ptrn_dims, adj_pattern, 1.);
 		fftmod(DIMS, ptrn_dims, conf->fft_flags, adj_pattern, adj_pattern);
-
-		lop_adj_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), adj_pattern);
+        
+#ifdef USE_CUDA
+        if (conf->use_gpu) {
+            complex float* adj_pattern_gpu = my_alloc(DIMS, ptrn_dims, CFL_SIZE);
+            md_copy(DIMS, ptrn_dims, adj_pattern_gpu, adj_pattern, CFL_SIZE);
+            md_free(adj_pattern);
+            lop_adj_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), adj_pattern_gpu);
+        } else  
+#endif
+        {
+            lop_adj_pattern = linop_fmac_create(DIMS, data->sign_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), adj_pattern);
+        }
 	}
-
-
 
 	complex float* msk = my_alloc(DIMS, mask_dims, CFL_SIZE);
 
@@ -189,7 +209,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	data->frw = linop_chain(lop_fft, lop_pattern);
 	data->adj = linop_chain(lop_fft, lop_adj_pattern);
-
+    
 	data->tmp = my_alloc(DIMS, data->sign_dims, CFL_SIZE);
 
 
@@ -202,6 +222,11 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	const struct nlop_s* frw = nlop_from_linop(data->frw);
 
 	data->nl2 = nlop_chain2(data->nl, 0, frw, 0);
+    
+    linop_free(lop_fft);
+    linop_free(lop_mask);
+    linop_free(lop_pattern);
+    linop_free(lop_adj_pattern);
 
 	return PTR_PASS(data);
 }
