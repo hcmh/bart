@@ -165,17 +165,16 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
             const struct linop_s* tmp_fft = linop_fft_create(DIMS, data->data_dims, SLICE_FLAG);
             lop_fft = linop_chain(lop_fft, tmp_fft);
-	    linop_free(tmp_fft);
-
+            linop_free(tmp_fft);
 	}
 
-	data->pattern_array = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
+	complex float* ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
 
-	md_copy(DIMS, ptrn_dims, data->pattern_array, psf, CFL_SIZE);
-	fftmod(DIMS, ptrn_dims, conf->fft_flags, data->pattern_array, data->pattern_array);
+	md_copy(DIMS, ptrn_dims, ptr, psf, CFL_SIZE);
+	fftmod(DIMS, ptrn_dims, conf->fft_flags, ptr, ptr);
+    
+	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), ptr);
 
-
-	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG), ptrn_flags, data->pattern_array);
 
 	const struct linop_s* lop_adj_pattern;
 
@@ -186,16 +185,14 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	} else {
 
-		data->adj_pattern_array = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
-		md_zfill(DIMS, ptrn_dims, data->adj_pattern_array, 1.);
-		fftmod(DIMS, ptrn_dims, conf->fft_flags, data->adj_pattern_array, data->adj_pattern_array);
+		complex float* adj_pattern = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
+		md_zfill(DIMS, ptrn_dims, adj_pattern, 1.);
+		fftmod(DIMS, ptrn_dims, conf->fft_flags, adj_pattern, adj_pattern);
 
-		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG), ~(conf->fft_flags|COIL_FLAG), ptrn_flags, data->adj_pattern_array);
+		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), adj_pattern);
 	}
 
-
-
-	data->mask_array = md_alloc(DIMS, mask_dims, CFL_SIZE);
+	complex float* msk = my_alloc(DIMS, mask_dims, CFL_SIZE);
 
 	if (NULL == mask) {
 
@@ -236,6 +233,11 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	const struct nlop_s* frw = nlop_from_linop(data->frw);
 
 	data->nl2 = nlop_chain2(data->nl, 0, frw, 0);
+    
+    linop_free(lop_fft);
+    linop_free(lop_mask);
+    linop_free(lop_pattern);
+    linop_free(lop_adj_pattern);
 
 	nlop_free(frw);
 
@@ -244,10 +246,6 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 static void noir_free(struct noir_op_s* data)
 {
-	md_free(data->weights_array);
-	md_free(data->pattern_array);
-	md_free(data->adj_pattern_array);
-	md_free(data->mask_array);
 	md_free(data->tmp);
 
 	linop_free(data->frw);
