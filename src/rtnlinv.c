@@ -109,7 +109,7 @@ int main_rtnlinv(int argc, char* argv[])
 	// Reduce kspace (-F)
 	if( reduced_frames > 0 ) {
 
-		if(reduced_frames > k_s->dims_full[TIME_DIM])
+		if (reduced_frames > k_s->dims_full[TIME_DIM])
 			error("Number of frames to be reconstructed (-F) must be smaller than number of acquired frames!");
 
 		reduce_frames(reduced_frames, k_s->dims_full, &k);
@@ -142,7 +142,7 @@ int main_rtnlinv(int argc, char* argv[])
 		md_copy(DIMS, pat_s->dims_full, pattern, tmp_psf, CFL_SIZE);
 		unmap_cfl(DIMS, pat_s->dims_full, tmp_psf);
 
-		if (reduced_frames > 0) {
+		if (reduced_frames > 0 && reduced_frames < pat_s->dims_full[TIME_DIM]) {
 			reduce_frames(reduced_frames, pat_s->dims_full, &pattern);
 			ds_init(pat_s, CFL_SIZE);
 		}
@@ -157,7 +157,7 @@ int main_rtnlinv(int argc, char* argv[])
 		md_zsmul(DIMS, traj_s->dims_full, traj, traj, oversampling);
 		ds_init(traj_s, CFL_SIZE);
 
-		if (reduced_frames > 0) {
+		if (reduced_frames > 0 && reduced_frames < traj_s->dims_full[TIME_DIM]) {
 			reduce_frames(reduced_frames, traj_s->dims_full, &traj);
 			ds_init(traj_s, CFL_SIZE);
 		}
@@ -245,6 +245,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 
 		md_select_dims(DIMS, ~(COIL_FLAG|MAPS_FLAG), pat_s->dims_full, sens_s->dims_full);
+		pat_s->dims_full[TIME_DIM] = turns;
 		ds_init(pat_s, CFL_SIZE);
 
 		// calculate pattern by nufft gridding:
@@ -279,7 +280,12 @@ int main_rtnlinv(int argc, char* argv[])
 		fftscale(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
 		fftc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
 
-		scale_psf_k(pat_s, pattern, k_s, k, traj_s, traj);
+		if (frames > turns) {
+			// For turn-based reconstructions we use the conventional scaling
+			float patnorm = 1.f / k_s->dims_full[2];
+			md_zsmul(DIMS, pat_s->dims_full, pattern, pattern, patnorm);
+		} else // This scaling accounts for variable spokes per frame
+			scale_psf_k(pat_s, pattern, k_s, k, traj_s, traj);
 
 		linop_free(nufft_op);
 		md_free(ones);
