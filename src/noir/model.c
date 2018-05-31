@@ -163,7 +163,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->data_dims, FFT_FLAGS);
 	if( dims[SLICE_DIM] != 1 ){ //SMS
 
-            const struct linop_s* tmp_fft = linop_fft_create(DIMS, data->data_dims, SLICE_FLAG);
+            const struct linop_s* tmp_fft = linop_fft_create_no_measure(DIMS, data->data_dims, SLICE_FLAG);
             lop_fft = linop_chain(lop_fft, tmp_fft);
             linop_free(tmp_fft);
 	}
