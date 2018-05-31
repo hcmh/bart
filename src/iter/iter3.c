@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "num/ops.h"
 #include "num/iovec.h"
@@ -59,7 +60,7 @@ struct irgnm_s {
 	struct iter_op_s frw;
 	struct iter_op_s der;
 	struct iter_op_s adj;
-
+    
 	float* tmp;
     
 	long size;
@@ -89,7 +90,21 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
     iter_op_call(data->der, data->tmp, src);
     iter_op_call(data->adj, dst, data->tmp);
 
-    select_vecops(src)->axpy(data->size, dst, data->alpha, src);
+    int res = 512;
+    int SMS = 1;
+    int parameters = 3;
+    int coils = 8;
+    
+    
+//     for (k = 0; k < SMS; k++){
+        select_vecops(src)->axpy(data->size*coils*SMS/(coils * SMS + parameters*SMS), 
+                                 dst + res*res*2*(parameters * SMS), 
+                                 data->alpha, 
+                                 src + res*res*2*(parameters * SMS)); 
+//      }
+//     select_vecops(src)->axpy(data->size, dst, data->alpha, src);
+
+    
 }
 
 static void inverse(iter_op_data* _data, float alpha, float* dst, const float* src)
@@ -126,33 +141,38 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	md_free(x);
 //	debug_printf(DP_INFO, "\tMax eigv: %.2e\n", maxeigen);
 
-	double step = 0.45/maxeigen;//fmin(iter_fista_defaults.step / maxeigen, iter_fista_defaults.step); // 0.95f is FISTA standard
+	double step = 0.475/maxeigen;//fmin(iter_fista_defaults.step / maxeigen, iter_fista_defaults.step); // 0.95f is FISTA standard
 //	debug_printf(DP_INFO, "\tFISTA Stepsize: %.2e\n", step);
+    float alpha_min = 0.005;
+    int res = 512;
+    int SMS = 1;
+    int parameters = 3;
     
-    struct operator_p_s* prox;
+    const struct operator_p_s* prox;
     if (1) {
         // for FISTA+
-		bool randshift = true;
-		long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
-		unsigned int wflags = 0;
+        bool randshift = true;
+        long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
+        unsigned int wflags = 0;
         unsigned int jwflags = 0;
 //         const long* dims = nlop_generic_domain(&data->nlop, 0)->dims;
-        long dims[16] = {384,384,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+        long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,1,1,1};
         for (unsigned int i = 0; i < DIMS; i++) {
-            if ((1 < dims[i]) && MD_IS_SET(FFT_FLAGS|SLICE_FLAG, i)) {
+            if ((1 < dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
                 wflags = MD_SET(wflags, i);
                 minsize[i] = MIN(dims[i], 16);
             }
-        }
+        } 
+        jwflags = MD_SET(jwflags, 6);
+        if (alpha < alpha_min)
+            alpha = alpha_min;
 		prox = prox_wavelet_thresh_create(DIMS, dims, wflags, jwflags, minsize, alpha, randshift);
 	}
-	
-	
     
     int maxiter = 10*powf(2,k);
     
-    if(maxiter > 400)
-        maxiter = 400;
+    if(maxiter > 300)
+        maxiter = 300;
 
 	fista(maxiter, 0.0f * alpha * eps, step,
 		iter_fista_defaults.continuation, iter_fista_defaults.hogwild,
@@ -160,7 +180,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 		select_vecops(src),
 		(struct iter_op_s){normal_fista, CAST_UP(data)},
         OPERATOR_P2ITOP(prox),
-//        *(prox),
+//         data->prox,
         dst, src, NULL);
     k++;
 }
@@ -188,6 +208,8 @@ static void adjoint(iter_op_data* _data, float* dst, const float* src)
 
 
 
+
+
 void iter3_irgnm(iter3_conf* _conf,
 		struct iter_op_s frw,
 		struct iter_op_s der,
@@ -198,7 +220,7 @@ void iter3_irgnm(iter3_conf* _conf,
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
 
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(M), FL_SIZE, src);
-	struct irgnm_s data = { { &TYPEID(irgnm_s) }, frw, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy };
+	struct irgnm_s data = { { &TYPEID(irgnm_s) }, frw, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 0.0 };
 
 	irgnm(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
 		(struct iter_op_s){ forward, CAST_UP(&data) },
@@ -227,6 +249,7 @@ void iter3_irgnm_l1(iter3_conf* _conf,
 		(struct iter_op_s){ derivative, CAST_UP(&data) },
 		(struct iter_op_s){ adjoint, CAST_UP(&data) },
 		(struct iter_op_p_s){ inverse_fista, CAST_UP(&data) },
+//         (struct iter_op_p_s){ inverse, CAST_UP(&data) },
 		dst, ref, src,
 		(struct iter_op_s){NULL, NULL});
 

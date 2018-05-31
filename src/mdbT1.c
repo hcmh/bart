@@ -48,8 +48,8 @@ int main_mdbT1(int argc, char* argv[])
 
 	const struct opt_s opts[] = {
 
-		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
-		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+        OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
+        OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
@@ -62,7 +62,7 @@ int main_mdbT1(int argc, char* argv[])
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
-	if (4 == argc)
+	if (5 == argc)
 		out_sens = true;
 
 
@@ -97,6 +97,12 @@ int main_mdbT1(int argc, char* argv[])
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
+	
+    long img1_dims[DIMS];
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|SLICE_FLAG, img1_dims, dims);
+
+	long img1_strs[DIMS];
+	md_calc_strides(DIMS, img1_strs, img1_dims, CFL_SIZE);
 
 	long coil_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG, coil_dims, dims);
@@ -131,7 +137,9 @@ int main_mdbT1(int argc, char* argv[])
 	} else {
 
 		md_zfill(DIMS, img_dims, img, 1.0);
-		md_clear(DIMS, coil_dims, sens, CFL_SIZE);
+        
+		
+        md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 	}
 
 	complex float* pattern = NULL;
@@ -157,7 +165,7 @@ int main_mdbT1(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-	double scaling = 800. / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling = 1000. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
 			scaling *= sqrt(ksp_dims[SLICE_DIM]); 
@@ -178,6 +186,16 @@ int main_mdbT1(int argc, char* argv[])
 		restrict_dims[1] = restrict_fov;
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
+        md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask, 1.0);
+
+        float img_tmp;
+        
+        for (int k = 0; k < img_dims[13]; k++)
+            for (int i = 0; i < img_dims[1]; i++)
+                for (int j = 0; j < img_dims[0]; j++){
+                    img_tmp = *(img + img_dims[0]*img_dims[1]*(img_dims[6]-1) + k*img_dims[0]*img_dims[1]*img_dims[6] + j + i*img_dims[0]);
+                    *(img + img_dims[0]*img_dims[1]*(img_dims[6]-1) + k*img_dims[0]*img_dims[1]*img_dims[6] + j + i*img_dims[0]) = img_tmp*2.0;;
+                }
 	}
 
 #ifdef  USE_CUDA
@@ -211,7 +229,7 @@ int main_mdbT1(int argc, char* argv[])
 		if (normalize)
 			md_zdiv2(DIMS, coil_dims, strs, sens, strs, sens, img_strs, norm);
 
-		//fftmod(DIMS, coil_dims, FFT_FLAGS, sens, sens);
+// 		fftmod(DIMS, coil_dims, FFT_FLAGS, sens, sens);
 	}
 
 	if (scale_im)

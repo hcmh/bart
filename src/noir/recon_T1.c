@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include <assert.h>
+#include <stdio.h>
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -82,10 +83,11 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
-
+    
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
-			size * 2, (float*)x, (float*)x,
+ 	//		size * 2, (float*)x, (float*)x,
+            size * 2, (float*)x, NULL,    
 			data_size * 2, (const float*)kspace_data);
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);

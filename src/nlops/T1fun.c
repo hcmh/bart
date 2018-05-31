@@ -317,7 +317,7 @@ struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims
     md_copy(N, TI_dims, data->TI, TI, CFL_SIZE); 
     
     data->scaling_M0 = 2.0;
-    data->scaling_R1s = 1.5;
+    data->scaling_R1s = 1.0;
 	
     return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
 }

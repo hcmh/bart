@@ -36,9 +36,11 @@
 
 #include "misc/misc.h"
 #include "misc/debug.h"
+#include "num/multind.h"
 
 #include "iter/vec.h"
 #include "iter/monitor.h"
+#include "num/flpmath.h"
 
 #include "italgos.h"
 
@@ -286,19 +288,30 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 
 	int hogwild_k = 0;
 	int hogwild_K = 10;
+    
+    int res = 512;
+    int parameters = 3;
+    int SMS = 1;
+//     const long dims[16] = {res,res,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+    int k,i,j;
+    float lowbound = 0.33;
 
 	for (itrdata.iter = 0; itrdata.iter < maxiter; itrdata.iter++) {
 
 		iter_monitor(monitor, vops, x);
 
-		ls_old = lambda_scale;
+		ls_old = lambda_scale; 
 		lambda_scale = ist_continuation(&itrdata, continuation);
 		
 		if (lambda_scale != ls_old) 
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
 
- 		iter_op_p_call(thresh, lambda_scale * tau, x, x);
+        iter_op_p_call(thresh, lambda_scale * tau, x, x);
+   
+//         for (k = 0; k < SMS; k++)
+//             md_smax(1, MD_DIMS(2*md_calc_size(16, dims)), x + res*res*2*(parameters-1) +  k*res*res*2*parameters, x + res*res*2*(parameters-1) +  k*res*res*2*parameters, 0.0);
+
 
 		ravine(vops, N, &ra, x, o);	// FISTA
 		iter_op_call(op, r, x);		// r = A x
@@ -312,6 +325,21 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 			break;
 
 		vops->axpy(N, x, tau, r);
+        
+        for (k = 0; k < SMS; k++)
+            for (i = 0; i < res*2; i++)
+                for (j = 0; j < res; j++){
+                    float image = *(x + res*res*2*(parameters-1) +  k*res*res*2*parameters + j*2 + i*res);
+                    if (image < lowbound){
+                        *(x + res*res*2*(parameters-1) +  k*res*res*2*parameters + j*2 + i*res) = lowbound;
+                    }
+                    
+                }
+        
+        
+      
+//   md_smax(1, MD_DIMS(2*md_calc_size(16, dims)), x + res*res*2*(parameters-1) +  k*res*res*2*parameters, x + res*res*2*(parameters-1) +  k*res*res*2*parameters, 0.0);
+
 
 
 		if (hogwild)
@@ -546,10 +574,20 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
 	float* t = vops->allocate(M);
 	float* p = vops->allocate(N);
 
+	int res = 512;
+   	int parameters = 3;
+   	int SMS = 1;
+    const long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
+
 	for (unsigned int i = 0; i < iter; i++) {
 		//		printf("#--------\n");
 		iter_op_call(op, r, x);		// r = F x
 
+        debug_printf(DP_DEBUG2, "\tF(x): %f\n", vops->norm(M, r));
+        
+        
+        debug_printf(DP_DEBUG2, "y: %f\n", vops->norm(M, y));
+        
 		vops->xpay(M, -1., r, y);	// r = y - F x
 		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
 		
@@ -563,6 +601,14 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
 
 		iter_op_p_call(inv, alpha, x, p);
 	///	debug_printf(DP_DEBUG2, "\t\tx %f\n", vops->norm(N, x));
+    
+        static int i = 0;
+    
+        char name[255] = {'\0'};
+    
+        sprintf(name, "/tmp/step_test_%02d", i++); 
+    
+        dump_cfl(name, 16, dims, x);
 		
         alpha /= redu;
 		if (NULL != callback.fun){
