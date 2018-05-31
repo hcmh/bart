@@ -768,10 +768,19 @@ static void fft_linop_normal(const linop_data_t* _data, complex float* out, cons
 }
 
 
-static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned int flags, bool forward, bool center)
+static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned int flags, bool forward, bool center, bool measure)
 {
-	const struct operator_s* plan = fft_measure_create(N, dims, flags, true, false);
-	const struct operator_s* iplan = fft_measure_create(N, dims, flags, true, true);
+	const struct operator_s* plan = NULL;
+	const struct operator_s* iplan = NULL;
+	if (measure) {
+		plan = fft_measure_create(N, dims, flags, true, false);
+		iplan = fft_measure_create(N, dims, flags, true, true);
+	} else {
+		complex float* tmp1 = md_alloc(N, dims, CFL_SIZE);
+		plan = fft_create(N, dims, flags, tmp1, tmp1, false);
+		iplan = fft_create(N, dims, flags, tmp1, tmp1, true);
+		md_free(tmp1);
+	}
 
 	PTR_ALLOC(struct fft_linop_s, data);
 	SET_TYPEID(fft_linop_s, data);
@@ -838,7 +847,7 @@ static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned
  */
 struct linop_s* linop_fft_create(int N, const long dims[N], unsigned int flags)
 {
-	return linop_fft_create_priv(N, dims, flags, true, false);
+	return linop_fft_create_priv(N, dims, flags, true, false, true);
 }
 
 
@@ -851,7 +860,7 @@ struct linop_s* linop_fft_create(int N, const long dims[N], unsigned int flags)
  */
 struct linop_s* linop_ifft_create(int N, const long dims[N], unsigned int flags)
 {
-	return linop_fft_create_priv(N, dims, flags, false, false);
+	return linop_fft_create_priv(N, dims, flags, false, false, true);
 }
 
 
@@ -864,7 +873,7 @@ struct linop_s* linop_ifft_create(int N, const long dims[N], unsigned int flags)
  */
 struct linop_s* linop_fftc_create(int N, const long dims[N], unsigned int flags)
 {
-	return linop_fft_create_priv(N, dims, flags, true, true);
+	return linop_fft_create_priv(N, dims, flags, true, true, true);
 }
 
 
@@ -877,11 +886,23 @@ struct linop_s* linop_fftc_create(int N, const long dims[N], unsigned int flags)
  */
 struct linop_s* linop_ifftc_create(int N, const long dims[N], unsigned int flags)
 {
-	return linop_fft_create_priv(N, dims, flags, false, true);
+	return linop_fft_create_priv(N, dims, flags, false, true, true);
 }
 
 
-
+/**
+ * Uncentered forward Fourier transform linear operator
+ * no fft_measure_create used
+ *
+ * @param N number of dimensions
+ * @param dims dimensions of input
+ * @param flags bitmask of the dimensions to apply the Fourier transform
+ * @param gpu use gpu
+ */
+struct linop_s* linop_fft_create_no_measure(int N, const long dims[N], unsigned int flags)
+{
+	return linop_fft_create_priv(N, dims, flags, true, false, false);
+}
 
 struct linop_cdf97_s {
 
