@@ -98,13 +98,13 @@ int main_nufft(int argc, char* argv[])
 		assert(1 == ksp_dims[0]);
 		assert(md_check_compat(DIMS, ~(PHS1_FLAG|PHS2_FLAG), ksp_dims, traj_dims));
 
-		md_copy_dims(DIMS - 3, coilim_dims + 3, ksp_dims + 3);
-
 		if (0 == md_calc_size(DIMS, coilim_dims)) {
 
 			estimate_im_dims(DIMS, FFT_FLAGS, coilim_dims, traj_dims, traj);
 			debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", coilim_dims[0], coilim_dims[1], coilim_dims[2]);
 		}
+
+		md_copy_dims(DIMS - 3, coilim_dims + 3, ksp_dims + 3);
 
 		complex float* img = create_cfl(argv[3], DIMS, coilim_dims);
 
