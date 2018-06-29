@@ -176,6 +176,7 @@ MODULES_lrmatrix = -llowrank -liter -llinops
 MODULES_estdims = -lnoncart -llinops
 MODULES_ismrmrd = -lismrm
 MODULES_wavelet = -llinops -lwavelet
+MODULES_wshfl = -llinops -lwavelet -liter -llowrank -llinops
 MODULES_hornschunck = -liter -llinops
 MODULES_ncsense = -liter -llinops -lnoncart -lsense
 MODULES_kernel = -lrkhs -lnoncart
