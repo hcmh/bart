@@ -5,6 +5,8 @@
  *
  * Authors:
  * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2018 Christian Holme
+ * 2018 Sebastian Rosenzweig
  */
 
 #include <stdbool.h>
