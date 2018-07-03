@@ -276,7 +276,7 @@ int main_rtnlinv(int argc, char* argv[])
 		md_zdiv(DIMS, ones_dims, ones, k_dummy, k_dummy);
 
 		const struct linop_s* nufft_op = nufft_create(DIMS, ones_dims, pat_s->dims_full, traj_s->dims_full, traj, NULL, nufft_conf);
-		pattern = md_alloc(DIMS, pat_s->dims_full, CFL_SIZE);
+		pattern = anon_cfl("", DIMS, pat_s->dims_full);
 		linop_adjoint(nufft_op, DIMS, pat_s->dims_full, pattern, DIMS, ones_dims, ones);
 
 		fftscale(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
