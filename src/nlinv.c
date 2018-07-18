@@ -50,6 +50,7 @@ int main_nlinv(int argc, char* argv[])
 	const char* traj_file = NULL;
 	const char* psf = NULL;
 	const char* init_file = NULL;
+	const char* ref_file = NULL;
 	struct noir_conf_s conf = noir_defaults;
 	struct nufft_conf_s nufft_conf = nufft_conf_defaults;
 // 	nufft_conf.toeplitz = false;
@@ -69,6 +70,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
+		OPT_STRING('r', &ref_file, "file", "File for reference"),
 		OPT_SET('g', &conf.usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
@@ -289,6 +291,21 @@ int main_nlinv(int argc, char* argv[])
 	long size = skip + md_calc_size(DIMS, sens_dims);
 
 	complex float* ref = NULL;
+	if (NULL != ref_file) {
+
+		debug_printf(DP_INFO, "Using provided reference: %s\n", ref_file);
+		long ref_dims[DIMS];
+		complex float* ref_cfl = load_cfl(ref_file, DIMS, ref_dims);
+
+		assert(md_calc_size(DIMS, ref_dims) == size);
+
+		long d1[1] = { size };
+		ref = md_alloc(1, d1, CFL_SIZE);
+// 		md_copy(1, d1, ref, ref_cfl, CFL_SIZE);
+		md_zsmul(1, d1, ref, ref_cfl, scaling);
+
+		unmap_cfl(DIMS, ref_dims, ref_cfl);
+	}
 
 #ifdef  USE_CUDA
 	if (conf.usegpu) {
