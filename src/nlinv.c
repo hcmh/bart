@@ -23,6 +23,8 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
+#include "noncart/nufft.h"
+
 #include "noir/recon.h"
 
 
@@ -45,9 +47,12 @@ int main_nlinv(int argc, char* argv[])
 	bool combine = true;
 	unsigned int nmaps = 1;
 	float restrict_fov = -1.;
+	const char* traj_file = NULL;
 	const char* psf = NULL;
 	const char* init_file = NULL;
 	struct noir_conf_s conf = noir_defaults;
+	struct nufft_conf_s nufft_conf = nufft_conf_defaults;
+	nufft_conf.toeplitz = false;
 	bool out_sens = false;
 	bool scale_im = false;
 
@@ -56,6 +61,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
+		OPT_STRING('t', &traj_file, "file", "k-space trajectory"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
 		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconsctruction"),
@@ -86,7 +92,27 @@ int main_nlinv(int argc, char* argv[])
 
 	num_init();
 
-	long ksp_dims[DIMS];
+	long ksp_dims[DIMS]; // Dimension of input k-space. Can be non-Cartesian
+	long ksp_strs[DIMS];
+
+	long traj_dims[DIMS]; // Possible trajectory. Can be empty
+
+	long coil_imgs_dims[DIMS]; // Size of coil images before (nu)FFT
+	long coil_imgs_strs[DIMS]; // If Cartesian, is is the same as ksp_dims
+
+	long sens_dims[DIMS]; // sensitivities. Can include ENLIVE maps
+	long sens_strs[DIMS];
+
+	long img_dims[DIMS]; // Image. Can include ENLIVE maps
+	long img_strs[DIMS];
+
+	long img_output_dims[DIMS]; // For ouput. Might or might not include ENLIVE maps
+	long img_output_strs[DIMS];
+
+	long msk_dims[DIMS]; // Image space mask.
+	long msk_strs[DIMS];
+
+
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
 
 	// SMS
@@ -100,39 +126,57 @@ int main_nlinv(int argc, char* argv[])
 	// we allow multiple images and sensitivities during the reconsctruction
 	assert(1 == ksp_dims[MAPS_DIM]);
 
-	long ksp_strs[DIMS];
+
 	md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
+	conf.dims.ksp_dims = ksp_dims;
 
-	long sens_dims[DIMS];
+
+
+	complex float* traj = NULL;
+	if (NULL != traj_file) {
+
+		traj = load_cfl(traj_file, DIMS, traj_dims);
+		conf.noncart = true;
+		conf.dims.traj_dims = traj_dims;
+	}
+
+
+
 	md_copy_dims(DIMS, sens_dims, ksp_dims);
+
+	if (NULL != traj_file)
+		estimate_im_dims(DIMS, sens_dims, traj_dims, traj);
+
+	md_copy_dims(DIMS, coil_imgs_dims, sens_dims);
+	md_calc_strides(DIMS, coil_imgs_strs, coil_imgs_dims, CFL_SIZE);
+	conf.dims.coil_imgs_dims = coil_imgs_dims;
+
 	sens_dims[MAPS_DIM] = nmaps;
-
-	long sens_strs[DIMS];
 	md_calc_strides(DIMS, sens_strs, sens_dims, CFL_SIZE);
+	conf.dims.sens_dims = sens_dims;
 
 
-	long img_dims[DIMS];
+
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|SLICE_FLAG, img_dims, sens_dims);
-
-	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
+	conf.dims.img_dims = img_dims;
 
-	long img_output_dims[DIMS];
+
 	md_select_dims(DIMS, FFT_FLAGS|SLICE_FLAG, img_output_dims, sens_dims);
 	if (!combine)
 		img_output_dims[MAPS_DIM] = nmaps;
 
-	long img_output_strs[DIMS];
+
 	md_calc_strides(DIMS, img_output_strs, img_output_dims, CFL_SIZE);
 
 	complex float* img_output = create_cfl(argv[2], DIMS, img_output_dims);
 	md_clear(DIMS, img_output_dims, img_output, CFL_SIZE);
 	complex float* img = md_alloc(DIMS, img_dims, CFL_SIZE);
 
-	long msk_dims[DIMS];
+
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, img_dims);
 
-	long msk_strs[DIMS];
+
 	md_calc_strides(DIMS, msk_strs, msk_dims, CFL_SIZE);
 
 	complex float* mask = NULL;
@@ -242,11 +286,11 @@ int main_nlinv(int argc, char* argv[])
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
 
-		noir_recon(&conf, sens_dims, img, sens, ref, pattern, mask, kspace_gpu);
+		noir_recon(&conf, &nufft_conf, img, sens, ref, pattern, mask, kspace_gpu, (NULL == traj_file) ? NULL : traj);
 		md_free(kspace_gpu);
 	} else
 #endif
-		noir_recon(&conf, sens_dims, img, sens, ref, pattern, mask, kspace_data);
+		noir_recon(&conf, &nufft_conf, img, sens, ref, pattern, mask, kspace_data, (NULL == traj_file) ? NULL : traj);
 
 
 	// image output
@@ -257,8 +301,8 @@ int main_nlinv(int argc, char* argv[])
 
 		if (combine) {
 
-			md_zfmac2(DIMS, sens_dims, ksp_strs, buf, img_strs, img, sens_strs, sens);
-			md_zrss(DIMS, ksp_dims, COIL_FLAG, img_output, buf);
+			md_zfmac2(DIMS, sens_dims, coil_imgs_strs, buf, img_strs, img, sens_strs, sens);
+			md_zrss(DIMS, coil_imgs_dims, COIL_FLAG, img_output, buf);
 		} else {
 
 			md_zfmac2(DIMS, sens_dims, sens_strs, buf, img_strs, img, sens_strs, sens);
@@ -297,6 +341,8 @@ int main_nlinv(int argc, char* argv[])
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_output_dims, img_output);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
+	if (NULL != traj)
+		unmap_cfl(DIMS, traj_dims, traj);
 	if (conf.out_im_steps)
 		unmap_cfl(DIMS, out_im_steps_dims, conf.out_im);
 	if (conf.out_coils_steps)

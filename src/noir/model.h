@@ -38,8 +38,13 @@ struct noir_s {
 	struct noir_op_s* noir_op;
 };
 
-extern struct noir_s noir_create2(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
-extern struct noir_s noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf);
+struct noir_dims_s;
+struct nufft_conf_s;
+
+extern struct noir_s noir_create2(const struct noir_dims_s* dims, const complex float* mask, const complex float* psf, const complex float* traj, const struct nufft_conf_s* nufft_conf, const struct noir_model_conf_s* conf);
+extern struct noir_s noir_create(const struct noir_dims_s* dims, const complex float* mask, const complex float* psf, const complex float* traj, const struct nufft_conf_s* nufft_conf, const struct noir_model_conf_s* conf);
+
+extern void noir_free(struct noir_s* data);
 
 struct nlop_data_s;
 extern void noir_dump(struct noir_s* op, const complex float* img, const complex float* coils);

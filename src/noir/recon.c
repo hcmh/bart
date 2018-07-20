@@ -26,6 +26,8 @@
 #include "iter/thresh.h"
 #include "iter/italgos.h"
 
+#include "noncart/nufft.h"
+
 #include "misc/misc.h"
 #include "misc/types.h"
 #include "misc/mri.h"
@@ -57,6 +59,14 @@ static void callback(iter_op_data* ptr, float* _dst, const float* _src)
 const struct noir_conf_s noir_defaults = {
 
 	.iter = 8,
+	.dims = {
+
+			.ksp_dims = NULL,
+			.traj_dims = NULL,
+			.coil_imgs_dims = NULL,
+			.sens_dims = NULL,
+			.img_dims = NULL,
+		},
 	.rvc = false,
 	.usegpu = false,
 	.noncart = false,
@@ -73,30 +83,55 @@ const struct noir_conf_s noir_defaults = {
 	.out_coils = NULL,
 };
 
-void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
+
+static void print_noir_dims(const struct noir_dims_s* dims)
 {
-	long imgs_dims[DIMS];
-	long coil_dims[DIMS];
-	long data_dims[DIMS];
-	long img1_dims[DIMS];
+	debug_printf(DP_DEBUG1, "noir_dims_s:\n");
+
+	if (NULL != dims->ksp_dims) {
+		debug_printf(DP_DEBUG1, "ksp_dims:\n\t");
+		debug_print_dims(DP_DEBUG1, DIMS, dims->ksp_dims);
+	}
+
+	if (NULL != dims->traj_dims) {
+		debug_printf(DP_DEBUG1, "traj_dims:\n\t");
+		debug_print_dims(DP_DEBUG1, DIMS, dims->traj_dims);
+	}
+
+	if (NULL != dims->coil_imgs_dims) {
+		debug_printf(DP_DEBUG1, "coil_imgs_dims:\n\t");
+		debug_print_dims(DP_DEBUG1, DIMS, dims->coil_imgs_dims);
+	}
+
+
+	if (NULL != dims->sens_dims) {
+		debug_printf(DP_DEBUG1, "sens_dims:\n\t");
+		debug_print_dims(DP_DEBUG1, DIMS, dims->sens_dims);
+	}
+
+	if (NULL != dims->img_dims) {
+		debug_printf(DP_DEBUG1, "img_dims:\n\t");
+		debug_print_dims(DP_DEBUG1, DIMS, dims->img_dims);
+	}
+}
+
+
+void noir_recon(const struct noir_conf_s* conf, struct nufft_conf_s* nufft_conf, complex float* img, complex float* sens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data, const complex float* traj)
+{
 
 	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
 
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG, imgs_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG, data_dims, dims);
-	md_select_dims(DIMS, fft_flags, img1_dims, dims);
+	long skip = md_calc_size(DIMS, conf->dims.img_dims);
+	long size = skip + md_calc_size(DIMS, conf->dims.sens_dims);
+	long data_size = md_calc_size(DIMS, conf->dims.ksp_dims);
 
-	long skip = md_calc_size(DIMS, imgs_dims);
-	long size = skip + md_calc_size(DIMS, coil_dims);
-	long data_size = md_calc_size(DIMS, data_dims);
 
 	long d1[1] = { size };
 	// variable which is optimized by the IRGNM
 	complex float* x = md_alloc_sameplace(1, d1, CFL_SIZE, kspace_data);
 
-	md_copy(DIMS, imgs_dims, x, img, CFL_SIZE);
-	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
+	md_copy(DIMS, conf->dims.img_dims, x, img, CFL_SIZE);
+	md_copy(DIMS, conf->dims.sens_dims, x + skip, sens, CFL_SIZE);
 
 	complex float* xref = NULL;
 	if (NULL != ref) {
@@ -120,7 +155,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	mconf.out_coils = conf->out_coils;
 
 
-	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
+	struct noir_s nl = noir_create(&conf->dims, mask, pattern, traj, nufft_conf, &mconf);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
@@ -141,7 +176,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 			data_size * 2, (const float*)kspace_data,
 			(struct iter_op_s){ callback, CAST_UP(&nlw)});
 
-	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
+	md_copy(DIMS, conf->dims.img_dims, img, x, CFL_SIZE);
 
 	if (NULL != sens) {
 
@@ -149,15 +184,16 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 		if (conf->usegpu) {
 
 			noir_forw_coils(nl.linop, x + skip, x + skip);
-			md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
+			md_copy(DIMS, conf->dims.sens_dims, sens, x + skip, CFL_SIZE);
 		} else
 #endif
 			noir_forw_coils(nl.linop, sens, x + skip);
 
-		fftmod(DIMS, coil_dims, fft_flags, sens, sens);
+		if (NULL == conf->dims.traj_dims)
+			fftmod(DIMS, conf->dims.sens_dims, fft_flags, sens, sens);
 	}
 
-	nlop_free(nl.nlop);
+	noir_free(&nl);
 
 	md_free(x);
 	md_free(xref);

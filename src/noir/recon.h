@@ -9,9 +9,21 @@
 #include "misc/mri.h"
 
 
+
+struct noir_dims_s {
+
+	long* ksp_dims;
+	long* traj_dims;
+	long* coil_imgs_dims;
+	long* sens_dims;
+	long* img_dims;
+};
+
+
 struct noir_conf_s {
 
 	unsigned int iter;
+	struct noir_dims_s dims;
 	_Bool rvc;
 	_Bool usegpu;
 	_Bool noncart;
@@ -28,9 +40,11 @@ struct noir_conf_s {
 	_Complex float* out_coils;
 };
 
+
 extern const struct noir_conf_s noir_defaults;
 
-extern void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], _Complex float* img, _Complex float* sens, const _Complex float* ref, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data);
+struct nufft_conf_s;
+extern void noir_recon(const struct noir_conf_s* conf, struct nufft_conf_s* nufft_conf, _Complex float* img, _Complex float* sens, const _Complex float* ref, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data, const _Complex float* traj);
 
 #include "misc/cppwrap.h"
 
