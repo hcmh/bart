@@ -31,9 +31,12 @@ extern _Complex float* compute_psf(unsigned int N,
 				   const long img2_dims[__VLA(N)],
 				   const long trj_dims[__VLA(N)],
 				   const complex float* traj,
-				   const complex float* weights);
+				   const complex float* weights,
+				   _Bool periodic);
 
 extern void estimate_im_dims(int N, unsigned long flags, long dims[__VLA(N)], const long tdims[__VLA(N)], const complex float* traj);
+
+extern const struct operator_s* nufft_precond_create(const struct linop_s* nufft_op);
 
 #include "misc/cppwrap.h"
 

@@ -39,7 +39,7 @@ static bool test_nlop_relu_derivative(void)
 	enum { N = 3 };
 	long dims[N] = { 10, 7, 3 };
 
-	struct nlop_s* relu = nlop_relu_create(N, dims);
+	const struct nlop_s* relu = nlop_relu_create(N, dims);
 
 	double err = nlop_test_derivative(relu);
 
@@ -60,7 +60,7 @@ static bool test_nlop_relu_der_adj(void)
 	enum { N = 3 };
 	long dims[N] = { 10, 7, 3 };
 
-	struct nlop_s* relu = nlop_relu_create(N, dims);
+	const struct nlop_s* relu = nlop_relu_create(N, dims);
 
 	complex float* dst = md_alloc(N, dims, CFL_SIZE);
 	complex float* src = md_alloc(N, dims, CFL_SIZE);

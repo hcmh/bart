@@ -12,6 +12,6 @@ nnobjs := $(nnsrcs:.c=.o)
 
 lib/libnn.a: libnn.a($(nnobjs))
 
-UTARGETS += test_nn
+# UTARGETS += test_nn
 MODULES_test_nn += -lnn -lnlops -llinops
 
