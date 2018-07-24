@@ -209,10 +209,7 @@ int main_nlinv(int argc, char* argv[])
 	long skip = md_calc_size(DIMS, img_dims);
 	long size = skip + md_calc_size(DIMS, sens_dims);
 
-	long d1[1] = { size };
-	complex float* ref = md_alloc(1, d1, CFL_SIZE);
-	md_clear(DIMS, img_dims, ref, CFL_SIZE);
-	md_clear(DIMS, ksp_dims, ref + skip, CFL_SIZE);
+	complex float* ref = NULL;
 
 #ifdef  USE_CUDA
 	if (conf.usegpu) {
