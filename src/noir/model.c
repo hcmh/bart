@@ -83,6 +83,7 @@ struct noir_op_s {
 	complex float* msk;
 	complex float* wghts;
 	complex float* ptr;
+	complex float* adj_ptr;
 
 	struct noir_model_conf_s conf;
 };
@@ -189,15 +190,15 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	if (!conf->noncart) {
 
 		lop_adj_pattern = linop_clone(lop_pattern);
-		data->adj_pattern_array = NULL;
+		data->adj_ptr = NULL;
 
 	} else {
 
-		complex float* adj_pattern = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
-		md_zfill(DIMS, ptrn_dims, adj_pattern, 1.);
-		fftmod(DIMS, ptrn_dims, conf->fft_flags, adj_pattern, adj_pattern);
+		data->adj_ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
+		md_zfill(DIMS, ptrn_dims, data->adj_ptr , 1.);
+		fftmod(DIMS, ptrn_dims, conf->fft_flags, data->adj_ptr , data->adj_ptr );
 
-		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), adj_pattern);
+		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), data->adj_ptr);
 	}
 
 	data->msk = my_alloc(DIMS, mask_dims, CFL_SIZE);
@@ -253,6 +254,7 @@ static void noir_free(struct noir_op_s* data)
 {
 	md_free(data->tmp);
 	md_free(data->ptr);
+	md_free(data->adj_ptr);
 	md_free(data->wghts);
 	md_free(data->msk);
 
