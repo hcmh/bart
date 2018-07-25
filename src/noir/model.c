@@ -158,18 +158,15 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	fftmod(DIMS, wght_dims, FFT_FLAGS, data->wghts, data->wghts);
 	fftscale(DIMS, wght_dims, FFT_FLAGS, data->wghts, data->wghts);
 
-	const struct linop_s* tmp_weights = linop_cdiag_create(DIMS, data->coil_dims, FFT_FLAGS, data->weights_array);
-	const struct linop_s* tmp_ifft = linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS);
-
-	data->weights = linop_chain(tmp_weights, tmp_ifft);
-
-	linop_free(tmp_weights);
-	linop_free(tmp_ifft);
+	const struct linop_s* wghts = linop_cdiag_create(DIMS, data->coil_dims, FFT_FLAGS, data->wghts);
+	const struct linop_s* wghts_ifft = linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS);
 
 
 	data->weights = linop_chain(
-		linop_cdiag_create(DIMS, data->coil_dims, FFT_FLAGS, data->wghts),
-		linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS));
+		wghts,
+		wghts_ifft);
+	linop_free(wghts);
+	linop_free(wghts_ifft);
 
 
 	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->data_dims, FFT_FLAGS);
@@ -220,27 +217,28 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	const struct linop_s* lop_mask = linop_cdiag_create(DIMS, data->data_dims, FFT_FLAGS, data->msk);
 
-	// could be moved to the benning, but see comment below
-	lop_fft = linop_chain(lop_mask, lop_fft);
+	const struct linop_s* lop_fft2 = linop_chain(lop_mask, lop_fft);
 	linop_free(lop_mask);
+	linop_free(lop_fft);
 
-	data->frw = linop_chain(lop_fft, lop_pattern);
+	data->frw = linop_chain(lop_fft2, lop_pattern);
 	linop_free(lop_pattern);
 
-	data->adj = linop_chain(lop_fft, lop_adj_pattern);
-	linop_free(lop_fft);
+	data->adj = linop_chain(lop_fft2, lop_adj_pattern);
+	linop_free(lop_fft2);
 	linop_free(lop_adj_pattern);
 
 
 	data->tmp = my_alloc(DIMS, data->data_dims, CFL_SIZE);
 
 
-	const struct nlop_s* tmp_tenmul = nlop_tenmul_create(DIMS, data->data_dims, data->imgs_dims, data->coil_dims);
+	const struct nlop_s* nlw1 = nlop_tenmul_create(DIMS, data->data_dims, data->imgs_dims, data->coil_dims);
 
-	const struct nlop_s* nlw = nlop_from_linop(data->weights);
+	const struct nlop_s* nlw2 = nlop_from_linop(data->weights);
 
-	data->nl = nlop_chain2(nlw, 0, data->nl, 1);
-	nlop_free(nlw);
+	data->nl = nlop_chain2(nlw2, 0, nlw1, 1);
+	nlop_free(nlw1);
+	nlop_free(nlw2);
 
 	const struct nlop_s* frw = nlop_from_linop(data->frw);
 
@@ -355,8 +353,7 @@ struct noir_s noir_create2(const long dims[DIMS], const complex float* mask, con
 
 	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
 	struct nlop_s* nlop = data->nl2;
-//	noir_free(data);
-	return (struct noir_s){ .nlop = nlop, .linop = data->weights };
+	return (struct noir_s){ .nlop = nlop, .linop = data->weights, .noir_op = data };
 }
 
 struct noir_s noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
