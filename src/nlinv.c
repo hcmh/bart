@@ -360,6 +360,7 @@ int main_nlinv(int argc, char* argv[])
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
+	num_deinit();
 	exit(0);
 }
 
