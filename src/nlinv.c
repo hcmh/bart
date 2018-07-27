@@ -224,29 +224,32 @@ int main_nlinv(int argc, char* argv[])
 	complex float* pattern = NULL;
 	long pat_dims[DIMS];
 
-	if (NULL != psf) {
+	if (NULL == traj_file) {
+		if (NULL != psf) {
 
-		complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
-		pattern = anon_cfl("", DIMS, pat_dims);
+			complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
+			pattern = anon_cfl("", DIMS, pat_dims);
 
-		md_copy(DIMS, pat_dims, pattern, tmp_psf, CFL_SIZE);
-		unmap_cfl(DIMS, pat_dims, tmp_psf);
-		// FIXME: check compatibility
+			md_copy(DIMS, pat_dims, pattern, tmp_psf, CFL_SIZE);
+			unmap_cfl(DIMS, pat_dims, tmp_psf);
+			// FIXME: check compatibility
 
-		if (conf.pattern_for_each_coil) {
-			assert( 1 != pat_dims[COIL_DIM] );
+			if (conf.pattern_for_each_coil) {
+
+				assert( 1 != pat_dims[COIL_DIM] );
+			} else {
+				if (-1 == restrict_fov)
+					restrict_fov = 0.5;
+
+				conf.noncart = true;
+			}
+
 		} else {
-			if (-1 == restrict_fov)
-				restrict_fov = 0.5;
 
-			conf.noncart = true;
+			md_copy_dims(DIMS, pat_dims, img_dims);
+			pattern = anon_cfl("", DIMS, pat_dims);
+			estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace_data);
 		}
-
-	} else {
-
-		md_copy_dims(DIMS, pat_dims, img_dims);
-		pattern = anon_cfl("", DIMS, pat_dims);
-		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace_data);
 	}
 
 #if 0
@@ -338,11 +341,12 @@ int main_nlinv(int argc, char* argv[])
 	md_free(img);
 
 	unmap_cfl(DIMS, sens_dims, sens);
-	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_output_dims, img_output);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
 	if (NULL != traj)
 		unmap_cfl(DIMS, traj_dims, traj);
+	else
+		unmap_cfl(DIMS, pat_dims, pattern);
 	if (conf.out_im_steps)
 		unmap_cfl(DIMS, out_im_steps_dims, conf.out_im);
 	if (conf.out_coils_steps)
