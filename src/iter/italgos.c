@@ -637,10 +637,10 @@ void altmin(unsigned int iter, float alpha, float redu,
 
 	for (unsigned int i = 0; i < iter; i++) {
 
-		for (int j = 0; j < NI; ++j) {
-			iter_nlop_call(op, 1+NI, args);			// r = F x
+		for (unsigned int j = 0; j < NI; ++j) {
+			iter_nlop_call(op, 1+NI, args); 	// r = F x
 
-			vops->xpay(N, -1., r, y);	// r = y - F x
+			vops->xpay(N, -1., r, y);		// r = y - F x
 
 			debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(N, r));
 			iter_op_p_call(min_ops[j], alpha, x[j], y);
