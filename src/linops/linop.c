@@ -564,6 +564,21 @@ static void plus_free(const linop_data_t* _data)
 
 struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
 {
+
+#if 1
+	// detect null operations and just clone
+	const linop_data_t* a_data = linop_get_data(a);
+	const linop_data_t* b_data = linop_get_data(b);
+
+	if ((NULL != a_data) && (a_data->TYPEID == &null_data_s_TYPEID)) {
+
+		return (struct linop_s*) linop_clone(b);
+	} else if ((NULL != b_data) && (b_data->TYPEID == &null_data_s_TYPEID)) {
+
+		return (struct linop_s*) linop_clone(a);
+	}
+#endif
+
 	auto bdo = linop_domain(b);
 	assert(CFL_SIZE == bdo->size);
 	iovec_check(linop_domain(a), bdo->N, bdo->dims, bdo->strs);
@@ -574,8 +589,6 @@ struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
 
 	PTR_ALLOC(struct plus_data_s, data);
 	SET_TYPEID(plus_data_s, data);
-
-	// maybe detect null operations and just clone
 
 	data->a = linop_clone(a);
 	data->b = linop_clone(b);
