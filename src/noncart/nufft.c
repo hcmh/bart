@@ -227,10 +227,6 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 
 	md_calc_strides(ND, data->lph_strs, data->lph_dims, CFL_SIZE);
 
-	if (!conf.toeplitz)
-		md_zmul2(ND, data->lph_dims, data->lph_strs, linphase, data->lph_strs, linphase, data->img_strs, data->roll);
-
-
 	fftmod(ND, data->lph_dims, FFT_FLAGS, linphase, linphase);
 	fftscale(ND, data->lph_dims, FFT_FLAGS, linphase, linphase);
 
@@ -620,11 +616,11 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 #ifdef USE_CUDA
 	assert(!cuda_ondevice(src));
 #endif
-	assert(!data->conf.toeplitz); // if toeplitz linphase has no roll, so would need to be added
 
 	unsigned int ND = data->N + 3;
 
 	md_zmul2(ND, data->cml_dims, data->cml_strs, data->grid, data->cim_strs, src, data->lph_strs, data->linphase);
+	md_zmul2(ND, data->cml_dims, data->cml_strs, data->grid, data->cml_strs, data->grid, data->img_strs, data->roll);
 	linop_forward(data->fft_op, ND, data->cml_dims, data->grid, ND, data->cml_dims, data->grid);
 	md_zmul2(ND, data->cml_dims, data->cml_strs, data->grid, data->cml_strs, data->grid, data->img_strs, data->fftmod);
 
@@ -686,8 +682,7 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 	md_clear(ND, data->cim_dims, dst, CFL_SIZE);
 	md_zfmacc2(ND, data->cml_dims, data->cim_strs, dst, data->cml_strs, data->grid, data->lph_strs, data->linphase);
 
-	if (data->conf.toeplitz)
-		md_zmul2(ND, data->cim_dims, data->cim_strs, dst, data->cim_strs, dst, data->img_strs, data->roll);
+	md_zmul2(ND, data->cim_dims, data->cim_strs, dst, data->cim_strs, dst, data->img_strs, data->roll);
 }
 
 
