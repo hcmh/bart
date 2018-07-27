@@ -372,29 +372,67 @@ const struct iovec_s* linop_codomain(const struct linop_s* op)
 }
 
 
+struct null_data_s {
+
+	INTERFACE(linop_data_t);
+
+	struct linop_s* c;
+};
+static DEF_TYPEID(null_data_s);
 
 
+static void null_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(null_data_s, _data);
+	linop_forward_unchecked(data->c, dst, src);
+}
+
+static void null_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(null_data_s, _data);
+	linop_adjoint_unchecked(data->c, dst, src);
+}
+
+static void null_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(null_data_s, _data);
+	linop_normal_unchecked(data->c, dst, src);
+}
+
+
+static void null_free(const linop_data_t* _data)
+{
+	auto data = CAST_DOWN(null_data_s, _data);
+
+	linop_free(data->c);
+
+	xfree(data);
+}
 
 struct linop_s* linop_null_create2(unsigned int N, const long odims[N], const long ostrs[N], const long idims[N], const long istrs[N])
 {
-	PTR_ALLOC(struct linop_s, c);
+
+	PTR_ALLOC(struct null_data_s, data);
+	SET_TYPEID(null_data_s, data);
+
+	data->c = TYPE_ALLOC(struct linop_s);
 
 	const struct operator_s* nudo = operator_null_create2(N, idims, istrs);
 	const struct operator_s* zedo = operator_zero_create2(N, idims, istrs);
 	const struct operator_s* nuco = operator_null_create2(N, odims, ostrs);
 	const struct operator_s* zeco = operator_zero_create2(N, odims, ostrs);
 
-	c->forward = operator_combi_create(2, MAKE_ARRAY(zeco, nudo));
-	c->adjoint = operator_combi_create(2, MAKE_ARRAY(zedo, nuco));
-	c->normal = operator_combi_create(2, MAKE_ARRAY(zedo, nudo));
-	c->norm_inv = NULL;
+	data->c->forward = operator_combi_create(2, MAKE_ARRAY(zeco, nudo));
+	data->c->adjoint = operator_combi_create(2, MAKE_ARRAY(zedo, nuco));
+	data->c->normal = operator_combi_create(2, MAKE_ARRAY(zedo, nudo));
+	data->c->norm_inv = NULL;
 
 	operator_free(nudo);
 	operator_free(zedo);
 	operator_free(nuco);
 	operator_free(zeco);
 
-	return PTR_PASS(c);
+	return linop_create2(N, odims, ostrs, N, idims, istrs, CAST_UP(PTR_PASS(data)), null_apply, null_adjoint, null_normal, NULL, null_free);
 }
 
 
