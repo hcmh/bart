@@ -175,11 +175,13 @@ static void altmin_inverse(iter_op_data* _o, float alpha, float* dst, const floa
 
 	linop_adjoint_unchecked(nlop_get_derivative(&nlop->nlop, 0, i), (complex float*) AHy, (const complex float*) src);
 
+	float eps = nlop->conf.cgtol * md_norm(DIMS, nlop_generic_domain(&nlop->nlop, i)->dims, AHy);
+
 	if (1 == i)
-		conjgrad(nlop->conf.cgiter, alpha, 0, size, select_vecops(src),
+		conjgrad(nlop->conf.cgiter, alpha, eps, size, select_vecops(src),
 			 (struct iter_op_s){ altmin_normal_img, _o }, dst, AHy, NULL);
 	else
-		conjgrad(nlop->conf.cgiter, alpha, 0, size, select_vecops(src),
+		conjgrad(nlop->conf.cgiter, alpha, eps, size, select_vecops(src),
 			 (struct iter_op_s){ altmin_normal_coils, _o }, dst, AHy, NULL);
 
 	md_free(AHy);
