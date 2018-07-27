@@ -127,6 +127,11 @@ void num_init_gpu_memopt(void)
 #endif
 }
 
+void num_deinit(void)
+{
+	fft_deinit();
+}
+
 
 void num_set_num_threads(int n)
 {

@@ -518,5 +518,10 @@ void fft_set_num_threads(unsigned int n)
 #endif
 }
 
+void fft_deinit(void)
+{
+	fftwf_cleanup();
+}
+
 
 

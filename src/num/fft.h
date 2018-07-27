@@ -76,6 +76,7 @@ extern void fft_free(const struct operator_s* plan);
 
 extern void fft_set_num_threads(unsigned int n);
 
+extern void fft_deinit(void);
 
 #include "misc/cppwrap.h"
 

@@ -5,6 +5,7 @@
 
 extern void num_init(void);
 extern void num_init_gpu(void);
+extern void num_deinit(void);
 /**
  * selects the GPU with the maximum available memory
  *   (if there are more than one on the system)
