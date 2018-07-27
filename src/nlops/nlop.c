@@ -189,7 +189,7 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 			d2->sptr.del = sptr_linop_del;
 
 			(*der)[i][o] = linop_create2(ON, odims[o], ostr[o], IN, idims[i], istr[i],
-						CAST_UP(PTR_PASS(d2)), lop_der, lop_adj, lop_nrm, lop_nrm_inv, lop_del);
+						     CAST_UP(PTR_PASS(d2)), lop_der, lop_adj,  (NULL != normal) ? lop_nrm : NULL, (NULL != norm_inv) ? lop_nrm_inv : NULL, lop_del);
 		}
 	}
 
