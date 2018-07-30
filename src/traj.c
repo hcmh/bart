@@ -115,6 +115,8 @@ int main_traj(int argc, char* argv[])
 		OPT_FLVEC3('Q', &gdelays[1], "delays", "(gradient delays: z, xz, yz)"),
 		OPT_SET('O', &transverse, "correct transverse gradient error for radial tajectories"),
 		OPT_SET('3', &d3d, "3D"),
+		OPT_SET('c', &asymTraj, "Asymmetric trajectory [DC sampled]"),
+		OPT_VEC3('z', &zUsamp, "Ref:Acel:-", "Undersampling in z-direction."),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
