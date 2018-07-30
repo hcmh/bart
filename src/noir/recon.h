@@ -15,6 +15,7 @@ struct noir_conf_s {
 	_Bool rvc;
 	_Bool usegpu;
 	_Bool noncart;
+	_Bool nlinv_legacy;
 	float alpha;
 	float redu;
 	float a;

@@ -59,6 +59,7 @@ const struct noir_conf_s noir_defaults = {
 	.rvc = false,
 	.usegpu = false,
 	.noncart = false,
+	.nlinv_legacy = false,
 	.alpha = 1.,
 	.redu = 2.,
 	.a = 220.,
@@ -117,7 +118,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.cgtol = conf->cgtol;
-	irgnm_conf.nlinv_legacy = true;
+	irgnm_conf.nlinv_legacy = conf->nlinv_legacy;
 
 	struct nlop_wrapper_s nlw;
 	SET_TYPEID(nlop_wrapper_s, &nlw);
