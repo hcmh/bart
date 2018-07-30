@@ -613,11 +613,16 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 {
 	struct nufft_data* data = CAST_DOWN(nufft_data, _data);
 
-#ifdef USE_CUDA
-	assert(!cuda_ondevice(src));
-#endif
-
 	unsigned int ND = data->N + 3;
+
+#ifdef USE_CUDA
+	complex float* src_cpu = md_alloc(ND, data->cim_dims, CFL_SIZE);
+	md_copy(ND, data->cim_dims, src_cpu, src, CFL_SIZE);
+	src = src_cpu;
+
+	complex float* dst_gpu = dst;
+	dst = md_alloc(ND, data->ksp_dims, CFL_SIZE);
+#endif
 
 	md_zmul2(ND, data->cml_dims, data->cml_strs, data->grid, data->cim_strs, src, data->lph_strs, data->linphase);
 	md_zmul2(ND, data->cml_dims, data->cml_strs, data->grid, data->cml_strs, data->grid, data->img_strs, data->roll);
@@ -641,6 +646,11 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 
 	if (NULL != data->weights)
 		md_zmul2(data->N, data->ksp_dims, data->ksp_strs, dst, data->ksp_strs, dst, data->wgh_strs, data->weights);
+#ifdef USE_CUDA
+	md_free(src);
+	md_copy(ND, data->ksp_dims, dst_gpu, dst, CFL_SIZE);
+	md_free(dst);
+#endif
 }
 
 
@@ -649,10 +659,16 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 {
 	struct nufft_data* data = CAST_DOWN(nufft_data, _data);
 
-#ifdef USE_CUDA
-	assert(!cuda_ondevice(src));
-#endif
 	unsigned int ND = data->N + 3;
+
+#ifdef USE_CUDA
+	complex float* src_cpu = md_alloc(ND, data->ksp_dims, CFL_SIZE);
+	md_copy(ND, data->ksp_dims, src_cpu, src, CFL_SIZE);
+	src = src_cpu;
+
+	complex float* dst_gpu = dst;
+	dst = md_alloc(ND, data->cim_dims, CFL_SIZE);
+#endif
 
 	complex float* gridX = md_calloc(data->N, data->cm2_dims, CFL_SIZE);
 
@@ -683,6 +699,13 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 	md_zfmacc2(ND, data->cml_dims, data->cim_strs, dst, data->cml_strs, data->grid, data->lph_strs, data->linphase);
 
 	md_zmul2(ND, data->cim_dims, data->cim_strs, dst, data->cim_strs, dst, data->img_strs, data->roll);
+
+#ifdef USE_CUDA
+	md_free(src);
+	md_copy(ND, data->cim_dims, dst_gpu, dst, CFL_SIZE);
+	md_free(dst);
+#endif
+
 }
 
 
