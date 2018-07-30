@@ -20,6 +20,19 @@
 
 #include "main.h"
 
+<<<<<<< HEAD
+=======
+#ifdef ENABLE_LONGJUMP
+#  include "jumper.h"
+#endif /* ENABLE_LONGJUMP */
+
+#ifdef MEMONLY_CFL
+#  ifndef FORCE_BUILTIN_COMMANDS
+#   define FORCE_BUILTIN_COMMANDS
+#  endif /* !FORCE_BUILTIN_COMMANDS */
+#endif /* MEMONLY_CFL */
+
+>>>>>>> 6fa9adfd... Add support for C++-like exceptions using setjmp/longjmp
 struct {
 	
 	int (*main_fun)(int argc, char* argv[]);
@@ -98,11 +111,55 @@ int main_bart(int argc, char* argv[])
 		return main_bart(argc - 1, argv + 1);
 	}
 
+<<<<<<< HEAD
 	for (int i = 0; NULL != dispatch_table[i].name; i++) {
 
 		if (0 == strcmp(bn, dispatch_table[i].name))
 			return dispatch_table[i].main_fun(argc, argv);
+=======
+	int debug_level_save = debug_level;
+	int ret = -1;
+#ifdef ENABLE_LONGJUMP
+	if (setjmp(error_jumper) == 0) {
+#endif /* ENABLE_LONGJUMP */
+		if (output != NULL) {
+			for (int i = 0; NULL != in_mem_dispatch_table[i].name; i++) {
+				if (0 == strcmp(bn, in_mem_dispatch_table[i].name)) {
+					ret = in_mem_dispatch_table[i].main_fun(argc, argv, output);
+					bart_exit_cleanup();
+					debug_level = debug_level_save;
+					return ret;
+				}
+			}
+		}
+
+		for (int i = 0; NULL != dispatch_table[i].name; i++) {
+
+			if (0 == strcmp(bn, dispatch_table[i].name)) {
+				ret = dispatch_table[i].main_fun(argc, argv);
+				bart_exit_cleanup();
+				debug_level = debug_level_save;
+				return ret;
+			}
+		}
+
+		BART_ERR("Unknown bart command: \"%s\".\n", bn);
+		bart_exit_cleanup();
+		debug_level = debug_level_save;
+		return -1;
+#ifdef ENABLE_LONGJUMP
+>>>>>>> 6fa9adfd... Add support for C++-like exceptions using setjmp/longjmp
 	}
+	else {
+		BART_ERR("Some error occurred!\n");
+		bart_exit_cleanup();
+		debug_level = debug_level_save;
+		return -1;
+	}
+#endif /* ENABLE_LONGJUMP */
+}
+
+// =============================================================================
 
 	fprintf(stderr, "Unknown bart command: \"%s\".\n", bn);
 	return -1;

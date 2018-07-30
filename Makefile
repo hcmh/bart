@@ -26,7 +26,12 @@ ISMRMRD?=0
 LOG_BACKEND?=0
 LOG_SIEMENS_BACKEND?=0
 LOG_ORCHESTRA_BACKEND?=0
+<<<<<<< HEAD
 LOG_GADGETRON_BACKEND?=0
+=======
+ENABLE_LONGJUMP?=0
+FORCE_BUILTIN_COMMANDS?=0
+>>>>>>> 6fa9adfd... Add support for C++-like exceptions using setjmp/longjmp
 ENABLE_MEM_CFL?=0
 MEMONLY_CFL?=0
 
@@ -353,6 +358,21 @@ ISMRM_H :=
 ISMRM_L :=
 endif
 
+<<<<<<< HEAD
+=======
+# Support for longjumps (emulate C++ exceptions)
+
+ifeq ($(ENABLE_LONGJUMP),1)
+	CPPFLAGS += -DENABLE_LONGJUMP
+endif
+
+# Force the usage of builtin commands
+
+ifeq ($(FORCE_BUILTIN_COMMANDS),1)
+	CPPFLAGS += -DFORCE_BUILTIN_COMMANDS
+endif
+
+>>>>>>> 6fa9adfd... Add support for C++-like exceptions using setjmp/longjmp
 # Enable in-memory CFL files
 
 ifeq ($(ENABLE_MEM_CFL),1)
