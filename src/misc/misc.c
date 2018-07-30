@@ -16,19 +16,36 @@
 #include <assert.h>
 #include <complex.h>
 #include <stdbool.h>
+#include <setjmp.h>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
 
+#ifdef BART_WITH_PYTHON
+#include <Python.h>
+#endif
+
 #include "misc/debug.h"
+#include "misc/nested.h"
 #include "misc/opts.h"
 #include "misc.h"
 
-#ifdef ENABLE_LONGJUMP
-#  include "jumper.h"
-jmp_buf error_jumper;
-#endif /* ENABLE_LONGJUMP */
+
+struct error_jumper_s {
+
+	bool initialized;
+	jmp_buf buf;
+};
+
+extern struct error_jumper_s error_jumper;	// FIXME should not be extern
+
+struct error_jumper_s error_jumper = { .initialized = false };
+
+
+
+
+
 
 void* xmalloc(size_t s)
 {
@@ -65,20 +82,65 @@ void error(const char* fmt, ...)
 	va_list ap;
 	va_start(ap, fmt);
 
+#ifndef BART_WITH_PYTHON
 #ifdef USE_LOG_BACKEND
 	debug_printf_trace("error", __FILE__, __LINE__, DP_ERROR, fmt, ap);
 #else
 	debug_vprintf(DP_ERROR, fmt, ap);
 #endif
-	va_end(ap);
-	
-#ifdef ENABLE_LONGJUMP
-	longjmp(error_jumper, 1);
 #else
+	char err[1024] = { 0 };
+
+	if (NULL == PyErr_Occurred()) {
+
+		vsnprintf(err, 1023, fmt, ap);
+		PyErr_SetString(PyExc_RuntimeError, err);
+	}
+	// No else required as the error indicator has already been set elsewhere
+#endif /* !BART_WITH_PYTHON */
+
+	va_end(ap);
+
+	if (error_jumper.initialized)
+		longjmp(error_jumper.buf, 1);
+
 	exit(EXIT_FAILURE);
-#endif /* ENABLE_LONGJUMP */
 }
 
+
+int error_catcher(int fun(int argc, char* argv[argc]), int argc, char* argv[argc])
+{
+	int ret = -1;
+
+	error_jumper.initialized = true;
+
+	if (0 == setjmp(error_jumper.buf))
+		ret = fun(argc, argv);
+
+	error_jumper.initialized = false;
+
+	return ret;
+}
+
+
+extern FILE* bart_output;
+FILE* bart_output = NULL;
+
+int bart_printf(const char* fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+
+	FILE* out = bart_output;
+
+	if (NULL == bart_output)
+		out = stdout;
+
+	int ret = vfprintf(out, fmt, ap);
+	va_end(ap);
+
+	return ret;
+}
 
 
 void print_dims(int D, const long dims[D])

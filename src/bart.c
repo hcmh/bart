@@ -1,5 +1,6 @@
 /* Copyright 2015. The Regents of the University of California.
- * Copyright 2015-2016. Martin Uecker.
+ * Copyright 2015-2018. Martin Uecker.
+ + Copyright 2018. Damien Nguyen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
@@ -15,24 +16,47 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include "misc/io.h"
 #include "misc/misc.h"
+#include "misc/debug.h"
 #include "misc/cppmap.h"
+
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
+
+#ifdef USE_LOCAL_FFTW
+#include "fftw3_local.h"
+#define MANGLE(name) local_ ## name
+#else
+#include <fftw3.h>
+#define MANGLE(name) name
+#endif
 
 #include "main.h"
 
-<<<<<<< HEAD
-=======
-#ifdef ENABLE_LONGJUMP
-#  include "jumper.h"
-#endif /* ENABLE_LONGJUMP */
 
-#ifdef MEMONLY_CFL
-#  ifndef FORCE_BUILTIN_COMMANDS
-#   define FORCE_BUILTIN_COMMANDS
-#  endif /* !FORCE_BUILTIN_COMMANDS */
-#endif /* MEMONLY_CFL */
 
->>>>>>> 6fa9adfd... Add support for C++-like exceptions using setjmp/longjmp
+extern FILE* bart_output;	// src/misc.c
+
+
+static void bart_exit_cleanup(void)
+{
+	if (NULL != command_line)
+		XFREE(command_line);
+
+	io_memory_cleanup();
+
+#ifdef FFTWTHREADS
+	MANGLE(fftwf_cleanup_threads)();
+#endif
+#ifdef USE_CUDA
+	cuda_memcache_clear();
+#endif
+}
+
+
+
 struct {
 	
 	int (*main_fun)(int argc, char* argv[]);
@@ -111,58 +135,40 @@ int main_bart(int argc, char* argv[])
 		return main_bart(argc - 1, argv + 1);
 	}
 
-<<<<<<< HEAD
-	for (int i = 0; NULL != dispatch_table[i].name; i++) {
-
+	for (int i = 0; NULL != dispatch_table[i].name; i++)
 		if (0 == strcmp(bn, dispatch_table[i].name))
 			return dispatch_table[i].main_fun(argc, argv);
-=======
-	int debug_level_save = debug_level;
-	int ret = -1;
-#ifdef ENABLE_LONGJUMP
-	if (setjmp(error_jumper) == 0) {
-#endif /* ENABLE_LONGJUMP */
-		if (output != NULL) {
-			for (int i = 0; NULL != in_mem_dispatch_table[i].name; i++) {
-				if (0 == strcmp(bn, in_mem_dispatch_table[i].name)) {
-					ret = in_mem_dispatch_table[i].main_fun(argc, argv, output);
-					bart_exit_cleanup();
-					debug_level = debug_level_save;
-					return ret;
-				}
-			}
-		}
-
-		for (int i = 0; NULL != dispatch_table[i].name; i++) {
-
-			if (0 == strcmp(bn, dispatch_table[i].name)) {
-				ret = dispatch_table[i].main_fun(argc, argv);
-				bart_exit_cleanup();
-				debug_level = debug_level_save;
-				return ret;
-			}
-		}
-
-		BART_ERR("Unknown bart command: \"%s\".\n", bn);
-		bart_exit_cleanup();
-		debug_level = debug_level_save;
-		return -1;
-#ifdef ENABLE_LONGJUMP
->>>>>>> 6fa9adfd... Add support for C++-like exceptions using setjmp/longjmp
-	}
-	else {
-		BART_ERR("Some error occurred!\n");
-		bart_exit_cleanup();
-		debug_level = debug_level_save;
-		return -1;
-	}
-#endif /* ENABLE_LONGJUMP */
-}
-
-// =============================================================================
 
 	fprintf(stderr, "Unknown bart command: \"%s\".\n", bn);
 	return -1;
 }
+
+
+
+int bart_command(int len, char* buf, int argc, char* argv[])
+{
+	int save = debug_level;
+
+	if (NULL != buf) {
+
+		buf[0] = '\0';
+		bart_output = fmemopen(buf, len, "w");
+	}
+
+	int ret = error_catcher(main_bart, argc, argv);
+
+	bart_exit_cleanup();
+
+	debug_level = save;
+
+	if (NULL != bart_output) {
+
+		fclose(bart_output);	// write final nul
+		bart_output = NULL;
+	}
+
+	return ret;
+}
+
 
 
