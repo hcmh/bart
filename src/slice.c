@@ -56,7 +56,7 @@ int main_slice(int argc, char* argv[])
 	na_free(sl);
 	na_free(out);
 	na_free(in);
-	exit(0);
+	return 0;
 }
 
 

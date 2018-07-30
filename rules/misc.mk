@@ -8,6 +8,8 @@
 miscsrcs := $(wildcard $(srcdir)/misc/*.c)
 miscobjs := $(miscsrcs:.c=.o)
 
+miscobjs += $(miscextracxxsrcs:.cc=.o)
+
 .INTERMEDIATE: $(miscobjs)
 
 lib/libmisc.a: libmisc.a($(miscobjs))

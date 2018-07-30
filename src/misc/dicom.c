@@ -29,6 +29,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
+#include "misc/misc.h" // for error
+
 #include "dicom.h"
 
 
@@ -314,11 +316,11 @@ int dicom_write(const char* name, unsigned int cols, unsigned int rows, long inu
 	ret = 0;
 
 	if (-1 == munmap((void*)addr, size))
-		abort();
+		error("abort!");
 
 cleanup:
 	if (-1 == close(fd))
-		abort();
+		error("abort!");
 
 	return ret;
 }

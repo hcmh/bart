@@ -32,6 +32,9 @@
 #include "misc/debug.h"
 
 #include "mmio.h"
+#if defined(USE_MEM_CFL) || defined(MEMONLY_CFL)
+#include "mmiocc.hh"
+#endif
 
 // for BSD compatibility
 #ifndef MAP_ANONYMOUS
@@ -217,6 +220,9 @@ complex float* create_cfl(const char* name, unsigned int D, const long dimension
 {
 	io_register_output(name);
 
+#ifdef MEMONLY_CFL
+	return create_mem_cfl(name, D, dimensions);
+#else
 	const char *p = strrchr(name, '.');
 
 	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".ra")))
@@ -225,7 +231,12 @@ complex float* create_cfl(const char* name, unsigned int D, const long dimension
 	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".coo")))
 		return create_zcoo(name, D, dimensions);
 
+#ifdef USE_MEM_CFL
+	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".mem")))
+		return create_mem_cfl(name, D, dimensions);
+#endif
 
+ 
 	char name_bdy[1024];
 	if (1024 <= snprintf(name_bdy, 1024, "%s.cfl", name))
 		error("Creating cfl file %s", name);
@@ -245,6 +256,7 @@ complex float* create_cfl(const char* name, unsigned int D, const long dimension
 		io_error("Creating cfl file %s", name);
 
 	return shared_cfl(D, dimensions, name_bdy);
+#endif /* MEMONLY_CFL */
 }
 
 
@@ -302,6 +314,16 @@ static complex float* load_cfl_internal(const char* name, unsigned int D, long d
 {
 	io_register_input(name);
 
+#ifdef MEMONLY_CFL
+	UNUSED(priv);
+
+	complex float* ptr = load_mem_cfl(name, D, dimensions);
+
+	if (NULL == ptr)
+		io_error("Loading in-memory cfl file %s", name);
+
+	return ptr;
+#else
 	const char *p = strrchr(name, '.');
 
 	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".ra")))
@@ -309,6 +331,22 @@ static complex float* load_cfl_internal(const char* name, unsigned int D, long d
 
 	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".coo")))
 		return load_zcoo(name, D, dimensions);
+
+#ifdef USE_MEM_CFL
+	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".mem"))) {
+
+	     complex float* ptr = load_mem_cfl(name, D, dimensions);
+
+	     if (NULL == ptr) {
+
+		  BART_WARN("Unable to find %s in in-memory CFL files", name);
+
+	     }  else {
+
+		  return ptr;
+	     }
+	}
+#endif /* USE_MEM_CFL */
 
 
 	char name_bdy[1024];
@@ -330,6 +368,7 @@ static complex float* load_cfl_internal(const char* name, unsigned int D, long d
 		io_error("Loading cfl file %s", name);
 
 	return (priv ? private_cfl : shared_cfl)(D, dimensions, name_bdy);
+#endif /* MEMONLY_CFL */
 }
 
 
@@ -345,7 +384,7 @@ complex float* load_shared_cfl(const char* name, unsigned int D, long dimensions
 }
 
 
-
+#ifndef MEMONLY_CFL
 complex float* shared_cfl(unsigned int D, const long dims[D], const char* name)
 {
 //	struct stat st;
@@ -362,10 +401,10 @@ complex float* shared_cfl(unsigned int D, const long dims[D], const char* name)
 		io_error("shared cfl %s", name);
 
 //	if (-1 == (fstat(fd, &st)))
-//		abort();
+//		error("abort");
 
 //	if (!((0 == st.st_size) || (T == st.st_size)))
-//		abort();
+//		error("abort");
 
 	if (NULL == (addr = create_data(fd, 0, T)))
 		error("shared cfl %s", name);
@@ -375,11 +414,14 @@ complex float* shared_cfl(unsigned int D, const long dims[D], const char* name)
 
 	return (complex float*)addr;
 }
+#endif /* !MEMONLY_CFL */
 
 
 complex float* anon_cfl(const char* name, unsigned int D, const long dims[D])
 {
 	UNUSED(name);
+
+#ifndef MEMONLY_CFL
 	void* addr;
 	long T;
 
@@ -390,6 +432,9 @@ complex float* anon_cfl(const char* name, unsigned int D, const long dims[D])
 		io_error("anon cfl");
 
 	return (complex float*)addr;
+#else
+	return create_anon_mem_cfl(D, dims);
+#endif
 }
 
 
@@ -402,25 +447,25 @@ void* private_raw(size_t* size, const char* name)
 	struct stat st;
 
 	if (-1 == (fd = open(name, O_RDONLY)))
-		abort();
+		error("abort");
 
 	if (-1 == (fstat(fd, &st)))
-		abort();
+		error("abort");
 
 	*size = st.st_size;
 
 	if (MAP_FAILED == (addr = mmap(NULL, *size, PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)))
-		abort();
+		error("abort");
 
 	if (-1 == close(fd))
-		abort();
+		error("abort");
 
 	return addr;
 }
 #endif
 
 
-
+#ifndef MEMONLY_CFL
 complex float* private_cfl(unsigned int D, const long dims[D], const char* name)
 {
 	long T;
@@ -449,10 +494,25 @@ complex float* private_cfl(unsigned int D, const long dims[D], const char* name)
 
 	return (complex float*)addr;
 }
+#endif /* !MEMONLY_CFL */
 
 
 void unmap_cfl(unsigned int D, const long dims[D], const complex float* x)
 {
+#ifdef MEMONLY_CFL
+	UNUSED(D); UNUSED(dims);
+	try_delete_mem_cfl(x);
+#else
+
+#ifdef USE_MEM_CFL
+	if (is_mem_cfl(x)) {
+
+		// only delete if the dirty flag has been set
+		try_delete_mem_cfl(x);
+		return;
+	}
+#endif
+
 	long T;
 
 	if (-1 == (T = io_calc_size(D, dims, sizeof(complex float))))
@@ -460,5 +520,6 @@ void unmap_cfl(unsigned int D, const long dims[D], const complex float* x)
 
 	if (-1 == munmap((void*)((uintptr_t)x & ~4095UL), T))
 		io_error("unmap cfl");
+#endif
 }
 

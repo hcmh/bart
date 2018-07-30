@@ -75,6 +75,7 @@ int main_ecalib(int argc, char* argv[])
 		OPT_INT('n', &conf.numsv, "", "()"),
 		OPT_FLOAT('v', &conf.var, "variance", "Variance of noise in data."),
 		OPT_SET('a', &conf.automate, "Automatically pick thresholds."),
+		OPT_INT('d', &debug_level, "level", "Debug level"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -238,7 +239,7 @@ int main_ecalib(int argc, char* argv[])
 	unmap_cfl(N, ksp_dims, in_data);
 	md_free(cal_data);
 
-	exit(0);
+	return 0;
 }
 
 

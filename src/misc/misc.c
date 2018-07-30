@@ -1,12 +1,14 @@
 /* Copyright 2013-2015. The Regents of the University of California.
  * Copyright 2015-2018. Martin Uecker.
  * Copyright 2017. University of Oxford.
+ * Copyright 2017-2018. Damien Nguyen
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
  * 2011-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2017 Sofia Dimoudi <sofia.dimoudi@cardiov.ox.ac.uk>
+ * 2017-2018 Damien Nguyen <damien.nguyen@alumni.epfl.ch>
  */
 
 #define _GNU_SOURCE
@@ -59,8 +61,11 @@ void error(const char* fmt, ...)
 	va_list ap;
 	va_start(ap, fmt);
 
+#ifdef USE_LOG_BACKEND
+	debug_printf_trace("error", __FILE__, __LINE__, DP_ERROR, fmt, ap);
+#else
 	debug_vprintf(DP_ERROR, fmt, ap);
-
+#endif
 	va_end(ap);
 	exit(EXIT_FAILURE);
 }
@@ -79,6 +84,10 @@ void print_dims(int D, const long dims[D])
 
 
 
+#ifdef REDEFINE_PRINTF_FOR_TRACE
+#undef debug_print_dims
+#endif
+
 void debug_print_dims(int dblevel, int D, const long dims[D])
 {
 	bool dbl = debug_logging;
@@ -89,6 +98,27 @@ void debug_print_dims(int dblevel, int D, const long dims[D])
 		debug_printf(dblevel, "%3ld ", dims[i]);
 
 	debug_printf(dblevel, "]\n");
+	debug_logging = dbl;
+}
+
+
+
+
+void debug_print_dims_trace(const char* func_name,
+			    const char* file,
+			    unsigned int line,
+			    int dblevel,
+			    int D,
+			    const long dims[D])
+{
+	bool dbl = debug_logging;
+	debug_logging = false;
+	debug_printf_trace(func_name, file, line, dblevel, "[");
+
+	for (int i = 0; i < D; i++)
+		debug_printf_trace(func_name, file, line, dblevel, "%3ld ", dims[i]);
+
+	debug_printf_trace(func_name, file, line, dblevel, "]\n");
 	debug_logging = dbl;
 }
 
@@ -163,6 +193,8 @@ void quicksort(unsigned int N, unsigned int ord[N], const void* data, quicksort_
 	if (N > l)
 		quicksort(N - l, ord + l, data, cmp);
 }
+
+
 
 /**
  * Quickselect adapted from §8.5 in Numerical Recipes in C, 
@@ -355,6 +387,8 @@ void save_command_line(int argc, char* argv[])
 	}
 
 	(*buf)[pos] = '\0';
+
+	XFREE(command_line);
 
 	command_line = (*buf);
 }

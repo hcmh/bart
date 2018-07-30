@@ -62,7 +62,7 @@ int main_fft(int argc, char* argv[])
 	ffts[center][unitary][inv](flags, out, out);
 
 	na_free(out);
-	exit(0);
+	return 0;
 }
 
 
