@@ -402,7 +402,7 @@ int main_pics(int argc, char* argv[])
 	} else {
 
 		forward_op = sense_nc_init(max_dims, map_dims, maps, ksp_dims, traj_dims, traj, nuconf,
-				pat_dims, (NULL == basis_file) ? pattern : NULL, basis_dims, basis, (struct operator_s**)&precond_op, sms);
+				pat_dims, pattern, basis_dims, basis, (struct operator_s**)&precond_op, sms);
 	}
 
 
@@ -595,7 +595,7 @@ int main_pics(int argc, char* argv[])
 				&& (regs[0].xform == NIHTWAV)));
 	
 	const struct operator_s* op = sense_recon_create(&conf, max1_dims, forward_op,
-				pat1_dims, (((NULL != traj_file) && (NULL == basis_file)) || conf.bpsense) ? NULL : pattern1,
+				pat1_dims, ((NULL != traj_file) || conf.bpsense) ? NULL : pattern1,
 				it.italgo, it.iconf, image_start1, nr_penalties, thresh_ops,
 				trafos_cond ? trafos : NULL, precond_op);
 

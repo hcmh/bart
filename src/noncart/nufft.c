@@ -139,7 +139,7 @@ struct linop_s* nufft_create2(unsigned int N,
 
 	data->weights = NULL;
 
-	if (NULL != weights) {
+	if ((NULL != weights) && (NULL == basis)) {
 
 		md_copy_dims(N, data->wgh_dims, wgh_dims);
 		data->wgh_dims[N] = 1;
@@ -251,7 +251,28 @@ struct linop_s* nufft_create2(unsigned int N,
 		unsigned int bflags = ~((1 << 5) | (1 << 6));
 
 		const struct linop_s* bs = linop_fmac_create(N, max_dims, oflags, iflags, bflags, basis);
-		nu = linop_chain(nu, bs);
+		struct linop_s* nu2 = linop_chain(nu, bs);
+
+		linop_free(nu);
+		linop_free(bs);
+
+		nu = nu2;
+
+		if (NULL != weights) {
+
+			long odims[N];
+			md_select_dims(N, ~oflags, odims, max_dims);
+
+			unsigned int wflags = md_nontriv_dims(N, wgh_dims);
+
+			const struct linop_s* ww = linop_cdiag_create(N, odims, wflags, weights);
+			struct linop_s* nu3 = linop_chain(nu, ww);
+
+			linop_free(nu);
+			linop_free(ww);
+
+			nu = nu3;
+		}
 	}
 
 	return nu;
