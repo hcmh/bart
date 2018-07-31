@@ -26,6 +26,16 @@ extern struct linop_s* nufft_create(unsigned int N,			///< Number of dimensions
 				    const _Complex float* weights,	///< Weights, ex, density-compensation
 				    struct nufft_conf_s conf);		///< NUFFT configuration
 
+extern struct linop_s* nufft_create2(unsigned int N,
+			     const long ksp_dims[N],
+			     const long cim_dims[N],
+			     const long traj_dims[N],
+			     const complex float* traj,
+			     const long wgh_dims[N],
+			     const complex float* weights,
+			     const long bas_dims[N],
+			     const complex float* basis,
+			     struct nufft_conf_s conf);
 
 extern _Complex float* compute_psf(unsigned int N,
 				   const long img2_dims[__VLA(N)],

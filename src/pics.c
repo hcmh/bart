@@ -53,17 +53,22 @@ static const char help_str[] = "Parallel-imaging compressed-sensing reconstructi
 
 
 
-static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long map_dims[DIMS], const complex float* maps, const long ksp_dims[DIMS], const long traj_dims[DIMS], const complex float* traj, struct nufft_conf_s conf, const complex float* weights, struct operator_s** precond_op, bool sms)
+static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long map_dims[DIMS], const complex float* maps, const long ksp_dims[DIMS], const long traj_dims[DIMS], const complex float* traj, struct nufft_conf_s conf, const long wgs_dims[DIMS], const complex float* weights, const long basis_dims[DIMS], const complex float* basis, struct operator_s** precond_op, bool sms)
 {
 	long coilim_dims[DIMS];
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~MAPS_FLAG, coilim_dims, max_dims);
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, max_dims);
 
-	debug_print_dims(DP_INFO, DIMS, ksp_dims);
+	long ksp_dims2[DIMS];
+	md_copy_dims(DIMS, ksp_dims2, ksp_dims);
+	ksp_dims2[COEFF_DIM] = max_dims[COEFF_DIM];
+	ksp_dims2[TE_DIM] = 1;
+
+	debug_print_dims(DP_INFO, DIMS, ksp_dims2);
 	debug_print_dims(DP_INFO, DIMS, coilim_dims);
 
-	const struct linop_s* fft_op = nufft_create(DIMS, ksp_dims, coilim_dims, traj_dims, traj, weights, conf);
+	const struct linop_s* fft_op = nufft_create2(DIMS, ksp_dims2, coilim_dims, traj_dims, traj, wgs_dims, weights, basis_dims, basis, conf);
 	const struct linop_s* maps_op = maps2_create(coilim_dims, map_dims, img_dims, maps);
 
 	if (sms) {
@@ -266,11 +271,8 @@ int main_pics(int argc, char* argv[])
 		debug_printf(DP_INFO, "Max: \n");
 		debug_print_dims(DP_INFO, DIMS, max_dims);
 
-		if (NULL != traj_file) {
-
-			md_copy_dims(3, bmx_dims, ksp_dims);
+		if (NULL != traj_file)
 			nuconf.toeplitz = false;
-		}
 	}
 
 
@@ -389,24 +391,20 @@ int main_pics(int argc, char* argv[])
 
 		forward_op = sense_init(max_dims, map_flags, maps);
 
+		// apply temporal basis
+
+		if (NULL != basis_file) {
+
+			const struct linop_s* basis_op = linop_fmac_create(DIMS, bmx_dims, COEFF_FLAG, TE_FLAG, ~(COEFF_FLAG | TE_FLAG), basis);
+			forward_op = linop_chain(forward_op, basis_op);
+		}
+
 	} else {
 
-		long ksp_dims2[DIMS];
-		md_copy_dims(DIMS, ksp_dims2, ksp_dims);
-		ksp_dims2[COEFF_DIM] = max_dims[COEFF_DIM];
-		ksp_dims2[TE_DIM] = 1;
-
-		forward_op = sense_nc_init(max_dims, map_dims, maps, ksp_dims2, traj_dims, traj, nuconf,
-				(NULL == basis_file) ? pattern : NULL, (struct operator_s**)&precond_op, sms);
+		forward_op = sense_nc_init(max_dims, map_dims, maps, ksp_dims, traj_dims, traj, nuconf,
+				pat_dims, (NULL == basis_file) ? pattern : NULL, basis_dims, basis, (struct operator_s**)&precond_op, sms);
 	}
 
-	// apply temporal basis
-
-	if (NULL != basis_file) {
-
-		const struct linop_s* basis_op = linop_fmac_create(DIMS, bmx_dims, COEFF_FLAG, TE_FLAG, ~(COEFF_FLAG | TE_FLAG), basis);
-		forward_op = linop_chain(forward_op, basis_op);
-	}
 
 	// apply scaling
 

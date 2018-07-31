@@ -29,6 +29,7 @@
 
 #include "linops/linop.h"
 #include "linops/someops.h"
+#include "linops/fmac.h"
 
 #include "noncart/grid.h"
 
@@ -60,17 +61,16 @@ static complex float* compute_linphases(int N, long lph_dims[N + 1], const long 
 static complex float* compute_psf2(int N, const long psf_dims[N + 1], const long trj_dims[N], const complex float* traj, const complex float* weights, bool periodic);
 
 
-/**
- * NUFFT operator initialization
- */
-struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
-			     const long ksp_dims[N],		///< kspace dimension
-			     const long cim_dims[N],		///< Coil images dimension
-			     const long traj_dims[N],		///< Trajectory dimension
-			     const complex float* traj,		///< Trajectory
-			     const complex float* weights,	///< Weights, ex, soft-gating or density compensation
-			     struct nufft_conf_s conf)		///< NUFFT configuration options
-
+struct linop_s* nufft_create2(unsigned int N,
+			     const long ksp_dims[N],
+			     const long cim_dims[N],
+			     const long traj_dims[N],
+			     const complex float* traj,
+			     const long wgh_dims[N],
+			     const complex float* weights,
+			     const long bas_dims[N],
+			     const complex float* basis,
+			     struct nufft_conf_s conf)
 {
 	PTR_ALLOC(struct nufft_data, data);
 	SET_TYPEID(nufft_data, data);
@@ -141,7 +141,7 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 
 	if (NULL != weights) {
 
-		md_select_dims(N, ~MD_BIT(0), data->wgh_dims, data->trj_dims);
+		md_copy_dims(N, data->wgh_dims, wgh_dims);
 		data->wgh_dims[N] = 1;
 
 		md_calc_strides(ND, data->wgh_strs, data->wgh_dims, CFL_SIZE);
@@ -232,9 +232,46 @@ struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
 	}
 
 
-	return linop_create(N, ksp_dims, N, cim_dims,
+	struct linop_s* nu = linop_create(N, ksp_dims, N, cim_dims,
 			CAST_UP(PTR_PASS(data)), nufft_apply, nufft_apply_adjoint, nufft_apply_normal, NULL, nufft_free_data);
+
+
+	if (NULL != basis) {
+
+		assert(!md_check_dimensions(N, bas_dims, (1 << 5) | (1 << 6)));
+
+		long max_dims[N];
+		md_copy_dims(N, max_dims, ksp_dims);
+
+		max_dims[5] = bas_dims[5];	// TE
+		assert(ksp_dims[6] == bas_dims[6]); // COEFF
+
+		unsigned int oflags = (1 << 6);
+		unsigned int iflags = (1 << 5);
+		unsigned int bflags = ~((1 << 5) | (1 << 6));
+
+		const struct linop_s* bs = linop_fmac_create(N, max_dims, oflags, iflags, bflags, basis);
+		nu = linop_chain(nu, bs);
+	}
+
+	return nu;
 }
+
+
+struct linop_s* nufft_create(unsigned int N,			///< Number of dimension
+			     const long ksp_dims[N],		///< kspace dimension
+			     const long cim_dims[N],		///< Coil images dimension
+			     const long traj_dims[N],		///< Trajectory dimension
+			     const complex float* traj,		///< Trajectory
+			     const complex float* weights,	///< Weights, ex, soft-gating or density compensation
+			     struct nufft_conf_s conf)		///< NUFFT configuration options
+{
+	long wgh_dims[N];
+	md_select_dims(N, ~MD_BIT(0), wgh_dims, traj_dims);
+
+	return nufft_create2(N, ksp_dims, cim_dims, traj_dims, traj, wgh_dims, weights, NULL, NULL, conf);
+}
+
 
 
 
