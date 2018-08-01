@@ -17,7 +17,8 @@ endif
 lib/liblinops.a: liblinops.a($(linopsobjs))
 
 
-UTARGETS += test_linop_matrix test_linop
+UTARGETS += test_linop_matrix test_linop test_linop_conv
 MODULES_test_linop += -llinops
 MODULES_test_linop_matrix += -llinops
+MODULES_test_linop_conv += -llinops
 

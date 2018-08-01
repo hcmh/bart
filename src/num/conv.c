@@ -83,9 +83,11 @@ struct conv_plan* conv_plan(int N, unsigned int flags, enum conv_type ctype, enu
 			if (cmode == CONV_SYMMETRIC) {
 
 				assert((0 == idims1[i] % 2) && (1 == idims2[i] % 2));
-
-				if (1 == (idims1[i] / 2) % 2)
+#if 1
+				if ((ctype == CONV_TRUNCATED) || (ctype == CONV_EXTENDED))
+//				if (1 == (idims1[i] / 2) % 2)
 					U *= -1.i;
+#endif
 			}
 
 			switch (ctype) {
