@@ -21,6 +21,7 @@
 #include "linops/someops.h"
 
 #include "nlops/nlop.h"
+#include "nlops/cast.h"
 
 #include "nn/relu.h"
 #include "nn/bias.h"
@@ -64,7 +65,6 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 
 	md_copy(N, dims, tmp1, in, CFL_SIZE);
 
-	const struct nlop_s* relu = nlop_relu_create(N, dims2b);
 
 	long pos[6] = { 0 };
 
@@ -77,16 +77,18 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 		struct linop_s* conv = linop_conv_create(5, flags, CONV_SYMMETRIC, CONV_CYCLIC,
 				dims2b, dims2a, krn_dims, &MD_ACCESS(6, krn_strs, pos, krn));
 
-		operator_apply(conv->forward, 5, dims2b, tmp2, 5, dims2a, tmp1);
+		struct nlop_s* nconv = nlop_from_linop(conv);
+		linop_free(conv);
 
-//		md_zadd2(N, dims2b, strs2b, tmp2, strs2b, tmp2, bias_strs, &MD_ACCESS(6, bias_strs, pos, bias));
+		nlop_apply(nconv, 5, dims2b, tmp2, 5, dims2a, tmp1);
+
 		const struct nlop_s* bop = nlop_bias_create(5, dims2b, bias_dims, &MD_ACCESS(6, bias_strs, pos, bias));
 		nlop_apply(bop, 5, dims2b, tmp2, 5, dims2b, tmp2);
 		nlop_free(bop);
 
-		nlop_apply(relu, N, dims2b, tmp1, N, dims2b, tmp2);
-
-		linop_free(conv);
+		const struct nlop_s* relu = nlop_relu_create(5, dims2b);
+		nlop_apply(relu, 5, dims2b, tmp1, 5, dims2b, tmp2);
+		nlop_free(relu);
 	}
 
 	md_free(tmp1);
