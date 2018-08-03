@@ -387,7 +387,7 @@ static const struct linop_s* linop_espirit_create(long sx, long sy, long sz, lon
 }
 
 /* Resize operator. */
-static const struct linop_s* linop_reshape_create(long wx, long sx, long sy, long sz, long nc, long tk)
+static const struct linop_s* Xlinop_reshape_create(long wx, long sx, long sy, long sz, long nc, long tk)
 {
 	long input_dims[] = { [0 ... DIMS - 1] = 1};
 	input_dims[0] = sx;
@@ -643,7 +643,7 @@ int main_wshfl(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Linear operator.\n");
 	const struct linop_s* E   = linop_espirit_create(sx, sy, sz, nc, md, tk, maps);
-	const struct linop_s* R   = linop_reshape_create(wx, sx, sy, sz, nc, tk);
+	const struct linop_s* R   = Xlinop_reshape_create(wx, sx, sy, sz, nc, tk);
 	const struct linop_s* Fx  = linop_fx_create(wx, sy, sz, nc, tk);
 	const struct linop_s* W   = linop_wave_create(wx, sy, sz, nc, tk, wave);
 	const struct linop_s* Fyz = linop_fyz_create(wx, sy, sz, nc, tk);

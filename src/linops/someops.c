@@ -280,6 +280,49 @@ struct linop_s* linop_resize_create(unsigned int N, const long out_dims[N], cons
 }
 
 
+
+struct reshape_op_s {
+
+	INTERFACE(linop_data_t);
+
+	unsigned int N;
+	const long* dims;
+};
+
+static DEF_TYPEID(reshape_op_s);
+
+static void reshape_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const struct reshape_op_s* data = CAST_DOWN(reshape_op_s, _data);
+
+	md_copy(data->N, data->dims, dst, src, CFL_SIZE);
+}
+
+static void reshape_free(const linop_data_t* _data)
+{
+	const struct reshape_op_s* data = CAST_DOWN(reshape_op_s, _data);
+
+	xfree(data->dims);
+
+	xfree(data);
+}
+
+
+struct linop_s* linop_reshape_create(unsigned int N, const long out_dims[N], const long in_dims[N])
+{
+	PTR_ALLOC(struct reshape_op_s, data);
+	SET_TYPEID(reshape_op_s, data);
+
+	data->N = N;
+	long* dims = *TYPE_ALLOC(long[N]);
+	md_copy_dims(N, dims, out_dims);
+	data->dims = dims;
+
+	return linop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), reshape_forward, reshape_forward, reshape_forward, NULL, reshape_free);
+}
+
+
+
 struct operator_matrix_s {
 
 	INTERFACE(linop_data_t);
