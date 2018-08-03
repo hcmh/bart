@@ -186,7 +186,8 @@ struct linop_s* linop_create(unsigned int ON, const long odims[ON], unsigned int
  */
 const linop_data_t* linop_get_data(const struct linop_s* ptr)
 {
-	return ((struct shared_data_s*)operator_get_data(ptr->forward))->data;
+	auto sdata = CAST_MAYBE(shared_data_s, operator_get_data(ptr->forward));
+	return sdata == NULL ? NULL : sdata->data;
 }
 
 
@@ -399,6 +400,11 @@ struct linop_s* linop_null_create2(unsigned int N, const long odims[N], const lo
 
 
 
+struct linop_s* linop_null_create(unsigned int N, const long odims[N], const long idims[N])
+{
+	return linop_null_create2(N, odims, MD_STRIDES(N, odims, CFL_SIZE),
+					idims, MD_STRIDES(N, idims, CFL_SIZE));
+}
 
 
 /**
@@ -525,6 +531,19 @@ static void plus_free(const linop_data_t* _data)
 
 struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
 {
+
+#if 1
+	// detect null operations and just clone
+
+	if (operator_zero_or_null_p(a->forward)) {
+
+		return (struct linop_s*) linop_clone(b);
+	} else if (operator_zero_or_null_p(b->forward)) {
+
+		return (struct linop_s*) linop_clone(a);
+	}
+#endif
+
 	auto bdo = linop_domain(b);
 	assert(CFL_SIZE == bdo->size);
 	iovec_check(linop_domain(a), bdo->N, bdo->dims, bdo->strs);
@@ -535,8 +554,6 @@ struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
 
 	PTR_ALLOC(struct plus_data_s, data);
 	SET_TYPEID(plus_data_s, data);
-
-	// maybe detect null operations and just clone
 
 	data->a = linop_clone(a);
 	data->b = linop_clone(b);
