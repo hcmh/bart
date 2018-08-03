@@ -211,6 +211,8 @@ struct resize_op_s {
 
 	INTERFACE(linop_data_t);
 
+	bool center;
+
 	unsigned int N;
 	const long* out_dims;
 	const long* in_dims;
@@ -222,14 +224,14 @@ static void resize_forward(const linop_data_t* _data, complex float* dst, const 
 {
 	const struct resize_op_s* data = CAST_DOWN(resize_op_s, _data);
 
-	md_resize_center(data->N, data->out_dims, dst, data->in_dims, src, CFL_SIZE);
+	(data->center ? md_resize_center : md_resize)(data->N, data->out_dims, dst, data->in_dims, src, CFL_SIZE);
 }
 
 static void resize_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const struct resize_op_s* data = CAST_DOWN(resize_op_s, _data);
 
-	md_resize_center(data->N, data->in_dims, dst, data->out_dims, src, CFL_SIZE);
+	(data->center ? md_resize_center : md_resize)(data->N, data->in_dims, dst, data->out_dims, src, CFL_SIZE);
 }
 
 static void resize_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
@@ -255,6 +257,23 @@ static void resize_free(const linop_data_t* _data)
 }
 
 
+static struct linop_s* linop_resize_generic_create(unsigned int N, const long out_dims[N], const long in_dims[N], bool center)
+{
+	PTR_ALLOC(struct resize_op_s, data);
+	SET_TYPEID(resize_op_s, data);
+
+	data->center = center;
+	data->N = N;
+	data->out_dims = *TYPE_ALLOC(long[N]);
+	data->in_dims = *TYPE_ALLOC(long[N]);
+
+	md_copy_dims(N, (long*)data->out_dims, out_dims);
+	md_copy_dims(N, (long*)data->in_dims, in_dims);
+
+	return linop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), resize_forward, resize_adjoint, resize_normal, NULL, resize_free);
+}
+
+
 /**
  * Create a resize linear operator: y = M x,
  * where M either crops or expands the the input dimensions to match the output dimensions.
@@ -266,18 +285,21 @@ static void resize_free(const linop_data_t* _data)
  */
 struct linop_s* linop_resize_create(unsigned int N, const long out_dims[N], const long in_dims[N])
 {
-	PTR_ALLOC(struct resize_op_s, data);
-	SET_TYPEID(resize_op_s, data);
-
-	data->N = N;
-	data->out_dims = *TYPE_ALLOC(long[N]);
-	data->in_dims = *TYPE_ALLOC(long[N]);
-
-	md_copy_dims(N, (long*)data->out_dims, out_dims);
-	md_copy_dims(N, (long*)data->in_dims, in_dims);
-
-	return linop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), resize_forward, resize_adjoint, resize_normal, NULL, resize_free);
+	return linop_resize_generic_create(N, out_dims, in_dims, true);
 }
+
+struct linop_s* linop_resize_center_create(unsigned int N, const long out_dims[N], const long in_dims[N])
+{
+	return linop_resize_generic_create(N, out_dims, in_dims, true);
+}
+
+struct linop_s* linop_expand_create(unsigned int N, const long out_dims[N], const long in_dims[N])
+{
+	return linop_resize_generic_create(N, out_dims, in_dims, false);
+}
+
+
+
 
 
 
