@@ -23,74 +23,12 @@
 #include "nlops/nlop.h"
 
 #include "nn/relu.h"
+#include "nn/bias.h"
 
 #include "nn.h"
 
 
-struct bias_s {
 
-	INTERFACE(operator_data_t);
-
-	const complex float* bias;
-	const long* strs;
-
-	const struct iovec_s* domain;
-	const struct iovec_s* codomain;
-};
-
-DEF_TYPEID(bias_s);
-
-static void bias_apply(const operator_data_t* _data, unsigned int N, void* args[N])
-{
-        const struct bias_s* d = CAST_DOWN(bias_s, _data);
-	assert(2 == N);
-
-        md_zadd2(d->domain->N, d->domain->dims, d->codomain->strs, args[0], d->domain->strs, args[1], d->strs, d->bias);
-}
-
-
-static void bias_free(const operator_data_t* _data)
-{
-        const struct bias_s* d = CAST_DOWN(bias_s, _data);
-
-//	md_free(d->bias);
-	xfree(d->strs);
-
-	iovec_free(d->domain);
-	iovec_free(d->codomain);
-
-	xfree(d);
-}
-
-
-const struct operator_s* operator_bias_create2(unsigned int N, const long dims[N],
-					const long ostrs[N], const long istrs[N], const long bstrs[N], const complex float* bias)
-{
-	PTR_ALLOC(struct bias_s, data);
-	SET_TYPEID(bias_s, data);
-
-	PTR_ALLOC(long[N], strs);
-	md_copy_strides(N, *strs, bstrs);
-	data->strs = *PTR_PASS(strs);
-
-	data->bias = bias;
-
-        data->domain = iovec_create2(N, dims, istrs, CFL_SIZE);
-        data->codomain = iovec_create2(N, dims, ostrs, CFL_SIZE);
-
-        return operator_create2(N, dims, ostrs, N, dims, istrs, CAST_UP(PTR_PASS(data)), bias_apply, bias_free);
-}
-
-const struct operator_s* operator_bias_create(unsigned int N, const long dims[N], const long bdims[N], const complex float* bias)
-{
-	long strs[N];
-	md_calc_strides(N, strs, dims, CFL_SIZE);
-
-	long bstrs[N];
-	md_calc_strides(N, bstrs, bdims, CFL_SIZE);
-
-        return operator_bias_create2(N, dims, strs, strs, bstrs, bias);
-}
 
 extern void simple_dcnn(const long dims[6], const long krn_dims[6], const complex float* krn, const long bias_dims[6], const complex float* bias, complex float* out, const complex float* in)
 {
@@ -142,9 +80,9 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 		operator_apply(conv->forward, 5, dims2b, tmp2, 5, dims2a, tmp1);
 
 //		md_zadd2(N, dims2b, strs2b, tmp2, strs2b, tmp2, bias_strs, &MD_ACCESS(6, bias_strs, pos, bias));
-		const struct operator_s* bop = operator_bias_create(5, dims2b, bias_dims, &MD_ACCESS(6, bias_strs, pos, bias));
-		operator_apply(bop, 5, dims2b, tmp2, 5, dims2b, tmp2);
-		operator_free(bop);
+		const struct nlop_s* bop = nlop_bias_create(5, dims2b, bias_dims, &MD_ACCESS(6, bias_strs, pos, bias));
+		nlop_apply(bop, 5, dims2b, tmp2, 5, dims2b, tmp2);
+		nlop_free(bop);
 
 		nlop_apply(relu, N, dims2b, tmp1, N, dims2b, tmp2);
 
