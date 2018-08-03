@@ -448,6 +448,14 @@ struct linop_s* linop_chainN(unsigned int N, struct linop_s* a[N])
 }
 
 
+struct linop_s* linop_chain_FF(const struct linop_s* a, const struct linop_s* b)
+{
+	struct linop_s* x = linop_chain(a, b);
+	linop_free(a);
+	linop_free(b);
+	return x;
+}
+
 
 struct linop_s* linop_loop(unsigned int D, const long dims[D], struct linop_s* op)
 {
