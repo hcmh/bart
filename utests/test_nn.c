@@ -72,7 +72,7 @@ static bool test_nlop_relu_der_adj(void)
 	md_free(src);
 	md_free(dst);
 
-	float err = linop_test_adjoint(nlop_get_derivative(relu, 0, 0));
+	float err = linop_test_adjoint_real(nlop_get_derivative(relu, 0, 0));
 
 	nlop_free(relu);
 

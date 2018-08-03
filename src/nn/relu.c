@@ -40,14 +40,14 @@ static void relu_apply(const nlop_data_t* _data, complex float* dst, const compl
         struct relu_s* d = CAST_DOWN(relu_s, _data);
 
 	if (NULL == d->tmp)
-		d->tmp = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->strs, d->tmpdom->size, dst);
+		d->tmp = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
 
  	md_zreal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, d->tmp,
 				  d->domain->strs, src);
 
         md_smax2(d->domain->N, d->domain->dims, d->codomain->strs, (float*)dst, d->tmpdom->strs, (const float*)d->tmp, 0.);
 
-	md_sgreatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)dst, d->tmpdom->strs, (const float*)d->tmp, 0.);
+	md_sgreatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->tmpdom->strs, (const float*)d->tmp, 0.);
 }
 
 
