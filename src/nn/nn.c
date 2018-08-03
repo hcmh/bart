@@ -22,6 +22,7 @@
 
 #include "nlops/nlop.h"
 #include "nlops/cast.h"
+#include "nlops/chain.h"
 
 #include "nn/relu.h"
 #include "nn/bias.h"
@@ -57,16 +58,15 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 	md_copy_dims(N, dims2b, dims);
 	dims2b[4] = krn_dims[4];
 
-	long strs2b[N];
-	md_calc_strides(N, strs2b, dims2b, CFL_SIZE);
-
-	complex float* tmp1 = md_calloc(N, dims2a, CFL_SIZE);
-	complex float* tmp2 = md_alloc(N, dims2b, CFL_SIZE);
-
-	md_copy(N, dims, tmp1, in, CFL_SIZE);
-
+	const struct linop_s* lres1 = linop_expand_create(5, dims2a, dims);
+	const struct nlop_s* nl = nlop_from_linop(lres1);
+	linop_free(lres1);
 
 	long pos[6] = { 0 };
+
+	struct linop_s* resh = linop_reshape_create(5, dims2a, dims2b);
+	struct nlop_s* nresh = nlop_from_linop(resh);
+	linop_free(resh);
 
 	for (unsigned int l = 0; l < layers; l++) {
 
@@ -75,27 +75,30 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 		debug_printf(DP_INFO, "Layer: %d/%d\n", l, layers);
 
 		struct linop_s* conv = linop_conv_create(5, flags, CONV_SYMMETRIC, CONV_CYCLIC,
-				dims2b, dims2a, krn_dims, &MD_ACCESS(6, krn_strs, pos, krn));
+			dims2b, dims2a, krn_dims, &MD_ACCESS(6, krn_strs, pos, krn));
 
-		struct nlop_s* nconv = nlop_from_linop(conv);
+
+		nl = nlop_chain_FF(nl, nlop_from_linop(conv));
+		nl = nlop_chain_FF(nl, nlop_bias_create(5, dims2b, bias_dims, &MD_ACCESS(6, bias_strs, pos, bias)));
+
 		linop_free(conv);
 
-		nlop_apply(nconv, 5, dims2b, tmp2, 5, dims2a, tmp1);
+		if (l < layers - 1)
+			nl = nlop_chain_FF(nl, nlop_relu_create(5, dims2b));
 
-		const struct nlop_s* bop = nlop_bias_create(5, dims2b, bias_dims, &MD_ACCESS(6, bias_strs, pos, bias));
-		nlop_apply(bop, 5, dims2b, tmp2, 5, dims2b, tmp2);
-		nlop_free(bop);
-
-		const struct nlop_s* relu = nlop_relu_create(5, dims2b);
-		nlop_apply(relu, 5, dims2b, tmp1, 5, dims2b, tmp2);
-		nlop_free(relu);
+		nl = nlop_chain_FF(nl, nlop_clone(nresh));
 	}
 
-	md_free(tmp1);
+	nlop_free(nresh);
 
-	md_copy(N, dims, out, tmp2, CFL_SIZE);	// skips relu in last iter
+	const struct linop_s* lres2 = linop_expand_create(5, dims, dims2a);
+	nl = nlop_chain_FF(nl, nlop_from_linop(lres2));
+	linop_free(lres2);
 
-	md_free(tmp2);
+	debug_printf(DP_INFO, "Applying network...");
+	nlop_apply(nl, 5, dims, out, 5, dims, in);
+	debug_printf(DP_INFO, " done.\n");
+	nlop_free(nl);
 }
 
 
