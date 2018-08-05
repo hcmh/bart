@@ -98,7 +98,7 @@ int main_nufft(int argc, char* argv[])
 		assert(1 == ksp_dims[0]);
 		assert(md_check_compat(DIMS, ~(PHS1_FLAG|PHS2_FLAG), ksp_dims, traj_dims));
 
-		if (0 == md_calc_size(DIMS, coilim_dims)) {
+		if (0 == md_calc_size(3, coilim_dims)) {
 
 			estimate_im_dims(DIMS, FFT_FLAGS, coilim_dims, traj_dims, traj);
 			debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", coilim_dims[0], coilim_dims[1], coilim_dims[2]);
