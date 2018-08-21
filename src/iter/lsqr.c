@@ -1,9 +1,9 @@
 /* Copyright 2014,2017. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+ * Copyright 2016-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * 2012-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014      Frank Ong <frankong@berkeley.edu>
  * 2014,2017 Jon Tamir <jtamir@eecs.berkeley.edu>
  */
@@ -46,9 +46,10 @@ struct lsqr_data {
 
 static DEF_TYPEID(lsqr_data);
 
+
 static void normaleq_l2_apply(const operator_data_t* _data, unsigned int N, void* args[static N])
 {
-	const struct lsqr_data* data = CAST_DOWN(lsqr_data, _data);
+	const auto data = CAST_DOWN(lsqr_data, _data);
 
 	assert(2 == N);
 
@@ -59,7 +60,7 @@ static void normaleq_l2_apply(const operator_data_t* _data, unsigned int N, void
 
 static void normaleq_del(const operator_data_t* _data)
 {
-	const struct lsqr_data* data = CAST_DOWN(lsqr_data, _data);
+	const auto data = CAST_DOWN(lsqr_data, _data);
 
 	linop_free(data->model_op);
 
@@ -210,6 +211,7 @@ const struct operator_s* wlsqr2_create(	const struct lsqr_conf* conf,
 					struct iter_monitor_s* monitor)
 {
 	struct linop_s* op = linop_chain(model_op, weights);
+	linop_free(model_op);
 
 	const struct operator_s* lsqr_op = lsqr2_create(conf, italgo, iconf, init,
 						op, precond_op,
@@ -218,6 +220,7 @@ const struct operator_s* wlsqr2_create(	const struct lsqr_conf* conf,
 
 	const struct operator_s* wlsqr_op = operator_chain(weights->forward, lsqr_op);
 
+	linop_free(weights);
 	operator_free(lsqr_op);
 	linop_free(op);
 

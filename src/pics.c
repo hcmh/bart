@@ -79,7 +79,9 @@ static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long
 		 */
 
 		const struct linop_s* fft_slice = linop_fft_create(DIMS, map_dims, SLICE_FLAG);
-		fft_op = linop_chain(fft_slice, fft_op);
+		const struct linop_s* tmp = fft_op;
+		fft_op = linop_chain(fft_slice, tmp);
+		linop_free(tmp);
 		linop_free(fft_slice);
 	}
 
@@ -511,6 +513,7 @@ int main_pics(int argc, char* argv[])
 
 	if ((NULL == traj_file) && (0u != loop_flags) && !sms) { // FIXME: no basis
 
+		linop_free(forward_op);
 		forward_op = sense_init(max1_dims, map_flags, maps);
 
 		// basis pursuit requires the full forward model to add as a linop constraint

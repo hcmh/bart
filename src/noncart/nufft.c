@@ -437,7 +437,7 @@ static complex float* compute_psf2(int N, const long psf_dims[N + 1], const long
 
 static void nufft_free_data(const linop_data_t* _data)
 {
-	struct nufft_data* data = CAST_DOWN(nufft_data, _data);
+	auto data = CAST_DOWN(nufft_data, _data);
 
 	xfree(data->ksp_dims);
 	xfree(data->cim_dims);
@@ -485,7 +485,7 @@ static void nufft_free_data(const linop_data_t* _data)
 // Forward: from image to kspace
 static void nufft_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	struct nufft_data* data = CAST_DOWN(nufft_data, _data);
+	auto data = CAST_DOWN(nufft_data, _data);
 
 #ifdef USE_CUDA
 	assert(!cuda_ondevice(src));
@@ -529,7 +529,7 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 // Adjoint: from kspace to image
 static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	struct nufft_data* data = CAST_DOWN(nufft_data, _data);
+	auto data = CAST_DOWN(nufft_data, _data);
 
 #ifdef USE_CUDA
 	assert(!cuda_ondevice(src));
@@ -583,7 +583,7 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
  */
 static void nufft_apply_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	struct nufft_data* data = CAST_DOWN(nufft_data, _data);
+	auto data = CAST_DOWN(nufft_data, _data);
 
 	if (data->conf.toeplitz) {
 

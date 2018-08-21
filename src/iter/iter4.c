@@ -1,4 +1,4 @@
-/* Copyright 2017. Martin Uecker.
+/* Copyright 2017-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  */
@@ -23,7 +23,6 @@
 #include "iter/iter4.h"
 
 
-
 struct iter4_nlop_s {
 
 	INTERFACE(iter_op_data);
@@ -33,9 +32,10 @@ struct iter4_nlop_s {
 
 DEF_TYPEID(iter4_nlop_s);
 
+
 static void nlop_for_iter(iter_op_data* _o, float* _dst, const float* _src)
 {
-	const struct iter4_nlop_s* nlop = CAST_DOWN(iter4_nlop_s, _o);
+	const auto nlop = CAST_DOWN(iter4_nlop_s, _o);
 
 	assert(2 == operator_nr_args(nlop->nlop.op));
 	operator_apply_unchecked(nlop->nlop.op, (complex float*)_dst, (const complex float*)_src);
@@ -43,7 +43,7 @@ static void nlop_for_iter(iter_op_data* _o, float* _dst, const float* _src)
 
 static void nlop_der_iter(iter_op_data* _o, float* _dst, const float* _src)
 {
-	const struct iter4_nlop_s* nlop = CAST_DOWN(iter4_nlop_s, _o);
+	const auto nlop = CAST_DOWN(iter4_nlop_s, _o);
 
 	assert(2 == operator_nr_args(nlop->nlop.op));
 	linop_forward_unchecked(nlop->nlop.derivative[0], (complex float*)_dst, (const complex float*)_src);
@@ -51,7 +51,7 @@ static void nlop_der_iter(iter_op_data* _o, float* _dst, const float* _src)
 
 static void nlop_adj_iter(iter_op_data* _o, float* _dst, const float* _src)
 {
-	const struct iter4_nlop_s* nlop = CAST_DOWN(iter4_nlop_s, _o);
+	const auto nlop = CAST_DOWN(iter4_nlop_s, _o);
 
 	assert(2 == operator_nr_args(nlop->nlop.op));
 	linop_adjoint_unchecked(nlop->nlop.derivative[0], (complex float*)_dst, (const complex float*)_src);
@@ -92,21 +92,22 @@ struct iter4_altmin_s {
 
 	long i; // argument to minimize
 };
+
 DEF_TYPEID(iter4_altmin_s);
 
 
 static void altmin_nlop(iter_op_data* _o, int N, float* args[N])
 {
-	const struct iter4_altmin_s* data = CAST_DOWN(iter4_altmin_s, _o);
+	const auto data = CAST_DOWN(iter4_altmin_s, _o);
 
-	assert((unsigned int) N == operator_nr_args(data->nlop->op));
+	assert((unsigned int)N == operator_nr_args(data->nlop->op));
 
 	nlop_generic_apply_unchecked(data->nlop, N, (void*) args);
 }
 
 static void altmin_normal(iter_op_data* _o, float* dst, const float* src)
 {
-	const struct iter4_altmin_s* data = CAST_DOWN(iter4_altmin_s, _o);
+	const auto data = CAST_DOWN(iter4_altmin_s, _o);
 	const struct linop_s* der = nlop_get_derivative(data->nlop, 0, data->i);
 
 	linop_normal_unchecked(der, (complex float*) dst, (const complex float*) src);
@@ -114,7 +115,7 @@ static void altmin_normal(iter_op_data* _o, float* dst, const float* src)
 
 static void altmin_inverse(iter_op_data* _o, float alpha, float* dst, const float* src)
 {
-	const struct iter4_altmin_s* data = CAST_DOWN(iter4_altmin_s, _o);
+	const auto data = CAST_DOWN(iter4_altmin_s, _o);
 
 	const struct iovec_s* idest = nlop_generic_domain(data->nlop, data->i);
 
@@ -130,7 +131,6 @@ static void altmin_inverse(iter_op_data* _o, float alpha, float* dst, const floa
 			 (struct iter_op_s){ altmin_normal, _o }, dst, AHy, NULL);
 
 	md_free(AHy);
-
 }
 
 
@@ -141,7 +141,7 @@ void iter4_altmin(iter3_conf* _conf,
 		long M, const float* src,
 		struct iter_nlop_s cb)
 {
-	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
+	auto conf = CAST_DOWN(iter3_irgnm_conf, _conf);
 	struct iter4_altmin_s data = { { &TYPEID(iter4_altmin_s) }, nlop, conf, -1};
 
 	struct iter_op_p_s min_ops[NI];

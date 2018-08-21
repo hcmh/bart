@@ -1,10 +1,10 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+ * Copyright 2016-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors: 
- * 2011-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2011-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  *
  *
  * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized
@@ -54,10 +54,13 @@ static void orthogonalize(iter_op_data* ptr, float* _dst, const float* _src)
 	noir_orthogonalize(nlop_get_data(CAST_DOWN(nlop_wrapper_s, ptr)->noir), (complex float*)_dst, (const complex float*)_src);
 #else
 	UNUSED(_src);
-	struct nlop_wrapper_s* nlw = CAST_DOWN(nlop_wrapper_s, ptr);
+
+	auto nlw = CAST_DOWN(nlop_wrapper_s, ptr);
+
 	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
 #endif
 }
+
 
 const struct noir_conf_s noir_defaults = {
 
@@ -71,6 +74,7 @@ const struct noir_conf_s noir_defaults = {
 	.b = 32.,
 	.pattern_for_each_coil = false,
 };
+
 
 void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
 {
@@ -98,6 +102,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
 
 	complex float* xref = NULL;
+
 	if (NULL != ref) {
 
 		xref = md_alloc_sameplace(1, d1, CFL_SIZE, kspace_data);
@@ -125,9 +130,12 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.nlinv_legacy = true;
 
 	struct nlop_wrapper_s nlw;
+
 	SET_TYPEID(nlop_wrapper_s, &nlw);
+
 	nlw.noir = &nl;
 	nlw.split = skip;
+
 
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
