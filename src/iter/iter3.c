@@ -44,7 +44,7 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 
 	.iter = 8,
 	.alpha = 1.,
-	.redu = 2.,
+	.redu = 3.,
 
 	.cgiter = 100,
 	.cgtol = 0.1,
@@ -90,19 +90,19 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
     iter_op_call(data->der, data->tmp, src);
     iter_op_call(data->adj, dst, data->tmp);
 
-    int res = 512;
-    int SMS = 1;
-    int parameters = 3;
-    int coils = 8;
+//     int res = 128;
+//     int SMS = 8;
+//     int parameters = 3;
+//     int coils = 8;
     
     
 //     for (k = 0; k < SMS; k++){
-        select_vecops(src)->axpy(data->size*coils*SMS/(coils * SMS + parameters*SMS), 
+/*        select_vecops(src)->axpy(data->size*coils*SMS/(coils * SMS + parameters*SMS), 
                                  dst + res*res*2*(parameters * SMS), 
                                  data->alpha, 
-                                 src + res*res*2*(parameters * SMS)); 
+                                 src + res*res*2*(parameters * SMS));*/ 
 //      }
-//     select_vecops(src)->axpy(data->size, dst, data->alpha, src);
+     select_vecops(src)->axpy(data->size, dst, data->alpha, src);
 
     
 }
@@ -137,15 +137,15 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	
 	void* x = md_alloc_sameplace(1, MD_DIMS(data->size/2), CFL_SIZE, src);
 	md_gaussian_rand(1, MD_DIMS(data->size/2), x);
-	double maxeigen = power(30, data->size, select_vecops(src), (struct iter_op_s){normal_fista, CAST_UP(data)}, x);
+	double maxeigen = power(20, data->size, select_vecops(src), (struct iter_op_s){normal_fista, CAST_UP(data)}, x);
 	md_free(x);
 //	debug_printf(DP_INFO, "\tMax eigv: %.2e\n", maxeigen);
 
 	double step = 0.475/maxeigen;//fmin(iter_fista_defaults.step / maxeigen, iter_fista_defaults.step); // 0.95f is FISTA standard
 //	debug_printf(DP_INFO, "\tFISTA Stepsize: %.2e\n", step);
-    float alpha_min = 0.005;
-    int res = 512;
-    int SMS = 1;
+    float alpha_min = 0.0001;
+    int res = 128;
+    int SMS = 5;
     int parameters = 3;
     
     const struct operator_p_s* prox;
@@ -156,7 +156,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
         unsigned int wflags = 0;
         unsigned int jwflags = 0;
 //         const long* dims = nlop_generic_domain(&data->nlop, 0)->dims;
-        long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,1,1,1};
+        long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
         for (unsigned int i = 0; i < DIMS; i++) {
             if ((1 < dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
                 wflags = MD_SET(wflags, i);

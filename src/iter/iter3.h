@@ -35,7 +35,7 @@ struct iter3_irgnm_conf {
 extern DEF_TYPEID(iter3_irgnm_conf);
 
 iter3_fun_f iter3_irgnm;
-
+iter3_fun_f iter3_irgnm_l1;
 
 
 struct iter3_landweber_conf {

@@ -289,12 +289,19 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	int hogwild_k = 0;
 	int hogwild_K = 10;
     
-    int res = 512;
+    int res = 128;
     int parameters = 3;
-    int SMS = 1;
-//     const long dims[16] = {res,res,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-    int k,i,j;
-    float lowbound = 0.33;
+    int SMS = 5;
+    int temp_index;
+    int k,j;
+    float lowerbound = 0.33;
+    float scaling[SMS*parameters];
+    
+    const long map_dims[16] = {res,res,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+    const long x_dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
+    long map_strs[16];
+	md_calc_strides(16, map_strs, map_dims, CFL_SIZE);
+    
 
 	for (itrdata.iter = 0; itrdata.iter < maxiter; itrdata.iter++) {
 
@@ -306,11 +313,35 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 		if (lambda_scale != ls_old) 
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
+        // normalize all the maps before joint wavelet denoising
+        for(k = 0; k < SMS; k++)
+            for(j = 0; j < parameters; j++)
+            {
+                temp_index = j+k*parameters;
+//                 scaling[temp_index] = md_norm2(16, map_dims, map_strs, x+res*res*2 * temp_index);
+                scaling[temp_index] = md_norm(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index);
+//                 md_smul2(16, map_dims, map_strs, x+res*res*2 * temp_index, map_strs, x+res*res*2 * temp_index, scaling[temp_index]);
+                md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, 1/scaling[temp_index]);
+            }
+        
 
         iter_op_p_call(thresh, lambda_scale * tau, x, x);
-   
-//         for (k = 0; k < SMS; k++)
-//             md_smax(1, MD_DIMS(2*md_calc_size(16, dims)), x + res*res*2*(parameters-1) +  k*res*res*2*parameters, x + res*res*2*(parameters-1) +  k*res*res*2*parameters, 0.0);
+        
+        
+        for(k = 0; k < SMS; k++)
+            for(j = 0; j < parameters; j++)
+            {
+                temp_index = j+k*parameters;
+//                 md_smul2(16, map_dims, map_strs, x+res*res*2 * temp_index, map_strs, x+res*res*2 * temp_index, 1/scaling[temp_index]);
+                md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, scaling[temp_index]);
+            }
+            
+        // Domain Prjoection for R1s
+        for (k = 0; k < SMS; k++)
+        {
+            temp_index = res*res*2*(parameters-1) +  k*res*res*2*parameters;
+            md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
+        }
 
 
 		ravine(vops, N, &ra, x, o);	// FISTA
@@ -327,14 +358,10 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 		vops->axpy(N, x, tau, r);
         
         for (k = 0; k < SMS; k++)
-            for (i = 0; i < res*2; i++)
-                for (j = 0; j < res; j++){
-                    float image = *(x + res*res*2*(parameters-1) +  k*res*res*2*parameters + j*2 + i*res);
-                    if (image < lowbound){
-                        *(x + res*res*2*(parameters-1) +  k*res*res*2*parameters + j*2 + i*res) = lowbound;
-                    }
-                    
-                }
+        {
+            temp_index = res*res*2*(parameters-1) +  k*res*res*2*parameters;
+            md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
+        }
         
         
       
@@ -522,8 +549,11 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 	for (unsigned int i = 0; i < iter; i++) {
 
 //		printf("#--------\n");
+        
+        debug_printf(DP_DEBUG2, "Step: %u, Y: %f\n", i, vops->norm(M, y));
 
 		iter_op_call(op, r, x);			// r = F x
+        debug_printf(DP_DEBUG2, "Step: %u, Forward: %f\n", i, vops->norm(M, r));
 
 		vops->xpay(M, -1., r, y);	// r = y - F x
 
@@ -574,10 +604,10 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
 	float* t = vops->allocate(M);
 	float* p = vops->allocate(N);
 
-	int res = 512;
-   	int parameters = 3;
-   	int SMS = 1;
-    const long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
+// 	int res = 256;
+//    	int parameters = 3;
+//    	int SMS = 1;
+//     const long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
 
 	for (unsigned int i = 0; i < iter; i++) {
 		//		printf("#--------\n");
@@ -592,9 +622,11 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
 		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
 		
 		iter_op_call(der, t, x);	// t = DF x
+        debug_printf(DP_DEBUG2, "Step: %u, Der: %f\n", i, vops->norm(M, t));
 		vops->axpy(M, r, 1.f, t);   // r = y - F x + DF x
 
 		iter_op_call(adj, p, r);		
+        debug_printf(DP_DEBUG2, "Step: %u, Adj: %f\n", i, vops->norm(N, p));
 		
 		if (NULL != xref)
 			vops->axpy(N, p, 0.5*alpha, xref);
@@ -602,13 +634,13 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
 		iter_op_p_call(inv, alpha, x, p);
 	///	debug_printf(DP_DEBUG2, "\t\tx %f\n", vops->norm(N, x));
     
-        static int i = 0;
-    
-        char name[255] = {'\0'};
-    
-        sprintf(name, "/tmp/step_test_%02d", i++); 
-    
-        dump_cfl(name, 16, dims, x);
+//         static int i = 0;
+//     
+//         char name[255] = {'\0'};
+//     
+//         sprintf(name, "/tmp/step_test_%02d", i++); 
+//     
+//         dump_cfl(name, 16, dims, x);
 		
         alpha /= redu;
 		if (NULL != callback.fun){

@@ -111,6 +111,7 @@ int main_mdbT1(int argc, char* argv[])
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[3], DIMS, img_dims);
+    complex float* img1 = create_cfl("", DIMS, img1_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, dims);
@@ -147,7 +148,11 @@ int main_mdbT1(int argc, char* argv[])
 
 	if (NULL != psf) {
 
-		pattern = load_cfl(psf, DIMS, pat_dims);
+        complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
+		pattern = anon_cfl("", DIMS, pat_dims);
+
+		md_copy(DIMS, pat_dims, pattern, tmp_psf, CFL_SIZE);
+		unmap_cfl(DIMS, pat_dims, tmp_psf);
 		// FIXME: check compatibility
 
 		if (-1 == restrict_fov)
@@ -165,7 +170,7 @@ int main_mdbT1(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-	double scaling = 1000. / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling = 500. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
 			scaling *= sqrt(ksp_dims[SLICE_DIM]); 
@@ -187,15 +192,18 @@ int main_mdbT1(int argc, char* argv[])
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
         md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask, 1.0);
-
-        float img_tmp;
         
-        for (int k = 0; k < img_dims[13]; k++)
-            for (int i = 0; i < img_dims[1]; i++)
-                for (int j = 0; j < img_dims[0]; j++){
-                    img_tmp = *(img + img_dims[0]*img_dims[1]*(img_dims[6]-1) + k*img_dims[0]*img_dims[1]*img_dims[6] + j + i*img_dims[0]);
-                    *(img + img_dims[0]*img_dims[1]*(img_dims[6]-1) + k*img_dims[0]*img_dims[1]*img_dims[6] + j + i*img_dims[0]) = img_tmp*2.0;;
-                }
+        // Choose a different initial guess for R1*
+        long pos[DIMS];
+
+        for (int i = 0; i < DIMS; i++)
+            pos[i] = 0;
+        
+        pos[COEFF_DIM] = 2;
+        md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE); 
+        md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 2.0);
+        md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE); 	
+
 	}
 
 #ifdef  USE_CUDA
@@ -240,7 +248,8 @@ int main_mdbT1(int argc, char* argv[])
 
 	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
-	unmap_cfl(DIMS, img_dims, img );
+	unmap_cfl(DIMS, img_dims, img);
+    unmap_cfl(DIMS, img1_dims, img1);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
 	unmap_cfl(DIMS, TI_dims, TI);
 

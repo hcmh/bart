@@ -74,13 +74,24 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
     // scaling_R1s.*R1s
     md_zsmul2(data->N, data->map_dims, data->map_strs, data->tmp_map, data->map_strs, data->R1s, data->scaling_R1s);
 
-    // exp(-t.*scaling_R1s*R1s)                                             
-    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_map, data->TI_strs, data->TI);
-    md_zsmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->out_strs, data->tmp_exp, -1);
+    // exp(-t.*scaling_R1s*R1s)      
+    for(int k=0; k<data->TI_dims[5]; k++)
+    {
+            md_zsmul2(data->N, data->map_dims, data->out_strs, (char*)data->tmp_exp + data->out_strs[5] * k, data->map_strs, data->tmp_map, -data->TI[k]);
+
+    }
+//    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_map, data->TI_strs, data->TI);
+   // md_zsmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->out_strs, data->tmp_exp, -1);
     md_zexp(data->N, data->out_dims, data->tmp_exp, data->tmp_exp);
     
     // t.*exp(-t.*scaling_R1s*R1s)
-    md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->TI_strs, data->TI, data->out_strs, data->tmp_exp);
+    for(int k=0; k<data->TI_dims[5]; k++)
+    {
+        md_zsmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->out_strs, data->tmp_exp, data->TI[k]);
+    }
+
+    // t.*exp(-t.*scaling_R1s*R1s)
+//     md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->TI_strs, data->TI, data->out_strs, data->tmp_exp);
     
     // scaling_M0.*M0
     md_zsmul2(data->N, data->map_dims, data->map_strs, data->tmp_map, data->map_strs, data->M0, data->scaling_M0);
@@ -299,7 +310,7 @@ struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims
 	data->tmp_data = my_alloc(N, out_dims, CFL_SIZE);
     data->tmp_exp = my_alloc(N, out_dims, CFL_SIZE);
     data->tmp_dR1s = my_alloc(N, out_dims, CFL_SIZE);
-	data->TI = my_alloc(N, TI_dims, CFL_SIZE);
+	data->TI = md_alloc(N, TI_dims, CFL_SIZE);
     md_copy(N, TI_dims, data->TI, TI, CFL_SIZE); 
     
     data->scaling_M0 = 2.0;
