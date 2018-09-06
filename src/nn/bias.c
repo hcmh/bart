@@ -46,6 +46,7 @@ static void bias_apply(const nlop_data_t* _data, int N, complex float* args[N])
 
 static void bias_deriv(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	UNUSED(dst); UNUSED(src);
 	UNUSED(_data);
 	assert(0);
 }
