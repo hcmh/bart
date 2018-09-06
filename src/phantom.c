@@ -36,7 +36,9 @@ int main_phantom(int argc, char* argv[])
 	int sens = 0;
 	int osens = -1;
 	int xdim = -1;
-	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS } ptype = SHEPPLOGAN;
+	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM } ptype = SHEPPLOGAN;
+
+	int geo = -1;
 	const char* traj = NULL;
 
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
@@ -52,14 +54,25 @@ int main_phantom(int argc, char* argv[])
 		OPT_STRING('t', &traj, "file", "trajectory"),
 		OPT_SELECT('c', enum ptype_e, &ptype, CIRC, "()"),
 		OPT_SELECT('m', enum ptype_e, &ptype, TIME, "()"),
+		OPT_SELECT('G', enum ptype_e, &ptype, GEOM, "geometric object phantom"),
 		OPT_SELECT('C', enum ptype_e, &ptype, HEART, "heart"),
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
+		OPT_INT('g', &geo, "n=1,2", "select geometry for object phantom"),
 		OPT_SET('3', &d3, "3D"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
+
+	if ((GEOM != ptype) && (-1 != geo)) {
+
+		assert(SHEPPLOGAN == ptype);
+		ptype = GEOM;
+	}
+
+	if ((GEOM == ptype) && (-1 == geo))
+		geo = 1;
 
 
 	if ((TIME == ptype) || (HEART == ptype))
@@ -120,6 +133,18 @@ int main_phantom(int argc, char* argv[])
 
 		assert(!d3);
 		calc_heart(dims, out, kspace, sstrs, samples);
+
+		break;
+
+	case GEOM:
+
+		if ((geo < 1) || (geo > 2))
+			error("geometric phantom: invalid geometry");
+
+		if (d3)
+			error("geometric phantom: no 3D mode");
+
+		calc_geo_phantom(dims, out, kspace, geo, sstrs, samples);
 		break;
 
 	case TIME:
@@ -131,6 +156,7 @@ int main_phantom(int argc, char* argv[])
 	case CIRC:
 
 		calc_circ(dims, out, d3, kspace, sstrs, samples);
+//			calc_ring(dims, out, kspace);
 		break;
 
 	case SHEPPLOGAN:

@@ -63,6 +63,31 @@ const struct ellipsis_s phantom_ring[4] = {
 //	{	1., { 0.48, 0.48 }, { 0., 0. }, 0. },
 };
 
+// Some geometric objects
+const struct ellipsis_s phantom_geo1[3] = {
+	{	.5,    { .2,   .2   }, { .6,      .5 },	   0        },
+	{	.2,    { .2,   .4   }, { -.6,    -.6 },	   M_PI/7.  },
+	{	.6,    { .3,   .1   }, { .6,     -.5 },	   M_PI/5.  },
+};
+
+const struct ellipsis_s phantom_geo2[2] = {
+	{      0.5,   { .5,   -.5   }, { 0.,     0.  },	   M_PI/5  },
+	{	.7,   { .2,   .2    }, { -.5,     .7 },	  -M_PI/4  },
+};
+
+const struct ellipsis_s phantom_geo3[7] = {
+	{	1.,    { .2,   .2   }, { -.6,   .6   },	   M_PI/4 },
+	{	1.,    { .2,   .2   }, { -.6,  -.6   },	   M_PI/4  },
+	{	0.6,   { .07,   .07   }, { 0.15,   0   },	   0.  },
+	{	0.7,   { .07,   .07   }, { 0,      0   },	   0.  },
+	{	0.8,   { .07,   .07   }, { -0.15,  0   },	   0.  },
+	{	0.9,   { .07,   .07   }, { 0.15,   0.15},  0.  },
+	{	0.9,   { .07,   .07   }, { 0.15,  -0.15},  0.  },
+};
+
+const struct ellipsis_s phantom_geo4[1] = {
+	{	0.8,   { .1,   .7   }, { .6,     0  },	   0},
+};
 
 /* Magnetic Resonance in Medicine 58:430--436 (2007)
  * Three-Dimensional Analytical Magnetic Resonance
@@ -143,9 +168,9 @@ complex double xrectangle(const double center[2], const double axis[2], double a
 	pshift[0] = p90[0] + center[0];
 	pshift[1] = p90[1] + center[1];
 	double prot[2];
-	rot2d(prot, pshift, angle);
+	rot2d(prot, pshift, M_PI/4 + angle);
 
-	double radius = fabs(prot[0] / axis[0]) + fabs(prot[1] / axis[1]);
+	double radius = fabs(prot[0] / axis[0] / sqrt(2)) + fabs(prot[1] / axis[1] / sqrt(2));
 
 	return (radius <= 1.) ? 1. : 0.;
 }

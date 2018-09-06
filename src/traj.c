@@ -93,6 +93,8 @@ int main_traj(int argc, char* argv[])
 	int turns = 1;
 	bool d3d = false;
 	bool transverse = false;
+	bool asymTraj = false;
+	bool halfCircle = false;
 
 	float gdelays[2][3] = {
 		{ 0., 0., 0. },
@@ -110,11 +112,13 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('g', &pGold, "golden angle in partition direction"),
 		OPT_SET('r', &radial, "radial"),
 		OPT_SET('G', &golden, "golden-ratio sampling"),
+		OPT_SET('H', &halfCircle, "halfCircle golden-ratio sampling"),
 		OPT_SET('D', &dbl, "double base angle"),
 		OPT_FLVEC3('q', &gdelays[0], "delays", "gradient delays: x, y, xy"),
 		OPT_FLVEC3('Q', &gdelays[1], "delays", "(gradient delays: z, xz, yz)"),
 		OPT_SET('O', &transverse, "correct transverse gradient error for radial tajectories"),
 		OPT_SET('3', &d3d, "3D"),
+		OPT_SET('c', &asymTraj, "Asymmetric trajectory [DC sampled]"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -130,6 +134,9 @@ int main_traj(int argc, char* argv[])
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1  };
 	dims[0] = 3;
 	dims[1] = X;
+
+	if (halfCircle)
+		golden = true;
 
 	if (0 == mb) {
 
@@ -191,7 +198,16 @@ int main_traj(int argc, char* argv[])
 				double golden_angle = 3. - sqrtf(5.);
 				double base = golden ? ((2. - golden_angle) / 2.) : (1. / (float)Y);
 				double angle = M_PI * (float)remap(mode, Y, turns, mb, j) * (dbl ? 2. : 1.) * base;
-				double read = (float)i + 0.5 - (float)X / 2.;
+
+				if (halfCircle)
+					angle = fmod(angle, M_PI);
+
+				/* Calculate read-out samples
+				* for symmetric Trajectory [DC between between sample no. X/2-1 and X/2, zero-based indexing]
+				* or asymmetric Trajectory [DC component at sample no. X/2, zero-based indexing]
+				*/
+				double read = (float)i + (asymTraj ? 0 : 0.5) - (float)X / 2.;
+
 				double angle2 = 0.;
 
 				if (d3d) {

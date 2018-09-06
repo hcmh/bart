@@ -28,7 +28,7 @@ install(FILES ${PROJECT_SOURCE_DIR}/src/bart_embed_api.h
   COMPONENT for_embedding)
 
 # Install all of the targets (except bartmain)
-set(BART_TARGET_LIST bart bartsupport ${BART_MATLAB_TGT} pyBART)
+set(BART_TARGET_LIST bart bartsupport mat2cfl pyBART)
 foreach(target ${BART_TARGET_LIST})
   if(TARGET ${target})
     install(TARGETS ${target}
@@ -68,9 +68,11 @@ configure_package_config_file(${CMAKE_CURRENT_LIST_DIR}/BARTConfig.cmake.in
 install(FILES
   ${CMAKE_CURRENT_LIST_DIR}/BARTFindBLASlib.cmake
   ${CMAKE_CURRENT_LIST_DIR}/FindATLAS.cmake
+  ${CMAKE_CURRENT_LIST_DIR}/FindCUDAlibs.cmake
   ${CMAKE_CURRENT_LIST_DIR}/FindFFTW.cmake
   ${CMAKE_CURRENT_LIST_DIR}/FindLAPACKE.cmake
   ${CMAKE_CURRENT_LIST_DIR}/FindlibFlame.cmake
+  ${CMAKE_CURRENT_LIST_DIR}/FindMatlab.cmake
   ${CMAKE_CURRENT_LIST_DIR}/FindOpenBLAS.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/BARTConfig.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/BARTConfigVersion.cmake
@@ -78,8 +80,24 @@ install(FILES
   COMPONENT for_embedding
   )
 
+if(CMAKE_VERSION VERSION_LESS 3.11)
+install(FILES
+  ${CMAKE_CURRENT_LIST_DIR}/FindBOpenMP.cmake
+  DESTINATION ${INSTALL_CONFIGDIR}
+  COMPONENT for_embedding
+  )
+endif()
+
 # Write a CMake file with all the targets information
-export(EXPORT bart-targets FILE ${CMAKE_CURRENT_BINARY_DIR}/BARTTargets.cmake NAMESPACE BART::)
+# (not for installing, but for external project to import targets from the
+#  current build tree)
+if(CMAKE_VERSION VERSION_LESS 3.0)
+  export(TARGETS bartsupport bart ${BART_MATLAB_TGT} ${BART_pyBART_TGT} FILE ${CMAKE_CURRENT_BINARY_DIR}/BARTTargets.cmake NAMESPACE BART::)
+  export(TARGETS bartmain FILE ${CMAKE_CURRENT_BINARY_DIR}/BARTTargetsForEmbedding.cmake NAMESPACE BART::)
+else()
+  export(EXPORT bart-targets FILE ${CMAKE_CURRENT_BINARY_DIR}/BARTTargets.cmake NAMESPACE BART::)
+  export(EXPORT bart-targets-for-embedding FILE ${CMAKE_CURRENT_BINARY_DIR}/BARTTargetsForEmbedding.cmake NAMESPACE BART::)
+endif()
 
 # Install the general CMake target file
 install(EXPORT bart-targets

@@ -19,6 +19,7 @@ set(BART_NO_LAPACKE @BART_NO_LAPACKE@)
 set(BART_MATLAB @BART_MATLAB@)
 set(BART_MEMONLY_CFL @BART_MEMONLY_CFL@)
 set(BART_USE_CUDA @USE_CUDA@)
+set(BART_USE_NATIVE_CUDA @BART_USE_NATIVE_CUDA@)
 set(BART_USE_OPENMP @USE_OPENMP@)
 set(BART_REDEFINE_PRINTF_FOR_TRACE @BART_REDEFINE_PRINTF_FOR_TRACE@)
 
@@ -40,10 +41,10 @@ if(BART_ISMRMRD)
 endif()
 
 if(NOT BART_LOCAL_FFTW)
-  if(CMAKE_VERSION VERSION_GREATER 3.8)
-    find_dependency(FFTW 3 COMPONENTS FFTWF FFTWF_MT)
-  else()
+  if(CMAKE_VERSION VERSION_LESS 3.9)
     find_package(FFTW 3 REQUIRED COMPONENTS FFTWF FFTWF_MT)
+  else()
+    find_dependency(FFTW 3 COMPONENTS FFTWF FFTWF_MT)
   endif()
 else()
   find_dependency(Threads)
@@ -51,14 +52,32 @@ endif()
 
 if(NOT BART_DISABLE_PNG)
   find_dependency(PNG)
+  if(CMAKE_VERSION VERSION_LESS 3.5)
+    add_library(PNG::PNG SHARED IMPORTED GLOBAL)
+    set_target_properties(PNG::PNG
+      PROPERTIES
+      IMPORTED_LOCATION "${PNG_LIBRARY}"
+      INTERFACE_DEFINITIONS "${PNG_DEFINITIONS}"
+      INTERFACE_INCLUDE_DIRECTORIES "${PNG_INCLUDE_DIRS}"
+      INTERFACE_LINK_LIBRARIES "${PNG_LIBRARIES}"
+      )
+  endif()
 endif()
 
-if(BART_USE_CUDA AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.8)
-  if(CMAKE_VERSION VERSION_GREATER 3.8)
-    find_dependency(CUDAlibs COMPONENTS CUBLAS CUFFT)
+if(BART_USE_OPENMP)
+  if(CMAKE_VERSION VERSION_LESS 3.11)
+    # Actually CMake 3.9 should be enough for OpenMP::OpenMP support,
+    # however, until CMake 3.11 we might get problems with the
+    # INTERFACE_COMPILE_OPTIONS property if we are compiling with
+    # CMake's native CUDA compilation
+    find_package(BOpenMP REQUIRED) # BOpenMP is FindOpenMP.cmake from 3.12
   else()
-    find_package(CUDAlibs REQUIRED COMPONENTS CUBLAS CUFFT)
+    find_package(OpenMP REQUIRED)
   endif()
+endif()
+
+if(BART_USE_NATIVE_CUDA)
+  find_dependency(CUDAlibs COMPONENTS CUBLAS CUFFT)
 endif()
 
 list(REMOVE_AT CMAKE_MODULE_PATH 0)

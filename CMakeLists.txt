@@ -6,20 +6,102 @@
 # \author Damien Nguyen <damien.nguyen@alumni.epfl.ch>
 cmake_minimum_required(VERSION 2.8.12)
 
-project(bart C)
-enable_language(C)
-
-# Silence a CMake-warning about object libraries
 if(CMAKE_VERSION VERSION_GREATER 3.0)
-  cmake_policy(SET CMP0051 NEW)
-  cmake_policy(SET CMP0057 NEW) # if IN_LIST
-  cmake_policy(SET CMP0028 NEW) # :: in target names
-  if(CMAKE_VERSION VERSION_LESS 3.8) # 3.8 instead of 3.3 due to CUDA support
-    cmake_policy(SET CMP0023 OLD) # target_link_libraries mixed signatures
-  else()
-    cmake_policy(SET CMP0023 NEW) # target_link_libraries mixed signatures
+  set(_policy_list CMP0012 CMP0028 CMP0042 CMP0048 CMP0051 CMP0054 CMP0057 CMP0074)
+  foreach(_policy ${_policy_list})
+    if(POLICY ${_policy})
+      cmake_policy(SET ${_policy} NEW)
+    endif()
+  endforeach()
+  # CMP0012: if() recognizes numbers and booleans
+  # CMP0028: :: in target names
+  # CMP0042: MACOS_RPATH
+  # CMP0048: allow VERSION in project()
+  # CMP0051: list TARGET_OBJECTS in SOURCES property
+  # CMP0054: no more de-referencing of "expr" in if() statements
+  # CMP0057: if IN_LIST
+  # CMP0074: XXX_ROOT variables for find_package(XXX)
+endif()
+if(CMAKE_VERSION VERSION_LESS 3.10) # 3.10 instead of 3.3 due to CUDA support
+  if(CMAKE_VERSION VERSION_GREATER 3.8.99)
+    message(STATUS "From the BART maintainers: ignore the message below")
   endif()
-endif(CMAKE_VERSION VERSION_GREATER 3.0)
+  cmake_policy(SET CMP0023 OLD) # target_link_libraries mixed signatures
+else()
+  cmake_policy(SET CMP0023 NEW) # target_link_libraries mixed signatures
+endif()
+
+# ==============================================================================
+# Internal helper variables
+
+set(_compile_flags_c)
+set(_compile_flags_cxx)
+set(_compile_flags_c_release)
+set(_compile_flags_cxx_release)
+
+# ==============================================================================
+# Macro definitions
+
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/bart_macros.cmake)
+
+# ==============================================================================
+# Get the version now, so that we can set it when creating the project
+
+if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/.git)
+  find_package(Git QUIET)
+  if(Git_FOUND)
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} describe --match "v*" --dirty
+      OUTPUT_VARIABLE _full_version
+      RESULT_VARIABLE _ret
+      WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+    if(_ret EQUAL 0)
+      string(STRIP ${_full_version} _full_version)
+      # _full_version is of the form: v0.4.03-109-gf9c0f56-dirty
+      string(REGEX MATCHALL "[0-9]+" _version_list ${_full_version})
+      list(GET _version_list 0 _version_major)
+      list(GET _version_list 1 _version_minor)
+      list(GET _version_list 2 _version_patch)
+      file(WRITE ${CMAKE_CURRENT_LIST_DIR}/version.txt
+	"v${_version_major}.${_version_minor}.${_version_patch}\n")
+    else()
+      get_version_from_file(${CMAKE_CURRENT_LIST_DIR}/version.txt)
+    endif()
+    
+  else()
+    get_version_from_file(${CMAKE_CURRENT_LIST_DIR}/version.txt)
+  endif()
+else()
+  get_version_from_file(${CMAKE_CURRENT_LIST_DIR}/version.txt)
+endif()
+
+# ==============================================================================
+# Create the BART project
+
+if(CMAKE_VERSION VERSION_LESS 3.0)
+  project(BART C)
+  set(PROJECT_VERSION_MAJOR ${_version_major})
+  set(PROJECT_VERSION_MINOR ${_version_minor})
+  set(PROJECT_VERSION_PATCH ${_version_patch})
+  set(${CMAKE_PROJECT_NAME}_VERSION_MAJOR ${_version_major})
+  set(${CMAKE_PROJECT_NAME}_VERSION_MINOR ${_version_minor})
+  set(${CMAKE_PROJECT_NAME}_VERSION_PATCH ${_version_patch})
+else()
+  project(BART
+    LANGUAGES C
+    VERSION "${_version_major}.${_version_minor}.${_version_patch}")
+endif()
+
+# Set a default build type if none was specified
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to 'Release' as none was specified.")
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+  # Set the possible values of build type for cmake-gui
+  set_property(CACHE CMAKE_BUILD_TYPE
+    PROPERTY
+    STRINGS "Debug" "Release" "RelWithDebInfo")
+endif()
 
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
@@ -30,32 +112,23 @@ list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/bart_options.cmake)
 
 #==============================================================================
+# Setup compiler flags
 
 # http://stackoverflow.com/questions/24840030/forcing-c99-in-cmake-to-use-for-loop-initial-declaration
-if (CMAKE_VERSION VERSION_LESS "3.1")
+if (CMAKE_VERSION VERSION_LESS 3.1)
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR
       CMAKE_C_COMPILER_ID STREQUAL "Clang")
     set (CMAKE_C_FLAGS "--std=gnu11 ${CMAKE_C_FLAGS}")
   endif()
-  if (CMAKE_CX_COMPILER_ID STREQUAL "GNU" OR
-      CMAKE_CX_COMPILER_ID STREQUAL "Clang")
-    set (CMAKE_CXX_FLAGS "--std=c++11x ${CMAKE_CXX_FLAGS}")
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
+      CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set (CMAKE_CXX_FLAGS "--std=c++11 ${CMAKE_CXX_FLAGS}")
   endif()
 else()
-  set (CMAKE_C_STANDARD 11)
-  set (CMAKE_C_STANDARD_REQUIRED ON)
-  set (CMAKE_CXX_STANDARD 11)
-  set (CMAKE_CXX_STANDARD_REQUIRED ON)
-endif()
-
-set(CMAKE_DEBUG_POSTFIX "d")
-set(CMAKE_RELWITHDEBINFO_POSTFIX "rd")
-set(CMAKE_MINSIZEREL_POSTFIX "rm")
-
-if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang"
-    OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fblocks")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fblocks")
+  set(CMAKE_C_STANDARD 11)
+  set(CMAKE_C_STANDARD_REQUIRED ON)
+  set(CMAKE_CXX_STANDARD 11)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
 # ==============================================================================
@@ -73,7 +146,6 @@ endif()
 if(CMAKE_PREFIX_PATH)
   list(REMOVE_DUPLICATES CMAKE_PREFIX_PATH)
 endif()
-# message(STATUS "Looking for packages in : ${CMAKE_PREFIX_PATH}")
 
 # --- Mac specific setup options
 if(APPLE)
@@ -83,45 +155,67 @@ if(APPLE)
     PATHS /opt/local/bin /opt/local/sbin)
   if(MACPORTS)
     add_definitions(-DUSE_MACPORTS)
-  endif(MACPORTS)
-endif(APPLE)
+  endif()
+endif()
 
 # ==============================================================================
+# Set compiler flags
 
-##- TODO option(BART_SLINK "Provide SLINK support" OFF)
-# Set a default build type if none was specified
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to 'Release' as none was specified.")
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
-  # Set the possible values of build type for cmake-gui
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo")
+check_for_compiler_flags(_compile_flags_release
+  "-ffast-math /fp:fast -fast"
+  "-O3 /Ox"
+  )
+
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang"
+    OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  list(APPEND _compile_flags_c "-fblocks")
+  list(APPEND _compile_flags_cxx "-fblocks")
 endif()
 
-## Compiler flags -- TODO This could be better, see ITK it won't work on windows builds
-if(${CMAKE_BUILD_TYPE} MATCHES "Release")
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffast-math -O3") # -Wall -Wextra -Wmissing-prototypes")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -ffast-math -O3") # -Wall -Wextra")
+if(CMAKE_VERSION VERSION_GREATER 3.2.99)
+  add_compile_options(
+    "$<$<COMPILE_LANGUAGE:C>:${_compile_flags_c}>"
+    "$<$<AND:$<CONFIG:RELEASE>,$<COMPILE_LANGUAGE:C>>:${_compile_flags_release_c}>"
+    )
+  if(CMAKE_CXX_COMPILER_LOADED)
+    add_compile_options(
+    "$<$<COMPILE_LANGUAGE:CXX>:${_compile_flags_cxx}>"
+    "$<$<AND:$<CONFIG:RELEASE>,$<COMPILE_LANGUAGE:CXX>>:${_compile_flags_release_cxx}>"
+      )
+  endif()
+else()
+  foreach(_flag ${_compile_flags_c})
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_flag}")
+  endforeach()
+  foreach(_flag ${_compile_flags_c_release})
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${_flag}")
+  endforeach()
+  if(CMAKE_CXX_COMPILER_LOADED)
+    foreach(_flag ${_compile_flags_cxx})
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${_flag}")
+    endforeach()
+    foreach(_flag ${_compile_flags_cxx_release})
+      set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${_flag}")
+    endforeach()
+  endif()
 endif()
+
+set(CMAKE_DEBUG_POSTFIX "d")
+set(CMAKE_RELWITHDEBINFO_POSTFIX "rd")
+set(CMAKE_MINSIZEREL_POSTFIX "rm")
 
 # ==============================================================================
 # Find a BLAS-capable library
 
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/BARTFindBLASlib.cmake)
 
-# Fix weird error when compiling on Mac...
-if(APPLE)
-  include_directories(${${LINALG_VENDOR_TGT}_INCLUDE_DIRS})
-endif()
-
 ##======================================================================
 
-execute_process(COMMAND ${CMAKE_CURRENT_LIST_DIR}/git-version.sh OUTPUT_VARIABLE BART_FULL_VERSION_STRING WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-string(STRIP ${BART_FULL_VERSION_STRING} BART_FULL_VERSION_STRING) ## Remove trailing whitespace (return characters)
-string(REGEX REPLACE ".*v([0-9]*)\\.([0-9]*)\\.([0-9]*)-.*" "\\1" BART_VERSION_MAJOR "${BART_FULL_VERSION_STRING}")
-string(REGEX REPLACE ".*v([0-9]*)\\.([0-9]*)\\.([0-9]*)-.*" "\\2" BART_VERSION_MINOR "${BART_FULL_VERSION_STRING}")
-string(REGEX REPLACE ".*v([0-9]*)\\.([0-9]*)\\.([0-9]*)-.*" "\\3" BART_VERSION_PATCH "${BART_FULL_VERSION_STRING}")
-message(STATUS "BART VERSION: ${BART_FULL_VERSION_STRING}:  ${BART_VERSION_MAJOR} ${BART_VERSION_MINOR} ${BART_VERSION_PATCH}")
-
+if(DEFINED _full_version)
+  set(BART_FULL_VERSION_STRING ${_full_version})
+else()
+  set(BART_FULL_VERSION_STRING "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+endif()
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/version.inc.in "VERSION(\@BART_FULL_VERSION_STRING\@)")
 configure_file(${CMAKE_CURRENT_BINARY_DIR}/version.inc.in ${CMAKE_CURRENT_BINARY_DIR}/version.inc @ONLY)
 
@@ -136,73 +230,29 @@ file(READ "${CMAKE_CURRENT_LIST_DIR}/build_targets.mk" bld_tgt_list_of_list)
 string(REGEX REPLACE ";" "\\\\;" bld_tgt_list_of_list "${bld_tgt_list_of_list}")
 string(REGEX REPLACE "\n" ";" bld_tgt_list_of_list "${bld_tgt_list_of_list}")
 foreach(bld_tgt_line ${bld_tgt_list_of_list})
-   if( "${bld_tgt_line}" MATCHES "^[^#].*=.*")
-     string(REGEX REPLACE "^ *([^=]*) *= *(.*) *" "\\1" BLD_KEY "${bld_tgt_line}")
-     string(REGEX REPLACE "^ *([^=]*) *= *(.*) *" "\\2" BLD_VALUE "${bld_tgt_line}")
-     string(REPLACE " " ";" ${BLD_KEY} "${BLD_VALUE}")  ## Create a new variable called ${BLD_KEY}
-     ## message(STATUS "KEY:${BLD_KEY}:    VALUE:${${BLD_KEY}}:")
-     list(APPEND ALLPROGS ${${BLD_KEY}})
-   endif()
+  if( "${bld_tgt_line}" MATCHES "^[^#].*=.*")
+    string(REGEX REPLACE "^ *([^=]*) *= *(.*) *" "\\1" BLD_KEY "${bld_tgt_line}")
+    string(REGEX REPLACE "^ *([^=]*) *= *(.*) *" "\\2" BLD_VALUE "${bld_tgt_line}")
+    string(REPLACE " " ";" ${BLD_KEY} "${BLD_VALUE}")  ## Create a new variable called ${BLD_KEY}
+    ## message(STATUS "KEY:${BLD_KEY}:    VALUE:${${BLD_KEY}}:")
+    list(APPEND ALLPROGS ${${BLD_KEY}})
+  endif()
 endforeach()
 
+if(DEFINED BART_EXTRA_PROGS)
+  list(APPEND ALLPROGS ${BART_EXTRA_PROGS})
+endif()
 
 if(BART_ISMRMRD)
   list(APPEND ALLPROGS ismrmrd) 
-endif(BART_ISMRMRD)
+endif()
 
 if(BART_DISABLE_PNG)
   list(REMOVE_ITEM ALLPROGS "toimg")
-endif(BART_DISABLE_PNG)
+endif()
 
 list(SORT ALLPROGS)
 
-
-## BART Makefile depends heavily on pre-processor replacements
-## on the command line rather than a library of common functionality
-## that is used to compile code once and link many times.
-## In this cmake build, it was choosen to generate separate files
-## for separate build uses of each source file.
-## This convoluted mechansims is needed to avoid changing
-## any build organizaiton so that the Makefile build system is
-## not changed at all.  A different organziation of the build
-## proceedures could make this much less complicated.
-##
-## usage CONFIG_BY_REPLACEMENT( in.file out.file "at top string" match1 rep1 match2 rep2 .... matchN repN)
-macro(CONFIG_BY_REPLACEMENT INFILE OUTFILE PREFIX )
-  if(NOT EXISTS "${INFILE}")
-    message(FATAL_ERROR "\n\nMISSING INPUT FILE \"${INFILE}\" for generating \"${OUTFILE}\"\n\n")
-  endif()
-  file(READ "${INFILE}" MAIN_TEMPLATE_STRING)
-
-  set(all_repacement_pairs ${ARGN})
-  list(LENGTH all_repacement_pairs RP_LENGTH)
-  while(NOT ${RP_LENGTH} LESS 2)
-    list(GET all_repacement_pairs 0 INSTRING)
-    list(REMOVE_AT all_repacement_pairs 0 )
-    list(LENGTH all_repacement_pairs RP_LENGTH)
-    if(${RP_LENGTH} GREATER 0)
-      list(GET all_repacement_pairs 0 OUTSTRING)
-      list(REMOVE_AT all_repacement_pairs 0 )
-      list(LENGTH all_repacement_pairs RP_LENGTH)
-    else()
-      message(FATAL_ERROR "Replacement pairs unmatched: ${ARGN}")
-    endif()
-  
-    string(REPLACE "${INSTRING}" "${OUTSTRING}" MAIN_TEMPLATE_STRING "${MAIN_TEMPLATE_STRING}")
-  endwhile()
-  string(REPLACE "__EOL__" ";" MAIN_TEMPLATE_STRING "${MAIN_TEMPLATE_STRING}") ## UglyFix
-  set(MAIN_TEMPLATE_STRING "${PREFIX}\n${MAIN_TEMPLATE_STRING}")
-  
-  if(EXISTS "${OUTFILE}" )
-    file(READ "${OUTFILE}" PREVIOUS_CONTENT)
-  else()
-    set(PREVIOUS_CONTENT "")
-  endif()
-  string( COMPARE EQUAL "${PREVIOUS_CONTENT}" "${MAIN_TEMPLATE_STRING}" STRING_NO_CHANGE)
-  if( NOT STRING_NO_CHANGE )
-    file(WRITE "${OUTFILE}" "${MAIN_TEMPLATE_STRING}")
-  endif()
-endmacro()
 
 set(BART_SUPPORT_LIBS)
 file(GLOB support_libs ${CMAKE_CURRENT_LIST_DIR}/src/*)
@@ -258,13 +308,13 @@ if(NOT BART_ENABLE_MEM_CFL)
   list(REMOVE_ITEM
     BARTSUPPORT_PYTHON_SEPARATE_COMPILATION_FILES
     "${CMAKE_CURRENT_LIST_DIR}/src/misc/mmiocc.cc")
-endif(NOT BART_ENABLE_MEM_CFL)
+endif()
 
 # ------------------------------------------------------------------------------
 
 if(BART_DISABLE_PNG)
   list(REMOVE_ITEM bart_support_SRCS "${CMAKE_CURRENT_LIST_DIR}/src/misc/png.c")
-endif(BART_DISABLE_PNG)
+endif()
 
 set(LOG_BACKEND_SRCS "")
 list(REMOVE_ITEM bart_support_SRCS "${CMAKE_CURRENT_LIST_DIR}/src/misc/UTrace.cc")
@@ -283,7 +333,7 @@ if(BART_LOG_BACKEND)
     endif()
     # No need to add any include paths as the required code was copied into UTrace.cc from Siemens' IDEA framework
     list(APPEND LOG_BACKEND_SRCS "${CMAKE_CURRENT_LIST_DIR}/src/misc/UTrace.cc")
-  endif(BART_LOG_SIEMENS_BACKEND)
+  endif()
 
   # ------------------------------------
   
@@ -298,7 +348,7 @@ if(BART_LOG_BACKEND)
     else(EXISTS ${RECON_LIBRARIES_INCLUDE_FILE})
       message("Could not find ${RECON_LIBRARIES_INCLUDE_FILE}")
       message(FATAL_ERROR "Verify that the CMake OX_INSTALL_DIRECTORY option is set correctly")
-    endif(EXISTS ${RECON_LIBRARIES_INCLUDE_FILE})
+    endif()
     
     # Include Orchestra SDK build configuration
     include (${TOPDIR}/recon/SDK/product.cmake)
@@ -307,31 +357,36 @@ if(BART_LOG_BACKEND)
     target_link_libraries(bartsupport PUBLIC "Core;Common;Control;System;${OX_3P_LIBS};${OX_OS_LIBS}")
     
     list(APPEND LOG_BACKEND_SRCS "${CMAKE_CURRENT_LIST_DIR}/src/misc/Orchestra.cc")
-  endif(BART_LOG_ORCHESTRA_BACKEND)
+  endif()
 
   # ------------------------------------
 
   if(BART_LOG_GADGETRON_BACKEND)
     # Actually we do nothing here, Gagdetron will provide the vendor_log function
-  endif(BART_LOG_GADGETRON_BACKEND)
-endif(BART_LOG_BACKEND)
+  endif()
+endif()
 
 foreach(file ${LOG_BACKEND_SRCS})
   list(REMOVE_ITEM bart_support_SRCS "${file}")
 endforeach()
 
 if(USE_CUDA)
-  if("${CMAKE_VERSION}" VERSION_GREATER_EQUAL 3.8)
-    set(bartsupport_cuda_objs ${bart_support_CUSRCS})
-  else()
+  if("${CMAKE_VERSION}" VERSION_LESS 3.10)
     cuda_wrap_srcs(bartsupport_objs OBJ bartsupport_cuda_objs ${bart_support_CUSRCS})
+  else()
+    set(bartsupport_cuda_objs ${bart_support_CUSRCS})
   endif()
-endif(USE_CUDA)
+endif()
 
 bart_add_object_library(bartsupport_objs ${bart_support_SRCS})
 bart_add_library(bartsupport STATIC $<TARGET_OBJECTS:bartsupport_objs> ${DEBUG_C_FILE} ${BARTSUPPORT_PYTHON_SEPARATE_COMPILATION_FILES} ${bartsupport_cuda_objs})
 
-target_link_libraries(bartsupport PUBLIC "${LINALG_VENDOR_LIB};${PNG_TGT};${FFTW_TGT}")
+target_link_libraries(bartsupport PUBLIC
+  ${LINALG_VENDOR_LIB}
+  ${PNG_TGT}
+  ${FFTW_TGT}
+  ${OpenMP_TGT})
+
 if(BART_ISMRMRD)
   target_link_libraries(bartsupport PUBLIC ${ISMRMRD_LIBRARIES})
 endif()
@@ -340,80 +395,50 @@ set_target_properties(bartsupport
   EXPORT_NAME BARTSUPPORT
   INTERFACE_INCLUDE_DIRECTORIES $<INSTALL_INTERFACE:include/bart>)
 
-## More crafty file manipulation so that we maintain backward comaptibility
-## with the Makefile
-
 ## Generate combined programs
 #==============================================
 
-set(EXTERN_LIST "\n\n/* Generated by cmake */\n")
-foreach(driver ${ALLPROGS})
-   set(EXTERN_LIST "${EXTERN_LIST}extern int main_${driver}(int argc, char* argv[])__EOL__\n")
+set(MAIN_LIST)
+foreach(prog ${ALLPROGS})
+  set(MAIN_LIST "${MAIN_LIST} ${prog},")
 endforeach()
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/CombinedCode)
-## Configure include header
-CONFIG_BY_REPLACEMENT( "${CMAKE_CURRENT_LIST_DIR}/src/main.h" "${CMAKE_CURRENT_BINARY_DIR}/CombinedCode/config_main.h"
-                       "/* Generated by cmake */"
-                       "MAP(DECLMAIN, MAIN_LIST)" "${EXTERN_LIST}"
-                       "misc/cppmap.h" "stdio.h")             ## Replacement 3 no longer need this include 
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/CombinedCode)
+set(MAIN_LIST "${MAIN_LIST} ()")
+string(STRIP ${MAIN_LIST} MAIN_LIST)
 
 #==============================================
 
-set(DRIVER_LIST "\n\n/* Generated by cmake */\n")
-foreach(driver ${ALLPROGS})
-   set(DRIVER_LIST "${DRIVER_LIST}{ main_${driver}, \"${driver}\" },\n")
-endforeach()
-
 set(ALL_BART_SRCS "")
-set(ALL_BART_LIB_SRCS "")
 foreach(curr_prog ${ALLPROGS})
-  set(curr_prog_name "${CMAKE_CURRENT_LIST_DIR}/src/${curr_prog}.c")
-  set(comb_prog_name "${CMAKE_CURRENT_BINARY_DIR}/CombinedCode/${curr_prog}.c")
-  
-  CONFIG_BY_REPLACEMENT( ${curr_prog_name} ${comb_prog_name}
-    "/* Generated by cmake */\n#include \"config_main.h\""
-    "MAP(DENTRY, MAIN_LIST)" "${DRIVER_LIST}")
-  list(APPEND ALL_BART_SRCS ${comb_prog_name})
-  list(APPEND ALL_BART_LIB_SRCS ${comb_prog_name})
+  configure_file_add_header("${CMAKE_CURRENT_LIST_DIR}/src/${curr_prog}.c"
+    "/* Generated by cmake */;#include \"main.h\"")
+  list(APPEND ALL_BART_SRCS ${OUTFILE})
 endforeach()
-foreach(curr_prog bart)
-  CONFIG_BY_REPLACEMENT( "${CMAKE_CURRENT_LIST_DIR}/src/${curr_prog}.c" "${CMAKE_CURRENT_BINARY_DIR}/CombinedCode/${curr_prog}.c"
-                         "#include \"config_main.h\""
-                         "MAP(DENTRY, MAIN_LIST)" "${DRIVER_LIST}" ## Replacement 1
-                         "main_bart" "main"                        ## Replacement 2
-                         "misc/cppmap.h" "stdio.h")                ## Replacement 3 no longer need this include 
-  CONFIG_BY_REPLACEMENT( "${CMAKE_CURRENT_LIST_DIR}/src/${curr_prog}.c" "${CMAKE_CURRENT_BINARY_DIR}/CombinedCode/${curr_prog}_lib.c"
-                         "#include \"config_main.h\""
-                         "MAP(DENTRY, MAIN_LIST)" "${DRIVER_LIST}" ## Replacement 1
-                         "misc/cppmap.h" "stdio.h")                ## Replacement 2 no longer need this include 
-  list(APPEND ALL_BART_SRCS "${CMAKE_CURRENT_BINARY_DIR}/CombinedCode/${curr_prog}.c")
-  list(APPEND ALL_BART_LIB_SRCS "${CMAKE_CURRENT_BINARY_DIR}/CombinedCode/${curr_prog}_lib.c")
-endforeach()
+list(APPEND ALL_BART_SRCS "${CMAKE_CURRENT_LIST_DIR}/src/bart.c")
 
 bart_add_executable(bart ${ALL_BART_SRCS} ${LOG_BACKEND_SRCS})
+target_compile_definitions(bart PRIVATE -DMAIN_LIST=${MAIN_LIST} -Dmain_bart=main)
 target_link_libraries(bart PRIVATE bartsupport)
 set_target_properties(bart PROPERTIES EXPORT_NAME BART)
-
-set(BARTMAIN_PYTHON_SEPARATE_COMPILATION_FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/CombinedCode/bart_lib.c")
-foreach(file ${BARTMAIN_PYTHON_SEPARATE_COMPILATION_FILES})
-  list(REMOVE_ITEM ALL_BART_LIB_SRCS "${file}")
-endforeach()
       
 # ==============================================================================
 
-bart_add_object_library(bartmain_objs ${ALL_BART_LIB_SRCS})
-add_library(bartmain
+bart_add_object_library(bartmain_objs ${ALL_BART_SRCS})
+bart_add_library(bartmain
   STATIC
   $<TARGET_OBJECTS:bartsupport_objs>
   $<TARGET_OBJECTS:bartmain_objs>
   ${LOG_BACKEND_SRCS}
   ${BARTSUPPORT_PYTHON_SEPARATE_COMPILATION_FILES}
-  ${BARTMAIN_PYTHON_SEPARATE_COMPILATION_FILES}
   ${bartsupport_cuda_objs})
 
-target_link_libraries(bartmain PUBLIC "${LINALG_VENDOR_LIB};${PNG_TGT};${FFTW_TGT}")
+target_compile_definitions(bartmain_objs PRIVATE -DMAIN_LIST=${MAIN_LIST})
+target_link_libraries(bartmain PUBLIC
+  ${LINALG_VENDOR_LIB} 
+  ${PNG_TGT}
+  ${FFTW_TGT}
+  ${OpenMP_TGT}
+  )
+
 if(BART_ISMRMRD)
   target_link_libraries(bartmain PUBLIC ${ISMRMRD_LIBRARIES})
 endif()
@@ -425,7 +450,7 @@ set_target_properties(bartmain
 
 if(BART_ENABLE_MEM_CFL)
   set_target_properties(bartmain PROPERTIES LINKER_LANGUAGE CXX)
-endif(BART_ENABLE_MEM_CFL)
+endif()
 
 # Workaround for possible name conflicts with libC's error function
 target_compile_definitions(bartmain PRIVATE -Derror=bart_error__)
@@ -433,20 +458,20 @@ if(BART_LOG_BACKEND)
   # ensure that src/misc/misc.c will be compiled with logging backend support
   # but *ONLY* for the bartmain target
   target_compile_definitions(bartmain PRIVATE -DUSE_LOG_BACKEND)
-endif(BART_LOG_BACKEND)
+endif()
 
 # ==============================================================================
 
 if(BART_CREATE_PYTHON_MODULE)
-  if(CMAKE_VERSION VERSION_LESS "3.12")
+  if(CMAKE_VERSION VERSION_LESS 3.12)
     find_package(PythonLibs REQUIRED)
     set(PYMODULE_INCLUDE_DIRS "${PYTHON_INCLUDE_DIRS}")
     set(PYMODULE_LIBRARIES "${PYTHON_LIBRARIES}")
-  else(CMAKE_VERSION VERSION_LESS "3.12")
+  else()
     find_package(Python REQUIRED COMPONENTS Development)
     set(PYMODULE_INCLUDE_DIRS "${Python_INCLUDE_DIRS}")
     set(PYMODULE_LIBRARIES "${Python_LIBRARIES}")
-  endif(CMAKE_VERSION VERSION_LESS "3.12")
+  endif()
 
   set(PYBART_FUNCTION_PROTOTYPE "")
   set(PYBART_COMMANDS_MODULE_METHODS "")
@@ -457,7 +482,7 @@ if(BART_CREATE_PYTHON_MODULE)
       set(PYBART_FUNCTION_PROTOTYPE "${PYBART_FUNCTION_PROTOTYPE}static PyObject* call_${curr_prog}(PyObject* self, PyObject* args);\n")
       set(PYBART_COMMANDS_MODULE_METHODS "${PYBART_COMMANDS_MODULE_METHODS}     {\"${curr_prog}\", call_${curr_prog}, METH_VARARGS, bart_subcommand_docstring},\n")
       set(PYBART_COMMANDS_IMPLEMENTATION "${PYBART_COMMANDS_IMPLEMENTATION}PyObject* call_${curr_prog} (PyObject* self, PyObject* args)\n{\n     enum { MAX_ARGS = 256 };\n     char* cmdline = NULL;\n     char output[256] = { \"\" };\n     if (!PyArg_ParseTuple(args, \"s\", &cmdline)) {\n	  Py_RETURN_NONE;\n     }\n\n     return call_submain(\"${curr_prog}\", cmdline);\n}\n\n")
-    endif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/src/${curr_prog}.c")
+    endif()
   endforeach()
 
   configure_file(${CMAKE_CURRENT_LIST_DIR}/src/python/pyBART.c.in ${PROJECT_BINARY_DIR}/pyBART.c @ONLY)
@@ -466,7 +491,6 @@ if(BART_CREATE_PYTHON_MODULE)
     SHARED
     ${PROJECT_BINARY_DIR}/pyBART.c
     ${BARTSUPPORT_PYTHON_SEPARATE_COMPILATION_FILES}
-    ${BARTMAIN_PYTHON_SEPARATE_COMPILATION_FILES}
     $<TARGET_OBJECTS:bartsupport_objs>
     $<TARGET_OBJECTS:bartmain_objs>)
 
@@ -480,7 +504,8 @@ if(BART_CREATE_PYTHON_MODULE)
     PROPERTIES
     PREFIX ""
     EXPORT_NAME pyBART)
-endif(BART_CREATE_PYTHON_MODULE)
+    set(BART_pyBART_TGT pyBART)
+endif()
 
 #==============================================
 # TODO: Matlab code
@@ -491,7 +516,7 @@ if(BART_MATLAB)
     message(STATUS "MATLAB LIBRARIES FOUND: ${MATLAB_LIBRARIES_DIR}")
     include_directories(${MATLAB_INCLUDE_DIR})
     bart_add_executable(mat2cfl ${CMAKE_CURRENT_LIST_DIR}/src/mat2cfl.c ${LOG_BACKEND_SRCS})
-    target_link_libraries(mat2cfl bartsupport ${MATLAB_MAT_LIBRARY} ${MATLAB_ENG_LIBRARY} ${MATLAB_MX_LIBRARY})
+    target_link_libraries(mat2cfl PRIVATE bartsupport ${MATLAB_MAT_LIBRARY} ${MATLAB_ENG_LIBRARY} ${MATLAB_MX_LIBRARY})
     set(BART_MATLAB_TGT mat2cfl)
   endif()
 endif()
@@ -518,24 +543,27 @@ if(BUILD_TESTING)
     endforeach()
 
     add_executable(${test_name} ${CMAKE_CURRENT_LIST_DIR}/utests/utest.c ${f})
-    target_link_libraries(${test_name} bartsupport)
+    target_link_libraries(${test_name} PUBLIC bartsupport)
     target_compile_definitions(${test_name} PUBLIC UTESTS=${${test_name}_tests})
-    add_test(${test_name} ${test_name})
+    add_test(NAME ${test_name} COMMAND ${test_name})
   endforeach()
-endif(BUILD_TESTING)
+endif()
+
+# ------------------------------------------------------------------------------
+
+# Include integration testing
+if(NOT BART_MEMONLY_CFL)
+  add_subdirectory(tests)
+endif()
 
 # ==============================================================================
 
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/bart_install.cmake)
 
-# ==============================================================================
+# Packaging stuff (deb, rpm, windows installer)
+include(${CMAKE_CURRENT_LIST_DIR}/packaging/CPackConfig.cmake)
 
-set(TARBALL_VERSION "${BART_VERSION_MAJOR}.${BART_VERSION_MINOR}.${BART_VERSION_PATCH}")
-add_custom_target(tarball
-  COMMAND git archive --prefix=bart-${TARBALL_VERSION}/ -o ${CMAKE_CURRENT_BINARY_DIR}/bart-${TARBALL_VERSION}.tar.gz v${TARBALL_VERSION}
-  WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-  COMMENT "BUILD TARBALL FOR BART WITH LATEST VERSION"
-  )
+# ==============================================================================
 
 add_custom_target(doxygen
   COMMAND ${CMAKE_CURRENT_LIST_DIR}/makedoc.sh
@@ -554,5 +582,5 @@ if(BART_GENERATE_DOC)
     POST_BUILD
     COMMAND ${CMAKE_CURRENT_LIST_DIR}/rules/update_commands.sh $<TARGET_FILE:bart> ${CMAKE_CURRENT_LIST_DIR}/doc/commands.txt ${ALLPROGS}
     )
-endif(BART_GENERATE_DOC)
+endif()
 

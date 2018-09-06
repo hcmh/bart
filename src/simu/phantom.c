@@ -18,6 +18,7 @@
 
 #include "num/multind.h"
 #include "num/loop.h"
+#include "num/flpmath.h"
 
 #include "misc/misc.h"
 #include "misc/mri.h"
@@ -135,6 +136,9 @@ static complex float kkernel(void* _data, const long pos[])
 	return (data->sens ? ksens : nosens)(pos[COIL_DIM], mpos, data->data, data->fun);
 }
 
+
+
+
 static void sample(const long dims[DIMS], complex float* out, const long tstrs[DIMS], const complex float* traj, void* krn_data, krn_t krn, bool kspace)
 {
 	struct data data = {
@@ -151,8 +155,6 @@ static void sample(const long dims[DIMS], complex float* out, const long tstrs[D
 }
 
 
-
-
 struct krn2d_data {
 
 	bool kspace;
@@ -164,6 +166,12 @@ static complex float krn2d(void* _data, const double mpos[3])
 {
 	struct krn2d_data* data = _data;
 	return phantom(data->N, data->el, mpos, data->kspace);
+}
+
+static complex float krnX(void* _data, const double mpos[3])
+{
+	struct krn2d_data* data = _data;
+	return phantomX(data->N, data->el, mpos, data->kspace);
 }
 
 struct krn3d_data {
@@ -180,13 +188,44 @@ static complex float krn3d(void* _data, const double mpos[3])
 }
 
 
-void calc_phantom(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+void calc_phantom(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const _Complex float* traj)
 {
 	if (!d3)
 		sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(shepplogan_mod), shepplogan_mod }, krn2d, kspace);
 	else
 		sample(dims, out, tstrs, traj, &(struct krn3d_data){ kspace, ARRAY_SIZE(shepplogan3d), shepplogan3d }, krn3d, kspace);
 }
+
+
+void calc_geo_phantom(const long dims[DIMS], complex float* out, bool kspace, int phtype, const long tstrs[DIMS], const _Complex float* traj)
+{
+	complex float* round = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* angular = md_alloc(DIMS, dims, CFL_SIZE);
+
+	switch (phtype) {
+
+	case 1:
+		sample(dims, round, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_geo1), phantom_geo1 }, krn2d, kspace);
+		sample(dims, angular, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_geo2), phantom_geo2 }, krnX, kspace);
+		md_zadd(DIMS, dims, out, round, angular);
+		break;
+
+	case 2:
+		sample(dims, round, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_geo4), phantom_geo1 }, krn2d, kspace);
+		sample(dims, angular, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_geo3), phantom_geo2 }, krnX, kspace);
+		md_zadd(DIMS, dims, out, round, angular);
+		break;
+
+	default:
+		assert(0);
+	}
+
+	md_free(round);
+	md_free(angular);
+}
+
+
+
 
 
 
