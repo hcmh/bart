@@ -116,6 +116,7 @@ int main_pics(int argc, char* argv[])
 	// Read input options
 	struct nufft_conf_s nuconf = nufft_conf_defaults;
 	nuconf.toeplitz = true;
+	nuconf.lowmem = true;
 
 	float restrict_fov = -1.;
 	const char* pat_file = NULL;

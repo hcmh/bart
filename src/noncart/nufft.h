@@ -13,6 +13,7 @@ struct nufft_conf_s {
 	_Bool toeplitz; ///< Toeplitz embedding boolean for A^T A
 	_Bool pcycle; /// < Phase cycling
 	_Bool periodic;
+	_Bool lowmem;
 };
 
 extern struct nufft_conf_s nufft_conf_defaults;

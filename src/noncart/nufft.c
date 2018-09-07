@@ -42,6 +42,7 @@ struct nufft_conf_s nufft_conf_defaults = {
 	.toeplitz = true,
 	.pcycle = false,
 	.periodic = false,
+	.lowmem = false,
 };
 
 #include "nufft_priv.h"
@@ -222,9 +223,9 @@ struct linop_s* nufft_create2(unsigned int N,
 
 	data->fft_op = linop_fft_create(ND, data->cml_dims, data->flags);
 
-	if (conf.pcycle) {
+	if (conf.pcycle || conf.lowmem) {
 
-		debug_printf(DP_DEBUG1, "NUFFT: Pcycle Mode\n");
+		debug_printf(DP_DEBUG1, "NUFFT: %s mode\n", conf.lowmem ? "low-mem" : "pcycle");
 		data->cycle = 0;
 		data->cfft_op = linop_fft_create(N, data->cim_dims, data->flags);
 	}
@@ -469,7 +470,7 @@ static void nufft_free_data(const linop_data_t* _data)
 #endif
 	linop_free(data->fft_op);
 
-	if (data->conf.pcycle)
+	if (data->conf.pcycle || data->conf.lowmem)
 		linop_free(data->cfft_op);
 
 	xfree(data);
@@ -581,30 +582,7 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 
 
 
-/** 
- *
- */
-static void nufft_apply_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
-{
-	auto data = CAST_DOWN(nufft_data, _data);
 
-	if (data->conf.toeplitz) {
-
-		if (data->conf.pcycle)
-			toeplitz_mult_pcycle(data, dst, src);
-		else
-			toeplitz_mult(data, dst, src);
-
-	} else {
-
-		complex float* tmp_ksp = md_alloc(data->N + 1, data->ksp_dims, CFL_SIZE);
-
-		nufft_apply(_data, tmp_ksp, src);
-		nufft_apply_adjoint(_data, dst, tmp_ksp);
-
-		md_free(tmp_ksp);
-	}
-}
 
 #ifdef USE_CUDA
 static void gpu_alloc(const struct nufft_data* data)
@@ -653,11 +631,10 @@ static void toeplitz_mult(const struct nufft_data* data, complex float* dst, con
 	md_free(grid);
 }
 
-static void toeplitz_mult_pcycle(const struct nufft_data* data, complex float* dst, const complex float* src)
-{
-	unsigned int ncycles = data->lph_dims[data->N];
-        ((struct nufft_data*) data)->cycle = (data->cycle + 1) % ncycles;	// FIXME:
 
+
+static void toeplitz_mult_lowmem(const struct nufft_data* data, int i, complex float* dst, const complex float* src)
+{
 	const complex float* linphase = data->linphase;
 	const complex float* psf = data->psf;
 
@@ -670,8 +647,8 @@ static void toeplitz_mult_pcycle(const struct nufft_data* data, complex float* d
 		psf = data->psf_gpu;
 	}
 #endif
-	const complex float* clinphase = linphase + data->cycle * md_calc_size(data->N, data->lph_dims);
-	const complex float* cpsf = psf + data->cycle * md_calc_size(data->N, data->psf_dims);
+	const complex float* clinphase = linphase + i * md_calc_size(data->N, data->lph_dims);
+	const complex float* cpsf = psf + i * md_calc_size(data->N, data->psf_dims);
 
 	complex float* grid = md_alloc_sameplace(data->N, data->cim_dims, CFL_SIZE, dst);
 
@@ -681,11 +658,61 @@ static void toeplitz_mult_pcycle(const struct nufft_data* data, complex float* d
 	md_zmul2(data->N, data->cim_dims, data->cim_strs, grid, data->cim_strs, grid, data->img_strs, cpsf);
 	linop_adjoint(data->cfft_op, data->N, data->cim_dims, grid, data->N, data->cim_dims, grid);
 
-	md_zmulc2(data->N, data->cim_dims, data->cim_strs, dst, data->cim_strs, grid, data->img_strs, clinphase);
+	md_zfmacc2(data->N, data->cim_dims, data->cim_strs, dst, data->cim_strs, grid, data->img_strs, clinphase);
 
 	md_free(grid);
 }
 
+
+static void toeplitz_mult_pcycle(const struct nufft_data* data, complex float* dst, const complex float* src)
+{
+	unsigned int ncycles = data->lph_dims[data->N];
+        ((struct nufft_data*) data)->cycle = (data->cycle + 1) % ncycles;	// FIXME:
+
+	assert(dst != src);
+
+	md_clear(data->N, data->cim_dims, dst, CFL_SIZE);
+
+	toeplitz_mult_lowmem(data, data->cycle, dst, src);
+}
+
+
+static void nufft_apply_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(nufft_data, _data);
+
+	if (data->conf.toeplitz) {
+
+		if (data->conf.pcycle) {
+
+			toeplitz_mult_pcycle(data, dst, src);
+
+		} else if (data->conf.lowmem) {
+
+			int ncycles = data->lph_dims[data->N];
+
+			assert(dst != src);
+
+			md_clear(data->N, data->cim_dims, dst, CFL_SIZE);
+
+			for (int i = 0; i < ncycles; i++)
+				toeplitz_mult_lowmem(data, i, dst, src);
+
+		} else {
+
+			toeplitz_mult(data, dst, src);
+		}
+
+	} else {
+
+		complex float* tmp_ksp = md_alloc(data->N + 1, data->ksp_dims, CFL_SIZE);
+
+		nufft_apply(_data, tmp_ksp, src);
+		nufft_apply_adjoint(_data, dst, tmp_ksp);
+
+		md_free(tmp_ksp);
+	}
+}
 
 
 /**
