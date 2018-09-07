@@ -250,10 +250,7 @@ struct linop_s* nufft_create2(unsigned int N,
 		unsigned int bflags = ~((1 << 5) | (1 << 6));
 
 		const struct linop_s* bs = linop_fmac_create(N, max_dims, oflags, iflags, bflags, basis);
-		struct linop_s* nu2 = linop_chain(nu, bs);
-
-		linop_free(nu);
-		linop_free(bs);
+		struct linop_s* nu2 = linop_chain_FF(nu, bs);
 
 		nu = nu2;
 
@@ -265,10 +262,7 @@ struct linop_s* nufft_create2(unsigned int N,
 			unsigned int wflags = md_nontriv_dims(N, wgh_dims);
 
 			const struct linop_s* ww = linop_cdiag_create(N, odims, wflags, weights);
-			struct linop_s* nu3 = linop_chain(nu, ww);
-
-			linop_free(nu);
-			linop_free(ww);
+			struct linop_s* nu3 = linop_chain_FF(nu, ww);
 
 			nu = nu3;
 		}
