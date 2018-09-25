@@ -32,6 +32,8 @@ s */
 #include "num/multind.h"
 #include "num/flpmath.h"
 
+#include "num/iovec.h"
+
 #include "model_T1.h"
 #include "model.h"
 
@@ -40,7 +42,7 @@ s */
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf)
 {
-	struct noir_s nlinv = noir_create2(dims, mask, psf, conf);
+	struct noir_s nlinv = noir_create3(dims, mask, psf, conf);
 	struct T1_s ret;
 
 	long map_dims[DIMS];
@@ -58,6 +60,13 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 #if 1 
 	// chain T1 model
 	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, conf->use_gpu);
+    debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T1, 0)->dims);
+    debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(T1, 0)->dims);
+
+    debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 0)->dims);
+    debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 1)->dims);
+    debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(nlinv.nlop, 0)->dims);
+
 	nlinv.nlop = nlop_chain2(T1, 0, nlinv.nlop, 0);
 	nlinv.nlop = nlop_permute_inputs(nlinv.nlop, 2, (const int[2]){ 1, 0 });
 #endif

@@ -86,7 +86,7 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
     
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
- 	//		size * 2, (float*)x, (float*)x,
+//  			size * 2, (float*)x, (float*)x,
             size * 2, (float*)x, NULL,    
 			data_size * 2, (const float*)kspace_data);
 
