@@ -82,7 +82,7 @@ void ist(unsigned int maxiter, float epsilon, float tau,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
-void fista(unsigned int maxiter, float epsilon, float tau, 
+void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 	float continuation, _Bool hogwild,
 	long N,
 	const struct vec_iter_s* vops,
@@ -90,6 +90,16 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	struct iter_op_p_s thresh,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
+
+void fista(unsigned int maxiter, float epsilon, float tau,
+	float continuation, _Bool hogwild,
+	long N,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_p_s thresh,
+	float* x, const float* b,
+	struct iter_monitor_s* monitor);
+	
 	
 
 void irgnm(unsigned int iter, float alpha, float redu,
@@ -101,7 +111,7 @@ void irgnm(unsigned int iter, float alpha, float redu,
 	float* x, const float* x0, const float* y,
 	struct iter_op_s callback);
 
-void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
+void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* dims,
 	const struct vec_iter_s* vops,
 	struct iter_op_s op,
 	struct iter_op_s der,

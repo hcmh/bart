@@ -35,6 +35,7 @@
 #include <stdbool.h>
 
 #include "misc/misc.h"
+#include "misc/mri.h"
 #include "misc/debug.h"
 #include "num/multind.h"
 
@@ -45,6 +46,7 @@
 #include "italgos.h"
 
 #define MPI_CGtol
+#define autoScaling
 
 extern inline void iter_op_call(struct iter_op_s op, float* dst, const float* src);
 extern inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src);
@@ -257,7 +259,7 @@ void ist(unsigned int maxiter, float epsilon, float tau,
  * @param x initial estimate
  * @param b observations
  */
-void fista(unsigned int maxiter, float epsilon, float tau, 
+void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 	float continuation, bool hogwild,
 	long N,
 	const struct vec_iter_s* vops,
@@ -289,16 +291,17 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	int hogwild_k = 0;
 	int hogwild_K = 10;
     
-    int res = 128;
-    int parameters = 3;
-    int SMS = 5;
+    long res = dims[0];
+    long parameters = dims[COEFF_DIM];
+    long SMS = dims[SLICE_DIM];
     int temp_index;
-    int k,j;
-    float lowerbound = 0.33;
+    int u,v;
+    float lowerbound = 0.03;
     float scaling[SMS*parameters];
     
-    const long map_dims[16] = {res,res,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-    const long x_dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
+    long map_dims[16];
+    md_select_dims(16, FFT_FLAGS, map_dims, dims);
+//     const long x_dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
     long map_strs[16];
 	md_calc_strides(16, map_strs, map_dims, CFL_SIZE);
     
@@ -314,36 +317,34 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
         // normalize all the maps before joint wavelet denoising
-        for(k = 0; k < SMS; k++)
-            for(j = 0; j < parameters; j++)
+        for(u = 0; u < SMS; u++)
+            for(v = 0; v < parameters; v++)
             {
-                temp_index = j+k*parameters;
-//                 scaling[temp_index] = md_norm2(16, map_dims, map_strs, x+res*res*2 * temp_index);
+                temp_index = v+u*parameters;
                 scaling[temp_index] = md_norm(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index);
-//                 md_smul2(16, map_dims, map_strs, x+res*res*2 * temp_index, map_strs, x+res*res*2 * temp_index, scaling[temp_index]);
-                md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, 1/scaling[temp_index]);
+         
+                md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, 1.0/scaling[temp_index]);
             }
-        
 
         iter_op_p_call(thresh, lambda_scale * tau, x, x);
         
         
-        for(k = 0; k < SMS; k++)
-            for(j = 0; j < parameters; j++)
+        for(u = 0; u < SMS; u++)
+            for(v = 0; v < parameters; v++)
             {
-                temp_index = j+k*parameters;
-//                 md_smul2(16, map_dims, map_strs, x+res*res*2 * temp_index, map_strs, x+res*res*2 * temp_index, 1/scaling[temp_index]);
+                temp_index = v+u*parameters;
                 md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, scaling[temp_index]);
             }
-            
+//             
         // Domain Prjoection for R1s
-        for (k = 0; k < SMS; k++)
+        for (u = 0; u < SMS; u++)
         {
-            temp_index = res*res*2*(parameters-1) +  k*res*res*2*parameters;
+            temp_index = res*res*2*(parameters-1) +  u*res*res*2*parameters;
             md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
+            md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
         }
-
-
+        
+        
 		ravine(vops, N, &ra, x, o);	// FISTA
 		iter_op_call(op, r, x);		// r = A x
 		vops->xpay(N, -1., r, b);	// r = b - r = b - A x
@@ -357,17 +358,13 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 
 		vops->axpy(N, x, tau, r);
         
-        for (k = 0; k < SMS; k++)
+        for (u = 0; u < SMS; u++)
         {
-            temp_index = res*res*2*(parameters-1) +  k*res*res*2*parameters;
+            temp_index = res*res*2*(parameters-1) +  u*res*res*2*parameters;
             md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
+            md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
         }
         
-        
-      
-//   md_smax(1, MD_DIMS(2*md_calc_size(16, dims)), x + res*res*2*(parameters-1) +  k*res*res*2*parameters, x + res*res*2*(parameters-1) +  k*res*res*2*parameters, 0.0);
-
-
 
 		if (hogwild)
 			hogwild_k++;
@@ -386,7 +383,97 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	vops->del(r);
 }
 
+/**
+ * Iterative Soft Thresholding/FISTA to solve min || b - Ax ||_2 + lambda || T x ||_1
+ *
+ * @param maxiter maximum number of iterations
+ * @param epsilon stop criterion
+ * @param tau (step size) weighting on the residual term, A^H (b - Ax)
+ * @param lambda_start initial regularization weighting
+ * @param lambda_end final regularization weighting (for continuation)
+ * @param N size of input, x
+ * @param vops vector ops definition
+ * @param op linear operator, e.g. A
+ * @param thresh threshold function, e.g. complex soft threshold
+ * @param x initial estimate
+ * @param b observations
+ */
+void fista(unsigned int maxiter, float epsilon, float tau,
+	float continuation, bool hogwild,
+	long N,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_p_s thresh,
+	float* x, const float* b,
+	struct iter_monitor_s* monitor)
+{
 
+	struct iter_data itrdata = {
+
+		.rsnew = 1.,
+		.rsnot = 1.,
+		.iter = 0,
+		.maxiter = maxiter,
+	};
+
+	float* r = vops->allocate(N);
+	float* o = vops->allocate(N);
+
+	float ra = 1.;
+	vops->copy(N, o, x);
+
+	itrdata.rsnot = vops->norm(N, b);
+
+	float ls_old = 1.;
+	float lambda_scale = 1.;
+
+	int hogwild_k = 0;
+	int hogwild_K = 10;
+    
+    
+
+	for (itrdata.iter = 0; itrdata.iter < maxiter; itrdata.iter++) {
+
+		iter_monitor(monitor, vops, x);
+
+		ls_old = lambda_scale; 
+		lambda_scale = ist_continuation(&itrdata, continuation);
+		
+		if (lambda_scale != ls_old) 
+			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
+
+        iter_op_p_call(thresh, lambda_scale * tau, x, x);
+        
+		ravine(vops, N, &ra, x, o);	// FISTA
+		iter_op_call(op, r, x);		// r = A x
+		vops->xpay(N, -1., r, b);	// r = b - r = b - A x
+
+		itrdata.rsnew = vops->norm(N, r);
+
+		debug_printf(DP_DEBUG3, "#It %03d: %f   \n", itrdata.iter, itrdata.rsnew / itrdata.rsnot);
+
+		if (itrdata.rsnew < epsilon)
+			break;
+
+		vops->axpy(N, x, tau, r);
+
+
+		if (hogwild)
+			hogwild_k++;
+		
+		if (hogwild_k == hogwild_K) {
+
+			hogwild_K *= 2;
+			hogwild_k = 0;
+			tau /= 2;
+		}
+	}
+
+	debug_printf(DP_DEBUG3, "\n");
+
+	vops->del(o);
+	vops->del(r);
+}
 
 /**
  *  Landweber L. An iteration formula for Fredholm integral equations of the
@@ -545,6 +632,11 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 	float* r = vops->allocate(M);
 	float* p = vops->allocate(N);
 	float* h = vops->allocate(N);
+    
+//     int res = 512;
+//    	int parameters = 3;
+//    	int SMS = 1;
+//     const long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
 
 	for (unsigned int i = 0; i < iter; i++) {
 
@@ -569,6 +661,13 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 		iter_op_p_call(inv, alpha, h, p);
 
 		vops->axpy(N, x, 1., h);
+        
+//         char name[255] = {'\0'};
+//     
+//         sprintf(name, "/tmp/step_newton_%02d", i); 
+//     
+//         dump_cfl(name, 16, dims, x);
+//         
 		alpha /= redu;
 		if (NULL != callback.fun)
 			iter_op_call(callback, x, x);
@@ -589,7 +688,7 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 *        DF^H ((y - F x_0)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
 */
 
-void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
+void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* dims,
 	const struct vec_iter_s* vops,
 	struct iter_op_s op,
 	struct iter_op_s der,
@@ -604,13 +703,27 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
 	float* t = vops->allocate(M);
 	float* p = vops->allocate(N);
 
-// 	int res = 256;
+    long img_dims[16];
+    md_select_dims(16, ~COIL_FLAG, img_dims, dims);
+// 	int res = 512;
 //    	int parameters = 3;
 //    	int SMS = 1;
 //     const long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
 
 	for (unsigned int i = 0; i < iter; i++) {
 		//		printf("#--------\n");
+        
+//         if (autoScaling && (3 == i))
+//         {
+//             float scaling[parameters + 1];
+//             void* x = md_alloc(1, MD_DIMS(M/2), CFL_SIZE);
+//             md_gaussian_rand(1, MD_DIMS(M/2), x);
+//             double maxeigen = power(20, data->size, select_vecops(src), (struct iter_op_s){normal_fista, CAST_UP(data)}, x);
+//             md_free(x);
+//             
+//         }
+        
+        
 		iter_op_call(op, r, x);		// r = F x
 
         debug_printf(DP_DEBUG2, "\tF(x): %f\n", vops->norm(M, r));
@@ -629,18 +742,18 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M,
         debug_printf(DP_DEBUG2, "Step: %u, Adj: %f\n", i, vops->norm(N, p));
 		
 		if (NULL != xref)
-			vops->axpy(N, p, 0.5*alpha, xref);
+			vops->axpy(N, p, 0.9*alpha, xref);
 
 		iter_op_p_call(inv, alpha, x, p);
 	///	debug_printf(DP_DEBUG2, "\t\tx %f\n", vops->norm(N, x));
     
 //         static int i = 0;
 //     
-//         char name[255] = {'\0'};
-//     
-//         sprintf(name, "/tmp/step_test_%02d", i++); 
-//     
-//         dump_cfl(name, 16, dims, x);
+        char name[255] = {'\0'};
+    
+        sprintf(name, "/tmp/step_newton_l1_%02d", i); 
+    
+        dump_cfl(name, 16, img_dims, x);
 		
         alpha /= redu;
 		if (NULL != callback.fun){

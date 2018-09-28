@@ -81,8 +81,17 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.iter = conf->iter;
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
+    irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
+    
+    md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, irgnm_conf.dims, imgs_dims);
+    
+    irgnm_conf.dims[COIL_DIM] = coil_dims[COIL_DIM];
+    
+    debug_printf(DP_INFO, "imgs_dims:\n\t");
+    debug_print_dims(DP_INFO, DIMS, irgnm_conf.dims);
+   
     
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,

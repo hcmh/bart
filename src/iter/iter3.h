@@ -28,6 +28,12 @@ struct iter3_irgnm_conf {
 
 	int cgiter;
 	float cgtol;
+    
+    long N;
+    long dims[16];
+    
+    float alpha_min;
+//     long* coildims;
 
 	_Bool nlinv_legacy;
 };

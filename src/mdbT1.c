@@ -50,6 +50,7 @@ int main_mdbT1(int argc, char* argv[])
 
         OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
         OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+        OPT_FLOAT('j', &conf.alpha_min, "", "minimum regu. parameter"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
@@ -201,8 +202,13 @@ int main_mdbT1(int argc, char* argv[])
         
         pos[COEFF_DIM] = 2;
         md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE); 
-        md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 2.0);
+        md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 1.0);
         md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE); 	
+        
+//         pos[COEFF_DIM] = 1;
+//         md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE); 
+//         md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 0.0);
+//         md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE); 
 
 	}
 
