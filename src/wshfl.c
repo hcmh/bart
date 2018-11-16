@@ -23,6 +23,9 @@
 #include <stdbool.h>
 #include <complex.h>
 #include <math.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -30,6 +33,9 @@
 #include "num/init.h"
 #include "num/iovec.h"
 #include "num/ops.h"
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
 
 #include "iter/iter.h"
 #include "iter/lsqr.h"
@@ -38,6 +44,7 @@
 #include "linops/linop.h"
 #include "linops/fmac.h"
 #include "linops/someops.h"
+#include "linops/realval.h"
 #include "sense/model.h"
 
 #include "misc/debug.h"
@@ -133,6 +140,8 @@ struct kern_s {
 	complex float* reorder;
 	complex float* phi;
 	complex float* kernel;
+
+	complex float* gpu_kernel;
 };
 
 /* Go to table from coefficient-kspace with memory efficiency. */
@@ -226,13 +235,20 @@ static void kern_adjoint(const linop_data_t* _data, complex float* dst, const co
 	complex float* perm = md_alloc_sameplace(DIMS, perm_dims, CFL_SIZE, dst);
 	md_clear(DIMS, perm_dims, perm, CFL_SIZE);
 
+#ifdef _OPENMP
+	long num_threads = omp_get_max_threads();
+#else
+	long num_threads = 1;
+#endif
+
 	long vec_dims[]     = {wx, nc, tf,  1};
 	long phi_mat_dims[] = { 1,  1, tf, tk};
 	long phi_out_dims[] = {wx, nc,  1, tk};
 	long fmac_dims[]    = {wx, nc, tf, tk};
 	long line_dims[]    = {wx, nc,  1,  1};
+	long vthrd_dims[]   = {wx, nc, tf,  1, num_threads};
 
-	complex float* vec = md_alloc_sameplace(4, vec_dims, CFL_SIZE, src);
+	complex float* vec = md_calloc(5, vthrd_dims, CFL_SIZE);
 
 	long vec_str[4];
 	md_calc_strides(4, vec_str, vec_dims, CFL_SIZE);
@@ -243,22 +259,27 @@ static void kern_adjoint(const linop_data_t* _data, complex float* dst, const co
 	long fmac_str[4];
 	md_calc_strides(4, fmac_str, fmac_dims, CFL_SIZE);
 
-	int t = -1;
-	for (int z = 0; z < sz; z ++) {
-		for (int y = 0; y < sy; y ++) {
+	#pragma omp parallel for
+	for (int k = 0; k < sy * sz; k ++) {
+#ifdef _OPENMP
+		int tid = omp_get_thread_num();
+#else
+		int tid = 0;
+#endif
+		int y = k % sy;
+		int z = k / sy;
+		int t = -1;
 
-			md_clear(4, vec_dims, vec, CFL_SIZE);
+		md_clear(4, vec_dims, vec + (wx * nc * tf * tid), CFL_SIZE);
 
-			for (int i = 0; i < n; i ++) {
-				if ((y == lround(creal(data->reorder[i]))) && (z == lround(creal(data->reorder[i + n])))) {
-					t = lround(creal(data->reorder[i + 2 * n]));
-					md_copy(4, line_dims, (vec + t * wx * nc), (src + i * wx * nc), CFL_SIZE);
-				}
+		for (int i = 0; i < n; i ++) {
+			if ((y == lround(creal(data->reorder[i]))) && (z == lround(creal(data->reorder[i + n])))) {
+				t = lround(creal(data->reorder[i + 2 * n]));
+				md_copy(4, line_dims, (vec + (wx * nc * tf * tid) + t * wx * nc), (src + i * wx * nc), CFL_SIZE);
 			}
-
-			md_zfmacc2(4, fmac_dims, phi_out_str, perm + (y + z * sy) * (wx * nc * tk), vec_str, vec, phi_mat_str, data->phi);
-
 		}
+
+		md_zfmacc2(4, fmac_dims, phi_out_str, perm + (y + z * sy) * (wx * nc * tk), vec_str, vec + (wx * nc * tf * tid), phi_mat_str, data->phi);
 	}
 
 	long out_dims[] = { [0 ... DIMS - 1] = 1 };
@@ -302,14 +323,27 @@ static void kern_normal(const linop_data_t* _data, complex float* dst, const com
 	long output_str[DIMS];
 	md_calc_strides(DIMS, output_str, output_dims, CFL_SIZE);
 
+	long gpu_kernel_dims[DIMS] = { [0 ... DIMS - 1] = 1};
+	md_copy_dims(DIMS, gpu_kernel_dims, data->kernel_dims);
+	gpu_kernel_dims[0] = wx;
+	gpu_kernel_dims[3] = nc;
+
 	long kernel_str[DIMS];
 	md_calc_strides(DIMS, kernel_str, data->kernel_dims, CFL_SIZE);
+
+	long gpu_kernel_str[DIMS];
+	md_calc_strides(DIMS, gpu_kernel_str, gpu_kernel_dims, CFL_SIZE);
 
 	long fmac_dims[DIMS];
 	md_merge_dims(DIMS, fmac_dims, input_dims, data->kernel_dims);
 
 	md_clear(DIMS, output_dims, dst, CFL_SIZE);
-	md_zfmac2(DIMS, fmac_dims, output_str, dst, input_str, src, kernel_str, data->kernel);
+#ifdef USE_CUDA
+	if(cuda_ondevice(src))
+		md_zfmac2(DIMS, fmac_dims, output_str, dst, input_str, src, gpu_kernel_str, data->gpu_kernel);
+	else
+#endif
+		md_zfmac2(DIMS, fmac_dims, output_str, dst, input_str, src, kernel_str, data->kernel);
 }
 
 static void kern_free(const linop_data_t* _data)
@@ -321,29 +355,34 @@ static void kern_free(const linop_data_t* _data)
 	xfree(data->table_dims);
 	xfree(data->kernel_dims);
 
+#ifdef USE_CUDA
+	if (data->gpu_kernel != NULL)
+		md_free(data->gpu_kernel);
+#endif
+
 	xfree(data);
 }
 
-static const struct linop_s* linop_kern_create(long N,
-	const long _reorder_dims[N], complex float* reorder,
-	const long _phi_dims[N],     complex float* phi,
-	const long _kernel_dims[N],  complex float* kernel,
-	const long _table_dims[N])
+static const struct linop_s* linop_kern_create(bool gpu_flag, 
+	const long _reorder_dims[DIMS], complex float* reorder,
+	const long _phi_dims[DIMS],     complex float* phi,
+	const long _kernel_dims[DIMS],  complex float* kernel,
+	const long _table_dims[DIMS])
 {
 	PTR_ALLOC(struct kern_s, data);
 	SET_TYPEID(kern_s, data);
 
-	data->N = N;
+	data->N = DIMS;
 
-	PTR_ALLOC(long[N], reorder_dims);
-	PTR_ALLOC(long[N], phi_dims);
-	PTR_ALLOC(long[N], table_dims);
-	PTR_ALLOC(long[N], kernel_dims);
+	PTR_ALLOC(long[DIMS], reorder_dims);
+	PTR_ALLOC(long[DIMS], phi_dims);
+	PTR_ALLOC(long[DIMS], table_dims);
+	PTR_ALLOC(long[DIMS], kernel_dims);
 
-	md_copy_dims(N, *reorder_dims, _reorder_dims);
-	md_copy_dims(N, *phi_dims,     _phi_dims);
-	md_copy_dims(N, *table_dims,   _table_dims);
-	md_copy_dims(N, *kernel_dims,  _kernel_dims);
+	md_copy_dims(DIMS, *reorder_dims, _reorder_dims);
+	md_copy_dims(DIMS, *phi_dims,     _phi_dims);
+	md_copy_dims(DIMS, *table_dims,   _table_dims);
+	md_copy_dims(DIMS, *kernel_dims,  _kernel_dims);
 
 	data->reorder_dims = *PTR_PASS(reorder_dims);
 	data->phi_dims     = *PTR_PASS(phi_dims);
@@ -353,6 +392,31 @@ static const struct linop_s* linop_kern_create(long N,
 	data->reorder = reorder;
 	data->phi     = phi;
 	data->kernel  = kernel;
+
+	data->gpu_kernel = NULL;
+#ifdef USE_CUDA
+	if(gpu_flag) {
+
+		long repmat_kernel_dims[DIMS] = { [0 ... DIMS - 1] = 1};
+		md_copy_dims(DIMS, repmat_kernel_dims, _kernel_dims);
+		repmat_kernel_dims[0] = _table_dims[0];
+		repmat_kernel_dims[3] = _table_dims[1];
+
+		long kernel_strs[DIMS];
+		long repmat_kernel_strs[DIMS];
+		md_calc_strides(DIMS,        kernel_strs,       _kernel_dims, CFL_SIZE);
+		md_calc_strides(DIMS, repmat_kernel_strs, repmat_kernel_dims, CFL_SIZE);
+
+		complex float* repmat_kernel = md_calloc(DIMS, repmat_kernel_dims, CFL_SIZE);
+		md_copy2(DIMS, repmat_kernel_dims, repmat_kernel_strs, repmat_kernel, kernel_strs, kernel, CFL_SIZE);
+
+		data->gpu_kernel = md_gpu_move(DIMS, repmat_kernel_dims, repmat_kernel, CFL_SIZE);
+
+		md_free(repmat_kernel);
+	}
+#else
+	UNUSED(gpu_flag);
+#endif
 
 	long input_dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 	input_dims[0] = _table_dims[0];
@@ -366,7 +430,7 @@ static const struct linop_s* linop_kern_create(long N,
 	output_dims[1] = _table_dims[1];
 	output_dims[2] = _reorder_dims[0];
 
-	const struct linop_s* K = linop_create(N, output_dims, N, input_dims, CAST_UP(PTR_PASS(data)), kern_apply, kern_adjoint, kern_normal, NULL, kern_free);
+	const struct linop_s* K = linop_create(DIMS, output_dims, DIMS, input_dims, CAST_UP(PTR_PASS(data)), kern_apply, kern_adjoint, kern_normal, NULL, kern_free);
 	return K;
 }
 
@@ -564,6 +628,8 @@ int main_wshfl(int argc, char* argv[])
 	float cont      = 1;
 	float eval      = -1;
 	const char* fwd = NULL;
+	int   gpun      = -1;
+	bool  rvc       = false;
 
 	const struct opt_s opts[] = {
 		OPT_FLOAT( 'r', &lambda,  "lambda", "Soft threshold lambda for wavelet or locally low rank."),
@@ -574,10 +640,12 @@ int main_wshfl(int argc, char* argv[])
 		OPT_FLOAT( 't', &tol,     "toler",  "Tolerance convergence condition for iterative method."),
 		OPT_FLOAT( 'e', &eval,    "eigvl",  "Maximum eigenvalue of normal operator, if known."),
 		OPT_STRING('F', &fwd,     "frwrd",  "Go from shfl-coeffs to data-table. Pass in coeffs path."),
+		OPT_INT(   'g', &gpun,    "gpunm",  "GPU device number."),
 		OPT_SET(   'f', &fista,             "Reconstruct using FISTA instead of IST."),
 		OPT_SET(   'H', &hgwld,             "Use hogwild in IST/FISTA."),
 		OPT_SET(   'w', &wav,               "Use wavelet."),
 		OPT_SET(   'l', &llr,               "Use locally low rank."),
+		OPT_SET(   'v', &rvc,               "Apply real valued constraint on coefficients."),
 	};
 
 	cmdline(&argc, argv, 6, 6, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -601,7 +669,10 @@ int main_wshfl(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Done.\n");
 
-	num_init();
+	if (gpun >= 0)
+		num_init_gpu_device(gpun);
+	else
+		num_init();
 
 	int wx = wave_dims[0];
 	int sx = maps_dims[0];
@@ -645,10 +716,21 @@ int main_wshfl(int argc, char* argv[])
 	const struct linop_s* Fx  = linop_fx_create(wx, sy, sz, nc, tk);
 	const struct linop_s* W   = linop_wave_create(wx, sy, sz, nc, tk, wave);
 	const struct linop_s* Fyz = linop_fyz_create(wx, sy, sz, nc, tk);
-	const struct linop_s* K   = linop_kern_create(DIMS, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, table_dims);
+	const struct linop_s* K   = linop_kern_create(gpun >= 0, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, table_dims);
 
 	struct linop_s* A = linop_chain(linop_chain(linop_chain(linop_chain(linop_chain(
 		E, R), Fx), W), Fyz), K);
+
+	if (rvc == true) {
+		debug_printf(DP_INFO, "\tDomain is restricted to real numbers.\n");
+		struct linop_s* tmp = A;
+		struct linop_s* rvcop = linop_realval_create(DIMS, linop_domain(A)->dims);
+
+		A = linop_chain(rvcop, tmp);
+
+		linop_free(rvcop);
+		linop_free(tmp);
+	}
 
 	linop_free(E);
 	linop_free(R);
@@ -670,7 +752,11 @@ int main_wshfl(int argc, char* argv[])
 	}
 
 	if (eval < 0)	
+#ifdef USE_CUDA
+		eval = (gpun >= 0) ? estimate_maxeigenval_gpu(A->normal) : estimate_maxeigenval(A->normal);
+#else
 		eval = estimate_maxeigenval(A->normal);
+#endif
 	debug_printf(DP_INFO, "\tMax eval: %.2e\n", eval);
 	step /= eval;
 
@@ -778,7 +864,7 @@ int main_wshfl(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Reconstruction... ");
 	complex float* recon = create_cfl(argv[6], DIMS, coeff_dims);
-	struct lsqr_conf lsqr_conf = { 0., false };
+	struct lsqr_conf lsqr_conf = { 0., gpun >= 0 };
 	double recon_start = timestamp();
 	const struct operator_s* J = lsqr2_create(&lsqr_conf, italgo, iconf, NULL, A, NULL, 1, &T, NULL, NULL);
 	operator_apply(J, DIMS, coeff_dims, recon, DIMS, table_dims, table);

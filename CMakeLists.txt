@@ -122,12 +122,12 @@ if (CMAKE_VERSION VERSION_LESS 3.1)
   endif()
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
       CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set (CMAKE_CXX_FLAGS "--std=c++11 ${CMAKE_CXX_FLAGS}")
+    set (CMAKE_CXX_FLAGS "--std=c++14 ${CMAKE_CXX_FLAGS}")
   endif()
 else()
   set(CMAKE_C_STANDARD 11)
   set(CMAKE_C_STANDARD_REQUIRED ON)
-  set(CMAKE_CXX_STANDARD 11)
+  set(CMAKE_CXX_STANDARD 14)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
@@ -353,9 +353,6 @@ if(BART_LOG_BACKEND)
     # Include Orchestra SDK build configuration
     include (${TOPDIR}/recon/SDK/product.cmake)
 
-    # FIXME: need to check which libraries are actually required
-    target_link_libraries(bartsupport PUBLIC "Core;Common;Control;System;${OX_3P_LIBS};${OX_OS_LIBS}")
-    
     list(APPEND LOG_BACKEND_SRCS "${CMAKE_CURRENT_LIST_DIR}/src/misc/Orchestra.cc")
   endif()
 
@@ -386,6 +383,13 @@ target_link_libraries(bartsupport PUBLIC
   ${PNG_TGT}
   ${FFTW_TGT}
   ${OpenMP_TGT})
+
+if(BART_LOG_BACKEND)
+  if(BART_LOG_ORCHESTRA_BACKEND)
+    # FIXME: need to check which libraries are actually required
+    target_link_libraries(bartsupport PUBLIC "Core;Common;Control;System;${OX_3P_LIBS};${OX_OS_LIBS}")    
+  endif()
+endif()
 
 if(BART_ISMRMRD)
   target_link_libraries(bartsupport PUBLIC ${ISMRMRD_LIBRARIES})
@@ -452,8 +456,6 @@ if(BART_ENABLE_MEM_CFL)
   set_target_properties(bartmain PROPERTIES LINKER_LANGUAGE CXX)
 endif()
 
-# Workaround for possible name conflicts with libC's error function
-target_compile_definitions(bartmain PRIVATE -Derror=bart_error__)
 if(BART_LOG_BACKEND)
   # ensure that src/misc/misc.c will be compiled with logging backend support
   # but *ONLY* for the bartmain target
@@ -463,46 +465,35 @@ endif()
 # ==============================================================================
 
 if(BART_CREATE_PYTHON_MODULE)
-  if(CMAKE_VERSION VERSION_LESS 3.12)
-    find_package(PythonLibs REQUIRED)
-    set(PYMODULE_INCLUDE_DIRS "${PYTHON_INCLUDE_DIRS}")
-    set(PYMODULE_LIBRARIES "${PYTHON_LIBRARIES}")
-  else()
-    find_package(Python REQUIRED COMPONENTS Development)
-    set(PYMODULE_INCLUDE_DIRS "${Python_INCLUDE_DIRS}")
-    set(PYMODULE_LIBRARIES "${Python_LIBRARIES}")
-  endif()
+  include(${CMAKE_CURRENT_LIST_DIR}/cmake/bart_python.cmake)
 
-  set(PYBART_FUNCTION_PROTOTYPE "")
-  set(PYBART_COMMANDS_MODULE_METHODS "")
-  set(PYBART_COMMANDS_IMPLEMENTATION "")
-  
-  foreach(curr_prog ${ALLPROGS})
-    if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/src/${curr_prog}.c")
-      set(PYBART_FUNCTION_PROTOTYPE "${PYBART_FUNCTION_PROTOTYPE}static PyObject* call_${curr_prog}(PyObject* self, PyObject* args);\n")
-      set(PYBART_COMMANDS_MODULE_METHODS "${PYBART_COMMANDS_MODULE_METHODS}     {\"${curr_prog}\", call_${curr_prog}, METH_VARARGS, bart_subcommand_docstring},\n")
-      set(PYBART_COMMANDS_IMPLEMENTATION "${PYBART_COMMANDS_IMPLEMENTATION}PyObject* call_${curr_prog} (PyObject* self, PyObject* args)\n{\n     enum { MAX_ARGS = 256 };\n     char* cmdline = NULL;\n     char output[256] = { \"\" };\n     if (!PyArg_ParseTuple(args, \"s\", &cmdline)) {\n	  Py_RETURN_NONE;\n     }\n\n     return call_submain(\"${curr_prog}\", cmdline);\n}\n\n")
-    endif()
-  endforeach()
-
-  configure_file(${CMAKE_CURRENT_LIST_DIR}/src/python/pyBART.c.in ${PROJECT_BINARY_DIR}/pyBART.c @ONLY)
+  configure_file(${CMAKE_CURRENT_LIST_DIR}/src/python/pyBART.cpp.in ${PROJECT_BINARY_DIR}/pyBART.cpp @ONLY)
 
   bart_add_library(pyBART
     SHARED
-    ${PROJECT_BINARY_DIR}/pyBART.c
+    ${PROJECT_BINARY_DIR}/pyBART.cpp
     ${BARTSUPPORT_PYTHON_SEPARATE_COMPILATION_FILES}
     $<TARGET_OBJECTS:bartsupport_objs>
     $<TARGET_OBJECTS:bartmain_objs>)
 
-  target_include_directories(pyBART PRIVATE ${PYMODULE_INCLUDE_DIRS})
+  if(CMAKE_VERSION VERSION_LESS 3.1)
+    target_include_directories(pyBART PRIVATE ${Python_INCLUDE_DIR})
+  endif()
   target_compile_definitions(pyBART PRIVATE -DBART_WITH_PYTHON)
-  target_link_libraries(pyBART PUBLIC "${PYMODULE_LIBRARIES};${PNG_TGT};${FFTW_TGT};${LINALG_LIBRARIES}")
+  target_link_libraries(pyBART PUBLIC "${Python_TGT};${PNG_TGT};${FFTW_TGT};${LINALG_VENDOR_LIB}")
   if(BART_ISMRMRD)
     target_link_libraries(pyBART PUBLIC ${ISMRMRD_LIBRARIES})
+  endif()
+  
+  if(APPLE)
+    set_target_properties(pyBART
+      PROPERTIES
+      SUFFIX ".so")
   endif()
   set_target_properties(pyBART
     PROPERTIES
     PREFIX ""
+    DEBUG_POSTFIX ""
     EXPORT_NAME pyBART)
     set(BART_pyBART_TGT pyBART)
 endif()

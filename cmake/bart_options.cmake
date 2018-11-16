@@ -3,7 +3,6 @@
 # a BSD-style license which can be found in the LICENSE file.
 # \author Damien Nguyen <damien.nguyen@alumni.epfl.ch>
 
-option(BART_CREATE_PYTHON_MODULE "Compile the pyBART Python module" OFF)
 option(BART_DISABLE_PNG "Disable the use of the PNG library" OFF)
 option(BART_ENABLE_MEM_CFL "Enable the use of in-memory CFL files" OFF)
 option(BART_FPIC "Compile using position-independent code" OFF)
@@ -22,8 +21,13 @@ option(BART_ISMRMRD "Use external ISMRMRD package for reading/writing" ${ISMRMRD
 
 # ------------------------------------------------------------------------------
 
-option(BART_LOG_BACKEND "Enable delegating all outputs to external logging backend" OFF)
+option(BART_CREATE_PYTHON_MODULE "Compile the pyBART Python module" OFF)
+option(BART_PYTHON_FORCE_27 "Force BART to use Python 2.7" OFF)
+
+# ------------------------------------------------------------------------------
+
 include(CMakeDependentOption)
+option(BART_LOG_BACKEND "Enable delegating all outputs to external logging backend" OFF)
 cmake_dependent_option(BART_LOG_SIEMENS_BACKEND "Use the Siemens logging backend" OFF
   "BART_LOG_BACKEND" OFF)
 cmake_dependent_option(BART_LOG_ORCHESTRA_BACKEND "Use the Orchestra logging backend" OFF
@@ -54,14 +58,28 @@ option(USE_OPENMP "Enable OpenMP support" ON)
 
 # ==============================================================================
 
-if(BART_ENABLE_MEM_CFL OR USE_CUDA OR BART_LOG_BACKEND)
-  enable_language(CXX)
-endif()
-
-# ------------------------------------------------------------------------------
-
 if(BART_CREATE_PYTHON_MODULE)
   message(STATUS "Generating the pyBART Python module")
+  if(NOT BART_ENABLE_MEM_CFL)
+    message(STATUS "  - Setting BART_ENABLE_MEM_CFL = ON")
+    set(BART_ENABLE_MEM_CFL ON CACHE BOOL "Enable the use of in-memory CFL files" FORCE)
+  endif()
+  if(NOT BART_FPIC)
+    message(STATUS "  - Setting BART_FPIC = ON")
+    set(BART_FPIC ON CACHE BOOL "Compile using position-independent code" FORCE)
+  endif()
+endif()
+
+if(BART_PYTHON_FORCE_27)
+  set(_python_version 2.7)
+else()
+  set(_python_version)
+endif()
+
+# --------------------------------------
+
+if(BART_ENABLE_MEM_CFL OR USE_CUDA OR BART_LOG_BACKEND)
+  enable_language(CXX)
 endif()
 
 # --------------------------------------
@@ -88,9 +106,9 @@ endif()
 if(BART_MEMONLY_CFL)
   message(STATUS "Forcing BART to use only in-memory CFLs")
   if(NOT BART_ENABLE_MEM_CFL)
-    message(STATUS "Setting BART_ENABLE_MEM_CFL = ON")
-    set(BART_ENABLE_MEM_CFL ON)
-  endif(NOT BART_ENABLE_MEM_CFL)
+    message(STATUS "  - Setting BART_ENABLE_MEM_CFL = ON")
+    set(BART_ENABLE_MEM_CFL ON CACHE BOOL "Enable the use of in-memory CFL files")
+  endif()
   add_definitions(-DMEMONLY_CFL)
 endif(BART_MEMONLY_CFL)
 
@@ -262,16 +280,19 @@ if(USE_CUDA)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-std=c++11;-DUSE_CUDA;-Xcompiler;-fPIC;-O3;${GPUARCH_FLAGS};-ccbin ${CMAKE_C_COMPILER}")
     macro(bart_add_object_library target_name)
       add_library(${target_name} OBJECT ${ARGN})
+      target_compile_definitions(${target_name} PRIVATE -DUSE_CUDA -Derror=bart_error__)
       target_include_directories(${target_name} PRIVATE "${CUDA_INCLUDE_DIRS}")
     endmacro()
     macro(bart_add_executable target_name)
       set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC) # was introduced in CMake 3.9
       CUDA_ADD_EXECUTABLE(${target_name} ${ARGN})
+      target_compile_definitions(${target_name} PRIVATE -DUSE_CUDA -Derror=bart_error__)
       target_link_libraries(${target_name} PUBLIC ${CUDA_LIBRARIES} ${CUDA_CUFFT_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES})
     endmacro()
     macro(bart_add_library target_name)
       set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC) # was introduced in CMake 3.9
       CUDA_ADD_LIBRARY(${target_name} ${ARGN})
+      target_compile_definitions(${target_name} PRIVATE -DUSE_CUDA -Derror=bart_error__)
       target_link_libraries(${target_name} PUBLIC ${CUDA_LIBRARIES} ${CUDA_CUFFT_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES})
     endmacro()  
   else()
@@ -283,18 +304,18 @@ if(USE_CUDA)
     
     macro(bart_add_object_library target_name)
       add_library(${target_name} OBJECT ${ARGN})
-      target_compile_definitions(${target_name} PRIVATE -DUSE_CUDA)
+      target_compile_definitions(${target_name} PRIVATE -DUSE_CUDA -Derror=bart_error__)
       target_include_directories(${target_name} PRIVATE "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
     endmacro()
     macro(bart_add_executable target_name)
       add_executable(${target_name} ${ARGN})
-      target_compile_definitions(${target_name} PRIVATE -DUSE_CUDA)
+      target_compile_definitions(${target_name} PRIVATE -DUSE_CUDA -Derror=bart_error__)
       target_link_libraries(${target_name} PUBLIC "CUDAlibs::CUBLAS;CUDAlibs::CUFFT")
       set_target_properties(${target_name} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
     endmacro()
     macro(bart_add_library target_name)
       add_library(${target_name} ${ARGN})
-      target_compile_definitions(${target_name} PRIVATE -DUSE_CUDA)
+      target_compile_definitions(${target_name} PRIVATE -DUSE_CUDA -Derror=bart_error__)
       target_link_libraries(${target_name} PUBLIC "CUDAlibs::CUBLAS;CUDAlibs::CUFFT")
       set_target_properties(${target_name} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
     endmacro()
@@ -302,12 +323,15 @@ if(USE_CUDA)
 else() # NOT USE_CUDA
   macro(bart_add_object_library target_name)
     add_library(${target_name} OBJECT ${ARGN})
+    target_compile_definitions(${target_name} PRIVATE -Derror=bart_error__)
   endmacro()
   macro(bart_add_executable target_name)
     add_executable(${target_name} ${ARGN})
+    target_compile_definitions(${target_name} PRIVATE -Derror=bart_error__)
   endmacro()
   macro(bart_add_library target_name)
     add_library(${target_name} ${ARGN})
+    target_compile_definitions(${target_name} PRIVATE -Derror=bart_error__)
   endmacro()
 endif()
 
