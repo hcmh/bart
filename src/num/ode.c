@@ -242,7 +242,9 @@ static void seq(void* _data, float* out, float t, const float* yn)
 			out[(1 + i) * data->N + j] = 0.;
 
 			for (unsigned int k = 0; k < data->N; k++)
-				out[(1 + i) * data->N + j] += dy[k][j] * yn[(1 + i) * data->N + k] + dp[i][j];
+				out[(1 + i) * data->N + j] += dy[k][j] * yn[(1 + i) * data->N + k];
+
+			out[(1 + i) * data->N + j] += dp[i][j];
 		}
 	}
 }
