@@ -265,7 +265,7 @@ static bool test_ode_sa2(void)
 		for (int i = 0; i < N; i++) {
 
 			float df = y[i] - x[i];
-			float sa = xp[1 + j][i] * q * (1 / (float)N); // why divide by N?
+			float sa = xp[1 + j][i] * q;
 			float err = fabsf(df - sa);
 
 	//		printf("%d %d-%e-%e-%e\n", j, i, err, df, sa);
@@ -316,7 +316,7 @@ static bool test_ode_sa_bloch(void)
 
 	for (int i = 0; i < 3; i++) {
 
-		float err = fabsf(q * xp[1][i] / 3. - (x2r1[i] - x2[i]));
+		float err = fabsf(q * xp[1][i] - (x2r1[i] - x2[i]));
 
 		if (err > 1.E-7)
 			return false;
@@ -324,7 +324,7 @@ static bool test_ode_sa_bloch(void)
 
 	for (int i = 0; i < 3; i++) {
 
-		float err = fabsf(q * xp[2][i] / 3. - (x2r2[i] - x2[i]));
+		float err = fabsf(q * xp[2][i] - (x2r2[i] - x2[i]));
 
 		if (err > 1.E-7)
 			return false;
