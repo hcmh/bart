@@ -1,5 +1,5 @@
 # Copyright 2013-2015. The Regents of the University of California.
-# Copyright 2015-2016. Martin Uecker <martin.uecker@med.uni-goettingen.de>
+# Copyright 2015-2018. Martin Uecker <martin.uecker@med.uni-goettingen.de>
 # All rights reserved. Use of this source code is governed by
 # a BSD-style license which can be found in the LICENSE file.
 
@@ -106,8 +106,6 @@ else
 	LDFLAGS += -rdynamic
 endif
 
-CXX ?= g++
-LINKER ?= $(CC)
 
 
 
@@ -204,6 +202,19 @@ MAKEFILES = $(root)/Makefiles/Makefile.*
 -include Makefile.$(NNAME)
 -include Makefile.local
 -include $(MAKEFILES)
+
+
+# clang
+
+ifeq ($(findstring clang,$(CC)),clang)
+	CFLAGS += -fblocks
+	LDFLAGS += -lBlocksRuntime
+endif
+
+
+CXX ?= g++
+LINKER ?= $(CC)
+
 
 
 ifeq ($(ISMRMRD),1)
@@ -337,6 +348,10 @@ ifeq ($(SLINK),1)
 	PNG_L += -lz
 endif
 
+ifeq ($(LINKER),icc)
+	PNG_L += -lz
+endif
+
 
 
 # fftw
@@ -398,6 +413,7 @@ endif
 ifeq ($(SLINK),1)
 # work around fortran problems with static linking
 LDFLAGS += -static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -Wl,--allow-multiple-definition
+LIBS += -lmvec
 BLAS_L += -llapack -lblas -lgfortran -lquadmath
 endif
 
@@ -481,14 +497,14 @@ endif
 
 .SECONDEXPANSION:
 $(TARGETS): % : src/main.c $(srcdir)/%.o $$(MODULES_%) $(MODULES)
-	$(LINKER) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -Dmain_real=main_$@ -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) -lm
+	$(LINKER) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -Dmain_real=main_$@ -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) $(LIBS) -lm
 #	rm $(srcdir)/$@.o
 
 UTESTS=$(shell $(root)/utests/utests-collect.sh ./utests/$@.c)
 
 .SECONDEXPANSION:
 $(UTARGETS): % : utests/utest.c utests/%.o $$(MODULES_%) $(MODULES)
-	$(CC) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -DUTESTS="$(UTESTS)" -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) -lm
+	$(CC) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -DUTESTS="$(UTESTS)" -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(LIBS) -lm
 
 
 # linker script version - does not work on MacOS X

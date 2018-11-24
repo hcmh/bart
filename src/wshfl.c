@@ -45,7 +45,6 @@
 #include "linops/fmac.h"
 #include "linops/someops.h"
 #include "linops/realval.h"
-#include "sense/model.h"
 
 #include "misc/debug.h"
 #include "misc/mri.h"
@@ -88,7 +87,7 @@ static const char help_str[]  =
 	"Expected dimensions:\n"
 	"  * maps    - (   sx, sy, sz, nc, md,  1,  1)\n"
 	"  * wave    - (   wx, sy, sz,  1,  1,  1,  1)\n"
-                                "  * phi     - (    1,  1,  1,  1,  1, tf, tk)\n"
+	"  * phi     - (    1,  1,  1,  1,  1, tf, tk)\n"
 	"  * output  - (   sx, sy, sz,  1, md,  1, tk)\n"
 	"  * reorder - (    n,  3,  1,  1,  1,  1,  1)\n"
 	"  * table   - (   wx, nc,  n,  1,  1,  1,  1)";
@@ -467,7 +466,7 @@ static const struct linop_s* Xlinop_reshape_create(long wx, long sx, long sy, lo
 }
 
 /* Fx operator. */
-static const struct linop_s* linop_fx_create(long wx, long sy, long sz, long nc, long tk)
+static const struct linop_s* linop_fx_create(long wx, long sy, long sz, long nc, long tk, bool centered)
 {
 	long dims[] = { [0 ... DIMS - 1] = 1};
 	dims[0] = wx;
@@ -475,7 +474,11 @@ static const struct linop_s* linop_fx_create(long wx, long sy, long sz, long nc,
 	dims[2] = sz;
 	dims[3] = nc;
 	dims[6] = tk;
-	struct linop_s* Fx = linop_fft_create(DIMS, dims, READ_FLAG);
+	struct linop_s* Fx = NULL;
+	if (centered)
+		Fx = linop_fftc_create(DIMS, dims, READ_FLAG);
+	else
+		Fx = linop_fft_create(DIMS, dims, READ_FLAG);
 	return Fx;
 }
 
@@ -493,7 +496,7 @@ static const struct linop_s* linop_wave_create(long wx, long sy, long sz, long n
 }
 
 /* Fyz operator. */
-static const struct linop_s* linop_fyz_create(long wx, long sy, long sz, long nc, long tk)
+static const struct linop_s* linop_fyz_create(long wx, long sy, long sz, long nc, long tk, bool centered)
 {
 	long dims[] = { [0 ... DIMS - 1] = 1};
 	dims[0] = wx;
@@ -501,7 +504,11 @@ static const struct linop_s* linop_fyz_create(long wx, long sy, long sz, long nc
 	dims[2] = sz;
 	dims[3] = nc;
 	dims[6] = tk;
-	struct linop_s* Fyz = linop_fft_create(DIMS, dims, PHS1_FLAG|PHS2_FLAG);
+	struct linop_s* Fyz = NULL;
+	if (centered)
+		Fyz = linop_fftc_create(DIMS, dims, PHS1_FLAG|PHS2_FLAG);
+	else
+		Fyz = linop_fft_create(DIMS, dims, PHS1_FLAG|PHS2_FLAG);
 	return Fyz;
 }
 
@@ -628,6 +635,7 @@ int main_wshfl(int argc, char* argv[])
 	float cont      = 1;
 	float eval      = -1;
 	const char* fwd = NULL;
+	const char* x0  = NULL;
 	int   gpun      = -1;
 	bool  rvc       = false;
 
@@ -640,6 +648,7 @@ int main_wshfl(int argc, char* argv[])
 		OPT_FLOAT( 't', &tol,     "toler",  "Tolerance convergence condition for iterative method."),
 		OPT_FLOAT( 'e', &eval,    "eigvl",  "Maximum eigenvalue of normal operator, if known."),
 		OPT_STRING('F', &fwd,     "frwrd",  "Go from shfl-coeffs to data-table. Pass in coeffs path."),
+		OPT_STRING('O', &x0,      "initl",  "Initialize reconstruction with guess."),
 		OPT_INT(   'g', &gpun,    "gpunm",  "GPU device number."),
 		OPT_SET(   'f', &fista,             "Reconstruct using FISTA instead of IST."),
 		OPT_SET(   'H', &hgwld,             "Use hogwild in IST/FISTA."),
@@ -710,15 +719,71 @@ int main_wshfl(int argc, char* argv[])
 	coeff_dims[4] = md;
 	coeff_dims[6] = tk;
 
-	debug_printf(DP_INFO, "Linear operator.\n");
-	const struct linop_s* E   = linop_espirit_create(sx, sy, sz, nc, md, tk, maps);
-	const struct linop_s* R   = Xlinop_reshape_create(wx, sx, sy, sz, nc, tk);
-	const struct linop_s* Fx  = linop_fx_create(wx, sy, sz, nc, tk);
-	const struct linop_s* W   = linop_wave_create(wx, sy, sz, nc, tk, wave);
-	const struct linop_s* Fyz = linop_fyz_create(wx, sy, sz, nc, tk);
-	const struct linop_s* K   = linop_kern_create(gpun >= 0, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, table_dims);
+	debug_printf(DP_INFO, "Creating linear operators:\n");
 
-	struct linop_s* A = linop_chain(linop_chain(linop_chain(linop_chain(linop_chain(
+	double t1;
+	double t2;
+
+	t1 = timestamp();
+	const struct linop_s* E = linop_espirit_create(sx, sy, sz, nc, md, tk, maps);
+	t2 = timestamp();
+	debug_printf(DP_INFO, "\tE:   %f seconds.\n", t2 - t1);
+
+	t1 = timestamp();
+	const struct linop_s* R = linop_reshape_create(wx, sx, sy, sz, nc, tk);
+	t2 = timestamp();
+	debug_printf(DP_INFO, "\tR:   %f seconds.\n", t2 - t1);
+
+	t1 = timestamp();
+	const struct linop_s* Fx = linop_fx_create(wx, sy, sz, nc, tk, false);
+	t2 = timestamp();
+	debug_printf(DP_INFO, "\tFx:  %f seconds.\n", t2 - t1);
+
+	t1 = timestamp();
+	const struct linop_s* W = linop_wave_create(wx, sy, sz, nc, tk, wave);
+	t2 = timestamp();
+	debug_printf(DP_INFO, "\tW:   %f seconds.\n", t2 - t1);
+
+	t1 = timestamp();
+	const struct linop_s* Fyz = linop_fyz_create(wx, sy, sz, nc, tk, false);
+	t2 = timestamp();
+	debug_printf(DP_INFO, "\tFyz: %f seconds.\n", t2 - t1);
+
+	t1 = timestamp();
+	const struct linop_s* K = linop_kern_create(gpun >= 0, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, table_dims);
+	t2 = timestamp();
+	debug_printf(DP_INFO, "\tK:   %f seconds.\n", t2 - t1);
+
+	if (fwd != NULL) {
+
+		debug_printf(DP_INFO, "Going from coefficients to data table... ");
+		complex float* coeffs_to_fwd = load_cfl(fwd, DIMS, coeff_dims);
+		complex float* table_forward = create_cfl(argv[6], DIMS, table_dims);
+		const struct linop_s* CFx    = linop_fx_create( wx, sy, sz, nc, tk, true);
+		const struct linop_s* CFyz   = linop_fyz_create(wx, sy, sz, nc, tk, true);
+		struct linop_s* AC = linop_chain_FF(linop_chain_FF(linop_chain_FF(linop_chain_FF(linop_chain_FF(
+			E, R), CFx), W), CFyz), K);
+		operator_apply(AC->forward, DIMS, table_dims, table_forward, DIMS, coeff_dims, coeffs_to_fwd);
+		debug_printf(DP_INFO, "Done.\n");
+
+		debug_printf(DP_INFO, "Cleaning up... ");
+		linop_free(Fx);
+		linop_free(CFyz);
+		linop_free(AC);
+		md_free(kernel);
+		unmap_cfl(DIMS, maps_dims, maps);
+		unmap_cfl(DIMS, wave_dims, wave);
+		unmap_cfl(DIMS, phi_dims, phi);
+		unmap_cfl(DIMS, reorder_dims, reorder);
+		unmap_cfl(DIMS, table_dims, table);
+		unmap_cfl(DIMS, table_dims, table_forward);
+		debug_printf(DP_INFO, "Done.\n");
+
+		return 0;
+	}
+
+	debug_printf(DP_INFO, "Forward linear operator information:\n");
+	struct linop_s* A = linop_chain_FF(linop_chain_FF(linop_chain_FF(linop_chain_FF(linop_chain_FF(
 		E, R), Fx), W), Fyz), K);
 
 	if (rvc == true) {
@@ -732,24 +797,7 @@ int main_wshfl(int argc, char* argv[])
 		linop_free(tmp);
 	}
 
-	linop_free(E);
-	linop_free(R);
-	linop_free(Fx);
-	linop_free(W);
-	linop_free(Fyz);
-	linop_free(K);
-
 	print_opdims(A);
-
-	if (fwd != NULL) {
-		debug_printf(DP_INFO, "Going from coefficients to data table... ");
-		complex float* coeffs_to_fwd = load_cfl(fwd, DIMS, coeff_dims);
-		complex float* table_forward = create_cfl(argv[6], DIMS, table_dims);
-		operator_apply(A->forward, DIMS, table_dims, table_forward, DIMS, coeff_dims, coeffs_to_fwd);
-		unmap_cfl(DIMS, table_dims, table_forward);
-		debug_printf(DP_INFO, "Done. Output table not normalized and not centered for fft.\n");
-		return 0;
-	}
 
 	if (eval < 0)	
 #ifdef USE_CUDA
@@ -760,7 +808,7 @@ int main_wshfl(int argc, char* argv[])
 	debug_printf(DP_INFO, "\tMax eval: %.2e\n", eval);
 	step /= eval;
 
-	debug_printf(DP_INFO, "Normalizing data table and applying fftmod to table... ");
+	debug_printf(DP_INFO, "Normalizing data table and applying fftmod to table and maps... ");
 	float norm = md_znorm(DIMS, table_dims, table);
 	md_zsmul(DIMS, table_dims, table, table, 1. / norm);
 	fftmod_apply(sy, sz, reorder_dims, reorder, table_dims, table, maps_dims, maps);
@@ -783,7 +831,7 @@ int main_wshfl(int argc, char* argv[])
 		} else {
 			debug_printf(DP_INFO, "Creating locally low rank threshold operator... ");
 			llr_blkdims(blkdims, ~COEFF_DIM, coeff_dims, blksize);
-			T = lrthresh_create(coeff_dims, true, ~COEFF_FLAG, (const long (*)[])blkdims, lambda, false, false);
+			T = lrthresh_create(coeff_dims, true, ~COEFF_FLAG, (const long (*)[])blkdims, lambda, false, false, false);
 		}
 		debug_printf(DP_INFO, "Done.\n");
 	}
@@ -862,11 +910,18 @@ int main_wshfl(int argc, char* argv[])
 
 	}
 
+	complex float* init = NULL;
+	if (x0 != NULL) {
+		debug_printf(DP_INFO, "Loading in initial guess... ");
+		init = load_cfl(x0, DIMS, coeff_dims);
+		debug_printf(DP_INFO, "Done.\n");
+	}
+
 	debug_printf(DP_INFO, "Reconstruction... ");
 	complex float* recon = create_cfl(argv[6], DIMS, coeff_dims);
 	struct lsqr_conf lsqr_conf = { 0., gpun >= 0 };
 	double recon_start = timestamp();
-	const struct operator_s* J = lsqr2_create(&lsqr_conf, italgo, iconf, NULL, A, NULL, 1, &T, NULL, NULL);
+	const struct operator_s* J = lsqr2_create(&lsqr_conf, italgo, iconf, (const float*) init, A, NULL, 1, &T, NULL, NULL);
 	operator_apply(J, DIMS, coeff_dims, recon, DIMS, table_dims, table);
 	double recon_end = timestamp();
 	debug_printf(DP_INFO, "Done.\nReconstruction time: %f seconds.\n", recon_end - recon_start);
@@ -881,6 +936,8 @@ int main_wshfl(int argc, char* argv[])
 	unmap_cfl(DIMS, reorder_dims, reorder);
 	unmap_cfl(DIMS, table_dims, table);
 	unmap_cfl(DIMS, coeff_dims, recon);
+	if (x0 != NULL)
+		unmap_cfl(DIMS, coeff_dims, init);
 	debug_printf(DP_INFO, "Done.\n");
 
 	double end_time = timestamp();

@@ -105,7 +105,9 @@ int main_pics(int argc, char* argv[])
 
 	float bpsense_eps = -1.;
 
+	unsigned int shift_mode = 0;
 	bool randshift = true;
+	bool overlapping_blocks = false;
 	unsigned int maxiter = 30;
 	float step = -1.;
 
@@ -162,6 +164,7 @@ int main_pics(int argc, char* argv[])
 		OPT_UINT('i', &maxiter, "iter", "max. number of iterations"),
 		OPT_STRING('t', &traj_file, "file", "k-space trajectory"),
 		OPT_CLEAR('n', &randshift, "disable random wavelet cycle spinning"),
+		OPT_SET('N', &overlapping_blocks, "do fully overlapping LLR blocks"),
 		OPT_SET('g', &conf.gpu, "use GPU"),
 		OPT_UINT('G', &gpun, "gpun", "use GPU device gpun"),
 		OPT_STRING('p', &pat_file, "file", "pattern or weights"),
@@ -216,7 +219,6 @@ int main_pics(int argc, char* argv[])
 	long coilim_dims[DIMS];
 	long ksp_dims[DIMS];
 	long traj_dims[DIMS];
-
 
 
 	// load kspace and maps and get dimensions
@@ -315,6 +317,20 @@ int main_pics(int argc, char* argv[])
 
 	if (im_truth)
 		debug_printf(DP_INFO, "Compare to truth\n");
+
+	if (randshift && overlapping_blocks)
+		debug_printf(DP_WARN, "Random shifts and overlapping blocks selected. Turning off random shifts\n");
+
+	if (overlapping_blocks) {
+
+		shift_mode = 2;
+		debug_printf(DP_INFO, "Fully overlapping LLR blocks\n");
+	}
+	else if (randshift) {
+
+		debug_printf(DP_INFO, "Random shift mode\n");
+		shift_mode = 1;
+	}
 
 
 	assert(!((conf.rwiter > 1) && (nuconf.toeplitz || conf.bpsense)));
@@ -546,7 +562,7 @@ int main_pics(int argc, char* argv[])
 	const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_configure(DIMS, img1_dims, &ropts, thresh_ops, trafos, llr_blk, randshift, conf.gpu);
+	opt_reg_configure(DIMS, img1_dims, &ropts, thresh_ops, trafos, llr_blk, shift_mode, conf.gpu);
 
 	if (conf.bpsense)
 		opt_bpursuit_configure(&ropts, thresh_ops, trafos, forward_op, kspace, bpsense_eps);
@@ -660,10 +676,13 @@ int main_pics(int argc, char* argv[])
 	if (image_start)
 		unmap_cfl(DIMS, img_dims, image_start);
 
+	xfree(pat_file);
+	xfree(traj_file);
+
 	double end_time = timestamp();
 
-
 	debug_printf(DP_INFO, "Total Time: %f\n", end_time - start_time);
+
 	return 0;
 }
 
