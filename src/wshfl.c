@@ -730,7 +730,7 @@ int main_wshfl(int argc, char* argv[])
 	debug_printf(DP_INFO, "\tE:   %f seconds.\n", t2 - t1);
 
 	t1 = timestamp();
-	const struct linop_s* R = linop_reshape_create(wx, sx, sy, sz, nc, tk);
+	const struct linop_s* R = Xlinop_reshape_create(wx, sx, sy, sz, nc, tk);
 	t2 = timestamp();
 	debug_printf(DP_INFO, "\tR:   %f seconds.\n", t2 - t1);
 
