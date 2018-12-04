@@ -110,12 +110,81 @@ static complex float* compute_linphases(int N, long lph_dims[N + 1], unsigned lo
 }
 
 
+static void compute_kern(unsigned int N, const long ksp1_dims[N], complex float* krn,
+				const long bas_dims[N], const complex float* basis,
+				const long wgh_dims[N], const complex float* weights)
+{
+	if (NULL == basis) {
+
+		md_zfill(N, ksp1_dims, krn, 1.);
+
+		if (NULL != weights) {
+
+			long ksp1_strs[N];
+			md_calc_strides(N, ksp1_strs, ksp1_dims, CFL_SIZE);
+
+			long wgh_strs[N];
+			md_calc_strides(N, wgh_strs, wgh_dims, CFL_SIZE);
+
+			md_zmul2(N, ksp1_dims, ksp1_strs, krn, ksp1_strs, krn, wgh_strs, weights);
+			md_zmulc2(N, ksp1_dims, ksp1_strs, krn, ksp1_strs, krn, wgh_strs, weights);
+		}
+
+		return;
+	}
+
+	assert(1 == ksp1_dims[N - 1]);
+	assert(1 == wgh_dims[N - 1]);
+	assert(1 == bas_dims[N - 1]);
+
+	long baT_dims[N];
+	md_copy_dims(N, baT_dims, bas_dims);
+	baT_dims[N - 1] = bas_dims[5];
+	baT_dims[5] = 1;
+
+	long wgT_dims[N];
+	md_copy_dims(N, wgT_dims, wgh_dims);
+	wgT_dims[N - 1] = wgh_dims[5];
+	wgT_dims[5] = 1;
+
+	long max_dims[N];
+	md_max_dims(N, ~0u, max_dims, baT_dims, wgT_dims);
+
+	long max_strs[N];
+	md_calc_strides(N, max_strs, max_dims, CFL_SIZE);
+
+	complex float* tmp = md_alloc(N, max_dims, CFL_SIZE);
+
+	long bas_strs[N];
+	md_calc_strides(N, bas_strs, baT_dims, CFL_SIZE);
+
+	md_copy2(N, max_dims, max_strs, tmp, bas_strs, basis, CFL_SIZE);
+
+	long wgh_strs[N];
+	md_calc_strides(N, wgh_strs, wgT_dims, CFL_SIZE);
+
+	md_zmul2(N, max_dims, max_strs, tmp, max_strs, tmp, wgh_strs, weights);
+	md_zmulc2(N, max_dims, max_strs, tmp, max_strs, tmp, wgh_strs, weights);
+
+	baT_dims[5] = baT_dims[6];
+	baT_dims[6] = 1;
+
+	md_ztenmulc(N, ksp1_dims, krn, max_dims, tmp, baT_dims, basis);
+
+	md_zsmul(N, ksp1_dims, krn, krn, (double)bas_dims[6]);	// FIXME: Why?
+
+	md_free(tmp);
+}
+
+
 complex float* compute_psf(unsigned int N, const long img2_dims[N], const long trj_dims[N], const complex float* traj,
 				const long bas_dims[N], const complex float* basis,
-				const complex float* weights, bool periodic)
+				const long wgh_dims[N], const complex float* weights, bool periodic)
 {
 	long ksp_dims1[N];
-	md_select_dims(N, ~MD_BIT(0), ksp_dims1, trj_dims);
+
+	md_copy_dims(N, ksp_dims1, img2_dims);
+	md_select_dims(3, ~MD_BIT(0), ksp_dims1, trj_dims);
 
 	struct nufft_conf_s conf = nufft_conf_defaults;
 	conf.periodic = periodic;
@@ -124,13 +193,8 @@ complex float* compute_psf(unsigned int N, const long img2_dims[N], const long t
 	struct linop_s* op2 = nufft_create(N, ksp_dims1, img2_dims, trj_dims, traj, NULL, conf);
 
 	complex float* ones = md_alloc(N, ksp_dims1, CFL_SIZE);
-	md_zfill(N, ksp_dims1, ones, 1.);
 
-	if (NULL != weights) {
-
-		md_zmul(N, ksp_dims1, ones, ones, weights);
-		md_zmulc(N, ksp_dims1, ones, ones, weights);
-	}
+	compute_kern(N, ksp_dims1, ones, bas_dims, basis, wgh_dims, weights);
 
 	complex float* psft = md_alloc(N, img2_dims, CFL_SIZE);
 
@@ -144,7 +208,7 @@ complex float* compute_psf(unsigned int N, const long img2_dims[N], const long t
 
 
 static complex float* compute_psf2(int N, const long psf_dims[N + 1], unsigned long flags, const long trj_dims[N + 1], const complex float* traj,
-				const long bas_dims[N + 1], const complex float* basis, const complex float* weights, bool periodic)
+				const long bas_dims[N + 1], const complex float* basis, const long wgh_dims[N + 1], const complex float* weights, bool periodic)
 {
 	int ND = N + 1;
 
@@ -170,7 +234,7 @@ static complex float* compute_psf2(int N, const long psf_dims[N + 1], unsigned l
 	complex float* traj2 = md_alloc(ND, trj_dims, CFL_SIZE);
 	md_zsmul(ND, trj_dims, traj2, traj, 2.);
 
-	complex float* psft = compute_psf(ND, img2_dims, trj_dims, traj2, bas_dims, basis, weights, periodic);
+	complex float* psft = compute_psf(ND, img2_dims, trj_dims, traj2, bas_dims, basis, wgh_dims, weights, periodic);
 	md_free(traj2);
 
 	fftuc(ND, img2_dims, flags, psft, psft);
@@ -219,6 +283,25 @@ struct linop_s* nufft_create2(unsigned int N,
 
 	data->width = 3.;
 	data->beta = calc_beta(2., data->width);
+
+	debug_printf(DP_DEBUG1, "ksp : ");
+	debug_print_dims(DP_DEBUG1, N, ksp_dims);
+	debug_printf(DP_DEBUG1, "cim : \n");
+	debug_print_dims(DP_DEBUG1, N, cim_dims);
+	debug_printf(DP_DEBUG1, "traj: ");
+	debug_print_dims(DP_DEBUG1, N, traj_dims);
+
+	if (NULL != weights) {
+
+		debug_printf(DP_DEBUG1, "wgh : ");
+		debug_print_dims(DP_DEBUG1, N, wgh_dims);
+	}
+
+	if (NULL != basis) {
+
+		debug_printf(DP_DEBUG1, "bas : ");
+		debug_print_dims(DP_DEBUG1, N, bas_dims);
+	}
 
 	// dim 0 must be transformed (we treat this special in the trajectory)
 	assert(MD_IS_SET(data->flags, 0));
@@ -288,7 +371,7 @@ struct linop_s* nufft_create2(unsigned int N,
 
 	if (NULL != basis) {
 
-		conf.toeplitz = false;
+	//	conf.toeplitz = false;
 		assert(!md_check_dimensions(N, bas_dims, (1 << 5) | (1 << 6)));
 
 		data->out_dims[5] = bas_dims[5];	// TE
@@ -373,9 +456,17 @@ struct linop_s* nufft_create2(unsigned int N,
 			if (!MD_IS_SET(data->flags, i))
 				data->psf_dims[i] = data->trj_dims[i];
 
+		if (NULL != basis) {
+
+			assert(1 == data->psf_dims[5]);
+			assert(1 == data->psf_dims[6]);
+			data->psf_dims[6] = data->bas_dims[6];
+			data->psf_dims[5] = data->bas_dims[6];
+		}
+
 		md_calc_strides(ND, data->psf_strs, data->psf_dims, CFL_SIZE);
 
-		data->psf = compute_psf2(N, data->psf_dims, data->flags, data->trj_dims, data->traj, data->bas_dims, data->basis, data->weights, true /*conf.periodic*/);
+		data->psf = compute_psf2(N, data->psf_dims, data->flags, data->trj_dims, data->traj, data->bas_dims, data->basis, data->wgh_dims, data->weights, true /*conf.periodic*/);
 	}
 
 
@@ -383,6 +474,15 @@ struct linop_s* nufft_create2(unsigned int N,
 	data->cml_dims[N + 0] = data->lph_dims[N + 0];
 
 	md_copy_dims(ND, data->cmT_dims, data->cml_dims);
+
+	if (NULL != basis) {
+
+		assert(1 == data->cml_dims[5]);
+		data->cmT_dims[5] = data->cml_dims[6];
+
+		assert(1 == data->cim_dims[5]);
+		data->ciT_dims[5] = data->cim_dims[6];
+	}
 
 	md_calc_strides(ND, data->cml_strs, data->cml_dims, CFL_SIZE);
 

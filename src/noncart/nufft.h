@@ -47,6 +47,7 @@ extern _Complex float* compute_psf(unsigned int N,
 				   const complex float* traj,
 				   const long bas_dims[__VLA(N)],
 				   const complex float* basis,
+				   const long wgh_dims[__VLA(N)],
 				   const complex float* weights,
 				   _Bool periodic);
 

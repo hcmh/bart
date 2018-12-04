@@ -268,16 +268,16 @@ int main_pics(int argc, char* argv[])
 		max_dims[COEFF_DIM] = basis_dims[COEFF_DIM];
 
 		md_copy_dims(DIMS, bmx_dims, max_dims);
-		debug_printf(DP_INFO, "Basis: \n");
+		debug_printf(DP_INFO, "Basis: ");
 		debug_print_dims(DP_INFO, DIMS, bmx_dims);
 
 		max_dims[TE_DIM] = 1;
 
-		debug_printf(DP_INFO, "Max: \n");
+		debug_printf(DP_INFO, "Max:   ");
 		debug_print_dims(DP_INFO, DIMS, max_dims);
 
-		if (NULL != traj_file)
-			nuconf.toeplitz = false;
+//		if (NULL != traj_file)
+//			nuconf.toeplitz = false;
 	}
 
 

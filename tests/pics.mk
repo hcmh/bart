@@ -203,7 +203,7 @@ tests/test-pics-basis-noncart: traj scale phantom delta fmac ones repmat pics nu
 	$(TOOLDIR)/pics -S -r0.001 -t traj2.ra ksp.ra coils.ra reco.ra			;\
 	$(TOOLDIR)/scale 2. reco1.ra reco2.ra						;\
 	$(TOOLDIR)/slice 6 0 reco2.ra reco20.ra						;\
-	$(TOOLDIR)/nrmse -t 0.003 reco.ra reco20.ra					;\
+	$(TOOLDIR)/nrmse -t 0.005 reco.ra reco20.ra					;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
