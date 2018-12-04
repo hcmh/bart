@@ -22,6 +22,7 @@ struct nufft_data {
 	const complex float* psf;	///< Point-spread function (2x size)
 	const complex float* fftmod;	///< FFT modulation for centering
 	const complex float* weights;	///< Weights, ex, density compensation
+	const complex float* basis;
 #ifdef USE_CUDA
 	const complex float* linphase_gpu;
 	const complex float* psf_gpu;
@@ -42,6 +43,9 @@ struct nufft_data {
 	long* lph_dims;			///< Linear phase dimension
 	long* psf_dims;			///< Point spread function dimension
 	long* wgh_dims;			///< Weights dimension
+	long* bas_dims;
+	long* out_dims;
+	long* max_dims;
 
 	//!
 	long* cm2_dims;			///< 2x oversampled coil image dimension
@@ -54,6 +58,8 @@ struct nufft_data {
 	long* lph_strs;
 	long* psf_strs;
 	long* wgh_strs;
+	long* bas_strs;
+	long* out_strs;
 
 	const struct linop_s* cfft_op;   ///< Pcycle FFT operator
 	unsigned int cycle;
