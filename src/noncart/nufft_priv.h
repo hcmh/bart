@@ -45,7 +45,6 @@ struct nufft_data {
 	long* wgh_dims;			///< Weights dimension
 	long* bas_dims;
 	long* out_dims;
-	long* max_dims;
 
 	//!
 	long* cm2_dims;			///< 2x oversampled coil image dimension

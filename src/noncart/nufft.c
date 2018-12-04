@@ -238,7 +238,6 @@ struct linop_s* nufft_create2(unsigned int N,
 	data->wgh_dims = *TYPE_ALLOC(long[ND]);
 	data->bas_dims = *TYPE_ALLOC(long[ND]);
 	data->out_dims = *TYPE_ALLOC(long[ND]);
-	data->max_dims = *TYPE_ALLOC(long[ND]);
 
 	data->ksp_strs = *TYPE_ALLOC(long[ND]);
 	data->cim_strs = *TYPE_ALLOC(long[ND]);
@@ -259,7 +258,6 @@ struct linop_s* nufft_create2(unsigned int N,
 	data->ksp_dims[N] = 1;
 
 	md_copy_dims(ND, data->out_dims, data->ksp_dims);
-	md_copy_dims(ND, data->max_dims, data->ksp_dims);
 
 
 	md_select_dims(ND, data->flags, data->img_dims, data->cim_dims);
@@ -287,7 +285,17 @@ struct linop_s* nufft_create2(unsigned int N,
 
 	if (NULL != basis) {
 
+		conf.toeplitz = false;
 		assert(!md_check_dimensions(N, bas_dims, (1 << 5) | (1 << 6)));
+
+		data->out_dims[5] = bas_dims[5];	// TE
+		data->out_dims[6] = 1;			// COEFF
+		assert(1 == data->ksp_dims[5]);
+		assert(data->ksp_dims[6] == bas_dims[6]);
+
+		// recompute
+		md_calc_strides(ND, data->out_strs, data->out_dims, CFL_SIZE);
+
 
 		md_copy_dims(N, data->bas_dims, bas_dims);
 		data->bas_dims[N] = 1;
@@ -303,7 +311,7 @@ struct linop_s* nufft_create2(unsigned int N,
 
 	data->weights = NULL;
 
-	if ((NULL != weights) && (NULL == basis)) {
+	if (NULL != weights) {
 
 		md_copy_dims(N, data->wgh_dims, wgh_dims);
 		data->wgh_dims[N] = 1;
@@ -398,44 +406,8 @@ struct linop_s* nufft_create2(unsigned int N,
 	long out_dims[N];
 	md_copy_dims(N, out_dims, data->out_dims);
 
-	struct linop_s* nu = linop_create(N, out_dims, N, cim_dims,
+	return linop_create(N, out_dims, N, cim_dims,
 			CAST_UP(PTR_PASS(data)), nufft_apply, nufft_apply_adjoint, nufft_apply_normal, NULL, nufft_free_data);
-
-
-	if (NULL != basis) {
-
-		assert(!md_check_dimensions(N, bas_dims, (1 << 5) | (1 << 6)));
-
-		long max_dims[N];
-		md_copy_dims(N, max_dims, ksp_dims);
-
-		max_dims[5] = bas_dims[5];	// TE
-		assert(ksp_dims[6] == bas_dims[6]); // COEFF
-
-		unsigned int oflags = (1 << 6);
-		unsigned int iflags = (1 << 5);
-		unsigned int bflags = ~((1 << 5) | (1 << 6));
-
-		const struct linop_s* bs = linop_fmac_create(N, max_dims, oflags, iflags, bflags, basis);
-		struct linop_s* nu2 = linop_chain_FF(nu, bs);
-
-		nu = nu2;
-
-		if (NULL != weights) {
-
-			long odims[N];
-			md_select_dims(N, ~oflags, odims, max_dims);
-
-			unsigned int wflags = md_nontriv_dims(N, wgh_dims);
-
-			const struct linop_s* ww = linop_cdiag_create(N, odims, wflags, weights);
-			struct linop_s* nu3 = linop_chain_FF(nu, ww);
-
-			nu = nu3;
-		}
-	}
-
-	return nu;
 }
 
 
@@ -472,7 +444,6 @@ static void nufft_free_data(const linop_data_t* _data)
 	xfree(data->wgh_dims);
 	xfree(data->bas_dims);
 	xfree(data->out_dims);
-	xfree(data->max_dims);
 
 	xfree(data->ksp_strs);
 	xfree(data->cim_strs);
@@ -526,7 +497,6 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 	linop_forward(data->fft_op, ND, data->cml_dims, grid, ND, data->cml_dims, grid);
 	md_zmul2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, data->fftmod);
 
-	md_clear(ND, data->ksp_dims, dst, CFL_SIZE);
 
 	complex float* gridX = md_alloc(data->N, data->cm2_dims, CFL_SIZE);
 
@@ -546,9 +516,21 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 		.beta = data->beta,
 	};
 
-	grid2H(&conf, ND, data->trj_dims, data->traj, data->ksp_dims, dst, data->cm2_dims, gridX);
+	complex float* tmp = dst;
+
+	if (NULL != data->basis)
+		tmp = md_alloc(ND, data->ksp_dims, CFL_SIZE);
+
+	md_clear(ND, data->ksp_dims, tmp, CFL_SIZE);
+	grid2H(&conf, ND, data->trj_dims, data->traj, data->ksp_dims, tmp, data->cm2_dims, gridX);
 
 	md_free(gridX);
+
+	if (NULL != data->basis) {
+
+		md_ztenmul(data->N, data->out_dims, dst, data->ksp_dims, tmp, data->bas_dims, data->basis);
+		md_free(tmp);
+	}
 
 	if (NULL != data->weights)
 		md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->out_strs, dst, data->wgh_strs, data->weights);
@@ -574,6 +556,15 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 		src = wdat;
 	}
 
+	complex float* bdat = NULL;
+
+	if (NULL != data->basis) {
+
+		bdat = md_alloc(data->N, data->ksp_dims, CFL_SIZE);
+		md_ztenmulc(data->N, data->ksp_dims, bdat, data->out_dims, src, data->bas_dims, data->basis);
+		src = bdat;
+	}
+
 	struct grid_conf_s conf = {
 
 		.width = data->width,
@@ -586,6 +577,7 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 
 	grid2(&conf, ND, data->trj_dims, data->traj, data->cm2_dims, gridX, data->ksp_dims, src);
 
+	md_free(bdat);
 	md_free(wdat);
 
 	long factors[data->N];
@@ -734,7 +726,7 @@ static void nufft_apply_normal(const linop_data_t* _data, complex float* dst, co
 
 	} else {
 
-		complex float* tmp_ksp = md_alloc(data->N + 1, data->ksp_dims, CFL_SIZE);
+		complex float* tmp_ksp = md_alloc(data->N + 1, data->out_dims, CFL_SIZE);
 
 		nufft_apply(_data, tmp_ksp, src);
 		nufft_apply_adjoint(_data, dst, tmp_ksp);
