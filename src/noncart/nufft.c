@@ -238,6 +238,8 @@ struct linop_s* nufft_create2(unsigned int N,
 	data->wgh_dims = *TYPE_ALLOC(long[ND]);
 	data->bas_dims = *TYPE_ALLOC(long[ND]);
 	data->out_dims = *TYPE_ALLOC(long[ND]);
+	data->ciT_dims = *TYPE_ALLOC(long[ND]);
+	data->cmT_dims = *TYPE_ALLOC(long[ND]);
 
 	data->ksp_strs = *TYPE_ALLOC(long[ND]);
 	data->cim_strs = *TYPE_ALLOC(long[ND]);
@@ -257,6 +259,7 @@ struct linop_s* nufft_create2(unsigned int N,
 	md_copy_dims(N, data->ksp_dims, ksp_dims);
 	data->ksp_dims[N] = 1;
 
+	md_copy_dims(ND, data->ciT_dims, data->cim_dims);
 	md_copy_dims(ND, data->out_dims, data->ksp_dims);
 
 
@@ -379,6 +382,7 @@ struct linop_s* nufft_create2(unsigned int N,
 	md_copy_dims(ND, data->cml_dims, data->cim_dims);
 	data->cml_dims[N + 0] = data->lph_dims[N + 0];
 
+	md_copy_dims(ND, data->cmT_dims, data->cml_dims);
 
 	md_calc_strides(ND, data->cml_strs, data->cml_dims, CFL_SIZE);
 
@@ -444,6 +448,8 @@ static void nufft_free_data(const linop_data_t* _data)
 	xfree(data->wgh_dims);
 	xfree(data->bas_dims);
 	xfree(data->out_dims);
+	xfree(data->ciT_dims);
+	xfree(data->cmT_dims);
 
 	xfree(data->ksp_strs);
 	xfree(data->cim_strs);
@@ -637,19 +643,23 @@ static void toeplitz_mult(const struct nufft_data* data, complex float* dst, con
 	}
 #endif
 	complex float* grid = md_alloc_sameplace(ND, data->cml_dims, CFL_SIZE, dst);
-	complex float* gridT = grid;
 
 	md_zmul2(ND, data->cml_dims, data->cml_strs, grid, data->cim_strs, src, data->lph_strs, linphase);
 
 	linop_forward(data->fft_op, ND, data->cml_dims, grid, ND, data->cml_dims, grid);
 
-	md_zmul2(ND, data->cml_dims, data->cml_strs, gridT, data->cml_strs, grid, data->psf_strs, psf);
+	complex float* gridT = md_alloc_sameplace(ND, data->cmT_dims, CFL_SIZE, dst);
 
-	linop_adjoint(data->fft_op, ND, data->cml_dims, grid, ND, data->cml_dims, gridT);
+	md_ztenmul(ND, data->cmT_dims, gridT, data->cml_dims, grid, data->psf_dims, psf);
+
+	md_free(grid);
+
+	linop_adjoint(data->fft_op, ND, data->cml_dims, gridT, ND, data->cml_dims, gridT);
 
 	md_clear(ND, data->cim_dims, dst, CFL_SIZE);
-	md_zfmacc2(ND, data->cml_dims, data->cim_strs, dst, data->cml_strs, grid, data->lph_strs, linphase);
-	md_free(grid);
+	md_zfmacc2(ND, data->cml_dims, data->cim_strs, dst, data->cml_strs, gridT, data->lph_strs, linphase);
+
+	md_free(gridT);
 }
 
 
@@ -676,12 +686,18 @@ static void toeplitz_mult_lowmem(const struct nufft_data* data, int i, complex f
 	md_zmul2(data->N, data->cim_dims, data->cim_strs, grid, data->cim_strs, src, data->img_strs, clinphase);
 
 	linop_forward(data->cfft_op, data->N, data->cim_dims, grid, data->N, data->cim_dims, grid);
-	md_zmul2(data->N, data->cim_dims, data->cim_strs, grid, data->cim_strs, grid, data->img_strs, cpsf);
-	linop_adjoint(data->cfft_op, data->N, data->cim_dims, grid, data->N, data->cim_dims, grid);
 
-	md_zfmacc2(data->N, data->cim_dims, data->cim_strs, dst, data->cim_strs, grid, data->img_strs, clinphase);
+	complex float* gridT = md_alloc_sameplace(data->N, data->ciT_dims, CFL_SIZE, dst);
+
+	md_ztenmul(data->N, data->ciT_dims, gridT, data->cim_dims, grid, data->img_dims, cpsf);
 
 	md_free(grid);
+
+	linop_adjoint(data->cfft_op, data->N, data->cim_dims, gridT, data->N, data->cim_dims, gridT);
+
+	md_zfmacc2(data->N, data->cim_dims, data->cim_strs, dst, data->cim_strs, gridT, data->img_strs, clinphase);
+
+	md_free(gridT);
 }
 
 
