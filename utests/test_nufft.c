@@ -50,6 +50,39 @@ static struct linop_s* create_nufft(bool toeplitz, bool use_weights)
 }
 
 
+static const long ci2_dims[N] = { 8, 8, 1, 1, 1, 1, 2, 1 };
+static const long ks2_dims[N] = { 1, 5, 1, 1, 1, 1, 2, 1 };
+static const long bas_dims[N] = { 1, 1, 1, 1, 1, 2, 2, 1 };
+
+static struct linop_s* create_nufft2(bool toeplitz)
+{
+	const complex float traj[5][3] = {
+		{ 0., 0. , 0. },
+		{ 1., 0. , 0. },
+		{ 0., 1. , 0. },
+		{ -1., 0., 0. },
+		{ 0., -1., 0. },
+	};
+
+	const complex float weights[5] = {
+		0.5, 0.5, 0.5, 0.5, 0.5
+	};
+
+	const complex float basis[20] = {
+		1., 1., 1., 1., 1.,
+		0.1, 0.1, 0.1, 0.1, 0.1,
+		0.2, 0.2, 0.2, 0.2, 0.2,
+		1., 1., 1., 1., 1.,
+	};
+
+	struct nufft_conf_s conf = nufft_conf_defaults;
+	conf.toeplitz = toeplitz;
+
+	return nufft_create2(N, ks2_dims, ci2_dims, trj_dims, &traj[0][0], ks2_dims, weights, bas_dims, basis, conf);
+}
+
+
+
 static bool test_nufft_forward(void)
 {
 
@@ -140,6 +173,57 @@ static bool test_nufft_toeplitz_weights(void)
 }
 
 
+static bool test_nufft_basis_adjoint(void)
+{
+	struct linop_s* op = create_nufft2(false);
+
+	float diff = linop_test_adjoint(op);
+
+	debug_printf(DP_DEBUG1, "adjoint diff: %f\n", diff);
+
+	bool ret = (diff < 1.E-6f);
+
+	linop_free(op);
+
+	return ret;
+}
+
+
+static bool test_nufft_basis_normal(void)
+{
+	struct linop_s* op = create_nufft2(false);
+
+	float nrmse = linop_test_normal(op);
+
+	debug_printf(DP_DEBUG1, "normal nrmse: %f\n", nrmse);
+
+	bool ret = (nrmse < 1.E-7f);
+
+	linop_free(op);
+
+	return ret;
+}
+
+
+static bool test_nufft_basis_toeplitz(void)
+{
+	complex float src[128];
+	complex float dst1[128] = { 0 };
+	complex float dst2[128] = { 0 };
+
+	md_gaussian_rand(N, ci2_dims, src);
+
+	struct linop_s* op1 = create_nufft2(false);
+	linop_normal(op1, N, ci2_dims, dst1, src);
+	linop_free(op1);
+
+	struct linop_s* op2 = create_nufft2(true);
+	linop_normal(op2, N, ci2_dims, dst2, src);
+	linop_free(op2);
+
+	return md_znrmse(N, ci2_dims, dst1, dst2) < 0.01;
+}
+
 
 
 
@@ -149,5 +233,8 @@ UT_REGISTER_TEST(test_nufft_adjoint);
 UT_REGISTER_TEST(test_nufft_normal);
 UT_REGISTER_TEST(test_nufft_toeplitz_weights);
 UT_REGISTER_TEST(test_nufft_toeplitz_noweights);
+UT_REGISTER_TEST(test_nufft_basis_adjoint);
+UT_REGISTER_TEST(test_nufft_basis_normal);
+UT_REGISTER_TEST(test_nufft_basis_toeplitz);
 
 
