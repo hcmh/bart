@@ -54,25 +54,27 @@ static struct linop_s* create_nufft(bool toeplitz, bool use_weights)
 static const long ci2_dims[N] = { 8, 8, 1, 1, 1, 1, 2, 1 };
 static const long ks2_dims[N] = { 1, 5, 1, 1, 1, 1, 2, 1 };
 static const long tr2_dims[N] = { 3, 5, 1, 1, 1, 1, 1, 1 };
-static const long bas_dims[N] = { 1, 1, 1, 1, 1, 2, 2, 1 };
+static const long bas_dims[N] = { 1, 1, 1, 1, 1, 3, 2, 1 };
+static const long wg2_dims[N] = { 1, 5, 1, 1, 1, 3, 1, 1 };
 
 
 
 static struct linop_s* create_nufft2(bool toeplitz)
 {
-	const complex float weights[10] = {
+	const complex float weights[15] = {
+		0.5, 0.5, 0.5, 0.5, 0.5,
 		0.5, 0.5, 0.5, 0.5, 0.5,
 		0.5, 0.5, 0.5, 0.5, 0.5,
 	};
 
-	const complex float basis[4] = {
-		1., 0., 0., 1,
+	const complex float basis[6] = {
+		1., 0., 1., 0., 1., 0.,
 	};
 
 	struct nufft_conf_s conf = nufft_conf_defaults;
 	conf.toeplitz = toeplitz;
 
-	return nufft_create2(N, ks2_dims, ci2_dims, tr2_dims, &traj[0][0], ks2_dims, weights, bas_dims, basis, conf);
+	return nufft_create2(N, ks2_dims, ci2_dims, tr2_dims, &traj[0][0], wg2_dims, weights, bas_dims, basis, conf);
 }
 
 
@@ -208,7 +210,6 @@ static bool test_nufft_basis_toeplitz(void)
 	assert(128 == md_calc_size(N, ci2_dims));
 
 	md_gaussian_rand(N, ci2_dims, src);
-//	md_zfill(N, ci2_dims, src, 1.);
 
 	struct linop_s* op1 = create_nufft2(false);
 	linop_normal(op1, N, ci2_dims, dst1, src);

@@ -791,7 +791,7 @@ static void toeplitz_mult_lowmem(const struct nufft_data* data, int i, complex f
 
 	complex float* gridT = md_alloc_sameplace(data->N, data->ciT_dims, CFL_SIZE, dst);
 
-	md_ztenmul(data->N, data->ciT_dims, gridT, data->cim_dims, grid, data->img_dims, cpsf);
+	md_ztenmul(data->N, data->ciT_dims, gridT, data->cim_dims, grid, data->psf_dims, cpsf);
 
 	md_free(grid);
 
