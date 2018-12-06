@@ -22,3 +22,4 @@ struct laplace_conf {
 extern const struct laplace_conf laplace_conf_default;
 
 extern void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float* L, const long src_dims[2], const complex float* src);
+extern void kmeans(long centroids_dims[2], complex float* centroids, long src_dims[2], complex float* src, complex float* lables, const float eps, const long update_max);

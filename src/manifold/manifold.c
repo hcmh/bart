@@ -135,3 +135,115 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 	md_free(dist);
 
 }
+
+void kmeans(long centroids_dims[2], complex float* centroids, long src_dims[2], complex float* src, complex float* lables, const float eps, long update_max)
+{
+	long k = centroids_dims[1];
+	long n_coord = src_dims[0];
+	long n_samp = src_dims[1];
+
+	long centroids_strs[2];
+	md_calc_strides(2, centroids_strs, centroids_dims, CFL_SIZE);
+
+	long sample_dims[2];
+	sample_dims[0] = n_coord;
+	sample_dims[1] = 1;
+
+	long clustersize_dims[2];
+	clustersize_dims[0] = 1;
+	clustersize_dims[1] = k;
+
+	long clustersize_strs[2];
+	md_calc_strides(2, clustersize_strs, clustersize_dims, CFL_SIZE);
+
+	complex float* centroids_buffer = md_alloc(2, centroids_dims, CFL_SIZE);
+	complex float* sample = md_alloc(2, sample_dims, CFL_SIZE);
+	complex float* sample_buffer = md_alloc(2, sample_dims, CFL_SIZE);
+	complex float* centroid = md_alloc(2, sample_dims, CFL_SIZE);
+	complex float* diff = md_alloc(2, sample_dims, CFL_SIZE);
+	complex float* dist = malloc(sizeof(complex float));
+	complex float* clustersize =  md_alloc(2, clustersize_dims, CFL_SIZE);
+
+	float min_dist;
+	long pos[2] = { 0 };
+	long update_count = 0;
+	float error_old = __FLT_MAX__;
+	float error = 0;
+
+	// Initialize centroids
+	long delta = (long)floor(n_samp / k);
+	for (int i = 0; i < k; i++)
+		for (int j =0; j < n_coord; j++)
+			centroids[i * n_coord + j] = src[i * delta * n_coord + j];
+
+
+	long lable;
+
+	// kmeans start
+	while (fabs(error - error_old) / (1. * n_samp) > eps) {
+
+		// Clear
+		error_old = error;
+		error = 0;
+		md_clear(2, clustersize_dims, clustersize, CFL_SIZE);
+		md_clear(2, centroids_dims, centroids_buffer, CFL_SIZE);
+
+
+		// For all samples...
+		for (int l = 0; l < n_samp; l++) {
+
+			min_dist = __FLT_MAX__;
+
+			//... pick sample
+			pos[1] = l;
+			md_copy_block(2, pos, sample_dims, sample_buffer, src_dims, src, CFL_SIZE);
+
+			// ... determine closest centroid
+			for (int i = 0; i < k; i++) {
+				pos[1] = i;
+				md_copy_block(2, pos, sample_dims, centroid, centroids_dims, centroids, CFL_SIZE);
+				md_zsub(2, sample_dims, diff, sample_buffer, centroid);
+				md_zrss(2, sample_dims, 1, dist, diff);
+
+				if (crealf(*dist) < min_dist) { // new closest centroid found
+					min_dist = crealf(*dist);
+					lables[l] = i + 0i;
+					md_copy(2, sample_dims, sample, sample_buffer, CFL_SIZE);
+				}
+			}
+
+			lable = (long)lables[l];
+
+			// ... account the sample's contribution to new centroid position
+			md_zadd(2, sample_dims, centroids_buffer + (n_coord * lable), centroids_buffer + (n_coord * lable), sample);
+			clustersize[lable] += 1. + 0j;
+
+			error += min_dist;
+
+		}
+
+		// ... account for averaging
+		md_zdiv2(2, centroids_dims, centroids_strs, centroids, centroids_strs, centroids_buffer, clustersize_strs, clustersize);
+
+
+		// Prevent infinite loop
+		update_count++;
+
+		if (update_count > update_max) {
+			debug_printf(DP_INFO, "Desired accuracy not reached within %d updates! \
+			Try again with more updates [-u].\n  Relative error: %f\n", update_max, fabs(error - error_old) / (1. * n_samp));
+			break;
+		}
+
+		debug_printf(DP_DEBUG3, "relative error: %f \n", fabs(error - error_old) / (1. * n_samp));
+	}
+
+	md_free(centroids_buffer);
+	md_free(sample);
+	md_free(sample_buffer);
+	md_free(centroid);
+	md_free(diff);
+	md_free(clustersize);
+	free(dist);
+
+}
