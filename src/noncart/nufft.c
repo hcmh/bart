@@ -286,7 +286,7 @@ struct linop_s* nufft_create2(unsigned int N,
 
 	debug_printf(DP_DEBUG1, "ksp : ");
 	debug_print_dims(DP_DEBUG1, N, ksp_dims);
-	debug_printf(DP_DEBUG1, "cim : \n");
+	debug_printf(DP_DEBUG1, "cim : ");
 	debug_print_dims(DP_DEBUG1, N, cim_dims);
 	debug_printf(DP_DEBUG1, "traj: ");
 	debug_print_dims(DP_DEBUG1, N, traj_dims);
@@ -479,9 +479,11 @@ struct linop_s* nufft_create2(unsigned int N,
 
 		assert(1 == data->cml_dims[5]);
 		data->cmT_dims[5] = data->cml_dims[6];
+		data->cmT_dims[6] = 1;
 
 		assert(1 == data->cim_dims[5]);
 		data->ciT_dims[5] = data->cim_dims[6];
+		data->ciT_dims[6] = 1;
 	}
 
 	md_calc_strides(ND, data->cml_strs, data->cml_dims, CFL_SIZE);
