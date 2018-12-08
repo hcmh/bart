@@ -110,30 +110,30 @@ static complex float* compute_linphases(int N, long lph_dims[N + 1], unsigned lo
 }
 
 
-static void compute_kern(unsigned int N, const long ksp1_dims[N], complex float* krn,
+static void compute_kern(unsigned int N, const long krn_dims[N], complex float* krn,
 				const long bas_dims[N], const complex float* basis,
 				const long wgh_dims[N], const complex float* weights)
 {
 	if (NULL == basis) {
 
-		md_zfill(N, ksp1_dims, krn, 1.);
+		md_zfill(N, krn_dims, krn, 1.);
 
 		if (NULL != weights) {
 
-			long ksp1_strs[N];
-			md_calc_strides(N, ksp1_strs, ksp1_dims, CFL_SIZE);
+			long krn_strs[N];
+			md_calc_strides(N, krn_strs, krn_dims, CFL_SIZE);
 
 			long wgh_strs[N];
 			md_calc_strides(N, wgh_strs, wgh_dims, CFL_SIZE);
 
-			md_zmul2(N, ksp1_dims, ksp1_strs, krn, ksp1_strs, krn, wgh_strs, weights);
-			md_zmulc2(N, ksp1_dims, ksp1_strs, krn, ksp1_strs, krn, wgh_strs, weights);
+			md_zmul2(N, krn_dims, krn_strs, krn, krn_strs, krn, wgh_strs, weights);
+			md_zmulc2(N, krn_dims, krn_strs, krn, krn_strs, krn, wgh_strs, weights);
 		}
 
 		return;
 	}
 
-	assert(1 == ksp1_dims[N - 1]);
+	assert(1 == krn_dims[N - 1]);
 	assert(1 == wgh_dims[N - 1]);
 	assert(1 == bas_dims[N - 1]);
 
@@ -153,25 +153,44 @@ static void compute_kern(unsigned int N, const long ksp1_dims[N], complex float*
 	long max_strs[N];
 	md_calc_strides(N, max_strs, max_dims, CFL_SIZE);
 
-	complex float* tmp = md_alloc(N, max_dims, CFL_SIZE);
-
 	long bas_strs[N];
-	md_calc_strides(N, bas_strs, baT_dims, CFL_SIZE);
+	md_calc_strides(N, bas_strs, bas_dims, CFL_SIZE);
 
-	md_copy2(N, max_dims, max_strs, tmp, bas_strs, basis, CFL_SIZE);
+	long baT_strs[N];
+	md_copy_strides(N, baT_strs, bas_strs);
+	baT_strs[N - 1] = bas_strs[5];
+	baT_strs[5] = 0;
 
 	long wgh_strs[N];
-	md_calc_strides(N, wgh_strs, wgT_dims, CFL_SIZE);
+	md_calc_strides(N, wgh_strs, wgh_dims, CFL_SIZE);
 
-	md_zmul2(N, max_dims, max_strs, tmp, max_strs, tmp, wgh_strs, weights);
-	md_zmulc2(N, max_dims, max_strs, tmp, max_strs, tmp, wgh_strs, weights);
+	long wgT_strs[N];
+	md_copy_strides(N, wgT_strs, wgh_strs);
+	wgT_strs[N - 1] = wgh_strs[5];
+	wgT_strs[5] = 0;
+
+	complex float* tmp = md_alloc(N, max_dims, CFL_SIZE);
+
+	md_copy2(N, max_dims, max_strs, tmp, baT_strs, basis, CFL_SIZE);
+
+	md_zmul2(N, max_dims, max_strs, tmp, max_strs, tmp, wgT_strs, weights);
+	md_zmulc2(N, max_dims, max_strs, tmp, max_strs, tmp, wgT_strs, weights);
 
 	baT_dims[5] = baT_dims[6];
 	baT_dims[6] = 1;
 
-	md_ztenmulc(N, ksp1_dims, krn, max_dims, tmp, baT_dims, basis);
+	baT_strs[5] = baT_strs[6];
+	baT_strs[6] = 0;
 
-	md_zsmul(N, ksp1_dims, krn, krn, (double)bas_dims[6]);	// FIXME: Why?
+	long krn_strs[N];
+	md_calc_strides(N, krn_strs, krn_dims, CFL_SIZE);
+
+	long ma2_dims[N];
+	md_tenmul_dims(N, ma2_dims, krn_dims, max_dims, baT_dims);
+
+	md_ztenmulc2(N, ma2_dims, krn_strs, krn, max_strs, tmp, baT_strs, basis);
+
+	md_zsmul(N, krn_dims, krn, krn, (double)bas_dims[6]);	// FIXME: Why?
 
 	md_free(tmp);
 }
