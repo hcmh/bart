@@ -1,45 +1,38 @@
 
-Contributors:
+We want to acknowledge the following persons for supporting
+BART by contributing source code, testing, feedback, data,
+bug reports, etc.
 
-(source code and bug fixes)
 
+(alphabetrical)
+
+Marcus T. Alley
+Michael Anderson
+Jakob Asslaender
 Dara Bahri
+Soumick Chatterjee
 Joseph Y. Cheng
-Nguyen Damien
+Sofia Dimoudi
 Siddharth Iyer
 Hans Johnson
 Christian Holme
 Gregory R. Lee
+Evan G. Levine
 Tim Loderhose
+Michael Lustig
+Lyu Mengye
+Damien Nguyen
 Frank Ong
+Sebastian Rosenzweig
+Nick Scholand
 David Smith
 Jonathan I. Tamir
-Martin Uecker
-Patrick Virtue
-
-(other)
-
-Marcus T. Alley (data)
-Michael Lustig (funding)
 Michelle Tamir (logo)
-Sana Vaziri (examples)
-Shreyas S. Vasanawala (data)
-Tao Zhang (data)
-
-
-
-Different parts of this software have been written for
-projects funded by:
-
-American Heart Association Grant 12BGIA9660006
-NIH Grant P41RR09784 and Grant R01EB009690
-UC Discovery Grant 193037
-Sloan Research Fellowship
-GE Healthcare
-A personal donation by David Donoho
-German Centre for Cardiovascular Research (DZHK)
-Physics-to-Medicine Initiative Göttingen (LM der Niedersachsischen Vorab)
-
-
-
+Johannes Toger
+Martin Uecker
+Shreyas S. Vasanawala
+Sana Vaziri
+Patrick Virtue
+Simon Yeung
+Tao Zhang
 
