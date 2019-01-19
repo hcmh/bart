@@ -1,9 +1,9 @@
 /* Copyright 2015. The Regents of the University of California.
- * Copyright 2018. Martin Uecker.
+ * Copyright 2018-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * 2015-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2015-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2015 Jonathan Tamir <jtamir@eecs.berkeley.edu>
  */
 
@@ -16,7 +16,8 @@
 
 #define _GNU_SOURCE
 
-#include <stdlib.h>
+#include <limits.h>
+#include <stddef.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -28,6 +29,10 @@
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+
+#ifdef HAVE_UUID
+#include <uuid/uuid.h>
+#endif
 
 #include "misc/misc.h" // for error
 
@@ -67,6 +72,9 @@
 #define DTAG_IMAGE_INSTANCE_NUM		0x0013
 #define DTAG_COMMENT			0x4000
 
+#define DTAG_STUDY_INSTANCE_UID		0x000D
+#define DTAG_SERIES_INSTANCE_UID	0x000E
+
 
 
 // order matters...
@@ -74,6 +82,10 @@ enum eoffset {
 
 	ITAG_META_SIZE,
 	ITAG_TRANSFER_SYNTAX, 
+#ifdef HAVE_UUID
+	ITAG_STUDY_INSTANCE_UID,
+	ITAG_SERIES_INSTANCE_UID,
+#endif
 	ITAG_IMAGE_INSTANCE_NUM, 
 	ITAG_COMMENT,
 	ITAG_IMAGE_SAMPLES_PER_PIXEL, 
@@ -111,6 +123,10 @@ struct element dicom_elements_default[] = {
 
 	[ITAG_META_SIZE] = { { DGRP_FILE, DTAG_META_SIZE }, "UL", 4, &(uint32_t){ 28 } },
 	[ITAG_TRANSFER_SYNTAX] = { { DGRP_FILE, DTAG_TRANSFER_SYNTAX }, "UI", sizeof(LITTLE_ENDIAN_EXPLICIT), LITTLE_ENDIAN_EXPLICIT },
+#ifdef HAVE_UUID
+	[ITAG_STUDY_INSTANCE_UID] = { { DGRP_IMAGE2, DTAG_STUDY_INSTANCE_UID }, "UI", 0, NULL },
+	[ITAG_SERIES_INSTANCE_UID] = { { DGRP_IMAGE2, DTAG_SERIES_INSTANCE_UID }, "UI", 0, NULL },
+#endif
 	[ITAG_IMAGE_INSTANCE_NUM] = { { DGRP_IMAGE2, DTAG_IMAGE_INSTANCE_NUM }, "IS", 0, NULL },
 	[ITAG_COMMENT] = { { DGRP_IMAGE2, DTAG_COMMENT }, "LT", 22, "NOT FOR DIAGNOSTIC USE\0\0" },
 	[ITAG_IMAGE_SAMPLES_PER_PIXEL] = { { DGRP_IMAGE, DTAG_IMAGE_SAMPLES_PER_PIXEL }, "US", 2, &(uint16_t){ 1 } }, 		// gray scale
@@ -245,9 +261,90 @@ static int dicom_tag_compare(const struct tag a, const struct tag b)
 }
 
 
+static int double_dabble(int l, char bcd[l], int n, const unsigned char in[n])
+{
+	int s = l - 1;
+
+	_Static_assert(CHAR_BIT == 8, "bits per char not 8");
+
+	for (int i = 0; i < n; i++) {
+
+		for (int j = 0; j < 8; j++) {	// 8 bits per char
+
+			for (int k = s; k < l; k++)
+				if (bcd[k] % 16 >= 5)
+					bcd[k] += 3;
+
+			if (bcd[s] >= 8)
+				s--;
+
+			for (int k = s; k < l; k++) {
+
+				bcd[k] *= 2;
+				bcd[k] %= 16;
+				bcd[k] |= (k == l - 1)
+						? (0 != (in[i] & (1 << (7 - j))))	// 8 bits per char
+						: (bcd[k + 1] >= 8);
+			}
+		}
+	}
+
+	return s;
+}
+
+void dicom_generate_uid(char buf[64])
+{
+	assert(NULL != buf);
+
+	memset(buf, 0, 64);
+	strcpy(buf, "2.25.");
 
 
-int dicom_write(const char* name, unsigned int cols, unsigned int rows, long inum, const unsigned char* img)
+#ifndef HAVE_UUID
+	(void)double_dabble;
+	assert(0);
+#else
+	uuid_t uuid;
+	uuid_generate(uuid);
+
+#if 0
+	char hex[40];
+	uuid_unparse(uuid, hex);
+	printf("%s\n", hex);
+	// convert digits back to hex: bc <<< "obase=16; XXXXX"
+#endif
+
+	char digits[41] = { 0 };
+	int s = double_dabble(40, digits, 16, uuid);
+
+	for (int j = 0; j < 40; j++)
+		digits[j] += '0';
+
+	while ('0' == digits[s])
+		s++;
+
+	assert('\0' != digits[s]);
+
+	strcpy(buf + 5, digits + s);
+#endif
+}
+
+static int dicom_len(const char* x)
+{
+	int len = strlen(x);
+
+	assert(0 == x[len]);
+
+	if (1 == len % 2)
+		len++;
+
+	assert(0 == x[len]);
+
+	return len;
+}
+
+
+int dicom_write(const char* name, const char study_uid[64], const char series_uid[64], unsigned int cols, unsigned int rows, long inum, const unsigned char* img)
 {
 	int fd;
 	void* addr;
@@ -268,12 +365,22 @@ int dicom_write(const char* name, unsigned int cols, unsigned int rows, long inu
 
 	dicom_elements[ITAG_IMAGE_ROWS].data = &(uint16_t){ rows };
 	dicom_elements[ITAG_IMAGE_COLS].data = &(uint16_t){ cols };
+#ifdef HAVE_UUID
+	dicom_elements[ITAG_STUDY_INSTANCE_UID].data = study_uid;
+	dicom_elements[ITAG_STUDY_INSTANCE_UID].len = dicom_len(study_uid);
 
-	char inst_num[12]; // max number of bytes for InstanceNumber tag
+	dicom_elements[ITAG_SERIES_INSTANCE_UID].data = series_uid;
+	dicom_elements[ITAG_SERIES_INSTANCE_UID].len = dicom_len(series_uid);
+#else
+	(void)study_uid;
+	(void)series_uid;
+#endif
+	char inst_num[12] = { 0 }; // max number of bytes for InstanceNumber tag
 	sprintf(inst_num, "+%04ld", inum);
 
-//	dicom_elements[ITAG_IMAGE_INSTANCE_NUM].data = inst_num;
-//	dicom_elements[ITAG_IMAGE_INSTANCE_NUM].len = sizeof(inst_num);
+	dicom_elements[ITAG_IMAGE_INSTANCE_NUM].data = inst_num;
+	dicom_elements[ITAG_IMAGE_INSTANCE_NUM].len = dicom_len(inst_num);
+
 
 	dicom_elements[ITAG_PIXEL_DATA].data = img;
 	dicom_elements[ITAG_PIXEL_DATA].len = 2 * rows * cols;
@@ -401,7 +508,9 @@ unsigned char* dicom_read(const char* name, int dims[2])
 	off += *(uint32_t*)dicom_elements[ITAG_META_SIZE].data;
 	implicit = (0 == memcmp(dicom_elements[ITAG_TRANSFER_SYNTAX].data, LITTLE_ENDIAN_IMPLICIT, dicom_elements[ITAG_TRANSFER_SYNTAX].len)); // FIXME
 
-	if (!dicom_query(len - off, buf + off, implicit, NR_ENTRIES - 4, dicom_elements + 4))
+	int skip = 6;
+
+	if (!dicom_query(len - off, buf + off, implicit, NR_ENTRIES - skip, dicom_elements + skip))
 		goto cleanup;
 
 	int rows = *(uint16_t*)dicom_elements[ITAG_IMAGE_ROWS].data;

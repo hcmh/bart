@@ -18,6 +18,7 @@ AR=./ar_lock.sh
 MKL?=0
 CUDA?=0
 ACML?=0
+UUID?=0
 OMP?=1
 SLINK?=0
 DEBUG?=0
@@ -352,6 +353,12 @@ ifeq ($(LINKER),icc)
 	PNG_L += -lz
 endif
 
+
+# uuid
+ifeq ($(UUID), 1)
+	LDFLAGS += -luuid
+	CPPFLAGS += -DHAVE_UUID
+endif
 
 
 # fftw

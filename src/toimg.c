@@ -53,7 +53,9 @@ static double windowing(double g, double a, double b, double x)
 	return pow(clamp(0., 1., (x - a) / (b - a)), g);
 }
 
-static void toimg(bool dicom, bool use_windowing, const char* name, long inum, float gamma, float contrast, float window, float scale, long h, long w, const complex float* data)
+
+static void toimg(bool dicom, bool use_windowing, const char* name, const char study_uid[64], const char series_uid[64], long inum,
+	float gamma, float contrast, float window, float scale, long h, long w, const complex float* data)
 {
 	int len = strlen(name);
 	assert(len >= 1);
@@ -84,7 +86,15 @@ static void toimg(bool dicom, bool use_windowing, const char* name, long inum, f
 		}
 	}
 
-	(dicom  ? dicom_write : png_write_rgb24)(name, w, h, inum, &(*buf)[0][0][0]);
+	if (dicom) {
+
+		dicom_write(name, study_uid, series_uid, w, h, inum, &(*buf)[0][0][0]);
+
+	} else {
+
+		png_write_rgb24(name, w, h, inum, &(*buf)[0][0][0]);
+	}
+
 	free(buf);
 }
 
@@ -111,6 +121,14 @@ static void toimg_stack(const char* name, bool dicom, bool single_scale, bool us
 	long num_imgs = md_calc_size(DIMS - 2, sq_dims + 2);
 	long img_size = md_calc_size(2, sq_dims);
 
+	char study_uid[64] = { 0 };
+	char series_uid[64] = { 0 };
+#ifdef HAVE_UUID
+	dicom_generate_uid(study_uid);
+	dicom_generate_uid(series_uid);
+#endif
+
+
 	debug_printf(DP_INFO, "Writing %d image(s)...", num_imgs);
 
 #pragma omp parallel for
@@ -136,7 +154,7 @@ static void toimg_stack(const char* name, bool dicom, bool single_scale, bool us
 		if (0. == scale)
 			scale = 1.;
 
-		toimg(dicom, use_windowing, name_i, i, gamma, contrast, window, scale, sq_dims[0], sq_dims[1], data + i * img_size);
+		toimg(dicom, use_windowing, name_i, study_uid, series_uid, i, gamma, contrast, window, scale, sq_dims[0], sq_dims[1], data + i * img_size);
 	}
 
 	debug_printf(DP_INFO, "done.\n", num_imgs);
