@@ -190,7 +190,7 @@ static int dicom_write_element(unsigned int len, char buf[static 8 + len], struc
 }
 
 
-static int dicom_read_element(struct element* e, unsigned int len, unsigned char buf[len])
+static int dicom_read_element(struct element* e, unsigned int len, const unsigned char buf[len])
 {
 	assert((((union { uint16_t s; uint8_t b; }){ 1 }).b));	// little endian
 
@@ -228,7 +228,7 @@ static int dicom_read_element(struct element* e, unsigned int len, unsigned char
 
 
 
-static int dicom_read_implicit(struct element* e, unsigned int len, unsigned char buf[len])
+static int dicom_read_implicit(struct element* e, unsigned int len, const unsigned char buf[len])
 {
 	assert((((const union { uint16_t s; uint8_t b; }){ 1 }).b));	// little endian
 
@@ -433,7 +433,7 @@ cleanup:
 }
 
 
-static bool dicom_query(size_t len, unsigned char buf[len], bool use_implicit, int N, struct element ellist[N])
+static bool dicom_query(size_t len, const unsigned char buf[len], bool use_implicit, int N, struct element ellist[N])
 {
 	bool ret = false;
 	size_t off = 0;
@@ -467,13 +467,19 @@ cleanup:
 
 
 
-unsigned char* dicom_read(const char* name, int dims[2])
+struct dicom_obj_s {
+
+	void* data;
+	size_t size;
+	off_t off;
+	bool implicit;
+};
+
+struct dicom_obj_s* dicom_open(const char* name)
 {
 	int fd;
 	void* addr;
 	struct stat st;
-	unsigned char* ret = NULL;
-
 
 	if (-1 == (fd = open(name, O_RDONLY)))
 		goto cleanup;
@@ -489,7 +495,9 @@ unsigned char* dicom_read(const char* name, int dims[2])
 	size_t off = 128;
 
 	unsigned char* buf = addr;
-	assert(0 == memcmp("DICM", buf + off, 4));
+
+	if (0 != memcmp("DICM", buf + off, 4))
+		goto cleanup2;
 
 	off += 4;
 
@@ -502,13 +510,68 @@ unsigned char* dicom_read(const char* name, int dims[2])
 
 	// read META TAGS
 	if (!dicom_query(len - off, buf + off, false, 2, dicom_elements))
-		goto cleanup;
+		goto cleanup2;
 
 	off += 12; // size of meta tag
 	off += *(uint32_t*)dicom_elements[ITAG_META_SIZE].data;
 	implicit = (0 == memcmp(dicom_elements[ITAG_TRANSFER_SYNTAX].data, LITTLE_ENDIAN_IMPLICIT, dicom_elements[ITAG_TRANSFER_SYNTAX].len)); // FIXME
 
+	PTR_ALLOC(struct dicom_obj_s, dobj);
+
+	dobj->data = buf;
+	dobj->size = size;
+	dobj->off = off;
+	dobj->implicit = implicit;
+
+	return PTR_PASS(dobj);
+
+cleanup2:
+	if (-1 == munmap((void*)addr, size))
+		abort();
+
+cleanup:
+	if (-1 == close(fd))
+		abort();
+
+	return NULL;
+}
+
+void dicom_close(const struct dicom_obj_s* dobj)
+{
+	if (-1 == munmap(dobj->data, dobj->size))
+		abort();
+
+	xfree(dobj);
+}
+
+
+#if 0
+void dicom_query_tags(const struct dicom_obj_s* dobj, int N, struct dicom_tag tag)
+{
+	off_t off = dobj->off;
+
+	return dicom_query(dobj->len - off, dobj->data + off, dobj->implicit, N, ellists);
+}
+#endif
+
+unsigned char* dicom_read(const char* name, int dims[2])
+{
+	struct dicom_obj_s* dobj;
+
+	if (NULL == (dobj = dicom_open(name)))
+		return NULL;
+
+	size_t len = dobj->size;
+	off_t off = dobj->off;
+	bool implicit = dobj->implicit;
+	const unsigned char* buf = dobj->data;
+
+	unsigned char* ret = NULL;
 	int skip = 6;
+
+	struct element dicom_elements[NR_ENTRIES];
+	memcpy(dicom_elements, dicom_elements_default, sizeof(dicom_elements_default));
+
 
 	if (!dicom_query(len - off, buf + off, implicit, NR_ENTRIES - skip, dicom_elements + skip))
 		goto cleanup;
@@ -519,17 +582,13 @@ unsigned char* dicom_read(const char* name, int dims[2])
 	dims[0] = rows;
 	dims[1] = cols;
 
-	ret = malloc(2 * rows * cols);
+	ret = xmalloc(2 * rows * cols);
 
 	if (ret)
 		memcpy(ret, dicom_elements[ITAG_PIXEL_DATA].data, 2 * rows * cols);
 
-	if (-1 == munmap((void*)addr, size))
-		abort();
-
 cleanup:
-	if (-1 == close(fd))
-		abort();
+	dicom_close(dobj);
 
 	return ret;
 }
