@@ -46,7 +46,7 @@
 #include "italgos.h"
 
 #define MPI_CGtol
-#define autoScaling
+// #define autoScaling
 
 extern inline void iter_op_call(struct iter_op_s op, float* dst, const float* src);
 extern inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src);
@@ -296,7 +296,7 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
     long SMS = dims[SLICE_DIM];
     int temp_index;
     int u,v;
-    float lowerbound = 0.03;
+    float lowerbound = 0.0;
     float scaling[SMS*parameters];
     
     long map_dims[16];
@@ -305,6 +305,7 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
     long map_strs[16];
 	md_calc_strides(16, map_strs, map_dims, CFL_SIZE);
     
+    debug_printf(DP_DEBUG3, "##tau = %f\n", tau);
 
 	for (itrdata.iter = 0; itrdata.iter < maxiter; itrdata.iter++) {
 
@@ -590,7 +591,8 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 #ifdef MPI_CGtol
 		if (sqrt(rsnew / rsnot) <= sqrt(kappa) * 1.0/3.0 * l2lambda) {
 #else
-		if (rsnew <= sqrt(kappa) * eps_squared) {
+// 		if (rsnew <= sqrt(kappa) * eps_squared) {
+        if (rsnew <= eps_squared) {
 #endif
 			//debug_printf(DP_DEBUG3, "%d ", i);
 			break;
@@ -637,6 +639,7 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 //    	int parameters = 3;
 //    	int SMS = 1;
 //     const long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
+    
 
 	for (unsigned int i = 0; i < iter; i++) {
 
@@ -652,6 +655,8 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
 
 		iter_op_call(adj, p, r);
+        
+        debug_printf(DP_DEBUG3, "#reg. alpha = %f\n", alpha);
 
 		if (NULL != xref)
 			vops->axpy(N, p, +alpha, xref);
@@ -751,7 +756,7 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* 
 //     
         char name[255] = {'\0'};
     
-        sprintf(name, "/tmp/step_newton_l1_%02d", i); 
+        sprintf(name, "/tmp/step_newton_l1_phantom_int5_FA12_2019_%02d", i); 
     
         dump_cfl(name, 16, img_dims, x);
 		

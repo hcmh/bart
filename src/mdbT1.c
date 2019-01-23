@@ -50,7 +50,7 @@ int main_mdbT1(int argc, char* argv[])
 
         OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
         OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
-        OPT_FLOAT('j', &conf.alpha_min, "", "minimum regu. parameter"),
+        OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
@@ -171,14 +171,22 @@ int main_mdbT1(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-	double scaling = 500. / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
 			scaling *= sqrt(ksp_dims[SLICE_DIM]); 
+    
+    double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
+
+	if (1 != ksp_dims[SLICE_DIM]) // SMS
+			scaling_psf *= sqrt(ksp_dims[SLICE_DIM]);
 
 #endif
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
+    
+    debug_printf(DP_INFO, "Scaling_psf: %f\n", scaling_psf);
+    md_zsmul(DIMS, pat_dims, pattern, pattern, scaling_psf);
 
 	if (-1. == restrict_fov) {
 
@@ -192,7 +200,9 @@ int main_mdbT1(int argc, char* argv[])
 		restrict_dims[1] = restrict_fov;
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
-        md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask, 1.0);
+//         md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask ,1.0);
+        
+        md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
         
         // Choose a different initial guess for R1*
         long pos[DIMS];
@@ -212,6 +222,7 @@ int main_mdbT1(int argc, char* argv[])
 
 	}
 
+// 	conf.alpha = 0.1;
 #ifdef  USE_CUDA
 	if (conf.usegpu) {
 

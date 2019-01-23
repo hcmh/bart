@@ -87,7 +87,7 @@ static void noir_calc_weights(const long dims[3], complex float* dst)
 			flags = MD_SET(flags, i);
 
 	klaplace(3, dims, flags, dst);
-	md_zsmul(3, dims, dst, dst, 220.);
+	md_zsmul(3, dims, dst, dst, 880.);
 	md_zsadd(3, dims, dst, dst, 1.);
 	md_zspow(3, dims, dst, dst, -16.);	// 1 + 222. \Laplace^16
 }
@@ -318,7 +318,7 @@ static void noir_der2(const nlop_data_t* _data, complex float* dst, const comple
 {
 	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
 
-//     noir_derA(_data, data->tmp, img);
+    noir_derA(_data, data->tmp, img);
 
 	complex float* tmp2 = md_alloc_sameplace(DIMS, data->sign_dims, CFL_SIZE, img);
 
@@ -451,8 +451,8 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 
 	long idims[DIMS];
 	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG|CSHIFT_FLAG, idims, dims);
-	//idims[COIL_DIM] = dims[COIL_DIM] + dims[TE_DIM]; // add image
-	idims[COIL_DIM] = dims[COIL_DIM] + 1;//dims[MAPS_DIM]; // add image
+	idims[COIL_DIM] = dims[COIL_DIM] + dims[TE_DIM]; // add image
+	//idims[COIL_DIM] = dims[COIL_DIM] + 1;//dims[MAPS_DIM]; // add image
 
 	struct noir_s ret = { .linop = data->weights };
 	ret.nlop = nlop_create(DIMS, dims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_del);

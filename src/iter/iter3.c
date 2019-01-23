@@ -43,7 +43,7 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 	.INTERFACE.TYPEID = &TYPEID(iter3_irgnm_conf),
 
 	.iter = 8,
-	.alpha = 1.,
+	.alpha = 0.1,
 	.redu = 2.,
 
 	.cgiter = 100,
@@ -87,6 +87,28 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 	iter_op_call(data->adj, dst, data->tmp);
 }
 
+static void forward(iter_op_data* _data, float* dst, const float* src)
+{
+	struct irgnm_s* data = CAST_DOWN(irgnm_s, _data);
+
+	iter_op_call(data->frw, dst, src);
+}
+
+static void derivative(iter_op_data* _data, float* dst, const float* src)
+{
+	struct irgnm_s* data = CAST_DOWN(irgnm_s, _data);
+
+	iter_op_call(data->der, dst, src);
+}
+
+static void adjoint(iter_op_data* _data, float* dst, const float* src)
+{
+	struct irgnm_s* data = CAST_DOWN(irgnm_s, _data);
+
+	iter_op_call(data->adj, dst, src);
+}
+
+
 static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 {
 	struct irgnm_s* data = CAST_DOWN(irgnm_s, _data);
@@ -107,7 +129,7 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
                                  data->alpha, 
                                  src + res*res*2*(parameters * SMS)); 
      }
-//      select_vecops(src)->axpy(data->size, dst, data->alpha, src);
+//       select_vecops(src)->axpy(data->size, dst, data->alpha, src);
 
 }
 
@@ -149,6 +171,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 //     float alpha_min = data->alpha_min;
     long img_dims[16];
     md_select_dims(16, ~COIL_FLAG, img_dims, data->dims);
+    debug_print_dims(DP_INFO, DIMS, img_dims);
 
     const struct operator_p_s* prox;
     if (1) {
@@ -197,11 +220,11 @@ void iter3_irgnm(iter3_conf* _conf,
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
 
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(M), FL_SIZE, src);
-	struct irgnm_s data = { { &TYPEID(irgnm_s) }, frw, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 0.0 };
+	struct irgnm_s data = { { &TYPEID(irgnm_s) }, frw, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0 };
 
 	irgnm(conf->iter, conf->alpha, conf->redu, N, M, select_vecops(src),
-		frw,
-		der,
+		(struct iter_op_s){ forward, CAST_UP(&data) },
+		(struct iter_op_s){ adjoint, CAST_UP(&data) },
 		(struct iter_op_p_s){ inverse, CAST_UP(&data) },
 		dst, ref, src,
 		(struct iter_op_s){NULL, NULL});
@@ -219,7 +242,7 @@ void iter3_irgnm_l1(iter3_conf* _conf,
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
 
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(M), FL_SIZE, src);
-	struct irgnm_s data = { { &TYPEID(irgnm_s) }, frw, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 0.0, conf->alpha_min, conf->dims};
+	struct irgnm_s data = { { &TYPEID(irgnm_s) }, frw, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims};
 
     irgnm_l1(conf->iter, conf->alpha, conf->redu, N, M, conf->dims, select_vecops(src),
         frw,

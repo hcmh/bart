@@ -53,6 +53,7 @@ int main_nlinv(int argc, char* argv[])
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+		OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter (for L1)"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
@@ -90,7 +91,7 @@ int main_nlinv(int argc, char* argv[])
 
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|CSHIFT_FLAG|SLICE_FLAG|TE_FLAG, img_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|SLICE_FLAG|TE_FLAG, img_dims, dims);
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
@@ -142,8 +143,13 @@ int main_nlinv(int argc, char* argv[])
 	long pat_dims[DIMS];
 
 	if (NULL != psf) {
+        
+        complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
+		pattern = anon_cfl("", DIMS, pat_dims);
 
-		pattern = load_cfl(psf, DIMS, pat_dims);
+		md_copy(DIMS, pat_dims, pattern, tmp_psf, CFL_SIZE);
+		unmap_cfl(DIMS, pat_dims, tmp_psf);
+
 		// FIXME: check compatibility
 
 		if (-1 == restrict_fov)
@@ -183,6 +189,7 @@ int main_nlinv(int argc, char* argv[])
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 	}
+
 
 #ifdef  USE_CUDA
 	if (conf.usegpu) {
