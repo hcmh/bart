@@ -75,7 +75,10 @@
 #define DTAG_STUDY_INSTANCE_UID		0x000D
 #define DTAG_SERIES_INSTANCE_UID	0x000E
 
-
+#define DGRP_SEQ			0xFFFE
+#define DTAG_SEQ_ITEM			0xE000
+#define DTAG_SEQ_ITEM_DELIM		0xE00D
+#define DTAG_SEQ_DELIM			0xE0DD
 
 // order matters...
 enum eoffset {
@@ -131,8 +134,8 @@ struct element dicom_elements_default[] = {
 	[ITAG_COMMENT] = { { DGRP_IMAGE2, DTAG_COMMENT }, "LT", 22, "NOT FOR DIAGNOSTIC USE\0\0" },
 	[ITAG_IMAGE_SAMPLES_PER_PIXEL] = { { DGRP_IMAGE, DTAG_IMAGE_SAMPLES_PER_PIXEL }, "US", 2, &(uint16_t){ 1 } }, 		// gray scale
 	[ITAG_IMAGE_PHOTOM_INTER] = { { DGRP_IMAGE, DTAG_IMAGE_PHOTOM_INTER }, "CS", sizeof(MONOCHROME2), MONOCHROME2 },	// 0 is black
-	[ITAG_IMAGE_ROWS] = { { DGRP_IMAGE, DTAG_IMAGE_ROWS }, "US", 2, &(uint16_t){ 0 } },
-	[ITAG_IMAGE_COLS] = { { DGRP_IMAGE, DTAG_IMAGE_COLS }, "US", 2, &(uint16_t){ 0 } },
+	[ITAG_IMAGE_ROWS] = { { DGRP_IMAGE, DTAG_IMAGE_ROWS }, "US", 2, NULL },
+	[ITAG_IMAGE_COLS] = { { DGRP_IMAGE, DTAG_IMAGE_COLS }, "US", 2, NULL },
 	[ITAG_IMAGE_BITS_ALLOC] = { { DGRP_IMAGE, DTAG_IMAGE_BITS_ALLOC }, "US", 2, &(uint16_t){ 16 } },			//
 	[ITAG_IMAGE_BITS_STORED] = { { DGRP_IMAGE, DTAG_IMAGE_BITS_STORED }, "US", 2, &(uint16_t){ 16 } },			// 12 for CT
 	[ITAG_IMAGE_PIXEL_HIGH_BIT] = { { DGRP_IMAGE, DTAG_IMAGE_PIXEL_HIGH_BIT }, "US", 2, &(uint16_t){ 15 } },
@@ -189,6 +192,7 @@ static int dicom_write_element(unsigned int len, char buf[static 8 + len], struc
 	return len + o;
 }
 
+static int dicom_read_sequence(unsigned int len, const unsigned char buf[len], bool use_implicit);
 
 static int dicom_read_element(struct element* e, unsigned int len, const unsigned char buf[len])
 {
@@ -223,10 +227,12 @@ static int dicom_read_element(struct element* e, unsigned int len, const unsigne
 
 	e->data = buf + o;
 
+	if (   vr_oneof(e->vr, 1, (const char[1][2]){ "SQ" })
+	    && (e->len == 0xFFFFFFFF))
+		e->len = dicom_read_sequence(len - o, e->data, false);
+
 	return o + e->len;
 }
-
-
 
 static int dicom_read_implicit(struct element* e, unsigned int len, const unsigned char buf[len])
 {
@@ -247,7 +253,32 @@ static int dicom_read_implicit(struct element* e, unsigned int len, const unsign
 
 	e->data = buf + o;
 
+	if (e->len == 0xFFFFFFFF)	// let's just assume VR SQ
+		e->len = dicom_read_sequence(len - o, e->data, true);
+
 	return o + e->len;
+}
+
+static int dicom_read_seq(struct element* e, unsigned int len, const unsigned char buf[len])
+{
+	assert((((const union { uint16_t s; uint8_t b; }){ 1 }).b));	// little endian
+
+	int o = 0;
+
+	e->tag.group  = ((uint16_t)(buf[o++])) << 0;
+	e->tag.group |= ((uint16_t)(buf[o++])) << 8;
+
+	e->tag.element  = ((uint16_t)(buf[o++])) << 0;
+	e->tag.element |= ((uint16_t)(buf[o++])) << 8;
+
+	e->len  = ((uint16_t)(buf[o++])) <<  0;
+	e->len |= ((uint16_t)(buf[o++])) <<  8;
+	e->len |= ((uint16_t)(buf[o++])) << 16;
+	e->len |= ((uint16_t)(buf[o++])) << 24;
+
+	e->data = buf + o;
+
+	return o;
 }
 
 
@@ -259,6 +290,49 @@ static int dicom_tag_compare(const struct tag a, const struct tag b)
 
 	return a.group - b.group;
 }
+
+
+
+static int dicom_query(size_t len, const unsigned char buf[len], bool use_implicit, int N, struct element ellist[N]);
+static int dicom_read_sequence(unsigned int len, const unsigned char buf[len], bool use_implicit)
+{
+	struct element e;
+
+	int o = 0;
+
+	do {
+		o += dicom_read_seq(&e, len - o, buf + o);
+
+		if (0 == dicom_tag_compare(e.tag, (struct tag){ DGRP_SEQ, DTAG_SEQ_DELIM })) {
+
+			assert(0 == e.len);
+			break;
+		}
+
+		assert(0 == dicom_tag_compare(e.tag, (struct tag){ DGRP_SEQ, DTAG_SEQ_ITEM }));
+
+		if (0xFFFFFFFF == e.len) {
+
+			struct element end[1] = {
+				{ { DGRP_SEQ, DTAG_SEQ_ITEM_DELIM }, "--", 0, NULL },
+			};
+
+			assert(use_implicit);	// FIXME: explicit
+			o += dicom_query(len - o, e.data, use_implicit, 1, end);
+
+			assert(0 == end[0].len);
+
+		} else {
+
+			o += e.len;
+		}
+
+	} while (true);
+
+	return o;
+}
+
+
 
 
 static int double_dabble(int l, char bcd[l], int n, const unsigned char in[n])
@@ -433,9 +507,8 @@ cleanup:
 }
 
 
-static bool dicom_query(size_t len, const unsigned char buf[len], bool use_implicit, int N, struct element ellist[N])
+static int dicom_query(size_t len, const unsigned char buf[len], bool use_implicit, int N, struct element ellist[N])
 {
-	bool ret = false;
 	size_t off = 0;
 
 	for (int i = 0; i < N; i++) {
@@ -454,15 +527,11 @@ static bool dicom_query(size_t len, const unsigned char buf[len], bool use_impli
 		} while(0 > dicom_tag_compare(element.tag,
 				ellist[i].tag));
 
-		if (0 != dicom_tag_compare(element.tag, ellist[i].tag))
-			goto cleanup;
-
-		memcpy(&ellist[i], &element, sizeof(element));
+		if (0 == dicom_tag_compare(element.tag, ellist[i].tag))
+			memcpy(&ellist[i], &element, sizeof(element));
 	}
 
-	ret = true;
-cleanup:
-	return ret;
+	return off;
 }
 
 
@@ -509,21 +578,22 @@ struct dicom_obj_s* dicom_open(const char* name)
 	bool implicit = false;
 
 	// read META TAGS
-	if (!dicom_query(len - off, buf + off, false, 2, dicom_elements))
+	if (0 == dicom_query(len - off, buf + off, false, 2, dicom_elements))	// FIXME: condition
 		goto cleanup2;
+
 
 	off += 12; // size of meta tag
 	off += *(uint32_t*)dicom_elements[ITAG_META_SIZE].data;
 	implicit = (0 == memcmp(dicom_elements[ITAG_TRANSFER_SYNTAX].data, LITTLE_ENDIAN_IMPLICIT, dicom_elements[ITAG_TRANSFER_SYNTAX].len)); // FIXME
 
-	PTR_ALLOC(struct dicom_obj_s, dobj);
+	struct dicom_obj_s* dobj = xmalloc(sizeof(struct dicom_obj_s));
 
 	dobj->data = buf;
 	dobj->size = size;
 	dobj->off = off;
 	dobj->implicit = implicit;
 
-	return PTR_PASS(dobj);
+	return dobj;
 
 cleanup2:
 	if (-1 == munmap((void*)addr, size))
@@ -561,6 +631,7 @@ unsigned char* dicom_read(const char* name, int dims[2])
 	if (NULL == (dobj = dicom_open(name)))
 		return NULL;
 
+
 	size_t len = dobj->size;
 	off_t off = dobj->off;
 	bool implicit = dobj->implicit;
@@ -573,7 +644,12 @@ unsigned char* dicom_read(const char* name, int dims[2])
 	memcpy(dicom_elements, dicom_elements_default, sizeof(dicom_elements_default));
 
 
-	if (!dicom_query(len - off, buf + off, implicit, NR_ENTRIES - skip, dicom_elements + skip))
+	if (0 == dicom_query(len - off, buf + off, implicit, NR_ENTRIES - skip, dicom_elements + skip))
+		goto cleanup;
+
+	if (   (NULL == dicom_elements[ITAG_IMAGE_ROWS].data)
+	    || (NULL == dicom_elements[ITAG_IMAGE_COLS].data)
+	    || (NULL == dicom_elements[ITAG_PIXEL_DATA].data))
 		goto cleanup;
 
 	int rows = *(uint16_t*)dicom_elements[ITAG_IMAGE_ROWS].data;
