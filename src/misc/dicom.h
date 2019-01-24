@@ -6,4 +6,7 @@ extern void dicom_generate_uid(char buf[64]);
 struct dicom_obj_s;
 extern struct dicom_obj_s* dicom_open(const char* name);
 extern void dicom_close(const struct dicom_obj_s* dobj);
+extern unsigned char* dicom_read_image(const struct dicom_obj_s* dobj, int dims[2]);
+extern int dicom_instance_num(const struct dicom_obj_s* dobj);
+
 

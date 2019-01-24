@@ -615,28 +615,34 @@ void dicom_close(const struct dicom_obj_s* dobj)
 }
 
 
-#if 0
-void dicom_query_tags(const struct dicom_obj_s* dobj, int N, struct dicom_tag tag)
+static int dicom_query_tags(const struct dicom_obj_s* dobj, int N, struct element ellist[N])
 {
 	off_t off = dobj->off;
 
-	return dicom_query(dobj->len - off, dobj->data + off, dobj->implicit, N, ellists);
+	return dicom_query(dobj->size - off, dobj->data + off, dobj->implicit, N, ellist);
 }
-#endif
 
-unsigned char* dicom_read(const char* name, int dims[2])
+
+int dicom_instance_num(const struct dicom_obj_s* dobj)
 {
-	struct dicom_obj_s* dobj;
+	struct element instance_num;
+	memcpy(&instance_num, &dicom_elements_default[ITAG_IMAGE_INSTANCE_NUM], sizeof(struct element));
 
-	if (NULL == (dobj = dicom_open(name)))
-		return NULL;
+	if (0 == dicom_query_tags(dobj, 1, &instance_num))
+		return 0;
+
+	assert(NULL != instance_num.data);
+	assert(instance_num.len < 32);
+
+	char copy[32] = { 0 };
+	strncpy(copy, instance_num.data, instance_num.len);
+
+	return atoi(copy);
+}
 
 
-	size_t len = dobj->size;
-	off_t off = dobj->off;
-	bool implicit = dobj->implicit;
-	const unsigned char* buf = dobj->data;
-
+unsigned char* dicom_read_image(const struct dicom_obj_s* dobj, int dims[2])
+{
 	unsigned char* ret = NULL;
 	int skip = 6;
 
@@ -644,7 +650,7 @@ unsigned char* dicom_read(const char* name, int dims[2])
 	memcpy(dicom_elements, dicom_elements_default, sizeof(dicom_elements_default));
 
 
-	if (0 == dicom_query(len - off, buf + off, implicit, NR_ENTRIES - skip, dicom_elements + skip))
+	if (0 == dicom_query_tags(dobj, NR_ENTRIES - skip, dicom_elements + skip))
 		goto cleanup;
 
 	if (   (NULL == dicom_elements[ITAG_IMAGE_ROWS].data)
@@ -662,8 +668,19 @@ unsigned char* dicom_read(const char* name, int dims[2])
 
 	if (ret)
 		memcpy(ret, dicom_elements[ITAG_PIXEL_DATA].data, 2 * rows * cols);
-
 cleanup:
+	return ret;
+}
+
+unsigned char* dicom_read(const char* name, int dims[2])
+{
+	struct dicom_obj_s* dobj;
+
+	if (NULL == (dobj = dicom_open(name)))
+		return NULL;
+
+	unsigned char* ret = dicom_read_image(dobj, dims);
+
 	dicom_close(dobj);
 
 	return ret;
