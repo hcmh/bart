@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <locale.h>
 
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -74,6 +75,9 @@
 
 #define DTAG_STUDY_INSTANCE_UID		0x000D
 #define DTAG_SERIES_INSTANCE_UID	0x000E
+
+#define DTAG_POSITION			0x0032
+#define DTAG_ORIENTATION		0x0037
 
 #define DGRP_SEQ			0xFFFE
 #define DTAG_SEQ_ITEM			0xE000
@@ -638,6 +642,44 @@ int dicom_instance_num(const struct dicom_obj_s* dobj)
 	strncpy(copy, instance_num.data, instance_num.len);
 
 	return atoi(copy);
+}
+
+
+void dicom_geometry(const struct dicom_obj_s* dobj, float pos[3][3])
+{
+	struct element dicom_elements[] = {
+
+		{ { DGRP_IMAGE2, DTAG_POSITION }, "DS", 0, NULL },
+		{ { DGRP_IMAGE2, DTAG_ORIENTATION }, "DS", 0, NULL },
+	};
+
+	if (0 == dicom_query_tags(dobj, ARRAY_SIZE(dicom_elements), dicom_elements))
+		return;
+
+	assert(NULL != dicom_elements[0].data);
+	assert(NULL != dicom_elements[1].data);
+
+	locale_t nlc = newlocale(LC_NUMERIC, "C", NULL);
+	locale_t oldlc = uselocale(nlc);
+
+
+	assert(dicom_elements[0].len < 51);
+	char tmp1[51] = { 0 };
+	strncpy(tmp1, dicom_elements[0].data, dicom_elements[0].len);
+
+	sscanf(tmp1, "%f\\%f\\%f", &pos[0][0], &pos[0][1], &pos[0][2]);
+
+	assert(dicom_elements[1].len < 102);
+	char tmp2[102] = { 0 };
+
+	strncpy(tmp2, dicom_elements[1].data, dicom_elements[1].len);
+
+	sscanf(tmp2, "%f\\%f\\%f\\%f\\%f\\%f",
+		&pos[1][0], &pos[1][1], &pos[1][2],
+		&pos[2][0], &pos[2][1], &pos[2][2]);
+
+	uselocale(oldlc);
+	freelocale(nlc);
 }
 
 
