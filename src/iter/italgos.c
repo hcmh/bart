@@ -33,6 +33,7 @@
 
 #include <math.h>
 #include <stdbool.h>
+#include <complex.h>
 
 #include "misc/misc.h"
 #include "misc/mri.h"
@@ -296,7 +297,7 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
     long SMS = dims[SLICE_DIM];
     int temp_index;
     int u,v;
-    float lowerbound = 0.0;
+    float lowerbound = 0.3;
     float scaling[SMS*parameters];
     
     long map_dims[16];
@@ -318,12 +319,15 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
         // normalize all the maps before joint wavelet denoising
+//        debug_printf(DP_DEBUG3, "##dims_1 = %d\n", md_calc_size(16, map_dims));
+//        debug_printf(DP_DEBUG3, "##dims_2 = %d\n", N);
+
         for(u = 0; u < SMS; u++)
             for(v = 0; v < parameters; v++)
             {
                 temp_index = v+u*parameters;
                 scaling[temp_index] = md_norm(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index);
-         
+//                vops->smul(2*md_calc_size(16, map_dims), 1.0/scaling[temp_index], x+res*res*2 * temp_index, x+res*res*2 * temp_index);
                 md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, 1.0/scaling[temp_index]);
             }
 
@@ -335,14 +339,17 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
             {
                 temp_index = v+u*parameters;
                 md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, scaling[temp_index]);
+//                vops->smul(2*md_calc_size(16, map_dims), scaling[temp_index], x+res*res*2 * temp_index, x+res*res*2 * temp_index);
             }
-//             
+
         // Domain Prjoection for R1s
         for (u = 0; u < SMS; u++)
         {
-            temp_index = res*res*2*(parameters-1) +  u*res*res*2*parameters;
-            md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
-            md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
+            temp_index = res*res*2*(parameters-1) + u*res*res*2*parameters;
+
+//            md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
+            vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
+//            md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
         }
         
         
@@ -361,9 +368,11 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
         
         for (u = 0; u < SMS; u++)
         {
-            temp_index = res*res*2*(parameters-1) +  u*res*res*2*parameters;
-            md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
-            md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
+            temp_index = res*res*2*(parameters-1) + u*res*res*2*parameters;
+            vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
+//            vops->zsmax(md_calc_size(16, map_dims), lowerbound, x+res*res*2 * temp_index, x+res*res*2 * temp_index);
+//            md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
+//            md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
         }
         
 
@@ -756,7 +765,7 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* 
 //     
         char name[255] = {'\0'};
     
-        sprintf(name, "/tmp/step_newton_l1_phantom_int5_FA12_2019_%02d", i); 
+        sprintf(name, "/tmp/step_newton_l1_brain_ssl_%02d", i);
     
         dump_cfl(name, 16, img_dims, x);
 		

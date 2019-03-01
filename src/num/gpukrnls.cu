@@ -779,4 +779,19 @@ extern "C" void cuda_min(long N, float* dst, const float* src1, const float* src
 	kern_min<<<gridsize(N), blocksize(N)>>>(N, dst, src1, src2);
 }
 
+__global__ void kern_zsmax(int N, cuFloatComplex val, cuFloatComplex* dst, const cuFloatComplex* src1)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride){
+		dst[i].x = max(src1[i].x, val.x);
+		dst[i].y = 0.0; 
+    }
+}
+
+extern "C" void cuda_zsmax(long N, _Complex float alpha, _Complex float* dst, const _Complex float* src1)
+{
+	kern_zsmul<<<gridsize(N), blocksize(N)>>>(N, make_cuFloatComplex(__real(alpha), __imag(alpha)), (cuFloatComplex*)dst, (const cuFloatComplex*)src1);
+}
 

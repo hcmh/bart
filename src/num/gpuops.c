@@ -19,6 +19,7 @@
 
 #include <stdbool.h>
 #include <assert.h>
+#include <complex.h>
 
 #include <cuda_runtime_api.h>
 #include <cuda.h>
@@ -351,7 +352,7 @@ const struct vec_ops gpu_ops = {
 	.zexpj = cuda_zexpj,
 	.zexp = cuda_zexp,
 	.zarg = cuda_zarg,
-	.zabs = cuda_zabs,
+    .zabs = cuda_zabs,
 
 	.zcmp = cuda_zcmp,
 	.zdiv_reg = cuda_zdiv_reg,
@@ -387,6 +388,7 @@ struct vec_iter_s {
 	void (*xpay)(long N, float alpha, float* a, const float* x);
 	void (*axpy)(long N, float* a, float alpha, const float* x);
 	void (*axpbz)(long N, float* out, const float a, const float* x, const float b, const float* z);
+    void (*zsmax)(long N, complex float alpha, complex float* dst, const complex float* src1);
 };
 
 extern const struct vec_iter_s gpu_iter_ops;
@@ -405,6 +407,7 @@ const struct vec_iter_s gpu_iter_ops = {
 	.add = cuda_add,
 	.sub = cuda_sub,
 	.swap = cuda_swap,
+    .zsmax = cuda_zsmax,
 };
 
 
