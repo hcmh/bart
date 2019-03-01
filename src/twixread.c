@@ -133,11 +133,10 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 		if (0 == max[READ_DIM]) {
 
 			max[READ_DIM] = mdh.samples;
-			max[COIL_DIM] = mdh.channels;
+			//max[COIL_DIM] = mdh.channels;
 		}
 
-		if ((mdh.evalinfo[0] & (1 << 5))
-			|| (max[READ_DIM] != mdh.samples)) {
+		if ((mdh.evalinfo[0] & (1 << 5))) {
 
 //			debug_printf(DP_WARN, "SYNC\n");
 
@@ -153,7 +152,14 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 		        if (-1 == lseek(fd, dma_length - offset, SEEK_CUR))
 				error("seeking");
 
+
 			return 0;
+
+		} else if (max[READ_DIM] != mdh.samples) {
+			return -1;
+
+		} else {
+			max[COIL_DIM] = mdh.channels;
 		}
 
 		if (max[COIL_DIM] != mdh.channels)
