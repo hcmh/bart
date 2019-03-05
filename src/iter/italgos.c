@@ -370,7 +370,6 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
         {
             temp_index = res*res*2*(parameters-1) + u*res*res*2*parameters;
             vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
-//            vops->zsmax(md_calc_size(16, map_dims), lowerbound, x+res*res*2 * temp_index, x+res*res*2 * temp_index);
 //            md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
 //            md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
         }
@@ -765,7 +764,7 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* 
 //     
         char name[255] = {'\0'};
     
-        sprintf(name, "/tmp/step_newton_l1_brain_ssl_%02d", i);
+        sprintf(name, "/tmp/step_newton_l1_test_%02d", i);
     
         dump_cfl(name, 16, img_dims, x);
 		

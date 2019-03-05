@@ -174,7 +174,7 @@ int main_mdbT1(int argc, char* argv[])
 	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
-			scaling *= sqrt(ksp_dims[SLICE_DIM]); 
+            scaling *= sqrt(2*ksp_dims[SLICE_DIM]);
     
     double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
 
