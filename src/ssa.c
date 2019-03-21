@@ -107,7 +107,7 @@ int main_ssa(int argc, char* argv[])
 		OPT_CLEAR('z', &zeropad, "Zeropadding [Default: True]"),
 		OPT_INT('m', &rm_mean, "0/1", "Remove mean [Default: True]"),
 		OPT_INT('n', &normalize, "0/1", "Normalize [Default: False]"),
-		OPT_INT('t', &type, "0-2", "0: Complex. 1: Absolute. 2: Angle. [Default: 1]"),
+		OPT_INT('t', &type, "0-2", "0: Complex. 1: Absolute. 2: Real & Imagniary. [Default: 1]"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -168,8 +168,30 @@ int main_ssa(int argc, char* argv[])
 			break;
 
 		case 2 :
-			md_zarg(DIMS, cal_dims, cal_data, cal_data);
+		{
+			long cal2_dims[DIMS];
+			long pos[DIMS] = { 0 };
+			complex float* cal2;
+
+			// Stack absolute value and angle in COILS_DIM
+			md_copy_dims(DIMS, cal2_dims, cal_dims);
+			cal2_dims[COIL_DIM] *= 2;
+			cal2 = md_alloc(DIMS, cal2_dims, CFL_SIZE);
+			md_clear(DIMS, cal2_dims, cal2, CFL_SIZE);
+
+			md_copy_block(DIMS, pos, cal2_dims, cal2, cal_dims, cal_data, CFL_SIZE);
+			md_zreal(DIMS, cal2_dims, cal2, cal2);
+
+			md_zimag(DIMS, cal_dims, cal_data, cal_data);
+			md_zsmul(DIMS, cal_dims, cal_data, cal_data, -1i);
+			pos[COIL_DIM] = cal_dims[COIL_DIM];
+			md_copy_block(DIMS, pos, cal2_dims, cal2, cal_dims, cal_data, CFL_SIZE);
+
+			md_free(cal_data);
+			cal_data = cal2;
+			md_copy_dims(DIMS, cal_dims, cal2_dims);
 			break;
+		}
 
 	}
 
