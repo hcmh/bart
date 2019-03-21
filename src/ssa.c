@@ -31,12 +31,12 @@
 #include "calib/calmat.h"
 
 
-static const char usage_str[] = "<kspace> <EOF>";
+static const char usage_str[] = "<kspace> <EOF> [<S>]";
 static const char help_str[] =
 		"Estimate cardiac and respiratory motion using Singular Spectrum Analysis\n";
 
 
-static void ssa_fari(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal_data, const char* dst, bool print_svals)
+static void ssa_fari(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal_data, const char* name_EOF, const char* name_S)
 {
 	// Calibration matrix
 	long A_dims[2];
@@ -62,7 +62,7 @@ static void ssa_fari(const long kernel_dims[3], const long cal_dims[DIMS], const
 
 	// AAH = U @ S @ UH
 	long U_dims[2] = { N, N };
-	complex float* U = create_cfl(dst, 2, U_dims);
+	complex float* U = create_cfl(name_EOF, 2, U_dims);
 	complex float* UH = md_alloc(2, U_dims, CFL_SIZE);
 
 	float* S_square = xmalloc(N * sizeof(float));
@@ -71,11 +71,12 @@ static void ssa_fari(const long kernel_dims[3], const long cal_dims[DIMS], const
 	lapack_svd(N, N, (complex float (*)[N])U, (complex float (*)[N])UH, S_square, (complex float (*)[N])AAH); // NOTE: Lapack destroys AAH!
 	debug_printf(DP_INFO, "done\n");
 
-
-	if (print_svals) {
-		debug_printf(DP_INFO, "Printing 30 of %d singular values: \n", N);
-		for (unsigned int i = 0; i < 30; i++)
-			debug_printf(DP_INFO, "S[%i]: \t %f\n", i, sqrt(S_square[i]));
+	if (name_S != NULL) {
+		long S_dims[1] = { N };
+		complex float* S = create_cfl(name_S, 1, S_dims);
+		for (int i = 0; i < N; i++)
+			S[i] = sqrt(S_square[i]) + 0i;
+		unmap_cfl(1, S_dims, S);
 	}
 
 	unmap_cfl(2, U_dims, U);
@@ -93,26 +94,23 @@ static void ssa_fari(const long kernel_dims[3], const long cal_dims[DIMS], const
 int main_ssa(int argc, char* argv[])
 {
 	int window = -1;
-	bool print_svals = false;
 	int normalize = 0;
 	int rm_mean = 1;
 	int type = 1;
 	bool zeropad = true;
 	long kernel_dims[3] = { 1, 1, 1};
+	char* name_S = NULL;
 
 	const struct opt_s opts[] = {
 
 		OPT_INT('w', &window, "window", "Window length"),
-		OPT_SET('s', &print_svals, "Print singular values"),
 		OPT_CLEAR('z', &zeropad, "Zeropadding [Default: True]"),
 		OPT_INT('m', &rm_mean, "0/1", "Remove mean [Default: True]"),
 		OPT_INT('n', &normalize, "0/1", "Normalize [Default: False]"),
 		OPT_INT('t', &type, "0-2", "0: Complex. 1: Absolute. 2: Angle. [Default: 1]"),
-
-
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -121,6 +119,11 @@ int main_ssa(int argc, char* argv[])
 		error("Specify window length '-w'");
 	else
 		kernel_dims[0] = window;
+
+	char* name_EOF = argv[2];
+
+	if (4 == argc)
+		name_S = argv[3];
 
 	long k_dims[DIMS];
 	complex float* k = load_cfl(argv[1], DIMS, k_dims);
@@ -216,7 +219,7 @@ int main_ssa(int argc, char* argv[])
 
 
 	// Perform SSA-FARI
-	ssa_fari(kernel_dims, cal_dims, cal_data, argv[2], print_svals);
+	ssa_fari(kernel_dims, cal_dims, cal_data, name_EOF, name_S);
 
 	md_free(cal_data);
 
