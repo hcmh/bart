@@ -764,7 +764,7 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* 
 //     
         char name[255] = {'\0'};
     
-        sprintf(name, "/tmp/step_newton_l1_test_%02d", i);
+        sprintf(name, "/tmp/step_newton_l1_test1_%02d", i);
     
         dump_cfl(name, 16, img_dims, x);
 		

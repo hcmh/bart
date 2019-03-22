@@ -212,7 +212,7 @@ int main_mdbT1(int argc, char* argv[])
         
         pos[COEFF_DIM] = 2;
         md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE); 
-        md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 1.0);
+        md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 1.5);
         md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE); 	
         
 //         pos[COEFF_DIM] = 1;
