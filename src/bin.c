@@ -16,6 +16,7 @@
 #include "num/multind.h"
 #include "num/init.h"
 #include "num/flpmath.h"
+#include "num/filter.h"
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
@@ -113,13 +114,73 @@ static void asgn_bins(const long bins_dims[DIMS], const float* bins, const long 
 	md_free(in_singleton);
 }
 
+static void moving_average(const long state_dims[DIMS], complex float* state, const unsigned int mavg_window)
+{
+	// Pad with boundary values
+	long pad_dims[DIMS];
+	md_copy_dims(DIMS, pad_dims, state_dims);
+	pad_dims[TIME_DIM] = state_dims[TIME_DIM] + mavg_window -1;
+	complex float* pad = md_alloc(DIMS, pad_dims, CFL_SIZE);
+	md_resize_center(DIMS, pad_dims, pad, state_dims, state, CFL_SIZE);
+
+	long singleton_dims[DIMS];
+	md_select_dims(DIMS, TIME2_FLAG, singleton_dims, state_dims);
+	complex float* singleton = md_alloc(DIMS, singleton_dims, CFL_SIZE);
+	long pos[DIMS] = { 0 };
+	md_copy_block(DIMS, pos, singleton_dims, singleton, state_dims, state, CFL_SIZE); // Get first value of array
+
+	long start = labs((pad_dims[TIME_DIM] / 2) - (state_dims[TIME_DIM] / 2));
+	for (int i = 0; i < start; i++) { // Fill beginning of pad array
+		pos[TIME_DIM] = i;
+		md_copy_block(DIMS, pos, pad_dims, pad, singleton_dims, singleton, CFL_SIZE);
+	}
+
+	long end = mavg_window - start;
+	pos[TIME_DIM] = state_dims[TIME_DIM] - 1;
+	md_copy_block(DIMS, pos, singleton_dims, singleton, state_dims, state, CFL_SIZE); // Get last value of array
+
+	for (int i = 0; i < end; i++) { // Fill end of pad array
+		pos[TIME_DIM] = pad_dims[TIME_DIM] - 1 - i;
+		md_copy_block(DIMS, pos, pad_dims, pad, singleton_dims, singleton, CFL_SIZE);
+	}
+
+	// Calc moving average
+	long tmp_dims[DIMS + 1];
+	md_copy_dims(DIMS, tmp_dims, pad_dims);
+	tmp_dims[DIMS] = 1;
+
+	long tmp_strs[DIMS + 1];
+	md_calc_strides(DIMS, tmp_strs, tmp_dims, CFL_SIZE);
+
+	tmp_dims[TIME_DIM] = state_dims[TIME_DIM]; // Moving average reduced temporal dimension
+
+	long tmp2_strs[DIMS + 1];
+	md_calc_strides(DIMS + 1, tmp2_strs, tmp_dims, CFL_SIZE);
+
+	tmp_dims[DIMS] = mavg_window;
+	tmp_strs[DIMS] = tmp_strs[TIME_DIM];
+
+	complex float* mavg = md_alloc(DIMS, tmp_dims, CFL_SIZE);
+	md_moving_avgz2(DIMS + 1, DIMS, tmp_dims, tmp2_strs, mavg, tmp_strs, pad);
+
+	md_zsub(DIMS, state_dims, state, state, mavg);
+
+	md_free(pad);
+	md_free(mavg);
+	md_free(singleton);
+
+}
+
 int main_bin(int argc, char* argv[])
 {
 	unsigned int n_resp = 9;
 	unsigned int n_card = 25;
+	unsigned int mavg_window = 0;
 
 	long resp_states_idx[2] = { 0, 1 };
 	long card_states_idx[2] = { 2, 3 };
+
+
 
 
 	const struct opt_s opts[] = {
@@ -127,6 +188,7 @@ int main_bin(int argc, char* argv[])
 		OPT_UINT('C', &n_card, "n_card", "Number of cardiac states [Default: 25]"),
 		OPT_VEC2('r', &resp_states_idx, "x:y", "(Respiration: Eigenvector index)"),
 		OPT_VEC2('c', &card_states_idx, "x:y", "(Cardiac motion: Eigenvector index)"),
+		OPT_UINT('a', &mavg_window, "window", "Moving average"),
 	};
 
 	cmdline(&argc, argv, 5, 5, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -137,7 +199,7 @@ int main_bin(int argc, char* argv[])
 	long states_dims[DIMS];
 	complex float* states = load_cfl(argv[1], DIMS, states_dims);
 	if (states_dims[TIME_DIM] < 2)
-		error("Check dimensiosn of states array!");
+		error("Check dimensions of states array!");
 
 	long k_dims[DIMS];
 	complex float* k = load_cfl(argv[2], DIMS, k_dims);
@@ -181,6 +243,11 @@ int main_bin(int argc, char* argv[])
 		md_copy_block(DIMS, pos, card_state_singleton_dims, card_state_singleton, states_dims, states, CFL_SIZE);
 		pos[TIME2_DIM] = i;
 		md_copy_block(DIMS, pos, card_state_dims, card_state, card_state_singleton_dims, card_state_singleton, CFL_SIZE);
+	}
+
+	if (mavg_window > 0) {
+		moving_average(resp_state_dims, resp_state, mavg_window);
+		moving_average(card_state_dims, card_state, mavg_window);
 	}
 
 	// Array to store bin-index for samples
