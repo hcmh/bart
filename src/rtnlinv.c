@@ -66,6 +66,8 @@ int main_rtnlinv(int argc, char* argv[])
 	unsigned int turns = 1;
 	int reduced_frames = 0;
 
+	long my_img_dims[3] = { 0, 0, 0 };
+
 
 
 	const struct opt_s opts[] = {
@@ -90,7 +92,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.5]"),
 		OPT_FLOAT('T', &temp_damp, "temp_damp", "temporal damping [default: 0.9]"),
 		OPT_INT('F', &reduced_frames, "Frames", "Reconstruct only 'noFrames' frames."),
-
+		OPT_VEC3('x', &my_img_dims, "x:y:z", "(img dims)"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -166,8 +168,11 @@ int main_rtnlinv(int argc, char* argv[])
 		}
 
 		turns = traj_s->dims_full[TIME_DIM];
-
-		estimate_fast_sq_im_dims(3, sens_s->dims_full, traj_s->dims_full, traj);
+		debug_print_dims(DP_INFO, 3, my_img_dims);
+		if ( my_img_dims[0] + my_img_dims[1] + my_img_dims[2] == 0 )
+			estimate_fast_sq_im_dims(3, sens_s->dims_full, traj_s->dims_full, traj);
+		else
+			md_copy_dims(3, sens_s->dims_full, my_img_dims);
 
 	} else {
 		error("Pass either trajectory (-t) or PSF (-p)!\n");
