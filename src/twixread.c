@@ -137,13 +137,13 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 		}
 
 		if ((mdh.evalinfo[0] & (1 << 5))) {
-
 //			debug_printf(DP_WARN, "SYNC\n");
 
 			struct mdh1 mdh1;
 			memcpy(&mdh1, vd ? scan_hdr : chan_hdr, sizeof(mdh1));
 
 			size_t dma_length = mdh1.flags_dmalength & 0x01FFFFFFL;
+
 			size_t offset = sizeof(scan_hdr) + sizeof(chan_hdr);
 
 			if (dma_length < offset)
@@ -180,6 +180,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 			min[i] = MIN(min[i], pos[i] + 0);
 		}
 
+
 		size = mdh.samples * CFL_SIZE;
 		char buf[size];
 		if (size != (size_t)read(fd, buf, size))
@@ -190,10 +191,17 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 }
 
 
-static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const long dims[DIMS], long pos[DIMS], complex float* buf)
+static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const long dims[DIMS], long pos[DIMS], complex float* buf, uint32_t* buf_pmu)
 {
 	char scan_hdr[vd ? 192 : 0];
+
 	xread(fd, scan_hdr, sizeof(scan_hdr));
+
+	struct mdh1 mdh_1;
+	memcpy(&mdh_1, scan_hdr, sizeof(mdh_1));
+	*buf_pmu = mdh_1.pmutime;
+	//debug_printf(DP_DEBUG1, "PMUtimestamp: %lu\n", mdh_1.pmutime);
+
 
 	for (pos[COIL_DIM] = 0; pos[COIL_DIM] < dims[COIL_DIM]; pos[COIL_DIM]++) {
 
@@ -203,10 +211,11 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 		struct mdh2 mdh;
 		memcpy(&mdh, vd ? (scan_hdr + 40) : (chan_hdr + 20), sizeof(mdh));
 
+
 		if ((mdh.evalinfo[0] & (1 << 5))
 			|| (dims[READ_DIM] != mdh.samples)) {
 
-//			debug_printf(DP_WARN, "SYNC\n");
+			//debug_printf(DP_WARN, "SYNC\n");
 
 			struct mdh1 mdh1;
 			memcpy(&mdh1, vd ? scan_hdr : chan_hdr, sizeof(mdh1));
@@ -261,7 +270,7 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 
 
 
-static const char usage_str[] = "<dat file> <output>";
+static const char usage_str[] = "<dat file> <output> [<pmu>]";
 //	fprintf(fd, "Usage: %s [...] [-a A] <dat file> <output>\n", name);
 
 static const char help_str[] = "Read data from Siemens twix (.dat) files.";
@@ -275,6 +284,7 @@ int main_twixread(int argc, char* argv[argc])
 	bool linectr = false;
 	bool partctr = false;
 	bool mpi = false;
+	bool out_pmu = false;
 
 	long dims[DIMS];
 	md_singleton_dims(DIMS, dims);
@@ -297,7 +307,7 @@ int main_twixread(int argc, char* argv[argc])
 		OPT_SET('M', &mpi, "MPI mode"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 
 	if (0 == adcs)
@@ -349,11 +359,28 @@ int main_twixread(int argc, char* argv[argc])
 	complex float* out = create_cfl(argv[2], DIMS, dims);
 	md_clear(DIMS, dims, out, CFL_SIZE);
 
+	long pmu_dims[DIMS];
+	md_select_dims(DIMS, ~(READ_FLAG|COIL_FLAG), pmu_dims, dims);
+
+	complex float* pmu;
+	if (argc == 4) {
+		out_pmu = true;
+		pmu = create_cfl(argv[3], DIMS, pmu_dims);
+		md_clear(DIMS, pmu_dims, pmu, CFL_SIZE);
+	}
+
 
 	long adc_dims[DIMS];
 	md_select_dims(DIMS, READ_FLAG|COIL_FLAG, adc_dims, dims);
 
 	void* buf = md_alloc(DIMS, adc_dims, CFL_SIZE);
+
+	uint32_t buf_pmu;
+	complex float* val_pmu;
+	long val_pmu_dims[DIMS] = { [0 ... DIMS - 1] = 1};
+	if (out_pmu)
+		val_pmu = md_alloc(DIMS, val_pmu_dims, CFL_SIZE);
+
 
 	long mpi_slice = -1;
 
@@ -361,7 +388,7 @@ int main_twixread(int argc, char* argv[argc])
 
 		long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
 
-		if (-1 == siemens_adc_read(vd, ifd, linectr, partctr, dims, pos, buf)) {
+		if (-1 == siemens_adc_read(vd, ifd, linectr, partctr, dims, pos, buf, &buf_pmu)) {
 
 			debug_printf(DP_WARN, "Stopping.\n");
 			break;
@@ -369,6 +396,7 @@ int main_twixread(int argc, char* argv[argc])
 
 		for (unsigned int i = 0; i < DIMS; i++)
 			pos[i] += off[i];
+
 
 		if (mpi) {
 
@@ -389,10 +417,23 @@ int main_twixread(int argc, char* argv[argc])
 		}
 
 		md_copy_block(DIMS, pos, dims, out, adc_dims, buf, CFL_SIZE); 
+
+		if (out_pmu) {
+			*val_pmu = (complex float) buf_pmu + 0 * 1i;
+			//debug_printf(DP_INFO, "val_pmu: %f\n", creal(*val_pmu));
+			md_copy_block(DIMS, pos, pmu_dims, pmu, val_pmu_dims, val_pmu, CFL_SIZE);
+		}
+
 	}
 
 	md_free(buf);
 	unmap_cfl(DIMS, dims, out);
+
+	if (out_pmu) {
+		unmap_cfl(DIMS, pmu_dims, pmu);
+		md_free(val_pmu);
+	}
+
 	return 0;
 }
 
