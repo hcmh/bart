@@ -32,7 +32,7 @@ static double kb(double beta, double x)
         return bessel_i0(beta * sqrt(1. - pow(2. * x, 2.))) / bessel_i0(beta);
 }
 
-static void kb_precompute(double beta, int n, float table[n + 1])
+void kb_precompute(double beta, int n, float table[n + 1])
 {
 	for (int i = 0; i < n + 1; i++)
 		table[i] = kb(beta, (double)(i) / (double)(n - 1) / 2.);
