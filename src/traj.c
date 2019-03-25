@@ -1,10 +1,10 @@
 /* Copyright 2014-2015. The Regents of the University of California.
- * Copyright 2015-2017. Martin Uecker.
+ * Copyright 2015-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
@@ -96,6 +96,7 @@ int main_traj(int argc, char* argv[])
 	bool asymTraj = false;
 	bool halfCircle = false;
 	int small_golden = 1;
+	float rot = 0.;
 
 	float gdelays[2][3] = {
 		{ 0., 0., 0. },
@@ -115,6 +116,7 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('G', &golden, "golden-ratio sampling"),
 		OPT_SET('H', &halfCircle, "halfCircle golden-ratio sampling"),
 		OPT_SET('D', &dbl, "double base angle"),
+		OPT_FLOAT('R', &rot, "phi", "rotate"),
 		OPT_FLVEC3('q', &gdelays[0], "delays", "gradient delays: x, y, xy"),
 		OPT_FLVEC3('Q', &gdelays[1], "delays", "(gradient delays: z, xz, yz)"),
 		OPT_SET('O', &transverse, "correct transverse gradient error for radial tajectories"),
@@ -199,27 +201,34 @@ int main_traj(int argc, char* argv[])
 
 				double golden_angle = 3. - sqrtf(5.);
 				double base = 0;
+
 				if (small_golden > 1) {
-					/*
-					Wundrak, Stefan, et al. "
-					A small surrogate for the golden angle in time-resolved radial
-					MRI based on generalized fibonacci sequences."
-					IEEE transactions on medical imaging 34.6 (2015): 1262-1269.
+
+					/* Wundrak S et al.
+					 * A small surrogate for the golden angle in time-resolved radial
+					 * MRI based on generalized fibonacci sequences.
+					 * IEEE TMI 34:1262--1269 (2015)
 					 */
-					double tau = (1. + sqrtf(5.))/ 2;
-					base = 1 / ( tau + (float)small_golden - 1);
+
+					double tau = (1. + sqrtf(5.)) / 2;
+					base = 1 / (tau + (float)small_golden - 1);
+
 				} else {
+
 					base = golden ? ((2. - golden_angle) / 2.) : (1. / (float)Y);
 				}
+
 				double angle = M_PI * (float)remap(mode, Y, turns, mb, j) * (dbl ? 2. : 1.) * base;
 
 				if (halfCircle)
 					angle = fmod(angle, M_PI);
 
+				angle += M_PI * rot / 180.;
+
 				/* Calculate read-out samples
-				* for symmetric Trajectory [DC between between sample no. X/2-1 and X/2, zero-based indexing]
-				* or asymmetric Trajectory [DC component at sample no. X/2, zero-based indexing]
-				*/
+				 * for symmetric Trajectory [DC between between sample no. X/2-1 and X/2, zero-based indexing]
+				 * or asymmetric Trajectory [DC component at sample no. X/2, zero-based indexing]
+				 */
 				double read = (float)i + (asymTraj ? 0 : 0.5) - (float)X / 2.;
 
 				double angle2 = 0.;
@@ -229,7 +238,6 @@ int main_traj(int argc, char* argv[])
 					int split = sqrtf(Y);
 					angle2 = 2. * M_PI * j * split * base;
 				}
-
 
 				if (!(aligned || pGold)) {
 
