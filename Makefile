@@ -248,7 +248,7 @@ endif
 
 ifeq ($(MAKESTAGE),1)
 .PHONY: doc/commands.txt $(TARGETS)
-default all clean allclean distclean doc/commands.txt doxygen test utest gputest $(TARGETS):
+default all clean allclean distclean doc/commands.txt doxygen test utest gputest testague $(TARGETS):
 	make MAKESTAGE=2 $(MAKECMDGOALS)
 else
 
@@ -545,6 +545,8 @@ TESTS_OUT=$(root)/tests/out/
 include $(root)/tests/*.mk
 
 test:	${TESTS}
+
+testague: ${TESTS_AGUE}
 
 gputest: ${TESTS_GPU}
 
