@@ -13,10 +13,14 @@
 #include <unistd.h>
 
 #include "num/multind.h"
+#include "num/flpmath.h"
 #include "num/init.h"
 
 #include "linops/linop.h"
+
 #include "noncart/nufft.h"
+
+#include "calib/cc.h"
 
 #include "misc/misc.h"
 #include "misc/mri.h"
@@ -89,17 +93,24 @@ int main_rtreco(int argc, char* argv[argc])
 	long dims[DIMS];
 	md_singleton_dims(DIMS, dims);
 
+	long V = -1;
+
 	struct opt_s opts[] = {
 
 		OPT_LONG('x', &(dims[READ_DIM]), "X", "number of samples (read-out)"),
 		OPT_LONG('r', &(dims[PHS1_DIM]), "R", "numer of radial spokes / frame"),
 		OPT_LONG('c', &(dims[COIL_DIM]), "C", "number of channels"),
+		OPT_LONG('v', &V, "V", "number of virtual channels"),
 		OPT_LONG('n', &(dims[6]), "N", "number of repetitions"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	debug_print_dims(DP_DEBUG1, DIMS, dims);
+
+	if (-1 == V)
+		V = dims[COIL_DIM];
+
 
         int ifd;
         if (-1 == (ifd = open(argv[1], O_RDONLY)))
@@ -130,28 +141,27 @@ int main_rtreco(int argc, char* argv[argc])
 	assert(md_check_compat(DIMS, ~(PHS1_FLAG|PHS2_FLAG), ksp_dims, traj_dims));
 
 
+
+	// output and imput
+
 	long coilim_dims[DIMS] = { [0 ... DIMS - 1]  = 1 };
 	estimate_im_dims(DIMS, FFT_FLAGS, coilim_dims, traj_dims, traj);
 
 	debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", coilim_dims[0], coilim_dims[1], coilim_dims[2]);
-	coilim_dims[3] = ksp_dims[3];
+	coilim_dims[3] = V;
 
+	long img_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, coilim_dims);
 
 	long out_dims[DIMS] = { [0 ... DIMS - 1]  = 1 };
-	md_copy_dims(4, out_dims, coilim_dims);
+	md_copy_dims(4, out_dims, img_dims);
 	md_copy_dims(DIMS - 4, out_dims + 4, dims + 4);
 
 	complex float* out = create_cfl(argv[2], DIMS, out_dims);
 
-	complex float* img = md_alloc(DIMS, coilim_dims, CFL_SIZE);
+	complex float* cimg = md_alloc(DIMS, coilim_dims, CFL_SIZE);
+	complex float* img = md_alloc(DIMS, img_dims, CFL_SIZE);
 
-	md_clear(DIMS, coilim_dims, img, CFL_SIZE);
-
-
-
-		
-//	complex float* out = create_cfl(argv[2], DIMS, dims);
-//	md_clear(DIMS, dims, out, CFL_SIZE);
 
 
 	long adc_dims[DIMS];
@@ -162,11 +172,41 @@ int main_rtreco(int argc, char* argv[argc])
 	long buf_dims[DIMS];
 	md_select_dims(DIMS, PHS1_FLAG|PHS2_FLAG|COIL_FLAG, buf_dims, ksp_dims);
 
-	void* buf = md_alloc(DIMS, buf_dims, CFL_SIZE);
+	complex float* buf = md_alloc(DIMS, buf_dims, CFL_SIZE);
+
+
+	// coil compression
+
+	int channels = ksp_dims[3];
+
+	long cc_dims[DIMS] = MD_INIT_ARRAY(DIMS, 1);
+
+	cc_dims[COIL_DIM] = channels;
+	cc_dims[MAPS_DIM] = channels;
+
+	complex float* cc = md_alloc(DIMS, cc_dims, CFL_SIZE);
+
+	long cc2_dims[DIMS];
+	md_copy_dims(DIMS, cc2_dims, cc_dims);
+	cc2_dims[MAPS_DIM] = V;
+
+
+	debug_printf(DP_DEBUG1, "Compressing to %ld virtual coils...\n", V);
+
+	long buf2_dims[DIMS];
+	md_copy_dims(DIMS, buf2_dims, buf_dims);
+	buf2_dims[COIL_DIM] = V;
+
+	long bufT_dims[DIMS];
+	md_copy_dims(DIMS, bufT_dims, buf_dims);
+	bufT_dims[MAPS_DIM] = V;
+	bufT_dims[COIL_DIM] = 1;
+
+	complex float* buf2 = md_alloc(DIMS, buf_dims, CFL_SIZE);
 
 
 	struct nufft_conf_s conf = nufft_conf_defaults;
-	const struct linop_s* nufft_op = nufft_create(DIMS, buf_dims, coilim_dims, traj_dims, traj, NULL, conf);
+	const struct linop_s* nufft_op = nufft_create(DIMS, buf2_dims, coilim_dims, traj_dims, traj, NULL, conf);
 
 
 	double start = timestamp();
@@ -205,24 +245,40 @@ int main_rtreco(int argc, char* argv[argc])
 			pos[2] = 0;
 		}
 
+
+		// coil compression
+
+		if (0 == n)
+			scc(cc_dims, cc, buf_dims, buf);
+
+		md_ztenmulc(DIMS, bufT_dims, buf2, cc2_dims, cc, buf_dims, buf);
+
+
 		// reconstruct frame
-		linop_adjoint(nufft_op, DIMS, coilim_dims, img, DIMS, buf_dims, buf);
+
+		linop_adjoint(nufft_op, DIMS, coilim_dims, cimg, DIMS, buf2_dims, buf2);
+
+		// RSS
+
+		md_zrss(DIMS, coilim_dims, COIL_FLAG, img, cimg);
 
 		pos[PHS1_DIM] = 0;
 		pos[PHS2_DIM] = 0;
 		pos[6] = n;
-		md_copy_block(DIMS, pos, out_dims, out, coilim_dims, img, CFL_SIZE);
+		md_copy_block(DIMS, pos, out_dims, out, img_dims, img, CFL_SIZE);
 	}
 
 	double end = timestamp();
 
 	debug_printf(DP_INFO, "Time: %fs (%f frames/s)\n", end - start, dims[6] / (end - start));
 
-
+	md_free(cc);
 	md_free(adc);
 	md_free(buf);
+	md_free(img);
+	md_free(cimg);
 
-	unmap_cfl(DIMS, dims, out);
+	unmap_cfl(DIMS, out_dims, out);
 
 	linop_free(nufft_op);
 	exit(0);
