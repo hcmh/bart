@@ -107,54 +107,32 @@ static void radial_self_delays(unsigned int N, float shifts[N], const float phi[
 }
 
 
-
-// [RING] Find (nearly) orthogonal spokes
-static void find_intersec_sp(const unsigned int no_intersec_sp, long intersec_sp[no_intersec_sp], const unsigned int cur_idx, const unsigned int N, const float angles[N])
+static float angle_dist(float a, float b)
 {
-	float intersec_angles[no_intersec_sp];
-
-	for (unsigned int i = 0; i < no_intersec_sp; i++) {
-
-		intersec_sp[i] = -1;
-		intersec_angles[i] = FLT_MAX;
-	}
-
-	for (unsigned int i = 0; i < N; i++) { // Iterate through angles
-
-		for (unsigned int j = 0; j < no_intersec_sp; j++) { // Iterate through intersec array
-
-			// If angle difference of spoke 'i' and current spoke is greater than intersection angle 'j'
-
-			if (fabs(fmod(fabs(angles[cur_idx] - angles[i]), M_PI) - M_PI / 2.) < intersec_angles[j]) {
-
-				// Shift smaller intersec_angles to higher indices
-
-				for (unsigned int k = no_intersec_sp; k > j + 1; k--) {
-
-					intersec_sp[k - 1] = intersec_sp[k - 2]; // Spoke index
-					intersec_angles[k - 1] = intersec_angles[k - 2]; // Angle value
-				}
-
-				// Assign current value
-				intersec_sp[j] = i;
-				intersec_angles[j] = fabs(fmod(fabs(angles[cur_idx]-angles[i]), M_PI) - M_PI / 2.); // Weight value
-				break;
-			}
-		}
-	}
+	return fabsf(fmodf(fabsf(a - b), M_PI) - M_PI / 2.);
 }
+
+static void find_nearest_orthogonal_spokes(int N, int spokes[N], float ref_angle, const float angles[N])
+{
+	int angle_compare(const void* _a, const void* _b)
+	{
+		const int* ap = _a;
+		const int* bp = _b;
+		return copysignf(1., angle_dist(ref_angle, angles[*ap]) - angle_dist(ref_angle, angles[*bp]));
+	}
+
+	for (int i = 0; i < N; i++)
+		spokes[i] = i;
+
+	qsort(spokes, N, sizeof(int), angle_compare);
+}
+
 
 
 
 // [RING] Test that hints if the chosen region (-r) is too small
 static void check_intersections(const unsigned int Nint, const unsigned int N, const complex float S_cmplx[3], const float angles[N], const long idx[2][Nint], const int c_region)
 {
-	float phi0;
-	float phi1;
-	float N1;
-	float N2;
-	float l = 0;
-	float m = 0;
 	double S[3];
 
 	S[0] = creal(S_cmplx[0]);
@@ -163,19 +141,19 @@ static void check_intersections(const unsigned int Nint, const unsigned int N, c
 
 	for (unsigned int i = 0; i < Nint; i++) {
 
-		phi0 = angles[idx[0][i]];
-		phi1 = angles[idx[1][i]];
-		N1 = cosf(phi0) - cosf(phi1);
-		N2 = sinf(phi0) - sinf(phi1);
+		float phi0 = angles[idx[0][i]];
+		float phi1 = angles[idx[1][i]];
+		float N1 = cosf(phi0) - cosf(phi1);
+		float N2 = sinf(phi0) - sinf(phi1);
 
 		// Nominal distance from spoke center to intersection point
 		// (analytical formula for intersection point)
 
-		l = (S[0] * N1 + S[2] * N2 - cosf(phi1) / sinf(phi1) * (S[2] * N1 + S[1] * N2))
-			/ (cosf(phi1) * sinf(phi0) / sinf(phi1) - cosf(phi0));
+		float l = (S[0] * N1 + S[2] * N2 - cosf(phi1) / sinf(phi1) * (S[2] * N1 + S[1] * N2))
+				/ (cosf(phi1) * sinf(phi0) / sinf(phi1) - cosf(phi0));
 
-		m = (S[0] * (-N1) + S[2] * (-N2) - cosf(phi0) / sinf(phi0) * (S[2] * (-N1) + S[1] * (-N2)))
-			/ (cosf(phi0) * sinf(phi1) / sinf(phi0) - cosf(phi1));
+		float m = (S[0] * (-N1) + S[2] * (-N2) - cosf(phi0) / sinf(phi0) * (S[2] * (-N1) + S[1] * (-N2)))
+				/ (cosf(phi0) * sinf(phi1) / sinf(phi0) - cosf(phi1));
 
 		l = abs((int)round(l));
 		m = abs((int)round(m));
@@ -219,12 +197,6 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 	long pos_l[DIMS] = { 0 };
 	long pos_m[DIMS] = { 0 };
 
-	// Array to store indices of spokes that build an angle close to pi/2 with the current spoke
-	long intersec_sp[no_intersec_sp];
-
-	for (unsigned int i = 0; i < no_intersec_sp; i++)
-		intersec_sp[i] = -1;
-
 	// Boundaries for spoke comparison
 	int myROI = ROI;
 
@@ -242,7 +214,8 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 
 		md_slice(DIMS, PHS2_FLAG, pos_i, kc_dims, spoke_i, kc, CFL_SIZE);
 
-		find_intersec_sp(no_intersec_sp, intersec_sp, i, N, angles);
+		int intersec_sp[N];
+		find_nearest_orthogonal_spokes(N, intersec_sp, angles[i], angles);
 
 		for (unsigned int j = 0; j < no_intersec_sp; j++) {
 
