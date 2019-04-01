@@ -99,6 +99,8 @@ int main_rtreco(int argc, char* argv[argc])
 	unsigned int median = 1;
 	bool geom = true;
 
+	bool mcoil = false;
+
 	struct opt_s opts[] = {
 
 		OPT_LONG('x', &(dims[READ_DIM]), "X", "number of samples (read-out)"),
@@ -106,6 +108,7 @@ int main_rtreco(int argc, char* argv[argc])
 		OPT_LONG('t', &turns, "T", "numer of turns"),
 		OPT_UINT('m', &median, "L", "Median filter"),
 		OPT_SET('C', &geom, "complex median"),
+		OPT_SET('U', &mcoil, "uncombined output"),
 		OPT_LONG('c', &(dims[COIL_DIM]), "C", "number of channels"),
 		OPT_LONG('v', &V, "V", "number of virtual channels"),
 		OPT_LONG('n', &(dims[6]), "N", "number of repetitions"),
@@ -156,14 +159,17 @@ int main_rtreco(int argc, char* argv[argc])
 	estimate_im_dims(DIMS, FFT_FLAGS, coilim_dims, traj_dims, traj);
 
 	debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", coilim_dims[0], coilim_dims[1], coilim_dims[2]);
-	coilim_dims[3] = V;
+	coilim_dims[COIL_DIM] = V;
 
-	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, coilim_dims);
 
 	long out_dims[DIMS] = { [0 ... DIMS - 1]  = 1 };
-	md_copy_dims(4, out_dims, img_dims);
+	md_copy_dims(3, out_dims, coilim_dims);
 	md_copy_dims(DIMS - 4, out_dims + 4, dims + 4);
+
+	out_dims[COIL_DIM] = mcoil ? V : 1;
+
+	long img_dims[DIMS];
+	md_select_dims(DIMS, ~MD_BIT(6), img_dims, out_dims);
 
 	complex float* out = create_cfl(argv[2], DIMS, out_dims);
 
@@ -184,7 +190,7 @@ int main_rtreco(int argc, char* argv[argc])
 
 	// coil compression
 
-	int channels = ksp_dims[3];
+	int channels = ksp_dims[COIL_DIM];
 
 	long cc_dims[DIMS] = MD_INIT_ARRAY(DIMS, 1);
 
@@ -294,7 +300,15 @@ int main_rtreco(int argc, char* argv[argc])
 
 		// RSS
 
-		md_zrss(DIMS, coilim_dims, COIL_FLAG, img, cimg);
+		if (mcoil) {
+
+			assert(img_dims[COIL_DIM] == coilim_dims[COIL_DIM]);
+			md_copy(DIMS, coilim_dims, img, cimg, CFL_SIZE);
+
+		} else {
+
+			md_zrss(DIMS, coilim_dims, COIL_FLAG, img, cimg);
+		}
 
 		// Median filter
 
