@@ -127,9 +127,7 @@ static void fmac_normal(const linop_data_t* _data, complex float* dst, const com
 {
         struct fmac_data* data = CAST_DOWN(fmac_data, _data);
 
-	// FIXME: gpu
-
-	complex float* tmp = md_alloc(data->N, data->odims, CFL_SIZE);
+	complex float* tmp = md_alloc_sameplace(data->N, data->odims, CFL_SIZE, dst);
 	fmac_apply(_data, tmp, src);
 	fmac_adjoint(_data, dst, tmp);
 	md_free(tmp);
