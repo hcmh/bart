@@ -107,26 +107,6 @@ static void radial_self_delays(unsigned int N, float shifts[N], const float phi[
 }
 
 
-// [RING] Calculate Pseudoinverse
-static void calc_pinv(unsigned int Nint, complex float pinv[3][2 * Nint], const complex float A[2 * Nint][3])
-{
-	//AH
-	complex float AH[3][2 * Nint];
-	mat_transpose(2 * Nint, 3, AH, A);
-
-	// (AH * A)^-1
-	complex float dot[3][3];
-	mat_mul(3, 2 * Nint, 3, dot, AH, A);
-
-	complex float inv[3][3];
-	mat_inverse(3, inv, dot);
-
-	// (AH * A)^-1 * AH
-	mat_mul(3, 3, 2 * Nint, pinv, inv, AH);
-
-	return;
-}
-
 
 // [RING] Find (nearly) orthogonal spokes
 static void find_intersec_sp(const unsigned int no_intersec_sp, long intersec_sp[no_intersec_sp], const unsigned int cur_idx, const unsigned int N, const float angles[N])
@@ -167,7 +147,7 @@ static void find_intersec_sp(const unsigned int no_intersec_sp, long intersec_sp
 
 
 // [RING] Test that hints if the chosen region (-r) is too small
-static void check_intersections(const unsigned int Nint, const unsigned int N, const complex float S_cmplx[3][1], const float angles[N], const long idx[2][Nint], const int c_region)
+static void check_intersections(const unsigned int Nint, const unsigned int N, const complex float S_cmplx[3], const float angles[N], const long idx[2][Nint], const int c_region)
 {
 	float phi0;
 	float phi1;
@@ -175,11 +155,11 @@ static void check_intersections(const unsigned int Nint, const unsigned int N, c
 	float N2;
 	float l = 0;
 	float m = 0;
-	double S[3][1];
+	double S[3];
 
-	S[0][0] = creal(S_cmplx[0][0]);
-	S[1][0] = creal(S_cmplx[1][0]);
-	S[2][0] = creal(S_cmplx[2][0]);
+	S[0] = creal(S_cmplx[0]);
+	S[1] = creal(S_cmplx[1]);
+	S[2] = creal(S_cmplx[2]);
 
 	for (unsigned int i = 0; i < Nint; i++) {
 
@@ -191,10 +171,10 @@ static void check_intersections(const unsigned int Nint, const unsigned int N, c
 		// Nominal distance from spoke center to intersection point
 		// (analytical formula for intersection point)
 
-		l = (S[0][0] * N1 + S[2][0] * N2 - cosf(phi1) / sinf(phi1) * (S[2][0] * N1 + S[1][0] * N2))
+		l = (S[0] * N1 + S[2] * N2 - cosf(phi1) / sinf(phi1) * (S[2] * N1 + S[1] * N2))
 			/ (cosf(phi1) * sinf(phi0) / sinf(phi1) - cosf(phi0));
 
-		m = (S[0][0] * (-N1) + S[2][0] * (-N2) - cosf(phi0) / sinf(phi0) * (S[2][0] * (-N1) + S[1][0] * (-N2)))
+		m = (S[0] * (-N1) + S[2] * (-N2) - cosf(phi0) / sinf(phi0) * (S[2] * (-N1) + S[1] * (-N2)))
 			/ (cosf(phi0) * sinf(phi1) / sinf(phi0) - cosf(phi1));
 
 		l = abs((int)round(l));
@@ -336,7 +316,7 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 
 
 // [RING] Solve inverse problem AS = B using pseudoinverse
-static void calc_S(const unsigned int Nint, const unsigned int N, complex float S[3][1], const float angles[N], const float dist[2][Nint], const long idx[2][Nint])
+static void calc_S(const unsigned int Nint, const unsigned int N, complex float S[3], const float angles[N], const float dist[2][Nint], const long idx[2][Nint])
 {
 	complex float A[2 * Nint][3];
 	float phi0 = 0;
@@ -346,7 +326,7 @@ static void calc_S(const unsigned int Nint, const unsigned int N, complex float 
 	float b0 = 0;
 	float b1 = 0;
 
-	complex float B[2 * Nint][1];
+	complex float B[2 * Nint];
 	complex float alpha0 = 0;
 	complex float alpha1 = 0;
 
@@ -367,20 +347,20 @@ static void calc_S(const unsigned int Nint, const unsigned int N, complex float 
 		A[count][0] = a0;
 		A[count][1] = 0.;
 		A[count][2] = a1;
-		B[count][0] = b0;
+		B[count] = b0;
 		count++;
 
 		A[count][0] = 0.;
 		A[count][1] = a1;
 		A[count][2] = a0;
-		B[count][0] = b1;
+		B[count] = b1;
 		count++;
 	}
 
 	complex float pinv[3][2 * Nint];
 
-	calc_pinv(Nint, pinv, A);
-	mat_mul(3, 2 * Nint, 1, S, pinv, B);
+	mat_pinv(2 * Nint, 3, pinv, A);
+	mat_vecmul(3, 2 * Nint, S, pinv, B);
 }
 
 
@@ -529,14 +509,14 @@ int main_estdelay(int argc, char* argv[])
 		unsigned int Nint = N * no_intersec_sp; // Number of intersection points
 		long idx[2][Nint];
 		float dist[2][Nint];
-		complex float S[3][1] = { { 0 } };
+		complex float S[3] = { 0 };
 
 		calc_intersections(Nint, N, no_intersec_sp, dist, idx, angles, kc_dims, kc, c_region);
 		calc_S(Nint, N, S, angles, dist, idx);
 		check_intersections(Nint, N, S, angles, idx, c_region);
 
 		for (int i = 0; i < 3; i++)
-			qf[i] = creal(S[i][0]) / pad_factor;
+			qf[i] = creal(S[i]) / pad_factor;
 
 		md_free(kc);
 	}
