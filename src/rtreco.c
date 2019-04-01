@@ -209,6 +209,19 @@ int main_rtreco(int argc, char* argv[argc])
 	const struct linop_s* nufft_op = nufft_create(DIMS, buf2_dims, coilim_dims, traj_dims, traj, NULL, conf);
 
 
+	long filt_dims[DIMS];
+	md_select_dims(DIMS, ~READ_FLAG, filt_dims, traj_dims);
+
+	complex float* filter = md_alloc(DIMS, filt_dims, CFL_SIZE);
+	md_zrss(DIMS, traj_dims, READ_FLAG, filter, traj);
+
+	long buf2_strs[DIMS];
+	md_calc_strides(DIMS, buf2_strs, buf2_dims, CFL_SIZE);
+
+	long filt_strs[DIMS];
+	md_calc_strides(DIMS, filt_strs, filt_dims, CFL_SIZE);
+
+
 	double start = timestamp();
 
 
@@ -253,6 +266,10 @@ int main_rtreco(int argc, char* argv[argc])
 
 		md_ztenmulc(DIMS, bufT_dims, buf2, cc2_dims, cc, buf_dims, buf);
 
+		// filter
+
+		md_zmul2(DIMS, buf2_dims, buf2_strs, buf2, buf2_strs, buf2, filt_strs, filter);
+
 
 		// reconstruct frame
 
@@ -277,6 +294,7 @@ int main_rtreco(int argc, char* argv[argc])
 	md_free(buf);
 	md_free(img);
 	md_free(cimg);
+	md_free(filter);
 
 	unmap_cfl(DIMS, out_dims, out);
 
