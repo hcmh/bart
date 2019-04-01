@@ -150,8 +150,11 @@ static void check_intersections(const int Nint, const int N, const float S[3], c
 		m = abs((int)round(m));
 
 		// Check if nominal distance can be reached in chosen region
-		if ((l >= c_region / 2) || (m >= c_region / 2))
+		if ((l >= c_region / 2) || (m >= c_region / 2)) {
+
 			debug_printf(DP_WARN, "Choose larger region! (-r option)\n");
+			break;
+		}
 	}
 }
 
