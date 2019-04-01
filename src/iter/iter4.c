@@ -8,6 +8,7 @@
 #include "num/ops.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
+
 #include "num/iovec.h"
 
 #include "nlops/nlop.h"
