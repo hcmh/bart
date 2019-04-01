@@ -49,7 +49,7 @@
 #endif
 
 // [AC-Adaptive]
-static void radial_self_delays(unsigned int N, float shifts[N], const float phi[N], const long dims[DIMS], const complex float* in)
+static void radial_self_delays(int N, float shifts[N], const float phi[N], const long dims[DIMS], const complex float* in)
 {
 	unsigned int d = 2;
 	unsigned int flags = (1 << d);
@@ -64,7 +64,7 @@ static void radial_self_delays(unsigned int N, float shifts[N], const float phi[
 
 	long pos[DIMS] = { 0 };
 
-	for (unsigned int i = 0; i < dims[d]; i++) {
+	for (int i = 0; i < dims[d]; i++) {
 
 		pos[d] = i;
 		md_copy_block(DIMS, pos, dims1, tmp1, dims, in, CFL_SIZE);
@@ -74,7 +74,7 @@ static void radial_self_delays(unsigned int N, float shifts[N], const float phi[
 		float mdelta = 0.;
 		int mindex = 0;
 
-		for (unsigned int j = 0; j < dims[d]; j++) {
+		for (int j = 0; j < dims[d]; j++) {
 
 			float delta = cabsf(cexpf(1.i * phi[j]) - cexpf(1.i * phi[i]));
 
@@ -89,7 +89,7 @@ static void radial_self_delays(unsigned int N, float shifts[N], const float phi[
 		md_copy_block(DIMS, pos, dims1, tmp2, dims, in, CFL_SIZE);
 
 
-		unsigned int d2 = 1;
+		int d2 = 1;
 		float rshifts[DIMS];
 		md_flip(DIMS, dims1, MD_BIT(d2), tmp2, tmp2, CFL_SIZE); // could be done by iFFT in est_subpixel_shift
 		est_subpixel_shift(DIMS, rshifts, dims1, MD_BIT(d2), tmp2, tmp1);
@@ -161,7 +161,7 @@ static void check_intersections(const int Nint, const int N, const float S[3], c
 
 
 // [RING] Caclucate intersection points
-static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int no_intersec_sp, float dist[2][Nint], long idx[2][Nint], const float angles[N], const long kc_dims[DIMS], const complex float* kc, int ROI)
+static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2][Nint], long idx[2][Nint], const float angles[N], const long kc_dims[DIMS], const complex float* kc, int ROI)
 {
 	long spoke_dims[DIMS];
 	md_select_dims(DIMS, ~PHS2_FLAG, spoke_dims, kc_dims);
@@ -191,7 +191,7 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 		ROI++;
 
 	// Intersection determination
-	for (unsigned int i = 0; i < N; i++) {
+	for (int i = 0; i < N; i++) {
 
 		pos_i[PHS2_DIM] = i;
 
@@ -200,7 +200,7 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 		int intersec_sp[N];
 		find_nearest_orthogonal_spokes(N, intersec_sp, angles[i], angles);
 
-		for (unsigned int j = 0; j < no_intersec_sp; j++) {
+		for (int j = 0; j < no_intersec_sp; j++) {
 
 			pos_j[PHS2_DIM] = intersec_sp[j];
 
@@ -247,9 +247,9 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 	const char* d_out = "offset.txt";
 	FILE* fp1 = fopen(d_out, "w");
 
-	for (unsigned int i = 0; i < N; i++) {
+	for (int i = 0; i < N; i++) {
 
-		for (unsigned int j = 0; j < no_intersec_sp; j++) {
+		for (int j = 0; j < no_intersec_sp; j++) {
 
 			fprintf(fp, "%f \t %f\n", angles[idx[0][i * no_intersec_sp + j]], angles[idx[1][i * no_intersec_sp + j]]);
 			fprintf(fp1, "%f \t %f\n", dist[0][i * no_intersec_sp + j], dist[1][i * no_intersec_sp + j]);
@@ -271,12 +271,12 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 
 
 // [RING] Solve inverse problem AS = B using pseudoinverse
-static void calc_S(const unsigned int Nint, const unsigned int N, float S[3], const float angles[N], const float dist[2][Nint], const long idx[2][Nint])
+static void calc_S(const int Nint, const int N, float S[3], const float angles[N], const float dist[2][Nint], const long idx[2][Nint])
 {
 	complex float A[2 * Nint][3];
 	complex float B[2 * Nint];
 
-	for (unsigned int i = 0; i < Nint; i++) {
+	for (int i = 0; i < Nint; i++) {
 
 		float phi0 = angles[idx[0][i]];
 		float phi1 = angles[idx[1][i]];
@@ -334,7 +334,7 @@ int main_estdelay(int argc, char* argv[])
 
 	num_init();
 
-	if (pad_factor % 2 != 0)
+	if (0 != pad_factor % 2)
 		error("Pad_factor -p should be even\n");
 
 
@@ -347,10 +347,10 @@ int main_estdelay(int argc, char* argv[])
 	complex float* traj1 = md_alloc(DIMS, tdims1, CFL_SIZE);
 	md_slice(DIMS, MD_BIT(1), (long[DIMS]){ 0 }, tdims, traj1, traj, CFL_SIZE);
 
-	unsigned int N = tdims[2];
+	int N = tdims[2];
 
 	float angles[N];
-	for (unsigned int i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 		angles[i] = M_PI + atan2f(crealf(traj1[3 * i + 0]), crealf(traj1[3 * i + 1]));
 
 
@@ -360,7 +360,7 @@ int main_estdelay(int argc, char* argv[])
 
 		md_slice(DIMS, MD_BIT(1), (long[DIMS]){ [1] = tdims[1] / 2 }, tdims, traj1, traj, CFL_SIZE);
 
-		for (unsigned int i = 0; i < N; i++)
+		for (int i = 0; i < N; i++)
 			if (0. != cabsf(traj1[3 * i]))
 				error("Nominal trajectory must be centered for RING.\n");
 	}
@@ -465,7 +465,7 @@ int main_estdelay(int argc, char* argv[])
 
 		//--- Calculate intersections ---
 
-		unsigned int Nint = N * no_intersec_sp; // Number of intersection points
+		int Nint = N * no_intersec_sp; // Number of intersection points
 		long idx[2][Nint];
 		float dist[2][Nint];
 
