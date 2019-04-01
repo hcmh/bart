@@ -1,26 +1,23 @@
-/* Copyright 2017-2018. Martin Uecker.
+/* Copyright 2017-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2017-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2018 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  *
  *
- * [1]
  * Kai Tobias Block and Martin Uecker, Simple Method for Adaptive
  * Gradient-Delay Compensation in Radial MRI, Annual Meeting ISMRM,
  * Montreal 2011, In Proc. Intl. Soc. Mag. Reson. Med 19: 2816 (2011)
  *
- * [2]
  * Amir Moussavi, Markus Untenberger, Martin Uecker, and Jens Frahm,
  * Correction of gradient-induced phase errors in radial MRI,
  * Magnetic Resonance in Medicine, 71:308-312 (2014)
  *
- * [3]
  * Sebastian Rosenzweig, Hans Christian Holme, Martin Uecker,
  * Simple Auto-Calibrated Gradient Delay Estimation From Few Spokes Using Radial
- * Intersections (RING), Preprint
+ * Intersections (RING), Magnetic Resonance in Medicine 81:1898-1906 (2019)
  */
 
 #include <complex.h>
@@ -164,8 +161,7 @@ static void check_intersections(const int Nint, const int N, const float S[3], c
 static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int no_intersec_sp, float dist[2][Nint], long idx[2][Nint], const float angles[N], const long kc_dims[DIMS], const complex float* kc, const int ROI)
 {
 	long spoke_dims[DIMS];
-	md_copy_dims(DIMS, spoke_dims, kc_dims);
-	spoke_dims[PHS2_DIM] = 1;
+	md_select_dims(DIMS, ~PHS2_FLAG, spoke_dims, kc_dims);
 
 	complex float* spoke_i = md_alloc(DIMS, spoke_dims, CFL_SIZE);
 	complex float* spoke_j = md_alloc(DIMS, spoke_dims, CFL_SIZE);
@@ -174,17 +170,14 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 	long pos_j[DIMS] = { 0 };
 
 	long coilPixel_dims[DIMS];
-	md_copy_dims(DIMS, coilPixel_dims, spoke_dims);
-	coilPixel_dims[PHS1_DIM] = 1;
+	md_select_dims(DIMS, ~PHS1_FLAG, coilPixel_dims, spoke_dims);
 
 	complex float* coilPixel_l = md_alloc(DIMS, coilPixel_dims, CFL_SIZE);
 	complex float* coilPixel_m = md_alloc(DIMS, coilPixel_dims, CFL_SIZE);
 	complex float* diff = md_alloc(DIMS, coilPixel_dims, CFL_SIZE);
 
 	long diff_rss_dims[DIMS];
-	md_copy_dims(DIMS, diff_rss_dims, coilPixel_dims);
-	diff_rss_dims[COIL_DIM] = 1;
-	diff_rss_dims[PHS1_DIM] = 1;
+	md_select_dims(DIMS, ~(COIL_FLAG|PHS1_FLAG), diff_rss_dims, coilPixel_dims);
 
 	complex float* diff_rss = md_alloc(DIMS, diff_rss_dims, CFL_SIZE);
 
@@ -192,14 +185,8 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 	long pos_m[DIMS] = { 0 };
 
 	// Boundaries for spoke comparison
-	int myROI = ROI;
+	int myROI = ROI + ((ROI % 2 == 0) ? 1 : 0); // make odd
 
-	myROI += (ROI % 2 == 0) ? 1 : 0; // make odd
-
-	int low = 0;
-	int high = myROI - 1;
-
-	int count = 0;
 
 	// Intersection determination
 	for (unsigned int i = 0; i < N; i++) {
@@ -223,18 +210,18 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 			// Elementwise rss comparisson
 			float rss = FLT_MAX;
 
-			for (int l = low; l <= high; l++) {
+			for (int l = 0; l < myROI; l++) {
 
 				pos_l[PHS1_DIM] = l;
 				md_copy_block(DIMS, pos_l, coilPixel_dims, coilPixel_l, spoke_dims, spoke_i, CFL_SIZE);
 
-				for (int m = low; m <= high; m++) {
+				for (int m = 0; m < myROI; m++) {
 
 					pos_m[PHS1_DIM] = m;
 
 					md_copy_block(DIMS, pos_m, coilPixel_dims, coilPixel_m, spoke_dims, spoke_j, CFL_SIZE);
-					md_zsub(DIMS, coilPixel_dims, diff, coilPixel_l, coilPixel_m);
 
+					md_zsub(DIMS, coilPixel_dims, diff, coilPixel_l, coilPixel_m);
 					md_zrss(DIMS, coilPixel_dims, PHS1_FLAG|COIL_FLAG, diff_rss, diff);
 
 					if (cabsf(diff_rss[0]) < rss) { // New minimum found
@@ -245,8 +232,6 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 					}
 				}
 			}
-
-			count++;
 		}
 	}
 
@@ -315,6 +300,7 @@ static void calc_S(const unsigned int Nint, const unsigned int N, float S[3], co
 	mat_pinv(2 * Nint, 3, pinv, A);
 
 	complex float Sc[3];
+
 	mat_vecmul(3, 2 * Nint, Sc, pinv, B);
 
 	for (int i = 0; i < 3; i++)
@@ -386,6 +372,7 @@ int main_estdelay(int argc, char* argv[])
 	// Remove not needed dimensions
 	long dims[DIMS];
 	md_select_dims(DIMS, READ_FLAG|PHS1_FLAG|PHS2_FLAG|COIL_FLAG, dims, full_dims);
+
 	complex float* in = md_alloc(DIMS, dims, CFL_SIZE);
 
 	long pos[DIMS] = { 0 };
@@ -395,9 +382,11 @@ int main_estdelay(int argc, char* argv[])
 	assert(dims[1] == tdims[1]);
 	assert(dims[2] == tdims[2]);
 
-	float qf[3];
+	float qf[3];	// S in RING
 
-	if (!ring) { // AC-Adaptive method [1]
+	if (!ring) {
+
+		// Block and Uecker, ISMRM 19:2816 (2001)
 
 		float delays[N];
 		radial_self_delays(N, delays, angles, dims, in);
@@ -409,7 +398,11 @@ int main_estdelay(int argc, char* argv[])
 
 		fit_quadratic_form(qf, N, angles, delays);
 
-	} else { // RING method [3]
+	} else {
+
+		/* RING method
+		 * Rosenzweig et al., MRM 81:1898-1906 (2019)
+		 */
 
 		int c_region = (int)(pad_factor * size);
 
@@ -418,9 +411,11 @@ int main_estdelay(int argc, char* argv[])
 
 		//--- Refine grid ---
 		complex float* im = md_alloc(DIMS, dims, CFL_SIZE);
+
 		ifftuc(DIMS, dims, PHS1_FLAG, im, in);
 
 		long pad_dims[DIMS];
+
 		md_copy_dims(DIMS, pad_dims, dims);
 		pad_dims[PHS1_DIM] = pad_factor * dims[PHS1_DIM];
 
@@ -428,30 +423,38 @@ int main_estdelay(int argc, char* argv[])
 		complex float* im_pad = md_alloc(DIMS, pad_dims, CFL_SIZE);
 
 		md_resize_center(DIMS, pad_dims, im_pad, dims, im, CFL_SIZE);
+
 		md_free(im);
 
 		// Sinc filter in k-space (= crop FOV in image space)
 		long crop_dims[DIMS];
+
 		md_copy_dims(DIMS, crop_dims, dims);
 		crop_dims[PHS1_DIM] = 0.6 * dims[PHS1_DIM];
 
 		complex float* crop = md_alloc(DIMS, crop_dims, CFL_SIZE);
+
 		md_zfill(DIMS, crop_dims, crop, 1.);
 
 		complex float* mask = md_alloc(DIMS, pad_dims, CFL_SIZE);
+
 		md_resize_center(DIMS, pad_dims, mask, crop_dims, crop, CFL_SIZE);
 
 		complex float* im_pad2 = md_alloc(DIMS, pad_dims, CFL_SIZE);
+
 		md_zmul(DIMS, pad_dims, im_pad2, im_pad, mask);
+
 		md_free(im_pad);
 		md_free(mask);
 
 		fftuc(DIMS, pad_dims, PHS1_FLAG, k_pad, im_pad2);
+
 		md_free(im_pad2);
 
 		//--- Consider only center region ---
 
 		long kc_dims[DIMS];
+
 		md_copy_dims(DIMS, kc_dims, pad_dims);
 		kc_dims[PHS1_DIM] = c_region;
 
@@ -459,7 +462,9 @@ int main_estdelay(int argc, char* argv[])
 
 		long pos[DIMS] = { 0 };
 		pos[PHS1_DIM] = pad_dims[PHS1_DIM] / 2 - (c_region / 2);
+
 		md_copy_block(DIMS, pos, kc_dims, kc, pad_dims, k_pad, CFL_SIZE);
+
 		md_free(k_pad);
 
 		//--- Calculate intersections ---
@@ -467,14 +472,13 @@ int main_estdelay(int argc, char* argv[])
 		unsigned int Nint = N * no_intersec_sp; // Number of intersection points
 		long idx[2][Nint];
 		float dist[2][Nint];
-		float S[3] = { 0 };
 
 		calc_intersections(Nint, N, no_intersec_sp, dist, idx, angles, kc_dims, kc, c_region);
-		calc_S(Nint, N, S, angles, dist, idx);
-		check_intersections(Nint, N, S, angles, idx, c_region);
+		calc_S(Nint, N, qf, angles, dist, idx);
+		check_intersections(Nint, N, qf, angles, idx, c_region);
 
 		for (int i = 0; i < 3; i++)
-			qf[i] = creal(S[i]) / pad_factor;
+			qf[i] /= pad_factor;
 
 		md_free(kc);
 	}
