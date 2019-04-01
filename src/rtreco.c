@@ -130,9 +130,6 @@ int main_rtreco(int argc, char* argv[argc])
 
 	debug_print_dims(DP_DEBUG1, DIMS, dims);
 
-	if (-1 == V)
-		V = dims[COIL_DIM];
-
 
         int ifd;
         if (-1 == (ifd = open(argv[1], O_RDONLY)))
@@ -171,14 +168,16 @@ int main_rtreco(int argc, char* argv[argc])
 	estimate_im_dims(DIMS, FFT_FLAGS, coilim_dims, traj_dims, traj);
 
 	debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", coilim_dims[0], coilim_dims[1], coilim_dims[2]);
-	coilim_dims[COIL_DIM] = V;
+
+	coilim_dims[COIL_DIM] = (-1 != V) ? V : ksp_dims[COIL_DIM];
 
 
 	long out_dims[DIMS] = { [0 ... DIMS - 1]  = 1 };
-	md_copy_dims(3, out_dims, coilim_dims);
+	md_copy_dims(4, out_dims, coilim_dims);
 	md_copy_dims(DIMS - 4, out_dims + 4, dims + 4);
 
-	out_dims[COIL_DIM] = mcoil ? V : 1;
+	if (!mcoil)
+		out_dims[COIL_DIM] = 1;
 
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~MD_BIT(6), img_dims, out_dims);
@@ -213,18 +212,18 @@ int main_rtreco(int argc, char* argv[argc])
 
 	long cc2_dims[DIMS];
 	md_copy_dims(DIMS, cc2_dims, cc_dims);
-	cc2_dims[MAPS_DIM] = V;
+	cc2_dims[MAPS_DIM] = coilim_dims[COIL_DIM];
 
-
-	debug_printf(DP_DEBUG1, "Compressing to %ld virtual coils...\n", V);
+	if (-1 != V)
+		debug_printf(DP_DEBUG1, "Compressing to %ld virtual coils...\n", V);
 
 	long buf2_dims[DIMS];
 	md_copy_dims(DIMS, buf2_dims, buf_dims);
-	buf2_dims[COIL_DIM] = V;
+	buf2_dims[COIL_DIM] = coilim_dims[COIL_DIM];
 
 	long bufT_dims[DIMS];
 	md_copy_dims(DIMS, bufT_dims, buf_dims);
-	bufT_dims[MAPS_DIM] = V;
+	bufT_dims[MAPS_DIM] = coilim_dims[COIL_DIM];
 	bufT_dims[COIL_DIM] = 1;
 
 	complex float* buf2 = md_alloc(DIMS, buf_dims, CFL_SIZE);
@@ -296,10 +295,17 @@ int main_rtreco(int argc, char* argv[argc])
 
 		// coil compression
 
-		if (0 == n)
-			scc(cc_dims, cc, buf_dims, buf);
+		if (-1 != V) {
 
-		md_ztenmulc(DIMS, bufT_dims, buf2, cc2_dims, cc, buf_dims, buf);
+			if (0 == n)
+				scc(cc_dims, cc, buf_dims, buf);
+
+			md_ztenmulc(DIMS, bufT_dims, buf2, cc2_dims, cc, buf_dims, buf);
+
+		} else {
+
+			md_copy(DIMS, buf_dims, buf2, buf, CFL_SIZE);
+		}
 
 		// filter
 
