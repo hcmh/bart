@@ -97,6 +97,7 @@ int main_rtreco(int argc, char* argv[argc])
 
 	long V = -1;
 	unsigned int median = 1;
+	bool geom = true;
 
 	struct opt_s opts[] = {
 
@@ -104,6 +105,7 @@ int main_rtreco(int argc, char* argv[argc])
 		OPT_LONG('r', &(dims[PHS1_DIM]), "R", "numer of radial spokes / frame"),
 		OPT_LONG('t', &turns, "T", "numer of turns"),
 		OPT_UINT('m', &median, "L", "Median filter"),
+		OPT_SET('C', &geom, "complex median"),
 		OPT_LONG('c', &(dims[COIL_DIM]), "C", "number of channels"),
 		OPT_LONG('v', &V, "V", "number of virtual channels"),
 		OPT_LONG('n', &(dims[6]), "N", "number of repetitions"),
@@ -300,7 +302,7 @@ int main_rtreco(int argc, char* argv[argc])
 
 			pos[6] = n % med_dims[6];
 			md_copy_block(DIMS, pos, med_dims, med, img_dims, img, CFL_SIZE);
-			md_medianz(DIMS, 6, med_dims, img, med);
+			(geom ? md_geometric_medianz : md_medianz)(DIMS, 6, med_dims, img, med);
 			pos[6] = 0;
 		}
 
