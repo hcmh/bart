@@ -93,7 +93,7 @@ static int adc_read(int fd, const long dims[DIMS], long pos[DIMS], complex float
 
 
 
-static const char usage_str[] = "<dat file> <output>";
+static const char usage_str[] = "<trajectory> <dat file> <output>";
 //	fprintf(fd, "Usage: %s [...] [-a A] <dat file> <output>\n", name);
 
 static const char help_str[] = "Read streaming data and reconstruct frame by frame.";
@@ -126,13 +126,13 @@ int main_rtreco(int argc, char* argv[argc])
 		OPT_LONG('n', &(dims[6]), "N", "number of repetitions"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	debug_print_dims(DP_DEBUG1, DIMS, dims);
 
 
         int ifd;
-        if (-1 == (ifd = open(argv[1], O_RDONLY)))
+        if (-1 == (ifd = open(argv[2], O_RDONLY)))
                 error("error opening file.");
 
 	meas_setup(ifd);
@@ -141,7 +141,7 @@ int main_rtreco(int argc, char* argv[argc])
 
 	// Read trajectory
 	long traj_dims[DIMS];
-	complex float* traj = load_cfl("t", DIMS, traj_dims);
+	complex float* traj = load_cfl(argv[1], DIMS, traj_dims);
 
 	assert(3 == traj_dims[0]);
 	assert(0 == traj_dims[2] % turns);
@@ -182,7 +182,7 @@ int main_rtreco(int argc, char* argv[argc])
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~MD_BIT(6), img_dims, out_dims);
 
-	complex float* out = create_cfl(argv[2], DIMS, out_dims);
+	complex float* out = create_cfl(argv[3], DIMS, out_dims);
 
 	complex float* cimg = md_alloc(DIMS, coilim_dims, CFL_SIZE);
 	complex float* img = md_alloc(DIMS, img_dims, CFL_SIZE);
