@@ -15,6 +15,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/init.h"
+#include "num/filter.h"
 
 #include "linops/linop.h"
 
@@ -95,12 +96,14 @@ int main_rtreco(int argc, char* argv[argc])
 	md_singleton_dims(DIMS, dims);
 
 	long V = -1;
+	unsigned int median = 1;
 
 	struct opt_s opts[] = {
 
 		OPT_LONG('x', &(dims[READ_DIM]), "X", "number of samples (read-out)"),
 		OPT_LONG('r', &(dims[PHS1_DIM]), "R", "numer of radial spokes / frame"),
 		OPT_LONG('t', &turns, "T", "numer of turns"),
+		OPT_UINT('m', &median, "L", "Median filter"),
 		OPT_LONG('c', &(dims[COIL_DIM]), "C", "number of channels"),
 		OPT_LONG('v', &V, "V", "number of virtual channels"),
 		OPT_LONG('n', &(dims[6]), "N", "number of repetitions"),
@@ -210,6 +213,8 @@ int main_rtreco(int argc, char* argv[argc])
 	struct nufft_conf_s conf = nufft_conf_defaults;
 	const struct linop_s* nufft_op = nufft_create(DIMS, buf2_dims, coilim_dims, traj_dims, traj, NULL, conf);
 
+	// filter
+
 
 	long filt_dims[DIMS];
 	md_select_dims(DIMS, ~READ_FLAG, filt_dims, traj_dims);
@@ -222,6 +227,14 @@ int main_rtreco(int argc, char* argv[argc])
 
 	long filt_strs[DIMS];
 	md_calc_strides(DIMS, filt_strs, filt_dims, CFL_SIZE);
+
+	// median
+
+	long med_dims[DIMS];
+	md_copy_dims(DIMS, med_dims, img_dims);
+	med_dims[6] = median;
+
+	complex float* med = md_calloc(DIMS, med_dims, CFL_SIZE);
 
 
 	double start = timestamp();
@@ -281,9 +294,19 @@ int main_rtreco(int argc, char* argv[argc])
 
 		md_zrss(DIMS, coilim_dims, COIL_FLAG, img, cimg);
 
+		// Median filter
+
+		if (1 != med_dims[6]) {
+
+			pos[6] = n % med_dims[6];
+			md_copy_block(DIMS, pos, med_dims, med, img_dims, img, CFL_SIZE);
+			md_medianz(DIMS, 6, med_dims, img, med);
+			pos[6] = 0;
+		}
+
+		pos[6] = n;
 		pos[PHS1_DIM] = 0;
 		pos[PHS2_DIM] = 0;
-		pos[6] = n;
 		md_copy_block(DIMS, pos, out_dims, out, img_dims, img, CFL_SIZE);
 	}
 
@@ -291,6 +314,7 @@ int main_rtreco(int argc, char* argv[argc])
 
 	debug_printf(DP_INFO, "Time: %fs (%f frames/s)\n", end - start, dims[6] / (end - start));
 
+	md_free(med);
 	md_free(cc);
 	md_free(adc);
 	md_free(buf);
