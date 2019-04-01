@@ -131,15 +131,9 @@ static void find_nearest_orthogonal_spokes(int N, int spokes[N], float ref_angle
 
 
 // [RING] Test that hints if the chosen region (-r) is too small
-static void check_intersections(const unsigned int Nint, const unsigned int N, const complex float S_cmplx[3], const float angles[N], const long idx[2][Nint], const int c_region)
+static void check_intersections(const int Nint, const int N, const float S[3], const float angles[N], const long idx[2][Nint], const int c_region)
 {
-	double S[3];
-
-	S[0] = creal(S_cmplx[0]);
-	S[1] = creal(S_cmplx[1]);
-	S[2] = creal(S_cmplx[2]);
-
-	for (unsigned int i = 0; i < Nint; i++) {
+	for (int i = 0; i < Nint; i++) {
 
 		float phi0 = angles[idx[0][i]];
 		float phi1 = angles[idx[1][i]];
@@ -289,7 +283,7 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 
 
 // [RING] Solve inverse problem AS = B using pseudoinverse
-static void calc_S(const unsigned int Nint, const unsigned int N, complex float S[3], const float angles[N], const float dist[2][Nint], const long idx[2][Nint])
+static void calc_S(const unsigned int Nint, const unsigned int N, float S[3], const float angles[N], const float dist[2][Nint], const long idx[2][Nint])
 {
 	complex float A[2 * Nint][3];
 	complex float B[2 * Nint];
@@ -319,7 +313,12 @@ static void calc_S(const unsigned int Nint, const unsigned int N, complex float 
 	complex float pinv[3][2 * Nint];
 
 	mat_pinv(2 * Nint, 3, pinv, A);
-	mat_vecmul(3, 2 * Nint, S, pinv, B);
+
+	complex float Sc[3];
+	mat_vecmul(3, 2 * Nint, Sc, pinv, B);
+
+	for (int i = 0; i < 3; i++)
+		S[i] = crealf(Sc[i]);
 }
 
 
@@ -468,7 +467,7 @@ int main_estdelay(int argc, char* argv[])
 		unsigned int Nint = N * no_intersec_sp; // Number of intersection points
 		long idx[2][Nint];
 		float dist[2][Nint];
-		complex float S[3] = { 0 };
+		float S[3] = { 0 };
 
 		calc_intersections(Nint, N, no_intersec_sp, dist, idx, angles, kc_dims, kc, c_region);
 		calc_S(Nint, N, S, angles, dist, idx);
