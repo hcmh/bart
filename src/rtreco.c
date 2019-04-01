@@ -89,6 +89,7 @@ static const char help_str[] = "Read streaming data and reconstruct frame by fra
 int main_rtreco(int argc, char* argv[argc])
 {
 	bool gpu = false;
+	long turns = 5;
 
 	long dims[DIMS];
 	md_singleton_dims(DIMS, dims);
@@ -99,6 +100,7 @@ int main_rtreco(int argc, char* argv[argc])
 
 		OPT_LONG('x', &(dims[READ_DIM]), "X", "number of samples (read-out)"),
 		OPT_LONG('r', &(dims[PHS1_DIM]), "R", "numer of radial spokes / frame"),
+		OPT_LONG('t', &turns, "T", "numer of turns"),
 		OPT_LONG('c', &(dims[COIL_DIM]), "C", "number of channels"),
 		OPT_LONG('v', &V, "V", "number of virtual channels"),
 		OPT_LONG('n', &(dims[6]), "N", "number of repetitions"),
@@ -125,6 +127,7 @@ int main_rtreco(int argc, char* argv[argc])
 	complex float* traj = load_cfl("t", DIMS, traj_dims);
 
 	assert(3 == traj_dims[0]);
+	assert(0 == traj_dims[2] % turns);
 
 
 	(gpu ? num_init_gpu : num_init)();
@@ -172,8 +175,7 @@ int main_rtreco(int argc, char* argv[argc])
 	long buf_dims[DIMS];
 	md_select_dims(DIMS, PHS1_FLAG|PHS2_FLAG|COIL_FLAG, buf_dims, ksp_dims);
 
-	complex float* buf = md_alloc(DIMS, buf_dims, CFL_SIZE);
-
+	complex float* buf = md_calloc(DIMS, buf_dims, CFL_SIZE);
 
 	// coil compression
 
@@ -231,7 +233,7 @@ int main_rtreco(int argc, char* argv[argc])
 
 		long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
 
-		for (int r = 0; r < dims[PHS1_DIM]; r++) {
+		for (int r = 0; r < dims[PHS1_DIM] / turns; r++) {
 
 			if (-1 == adc_read(ifd, dims, pos, adc)) {
 
