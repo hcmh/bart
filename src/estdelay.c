@@ -216,6 +216,7 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 			for (int l = 0; l < myROI; l++) {
 
 				pos_l[PHS1_DIM] = l;
+
 				md_copy_block(DIMS, pos_l, coilPixel_dims, coilPixel_l, spoke_dims, spoke_i, CFL_SIZE);
 
 				for (int m = 0; m < myROI; m++) {
@@ -412,24 +413,13 @@ int main_estdelay(int argc, char* argv[])
 		// Make odd to have 'Center of c_region' == 'DC component of spoke'
 		c_region += (c_region % 2 == 0) ? 1 : 0;
 
-		//--- Refine grid ---
 		complex float* im = md_alloc(DIMS, dims, CFL_SIZE);
 
 		ifftuc(DIMS, dims, PHS1_FLAG, im, in);
 
-		long pad_dims[DIMS];
-
-		md_copy_dims(DIMS, pad_dims, dims);
-		pad_dims[PHS1_DIM] = pad_factor * dims[PHS1_DIM];
-
-		complex float* k_pad = md_alloc(DIMS, pad_dims, CFL_SIZE);
-		complex float* im_pad = md_alloc(DIMS, pad_dims, CFL_SIZE);
-
-		md_resize_center(DIMS, pad_dims, im_pad, dims, im, CFL_SIZE);
-
-		md_free(im);
 
 		// Sinc filter in k-space (= crop FOV in image space)
+
 		long crop_dims[DIMS];
 
 		md_copy_dims(DIMS, crop_dims, dims);
@@ -437,22 +427,25 @@ int main_estdelay(int argc, char* argv[])
 
 		complex float* crop = md_alloc(DIMS, crop_dims, CFL_SIZE);
 
-		md_zfill(DIMS, crop_dims, crop, 1.);
+		md_resize_center(DIMS, crop_dims, crop, dims, im, CFL_SIZE);
 
-		complex float* mask = md_alloc(DIMS, pad_dims, CFL_SIZE);
+		md_free(im);
 
-		md_resize_center(DIMS, pad_dims, mask, crop_dims, crop, CFL_SIZE);
+		//--- Refine grid ---
 
-		complex float* im_pad2 = md_alloc(DIMS, pad_dims, CFL_SIZE);
+		long pad_dims[DIMS];
 
-		md_zmul(DIMS, pad_dims, im_pad2, im_pad, mask);
+		md_copy_dims(DIMS, pad_dims, dims);
+		pad_dims[PHS1_DIM] = pad_factor * dims[PHS1_DIM];
 
-		md_free(im_pad);
-		md_free(mask);
+		complex float* pad = md_alloc(DIMS, pad_dims, CFL_SIZE);
 
-		fftuc(DIMS, pad_dims, PHS1_FLAG, k_pad, im_pad2);
+		md_resize_center(DIMS, pad_dims, pad, crop_dims, crop, CFL_SIZE);
 
-		md_free(im_pad2);
+		md_free(crop);
+
+		fftuc(DIMS, pad_dims, PHS1_FLAG, pad, pad);
+
 
 		//--- Consider only center region ---
 
@@ -466,9 +459,9 @@ int main_estdelay(int argc, char* argv[])
 		long pos[DIMS] = { 0 };
 		pos[PHS1_DIM] = pad_dims[PHS1_DIM] / 2 - (c_region / 2);
 
-		md_copy_block(DIMS, pos, kc_dims, kc, pad_dims, k_pad, CFL_SIZE);
+		md_copy_block(DIMS, pos, kc_dims, kc, pad_dims, pad, CFL_SIZE);
 
-		md_free(k_pad);
+		md_free(pad);
 
 		//--- Calculate intersections ---
 
