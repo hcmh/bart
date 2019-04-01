@@ -11,6 +11,7 @@
 #include <complex.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -37,14 +38,24 @@
 
 static void xread(int fd, void* buf, size_t size)
 {
-	if (size != (size_t)read(fd, buf, size))
-		error("reading file");
+	ssize_t pos = 0;
+
+	do {
+		ssize_t ret;
+
+		while (-1 == (ret = read(fd, buf + pos, size - pos)))
+			if (EINTR != errno)
+				error("reading file");
+
+		pos += ret;
+
+	} while (size - pos > 0);
 }
 
-static void xseek(int fd, off_t pos)
+static void xseek(int fd, off_t off)
 {
-        if (-1 == lseek(fd, pos, SEEK_SET))
-		error("seeking");
+	char buf[off];
+	xread(fd, buf, off);
 }
 
 static void meas_setup(int fd)
@@ -53,7 +64,8 @@ static void meas_setup(int fd)
 
 	xseek(fd, 0);
 	xread(fd, &start, sizeof(uint32_t));
-	xseek(fd, start);
+	assert(start >= sizeof(uint32_t));
+	xseek(fd, start - sizeof(uint32_t));
 }
 
 
