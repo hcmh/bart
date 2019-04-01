@@ -457,10 +457,11 @@ int main_estdelay(int argc, char* argv[])
 	assert(dims[1] == tdims[1]);
 	assert(dims[2] == tdims[2]);
 
-	float delays[N];
+	float qf[3];
 
 	if (!ring) { // AC-Adaptive method [1]
 
+		float delays[N];
 		radial_self_delays(N, delays, angles, dims, in);
 
 		/* We allow an arbitrary quadratic form to account for
@@ -468,9 +469,7 @@ int main_estdelay(int argc, char* argv[])
 		 * Moussavi et al., MRM 71:308-312 (2014)
 		 */
 
-		float qf[3];
 		fit_quadratic_form(qf, N, angles, delays);
-		bart_printf("%f:%f:%f\n", qf[0], qf[1], qf[2]);
 
 	} else { // RING method [3]
 
@@ -536,9 +535,13 @@ int main_estdelay(int argc, char* argv[])
 		calc_S(Nint, N, S, angles, dist, idx);
 		check_intersections(Nint, N, S, angles, idx, c_region);
 
-		bart_printf("%f:%f:%f\n\n", creal(S[0][0]) / pad_factor, creal(S[1][0]) / pad_factor, creal(S[2][0]) / pad_factor);
+		for (int i = 0; i < 3; i++)
+			qf[i] = creal(S[i][0]) / pad_factor;
+
 		md_free(kc);
 	}
+
+	bart_printf("%f:%f:%f\n", qf[0], qf[1], qf[2]);
 
 	unmap_cfl(DIMS, full_dims, full_in);
 	unmap_cfl(DIMS, tdims, traj);
