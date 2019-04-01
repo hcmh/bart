@@ -161,7 +161,7 @@ static void check_intersections(const int Nint, const int N, const float S[3], c
 
 
 // [RING] Caclucate intersection points
-static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int no_intersec_sp, float dist[2][Nint], long idx[2][Nint], const float angles[N], const long kc_dims[DIMS], const complex float* kc, const int ROI)
+static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int no_intersec_sp, float dist[2][Nint], long idx[2][Nint], const float angles[N], const long kc_dims[DIMS], const complex float* kc, int ROI)
 {
 	long spoke_dims[DIMS];
 	md_select_dims(DIMS, ~PHS2_FLAG, spoke_dims, kc_dims);
@@ -187,9 +187,8 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 	long pos_l[DIMS] = { 0 };
 	long pos_m[DIMS] = { 0 };
 
-	// Boundaries for spoke comparison
-	int myROI = ROI + ((ROI % 2 == 0) ? 1 : 0); // make odd
-
+	if (0 == ROI % 2)
+		ROI++;
 
 	// Intersection determination
 	for (unsigned int i = 0; i < N; i++) {
@@ -213,13 +212,13 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 			// Elementwise rss comparisson
 			float rss = FLT_MAX;
 
-			for (int l = 0; l < myROI; l++) {
+			for (int l = 0; l < ROI; l++) {
 
 				pos_l[PHS1_DIM] = l;
 
 				md_copy_block(DIMS, pos_l, coilPixel_dims, coilPixel_l, spoke_dims, spoke_i, CFL_SIZE);
 
-				for (int m = 0; m < myROI; m++) {
+				for (int m = 0; m < ROI; m++) {
 
 					pos_m[PHS1_DIM] = m;
 
@@ -411,7 +410,8 @@ int main_estdelay(int argc, char* argv[])
 		int c_region = (int)(pad_factor * size);
 
 		// Make odd to have 'Center of c_region' == 'DC component of spoke'
-		c_region += (c_region % 2 == 0) ? 1 : 0;
+		if (0 == c_region % 2)
+			c_region++;
 
 		complex float* im = md_alloc(DIMS, dims, CFL_SIZE);
 
@@ -470,7 +470,9 @@ int main_estdelay(int argc, char* argv[])
 		float dist[2][Nint];
 
 		calc_intersections(Nint, N, no_intersec_sp, dist, idx, angles, kc_dims, kc, c_region);
+
 		calc_S(Nint, N, qf, angles, dist, idx);
+
 		check_intersections(Nint, N, qf, angles, idx, c_region);
 
 		for (int i = 0; i < 3; i++)
