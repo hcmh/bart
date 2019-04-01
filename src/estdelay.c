@@ -319,42 +319,28 @@ static void calc_intersections(unsigned int Nint, unsigned int N, unsigned int n
 static void calc_S(const unsigned int Nint, const unsigned int N, complex float S[3], const float angles[N], const float dist[2][Nint], const long idx[2][Nint])
 {
 	complex float A[2 * Nint][3];
-	float phi0 = 0;
-	float phi1 = 0;
-	float a0 = 0;
-	float a1 = 0;
-	float b0 = 0;
-	float b1 = 0;
-
 	complex float B[2 * Nint];
-	complex float alpha0 = 0;
-	complex float alpha1 = 0;
-
-	unsigned int count = 0;
 
 	for (unsigned int i = 0; i < Nint; i++) {
 
-		phi0 = angles[idx[0][i]];
-		phi1 = angles[idx[1][i]];
-		a0 = cosf(phi0) - cosf(phi1);
-		a1 = sinf(phi0) - sinf(phi1);
+		float phi0 = angles[idx[0][i]];
+		float phi1 = angles[idx[1][i]];
 
-		alpha0 = dist[0][i];
-		alpha1 = dist[1][i];
-		b0 = alpha1 * cosf(phi1) - alpha0 * cosf(phi0);
-		b1 = alpha1 * sinf(phi1) - alpha0 * sinf(phi0);
+		float a0 = cosf(phi0) - cosf(phi1);
+		float a1 = sinf(phi0) - sinf(phi1);
 
-		A[count][0] = a0;
-		A[count][1] = 0.;
-		A[count][2] = a1;
-		B[count] = b0;
-		count++;
+		float b0 = dist[1][i] * cosf(phi1) - dist[0][i] * cosf(phi0);
+		float b1 = dist[1][i] * sinf(phi1) - dist[0][i] * sinf(phi0);
 
-		A[count][0] = 0.;
-		A[count][1] = a1;
-		A[count][2] = a0;
-		B[count] = b1;
-		count++;
+		A[2 * i + 0][0] = a0;
+		A[2 * i + 0][1] = 0.;
+		A[2 * i + 0][2] = a1;
+		B[2 * i + 0] = b0;
+
+		A[2 * i + 1][0] = 0.;
+		A[2 * i + 1][1] = a1;
+		A[2 * i + 1][2] = a0;
+		B[2 * i + 1] = b1;
 	}
 
 	complex float pinv[3][2 * Nint];
