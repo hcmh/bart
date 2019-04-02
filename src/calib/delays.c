@@ -188,6 +188,8 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 	long pos_l[DIMS] = { 0 };
 	long pos_m[DIMS] = { 0 };
 
+	assert(ROI == kc_dims[PHS1_DIM]);
+
 	if (0 == ROI % 2)
 		ROI++;
 
@@ -226,11 +228,11 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 					md_copy_block(DIMS, pos_m, coilPixel_dims, coilPixel_m, spoke_dims, spoke_j, CFL_SIZE);
 
 					md_zsub(DIMS, coilPixel_dims, diff, coilPixel_l, coilPixel_m);
-					md_zrss(DIMS, coilPixel_dims, PHS1_FLAG|COIL_FLAG, diff_rss, diff);
+					md_zrss(DIMS, coilPixel_dims, COIL_FLAG, diff_rss, diff);
 
-					if (cabsf(diff_rss[0]) < rss) { // New minimum found
+					if (crealf(diff_rss[0]) < rss) { // New minimum found
 
-						rss = cabsf(diff_rss[0]);
+						rss = crealf(diff_rss[0]);
 						dist[0][i * no_intersec_sp + j] = (l + 1/2 - ROI/2);
 						dist[1][i * no_intersec_sp + j] = (m + 1/2 - ROI/2);
 					}
