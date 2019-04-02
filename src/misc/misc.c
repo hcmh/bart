@@ -227,14 +227,14 @@ ok:
 
 
 
-void quicksort(unsigned int N, unsigned int ord[N], const void* data, quicksort_cmp_t cmp)
+void quicksort(int N, int ord[N], const void* data, quicksort_cmp_t cmp)
 {
 	if (N < 2)
 		return;
 
-	unsigned int pivot = ord[N / 2];
-	unsigned int l = 0;
-	unsigned int h = N - 1;
+	int pivot = ord[N / 2];
+	int l = 0;
+	int h = N - 1;
 
 	while (l <= h) {
 
@@ -250,7 +250,7 @@ void quicksort(unsigned int N, unsigned int ord[N], const void* data, quicksort_
 			continue;
 		}
 
-		unsigned int swap = ord[l];
+		int swap = ord[l];
 		ord[l] = ord[h];
 		ord[h] = swap;
 
