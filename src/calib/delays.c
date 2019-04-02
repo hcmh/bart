@@ -20,7 +20,6 @@
  * Intersections (RING), Magnetic Resonance in Medicine 81:1898-1906 (2019)
  */
 
-
 #include <complex.h>
 #include <stdlib.h>
 #include <math.h>
@@ -38,6 +37,7 @@
 #include "misc/debug.h"
 #include "misc/subpixel.h"
 #include "misc/mri.h"
+#include "misc/misc.h"
 
 #include "delays.h"
 
@@ -100,25 +100,32 @@ void radial_self_delays(int N, float shifts[N], const float phi[N], const long d
 
 static float angle_dist(float a, float b)
 {
-	return fabsf(fmodf(fabsf(a - b), M_PI) - M_PI / 2.);
+	return fabsf(fmodf(fabsf(a - b), M_PI) - (float)(M_PI / 2.));
+}
+
+static int dist_compare(const void* _data, int a, int b)
+{
+	const float* dist = _data;
+	float d = dist[a] - dist[b];
+
+	if (d > 0.)
+		return 1;
+
+	return (0. == d) ? 0 : -1;
 }
 
 static void find_nearest_orthogonal_spokes(int N, int spokes[N], float ref_angle, const float angles[N])
 {
-	int angle_compare(const void* _a, const void* _b)
-	{
-		const int* ap = _a;
-		const int* bp = _b;
-		return copysignf(1., angle_dist(ref_angle, angles[*ap]) - angle_dist(ref_angle, angles[*bp]));
+	float dist[N];
+
+	for (int i = 0; i < N; i++) {
+
+		spokes[i] = i;
+		dist[i] = angle_dist(ref_angle, angles[i]);
 	}
 
-	for (int i = 0; i < N; i++)
-		spokes[i] = i;
-
-	qsort(spokes, N, sizeof(int), angle_compare);
+	quicksort(N, spokes, dist, dist_compare);
 }
-
-
 
 
 // [RING] Test that hints if the chosen region (-r) is too small
