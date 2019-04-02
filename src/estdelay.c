@@ -311,23 +311,115 @@ static void calc_S(const int Nint, const int N, float S[3], const float angles[N
 }
 
 
+struct ring_conf {
+
+	int pad_factor;
+	float size;
+	int no_intersec_sp;
+
+} ring_defaults = {
+
+	.pad_factor = 100,
+	.size = 1.5,
+	.no_intersec_sp = 1,
+};
+
+static void ring(const struct ring_conf* conf, float S[3], int N, const float angles[N], const long dims[DIMS], const complex float* in)
+{
+	assert(dims[2] == N);
+
+	int c_region = (int)(conf->pad_factor * conf->size);
+
+	// Make odd to have 'Center of c_region' == 'DC component of spoke'
+	if (0 == c_region % 2)
+		c_region++;
+
+	complex float* im = md_alloc(DIMS, dims, CFL_SIZE);
+
+	ifftuc(DIMS, dims, PHS1_FLAG, im, in);
+
+
+	// Sinc filter in k-space (= crop FOV in image space)
+
+	long crop_dims[DIMS];
+
+	md_copy_dims(DIMS, crop_dims, dims);
+	crop_dims[PHS1_DIM] = 0.6 * dims[PHS1_DIM];
+
+	complex float* crop = md_alloc(DIMS, crop_dims, CFL_SIZE);
+
+	md_resize_center(DIMS, crop_dims, crop, dims, im, CFL_SIZE);
+
+	md_free(im);
+
+	//--- Refine grid ---
+
+	long pad_dims[DIMS];
+
+	md_copy_dims(DIMS, pad_dims, dims);
+	pad_dims[PHS1_DIM] = conf->pad_factor * dims[PHS1_DIM];
+
+	complex float* pad = md_alloc(DIMS, pad_dims, CFL_SIZE);
+
+	md_resize_center(DIMS, pad_dims, pad, crop_dims, crop, CFL_SIZE);
+
+	md_free(crop);
+
+	fftuc(DIMS, pad_dims, PHS1_FLAG, pad, pad);
+
+
+	//--- Consider only center region ---
+
+	long kc_dims[DIMS];
+
+	md_copy_dims(DIMS, kc_dims, pad_dims);
+	kc_dims[PHS1_DIM] = c_region;
+
+	complex float* kc = md_alloc(DIMS, kc_dims, CFL_SIZE);
+
+	long pos[DIMS] = { 0 };
+	pos[PHS1_DIM] = pad_dims[PHS1_DIM] / 2 - (c_region / 2);
+
+	md_copy_block(DIMS, pos, kc_dims, kc, pad_dims, pad, CFL_SIZE);
+
+	md_free(pad);
+
+	//--- Calculate intersections ---
+
+	int Nint = N * conf->no_intersec_sp; // Number of intersection points
+	long idx[2][Nint];
+	float dist[2][Nint];
+
+	calc_intersections(Nint, N, conf->no_intersec_sp, dist, idx, angles, kc_dims, kc, c_region);
+
+	calc_S(Nint, N, S, angles, dist, idx);
+
+	check_intersections(Nint, N, S, angles, idx, c_region);
+
+	for (int i = 0; i < 3; i++)
+		S[i] /= conf->pad_factor;
+
+	md_free(kc);
+}
+
+
 static const char usage_str[] = "<trajectory> <data>";
 static const char help_str[] = "Estimate gradient delays from radial data.";
 
 
 int main_estdelay(int argc, char* argv[])
 {
-	bool ring = false;
-	int pad_factor = 100;
+	bool do_ring = false;
+	unsigned int pad_factor = 100;
 	unsigned int no_intersec_sp = 1;
-	float size = 1.5;
+	float ring_size = 1.5;
 
 	const struct opt_s opts[] = {
 
-		OPT_SET('R', &ring, "RING method"),
-		OPT_INT('p', &pad_factor, "p", "[RING] Padding"),
+		OPT_SET('R', &do_ring, "RING method"),
+		OPT_UINT('p', &pad_factor, "p", "[RING] Padding"),
 		OPT_UINT('n', &no_intersec_sp, "n", "[RING] Number of intersecting spokes"),
-		OPT_FLOAT('r', &size, "r", "[RING] Central region size"),
+		OPT_FLOAT('r', &ring_size, "r", "[RING] Central region size"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -354,7 +446,7 @@ int main_estdelay(int argc, char* argv[])
 		angles[i] = M_PI + atan2f(crealf(traj1[3 * i + 0]), crealf(traj1[3 * i + 1]));
 
 
-	if (ring) {
+	if (do_ring) {
 
 		assert(0 == tdims[1] % 2);
 
@@ -387,7 +479,7 @@ int main_estdelay(int argc, char* argv[])
 
 	float qf[3];	// S in RING
 
-	if (!ring) {
+	if (!do_ring) {
 
 		// Block and Uecker, ISMRM 19:2816 (2001)
 
@@ -407,78 +499,13 @@ int main_estdelay(int argc, char* argv[])
 		 * Rosenzweig et al., MRM 81:1898-1906 (2019)
 		 */
 
-		int c_region = (int)(pad_factor * size);
+		struct ring_conf conf = ring_defaults;
 
-		// Make odd to have 'Center of c_region' == 'DC component of spoke'
-		if (0 == c_region % 2)
-			c_region++;
+		conf.pad_factor = pad_factor;
+		conf.size = ring_size;
+		conf.no_intersec_sp = no_intersec_sp;
 
-		complex float* im = md_alloc(DIMS, dims, CFL_SIZE);
-
-		ifftuc(DIMS, dims, PHS1_FLAG, im, in);
-
-
-		// Sinc filter in k-space (= crop FOV in image space)
-
-		long crop_dims[DIMS];
-
-		md_copy_dims(DIMS, crop_dims, dims);
-		crop_dims[PHS1_DIM] = 0.6 * dims[PHS1_DIM];
-
-		complex float* crop = md_alloc(DIMS, crop_dims, CFL_SIZE);
-
-		md_resize_center(DIMS, crop_dims, crop, dims, im, CFL_SIZE);
-
-		md_free(im);
-
-		//--- Refine grid ---
-
-		long pad_dims[DIMS];
-
-		md_copy_dims(DIMS, pad_dims, dims);
-		pad_dims[PHS1_DIM] = pad_factor * dims[PHS1_DIM];
-
-		complex float* pad = md_alloc(DIMS, pad_dims, CFL_SIZE);
-
-		md_resize_center(DIMS, pad_dims, pad, crop_dims, crop, CFL_SIZE);
-
-		md_free(crop);
-
-		fftuc(DIMS, pad_dims, PHS1_FLAG, pad, pad);
-
-
-		//--- Consider only center region ---
-
-		long kc_dims[DIMS];
-
-		md_copy_dims(DIMS, kc_dims, pad_dims);
-		kc_dims[PHS1_DIM] = c_region;
-
-		complex float* kc = md_alloc(DIMS, kc_dims, CFL_SIZE);
-
-		long pos[DIMS] = { 0 };
-		pos[PHS1_DIM] = pad_dims[PHS1_DIM] / 2 - (c_region / 2);
-
-		md_copy_block(DIMS, pos, kc_dims, kc, pad_dims, pad, CFL_SIZE);
-
-		md_free(pad);
-
-		//--- Calculate intersections ---
-
-		int Nint = N * no_intersec_sp; // Number of intersection points
-		long idx[2][Nint];
-		float dist[2][Nint];
-
-		calc_intersections(Nint, N, no_intersec_sp, dist, idx, angles, kc_dims, kc, c_region);
-
-		calc_S(Nint, N, qf, angles, dist, idx);
-
-		check_intersections(Nint, N, qf, angles, idx, c_region);
-
-		for (int i = 0; i < 3; i++)
-			qf[i] /= pad_factor;
-
-		md_free(kc);
+		ring(&conf, qf, N, angles, dims, in);
 	}
 
 	bart_printf("%f:%f:%f\n", qf[0], qf[1], qf[2]);
