@@ -173,21 +173,6 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 	long pos_i[DIMS] = { 0 };
 	long pos_j[DIMS] = { 0 };
 
-	long coilPixel_dims[DIMS];
-	md_select_dims(DIMS, ~PHS1_FLAG, coilPixel_dims, spoke_dims);
-
-	complex float* coilPixel_l = md_alloc(DIMS, coilPixel_dims, CFL_SIZE);
-	complex float* coilPixel_m = md_alloc(DIMS, coilPixel_dims, CFL_SIZE);
-	complex float* diff = md_alloc(DIMS, coilPixel_dims, CFL_SIZE);
-
-	long diff_rss_dims[DIMS];
-	md_select_dims(DIMS, ~(COIL_FLAG|PHS1_FLAG), diff_rss_dims, coilPixel_dims);
-
-	complex float* diff_rss = md_alloc(DIMS, diff_rss_dims, CFL_SIZE);
-
-	long pos_l[DIMS] = { 0 };
-	long pos_m[DIMS] = { 0 };
-
 	assert(ROI == kc_dims[PHS1_DIM]);
 
 	if (0 == ROI % 2)
@@ -213,26 +198,25 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 			idx[1][i * no_intersec_sp + j] = intersec_sp[j];
 
 			// Elementwise rss comparisson
-			float rss = FLT_MAX;
+			float ss = FLT_MAX;
+			int channels = spoke_dims[COIL_DIM];
 
 			for (int l = 0; l < ROI; l++) {
 
-				pos_l[PHS1_DIM] = l;
-
-				md_copy_block(DIMS, pos_l, coilPixel_dims, coilPixel_l, spoke_dims, spoke_i, CFL_SIZE);
-
 				for (int m = 0; m < ROI; m++) {
 
-					pos_m[PHS1_DIM] = m;
+					float diff_ss = 0.;
 
-					md_copy_block(DIMS, pos_m, coilPixel_dims, coilPixel_m, spoke_dims, spoke_j, CFL_SIZE);
+					for (int c = 0; c < channels; c++) {
 
-					md_zsub(DIMS, coilPixel_dims, diff, coilPixel_l, coilPixel_m);
-					md_zrss(DIMS, coilPixel_dims, COIL_FLAG, diff_rss, diff);
+						complex float diff = spoke_i[l + c * ROI] - spoke_j[m + c * ROI];
 
-					if (crealf(diff_rss[0]) < rss) { // New minimum found
+						diff_ss += pow(crealf(diff), 2.) + pow(cimagf(diff), 2.);
+					}
 
-						rss = crealf(diff_rss[0]);
+					if (diff_ss < ss) { // New minimum found
+
+						ss = diff_ss;
 						dist[0][i * no_intersec_sp + j] = (l + 1/2 - ROI/2);
 						dist[1][i * no_intersec_sp + j] = (m + 1/2 - ROI/2);
 					}
@@ -265,10 +249,6 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 
 	md_free(spoke_i);
 	md_free(spoke_j);
-	md_free(coilPixel_l);
-	md_free(coilPixel_m);
-	md_free(diff);
-	md_free(diff_rss);
 }
 
 
