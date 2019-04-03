@@ -129,12 +129,12 @@ static void find_nearest_orthogonal_spokes(int N, int spokes[N], float ref_angle
 
 
 // [RING] Test that hints if the chosen region (-r) is too small
-static void check_intersections(const int Nint, const int N, const float S[3], const float angles[N], const long idx[2][Nint], const int c_region)
+static void check_intersections(const int Nint, const int N, const float S[3], const float angles[N], const long idx[Nint][2], const int c_region)
 {
 	for (int i = 0; i < Nint; i++) {
 
-		float phi0 = angles[idx[0][i]];
-		float phi1 = angles[idx[1][i]];
+		float phi0 = angles[idx[i][0]];
+		float phi1 = angles[idx[i][1]];
 		float N1 = cosf(phi0) - cosf(phi1);
 		float N2 = sinf(phi0) - sinf(phi1);
 
@@ -162,7 +162,7 @@ static void check_intersections(const int Nint, const int N, const float S[3], c
 
 
 // [RING] Caclucate intersection points
-static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2][Nint], long idx[2][Nint], const float angles[N], const long kc_dims[DIMS], const complex float* kc)
+static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[Nint][2], long idx[Nint][2], const float angles[N], const long kc_dims[DIMS], const complex float* kc)
 {
 	long spoke_dims[DIMS];
 	md_select_dims(DIMS, ~PHS2_FLAG, spoke_dims, kc_dims);
@@ -191,8 +191,8 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 
 			md_slice(DIMS, PHS2_FLAG, pos_j, kc_dims, spoke_j, kc, CFL_SIZE);
 
-			idx[0][i * no_intersec_sp + j] = i;
-			idx[1][i * no_intersec_sp + j] = intersec_sp[j];
+			idx[i * no_intersec_sp + j][0] = i;
+			idx[i * no_intersec_sp + j][1] = intersec_sp[j];
 
 			// Elementwise rss comparisson
 			float ss = FLT_MAX;
@@ -214,8 +214,8 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 					if (diff_ss < ss) { // New minimum found
 
 						ss = diff_ss;
-						dist[0][i * no_intersec_sp + j] = (l + 1/2 - ROI/2);
-						dist[1][i * no_intersec_sp + j] = (m + 1/2 - ROI/2);
+						dist[i * no_intersec_sp + j][0] = (l + 1/2 - ROI/2);
+						dist[i * no_intersec_sp + j][1] = (m + 1/2 - ROI/2);
 					}
 				}
 			}
@@ -235,8 +235,8 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 
 		for (int j = 0; j < no_intersec_sp; j++) {
 
-			fprintf(fp, "%f \t %f\n", angles[idx[0][i * no_intersec_sp + j]], angles[idx[1][i * no_intersec_sp + j]]);
-			fprintf(fp1, "%f \t %f\n", dist[0][i * no_intersec_sp + j], dist[1][i * no_intersec_sp + j]);
+			fprintf(fp, "%f \t %f\n", angles[idx[i * no_intersec_sp + j][0]], angles[idx[i * no_intersec_sp + j][1]]);
+			fprintf(fp1, "%f \t %f\n", dist[i * no_intersec_sp + j][0], dist[i * no_intersec_sp + j][1]);
 		}
 	}
 
@@ -251,21 +251,21 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 
 
 // [RING] Solve inverse problem AS = B using pseudoinverse
-static void calc_S(const int Nint, const int N, float S[3], const float angles[N], const float dist[2][Nint], const long idx[2][Nint])
+static void calc_S(const int Nint, const int N, float S[3], const float angles[N], const float dist[Nint][2], const long idx[Nint][2])
 {
 	complex float A[2 * Nint][3];
 	complex float B[2 * Nint];
 
 	for (int i = 0; i < Nint; i++) {
 
-		float phi0 = angles[idx[0][i]];
-		float phi1 = angles[idx[1][i]];
+		float phi0 = angles[idx[i][0]];
+		float phi1 = angles[idx[i][1]];
 
 		float a0 = cosf(phi0) - cosf(phi1);
 		float a1 = sinf(phi0) - sinf(phi1);
 
-		float b0 = dist[1][i] * cosf(phi1) - dist[0][i] * cosf(phi0);
-		float b1 = dist[1][i] * sinf(phi1) - dist[0][i] * sinf(phi0);
+		float b0 = dist[i][1] * cosf(phi1) - dist[i][0] * cosf(phi0);
+		float b1 = dist[i][1] * sinf(phi1) - dist[i][0] * sinf(phi0);
 
 		A[2 * i + 0][0] = a0;
 		A[2 * i + 0][1] = 0.;
@@ -362,8 +362,8 @@ void ring(const struct ring_conf* conf, float S[3], int N, const float angles[N]
 	//--- Calculate intersections ---
 
 	int Nint = N * conf->no_intersec_sp; // Number of intersection points
-	long idx[2][Nint];
-	float dist[2][Nint];
+	long idx[Nint][2];
+	float dist[Nint][2];
 
 	calc_intersections(Nint, N, conf->no_intersec_sp, dist, idx, angles, kc_dims, kc);
 
