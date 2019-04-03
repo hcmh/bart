@@ -296,6 +296,7 @@ struct ring_conf ring_defaults = {
 	.pad_factor = 100,
 	.size = 1.5,
 	.no_intersec_sp = 1,
+	.crop_factor = 0.6,
 };
 
 void ring(const struct ring_conf* conf, float S[3], int N, const float angles[N], const long dims[DIMS], const complex float* in)
@@ -318,7 +319,7 @@ void ring(const struct ring_conf* conf, float S[3], int N, const float angles[N]
 	long crop_dims[DIMS];
 
 	md_copy_dims(DIMS, crop_dims, dims);
-	crop_dims[PHS1_DIM] = 0.6 * dims[PHS1_DIM];
+	crop_dims[PHS1_DIM] = conf->crop_factor * dims[PHS1_DIM];
 
 	complex float* crop = md_alloc(DIMS, crop_dims, CFL_SIZE);
 
