@@ -162,7 +162,7 @@ static void check_intersections(const int Nint, const int N, const float S[3], c
 
 
 // [RING] Caclucate intersection points
-static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2][Nint], long idx[2][Nint], const float angles[N], const long kc_dims[DIMS], const complex float* kc, int ROI)
+static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2][Nint], long idx[2][Nint], const float angles[N], const long kc_dims[DIMS], const complex float* kc)
 {
 	long spoke_dims[DIMS];
 	md_select_dims(DIMS, ~PHS2_FLAG, spoke_dims, kc_dims);
@@ -173,10 +173,7 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[2
 	long pos_i[DIMS] = { 0 };
 	long pos_j[DIMS] = { 0 };
 
-	assert(ROI == kc_dims[PHS1_DIM]);
-
-	if (0 == ROI % 2)
-		ROI++;
+	int ROI = kc_dims[PHS1_DIM];
 
 	// Intersection determination
 	for (int i = 0; i < N; i++) {
@@ -367,7 +364,7 @@ void ring(const struct ring_conf* conf, float S[3], int N, const float angles[N]
 	long idx[2][Nint];
 	float dist[2][Nint];
 
-	calc_intersections(Nint, N, conf->no_intersec_sp, dist, idx, angles, kc_dims, kc, c_region);
+	calc_intersections(Nint, N, conf->no_intersec_sp, dist, idx, angles, kc_dims, kc);
 
 	calc_S(Nint, N, S, angles, dist, idx);
 
