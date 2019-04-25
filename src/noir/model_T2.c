@@ -27,7 +27,7 @@ s */
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 #include "nlops/cast.h"
-#include "nlops/T2_fun.h"
+#include "nlops/T2fun.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -42,7 +42,7 @@ s */
 
 struct T2_s T2_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf)
 {
-	struct noir_s nlinv = noir_create3(dims, mask, psf, conf);
+    struct noir_s nlinv = noir_create2(dims, mask, psf, conf);
 	struct T2_s ret;
 
 	long map_dims[DIMS];
@@ -61,12 +61,12 @@ struct T2_s T2_create(const long dims[DIMS], const complex float* mask, const co
 #if 1 
 	// chain T2 model
 	struct nlop_s* T2 = nlop_T2_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, conf->use_gpu);
-//     debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T2, 0)->dims);
-//     debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(T2, 0)->dims);
+     debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T2, 0)->dims);
+     debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(T2, 0)->dims);
 // 
-//     debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 0)->dims);
-//     debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 1)->dims);
-//     debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(nlinv.nlop, 0)->dims);
+     debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 0)->dims);
+     debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 1)->dims);
+     debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(nlinv.nlop, 0)->dims);
 
 	nlinv.nlop = nlop_chain2(T2, 0, nlinv.nlop, 0);
 	nlinv.nlop = nlop_permute_inputs(nlinv.nlop, 2, (const int[2]){ 1, 0 });
