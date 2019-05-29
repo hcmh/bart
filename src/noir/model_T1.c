@@ -50,12 +50,12 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	long in_dims[DIMS];
 	long TI_dims[DIMS];
 
-	md_select_dims(DIMS, conf->fft_flags, map_dims, dims);
-	md_select_dims(DIMS, conf->fft_flags|TE_FLAG, out_dims, dims);
-	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG, in_dims, dims);
-	md_select_dims(DIMS, TE_FLAG, TI_dims, dims);
+    md_select_dims(DIMS, conf->fft_flags|LEVEL_FLAG, map_dims, dims);
+    md_select_dims(DIMS, conf->fft_flags|TE_FLAG|LEVEL_FLAG, out_dims, dims);
+    md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG|LEVEL_FLAG, in_dims, dims);
+    md_select_dims(DIMS, TE_FLAG|LEVEL_FLAG, TI_dims, dims);
 
-	in_dims[COEFF_DIM] = 3;
+    in_dims[COEFF_DIM] = 3;
 
 #if 1 
 	// chain T1 model

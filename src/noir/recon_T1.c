@@ -49,10 +49,10 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 
 	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
 
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, imgs_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG, data_dims, dims);
-	md_select_dims(DIMS, fft_flags, img1_dims, dims);
+    md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|LEVEL_FLAG, imgs_dims, dims);
+    md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|LEVEL_FLAG, coil_dims, dims);
+    md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|LEVEL_FLAG, data_dims, dims);
+    md_select_dims(DIMS, fft_flags|LEVEL_FLAG, img1_dims, dims);
 
     imgs_dims[COEFF_DIM] = 3;
 
@@ -85,7 +85,7 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
     
-    md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, irgnm_conf.dims, imgs_dims);
+    md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|LEVEL_FLAG, irgnm_conf.dims, imgs_dims);
     
     irgnm_conf.dims[COIL_DIM] = coil_dims[COIL_DIM];
     
@@ -95,8 +95,8 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
     
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
-//  			size * 2, (float*)x, (float*)x,
-            size * 2, (float*)x, NULL,    
+//            size * 2, (float*)x, (float*)x,
+            size * 2, (float*)x, NULL,
 			data_size * 2, (const float*)kspace_data);
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
