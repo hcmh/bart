@@ -33,7 +33,7 @@
 #include "iter/iter2.h"
 #include "iter/iter3.h"
 
-extern int k = 0;
+extern int k_fista = 0;
 
 DEF_TYPEID(iter3_irgnm_conf);
 DEF_TYPEID(iter3_landweber_conf);
@@ -193,7 +193,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
     
     debug_printf(DP_DEBUG3, "##reg. alpha = %f\n", alpha);
     
-    int maxiter = 10*powf(2,k);
+    int maxiter = 10*powf(2, k_fista);
     
     if(maxiter > 300)
         maxiter = 300;
@@ -206,7 +206,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
         OPERATOR_P2ITOP(prox),
 //         data->prox,
         dst, src, NULL);
-    k++;
+    k_fista++;
 }
 
 
