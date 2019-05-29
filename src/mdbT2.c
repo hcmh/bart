@@ -171,7 +171,7 @@ int main_mdbT2(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-    double scaling = 200. / md_znorm(DIMS, ksp_dims, kspace_data);
+    double scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
 			scaling *= sqrt(ksp_dims[SLICE_DIM]); 
