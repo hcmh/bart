@@ -564,6 +564,8 @@ const struct operator_s* operator_null_create(unsigned int N, const long dims[N]
  */
 const struct operator_s* operator_chain(const struct operator_s* a, const struct operator_s* b)
 {
+	assert((2 == a->N) && (2 == b->N));
+
 	// check compatibility
 
 	debug_printf(DP_DEBUG4, "operator chain:\n");
@@ -572,7 +574,6 @@ const struct operator_s* operator_chain(const struct operator_s* a, const struct
 	debug_printf(DP_DEBUG4, "IO Flags: %d %d\n", a->io_flags, b->io_flags);
 
 
-	assert((2 == a->N) && (2 == b->N));
 	assert((MD_BIT(0) == a->io_flags) && (MD_BIT(0) == b->io_flags));
 	assert(a->domain[0]->N == b->domain[1]->N);
 	assert(md_calc_size(a->domain[0]->N, a->domain[0]->dims) == md_calc_size(b->domain[1]->N, b->domain[1]->dims));
