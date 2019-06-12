@@ -198,7 +198,7 @@ MODULES_power = -lrkhs -lnoncart
 MODULES_approx = -lrkhs -lnoncart
 MODULES_kmat = -lrkhs -lnoncart
 MODULES_dcnn = -lnn -llinops
-
+MODULES_ssa = -lcalib
 
 MAKEFILES = $(root)/Makefiles/Makefile.*
 
