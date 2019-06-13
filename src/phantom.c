@@ -108,7 +108,7 @@ int main_phantom(int argc, char* argv[])
 		dims[1] = sdims[1];
 		dims[2] = sdims[2];
 
-		assert(dims[TE_DIM] == sdims[TE_DIM]);
+		dims[TE_DIM] = sdims[TE_DIM];
 	}
 
 
