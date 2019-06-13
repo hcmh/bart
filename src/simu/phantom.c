@@ -29,6 +29,8 @@
 #include "simu/shepplogan.h"
 #include "simu/sens.h"
 #include "simu/coil.h"
+#include "simu/shape.h"
+
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
 #include "simu/seq_model.h"
@@ -349,6 +351,53 @@ void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const lo
 	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc);
 }
 
+
+struct poly {
+
+	bool kspace;
+	int N;
+	double (*pg)[][2];
+};
+
+static complex float krn_poly(void* _data, const double mpos[3])
+{
+	struct poly* data = _data;
+	return (data->kspace ? kpolygon : xpolygon)(data->N, *data->pg, mpos);
+}
+
+void calc_star(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	struct poly poly = {
+		kspace,
+		8,
+		&(double[][2]){
+			{ -0.5, -0.5 },
+			{  0.0, -0.3 },
+			{ +0.5, -0.5 },
+			{  0.3,  0.0 },
+			{ +0.5, +0.5 },
+			{  0.0, +0.3 },
+			{ -0.5, +0.5 },
+			{ -0.3,  0.0 },	}
+	};
+
+	struct data data = {
+
+		.traj = traj,
+		.tstrs = tstrs,
+		.sens = (dims[COIL_DIM] > 1),
+		.dims = { dims[0], dims[1], dims[2] },
+		.data = &poly,
+		.fun = krn_poly,
+	};
+
+	md_parallel_zsample(DIMS, dims, out, &data, kspace ? kkernel : xkernel);
+}
+
+
+
+
+
 struct simulated_ellipsis_s {
 
 	struct ellipsis_s geom; //geom.intensity = M0 for simulation
@@ -484,6 +533,7 @@ void calc_phantom_bart(const long dims[DIMS], complex float* out, bool d3, bool 
 	
 	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(bart_img), bart_img }, krn2d, kspace);
 }
+
 
 
 
