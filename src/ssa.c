@@ -36,7 +36,7 @@ static const char help_str[] =
 		"Estimate cardiac and respiratory motion using Singular Spectrum Analysis\n";
 
 
-static void ssa_fari(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal_data, const char* name_EOF, const char* name_S)
+static void ssa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal_data, const char* name_EOF, const char* name_S)
 {
 	// Calibration matrix
 	long A_dims[2];
@@ -241,7 +241,7 @@ int main_ssa(int argc, char* argv[])
 
 
 	// Perform SSA-FARI
-	ssa_fari(kernel_dims, cal_dims, cal_data, name_EOF, name_S);
+	ssa_fary(kernel_dims, cal_dims, cal_data, name_EOF, name_S);
 
 	md_free(cal_data);
 
