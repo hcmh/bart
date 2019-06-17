@@ -31,12 +31,91 @@
 #include "calib/calmat.h"
 
 
-static const char usage_str[] = "<kspace> <EOF> [<S>]";
+static const char usage_str[] = "<kspace> <EOF> [<S>] [<backprojection>]";
 static const char help_str[] =
 		"Estimate cardiac and respiratory motion using Singular Spectrum Analysis\n";
 
 
-static void ssa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal_data, const char* name_EOF, const char* name_S)
+static void backprojection(const long N, const long M, const long kernel_dims[3], const long cal_dims[DIMS], complex float* cal_backproj, const long
+A_dims[2], const complex float* A, const long U_dims[2], const complex float* U, const complex float* UH, const int rank)
+{
+
+	assert(U_dims[0] == N && U_dims[1] == N);
+
+	// PC = UH @ A
+	/* Consider:
+	 * AAH = U @ S_square @ UH
+	 * A = U @ S @ VH --> PC = S @ VH = UH @ A
+	 */
+	long PC_dims[2] = { N, M };
+	complex float* PC = md_alloc(2, PC_dims, CFL_SIZE);
+
+	long PC2_dims[3] = { N, 1, M };
+	long U2_dims[3] = { N, N, 1 };
+	long A3_dims[3] = { 1, N, M };
+	md_ztenmul(3, PC2_dims, PC, U2_dims, UH, A3_dims, A);
+
+	long kernelCoil_dims[4];
+	md_copy_dims(3, kernelCoil_dims, kernel_dims);
+	kernelCoil_dims[3] = cal_dims[3];
+
+	for (int i = 0; i < M; i++) {
+		for (int j = 0; j < N; j++) {
+			if (rank < 0)
+				PC[i * N + j] *= (j > abs(rank)) ? 1. : 0.;
+			else
+				PC[i * N + j] *= (j > rank) ? 0. : 1;
+		}
+	}
+
+	// A_LR = U @ PC
+	long PC3_dims[3] = { 1, N, M };
+	long A4_dims[3] = { N, 1, M };
+
+	complex float* A_backproj = md_alloc(2, A_dims, CFL_SIZE);
+
+	md_ztenmul(3, A4_dims, A_backproj, U2_dims, U, PC3_dims, PC);
+
+
+	// Reorder & Anti-diagonal summation
+	long kern_dims[4];
+	md_set_dims(DIMS, kern_dims, 1);
+	md_min_dims(4, ~0u, kern_dims, kernelCoil_dims, cal_dims);
+
+	long cal_strs[DIMS];
+	md_calc_strides(DIMS, cal_strs, cal_dims, CFL_SIZE);
+
+	casorati_matrixH(4, kern_dims, cal_dims, cal_strs, cal_backproj, A_dims, A_backproj);
+
+	// Missing normalization for summed anti-diagonals
+	long b = MIN(kern_dims[0], cal_dims[0] - kern_dims[0] + 1); // Minimum of window length and maximum lag
+
+	long norm_dims[DIMS];
+	for (unsigned int i = 0; i < DIMS; i++)
+		norm_dims[i] = 1;
+	norm_dims[0] = cal_dims[0];
+
+	complex float* norm = md_alloc(DIMS, norm_dims, CFL_SIZE);
+	md_zfill(DIMS, norm_dims, norm, 1./b);
+
+	for (unsigned int i = 0; i < b; i++) {
+		norm[i] = 1. / (i + 1);
+		norm[cal_dims[0] -1 - i] = 1. / (i + 1);
+	}
+
+	long norm_strs[DIMS];
+	md_calc_strides(DIMS, norm_strs, norm_dims, CFL_SIZE);
+	md_zmul2(DIMS, cal_dims, cal_strs, cal_backproj, cal_strs, cal_backproj, norm_strs, norm);
+
+	md_free(norm);
+	md_free(A_backproj);
+	md_free(PC);
+
+}
+
+
+static void ssa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal_data, const char* name_EOF, const char* name_S, const char* backproj, const int
+rank)
 {
 	// Calibration matrix
 	long A_dims[2];
@@ -79,6 +158,13 @@ static void ssa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const
 		unmap_cfl(1, S_dims, S);
 	}
 
+	if (backproj != NULL) {
+		complex float* cal_backproj = create_cfl(backproj, DIMS, cal_dims);
+		debug_printf(DP_INFO, "Backprojection...\n");
+		backprojection(N, M, kernel_dims, cal_dims, cal_backproj, A_dims, A, U_dims, U, UH, rank);
+	}
+
+
 	unmap_cfl(2, U_dims, U);
 	md_free(UH);
 	md_free(A);
@@ -97,9 +183,12 @@ int main_ssa(int argc, char* argv[])
 	int normalize = 0;
 	int rm_mean = 1;
 	int type = 1;
+	int rank = 0;
 	bool zeropad = true;
 	long kernel_dims[3] = { 1, 1, 1};
 	char* name_S = NULL;
+	char* backproj = NULL;
+
 
 	const struct opt_s opts[] = {
 
@@ -108,9 +197,11 @@ int main_ssa(int argc, char* argv[])
 		OPT_INT('m', &rm_mean, "0/1", "Remove mean [Default: True]"),
 		OPT_INT('n', &normalize, "0/1", "Normalize [Default: False]"),
 		OPT_INT('t', &type, "0-2", "0: Complex. 1: Absolute. 2: Real & Imagniary. [Default: 1]"),
+		OPT_INT('r', &rank, "", "Rank for backprojection. r < 0: Throw away first r components. r > 0: Use only first r components"),
+
 	};
 
-	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -122,8 +213,16 @@ int main_ssa(int argc, char* argv[])
 
 	char* name_EOF = argv[2];
 
-	if (4 == argc)
+	if (4 <= argc)
 		name_S = argv[3];
+
+	if (5 == argc) {
+		backproj = argv[4];
+
+		if (rank == 0)
+			error("Specify rank for backprojection!");
+
+	}
 
 	long k_dims[DIMS];
 	complex float* k = load_cfl(argv[1], DIMS, k_dims);
@@ -241,7 +340,7 @@ int main_ssa(int argc, char* argv[])
 
 
 	// Perform SSA-FARI
-	ssa_fary(kernel_dims, cal_dims, cal_data, name_EOF, name_S);
+	ssa_fary(kernel_dims, cal_dims, cal_data, name_EOF, name_S, backproj, rank);
 
 	md_free(cal_data);
 
