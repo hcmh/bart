@@ -8,8 +8,7 @@ tests/test-ssa-pca: traj phantom resize squeeze svd transpose ssa cabs nrmse
 		$(TOOLDIR)/resize -c 1 1 k.ra k1.ra					;\
 		$(TOOLDIR)/squeeze k1.ra kx.ra						;\
 		$(TOOLDIR)/svd kx.ra u.ra s.ra vh.ra					;\
-		$(TOOLDIR)/transpose 2 10 k1.ra k2.ra					;\
-		$(TOOLDIR)/ssa -w1 -m0 -n0 -t0 k2.ra eof.ra				;\
+		$(TOOLDIR)/ssa -w1 -m0 -n0 kx.ra eof.ra				;\
 		$(TOOLDIR)/cabs u.ra uabs.ra						;\
 		$(TOOLDIR)/cabs eof.ra eofabs.ra					;\
 		$(TOOLDIR)/resize 1 4 uabs.ra utest.ra					;\
@@ -28,8 +27,7 @@ tests/test-ssa: traj phantom resize squeeze svd transpose ssa cabs nrmse casorat
 		$(TOOLDIR)/resize -c 0 59 kx.ra kx1.ra					;\
 		$(TOOLDIR)/casorati 0 10 1 8 kx1.ra kcas.ra				;\
 		$(TOOLDIR)/svd kcas.ra u.ra s.ra vh.ra					;\
-		$(TOOLDIR)/transpose 2 10 k1.ra k2.ra					;\
-		$(TOOLDIR)/ssa -w10 -m0 -n0 -t0 k2.ra eof.ra				;\
+		$(TOOLDIR)/ssa -w10 -m0 -n0 kx.ra eof.ra				;\
 		$(TOOLDIR)/cabs u.ra uabs.ra						;\
 		$(TOOLDIR)/cabs eof.ra eofabs.ra					;\
 		$(TOOLDIR)/resize 1 10 uabs.ra utest.ra					;\

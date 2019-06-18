@@ -4,7 +4,7 @@
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2018 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
+ * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  */
 
 #include <assert.h>
@@ -31,12 +31,12 @@
 #include "calib/calmat.h"
 
 
-static const char usage_str[] = "<kspace> <EOF> [<S>] [<backprojection>]";
+static const char usage_str[] = "<src> <EOF> [<S>] [<backprojection>]";
 static const char help_str[] =
-		"Estimate cardiac and respiratory motion using Singular Spectrum Analysis\n";
+		"Perform SSA-FARY or Singular Spectrum Analysis\n";
 
 
-static void backprojection(const long N, const long M, const long kernel_dims[3], const long cal_dims[DIMS], complex float* cal_backproj, const long
+static void backprojection(const long N, const long M, const long kernel_dims[3], const long cal_dims[DIMS], complex float* back, const long
 A_dims[2], const complex float* A, const long U_dims[2], const complex float* U, const complex float* UH, const int rank)
 {
 
@@ -85,7 +85,7 @@ A_dims[2], const complex float* A, const long U_dims[2], const complex float* U,
 	long cal_strs[DIMS];
 	md_calc_strides(DIMS, cal_strs, cal_dims, CFL_SIZE);
 
-	casorati_matrixH(4, kern_dims, cal_dims, cal_strs, cal_backproj, A_dims, A_backproj);
+	casorati_matrixH(4, kern_dims, cal_dims, cal_strs, back, A_dims, A_backproj);
 
 	// Missing normalization for summed anti-diagonals
 	long b = MIN(kern_dims[0], cal_dims[0] - kern_dims[0] + 1); // Minimum of window length and maximum lag
@@ -105,7 +105,7 @@ A_dims[2], const complex float* A, const long U_dims[2], const complex float* U,
 
 	long norm_strs[DIMS];
 	md_calc_strides(DIMS, norm_strs, norm_dims, CFL_SIZE);
-	md_zmul2(DIMS, cal_dims, cal_strs, cal_backproj, cal_strs, cal_backproj, norm_strs, norm);
+	md_zmul2(DIMS, cal_dims, cal_strs, back, cal_strs, back, norm_strs, norm);
 
 	md_free(norm);
 	md_free(A_backproj);
@@ -114,12 +114,12 @@ A_dims[2], const complex float* A, const long U_dims[2], const complex float* U,
 }
 
 
-static void ssa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal_data, const char* name_EOF, const char* name_S, const char* backproj, const int
+static void ssa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal, const char* name_EOF, const char* name_S, const char* backproj, const int
 rank)
 {
 	// Calibration matrix
 	long A_dims[2];
-	complex float* A = calibration_matrix(A_dims, kernel_dims, cal_dims, cal_data);
+	complex float* A = calibration_matrix(A_dims, kernel_dims, cal_dims, cal);
 
 	long N = A_dims[0];
 	long M = A_dims[1];
@@ -146,9 +146,9 @@ rank)
 
 	float* S_square = xmalloc(N * sizeof(float));
 
-	debug_printf(DP_INFO, "SVD of %dx%d matrix...", AAH_dims[0], AAH_dims[1]);
+	debug_printf(DP_DEBUG3, "SVD of %dx%d matrix...", AAH_dims[0], AAH_dims[1]);
 	lapack_svd(N, N, (complex float (*)[N])U, (complex float (*)[N])UH, S_square, (complex float (*)[N])AAH); // NOTE: Lapack destroys AAH!
-	debug_printf(DP_INFO, "done\n");
+	debug_printf(DP_DEBUG3, "done\n");
 
 	if (name_S != NULL) {
 		long S_dims[1] = { N };
@@ -159,9 +159,12 @@ rank)
 	}
 
 	if (backproj != NULL) {
-		complex float* cal_backproj = create_cfl(backproj, DIMS, cal_dims);
-		debug_printf(DP_INFO, "Backprojection...\n");
-		backprojection(N, M, kernel_dims, cal_dims, cal_backproj, A_dims, A, U_dims, U, UH, rank);
+		long back_dims[DIMS];
+		md_transpose_dims(DIMS, 3, 1, back_dims, cal_dims);
+
+		complex float* back = create_cfl(backproj, DIMS, back_dims);
+		debug_printf(DP_DEBUG3, "Backprojection...\n");
+		backprojection(N, M, kernel_dims, cal_dims, back, A_dims, A, U_dims, U, UH, rank);
 	}
 
 
@@ -182,7 +185,6 @@ int main_ssa(int argc, char* argv[])
 	int window = -1;
 	int normalize = 0;
 	int rm_mean = 1;
-	int type = 1;
 	int rank = 0;
 	bool zeropad = true;
 	long kernel_dims[3] = { 1, 1, 1};
@@ -196,7 +198,6 @@ int main_ssa(int argc, char* argv[])
 		OPT_CLEAR('z', &zeropad, "Zeropadding [Default: True]"),
 		OPT_INT('m', &rm_mean, "0/1", "Remove mean [Default: True]"),
 		OPT_INT('n', &normalize, "0/1", "Normalize [Default: False]"),
-		OPT_INT('t', &type, "0-2", "0: Complex. 1: Absolute. 2: Real & Imagniary. [Default: 1]"),
 		OPT_INT('r', &rank, "", "Rank for backprojection. r < 0: Throw away first r components. r > 0: Use only first r components"),
 
 	};
@@ -219,96 +220,38 @@ int main_ssa(int argc, char* argv[])
 	if (5 == argc) {
 		backproj = argv[4];
 
+		if (zeropad) {
+			debug_printf(DP_INFO, "Zeropadding turned off automatically!");
+			zeropad = false;
+		}
+
 		if (rank == 0)
 			error("Specify rank for backprojection!");
 
 	}
 
-	long k_dims[DIMS];
-	complex float* k = load_cfl(argv[1], DIMS, k_dims);
+	long in_dims[DIMS];
+	complex float* in = load_cfl(argv[1], DIMS, in_dims);
 
-	if (k_dims[PHS2_DIM] > 1)
-		error("No spokes allowed in PHS2_DIM [2]. Transpose to TIME_DIM [10]!");
+	if (!md_check_dimensions(DIMS, in_dims, ~(READ_FLAG|PHS1_FLAG)))
+		error("Only first two dimensions must be filled!");
 
-
-	// Extract calibration region and reshape [TIME, 1, 1, COILS + SLICES, 1, ...]
-	long cal_tmp_dims[DIMS];
-	long cal_tmp1_dims[DIMS];
-	long cal_dims[DIMS];
-
-	md_select_dims(DIMS, COIL_FLAG|TIME_FLAG|SLICE_FLAG, cal_tmp_dims, k_dims);
-
-	complex float* cal_data_tmp = md_alloc(DIMS, cal_tmp_dims, CFL_SIZE);
-	complex float* cal_data_tmp1 = md_alloc(DIMS, cal_tmp_dims, CFL_SIZE);
-	complex float* cal_data = md_alloc(DIMS, cal_tmp_dims, CFL_SIZE);
-
-	md_resize_center(DIMS, cal_tmp_dims, cal_data_tmp, k_dims, k, CFL_SIZE);
-
-		// Join SLICE_DIM & COIL_DIM
-	md_transpose_dims(DIMS, COIL_DIM - 1, SLICE_DIM, cal_tmp1_dims, cal_tmp_dims);
-	md_transpose(DIMS, COIL_DIM - 1, SLICE_DIM, cal_tmp1_dims, cal_data_tmp1, cal_tmp_dims, cal_data_tmp, CFL_SIZE);
-	cal_tmp1_dims[COIL_DIM] = cal_tmp1_dims[COIL_DIM - 1] * cal_tmp1_dims[COIL_DIM];
-	cal_tmp1_dims[COIL_DIM - 1] = 1;
-
-		// Transpose TIME_DIM to READ_DIM
-	md_transpose_dims(DIMS, READ_DIM, TIME_DIM, cal_dims, cal_tmp1_dims);
-	md_transpose(DIMS, READ_DIM, TIME_DIM, cal_dims, cal_data, cal_tmp1_dims, cal_data_tmp1, CFL_SIZE);
-
-	md_free(cal_data_tmp);
-	md_free(cal_data_tmp1);
-
-	switch (type) {
-
-		case 0 :
-			break;
-
-		case 1 :
-			md_zabs(DIMS, cal_dims, cal_data, cal_data);
-			break;
-
-		case 2 :
-		{
-			long cal2_dims[DIMS];
-			long pos[DIMS] = { 0 };
-			complex float* cal2;
-
-			// Stack absolute value and angle in COILS_DIM
-			md_copy_dims(DIMS, cal2_dims, cal_dims);
-			cal2_dims[COIL_DIM] *= 2;
-			cal2 = md_alloc(DIMS, cal2_dims, CFL_SIZE);
-			md_clear(DIMS, cal2_dims, cal2, CFL_SIZE);
-
-			md_copy_block(DIMS, pos, cal2_dims, cal2, cal_dims, cal_data, CFL_SIZE);
-			md_zreal(DIMS, cal2_dims, cal2, cal2);
-
-			md_zimag(DIMS, cal_dims, cal_data, cal_data);
-			md_zsmul(DIMS, cal_dims, cal_data, cal_data, -1i);
-			pos[COIL_DIM] = cal_dims[COIL_DIM];
-			md_copy_block(DIMS, pos, cal2_dims, cal2, cal_dims, cal_data, CFL_SIZE);
-
-			md_free(cal_data);
-			cal_data = cal2;
-			md_copy_dims(DIMS, cal_dims, cal2_dims);
-			break;
-		}
-
-	}
 
 	if ( rm_mean || normalize ) {
 
-		long cal_strs[DIMS];
-		md_calc_strides(DIMS, cal_strs, cal_dims, CFL_SIZE);
+		long in_strs[DIMS];
+		md_calc_strides(DIMS, in_strs, in_dims, CFL_SIZE);
 
 		long singleton_dims[DIMS];
 		long singleton_strs[DIMS];
-		md_select_dims(DIMS, ~READ_FLAG, singleton_dims, cal_dims);
+		md_select_dims(DIMS, ~READ_FLAG, singleton_dims, in_dims);
 		md_calc_strides(DIMS, singleton_strs, singleton_dims, CFL_SIZE);
 
 		if (rm_mean) {
 
 			complex float* mean = md_alloc(DIMS, singleton_dims, CFL_SIZE);
-			md_zavg(DIMS, cal_dims, READ_FLAG, mean, cal_data);
-			md_zsub2(DIMS, cal_dims, cal_strs, cal_data, cal_strs, cal_data, singleton_strs, mean);
+			md_zavg(DIMS, in_dims, READ_FLAG, mean, in);
+			md_zsub2(DIMS, in_dims, in_strs, in, in_strs, in, singleton_strs, mean);
 
 			md_free(mean);
 		}
@@ -316,33 +259,32 @@ int main_ssa(int argc, char* argv[])
 		if (normalize) {
 
 			complex float* stdv = md_alloc(DIMS, singleton_dims, CFL_SIZE);
-			md_zstd(DIMS, cal_dims, READ_FLAG, stdv, cal_data);
-			md_zdiv2(DIMS, cal_dims, cal_strs, cal_data, cal_strs, cal_data, singleton_strs, stdv);
+			md_zstd(DIMS, in_dims, READ_FLAG, stdv, in);
+			md_zdiv2(DIMS, in_dims, in_strs, in, in_strs, in, singleton_strs, stdv);
 
 			md_free(stdv);
 
 		}
 	}
 
-	if (zeropad) {
 
-		long cal_zeropad_dims[DIMS];
-		md_copy_dims(DIMS, cal_zeropad_dims, cal_dims);
-		cal_zeropad_dims[0] = cal_dims[0] - 1 + window;
-		complex float* cal_zeropad = md_alloc(DIMS, cal_zeropad_dims, CFL_SIZE);
-		md_resize_center(DIMS, cal_zeropad_dims, cal_zeropad, cal_dims, cal_data, CFL_SIZE);
+	long cal0_dims[DIMS];
+	md_copy_dims(DIMS, cal0_dims, in_dims);
 
-		md_free(cal_data);
-		cal_data = cal_zeropad;
-		md_copy_dims(DIMS, cal_dims, cal_zeropad_dims);
+	if (zeropad)
+		cal0_dims[0] = in_dims[0] - 1 + window;
 
-	}
+	complex float* cal = md_alloc(DIMS, cal0_dims, CFL_SIZE);
+	md_resize_center(DIMS, cal0_dims, cal, in_dims, in, CFL_SIZE); // Resize for zeropadding, else copy
 
 
-	// Perform SSA-FARI
-	ssa_fary(kernel_dims, cal_dims, cal_data, name_EOF, name_S, backproj, rank);
+	// Perform SSA-FARY or SSA
+	long cal_dims[DIMS];
+	md_transpose_dims(DIMS, 1, 3, cal_dims, cal0_dims);
+	ssa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, rank);
 
-	md_free(cal_data);
+	unmap_cfl(DIMS, in_dims, in);
+	md_free(cal);
 
 	exit(0);
 
