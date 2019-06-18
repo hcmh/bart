@@ -37,4 +37,25 @@ tests/test-ssa: traj phantom resize squeeze svd transpose ssa cabs nrmse casorat
 	touch $@
 
 
-TESTS += tests/test-ssa-pca tests/test-ssa
+tests/test-ssa-backprojection: phantom reshape repmat squeeze transpose noise ssa extract cabs nrmse
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+		$(TOOLDIR)/phantom -C -x12 -s8 ph.ra						;\
+	$(TOOLDIR)/reshape 1067 1 1 1152 1 32 ph.ra phc.ra				;\
+		$(TOOLDIR)/repmat 11 5 phc.ra phc1.ra						;\
+		$(TOOLDIR)/squeeze phc1.ra phc10.ra					        ;\
+		$(TOOLDIR)/transpose 0 1 phc10.ra phc2.ra					;\
+		$(TOOLDIR)/noise -n1e8 phc2.ra ph_noise.ra					;\
+		$(TOOLDIR)/ssa -w10 -m0 -z -n0 phc2.ra eof.ra					;\
+		$(TOOLDIR)/ssa -w10 -m0 -z -n0 -r 5 ph_noise.ra eof2.ra s.ra back.ra		;\
+		$(TOOLDIR)/nrmse -t 0.3 phc2.ra back.ra						;\
+		$(TOOLDIR)/ssa -w10 -m0 -z -n0 -r 5 phc2.ra eof3.ra tmp.ra tmp1.ra		;\
+		$(TOOLDIR)/ssa -w10 -m0 -z -n0 -r5 tmp1.ra eof4.ra				;\
+		$(TOOLDIR)/extract 1 0 4 eof3.ra eofex.ra					;\
+		$(TOOLDIR)/cabs eofex.ra eofex1.ra						;\
+		$(TOOLDIR)/extract 1 0 4 eof4.ra eof4ex.ra					;\
+		$(TOOLDIR)/cabs eof4ex.ra eof4ex1.ra						;\
+		$(TOOLDIR)/nrmse -t 0.05 eofex1.ra eof4ex1.ra					;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+TESTS += tests/test-ssa-pca tests/test-ssa tests/test-ssa-backprojection
