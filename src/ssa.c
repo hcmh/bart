@@ -173,6 +173,8 @@ rank)
 	md_free(A);
 	md_free(AH);
 	md_free(AAH);
+	xfree(S_square);
+
 
 
 
