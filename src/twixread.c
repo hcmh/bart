@@ -190,6 +190,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 		pos[COEFF_DIM]	= mdh.sLC[5];
 		pos[TIME_DIM]	= mdh.sLC[6];
 		pos[TIME2_DIM]	= mdh.sLC[7];
+		pos[LEVEL_DIM]	= mdh.sLC[8];
 
 		for (unsigned int i = 0; i < DIMS; i++) {
 
@@ -229,7 +230,7 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 		memcpy(&mdh, vd ? (scan_hdr + 40) : (chan_hdr + 20), sizeof(mdh));
 
 		if ((mdh.evalinfo[0] & (1 << 5))
-			|| (dims[READ_DIM] != mdh.samples)) {
+			|| ( (dims[READ_DIM] != mdh.samples) && 0 ) ) {
 
 //			debug_printf(DP_WARN, "SYNC\n");
 
@@ -260,6 +261,7 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 			pos[COEFF_DIM]	= mdh.sLC[5];
 			pos[TIME_DIM]	= mdh.sLC[6];
 			pos[TIME2_DIM]	= mdh.sLC[7];
+			pos[LEVEL_DIM]	= mdh.sLC[8];
 		}
 
 		debug_print_dims(DP_DEBUG4, DIMS, pos);
@@ -318,6 +320,7 @@ int main_twixread(int argc, char* argv[argc])
 		OPT_LONG('n', &(dims[TIME_DIM]), "N", "number of repetitions"),
 		OPT_LONG('p', &(dims[COEFF_DIM]), "P", "number of cardicac phases"),
 		OPT_LONG('f', &(dims[TIME2_DIM]), "F", "number of flow encodings"),
+		OPT_LONG('i', &(dims[LEVEL_DIM]), "I", "number inversion experiments"),
 		OPT_LONG('a', &adcs, "A", "total number of ADCs"),
 		OPT_SET('A', &autoc, "automatic [guess dimensions]"),
 		OPT_SET('L', &linectr, "use linectr offset"),
