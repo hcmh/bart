@@ -30,6 +30,8 @@
 #include "calib/estvar.h"
 #include "calib/calmat.h"
 
+#include "manifold/manifold.h"
+
 
 static const char usage_str[] = "<src> <EOF> [<S>] [<backprojection>]";
 static const char help_str[] =
@@ -113,6 +115,128 @@ A_dims[2], const complex float* A, const long U_dims[2], const complex float* U,
 
 }
 
+static void nlsa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal, const char* name_EOF, const char* name_S, const char* backproj, const int
+rank, const int nlsa_rank, struct laplace_conf conf)
+{
+
+	// Calibration matrix
+	long A_dims[2];
+	complex float* A = calibration_matrix(A_dims, kernel_dims, cal_dims, cal);
+
+	long L_dims[2];
+	L_dims[0] = A_dims[0];
+	L_dims[1] = A_dims[0];
+	complex float* L = md_alloc(2, L_dims, CFL_SIZE);
+
+	calc_laplace(&conf, L_dims, L, A_dims, A);
+
+// 	dump_cfl("A", 2, A_dims, A);
+
+	long N = L_dims[0]; // time
+	long U_dims[2] = { N, N };
+	long U_strs[2];
+	md_calc_strides(2, U_strs, U_dims, CFL_SIZE);
+
+	complex float* U = md_alloc(2, U_dims, CFL_SIZE);
+	complex float* UH = md_alloc(2, U_dims, CFL_SIZE);
+
+	float* S_square = xmalloc(N * sizeof(float));
+	dump_cfl("Lap", 2, L_dims, L);
+
+	// L = U @ S_square @ UH
+	debug_printf(DP_DEBUG3, "SVD of Laplacian %dx%d matrix...", N, N);
+	lapack_svd(N, N, (complex float (*)[N])U, (complex float (*)[N])UH, S_square, (complex float (*)[N])L); // NOTE: Lapack destroys L!
+	debug_printf(DP_DEBUG3, "done\n");
+
+	dump_cfl("U", 2, U_dims, U);
+	dump_cfl("UH", 2, U_dims, UH);
+
+
+	if (name_S != NULL) {
+		long S_dims[1] = { N };
+		complex float* S = create_cfl(name_S, 1, S_dims);
+		for (int i = 0; i < N; i++)
+			S[i] = sqrt(S_square[i]) + 0i;
+		unmap_cfl(1, S_dims, S);
+	}
+
+	// UA[i,j] = np.sum(A[:,i] * U[:,j])
+	long UA_dims[2];
+	UA_dims[0] = A_dims[1];
+	UA_dims[1] = nlsa_rank;
+
+	if (nlsa_rank >= A_dims[1])
+		error("Choose smaller rank!");
+
+	complex float* UA = md_alloc(2, UA_dims, CFL_SIZE);
+
+#pragma omp parallel for
+	for (int i = 0; i < A_dims[1]; i++)
+		for (int j = 0; j < nlsa_rank ; j++) {
+
+			UA[j * A_dims[1] + i] = md_zscalar(1,  &N, &U[j * N], &A[i * N]) ;
+
+		}
+
+	dump_cfl("UA", 2, UA_dims, UA );
+
+	// UA = U_proj @ S_proj @ VH_proj
+	long M1 = UA_dims[0];
+	long N1 = (long)nlsa_rank;
+
+	long U_proj_dims[2] = { M1, N1};
+	long VH_proj_dims[2] = { N1, N1};
+	long VH_proj_strs[2];
+	md_calc_strides(2, VH_proj_strs, VH_proj_dims, CFL_SIZE);
+
+	complex float* U_proj = md_alloc(2, U_proj_dims, CFL_SIZE);
+	complex float* VH_proj = md_alloc(2, VH_proj_dims, CFL_SIZE);
+
+	float* S_proj = xmalloc(N1 * sizeof(float));
+
+	debug_printf(DP_DEBUG3, "SVD of Projection %dx%d matrix...", M1, N1);
+	lapack_svd_econ(M1, N1, (complex float (*)[N1])U_proj, (complex float (*)[N1])VH_proj, S_proj, (complex float (*)[N1])UA); // NOTE: Lapack destroys L!
+	debug_printf(DP_DEBUG3, "done\n");
+
+ 	dump_cfl("VH_proj", 2, VH_proj_dims, VH_proj);
+
+	long _S_dims[1] = { N1 };
+	complex float* _S = md_alloc(1, _S_dims, CFL_SIZE);
+	for (int i = 0; i < N1; i++)
+		_S[i] = sqrt(S_proj[i]) + 0i;
+
+	dump_cfl("S_proj", 1, _S_dims, _S);
+	md_free(_S);
+
+
+	// basis[i,j] = sum(U[i,:nlsa_rank] * VH_proj[:nlsa_rank,j])
+	long basis_dims[2] = { N, nlsa_rank };
+	complex float* basis = create_cfl(name_EOF, 2, basis_dims);
+
+	long strs = U_strs[1];
+
+	#pragma omp parallel for
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < nlsa_rank ; j++) {
+
+			basis[j * N + i] = md_zscalar2(1, &N1,  &strs, &U[i], &VH_proj_strs[1], &VH_proj[j] );
+
+
+		}
+
+
+	md_free(A);
+	md_free(U);
+	md_free(UH);
+	md_free(L);
+	md_free(UA);
+	xfree(S_square);
+	xfree(S_proj);
+
+
+}
+
+
 
 static void ssa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal, const char* name_EOF, const char* name_S, const char* backproj, const int
 rank)
@@ -192,6 +316,10 @@ int main_ssa(int argc, char* argv[])
 	long kernel_dims[3] = { 1, 1, 1};
 	char* name_S = NULL;
 	char* backproj = NULL;
+	int nlsa_rank = 0;
+	bool nlsa = false;
+
+	struct laplace_conf conf = laplace_conf_default;
 
 
 	const struct opt_s opts[] = {
@@ -201,6 +329,9 @@ int main_ssa(int argc, char* argv[])
 		OPT_INT('m', &rm_mean, "0/1", "Remove mean [Default: True]"),
 		OPT_INT('n', &normalize, "0/1", "Normalize [Default: False]"),
 		OPT_INT('r', &rank, "", "Rank for backprojection. r < 0: Throw away first r components. r > 0: Use only first r components"),
+		OPT_INT('L', &nlsa_rank, "", "Nonlinear Laplacian Spectral Analysis"),
+		OPT_INT('N', &conf.nn, "nn", "Number of nearest neighbours"),
+		OPT_FLOAT('S', &conf.sigma, "sigma", "Standard deviation"),
 
 	};
 
@@ -208,6 +339,8 @@ int main_ssa(int argc, char* argv[])
 
 	num_init();
 
+	if (nlsa_rank > 0)
+		nlsa = true;
 
 	if ( -1 == window)
 		error("Specify window length '-w'");
@@ -279,11 +412,28 @@ int main_ssa(int argc, char* argv[])
 	complex float* cal = md_alloc(DIMS, cal0_dims, CFL_SIZE);
 	md_resize_center(DIMS, cal0_dims, cal, in_dims, in, CFL_SIZE); // Resize for zeropadding, else copy
 
-
-	// Perform SSA-FARY or SSA
 	long cal_dims[DIMS];
 	md_transpose_dims(DIMS, 1, 3, cal_dims, cal0_dims);
-	ssa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, rank);
+
+	if (nlsa) {
+
+		if (conf.nn > in_dims[0])
+			error("Number of nearest neighbours must be smaller or equalt o time-steps!");
+
+		debug_printf(DP_INFO, backproj ? "Performing NLSA\n" : "Performing NLSA-FARY\n");
+
+		conf.gen_out = true;
+		nlsa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, rank, nlsa_rank, conf);
+
+
+	} else {
+
+		debug_printf(DP_INFO, backproj ? "Performing SSA\n" : "Performing SSA-FARY\n");
+
+		// Perform SSA-FARY or SSA
+		ssa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, rank);
+
+	}
 
 	unmap_cfl(DIMS, in_dims, in);
 	md_free(cal);
