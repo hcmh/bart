@@ -42,7 +42,6 @@ void calc_laplace(const struct laplace_conf* conf, const long L_dims[2], complex
 	long src_singleton_dims[2];
 	src_singleton_dims[0] = 1;
 	src_singleton_dims[1] = src_dims[1];
-	complex float* src_singleton = md_alloc(2, src_singleton_dims, CFL_SIZE);
 
 	long src_singleton_strs[2];
 	md_calc_strides(2, src_singleton_strs, src_singleton_dims, CFL_SIZE);
@@ -52,8 +51,11 @@ void calc_laplace(const struct laplace_conf* conf, const long L_dims[2], complex
 	src_singleton1_strs[1] = src_strs[1];
 
 	// dist[i,j] = ||src[i,:] - src[j,:]||^2
+#pragma omp parallel for
 	for (int i = 0; i < L_dims[0]; i++)
 		for (int j = 0; j <= i ; j++) {
+
+			complex float* src_singleton = md_alloc(2, src_singleton_dims, CFL_SIZE);
 
 			md_zsub2(2, src_singleton_dims, src_singleton_strs, src_singleton, src_singleton1_strs, &src[i], src_singleton1_strs, &src[j]);
 			dist[i * L_dims[0] + j] = md_zscalar(2, src_singleton_dims, src_singleton, src_singleton) ;
