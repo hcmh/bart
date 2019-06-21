@@ -165,7 +165,7 @@ include build_targets.mk
 
 MODULES = -lnum -lmisc -lnum -lmisc -lna
 
-MODULES_pics = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart
+MODULES_pics = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart -lmanifold
 MODULES_sqpics = -lsense -liter -llinops -lwavelet -llowrank -lnoncart
 MODULES_pocsense = -lsense -liter -llinops -lwavelet
 MODULES_nlinv = -lnoir -liter -lnlops -llinops
@@ -184,7 +184,7 @@ MODULES_nufft = -lnoncart -liter -llinops
 MODULES_rof = -liter -llinops
 MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -lmanifold
 MODULES_sake = -lsake
 MODULES_traj = -lnoncart
 MODULES_wave = -liter -lwavelet -llinops -llowrank
@@ -203,6 +203,7 @@ MODULES_approx = -lrkhs -lnoncart
 MODULES_kmat = -lrkhs -lnoncart
 MODULES_dcnn = -lnn -llinops
 MODULES_ssa = -lcalib
+MODULES_laplace = -lmanifold
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
