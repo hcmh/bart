@@ -77,7 +77,7 @@ void calc_laplace(const struct laplace_conf* conf, const long L_dims[2], complex
 			thresh = quickselect_complex(&dist_dump[i * L_dims[0]], L_dims[0], L_dims[0] - conf->nn); // Get nn-th smallest distance. (Destroys dist_dump-array!)
 
 			for (int j = 0; j < L_dims[0]; j++)
-				L[i * L_dims[0] + j] = (cabs(dist[i * L_dims[0] + j]) > thresh) ? 0 : 1;
+				L[i * L_dims[0] + j] *= (cabs(dist[i * L_dims[0] + j]) > thresh) ? 0 : 1;
 
 		}
 
