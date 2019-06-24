@@ -24,6 +24,7 @@ const struct laplace_conf laplace_conf_default = {
 
 	.sigma 		= 0.1,
 	.nn 		= -1,
+	.gen_out	= false,
 };
 
 
@@ -86,18 +87,36 @@ void calc_laplace(const struct laplace_conf* conf, const long L_dims[2], complex
 		md_free(dist_dump);
 	}
 
-	// L = D - W, with D[i,0] = sum(W[i,:])
+	// D[i,0] = sum(W[i,:])
 	long D_dims[2];
 	md_select_dims(2, READ_FLAG, D_dims, L_dims);
 	complex float* D = md_alloc(2, D_dims, CFL_SIZE);
-	md_zsum(2, L_dims, PHS1_FLAG, D, L);
+	md_zsum(2, L_dims, PHS1_FLAG, D, L); // D is diagonal
 
-	md_zsmul(2, L_dims, L, L, -1.); // -W
+	if (conf->gen_out) {
+		// L := D^{-1} @ W
 
-#pragma omp parallel for
-	for (int i = 0; i < L_dims[0]; i++)
-		L[i * L_dims[0] + i] += D[i];
+	#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)
+			D[i] = 1./D[i];
 
+		complex float* tmp = md_alloc(2, L_dims, CFL_SIZE);
+		md_copy(2, L_dims, tmp, L, CFL_SIZE);
+
+		md_ztenmul(2, L_dims, L, L_dims, tmp, D_dims, D);
+
+		md_free(tmp);
+
+	} else {
+		//L = D - W
+
+		md_zsmul(2, L_dims, L, L, -1.); // -W
+
+	#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)
+			L[i * L_dims[0] + i] += D[i];
+
+	}
 
 
 	md_free(D);

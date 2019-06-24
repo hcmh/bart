@@ -15,6 +15,7 @@ struct laplace_conf {
 
 	int nn; 	 // number of nearest neighbours
 	float sigma;	 // Standard deviation
+	_Bool gen_out;	 // Output D^-1 @ W (For caclualtion of generalized Laplacian EV's v: Lv = Dv)
 
 };
 

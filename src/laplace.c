@@ -43,6 +43,8 @@ int main_laplace(int argc, char* argv[])
 
 		OPT_INT('n', &conf.nn, "nn", "Number of nearest neighbours"),
 		OPT_FLOAT('s', &conf.sigma, "sigma", "Standard deviation"),
+		OPT_SET('g', &conf.gen_out, "Output inv(D) @ W"),
+
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
