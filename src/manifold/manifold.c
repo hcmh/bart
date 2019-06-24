@@ -22,14 +22,14 @@
 
 const struct laplace_conf laplace_conf_default = {
 
-	.sigma 		= 0.1,
+	.sigma 		= -1,
 	.nn 		= -1,
 	.gen_out	= false,
 };
 
 
 
-void calc_laplace(const struct laplace_conf* conf, const long L_dims[2], complex float* L, const long src_dims[2], const complex float* src)
+void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float* L, const long src_dims[2], const complex float* src)
 {
 
 	// L[i,j,:] = src[i,:] - src[j,:]
@@ -61,8 +61,20 @@ void calc_laplace(const struct laplace_conf* conf, const long L_dims[2], complex
 			md_zsub2(2, src_singleton_dims, src_singleton_strs, src_singleton, src_singleton1_strs, &src[i], src_singleton1_strs, &src[j]);
 			dist[i * L_dims[0] + j] = md_zscalar(2, src_singleton_dims, src_singleton, src_singleton) ;
 			dist[j * L_dims[0] + i] = dist[i * L_dims[0] + j]; // exploit symmetry
+
+			md_free(src_singleton);
 		}
 
+	if (conf->sigma == -1) {
+		// Set sigma to maximum distance
+		complex float* dist_tmp = md_alloc(2, L_dims, CFL_SIZE);
+		md_copy(2, L_dims, dist_tmp, dist, CFL_SIZE);
+
+		conf->sigma = sqrtf(quickselect_complex(dist_tmp, L_dims[0] * L_dims[0], 1)); // Quickselect destroys dist_tmp
+		debug_printf(DP_INFO, "Estimated sigma: %f\n", conf->sigma);
+
+		md_free(dist_tmp);
+	}
 
 	// W = exp(- dist^2 / sigma^2)
 	md_zsmul(2, L_dims, L, dist, -1. /  pow(conf->sigma,2));
