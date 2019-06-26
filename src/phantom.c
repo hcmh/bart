@@ -232,7 +232,7 @@ int main_phantom(int argc, char* argv[])
 
 	case STAR:
 
-		calc_star(dims, out, kspace, sstrs, samples);
+		(d3 ? calc_star3d : calc_star)(dims, out, kspace, sstrs, samples);
 		break;
 
 	case TIME:

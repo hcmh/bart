@@ -20,5 +20,6 @@ extern void calc_heart(const long dims[DIMS], _Complex float* out, _Bool ksp, co
 extern void calc_phantom_t1t2(struct SimData* data, const long dims[DIMS], _Complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
 
 extern void calc_star(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
+extern void calc_star3d(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
 
 extern void calc_phantom_bart(const long dims[DIMS], _Complex float* out, _Bool d3, _Bool ksp, const long tstrs[DIMS], const _Complex float* traj);

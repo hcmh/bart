@@ -30,6 +30,7 @@
 #include "simu/sens.h"
 #include "simu/coil.h"
 #include "simu/shape.h"
+#include "simu/volume.h"
 
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
@@ -389,6 +390,47 @@ void calc_star(const long dims[DIMS], complex float* out, bool kspace, const lon
 		.dims = { dims[0], dims[1], dims[2] },
 		.data = &poly,
 		.fun = krn_poly,
+	};
+
+	md_parallel_zsample(DIMS, dims, out, &data, kspace ? kkernel : xkernel);
+}
+
+struct poly3d {
+
+	bool kspace;
+	int N;
+	double (*pg)[][3][3];
+};
+
+static complex float krn_poly3d(void* _data, const double mpos[3])
+{
+	struct poly3d* data = _data;
+	return (data->kspace ? kvolume : xvolume)(data->N, *data->pg, mpos);
+}
+
+void calc_star3d(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	struct poly3d poly3d = {
+
+		kspace,
+		4,
+		&(double[][3][3]){
+
+			{ { 0., 0., 0. }, { 0.5, 0., 0. }, { 0., 0.5, 0. }, },
+			{ { 0.5, 0., 0. }, { 0., 0., 0. }, { 0., 0., 0.5 }, },
+			{ { 0., 0., 0. }, { 0., 0.5, 0. }, { 0., 0., 0.5 }, },
+			{ { 0.5, 0., 0. }, { 0., 0., 0.5 }, { 0., 0.5, 0. }, },
+		},
+	};
+
+	struct data data = {
+
+		.traj = traj,
+		.tstrs = tstrs,
+		.sens = (dims[COIL_DIM] > 1),
+		.dims = { dims[0], dims[1], dims[2] },
+		.data = &poly3d,
+		.fun = krn_poly3d,
 	};
 
 	md_parallel_zsample(DIMS, dims, out, &data, kspace ? kkernel : xkernel);
