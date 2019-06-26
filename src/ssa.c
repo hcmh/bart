@@ -7,6 +7,48 @@
  * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  */
 
+/* Paper
+ * -----------
+ * SSA
+ * Vautard, R., & Ghil, M. (1989).
+ * Singular spectrum analysis in nonlinear dynamics, with applications to paleoclimatic time series.
+ * Physica D: Nonlinear Phenomena, 35(3), 395-424.
+ *
+ * (and others)
+ *
+ * SSA-FARY
+ * Rosenzweig, S., Scholand, N., Holme, H. C. M., & Uecker, M. (2018).
+ * Cardiac and Respiratory Self-Gating in Radial MRI using an Adapted Singular Spectrum Analysis (SSA-FARY).
+ * arXiv preprint arXiv:1812.09057.
+ *
+ * NLSA
+ * Giannakis, D., & Majda, A. J. (2012).
+ * Nonlinear Laplacian spectral analysis for time series with intermittency and low-frequency variability.
+ * Proceedings of the National Academy of Sciences, 109(7), 2222-2227.
+ *
+ * Giannakis, D., & Majda, A. J. (2013).
+ * Nonlinear Laplacian spectral analysis: capturing intermittent and low‐frequency spatiotemporal patterns in high‐dimensional data.
+ * Statistical Analysis and Data Mining: The ASA Data Science Journal, 6(3), 180-194.
+ *
+ * Comments on NLSA:
+ * The NLSA is not exactly implemented as proposed by Giannakis & Maida:
+ *	We don't use the metric mu (yet)
+ * 	We don't consider the local velocities in the exponent
+ * 	We don't approximate the Laplacian eigenvectors but calculate them explicitly
+ * 
+ * 'nlsa_rank' defines the smoothness of the manifold (temporal evolution)
+ * 
+ * 
+ * General comments:
+ * The rank option '-r' allows to "throw away" basis functions:
+ *	rank < 0: throw away 'rank' basis functions with high singular values
+ *	rank > 0: keep only 'rank' basis functions with the highest singular value
+ * 
+ * The group option '-g' implements what is called 'Grouping' in SSA literature, by selecting EOFs with a bitmask.
+ *  group < 0: do not use the selected group for backprojection, but all other EOFs (= filtering)
+ *  group > 0: use only the selected group for backprojection
+ */
+
 #include <assert.h>
 #include <complex.h>
 #include <stdbool.h>
