@@ -38,7 +38,105 @@ static const char help_str[] =
 		"Perform SSA-FARY or Singular Spectrum Analysis\n";
 
 
-static void backprojection(const long N, const long M, const long kernel_dims[3], const long cal_dims[DIMS], complex float* back, const long
+static void nlsa_backprojection(const long N, const long M, const long kernel_dims[3], const long cal_dims[DIMS], complex float* back, const long U_proj_dims[2], const complex
+float* U_proj, const long zS_proj_dims[2], const complex float* zS_proj, const long t_basis_dims[2], const complex float* t_basis, const int nlsa_rank, const int rank)
+{
+
+	assert(U_proj_dims[0] == M && U_proj_dims[1] == nlsa_rank);
+	assert(zS_proj_dims[0] == 1 && zS_proj_dims[1] == nlsa_rank);
+	assert(t_basis_dims[0] == N && t_basis_dims[1] == nlsa_rank);
+
+
+	long kernelCoil_dims[4];
+	md_copy_dims(3, kernelCoil_dims, kernel_dims);
+	kernelCoil_dims[3] = cal_dims[3];
+
+
+	// t1_basis = t_basis @ zS_proj
+	long t_basis_strs[2];
+	md_calc_strides(2, t_basis_strs, t_basis_dims, CFL_SIZE);
+
+	long zS_proj_strs[2];
+	md_calc_strides(2, zS_proj_strs, zS_proj_dims, CFL_SIZE);
+
+	complex float* t1_basis = md_alloc(2, t_basis_dims, CFL_SIZE);
+
+	md_zmul2(2, t_basis_dims, t_basis_strs, t1_basis, t_basis_strs, t_basis, zS_proj_strs, zS_proj);
+
+	// Throw away unwanted basis functions
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < nlsa_rank; j++) {
+			if (rank < 0)
+				t1_basis[j * N + i] *= (j > abs(rank)) ? 1. : 0.;
+			else
+				t1_basis[j * N + i] *= (j > rank) ? 0. : 1;
+		}
+	}
+
+
+	// A_backproj = t1_basis @ U_proj.H
+	long t2_dims[3] = { N, nlsa_rank, 1 };
+	long U2_dims[3] = { 1, M, nlsa_rank };
+	long A_dims[3] = { N, 1, M };
+	long max_dims[3] = { N, nlsa_rank, M };
+
+	complex float* A_backproj = md_alloc(3, A_dims, CFL_SIZE);
+	long A_strs[3];
+	md_calc_strides(3, A_strs, A_dims, CFL_SIZE);
+	long t2_strs[3];
+	md_calc_strides(3, t2_strs, t2_dims, CFL_SIZE);
+	long U2_strs[3];
+	md_calc_strides(3, U2_strs, U2_dims, CFL_SIZE);
+	long U2tp_strs[3];
+	md_transpose_dims(3, 1, 2, U2tp_strs, U2_strs); // Transpose U_proj via strides manipulation
+
+	complex float* U_projH = md_alloc(2, U_proj_dims, CFL_SIZE);
+	md_zconj(2, U_proj_dims, U_projH, U_proj);
+
+	md_ztenmul2(3, max_dims, A_strs, A_backproj, t2_strs, t1_basis, U2tp_strs, U_projH);
+
+	// Reorder & Anti-diagonal summation
+	long kern_dims[4];
+	md_set_dims(DIMS, kern_dims, 1);
+	md_min_dims(4, ~0u, kern_dims, kernelCoil_dims, cal_dims);
+
+	long cal_strs[DIMS];
+	md_calc_strides(DIMS, cal_strs, cal_dims, CFL_SIZE);
+
+	long A1_dims[3] = { N, M };
+
+	casorati_matrixH(4, kern_dims, cal_dims, cal_strs, back, A1_dims, A_backproj);
+
+	// Missing normalization for summed anti-diagonals
+	long b = MIN(kern_dims[0], cal_dims[0] - kern_dims[0] + 1); // Minimum of window length and maximum lag
+
+	long norm_dims[DIMS];
+	for (unsigned int i = 0; i < DIMS; i++)
+		norm_dims[i] = 1;
+	norm_dims[0] = cal_dims[0];
+
+	complex float* norm = md_alloc(DIMS, norm_dims, CFL_SIZE);
+	md_zfill(DIMS, norm_dims, norm, 1./b);
+
+	for (unsigned int i = 0; i < b; i++) {
+		norm[i] = 1. / (i + 1);
+		norm[cal_dims[0] -1 - i] = 1. / (i + 1);
+	}
+
+	long norm_strs[DIMS];
+	md_calc_strides(DIMS, norm_strs, norm_dims, CFL_SIZE);
+	md_zmul2(DIMS, cal_dims, cal_strs, back, cal_strs, back, norm_strs, norm);
+
+	md_free(A_backproj);
+	md_free(norm);
+	md_free(U_projH);
+	md_free(t1_basis);
+
+
+
+}
+
+static void ssa_backprojection(const long N, const long M, const long kernel_dims[3], const long cal_dims[DIMS], complex float* back, const long
 A_dims[2], const complex float* A, const long U_dims[2], const complex float* U, const complex float* UH, const int rank)
 {
 
@@ -116,7 +214,7 @@ A_dims[2], const complex float* A, const long U_dims[2], const complex float* U,
 }
 
 static void nlsa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal, const char* name_EOF, const char* name_S, const char* backproj, const int
-rank, const int nlsa_rank, struct laplace_conf conf)
+nlsa_rank, const int rank, struct laplace_conf conf)
 {
 
 	// Calibration matrix
@@ -130,9 +228,8 @@ rank, const int nlsa_rank, struct laplace_conf conf)
 
 	calc_laplace(&conf, L_dims, L, A_dims, A);
 
-// 	dump_cfl("A", 2, A_dims, A);
-
-	long N = L_dims[0]; // time
+	long N = A_dims[0]; // time
+	long M = A_dims[1];
 	long U_dims[2] = { N, N };
 	long U_strs[2];
 	md_calc_strides(2, U_strs, U_dims, CFL_SIZE);
@@ -141,16 +238,11 @@ rank, const int nlsa_rank, struct laplace_conf conf)
 	complex float* UH = md_alloc(2, U_dims, CFL_SIZE);
 
 	float* S_square = xmalloc(N * sizeof(float));
-	dump_cfl("Lap", 2, L_dims, L);
 
 	// L = U @ S_square @ UH
 	debug_printf(DP_DEBUG3, "SVD of Laplacian %dx%d matrix...", N, N);
 	lapack_svd(N, N, (complex float (*)[N])U, (complex float (*)[N])UH, S_square, (complex float (*)[N])L); // NOTE: Lapack destroys L!
 	debug_printf(DP_DEBUG3, "done\n");
-
-	dump_cfl("U", 2, U_dims, U);
-	dump_cfl("UH", 2, U_dims, UH);
-
 
 	if (name_S != NULL) {
 		long S_dims[1] = { N };
@@ -162,67 +254,70 @@ rank, const int nlsa_rank, struct laplace_conf conf)
 
 	// UA[i,j] = np.sum(A[:,i] * U[:,j])
 	long UA_dims[2];
-	UA_dims[0] = A_dims[1];
+	UA_dims[0] = M;
 	UA_dims[1] = nlsa_rank;
 
-	if (nlsa_rank >= A_dims[1])
-		error("Choose smaller rank!");
+	if (nlsa_rank >= M)
+		error("Choose smaller nlsa_rank!");
 
 	complex float* UA = md_alloc(2, UA_dims, CFL_SIZE);
 
 #pragma omp parallel for
-	for (int i = 0; i < A_dims[1]; i++)
+	for (int i = 0; i < M; i++)
 		for (int j = 0; j < nlsa_rank ; j++) {
 
-			UA[j * A_dims[1] + i] = md_zscalar(1,  &N, &U[j * N], &A[i * N]) ;
+			UA[j * M + i] = md_zscalar(1,  &N, &U[j * N], &A[i * N]) ;
 
 		}
 
-	dump_cfl("UA", 2, UA_dims, UA );
 
 	// UA = U_proj @ S_proj @ VH_proj
-	long M1 = UA_dims[0];
-	long N1 = (long)nlsa_rank;
+	long l = (long)nlsa_rank;
 
-	long U_proj_dims[2] = { M1, N1};
-	long VH_proj_dims[2] = { N1, N1};
+	long U_proj_dims[2] = { M, l};
+	long VH_proj_dims[2] = { l, l};
 	long VH_proj_strs[2];
 	md_calc_strides(2, VH_proj_strs, VH_proj_dims, CFL_SIZE);
 
 	complex float* U_proj = md_alloc(2, U_proj_dims, CFL_SIZE);
 	complex float* VH_proj = md_alloc(2, VH_proj_dims, CFL_SIZE);
 
-	float* S_proj = xmalloc(N1 * sizeof(float));
+	float* S_proj = xmalloc(l * sizeof(float));
 
-	debug_printf(DP_DEBUG3, "SVD of Projection %dx%d matrix...", M1, N1);
-	lapack_svd_econ(M1, N1, (complex float (*)[N1])U_proj, (complex float (*)[N1])VH_proj, S_proj, (complex float (*)[N1])UA); // NOTE: Lapack destroys L!
+	debug_printf(DP_DEBUG3, "SVD of Projection %dx%d matrix...", M, l);
+	lapack_svd_econ(M, l, (complex float (*)[l])U_proj, (complex float (*)[l])VH_proj, S_proj, (complex float (*)[l])UA);
+	// NOTE: Lapack destroys L!
 	debug_printf(DP_DEBUG3, "done\n");
 
- 	dump_cfl("VH_proj", 2, VH_proj_dims, VH_proj);
 
-	long _S_dims[1] = { N1 };
-	complex float* _S = md_alloc(1, _S_dims, CFL_SIZE);
-	for (int i = 0; i < N1; i++)
-		_S[i] = sqrt(S_proj[i]) + 0i;
-
-	dump_cfl("S_proj", 1, _S_dims, _S);
-	md_free(_S);
+	// Make complex number
+	long zS_proj_dims[2] = { 1, l };
+	complex float* zS_proj = md_alloc(2, zS_proj_dims, CFL_SIZE);
+	for (int i = 0; i < l; i++)
+		zS_proj[i] = S_proj[i] + 0i;
 
 
-	// basis[i,j] = sum(U[i,:nlsa_rank] * VH_proj[:nlsa_rank,j])
-	long basis_dims[2] = { N, nlsa_rank };
-	complex float* basis = create_cfl(name_EOF, 2, basis_dims);
+	// Temporal basis: t_basis[i,j] = sum(U[i,:l] * VH_proj[:l,j])
+	long t_basis_dims[2] = { N, l };
+	complex float* t_basis = create_cfl(name_EOF, 2, t_basis_dims);
 
 	long strs = U_strs[1];
 
+
 	#pragma omp parallel for
 	for (int i = 0; i < N; i++)
-		for (int j = 0; j < nlsa_rank ; j++) {
+		for (int j = 0; j < l ; j++)
+			t_basis[j * N + i] = md_zscalar2(1, &l,  &strs, &U[i], &VH_proj_strs[1], &VH_proj[j] );
 
-			basis[j * N + i] = md_zscalar2(1, &N1,  &strs, &U[i], &VH_proj_strs[1], &VH_proj[j] );
 
+	if (backproj != NULL) {
+		long back_dims[DIMS];
+		md_transpose_dims(DIMS, 3, 1, back_dims, cal_dims);
 
-		}
+		complex float* back = create_cfl(backproj, DIMS, back_dims);
+		debug_printf(DP_DEBUG3, "Backprojection...\n");
+		nlsa_backprojection(N, M, kernel_dims, cal_dims, back, U_proj_dims, U_proj, zS_proj_dims, zS_proj, t_basis_dims, t_basis, nlsa_rank, rank);
+	}
 
 
 	md_free(A);
@@ -232,7 +327,7 @@ rank, const int nlsa_rank, struct laplace_conf conf)
 	md_free(UA);
 	xfree(S_square);
 	xfree(S_proj);
-
+	md_free(zS_proj);
 
 }
 
@@ -288,7 +383,7 @@ rank)
 
 		complex float* back = create_cfl(backproj, DIMS, back_dims);
 		debug_printf(DP_DEBUG3, "Backprojection...\n");
-		backprojection(N, M, kernel_dims, cal_dims, back, A_dims, A, U_dims, U, UH, rank);
+		ssa_backprojection(N, M, kernel_dims, cal_dims, back, A_dims, A, U_dims, U, UH, rank);
 	}
 
 
@@ -328,8 +423,8 @@ int main_ssa(int argc, char* argv[])
 		OPT_CLEAR('z', &zeropad, "Zeropadding [Default: True]"),
 		OPT_INT('m', &rm_mean, "0/1", "Remove mean [Default: True]"),
 		OPT_INT('n', &normalize, "0/1", "Normalize [Default: False]"),
-		OPT_INT('r', &rank, "", "Rank for backprojection. r < 0: Throw away first r components. r > 0: Use only first r components"),
-		OPT_INT('L', &nlsa_rank, "", "Nonlinear Laplacian Spectral Analysis"),
+		OPT_INT('r', &rank, "rank", "Rank for backprojection. r < 0: Throw away first r components. r > 0: Use only first r components"),
+		OPT_INT('L', &nlsa_rank, "NLSA", "Rank for Nonlinear Laplacian Spectral Analysis"),
 		OPT_INT('N', &conf.nn, "nn", "Number of nearest neighbours"),
 		OPT_FLOAT('S', &conf.sigma, "sigma", "Standard deviation"),
 
@@ -356,7 +451,7 @@ int main_ssa(int argc, char* argv[])
 		backproj = argv[4];
 
 		if (zeropad) {
-			debug_printf(DP_INFO, "Zeropadding turned off automatically!");
+			debug_printf(DP_INFO, "Zeropadding turned off automatically!\n");
 			zeropad = false;
 		}
 
@@ -364,6 +459,10 @@ int main_ssa(int argc, char* argv[])
 			error("Specify rank for backprojection!");
 
 	}
+
+	if (nlsa && rank != 0 && abs(rank) > nlsa_rank)
+		error("Chose rank <= nlsa_rank!");
+
 
 	long in_dims[DIMS];
 	complex float* in = load_cfl(argv[1], DIMS, in_dims);
@@ -423,7 +522,7 @@ int main_ssa(int argc, char* argv[])
 		debug_printf(DP_INFO, backproj ? "Performing NLSA\n" : "Performing NLSA-FARY\n");
 
 		conf.gen_out = true;
-		nlsa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, rank, nlsa_rank, conf);
+		nlsa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, nlsa_rank, rank, conf);
 
 
 	} else {
