@@ -247,7 +247,7 @@ void cuda_free(void* ptr)
 static void* cuda_malloc_wrapper(size_t size)
 {
 	void* ptr;
-        CUDA_ERROR(cudaMalloc(&ptr, size));
+        CUDA_ERROR(cudaMallocManaged(&ptr, size, cudaMemAttachGlobal));
 
 	return ptr;
 }
