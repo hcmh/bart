@@ -40,15 +40,15 @@ tests/test-ssa: traj phantom resize squeeze svd transpose ssa cabs nrmse casorat
 tests/test-ssa-backprojection: phantom reshape repmat squeeze transpose noise ssa extract cabs nrmse
 	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
 		$(TOOLDIR)/phantom -C -x12 -s8 ph.ra						;\
-	$(TOOLDIR)/reshape 1067 1 1 1152 1 32 ph.ra phc.ra				;\
+		$(TOOLDIR)/reshape 1067 1 1 1152 1 32 ph.ra phc.ra				;\
 		$(TOOLDIR)/repmat 11 5 phc.ra phc1.ra						;\
 		$(TOOLDIR)/squeeze phc1.ra phc10.ra					        ;\
 		$(TOOLDIR)/transpose 0 1 phc10.ra phc2.ra					;\
 		$(TOOLDIR)/noise -n1e8 phc2.ra ph_noise.ra					;\
 		$(TOOLDIR)/ssa -w10 -m0 -z -n0 phc2.ra eof.ra					;\
-		$(TOOLDIR)/ssa -w10 -m0 -z -n0 -r 5 ph_noise.ra eof2.ra s.ra back.ra		;\
+		$(TOOLDIR)/ssa -w10 -m0 -z -n0 -r5 ph_noise.ra eof2.ra s.ra back.ra		;\
 		$(TOOLDIR)/nrmse -t 0.3 phc2.ra back.ra						;\
-		$(TOOLDIR)/ssa -w10 -m0 -z -n0 -r 5 phc2.ra eof3.ra tmp.ra tmp1.ra		;\
+		$(TOOLDIR)/ssa -w10 -m0 -z -n0 -r5 phc2.ra eof3.ra tmp.ra tmp1.ra		;\
 		$(TOOLDIR)/ssa -w10 -m0 -z -n0 -r5 tmp1.ra eof4.ra				;\
 		$(TOOLDIR)/extract 1 0 4 eof3.ra eofex.ra					;\
 		$(TOOLDIR)/cabs eofex.ra eofex1.ra						;\
@@ -58,4 +58,33 @@ tests/test-ssa-backprojection: phantom reshape repmat squeeze transpose noise ss
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-TESTS += tests/test-ssa-pca tests/test-ssa tests/test-ssa-backprojection
+
+tests/test-nlsa: traj phantom resize squeeze ssa cabs nrmse
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+		$(TOOLDIR)/traj -x128 -y50 -G -D t.ra 						;\
+		$(TOOLDIR)/phantom -t t.ra -s8 k.ra 						;\
+		$(TOOLDIR)/resize -c 1 1 k.ra k1.ra 						;\
+		$(TOOLDIR)/squeeze k1.ra kx.ra 							;\
+		$(TOOLDIR)/ssa -w10 -m0 -n0 kx.ra eof.ra 					;\
+		$(TOOLDIR)/ssa -L50 -w10 -m0 -n0 kx.ra nlsa.ra 					;\
+		$(TOOLDIR)/cabs nlsa.ra nlsaabs.ra						;\
+		$(TOOLDIR)/cabs eof.ra eofabs.ra 						;\
+		$(TOOLDIR)/resize 1 10 nlsaabs.ra utest.ra 					;\
+		$(TOOLDIR)/resize 1 10 eofabs.ra eoftest.ra 					;\
+		$(TOOLDIR)/nrmse -t 0.00001 utest.ra eoftest.ra 				;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+
+tests/test-nlsa-backprojection: traj phantom resize squeeze ssa nrmse
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+		$(TOOLDIR)/traj -x128 -y50 -G -D t.ra 						;\
+		$(TOOLDIR)/phantom -t t.ra -s8 k.ra 						;\
+		$(TOOLDIR)/resize -c 1 1 k.ra k1.ra 						;\
+		$(TOOLDIR)/squeeze k1.ra kx.ra 							;\
+		$(TOOLDIR)/ssa -L40 -r40 -w10 -m0 -n0 kx.ra nlsa.ra s.ra back.ra		;\
+		$(TOOLDIR)/nrmse -t 0.00001 kx.ra back.ra	 				;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+TESTS += tests/test-ssa-pca tests/test-ssa tests/test-ssa-backprojection tests/test-nlsa-backprojection tests/test-nlsa
