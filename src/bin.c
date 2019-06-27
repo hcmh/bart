@@ -25,9 +25,9 @@
 #include "misc/debug.h"
 
 
-static const char usage_str[] = "<src-signal> <src-kspace> <src-traj> <dst-kspace> <dst-traj>";
+static const char usage_str[] = "<bin-signal> <src> <dst>";
 static const char help_str[] =
-		"Binning for self-gating \n";
+		"Binning \n";
 
 
 // Assigns bin to samples
@@ -184,14 +184,16 @@ int main_bin(int argc, char* argv[])
 
 
 	const struct opt_s opts[] = {
+
 		OPT_UINT('R', &n_resp, "n_resp", "Number of respiratory states [Default: 9]"),
 		OPT_UINT('C', &n_card, "n_card", "Number of cardiac states [Default: 25]"),
 		OPT_VEC2('r', &resp_states_idx, "x:y", "(Respiration: Eigenvector index)"),
 		OPT_VEC2('c', &card_states_idx, "x:y", "(Cardiac motion: Eigenvector index)"),
 		OPT_UINT('a', &mavg_window, "window", "Moving average"),
+
 	};
 
-	cmdline(&argc, argv, 5, 5, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -201,11 +203,9 @@ int main_bin(int argc, char* argv[])
 	if (states_dims[TIME_DIM] < 2)
 		error("Check dimensions of states array!");
 
-	long k_dims[DIMS];
-	complex float* k = load_cfl(argv[2], DIMS, k_dims);
+	long src_dims[DIMS];
+	complex float* src = load_cfl(argv[2], DIMS, src_dims);
 
-	long t_dims[DIMS];
-	complex float* t = load_cfl(argv[3], DIMS, t_dims);
 
 	// Extract respiratory states
 	long resp_state_dims[DIMS];
@@ -219,11 +219,13 @@ int main_bin(int argc, char* argv[])
 	complex float* resp_state_singleton = md_alloc(DIMS, resp_state_singleton_dims, CFL_SIZE);
 
 	long pos[DIMS] = { 0 };
-	for (int i=0; i<2; i++){
+	for (int i = 0; i < 2; i++){
+
 		pos[TIME2_DIM] = resp_states_idx[i];
 		md_copy_block(DIMS, pos, resp_state_singleton_dims, resp_state_singleton, states_dims, states, CFL_SIZE);
 		pos[TIME2_DIM] = i;
 		md_copy_block(DIMS, pos, resp_state_dims, resp_state, resp_state_singleton_dims, resp_state_singleton, CFL_SIZE);
+
 	}
 
 
@@ -238,16 +240,20 @@ int main_bin(int argc, char* argv[])
 	card_state_singleton_dims[TIME2_DIM] = 1;
 	complex float* card_state_singleton = md_alloc(DIMS, card_state_singleton_dims, CFL_SIZE);
 
-	for (int i=0; i<2; i++){
+	for (int i = 0; i < 2; i++){
+
 		pos[TIME2_DIM] = card_states_idx[i];
 		md_copy_block(DIMS, pos, card_state_singleton_dims, card_state_singleton, states_dims, states, CFL_SIZE);
 		pos[TIME2_DIM] = i;
 		md_copy_block(DIMS, pos, card_state_dims, card_state, card_state_singleton_dims, card_state_singleton, CFL_SIZE);
+
 	}
 
 	if (mavg_window > 0) {
+
 		moving_average(resp_state_dims, resp_state, mavg_window);
 		moving_average(card_state_dims, card_state, mavg_window);
+
 	}
 
 	// Array to store bin-index for samples
@@ -263,31 +269,20 @@ int main_bin(int argc, char* argv[])
 	int binsize_max = get_binsize_max(bins_dims, bins, n_card, n_resp);
 
 	// Binned k-space
-	long ksg_dims[DIMS];
-	md_select_dims(DIMS, PHS1_FLAG|COIL_FLAG|SLICE_FLAG, ksg_dims, k_dims);
-	ksg_dims[TIME_DIM] = n_card;
-	ksg_dims[TIME2_DIM] = n_resp;
-	ksg_dims[PHS2_DIM] = binsize_max;
-	complex float* ksg = create_cfl(argv[4], DIMS, ksg_dims);
-	md_clear(DIMS, ksg_dims, ksg, CFL_SIZE);
-
-	// Binned traj
-	long tsg_dims[DIMS];
-	md_select_dims(DIMS, READ_FLAG|PHS1_FLAG|SLICE_FLAG, tsg_dims, t_dims);
-	tsg_dims[TIME_DIM] = n_card;
-	tsg_dims[TIME2_DIM] = n_resp;
-	tsg_dims[PHS2_DIM] = binsize_max;
-	complex float* tsg = create_cfl(argv[5], DIMS, tsg_dims);
-	md_clear(DIMS, tsg_dims, tsg, CFL_SIZE);
+	long binned_dims[DIMS];
+	md_copy_dims(DIMS, binned_dims, src_dims);
+	binned_dims[TIME_DIM] = n_card;
+	binned_dims[TIME2_DIM] = n_resp;
+	binned_dims[PHS2_DIM] = binsize_max;
+	complex float* binned = create_cfl(argv[3], DIMS, binned_dims);
+	md_clear(DIMS, binned_dims, binned, CFL_SIZE);
 
 	// Assign to bins
-	asgn_bins(bins_dims, bins, ksg_dims, ksg, k_dims, k, n_card, n_resp); // for k-space
-	asgn_bins(bins_dims, bins, tsg_dims, tsg, t_dims, t, n_card, n_resp); // for trajectory
+	asgn_bins(bins_dims, bins, binned_dims, binned, src_dims, src, n_card, n_resp); // for k-space
 
 	unmap_cfl(DIMS, states_dims, states);
-	unmap_cfl(DIMS, k_dims, k);
-	unmap_cfl(DIMS, ksg_dims, ksg);
-	unmap_cfl(DIMS, tsg_dims, tsg);
+	unmap_cfl(DIMS, src_dims, src);
+	unmap_cfl(DIMS, binned_dims, binned);
 
 
 	md_free(bins);
