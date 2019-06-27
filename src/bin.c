@@ -173,9 +173,10 @@ static void moving_average(const long state_dims[DIMS], complex float* state, co
 
 int main_bin(int argc, char* argv[])
 {
-	unsigned int n_resp = 9;
-	unsigned int n_card = 25;
+	unsigned int n_resp = 0;
+	unsigned int n_card = 0;
 	unsigned int mavg_window = 0;
+	bool quadrature_binning = false;
 
 	long resp_states_idx[2] = { 0, 1 };
 	long card_states_idx[2] = { 2, 3 };
@@ -185,11 +186,11 @@ int main_bin(int argc, char* argv[])
 
 	const struct opt_s opts[] = {
 
-		OPT_UINT('R', &n_resp, "n_resp", "Number of respiratory states [Default: 9]"),
-		OPT_UINT('C', &n_card, "n_card", "Number of cardiac states [Default: 25]"),
+		OPT_UINT('R', &n_resp, "n_resp", "Quadrature binning: Number of respiratory states"),
+		OPT_UINT('C', &n_card, "n_card", "Quadrature binning: Number of cardiac states"),
 		OPT_VEC2('r', &resp_states_idx, "x:y", "(Respiration: Eigenvector index)"),
 		OPT_VEC2('c', &card_states_idx, "x:y", "(Cardiac motion: Eigenvector index)"),
-		OPT_UINT('a', &mavg_window, "window", "Moving average"),
+		OPT_UINT('a', &mavg_window, "window", "Quadrature binning: Moving average"),
 
 	};
 
@@ -206,91 +207,103 @@ int main_bin(int argc, char* argv[])
 	long src_dims[DIMS];
 	complex float* src = load_cfl(argv[2], DIMS, src_dims);
 
+	if (n_resp > 0 || n_card > 0) {
 
-	// Extract respiratory states
-	long resp_state_dims[DIMS];
-	md_copy_dims(DIMS, resp_state_dims, states_dims);
-	resp_state_dims[TIME2_DIM] = 2;
-	complex float* resp_state = md_alloc(DIMS, resp_state_dims, CFL_SIZE);
-
-	long resp_state_singleton_dims[DIMS];
-	md_copy_dims(DIMS, resp_state_singleton_dims, resp_state_dims);
-	resp_state_singleton_dims[TIME2_DIM] = 1;
-	complex float* resp_state_singleton = md_alloc(DIMS, resp_state_singleton_dims, CFL_SIZE);
-
-	long pos[DIMS] = { 0 };
-	for (int i = 0; i < 2; i++){
-
-		pos[TIME2_DIM] = resp_states_idx[i];
-		md_copy_block(DIMS, pos, resp_state_singleton_dims, resp_state_singleton, states_dims, states, CFL_SIZE);
-		pos[TIME2_DIM] = i;
-		md_copy_block(DIMS, pos, resp_state_dims, resp_state, resp_state_singleton_dims, resp_state_singleton, CFL_SIZE);
+		quadrature_binning = true;
+		assert(n_resp > 0 && n_card > 0);
 
 	}
 
 
-	// Extract cardiac states
-	long card_state_dims[DIMS];
-	md_copy_dims(DIMS, card_state_dims, states_dims);
-	card_state_dims[TIME2_DIM] = 2;
-	complex float* card_state = md_alloc(DIMS, card_state_dims, CFL_SIZE);
+	if (quadrature_binning) {
 
-	long card_state_singleton_dims[DIMS];
-	md_copy_dims(DIMS, card_state_singleton_dims, card_state_dims);
-	card_state_singleton_dims[TIME2_DIM] = 1;
-	complex float* card_state_singleton = md_alloc(DIMS, card_state_singleton_dims, CFL_SIZE);
+		// Extract respiratory states
+		long resp_state_dims[DIMS];
+		md_copy_dims(DIMS, resp_state_dims, states_dims);
+		resp_state_dims[TIME2_DIM] = 2;
+		complex float* resp_state = md_alloc(DIMS, resp_state_dims, CFL_SIZE);
 
-	for (int i = 0; i < 2; i++){
+		long resp_state_singleton_dims[DIMS];
+		md_copy_dims(DIMS, resp_state_singleton_dims, resp_state_dims);
+		resp_state_singleton_dims[TIME2_DIM] = 1;
+		complex float* resp_state_singleton = md_alloc(DIMS, resp_state_singleton_dims, CFL_SIZE);
 
-		pos[TIME2_DIM] = card_states_idx[i];
-		md_copy_block(DIMS, pos, card_state_singleton_dims, card_state_singleton, states_dims, states, CFL_SIZE);
-		pos[TIME2_DIM] = i;
-		md_copy_block(DIMS, pos, card_state_dims, card_state, card_state_singleton_dims, card_state_singleton, CFL_SIZE);
+		long pos[DIMS] = { 0 };
+		for (int i = 0; i < 2; i++){
+
+			pos[TIME2_DIM] = resp_states_idx[i];
+			md_copy_block(DIMS, pos, resp_state_singleton_dims, resp_state_singleton, states_dims, states, CFL_SIZE);
+			pos[TIME2_DIM] = i;
+			md_copy_block(DIMS, pos, resp_state_dims, resp_state, resp_state_singleton_dims, resp_state_singleton, CFL_SIZE);
+
+		}
+
+
+		// Extract cardiac states
+		long card_state_dims[DIMS];
+		md_copy_dims(DIMS, card_state_dims, states_dims);
+		card_state_dims[TIME2_DIM] = 2;
+		complex float* card_state = md_alloc(DIMS, card_state_dims, CFL_SIZE);
+
+		long card_state_singleton_dims[DIMS];
+		md_copy_dims(DIMS, card_state_singleton_dims, card_state_dims);
+		card_state_singleton_dims[TIME2_DIM] = 1;
+		complex float* card_state_singleton = md_alloc(DIMS, card_state_singleton_dims, CFL_SIZE);
+
+		for (int i = 0; i < 2; i++){
+
+			pos[TIME2_DIM] = card_states_idx[i];
+			md_copy_block(DIMS, pos, card_state_singleton_dims, card_state_singleton, states_dims, states, CFL_SIZE);
+			pos[TIME2_DIM] = i;
+			md_copy_block(DIMS, pos, card_state_dims, card_state, card_state_singleton_dims, card_state_singleton, CFL_SIZE);
+
+		}
+
+		if (mavg_window > 0) {
+
+			moving_average(resp_state_dims, resp_state, mavg_window);
+			moving_average(card_state_dims, card_state, mavg_window);
+
+		}
+
+		// Array to store bin-index for samples
+		long bins_dims[DIMS];
+		md_copy_dims(DIMS, bins_dims, states_dims);
+		bins_dims[TIME2_DIM] = 2; // Respiration and Cardiac motion
+		float* bins = md_alloc(DIMS, bins_dims, FL_SIZE);
+
+		// Determine bins
+		det_bins(resp_state, bins_dims, bins, 1, n_resp); // respiratory motion
+		det_bins(card_state, bins_dims, bins, 0, n_card); // cardiac motion
+
+		int binsize_max = get_binsize_max(bins_dims, bins, n_card, n_resp);
+
+		// Binned data
+		long binned_dims[DIMS];
+		md_copy_dims(DIMS, binned_dims, src_dims);
+		binned_dims[TIME_DIM] = n_card;
+		binned_dims[TIME2_DIM] = n_resp;
+		binned_dims[PHS2_DIM] = binsize_max;
+		complex float* binned = create_cfl(argv[3], DIMS, binned_dims);
+		md_clear(DIMS, binned_dims, binned, CFL_SIZE);
+
+		// Assign to bins
+		asgn_bins(bins_dims, bins, binned_dims, binned, src_dims, src, n_card, n_resp);
+
+		md_free(bins);
+		md_free(card_state);
+		md_free(card_state_singleton);
+
+		md_free(resp_state);
+		md_free(resp_state_singleton);
+
+		unmap_cfl(DIMS, binned_dims, binned);
 
 	}
-
-	if (mavg_window > 0) {
-
-		moving_average(resp_state_dims, resp_state, mavg_window);
-		moving_average(card_state_dims, card_state, mavg_window);
-
-	}
-
-	// Array to store bin-index for samples
-	long bins_dims[DIMS];
-	md_copy_dims(DIMS, bins_dims, states_dims);
-	bins_dims[TIME2_DIM] = 2; // Respiration and Cardiac motion
-	float* bins = md_alloc(DIMS, bins_dims, FL_SIZE);
-
-	// Determine bins
-	det_bins(resp_state, bins_dims, bins, 1, n_resp); // respiratory motion
-	det_bins(card_state, bins_dims, bins, 0, n_card); // cardiac motion
-
-	int binsize_max = get_binsize_max(bins_dims, bins, n_card, n_resp);
-
-	// Binned k-space
-	long binned_dims[DIMS];
-	md_copy_dims(DIMS, binned_dims, src_dims);
-	binned_dims[TIME_DIM] = n_card;
-	binned_dims[TIME2_DIM] = n_resp;
-	binned_dims[PHS2_DIM] = binsize_max;
-	complex float* binned = create_cfl(argv[3], DIMS, binned_dims);
-	md_clear(DIMS, binned_dims, binned, CFL_SIZE);
-
-	// Assign to bins
-	asgn_bins(bins_dims, bins, binned_dims, binned, src_dims, src, n_card, n_resp); // for k-space
 
 	unmap_cfl(DIMS, states_dims, states);
 	unmap_cfl(DIMS, src_dims, src);
-	unmap_cfl(DIMS, binned_dims, binned);
 
-
-	md_free(bins);
-	md_free(card_state);
-	md_free(card_state_singleton);
-
-	md_free(resp_state);
-	md_free(resp_state_singleton);
 
 
 	exit(0);
