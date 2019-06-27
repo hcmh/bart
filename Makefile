@@ -204,6 +204,7 @@ MODULES_kmat = -lrkhs -lnoncart
 MODULES_dcnn = -lnn -llinops
 MODULES_ssa = -lcalib
 MODULES_laplace = -lmanifold
+MODULES_kmeans = -lmanifold
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
