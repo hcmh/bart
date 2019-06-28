@@ -79,9 +79,23 @@ static const char usage_str[] = "<src> <EOF> [<S>] [<backprojection>]";
 static const char help_str[] =
 		"Perform SSA-FARY or Singular Spectrum Analysis\n";
 
+static bool check_selection(const long group, const int j)
+{
+	if (j > 30)
+		return false; // group has only 32 bits
+
+	if (labs(group) & (1 << j))
+		return true;
+
+	else
+		return false;
+
+}
+
 
 static void nlsa_backprojection(const long N, const long M, const long kernel_dims[3], const long cal_dims[DIMS], complex float* back, const long U_proj_dims[2], const complex
-float* U_proj, const long zS_proj_dims[2], const complex float* zS_proj, const long t_basis_dims[2], const complex float* t_basis, const int nlsa_rank, const int rank)
+float* U_proj, const long zS_proj_dims[2], const complex float* zS_proj, const long t_basis_dims[2], const complex float* t_basis, const int nlsa_rank, const int rank, const long
+group)
 {
 
 	assert(U_proj_dims[0] == M && U_proj_dims[1] == nlsa_rank);
@@ -108,10 +122,18 @@ float* U_proj, const long zS_proj_dims[2], const complex float* zS_proj, const l
 	// Throw away unwanted basis functions
 	for (int i = 0; i < N; i++) {
 		for (int j = 0; j < nlsa_rank; j++) {
+
 			if (rank < 0)
-				t1_basis[j * N + i] *= (j > abs(rank)) ? 1. : 0.;
+				t1_basis[j * N + i] *= (j >= abs(rank)) ? 1. : 0.;
+
+			else if (rank > 0)
+				t1_basis[j * N + i] *= (j >= rank) ? 0. : 1;
+
+			else if (group < 0)
+				t1_basis[j * N + i] *= (check_selection(group,j)) ? 0. : 1.;
+
 			else
-				t1_basis[j * N + i] *= (j > rank) ? 0. : 1;
+				t1_basis[j * N + i]  *= (check_selection(group,j)) ? 1. : 0.;
 		}
 	}
 
@@ -179,7 +201,7 @@ float* U_proj, const long zS_proj_dims[2], const complex float* zS_proj, const l
 }
 
 static void ssa_backprojection(const long N, const long M, const long kernel_dims[3], const long cal_dims[DIMS], complex float* back, const long
-A_dims[2], const complex float* A, const long U_dims[2], const complex float* U, const complex float* UH, const int rank)
+A_dims[2], const complex float* A, const long U_dims[2], const complex float* U, const complex float* UH, const int rank, const long group)
 {
 
 	assert(U_dims[0] == N && U_dims[1] == N);
@@ -201,12 +223,22 @@ A_dims[2], const complex float* A, const long U_dims[2], const complex float* U,
 	md_copy_dims(3, kernelCoil_dims, kernel_dims);
 	kernelCoil_dims[3] = cal_dims[3];
 
+
 	for (int i = 0; i < M; i++) {
 		for (int j = 0; j < N; j++) {
+
 			if (rank < 0)
-				PC[i * N + j] *= (j > abs(rank)) ? 1. : 0.;
+				PC[i * N + j] *= (j >= abs(rank)) ? 1. : 0.;
+
+			else if (rank > 0)
+				PC[i * N + j] *= (j >= rank) ? 0. : 1.;
+
+			else if (group < 0)
+				PC[i * N + j] *= (check_selection(group,j)) ? 0. : 1.;
+
 			else
-				PC[i * N + j] *= (j > rank) ? 0. : 1;
+				PC[i * N + j] *= (check_selection(group,j)) ? 1. : 0.;
+
 		}
 	}
 
@@ -256,7 +288,7 @@ A_dims[2], const complex float* A, const long U_dims[2], const complex float* U,
 }
 
 static void nlsa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal, const char* name_EOF, const char* name_S, const char* backproj, const int
-nlsa_rank, const int rank, struct laplace_conf conf)
+nlsa_rank, const int rank, const long group, struct laplace_conf conf)
 {
 
 	// Calibration matrix
@@ -358,7 +390,7 @@ nlsa_rank, const int rank, struct laplace_conf conf)
 
 		complex float* back = create_cfl(backproj, DIMS, back_dims);
 		debug_printf(DP_DEBUG3, "Backprojection...\n");
-		nlsa_backprojection(N, M, kernel_dims, cal_dims, back, U_proj_dims, U_proj, zS_proj_dims, zS_proj, t_basis_dims, t_basis, nlsa_rank, rank);
+		nlsa_backprojection(N, M, kernel_dims, cal_dims, back, U_proj_dims, U_proj, zS_proj_dims, zS_proj, t_basis_dims, t_basis, nlsa_rank, rank, group);
 	}
 
 
@@ -376,7 +408,7 @@ nlsa_rank, const int rank, struct laplace_conf conf)
 
 
 static void ssa_fary(const long kernel_dims[3], const long cal_dims[DIMS], const complex float* cal, const char* name_EOF, const char* name_S, const char* backproj, const int
-rank)
+rank, const long group)
 {
 	// Calibration matrix
 	long A_dims[2];
@@ -425,7 +457,7 @@ rank)
 
 		complex float* back = create_cfl(backproj, DIMS, back_dims);
 		debug_printf(DP_DEBUG3, "Backprojection...\n");
-		ssa_backprojection(N, M, kernel_dims, cal_dims, back, A_dims, A, U_dims, U, UH, rank);
+		ssa_backprojection(N, M, kernel_dims, cal_dims, back, A_dims, A, U_dims, U, UH, rank, group);
 	}
 
 
@@ -455,6 +487,7 @@ int main_ssa(int argc, char* argv[])
 	char* backproj = NULL;
 	int nlsa_rank = 0;
 	bool nlsa = false;
+	long group = 0;
 
 	struct laplace_conf conf = laplace_conf_default;
 
@@ -466,6 +499,7 @@ int main_ssa(int argc, char* argv[])
 		OPT_INT('m', &rm_mean, "0/1", "Remove mean [Default: True]"),
 		OPT_INT('n', &normalize, "0/1", "Normalize [Default: False]"),
 		OPT_INT('r', &rank, "rank", "Rank for backprojection. r < 0: Throw away first r components. r > 0: Use only first r components"),
+		OPT_LONG('g', &group, "bitmask", "Bitmask for Grouping (long value!)"),
 		OPT_INT('L', &nlsa_rank, "NLSA", "Rank for Nonlinear Laplacian Spectral Analysis"),
 		OPT_INT('N', &conf.nn, "nn", "Number of nearest neighbours"),
 		OPT_FLOAT('S', &conf.sigma, "sigma", "Standard deviation"),
@@ -490,6 +524,7 @@ int main_ssa(int argc, char* argv[])
 		name_S = argv[3];
 
 	if (5 == argc) {
+
 		backproj = argv[4];
 
 		if (zeropad) {
@@ -497,8 +532,18 @@ int main_ssa(int argc, char* argv[])
 			zeropad = false;
 		}
 
-		if (rank == 0)
-			error("Specify rank for backprojection!");
+		if (rank == 0 && group == 0)
+			error("Specify rank or group for backprojection!");
+
+		if (rank == 0) {
+
+			assert(group != 0);
+
+		}
+
+		if (group == 0)
+			assert(rank != 0);
+
 
 	}
 
@@ -564,7 +609,7 @@ int main_ssa(int argc, char* argv[])
 		debug_printf(DP_INFO, backproj ? "Performing NLSA\n" : "Performing NLSA-FARY\n");
 
 		conf.gen_out = true;
-		nlsa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, nlsa_rank, rank, conf);
+		nlsa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, nlsa_rank, rank, group, conf);
 
 
 	} else {
@@ -572,7 +617,7 @@ int main_ssa(int argc, char* argv[])
 		debug_printf(DP_INFO, backproj ? "Performing SSA\n" : "Performing SSA-FARY\n");
 
 		// Perform SSA-FARY or SSA
-		ssa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, rank);
+		ssa_fary(kernel_dims, cal_dims, cal, name_EOF, name_S, backproj, rank, group);
 
 	}
 
