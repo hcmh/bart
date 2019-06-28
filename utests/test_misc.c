@@ -13,6 +13,7 @@
 
 static int cmp(const void* _data, int a, int b)
 {
+	(void)_data;
 	return a - b;
 }
 
