@@ -207,7 +207,7 @@ static void ode_matrix_fun(void* _data, float* x, float t, const float* in)
 	}
 }
 
-void ode_matrix_interval(float h, float tol, unsigned int N, float x[N], float st, float end, /*const*/ float matrix[N][N])
+void ode_matrix_interval(float h, float tol, unsigned int N, float x[N], float st, float end, const float matrix[N][N])
 {
 	struct ode_matrix_s data = { N, &matrix[0][0] };
 	ode_interval(h, tol, N, x, st, end, &data, ode_matrix_fun);
