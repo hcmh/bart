@@ -13,7 +13,7 @@ void mat_exp(int N, float t, float out[N][N], const float in[N][N])
 	// f(0) = id
 	// d/dt f = A
 
-	float h = t / 10.;
+	float h = t / 100.;
 	float tol = 1.E-6;
 
 	for (int i = 0; i < N; i++) {

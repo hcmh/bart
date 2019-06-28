@@ -3,11 +3,12 @@
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2016-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 
 #include <math.h>
+#include <assert.h>
 
 #include "num/ode.h"
 
@@ -148,6 +149,43 @@ static bool test_ode_matrix_bloch(void)
 }
 
 UT_REGISTER_TEST(test_ode_matrix_bloch);
+
+
+
+
+static bool test_int_matrix_bloch(void)
+{
+	struct bloch_s data = { 1. / WATER_T1, 1. / WATER_T2, { 0., 0., GAMMA_H1 * SKYRA_GRADIENT * 0.0001 } };
+
+	float x0[4] = { 1., 0., 0., 1. };
+	float x1[4];
+	float x2[3];
+	float t = 0.2;
+
+	float m[4][4];
+	bloch_matrix_int(m, t, data.r1, data.r2, data.gb);
+
+	for (int i = 0; i < 4; i++) {
+
+		x1[i] = 0.;
+
+		for (int j = 0; j < 4; j++)
+			x1[i] += m[j][i] * x0[j];
+	}
+
+	bloch_relaxation(x2, t, x0, data.r1, data.r2, data.gb);
+
+	assert(1. == x1[3]);
+
+	float err2 = 0.;
+
+	for (int i = 0; i < 3; i++)
+		err2 += powf(x1[i] - x2[i], 2.);
+
+	return (err2 < 1.E-7);
+}
+
+UT_REGISTER_TEST(test_int_matrix_bloch);
 
 
 

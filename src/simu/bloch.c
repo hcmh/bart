@@ -3,6 +3,7 @@
 #include <math.h>
 
 #include "num/vec3.h"
+#include "num/matexp.h"
 
 #include "bloch.h"
 
@@ -87,6 +88,16 @@ void bloch_matrix_ode(float matrix[4][4], float r1, float r2, const float gb[3])
 
 	matf_copy(4, 4, matrix, m);
 }
+
+
+void bloch_matrix_int(float matrix[4][4], float t, float r1, float r2, const float gb[3])
+{
+	float blm[4][4];
+	bloch_matrix_ode(blm, r1, r2, gb);
+
+	mat_exp(4, t, matrix, blm);
+}
+
 
 
 
