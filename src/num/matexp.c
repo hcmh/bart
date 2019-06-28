@@ -7,11 +7,10 @@
 
 void mat_exp(int N, float t, float out[N][N], const float in[N][N])
 {
-	// compute exp(tA)
+	// compute F(t) := exp(tA)
 
-
-	// f(0) = id
-	// d/dt f = A
+	// F(0) = id
+	// d/dt F = A
 
 	float h = t / 100.;
 	float tol = 1.E-6;
