@@ -13,13 +13,18 @@
 
 #include "num/multind.h"
 #include "num/init.h"
+#include "num/flpmath.h"
+#include "num/fft.h"
 
 #include "misc/mri.h"
 #include "misc/mmio.h"
 #include "misc/misc.h"
 #include "misc/opts.h"
+#include "misc/debug.h"
 
 #include "simu/phantom.h"
+#include "simu/simulation.h"
+#include "simu/bloch.h"
 
 
 
@@ -36,10 +41,12 @@ int main_phantom(int argc, char* argv[])
 	int sens = 0;
 	int osens = -1;
 	int xdim = -1;
-	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM } ptype = SHEPPLOGAN;
 
 	int geo = -1;
+	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM, BART, T1T2 } ptype = SHEPPLOGAN;
+
 	const char* traj = NULL;
+	bool numerical_simu = false;
 
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 	dims[0] = 128;
@@ -56,9 +63,12 @@ int main_phantom(int argc, char* argv[])
 		OPT_SELECT('m', enum ptype_e, &ptype, TIME, "()"),
 		OPT_SELECT('G', enum ptype_e, &ptype, GEOM, "geometric object phantom"),
 		OPT_SELECT('C', enum ptype_e, &ptype, HEART, "heart"),
+		OPT_SELECT('T', enum ptype_e, &ptype, T1T2, "T1-T2 phantom"),
+		OPT_SELECT('B', enum ptype_e, &ptype, BART, "BART letters"),
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_INT('g', &geo, "n=1,2", "select geometry for object phantom"),
 		OPT_SET('3', &d3, "3D"),
+		OPT_SET('n', &numerical_simu, "numerical simulation"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -110,15 +120,57 @@ int main_phantom(int argc, char* argv[])
 
 		dims[TE_DIM] = sdims[TE_DIM];
 	}
+	
+	// values for simulation
+	struct SimData sim_data;
+				
+	sim_data.seqData = seqData_defaults;
+	sim_data.seqData.seq_type = 1;
+	sim_data.seqData.TR = 0.0045;
+	sim_data.seqData.TE = 0.00225;
+	sim_data.seqData.rep_num = 500.;
+	sim_data.seqData.spin_num = 1;
+	sim_data.seqData.num_average_rep = 1;
+	
+	sim_data.voxelData = voxelData_defaults;
+	sim_data.voxelData.r1 = 1./WATER_T1;
+	sim_data.voxelData.r2 = 1./WATER_T2;
+	sim_data.voxelData.m0 = 1.;
+	sim_data.voxelData.w = 0;
+	
+	sim_data.pulseData = pulseData_defaults;
+	sim_data.pulseData.flipangle = 45.;
+	sim_data.pulseData.RF_end = 0.0009;
+	sim_data.gradData = gradData_defaults;
+	sim_data.seqtmp = seqTmpData_defaults;
 
-
+	long simu_dims[DIMS];
+	md_copy_dims(DIMS, simu_dims, dims);
+	simu_dims[TE_DIM] = sim_data.seqData.rep_num / sim_data.seqData.num_average_rep;
+	
 	if (sens > 0)
 		dims[3] = sens;
 
-	complex float* out = create_cfl(argv[1], DIMS, dims);
+	complex float* out_simu; 
+	complex float* out;
+	
 
+	out = md_alloc(DIMS, dims, CFL_SIZE);
+	out_simu = md_alloc(DIMS, simu_dims, CFL_SIZE);
+	md_zfill(DIMS, dims, out, 0.);
+	md_zfill(DIMS, simu_dims, out_simu, 0.);
+	
 	md_clear(DIMS, dims, out, sizeof(complex float));
-
+	
+	if ( numerical_simu && ( ptype != BART && ptype != T1T2 ) ){
+		debug_printf(DP_ERROR, "Please chose either T1T2 or BART phantom for numerical simulation.\n");
+		exit(0);
+	}
+	if ( numerical_simu && d3 ){
+		debug_printf(DP_ERROR, "Numerical phantom does not work with 3D yet...\n");
+		exit(0);
+	}
+	
 	switch (ptype) {
 
 	case SENS:
@@ -160,8 +212,40 @@ int main_phantom(int argc, char* argv[])
 		break;
 
 	case SHEPPLOGAN:
-
+		
 		calc_phantom(dims, out, d3, kspace, sstrs, samples);
+		break;
+        
+    case T1T2:
+
+		calc_phantom_t1t2(dims, out, false, false, sstrs, samples);
+		
+		if (numerical_simu){
+			
+			calc_simu_phantom( &sim_data, simu_dims, out_simu, kspace, sstrs, out);
+			if (kspace)
+				fftuc(DIMS, simu_dims, FFT_FLAGS|TE_FLAG, out_simu, out_simu);
+		}
+		else
+			if (kspace)
+				fftuc(DIMS, dims, FFT_FLAGS, out, out);
+		
+		break;
+	
+    case BART:
+
+		calc_phantom_bart(dims, out, false, false, sstrs, samples);
+		
+		if (numerical_simu){
+			
+			calc_simu_phantom( &sim_data, simu_dims, out_simu, kspace, sstrs, out);
+			if (kspace)
+				fftuc(DIMS, simu_dims, FFT_FLAGS|TE_FLAG, out_simu, out_simu);
+		}
+		else
+			if (kspace)
+				fftuc(DIMS, dims, FFT_FLAGS, out, out);
+		
 		break;
 	}
 
@@ -170,8 +254,21 @@ int main_phantom(int argc, char* argv[])
 
 	if (NULL != samples)
 		unmap_cfl(3, sdims, samples);
+	
+	
+	complex float* out_final;
+	out_final = create_cfl(argv[1], DIMS, ( numerical_simu ) ? simu_dims : dims);
+	
+	if ( numerical_simu )
+		md_copy(DIMS, simu_dims, out_final, out_simu, CFL_SIZE);	
+	else
+		md_copy(DIMS, dims, out_final, out, CFL_SIZE);
 
-	unmap_cfl(DIMS, dims, out);
+	unmap_cfl(DIMS, ( numerical_simu ) ? simu_dims : dims, out_final);
+	
+	md_free( out );
+	md_free( out_simu );
+	
 	return 0;
 }
 

@@ -18,3 +18,4 @@ extern void calc_ring(const long dims[DIMS], _Complex float* img, _Bool ksp, con
 extern void calc_moving_circ(const long dims[DIMS], _Complex float* out, _Bool ksp, const long tstrs[DIMS], const _Complex float* traj);
 extern void calc_heart(const long dims[DIMS], _Complex float* out, _Bool ksp, const long tstrs[DIMS], const _Complex float* traj);
 
+extern void calc_simu_phantom(void* _data, long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* in);
