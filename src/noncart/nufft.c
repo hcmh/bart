@@ -196,7 +196,6 @@ static void compute_kern(unsigned int N, const long krn_dims[N], complex float* 
 
 		krn2_dims[2] = wgh_dims[2];
 		krn2_dims[3] = wgh_dims[5];
-
 	}
 
 
@@ -221,7 +220,6 @@ complex float* compute_psf(unsigned int N, const long img2_dims[N], const long t
 				const long bas_dims[N], const complex float* basis,
 				const long wgh_dims[N], const complex float* weights, bool periodic)
 {
-
 	long trj2_dims[N];
 	md_copy_dims(N, trj2_dims, trj_dims);
 	trj2_dims[2] = trj_dims[2] * trj_dims[5];
@@ -236,18 +234,23 @@ complex float* compute_psf(unsigned int N, const long img2_dims[N], const long t
 	conf.periodic = periodic;
 	conf.toeplitz = false;	// avoid infinite loop
 
-	struct linop_s* op2 = nufft_create(N, ksp_dims1, img2_dims, trj2_dims, traj, NULL, conf);
 
 	complex float* ones = md_alloc(N, ksp_dims1, CFL_SIZE);
+
+	debug_printf(DP_INFO, "nufft kernel size: %ld (= %ld x %ld)\n",
+		md_calc_size(N, ksp_dims1), md_calc_size(3, ksp_dims1), md_calc_size(N - 3, ksp_dims1 + 3));
 
 	compute_kern(N, ksp_dims1, ones, bas_dims, basis, wgh_dims, weights);
 
 	complex float* psft = md_alloc(N, img2_dims, CFL_SIZE);
 
+	struct linop_s* op2 = nufft_create(N, ksp_dims1, img2_dims, trj2_dims, traj, NULL, conf);
+
 	linop_adjoint_unchecked(op2, psft, ones);
 
-	md_free(ones);
 	linop_free(op2);
+
+	md_free(ones);
 
 	return psft;
 }
@@ -507,7 +510,6 @@ struct linop_s* nufft_create2(unsigned int N,
 			debug_print_dims(DP_DEBUG3, N, data->psf_dims);
 			data->psf_dims[6] = data->bas_dims[6];
 			data->psf_dims[5] = data->bas_dims[6];
-
 		}
 
 		md_calc_strides(ND, data->psf_strs, data->psf_dims, CFL_SIZE);
@@ -944,7 +946,7 @@ void estimate_fast_sq_im_dims(unsigned int N, long dims[3], const long tdims[N],
 
 	// 2* is needed since we take the absolute value of the trajectory above, and it is scaled from
 	// -DIM/2 to DIM/2
-	long max_square =2*MAX(MAX(max_dims[0], max_dims[1]), max_dims[2]);
+	long max_square = 2 * MAX(MAX(max_dims[0], max_dims[1]), max_dims[2]);
 
 
 	// compute next fast size for Fourier transform.
@@ -953,20 +955,22 @@ void estimate_fast_sq_im_dims(unsigned int N, long dims[3], const long tdims[N],
 
 	// to avoid an infinite loop here, we constrain our search
 	long fast_size = max_square;
-	for ( ; fast_size <= 4*max_square; ++fast_size) {
+
+	for ( ; fast_size <= 4 * max_square; ++fast_size) {
+
 		long n = fast_size;
-		while ( n % 2l == 0 ) { n /= 2l; }
-		while ( n % 3l == 0 ) { n /= 3l; }
-		while ( n % 5l == 0 ) { n /= 5l; }
-		while ( n % 7l == 0 ) { n /= 7l; }
-		if (n <= 1) {
+
+		while (0 == n % 2l) { n /= 2l; }
+		while (0 == n % 3l) { n /= 3l; }
+		while (0 == n % 5l) { n /= 5l; }
+		while (0 == n % 7l) { n /= 7l; }
+
+		if (n <= 1)
 			break;
-		}
 	}
 
 	for (int j = 0; j < 3; j++)
 		dims[j] = (0. == max_dims[j]) ? 1 : fast_size;
-
 }
 
 
