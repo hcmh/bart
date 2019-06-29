@@ -9,6 +9,8 @@ extern float dormand_prince_scale(float tol, float err);
 
 extern void ode_interval(float h, float tol, unsigned int N, float x[N], float st, float end, void* data, void (*f)(void* data, float* out, float t, const float* yn));
 
+extern void ode_interval_simu2(float h, float tol, unsigned int N, float x[N], float st, float end, void* _data, void (*f)(void* data, float* out, float t, const float* yn));
+
 extern void ode_matrix_interval(float h, float tol, unsigned int N, float x[N], float st, float end, const float matrix[N][N]);
 
 extern void ode_direct_sa(float h, float tol, unsigned int N, unsigned int P, float x[P + 1][N],
@@ -17,3 +19,8 @@ extern void ode_direct_sa(float h, float tol, unsigned int N, unsigned int P, fl
 	void (*pdy)(void* data, float* out, float t, const float* yn),
 	void (*pdp)(void* data, float* out, float t, const float* yn));
 
+extern void ode_direct_sa_simu2(float h, float tol, unsigned int N, unsigned int P, float x[P + 2][N],
+	float st, float end, void* data,
+	void (*f)(void* data, float* out, float t, const float* yn),
+	void (*pdy)(void* data, float* out, float t, const float* yn),
+	void (*pdp)(void* data, float* out, float t, const float* yn));

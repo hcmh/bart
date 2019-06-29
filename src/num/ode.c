@@ -5,13 +5,16 @@
  * Authors:
  * 2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
-
+#include <stdio.h>
+#include <stdbool.h>
 #include <math.h>
 //sqrt
 
 // #include "iter/vec_iter.h"
 
 #include "ode.h"
+#include "simu/bloch.h"
+#include "simu/simulation.h"
 
 
 static void vec_saxpy(unsigned int N, float dst[N], const float a[N], float alpha, const float b[N])
@@ -40,29 +43,43 @@ static float vec_norm(unsigned int N, const float x[N])
 	return sqrtf(vec_sdot(N, x, x));
 }
 
+struct ode_data {
 
+	unsigned int N;
+	unsigned int P;
+
+	void* data;
+	void (*f)(void* data, float* out, float t, const float* yn);
+	void (*pdy)(void* data, float* out, float t, const float* yn);
+	void (*pdp)(void* data, float* out, float t, const float* yn);
+};
 
 #define tridiag(s) (s * (s + 1) / 2)
 
 static void runga_kutta_step(float h, unsigned int s, const float a[tridiag(s)], const float b[s], const float c[s - 1], unsigned int N, unsigned int K, float k[K][N], float ynp[N], float tmp[N], float tn, const float yn[N], void* data, void (*f)(void* data, float* out, float t, const float* yn))
 {
 	vec_saxpy(N, ynp, yn, h * b[0], k[0]);
-
+	
+	//Loop through all k_t
 	for (unsigned int l = 0, t = 1; t < s; t++) {
 
 		vec_copy(N, tmp, yn);
-
+		
+		//Sum over all i in a_{t,i} which is one row in butcher scheme
+		//k_t = f( tn + h * c[t - 1], yn +	h * ( a_{t,1}k_1 + a_{t,2}k_2 + ... + a_{s,s-1}k_{s-1} ) )
+		//This is evaluated:				h * ( a_{t,1}k_1 + a_{t,2}k_2 + ... + a_{s,s-1}k_{s-1} )
 		for (unsigned int r = 0; r < t; r++, l++)
 			vec_saxpy(N, tmp, tmp, h * a[l], k[r % K]);
-
+		
+		//Evaluate coefficient at time (tn + h * c[t - 1]) and write it in k[t % K] with magnetization value tmp
 		f(data, k[t % K], tn + h * c[t - 1], tmp);
-
+		
+		// sum up coefficients : y_{n+1} = y_n + h * \sum_i^s b_i k_i
 		vec_saxpy(N, ynp, ynp, h * b[t], k[t % K]);
 	}
 }
 
 // Runga-Kutta 4
-
 void rk4_step(float h, unsigned int N, float ynp[N], float tn, const float yn[N], void* data, void (*f)(void* data, float* out, float t, const float* yn))
 {
 	const float c[3] = { 0.5, 0.5, 1. };
@@ -103,6 +120,7 @@ void dormand_prince_step(float h, unsigned int N, float ynp[N], float tn, const 
 	const float b[7] = { 5179. / 57600., 0.,  7571. / 16695., 393. / 640., -92097. / 339200., 187. / 2100., 1. / 40. };
 
 	float k[6][N];
+	//first evaluation of function at t = 0
 	f(data, k[0], tn, yn);
 
 	float tmp[N];
@@ -142,12 +160,78 @@ float dormand_prince_step2(float h, unsigned int N, float ynp[N], float tn, cons
 	const float b[7] = { 5179. / 57600., 0.,  7571. / 16695., 393. / 640., -92097. / 339200., 187. / 2100., 1. / 40. };
 
 	float tmp[N];
+	
+	//5th order runge kutta with 4th order in tmp
 	runga_kutta_step(h, 7, a, b, c, N, 6, k, ynp, tmp, tn, yn, data, f);
-
+	
+	//Last tmp iteration in runge_kutta_step is a 4th order runge kutta algorithm,
+	//which can then be used for determining the truncation error and step control
 	vec_saxpy(N, tmp, tmp, -1., ynp);
+	
 	return vec_norm(N, tmp);
 }
 
+//N is redefined here!
+void ode_interval_simu2(float h, float tol, unsigned int N, float x[N], float st, float end, void* _data, void (*f)(void* data, float* out, float t, const float* yn))
+{	
+
+	struct ode_data* data_seq = _data;
+	struct SimData* data = data_seq->data;
+	
+// 	printf("ODE: %f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data->seqData.TR, data->seqData.TE, data->voxelData.r1, data->voxelData.r2, data->seqtmp.rep_counter, data->pulseData.RF_end, data->pulseData.flipangle );
+	
+	float k[6][N];
+
+ 	f(_data, k[0], st, x);
+	
+	if (h > end - st)
+		h = end - st;
+	
+	for (float t = st; t < end; ) { // loop over all runge-kutta steps in time
+
+		float ynp[N];
+		float h_new = 0;
+		float err = 0;
+
+		while(1) {//Do steps until best stepsize is reached
+			
+			err = dormand_prince_step2(h, N, ynp, t, x, k, _data, f);
+			
+			h_new = h * dormand_prince_scale(tol, err);
+			
+			if (err <= tol)
+				break;
+			
+			h = h_new;
+
+			f(_data, k[0], t, x);	// recreate correct k[0] which has been overwritten
+		}
+		
+		t += h;
+		h = h_new;
+		
+		if (t + h > end)
+			h = end - t;
+	
+// 		printf("t = %f,\tend = %f,\th = %f,\tx = [", t, end,  h);
+// 		printf("%f\t", (float)data->rep * data->TR + t);
+		for (unsigned int i = 0; i < N; i++){
+// 			if(/*i > 8 ||*/ i < 3)
+// 			printf("%f ",x[i]);
+			x[i] = ynp[i];
+		}
+// 		printf("\n");
+		
+		
+		data->seqtmp.t = (float)data->seqtmp.rep_counter * data->seqData.TR + t;
+		
+// 		float w1 = pulse_disc(/*starting time*/0., /*end time*/data->RF_end, data->angle, /*timestep*/data->t - data->t_RF, data->rf_stepwidth);
+// 		
+// 		printf("%f\n", w1);
+		
+
+	}
+}
 
 void ode_interval(float h, float tol, unsigned int N, float x[N], float st, float end, void* data, void (*f)(void* data, float* out, float t, const float* yn))
 {
@@ -220,24 +304,14 @@ void ode_matrix_interval(float h, float tol, unsigned int N, float x[N], float s
 // d/dp_j y_i(0) = ...
 // d/dt d/dp_j y_i(t) = d/dp_j f_i(y, t, p) = \sum_k d/dy_k f_i(y, t, p) * dy_k/dp_j + df_i / dp_j
 
-struct seq_data {
-
-	unsigned int N;
-	unsigned int P;
-
-	void* data;
-	void (*f)(void* data, float* out, float t, const float* yn);
-	void (*pdy)(void* data, float* out, float t, const float* yn);
-	void (*pdp)(void* data, float* out, float t, const float* yn);
-};
 
 static void seq(void* _data, float* out, float t, const float* yn)
 {
-	struct seq_data* data = _data;
+	struct ode_data* data = _data;
 	int N = data->N;
 	int P = data->P;
 
-	data->f(data->data, out, t, yn);
+	data->f(data->data, out, t, yn);	//filling Mxy part of the out-array
 
 	float dy[N][N];
 	data->pdy(data->data, &dy[0][0], t, yn);
@@ -258,17 +332,65 @@ static void seq(void* _data, float* out, float t, const float* yn)
 	}
 }
 
+static void seq2(void* _data, float* out, float t, const float* yn)
+{
+	struct ode_data* data = _data;
+
+	data->f(data->data, out, t, yn); //filling Mxy part of the out-array //out
+	
+	float dy[data->N][data->N];
+	data->pdy(data->data, *dy, t, yn);
+
+	float dp[data->P][data->N];
+	data->pdp(data->data, *dp, t, yn);
+
+	for (unsigned int i = 0; i < data->P; i++) { //Loop for parameter [S_R1, S_R2] 
+		for (unsigned int j = 0; j < data->N; j++) { // Loop for dims [x, y, z]
+
+			out[(1 + i) * data->N + j] = 0.; // print sens. in row 1 and 2
+
+			for (unsigned int k = 0; k < data->N; k++) // k loops through different Bloch functions dMx/dt, dMy/dt, dMz/dt
+				out[(1 + i) * data->N + j] += dy[k][j] * yn[(1 + i) * data->N + k];
+			
+			out[(1 + i) * data->N + j] += dp[i][j]; // Add this for correct scalar product
+		}
+	}
+	
+	//Add parameter M0 to out. Is the same as magentization
+	for (unsigned int j = 0; j < data->N; j++){
+		out[3 * data->N + j] = out[0 * data->N + j];
+	}
+}
+
+
 void ode_direct_sa(float h, float tol, unsigned int N, unsigned int P, float x[P + 1][N],
 	float st, float end, void* data,
 	void (*f)(void* data, float* out, float t, const float* yn),
 	void (*pdy)(void* data, float* out, float t, const float* yn),
 	void (*pdp)(void* data, float* out, float t, const float* yn))
 {
-	struct seq_data data2 = { N, P, data, f, pdy, pdp };
+	struct ode_data data2 = { N, P, data, f, pdy, pdp };
 
 	ode_interval(h, tol, N * (1 + P), &x[0][0], st, end, &data2, seq);
 }
 
+
+void ode_direct_sa_simu2(float h, float tol, unsigned int N, unsigned int P, float x[P + 2][N],
+	float st, float end, void* data,
+	void (*f)(void* data, float* out, float t, const float* yn),
+	void (*pdy)(void* data, float* out, float t, const float* yn),
+	void (*pdp)(void* data, float* out, float t, const float* yn))
+{   
+	
+	
+	// N = number of coordinates, P = No. Relaxation parameters SensT1, SensT2
+	struct ode_data data2 = { N, P, data, f, pdy, pdp }; 
+	
+	// Redefinition of N!!
+	// x has to be reshaped to vector with length N * (2 + P) 
+	// P + 2 for Mxy and M0, P are only the sensT1 and sensT2
+	ode_interval_simu2(h, tol, N * (2 + P) , *x, st, end, &data2, seq2);  
+}
 
 
 
