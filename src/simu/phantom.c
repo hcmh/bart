@@ -225,6 +225,27 @@ void calc_geo_phantom(const long dims[DIMS], complex float* out, bool kspace, in
 }
 
 
+void calc_phantom_t1t2(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	(void) d3;
+	
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(t1t2phantom), t1t2phantom }, krn2d, kspace);
+}
+
+void calc_phantom_dens(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	(void) d3;
+	
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(dens_phantom), dens_phantom }, krn2d, kspace);
+}
+
+void calc_phantom_bart(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	(void) d3;
+	
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(bart_img), bart_img }, krn2d, kspace);
+}
+
 
 
 
