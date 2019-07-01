@@ -24,6 +24,7 @@ struct VoxelData {
 	float r2;
 	float m0;
 	float w;
+	bool spin_ensamble;
 };
 extern const struct VoxelData voxelData_defaults;
 

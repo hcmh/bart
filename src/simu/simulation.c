@@ -44,6 +44,7 @@ const struct VoxelData voxelData_defaults = {
 	.r2 = 0.,
 	.m0 = 1.,
 	.w = 0.,
+	.spin_ensamble = false,
 };
 
 
@@ -142,25 +143,28 @@ void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 
 
 
-// void isochromDistribution( struct bloch_s data, float *isochromats ){
-//     float randomNumber;
-//     float s = 1.; //scaling parameters
-//     float t = 0.; // location of max
-//     float maximum = 0.;
-//     srand( 4 );
-//     float isoTmp[data.num_spin];
-//     //Creating Distribution...
-//     for(int i = 0; i < data.num_spin; i++){
-//         randomNumber = 0.02 + (float)rand() / ( (float)RAND_MAX / (0.98 - 0.02) + 1. ); //numbers needed to supress extrema for randomNumber=>1
-//         //...in this case a Cauchy one based on its inverse cdf.
-//         isoTmp[i] = s * tan( PI * ( randomNumber - 0.5 ) ) + t;
-//         maximum = fmax( maximum, fabsf(isoTmp[i]) );
-//     }
-//     //Assigning frequencies up to pi/2
-//     for(int i = 0; i < data.num_spin; i++){
-//         isochromats[i] = ( isoTmp[i]/maximum ) * PI / data.TR;
-//     }
-// }
+static void isochromDistribution( void* _data, float *isochromats ){
+	
+	struct SimData* data = _data;
+	
+    float randomNumber;
+    float s = 1.; //scaling parameters
+    float t = 0.; // location of max
+    float maximum = 0.;
+    srand( 4 );
+    float isoTmp[data->seqData.spin_num];
+    //Creating Distribution...
+    for(int i = 0; i < data->seqData.spin_num; i++){
+        randomNumber = 0.02 + (float)rand() / ( (float)RAND_MAX / (0.98 - 0.02) + 1. ); //numbers needed to supress extrema for randomNumber=>1
+        //...in this case a Cauchy one based on its inverse cdf.
+        isoTmp[i] = s * tan( PI * ( randomNumber - 0.5 ) ) + t;
+        maximum = fmax( maximum, fabsf(isoTmp[i]) );
+    }
+    //Assigning frequencies up to pi/2
+    for(int i = 0; i < data->seqData.spin_num; i++){
+        isochromats[i] = ( isoTmp[i]/maximum ) * PI / data->seqData.TR;
+    }
+}
 
 //If ADC gets phase, it has to be corrected manually
 void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]){
@@ -299,8 +303,10 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 	int P = 2;
     
 	//Create set of isochromats with different offset frequencies
-// 	float isochromats[data.seqData.spin_num];
-//     isochromDistribution( data, isochromats);
+	float isochromats[data->seqData.spin_num];
+	
+	if (data->voxelData.spin_ensamble)
+		isochromDistribution( data, isochromats);
 	
 	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows 
     // signal[spin][rep][dim] = spin[ (dim*spin_max*rep_max)+(rep*spin_max)+(spin) ]
@@ -312,6 +318,7 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 	
 	float flipangle_backup = data->pulseData.flipangle;
 	
+	float w_backup = data->voxelData.w;
 	
     for (data->seqtmp.spin_counter = 0; data->seqtmp.spin_counter < data->seqData.spin_num; data->seqtmp.spin_counter++){
 		
@@ -330,7 +337,8 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		float h = 0.0001;
         
         //Set start values
-        data->voxelData.w = 0;// isochromats[data.spin]; //just on-resonant pulse for now.
+		if ( data->voxelData.spin_ensamble )
+			data->voxelData.w = w_backup + isochromats[data->seqtmp.spin_counter]; //just on-resonant pulse for now.
 		data->pulseData.phase = 0;
 		
 		//Starting parameters of sequence
