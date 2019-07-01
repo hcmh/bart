@@ -115,18 +115,11 @@ void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 {
 	struct SimData* data = _data;
 	
-// 	printf("CS: %f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data->seqData.TR, data->seqData.TE, data->voxelData.r1, data->voxelData.r2, data->seqtmp.rep_counter, data->pulseData.RF_end, data->pulseData.flipangle );
-	
 	if( t < data->pulseData.RF_end ){ 
 		
 		float w1 = sinc_pulse( &data->pulseData, t );
 		data->gradData.gb_eff[0] = cosf( data->pulseData.phase ) * w1 + data->gradData.gb[0];
 		data->gradData.gb_eff[1] = sinf( data->pulseData.phase ) * w1 + data->gradData.gb[1];
-		
-// #ifdef rf_test_print
-// 		printf("%f\t%f\t", data->t, w1);
-// 		printf("%f\t%f\t%f\n", in[0], in[1], in[2]);
-// #endif
 		
 	}
 	else{
@@ -183,11 +176,7 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]){
 static void collect_signal(void* _data, int N, int P, float *mxySignal, float *saT1Signal, float *saT2Signal, float *densSignal, float xp[P + 2][N])
 {    
 	struct SimData* data = _data;
-	
-// 	printf("CS: %f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data->seqData.TR, data->seqData.TE, data->voxelData.r1, data->voxelData.r2, data->seqtmp.rep_counter, data->pulseData.RF_end, data->pulseData.flipangle );
-	
-// 	debug_printf(DP_DEBUG1, "SN: %d,\tRN: %d,\tr: %d,\ts: %d\n", data->seqData.spin_num, data->seqData.rep_num, data->seqtmp.rep_counter, data->seqtmp.spin_counter);
-	
+
     float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } }; //tmp[P + 2][N]
     
     ADCcorr(N, P, tmp, xp);
@@ -225,9 +214,6 @@ void create_rf_pulse(void* _pulseData, float RF_start, float RF_end, float angle
 	
 	// change scale to reach desired flipangle
 	pulseData->A = ( calibartion_energy / pulse_energy ) / 90 * angle;
-	
-// 	printf("pulse_energy: %f,\t t0: %f,\t A: %f,\tE_new: %f\n", pulse_energy, pulseData->t0, pulseData->A, get_pulse_energy( pulseData ));
-	
 }
 
 
@@ -235,17 +221,13 @@ void create_rf_pulse(void* _pulseData, float RF_start, float RF_end, float angle
 void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 2][N])
 {	
 	struct SimData* data = _data;
-	
-// 	printf("RF: %f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data->seqData.TR, data->seqData.TE, data->voxelData.r1, data->voxelData.r2, data->seqtmp.rep_counter, data->pulseData.RF_end, data->pulseData.flipangle );
-	
+
 	if(data->pulseData.RF_end == 0.){	// Hard-Pulse Approximation:
 							// !! Does not work with sensitivity output !!
 		
 		//Assume rotation around the x-axis: R_x*r ->left hand turned
 		float xtmp = xp[0][0];		float ytmp = xp[0][1];		float ztmp = xp[0][2];
 		
-// 		printf("1: %f\t%f\t%f,\t\tphase: %f,\tangle: %f,\tRF_end: %f\n", xp[0][0], xp[0][1], xp[0][2], data->pulseData.phase, data->pulseData.flipangle, data->pulseData.RF_end);
-// 		
 		xp[0][0] = xtmp;
 		xp[0][1] = ytmp * cosf(data->pulseData.flipangle/180 * M_PI) + cosf(data->pulseData.phase) * ztmp * sinf(data->pulseData.flipangle/180 * M_PI);
 		xp[0][2] = ytmp * - cosf(data->pulseData.phase) * sinf(data->pulseData.flipangle/180 * M_PI) + ztmp * cosf(data->pulseData.flipangle/180 * M_PI);
@@ -253,8 +235,6 @@ void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 
 	}
 	else 
 		ode_direct_sa_simu2(h, tol, N, P, xp, data->pulseData.RF_start, data->pulseData.RF_end, _data,  bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
-	
-// 	printf("A: %f\n", data.pulseData.A);
 
 }
 
@@ -295,8 +275,6 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 {
 	struct SimData* data = _data;
 	
-// 	printf("%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data->seqData.TR, data->seqData.TE, data->voxelData.r1, data->voxelData.r2, data->seqtmp.rep_counter, data->pulseData.RF_end, data->pulseData.flipangle );
-	
     float tol = 10E-6; 
     
 	int N = 3;
@@ -317,21 +295,13 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
     
 	
 	float flipangle_backup = data->pulseData.flipangle;
-	
 	float w_backup = data->voxelData.w;
 	
     for (data->seqtmp.spin_counter = 0; data->seqtmp.spin_counter < data->seqData.spin_num; data->seqtmp.spin_counter++){
 		
-// 		debug_printf(DP_DEBUG2, "Spin:\t%d\n", data->seqtmp.spin_counter );
-
-		
-		if (NULL != input_sp) {
+		if (NULL != input_sp) 
 			data->pulseData.flipangle = flipangle_backup * cabsf(input_sp[data->seqtmp.spin_counter]);
-			
-// 			debug_printf(DP_DEBUG2, "\n Slice Profile Estimates:\t");
-// 			debug_printf(DP_DEBUG2, "%f,\t%f\n", cabsf(input_sp[data->seqtmp.spin_counter]), flipangle );
-		}
-        
+
         float xp[4][3] = { { 0., 0. , 1. }, { 0. }, { 0. }, { 0. } }; //xp[P + 2][N]
         
 		float h = 0.0001;
@@ -339,6 +309,7 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
         //Set start values
 		if ( data->voxelData.spin_ensamble )
 			data->voxelData.w = w_backup + isochromats[data->seqtmp.spin_counter]; //just on-resonant pulse for now.
+		
 		data->pulseData.phase = 0;
 		
 		//Starting parameters of sequence
@@ -392,8 +363,6 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		
 		//Start imaging sequence
 		data->seqtmp.t = 0;
-		
-		//Prepare pulse for regular TR
 		
 		create_sim_block( data );
         
