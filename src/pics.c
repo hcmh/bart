@@ -623,8 +623,9 @@ int main_pics(int argc, char* argv[])
 
 	// FIXME: will fail with looped dims
 	struct iter_monitor_s* monitor = NULL;
+
 	if (im_truth)
-		monitor = create_monitor(2*md_calc_size(DIMS, img_dims), (const float*)image_truth, NULL, NULL); 
+		monitor = create_monitor(2 * md_calc_size(DIMS, img_dims), (const float*)image_truth, NULL, NULL);
 	
 	const struct operator_s* op = sense_recon_create(&conf, max1_dims, forward_op,
 				pat1_dims, ((NULL != traj_file) || conf.bpsense) ? NULL : pattern1,
