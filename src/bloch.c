@@ -27,7 +27,7 @@ static const char help_str[] =
 
 
 __attribute__((optimize("-fno-finite-math-only")))
-int main_simPhantom(int argc, char* argv[argc])
+int main_bloch(int argc, char* argv[argc])
 {   
 	
 	//Measure time elapse
