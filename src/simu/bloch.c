@@ -178,4 +178,11 @@ void bloch_matrix_ode_sa(float matrix[10][10], float r1, float r2, const float g
 }
 
 
+void bloch_matrix_int_sa(float matrix[10][10], float t, float r1, float r2, const float gb[3])
+{
+	float blm[10][10];
+	bloch_matrix_ode_sa(blm, r1, r2, gb);
+
+	mat_exp(10, t, matrix, blm);
+}
 

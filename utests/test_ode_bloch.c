@@ -409,3 +409,69 @@ UT_REGISTER_TEST(test_ode_matrix_bloch_sa);
 
 
 
+static bool test_int_matrix_bloch_sa(void)
+{
+	struct bloch_s data = { 1. / WATER_T1, 1. / WATER_T2, { 0., 0., GAMMA_H1 * SKYRA_GRADIENT * 0.0001 } };
+
+	float x0[10] = { 1., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
+	float x1[10];
+	
+	float x0s[3] = { 1., 0., 0. };
+	float x2[3];
+	float x2r1[3];
+	float x2r2[3];
+	float end = 0.2;
+	
+	float q = 1.E-3;
+
+	float m[10][10];
+	bloch_matrix_int_sa(m, end, data.r1, data.r2, data.gb);
+
+	for (int i = 0; i < 10; i++) {
+
+		x1[i] = 0.;
+
+		for (int j = 0; j < 10; j++)
+			x1[i] += m[j][i] * x0[j];
+	}
+
+	bloch_relaxation(x2, end, x0s, data.r1, data.r2, data.gb);
+	bloch_relaxation(x2r1, end, x0s, data.r1 + q, data.r2, data.gb);
+	bloch_relaxation(x2r2, end, x0s, data.r1, data.r2 + q, data.gb);
+
+	assert(1. == x1[9]);
+	
+	
+	//Mxy
+	float err2 = 0.;
+	for (int i = 0; i < 3; i++)
+		err2 += powf(x1[i] - x2[i], 2.);
+
+	if (err2 > 1.E-7)
+		return false;
+
+	
+	//S_R1
+	for (int i = 0; i < 3; i++) {
+
+		float err = fabsf(q * x1[3+i] - (x2r1[i] - x2[i]));
+
+		if (err > 1.E-7)
+			return false;
+	}
+	
+	//S_R2
+	for (int i = 0; i < 3; i++) {
+
+		float err = fabsf(q * x1[6+i] - (x2r2[i] - x2[i]));
+
+		if (err > 1.E-7)
+			return false;
+	}
+
+	return true;
+
+}
+
+UT_REGISTER_TEST(test_int_matrix_bloch_sa);
+
