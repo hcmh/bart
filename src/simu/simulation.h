@@ -15,6 +15,7 @@ struct PulseData {
 	float alpha; 					/*windows of pulse ( 0: normal sinc, 0.5: Hanning, 0.46: Hamming)*/
 	float A;						/*offset*/
 	float energy_scale;				/*Define energy scale factor*/
+	bool pulse_applied;
 };
 extern const struct PulseData pulseData_defaults;
 

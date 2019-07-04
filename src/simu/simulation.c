@@ -35,6 +35,7 @@ const struct PulseData pulseData_defaults = {
 	.alpha = 0.46,
 	.A = 1.,
 	.energy_scale = 1.,
+	.pulse_applied = false,
 };
 
 
@@ -115,7 +116,7 @@ void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 {
 	struct SimData* data = _data;
 	
-	if( t < data->pulseData.RF_end ){ 
+	if( data->pulseData.pulse_applied ){ 
 		
 		float w1 = sinc_pulse( &data->pulseData, t );
 		data->gradData.gb_eff[0] = cosf( data->pulseData.phase ) * w1 + data->gradData.gb[0];
@@ -210,10 +211,10 @@ void create_rf_pulse(void* _pulseData, float RF_start, float RF_end, float angle
 	
 	float pulse_energy = get_pulse_energy( pulseData );
 
-	float calibartion_energy = 0.991265;//2.3252; // turns M by 90°
+	float calibration_energy = 0.991265;//2.3252; // turns M by 90°
 	
 	// change scale to reach desired flipangle
-	pulseData->A = ( calibartion_energy / pulse_energy ) / 90 * angle;
+	pulseData->A = ( calibration_energy / pulse_energy ) / 90 * angle;
 }
 
 
@@ -221,6 +222,8 @@ void create_rf_pulse(void* _pulseData, float RF_start, float RF_end, float angle
 void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 2][N])
 {	
 	struct SimData* data = _data;
+	
+	data->pulseData.pulse_applied = true;
 
 	if(data->pulseData.RF_end == 0.){	// Hard-Pulse Approximation:
 							// !! Does not work with sensitivity output !!
@@ -234,14 +237,18 @@ void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 
 		
 	}
 	else 
-		ode_direct_sa_simu2(h, tol, N, P, xp, data->pulseData.RF_start, data->pulseData.RF_end, _data,  bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
+		ode_direct_sa(h, tol, N, P, xp, data->pulseData.RF_start, data->pulseData.RF_end, _data,  bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
 
 }
 
 
 void relaxation2(void* _data, float h, float tol, int N, int P, float xp[P + 2][N], float st, float end)
 {
-	ode_direct_sa_simu2(h, tol, N, P, xp, st, end, _data, bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
+	struct SimData* data = _data;
+	
+	data->pulseData.pulse_applied = false;
+	
+	ode_direct_sa(h, tol, N, P, xp, st, end, _data, bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
 }
 
 
@@ -394,11 +401,11 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
      * ---------------  Sum up magnetization  -----------------------
      * ------------------------------------------------------------*/
    
-    float sumMxyTmp; float sumSaT1; float sumSaT2; float sumDens;
+    float sumMxyTmp; float sumSaT1; float sumSaT2; 
 	
     for (int av_num = 0, dim = 0; dim < 3; dim++){
 		
-		sumMxyTmp = sumSaT1 = sumSaT2 = sumDens = 0.;
+		sumMxyTmp = sumSaT1 = sumSaT2 = 0.;
 		
         for (int save_repe = 0, repe = 0; repe < data->seqData.rep_num; repe++){
 			
@@ -410,7 +417,6 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
                 sumMxyTmp += mxySignal[ (dim *data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
                 sumSaT1 += saT1Signal[ (dim * data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
                 sumSaT2 += saT2Signal[ (dim * data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
-				sumDens += densSignal[ (dim * data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
             }
             
             if (av_num == data->seqData.num_average_rep - 1){
@@ -418,9 +424,9 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 				mxyOriSig[save_repe][dim] = sumMxyTmp * data->voxelData.m0 / (float)( data->seqData.spin_num * data->seqData.num_average_rep );
 				saT1OriSig[save_repe][dim] = sumSaT1 * data->voxelData.m0 / (float)( data->seqData.spin_num * data->seqData.num_average_rep );
 				saT2OriSig[save_repe][dim] = sumSaT2 * data->voxelData.m0 / (float)( data->seqData.spin_num * data->seqData.num_average_rep );
-				densOriSig[save_repe][dim] = sumDens / (float)( data->seqData.spin_num * data->seqData.num_average_rep );
+				densOriSig[save_repe][dim] = sumMxyTmp / (float)( data->seqData.spin_num * data->seqData.num_average_rep );
 				
-				sumMxyTmp = sumSaT1 = sumSaT2 = sumDens = 0.;
+				sumMxyTmp = sumSaT1 = sumSaT2 = 0.;
 				save_repe++;
 			}
 			

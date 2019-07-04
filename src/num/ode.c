@@ -171,68 +171,6 @@ float dormand_prince_step2(float h, unsigned int N, float ynp[N], float tn, cons
 	return vec_norm(N, tmp);
 }
 
-//N is redefined here!
-void ode_interval_simu2(float h, float tol, unsigned int N, float x[N], float st, float end, void* _data, void (*f)(void* data, float* out, float t, const float* yn))
-{	
-
-	struct ode_data* data_seq = _data;
-	struct SimData* data = data_seq->data;
-	
-// 	printf("ODE: %f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data->seqData.TR, data->seqData.TE, data->voxelData.r1, data->voxelData.r2, data->seqtmp.rep_counter, data->pulseData.RF_end, data->pulseData.flipangle );
-	
-	float k[6][N];
-
- 	f(_data, k[0], st, x);
-	
-	if (h > end - st)
-		h = end - st;
-	
-	for (float t = st; t < end; ) { // loop over all runge-kutta steps in time
-
-		float ynp[N];
-		float h_new = 0;
-		float err = 0;
-
-		while(1) {//Do steps until best stepsize is reached
-			
-			err = dormand_prince_step2(h, N, ynp, t, x, k, _data, f);
-			
-			h_new = h * dormand_prince_scale(tol, err);
-			
-			if (err <= tol)
-				break;
-			
-			h = h_new;
-
-			f(_data, k[0], t, x);	// recreate correct k[0] which has been overwritten
-		}
-		
-		t += h;
-		h = h_new;
-		
-		if (t + h > end)
-			h = end - t;
-	
-// 		printf("t = %f,\tend = %f,\th = %f,\tx = [", t, end,  h);
-// 		printf("%f\t", (float)data->rep * data->TR + t);
-		for (unsigned int i = 0; i < N; i++){
-// 			if(/*i > 8 ||*/ i < 3)
-// 			printf("%f ",x[i]);
-			x[i] = ynp[i];
-		}
-// 		printf("\n");
-		
-		
-		data->seqtmp.t = (float)data->seqtmp.rep_counter * data->seqData.TR + t;
-		
-// 		float w1 = pulse_disc(/*starting time*/0., /*end time*/data->RF_end, data->angle, /*timestep*/data->t - data->t_RF, data->rf_stepwidth);
-// 		
-// 		printf("%f\n", w1);
-		
-
-	}
-}
-
 void ode_interval(float h, float tol, unsigned int N, float x[N], float st, float end, void* data, void (*f)(void* data, float* out, float t, const float* yn))
 {
 	float k[6][N];
@@ -332,37 +270,6 @@ static void seq(void* _data, float* out, float t, const float* yn)
 	}
 }
 
-static void seq2(void* _data, float* out, float t, const float* yn)
-{
-	struct ode_data* data = _data;
-
-	data->f(data->data, out, t, yn); //filling Mxy part of the out-array //out
-	
-	float dy[data->N][data->N];
-	data->pdy(data->data, *dy, t, yn);
-
-	float dp[data->P][data->N];
-	data->pdp(data->data, *dp, t, yn);
-
-	for (unsigned int i = 0; i < data->P; i++) { //Loop for parameter [S_R1, S_R2] 
-		for (unsigned int j = 0; j < data->N; j++) { // Loop for dims [x, y, z]
-
-			out[(1 + i) * data->N + j] = 0.; // print sens. in row 1 and 2
-
-			for (unsigned int k = 0; k < data->N; k++) // k loops through different Bloch functions dMx/dt, dMy/dt, dMz/dt
-				out[(1 + i) * data->N + j] += dy[k][j] * yn[(1 + i) * data->N + k];
-			
-			out[(1 + i) * data->N + j] += dp[i][j]; // Add this for correct scalar product
-		}
-	}
-	
-	//Add parameter M0 to out. Is the same as magentization
-	for (unsigned int j = 0; j < data->N; j++){
-		out[3 * data->N + j] = out[0 * data->N + j];
-	}
-}
-
-
 void ode_direct_sa(float h, float tol, unsigned int N, unsigned int P, float x[P + 1][N],
 	float st, float end, void* data,
 	void (*f)(void* data, float* out, float t, const float* yn),
@@ -372,24 +279,6 @@ void ode_direct_sa(float h, float tol, unsigned int N, unsigned int P, float x[P
 	struct ode_data data2 = { N, P, data, f, pdy, pdp };
 
 	ode_interval(h, tol, N * (1 + P), &x[0][0], st, end, &data2, seq);
-}
-
-
-void ode_direct_sa_simu2(float h, float tol, unsigned int N, unsigned int P, float x[P + 2][N],
-	float st, float end, void* data,
-	void (*f)(void* data, float* out, float t, const float* yn),
-	void (*pdy)(void* data, float* out, float t, const float* yn),
-	void (*pdp)(void* data, float* out, float t, const float* yn))
-{   
-	
-	
-	// N = number of coordinates, P = No. Relaxation parameters SensT1, SensT2
-	struct ode_data data2 = { N, P, data, f, pdy, pdp }; 
-	
-	// Redefinition of N!!
-	// x has to be reshaped to vector with length N * (2 + P) 
-	// P + 2 for Mxy and M0, P are only the sensT1 and sensT2
-	ode_interval_simu2(h, tol, N * (2 + P) , *x, st, end, &data2, seq2);  
 }
 
 
