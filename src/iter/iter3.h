@@ -10,14 +10,6 @@ typedef struct iter3_conf_s { TYPEID* TYPEID; } iter3_conf;
 
 struct iter_op_s;
 
-typedef void iter3_fun_f(iter3_conf* _conf,
-		struct iter_op_s frw,
-		struct iter_op_s der,
-		struct iter_op_s adj,
-		long N, float* dst, const float* ref,
-		long M, const float* src,
-		struct iter_op_s cb);
-
 
 
 struct iter3_irgnm_conf {
@@ -36,7 +28,6 @@ struct iter3_irgnm_conf {
 };
 
 
-iter3_fun_f iter3_irgnm;
 
 
 
@@ -50,7 +41,6 @@ struct iter3_landweber_conf {
 };
 
 
-iter3_fun_f iter3_landweber;
 
 
 extern const struct iter3_irgnm_conf iter3_irgnm_defaults;
