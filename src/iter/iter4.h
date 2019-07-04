@@ -5,6 +5,7 @@
 
 #include "misc/types.h"
 
+struct operator_p_s;
 struct iter3_conf_s;
 struct iter_op_s;
 struct iter_nlop_s;
@@ -14,6 +15,7 @@ typedef void iter4_fun_f(iter3_conf* _conf,
 		struct nlop_s* nlop,
 		long N, float* dst, const float* ref,
 		long M, const float* src,
+		const struct operator_p_s* solve,
 		struct iter_op_s cb);
 
 iter4_fun_f iter4_irgnm;

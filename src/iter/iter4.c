@@ -21,6 +21,7 @@
 #include "iter/italgos.h"
 #include "iter/vec.h"
 #include "iter/iter3.h"
+#include "iter/iter2.h"
 
 #include "iter4.h"
 
@@ -110,6 +111,7 @@ void iter4_irgnm(iter3_conf* _conf,
 		struct nlop_s* nlop,
 		long N, float* dst, const float* ref,
 		long M, const float* src,
+		const struct operator_p_s* pinv,
 		struct iter_op_s cb)
 {
 	struct iter4_nlop_s data = { { &TYPEID(iter4_nlop_s) }, *nlop };
@@ -133,7 +135,7 @@ void iter4_irgnm(iter3_conf* _conf,
 	struct iter_op_p_s inv = { inverse, CAST_UP(&data2) };
 
 	irgnm(conf->iter, conf->alpha, conf->alpha_min, conf->redu, N, M, select_vecops(src),
-		frw, adj, inv,
+		frw, adj, (NULL == pinv) ? inv : OPERATOR_P2ITOP(pinv),
 		dst, ref, src, cb, NULL);
 
 	md_free(tmp);
@@ -145,9 +147,11 @@ void iter4_landweber(iter3_conf* _conf,
 		struct nlop_s* nlop,
 		long N, float* dst, const float* ref,
 		long M, const float* src,
+		const struct operator_p_s* inv,
 		struct iter_op_s cb)
 {
 	assert(NULL == ref);
+	assert(NULL == inv);
 
 	struct iter4_nlop_s data = { { &TYPEID(iter4_nlop_s) }, *nlop };
 

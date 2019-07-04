@@ -149,7 +149,8 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 			nl.nlop,
 			size * 2, (float*)x, (const float*)xref,
 			data_size * 2, (const float*)kspace_data,
-			(struct iter_op_s){ orthogonalize, CAST_UP(&nlw)});
+			NULL,
+			(struct iter_op_s){ orthogonalize, CAST_UP(&nlw) });
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
 	md_copy(DIMS, coil_dims, ksens, x + skip, CFL_SIZE);
