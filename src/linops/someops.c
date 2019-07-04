@@ -30,7 +30,6 @@
 
 #include "someops.h"
 
-static DEF_TYPEID(cdiag_s);
 
 struct cdiag_s {
 
@@ -48,6 +47,7 @@ struct cdiag_s {
 	bool rmul;
 };
 
+static DEF_TYPEID(cdiag_s);
 
 static void cdiag_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
