@@ -1,5 +1,5 @@
 /* Copyright 2014-2015. The Regents of the University of California.
- * Copyright 2016-2018. Martin Uecker.
+ * Copyright 2016-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  */
@@ -75,6 +75,9 @@ extern const struct operator_s* operator_stack(unsigned int D, unsigned int E, c
 
 extern const struct operator_s* operator_bind2(const struct operator_s* op, unsigned int arg,
 			unsigned int N, const long dims[__VLA(N)], const long strs[__VLA(N)], void* ptr);
+
+extern const struct operator_s* operator_p_bind(const struct operator_p_s* op, float alpha);
+extern const struct operator_s* operator_attach(const struct operator_s* op, void* ptr, void (*del)(const void* ptr));
 
 // del functions
 extern void operator_free(const struct operator_s* x);

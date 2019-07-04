@@ -1,10 +1,10 @@
 /* Copyright 2015. The Regents of the University of California.
- * Copyright 2016-2018. Martin Uecker.
+ * Copyright 2016-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2013-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2013-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 Jonathan Tamir <jtamir@eecs.berkeley.edu>
  * 2014 Frank Ong <frankong@berkeley.edu>
  *
@@ -766,6 +766,65 @@ void operator_p_apply_unchecked(const struct operator_p_s* op, float mu, complex
 }
 
 
+
+struct attach_data_s {
+
+	INTERFACE(operator_data_t);
+
+	const struct operator_s* op;
+
+	void* ptr;
+	void (*del)(const void* ptr);
+};
+
+static DEF_TYPEID(attach_data_s);
+
+
+static void attach_fun(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+	const auto op = CAST_DOWN(attach_data_s, _data)->op;
+	operator_generic_apply_unchecked(op, N, args);
+}
+
+static void attach_del(const operator_data_t* _data)
+{
+	const auto data = CAST_DOWN(attach_data_s, _data);
+
+	operator_free(data->op);
+
+	data->del(data->ptr);
+
+	xfree(data);
+}
+
+const struct operator_s* operator_attach(const struct operator_s* op, void* ptr, void (*del)(const void* ptr))
+{
+	unsigned int N = operator_nr_args(op);
+
+	unsigned int D[N];
+	const long* dims[N];
+	const long* strs[N];
+
+	for (unsigned int i = 0; i < N; i++) {
+
+		const struct iovec_s* io = operator_arg_domain(op, i);
+
+		D[i] = io->N;
+		dims[i] = io->dims;
+		strs[i] = io->strs;
+	}
+
+	// op = operator_ref(op);
+	PTR_ALLOC(struct attach_data_s, data);
+	SET_TYPEID(attach_data_s, data);
+	data->op = op;
+	data->ptr = ptr;
+	data->del = del;
+
+	return operator_generic_create2(N, op->io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), attach_fun, attach_del);
+}
+
+
 struct op_bind_s {
 
 	INTERFACE(operator_data_t);
@@ -802,7 +861,10 @@ static void op_bind_apply(const operator_data_t* _data, unsigned int N, void* ar
 static void op_bind_del(const operator_data_t* _data)
 {
 	const auto data = CAST_DOWN(op_bind_s, _data);
+
 	operator_free(data->op);
+
+	xfree(data);
 }
 
 
@@ -852,7 +914,13 @@ const struct operator_s* operator_bind2(const struct operator_s* op, unsigned in
 }
 
 
+const struct operator_s* operator_p_bind(const struct operator_p_s* op, float alpha)
+{
+	float* nalpha = xmalloc(sizeof(float));
+	*nalpha = alpha;
 
+	return operator_attach(operator_bind2(&op->op, 0, 1, (long[]){ 1 }, (long[]){ 0 }, nalpha), nalpha, xfree);
+}
 
 
 struct op_loop_s {
