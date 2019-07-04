@@ -474,10 +474,10 @@ cleanup:
  * Iteratively Regularized Gauss-Newton Method
  * (Bakushinsky 1993)
  *
- * y = F(x) = F x0 + DF dx + ...
+ * y = F(x) = F xn + DF dx + ...
  *
- * IRGNM: DF^H ((y - F x_0) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
- *        DF^H ((y - F x_0)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
+ * IRGNM: DF^H ((y - F xn) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
+ *        DF^H ((y - F xn)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
  */
 void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
 	const struct vec_iter_s* vops,
