@@ -50,22 +50,22 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	long in_dims[DIMS];
 	long TI_dims[DIMS];
 
-    md_select_dims(DIMS, conf->fft_flags|LEVEL_FLAG, map_dims, dims);
-    md_select_dims(DIMS, conf->fft_flags|TE_FLAG|LEVEL_FLAG, out_dims, dims);
-    md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG|LEVEL_FLAG, in_dims, dims);
-    md_select_dims(DIMS, TE_FLAG|LEVEL_FLAG, TI_dims, dims);
+	md_select_dims(DIMS, conf->fft_flags|TIME2_FLAG, map_dims, dims);
+	md_select_dims(DIMS, conf->fft_flags|TE_FLAG|TIME2_FLAG, out_dims, dims);
+	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG|TIME2_FLAG, in_dims, dims);
+	md_select_dims(DIMS, TE_FLAG|TIME2_FLAG, TI_dims, dims);
 
-    in_dims[COEFF_DIM] = 3;
+	in_dims[COEFF_DIM] = 3;
 
 #if 1 
 	// chain T1 model
 	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, conf->use_gpu);
-    debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T1, 0)->dims);
-    debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(T1, 0)->dims);
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T1, 0)->dims);
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(T1, 0)->dims);
 
-    debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 0)->dims);
-    debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 1)->dims);
-    debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(nlinv.nlop, 0)->dims);
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 0)->dims);
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 1)->dims);
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(nlinv.nlop, 0)->dims);
 
 	nlinv.nlop = nlop_chain2(T1, 0, nlinv.nlop, 0);
 	nlinv.nlop = nlop_permute_inputs(nlinv.nlop, 2, (const int[2]){ 1, 0 });

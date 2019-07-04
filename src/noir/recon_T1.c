@@ -49,12 +49,12 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 
 	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
 
-    md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|LEVEL_FLAG, imgs_dims, dims);
-    md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|LEVEL_FLAG, coil_dims, dims);
-    md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|LEVEL_FLAG, data_dims, dims);
-    md_select_dims(DIMS, fft_flags|LEVEL_FLAG, img1_dims, dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG, data_dims, dims);
+	md_select_dims(DIMS, fft_flags|TIME2_FLAG, img1_dims, dims);
 
-    imgs_dims[COEFF_DIM] = 3;
+	imgs_dims[COEFF_DIM] = 3;
 
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);
@@ -81,22 +81,22 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.iter = conf->iter;
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
-    irgnm_conf.alpha_min = conf->alpha_min;
+	irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
-    
-    md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|LEVEL_FLAG, irgnm_conf.dims, imgs_dims);
-    
-    irgnm_conf.dims[COIL_DIM] = coil_dims[COIL_DIM];
-    
-    debug_printf(DP_INFO, "imgs_dims:\n\t");
-    debug_print_dims(DP_INFO, DIMS, irgnm_conf.dims);
-   
-    
+
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf.dims, imgs_dims);
+
+	irgnm_conf.dims[COIL_DIM] = coil_dims[COIL_DIM];
+
+	debug_printf(DP_INFO, "imgs_dims:\n\t");
+	debug_print_dims(DP_INFO, DIMS, irgnm_conf.dims);
+
+
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
-//            size * 2, (float*)x, (float*)x,
-            size * 2, (float*)x, NULL,
+//			size * 2, (float*)x, (float*)x,
+			size * 2, (float*)x, NULL,
 			data_size * 2, (const float*)kspace_data);
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
@@ -116,6 +116,7 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	}
 
 	nlop_free(nl.nlop);
+	linop_free(nl.linop);
 
 	md_free(x);
 }

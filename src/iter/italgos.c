@@ -291,22 +291,22 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 
 	int hogwild_k = 0;
 	int hogwild_K = 10;
-    
-    long res = dims[0];
-    long parameters = dims[COEFF_DIM];
-    long SMS = dims[SLICE_DIM];
-    int temp_index;
-    int u,v;
-    float lowerbound = 0.3;
-    float scaling[SMS*parameters];
-    
-    long map_dims[16];
-    md_select_dims(16, FFT_FLAGS, map_dims, dims);
-//     const long x_dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
-    long map_strs[16];
+
+	long res = dims[0];
+	long parameters = dims[COEFF_DIM];
+	long SMS = dims[SLICE_DIM];
+	long TIME2 = dims[TIME2_DIM];
+	int temp_index;
+	int u,v,w;
+	float lowerbound = 0.1;
+	float scaling[SMS*parameters*TIME2];
+
+	long map_dims[16];
+	md_select_dims(16, FFT_FLAGS, map_dims, dims);
+	long map_strs[16];
 	md_calc_strides(16, map_strs, map_dims, CFL_SIZE);
-    
-    debug_printf(DP_DEBUG3, "##tau = %f\n", tau);
+
+	debug_printf(DP_DEBUG3, "##tau = %f\n", tau);
 
 	for (itrdata.iter = 0; itrdata.iter < maxiter; itrdata.iter++) {
 
@@ -318,41 +318,36 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 		if (lambda_scale != ls_old) 
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
-        // normalize all the maps before joint wavelet denoising
-//        debug_printf(DP_DEBUG3, "##dims_1 = %d\n", md_calc_size(16, map_dims));
-//        debug_printf(DP_DEBUG3, "##dims_2 = %d\n", N);
+		// normalize all the maps before joint wavelet denoising
 
-        for(u = 0; u < SMS; u++)
-            for(v = 0; v < parameters; v++)
-            {
-                temp_index = v+u*parameters;
-                scaling[temp_index] = md_norm(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index);
-//                vops->smul(2*md_calc_size(16, map_dims), 1.0/scaling[temp_index], x+res*res*2 * temp_index, x+res*res*2 * temp_index);
-                md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, 1.0/scaling[temp_index]);
-            }
+		for(w = 0; w < TIME2; w++)
+			for(u = 0; u < SMS; u++)
+				for(v = 0; v < parameters; v++) {
 
-        iter_op_p_call(thresh, lambda_scale * tau, x, x);
-        
-        
-        for(u = 0; u < SMS; u++)
-            for(v = 0; v < parameters; v++)
-            {
-                temp_index = v+u*parameters;
-                md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, scaling[temp_index]);
-//                vops->smul(2*md_calc_size(16, map_dims), scaling[temp_index], x+res*res*2 * temp_index, x+res*res*2 * temp_index);
-            }
+					temp_index = v+u*parameters+w*SMS*parameters;
+					scaling[temp_index] = md_norm(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index);
 
-        // Domain Prjoection for R1s
-        for (u = 0; u < SMS; u++)
-        {
-            temp_index = res*res*2*(parameters-1) + u*res*res*2*parameters;
+					md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, 1.0/scaling[temp_index]);
+		}
 
-//            md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
-            vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
-//            md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
-        }
-        
-        
+		iter_op_p_call(thresh, lambda_scale * tau, x, x);
+
+		for(w = 0; w < TIME2; w++)
+			for(u = 0; u < SMS; u++)
+				for(v = 0; v < parameters; v++) {
+
+					temp_index = v+u*parameters+w*SMS*parameters;
+					md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, scaling[temp_index]);
+		}
+
+		// Domain Prjoection for R1s
+		for(w = 0; w < TIME2; w++)
+			for(u = 0; u < SMS; u++) {
+				temp_index = res*res*2*(parameters-1) + (u + w*SMS)*res*res*2*parameters;
+				vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
+			//md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
+		}
+
 		ravine(vops, N, &ra, x, o);	// FISTA
 		iter_op_call(op, r, x);		// r = A x
 		vops->xpay(N, -1., r, b);	// r = b - r = b - A x
@@ -365,15 +360,15 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 			break;
 
 		vops->axpy(N, x, tau, r);
-        
-        for (u = 0; u < SMS; u++)
-        {
-            temp_index = res*res*2*(parameters-1) + u*res*res*2*parameters;
-            vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
-//            md_smax(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + temp_index, x + temp_index, lowerbound);
-//            md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
-        }
-        
+
+		for(w = 0; w < TIME2; w++)
+			for (u = 0; u < SMS; u++) {
+
+				temp_index = res*res*2*(parameters-1) + (u + w*SMS)*res*res*2*parameters;
+				vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
+//				md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
+		}
+
 
 		if (hogwild)
 			hogwild_k++;
@@ -451,8 +446,8 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 		if (lambda_scale != ls_old) 
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
-        iter_op_p_call(thresh, lambda_scale * tau, x, x);
-        
+		iter_op_p_call(thresh, lambda_scale * tau, x, x);
+
 		ravine(vops, N, &ra, x, o);	// FISTA
 		iter_op_call(op, r, x);		// r = A x
 		vops->xpay(N, -1., r, b);	// r = b - r = b - A x
@@ -642,12 +637,6 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 	float* r = vops->allocate(M);
 	float* p = vops->allocate(N);
 	float* h = vops->allocate(N);
-    
-//     int res = 512;
-//    	int parameters = 3;
-//    	int SMS = 1;
-//     const long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
-    
 
 	for (unsigned int i = 0; i < iter; i++) {
 
@@ -674,13 +663,7 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 		iter_op_p_call(inv, alpha, h, p);
 
 		vops->axpy(N, x, 1., h);
-        
-//         char name[255] = {'\0'};
-//     
-//         sprintf(name, "/tmp/step_newton_%02d", i); 
-//     
-//         dump_cfl(name, 16, dims, x);
-//         
+                 
 		alpha /= redu;
 		if (NULL != callback.fun)
 			iter_op_call(callback, x, x);
@@ -718,10 +701,6 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* 
 
     long img_dims[16];
     md_select_dims(16, ~COIL_FLAG, img_dims, dims);
-// 	int res = 512;
-//    	int parameters = 3;
-//    	int SMS = 1;
-//     const long dims[16] = {res,res,1,1,1,1,parameters,1,1,1,1,1,1,SMS,1,1};
 
 	for (unsigned int i = 0; i < iter; i++) {
 		//		printf("#--------\n");
@@ -758,13 +737,10 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* 
 			vops->axpy(N, p, 0.9*alpha, xref);
 
 		iter_op_p_call(inv, alpha, x, p);
-	///	debug_printf(DP_DEBUG2, "\t\tx %f\n", vops->norm(N, x));
-    
-//         static int i = 0;
-//     
+
         char name[255] = {'\0'};
     
-        sprintf(name, "/tmp/step_newton_l1_test1_%02d", i);
+        sprintf(name, "/tmp/step_newton_l1_test00_%02d", i);
     
         dump_cfl(name, 16, img_dims, x);
 		

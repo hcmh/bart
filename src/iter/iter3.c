@@ -17,6 +17,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/rand.h"
+#include "num/ops.h"
 
 #include "misc/types.h"
 #include "misc/misc.h"
@@ -33,6 +34,8 @@
 #include "iter/iter2.h"
 #include "iter/iter3.h"
 
+//#define mphase
+
 extern int k_fista = 0;
 
 DEF_TYPEID(iter3_irgnm_conf);
@@ -44,7 +47,7 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 
 	.iter = 8,
 	.alpha = 0.1,
-	.redu = 2.,
+	.redu = 3.,
 
 	.cgiter = 100,
 	.cgtol = 0.1,
@@ -73,6 +76,9 @@ struct irgnm_s {
     
     float alpha_min;
     long* dims;
+
+    struct operator_p_s* prox1;
+    struct operator_p_s* prox2;
     
 
 };
@@ -120,14 +126,16 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
     long SMS = data->dims[SLICE_DIM];
     long parameters = data->dims[COEFF_DIM];
     long coils = data->dims[COIL_DIM];
+    long TIME2 = data->dims[TIME2_DIM];
     
    
-    
-    for (int u = 0; u < SMS; u++){
-        select_vecops(src)->axpy(data->size*coils*SMS/(coils * SMS + parameters*SMS), 
-                                 dst + res*res*2*(parameters * SMS), 
+    // only add l2 norm to the coils, not parameter maps
+    for(int u = 0; u < SMS; u++)
+        for(int v = 0; v < TIME2; v++){
+        select_vecops(src)->axpy(data->size*coils*SMS*TIME2/(coils*SMS*TIME2 + parameters*SMS*TIME2),
+                                 dst + res*res*2*(parameters*SMS*TIME2),
                                  data->alpha, 
-                                 src + res*res*2*(parameters * SMS)); 
+                                 src + res*res*2*(parameters*SMS*TIME2));
      }
 //       select_vecops(src)->axpy(data->size, dst, data->alpha, src);
 
@@ -151,6 +159,16 @@ static void inverse(iter_op_data* _data, float alpha, float* dst, const float* s
     conjgrad(data->cgiter, alpha, eps, data->size, select_vecops(src),
 			(struct iter_op_s){ normal, CAST_UP(data) }, dst, src, NULL);
 }
+
+static void combined_prox(iter_op_data* _data, float rho, float* dst, const float* src)
+{
+    struct irgnm_s* data = CAST_DOWN(irgnm_s, _data);
+
+    operator_p_apply_unchecked(data->prox1, rho, (_Complex float*)dst, (const _Complex float*)src);
+    operator_p_apply_unchecked(data->prox2, rho, (_Complex float*)dst, (const _Complex float*)src);
+}
+
+
 
 static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const float* src)
 {
@@ -179,31 +197,41 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
         bool randshift = true;
         long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
         unsigned int wflags = 0;
-        unsigned int jwflags = 0;
+        unsigned int jwflags_1 = 0;
+        unsigned int jwflags_2 = 0;
         for (unsigned int i = 0; i < DIMS; i++) {
             if ((1 < img_dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
                 wflags = MD_SET(wflags, i);
                 minsize[i] = MIN(img_dims[i], 16);
             }
         } 
-        jwflags = MD_SET(jwflags, 6);
+        jwflags_1 = MD_SET(jwflags_1, 6);
+        jwflags_2 = MD_SET(jwflags_2, 11);
         
-		prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags, minsize, alpha, randshift);
+//		prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags, minsize, alpha, randshift);
+#ifdef mphase
+        data->prox1 = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags_1, minsize, 0, randshift);
+        data->prox2 = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags_2, minsize, alpha, randshift);
+#else
+        data->prox1 = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags_1, minsize, alpha, randshift);
+        data->prox2 = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags_2, minsize, 0, randshift);
+#endif
 	}
     
     debug_printf(DP_DEBUG3, "##reg. alpha = %f\n", alpha);
     
     int maxiter = 10*powf(2, k_fista);
     
-    if(maxiter > 300)
-        maxiter = 300;
+    if(maxiter > 250)
+        maxiter = 250;
 
-	fista_xw(maxiter, 0.0f * alpha * eps, step, data->dims,
+    fista_xw(maxiter, 0.01f * alpha * eps, step, data->dims,
 		iter_fista_defaults.continuation, iter_fista_defaults.hogwild,
 		data->size, 
 		select_vecops(src),
 		(struct iter_op_s){normal_fista, CAST_UP(data)},
-        OPERATOR_P2ITOP(prox),
+//        OPERATOR_P2ITOP(prox),
+         (struct iter_op_p_s){combined_prox, CAST_UP(data)},
 //         data->prox,
         dst, src, NULL);
     k_fista++;

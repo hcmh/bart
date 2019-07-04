@@ -73,8 +73,8 @@ int main_mdbT1(int argc, char* argv[])
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
 	
-    long TI_dims[DIMS];
-    complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
+	long TI_dims[DIMS];
+	complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
 
 	assert(TI_dims[TE_DIM] == ksp_dims[TE_DIM]);
 
@@ -92,27 +92,27 @@ int main_mdbT1(int argc, char* argv[])
 	md_copy_dims(DIMS, dims, ksp_dims);
 
 	long img_dims[DIMS];
-    md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|SLICE_FLAG|LEVEL_FLAG, img_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|SLICE_FLAG|TIME2_FLAG, img_dims, dims);
 
-    img_dims[COEFF_DIM] = 3;
+	img_dims[COEFF_DIM] = 3;
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 	
-    long img1_dims[DIMS];
-    md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|SLICE_FLAG|LEVEL_FLAG, img1_dims, dims);
+	long img1_dims[DIMS];
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|SLICE_FLAG|TIME2_FLAG, img1_dims, dims);
 
 	long img1_strs[DIMS];
 	md_calc_strides(DIMS, img1_strs, img1_dims, CFL_SIZE);
 
 	long coil_dims[DIMS];
-    md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|LEVEL_FLAG, coil_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, coil_dims, dims);
 
 	long coil_strs[DIMS];
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[3], DIMS, img_dims);
-    complex float* img1 = create_cfl("", DIMS, img1_dims);
+	complex float* img1 = create_cfl("", DIMS, img1_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, dims);
@@ -134,7 +134,7 @@ int main_mdbT1(int argc, char* argv[])
 		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
 
 		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
-        fftmod(DIMS, coil_dims, FFT_FLAGS|SLICE_FLAG|LEVEL_FLAG, sens, init + skip);
+        fftmod(DIMS, coil_dims, FFT_FLAGS|SLICE_FLAG|TIME2_FLAG, sens, init + skip);
 
 	} else {
 
@@ -176,17 +176,17 @@ int main_mdbT1(int argc, char* argv[])
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
             scaling *= sqrt(ksp_dims[SLICE_DIM]);
     
-    double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
+	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
-			scaling_psf *= sqrt(ksp_dims[SLICE_DIM]);
+            scaling_psf *= sqrt(ksp_dims[SLICE_DIM]);
 
 #endif
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
     
-    debug_printf(DP_INFO, "Scaling_psf: %f\n", scaling_psf);
-    md_zsmul(DIMS, pat_dims, pattern, pattern, scaling_psf);
+	debug_printf(DP_INFO, "Scaling_psf: %f\n", scaling_psf);
+	md_zsmul(DIMS, pat_dims, pattern, pattern, scaling_psf);
 
 	if (-1. == restrict_fov) {
 
@@ -266,7 +266,7 @@ int main_mdbT1(int argc, char* argv[])
 	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_dims, img);
-    unmap_cfl(DIMS, img1_dims, img1);
+	unmap_cfl(DIMS, img1_dims, img1);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
 	unmap_cfl(DIMS, TI_dims, TI);
 

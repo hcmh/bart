@@ -97,20 +97,20 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
-    irgnm_conf.alpha_min = conf->alpha_min;
+	irgnm_conf.alpha_min = conf->alpha_min;
 //     md_copy_dims(DIMS, irgnm_conf.dims, dims);
     
-    md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|TE_FLAG, irgnm_conf.dims, imgs_dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|TE_FLAG, irgnm_conf.dims, imgs_dims);
     
-    irgnm_conf.dims[COIL_DIM] = coil_dims[COIL_DIM];
+	irgnm_conf.dims[COIL_DIM] = coil_dims[COIL_DIM];
     
-    debug_printf(DP_INFO, "imgs_dims:\n\t");
-    debug_print_dims(DP_INFO, DIMS, irgnm_conf.dims);
+	debug_printf(DP_INFO, "imgs_dims:\n\t");
+	debug_print_dims(DP_INFO, DIMS, irgnm_conf.dims);
 
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
 			size * 2, (float*)x, (float*)x,
-//             size * 2, (float*)x, NULL,
+			//size * 2, (float*)x, NULL,
 			data_size * 2, (const float*)kspace_data);
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
