@@ -89,13 +89,9 @@ void bloch_pdp3(void* _data, float* out, float t, const float* in);
 
 void bloch_simu_fun2(void* _data, float* out, float t, const float* in);
 
-// void isochromDistribution( struct bloch_s data, float *isochromats );
-
 void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]);
 
 void relaxation2(void* _data, float h, float tol, int N, int P, float xp[P + 2][N], float st, float end);
-
-//void collectMag(struct bloch_s data, int N, int P, float *mxySignal, float *saT1Signal, float *saT2Signal, float *densSignal, float xp[P + 2][N]);
 
 void create_rf_pulse(void* _pulseData, float RF_start, float RF_end, float angle, float phase, float nl, float nr, float alpha);
 

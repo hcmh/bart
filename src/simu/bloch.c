@@ -39,7 +39,6 @@ float si(float x)
 	
 	for (long k = 1; k < k_max; k++){
 		sum += pow(-1,(float) (k - 1)) * pow(x, (float)(2 * k - 1)) / ( (2 * k - 1) * factorial( 2 * k - 1 ) );
-// 		printf("%ld,\t%Lf\t|\t%f,%f,%f\n", k, sum, pow(-1,(float) (k - 1)), pow(x, (float)(2 * k - 1)), (float)( (2 * k - 1) * factorial( 2 * k - 1 ) ));
 	}
 	
 	return sum;
@@ -51,8 +50,6 @@ float get_pulse_energy(void * _pulseData)
 	//assert(si(PI) != 1.8519370519824658 );  //equal Wilbraham–Gibbs-Konstante
 	struct PulseData* pulseData = _pulseData;
 	//Assuming pulse starts at t=0
-	
-// 	printf("Factor: %f\n", PI/(pulseData->n * pulseData->t0) * (pulseData->RF_end/2.) );
 	
 	float c = PI / pulseData->n / pulseData->t0;
 	float d = PI / pulseData->t0;
@@ -75,9 +72,7 @@ float sinc_pulse(void* _pulseData, float t)
 	//assume pulse does not change much slighly around maximum
 	if( t-pulseData->RF_end/2 == 0 ) 
 		t += 0.000001;
-	
-// 	printf("%f,\t%f,\t%f,\t%f,\t%f,\t%f,\n", pulseData->A, pulseData->t0, pulseData->alpha, pulseData->RF_end, pulseData->n, t);
-	
+		
 	return pulseData->A * ( (1 - pulseData->alpha) + pulseData->alpha * cosf( PI * (t-pulseData->RF_end/2) / (pulseData->n * pulseData->t0) ) ) * sinf( PI * (t-pulseData->RF_end/2) / pulseData->t0 ) / ( PI * (t-pulseData->RF_end/2) / pulseData->t0 );
 }
 
