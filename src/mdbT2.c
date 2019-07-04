@@ -48,9 +48,9 @@ int main_mdbT2(int argc, char* argv[])
 
 	const struct opt_s opts[] = {
 
-        OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
-        OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
-        OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),
+		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
+		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+		OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
@@ -73,7 +73,7 @@ int main_mdbT2(int argc, char* argv[])
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
 	
-    long TI_dims[DIMS];
+	long TI_dims[DIMS];
 	complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
 
 	assert(TI_dims[TE_DIM] == ksp_dims[TE_DIM]);
@@ -94,12 +94,12 @@ int main_mdbT2(int argc, char* argv[])
 	long img_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|SLICE_FLAG, img_dims, dims);
 
-    img_dims[COEFF_DIM] = 2;
+	img_dims[COEFF_DIM] = 2;
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 	
-    long img1_dims[DIMS];
+	long img1_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|SLICE_FLAG, img1_dims, dims);
 
 	long img1_strs[DIMS];
@@ -112,7 +112,7 @@ int main_mdbT2(int argc, char* argv[])
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[3], DIMS, img_dims);
-    complex float* img1 = create_cfl("", DIMS, img1_dims);
+	complex float* img1 = create_cfl("", DIMS, img1_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, dims);
@@ -141,7 +141,7 @@ int main_mdbT2(int argc, char* argv[])
 		md_zfill(DIMS, img_dims, img, 1.0);
         
 		
-        md_clear(DIMS, coil_dims, sens, CFL_SIZE);
+		md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 	}
 
 	complex float* pattern = NULL;
@@ -149,7 +149,7 @@ int main_mdbT2(int argc, char* argv[])
 
 	if (NULL != psf) {
 
-        complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
+		complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
 		pattern = anon_cfl("", DIMS, pat_dims);
 
 		md_copy(DIMS, pat_dims, pattern, tmp_psf, CFL_SIZE);
@@ -157,7 +157,7 @@ int main_mdbT2(int argc, char* argv[])
 		// FIXME: check compatibility
 
 		if (-1 == restrict_fov)
-            restrict_fov = 1.0;
+		restrict_fov = 1.0;
 
 		conf.noncart = true;
 
@@ -171,7 +171,7 @@ int main_mdbT2(int argc, char* argv[])
 #if 0
 	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
 #else
-    double scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling = 6000. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
 			scaling *= sqrt(ksp_dims[SLICE_DIM]); 
@@ -192,24 +192,7 @@ int main_mdbT2(int argc, char* argv[])
 		restrict_dims[1] = restrict_fov;
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
-        md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask, 1.0);
-        
-        // Choose a different initial guess for R1*
-        long pos[DIMS];
-
-        for (int i = 0; i < DIMS; i++)
-            pos[i] = 0;
-        
-       /* pos[COEFF_DIM] = 2;
-        md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE); 
-        md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 4.0);
-        md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE); */	
-        
-//         pos[COEFF_DIM] = 1;
-//         md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE); 
-//         md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 0.0);
-//         md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE); 
-
+		md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask, 1.0);
 	}
 
 #ifdef  USE_CUDA
@@ -232,7 +215,7 @@ int main_mdbT2(int argc, char* argv[])
 	if (normalize) {
 
 		md_zrss(DIMS, ksp_dims, COIL_FLAG, norm, sens);
-        md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, img_strs, norm);
+		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, img_strs, norm);
 	}
 
 	if (out_sens) {
@@ -255,7 +238,7 @@ int main_mdbT2(int argc, char* argv[])
 	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_dims, img);
-    unmap_cfl(DIMS, img1_dims, img1);
+	unmap_cfl(DIMS, img1_dims, img1);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
 	unmap_cfl(DIMS, TI_dims, TI);
 
