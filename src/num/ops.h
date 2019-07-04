@@ -67,6 +67,9 @@ extern const struct operator_s* operator_null_create2(unsigned int N, const long
 extern const struct operator_s* operator_chain(const struct operator_s* a, const struct operator_s* b);
 extern const struct operator_s* operator_chainN(unsigned int N, const struct operator_s* ops[__VLA(N)]);
 
+extern const struct operator_p_s* operator_p_pre_chain(const struct operator_s* a, const struct operator_p_s* b);
+extern const struct operator_p_s* operator_p_pst_chain(const struct operator_p_s* a, const struct operator_s* b);
+
 extern const struct operator_s* operator_chain_FF(const struct operator_s* a, const struct operator_s* b);
 
 //extern const struct operator_s* operator_mul(const struct operator_s* a, const struct operator_s* b);
@@ -117,11 +120,13 @@ extern operator_data_t* operator_p_get_data(const struct operator_p_s* x);
 
 
 extern const struct operator_s* operator_p_upcast(const struct operator_p_s* op);
+extern const struct operator_p_s* operator_p_downcast(const struct operator_s* op);
 
 
 extern const struct operator_s* operator_copy_wrapper(unsigned int N, const long* strs[N], const struct operator_s* op);
 
 extern const struct operator_s* operator_gpu_wrapper(const struct operator_s* op);
+extern const struct operator_p_s* operator_p_gpu_wrapper(const struct operator_p_s* op);
 
 extern const struct operator_s* operator_loop2(unsigned int N, const unsigned int D,
 				const long dims[D], const long (*strs)[D],
