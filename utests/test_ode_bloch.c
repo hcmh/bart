@@ -381,3 +381,34 @@ static bool test_ode_sa_bloch(void)
 
 
 UT_REGISTER_TEST(test_ode_sa_bloch);
+
+
+static bool test_ode_matrix_bloch_sa(void)
+{
+	struct bloch_s data = { 1. / WATER_T1, 1. / WATER_T2, { 0., 0., GAMMA_H1 * SKYRA_GRADIENT * 0.0001 } };
+
+	float x[10] = { 1., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
+	float x0[3] = { 1., 0., 0.};
+	float x2[3];
+	float h = 0.1;
+	float tol = 0.000001;
+	float end = 0.2;
+
+	float m[10][10];
+	bloch_matrix_ode_sa(m, data.r1, data.r2, data.gb);
+
+	ode_matrix_interval(h, tol, 10, x, 0., end, m);
+	bloch_relaxation(x2, end, x0, data.r1, data.r2, data.gb);
+
+	float err2 = 0.;
+
+	for (int i = 0; i < 3; i++)
+		err2 += powf(x[i] - x2[i], 2.);
+
+	return (err2 < 1.E-6);
+}
+
+UT_REGISTER_TEST(test_ode_matrix_bloch_sa);
+
+
+
