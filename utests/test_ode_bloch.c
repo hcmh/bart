@@ -356,9 +356,6 @@ static bool test_ode_sa_bloch(void)
 	if (err2 > 1.E-7)
 		return false;
 
-	for (int i = 0; i < 3; i++)
-		err2 += powf(xp[0][i] - x2[i], 2.);
-
 
 	for (int i = 0; i < 3; i++) {
 
