@@ -67,7 +67,8 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 	long N,
 	const struct vec_iter_s* vops,
 	struct iter_op_s linop,
-	float* x, const float* b, struct iter_monitor_s* monitor);
+	float* x, const float* b,
+	struct iter_monitor_s* monitor);
 
 
 void landweber(unsigned int maxiter, float epsilon, float alpha,
@@ -76,6 +77,7 @@ void landweber(unsigned int maxiter, float epsilon, float alpha,
 	struct iter_op_s op,
 	struct iter_op_s adj,
 	float* x, const float* b,
+	struct iter_op_s callback,
 	struct iter_monitor_s* monitor);
 
 void landweber_sym(unsigned int maxiter, float epsilon, float alpha,	
@@ -111,7 +113,8 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
 	struct iter_op_s adj,
 	struct iter_op_p_s inv,
 	float* x, const float* x0, const float* y,
-	struct iter_op_s callback);
+	struct iter_op_s callback,
+	struct iter_monitor_s* monitor);
 
 void altmin(unsigned int iter, float alpha, float redu,
 	long N,

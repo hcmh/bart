@@ -104,7 +104,7 @@ void iter3_irgnm(iter3_conf* _conf,
 	irgnm(conf->iter, conf->alpha, conf->alpha_min, conf->redu, N, M, select_vecops(src),
 		frw, adj,
 		(struct iter_op_p_s){ inverse, CAST_UP(&data) },
-		dst, ref, src, cb);
+		dst, ref, src, cb, NULL);
 
 	md_free(tmp);
 }
@@ -115,7 +115,8 @@ void iter3_landweber(iter3_conf* _conf,
 		struct iter_op_s der,
 		struct iter_op_s adj,
 		long N, float* dst, const float* ref,
-		long M, const float* src)
+		long M, const float* src,
+		struct iter_op_s cb)
 {
 	auto conf = CAST_DOWN(iter3_landweber_conf, _conf);
 
@@ -125,7 +126,7 @@ void iter3_landweber(iter3_conf* _conf,
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(N), FL_SIZE, src);
 
 	landweber(conf->iter, conf->epsilon, conf->alpha, N, M,
-		select_vecops(src), frw, adj, dst, src, NULL);
+		select_vecops(src), frw, adj, dst, src, cb, NULL);
 
 	md_free(tmp);
 }

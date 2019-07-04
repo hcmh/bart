@@ -342,6 +342,7 @@ void landweber(unsigned int maxiter, float epsilon, float alpha, long N, long M,
 	struct iter_op_s op,
 	struct iter_op_s adj,
 	float* x, const float* b,
+	struct iter_op_s callback,
 	struct iter_monitor_s* monitor)
 {
 	float* r = vops->allocate(M);
@@ -365,6 +366,9 @@ void landweber(unsigned int maxiter, float epsilon, float alpha, long N, long M,
 
 		iter_op_call(adj, p, r);
 		vops->axpy(N, x, alpha, p);
+
+		if (NULL != callback.fun)
+			iter_op_call(callback, x, x);
 	}
 
 	vops->del(r);
@@ -481,7 +485,8 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
 	struct iter_op_s adj,
 	struct iter_op_p_s inv,
 	float* x, const float* xref, const float* y,
-	struct iter_op_s callback)
+	struct iter_op_s callback,
+	struct iter_monitor_s* monitor)
 {
 	float* r = vops->allocate(M);
 	float* p = vops->allocate(N);
@@ -489,7 +494,7 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
 
 	for (unsigned int i = 0; i < iter; i++) {
 
-//		printf("#--------\n");
+		iter_monitor(monitor, vops, x);
 
 		iter_op_call(op, r, x);			// r = F x
 
