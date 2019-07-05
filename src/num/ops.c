@@ -477,99 +477,6 @@ const struct operator_s* operator_chainN(unsigned int N, const struct operator_s
 
 
 
-struct operator_stack_s {
-
-	INTERFACE(operator_data_t);
-
-	const struct operator_s* a;
-	const struct operator_s* b;
-
-	long dst_offset;
-	long src_offset;
-};
-
-static DEF_TYPEID(operator_stack_s);
-
-
-static void stack_apply(const operator_data_t* _data, unsigned int N, void* args[N])
-{
-	const auto data = CAST_DOWN(operator_stack_s, _data);
-	assert(2 == N);
-
-	operator_apply_unchecked(data->a, args[0], args[1]);
-	operator_apply_unchecked(data->b, args[0] + data->dst_offset, args[1] + data->src_offset);
-}
-
-static void stack_free(const operator_data_t* _data)
-{
-	const auto data = CAST_DOWN(operator_stack_s, _data);
-
-	operator_free(data->a);
-	operator_free(data->b);
-
-	xfree(data);
-}
-
-static bool stack_compatible(unsigned int D, const struct iovec_s* a, const struct iovec_s* b)
-{
-	if (a->N != b->N)
-		return false;
-
-	unsigned int N = a->N;
-
-	for (unsigned int i = 0; i < N; i++)
-		if ((D != i) && ((a->dims[i] != b->dims[i] || (a->strs[i] != b->strs[i]))))
-			return false;
-
-	if ((1 != a->dims[D]) || (1 != b->dims[D]))
-		return false;
-
-	return true;
-}
-
-static void stack_dims(unsigned int N, long dims[N], long strs[N], unsigned int D, const struct iovec_s* a, const struct iovec_s* b)
-{
-	md_copy_dims(N, dims, a->dims);
-	md_copy_strides(N, strs, a->strs);
-
-	UNUSED(b);
-
-	strs[D] = md_calc_size(N, a->dims) * CFL_SIZE;	// FIXME
-	dims[D] = 2;
-}
-
-/**
- * Create a new operator that stacks a and b along dimension D
- */
-const struct operator_s* operator_stack(unsigned int D, unsigned int E, const struct operator_s* a, const struct operator_s* b)
-{
-	PTR_ALLOC(struct operator_stack_s, c);
-	SET_TYPEID(operator_stack_s, c);
-
-	assert(stack_compatible(D, a->domain[0], b->domain[0]));
-	assert(stack_compatible(E, a->domain[1], b->domain[1]));
-
-	c->a = operator_ref(a);
-	c->b = operator_ref(b);
-
-	unsigned int cod_N = a->domain[0]->N;
-	long cod_dims[cod_N];
-	long cod_strs[cod_N];
-	stack_dims(cod_N, cod_dims, cod_strs, D, a->domain[0], b->domain[0]);
-
-	unsigned int dom_N = a->domain[1]->N;
-	long dom_dims[dom_N];
-	long dom_strs[dom_N];
-	stack_dims(dom_N, dom_dims, dom_strs, E, a->domain[1], b->domain[1]);
-
-	assert(dom_N == cod_N);
-
-	c->dst_offset = cod_strs[D];
-	c->src_offset = dom_strs[D];
-
-	return operator_create2(cod_N, cod_dims, cod_strs, dom_N, dom_dims, dom_strs, CAST_UP(PTR_PASS(c)), stack_apply, stack_free);
-}
-
 
 
 void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int N, void* args[N])
@@ -1562,7 +1469,7 @@ static void extract_del(const operator_data_t* _data)
 }
 
 
-const struct operator_s* operator_extract_create(const struct operator_s* op, int a, int Da, const long dimsa[Da], const long pos[Da])
+const struct operator_s* operator_extract_create2(const struct operator_s* op, int a, int Da, const long dimsa[Da], const long strsa[Da], const long pos[Da])
 {
 	int N = (int)operator_nr_args(op);
 
@@ -1583,33 +1490,122 @@ const struct operator_s* operator_extract_create(const struct operator_s* op, in
 
 	assert(Da == (int)D[a]);
 
-	long (*dims2)[Da] = TYPE_ALLOC(long[Da]);
-	long (*strs2)[Da] = TYPE_ALLOC(long[Da]);
-
-
 	for (int i = 0; i < Da; i++) {
 
 		assert((0 <= pos[i]) && (pos[i] < dimsa[i]));
 		assert(dims[a][i] + pos[i] <= dimsa[i]);
-
-		(*dims2)[i] = dimsa[i];
-		(*strs2)[i] = (1 == dimsa[i]) ? 0 : strs[a][i];
+		assert((0 == strs[a][i]) || (strs[a][i] == strsa[i]));
 	}
 
-	dims[a] = *dims2;
-	strs[a] = *strs2;
+	dims[a] = dimsa;
+	strs[a] = strsa;
 
 	PTR_ALLOC(struct extract_data_s, data);
 	SET_TYPEID(extract_data_s, data);
 
 	data->op = operator_ref(op);
 	data->a = a;
-	data->off = md_calc_offset(Da, operator_arg_domain(op, a)->strs, pos);
+	data->off = md_calc_offset(Da, strsa, pos);
 
 	return operator_generic_create2(N, op->io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), extract_fun, extract_del);
 }
 
 
+const struct operator_s* operator_extract_create(const struct operator_s* op, int a, int Da, const long dimsa[Da], const long pos[Da])
+{
+	return operator_extract_create2(op, a, Da, dimsa, MD_STRIDES(Da, dimsa, operator_arg_domain(op, a)->size), pos);
+}
+
+static bool stack_compatible(unsigned int D, const struct iovec_s* a, const struct iovec_s* b)
+{
+	if (a->N != b->N)
+		return false;
+
+	unsigned int N = a->N;
+
+	for (unsigned int i = 0; i < N; i++)
+		if ((D != i) && ((a->dims[i] != b->dims[i] || (a->strs[i] != b->strs[i]))))
+			return false;
+
+	if ((1 != a->dims[D]) || (1 != b->dims[D]))
+		return false;
+
+	return true;
+}
+
+static void stack_dims(unsigned int N, long dims[N], long strs[N], unsigned int D, const struct iovec_s* a, const struct iovec_s* b)
+{
+	md_copy_dims(N, dims, a->dims);
+	md_copy_strides(N, strs, a->strs);
+
+	UNUSED(b);
+
+	strs[D] = md_calc_size(N, a->dims) * a->size;
+	dims[D] = 2;
+}
+
+
+const struct operator_s* operator_stack2(int M, const int args[M], const int dims[M], const struct operator_s* a, const struct operator_s* b)
+{
+	a = operator_ref(a);
+	b = operator_ref(b);
+
+	for (int m = 0; m < M; m++) {
+
+		int arg = args[m];
+		int dim = dims[m];
+
+		auto ia = operator_arg_domain(a, arg);
+		auto ib = operator_arg_domain(b, arg);
+
+		assert(stack_compatible(dim, ia, ib));
+
+		int D = ia->N;
+
+		long dims[D];
+		long strs[D];
+		stack_dims(D, dims, strs, dim, ia, ib);
+
+		long pos[D];
+
+		for (int i = 0; i < D; i++)
+			pos[i] = 0;
+
+		auto aa = operator_extract_create2(a, arg, D, dims, strs, (pos[dim] = 0, pos));
+		auto bb = operator_extract_create2(b, arg, D, dims, strs, (pos[dim] = 1, pos));
+
+		operator_free(a);
+		operator_free(b);
+
+		a = aa;
+		b = bb;
+	}
+
+	auto c = operator_combi_create(2, MAKE_ARRAY(a, b));
+
+	operator_free(a);
+	operator_free(b);
+
+	int N = operator_nr_args(a);
+
+	for (int i = N - 1; i >= 0; i--) {
+
+		auto d = operator_dup_create(c, i, N + i);
+		operator_free(c);
+		c = d;
+	}
+
+	return c;
+}
+
+
+/**
+ * Create a new operator that stacks a and b along dimension D
+ */
+const struct operator_s* operator_stack(unsigned int D, unsigned int E, const struct operator_s* a, const struct operator_s* b)
+{
+	return operator_stack2(2, (int[2]){ 0, 1 }, (int[2]){ D, E }, a, b);
+}
 
 
 

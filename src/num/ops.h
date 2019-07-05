@@ -62,6 +62,7 @@ extern const struct operator_s* operator_chain_FF(const struct operator_s* a, co
 //extern const struct operator_s* operator_mul(const struct operator_s* a, const struct operator_s* b);
 //extern const struct operator_s* operator_sum(const struct operator_s* a, const struct operator_s* b);
 extern const struct operator_s* operator_stack(unsigned int D, unsigned int E, const struct operator_s* a, const struct operator_s* b);
+extern const struct operator_s* operator_stack2(int M, const int args[M], const int dims[M], const struct operator_s* a, const struct operator_s* b);
 
 extern const struct operator_s* operator_bind2(const struct operator_s* op, unsigned int arg,
 			unsigned int N, const long dims[__VLA(N)], const long strs[__VLA(N)], void* ptr);
@@ -118,7 +119,7 @@ extern const struct operator_s* operator_combi_create(int N, const struct operat
 extern const struct operator_s* operator_link_create(const struct operator_s* op, unsigned int o, unsigned int i);
 extern const struct operator_s* operator_dup_create(const struct operator_s* op, unsigned int a, unsigned int b);
 extern const struct operator_s* operator_extract_create(const struct operator_s* op, int a, int N, const long dims[N], const long pos[N]);
-
+extern const struct operator_s* operator_extract_create2(const struct operator_s* op, int a, int Da, const long dimsa[Da], const long strsa[Da], const long pos[Da]);
 extern const struct operator_s* operator_permute(const struct operator_s* op, int N, const int perm[N]);
 
 

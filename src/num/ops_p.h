@@ -26,6 +26,9 @@ extern const struct operator_p_s* operator_p_pre_chain(const struct operator_s* 
 extern const struct operator_p_s* operator_p_pst_chain(const struct operator_p_s* a, const struct operator_s* b);
 
 extern const struct operator_s* operator_p_bind(const struct operator_p_s* op, float alpha);
+extern const struct operator_p_s* operator_p_stack(int A, int B, const struct operator_p_s* a, const struct operator_p_s* b);
+
+extern const struct operator_p_s* operator_p_scale(int N, const long dims[N]);
 
 
 extern void operator_p_apply(const struct operator_p_s* op, float mu, unsigned int ON, const long odims[__VLA(ON)], _Complex float* dst, const long IN, const long idims[__VLA(IN)], const _Complex float* src);

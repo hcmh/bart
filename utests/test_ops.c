@@ -63,8 +63,8 @@ UT_REGISTER_TEST(test_op_stack);
 static bool test_op_extract(void)
 {
 	enum { N = 3 };
-	long dims[N] = { 8, 4, 2 };	// FIXME 1
-	long dims2[N] = { 8, 4, 4 };	// 2
+	long dims[N] = { 8, 4, 1 };
+	long dims2[N] = { 8, 4, 2 };
 
 	const struct operator_s* a = operator_identity_create(N, dims);
 	const struct operator_s* b = operator_zero_create(N, dims);
@@ -72,8 +72,8 @@ static bool test_op_extract(void)
 	const struct operator_s* d = operator_combi_create(2, MAKE_ARRAY(b, c));
 	const struct operator_s* e = operator_extract_create(a, 0, N, dims2, (long[]){ 0, 0, 0 });
 	const struct operator_s* f = operator_extract_create(e, 1, N, dims2, (long[]){ 0, 0, 0 });
-	const struct operator_s* g = operator_extract_create(d, 0, N, dims2, (long[]){ 0, 0, 2 });
-	const struct operator_s* h = operator_extract_create(g, 1, N, dims2, (long[]){ 0, 0, 2 });
+	const struct operator_s* g = operator_extract_create(d, 0, N, dims2, (long[]){ 0, 0, 1 });
+	const struct operator_s* h = operator_extract_create(g, 1, N, dims2, (long[]){ 0, 0, 1 });
 	const struct operator_s* i = operator_combi_create(2, MAKE_ARRAY(f, h));
 	const struct operator_s* j = operator_dup_create(i, 0, 2);
 	const struct operator_s* k = operator_dup_create(j, 1, 2);

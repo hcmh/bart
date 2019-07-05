@@ -280,3 +280,47 @@ const struct operator_p_s* operator_p_gpu_wrapper(const struct operator_p_s* op)
 	return operator_p_downcast(operator_gpu_wrapper(operator_p_upcast(op)));
 }
 
+
+const struct operator_p_s* operator_p_stack(int A, int B, const struct operator_p_s* _a, const struct operator_p_s* _b)
+{
+	auto a = operator_p_upcast(_a);
+	auto b = operator_p_upcast(_b);
+
+	auto c = operator_stack2(2, (int[]){ 1, 2 }, (int[]){ A, B }, a, b);
+
+	return operator_p_downcast(c);
+}
+
+
+struct scale_s {
+
+	INTERFACE(operator_data_t);
+
+	long size;
+};
+
+DEF_TYPEID(scale_s);
+
+static void op_p_scale_apply(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(scale_s, _data);
+
+	md_zsmul(1, MD_DIMS(data->size), dst, src, mu);
+}
+
+static void op_p_scale_del(const operator_data_t* _data)
+{
+	xfree(CAST_DOWN(scale_s, _data));
+}
+
+const struct operator_p_s* operator_p_scale(int N, const long dims[N])
+{
+	PTR_ALLOC(struct scale_s, data);
+	SET_TYPEID(scale_s, data);
+
+	data->size = md_calc_size(N, dims);
+
+	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), op_p_scale_apply, op_p_scale_del);
+}
+
+
