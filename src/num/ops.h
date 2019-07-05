@@ -116,6 +116,8 @@ extern const struct operator_s* operator_loop_parallel(unsigned int D, const lon
 
 extern const struct operator_s* operator_combi_create(int N, const struct operator_s* x[N]);
 extern const struct operator_s* operator_link_create(const struct operator_s* op, unsigned int o, unsigned int i);
+extern const struct operator_s* operator_dup_create(const struct operator_s* op, unsigned int a, unsigned int b);
+extern const struct operator_s* operator_extract_create(const struct operator_s* op, int a, int N, const long dims[N], const long pos[N]);
 
 extern const struct operator_s* operator_permute(const struct operator_s* op, int N, const int perm[N]);
 

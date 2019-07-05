@@ -1214,6 +1214,112 @@ const struct operator_s* operator_combi_create(int N, const struct operator_s* x
 }
 
 
+
+
+struct operator_dup_s {
+
+	INTERFACE(operator_data_t);
+
+	int a;
+	int b;
+	const struct operator_s* x;
+};
+
+static DEF_TYPEID(operator_dup_s);
+
+
+static void dup_apply(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+	auto data = CAST_DOWN(operator_dup_s, _data);
+
+	debug_printf(DP_DEBUG4, "dup apply: duplicating %d-%d from %d (io flags: %d)\n",
+				data->a, data->b, N + 1, data->x->io_flags);
+
+	void* args2[N + 1];
+
+	for (int i = 0, j = 0; j < (int)(N + 1); j++) {
+
+		if (data->b == j)
+			continue;
+
+		args2[j] = args[i++];
+	}
+
+	assert(N > 0);
+
+	auto iov = operator_arg_domain(data->x, data->a);
+	auto iovb = operator_arg_domain(data->x, data->b);
+
+	assert(iovec_check(iovb, iov->N, iov->dims, iov->strs));
+
+	assert(N + 1 == operator_nr_args(data->x));
+
+	args2[data->b] = args2[data->a];
+
+	operator_generic_apply_unchecked(data->x, N + 1, args2);
+}
+
+static void dup_del(const operator_data_t* _data)
+{
+	auto data = CAST_DOWN(operator_dup_s, _data);
+
+	operator_free(data->x);
+	xfree(data);
+}
+
+const struct operator_s* operator_dup_create(const struct operator_s* op, unsigned int a, unsigned int b)
+{
+	unsigned int N = operator_nr_args(op);
+
+	assert(a < N);
+	assert(b < N);
+	assert(a != b);
+
+	unsigned int io_flags = 0u;
+	unsigned int D[N - 1];
+	const long* dims[N - 1];
+	const long* strs[N - 1];
+
+	debug_printf(DP_DEBUG3, "Duplicating args %d-%d of %d.\n", a, b, N);
+
+	for (unsigned int s = 0, t = 0; s < N; s++) {
+
+		if (s == b)
+			continue;
+
+		auto io = operator_arg_domain(op, s);
+
+		D[t] = io->N;
+		dims[t] = io->dims;
+		strs[t] = io->strs;
+
+		io_flags |= ((op->io_flags >> s) & 1) << t;
+
+		t++;
+	}
+
+	auto ioa = operator_arg_domain(op, a);
+	auto iob = operator_arg_domain(op, b);
+
+	assert(ioa->N == md_calc_blockdim(ioa->N, ioa->dims, ioa->strs, ioa->size));
+	assert(iob->N == md_calc_blockdim(iob->N, iob->dims, iob->strs, iob->size));
+
+
+	PTR_ALLOC(struct operator_dup_s, data);
+	SET_TYPEID(operator_dup_s, data);
+
+	data->a = a;
+	data->b = b;
+	data->x = operator_ref(op);
+
+	return operator_generic_create2(N - 1, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), dup_apply, dup_del);
+}
+
+
+
+
+// FIXME: we should reimplement link in terms of dup and bind (caveat: gpu)
+
 struct operator_link_s {
 
 	INTERFACE(operator_data_t);
@@ -1416,6 +1522,96 @@ const struct operator_s* operator_permute(const struct operator_s* op, int N, co
 
 	return operator_generic_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del);
 }
+
+
+struct extract_data_s {
+
+	INTERFACE(operator_data_t);
+
+	int a;
+	size_t off;
+	const struct operator_s* op;
+};
+
+static DEF_TYPEID(extract_data_s);
+
+
+
+static void extract_fun(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+	auto data = CAST_DOWN(extract_data_s, _data);
+
+	assert(N == operator_nr_args(data->op));
+
+	void* ptr[N];
+
+	for (int i = 0; i < (int)N; i++)
+		ptr[i] = args[i] + ((data->a == i) ? data->off : 0);
+
+	operator_generic_apply_unchecked(data->op, N, ptr);
+}
+
+
+static void extract_del(const operator_data_t* _data)
+{
+	auto data = CAST_DOWN(extract_data_s, _data);
+
+	operator_free(data->op);
+
+	xfree(data);
+}
+
+
+const struct operator_s* operator_extract_create(const struct operator_s* op, int a, int Da, const long dimsa[Da], const long pos[Da])
+{
+	int N = (int)operator_nr_args(op);
+
+	assert(a < N);
+
+	unsigned int D[N];
+	const long* dims[N];
+	const long* strs[N];
+
+	for (int i = 0; i < N; i++) {
+
+		const struct iovec_s* io = operator_arg_domain(op, i);
+
+		D[i] = io->N;
+		dims[i] = io->dims;
+		strs[i] = io->strs;
+	}
+
+	assert(Da == (int)D[a]);
+
+	long (*dims2)[Da] = TYPE_ALLOC(long[Da]);
+	long (*strs2)[Da] = TYPE_ALLOC(long[Da]);
+
+
+	for (int i = 0; i < Da; i++) {
+
+		assert((0 <= pos[i]) && (pos[i] < dimsa[i]));
+		assert(dims[a][i] + pos[i] <= dimsa[i]);
+
+		(*dims2)[i] = dimsa[i];
+		(*strs2)[i] = (1 == dimsa[i]) ? 0 : strs[a][i];
+	}
+
+	dims[a] = *dims2;
+	strs[a] = *strs2;
+
+	PTR_ALLOC(struct extract_data_s, data);
+	SET_TYPEID(extract_data_s, data);
+
+	data->op = operator_ref(op);
+	data->a = a;
+	data->off = md_calc_offset(Da, operator_arg_domain(op, a)->strs, pos);
+
+	return operator_generic_create2(N, op->io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), extract_fun, extract_del);
+}
+
+
+
+
 
 
 
