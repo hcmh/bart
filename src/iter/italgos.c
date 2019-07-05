@@ -478,6 +478,10 @@ cleanup:
  *
  * IRGNM: DF^H ((y - F xn) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
  *        DF^H ((y - F xn)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
+ *
+ * This version only solves the second equation for the update 'dx'. This corresponds
+ * to a least-squares problem where the quadratic regularization applies to the difference
+ * to 'x0'.
  */
 void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
 	const struct vec_iter_s* vops,
@@ -532,8 +536,10 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
  *
  * y = F(x) = F xn + DF dx + ...
  *
- * IRGNM: DF^H ((y - F xn) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
- *        DF^H ((y - F xn)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
+ * IRGNM: R(DF^H, DF^H DF, alpha) ((y - F xn) + DF (xn - x0)) = (dx + xn - x0)
+ *
+ * This version has an extra call to DF, but we can use a generic regularized
+ * least-squares solver.
  */
 void irgnm2(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
 	const struct vec_iter_s* vops,

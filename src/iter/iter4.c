@@ -119,6 +119,8 @@ void iter4_irgnm(const iter3_conf* _conf,
 	auto cd = nlop_codomain(nlop);
 	auto dm = nlop_domain(nlop);
 
+	assert(NULL == pinv); // better we allow this only with irgnm2
+
 	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
 	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
 
@@ -135,7 +137,7 @@ void iter4_irgnm(const iter3_conf* _conf,
 	struct iter_op_p_s inv = { inverse, CAST_UP(&data2) };
 
 	irgnm(conf->iter, conf->alpha, conf->alpha_min, conf->redu, N, M, select_vecops(src),
-		frw, adj, (NULL == pinv) ? inv : OPERATOR_P2ITOP(pinv),
+		frw, adj, inv,
 		dst, ref, src, cb, NULL);
 
 	md_free(tmp);
