@@ -10,6 +10,7 @@
 
 #include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/ops.h"
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -19,9 +20,13 @@
 #include "iter/iter3.h"
 #include "iter/iter4.h"
 #include "iter/lsqr.h"
+#include "iter/thresh.h"
+
+#include "linops/someops.h"
 
 #include "nlops/zexp.h"
 #include "nlops/nlop.h"
+#include "nlops/cast.h"
 
 #include "utest.h"
 
@@ -107,6 +112,7 @@ static bool test_iter_irgnm_lsqr0(bool ref)
 
 	double err = md_znrmse(N, dims, src2, src3);
 
+	operator_p_free(lsqr);
 	nlop_free(zexp);
 
 	md_free(src1);
@@ -143,4 +149,68 @@ static bool test_iter_irgnm_lsqr(void)
 
 UT_REGISTER_TEST(test_iter_irgnm_lsqr);
 
+
+
+
+static bool test_iter_irgnm_l1(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 4, 3, 2 };
+
+	complex float* dst1 = md_alloc(N, dims, CFL_SIZE);
+	complex float* src1 = md_alloc(N, dims, CFL_SIZE);
+	complex float* src2 = md_alloc(N, dims, CFL_SIZE);
+	complex float* src3 = md_alloc(N, dims, CFL_SIZE);
+
+	md_zfill(N, dims, src1, 1.);
+
+	const struct linop_s* id = linop_identity_create(3, dims);
+
+	struct nlop_s* nlid = nlop_from_linop(id);
+
+	nlop_apply(nlid, N, dims, dst1, N, dims, src1);
+
+	md_zfill(N, dims, src2, 0.975);
+	md_zfill(N, dims, src3, 0.);
+
+	const struct operator_p_s* lsqr = NULL;
+
+	struct iter_fista_conf conf = iter_fista_defaults;
+	conf.maxiter = 10;
+
+	const struct linop_s* trafos[1] = { id };
+	const struct operator_p_s* prox_ops[1] = { prox_thresh_create(3, dims, 0.5, 0u) };
+
+	lsqr = lsqr2_create(&lsqr_defaults,
+				iter2_fista, CAST_UP(&conf),
+				NULL, &nlid->derivative[0][0], NULL,
+				1, prox_ops, trafos, NULL);
+
+	struct iter3_irgnm_conf conf2 = iter3_irgnm_defaults;
+	conf2.redu = 1.;
+	conf2.iter = 1.;
+
+	iter4_irgnm2(CAST_UP(&conf2), nlid,
+		2 * md_calc_size(N, dims), (float*)src3, NULL,
+		2 * md_calc_size(N, dims), (const float*)dst1, lsqr,
+		(struct iter_op_s){ NULL, NULL });
+
+	double err = md_znrmse(N, dims, src2, src3);
+
+	nlop_free(nlid);
+
+	linop_free(id);
+	operator_p_free(prox_ops[0]);
+	operator_p_free(lsqr);
+
+	md_free(src1);
+	md_free(dst1);
+	md_free(src2);
+	md_free(src3);
+
+	UT_ASSERT(err < 1.E-10);
+}
+
+
+UT_REGISTER_TEST(test_iter_irgnm_l1);
 
