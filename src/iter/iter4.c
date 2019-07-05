@@ -67,7 +67,7 @@ void iter4_irgnm(iter3_conf* _conf,
 	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
 	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
 
-    iter3_irgnm_l1(_conf,
+	iter3_irgnm_l1(_conf,
 		(struct iter_op_s){ nlop_for_iter, CAST_UP(&data) },
 		(struct iter_op_s){ nlop_der_iter, CAST_UP(&data) },
 		(struct iter_op_s){ nlop_adj_iter, CAST_UP(&data) },

@@ -201,7 +201,7 @@ int main_mdbT2(int argc, char* argv[])
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
 		
-        complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
+		complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
 		md_copy(DIMS, TI_dims, TI_gpu, TI, CFL_SIZE);
 
 		T2_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu);

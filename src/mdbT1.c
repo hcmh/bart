@@ -48,9 +48,9 @@ int main_mdbT1(int argc, char* argv[])
 
 	const struct opt_s opts[] = {
 
-        OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
-        OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
-        OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),
+		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
+		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+		OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
@@ -82,7 +82,7 @@ int main_mdbT1(int argc, char* argv[])
 	if (1 != ksp_dims[SLICE_DIM]) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
-        fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace_data, kspace_data); // fftmod to get correct slice order in output
+		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace_data, kspace_data); // fftmod to get correct slice order in output
 	}
 
 
@@ -134,14 +134,14 @@ int main_mdbT1(int argc, char* argv[])
 		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
 
 		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
-        fftmod(DIMS, coil_dims, FFT_FLAGS|SLICE_FLAG|TIME2_FLAG, sens, init + skip);
+		fftmod(DIMS, coil_dims, FFT_FLAGS|SLICE_FLAG|TIME2_FLAG, sens, init + skip);
 
 	} else {
 
 		md_zfill(DIMS, img_dims, img, 1.0);
         
 		
-        md_clear(DIMS, coil_dims, sens, CFL_SIZE);
+		md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 	}
 
 	complex float* pattern = NULL;
@@ -149,7 +149,7 @@ int main_mdbT1(int argc, char* argv[])
 
 	if (NULL != psf) {
 
-        complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
+		complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
 		pattern = anon_cfl("", DIMS, pat_dims);
 
 		md_copy(DIMS, pat_dims, pattern, tmp_psf, CFL_SIZE);
@@ -174,12 +174,12 @@ int main_mdbT1(int argc, char* argv[])
 	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
-            scaling *= sqrt(ksp_dims[SLICE_DIM]);
+		scaling *= sqrt(ksp_dims[SLICE_DIM]);
     
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
-            scaling_psf *= sqrt(ksp_dims[SLICE_DIM]);
+		scaling_psf *= sqrt(ksp_dims[SLICE_DIM]);
 
 #endif
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
@@ -200,25 +200,22 @@ int main_mdbT1(int argc, char* argv[])
 		restrict_dims[1] = restrict_fov;
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
-//         md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask ,1.0);
+		//md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask ,1.0);
         
-        md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
+		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
         
-        // Choose a different initial guess for R1*
-        long pos[DIMS];
+		// Choose a different initial guess for R1*
+		long pos[DIMS];
 
-        for (int i = 0; i < DIMS; i++)
-            pos[i] = 0;
+		for (int i = 0; i < DIMS; i++)
+			pos[i] = 0;
         
-        pos[COEFF_DIM] = 2;
-        md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE); 
-        md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 1.5);
-        md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE); 	
+		pos[COEFF_DIM] = 2;
+		md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE);
+		md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 1.5);
+		md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE);
         
-//         pos[COEFF_DIM] = 1;
-//         md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE); 
-//         md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 0.0);
-//         md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE); 
+
 
 	}
 
@@ -229,7 +226,7 @@ int main_mdbT1(int argc, char* argv[])
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
 		
-        complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
+		complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
 		md_copy(DIMS, TI_dims, TI_gpu, TI, CFL_SIZE);
 
 		T1_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu);
@@ -243,7 +240,7 @@ int main_mdbT1(int argc, char* argv[])
 	if (normalize) {
 
 		md_zrss(DIMS, ksp_dims, COIL_FLAG, norm, sens);
-        md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, img_strs, norm);
+		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, img_strs, norm);
 	}
 
 	if (out_sens) {
