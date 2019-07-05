@@ -223,6 +223,8 @@ void iter4_irgnm2(const iter3_conf* _conf,
 
 	struct irgnm_s data2 = { { &TYPEID(irgnm_s) }, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy };
 
+	// one limitation is that we currently cannot warm start the inner solver
+
 	struct iter_op_p_s inv2 = { inverse2, CAST_UP(&data2) };
 
 	irgnm2(conf->iter, conf->alpha, conf->alpha_min, conf->redu, N, M, select_vecops(src),
