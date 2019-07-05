@@ -13,6 +13,7 @@
 #include "misc/debug.h"
 
 #include "num/iovec.h"
+#include "num/ops_p.h"
 #include "num/ops.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
