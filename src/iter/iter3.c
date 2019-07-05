@@ -41,5 +41,15 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 	.nlinv_legacy = false,
 };
 
+const struct iter3_landweber_conf iter3_landweber_defaults = {
+
+	.INTERFACE.TYPEID = &TYPEID2(iter3_landweber_conf),
+
+	.iter = 8,
+	.alpha = 1.,
+	.epsilon = 0.1,
+};
+
+
 
 
