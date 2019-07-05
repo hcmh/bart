@@ -116,6 +116,15 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
 	struct iter_op_s callback,
 	struct iter_monitor_s* monitor);
 
+void irgnm2(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_s der,
+	struct iter_op_p_s lsqr,
+	float* x, const float* xref, const float* y,
+	struct iter_op_s callback,
+	struct iter_monitor_s* monitor);
+
 void altmin(unsigned int iter, float alpha, float redu,
 	long N,
 	const struct vec_iter_s* vops,

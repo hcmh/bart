@@ -525,6 +525,62 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
 }
 
 
+
+/**
+ * Iteratively Regularized Gauss-Newton Method
+ * (Bakushinsky 1993)
+ *
+ * y = F(x) = F xn + DF dx + ...
+ *
+ * IRGNM: DF^H ((y - F xn) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
+ *        DF^H ((y - F xn)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
+ */
+void irgnm2(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_s der,
+	struct iter_op_p_s lsqr,
+	float* x, const float* xref, const float* y,
+	struct iter_op_s callback,
+	struct iter_monitor_s* monitor)
+{
+	float* r = vops->allocate(M);
+	float* q = vops->allocate(M);
+
+	for (unsigned int i = 0; i < iter; i++) {
+
+		iter_monitor(monitor, vops, x);
+
+		iter_op_call(op, r, x);			// r = F x
+
+		vops->xpay(M, -1., r, y);	// r = y - F x
+
+		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
+
+		if (NULL != xref)
+			vops->axpy(N, x, -1., xref);
+
+		iter_op_call(der, q, x);
+
+		vops->axpy(M, r, +1., q);
+
+		iter_op_p_call(lsqr, alpha, x, r);
+
+		if (NULL != xref)
+			vops->axpy(N, x, +1., xref);
+
+		alpha = (alpha - alpha_min) / redu + alpha_min;
+
+		if (NULL != callback.fun)
+			iter_op_call(callback, x, x);
+	}
+
+	vops->del(q);
+	vops->del(r);
+}
+
+
+
 /**
  * Alternating Minimzation
  *
