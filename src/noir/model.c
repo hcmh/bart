@@ -1,10 +1,10 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2017-2018. Martin Uecker.
+ * Copyright 2017-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2011-2018 Martin Uecker
+ * 2011-2019 Martin Uecker
  *
  *
  * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized nonlinear
@@ -162,23 +162,26 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	const struct linop_s* wghts = linop_cdiag_create(DIMS, data->coil_dims, FFT_FLAGS, data->wghts);
 	const struct linop_s* wghts_ifft = linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS);
 
+	data->weights = linop_chain(wghts, wghts_ifft);
 
-	data->weights = linop_chain(
-		wghts,
-		wghts_ifft);
 	linop_free(wghts);
 	linop_free(wghts_ifft);
 
 
 	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->data_dims, FFT_FLAGS);
-	if( dims[SLICE_DIM] != 1 ){ //SMS
+
+
+	if (1 != dims[SLICE_DIM]) { //SMS, FIXME: what about regular slices? (and should be moves elsewhere)
 
             const struct linop_s* tmp_fft = linop_fft_create_no_measure(DIMS, data->data_dims, SLICE_FLAG);
 	    const struct linop_s* tmp = lop_fft;
+
             lop_fft = linop_chain(lop_fft, tmp_fft);
+
             linop_free(tmp_fft);
 	    linop_free(tmp);
 	}
+
 
 	data->ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
 
@@ -197,7 +200,9 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	} else {
 
 		data->adj_ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
+
 		md_zfill(DIMS, ptrn_dims, data->adj_ptr , 1.);
+
 		fftmod(DIMS, ptrn_dims, conf->fft_flags, data->adj_ptr , data->adj_ptr );
 
 		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), data->adj_ptr);
