@@ -168,19 +168,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	linop_free(wghts_ifft);
 
 
-	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->data_dims, FFT_FLAGS);
-
-
-	if (1 != dims[SLICE_DIM]) { //SMS, FIXME: what about regular slices? (and should be moves elsewhere)
-
-            const struct linop_s* tmp_fft = linop_fft_create_no_measure(DIMS, data->data_dims, SLICE_FLAG);
-	    const struct linop_s* tmp = lop_fft;
-
-            lop_fft = linop_chain(lop_fft, tmp_fft);
-
-            linop_free(tmp_fft);
-	    linop_free(tmp);
-	}
+	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->data_dims, conf->fft_flags);
 
 
 	data->ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
@@ -188,7 +176,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	md_copy(DIMS, ptrn_dims, data->ptr, psf, CFL_SIZE);
 	fftmod(DIMS, ptrn_dims, conf->fft_flags, data->ptr, data->ptr);
     
-	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), data->ptr);
+	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|TE_FLAG), data->ptr);
 
 	const struct linop_s* lop_adj_pattern;
 
@@ -205,7 +193,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 		fftmod(DIMS, ptrn_dims, conf->fft_flags, data->adj_ptr , data->adj_ptr );
 
-		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|CSHIFT_FLAG|TE_FLAG), ~(conf->fft_flags|CSHIFT_FLAG|TE_FLAG), data->adj_ptr);
+		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|TE_FLAG), data->adj_ptr);
 	}
 
 	data->msk = my_alloc(DIMS, mask_dims, CFL_SIZE);
@@ -348,7 +336,7 @@ static void noir_der2(const nlop_data_t* _data, complex float* dst, const comple
 {
 	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
 
-	// noir_derA(_data, data->tmp, img);
+	noir_derA(_data, data->tmp, img);
 
 	complex float* tmp2 = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, img);
 
@@ -432,20 +420,20 @@ struct noir_s noir_create3(const long dims[DIMS], const complex float* mask, con
 
 	long idims[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, idims, dims);
-    
+
 	long odims[DIMS];
 	md_select_dims(DIMS, ~MAPS_FLAG, odims, dims);
-    
+
 	long cdims[DIMS];
 	md_select_dims(DIMS, ~TE_FLAG, cdims, dims);
-    
-    
+
+
 	long nl_odims[1][DIMS];
 	md_copy_dims(DIMS, nl_odims[0], odims);
 
 	long nl_ostr[1][DIMS];
 	md_calc_strides(DIMS, nl_ostr[0], odims, CFL_SIZE);
-	
+
 	long nl_idims[2][DIMS];
 	md_copy_dims(DIMS, nl_idims[0], idims);
 	md_copy_dims(DIMS, nl_idims[1], cdims);
@@ -453,7 +441,7 @@ struct noir_s noir_create3(const long dims[DIMS], const complex float* mask, con
 	long nl_istr[2][DIMS];
 	md_calc_strides(DIMS, nl_istr[0], idims, CFL_SIZE);
 	md_calc_strides(DIMS, nl_istr[1], cdims, CFL_SIZE);
-    
+
 	struct noir_s ret = { .linop = data->weights };
 
 	ret.nlop = nlop_generic_create2(1, DIMS, nl_odims, nl_ostr, 2, DIMS, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
