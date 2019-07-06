@@ -156,9 +156,9 @@ UT_REGISTER_TEST(test_iter_irgnm_lsqr);
 static bool test_iter_irgnm_l1(void)
 {
 	enum { N = 3 };
-	long dims[N] = { 4, 2, 2 };
+	long dims[N] = { 4, 2, 3 };
 	long dims1[N] = { 4, 2, 1 };
-	long dims2[N] = { 4, 2, 1 };
+	long dims2[N] = { 4, 2, 2 };
 
 	complex float* dst1 = md_alloc(N, dims, CFL_SIZE);
 	complex float* src1 = md_alloc(N, dims, CFL_SIZE);

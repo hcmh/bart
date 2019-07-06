@@ -1536,7 +1536,19 @@ static bool stack_compatible(unsigned int D, const struct iovec_s* a, const stru
 		if ((D != i) && ((a->dims[i] != b->dims[i] || (a->strs[i] != b->strs[i]))))
 			return false;
 
-	if ((1 != a->dims[D]) || (1 != b->dims[D]))
+	if ((1 != a->dims[D]) && (1 != b->dims[D]))
+		if (a->strs[D] != b->strs[D])
+			return false;
+
+	long dims[N];
+	md_select_dims(N, ~MD_BIT(D), dims, a->dims);
+
+	long S = md_calc_size(N, dims) * a->size;
+
+	if ((1 != a->dims[D]) && (S != a->strs[D]))
+		return false;
+
+	if ((1 != b->dims[D]) && (S != b->strs[D]))
 		return false;
 
 	return true;
@@ -1547,10 +1559,11 @@ static void stack_dims(unsigned int N, long dims[N], long strs[N], unsigned int 
 	md_copy_dims(N, dims, a->dims);
 	md_copy_strides(N, strs, a->strs);
 
-	UNUSED(b);
+	long dimsa[N];
+	md_select_dims(N, ~MD_BIT(D), dimsa, a->dims);
 
-	strs[D] = md_calc_size(N, a->dims) * a->size;
-	dims[D] = 2;
+	strs[D] = md_calc_size(N, dimsa) * a->size;
+	dims[D] = a->dims[D] + b->dims[D];
 }
 
 
