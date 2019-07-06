@@ -156,7 +156,9 @@ UT_REGISTER_TEST(test_iter_irgnm_lsqr);
 static bool test_iter_irgnm_l1(void)
 {
 	enum { N = 3 };
-	long dims[N] = { 4, 3, 2 };
+	long dims[N] = { 4, 2, 2 };
+	long dims1[N] = { 4, 2, 1 };
+	long dims2[N] = { 4, 2, 1 };
 
 	complex float* dst1 = md_alloc(N, dims, CFL_SIZE);
 	complex float* src1 = md_alloc(N, dims, CFL_SIZE);
@@ -180,7 +182,14 @@ static bool test_iter_irgnm_l1(void)
 	conf.maxiter = 10;
 
 	const struct linop_s* trafos[1] = { id };
-	const struct operator_p_s* prox_ops[1] = { prox_thresh_create(3, dims, 0.5, 0u) };
+
+	auto p1 = prox_thresh_create(3, dims1, 0.5, 0u);
+	auto p2 = prox_thresh_create(3, dims2, 0.5, 0u);
+
+	const struct operator_p_s* prox_ops[1] = { operator_p_stack(2, 2, p1, p2) };
+
+	operator_p_free(p1);
+	operator_p_free(p2);
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_fista, CAST_UP(&conf),

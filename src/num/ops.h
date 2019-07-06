@@ -57,7 +57,6 @@ extern const struct operator_s* operator_null_create2(unsigned int N, const long
 extern const struct operator_s* operator_chain(const struct operator_s* a, const struct operator_s* b);
 extern const struct operator_s* operator_chainN(unsigned int N, const struct operator_s* ops[__VLA(N)]);
 
-extern const struct operator_s* operator_chain_FF(const struct operator_s* a, const struct operator_s* b);
 
 //extern const struct operator_s* operator_mul(const struct operator_s* a, const struct operator_s* b);
 //extern const struct operator_s* operator_sum(const struct operator_s* a, const struct operator_s* b);
@@ -73,6 +72,9 @@ extern const struct operator_s* operator_attach(const struct operator_s* op, voi
 extern void operator_free(const struct operator_s* x);
 
 extern const struct operator_s* operator_ref(const struct operator_s* x);
+extern const struct operator_s* operator_unref(const struct operator_s* x);
+
+#define OP_PASS(x) (operator_unref(x))
 
 
 // apply functions

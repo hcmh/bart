@@ -166,6 +166,22 @@ const struct operator_s* operator_ref(const struct operator_s* x)
 
 
 /**
+ * Decrement the reference count of an operator
+ *
+ * @param x operator
+ */
+const struct operator_s* operator_unref(const struct operator_s* x)
+{
+	if (NULL != x)
+		shared_obj_unref(&x->sptr);
+
+	return x;
+}
+
+
+
+
+/**
  * Return the data of the associated operator
  *
  * @param x operator
@@ -455,13 +471,6 @@ const struct operator_s* operator_chain(const struct operator_s* a, const struct
 
 
 
-const struct operator_s* operator_chain_FF(const struct operator_s* a, const struct operator_s* b)
-{
-	const struct operator_s* x= operator_chain(a, b);
-	operator_free(a);
-	operator_free(b);
-	return x;
-}
 
 const struct operator_s* operator_chainN(unsigned int N, const struct operator_s* ops[N])
 {
@@ -470,7 +479,7 @@ const struct operator_s* operator_chainN(unsigned int N, const struct operator_s
 	const struct operator_s* s = operator_identity_create(ops[0]->domain[0]->N, ops[0]->domain[1]->dims);
 
 	for (unsigned int i = 0; i < N; i++)
-		s = operator_chain(s, ops[i]);
+		s = operator_chain(OP_PASS(s), ops[i]);
 
 	return s;
 }
@@ -1545,15 +1554,15 @@ static void stack_dims(unsigned int N, long dims[N], long strs[N], unsigned int 
 }
 
 
-const struct operator_s* operator_stack2(int M, const int args[M], const int dims[M], const struct operator_s* a, const struct operator_s* b)
+const struct operator_s* operator_stack2(int M, const int arg_list[M], const int dim_list[M], const struct operator_s* a, const struct operator_s* b)
 {
 	a = operator_ref(a);
 	b = operator_ref(b);
 
 	for (int m = 0; m < M; m++) {
 
-		int arg = args[m];
-		int dim = dims[m];
+		int arg = arg_list[m];
+		int dim = dim_list[m];
 
 		auto ia = operator_arg_domain(a, arg);
 		auto ib = operator_arg_domain(b, arg);
