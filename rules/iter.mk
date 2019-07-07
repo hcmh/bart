@@ -17,5 +17,5 @@ endif
 lib/libiter.a: libiter.a($(iterobjs))
 
 UTARGETS += test_iter
-MODULES_test_iter += -liter -lnlops -llinops
+MODULES_test_iter += -liter -lnlops -llinops -lwavelet
 
