@@ -313,10 +313,10 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 
 		iter_monitor(monitor, vops, x);
 
-		ls_old = lambda_scale; 
+		ls_old = lambda_scale;
 		lambda_scale = ist_continuation(&itrdata, continuation);
 		
-		if (lambda_scale != ls_old) 
+		if (lambda_scale != ls_old)
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
 		// normalize all the maps before joint wavelet denoising
@@ -413,7 +413,6 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor)
 {
-
 	struct iter_data itrdata = {
 
 		.rsnew = 1.,
@@ -435,16 +434,15 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 
 	int hogwild_k = 0;
 	int hogwild_K = 10;
-    
-    
+
 
 	for (itrdata.iter = 0; itrdata.iter < maxiter; itrdata.iter++) {
 
 		iter_monitor(monitor, vops, x);
 
-		ls_old = lambda_scale; 
+		ls_old = lambda_scale;
 		lambda_scale = ist_continuation(&itrdata, continuation);
-		
+
 		if (lambda_scale != ls_old) 
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
@@ -466,7 +464,7 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 
 		if (hogwild)
 			hogwild_k++;
-		
+
 		if (hogwild_k == hogwild_K) {
 
 			hogwild_K *= 2;
@@ -597,7 +595,7 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 		rsnew = pow(vops->norm(N, r), 2.);
 
 		float beta = rsnew / rsold;
-		
+
 		rsold = rsnew;
 
 		kappa = 1 + beta*kappa;
@@ -609,7 +607,6 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 	        if (rsnew <= eps_squared)
 			break;
 #endif
-
 		vops->xpay(N, beta, p, r);	// p = beta * p + r
 	}
 
@@ -656,20 +653,20 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
 	for (unsigned int i = 0; i < iter; i++) {
 
 //		printf("#--------\n");
-        
-        debug_printf(DP_DEBUG2, "Step: %u, Y: %f\n", i, vops->norm(M, y));
+
+		debug_printf(DP_DEBUG2, "Step: %u, Y: %f\n", i, vops->norm(M, y));
 		iter_monitor(monitor, vops, x);
 
 		iter_op_call(op, r, x);			// r = F x
-        debug_printf(DP_DEBUG2, "Step: %u, Forward: %f\n", i, vops->norm(M, r));
+		debug_printf(DP_DEBUG2, "Step: %u, Forward: %f\n", i, vops->norm(M, r));
 
 		vops->xpay(M, -1., r, y);	// r = y - F x
 
 		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
 
 		iter_op_call(adj, p, r);
-        
-        debug_printf(DP_DEBUG3, "#reg. alpha = %f\n", alpha);
+
+		debug_printf(DP_DEBUG3, "#reg. alpha = %f\n", alpha);
 
 		if (NULL != xref)
 			vops->axpy(N, p, +alpha, xref);
