@@ -101,6 +101,8 @@ extern operator_data_t* operator_get_data(const struct operator_s* op);
 
 extern const struct operator_s* operator_copy_wrapper(unsigned int N, const long* strs[N], const struct operator_s* op);
 
+
+extern const struct operator_s* operator_gpu_wrapper2(const struct operator_s* op, long move_flags);
 extern const struct operator_s* operator_gpu_wrapper(const struct operator_s* op);
 
 extern const struct operator_s* operator_loop2(unsigned int N, const unsigned int D,

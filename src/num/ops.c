@@ -936,6 +936,7 @@ struct gpu_data_s {
 
 	INTERFACE(operator_data_t);
 
+	long move_flags;
 	const struct operator_s* op;
 };
 
@@ -952,7 +953,8 @@ omp_lock_t gpulock[MAX_CUDA_DEVICES];
 static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 #if defined(USE_CUDA) && defined(_OPENMP)
-	const auto op = CAST_DOWN(gpu_data_s, _data)->op;
+	const auto data = CAST_DOWN(gpu_data_s, _data);
+	const auto op = data->op;
 	void* gpu_ptr[N];
 
 	assert(N == operator_nr_args(op));
@@ -965,6 +967,12 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
         cuda_init(gpun);
 
 	for (unsigned int i = 0; i < N; i++) {
+
+		if (!MD_IS_SET(data->move_flags, i)) {
+
+			gpu_ptr[i] = args[i];
+			continue;
+		}
 
 		const struct iovec_s* io = operator_arg_domain(op, i);
 
@@ -979,6 +987,9 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 	omp_unset_lock(&gpulock[gpun]);
 	
 	for (unsigned int i = 0; i < N; i++) {
+
+		if (!MD_IS_SET(data->move_flags, i))
+			continue;
 
 		const struct iovec_s* io = operator_arg_domain(op, i);
 
@@ -1005,7 +1016,7 @@ static void gpuwrp_del(const operator_data_t* _data)
 	xfree(data);
 }
 
-const struct operator_s* operator_gpu_wrapper(const struct operator_s* op)
+const struct operator_s* operator_gpu_wrapper2(const struct operator_s* op, long move_flags)
 {
 	unsigned int N = operator_nr_args(op);
 
@@ -1025,12 +1036,17 @@ const struct operator_s* operator_gpu_wrapper(const struct operator_s* op)
 	// op = operator_ref(op);
 	PTR_ALLOC(struct gpu_data_s, data);
 	SET_TYPEID(gpu_data_s, data);
+	data->move_flags = move_flags;
 	data->op = operator_ref(op);
 
 	return operator_generic_create2(N, op->io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), gpuwrp_fun, gpuwrp_del);
 }
 
 
+const struct operator_s* operator_gpu_wrapper(const struct operator_s* op)
+{
+	return operator_gpu_wrapper2(op, ~0L);
+}
 
 
 struct operator_combi_s {
