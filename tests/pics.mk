@@ -220,7 +220,7 @@ tests/test-pics-basis-noncart: traj scale phantom delta fmac ones repmat pics nu
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-pics-basis-noncart-memory: traj scale phantom delta fmac ones repmat pics nufft nrmse
+tests/test-pics-basis-noncart-memory: traj scale phantom delta fmac join ones repmat pics nufft nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
 	$(TOOLDIR)/traj -r -x256 -D -y31 traj.ra					;\
 	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra						;\

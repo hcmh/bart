@@ -48,8 +48,8 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 
 	.iter = 8,
 
-	.alpha = 0.1,
-	.alpha_min = 0.001,
+	.alpha = 1.,
+	.alpha_min = 0.,
 	.redu = 3.,
 
 	.cgiter = 100,

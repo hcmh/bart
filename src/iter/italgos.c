@@ -46,7 +46,7 @@
 
 #include "italgos.h"
 
-#define MPI_CGtol
+// #define MPI_CGtol
 // #define autoScaling
 
 extern inline void iter_op_call(struct iter_op_s op, float* dst, const float* src);
