@@ -133,7 +133,7 @@ static bool test_nlop_tenmul(void)
 	md_gaussian_rand(N, idims1, src1);
 	md_gaussian_rand(N, idims2, src2);
 
-	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2);
+	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2, false);
 
 	md_ztenmul(N, odims, dst1, idims1, src1, idims2, src2);
 
@@ -175,7 +175,7 @@ static bool test_nlop_tenmul_der(void)
 	md_gaussian_rand(N, idims1, src1);
 	md_gaussian_rand(N, idims2, src2);
 
-	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2);
+	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2, false);
 
 	nlop_generic_apply_unchecked(tenmul, 3, (void*[]){ dst1, src1, src2 });
 
@@ -246,7 +246,7 @@ static bool test_nlop_tenmul_der2(void)
 	long idims1[N] = { 1, 7, 3 };
 	long idims2[N] = { 10, 7, 1 };
 
-	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2);
+	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2, false);
 	struct nlop_s* flat = nlop_flatten(tenmul);
 
 	double err = nlop_test_derivative(flat);
@@ -285,7 +285,7 @@ static bool test_nlop_tenmul_der_adj(void)
 	long idims1[N] = { 1, 7, 3 };
 	long idims2[N] = { 10, 7, 1 };
 
-	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2);
+	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2, false);
 
 	struct nlop_s* flat = nlop_flatten(tenmul);
 
@@ -604,7 +604,7 @@ static bool test_nlop_T1fun(void)
 
 	md_zfill(N, in_dims, src, 1.0);
 
-	struct nlop_s* T1 = nlop_T1_create(N, map_dims, out_dims, in_dims, TI_dims, TI);
+	struct nlop_s* T1 = nlop_T1_create(N, map_dims, out_dims, in_dims, TI_dims, TI, false);
 
 	nlop_apply(T1, N, out_dims, dst, N, in_dims, src);
 	
