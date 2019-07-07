@@ -1,13 +1,13 @@
-/* Copyright 2013-2017. The Regents of the University of California.
+/* Copyright 2013-2018. The Regents of the University of California.
  * Copyright 2014. Joseph Y Cheng.
- * Copyright 2016-2017. Martin Uecker.
+ * Copyright 2016-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors: 
- * 2012-2017	Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2019	Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 	Joseph Y Cheng <jycheng@stanford.edu>
- * 2015,2017	Jonathan Tamir <jtamir@eecs.berkeley.edu>
+ * 2015-2018	Jon Tamir <jtamir@eecs.berkeley.edu>
  *
  * 
  * CUDA support functions. The file exports gpu_ops of type struct vec_ops
@@ -35,6 +35,7 @@
 
 #include "gpuops.h"
 
+#define MiBYTE (1024*1024)
 
 
 static void cuda_error(int line, cudaError_t code)
@@ -43,7 +44,26 @@ static void cuda_error(int line, cudaError_t code)
 	error("cuda error: %d %s \n", line, err_str);
 }
 
+
 #define CUDA_ERROR(x)	({ cudaError_t errval = (x); if (cudaSuccess != errval) cuda_error(__LINE__, errval); })
+
+// Print free and used memory on GPU.
+void print_cuda_meminfo(void)
+{
+    size_t byte_tot;
+    size_t byte_free;
+    cudaError_t cuda_status = cudaMemGetInfo(&byte_free, &byte_tot);
+
+    if (cuda_status != cudaSuccess)
+	    error("ERROR: cudaMemGetInfo failed. %s\n", cudaGetErrorString(cuda_status));
+
+
+    double dbyte_tot = (double)byte_tot;
+    double dbyte_free = (double)byte_free;
+    double dbyte_used = dbyte_tot - dbyte_free;
+
+    debug_printf(DP_INFO , "GPU memory usage: used = %.4f MiB, free = %.4f MiB, total = %.4f MiB\n", dbyte_used/MiBYTE, dbyte_free/MiBYTE, dbyte_tot/MiBYTE);
+}
 
 int cuda_devices(void)
 {
@@ -171,7 +191,7 @@ void cuda_memcache_clear(void)
 void cuda_exit(void)
 {
 	cuda_memcache_clear();
-	CUDA_ERROR(cudaThreadExit());
+	CUDA_ERROR(cudaDeviceReset());
 }
 
 #if 0
@@ -244,7 +264,7 @@ void* cuda_hostalloc(long N)
 {
 	void* ptr;
 	if (cudaSuccess != cudaHostAlloc(&ptr, N, cudaHostAllocDefault))
-		abort();
+	     error("abort");
 
 	insert(ptr, N, false);
 	return ptr;
@@ -300,7 +320,6 @@ static double cuda_asum(long size, const float* src)
 	return cublasSasum(size, src, 1);
 }
 
-
 static void cuda_saxpy(long size, float* y, float alpha, const float* src)
 {       
 //	printf("SAXPY %x %x %ld\n", y, src, size);
@@ -318,6 +337,7 @@ const struct vec_ops gpu_ops = {
 	.double2float = cuda_double2float,
 	.dot = cuda_sdot,
 	.asum = cuda_asum,
+	.zsum = cuda_zsum,
 	.zl1norm = NULL,
 
 	.add = cuda_add,
@@ -352,12 +372,16 @@ const struct vec_ops gpu_ops = {
 	.zexpj = cuda_zexpj,
 	.zexp = cuda_zexp,
 	.zarg = cuda_zarg,
-    .zabs = cuda_zabs,
+	.zabs = cuda_zabs,
 
 	.zcmp = cuda_zcmp,
 	.zdiv_reg = cuda_zdiv_reg,
 	.zfftmod = cuda_zfftmod,
 
+	.zmax = cuda_zmax,
+	.zle = cuda_zle,
+
+	.smax = cuda_smax,
 	.max = cuda_max,
 	.min = cuda_min,
 
@@ -388,8 +412,9 @@ struct vec_iter_s {
 	void (*xpay)(long N, float alpha, float* a, const float* x);
 	void (*axpy)(long N, float* a, float alpha, const float* x);
 	void (*axpbz)(long N, float* out, const float a, const float* x, const float b, const float* z);
-    void (*zmul)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2);
-    void (*zsmax)(long N, complex float alpha, complex float* dst, const complex float* src);
+
+	void (*zmul)(long N, complex float* dst, const complex float* src1, const complex float* src2);
+	void (*zsmax)(long N, complex float alpha, complex float* dst, const complex float* src);
 };
 
 extern const struct vec_iter_s gpu_iter_ops;
@@ -408,8 +433,8 @@ const struct vec_iter_s gpu_iter_ops = {
 	.add = cuda_add,
 	.sub = cuda_sub,
 	.swap = cuda_swap,
-    .zmul = cuda_zmul,
-    .zsmax = cuda_zsmax,
+	.zmul = cuda_zmul,
+	.zsmax = cuda_zsmax,
 };
 
 

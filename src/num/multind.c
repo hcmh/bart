@@ -57,7 +57,7 @@ void md_nary(unsigned int C, unsigned int D, const long dim[D], const long* str[
 {
 	if (0 == D) {
 
-		fun(ptr);
+		NESTED_CALL(fun, (ptr));
 		return;
 	}
 
@@ -149,7 +149,7 @@ static void md_parallel_loop_r(unsigned int D, unsigned int N, const long dim[st
 {
 	if (0 == D) {
 
-		fun(pos);
+		NESTED_CALL(fun, (pos));
 		return;
 	}
 
@@ -189,7 +189,7 @@ static void md_loop_r(unsigned int D, const long dim[D], long pos[D], md_loop_fu
 {
 	if (0 == D) {
 
-		fun(pos);
+		NESTED_CALL(fun, (pos));
 		return;
 	}
 
@@ -648,11 +648,7 @@ void md_copy2(unsigned int D, const long dim[D], const long ostr[D], void* optr,
 	int skip = min_blockdim(2, ND, tdims, nstr2, sizes);
 
 
-	if (use_gpu && (ND - skip == 1)) { 
-		// FIXME: the test was > 0 which would optimize transpose
-		// but failes in the second cuda_memcpy_strided call
-		// probably because of alignment restrictions
-		const long* nstr[2] = { *nstr2[0] + skip, *nstr2[1] + skip };
+	if (use_gpu && (ND - skip > 0)) {
 
 		void* nptr[2] = { optr, (void*)iptr };
 
@@ -661,6 +657,8 @@ void md_copy2(unsigned int D, const long dim[D], const long ostr[D], void* optr,
 		long istr2 = (*nstr2[1])[skip];
 
 		skip++;
+
+		const long* nstr[2] = { *nstr2[0] + skip, *nstr2[1] + skip };
 
 		long* sizesp = sizes; // because of clang
 
@@ -1322,9 +1320,10 @@ static void md_septrafo_r(unsigned int D, unsigned int R, long dimensions[D], un
                 void* nptr[1] = { ptr };
                 const long* nstrides[1] = { strides };
 
-                dimensions[R] = 1;      // we made a copy in md_septrafo2
 		long dimsR = dimensions[R];
 		long strsR = strides[R]; // because of clang
+
+                dimensions[R] = 1;      // we made a copy in md_septrafo2
 
 		NESTED(void, nary_septrafo, (void* ptr[]))
 		{

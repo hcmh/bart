@@ -1,9 +1,10 @@
 /* Copyright 2014. The Regents of the University of California.
+ * Copyright 2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2014	Martin Uecker <uecker@eecs.berkeley.edu>
+ * 2012-2019	Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2013		Dara Bahri <dbahri123@gmail.com>
  *
  *
@@ -152,6 +153,17 @@ void align_ro(const long dims[DIMS], complex float* odata, const complex float* 
 }
 
 
+void cc_align1(const long dims[DIMS], complex float* out, const complex float* in1, const complex float* in2)
+{
+	assert(md_check_dimensions(DIMS, dims, COIL_FLAG|MAPS_FLAG));
+
+	align1(dims[MAPS_DIM], dims[COIL_DIM],
+				MD_CAST_ARRAY2(      complex float, DIMS, dims, out, COIL_DIM, MAPS_DIM),
+				MD_CAST_ARRAY2(const complex float, DIMS, dims, in1, COIL_DIM, MAPS_DIM),
+				MD_CAST_ARRAY2(const complex float, DIMS, dims, in2, COIL_DIM, MAPS_DIM));
+}
+
+
 void gcc(const long out_dims[DIMS], complex float* out_data, const long caldims[DIMS], const complex float* cal_data)
 {
 	int ro = out_dims[READ_DIM];
@@ -191,6 +203,8 @@ void gcc(const long out_dims[DIMS], complex float* out_data, const long caldims[
 		md_free(out2);
 		md_free(tmp2);
 	}
+
+	md_free(tmp);
 }
 
 

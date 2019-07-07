@@ -1,10 +1,10 @@
 /* Copyright 2014. The Regents of the University of California.
- * Copyright 2015-2016. Martin Uecker.
+ * Copyright 2015-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors: 
- * 2014-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2014-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 #include <sys/types.h>
@@ -28,17 +28,24 @@
 
 
 /* Information about twix files can be found here:
- * (Matlab code by Philipp Ehses and others)
+ * (Matlab code by Philipp Ehses and others, Yarra by Tobias Block)
  * https://github.com/cjohnevans/Gannet2.0/blob/master/mapVBVD.m
+ * https://bitbucket.org/yarra-dev/yarramodules-setdcmtags/src/
  */ 
 struct hdr_s {
 
 	uint32_t offset;
 	uint32_t nscans;
+};
+
+struct entry_s {
+
 	uint32_t measid;
 	uint32_t fileid;
-	uint64_t datoff;
-//	uint64_t length;
+	uint64_t offset;
+	uint64_t length;
+        char patient[64];
+        char protocol[64];
 };
 
 static void xread(int fd, void* buf, size_t size)
@@ -61,18 +68,27 @@ static bool siemens_meas_setup(int fd, struct hdr_s* hdr)
 	xread(fd, hdr, sizeof(struct hdr_s));
 
 	// check for VD version
-	bool vd = ((hdr->offset < 10000) && (hdr->nscans < 64));
+	bool vd = ((0 == hdr->offset) && (hdr->nscans < 64));
 
 	if (vd) {
 	
+		assert((0 < hdr->nscans) && (hdr->nscans < 30));
+
+		struct entry_s entries[hdr->nscans];
+		xread(fd, &entries, sizeof(entries));
+
+		int n = hdr->nscans - 1;
+
 		debug_printf(DP_INFO, "VD Header. MeasID: %d FileID: %d Scans: %d\n",
-					hdr->measid, hdr->fileid, hdr->nscans);
+					entries[n].measid, entries[n].fileid, hdr->nscans);
 
-		start += hdr->datoff;
+		debug_printf(DP_INFO, "Patient: %.64s\nProtocol: %.64s\n", entries[n].patient, entries[n].protocol);
 
-		xseek(fd, start);
+
+		start = entries[n].offset;
 
 		// reread offset
+		xseek(fd, start);
 		xread(fd, &hdr->offset, sizeof(hdr->offset));
 
 	} else {
@@ -134,7 +150,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 		if (0 == max[READ_DIM]) {
 
 			max[READ_DIM] = mdh.samples;
-			max[COIL_DIM] = mdh.channels;
+			//max[COIL_DIM] = mdh.channels;
 		}
 
 		if ((mdh.evalinfo[0] & (1 << 5))
@@ -155,6 +171,14 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 				error("seeking");
 
 			return 0;
+
+		} else if (max[READ_DIM] != mdh.samples) {
+
+			return -1;
+
+		} else {
+
+			max[COIL_DIM] = mdh.channels;
 		}
 
 		if (max[COIL_DIM] != mdh.channels)
@@ -168,8 +192,8 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 		pos[COEFF_DIM]	= mdh.sLC[5];
 		pos[TIME_DIM]	= mdh.sLC[6];
 		pos[TIME2_DIM]	= mdh.sLC[7];
-        pos[LEVEL_DIM]	= mdh.sLC[8];
-        
+		pos[LEVEL_DIM]	= mdh.sLC[8];
+
 		for (unsigned int i = 0; i < DIMS; i++) {
 
 			max[i] = MAX(max[i], pos[i] + 1);
@@ -178,6 +202,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 
 		size = mdh.samples * CFL_SIZE;
 		char buf[size];
+
 		if (size != (size_t)read(fd, buf, size))
 			return -1;
 	}
@@ -186,10 +211,17 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 }
 
 
-static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const long dims[DIMS], long pos[DIMS], complex float* buf)
+static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const long dims[DIMS], long pos[DIMS], complex float* buf, uint32_t* buf_pmu)
 {
 	char scan_hdr[vd ? 192 : 0];
+
 	xread(fd, scan_hdr, sizeof(scan_hdr));
+
+	struct mdh1 mdh_1;
+	memcpy(&mdh_1, scan_hdr, sizeof(mdh_1));
+	*buf_pmu = mdh_1.pmutime;
+	//debug_printf(DP_DEBUG1, "PMUtimestamp: %lu\n", mdh_1.pmutime);
+
 
 	for (pos[COIL_DIM] = 0; pos[COIL_DIM] < dims[COIL_DIM]; pos[COIL_DIM]++) {
 
@@ -200,7 +232,7 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 		memcpy(&mdh, vd ? (scan_hdr + 40) : (chan_hdr + 20), sizeof(mdh));
 
 		if ((mdh.evalinfo[0] & (1 << 5))
-			|| (dims[READ_DIM] != mdh.samples)) {
+			|| ( (dims[READ_DIM] != mdh.samples) && 0 ) ) {
 
 //			debug_printf(DP_WARN, "SYNC\n");
 
@@ -231,7 +263,7 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 			pos[COEFF_DIM]	= mdh.sLC[5];
 			pos[TIME_DIM]	= mdh.sLC[6];
 			pos[TIME2_DIM]	= mdh.sLC[7];
-            pos[LEVEL_DIM]	= mdh.sLC[8];
+			pos[LEVEL_DIM]	= mdh.sLC[8];
 		}
 
 		debug_print_dims(DP_DEBUG4, DIMS, pos);
@@ -258,7 +290,7 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 
 
 
-static const char usage_str[] = "<dat file> <output>";
+static const char usage_str[] = "<dat file> <output> [<pmu>]";
 //	fprintf(fd, "Usage: %s [...] [-a A] <dat file> <output>\n", name);
 
 static const char help_str[] = "Read data from Siemens twix (.dat) files.";
@@ -267,11 +299,13 @@ static const char help_str[] = "Read data from Siemens twix (.dat) files.";
 int main_twixread(int argc, char* argv[argc])
 {
 	long adcs = 0;
+	long radial_lines = -1;
 
 	bool autoc = false;
 	bool linectr = false;
 	bool partctr = false;
 	bool mpi = false;
+	bool out_pmu = false;
 
 	long dims[DIMS];
 	md_singleton_dims(DIMS, dims);
@@ -279,6 +313,7 @@ int main_twixread(int argc, char* argv[argc])
 	struct opt_s opts[] = {
 
 		OPT_LONG('x', &(dims[READ_DIM]), "X", "number of samples (read-out)"),
+		OPT_LONG('r', &radial_lines, "R", "radial lines"),
 		OPT_LONG('y', &(dims[PHS1_DIM]), "Y", "phase encoding steps"),
 		OPT_LONG('z', &(dims[PHS2_DIM]), "Z", "partition encoding steps"),
 		OPT_LONG('s', &(dims[SLICE_DIM]), "S", "number of slices"),
@@ -295,8 +330,10 @@ int main_twixread(int argc, char* argv[argc])
 		OPT_SET('M', &mpi, "MPI mode"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
+	if (-1 != radial_lines)
+		dims[PHS1_DIM] = radial_lines;
 
 	if (0 == adcs)
 		adcs = dims[PHS1_DIM] * dims[PHS2_DIM] * dims[SLICE_DIM] * dims[TIME_DIM];
@@ -345,9 +382,33 @@ int main_twixread(int argc, char* argv[argc])
 		siemens_meas_setup(ifd, &hdr); // reset
 	}
 
+	long odims[DIMS];
+	md_copy_dims(DIMS, odims, dims);
 
-	complex float* out = create_cfl(argv[2], DIMS, dims);
-	md_clear(DIMS, dims, out, CFL_SIZE);
+	if (-1 != radial_lines) {
+
+		// change output dims (must have identical layout!)
+		odims[0] = 1;
+		odims[1] = dims[0];
+		odims[2] = dims[1];
+		assert(1 == dims[2]);
+	}
+
+	complex float* out = create_cfl(argv[2], DIMS, odims);
+	md_clear(DIMS, odims, out, CFL_SIZE);
+
+	long pmu_dims[DIMS];
+	md_select_dims(DIMS, ~(READ_FLAG|COIL_FLAG), pmu_dims, dims);
+
+	complex float* pmu;
+
+	if (argc == 4) {
+
+		out_pmu = true;
+
+		pmu = create_cfl(argv[3], DIMS, pmu_dims);
+		md_clear(DIMS, pmu_dims, pmu, CFL_SIZE);
+	}
 
 
 	long adc_dims[DIMS];
@@ -356,13 +417,21 @@ int main_twixread(int argc, char* argv[argc])
 
 	void* buf = md_alloc(DIMS, adc_dims, CFL_SIZE);
 
+	uint32_t buf_pmu;
+	complex float* val_pmu;
+	long val_pmu_dims[DIMS] = { [0 ... DIMS - 1] = 1};
+
+	if (out_pmu)
+		val_pmu = md_alloc(DIMS, val_pmu_dims, CFL_SIZE);
+
+
 	long mpi_slice = -1;
 
 	while (adcs--) {
 
 		long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
 
-		if (-1 == siemens_adc_read(vd, ifd, linectr, partctr, dims, pos, buf)) {
+		if (-1 == siemens_adc_read(vd, ifd, linectr, partctr, dims, pos, buf, &buf_pmu)) {
 
 			debug_printf(DP_WARN, "Stopping.\n");
 			break;
@@ -390,10 +459,26 @@ int main_twixread(int argc, char* argv[argc])
 		}
 
 		md_copy_block(DIMS, pos, dims, out, adc_dims, buf, CFL_SIZE); 
+
+		if (out_pmu) {
+
+			*val_pmu = (complex float) buf_pmu + 0 * 1i;
+
+			//debug_printf(DP_INFO, "val_pmu: %f\n", creal(*val_pmu));
+			md_copy_block(DIMS, pos, pmu_dims, pmu, val_pmu_dims, val_pmu, CFL_SIZE);
+		}
+
 	}
 
 	md_free(buf);
 	unmap_cfl(DIMS, dims, out);
-	exit(0);
+
+	if (out_pmu) {
+
+		unmap_cfl(DIMS, pmu_dims, pmu);
+		md_free(val_pmu);
+	}
+
+	return 0;
 }
 

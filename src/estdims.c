@@ -6,7 +6,6 @@
  * 2015 Frank Ong <frankong@berkeley.edu>
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <complex.h>
@@ -18,8 +17,11 @@
 #include "misc/mmio.h"
 #include "misc/io.h"
 #include "misc/misc.h"
+
 #include "noncart/nufft.h"
 
+
+#define FFT_DIMS (MD_BIT(0)|MD_BIT(1)|MD_BIT(2))
 
 static const char usage_str[] = "<traj>";
 static const char help_str[] = "Estimate image dimension from non-Cartesian trajectory.\n"
@@ -41,11 +43,11 @@ int main_estdims(int argc, char* argv[])
 
 	long im_dims[N];
 	
-	estimate_im_dims(N, im_dims, traj_dims, traj);
+	estimate_im_dims(N, FFT_DIMS, im_dims, traj_dims, traj);
 
-	printf("%ld %ld %ld\n", im_dims[0], im_dims[1], im_dims[2]);
+	bart_printf("%ld %ld %ld\n", im_dims[0], im_dims[1], im_dims[2]);
 	
 	unmap_cfl(N, traj_dims, traj);
-	exit(0);
+	return 0;
 }
 

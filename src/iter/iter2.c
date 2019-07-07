@@ -1,12 +1,12 @@
 /* Copyright 2013-2018. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+ * Copyright 2016-2019. Martin Uecker.
  * Copyright 2017. University of Oxford.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors: 
- * 2012-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2014, 2017-2018 Jon Tamir <jtamir@eecs.berkeley.edu>
+ * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2014-2018 Jon Tamir <jtamir@eecs.berkeley.edu>
  * 2017 Sofia Dimoudi <sofia.dimoudi@cardiov.ox.ac.uk>
  */
 
@@ -23,6 +23,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
+#include "num/ops_p.h"
 #include "num/ops.h"
 
 #include "linops/linop.h"
@@ -39,13 +40,13 @@
 
 void operator_iter(iter_op_data* _data, float* dst, const float* src)
 {
-	struct iter_op_op* data = CAST_DOWN(iter_op_op, _data);
+	auto data = CAST_DOWN(iter_op_op, _data);
 	operator_apply_unchecked(data->op, (complex float*)dst, (const complex float*)src);
 }
 
 void operator_p_iter(iter_op_data* _data, float rho, float* dst, const float* src)
 {
-	struct iter_op_p_op* data = CAST_DOWN(iter_op_p_op, _data);
+	auto data = CAST_DOWN(iter_op_p_op, _data);
 	operator_p_apply_unchecked(data->op, rho, (complex float*)dst, (const complex float*)src);
 }
 
@@ -85,21 +86,20 @@ void iter2_conjgrad(iter_conf* _conf,
 		long size, float* image, const float* image_adj,
 		struct iter_monitor_s* monitor)
 {
-
 	assert(0 == D);
 	assert(NULL == prox_ops);
 	assert(NULL == ops);
 	assert(NULL == biases);
 	UNUSED(xupdate_op);
 
-	struct iter_conjgrad_conf* conf = CAST_DOWN(iter_conjgrad_conf, _conf);
+	auto conf = CAST_DOWN(iter_conjgrad_conf, _conf);
 
 	float eps = md_norm(1, MD_DIMS(size), image_adj);
 
 	if (checkeps(eps))
 		goto cleanup;
 
-	conjgrad(conf->maxiter, conf->l2lambda, eps * conf->tol, size, select_vecops(image_adj),
+	conjgrad(conf->maxiter, conf->INTERFACE.alpha * conf->l2lambda, eps * conf->tol, size, select_vecops(image_adj),
 			OPERATOR2ITOP(normaleq_op), image, image_adj, monitor);
 
 cleanup:
@@ -117,7 +117,6 @@ void iter2_ist(iter_conf* _conf,
 		long size, float* image, const float* image_adj,
 		struct iter_monitor_s* monitor)
 {
-
 	assert(D == 1);
 	assert(NULL != prox_ops[0]);
 	assert(NULL == biases);
@@ -128,7 +127,7 @@ void iter2_ist(iter_conf* _conf,
 #endif
 	UNUSED(xupdate_op);
 
-	struct iter_ist_conf* conf = CAST_DOWN(iter_ist_conf, _conf);
+	auto conf = CAST_DOWN(iter_ist_conf, _conf);
 
 	float eps = md_norm(1, MD_DIMS(size), image_adj);
 
@@ -137,9 +136,8 @@ void iter2_ist(iter_conf* _conf,
 
 	assert((conf->continuation >= 0.) && (conf->continuation <= 1.));
 
-	ist(conf->maxiter, eps * conf->tol, conf->step, conf->continuation, conf->hogwild, size, select_vecops(image_adj),
+	ist(conf->maxiter, eps * conf->tol, conf->INTERFACE.alpha * conf->step, conf->continuation, conf->hogwild, size, select_vecops(image_adj),
 		OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
-
 
 cleanup:
 	;
@@ -156,7 +154,6 @@ void iter2_fista(iter_conf* _conf,
 		long size, float* image, const float* image_adj,
 		struct iter_monitor_s* monitor)
 {
-
 	assert(D == 1);
 	assert(NULL == biases);
 #if 0
@@ -166,7 +163,7 @@ void iter2_fista(iter_conf* _conf,
 #endif
 	UNUSED(xupdate_op);
 
-	struct iter_fista_conf* conf = CAST_DOWN(iter_fista_conf, _conf);
+	auto conf = CAST_DOWN(iter_fista_conf, _conf);
 
 	float eps = md_norm(1, MD_DIMS(size), image_adj);
 
@@ -175,7 +172,7 @@ void iter2_fista(iter_conf* _conf,
 
 	assert((conf->continuation >= 0.) && (conf->continuation <= 1.));
 
-	fista(conf->maxiter, eps * conf->tol, conf->step, conf->continuation, conf->hogwild, size, select_vecops(image_adj),
+	fista(conf->maxiter, eps * conf->tol, conf->INTERFACE.alpha * conf->step, conf->continuation, conf->hogwild, size, select_vecops(image_adj),
 		OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
 
 cleanup:
@@ -196,7 +193,6 @@ void iter2_chambolle_pock(iter_conf* _conf,
 		long size, float* image, const float* image_adj,
 		struct iter_monitor_s* monitor)
 {
-
 	assert(D == 2);
 	assert(NULL == biases);
 	assert(NULL == normaleq_op);
@@ -204,7 +200,7 @@ void iter2_chambolle_pock(iter_conf* _conf,
 	UNUSED(xupdate_op);
 	UNUSED(image_adj);
 
-	struct iter_chambolle_pock_conf* conf = CAST_DOWN(iter_chambolle_pock_conf, _conf);
+	auto conf = CAST_DOWN(iter_chambolle_pock_conf, _conf);
 
 	const struct iovec_s* iv = linop_domain(ops[1]);
 	const struct iovec_s* ov = linop_codomain(ops[1]);
@@ -221,7 +217,7 @@ void iter2_chambolle_pock(iter_conf* _conf,
 	float eps = 1.;
 #endif
 
-
+	// FIXME: conf->INTERFACE.alpha * c
 	chambolle_pock(conf->maxiter, eps * conf->tol, conf->tau, conf->sigma, conf->theta, conf->decay, 2 * md_calc_size(iv->N, iv->dims), 2 * md_calc_size(ov->N, ov->dims), select_vecops(image),
 			OPERATOR2ITOP(ops[1]->forward), OPERATOR2ITOP(ops[1]->adjoint), OPERATOR_P2ITOP(prox_ops[1]), OPERATOR_P2ITOP(prox_ops[0]), 
 			image, monitor);
@@ -242,7 +238,7 @@ void iter2_admm(iter_conf* _conf,
 		long size, float* image, const float* image_adj,
 		struct iter_monitor_s* monitor)
 {
-	struct iter_admm_conf* conf = CAST_DOWN(iter_admm_conf, _conf);
+	auto conf = CAST_DOWN(iter_admm_conf, _conf);
 
 	struct admm_plan_s admm_plan = {
 
@@ -258,7 +254,7 @@ void iter2_admm(iter_conf* _conf,
 		.hogwild = conf->hogwild,
 		.ABSTOL = conf->ABSTOL,
 		.RELTOL = conf->RELTOL,
-		.alpha = conf->alpha,
+		.alpha = conf->alpha * conf->INTERFACE.alpha,
 		.tau = conf->tau,
 		.tau_max = conf->tau_max,
 		.mu = conf->mu,
@@ -316,7 +312,7 @@ void iter2_pocs(iter_conf* _conf,
 		long size, float* image, const float* image_adj,
 		struct iter_monitor_s* monitor)
 {
-	struct iter_pocs_conf* conf = CAST_DOWN(iter_pocs_conf, _conf);
+	auto conf = CAST_DOWN(iter_pocs_conf, _conf);
 
 	assert(NULL == normaleq_op);
 	assert(NULL == ops);
@@ -350,7 +346,7 @@ void iter2_niht(iter_conf* _conf,
 
 	assert(D == 1);
 	
-	struct iter_niht_conf* conf = CAST_DOWN(iter_niht_conf, _conf);
+	auto conf = CAST_DOWN(iter_niht_conf, _conf);
   
 	struct niht_conf_s niht_conf = {
     
@@ -361,7 +357,9 @@ void iter2_niht(iter_conf* _conf,
 	};
 
 	struct niht_transop trans;
-	if (NULL != ops){
+
+	if (NULL != ops) {
+
 		trans.forward = OPERATOR2ITOP(ops[0]->forward);
 		trans.adjoint = OPERATOR2ITOP(ops[0]->adjoint);
 		trans.N = 2 * md_calc_size(linop_codomain(ops[0])->N, linop_codomain(ops[0])->dims);
@@ -397,7 +395,7 @@ void iter2_call_iter(iter_conf* _conf,
 
 	UNUSED(xupdate_op);
 
-	struct iter_call_s* it = CAST_DOWN(iter_call_s, _conf);
+	auto it = CAST_DOWN(iter_call_s, _conf);
 
 	it->fun(it->_conf, normaleq_op, (1 == D) ? prox_ops[0] : NULL,
 		size, image, image_adj, monitor);

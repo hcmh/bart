@@ -203,7 +203,7 @@ static bool opt_reg(void* ptr, char c, const char* optarg)
 		else if (strcmp(rt, "h") == 0) {
 
 			help_reg();
-			exit(0);
+			return 0;
 		}
 		else {
 
@@ -552,7 +552,7 @@ int main_sqpics(int argc, char* argv[])
 			int remove_mean = 0;
 
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
-			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, remove_mean);
+			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, remove_mean, false);
 			break;
        
 		case MLR:
@@ -567,7 +567,7 @@ int main_sqpics(int argc, char* argv[])
 				blkdims[l][MAPS_DIM] = 1;
 
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
-			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, 0);
+			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, 0, false);
 
 			const struct linop_s* decom_op = linop_sum_create(img_dims);
 			const struct linop_s* tmp_op = forward_op;
@@ -723,7 +723,7 @@ int main_sqpics(int argc, char* argv[])
 	double end_time = timestamp();
 
 	debug_printf(DP_INFO, "Total Time: %f\n", end_time - start_time);
-	exit(0);
+	return 0;
 }
 
 

@@ -23,11 +23,18 @@ struct vec_iter_s;
 typedef struct iter_op_data_s { TYPEID* TYPEID; } iter_op_data;
 #endif
 typedef void (*iter_op_fun_t)(iter_op_data* data, float* dst, const float* src);
+typedef void (*iter_nlop_fun_t)(iter_op_data* data, int N, float* args[N]);
 typedef void (*iter_op_p_fun_t)(iter_op_data* data, float rho, float* dst, const float* src);
 
 struct iter_op_s {
 
 	iter_op_fun_t fun;
+	iter_op_data* data;
+};
+
+struct iter_nlop_s {
+
+	iter_nlop_fun_t fun;
 	iter_op_data* data;
 };
 
@@ -40,6 +47,11 @@ struct iter_op_p_s {
 inline void iter_op_call(struct iter_op_s op, float* dst, const float* src)
 {
 	op.fun(op.data, dst, src);
+}
+
+inline void iter_nlop_call(struct iter_nlop_s op, int N, float* args[N])
+{
+	op.fun(op.data, N, args);
 }
 
 inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src)
@@ -55,7 +67,8 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 	long N,
 	const struct vec_iter_s* vops,
 	struct iter_op_s linop,
-	float* x, const float* b, struct iter_monitor_s* monitor);
+	float* x, const float* b,
+	struct iter_monitor_s* monitor);
 
 
 void landweber(unsigned int maxiter, float epsilon, float alpha,
@@ -64,6 +77,7 @@ void landweber(unsigned int maxiter, float epsilon, float alpha,
 	struct iter_op_s op,
 	struct iter_op_s adj,
 	float* x, const float* b,
+	struct iter_op_s callback,
 	struct iter_monitor_s* monitor);
 
 void landweber_sym(unsigned int maxiter, float epsilon, float alpha,	
@@ -102,14 +116,33 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	
 	
 
-void irgnm(unsigned int iter, float alpha, float redu,
+void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
 	long N, long M,
 	const struct vec_iter_s* vops,
 	struct iter_op_s op,
 	struct iter_op_s adj,
 	struct iter_op_p_s inv,
 	float* x, const float* x0, const float* y,
-	struct iter_op_s callback);
+	struct iter_op_s callback,
+	struct iter_monitor_s* monitor);
+
+void irgnm2(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_s der,
+	struct iter_op_p_s lsqr,
+	float* x, const float* xref, const float* y,
+	struct iter_op_s callback,
+	struct iter_monitor_s* monitor);
+
+void altmin(unsigned int iter, float alpha, float redu,
+	long N,
+	const struct vec_iter_s* vops,
+	unsigned int NI,
+	struct iter_nlop_s op,
+	struct iter_op_p_s min_ops[__VLA(NI)],
+	float* x[__VLA(NI)], const float* y,
+	struct iter_nlop_s callback);
 
 void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* dims,
 	const struct vec_iter_s* vops,

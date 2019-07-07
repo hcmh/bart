@@ -1,4 +1,4 @@
-/* Copyright 2017-2018. Martin Uecker.
+/* Copyright 2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
@@ -189,7 +189,7 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 			d2->sptr.del = sptr_linop_del;
 
 			(*der)[i][o] = linop_create2(ON, odims[o], ostr[o], IN, idims[i], istr[i],
-						CAST_UP(PTR_PASS(d2)), lop_der, lop_adj, lop_nrm, lop_nrm_inv, lop_del);
+						     CAST_UP(PTR_PASS(d2)), lop_der, lop_adj,  (NULL != normal) ? lop_nrm : NULL, (NULL != norm_inv) ? lop_nrm_inv : NULL, lop_del);
 		}
 	}
 
@@ -204,9 +204,9 @@ struct nlop_s* nlop_create2(unsigned int ON, const long odims[__VLA(ON)], const 
 				nlop_fun_t forward, nlop_fun_t deriv, nlop_fun_t adjoint, nlop_fun_t normal, nlop_p_fun_t norm_inv, nlop_del_fun_t del)
 {
 	struct nlop_s* op = nlop_generic_create2(1, ON, (const long(*)[])&odims[0], (const long(*)[])&ostrs[0], 1, IN, (const long(*)[])&idims[0], (const long(*)[])&istrs[0], data, NULL,
-					(nlop_fun_t[1][1]){ { deriv } }, (nlop_fun_t[1][1]){ { adjoint } }, (nlop_fun_t[1][1]){ { normal } }, (nlop_p_fun_t[1][1]){ { norm_inv } }, del);
+					(nlop_fun_t[1][1]){ { deriv } }, (nlop_fun_t[1][1]){ { adjoint } }, (NULL != normal) ? (nlop_fun_t[1][1]){ { normal } } : NULL, (NULL != norm_inv) ? (nlop_p_fun_t[1][1]){ { norm_inv } } : NULL, del);
 
-	struct nlop_op_data_s* data2 = CAST_DOWN(nlop_op_data_s, operator_get_data(op->op));
+	auto data2 = CAST_DOWN(nlop_op_data_s, operator_get_data(op->op));
 
 	data2->forward1 = forward;
 
@@ -270,7 +270,7 @@ const struct nlop_s* nlop_clone(const struct nlop_s* op)
 		for (int o = 0; o < OO; o++)
 			(*nder)[i][o] = linop_clone((*der)[i][o]);
 
-	n->derivative = *PTR_PASS(nder);
+	n->derivative = &(*PTR_PASS(nder))[0][0];
 	return PTR_PASS(n);
 }
 
@@ -278,7 +278,10 @@ const struct nlop_s* nlop_clone(const struct nlop_s* op)
 
 nlop_data_t* nlop_get_data(struct nlop_s* op)
 {
-	auto data2 = CAST_DOWN(nlop_op_data_s, operator_get_data(op->op));
+	auto data2 = CAST_MAYBE(nlop_op_data_s, operator_get_data(op->op));
+
+	if (NULL == data2)
+		return NULL;
 #if 1
 	auto data3 = CAST_DOWN(nlop_linop_data_s, linop_get_data(op->derivative[0]));
 	assert(data3->data == data2->data);
@@ -511,7 +514,7 @@ struct nlop_s* nlop_flatten(const struct nlop_s* op)
 }
 
 
-struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
+const struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
 {
 	auto data = CAST_MAYBE(flatten_s, nlop_get_data(op));
 

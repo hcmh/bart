@@ -1,10 +1,10 @@
 /* Copyright 2015-2017. The Regents of the University of California.
- * Copyright 2015-2016. Martin Uecker.
+ * Copyright 2015-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2015-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2015-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2015-2016 Frank Ong <frankong@berkeley.edu>
  * 2015-2017 Jon Tamir <jtamir@eecs.berkeley.edu>
  *
@@ -18,6 +18,7 @@
 
 #include "num/multind.h"
 #include "num/iovec.h"
+#include "num/ops_p.h"
 #include "num/ops.h"
 
 #include "iter/prox.h"
@@ -57,6 +58,7 @@ void help_reg(void)
 		        "-R N:A:B:C\tNormalized Iterative Hard Thresholding (NIHT), image domain\n"
 		        "\t\tC is an integer percentage, i.e. from 0-100\n"
 		        "-R H:A:B:C\tNIHT, wavelet domain\n"
+			"-R F:A:B:C\tl1-Fourier\n"
 			"-R T:A:B:C\ttotal variation\n"
 			"-R T:7:0:.01\t3D isotropic total variation with 0.01 regularization.\n"
 			"-R L:7:7:.02\tLocally low rank with spatial decimation and 0.02 regularization.\n"
@@ -98,14 +100,12 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			regs[r].xform = NIHTWAV;
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%d", &regs[r].xflags, &regs[r].jflags, &regs[r].k);
 			assert(3 == ret);
-			p->algo = NIHT;
 		}
 		else if (strcmp(rt, "N") == 0) {
 			
 			regs[r].xform = NIHTIM;
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%d", &regs[r].xflags, &regs[r].jflags, &regs[r].k);
 			assert(3 == ret);
-			p->algo = NIHT;
 		}
 		else if (strcmp(rt, "L") == 0) {
 
@@ -114,6 +114,8 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			assert(3 == ret);
 		}
 		else if (strcmp(rt, "M") == 0) {
+
+			// FIXME: here an explanation is missing
 
 			regs[r].xform = regs[0].xform;
 			regs[r].xflags = regs[0].xflags;
@@ -129,7 +131,6 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			regs[r].xform = TV;
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%f", &regs[r].xflags, &regs[r].jflags, &regs[r].lambda);
 			assert(3 == ret);
-			p->algo = ADMM;
 		}
 		else if (strcmp(rt, "P") == 0) {
 
@@ -143,7 +144,6 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			int ret = sscanf(optarg, "%*[^:]:%d:%f", &regs[r].jflags, &regs[r].lambda);
 			assert(2 == ret);
 			regs[r].xflags = 0u;
-			p->algo = ADMM;
 		}
 		else if (strcmp(rt, "R2") == 0) {
 
@@ -151,7 +151,6 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			int ret = sscanf(optarg, "%*[^:]:%d:%f", &regs[r].jflags, &regs[r].lambda);
 			assert(2 == ret);
 			regs[r].xflags = 0u;
-			p->algo = ADMM;
 		}
 		else if (strcmp(rt, "I") == 0) {
 
@@ -159,6 +158,13 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			int ret = sscanf(optarg, "%*[^:]:%d:%f", &regs[r].jflags, &regs[r].lambda);
 			assert(2 == ret);
 			regs[r].xflags = 0u;
+		}
+		else if (strcmp(rt, "S") == 0) {
+
+			regs[r].xform = POS;
+			regs[r].lambda = 0u;
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
 		}
 		else if (strcmp(rt, "Q") == 0) {
 
@@ -220,7 +226,6 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 bool opt_reg_init(struct opt_reg_s* ropts)
 {
 	ropts->r = 0;
-	ropts->algo = CG;
 	ropts->lambda = -1;
 	ropts->k = 0;
 
@@ -240,9 +245,11 @@ void opt_bpursuit_configure(struct opt_reg_s* ropts, const struct operator_p_s* 
 	ropts->r++;
 }
 
-void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int llr_blk, bool randshift, bool use_gpu)
+void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int llr_blk, unsigned int shift_mode, bool use_gpu)
 {
 	float lambda = ropts->lambda;
+	bool randshift = shift_mode == 1;
+	bool overlapping_blocks = shift_mode == 2;
 
 	if (-1. == lambda)
 		lambda = 0.;
@@ -308,7 +315,7 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 			debug_printf(DP_INFO, "NIHT with wavelets regularization: k = %d%% of total elements in each wavelet transform\n", regs[nr].k);
 
 			if (use_gpu)
-				error("GPU operation is not currently implemented for NIHT.\nContinuing with CPU.\n");
+				error("GPU operation is not currently implemented for NIHT.\n");
 
 			long img_strs[N];
 			md_calc_strides(N, img_strs, img_dims, CFL_SIZE);
@@ -351,16 +358,15 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 		{
 			debug_printf(DP_INFO, "NIHT regularization in the image domain: k = %d%% of total elements in image vector\n", regs[nr].k);
 
-			if (use_gpu){
-
-				error("GPU operation is not currently implemented for NIHT.\nContinuing with CPU.\n");
-			}
+			if (use_gpu)
+				error("GPU operation is not currently implemented for NIHT.\n");
 
 			long thresh_dims[N];
 			md_select_dims(N, regs[nr].xflags, thresh_dims, img_dims);		
 			unsigned int K = (md_calc_size(N, thresh_dims) / 100) * regs[nr].k;
 			debug_printf(DP_INFO, "k = %d%%, actual K = %d\n", regs[nr].k, K);
 
+			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			prox_ops[nr] = prox_niht_thresh_create(N, img_dims, K, regs[nr].jflags);
 			debug_printf(DP_INFO, "NIHTIM initialization complete\n");
 			break;
@@ -401,6 +407,10 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 
 			debug_printf(DP_INFO, "lowrank regularization: %f\n", regs[nr].lambda);
 
+			if (use_gpu)
+				error("GPU operation is not currently implemented for lowrank regularization.\n");
+
+
 			// add locally lowrank penalty
 			levels = llr_blkdims(blkdims, regs[nr].jflags, img_dims, llr_blk);
 
@@ -418,7 +428,7 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 			int remove_mean = 0;
 
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
-			prox_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, remove_mean);
+			prox_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, remove_mean, overlapping_blocks);
 			break;
 
 		case MLR:
@@ -445,7 +455,7 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 			linop_free(decom_op);
 			linop_free(tmp_op);
 #else
-			debug_printf(DP_WARN, "multi-scale lowrank regularization not yet supported: %f\n", regs[nr].lambda);
+			error("multi-scale lowrank regularization not supported.\n");
 #endif
 
 			break;
@@ -470,6 +480,14 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			prox_ops[nr] = prox_thresh_create(DIMS, img_dims, regs[nr].lambda, regs[nr].jflags);
 			break;
+
+		case POS:
+			debug_printf(DP_INFO, "non-negative constraint\n");
+
+			trafos[nr] = linop_identity_create(DIMS, img_dims);
+			prox_ops[nr] = prox_nonneg_create(DIMS, img_dims);
+			break;
+
 
 		case L2IMG:
 			debug_printf(DP_INFO, "l2 regularization: %f\n", regs[nr].lambda);
@@ -498,6 +516,5 @@ void opt_reg_free(struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[N
 
 		operator_p_free(prox_ops[nr]);
 		linop_free(trafos[nr]);
-
 	}
 }

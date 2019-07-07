@@ -22,7 +22,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
-#include "num/ops.h"
+#include "num/ops_p.h"
 #include "num/init.h"
 
 #include "linops/linop.h"
@@ -83,7 +83,7 @@ int main_rof(int argc, char* argv[])
 	
 	unmap_cfl(DIMS, dims, in_data);
 	unmap_cfl(DIMS, dims, out_data);
-	exit(0);
+	return 0;
 }
 
 

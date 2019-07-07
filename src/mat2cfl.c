@@ -1,6 +1,9 @@
 /*
  * Martin Uecker 2012-01-18
  * uecker@eecs.berkeley.edu
+ *
+ * Damien Nguyen 2018-04-19
+ * damien.nguyen@alumni.epfl.ch
  */
 
 #include <string.h>
@@ -33,12 +36,12 @@ int main(int argc, char *argv[])
 	if (argc != 2) {
 
 		fprintf(stderr, "Usage: %s file.mat\n", argv[0]);
-		exit(1);
+		return 1;
 	}
 
 
 	if (NULL == (mat = matOpen(argv[1], "r")))
-		exit(1);
+		return 1;
 
 	mxArray* ar;
 
@@ -70,13 +73,20 @@ int main(int argc, char *argv[])
 		snprintf(outname, 256, "%s_%s", strtok(argv[1], "."), name);
 
 		complex float* buf = create_cfl(outname, ndim, ldims);
+		size_t size = md_calc_size(ndim, ldims);
+
+#if MX_HAS_INTERLEAVED_COMPLEX
+		mxComplexDouble* x = mxGetComplexDoubles(ar);
+
+		for (unsigned long i = 0; i < size; i++) 
+			buf[i] = x[i].real + 1.i * x[i].imag;
+#else
 		double* re = mxGetPr(ar);
 		double* im = mxGetPi(ar);
 
-		size_t size = md_calc_size(ndim, ldims);
-
 		for (unsigned long i = 0; i < size; i++) 
 			buf[i] = re[i] + 1.i * im[i];
+#endif /* MX_HAS_INTERLEAVED_COMPLEX */
 
 		printf("] -> %s\n", outname);
 

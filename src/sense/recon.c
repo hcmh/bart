@@ -64,33 +64,6 @@ const struct sense_conf sense_defaults = {
 
 
 
-/**
- * Data structure for storing all relevant recon information
- *
- * @param pattern sampling mask
- * @param transfer_data optional data to be applied to transfer function
- * @param transfer optional transfer function to apply normal equations (e.g. weights)
- * @param sense_data data structure for holding sense information
- * @param tmp temporary storage in kspace domain
- * @param conf sense configuration
- * @param img_dims dimensions of image
- */
-struct data {
-
- 	// Optional function to apply normal equations:
-	//     For example, used for sampling mask, weights
-/*	const */ complex float* pattern;
-	  
-	const struct operator_s* sense_data;
-	complex float* tmp;
-	const complex float* kspace;
-
-	struct sense_conf* conf;
-
-	long img_dims[DIMS];
-	long ksp_dims[DIMS];
-	long pat_dims[DIMS];
-};
 
 
 void debug_print_sense_conf(int level, const struct sense_conf* conf)
@@ -114,7 +87,7 @@ static void real_from_complex_dims(unsigned int D, long odims[D + 1], const long
 
 
 
-const struct operator_s* sense_recon_create(const struct sense_conf* conf, const long dims[DIMS],
+const struct operator_p_s* sense_recon_create(const struct sense_conf* conf, const long dims[DIMS],
 		  const struct linop_s* sense_op,
 		  const long pat_dims[DIMS], const complex float* pattern,
 		  italgo_fun2_t italgo, iter_conf* iconf,
@@ -122,11 +95,12 @@ const struct operator_s* sense_recon_create(const struct sense_conf* conf, const
 		  unsigned int num_funs,
 		  const struct operator_p_s* thresh_op[num_funs],
 		  const struct linop_s* thresh_funs[num_funs],
-		  const struct operator_s* precond_op)
+		  const struct operator_s* precond_op,
+		  struct iter_monitor_s* monitor)
 {
 	struct lsqr_conf lsqr_conf = { conf->cclambda, conf->gpu };
 
-	const struct operator_s* op = NULL;
+	const struct operator_p_s* op = NULL;
 
 	assert(DIMS == linop_domain(sense_op)->N);
 
@@ -168,15 +142,19 @@ const struct operator_s* sense_recon_create(const struct sense_conf* conf, const
 
 		op = lad2_create(&lad_conf, italgo, iconf, (const float*)init, sense_op, num_funs, thresh_op, thresh_funs);
 
+		linop_free(sense_op);
+
 	} else
 	if (NULL == pattern) {
 
 		if (conf->bpsense)
 			op = lsqr2_create(&lsqr_conf, italgo, iconf, (const float*)init, NULL, NULL,
-					num_funs, thresh_op, thresh_funs, NULL);
+					num_funs, thresh_op, thresh_funs, monitor);
 		else
 			op = lsqr2_create(&lsqr_conf, italgo, iconf, (const float*)init, sense_op, precond_op,
-					num_funs, thresh_op, thresh_funs, NULL);
+					num_funs, thresh_op, thresh_funs, monitor);
+
+		linop_free(sense_op);
 
 	} else {
 
@@ -191,14 +169,13 @@ const struct operator_s* sense_recon_create(const struct sense_conf* conf, const
 		real_from_complex_dims(DIMS, dimsR, pat_dims);
 		md_sqrt(DIMS + 1, dimsR, (float*)weights, (const float*)pattern);
 #endif
-		// FIXME: weights is never freed
-
 		struct linop_s* weights_op = linop_cdiag_create(DIMS, ksp_dims, ~COIL_FLAG, weights);
+		md_free(weights);
 
 		op = wlsqr2_create(&lsqr_conf, italgo, iconf, (const float*)init,
 						sense_op, weights_op, precond_op,
 						num_funs, thresh_op, thresh_funs,
-						NULL);
+						monitor);
 	}
 
 	return op;

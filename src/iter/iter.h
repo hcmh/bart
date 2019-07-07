@@ -1,5 +1,5 @@
 /* Copyright 2013-2018. The Regents of the University of California.
- * Copyright 2016. Martin Uecker.
+ * Copyright 2016-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  */
@@ -14,7 +14,7 @@ struct operator_p_s;
 
 #ifndef ITER_CONF_S
 #define ITER_CONF_S
-typedef struct iter_conf_s { TYPEID* TYPEID; } iter_conf;
+typedef struct iter_conf_s { TYPEID* TYPEID; float alpha; } iter_conf;
 #endif
 
 struct iter_monitor_s;
@@ -38,7 +38,6 @@ struct iter_conjgrad_conf {
 	float tol;
 };
 
-extern DEF_TYPEID(iter_conjgrad_conf);
 
 
 struct iter_landweber_conf {
@@ -50,7 +49,6 @@ struct iter_landweber_conf {
 	float tol;
 };
 
-extern DEF_TYPEID(iter_landweber_conf);
 
 struct iter_ist_conf {
 
@@ -63,7 +61,6 @@ struct iter_ist_conf {
 	float tol;
 };
 
-extern DEF_TYPEID(iter_ist_conf);
 
 struct iter_fista_conf {
 
@@ -76,7 +73,6 @@ struct iter_fista_conf {
 	float tol;
 };
 
-extern DEF_TYPEID(iter_fista_conf);
 
 
 struct iter_chambolle_pock_conf {
@@ -92,7 +88,6 @@ struct iter_chambolle_pock_conf {
 	_Bool fast;
 };
 
-extern DEF_TYPEID(iter_chambolle_pock_conf);
 
 struct iter_admm_conf {
 
@@ -122,7 +117,6 @@ struct iter_admm_conf {
 	_Bool fast;
 };
 
-extern DEF_TYPEID(iter_admm_conf);
 
 
 struct iter_pocs_conf {
@@ -131,8 +125,6 @@ struct iter_pocs_conf {
 
 	unsigned int maxiter;
 };
-
-extern DEF_TYPEID(iter_pocs_conf);
 
 struct iter_niht_conf {
 
@@ -143,7 +135,6 @@ struct iter_niht_conf {
 	_Bool do_warmstart;
 };
 
-extern DEF_TYPEID(iter_niht_conf);
 
 extern const struct iter_conjgrad_conf iter_conjgrad_defaults;
 extern const struct iter_landweber_conf iter_landweber_defaults;
@@ -173,7 +164,6 @@ struct iter_call_s {
 	iter_conf* _conf;
 };
 
-extern DEF_TYPEID(iter_call_s);
 
 
 #endif

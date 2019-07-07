@@ -1,5 +1,5 @@
 /* Copyright 2013-2017. The Regents of the University of California.
- * Copyright 2016. Martin Uecker.
+ * Copyright 2016-2019. Martin Uecker.
  * Copyright 2017. University of Oxford.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
@@ -16,6 +16,7 @@ struct vec_ops {
 	void (*double2float)(long N, float* dst, const double* src);
 	double (*dot)(long N, const float* vec1, const float* vec2);
 	double (*asum)(long N, const float* vec);
+	void (*zsum)(long N, _Complex float* vec);
 	double (*zl1norm)(long N, const _Complex float* vec);
 
 	void (*axpy)(long N, float* a, float alpha, const float* x);
@@ -24,6 +25,7 @@ struct vec_ops {
 	void (*pow)(long N, float* dst, const float* src1, const float* src2);
 	void (*sqrt)(long N, float* dst, const float* src);
 
+	void (*zle)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2);
 	void (*le)(long N, float* dst, const float* src1, const float* src2);
 
 	void (*add)(long N, float* dst, const float* src1, const float* src2);
@@ -56,6 +58,10 @@ struct vec_ops {
 	void (*zdiv_reg)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2, _Complex float lambda);
 	void (*zfftmod)(long N, _Complex float* dst, const _Complex float* src, unsigned int n, _Bool inv, double phase);
 
+	void (*zmax)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2);
+	void (*zsmax)(long N, _Complex float alpha, _Complex float* dst, const _Complex float* src);
+
+	void (*smax)(long N, float* dst, const float* src1, const float val);
 	void (*max)(long N, float* dst, const float* src1, const float* src2);
 	void (*min)(long N, float* dst, const float* src1, const float* src2);
 
@@ -67,8 +73,6 @@ struct vec_ops {
 //	void (*swap)(long N, float* a, float* b);
 	void (*zhardthresh)(long N,  unsigned int k, _Complex float* d, const _Complex float* x);
 	void (*zhardthresh_mask)(long N,  unsigned int k, _Complex float* d, const _Complex float* x);
-
-    void (*zsmax)(long N, _Complex float alpha, _Complex float* dst, const _Complex float* src);
 };
 
 

@@ -15,6 +15,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/init.h"
+#include "num/ops_p.h"
 #include "num/ops.h"
 
 #include "linops/linop.h"
@@ -146,7 +147,7 @@ int main_lrmatrix(int argc, char* argv[])
 	// Get outdims
 	md_copy_dims(DIMS, odims, idims);
 	odims[LEVEL_DIM] = levels;
-	complex float* odata = create_cfl(argv[22], DIMS, odims);
+	complex float* odata = create_cfl(argv[2], DIMS, odims);
 	md_clear(DIMS, odims, odata, sizeof(complex float));
 
 	// Get pattern
@@ -184,7 +185,7 @@ int main_lrmatrix(int argc, char* argv[])
         }
 	
 	const struct operator_p_s* sum_prox = prox_lineq_create( sum_op, idata );
-	const struct operator_p_s* lr_prox = lrthresh_create(odims, randshift, mflags, (const long (*)[])blkdims, 1., noise, remove_mean);
+	const struct operator_p_s* lr_prox = lrthresh_create(odims, randshift, mflags, (const long (*)[])blkdims, 1., noise, remove_mean, false);
 
         assert(use_gpu == false);
 
@@ -246,6 +247,6 @@ int main_lrmatrix(int argc, char* argv[])
 
 	double end_time = timestamp();
 	debug_printf(DP_INFO, "Total Time: %f\n", end_time - start_time);
-	exit(0);
+	return 0;
 }
 

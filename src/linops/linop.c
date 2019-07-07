@@ -1,10 +1,10 @@
 /* Copyright 2014. The Regents of the University of California.
- * Copyright 2016-2018. Martin Uecker.
+ * Copyright 2016-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2014-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2014-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 Frank Ong <frankong@berkeley.edu>
  */
 
@@ -15,6 +15,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
+#include "num/ops_p.h"
 #include "num/ops.h"
 
 #include "misc/misc.h"
@@ -50,7 +51,7 @@ static DEF_TYPEID(shared_data_s);
 
 static void shared_del(const operator_data_t* _data)
 {
-	struct shared_data_s* data = CAST_DOWN(shared_data_s, _data);
+	auto data = CAST_DOWN(shared_data_s, _data);
 
 	shared_ptr_destroy(&data->sptr);
 	
@@ -59,7 +60,7 @@ static void shared_del(const operator_data_t* _data)
 
 static void shared_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-	struct shared_data_s* data = CAST_DOWN(shared_data_s, _data);
+	auto data = CAST_DOWN(shared_data_s, _data);
 
 	assert(2 == N);
 	debug_trace("ENTER %p\n", data->u.apply);
@@ -69,7 +70,7 @@ static void shared_apply(const operator_data_t* _data, unsigned int N, void* arg
 
 static void shared_apply_p(const operator_data_t* _data, float lambda, complex float* dst, const complex float* src)
 {
-	struct shared_data_s* data = CAST_DOWN(shared_data_s, _data);
+	auto data = CAST_DOWN(shared_data_s, _data);
 
 	debug_trace("ENTER %p\n", data->u.apply_p);
 	data->u.apply_p(data->data, lambda, dst, src);
@@ -79,7 +80,7 @@ static void shared_apply_p(const operator_data_t* _data, float lambda, complex f
 
 static void sptr_del(const struct shared_ptr_s* p)
 {
-	struct shared_data_s* data = CONTAINER_OF(p, struct shared_data_s, sptr);
+	auto data = CONTAINER_OF(p, struct shared_data_s, sptr);
 
 	data->del(data->data);
 }
@@ -186,7 +187,8 @@ struct linop_s* linop_create(unsigned int ON, const long odims[ON], unsigned int
  */
 const linop_data_t* linop_get_data(const struct linop_s* ptr)
 {
-	return ((struct shared_data_s*)operator_get_data(ptr->forward))->data;
+	auto sdata = CAST_MAYBE(shared_data_s, operator_get_data(ptr->forward));
+	return sdata == NULL ? NULL : sdata->data;
 }
 
 
@@ -399,6 +401,11 @@ struct linop_s* linop_null_create2(unsigned int N, const long odims[N], const lo
 
 
 
+struct linop_s* linop_null_create(unsigned int N, const long odims[N], const long idims[N])
+{
+	return linop_null_create2(N, odims, MD_STRIDES(N, odims, CFL_SIZE),
+					idims, MD_STRIDES(N, idims, CFL_SIZE));
+}
 
 
 /**
@@ -431,6 +438,17 @@ struct linop_s* linop_chain(const struct linop_s* a, const struct linop_s* b)
 }
 
 
+struct linop_s* linop_chain_FF(const struct linop_s* a, const struct linop_s* b)
+{
+	struct linop_s* x = linop_chain(a, b);
+
+	linop_free(a);
+	linop_free(b);
+
+	return x;
+}
+
+
 struct linop_s* linop_chainN(unsigned int N, struct linop_s* a[N])
 {
 	assert(N > 0);
@@ -438,8 +456,40 @@ struct linop_s* linop_chainN(unsigned int N, struct linop_s* a[N])
 	if (1 == N)
 		return a[0];
 
-	return linop_chain(a[0], linop_chainN(N - 1, a + 1));
+	return linop_chain(a[0], linop_chainN(N - 1, a + 1));	// FIXME: free intermed.
 }
+
+
+
+
+
+struct linop_s* linop_stack(int D, int E, const struct linop_s* a, const struct linop_s* b)
+{
+	PTR_ALLOC(struct linop_s, c);
+
+	c->forward = operator_stack(D, E, a->forward, b->forward);
+	c->adjoint = operator_stack(E, D, b->adjoint, a->adjoint);
+
+	const struct operator_s* an = a->normal;
+
+	if (NULL == an)
+		an = operator_chain(a->forward, a->adjoint);
+
+	const struct operator_s* bn = b->normal;
+
+	if (NULL == bn)
+		bn = operator_chain(b->forward, b->adjoint);
+
+	c->normal = operator_stack(D, D, an, bn);
+
+	c->norm_inv = NULL;
+
+	return PTR_PASS(c);
+}
+
+
+
+
 
 
 
@@ -462,6 +512,8 @@ struct linop_s* linop_loop(unsigned int D, const long dims[D], struct linop_s* o
  */
 void linop_free(const struct linop_s* op)
 {
+	if (NULL == op)
+		return;
 	operator_free(op->forward);
 	operator_free(op->adjoint);
 	operator_free(op->normal);
@@ -523,6 +575,16 @@ static void plus_free(const linop_data_t* _data)
 
 struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
 {
+#if 1
+	// detect null operations and just clone
+
+	if (operator_zero_or_null_p(a->forward))
+		return (struct linop_s*)linop_clone(b);
+
+	if (operator_zero_or_null_p(b->forward))
+		return (struct linop_s*)linop_clone(a);
+#endif
+
 	auto bdo = linop_domain(b);
 	assert(CFL_SIZE == bdo->size);
 	iovec_check(linop_domain(a), bdo->N, bdo->dims, bdo->strs);
@@ -533,8 +595,6 @@ struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
 
 	PTR_ALLOC(struct plus_data_s, data);
 	SET_TYPEID(plus_data_s, data);
-
-	// maybe detect null operations and just clone
 
 	data->a = linop_clone(a);
 	data->b = linop_clone(b);

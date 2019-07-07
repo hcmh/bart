@@ -46,7 +46,7 @@ int main_join(int argc, char* argv[])
 		OPT_SET('a', &append, "append - only works for cfl files!"),
 	};
 
-	cmdline(&argc, argv, 3, 1000, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 3, 10000, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -127,7 +127,7 @@ int main_join(int argc, char* argv[])
 
 	unmap_cfl(N, out_dims, out_data);
 
-	exit(0);
+	return 0;
 }
 
 

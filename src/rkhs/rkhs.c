@@ -40,6 +40,9 @@ void comp_cholesky(int NN, double alpha, complex float* aha)
 }
 
 
+static bool kb_init = false;
+static float kb_table128[129];
+
 complex float evaluate_kernel(int l, int k, const long dims[5], const complex float* kern, const float pos[3])
 {
 	long C = dims[3];
@@ -48,14 +51,23 @@ complex float evaluate_kernel(int l, int k, const long dims[5], const complex fl
 
 
 #ifdef RKHSGRID
+
+	float width = 3.; // see grid.c
+	int kb_size = 128;
+
+	#pragma omp critical
+	if (!kb_init) {
+
+		kb_precompute(calc_beta(2., width), kb_size, kb_table128);
+		kb_init = true;
+	}
+
 	float pos2[3];
 	for (int l = 0; l < 3; l++)
 		pos2[l] = ((float)dims[l] / 2.) + KERNEL_OVERSAMPLING * pos[l];
 
-	float width = 3.; // see grid.c
-	int kb_size = 128;
 	complex float val[C * C];
-	grid_pointH(C * C, dims, pos2, val, kern, width, kb_size, kb_table128);
+	grid_pointH(C * C, 3, dims, pos2, val, kern, width, kb_size, false, kb_table128);
 	return val[l * C + k]; // FIXME wasteful
 #else
 	long d[3] = { 0, 0, 0 };

@@ -1,10 +1,10 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2016. Martin Uecker.
+ * Copyright 2016-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  * 
  * Authors:
- * 2012, 2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 #include <stdlib.h>
@@ -19,44 +19,56 @@
 #include "na/io.h"
 
 #include "misc/misc.h"
+#include "misc/opts.h"
 
 
 
-static const char usage_str[] = "dimension position <input> <output>";
-static const char help_str[] = "Extracts a slice from {position} along {dimension}.\n";
+static const char usage_str[] = "dim1 pos1 ... dimn posn <input> <output>";
+static const char help_str[] = "Extracts a slice from positions along dimensions.\n";
 
 
 int main_slice(int argc, char* argv[])
 {
-	mini_cmdline(&argc, argv, 4, usage_str, help_str);
+	const struct opt_s opts[] = { };
+
+	cmdline(&argc, argv, 4, 1000, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
-	na in = na_load(argv[3]);
+	int count = argc - 3;
+	assert((count > 0) && (count % 2 == 0));
 
-	int dim = atoi(argv[1]);
-	int pos = atoi(argv[2]);
+	na in = na_load(argv[argc - 2]);
 
-	assert(dim >= 0);
-	assert(pos >= 0);
-	assert((unsigned int)dim < na_rank(in));
-	assert((unsigned int)pos < (*NA_DIMS(in))[dim]);
-
-	long posv[na_rank(in)];
+	long pos2[na_rank(in)];
 
 	for (unsigned int i = 0; i < na_rank(in); i++)
-		posv[i] = 0;
+		pos2[i] = 0;
 
-	posv[dim] = pos;
+	unsigned long flags = 0L;
 
-	na sl = na_slice(in, ~MD_BIT(dim), na_rank(in), &posv);
-	na out = na_create(argv[4], na_type(sl));
+	for (int i = 0; i < count; i += 2) {
+
+		int dim = atoi(argv[i + 1]);
+		int pos = atoi(argv[i + 2]);
+
+		assert(dim >= 0);
+		assert(pos >= 0);
+		assert(dim < (int)na_rank(in));
+		assert(pos < (*NA_DIMS(in))[dim]);
+
+		flags = MD_SET(flags, dim);
+		pos2[dim] = pos;
+	}
+
+	na sl = na_slice(in, ~flags, na_rank(in), &pos2);
+	na out = na_create(argv[argc - 1], na_type(sl));
 	na_copy(out, sl);
 
 	na_free(sl);
 	na_free(out);
 	na_free(in);
-	exit(0);
+	return 0;
 }
 
 

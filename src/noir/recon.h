@@ -16,13 +16,56 @@ struct noir_conf_s {
 	_Bool usegpu;
 	_Bool noncart;
 	float alpha;
+	float alpha_min;
 	float redu;
-    float alpha_min;
+	float a;
+	float b;
+	_Bool pattern_for_each_coil;
+	_Bool sms;
+};
+
+struct ds_s {
+
+	long dims_full[DIMS];
+	long dims_singleFrame[DIMS];
+	long dims_singlePart[DIMS];
+	long dims_singleFramePart[DIMS];
+	long dims_output[DIMS];
+	long dims_output_singleFrame[DIMS];
+
+
+	long strs_full[DIMS];
+	long strs_singleFrame[DIMS];
+	long strs_singlePart[DIMS];
+	long strs_singleFramePart[DIMS];
+	long strs_output[DIMS];
+	long strs_output_singleFrame[DIMS];
+
 };
 
 extern const struct noir_conf_s noir_defaults;
 
-extern void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], _Complex float* img, _Complex float* sens, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data);
+extern void noir_recon(const struct noir_conf_s* conf,
+		       const long dims[DIMS],
+		       _Complex float* img,
+		       _Complex float* sens,
+		       _Complex float* ksens,
+		       const _Complex float* ref,
+		       const _Complex float* pattern,
+		       const _Complex float* mask,
+		       const _Complex float* kspace_data);
+
+
+extern void ds_init(struct ds_s* dims, size_t size);
+
+extern void scale_psf_k(struct ds_s* pat_s,
+			_Complex float* pattern,
+			struct ds_s* k_s,
+			_Complex float* kspace_data,
+			struct ds_s* traj_s,
+			_Complex float* traj);
+
+extern void reduce_frames(const long reduced_frames, long src_dims[DIMS], _Complex float** src);
 
 #include "misc/cppwrap.h"
 

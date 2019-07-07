@@ -1,14 +1,14 @@
-/* Copyright 2013-2015 The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+/* Copyright 2013-2018 The Regents of the University of California.
+ * Copyright 2016-2019. Martin Uecker.
  * Copyright 2017. University of Oxford.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2013 Dara Bahri <dbahri123@gmail.com>
  * 2014 Frank Ong <frankong@berkeley.edu>
- * 2014-2015 Jonathan Tamir <jtamir@eecs.berkeley.edu>
+ * 2014-2018 Jonathan Tamir <jtamir@eecs.berkeley.edu>
  * 2016 Siddharth Iyer <sid8795@gmail.com>
  * 2017 Sofia Dimoudi <sofia.dimoudi@cardiov.ox.ac.uk>
  *
@@ -1017,12 +1017,12 @@ void md_zfloat2double(unsigned int D, const long dims[D], complex double* dst, c
  */
 void md_tenmul_dims(unsigned int D, long max_dims[D], const long out_dims[D], const long in1_dims[D], const long in2_dims[D])
 {
-	md_max_dims(D, ~0u, max_dims, in1_dims, out_dims);
+	md_max_dims(D, ~0lu, max_dims, in1_dims, out_dims);
 
 	long max2_dims[D];
-	md_max_dims(D, ~0u, max2_dims, in2_dims, out_dims);
+	md_max_dims(D, ~0lu, max2_dims, in2_dims, out_dims);
 
-	assert(md_check_compat(D, 0u, max_dims, max2_dims));
+	assert(md_check_compat(D, 0lu, max_dims, max2_dims));
 }
 
 
@@ -1054,6 +1054,9 @@ static bool simple_matmul(unsigned int N, const long max_dims[N], const long ost
 
 	long (*strs[3])[N] = { &ostrs2, &istrs2, &mstrs2 };
 	unsigned int ND = simplify_dims(3, N, dims, strs);
+
+	if (ND < 3)
+		return false;
 
 	long C = dims[0];
 	long B = dims[1];
@@ -1143,6 +1146,90 @@ void md_ztenmulc(unsigned int D, const long out_dims[D], complex float* out, con
 				  MD_STRIDES(D, in1_dims, CFL_SIZE), in1,
 				  MD_STRIDES(D, in2_dims, CFL_SIZE), in2);
 }
+
+
+static int calc_conv_geom(int N, unsigned long flags,
+			long mdims[2 * N], long ostrs2[2 * N], long kstrs2[2 * N], long istrs2[2 * N],
+			const long odims[N], const long ostrs[N],
+			const long kdims[N], const long kstrs[N],
+			const long idims[N], const long istrs[N])
+{
+	int shift = 0;
+
+	md_copy_strides(N, ostrs2, ostrs);
+	md_singleton_strides(N, ostrs2 + N);
+
+	md_copy_strides(N, kstrs2, kstrs);
+	md_singleton_strides(N, kstrs2 + N);
+
+	md_copy_strides(N, istrs2, istrs);
+	md_singleton_strides(N, istrs2 + N);
+
+	md_copy_dims(N, mdims, odims);
+	md_singleton_dims(N, mdims + N);
+
+	for (int i = 0; i < N; i++) {
+
+		if (MD_IS_SET(flags, i)) {
+
+			assert(odims[i] == idims[i] - kdims[i] + 1);
+
+			mdims[0 + i] = odims[i];
+			mdims[N + i] = kdims[i];
+
+			kstrs2[0 + i] = 0;
+			kstrs2[N + i] = -kstrs[i];
+
+			shift += (kdims[i] - 1) * kstrs[i];
+
+			istrs2[0 + i] = istrs[i];
+			istrs2[N + i] = istrs[i];
+
+		} else {
+
+			assert((1 == odims[i]) || (odims[i] == idims[i]) || (odims[i] == kdims[i]));
+			assert((1 == idims[i]) || (odims[i] == idims[i]) || (idims[i] == kdims[i]));
+			assert((1 == kdims[i]) || (kdims[i] == idims[i]) || (odims[i] == kdims[i]));
+		}
+	}
+
+	return shift;
+}
+
+
+void md_zconv2(int N, unsigned long flags,
+				const long odims[N], const long ostrs[N], complex float* out,
+				const long kdims[N], const long kstrs[N], const complex float* krn,
+				const long idims[N], const long istrs[N], const complex float* in)
+{
+	long mdims[2 * N];
+	long ostrs2[2 * N];
+	long kstrs2[2 * N];
+	long istrs2[2 * N];
+
+	krn += calc_conv_geom(N, flags, mdims, ostrs2, kstrs2, istrs2,
+			odims, ostrs, kdims, kstrs, idims, istrs) / CFL_SIZE;
+
+	md_ztenmul2(2 * N, mdims, ostrs2, out, kstrs2, krn, istrs2, in);
+}
+
+void md_zconv(int N, unsigned long flags,
+				const long odims[N], complex float* out,
+				const long kdims[N], const complex float* krn,
+				const long idims[N], const complex float* in)
+{
+	long ostrs[N];
+	md_calc_strides(N, ostrs, odims, CFL_SIZE);
+
+	long kstrs[N];
+	md_calc_strides(N, kstrs, kdims, CFL_SIZE);
+
+	long istrs[N];
+	md_calc_strides(N, istrs, idims, CFL_SIZE);
+
+	md_zconv2(N, flags, odims, ostrs, out, kdims, kstrs, krn, idims, istrs, in);
+}
+
 
 
 
@@ -1361,6 +1448,15 @@ void md_zfmaccD(unsigned int D, const long dims[D], complex double* optr, const 
  */
 void md_zaxpy2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, complex float val, const long istr[D], const complex float* iptr)
 {
+#ifdef USE_CUDA
+	// FIXME: faster on GPU
+	complex float* tmp = md_alloc_sameplace(D, dims, CFL_SIZE, optr);
+	md_zsmul2(D, dims, MD_STRIDES(D, dims, CFL_SIZE), tmp, istr, iptr, val);
+	md_zadd2(D, dims, ostr, optr, ostr, optr, MD_STRIDES(D, dims, CFL_SIZE), tmp);
+	md_free(tmp);
+	return;
+#endif
+
 	if (0. == cimagf(val)) { // strength reduction: complex to real multiplication
 
 		long dimsR[D + 1];
@@ -1430,6 +1526,32 @@ void md_min2(unsigned int D, const long dims[D], const long ostr[D], float* optr
 {
 	MAKE_3OP(min, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
+
+
+/**
+ * Max of inputs (without strides)
+ *
+ * optr = max(iptr1, iptr2)
+ */
+void md_zmax(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr1, const complex float* iptr2)
+{
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	md_zmax2(D, dims, strs, optr, strs, iptr1, strs, iptr2);
+}
+
+
+/**
+ * Max of inputs (with strides)
+ *
+ * optr = max(iptr1, iptr2)
+ */
+void md_zmax2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
+{
+	MAKE_Z3OP(zmax, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
+}
+
 
 
 
@@ -1757,6 +1879,29 @@ void md_zcmp(unsigned int D, const long dims[D], complex float* optr, const comp
 	make_z3op_simple(md_zcmp2, D, dims, optr, iptr1, iptr2);
 }
 
+/**
+ * Elementwise less than or equal to (with strides)
+ *
+ * optr = (iptr1 <= iptr2)
+ */
+void md_zlessequal2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
+{
+	MAKE_Z3OP(zle, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
+}
+
+
+
+/**
+ * Elementwise less than or equal to (without strides)
+ *
+ * optr = (iptr1 <= iptr2)
+ */
+void md_zlessequal(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr1, const complex float* iptr2)
+{
+	make_z3op_simple(md_zlessequal2, D, dims, optr, iptr1, iptr2);
+}
+
+
 
 
 /**
@@ -1809,6 +1954,29 @@ void md_slessequal(unsigned int D, const long dims[D], float* optr, const float*
 }
 
 
+/**
+ * Elementwise greater than or equal to (with strides)
+ *
+ * optr = (iptr1 => iptr2)
+ */
+void md_zgreatequal2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
+{
+	md_zlessequal2(D, dims, ostr, optr, istr2, iptr2, istr1, iptr1);
+}
+
+
+
+/**
+ * Elementwise greater than or equal to (without strides)
+ *
+ * optr = (iptr1 >= iptr2)
+ */
+void md_zgreatequal(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr1, const complex float* iptr2)
+{
+	make_z3op_simple(md_zgreatequal2, D, dims, optr, iptr1, iptr2);
+}
+
+
 
 /**
  * Elementwise greater than or equal to (with strides)
@@ -1857,6 +2025,33 @@ void md_sgreatequal(unsigned int D, const long dims[D], float* optr, const float
 	md_calc_strides(D, strs, dims, FL_SIZE);
 
 	md_sgreatequal2(D, dims, strs, optr, strs, iptr, val);
+}
+
+
+
+/**
+ * Elementwise greater than or equal to scalar (with strides)
+ *
+ * optr = (iptr >= val)
+ */
+void md_zsgreatequal2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr, float val)
+{
+	make_z3op_scalar(md_zgreatequal2, D, dims, ostr, optr, istr, iptr, val);
+}
+
+
+
+/**
+ * Elementwise greater than or equal to scalar (without strides)
+ *
+ * optr = (iptr >= val)
+ */
+void md_zsgreatequal(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr, float val)
+{
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	md_zsgreatequal2(D, dims, strs, optr, strs, iptr, val);
 }
 
 
@@ -2135,6 +2330,29 @@ complex float md_zscalar2(unsigned int D, const long dim[D], const long str1[D],
 	complex double* retp = &ret;
 
 #ifdef USE_CUDA
+	if (cuda_ondevice(ptr1)) {
+
+		// FIXME: because md_zfmacc2 with stride = 0 is slow
+
+		complex float* tmp = md_alloc_gpu(D, dim, CFL_SIZE);
+
+		long strs[D];
+		md_calc_strides(D, strs, dim, CFL_SIZE);
+		md_clear(D, dim, tmp, CFL_SIZE);
+
+		md_zfmacc2(D, dim, strs, tmp, str1, ptr1, str2, ptr2);
+
+		gpu_ops.zsum(md_calc_size(D, dim), tmp);
+
+		complex float ret = 0.;
+		md_copy(1, (long[1]){ 1 }, &ret, tmp, CFL_SIZE);
+		md_free(tmp);
+
+		return ret;
+	}
+#endif
+
+#ifdef USE_CUDA
 	if (cuda_ondevice(ptr1))
 		retp = gpu_constant(&ret, CDL_SIZE);
 #endif
@@ -2346,6 +2564,7 @@ float md_asum2(unsigned int D, const long dims[D], const long strs[D], const flo
 
 #ifdef USE_CUDA
 	if (cuda_ondevice(ptr)) {
+
 		md_copy(D, dims0, &ret, retp, FL_SIZE);
 		md_free(retp);
 	}
@@ -3175,12 +3394,43 @@ void md_smin(unsigned int D, const long dim[D], float* optr, const float* iptr, 
 void md_smax2(unsigned int D, const long dim[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, float val)
 {
 #if 0
+	// slow on GPU due to make_3op_scalar
+#if 0
 	float* tmp = md_alloc_sameplace(D, dim, FL_SIZE, iptr);
 	md_sgreatequal2(D, dim, ostr, tmp, istr, iptr, val);
 	md_mul2(D, dim, ostr, optr, istr, iptr, istr, tmp);
 	md_free(tmp);
 #else
 	make_3op_scalar(md_max2, D, dim, ostr, optr, istr, iptr, val);
+#endif
+#else
+	(void)0;
+
+	NESTED(void, nary_smax, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		data->ops->smax(data->size, ptr[0], ptr[1], val);
+	};
+
+	optimized_twoop_oi(D, dim, ostr, optr, istr, iptr,
+		(size_t[2]){ FL_SIZE, FL_SIZE }, nary_smax);
+#endif
+}
+
+
+/**
+ * Elementwise maximum of input and scalar (with strides)
+ *
+ * optr = max(val, iptr)
+ */
+void md_zsmax2(unsigned int D, const long dim[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr, float val)
+{
+#if 0
+	complex float* tmp = md_alloc_sameplace(D, dim, CFL_SIZE, iptr);
+	md_zsgreatequal2(D, dim, ostr, tmp, istr, iptr, val);
+	md_zmul2(D, dim, ostr, optr, istr, iptr, istr, tmp);
+	md_free(tmp);
+#else
+	make_z3op_scalar(md_zmax2, D, dim, ostr, optr, istr, iptr, val);
 #endif
 }
 
@@ -3346,6 +3596,34 @@ void md_zfftmod(unsigned int D, const long dims[D], complex float* optr, const c
 	md_calc_strides(D, strs, dims, CFL_SIZE);
 
 	md_zfftmod2(D, dims, strs, optr, strs, iptr, inv, phase);
+}
+
+
+
+/**
+ * Sum along selected dimensions
+ *
+ * @param dims -- full dimensions of src image
+ * @param flags -- bitmask for applying the sum, i.e. the dimensions that will not stay
+ */
+void md_zsum(unsigned int D, const long dims[D], unsigned int flags, complex float* dst, const complex float* src)
+{
+	long str1[D];
+	long str2[D];
+	long dims2[D];
+
+	md_select_dims(D, ~flags, dims2, dims);
+
+	md_calc_strides(D, str1, dims, CFL_SIZE);
+	md_calc_strides(D, str2, dims2, CFL_SIZE);
+
+	complex float* ones = md_alloc_sameplace(D, dims, CFL_SIZE, dst);
+	md_zfill(D, dims, ones, 1.);
+
+	md_clear(D, dims2, dst, CFL_SIZE);
+	md_zfmac2(D, dims, str2, dst, str1, src, str1, ones);
+
+	md_free(ones);
 }
 
 

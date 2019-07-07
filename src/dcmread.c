@@ -18,7 +18,7 @@ int main_dcmread(int argc, char* argv[])
 	unsigned char* img = dicom_read(argv[1], dims);
 
 	if (NULL == img)
-		error("reading dicom file");
+		error("reading dicom file '%s'", argv[1]);
 
 	printf("Size: %d-%d\n", dims[0], dims[1]);
 

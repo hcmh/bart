@@ -24,6 +24,7 @@
 #include "num/flpmath.h"
 #include "num/linalg.h"
 #include "num/ops.h"
+#include "num/ops_p.h"
 #include "num/blockproc.h"
 #include "num/casorati.h"
 
@@ -54,13 +55,15 @@ struct lrthresh_data_s {
 	unsigned long flags;
 	long levels;
 	long blkdims[MAX_LEV][DIMS];
+
+	bool overlapping_blocks;
 };
 
 static DEF_TYPEID(lrthresh_data_s);
 
 
 
-static struct lrthresh_data_s* lrthresh_create_data(const long dims_decom[DIMS], bool randshift, unsigned long mflags, const long blkdims[MAX_LEV][DIMS], float lambda, bool noise, int remove_mean);
+static struct lrthresh_data_s* lrthresh_create_data(const long dims_decom[DIMS], bool randshift, unsigned long mflags, const long blkdims[MAX_LEV][DIMS], float lambda, bool noise, int remove_mean, bool overlapping_blocks);
 static void lrthresh_free_data(const operator_data_t* data);
 static void lrthresh_apply(const operator_data_t* _data, float lambda, complex float* dst, const complex float* src);
 
@@ -75,9 +78,9 @@ static void lrthresh_apply(const operator_data_t* _data, float lambda, complex f
  * @param blkdims - contains block dimensions for all levels
  *
  */
-const struct operator_p_s* lrthresh_create(const long dims_lev[DIMS], bool randshift, unsigned long mflags, const long blkdims[MAX_LEV][DIMS], float lambda, bool noise, int remove_mean)
+const struct operator_p_s* lrthresh_create(const long dims_lev[DIMS], bool randshift, unsigned long mflags, const long blkdims[MAX_LEV][DIMS], float lambda, bool noise, int remove_mean, bool overlapping_blocks)
 {
-	struct lrthresh_data_s* data = lrthresh_create_data(dims_lev, randshift, mflags, blkdims, lambda, noise, remove_mean);
+	struct lrthresh_data_s* data = lrthresh_create_data(dims_lev, randshift, mflags, blkdims, lambda, noise, remove_mean, overlapping_blocks);
 
 	return operator_p_create(DIMS, dims_lev, DIMS, dims_lev, CAST_UP(data), lrthresh_apply, lrthresh_free_data);
 }
@@ -93,7 +96,7 @@ const struct operator_p_s* lrthresh_create(const long dims_lev[DIMS], bool rands
  * @param blkdims - contains block dimensions for all levels
  *
  */
-static struct lrthresh_data_s* lrthresh_create_data(const long dims_decom[DIMS], bool randshift, unsigned long mflags, const long blkdims[MAX_LEV][DIMS], float lambda, bool noise, int remove_mean)
+static struct lrthresh_data_s* lrthresh_create_data(const long dims_decom[DIMS], bool randshift, unsigned long mflags, const long blkdims[MAX_LEV][DIMS], float lambda, bool noise, int remove_mean, bool overlapping_blocks)
 {
 	PTR_ALLOC(struct lrthresh_data_s, data);
 	SET_TYPEID(lrthresh_data_s, data);
@@ -103,6 +106,8 @@ static struct lrthresh_data_s* lrthresh_create_data(const long dims_decom[DIMS],
 	data->lambda = lambda;
 	data->noise = noise;
 	data->remove_mean = remove_mean;
+
+	data->overlapping_blocks = overlapping_blocks;
 
 	// level dimensions
 	md_copy_dims(DIMS, data->dims_decom, dims_decom);
@@ -158,7 +163,7 @@ static int rand_lim(int limit)
  */
 static void lrthresh_apply(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
 {
-	struct lrthresh_data_s* data = CAST_DOWN(lrthresh_data_s, _data);
+	auto data = CAST_DOWN(lrthresh_data_s, _data);
 
 	float lambda = mu * data->lambda;
 
@@ -218,20 +223,52 @@ static void lrthresh_apply(const operator_data_t* _data, float mu, complex float
 
 
 		long mat_dims[2];
-		basorati_dims(DIMS, mat_dims, blkdims, zpad_dims);
+
+		(data->overlapping_blocks ? casorati_dims : basorati_dims)(DIMS, mat_dims, blkdims, zpad_dims);
 
 		complex float* tmp_mat = md_alloc_sameplace(2, mat_dims, CFL_SIZE, dst);
+		complex float* tmp_mat2 = tmp_mat;
 
 		// Reshape image into a blk_size x number of blocks matrix
+		(data->overlapping_blocks ? casorati_matrix : basorati_matrix)(DIMS, blkdims, mat_dims, tmp_mat, zpad_dims, zpad_strs, tmp);
 
-		basorati_matrix(DIMS, blkdims, mat_dims, tmp_mat, zpad_dims, zpad_strs, tmp);
+		long num_blocks = mat_dims[1];
+		long mat2_dims[2] = { mat_dims[0], mat_dims[1] };
 
-		batch_svthresh(M, N, mat_dims[1], lambda * GWIDTH(M, N, B), *(complex float (*)[mat_dims[1]][M][N])tmp_mat);
+		// FIXME: casorati and basorati are transposes of each other
+		if (data->overlapping_blocks) {
 
+			mat2_dims[0] = mat_dims[1];
+			mat2_dims[1] = mat_dims[0];
+
+			tmp_mat2 = md_alloc_sameplace(2, mat2_dims, CFL_SIZE, dst);
+
+			md_transpose(2, 0, 1, mat2_dims, tmp_mat2, mat_dims, tmp_mat, CFL_SIZE);
+			num_blocks = mat2_dims[1];
+
+			if (B > 1)
+				B = mat2_dims[1];
+		}
+
+
+		debug_printf(DP_DEBUG4, "M=%d, N=%d, B=%d, num_blocks=%d, img_size=%d, blk_size=%d\n", M, N, B, num_blocks, img_size, blk_size);
+
+		batch_svthresh(M, N, num_blocks, lambda * GWIDTH(M, N, B), *(complex float (*)[mat2_dims[1]][M][N])tmp_mat2);
 		//	for ( int b = 0; b < mat_dims[1]; b++ )
 		//	svthresh(M, N, lambda * GWIDTH(M, N, B), tmp_mat, tmp_mat);
 
-		basorati_matrixH(DIMS, blkdims, zpad_dims, zpad_strs, tmp, mat_dims, tmp_mat);
+		if (data->overlapping_blocks) {
+
+			md_transpose(2, 0, 1, mat_dims, tmp_mat, mat2_dims, tmp_mat2, CFL_SIZE);
+		}
+
+		(data->overlapping_blocks ? casorati_matrixH : basorati_matrixH)(DIMS, blkdims, zpad_dims, zpad_strs, tmp, mat_dims, tmp_mat);
+
+		if (data->overlapping_blocks) {
+
+			md_zsmul(DIMS, zpad_dims, tmp, tmp, 1. / M);
+			md_free(tmp_mat2);
+		}
 
 		md_circ_shift(DIMS, zpad_dims, unshifts, tmp, tmp, CFL_SIZE);
 
@@ -425,7 +462,7 @@ long ls_blkdims(long blkdims[MAX_LEV][DIMS], const long idims[DIMS])
 
 float get_lrthresh_lambda(const struct operator_p_s* o)
 {
-	const struct lrthresh_data_s* data = CAST_DOWN(lrthresh_data_s, operator_p_get_data(o));
+	auto data = CAST_DOWN(lrthresh_data_s, operator_p_get_data(o));
 
 	return data->lambda;
 }

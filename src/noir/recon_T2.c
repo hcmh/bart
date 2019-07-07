@@ -96,8 +96,9 @@ void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
 //  			size * 2, (float*)x, (float*)x,
-            size * 2, (float*)x, NULL,    
-			data_size * 2, (const float*)kspace_data);
+			size * 2, (float*)x, NULL,    
+			data_size * 2, (const float*)kspace_data,
+			NULL, (struct iter_op_s){ NULL, NULL });
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
 

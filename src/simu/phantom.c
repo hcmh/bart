@@ -18,13 +18,16 @@
 
 #include "num/multind.h"
 #include "num/loop.h"
+#include "num/flpmath.h"
 
 #include "misc/misc.h"
 #include "misc/mri.h"
+#include "misc/debug.h"
 
 #include "simu/shepplogan.h"
 #include "simu/sens.h"
 #include "simu/coil.h"
+#include "simu/simulation.h"
 
 #include "phantom.h"
 
@@ -135,6 +138,9 @@ static complex float kkernel(void* _data, const long pos[])
 	return (data->sens ? ksens : nosens)(pos[COIL_DIM], mpos, data->data, data->fun);
 }
 
+
+
+
 static void sample(const long dims[DIMS], complex float* out, const long tstrs[DIMS], const complex float* traj, void* krn_data, krn_t krn, bool kspace)
 {
 	struct data data = {
@@ -151,8 +157,6 @@ static void sample(const long dims[DIMS], complex float* out, const long tstrs[D
 }
 
 
-
-
 struct krn2d_data {
 
 	bool kspace;
@@ -164,6 +168,12 @@ static complex float krn2d(void* _data, const double mpos[3])
 {
 	struct krn2d_data* data = _data;
 	return phantom(data->N, data->el, mpos, data->kspace);
+}
+
+static complex float krnX(void* _data, const double mpos[3])
+{
+	struct krn2d_data* data = _data;
+	return phantomX(data->N, data->el, mpos, data->kspace);
 }
 
 struct krn3d_data {
@@ -180,13 +190,65 @@ static complex float krn3d(void* _data, const double mpos[3])
 }
 
 
-void calc_phantom(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+void calc_phantom(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const _Complex float* traj)
 {
 	if (!d3)
 		sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(shepplogan_mod), shepplogan_mod }, krn2d, kspace);
 	else
 		sample(dims, out, tstrs, traj, &(struct krn3d_data){ kspace, ARRAY_SIZE(shepplogan3d), shepplogan3d }, krn3d, kspace);
 }
+
+
+void calc_geo_phantom(const long dims[DIMS], complex float* out, bool kspace, int phtype, const long tstrs[DIMS], const _Complex float* traj)
+{
+	complex float* round = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* angular = md_alloc(DIMS, dims, CFL_SIZE);
+
+	switch (phtype) {
+
+	case 1:
+		sample(dims, round, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_geo1), phantom_geo1 }, krn2d, kspace);
+		sample(dims, angular, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_geo2), phantom_geo2 }, krnX, kspace);
+		md_zadd(DIMS, dims, out, round, angular);
+		break;
+
+	case 2:
+		sample(dims, round, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_geo4), phantom_geo1 }, krn2d, kspace);
+		sample(dims, angular, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom_geo3), phantom_geo2 }, krnX, kspace);
+		md_zadd(DIMS, dims, out, round, angular);
+		break;
+
+	default:
+		assert(0);
+	}
+
+	md_free(round);
+	md_free(angular);
+}
+
+
+void calc_phantom_t1t2(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	(void) d3;
+	
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(t1t2phantom), t1t2phantom }, krn2d, kspace);
+}
+
+void calc_phantom_dens(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	(void) d3;
+	
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(dens_phantom), dens_phantom }, krn2d, kspace);
+}
+
+void calc_phantom_bart(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	(void) d3;
+	
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(bart_img), bart_img }, krn2d, kspace);
+}
+
+
 
 
 
@@ -310,6 +372,80 @@ void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const lo
 }
 
 
+void calc_simu_phantom(void* _data,long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* in)
+{
+	
+	(void) kspace; (void) tstrs;
+	struct SimData* sim_data = _data;
+	
+	sim_data->seqData.rep_num = dims[TE_DIM];
+	
+	
+	
+	//create map
+    complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
+    complex float* sensitivitiesR1 = md_alloc(DIMS, dims, CFL_SIZE);
+    complex float* sensitivitiesR2 = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* sensitivitiesM0 = md_alloc(DIMS, dims, CFL_SIZE);
+    
+    
+    #pragma omp parallel for collapse(2)
+    for(int x = 0; x < dims[0]; x++ ){
+        
+        for(int y = 0; y < dims[1]; y++ ){
+			
+			struct SimData data = *sim_data;
+			
+            //Get offset values from -pi to +pi
+            //data.w = ( (float) y - (float) dims[1]/2. )/  ( (float) dims[1]/2.) * PI / data.TR;
+            
+            //Updating data
+			float t1 = crealf(in[(y * dims[0]) + x]);
+			float t2 = cimagf(in[(y * dims[0]) + x]);
+
+            //Skip empty voxels
+            if(t1 <= 0.001 || t2 <= 0.001){
+                for(int z = 0; z < dims[TE_DIM]; z++){
+                    phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+                    sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+                    sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+					sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+                }
+                continue;
+            }
+            
+            data.voxelData.r1 = 1/t1;  
+            data.voxelData.r2 = 1/t2; 
+			data.voxelData.m0 = 1;			// TODO: Change to add coil profiles
+			
+			debug_printf(DP_DEBUG3,"%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data.seqData.TR, data.seqData.TE, data.voxelData.r1, data.voxelData.r2, data.seqtmp.rep_counter, data.pulseData.RF_end, data.pulseData.flipangle );
+			
+			
+			float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+			float saR1Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+			float saR2Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+			float saDensSig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+
+			ode_bloch_simulation3( &data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL );
+			
+			//Add data to phantom
+			for(int z = 0; z < dims[TE_DIM]; z++){
+				//changed x-and y-axis to have same orientation as measurements
+				sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR1Sig[z][1] + saR1Sig[z][0] * I; 
+				sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR2Sig[z][1] + saR2Sig[z][0] * I;
+				sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saDensSig[z][1] + saDensSig[z][0] * I;
+				phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = mxySig[z][1] + mxySig[z][0] * I;
+				
+			} 
+			
+			md_copy(DIMS, dims, out, phantom, CFL_SIZE);
+			
+        }
+        
+    }
+	
+	
+}
 
 
 

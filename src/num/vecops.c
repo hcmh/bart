@@ -1,5 +1,5 @@
-/* Copyright 2013-2017. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+/* Copyright 2013-2018. The Regents of the University of California.
+ * Copyright 2016-2019. Martin Uecker.
  * Copyright 2017. University of Oxford.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
@@ -7,7 +7,7 @@
  * Authors:
  * 2011-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 Frank Ong <frankong@berkeley.edu>
- * 2014-2017 Jon Tamir <jtamir@eecs.berkeley.edu>
+ * 2014-2018 Jon Tamir <jtamir@eecs.berkeley.edu>
  * 2017 Sofia Dimoudi <sofia.dimoudi@cardiov.ox.ac.uk>
  *
  *
@@ -140,6 +140,20 @@ static double zl1norm(long N, const complex float* vec)
 
 	return res;
 }
+
+
+
+// we should probably replace asum and zl1norm
+static void zsum(long N, complex float* vec)
+{
+	complex float res = 0.;
+
+	for (long i = 0; i < N; i++)
+		res += vec[i];
+
+	vec[0] = res;
+}
+
 
 
 static void axpbz(long N, float* dst, const float a1, const float* src1, const float a2, const float* src2)
@@ -328,10 +342,23 @@ static void zabs(long N, complex float* dst, const complex float* src)
 }
 
 
+static void zmax(long N, complex float* dst, const complex float* src1, const complex float* src2)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = (crealf(src1[i]) > crealf(src2[i])) ? src1[i] : src2[i];
+}
+
+
 static void max(long N, float* dst, const float* src1, const float* src2)
 {
 	for (long i = 0; i < N; i++)
 		dst[i] = MAX(src1[i], src2[i]);
+}
+
+static void smax(long N, float* dst, const float* src1, const float val)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = MAX(src1[i], val);
 }
 
 
@@ -341,13 +368,13 @@ static void min(long N, float* dst, const float* src1, const float* src2)
 		dst[i] = MIN(src1[i], src2[i]);
 }
 
+
 static void zsmax(long N, complex float val, complex float* dst, const complex float* src)
 {
-    for (long i = 0; i < N; i++){
-            complex float r = CMPLX(MAX(crealf(src[i]), creal(val)), 0.0);
-            dst[i] = r;
-    }
+	for (long i = 0; i < N; i++)
+		dst[i] = CMPLX(MAX(crealf(src[i]), crealf(val)), 0.0);
 }
+
 
 static void vec_pow(long N, float* dst, const float* src1, const float* src2)
 {
@@ -360,6 +387,13 @@ static void vec_sqrt(long N, float* dst, const float* src)
 {
 	for (long i = 0; i < N; i++)
 		dst[i] = sqrtf(src[i]);
+}
+
+
+static void vec_zle(long N, complex float* dst, const complex float* src1, const complex float* src2)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = (crealf(src1[i]) <= crealf(src2[i]));
 }
 
 
@@ -563,6 +597,7 @@ const struct vec_ops cpu_ops = {
 	.double2float = double2float,
 	.dot = dot,
 	.asum = asum,
+	.zsum = zsum,
 	.zl1norm = zl1norm,
 
 	.add = add,
@@ -579,6 +614,7 @@ const struct vec_ops cpu_ops = {
 	.pow = vec_pow,
 	.sqrt = vec_sqrt,
 
+	.zle = vec_zle,
 	.le = vec_le,
 
 	.zmul = zmul,
@@ -603,6 +639,9 @@ const struct vec_ops cpu_ops = {
 	.zdiv_reg = zdiv_reg,
 	.zfftmod = zfftmod,
 
+	.zmax = zmax,
+
+	.smax = smax,
 	.max = max,
 	.min = min,
 
@@ -636,8 +675,7 @@ struct vec_iter_s {
 	void (*axpy)(long N, float* a, float alpha, const float* x);
 	void (*axpbz)(long N, float* out, const float a, const float* x, const float b, const float* z);
 	void (*zmul)(long N, complex float* dst, const complex float* src1, const complex float* src2);
-    void (*zsmax)(long N, complex float val, complex float* dst, const complex float* src1);
-
+	void (*zsmax)(long N, complex float val, complex float* dst, const complex float* src);
 };
 
 
@@ -657,8 +695,8 @@ const struct vec_iter_s cpu_iter_ops = {
 	.add = add,
 	.sub = sub,
 	.swap = swap,
-    .zmul = zmul,
-    .zsmax = zsmax
+	.zmul = zmul,
+	.zsmax = zsmax
 };
 
 

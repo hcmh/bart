@@ -1,5 +1,14 @@
+/* Copyright 2018. Martin Uecker.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors:
+ * 2016-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ */
+
 
 #include <math.h>
+#include <assert.h>
 
 #include "num/ode.h"
 
@@ -143,6 +152,43 @@ UT_REGISTER_TEST(test_ode_matrix_bloch);
 
 
 
+
+static bool test_int_matrix_bloch(void)
+{
+	struct bloch_s data = { 1. / WATER_T1, 1. / WATER_T2, { 0., 0., GAMMA_H1 * SKYRA_GRADIENT * 0.0001 } };
+
+	float x0[4] = { 1., 0., 0., 1. };
+	float x1[4];
+	float x2[3];
+	float t = 0.2;
+
+	float m[4][4];
+	bloch_matrix_int(m, t, data.r1, data.r2, data.gb);
+
+	for (int i = 0; i < 4; i++) {
+
+		x1[i] = 0.;
+
+		for (int j = 0; j < 4; j++)
+			x1[i] += m[j][i] * x0[j];
+	}
+
+	bloch_relaxation(x2, t, x0, data.r1, data.r2, data.gb);
+
+	assert(1. == x1[3]);
+
+	float err2 = 0.;
+
+	for (int i = 0; i < 3; i++)
+		err2 += powf(x1[i] - x2[i], 2.);
+
+	return (err2 < 1.E-7);
+}
+
+UT_REGISTER_TEST(test_int_matrix_bloch);
+
+
+
 struct sa_data_s {
 
 	int N;
@@ -265,7 +311,7 @@ static bool test_ode_sa2(void)
 		for (int i = 0; i < N; i++) {
 
 			float df = y[i] - x[i];
-			float sa = xp[1 + j][i] * q * (1 / (float)N); // why divide by N?
+			float sa = xp[1 + j][i] * q;
 			float err = fabsf(df - sa);
 
 	//		printf("%d %d-%e-%e-%e\n", j, i, err, df, sa);
@@ -310,13 +356,10 @@ static bool test_ode_sa_bloch(void)
 	if (err2 > 1.E-7)
 		return false;
 
-	for (int i = 0; i < 3; i++)
-		err2 += powf(xp[0][i] - x2[i], 2.);
-
 
 	for (int i = 0; i < 3; i++) {
 
-		float err = fabsf(q * xp[1][i] / 3. - (x2r1[i] - x2[i]));
+		float err = fabsf(q * xp[1][i] - (x2r1[i] - x2[i]));
 
 		if (err > 1.E-7)
 			return false;
@@ -324,7 +367,7 @@ static bool test_ode_sa_bloch(void)
 
 	for (int i = 0; i < 3; i++) {
 
-		float err = fabsf(q * xp[2][i] / 3. - (x2r2[i] - x2[i]));
+		float err = fabsf(q * xp[2][i] - (x2r2[i] - x2[i]));
 
 		if (err > 1.E-7)
 			return false;
@@ -335,3 +378,100 @@ static bool test_ode_sa_bloch(void)
 
 
 UT_REGISTER_TEST(test_ode_sa_bloch);
+
+
+static bool test_ode_matrix_bloch_sa(void)
+{
+	struct bloch_s data = { 1. / WATER_T1, 1. / WATER_T2, { 0., 0., GAMMA_H1 * SKYRA_GRADIENT * 0.0001 } };
+
+	float x[10] = { 1., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
+	float x0[3] = { 1., 0., 0.};
+	float x2[3];
+	float h = 0.1;
+	float tol = 0.000001;
+	float end = 0.2;
+
+	float m[10][10];
+	bloch_matrix_ode_sa(m, data.r1, data.r2, data.gb);
+
+	ode_matrix_interval(h, tol, 10, x, 0., end, m);
+	bloch_relaxation(x2, end, x0, data.r1, data.r2, data.gb);
+
+	float err2 = 0.;
+
+	for (int i = 0; i < 3; i++)
+		err2 += powf(x[i] - x2[i], 2.);
+
+	return (err2 < 1.E-6);
+}
+
+UT_REGISTER_TEST(test_ode_matrix_bloch_sa);
+
+
+
+static bool test_int_matrix_bloch_sa(void)
+{
+	struct bloch_s data = { 1. / WATER_T1, 1. / WATER_T2, { 0., 0., GAMMA_H1 * SKYRA_GRADIENT * 0.0001 } };
+
+	float x0[10] = { 1., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
+	float x1[10];
+	
+	float x0s[3] = { 1., 0., 0. };
+	float x2[3];
+	float x2r1[3];
+	float x2r2[3];
+	float end = 0.2;
+	
+	float q = 1.E-3;
+
+	float m[10][10];
+	bloch_matrix_int_sa(m, end, data.r1, data.r2, data.gb);
+
+	for (int i = 0; i < 10; i++) {
+
+		x1[i] = 0.;
+
+		for (int j = 0; j < 10; j++)
+			x1[i] += m[j][i] * x0[j];
+	}
+
+	bloch_relaxation(x2, end, x0s, data.r1, data.r2, data.gb);
+	bloch_relaxation(x2r1, end, x0s, data.r1 + q, data.r2, data.gb);
+	bloch_relaxation(x2r2, end, x0s, data.r1, data.r2 + q, data.gb);
+
+	assert(1. == x1[9]);
+	
+	
+	//Mxy
+	float err2 = 0.;
+	for (int i = 0; i < 3; i++)
+		err2 += powf(x1[i] - x2[i], 2.);
+
+	if (err2 > 1.E-7)
+		return false;
+
+	
+	//S_R1
+	for (int i = 0; i < 3; i++) {
+
+		float err = fabsf(q * x1[3+i] - (x2r1[i] - x2[i]));
+
+		if (err > 1.E-7)
+			return false;
+	}
+	
+	//S_R2
+	for (int i = 0; i < 3; i++) {
+
+		float err = fabsf(q * x1[6+i] - (x2r2[i] - x2[i]));
+
+		if (err > 1.E-7)
+			return false;
+	}
+
+	return true;
+
+}
+
+UT_REGISTER_TEST(test_int_matrix_bloch_sa);
+

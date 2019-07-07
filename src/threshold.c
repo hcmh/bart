@@ -15,6 +15,7 @@
 #include "num/flpmath.h"
 #include "num/multind.h"
 #include "num/init.h"
+#include "num/ops_p.h"
 
 #include "iter/prox.h"
 #include "iter/thresh.h"
@@ -71,7 +72,7 @@ static void lrthresh(unsigned int D, const long dims[D], int llrblk, float lambd
 	int levels = llr_blkdims(blkdims, ~flags, dims, llrblk);
 	UNUSED(levels);
 
-	const struct operator_p_s* p = lrthresh_create(dims, false, ~flags, (const long (*)[])blkdims, lambda, false, false);
+	const struct operator_p_s* p = lrthresh_create(dims, false, ~flags, (const long (*)[])blkdims, lambda, false, false, false);
 
 	operator_p_apply(p, 1., D, dims, out, D, dims, in);
 
@@ -175,7 +176,7 @@ int main_threshold(int argc, char* argv[])
 
 	unmap_cfl(N, dims, idata);
 	unmap_cfl(N, dims, odata);
-	exit(0);
+	return 0;
 }
 
 

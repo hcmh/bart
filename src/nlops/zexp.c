@@ -1,3 +1,11 @@
+/* Copyright 2018. Martin Uecker.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors:
+ * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ */
+
 
 #include <complex.h>
 
@@ -25,7 +33,7 @@ DEF_TYPEID(zexp_s);
 
 static void zexp_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	struct zexp_s* data = CAST_DOWN(zexp_s, _data);
+	const auto data = CAST_DOWN(zexp_s, _data);
 
 	md_zexp(data->N, data->dims, data->xn, src);
 	md_copy(data->N, data->dims, dst, data->xn, CFL_SIZE);
@@ -33,19 +41,19 @@ static void zexp_fun(const nlop_data_t* _data, complex float* dst, const complex
 
 static void zexp_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	struct zexp_s* data = CAST_DOWN(zexp_s, _data);
+	const auto data = CAST_DOWN(zexp_s, _data);
 	md_zmul(data->N, data->dims, dst, src, data->xn);
 }
 
 static void zexp_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	struct zexp_s* data = CAST_DOWN(zexp_s, _data);
+	const auto data = CAST_DOWN(zexp_s, _data);
 	md_zmulc(data->N, data->dims, dst, src, data->xn);
 }
 
 static void zexp_del(const nlop_data_t* _data)
 {
-	struct zexp_s* data = CAST_DOWN(zexp_s, _data);
+	const auto data = CAST_DOWN(zexp_s, _data);
 
 	md_free(data->xn);
 	xfree(data->dims);

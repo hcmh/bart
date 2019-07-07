@@ -1,9 +1,9 @@
-/* Copyright 2016. Martin Uecker.
+/* Copyright 2016-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2016,2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
  
 #include <stdlib.h>
@@ -48,7 +48,8 @@ static DEF_TYPEID(monitor_default_s);
 
 static void monitor_default_fun(struct iter_monitor_s* _data, const struct vec_iter_s* vops, const float* x)
 {
-	struct monitor_default_s* data = CAST_DOWN(monitor_default_s, _data);
+	static unsigned int iter = 0;
+	auto data = CAST_DOWN(monitor_default_s, _data);
 
 	double err = -1.;
 	double obj = -1.;
@@ -71,7 +72,7 @@ static void monitor_default_fun(struct iter_monitor_s* _data, const struct vec_i
 	if (NULL != data->objective)
 		obj = data->objective(data->data, x);
 
-	debug_printf(DP_DEBUG4, "Objective: %f, Error: %f\n", obj, err);
+	debug_printf(DP_INFO, "[Iter %04d] Objective: %f, Error: %f\n", ++iter, obj, err);
 
 	data->INTERFACE.obj = obj;
 	data->INTERFACE.err = err;

@@ -1,12 +1,14 @@
 /* Copyright 2013-2015. The Regents of the University of California.
- * Copyright 2015. Martin Uecker.
+ * Copyright 2015-2018. Martin Uecker.
  * Copyright 2017. University of Oxford.
+ * Copyright 2017-2018. Damien Nguyen
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2011-2015 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2011-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2017 Sofia Dimoudi <sofia.dimoudi@cardiov.ox.ac.uk>
+ * 2017-2018 Damien Nguyen <damien.nguyen@alumni.epfl.ch>
  */
 
 #define _GNU_SOURCE
@@ -14,13 +16,41 @@
 #include <assert.h>
 #include <complex.h>
 #include <stdbool.h>
+#include <setjmp.h>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
+
+#ifdef BART_WITH_PYTHON
+#include <Python.h>
+#endif
 
 #include "misc/debug.h"
+#include "misc/nested.h"
 #include "misc/opts.h"
 #include "misc.h"
+
+
+#ifndef isnanf
+#define isnanf(X) isnan(X)  
+#endif
+
+
+
+struct error_jumper_s {
+
+	bool initialized;
+	jmp_buf buf;
+};
+
+extern struct error_jumper_s error_jumper;	// FIXME should not be extern
+
+struct error_jumper_s error_jumper = { .initialized = false };
+
+
+
+
 
 
 void* xmalloc(size_t s)
@@ -58,12 +88,65 @@ void error(const char* fmt, ...)
 	va_list ap;
 	va_start(ap, fmt);
 
+#ifndef BART_WITH_PYTHON
+#ifdef USE_LOG_BACKEND
+	debug_vprintf_trace("error", __FILE__, __LINE__, DP_ERROR, fmt, ap);
+#else
 	debug_vprintf(DP_ERROR, fmt, ap);
+#endif
+#else
+	char err[1024] = { 0 };
+
+	if (NULL == PyErr_Occurred()) {
+
+		vsnprintf(err, 1023, fmt, ap);
+		PyErr_SetString(PyExc_RuntimeError, err);
+	}
+	// No else required as the error indicator has already been set elsewhere
+#endif /* !BART_WITH_PYTHON */
 
 	va_end(ap);
+
+	if (error_jumper.initialized)
+		longjmp(error_jumper.buf, 1);
+
 	exit(EXIT_FAILURE);
 }
 
+
+int error_catcher(int fun(int argc, char* argv[argc]), int argc, char* argv[argc])
+{
+	int ret = -1;
+
+	error_jumper.initialized = true;
+
+	if (0 == setjmp(error_jumper.buf))
+		ret = fun(argc, argv);
+
+	error_jumper.initialized = false;
+
+	return ret;
+}
+
+
+extern FILE* bart_output;
+FILE* bart_output = NULL;
+
+int bart_printf(const char* fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+
+	FILE* out = bart_output;
+
+	if (NULL == bart_output)
+		out = stdout;
+
+	int ret = vfprintf(out, fmt, ap);
+	va_end(ap);
+
+	return ret;
+}
 
 
 void print_dims(int D, const long dims[D])
@@ -78,6 +161,10 @@ void print_dims(int D, const long dims[D])
 
 
 
+#ifdef REDEFINE_PRINTF_FOR_TRACE
+#undef debug_print_dims
+#endif
+
 void debug_print_dims(int dblevel, int D, const long dims[D])
 {
 	bool dbl = debug_logging;
@@ -88,6 +175,27 @@ void debug_print_dims(int dblevel, int D, const long dims[D])
 		debug_printf(dblevel, "%3ld ", dims[i]);
 
 	debug_printf(dblevel, "]\n");
+	debug_logging = dbl;
+}
+
+
+
+
+void debug_print_dims_trace(const char* func_name,
+			    const char* file,
+			    unsigned int line,
+			    int dblevel,
+			    int D,
+			    const long dims[D])
+{
+	bool dbl = debug_logging;
+	debug_logging = false;
+	debug_printf_trace(func_name, file, line, dblevel, "[");
+
+	for (int i = 0; i < D; i++)
+		debug_printf_trace(func_name, file, line, dblevel, "%3ld ", dims[i]);
+
+	debug_printf_trace(func_name, file, line, dblevel, "]\n");
 	debug_logging = dbl;
 }
 
@@ -125,14 +233,14 @@ ok:
 
 
 
-void quicksort(unsigned int N, unsigned int ord[N], const void* data, quicksort_cmp_t cmp)
+void quicksort(int N, int ord[N], const void* data, quicksort_cmp_t cmp)
 {
 	if (N < 2)
 		return;
 
-	unsigned int pivot = ord[N / 2];
-	unsigned int l = 0;
-	unsigned int h = N - 1;
+	int pivot = ord[N / 2];
+	int l = 0;
+	int h = N - 1;
 
 	while (l <= h) {
 
@@ -148,7 +256,7 @@ void quicksort(unsigned int N, unsigned int ord[N], const void* data, quicksort_
 			continue;
 		}
 
-		unsigned int swap = ord[l];
+		int swap = ord[l];
 		ord[l] = ord[h];
 		ord[h] = swap;
 
@@ -162,6 +270,8 @@ void quicksort(unsigned int N, unsigned int ord[N], const void* data, quicksort_
 	if (N > l)
 		quicksort(N - l, ord + l, data, cmp);
 }
+
+
 
 /**
  * Quickselect adapted from §8.5 in Numerical Recipes in C, 
@@ -355,6 +465,8 @@ void save_command_line(int argc, char* argv[])
 
 	(*buf)[pos] = '\0';
 
+	XFREE(command_line);
+
 	command_line = (*buf);
 }
 
@@ -420,7 +532,7 @@ void print_complex(unsigned int D, const complex float arr[D])
 }
 
 
-unsigned int bitcount(unsigned int flags)
+unsigned int bitcount(unsigned long flags)
 {
 	unsigned int N = 0;
 
@@ -435,4 +547,12 @@ bool safe_isnanf(float x)
 {
 	return isnanf(x);
 }
+
+__attribute__((optimize("-fno-finite-math-only")))
+bool safe_isfinite(float x)
+{
+	return (!isnan(x) && !isinf(x));
+	// return isfinite(x); <- is sometimes true when x is NaN.
+}
+
 

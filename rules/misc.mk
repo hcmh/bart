@@ -8,6 +8,8 @@
 miscsrcs := $(wildcard $(srcdir)/misc/*.c)
 miscobjs := $(miscsrcs:.c=.o)
 
+miscobjs += $(miscextracxxsrcs:.cc=.o)
+
 .INTERMEDIATE: $(miscobjs)
 
 lib/libmisc.a: libmisc.a($(miscobjs))
@@ -19,4 +21,5 @@ DOTHIS := $(shell $(root)/rules/update-version.sh)
 $(srcdir)/misc/version.o: $(srcdir)/misc/version.inc
 
 
-UTARGETS += test_pattern test_types
+UTARGETS += test_pattern test_types test_misc
+

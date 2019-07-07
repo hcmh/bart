@@ -1,10 +1,10 @@
 /* Copyright 2013-2017. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+ * Copyright 2016-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2013-2014 Frank Ong <frankong@berkeley.edu>
  * 2013-2014,2017 Jon Tamir <jtamir@eecs.berkeley.edu>
  *
@@ -50,6 +50,7 @@
 // #define autoScaling
 
 extern inline void iter_op_call(struct iter_op_s op, float* dst, const float* src);
+extern inline void iter_nlop_call(struct iter_nlop_s op, int N, float* args[N]);
 extern inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src);
 
 /**
@@ -382,6 +383,7 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 	}
 
 	debug_printf(DP_DEBUG3, "\n");
+	debug_printf(DP_DEBUG2, "\t\tFISTA iterations: %u\n", itrdata.iter);
 
 	vops->del(o);
 	vops->del(r);
@@ -488,6 +490,7 @@ void landweber(unsigned int maxiter, float epsilon, float alpha, long N, long M,
 	struct iter_op_s op,
 	struct iter_op_s adj,
 	float* x, const float* b,
+	struct iter_op_s callback,
 	struct iter_monitor_s* monitor)
 {
 	float* r = vops->allocate(M);
@@ -511,6 +514,9 @@ void landweber(unsigned int maxiter, float epsilon, float alpha, long N, long M,
 
 		iter_op_call(adj, p, r);
 		vops->axpy(N, x, alpha, p);
+
+		if (NULL != callback.fun)
+			iter_op_call(callback, x, x);
 	}
 
 	vops->del(r);
@@ -558,15 +564,18 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 
 	float eps_squared = pow(epsilon, 2.);
 
+
+	unsigned int i = 0;
+
 	if (0. == rsold) {
 
 		debug_printf(DP_DEBUG3, "CG: early out\n");
 		goto cleanup;
 	}
 
-    float kappa = 1.0;
+	float kappa = 1.0;
 
-	for (unsigned int i = 0; i < maxiter; i++) {
+	for (i = 0; i < maxiter; i++) {
 
 		iter_monitor(monitor, vops, x);
 
@@ -585,30 +594,31 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 		vops->axpy(N, x, +alpha, p);
 		vops->axpy(N, r, -alpha, Ap);
 	
-		rsnew = (float)pow(vops->norm(N, r), 2.);
+		rsnew = pow(vops->norm(N, r), 2.);
+
 		float beta = rsnew / rsold;
 		
 		rsold = rsnew;
 
-        kappa = 1 + beta*kappa;
+		kappa = 1 + beta*kappa;
 #ifdef MPI_CGtol
-		if (sqrt(rsnew / rsnot) <= sqrt(kappa) * 1.0/3.0 * l2lambda) {
+		if (sqrt(rsnew / rsnot) <= sqrt(kappa) * 1.0/3.0 * l2lambda)
+			break;
 #else
 // 		if (rsnew <= sqrt(kappa) * eps_squared) {
-        if (rsnew <= eps_squared) {
-#endif
-			//debug_printf(DP_DEBUG3, "%d ", i);
+	        if (rsnew <= eps_squared)
 			break;
-		}
+#endif
 
 		vops->xpay(N, beta, p, r);	// p = beta * p + r
-
 	}
 
 cleanup:
 	vops->del(Ap);
 	vops->del(p);
 	vops->del(r);
+
+	debug_printf(DP_DEBUG2, "\t cg: %3d\n", i);
 
 	return sqrtf(rsnew);
 }
@@ -621,18 +631,23 @@ cleanup:
  * Iteratively Regularized Gauss-Newton Method
  * (Bakushinsky 1993)
  *
- * y = F(x) = F x0 + DF dx + ...
+ * y = F(x) = F xn + DF dx + ...
  *
- * IRGNM: DF^H ((y - F x_0) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
- *        DF^H ((y - F x_0)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
+ * IRGNM: DF^H ((y - F xn) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
+ *        DF^H ((y - F xn)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
+ *
+ * This version only solves the second equation for the update 'dx'. This corresponds
+ * to a least-squares problem where the quadratic regularization applies to the difference
+ * to 'x0'.
  */
-void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
+void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
 	const struct vec_iter_s* vops,
 	struct iter_op_s op,
 	struct iter_op_s adj,
 	struct iter_op_p_s inv,
 	float* x, const float* xref, const float* y,
-	struct iter_op_s callback)
+	struct iter_op_s callback,
+	struct iter_monitor_s* monitor)
 {
 	float* r = vops->allocate(M);
 	float* p = vops->allocate(N);
@@ -643,6 +658,7 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 //		printf("#--------\n");
         
         debug_printf(DP_DEBUG2, "Step: %u, Y: %f\n", i, vops->norm(M, y));
+		iter_monitor(monitor, vops, x);
 
 		iter_op_call(op, r, x);			// r = F x
         debug_printf(DP_DEBUG2, "Step: %u, Forward: %f\n", i, vops->norm(M, r));
@@ -663,8 +679,9 @@ void irgnm(unsigned int iter, float alpha, float redu, long N, long M,
 		iter_op_p_call(inv, alpha, h, p);
 
 		vops->axpy(N, x, 1., h);
-                 
-		alpha /= redu;
+
+		alpha = (alpha - alpha_min) / redu + alpha_min;
+
 		if (NULL != callback.fun)
 			iter_op_call(callback, x, x);
 	}
@@ -755,6 +772,111 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* 
 }
 
 
+
+/**
+ * Iteratively Regularized Gauss-Newton Method
+ * (Bakushinsky 1993)
+ *
+ * y = F(x) = F xn + DF dx + ...
+ *
+ * IRGNM: R(DF^H, DF^H DF, alpha) ((y - F xn) + DF (xn - x0)) = (dx + xn - x0)
+ *
+ * This version has an extra call to DF, but we can use a generic regularized
+ * least-squares solver.
+ */
+void irgnm2(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
+	const struct vec_iter_s* vops,
+	struct iter_op_s op,
+	struct iter_op_s der,
+	struct iter_op_p_s lsqr,
+	float* x, const float* xref, const float* y,
+	struct iter_op_s callback,
+	struct iter_monitor_s* monitor)
+{
+	float* r = vops->allocate(M);
+	float* q = vops->allocate(M);
+
+	for (unsigned int i = 0; i < iter; i++) {
+
+		iter_monitor(monitor, vops, x);
+
+		iter_op_call(op, r, x);			// r = F x
+
+		vops->xpay(M, -1., r, y);	// r = y - F x
+
+		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
+
+		if (NULL != xref)
+			vops->axpy(N, x, -1., xref);
+
+		iter_op_call(der, q, x);
+
+		vops->axpy(M, r, +1., q);
+
+		iter_op_p_call(lsqr, alpha, x, r);
+
+		if (NULL != xref)
+			vops->axpy(N, x, +1., xref);
+
+		alpha = (alpha - alpha_min) / redu + alpha_min;
+
+		if (NULL != callback.fun)
+			iter_op_call(callback, x, x);
+	}
+
+	vops->del(q);
+	vops->del(r);
+}
+
+
+
+/**
+ * Alternating Minimzation
+ *
+ * Minimize residual by calling each min_op in turn.
+ */
+void altmin(unsigned int iter, float alpha, float redu,
+	    long N,
+	    const struct vec_iter_s* vops,
+	    unsigned int NI,
+	    struct iter_nlop_s op,
+	    struct iter_op_p_s min_ops[__VLA(NI)],
+	    float* x[__VLA(NI)], const float* y,
+	    struct iter_nlop_s callback)
+{
+	float* r = vops->allocate(N);
+	vops->clear(N, r);
+
+
+	float* args[1 + NI];
+	args[0] = r;
+
+	for (long i = 0; i < NI; ++i)
+		args[1 + i] = x[i];
+
+	for (unsigned int i = 0; i < iter; i++) {
+
+		for (unsigned int j = 0; j < NI; ++j) {
+
+			iter_nlop_call(op, 1 + NI, args); 	// r = F x
+
+			vops->xpay(N, -1., r, y);		// r = y - F x
+
+			debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(N, r));
+
+			iter_op_p_call(min_ops[j], alpha, x[j], y);
+
+			if (NULL != callback.fun)
+				iter_nlop_call(callback, NI, x);
+		}
+
+		alpha /= redu;
+	}
+
+	vops->del(r);
+}
+
+
 /**
  * Projection onto Convex Sets
  *
@@ -797,6 +919,7 @@ double power(unsigned int maxiter,
 	for (unsigned int i = 0; i < maxiter; i++) {
 
 		iter_op_call(op, u, u);		// r = A x
+
 		s = vops->norm(N, u);
 		vops->smul(N, 1. / s, u, u);
 	}
@@ -853,7 +976,6 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	vops->clear(M, u_old);
 
 
-
 	for (unsigned int i = 0; i < maxiter; i++) {
 
 		float lambda = (float)pow(decay, i);
@@ -866,8 +988,11 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 		 */
 
 		iter_op_call(op_forw, u_old, x_avg);
+
 		vops->axpy(M, u_old, 1. / sigma, u); // (u + sigma * A(x)) / sigma
+
 		iter_op_p_call(prox1, 1. / sigma, u_new, u_old);
+
 		vops->axpbz(M, u_new, -1. * sigma, u_new, sigma, u_old);
 		vops->copy(M, u_old, u);
 		vops->axpbz(M, u, lambda, u_new, 1. - lambda, u_old);
@@ -879,9 +1004,13 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 		 * x = lambda * x + (1 - lambda * x0)
 		 */
 		vops->copy(N, x_old, x);
+
 		iter_op_call(op_adj, x_new, u);
+
 		vops->axpy(N, x, -1. * tau, x_new);
+
 		iter_op_p_call(prox2, tau, x_new, x);
+
 		vops->axpbz(N, x, lambda, x_new, 1. - lambda, x_old);
 
 		/* update x_avg
@@ -902,19 +1031,6 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 
 		if (epsilon > (res1 + res2))
 			break;
-
-#if 0 // buggy
-		if (res1 < 100 * res2) {
-
-			sigma /= 2;
-			tau *= 2;
-		}
-		else if (res2 > 100 * res1) {
-
-			sigma *= 2;
-			tau /= 2;
-		}
-#endif
 	}
 
 	debug_printf(DP_DEBUG3, "\n");
@@ -926,5 +1042,4 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	vops->del(u_old);
 	vops->del(u);
 	vops->del(u_new);
-
 }

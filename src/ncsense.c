@@ -15,7 +15,7 @@
 
 #include "num/multind.h"
 #include "num/flpmath.h"
-#include "num/ops.h"
+#include "num/ops_p.h"
 #include "num/init.h"
 
 #include "linops/linop.h"
@@ -132,16 +132,16 @@ int main_ncsense(int argc, char* argv[])
 	md_zsub(DIMS, ksp_dims, kspace, kspace_in, kspace);
 
 
-	const struct operator_s* op = lsqr2_create(&conf,
+	const struct operator_p_s* op = lsqr2_create(&conf,
 				      iter2_conjgrad, CAST_UP(&cgconf),
 				      NULL,
 				      forward_op,
 				      NULL,
 					0, NULL, NULL, NULL);
 
-	operator_apply(op, DIMS, idims, out_data, DIMS, ksp_dims, kspace);
+	operator_p_apply(op, 1., DIMS, idims, out_data, DIMS, ksp_dims, kspace);
 
-	operator_free(op);
+	operator_p_free(op);
 
 	md_zadd(DIMS, idims, out_data, out_data, ref_data);
 

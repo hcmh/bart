@@ -1,5 +1,5 @@
 # Copyright 2013-2015. The Regents of the University of California.
-# Copyright 2015-2016. Martin Uecker <martin.uecker@med.uni-goettingen.de>
+# Copyright 2015-2019. Martin Uecker <martin.uecker@med.uni-goettingen.de>
 # All rights reserved. Use of this source code is governed by
 # a BSD-style license which can be found in the LICENSE file.
 
@@ -9,19 +9,33 @@ MAKESTAGE ?= 1
 # silent make
 #MAKEFLAGS += --silent
 
+# auto clean on makefile updates
+AUTOCLEAN?=1
+
 # clear out all implicit rules and variables
 MAKEFLAGS += -R
 
 # use for parallel make
 AR=./ar_lock.sh
 
+MKL?=0
 CUDA?=0
 ACML?=0
+UUID?=0
 OMP?=1
 SLINK?=0
 DEBUG?=0
 FFTWTHREADS?=1
 ISMRMRD?=0
+NOEXEC_STACK?=0
+
+LOG_BACKEND?=0
+LOG_SIEMENS_BACKEND?=0
+LOG_ORCHESTRA_BACKEND?=0
+LOG_GADGETRON_BACKEND?=0
+ENABLE_MEM_CFL?=0
+MEMONLY_CFL?=0
+
 
 DESTDIR ?= /
 PREFIX ?= usr/local/
@@ -97,7 +111,6 @@ else
 	LDFLAGS += -rdynamic
 endif
 
-CXX ?= g++
 
 
 
@@ -121,6 +134,9 @@ CUDA_BASE ?= /usr/local/
 # acml
 
 ACML_BASE ?= /usr/local/acml/acml4.4.0/gfortran64_mp/
+
+# mkl
+MKL_BASE ?= /opt/intel/mkl/lib/intel64/ 
 
 # fftw
 
@@ -157,6 +173,7 @@ MODULES_bpsense = -lsense -lnoncart -liter -llinops -lwavelet
 MODULES_itsense = -liter -llinops
 MODULES_ecalib = -lcalib
 MODULES_ecaltwo = -lcalib
+MODULES_estdelay = -lcalib
 MODULES_caldir = -lcalib
 MODULES_walsh = -lcalib
 MODULES_calmat = -lcalib
@@ -167,28 +184,45 @@ MODULES_nufft = -lnoncart -liter -llinops
 MODULES_rof = -liter -llinops
 MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn
 MODULES_sake = -lsake
-MODULES_wave = -liter -lwavelet -llinops -lsense
+MODULES_traj = -lnoncart
+MODULES_wave = -liter -lwavelet -llinops -llowrank
 MODULES_threshold = -llowrank -liter -ldfwavelet -llinops -lwavelet
 MODULES_fakeksp = -lsense -llinops
 MODULES_lrmatrix = -llowrank -liter -llinops
 MODULES_estdims = -lnoncart -llinops
 MODULES_ismrmrd = -lismrm
 MODULES_wavelet = -llinops -lwavelet
+MODULES_wshfl = -llinops -lwavelet -liter -llowrank
 MODULES_hornschunck = -liter -llinops
 MODULES_ncsense = -liter -llinops -lnoncart -lsense
 MODULES_kernel = -lrkhs -lnoncart
 MODULES_power = -lrkhs -lnoncart
 MODULES_approx = -lrkhs -lnoncart
 MODULES_kmat = -lrkhs -lnoncart
+MODULES_dcnn = -lnn -llinops
+MODULES_ssa = -lcalib
 
-
-MAKEFILES = $(root)/Makefiles/Makefile.*
+MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
+ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
 
 -include Makefile.$(NNAME)
 -include Makefile.local
 -include $(MAKEFILES)
+
+
+# clang
+
+ifeq ($(findstring clang,$(CC)),clang)
+	CFLAGS += -fblocks
+	LDFLAGS += -lBlocksRuntime
+endif
+
+
+CXX ?= g++
+LINKER ?= $(CC)
+
 
 
 ifeq ($(ISMRMRD),1)
@@ -213,6 +247,9 @@ CPPFLAGS += -g
 CFLAGS += -g
 endif
 
+ifeq ($(NOEXEC_STACK),1)
+CPPFLAGS += -DNOEXEC_STACK
+endif
 
 ifeq ($(PARALLEL),1)
 MAKEFLAGS += -j
@@ -221,14 +258,14 @@ endif
 
 ifeq ($(MAKESTAGE),1)
 .PHONY: doc/commands.txt $(TARGETS)
-default all clean allclean distclean doc/commands.txt doxygen test utest gputest $(TARGETS):
+default all clean allclean distclean doc/commands.txt doxygen test utest gputest testague $(TARGETS):
 	make MAKESTAGE=2 $(MAKECMDGOALS)
 else
 
 
-CPPFLAGS += $(DEPFLAG) -I$(srcdir)/
-CFLAGS += -std=gnu11 -I$(srcdir)/
-CXXFLAGS += -I$(srcdir)/
+CPPFLAGS += $(DEPFLAG) -iquote $(srcdir)/
+CFLAGS += -std=gnu11
+CXXFLAGS += -std=c++11
 
 
 
@@ -302,6 +339,12 @@ endif
 endif
 endif
 
+ifeq ($(MKL),1)
+BLAS_H := -I$(MKL_BASE)/include
+BLAS_L := -L$(MKL_BASE)/lib/intel64 -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core
+CPPFLAGS += -DUSE_MKL -DMKL_Complex8="complex float" -DMKL_Complex16="complex double"
+CFLAGS += -DUSE_MKL -DMKL_Complex8="complex float" -DMKL_Complex16="complex double"
+endif
 
 
 
@@ -316,6 +359,16 @@ ifeq ($(SLINK),1)
 	PNG_L += -lz
 endif
 
+ifeq ($(LINKER),icc)
+	PNG_L += -lz
+endif
+
+
+# uuid
+ifeq ($(UUID), 1)
+	LDFLAGS += -luuid
+	CPPFLAGS += -DHAVE_UUID
+endif
 
 
 # fftw
@@ -343,11 +396,41 @@ ISMRM_H :=
 ISMRM_L :=
 endif
 
+# Enable in-memory CFL files
+
+ifeq ($(ENABLE_MEM_CFL),1)
+CPPFLAGS += -DUSE_MEM_CFL
+miscextracxxsrcs += $(srcdir)/misc/mmiocc.cc
+LDFLAGS += -lstdc++
+endif
+
+# Only allow in-memory CFL files (ie. disable support for all other files)
+
+ifeq ($(MEMONLY_CFL),1)
+CPPFLAGS += -DMEMONLY_CFL
+miscextracxxsrcs += $(srcdir)/misc/mmiocc.cc
+LDFLAGS += -lstdc++
+endif
+
+# Logging backends
+
+ifeq ($(LOG_BACKEND),1)
+CPPFLAGS += -DUSE_LOG_BACKEND
+ifeq ($(LOG_SIEMENS_BACKEND),1)
+miscextracxxsrcs += $(srcdir)/misc/UTrace.cc
+endif
+ifeq ($(LOG_ORCHESTRA_BACKEND),1)
+miscextracxxsrcs += $(srcdir)/misc/Orchestra.cc
+endif
+endif
+
+
 # change for static linking
 
 ifeq ($(SLINK),1)
 # work around fortran problems with static linking
 LDFLAGS += -static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -Wl,--allow-multiple-definition
+LIBS += -lmvec
 BLAS_L += -llapack -lblas -lgfortran -lquadmath
 endif
 
@@ -431,14 +514,14 @@ endif
 
 .SECONDEXPANSION:
 $(TARGETS): % : src/main.c $(srcdir)/%.o $$(MODULES_%) $(MODULES)
-	$(CC) $(LDFLAGS) $(CFLAGS) -Dmain_real=main_$@ -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) -lm
+	$(LINKER) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -Dmain_real=main_$@ -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) $(LIBS) -lm
 #	rm $(srcdir)/$@.o
 
 UTESTS=$(shell $(root)/utests/utests-collect.sh ./utests/$@.c)
 
 .SECONDEXPANSION:
 $(UTARGETS): % : utests/utest.c utests/%.o $$(MODULES_%) $(MODULES)
-	$(CC) $(LDFLAGS) $(CFLAGS) -DUTESTS="$(UTESTS)" -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) -lm
+	$(CC) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -DUTESTS="$(UTESTS)" -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(LIBS) -lm
 
 
 # linker script version - does not work on MacOS X
@@ -446,18 +529,37 @@ $(UTARGETS): % : utests/utest.c utests/%.o $$(MODULES_%) $(MODULES)
 
 clean:
 	rm -f `find $(srcdir) -name "*.o"`
-	rm -f utests/*.o
+	rm -f $(root)/utests/*.o
 	rm -f $(patsubst %, %, $(UTARGETS))
-	rm -f $(root)/lib/.*.lock
+	rm -f $(libdir)/.*.lock
 
 allclean: clean
 	rm -f $(libdir)/*.a $(ALLDEPS)
 	rm -f $(patsubst %, %, $(TARGETS))
 	rm -f $(srcdir)/misc/version.inc
-	rm -rf doc/dx
-	rm -f doc/commands.txt
+	rm -rf $(root)/tests/tmp/*/
+	rm -rf $(root)/doc/dx
+	rm -f $(root)/doc/commands.txt
+	touch isclean
 
 distclean: allclean
+
+
+
+-include isclean
+
+
+isclean: $(ALLMAKEFILES)
+ifeq ($(AUTOCLEAN),1)
+	@echo "CONFIGURATION MODIFIED. RUNNING FULL REBUILD."
+	touch isclean
+	make allclean || rm isclean
+else
+ifneq ($(MAKECMDGOALS),allclean)
+	@echo "CONFIGURATION MODIFIED."
+endif
+endif
+
 
 
 # automatic tests
@@ -472,6 +574,8 @@ TESTS_OUT=$(root)/tests/out/
 include $(root)/tests/*.mk
 
 test:	${TESTS}
+
+testague: ${TESTS_AGUE}
 
 gputest: ${TESTS_GPU}
 

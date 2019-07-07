@@ -5,17 +5,26 @@
  */
 
 #include "misc/types.h"
+
 typedef struct iter3_conf_s { TYPEID* TYPEID; } iter3_conf;
 
 struct iter_op_s;
 
-typedef void iter3_fun_f(iter3_conf* _conf,
+
+extern void iter3_irgnm(iter3_conf* _conf,
 		struct iter_op_s frw,
 		struct iter_op_s der,
 		struct iter_op_s adj,
 		long N, float* dst, const float* ref,
 		long M, const float* src);
 
+
+extern void iter3_irgnm_l1(iter3_conf* _conf,
+		struct iter_op_s frw,
+		struct iter_op_s der,
+		struct iter_op_s adj,
+		long N, float* dst, const float* ref,
+		long M, const float* src);
 
 
 struct iter3_irgnm_conf {
@@ -24,24 +33,18 @@ struct iter3_irgnm_conf {
 
 	int iter;
 	float alpha;
+	float alpha_min;
 	float redu;
 
 	int cgiter;
 	float cgtol;
     
-    long N;
-    long dims[16];
-    
-    float alpha_min;
-//     long* coildims;
+	long N;
+	long dims[16];
 
 	_Bool nlinv_legacy;
 };
 
-extern DEF_TYPEID(iter3_irgnm_conf);
-
-iter3_fun_f iter3_irgnm;
-iter3_fun_f iter3_irgnm_l1;
 
 
 struct iter3_landweber_conf {
@@ -53,11 +56,9 @@ struct iter3_landweber_conf {
 	float epsilon;
 };
 
-extern DEF_TYPEID(iter3_landweber_conf);
 
-iter3_fun_f iter3_landweber;
 
 
 extern const struct iter3_irgnm_conf iter3_irgnm_defaults;
-// extern const struct iter3_landweber_conf iter3_landweber_defaults;
+extern const struct iter3_landweber_conf iter3_landweber_defaults;
 

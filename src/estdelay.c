@@ -1,9 +1,10 @@
-/* Copyright 2017. Martin Uecker
+/* Copyright 2017-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2017-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2018 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  *
  *
  * Kai Tobias Block and Martin Uecker, Simple Method for Adaptive
@@ -13,81 +14,33 @@
  * Amir Moussavi, Markus Untenberger, Martin Uecker, and Jens Frahm,
  * Correction of gradient-induced phase errors in radial MRI,
  * Magnetic Resonance in Medicine, 71:308-312 (2014)
+ *
+ * Sebastian Rosenzweig, Hans Christian Holme, Martin Uecker,
+ * Simple Auto-Calibrated Gradient Delay Estimation From Few Spokes Using Radial
+ * Intersections (RING), Magnetic Resonance in Medicine 81:1898-1906 (2019)
  */
 
-#include <complex.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <math.h>
-#include <assert.h>
 
-#include "num/multind.h"
-#include "num/flpmath.h"
-#include "num/qform.h"
-
-#include "misc/subpixel.h"
 #include "misc/misc.h"
 #include "misc/mmio.h"
+#include "misc/opts.h"
 #include "misc/mri.h"
+
+#include "num/init.h"
+#include "num/qform.h"
+#include "num/multind.h"
+
+#include "calib/delays.h"
 
 #ifndef DIMS
 #define DIMS 16
 #endif
 
+#ifndef CFL_SIZE
+#define CFL_SIZE sizeof(complex float)
+#endif
 
-static void radial_self_delays(unsigned int N, float shifts[N], const float phi[N], const long dims[DIMS], const complex float* in)
-{
-	unsigned int d = 2;
-	unsigned int flags = (1 << d);
-
-	assert(N == dims[d]);
-
-	long dims1[DIMS];
-	md_select_dims(DIMS, ~flags, dims1, dims);
-
-	complex float* tmp1 = md_alloc(DIMS, dims1, CFL_SIZE);
-	complex float* tmp2 = md_alloc(DIMS, dims1, CFL_SIZE);
-
-	long pos[DIMS] = { 0 };
-
-	for (unsigned int i = 0; i < dims[d]; i++) {
-
-		pos[d] = i;
-		md_copy_block(DIMS, pos, dims1, tmp1, dims, in, CFL_SIZE);
-
-		// find opposing spoke
-
-		float mdelta = 0.;
-		int mindex = 0;
-
-		for (unsigned int j = 0; j < dims[d]; j++) {
-
-			float delta = cabsf(cexpf(1.i * phi[j]) - cexpf(1.i * phi[i]));
-
-			if (mdelta <= delta) {
-
-				mdelta = delta;
-				mindex = j;
-			}
-		}
-
-		pos[d] = mindex;
-		md_copy_block(DIMS, pos, dims1, tmp2, dims, in, CFL_SIZE);
-
-
-		unsigned int d2 = 1;
-		float rshifts[DIMS];
-		md_flip(DIMS, dims1, MD_BIT(d2), tmp2, tmp2, CFL_SIZE); // could be done by iFFT in est_subpixel_shift
-		est_subpixel_shift(DIMS, rshifts, dims1, MD_BIT(d2), tmp2, tmp1);
-
-		float mshift = rshifts[d2] / 2.; // mdelta
-
-		shifts[i] = mshift;
-	}
-
-	md_free(tmp1);
-	md_free(tmp2);
-}
 
 
 
@@ -98,7 +51,26 @@ static const char help_str[] = "Estimate gradient delays from radial data.";
 
 int main_estdelay(int argc, char* argv[])
 {
-	mini_cmdline(&argc, argv, 2, usage_str, help_str);
+	bool do_ring = false;
+	unsigned int pad_factor = 100;
+	unsigned int no_intersec_sp = 1;
+	float ring_size = 1.5;
+
+	const struct opt_s opts[] = {
+
+		OPT_SET('R', &do_ring, "RING method"),
+		OPT_UINT('p', &pad_factor, "p", "[RING] Padding"),
+		OPT_UINT('n', &no_intersec_sp, "n", "[RING] Number of intersecting spokes"),
+		OPT_FLOAT('r', &ring_size, "r", "[RING] Central region size"),
+	};
+
+	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	num_init();
+
+	if (0 != pad_factor % 2)
+		error("Pad_factor -p should be even\n");
+
 
 	long tdims[DIMS];
 	const complex float* traj = load_cfl(argv[1], DIMS, tdims);
@@ -109,38 +81,82 @@ int main_estdelay(int argc, char* argv[])
 	complex float* traj1 = md_alloc(DIMS, tdims1, CFL_SIZE);
 	md_slice(DIMS, MD_BIT(1), (long[DIMS]){ 0 }, tdims, traj1, traj, CFL_SIZE);
 
-	unsigned int N = tdims[2];
+	int N = tdims[2];
 
 	float angles[N];
-	for (unsigned int i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 		angles[i] = M_PI + atan2f(crealf(traj1[3 * i + 0]), crealf(traj1[3 * i + 1]));
 
-	unmap_cfl(DIMS, tdims, traj);
+
+	if (do_ring) {
+
+		assert(0 == tdims[1] % 2);
+
+		md_slice(DIMS, MD_BIT(1), (long[DIMS]){ [1] = tdims[1] / 2 }, tdims, traj1, traj, CFL_SIZE);
+
+		for (int i = 0; i < N; i++)
+			if (0. != cabsf(traj1[3 * i]))
+				error("Nominal trajectory must be centered for RING.\n");
+	}
 
 
+	md_free(traj1);
+
+
+	long full_dims[DIMS];
+	const complex float* full_in = load_cfl(argv[2], DIMS, full_dims);
+
+	// Remove not needed dimensions
 	long dims[DIMS];
-	const complex float* in = load_cfl(argv[2], DIMS, dims);
+	md_select_dims(DIMS, READ_FLAG|PHS1_FLAG|PHS2_FLAG|COIL_FLAG, dims, full_dims);
+
+	complex float* in = md_alloc(DIMS, dims, CFL_SIZE);
+
+	long pos[DIMS] = { 0 };
+	md_copy_block(DIMS, pos, dims, in, full_dims, full_in, CFL_SIZE);
 
 	// FIXME: more checks
 	assert(dims[1] == tdims[1]);
 	assert(dims[2] == tdims[2]);
 
-	float delays[N];
-	radial_self_delays(N, delays, angles, dims, in);
+	float qf[3];	// S in RING
 
+	if (!do_ring) {
 
-	/* We allow an arbitrary quadratic form to account for
-	 * non-physical coordinate systems.
-	 * Moussavi et al., MRM 71:308-312 (2014)
-	 */
-	float qf[3];
-	fit_quadratic_form(qf, N, angles, delays);
-	printf("%f:%f:%f\n", qf[0], qf[1], qf[2]);
+		// Block and Uecker, ISMRM 19:2816 (2001)
 
+		float delays[N];
+		radial_self_delays(N, delays, angles, dims, in);
 
-	unmap_cfl(DIMS, dims, in);
+		/* We allow an arbitrary quadratic form to account for
+		 * non-physical coordinate systems.
+		 * Moussavi et al., MRM 71:308-312 (2014)
+		 */
 
-	exit(0);
+		fit_quadratic_form(qf, N, angles, delays);
+
+	} else {
+
+		/* RING method
+		 * Rosenzweig et al., MRM 81:1898-1906 (2019)
+		 */
+
+		struct ring_conf conf = ring_defaults;
+
+		conf.pad_factor = pad_factor;
+		conf.size = ring_size;
+		conf.no_intersec_sp = no_intersec_sp;
+
+		ring(&conf, qf, N, angles, dims, in);
+	}
+
+	bart_printf("%f:%f:%f\n", qf[0], qf[1], qf[2]);
+
+	unmap_cfl(DIMS, full_dims, full_in);
+	unmap_cfl(DIMS, tdims, traj);
+	md_free(in);
+
+	return 0;
 }
 
 

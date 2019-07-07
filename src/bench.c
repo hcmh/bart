@@ -18,7 +18,7 @@
 #include "num/flpmath.h"
 #include "num/rand.h"
 #include "num/init.h"
-#include "num/ops.h"
+#include "num/ops_p.h"
 #include "num/mdfft.h"
 #include "num/fft.h"
 
@@ -279,6 +279,41 @@ static double bench_sumf(long scale)
 {
 	long dims[DIMS] = { 65536 * scale, 1, 50 * scale, 1, 1, 1, 1, 1 };
 	return bench_generic_sum(dims, MD_BIT(2), true);
+}
+
+
+static double bench_zmul(long scale)
+{
+	long dimsx[DIMS] = { 256, 256, 1, 1, 90 * scale, 1, 1, 1 };
+	long dimsy[DIMS] = { 256, 256, 1, 1,  1, 1, 1, 1 };
+	long dimsz[DIMS] = {   1,   1, 1, 1, 90 * scale, 1, 1, 1 };
+
+	complex float* x = md_alloc(DIMS, dimsx, CFL_SIZE);
+	complex float* y = md_alloc(DIMS, dimsy, CFL_SIZE);
+	complex float* z = md_alloc(DIMS, dimsz, CFL_SIZE);
+
+	md_gaussian_rand(DIMS, dimsy, y);
+	md_gaussian_rand(DIMS, dimsz, z);
+
+	long strsx[DIMS];
+	long strsy[DIMS];
+	long strsz[DIMS];
+
+	md_calc_strides(DIMS, strsx, dimsx, CFL_SIZE);
+	md_calc_strides(DIMS, strsy, dimsy, CFL_SIZE);
+	md_calc_strides(DIMS, strsz, dimsz, CFL_SIZE);
+
+	double tic = timestamp();
+
+	md_zmul2(DIMS, dimsx, strsx, x, strsy, y, strsz, z);
+
+	double toc = timestamp();
+
+	md_free(x);
+	md_free(y);
+	md_free(z);
+
+	return toc - tic;
 }
 
 
@@ -547,6 +582,7 @@ const struct benchmark_s {
 	{ bench_sum,   		"sum (md_zaxpy)" },
 	{ bench_sum2,   	"sum (md_zaxpy), contiguous" },
 	{ bench_sumf,   	"sum (for loop)" },
+	{ bench_zmul,   	"complex mult. (md_zmul2)" },
 	{ bench_transpose,	"complex transpose" },
 	{ bench_resize,   	"complex resize" },
 	{ bench_matrix_mult,	"complex matrix multiply" },
@@ -577,11 +613,13 @@ int main_bench(int argc, char* argv[])
 {
 	bool threads = false;
 	bool scaling = false;
+	long flags = ~0l;
 
 	const struct opt_s opts[] = {
 
 		OPT_SET('T', &threads, "varying number of threads"),
 		OPT_SET('S', &scaling, "varying problem size"),
+		OPT_LONG('s', &flags, "flags", "select benchmarks"),
 	};
 
 	cmdline(&argc, argv, 0, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -602,7 +640,12 @@ int main_bench(int argc, char* argv[])
 
 	num_init();
 
+	md_clear(BENCH_DIMS, dims, out, CFL_SIZE);
+
 	do {
+		if (!(flags & (1 << pos[TESTS_IND])))
+			continue;
+
 		if (threads) {
 
 			num_set_num_threads(pos[THREADS_IND] + 1);
@@ -616,7 +659,7 @@ int main_bench(int argc, char* argv[])
 
 	unmap_cfl(BENCH_DIMS, dims, out);
 
-	exit(0);
+	return 0;
 }
 
 

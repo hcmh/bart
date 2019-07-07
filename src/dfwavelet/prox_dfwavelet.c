@@ -22,6 +22,7 @@
 
 #include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/ops_p.h"
 #include "num/ops.h"
 
 #include "misc/misc.h"
@@ -119,7 +120,7 @@ struct prox_dfwavelet_data* prepare_prox_dfwavelet_data(const long im_dims[DIMS]
 
 static void prox_dfwavelet_del(const operator_data_t* _data)
 {
-	struct prox_dfwavelet_data* data = CAST_DOWN(prox_dfwavelet_data, _data);
+	auto data = CAST_DOWN(prox_dfwavelet_data, _data);
 
         md_free(data->vx);
         md_free(data->vy);
@@ -133,7 +134,7 @@ static void prox_dfwavelet_del(const operator_data_t* _data)
 
 static void prox_dfwavelet_thresh(const operator_data_t* _data, float thresh, complex float* out, const complex float* in)
 {
-	struct prox_dfwavelet_data* data = CAST_DOWN(prox_dfwavelet_data, _data);
+	auto data = CAST_DOWN(prox_dfwavelet_data, _data);
 
         bool done = false;
         long pos[DIMS];
@@ -282,7 +283,7 @@ struct prox_4pt_dfwavelet_data* prepare_prox_4pt_dfwavelet_data(const long im_di
 
 static void prox_4pt_dfwavelet_del(const operator_data_t* _data)
 {
-	struct prox_4pt_dfwavelet_data* data = CAST_DOWN(prox_4pt_dfwavelet_data, _data);
+	auto data = CAST_DOWN(prox_4pt_dfwavelet_data, _data);
 
         md_free(data->vx);
         md_free(data->vy);
@@ -305,7 +306,7 @@ static void prox_4pt_dfwavelet_del(const operator_data_t* _data)
 
 static void prox_4pt_dfwavelet_thresh(const operator_data_t* _data, float thresh, complex float* out, const complex float* in)
 {
-	struct prox_4pt_dfwavelet_data* data = CAST_DOWN(prox_4pt_dfwavelet_data, _data);
+	auto data = CAST_DOWN(prox_4pt_dfwavelet_data, _data);
 
         bool done = false;
         long pos[DIMS];

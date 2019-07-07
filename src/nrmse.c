@@ -13,7 +13,6 @@
 #include <complex.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <stdio.h>
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
@@ -77,12 +76,12 @@ int main_nrmse(int argc, char* argv[])
 
 	float err = md_znrmse(DIMS, ref_dims, ref, in);
 
-	printf("%f\n", err);
+	bart_printf("%f\n", err);
 
 	unmap_cfl(DIMS, ref_dims, ref);
 	unmap_cfl(DIMS, in_dims, in);
 
-	exit(((test == -1.) || (err <= test)) ? 0 : 1);
+	return ((test == -1.) || (err <= test)) ? 0 : 1;
 }
 
 

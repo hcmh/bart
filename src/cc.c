@@ -60,7 +60,7 @@ int main_cc(int argc, char* argv[])
 
 	num_init();
 
-	if (-1 == P) {
+	if ((-1 == P) && proj) {
 
 		debug_printf(DP_WARN, "Use -M to output compression matrix.\n");
 		proj = false;
@@ -96,6 +96,10 @@ int main_cc(int argc, char* argv[])
 		
 		cal_data = extract_calib(caldims, calsize, in_dims, in_data, false);
 	}
+
+	if (0. == md_znorm(DIMS, caldims, cal_data))
+		debug_printf(DP_WARN, "Empty calibration region.\n");
+
 
 	if (ECC == cc_type)
 		debug_printf(DP_WARN, "Warning: ECC depends on a parameter choice rule for optimal results which is not implemented.\n");
@@ -169,7 +173,7 @@ int main_cc(int argc, char* argv[])
 	}
 
 	printf("Done.\n");
-	exit(0);
+	return 0;
 }
 
 

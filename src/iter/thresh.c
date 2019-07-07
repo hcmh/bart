@@ -17,6 +17,7 @@
 
 #include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/ops_p.h"
 #include "num/ops.h"
 #include "num/iovec.h"
 
@@ -63,7 +64,7 @@ static DEF_TYPEID(thresh_s);
 
 static void softthresh_apply(const operator_data_t* _data, float mu, complex float* optr, const complex float* iptr)
 {
-	const struct thresh_s* data = CAST_DOWN(thresh_s, _data);
+	const auto data = CAST_DOWN(thresh_s, _data);
 
 	if (0. == mu) {
 
@@ -81,7 +82,7 @@ static void softthresh_apply(const operator_data_t* _data, float mu, complex flo
 
 static void unisoftthresh_apply(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
 {
-	const struct thresh_s* data = CAST_DOWN(thresh_s, _data);
+	const auto data = CAST_DOWN(thresh_s, _data);
 
 	if (0. == mu) {
 
@@ -109,7 +110,7 @@ static void unisoftthresh_apply(const operator_data_t* _data, float mu, complex 
 static void hardthresh_apply(const operator_data_t* _data,  float mu, complex float* optr, const complex float* iptr)
 {
 	UNUSED(mu);
-	const struct thresh_s* data = CAST_DOWN(thresh_s, _data);
+	const auto data = CAST_DOWN(thresh_s, _data);
 
 	complex float* tmp_norm = md_alloc_sameplace(data->D, data->norm_dim, CFL_SIZE, optr);
 	//only producing the support mask
@@ -121,7 +122,7 @@ static void hardthresh_apply(const operator_data_t* _data,  float mu, complex fl
 
 static void thresh_del(const operator_data_t* _data)
 {
-	const struct thresh_s* data = CAST_DOWN(thresh_s, _data);
+	const auto data = CAST_DOWN(thresh_s, _data);
 
 	xfree(data->dim);
 	xfree(data->str);
@@ -261,7 +262,7 @@ void thresh_free(const struct operator_p_s* o)
  */
 void set_thresh_lambda(const struct operator_p_s* o, const float lambda)
 {
-	struct thresh_s* data = CAST_DOWN(thresh_s, operator_p_get_data(o));
+	auto data = CAST_DOWN(thresh_s, operator_p_get_data(o));
 	data->lambda = lambda;
 }
 
@@ -272,7 +273,7 @@ void set_thresh_lambda(const struct operator_p_s* o, const float lambda)
  */
 float get_thresh_lambda(const struct operator_p_s* o)
 {
-	struct thresh_s* data = CAST_DOWN(thresh_s, operator_p_get_data(o));
+	auto data = CAST_DOWN(thresh_s, operator_p_get_data(o));
 	return data->lambda;
 }
 
