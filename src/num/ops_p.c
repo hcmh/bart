@@ -275,9 +275,7 @@ const struct operator_s* operator_p_bind(const struct operator_p_s* op, float al
 
 const struct operator_p_s* operator_p_gpu_wrapper(const struct operator_p_s* op)
 {
-	(void)op;
-	assert(0); // FIXME
-	return operator_p_downcast(operator_gpu_wrapper(operator_p_upcast(op)));
+	return operator_p_downcast(operator_gpu_wrapper2(operator_p_upcast(op), MD_BIT(1) | MD_BIT(2)));
 }
 
 

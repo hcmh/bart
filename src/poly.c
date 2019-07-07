@@ -44,14 +44,17 @@ int main_poly(int argc, char* argv[])
 
 	long p_dims[] = { [0 ... DIMS - 1] = 1 };
 	p_dims[0] = L;
+
 	complex float* p = create_cfl(argv[argc - 1], DIMS, p_dims);
+
 	md_clear(DIMS, p_dims, p, CFL_SIZE);
 
 	for (int x = 0; x < L; x++) {
-		p[x] = (complex float) atof(argv[3]);
-		for (int n = 1; n < N + 1; n++) {
-			p[x] += ((complex float) atof(argv[3 + n])) * cpowf(x, n);
-		}
+
+		p[x] = atof(argv[3]);
+
+		for (int n = 1; n < N + 1; n++)
+			p[x] += atof(argv[3 + n]) * cpowf(x, n);
 	}
 
 	unmap_cfl(N, p_dims, p);

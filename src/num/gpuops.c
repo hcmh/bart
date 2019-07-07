@@ -244,10 +244,25 @@ void cuda_free(void* ptr)
 }
 
 
+bool cuda_global_memory = false;
+
+void cuda_use_global_memory(void)
+{
+	cuda_global_memory = true;
+}
+
 static void* cuda_malloc_wrapper(size_t size)
 {
 	void* ptr;
-        CUDA_ERROR(cudaMalloc(&ptr, size));
+
+	if (cuda_global_memory) {
+
+		CUDA_ERROR(cudaMallocManaged(&ptr, size, cudaMemAttachGlobal));
+
+	} else {
+
+		CUDA_ERROR(cudaMalloc(&ptr, size));
+	}
 
 	return ptr;
 }
