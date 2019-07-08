@@ -11,15 +11,8 @@ typedef struct iter3_conf_s { TYPEID* TYPEID; } iter3_conf;
 struct iter_op_s;
 
 
-extern void iter3_irgnm(iter3_conf* _conf,
-		struct iter_op_s frw,
-		struct iter_op_s der,
-		struct iter_op_s adj,
-		long N, float* dst, const float* ref,
-		long M, const float* src);
 
-
-extern void iter3_irgnm_l1(iter3_conf* _conf,
+extern void iter3_irgnm_l1(const iter3_conf* _conf,
 		struct iter_op_s frw,
 		struct iter_op_s der,
 		struct iter_op_s adj,

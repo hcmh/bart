@@ -48,8 +48,8 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 
 	.iter = 8,
 
-	.alpha = 1.,
-	.alpha_min = 0.,
+	.alpha = 0.1,
+	.alpha_min = 0.001,
 	.redu = 3.,
 
 	.cgiter = 100,
@@ -204,7 +204,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 
 
-void iter3_irgnm_l1(iter3_conf* _conf,
+void iter3_irgnm_l1(const iter3_conf* _conf,
 		struct iter_op_s frw,
 		struct iter_op_s der,
 		struct iter_op_s adj,

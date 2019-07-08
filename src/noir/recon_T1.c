@@ -93,7 +93,7 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf.dims);
 
 
-	iter4_irgnm(CAST_UP(&irgnm_conf),
+	iter4_irgnm_l1(CAST_UP(&irgnm_conf),
 			nl.nlop,
 //			size * 2, (float*)x, (float*)x,
 			size * 2, (float*)x, NULL,
