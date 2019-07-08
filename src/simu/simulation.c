@@ -8,7 +8,6 @@
 
 #include "simu/bloch.h"
 #include "num/ode.h"
-#include "simu/bloch.h"
 #include "misc/opts.h"
 #include "num/init.h"
 #include "misc/mri.h"
