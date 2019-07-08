@@ -59,7 +59,7 @@ static void orthogonalize(iter_op_data* ptr, float* _dst, const float* _src)
 
 	auto nlw = CAST_DOWN(nlop_wrapper_s, ptr);
 
-	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
+//	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
 #endif
 }
 
