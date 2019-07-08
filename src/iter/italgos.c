@@ -713,8 +713,8 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* 
 	float* t = vops->allocate(M);
 	float* p = vops->allocate(N);
 
-    long img_dims[16];
-    md_select_dims(16, ~COIL_FLAG, img_dims, dims);
+	long img_dims[16];
+	md_select_dims(16, ~COIL_FLAG, img_dims, dims);
 
 	for (unsigned int i = 0; i < iter; i++) {
 		//		printf("#--------\n");
@@ -732,33 +732,27 @@ void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* 
         
 		iter_op_call(op, r, x);		// r = F x
 
-        debug_printf(DP_DEBUG2, "\tF(x): %f\n", vops->norm(M, r));
+		debug_printf(DP_DEBUG2, "\tF(x): %f\n", vops->norm(M, r));
         
         
-        debug_printf(DP_DEBUG2, "y: %f\n", vops->norm(M, y));
+		debug_printf(DP_DEBUG2, "y: %f\n", vops->norm(M, y));
         
 		vops->xpay(M, -1., r, y);	// r = y - F x
 		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
 		
 		iter_op_call(der, t, x);	// t = DF x
-        debug_printf(DP_DEBUG2, "Step: %u, Der: %f\n", i, vops->norm(M, t));
+		debug_printf(DP_DEBUG2, "Step: %u, Der: %f\n", i, vops->norm(M, t));
 		vops->axpy(M, r, 1.f, t);   // r = y - F x + DF x
 
 		iter_op_call(adj, p, r);		
-        debug_printf(DP_DEBUG2, "Step: %u, Adj: %f\n", i, vops->norm(N, p));
+		debug_printf(DP_DEBUG2, "Step: %u, Adj: %f\n", i, vops->norm(N, p));
 		
 		if (NULL != xref)
 			vops->axpy(N, p, 0.9*alpha, xref);
 
 		iter_op_p_call(inv, alpha, x, p);
 
-        char name[255] = {'\0'};
-    
-        sprintf(name, "/tmp/step_newton_l1_test00_%02d", i);
-    
-        dump_cfl(name, 16, img_dims, x);
-		
-        alpha /= redu;
+		alpha /= redu;
 		if (NULL != callback.fun){
 			iter_op_call(callback, x, x);
 		}
