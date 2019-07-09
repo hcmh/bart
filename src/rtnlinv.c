@@ -126,6 +126,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", k_s->dims_full[SLICE_DIM]);
 		fftmod(DIMS, k_s->dims_full, SLICE_FLAG, k, k); // fftmod to get correct slice order in output
+		conf.sms = true;
 	}
 
 	complex float* pattern = NULL;
