@@ -895,13 +895,17 @@ static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned
 		struct linop_s* modk = linop_cdiag_create(N, dims, ~0u, fftmodk_mat);
 
 		struct linop_s* tmp = linop_chain(mod, lop);
-		tmp = linop_chain(tmp, modk);
-
+		
 		linop_free(lop);
 		linop_free(mod);
+		
+		lop = linop_chain(tmp, modk);
+		
+		linop_free(tmp);
 		linop_free(modk);
-
-		lop = tmp;
+		
+		md_free(fftmod_mat);
+		md_free(fftmodk_mat);
 	}
 
 	return lop;
