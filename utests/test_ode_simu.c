@@ -521,3 +521,90 @@ static bool test_RF_pulse_matexp(void)
 
 UT_REGISTER_TEST(test_RF_pulse_matexp);
 
+
+static bool test_matrix_exp_simulation(void)
+{
+#if 1
+	//------------------------------------------------------------
+    //------------ Parameter for simulation  --------------------
+    //------------------------------------------------------------
+    float angle = 45.;
+	float repetition = 100;
+    float aver_num = 1;
+
+    //------------------------------------------------------------
+	//---------  Simulation of phantom data with ODE -------------
+	//------------------------------------------------------------
+	
+	float t1n = WATER_T1;	float t2n = WATER_T2;	float m0n = 1;
+	
+	struct SimData sim_data;
+	
+	sim_data.seqData = seqData_defaults;
+	sim_data.seqData.seq_type = 1;
+	sim_data.seqData.TR = 0.003;
+	sim_data.seqData.TE = 0.0015;
+	sim_data.seqData.rep_num = repetition;
+	sim_data.seqData.spin_num = 1;
+	sim_data.seqData.num_average_rep = aver_num;
+	
+	sim_data.voxelData = voxelData_defaults;
+	sim_data.voxelData.r1 = 1 / t1n;
+	sim_data.voxelData.r2 = 1 / t2n;
+	sim_data.voxelData.m0 = m0n;
+	sim_data.voxelData.w = 0;
+	
+	sim_data.pulseData = pulseData_defaults;
+	sim_data.pulseData.flipangle = angle;
+	sim_data.pulseData.RF_end = 0.0009;
+	sim_data.gradData = gradData_defaults;
+	sim_data.seqtmp = seqTmpData_defaults;
+	
+	struct SimData sim_ode = sim_data;
+	
+	float mxySig_ode[sim_ode.seqData.rep_num / sim_ode.seqData.num_average_rep][3];
+	float saR1Sig_ode[sim_ode.seqData.rep_num / sim_ode.seqData.num_average_rep][3];
+	float saR2Sig_ode[sim_ode.seqData.rep_num / sim_ode.seqData.num_average_rep][3];
+	float saDensSig_ode[sim_ode.seqData.rep_num / sim_ode.seqData.num_average_rep][3];
+	
+	ode_bloch_simulation3( &sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, NULL );
+	
+	
+	
+	float mxySig_matexp[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	float saR1Sig_matexp[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	float saR2Sig_matexp[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	float saDensSig_matexp[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	
+	matrix_bloch_simulation( &sim_data, mxySig_matexp, saR1Sig_matexp, saR2Sig_matexp, saDensSig_matexp, NULL );
+
+	float tol = 10E-3;
+	float err;
+	
+	for (int rep = 0; rep < repetition; rep++)
+		for( int dim = 0; dim < 3; dim++)
+		{
+			err = fabsf( mxySig_matexp[rep][dim] - mxySig_ode[rep][dim] );
+			if ( err > tol )
+				return 0;
+			
+			err = fabsf( saR1Sig_matexp[rep][dim] - saR1Sig_ode[rep][dim] );
+			if ( err > tol )
+				return 0;
+			
+			err = fabsf( saR2Sig_matexp[rep][dim] - saR2Sig_ode[rep][dim] );
+			if ( err > tol )
+				return 0;
+			
+			err = fabsf( saDensSig_matexp[rep][dim] - saDensSig_ode[rep][dim] );
+			if ( err > tol )
+				return 0;
+		}
+	
+	
+	#endif
+	return 1;	
+}
+
+UT_REGISTER_TEST(test_matrix_exp_simulation);
+
