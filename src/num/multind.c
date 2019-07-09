@@ -648,7 +648,7 @@ void md_copy2(unsigned int D, const long dim[D], const long ostr[D], void* optr,
 	int skip = min_blockdim(2, ND, tdims, nstr2, sizes);
 
 
-	if (use_gpu && (ND - skip > 0)) {
+	if (use_gpu && (ND - skip == 1)) {
 
 		void* nptr[2] = { optr, (void*)iptr };
 
