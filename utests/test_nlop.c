@@ -118,7 +118,7 @@ UT_REGISTER_TEST(test_nlop_chain);
 
 
 
-static bool test_nlop_tenmul(void)
+static bool test_nlop_tenmul2(bool permute)
 {
 	enum { N = 3 };
 	long odims[N] = { 10, 1, 3 };
@@ -133,7 +133,20 @@ static bool test_nlop_tenmul(void)
 	md_gaussian_rand(N, idims1, src1);
 	md_gaussian_rand(N, idims2, src2);
 
-	struct nlop_s* tenmul = nlop_tenmul_create(N, odims, idims1, idims2);
+	struct nlop_s* tenmul = NULL;
+
+	if (!permute) {
+
+		tenmul = nlop_tenmul_create(N, odims, idims1, idims2);
+
+	} else {
+
+		struct nlop_s* tmp = nlop_tenmul_create(N, odims, idims2, idims1);
+
+		tenmul = nlop_permute_inputs(tmp, 2, (int[]){ 1, 0 });
+
+		nlop_free(tmp);
+	}
 
 	md_ztenmul(N, odims, dst1, idims1, src1, idims2, src2);
 
@@ -152,9 +165,21 @@ static bool test_nlop_tenmul(void)
 }
 
 
+static bool test_nlop_tenmul(void)
+{
+	return test_nlop_tenmul2(false);
+}
 
 UT_REGISTER_TEST(test_nlop_tenmul);
 
+
+
+static bool test_nlop_permute(void)
+{
+	return test_nlop_tenmul2(true);
+}
+
+UT_REGISTER_TEST(test_nlop_permute);
 
 
 
