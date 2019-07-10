@@ -16,6 +16,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "simu/simulation.h"
+#include "simu/sim_matrix.h"
 #include "misc/debug.h"
 #include "num/fft.h"
 
@@ -61,6 +62,7 @@ int main_bloch(int argc, char* argv[argc])
 	float m0i = 1;
 	
 	bool linear_offset = false;
+	bool matrix_exp_sim = false;
 	
     const struct opt_s opts[] = {
 		
@@ -96,6 +98,7 @@ int main_bloch(int argc, char* argv[argc])
 		OPT_SET('E', &spin_ensamble, "Input inverse relaxation?"),
 		OPT_INT('k', &kspace, "d", "kspace output? default:0=no"),
 		OPT_SET('L', &linear_offset, "Add linear distribution of off-set freq."),
+		OPT_SET('S', &matrix_exp_sim, "Simulate using matrix exponentials."),
     };
     
     cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -116,6 +119,15 @@ int main_bloch(int argc, char* argv[argc])
 		}
 	* --------------------------------------------------------------
 	*/
+	
+	// Check cases
+	if ( matrix_exp_sim && ( seq == 3 || seq == 6) )
+		error( "Simulation tool does not allow to simulate pcbSSFP sequences using matrix exponentials yet.\n" );
+	
+	if ( matrix_exp_sim && ( rf_end == 0.) )
+		error( "Simulation tool does not allow to hard-pulses using matrix exponentials yet.\n" );
+	
+	
 	long dim_map[DIMS] = { [0 ... DIMS - 1] = 1 };
 
 	complex float* map_T1;
@@ -304,8 +316,11 @@ int main_bloch(int argc, char* argv[argc])
 				
 			} else {	//start ODE based simulation
 
-				ode_bloch_simulation3( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL );
-
+				if ( matrix_exp_sim )
+					matrix_bloch_simulation( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL );
+				else
+					ode_bloch_simulation3( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL );
+				
 				//Add data to phantom
 				for(int z = 0; z < dim_phantom[TE_DIM]; z++){
 					//changed x-and y-axis to have same orientation as measurements

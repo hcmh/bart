@@ -5,6 +5,7 @@
  *
  * 2014-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
+ * 2019 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
@@ -26,6 +27,7 @@ const struct traj_conf traj_defaults = {
 	.d3d = false,
 	.transverse = false,
 	.asym_traj = false,
+	.mems_traj = false,
 	.accel = 1,
 	.tiny_gold = 0,
 };
@@ -41,6 +43,7 @@ const struct traj_conf rmfreq_defaults = {
 	.d3d = false,
 	.transverse = false,
 	.asym_traj = false,
+	.mems_traj = false,
 	.accel = 1,
 	.tiny_gold = 0,
 };
@@ -79,7 +82,7 @@ void gradient_delay(float d[3], float coeff[2][3], float phi, float psi)
 	}
 }
 
-void calc_base_angles(double base_angle[DIMS], int Y, int mb, int turns, struct traj_conf conf)
+void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, struct traj_conf conf)
 {
 	/* Golden-ratio sampling
 	 * Winkelmann S, Schaeffter T, Koehler T, Eggers H, Doessel O.
@@ -113,9 +116,23 @@ void calc_base_angles(double base_angle[DIMS], int Y, int mb, int turns, struct 
 	if (turns > 1)
 		angle_t = angle_atom / (turns * mb) * (conf.full_circle ? 2 : 1);
 
+	/* radial multi-echo multi-spoke sampling
+	 * Tan Z, Voit D, Kollmeier JM, Uecker M, Frahm J.
+	 * Dynamic water/fat separation and B0 inhomogeneity 
+	 * mapping -- joint estimation using undersampled 
+	 * triple-echo multi-spoke radial FLASH. 
+	 * Magn Reson Med 82:1000-1011 (2019)
+	*/
+	double angle_e = 0.;
+	if (conf.mems_traj && E > 1) {
+
+		angle_s = angle_s * 1.;
+		angle_e = angle_s / E;
+		angle_t = golden_angle;
+	}
 
 	// Golden Angle
-	if (conf.golden) {
+	if (conf.golden  && !conf.mems_traj) {
 
 		if (conf.aligned) {
 
@@ -133,6 +150,7 @@ void calc_base_angles(double base_angle[DIMS], int Y, int mb, int turns, struct 
 
 	base_angle[PHS2_DIM] = angle_s;
 	base_angle[SLICE_DIM] = angle_m;
+	base_angle[TE_DIM] = angle_e;
 	base_angle[TIME_DIM] = angle_t;
 }
 

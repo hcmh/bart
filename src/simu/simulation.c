@@ -136,7 +136,7 @@ void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 
 
 
-static void isochromDistribution( void* _data, float *isochromats ){
+void isochromDistribution( void* _data, float *isochromats ){
 	
 	struct SimData* data = _data;
 	
@@ -436,6 +436,9 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
     }
     free(mxySignal); free(saT1Signal); free(saT2Signal); free(densSignal);
 }
+
+
+
 
 
 

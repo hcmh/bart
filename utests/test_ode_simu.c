@@ -303,111 +303,93 @@ UT_REGISTER_TEST(test_RF_pulse);
 static bool test_simulation(void)
 {
 #if 1
-	//------------------------------------------------------------
-    //------------ Parameter for simulation  --------------------
-    //------------------------------------------------------------
     float angle = 45.;
 	float repetition = 100;
     float aver_num = 1;
 	
 	//Parameter for analytical model calculation
-	float fa = angle * M_PI / 180.; //conversion to radians
+	float fa = angle * M_PI / 180.;
 	
-    //------------------------------------------------------------
-    //--------------  Create simulation dataset  -----------------
-    //------------------------------------------------------------
-    long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
-	dims[0] = repetition / aver_num;
-     
-    //------------------------------------------------------------
-    //---------  Simulation of phantom data with ODE -------------
-    //------------------------------------------------------------
-
-	for(int i = 0; i < dims[0]; i++ )
-		for(int j = 0; j < dims[1]; j++ ){
-			
-			float t1n = WATER_T1;	float t2n = WATER_T2;	float m0n = 1;
-			
-
-			
-			struct SimData sim_data;
+	float t1n = WATER_T1;	float t2n = WATER_T2;	float m0n = 1;
 	
-			sim_data.seqData = seqData_defaults;
-			sim_data.seqData.seq_type = 1;
-			sim_data.seqData.TR = 0.003;
-			sim_data.seqData.TE = 0.0015;
-			sim_data.seqData.rep_num = repetition;
-			sim_data.seqData.spin_num = 1;
-			sim_data.seqData.num_average_rep = aver_num;
-			
-			sim_data.voxelData = voxelData_defaults;
-			sim_data.voxelData.r1 = 1 / t1n;
-			sim_data.voxelData.r2 = 1 / t2n;
-			sim_data.voxelData.m0 = m0n;
-			sim_data.voxelData.w = 0;
-			
-			sim_data.pulseData = pulseData_defaults;
-			sim_data.pulseData.flipangle = angle;
-			sim_data.pulseData.RF_end = 0.0000;			// Choose HARD-PULSE Approximation -> same assumptions as analytical model
-			sim_data.gradData = gradData_defaults;
-			sim_data.seqtmp = seqTmpData_defaults;
-			
-			float mxySig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			float saR1Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			
-			ode_bloch_simulation3( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL );
-			
-			
-			//------------------------------------------------------------
-			//--------  Simulation of phantom data analytically ----------
-			//------------------------------------------------------------
-			float t1s = 0.; float s0 = 0.; float stst = 0.; float inv = 0.;
-			
-			//simulation based on analytical model: TR << T_{1,2}
-			//based on: 
-			//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
-			//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
-			//Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058
-			
-			/* Ehses, P. , Seiberlich, N. , Ma, D. , Breuer, F. A., Jakob, P. M., Griswold, M. A. and Gulani, V. (2013),
-			 * IR TrueFISP with a golden‐ratio‐based radial readout: Fast quantification of T1, T2, and proton density. 
-			 * Magn Reson Med, 69: 71-81. doi:10.1002/mrm.24225
-			 */
-			
-			t1s = 1 / ( (cosf( fa/2. )*cosf( fa/2. ))/t1n + (sinf( fa/2. )*sinf( fa/2. ))/t2n );
-			s0 = m0n * sinf( fa/2. );
-			stst = m0n * sinf(fa) / ( (t1n/t2n + 1) - cosf(fa) * (t1n/t2n -1) );
-			inv = 1 + s0 / stst;
-			
-			
-			//------------------------------------------------------------
-			//---------------------- Calculate Error ---------------------
-			//------------------------------------------------------------
-			float out_simu;
-			float out_theory;
-			float err = 0;
-			
-			for(int z = 0; z < dims[TE_DIM]; z++){
-				
-				
-				out_theory = fabsf( stst * ( 1 - inv * expf( - ( z * sim_data.seqData.TR + sim_data.seqData.TR )  / t1s )) ); //Does NOT include phase information! //+data.TR through alpha/2 preparation
-				
-				out_simu = cabsf( mxySig[z][1] + mxySig[z][0] * I );
-				
-				err = fabsf( out_simu - out_theory );
-				
-// 				debug_printf(DP_INFO, "err: %f,\t out_simu: %f,\t out_theory: %f\n", err, out_simu, out_theory);
-				
-				if (err > 10E-4)
-				{
-					debug_printf(DP_ERROR, "err: %f,\t out_simu: %f,\t out_theory: %f\n", err, out_simu, out_theory);
-					debug_printf(DP_ERROR, "Error in sequence test\n see: -> test_simulation() in test_ode_simu.c\n");
-					return 0;
-				}
-			}  
+	struct SimData sim_data;
+	
+	sim_data.seqData = seqData_defaults;
+	sim_data.seqData.seq_type = 1;
+	sim_data.seqData.TR = 0.003;
+	sim_data.seqData.TE = 0.0015;
+	sim_data.seqData.rep_num = repetition;
+	sim_data.seqData.spin_num = 1;
+	sim_data.seqData.num_average_rep = aver_num;
+	
+	sim_data.voxelData = voxelData_defaults;
+	sim_data.voxelData.r1 = 1 / t1n;
+	sim_data.voxelData.r2 = 1 / t2n;
+	sim_data.voxelData.m0 = m0n;
+	sim_data.voxelData.w = 0;
+	
+	sim_data.pulseData = pulseData_defaults;
+	sim_data.pulseData.flipangle = angle;
+	sim_data.pulseData.RF_end = 0.0000;			// Choose HARD-PULSE Approximation -> same assumptions as analytical model
+	sim_data.gradData = gradData_defaults;
+	sim_data.seqtmp = seqTmpData_defaults;
+	
+	float mxySig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	float saR1Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	
+	ode_bloch_simulation3( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL );
+	
+	
+	//------------------------------------------------------------
+	//--------  Simulation of phantom data analytically ----------
+	//------------------------------------------------------------
+	float t1s = 0.; float s0 = 0.; float stst = 0.; float inv = 0.;
+	
+	//simulation based on analytical model: TR << T_{1,2}
+	//based on: 
+	//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
+	//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
+	//Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058
+	
+	/* Ehses, P. , Seiberlich, N. , Ma, D. , Breuer, F. A., Jakob, P. M., Griswold, M. A. and Gulani, V. (2013),
+	 * IR TrueFISP with a golden‐ratio‐based radial readout: Fast quantification of T1, T2, and proton density. 
+	 * Magn Reson Med, 69: 71-81. doi:10.1002/mrm.24225
+	 */
+	
+	t1s = 1 / ( (cosf( fa/2. )*cosf( fa/2. ))/t1n + (sinf( fa/2. )*sinf( fa/2. ))/t2n );
+	s0 = m0n * sinf( fa/2. );
+	stst = m0n * sinf(fa) / ( (t1n/t2n + 1) - cosf(fa) * (t1n/t2n -1) );
+	inv = 1 + s0 / stst;
+	
+	
+	//------------------------------------------------------------
+	//---------------------- Calculate Error ---------------------
+	//------------------------------------------------------------
+	float out_simu;
+	float out_theory;
+	float err = 0;
+	
+	for(int z = 0; z < repetition; z++){
+		
+		
+		out_theory = fabsf( stst * ( 1 - inv * expf( - ( z * sim_data.seqData.TR + sim_data.seqData.TR )  / t1s )) ); //Does NOT include phase information! //+data.TR through alpha/2 preparation
+		
+		out_simu = cabsf( mxySig[z][1] + mxySig[z][0] * I );
+		
+		err = fabsf( out_simu - out_theory );
+		
+		// 				debug_printf(DP_INFO, "err: %f,\t out_simu: %f,\t out_theory: %f\n", err, out_simu, out_theory);
+		
+		if (err > 10E-4)
+		{
+			debug_printf(DP_ERROR, "err: %f,\t out_simu: %f,\t out_theory: %f\n", err, out_simu, out_theory);
+			debug_printf(DP_ERROR, "Error in sequence test\n see: -> test_simulation() in test_ode_simu.c\n");
+			return 0;
 		}
+	}  
+		
 	
 	
 #endif
@@ -520,4 +502,91 @@ static bool test_RF_pulse_matexp(void)
 }
 
 UT_REGISTER_TEST(test_RF_pulse_matexp);
+
+
+static bool test_matrix_exp_simulation(void)
+{
+#if 1
+	//------------------------------------------------------------
+    //------------ Parameter for simulation  --------------------
+    //------------------------------------------------------------
+    float angle = 45.;
+	float repetition = 100;
+    float aver_num = 1;
+
+    //------------------------------------------------------------
+	//---------  Simulation of phantom data with ODE -------------
+	//------------------------------------------------------------
+	
+	float t1n = WATER_T1;	float t2n = WATER_T2;	float m0n = 1;
+	
+	struct SimData sim_data;
+	
+	sim_data.seqData = seqData_defaults;
+	sim_data.seqData.seq_type = 1;
+	sim_data.seqData.TR = 0.003;
+	sim_data.seqData.TE = 0.0015;
+	sim_data.seqData.rep_num = repetition;
+	sim_data.seqData.spin_num = 1;
+	sim_data.seqData.num_average_rep = aver_num;
+	
+	sim_data.voxelData = voxelData_defaults;
+	sim_data.voxelData.r1 = 1 / t1n;
+	sim_data.voxelData.r2 = 1 / t2n;
+	sim_data.voxelData.m0 = m0n;
+	sim_data.voxelData.w = 0;
+	
+	sim_data.pulseData = pulseData_defaults;
+	sim_data.pulseData.flipangle = angle;
+	sim_data.pulseData.RF_end = 0.0009;
+	sim_data.gradData = gradData_defaults;
+	sim_data.seqtmp = seqTmpData_defaults;
+	
+	struct SimData sim_ode = sim_data;
+	
+	float mxySig_ode[sim_ode.seqData.rep_num / sim_ode.seqData.num_average_rep][3];
+	float saR1Sig_ode[sim_ode.seqData.rep_num / sim_ode.seqData.num_average_rep][3];
+	float saR2Sig_ode[sim_ode.seqData.rep_num / sim_ode.seqData.num_average_rep][3];
+	float saDensSig_ode[sim_ode.seqData.rep_num / sim_ode.seqData.num_average_rep][3];
+	
+	ode_bloch_simulation3( &sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, NULL );
+	
+	
+	
+	float mxySig_matexp[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	float saR1Sig_matexp[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	float saR2Sig_matexp[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	float saDensSig_matexp[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+	
+	matrix_bloch_simulation( &sim_data, mxySig_matexp, saR1Sig_matexp, saR2Sig_matexp, saDensSig_matexp, NULL );
+
+	float tol = 10E-3;
+	float err;
+	
+	for (int rep = 0; rep < repetition; rep++)
+		for( int dim = 0; dim < 3; dim++)
+		{
+			err = fabsf( mxySig_matexp[rep][dim] - mxySig_ode[rep][dim] );
+			if ( err > tol )
+				return 0;
+			
+			err = fabsf( saR1Sig_matexp[rep][dim] - saR1Sig_ode[rep][dim] );
+			if ( err > tol )
+				return 0;
+			
+			err = fabsf( saR2Sig_matexp[rep][dim] - saR2Sig_ode[rep][dim] );
+			if ( err > tol )
+				return 0;
+			
+			err = fabsf( saDensSig_matexp[rep][dim] - saDensSig_ode[rep][dim] );
+			if ( err > tol )
+				return 0;
+		}
+	
+	
+	#endif
+	return 1;	
+}
+
+UT_REGISTER_TEST(test_matrix_exp_simulation);
 

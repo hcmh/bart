@@ -93,6 +93,8 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]);
 
 void relaxation2(void* _data, float h, float tol, int N, int P, float xp[P + 2][N], float st, float end);
 
+void isochromDistribution( void* _data, float *isochromats );
+
 void create_rf_pulse(void* _pulseData, float RF_start, float RF_end, float angle, float phase, float nl, float nr, float alpha);
 
 void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 2][N]);
