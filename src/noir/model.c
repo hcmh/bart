@@ -90,7 +90,7 @@ struct noir_op_s {
 
 DEF_TYPEID(noir_op_s);
 
-static void noir_calc_weights(const struct noir_model_conf_s *conf, const long dims[3], complex float* dst)
+static void noir_calc_weights(const struct noir_model_conf_s* conf, const long dims[3], complex float* dst)
 {
 	unsigned int flags = 0;
 
@@ -207,7 +207,6 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 		md_copy(DIMS, mask_dims, data->msk, mask, CFL_SIZE);
 	}
 
-//	fftmod(DIMS, data->mask_dims, 7, msk, msk);
 	fftscale(DIMS, mask_dims, FFT_FLAGS, data->msk, data->msk);
 
 	const struct linop_s* lop_mask = linop_cdiag_create(DIMS, data->data_dims, FFT_FLAGS, data->msk);
@@ -486,11 +485,11 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
 
 	long idims[DIMS];
-	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG|CSHIFT_FLAG, idims, dims);
+	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG, idims, dims);
 	idims[COIL_DIM] = dims[COIL_DIM] + 1; // add image
 
 	long odims[DIMS];
-	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|CSHIFT_FLAG, odims, dims);
+	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG, odims, dims);
 
 	struct noir_s ret = { .linop = data->weights, .noir_op = data };
 	ret.nlop = nlop_create(DIMS, odims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_del);
