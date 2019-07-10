@@ -75,16 +75,53 @@ void mat_exp_simu(int N, float t, float out[N][N], void* sim_data)
 	}
 }
 
-
+static void mm_mul(int N, float out[N][N], float in1[N][N], float in2[N][N])
+{
+	for (int i = 0; i < N; i++) 
+		for (int j = 0; j < N; j++){
+			
+			out[i][j] = 0.;
+			
+			for (int k = 0; k < N; k++)
+				out[i][j] += in1[i][k] * in2[k][j];
+		}
+}
 
 static void create_sim_matrix(int N, float matrix[N][N], float end, void* _data )
 {
 	struct SimData* simdata = _data;
 	
-	if ( simdata->pulseData.pulse_applied ){
+
+	if ( simdata->pulseData.pulse_applied )
+#if 1
 		create_rf_pulse( &simdata->pulseData, simdata->pulseData.RF_start, simdata->pulseData.RF_end, simdata->pulseData.flipangle, simdata->pulseData.phase, simdata->pulseData.nl, simdata->pulseData.nr, simdata->pulseData.alpha);
+#else
+	{	// Possible increase of precision by splitting into rf- and relaxation-matrix?
+		
+		create_rf_pulse( &simdata->pulseData, simdata->pulseData.RF_start, simdata->pulseData.RF_end, simdata->pulseData.flipangle, simdata->pulseData.phase, simdata->pulseData.nl, simdata->pulseData.nr, simdata->pulseData.alpha);
+		
+		float tmp1[N][N];
+		mat_exp_simu( N, simdata->pulseData.RF_end, tmp1, simdata);
+		
+		float tmp2[N][N];
+		
+		for (int i = 0; i < N; i++)
+			for (int j = 0; j < N; j++)
+				tmp2[i][j] = ( (i == j) ? 1 : 0 );
+				
+		
+		if ( simdata->pulseData.RF_end < end ){
+			
+			simdata->pulseData.pulse_applied = false;
+			mat_exp_simu( N, end - simdata->pulseData.RF_end, tmp2, simdata);
+		}
+		
+		mm_mul( N, matrix, tmp1, tmp2);
 	}
-	mat_exp_simu( N, end, matrix, simdata);
+	else 
+#endif
+		mat_exp_simu( N, end, matrix, simdata);
+		
 }
 
 
