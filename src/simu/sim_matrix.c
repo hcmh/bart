@@ -88,6 +88,17 @@ static void create_sim_matrix(int N, float matrix[N][N], float end, void* _data 
 }
 
 
+static void vm_mul_transpose(int N, float out[N], float matrix[N][N], float in[N])
+{
+	for (int i = 0; i < N; i++) {
+		
+		out[i] = 0.;
+		
+		for (int j = 0; j < N; j++)
+			out[i] += matrix[j][i] * in[j];
+	}
+}
+
 static void apply_sim_matrix(int N, float m[N], float matrix[N][N])
 {
 	// Copy data vector
@@ -95,14 +106,8 @@ static void apply_sim_matrix(int N, float m[N], float matrix[N][N])
 	for (int i = 0; i < N; i++)
 		tmp[i] = m[i];
 
-	// Apply matrix
-	for (int i = 0; i < N; i++) {
-
-		m[i] = 0.;
-		
-		for (int j = 0; j < N; j++)
-			m[i] += matrix[j][i] * tmp[j];
-	}
+	vm_mul_transpose(N, m, matrix, tmp);
+	
 }
 
 

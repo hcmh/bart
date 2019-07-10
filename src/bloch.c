@@ -128,7 +128,6 @@ int main_bloch(int argc, char* argv[argc])
 		error( "Simulation tool does not allow to hard-pulses using matrix exponentials yet.\n" );
 	
 	
-	
 	long dim_map[DIMS] = { [0 ... DIMS - 1] = 1 };
 
 	complex float* map_T1;
