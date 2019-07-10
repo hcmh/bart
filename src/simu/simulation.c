@@ -150,12 +150,12 @@ void isochromDistribution( void* _data, float *isochromats ){
     for(int i = 0; i < data->seqData.spin_num; i++){
         randomNumber = 0.02 + (float)rand() / ( (float)RAND_MAX / (0.98 - 0.02) + 1. ); //numbers needed to supress extrema for randomNumber=>1
         //...in this case a Cauchy one based on its inverse cdf.
-        isoTmp[i] = s * tan( PI * ( randomNumber - 0.5 ) ) + t;
+        isoTmp[i] = s * tan( M_PI * ( randomNumber - 0.5 ) ) + t;
         maximum = fmax( maximum, fabsf(isoTmp[i]) );
     }
     //Assigning frequencies up to pi/2
     for(int i = 0; i < data->seqData.spin_num; i++){
-        isochromats[i] = ( isoTmp[i]/maximum ) * PI / data->seqData.TR;
+        isochromats[i] = ( isoTmp[i]/maximum ) * M_PI / data->seqData.TR;
     }
 }
 
@@ -163,7 +163,7 @@ void isochromDistribution( void* _data, float *isochromats ){
 void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]){
 	
     //Correction angle
-    float rotAngle = PI; // for bSSFP
+    float rotAngle = M_PI; // for bSSFP
 	
 	for(int i = 0; i < P + 2; i ++){
 		out[i][0] = in[i][0] * cosf(rotAngle) + in[i][1] * sinf(rotAngle);
@@ -354,7 +354,7 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 			struct SimData prep_data = *data;
 			
 			prep_data.pulseData.flipangle = data->pulseData.flipangle/2.;
-			prep_data.pulseData.phase = PI;
+			prep_data.pulseData.phase = M_PI;
 			prep_data.seqData.TE = data->seqData.TR/2.;
 			prep_data.seqData.TR = data->seqData.TR/2.;
 			
@@ -372,14 +372,13 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		
 		create_sim_block( data );
         
-		while ( data->seqtmp.rep_counter < data->seqData.rep_num ){ 
-		
+		while ( data->seqtmp.rep_counter < data->seqData.rep_num ){
+			
 			//Change phase for phase cycled bSSFP sequences //Check phase for FLASH!!
 			if (data->seqData.seq_type == 3 || data->seqData.seq_type == 6)
-				data->pulseData.phase = PI * (float) ( data->seqtmp.rep_counter % 2 ) + 360. * ( (float)data->seqtmp.rep_counter/(float)data->seqData.rep_num )/180. * PI ;
-			
+				data->pulseData.phase = M_PI * (float) ( data->seqtmp.rep_counter % 2 ) + 360. * ( (float)data->seqtmp.rep_counter/(float)data->seqData.rep_num )/180. * M_PI;
 			else if ( data->seqData.seq_type == 0 || data->seqData.seq_type == 1 )
-				data->pulseData.phase = PI * (float) data->seqtmp.rep_counter; 
+				data->pulseData.phase = M_PI * (float) data->seqtmp.rep_counter;
 			
 			
 			run_sim_block( data, mxySignal, saT1Signal, saT2Signal, densSignal, h, tol, N, P, xp, true);

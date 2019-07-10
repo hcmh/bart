@@ -276,7 +276,7 @@ int main_bloch(int argc, char* argv[argc])
 			
 			if ( linear_offset )
 				//Get offset values from -pi to +pi
-				sim_data.voxelData.w = (float) y / (float) dim_phantom[1]  * PI / sim_data.seqData.TE; 
+				sim_data.voxelData.w = (float) y / (float) dim_phantom[1]  * M_PI / sim_data.seqData.TE;
 			else
 				sim_data.voxelData.w = offresonance;
 			

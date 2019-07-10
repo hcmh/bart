@@ -6,8 +6,11 @@
 #include "num/vec3.h"
 #include "num/matexp.h"
 
+#include "misc/misc.h" // M_PI
+
+#include "simu/simulation.h"
+
 #include "bloch.h"
-#include "simulation.h"
 
 
 
@@ -47,12 +50,12 @@ float si(float x)
 
 float get_pulse_energy(void * _pulseData)
 {	
-	//assert(si(PI) != 1.8519370519824658 );  //equal Wilbraham–Gibbs-Konstante
+	//assert(si(M_PI) != 1.8519370519824658 );  //equal Wilbraham–Gibbs-Konstante
 	struct PulseData* pulseData = _pulseData;
 	//Assuming pulse starts at t=0
 	
-	float c = PI / pulseData->n / pulseData->t0;
-	float d = PI / pulseData->t0;
+	float c = M_PI / pulseData->n / pulseData->t0;
+	float d = M_PI / pulseData->t0;
 	
 	float si0 = si( d * (pulseData->RF_end/2.) );
 	float si1 = si( - d * (pulseData->RF_end/2.) );
@@ -73,7 +76,7 @@ float sinc_pulse(void* _pulseData, float t)
 	if( t-pulseData->RF_end/2 == 0 ) 
 		t += 0.000001;
 		
-	return pulseData->A * ( (1 - pulseData->alpha) + pulseData->alpha * cosf( PI * (t-pulseData->RF_end/2) / (pulseData->n * pulseData->t0) ) ) * sinf( PI * (t-pulseData->RF_end/2) / pulseData->t0 ) / ( PI * (t-pulseData->RF_end/2) / pulseData->t0 );
+	return pulseData->A * ( (1 - pulseData->alpha) + pulseData->alpha * cosf( M_PI * (t-pulseData->RF_end/2) / (pulseData->n * pulseData->t0) ) ) * sinf( M_PI * (t-pulseData->RF_end/2) / pulseData->t0 ) / ( M_PI * (t-pulseData->RF_end/2) / pulseData->t0 );
 }
 
 
