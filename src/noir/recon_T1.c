@@ -117,7 +117,7 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	}
 
 	nlop_free(nl.nlop);
-	linop_free(nl.linop);
+
 
 	md_free(x);
 }
