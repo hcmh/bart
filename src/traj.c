@@ -7,6 +7,7 @@
  * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  * 2019 Aurélien Trotier <a.trotier@gmail.com>
+ * 2019 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
@@ -35,6 +36,8 @@ int main_traj(int argc, char* argv[])
 {
 	int X = 128;
 	int Y = 128;
+	int D = 128;
+	int E = 1;
 	int mb = 1;
 	int turns = 1;
 	float rot = 0.;
@@ -53,8 +56,10 @@ int main_traj(int argc, char* argv[])
 
 	const struct opt_s opts[] = {
 
-		OPT_INT('x', &X, "x", "readout samples"),
+		OPT_INT('x', &X, "x", "actual readout samples"),
 		OPT_INT('y', &Y, "y", "phase encoding lines"),
+		OPT_INT('d', &D, "d", "full readout samples"),
+		OPT_INT('e', &E, "e", "number of echoes"),
 		OPT_INT('a', &conf.accel, "a", "acceleration"),
 		OPT_INT('t', &turns, "t", "turns"),
 		OPT_INT('m', &mb, "mb", "SMS multiband factor"),
@@ -70,9 +75,10 @@ int main_traj(int argc, char* argv[])
 		OPT_FLVEC3('Q', &gdelays[1], "delays", "(gradient delays: z, xz, yz)"),
 		OPT_SET('O', &conf.transverse, "correct transverse gradient error for radial tajectories"),
 		OPT_SET('3', &conf.d3d, "3D"),
-		OPT_SET('c', &conf.asym_traj, "asymmetric trajectory [DC sampled]"),
+		OPT_SET('C', &conf.asym_traj, "asymmetric trajectory"),
+		OPT_SET('E', &conf.mems_traj, "multi-echo multi-spoke trajectory"),
 		OPT_VEC2('z', &z_usamp, "Ref:Acel", "Undersampling in z-direction."),
-		OPT_STRING('C', &custom_angle, "file", "custom_angle"),
+		OPT_STRING('c', &custom_angle, "file", "custom_angle"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -96,7 +102,7 @@ int main_traj(int argc, char* argv[])
 		}
 	}
 
-	int tot_sp = Y * mb * turns;	// total number of lines/spokes
+	int tot_sp = Y * E * mb * turns;	// total number of lines/spokes
 	int N = X * tot_sp / conf.accel;
 
 
@@ -104,6 +110,16 @@ int main_traj(int argc, char* argv[])
 	dims[0] = 3;
 	dims[1] = X;
 	dims[2] = (conf.radial ? Y : (Y / conf.accel));
+
+	dims[TE_DIM] = E;
+
+	if (conf.mems_traj || conf.asym_traj) {
+		conf.radial = true;
+	}
+
+	if (!conf.asym_traj) {
+		D = X;
+	}
 
 	// Variables for z-undersampling
 	long z_reflines = z_usamp[0];
@@ -171,7 +187,7 @@ int main_traj(int argc, char* argv[])
 	double angle_atom = M_PI / Y;
 
 	double base_angle[DIMS] = { 0. };
-	calc_base_angles(base_angle, Y, mb2, turns, conf);
+	calc_base_angles(base_angle, Y, E, mb2, turns, conf);
 
 	int p = 0;
 	long pos[DIMS] = { 0 };
@@ -180,6 +196,7 @@ int main_traj(int argc, char* argv[])
 
 		int i = pos[PHS1_DIM];
 		int j = pos[PHS2_DIM];
+		int e = pos[TE_DIM];
 		int m = pos[SLICE_DIM];
 
 		if (conf.radial) {
@@ -190,7 +207,12 @@ int main_traj(int argc, char* argv[])
 			 * for symmetric trajectory [DC between between sample no. X/2-1 and X/2, zero-based indexing]
 			 * or asymmetric trajectory [DC component at sample no. X/2, zero-based indexing]
 			 */
-			double read = (float)i + (conf.asym_traj ? 0 : 0.5) - (float)X / 2.;
+			double read = (float)i + 0.5 - (float)X / 2.;
+
+			if (conf.mems_traj || conf.asym_traj) {
+
+				read = ((e%2) ? (float)(D-i-2) : (float)(i+D-X)) - (float)D/2.;
+			}
 
 			if (conf.golden_partition)
 				base_angle[1] = (m > 0) ? (fmod(angle_atom * m / golden_ratio, angle_atom) / m) : 0;
