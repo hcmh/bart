@@ -68,7 +68,6 @@ const struct noir_conf_s noir_defaults = {
 
 	.iter = 8,
 	.rvc = false,
-	.usegpu = false,
 	.noncart = false,
 	.alpha = 1.,
 	.alpha_min = 0.,
@@ -119,7 +118,6 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = conf->rvc;
-	mconf.use_gpu = conf->usegpu;
 	mconf.noncart = conf->noncart;
 	mconf.fft_flags = fft_flags;
 	mconf.a = conf->a;
@@ -156,15 +154,8 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	md_copy(DIMS, coil_dims, ksens, x + skip, CFL_SIZE);
 
 
-#ifdef USE_CUDA
-	if (conf->usegpu) {
-
-		noir_forw_coils(nl.linop, x + skip, x + skip);
-		md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
-	} else
-#endif
-		noir_forw_coils(nl.linop, sens, x + skip);
-
+	noir_forw_coils(nl.linop, x + skip, x + skip);
+	md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);	// needed for GPU
 	fftmod(DIMS, coil_dims, fft_flags, sens, sens);
 
 

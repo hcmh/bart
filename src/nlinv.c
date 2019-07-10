@@ -50,6 +50,7 @@ int main_nlinv(int argc, char* argv[])
 	struct noir_conf_s conf = noir_defaults;
 	bool out_sens = false;
 	bool scale_im = false;
+	bool usegpu = false;
 
 	const struct opt_s opts[] = {
 
@@ -64,7 +65,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
-		OPT_SET('g', &conf.usegpu, "use gpu"),
+		OPT_SET('g', &usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
@@ -215,7 +216,7 @@ int main_nlinv(int argc, char* argv[])
 	complex float* ref = NULL;
 
 #ifdef  USE_CUDA
-	if (conf.usegpu) {
+	if (usegpu) {
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);

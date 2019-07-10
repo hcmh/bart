@@ -13,7 +13,6 @@ struct noir_conf_s {
 
 	unsigned int iter;
 	_Bool rvc;
-	_Bool usegpu;
 	_Bool noncart;
 	float alpha;
 	float alpha_min;

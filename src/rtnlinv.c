@@ -65,6 +65,7 @@ int main_rtnlinv(int argc, char* argv[])
 	bool scale_im = false;
 	unsigned int turns = 1;
 	int reduced_frames = 0;
+	bool usegpu = false;
 
 	long my_img_dims[3] = { 0, 0, 0 };
 
@@ -84,7 +85,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_STRING('p', &psf, "PSF", ""),
 		OPT_STRING('t', &trajectory, "Traj", ""),
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
-		OPT_SET('g', &conf.usegpu, "use gpu"),
+		OPT_SET('g', &usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
@@ -399,7 +400,7 @@ int main_rtnlinv(int argc, char* argv[])
 		md_zsmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, scaling);
 
 #ifdef  USE_CUDA
-		if (conf.usegpu) {
+		if (usegpu) {
 
 			complex float* kgrid_gpu_singleFrame = md_alloc_gpu(DIMS, kgrid_s->dims_singleFrame, CFL_SIZE);
 			md_copy(DIMS, kgrid_s->dims_singleFrame, kgrid_gpu_singleFrame, kgrid_singleFrame, CFL_SIZE);
