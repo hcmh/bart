@@ -139,35 +139,6 @@ static bool test_ode_bloch_simulation(void)
 UT_REGISTER_TEST(test_ode_bloch_simulation);
 
 
-static bool test_factorial(void)
-{
-	long k = 4;
-	
-	long result = factorial( k );
-	
-	return (result == 24) ? true : false;
-
-	
-}
-
-UT_REGISTER_TEST(test_factorial);
-
-
-//might get problems if point is much larger... -> precision of factorial calculation
-static bool test_sin_integral(void)
-{
-	float point = 1;
-	
-	float sin_int = si( point );
-	
-	float should_be = 0.946083070367183;
-// 	printf("Sin.Int: %f,\tTheory: %f\n", sin_int, should_be);
-	return (sin_int - should_be < 10E-5) ? true : false;
-	
-}
-
-UT_REGISTER_TEST(test_sin_integral);
-
 
 // For visualization of pulse shape uncommend dump_cfl
 static bool test_sinc_function(void)

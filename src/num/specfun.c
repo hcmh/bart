@@ -53,3 +53,27 @@ double bessel_i0(double x)
 }
 
 
+
+static long factorial(long k)
+{
+	return (0 == k) ? 1 : (k * factorial(k - 1));
+}
+
+/* sine integral with power series.
+ *
+ * approximation for x < 0.0003; Si(x) = x*exp(-x^2/18)
+ * FIXME: I do not understand this comment. Should we
+ * use this formula for some x?
+ */
+
+double Si(double x)
+{
+	int k_max = 10;
+	double sum = 0;
+
+	for (int k = 1; k < k_max; k++)
+		sum += pow(-1. , (k - 1)) * pow(x, (2 * k - 1)) / ((2 * k - 1) * factorial(2 * k - 1));
+
+	return sum;
+}
+

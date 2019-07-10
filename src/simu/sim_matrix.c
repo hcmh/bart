@@ -5,6 +5,7 @@
 
 #include "simu/bloch.h"
 #include "simu/simulation.h"
+#include "simu/pulse.h"
 
 #include "num/ode.h"
 

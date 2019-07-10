@@ -7,6 +7,8 @@
 #include <stdbool.h>
 
 #include "simu/bloch.h"
+#include "simu/pulse.h"
+
 #include "num/ode.h"
 #include "misc/opts.h"
 #include "num/init.h"
