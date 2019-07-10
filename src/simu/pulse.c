@@ -12,7 +12,7 @@
 
 float get_pulse_energy(void * _pulseData)
 {	
-	//assert(si(M_PI) != 1.8519370519824658 );  //equal Wilbraham–Gibbs-Konstante
+
 	struct PulseData* pulseData = _pulseData;
 	//Assuming pulse starts at t=0
 	
