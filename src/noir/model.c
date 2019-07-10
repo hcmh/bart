@@ -70,10 +70,6 @@ struct noir_op_s {
 	const struct nlop_s* nl;
 	/*const*/ struct nlop_s* nl2;
 
-	complex float* weights_array;
-	complex float* pattern_array;
-	complex float* adj_pattern_array;
-	complex float* mask_array;
 	complex float* msk;
 	complex float* wghts;
 	complex float* ptr;
@@ -131,13 +127,6 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	long ptrn_strs[DIMS];
 	md_calc_strides(DIMS, ptrn_strs, ptrn_dims, CFL_SIZE);
-
-
-	data->weights_array = md_alloc(DIMS, wght_dims, CFL_SIZE);
-
-	noir_calc_weights(conf, dims, data->weights_array);
-	fftmod(DIMS, wght_dims, FFT_FLAGS, data->weights_array, data->weights_array);
-	fftscale(DIMS, wght_dims, FFT_FLAGS, data->weights_array, data->weights_array);
 
 
 	data->wghts = md_alloc(DIMS, wght_dims, CFL_SIZE);
