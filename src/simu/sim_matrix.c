@@ -172,7 +172,7 @@ static void apply_signal_preparation(int N, float m[N], void* _data )// provides
 	
 	tmp_data.pulseData.pulse_applied = true;
 	tmp_data.pulseData.flipangle = simdata->pulseData.flipangle/2.;
-	tmp_data.pulseData.phase = PI;
+	tmp_data.pulseData.phase = M_PI;
 	tmp_data.seqData.TR = simdata->seqData.TR/2.;
 	
 	float matrix[N][N];
@@ -205,7 +205,7 @@ static void prepare_matrix_to_tr( int N, float matrix[N][N], void* _data )
 static void ADCcorrection(int N, float out[N], float in[N]){
 	
     //Correction angle
-    float rotAngle = PI; // for bSSFP
+    float rotAngle = M_PI; // for bSSFP
 	
 	for(int i = 0; i < 3; i ++){	// 3 parameter: Sig, S_R1, S_R2
 		out[3*i] = in[3*i] * cosf(rotAngle) + in[3*i+1] * sinf(rotAngle);
@@ -286,7 +286,7 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 		
 		
 		float matrix_to_te_PI[N][N];
-		data->pulseData.phase = PI;
+		data->pulseData.phase = M_PI;
 		prepare_matrix_to_te( N, matrix_to_te_PI, data);
 		
 		
