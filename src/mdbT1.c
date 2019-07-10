@@ -3,8 +3,9 @@
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors: 
+ * Authors:
  * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2018-2019 xiaoqing.wang <xiaoqing.wang@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
@@ -72,7 +73,7 @@ int main_mdbT1(int argc, char* argv[])
 
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
-	
+
 	long TI_dims[DIMS];
 	complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
 
@@ -81,8 +82,9 @@ int main_mdbT1(int argc, char* argv[])
 	// SMS
 	if (1 != ksp_dims[SLICE_DIM]) {
 
-		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
+		debug_printf(DP_INFO, "SMS Model-based reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
 		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace_data, kspace_data); // fftmod to get correct slice order in output
+		conf.sms = true;
 	}
 
 
@@ -92,18 +94,18 @@ int main_mdbT1(int argc, char* argv[])
 	md_copy_dims(DIMS, dims, ksp_dims);
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|SLICE_FLAG|TIME2_FLAG, img_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|COEFF_FLAG|SLICE_FLAG|TIME2_FLAG, img_dims, dims);
 
 	img_dims[COEFF_DIM] = 3;
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
-	
-	long img1_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|SLICE_FLAG|TIME2_FLAG, img1_dims, dims);
 
-	long img1_strs[DIMS];
-	md_calc_strides(DIMS, img1_strs, img1_dims, CFL_SIZE);
+	long single_map_dims[DIMS];
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, single_map_dims, dims);
+
+	long single_map_strs[DIMS];
+	md_calc_strides(DIMS, single_map_strs, single_map_dims, CFL_SIZE);
 
 	long coil_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, coil_dims, dims);
@@ -112,7 +114,7 @@ int main_mdbT1(int argc, char* argv[])
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[3], DIMS, img_dims);
-	complex float* img1 = create_cfl("", DIMS, img1_dims);
+	complex float* single_map = create_cfl("", DIMS, single_map_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, dims);
@@ -134,13 +136,13 @@ int main_mdbT1(int argc, char* argv[])
 		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
 
 		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
-		fftmod(DIMS, coil_dims, FFT_FLAGS|SLICE_FLAG|TIME2_FLAG, sens, init + skip);
+		fftmod(DIMS, coil_dims, FFT_FLAGS|SLICE_FLAG|MAPS_FLAG|TIME2_FLAG, sens, init + skip);
 
 	} else {
 
 		md_zfill(DIMS, img_dims, img, 1.0);
-        
-		
+
+
 		md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 	}
 
@@ -174,17 +176,17 @@ int main_mdbT1(int argc, char* argv[])
 	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
-		scaling *= sqrt(ksp_dims[SLICE_DIM]);
-    
+		scaling *= sqrt(ksp_dims[SLICE_DIM]/2);
+
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
-		scaling_psf *= sqrt(ksp_dims[SLICE_DIM]);
+		scaling_psf *= sqrt(ksp_dims[SLICE_DIM]/2);
 
 #endif
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
-    
+
 	debug_printf(DP_INFO, "Scaling_psf: %f\n", scaling_psf);
 	md_zsmul(DIMS, pat_dims, pattern, pattern, scaling_psf);
 
@@ -201,20 +203,20 @@ int main_mdbT1(int argc, char* argv[])
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 		//md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask ,1.0);
-        
+
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
-        
+
 		// Choose a different initial guess for R1*
 		long pos[DIMS];
 
 		for (int i = 0; i < DIMS; i++)
 			pos[i] = 0;
-        
+
 		pos[COEFF_DIM] = 2;
-		md_copy_block(DIMS, pos, img1_dims, img1, img_dims, img, CFL_SIZE);
-		md_zsmul2(DIMS, img1_dims, img1_strs, img1, img1_strs, img1, 1.5);
-		md_copy_block(DIMS, pos, img_dims, img, img1_dims, img1, CFL_SIZE);
-        
+		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
+		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, 1.5);
+		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
+
 
 
 	}
@@ -225,7 +227,7 @@ int main_mdbT1(int argc, char* argv[])
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
-		
+
 		complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
 		md_copy(DIMS, TI_dims, TI_gpu, TI, CFL_SIZE);
 
@@ -263,7 +265,7 @@ int main_mdbT1(int argc, char* argv[])
 	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_dims, img);
-	unmap_cfl(DIMS, img1_dims, img1);
+	unmap_cfl(DIMS, single_map_dims, single_map);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
 	unmap_cfl(DIMS, TI_dims, TI);
 
@@ -271,5 +273,4 @@ int main_mdbT1(int argc, char* argv[])
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
 	exit(0);
 }
-
 

@@ -67,12 +67,17 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 1)->dims);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(nlinv.nlop, 0)->dims);
 
-	nlinv.nlop = nlop_chain2(T1, 0, nlinv.nlop, 0);
-	nlinv.nlop = nlop_permute_inputs(nlinv.nlop, 2, (const int[2]){ 1, 0 });
+	const struct nlop_s* b = nlinv.nlop;
+	const struct nlop_s* c = nlop_chain2(T1, 0, b, 0);
+	nlop_free(b);
+
+	nlinv.nlop = nlop_permute_inputs(c, 2, (const int[2]){ 1, 0 });
+	nlop_free(c);
 #endif
 
 	ret.nlop = nlop_flatten(nlinv.nlop);
 	ret.linop = nlinv.linop;
+	nlop_free(nlinv.nlop);
 
 	return ret;
 }
