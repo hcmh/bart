@@ -1,4 +1,4 @@
-tests/test-bin: ones scale zeros join transpose bin resize nrmse
+tests/test-bin-lable: ones scale zeros join transpose bin resize nrmse
 	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
 		$(TOOLDIR)/ones 2 1 1 o.ra						;\
 		$(TOOLDIR)/scale -- -1 o.ra om.ra					;\
@@ -31,5 +31,22 @@ tests/test-bin: ones scale zeros join transpose bin resize nrmse
 		$(TOOLDIR)/nrmse -t 0.00001 comp.ra x.ra					;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
+	
+tests/test-bin-reorder: ones scale join bin nrmse
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
+		$(TOOLDIR)/ones 2 1 1 o1.ra						;\
+		$(TOOLDIR)/scale 2 o1.ra o2.ra						;\
+		$(TOOLDIR)/scale 3 o1.ra o3.ra						;\
+		$(TOOLDIR)/scale 4 o1.ra o4.ra						;\
+		$(TOOLDIR)/scale 5 o1.ra o5.ra						;\
+		$(TOOLDIR)/scale 6 o1.ra o6.ra						;\
+		$(TOOLDIR)/scale 0 o1.ra o0.ra						;\
+		$(TOOLDIR)/join 1 o0.ra o1.ra o2.ra o3.ra o4.ra o5.ra o6.ra o0.ra o1.ra o2.ra o3.ra o4.ra o5.ra o6.ra incr.ra	;\
+		$(TOOLDIR)/join 1 o6.ra o5.ra o4.ra o3.ra o2.ra o0.ra o1.ra rand.ra	;\
+		$(TOOLDIR)/join 1 o5.ra o6.ra o4.ra o3.ra o2.ra o1.ra o0.ra o5.ra o6.ra o4.ra o3.ra o2.ra o1.ra o0.ra lab.ra	;\
+		$(TOOLDIR)/bin -o lab.ra rand.ra rand_reorder.ra 				;\
+		$(TOOLDIR)/nrmse -t 0.00001 incr.ra rand_reorder.ra					;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
 
-TESTS += tests/test-bin
+TESTS += tests/test-bin-lable tests/test-bin-reorder
