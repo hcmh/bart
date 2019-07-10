@@ -44,6 +44,7 @@
 struct noir_model_conf_s noir_model_conf_defaults = {
 
 	.fft_flags = FFT_FLAGS,
+	.cnstcoil_flags = TE_FLAG,
 	.rvc = false,
 	.noncart = false,
 	.a = 220.,
@@ -106,9 +107,9 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	md_copy_dims(DIMS, data->dims, dims);
 
-	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|MAPS_FLAG, data->coil_dims, dims);
-	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG, data->imgs_dims, dims);
-	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG, data->data_dims, dims);
+	md_select_dims(DIMS, ~conf->cnstcoil_flags, data->coil_dims, dims);
+	md_select_dims(DIMS, ~COIL_FLAG, data->imgs_dims, dims);
+	md_select_dims(DIMS, ~MAPS_FLAG, data->data_dims, dims);
 
 	long mask_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, mask_dims, dims);
@@ -152,7 +153,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	md_copy(DIMS, ptrn_dims, data->ptr, psf, CFL_SIZE);
 	fftmod(DIMS, ptrn_dims, conf->fft_flags, data->ptr, data->ptr);
 
-	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|TE_FLAG), data->ptr);
+	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->data_dims, 0, 0, COIL_FLAG, data->ptr);
 
 	const struct linop_s* lop_adj_pattern;
 
@@ -165,11 +166,11 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 		data->adj_ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
 
-		md_zfill(DIMS, ptrn_dims, data->adj_ptr , 1.);
+		md_zfill(DIMS, ptrn_dims, data->adj_ptr, 1.);
 
-		fftmod(DIMS, ptrn_dims, conf->fft_flags, data->adj_ptr , data->adj_ptr );
+		fftmod(DIMS, ptrn_dims, conf->fft_flags, data->adj_ptr, data->adj_ptr);
 
-		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|COIL_FLAG|TE_FLAG), ~(conf->fft_flags|TE_FLAG), data->adj_ptr);
+		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, 0, 0, COIL_FLAG, data->adj_ptr);
 	}
 
 	data->msk = md_alloc(DIMS, mask_dims, CFL_SIZE);
@@ -418,7 +419,7 @@ struct noir_s noir_create3(const long dims[DIMS], const complex float* mask, con
 	md_select_dims(DIMS, ~MAPS_FLAG, odims, dims);
 
 	long cdims[DIMS];
-	md_select_dims(DIMS, ~TE_FLAG, cdims, dims);
+	md_select_dims(DIMS, ~conf->cnstcoil_flags, cdims, dims);
 
 
 	long nl_odims[1][DIMS];
@@ -461,11 +462,15 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
 
 	long idims[DIMS];
-	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG, idims, dims);
-	idims[COIL_DIM] = dims[COIL_DIM] + 1; // add image
+	md_select_dims(DIMS, ~COIL_FLAG, idims, dims);
+
+	long edims[DIMS];
+	md_select_dims(DIMS, conf->cnstcoil_flags, edims, dims);
+
+	idims[COIL_DIM] = dims[COIL_DIM] + md_calc_size(DIMS, edims); // add images
 
 	long odims[DIMS];
-	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG, odims, dims);
+	md_select_dims(DIMS, ~MAPS_FLAG, odims, dims);
 
 	struct noir_s ret = { .linop = data->weights, .noir_op = data };
 	ret.nlop = nlop_create(DIMS, odims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_del);
@@ -500,7 +505,7 @@ static void proj_add(unsigned int D, const long dims[D], const long ostrs[D],
 
 
 
-
+// FIXME: review dimensions
 void noir_orthogonalize(struct noir_s* op, complex float* coils)
 {
 	struct noir_op_s* data = op->noir_op;
