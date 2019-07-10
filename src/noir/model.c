@@ -138,13 +138,6 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->data_dims, FFT_FLAGS);
 
-	if( dims[SLICE_DIM] != 1 ){ //SMS
-
-		const struct linop_s* tmp_fft = linop_fft_create_no_measure(DIMS, data->data_dims, SLICE_FLAG);
-		lop_fft = linop_chain(lop_fft, tmp_fft);
-		linop_free(tmp_fft);
-	}
-
 //    const struct linop_s* lop_pattern;
 
 	data->ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
@@ -183,7 +176,6 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 		md_copy(DIMS, mask_dims, data->msk, mask, CFL_SIZE);
 	}
 
-//	fftmod(DIMS, data->mask_dims, 7, msk, msk);
 	fftscale(DIMS, mask_dims, FFT_FLAGS, data->msk, data->msk);
 
 	const struct linop_s* lop_mask = linop_cdiag_create(DIMS, data->data_dims, FFT_FLAGS, data->msk);
@@ -248,7 +240,7 @@ void noir_back_coils(const struct linop_s* op, complex float* dst, const complex
 
 static void noir_fun2(const nlop_data_t* _data, int N, complex float* args[N])
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	void* args2[3] = { args[0], args[1], args[2] };
 	nlop_generic_apply_unchecked(data->nl2, 3, args2);
@@ -256,7 +248,7 @@ static void noir_fun2(const nlop_data_t* _data, int N, complex float* args[N])
 
 static void noir_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
@@ -265,27 +257,25 @@ static void noir_fun(const nlop_data_t* _data, complex float* dst, const complex
 
 static void noir_derA(const nlop_data_t* _data, complex float* dst, const complex float* img)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	auto der1 = nlop_get_derivative(data->nl, 0, 0);
 
 	linop_forward(der1, DIMS, data->data_dims, dst, DIMS, data->imgs_dims, img);
 }
 
-
 static void noir_derB(const nlop_data_t* _data, complex float* dst, const complex float* coils)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	auto der2 = nlop_get_derivative(data->nl, 0, 1);
 
 	linop_forward(der2, DIMS, data->data_dims, dst, DIMS, data->coil_dims, coils);
 }
 
-
 static void noir_derA2(const nlop_data_t* _data, complex float* dst, const complex float* img)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	complex float* tmp = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, dst);
 
@@ -297,7 +287,7 @@ static void noir_derA2(const nlop_data_t* _data, complex float* dst, const compl
 
 static void noir_derB2(const nlop_data_t* _data, complex float* dst, const complex float* coils)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	complex float* tmp = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, dst);
 
@@ -309,9 +299,10 @@ static void noir_derB2(const nlop_data_t* _data, complex float* dst, const compl
 
 static void noir_der2(const nlop_data_t* _data, complex float* dst, const complex float* img, const complex float* coils)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
-	complex float* tmp = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, dst);
+	complex float* tmp = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, img);
+
 	noir_derA(_data, tmp, img);
 
 	complex float* tmp2 = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, img);
@@ -319,15 +310,17 @@ static void noir_der2(const nlop_data_t* _data, complex float* dst, const comple
 	noir_derB(_data, tmp2, coils);
 
 	md_zadd(DIMS, data->data_dims, tmp, tmp, tmp2);
+
 	md_free(tmp2);
 
 	linop_forward(data->frw, DIMS, data->data_dims, dst, DIMS, data->data_dims, tmp);
+
 	md_free(tmp);
 }
 
 static void noir_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
@@ -336,7 +329,7 @@ static void noir_der(const nlop_data_t* _data, complex float* dst, const complex
 
 static void noir_adjA(const nlop_data_t* _data, complex float* img, const complex float* src)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	auto der1 = nlop_get_derivative(data->nl, 0, 0);
 
@@ -348,7 +341,7 @@ static void noir_adjA(const nlop_data_t* _data, complex float* img, const comple
 
 static void noir_adjB(const nlop_data_t* _data, complex float* coils, const complex float* src)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	auto der2 = nlop_get_derivative(data->nl, 0, 1);
 
@@ -357,7 +350,7 @@ static void noir_adjB(const nlop_data_t* _data, complex float* coils, const comp
 
 static void noir_adjA2(const nlop_data_t* _data, complex float* img, const complex float* src)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	complex float* tmp = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, img);
 
@@ -369,7 +362,7 @@ static void noir_adjA2(const nlop_data_t* _data, complex float* img, const compl
 
 static void noir_adjB2(const nlop_data_t* _data, complex float* coils, const complex float* src)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	complex float* tmp = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, coils);
 
@@ -379,12 +372,11 @@ static void noir_adjB2(const nlop_data_t* _data, complex float* coils, const com
 	md_free(tmp);
 }
 
-
 static void noir_adj2(const nlop_data_t* _data, complex float* img, complex float* coils, const complex float* src)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
-	complex float* tmp = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, coils);
+	complex float* tmp = md_alloc_sameplace(DIMS, data->data_dims, CFL_SIZE, img);
 
 	linop_adjoint(data->adj, DIMS, data->data_dims, tmp, DIMS, data->data_dims, src);
 
@@ -396,7 +388,7 @@ static void noir_adj2(const nlop_data_t* _data, complex float* img, complex floa
 
 static void noir_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	struct noir_op_s* data = CAST_DOWN(noir_op_s, _data);
+	const auto data = CAST_DOWN(noir_op_s, _data);
 
 	long split = md_calc_size(DIMS, data->imgs_dims);
 
@@ -443,13 +435,12 @@ struct noir_s noir_create3(const long dims[DIMS], const complex float* mask, con
 
 struct noir_s noir_create2(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
 {
-	//assert(!conf->noncart);
+	assert(!conf->noncart);
 	assert(!conf->rvc);
 
 	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
 	struct nlop_s* nlop = data->nl2;
-//	noir_free(data);
-	return (struct noir_s){ .nlop = nlop, .linop = data->weights };
+	return (struct noir_s){ .nlop = nlop, .linop = data->weights, .noir_op = data };
 }
 
 struct noir_s noir_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
@@ -460,7 +451,6 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 	long idims[DIMS];
 	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG, idims, dims);
 	idims[COIL_DIM] = dims[COIL_DIM] + dims[TE_DIM]; // add image
-	//idims[COIL_DIM] = dims[COIL_DIM] + 1;//dims[MAPS_DIM]; // add image
 
 	struct noir_s ret = { .linop = data->weights };
 	ret.nlop = nlop_create(DIMS, dims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_del);
