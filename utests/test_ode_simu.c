@@ -18,11 +18,11 @@
 
 static bool test_ode_bloch_simulation(void)
 {   
-    float e = 1.E-3;
-	float tol = 1.E-3;
     
     float t1 = 1.5;
     float t2 = 0.1;
+	float e = 1.E-3;
+	float tol = 1.E-5;
 	float m0 = 1;
     
     int repetition = 500;
@@ -45,7 +45,7 @@ static bool test_ode_bloch_simulation(void)
 	
 	sim_data.pulseData = pulseData_defaults;
 	sim_data.pulseData.flipangle = 45.;
-	sim_data.pulseData.RF_end = 0.0000;			// Choose HARD-PULSE Approximation -> same assumptions as analytical model
+	sim_data.pulseData.RF_end = 0.0009;
 	sim_data.gradData = gradData_defaults;
 	sim_data.seqtmp = seqTmpData_defaults;
 	
