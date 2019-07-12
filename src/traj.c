@@ -36,6 +36,7 @@ int main_traj(int argc, char* argv[])
 {
 	int X = 128;
 	int Y = 128;
+	int D1 = 0;
 	int D = 128;
 	int E = 1;
 	int mb = 1;
@@ -58,7 +59,7 @@ int main_traj(int argc, char* argv[])
 
 		OPT_INT('x', &X, "x", "actual readout samples"),
 		OPT_INT('y', &Y, "y", "phase encoding lines"),
-		OPT_INT('d', &D, "d", "full readout samples"),
+		OPT_INT('d', &D1, "d", "full readout samples"),
 		OPT_INT('e', &E, "e", "number of echoes"),
 		OPT_INT('a', &conf.accel, "a", "acceleration"),
 		OPT_INT('t', &turns, "t", "turns"),
@@ -117,9 +118,12 @@ int main_traj(int argc, char* argv[])
 		conf.radial = true;
 	}
 
-	if (!conf.asym_traj) {
-		D = X;
-	}
+	D = X;
+	if (D1 != 0)
+		D = D1;
+	
+	if (conf.asym_traj && D1 == 0)
+		debug_printf(DP_INFO, "Trajectory with sampled DC component!\n");
 
 	// Variables for z-undersampling
 	long z_reflines = z_usamp[0];
