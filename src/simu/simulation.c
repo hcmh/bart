@@ -274,20 +274,17 @@ void run_sim_block(void* _data, float* mxySignal, float* saR1Signal, float* saR2
 {
 	struct SimData* data = _data;
 
-	start_rf_pulse( data, h, tol, N, P, xp);
+	start_rf_pulse(data, h, tol, N, P, xp);
 
-	relaxation2( data, h, tol, N, P, xp, data->pulseData.RF_end, data->seqData.TE);
+	relaxation2(data, h, tol, N, P, xp, data->pulseData.RF_end, data->seqData.TE);
 
 	if (get_signal)
 		collect_signal( data, N, P, mxySignal, saR1Signal, saR2Signal, saM0Signal, xp);
 
-	relaxation2( data, h, tol, N, P, xp, data->seqData.TE, data->seqData.TR);
-	
+	relaxation2(data, h, tol, N, P, xp, data->seqData.TE, data->seqData.TR);
 }
 
 
-    
-__attribute__((optimize("-fno-finite-math-only")))
 void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3], complex float* input_sp)
 {
 	struct SimData* data = _data;
@@ -303,10 +300,10 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		isochromDistribution( data, isochromats);
 
 	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows 
-	float *mxySignal = malloc( (data->seqData.spin_num * (data->seqData.rep_num) * 3) * sizeof(float) );
-	float *saT1Signal = malloc( (data->seqData.spin_num * (data->seqData.rep_num) * 3) * sizeof(float) );
-	float *saT2Signal = malloc( (data->seqData.spin_num * (data->seqData.rep_num) * 3) * sizeof(float) );
-	float *densSignal = malloc( (data->seqData.spin_num * (data->seqData.rep_num) * 3) * sizeof(float) );
+	float *mxySignal = malloc(data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
+	float *saT1Signal = malloc(data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
+	float *saT2Signal = malloc(data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
+	float *densSignal = malloc(data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
 
 	float flipangle_backup = data->pulseData.flipangle;
 	float w_backup = data->voxelData.w;
@@ -369,8 +366,6 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		/*--------------------------------------------------------------
 		* --------------  Loop over Pulse Blocks  ----------------------
 		* ------------------------------------------------------------*/
-		
-		//Start imaging sequence
 		data->seqtmp.t = 0;
 		
 		create_sim_block(data);
@@ -380,7 +375,7 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 			//Change phase for phase cycled bSSFP sequences //Check phase for FLASH!!
 			if (data->seqData.seq_type == 3 || data->seqData.seq_type == 6)
 				data->pulseData.phase = M_PI * (float) ( data->seqtmp.rep_counter % 2 ) + 360. * ( (float)data->seqtmp.rep_counter/(float)data->seqData.rep_num )/180. * M_PI;
-			else if ( data->seqData.seq_type == 0 || data->seqData.seq_type == 1 )
+			else if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1)
 				data->pulseData.phase = M_PI * (float) data->seqtmp.rep_counter;
 
 			run_sim_block(data, mxySignal, saT1Signal, saT2Signal, densSignal, h, tol, N, P, xp, true);

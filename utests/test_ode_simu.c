@@ -73,7 +73,7 @@ static bool test_ode_bloch_simulation(void)
 	float err = 0;
 	
 	for (int i = 0; i < sim_data.seqData.rep_num / sim_data.seqData.num_average_rep; i++) 
-		for (int j = 0; j < 3; j++){
+		for (int j = 0; j < 3; j++) {
 		
 			err = fabsf( e * saT1RefSig[i][j] - (mxyTmpSig[i][j] - mxyRefSig[i][j]) );
 			
@@ -113,7 +113,7 @@ static bool test_ode_bloch_simulation(void)
 	dataDens.voxelData.m0 += e; 
 	
 	ode_bloch_simulation3(&dataDens, mxyTmpSig, saT1TmpSig, saT2TmpSig, saDensTmpSig, NULL);
-    
+	
 	//Verify gradient
 	for (int i = 0; i < sim_data.seqData.rep_num / sim_data.seqData.num_average_rep; i++)
 		for (int j = 0; j < 3; j++) {
