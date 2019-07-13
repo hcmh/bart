@@ -308,6 +308,65 @@ struct linop_s* linop_expand_create(unsigned int N, const long out_dims[N], cons
 
 
 
+struct extract_op_s {
+
+	INTERFACE(linop_data_t);
+
+	int N;
+	const long* pos;
+	const long* in_dims;
+	const long* out_dims;
+};
+
+static DEF_TYPEID(extract_op_s);
+
+static void extract_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(extract_op_s, _data);
+
+	md_clear(data->N, data->out_dims, dst, CFL_SIZE);
+	md_copy_block(data->N, data->pos, data->out_dims, dst, data->in_dims, src, CFL_SIZE);
+}
+
+static void extract_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(extract_op_s, _data);
+
+	md_clear(data->N, data->in_dims, dst, CFL_SIZE);
+	md_copy_block(data->N, data->pos, data->in_dims, dst, data->out_dims, src, CFL_SIZE);
+}
+
+static void extract_free(const linop_data_t* _data)
+{
+	const auto data = CAST_DOWN(extract_op_s, _data);
+
+	xfree(data->out_dims);
+	xfree(data->in_dims);
+	xfree(data->pos);
+
+	xfree(data);
+}
+
+extern struct linop_s* linop_extract_create(unsigned int N, const long pos[N], const long out_dims[N], const long in_dims[N])
+{
+	PTR_ALLOC(struct extract_op_s, data);
+	SET_TYPEID(extract_op_s, data);
+
+	data->N = N;
+	data->pos = *TYPE_ALLOC(long[N]);
+	data->out_dims = *TYPE_ALLOC(long[N]);
+	data->in_dims = *TYPE_ALLOC(long[N]);
+
+	md_copy_dims(N, (long*)data->pos, pos);
+	md_copy_dims(N, (long*)data->out_dims, out_dims);
+	md_copy_dims(N, (long*)data->in_dims, in_dims);
+
+	return linop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), extract_forward, extract_adjoint, NULL, NULL, extract_free);
+}
+
+
+
+
 
 struct reshape_op_s {
 
@@ -336,17 +395,20 @@ static void reshape_free(const linop_data_t* _data)
 }
 
 
-struct linop_s* linop_reshape_create(unsigned int N, const long out_dims[N], const long in_dims[N])
+struct linop_s* linop_reshape_create(unsigned int A, const long out_dims[A], int B, const long in_dims[B])
 {
 	PTR_ALLOC(struct reshape_op_s, data);
 	SET_TYPEID(reshape_op_s, data);
 
+	assert(md_calc_size(A, out_dims) == md_calc_size(B, in_dims));
+
+	unsigned int N = A;
 	data->N = N;
 	long* dims = *TYPE_ALLOC(long[N]);
 	md_copy_dims(N, dims, out_dims);
 	data->dims = dims;
 
-	return linop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), reshape_forward, reshape_forward, reshape_forward, NULL, reshape_free);
+	return linop_create(A, out_dims, B, in_dims, CAST_UP(PTR_PASS(data)), reshape_forward, reshape_forward, reshape_forward, NULL, reshape_free);
 }
 
 
