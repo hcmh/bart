@@ -116,8 +116,10 @@ int main_traj(int argc, char* argv[])
 	if (conf.mems_traj) {
 		conf.radial = true;
 	}
-
-	assert(D >= X);
+	
+	if (D < X) {
+	    D = X; // D is only needed for partial Fourier sampling
+	}
 
 	// Variables for z-undersampling
 	long z_reflines = z_usamp[0];
