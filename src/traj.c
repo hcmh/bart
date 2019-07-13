@@ -36,7 +36,6 @@ int main_traj(int argc, char* argv[])
 {
 	int X = 128;
 	int Y = 128;
-	int D1 = 0;
 	int D = 128;
 	int E = 1;
 	int mb = 1;
@@ -59,7 +58,7 @@ int main_traj(int argc, char* argv[])
 
 		OPT_INT('x', &X, "x", "actual readout samples"),
 		OPT_INT('y', &Y, "y", "phase encoding lines"),
-		OPT_INT('d', &D1, "d", "full readout samples"),
+		OPT_INT('d', &D, "d", "full readout samples"),
 		OPT_INT('e', &E, "e", "number of echoes"),
 		OPT_INT('a', &conf.accel, "a", "acceleration"),
 		OPT_INT('t', &turns, "t", "turns"),
@@ -114,16 +113,11 @@ int main_traj(int argc, char* argv[])
 
 	dims[TE_DIM] = E;
 
-	if (conf.mems_traj || conf.asym_traj) {
+	if (conf.mems_traj) {
 		conf.radial = true;
 	}
 
-	D = X;
-	if (D1 != 0)
-		D = D1;
-	
-	if (conf.asym_traj && D1 == 0)
-		debug_printf(DP_INFO, "Trajectory with sampled DC component!\n");
+	assert(D >= X);
 
 	// Variables for z-undersampling
 	long z_reflines = z_usamp[0];
@@ -211,9 +205,9 @@ int main_traj(int argc, char* argv[])
 			 * for symmetric trajectory [DC between between sample no. X/2-1 and X/2, zero-based indexing]
 			 * or asymmetric trajectory [DC component at sample no. X/2, zero-based indexing]
 			 */
-			double read = (float)i + 0.5 - (float)X / 2.;
+			double read = (float)i + (conf.asym_traj ? 0 : 0.5) - (float)X / 2.;
 
-			if (conf.mems_traj || conf.asym_traj) {
+			if (conf.mems_traj) {
 
 				read = ((e%2) ? (float)(D-i-2) : (float)(i+D-X)) - (float)D/2.;
 			}
