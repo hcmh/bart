@@ -112,6 +112,7 @@ extern void md_min_dims(unsigned int D, unsigned long flags, long odims[__VLA(D)
 extern void md_max_dims(unsigned int D, unsigned long flags, long odims[__VLA(D)], const long idims1[__VLA(D)], const long idims2[__VLA(D)]);
 extern _Bool md_is_index(unsigned int D, const long pos[__VLA(D)], const long dims[__VLA(D)]);
 extern _Bool md_check_dimensions(unsigned int N, const long dims[__VLA(N)], unsigned int flags);
+extern _Bool md_check_equal_dims(unsigned int N, const long dims1[__VLA(N)], const long dims2[__VLA(N)], unsigned int flags);
 extern void md_permute_dims(unsigned int D, const unsigned int order[__VLA(D)], long odims[__VLA(D)], const long idims[__VLA(D)]);
 extern void md_transpose_dims(unsigned int D, unsigned int dim1, unsigned int dim2, long odims[__VLA(D)], const long idims[__VLA(D)]);
 extern _Bool md_next(unsigned int D, const long dims[__VLA(D)], unsigned long flags, long pos[__VLA(D)]);
