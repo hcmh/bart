@@ -36,7 +36,7 @@ int main_traj(int argc, char* argv[])
 {
 	int X = 128;
 	int Y = 128;
-	int D = 128;
+	int D = 1;
 	int E = 1;
 	int mb = 1;
 	int turns = 1;
