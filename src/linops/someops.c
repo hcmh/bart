@@ -977,13 +977,19 @@ static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned
 {
 	const struct operator_s* plan = NULL;
 	const struct operator_s* iplan = NULL;
+
 	if (measure) {
+
 		plan = fft_measure_create(N, dims, flags, true, false);
 		iplan = fft_measure_create(N, dims, flags, true, true);
+
 	} else {
+
 		complex float* tmp1 = md_alloc(N, dims, CFL_SIZE);
+
 		plan = fft_create(N, dims, flags, tmp1, tmp1, false);
 		iplan = fft_create(N, dims, flags, tmp1, tmp1, true);
+
 		md_free(tmp1);
 	}
 
@@ -1029,15 +1035,15 @@ static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned
 		struct linop_s* modk = linop_cdiag_create(N, dims, ~0u, fftmodk_mat);
 
 		struct linop_s* tmp = linop_chain(mod, lop);
-		
+
 		linop_free(lop);
 		linop_free(mod);
-		
+
 		lop = linop_chain(tmp, modk);
-		
+
 		linop_free(tmp);
 		linop_free(modk);
-		
+
 		md_free(fftmod_mat);
 		md_free(fftmodk_mat);
 	}
