@@ -75,9 +75,21 @@ int main_tgv(int argc, char* argv[])
 	long out_dims[DIMS];
 	
 	const struct linop_s* grad1 = linop_grad_create(DIMS - 1, in_dims, DIMS - 1, flags);
-	const struct linop_s* grad2 = linop_grad_create(DIMS + 0, linop_codomain(grad1)->dims, DIMS + 0, flags);
+	const struct linop_s* grad2x = linop_grad_create(DIMS + 0, linop_codomain(grad1)->dims, DIMS + 0, flags);
 
-	// FIXME: not symmetrized
+
+	auto grad2a = linop_transpose_create(DIMS + 1, DIMS - 1, DIMS + 0, linop_codomain(grad2x)->dims);
+	auto grad2b = linop_identity_create(DIMS + 1, linop_codomain(grad2x)->dims);
+	auto grad2c = linop_plus(grad2a, grad2b);
+
+	linop_free(grad2a);
+	linop_free(grad2b);
+
+	auto grad2 = linop_chain(grad2x, grad2c);
+
+	linop_free(grad2x);
+	linop_free(grad2c);
+
 
 	long grd_dims[DIMS];
 	md_copy_dims(DIMS, grd_dims, linop_codomain(grad1)->dims);
@@ -108,14 +120,14 @@ int main_tgv(int argc, char* argv[])
 	linop_free(grad1d);
 
 	long pos2[DIMS] = { [DIMS - 1] = 1 };
-	auto grad2b = linop_extract_create(DIMS, pos2, grd_dims, out_dims);
-	const struct linop_s* grad2c = linop_chain(grad2b, grad2);
+	auto grad2e = linop_extract_create(DIMS, pos2, grd_dims, out_dims);
+	const struct linop_s* grad2f = linop_chain(grad2e, grad2);
 
 	linop_free(grad2);
-	linop_free(grad2b);
+	linop_free(grad2e);
 
 	auto p1 = prox_thresh_create(DIMS + 0, linop_codomain(grad1f)->dims, lambda, 0u);
-	auto p2 = prox_thresh_create(DIMS + 1, linop_codomain(grad2c)->dims, lambda, 0u);
+	auto p2 = prox_thresh_create(DIMS + 1, linop_codomain(grad2f)->dims, lambda, 0u);
 
 	auto id = linop_extract_create(DIMS, (long[DIMS]){ 0 }, in_dims, out_dims);
 
@@ -129,7 +141,7 @@ int main_tgv(int argc, char* argv[])
 	conf.rho = .1;
 
 	iter2_admm(CAST_UP(&conf), id->normal,
-		   2, MAKE_ARRAY(p1, p2), MAKE_ARRAY(grad1f, grad2c),
+		   2, MAKE_ARRAY(p1, p2), MAKE_ARRAY(grad1f, grad2f),
 		   NULL, NULL,
 		   2 * md_calc_size(DIMS, out_dims), (float*)out_data, (const float*)adj,
 		   NULL);
