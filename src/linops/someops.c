@@ -413,6 +413,78 @@ struct linop_s* linop_reshape_create(unsigned int A, const long out_dims[A], int
 
 
 
+struct transpose_op_s {
+
+	INTERFACE(linop_data_t);
+
+	int N;
+	int a;
+	int b;
+	const long* dims;
+};
+
+static DEF_TYPEID(transpose_op_s);
+
+static void transpose_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(transpose_op_s, _data);
+
+	long odims[data->N];
+	md_copy_dims(data->N, odims, data->dims);
+	odims[data->a] = data->dims[data->b];
+	odims[data->b] = data->dims[data->a];
+
+	md_transpose(data->N, data->a, data->b, odims, dst, data->dims, src, CFL_SIZE);
+}
+
+static void transpose_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(transpose_op_s, _data);
+
+	md_copy(data->N, data->dims, dst, src, CFL_SIZE);
+}
+
+static void transpose_free(const linop_data_t* _data)
+{
+	auto data = CAST_DOWN(transpose_op_s, _data);
+
+	xfree(data->dims);
+
+	xfree(data);
+}
+
+
+struct linop_s* linop_transpose_create(int N, int a, int b, const long dims[N])
+{
+	assert((0 <= a) && (a < N));
+	assert((0 <= b) && (b < N));
+	assert(a != b);
+
+	PTR_ALLOC(struct transpose_op_s, data);
+	SET_TYPEID(transpose_op_s, data);
+
+	data->N = N;
+	data->a = a;
+	data->b = b;
+
+	long* idims = *TYPE_ALLOC(long[N]);
+	md_copy_dims(N, idims, dims);
+	data->dims = idims;
+
+	long odims[N];
+	md_copy_dims(N, odims, dims);
+	odims[a] = idims[b];
+	odims[b] = idims[a];
+
+	return linop_create(N, odims, N, idims, CAST_UP(PTR_PASS(data)), transpose_forward, transpose_forward, transpose_normal, NULL, transpose_free);
+}
+
+
+
+
+
+
+
 struct operator_matrix_s {
 
 	INTERFACE(linop_data_t);
