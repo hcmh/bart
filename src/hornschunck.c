@@ -62,7 +62,7 @@ int main_hornschunck(int argc, char* argv[])
 	complex float* in_data = load_cfl(argv[4], DIMS, dims);
 
 
-	const struct linop_s* grad_op = linop_grad_create(DIMS, dims, flags);
+	const struct linop_s* grad_op = linop_grad_create(DIMS, dims, DIMS, flags);
 
 	long odims[DIMS + 1];
 	md_copy_dims(DIMS + 1, odims, linop_codomain(grad_op)->dims);
@@ -84,7 +84,7 @@ int main_hornschunck(int argc, char* argv[])
 	//complex float* tdiff = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* tdiff = create_cfl("tdiff", DIMS, dims);
 
-	const struct linop_s* time_op = linop_grad_create(DIMS, dims, MD_BIT(tdim));
+	const struct linop_s* time_op = linop_grad_create(DIMS, dims, DIMS, MD_BIT(tdim));
 	linop_forward(time_op, DIMS + 1, linop_codomain(time_op)->dims, tdiff, DIMS, dims, in_data);
 	linop_free(time_op);
 

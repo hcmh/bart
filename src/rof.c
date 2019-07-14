@@ -62,7 +62,7 @@ int main_rof(int argc, char* argv[])
 	complex float* out_data = create_cfl(argv[4], DIMS, dims);
 
 	auto id_op  = linop_identity_create(DIMS, dims);
-	const struct linop_s* grad_op = linop_grad_create(DIMS, dims, flags);
+	const struct linop_s* grad_op = linop_grad_create(DIMS, dims, DIMS, flags);
 	auto thresh_prox = prox_thresh_create(DIMS + 1, linop_codomain(grad_op)->dims, lambda, MD_BIT(DIMS));
 
 	struct iter_admm_conf conf = iter_admm_defaults;

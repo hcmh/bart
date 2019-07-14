@@ -74,8 +74,8 @@ int main_tgv(int argc, char* argv[])
 
 	long out_dims[DIMS];
 	
-	const struct linop_s* grad1 = linop_grad_create(DIMS - 1, in_dims, flags);
-	const struct linop_s* grad2 = linop_grad_create(DIMS + 0, linop_codomain(grad1)->dims, flags);
+	const struct linop_s* grad1 = linop_grad_create(DIMS - 1, in_dims, DIMS - 1, flags);
+	const struct linop_s* grad2 = linop_grad_create(DIMS + 0, linop_codomain(grad1)->dims, DIMS + 0, flags);
 
 	// FIXME: not symmetrized
 
