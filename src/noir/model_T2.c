@@ -5,12 +5,7 @@
  *
  * Authors:
  * 2011-2018 Martin Uecker
- *
- *
- * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized nonlinear
- * inversion – Joint estimation of coil sensitivities and image content. 
- * Magn Reson Med 2008; 60:674-682.
-s */
+ */
 
 
 #include <stdlib.h>
@@ -58,12 +53,11 @@ struct T2_s T2_create(const long dims[DIMS], const complex float* mask, const co
 
 	in_dims[COEFF_DIM] = 2;
 
-#if 1 
 	// chain T2 model
 	struct nlop_s* T2 = nlop_T2_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T2, 0)->dims);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(T2, 0)->dims);
-// 
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 0)->dims);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 1)->dims);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(nlinv.nlop, 0)->dims);
@@ -74,7 +68,6 @@ struct T2_s T2_create(const long dims[DIMS], const complex float* mask, const co
 
 	nlinv.nlop = nlop_permute_inputs(c, 2, (const int[2]){ 1, 0 });
 	nlop_free(c);
-#endif
 
 	ret.nlop = nlop_flatten(nlinv.nlop);
 	ret.linop = nlinv.linop;

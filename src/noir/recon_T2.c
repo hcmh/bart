@@ -3,13 +3,8 @@
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors: 
+ * Authors:
  * 2011-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- *
- *
- * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized
- * nonlinear inversion – Joint estimation of coil sensitivities and image content.
- * Magn Reson Med 2008; 60:674-682.
  */
 
 #include <complex.h>
@@ -85,19 +80,19 @@ void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
-    
+
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, irgnm_conf.dims, imgs_dims);
-    
+
 	irgnm_conf.dims[COIL_DIM] = coil_dims[COIL_DIM];
-    
+
 	debug_printf(DP_INFO, "imgs_dims:\n\t");
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf.dims);
-   
-    
+
+
 	iter4_irgnm(CAST_UP(&irgnm_conf),
 			nl.nlop,
 //  			size * 2, (float*)x, (float*)x,
-			size * 2, (float*)x, NULL,    
+			size * 2, (float*)x, NULL,
 			data_size * 2, (const float*)kspace_data,
 			NULL, (struct iter_op_s){ NULL, NULL });
 
@@ -105,15 +100,8 @@ void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 
 	if (NULL != sens) {
 
-#ifdef USE_CUDA
-		if (conf->usegpu) {
-
-			noir_forw_coils(nl.linop, x + skip, x + skip);
-			md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
-		} else
-#endif
-			noir_forw_coils(nl.linop, sens, x + skip);
-
+		noir_forw_coils(nl.linop, x + skip, x + skip);
+		md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
 		fftmod(DIMS, coil_dims, fft_flags, sens, sens);
 	}
 

@@ -68,7 +68,6 @@ const struct noir_conf_s noir_defaults = {
 
 	.iter = 8,
 	.rvc = false,
-	.usegpu = false,
 	.noncart = false,
 	.alpha = 1.,
 	.alpha_min = 0.,
@@ -126,11 +125,12 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 		md_copy(1, d1, xref, ref, CFL_SIZE);
 	}
 
+#if 1
+	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
+#else
 	struct noir_s nl = noir_create3(dims, mask, pattern, &mconf);
-//     struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
-
 	nl.nlop = nlop_flatten(nl.nlop);
-
+#endif
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
 	irgnm_conf.iter = conf->iter;
@@ -141,12 +141,6 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.nlinv_legacy = true;
 	irgnm_conf.alpha_min = conf->alpha_min;
 
-	md_select_dims(DIMS, mconf.fft_flags|MAPS_FLAG|TE_FLAG, irgnm_conf.dims, imgs_dims);
-
-	irgnm_conf.dims[COIL_DIM] = coil_dims[COIL_DIM];
-
-	debug_printf(DP_INFO, "imgs_dims:\n\t");
-	debug_print_dims(DP_INFO, DIMS, irgnm_conf.dims);
 
 	struct nlop_wrapper_s nlw;
 

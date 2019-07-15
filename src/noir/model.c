@@ -107,7 +107,6 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	md_copy_dims(DIMS, data->dims, dims);
 
-
 	md_select_dims(DIMS, ~conf->cnstcoil_flags, data->coil_dims, dims);
 	md_select_dims(DIMS, ~COIL_FLAG, data->imgs_dims, dims);
 	md_select_dims(DIMS, ~MAPS_FLAG, data->data_dims, dims);
@@ -120,7 +119,6 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	long ptrn_dims[DIMS];
 	md_select_dims(DIMS, conf->ptrn_flags, ptrn_dims, dims);
-
 
 
 	data->wghts = md_alloc(DIMS, wght_dims, CFL_SIZE);
@@ -429,7 +427,7 @@ struct noir_s noir_create3(const long dims[DIMS], const complex float* mask, con
 	md_calc_strides(DIMS, nl_istr[0], idims, CFL_SIZE);
 	md_calc_strides(DIMS, nl_istr[1], cdims, CFL_SIZE);
 
-	struct noir_s ret = { .linop = data->weights };
+	struct noir_s ret = { .linop = data->weights, .noir_op = data };
 
 	ret.nlop = nlop_generic_create2(1, DIMS, nl_odims, nl_ostr, 2, DIMS, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
 			noir_fun2, (nlop_fun_t[2][1]){ { noir_derA2 }, { noir_derB2 } },
