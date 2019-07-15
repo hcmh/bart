@@ -45,11 +45,11 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 
 	.fft_flags = FFT_FLAGS,
 	.cnstcoil_flags = TE_FLAG,
+	.ptrn_flags = ~(COIL_FLAG|MAPS_FLAG),
 	.rvc = false,
 	.noncart = false,
 	.a = 220.,
 	.b = 32.,
-	.pattern_for_each_coil = false,
 };
 
 
@@ -118,16 +118,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	md_select_dims(DIMS, FFT_FLAGS, wght_dims, dims);
 
 	long ptrn_dims[DIMS];
-
-	unsigned int ptrn_flags = ~conf->fft_flags;
-
-	if (conf->pattern_for_each_coil)
-		ptrn_flags =~ COIL_FLAG;
-
-	md_select_dims(DIMS, ~ptrn_flags, ptrn_dims, dims);
-
-	long ptrn_strs[DIMS];
-	md_calc_strides(DIMS, ptrn_strs, ptrn_dims, CFL_SIZE);
+	md_select_dims(DIMS, conf->ptrn_flags, ptrn_dims, dims);
 
 
 	data->wghts = md_alloc(DIMS, wght_dims, CFL_SIZE);

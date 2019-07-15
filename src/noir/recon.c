@@ -122,7 +122,10 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	mconf.fft_flags = fft_flags;
 	mconf.a = conf->a;
 	mconf.b = conf->b;
-	mconf.pattern_for_each_coil = conf->pattern_for_each_coil;
+	mconf.ptrn_flags = ~(MAPS_FLAG|COIL_FLAG);
+
+	if (conf->pattern_for_each_coil)
+		mconf.ptrn_flags |= COIL_FLAG;
 
 	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
 
