@@ -33,21 +33,16 @@
 
 #include <math.h>
 #include <stdbool.h>
-#include <complex.h>
 
 #include "misc/misc.h"
-#include "misc/mri.h"
 #include "misc/debug.h"
-#include "num/multind.h"
 
 #include "iter/vec.h"
 #include "iter/monitor.h"
-#include "num/flpmath.h"
 
 #include "italgos.h"
 
-#define MPI_CGtol
-// #define autoScaling
+// #define MPI_CGtol
 
 extern inline void iter_op_call(struct iter_op_s op, float* dst, const float* src);
 extern inline void iter_nlop_call(struct iter_nlop_s op, int N, float* args[N]);
@@ -261,149 +256,6 @@ void ist(unsigned int maxiter, float epsilon, float tau,
  * @param x initial estimate
  * @param b observations
  */
-void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
-	float continuation, bool hogwild,
-	long N,
-	const struct vec_iter_s* vops,
-	struct iter_op_s op,
-	struct iter_op_p_s thresh,
-	float* x, const float* b,
-	struct iter_monitor_s* monitor)
-{
-
-	struct iter_data itrdata = {
-
-		.rsnew = 1.,
-		.rsnot = 1.,
-		.iter = 0,
-		.maxiter = maxiter,
-	};
-
-	float* r = vops->allocate(N);
-	float* o = vops->allocate(N);
-
-	float ra = 1.;
-	vops->copy(N, o, x);
-
-	itrdata.rsnot = vops->norm(N, b);
-
-	float ls_old = 1.;
-	float lambda_scale = 1.;
-
-	int hogwild_k = 0;
-	int hogwild_K = 10;
-
-	long res = dims[0];
-	long parameters = dims[COEFF_DIM];
-	long SMS = dims[SLICE_DIM];
-	long TIME2 = dims[TIME2_DIM];
-	int temp_index;
-	int u,v,w;
-	float lowerbound = 0.1;
-	float scaling[SMS*parameters*TIME2];
-
-	long map_dims[16];
-	md_select_dims(16, FFT_FLAGS, map_dims, dims);
-	long map_strs[16];
-	md_calc_strides(16, map_strs, map_dims, CFL_SIZE);
-
-	debug_printf(DP_DEBUG3, "##tau = %f\n", tau);
-
-	for (itrdata.iter = 0; itrdata.iter < maxiter; itrdata.iter++) {
-
-		iter_monitor(monitor, vops, x);
-
-		ls_old = lambda_scale;
-		lambda_scale = ist_continuation(&itrdata, continuation);
-		
-		if (lambda_scale != ls_old)
-			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
-
-		// normalize all the maps before joint wavelet denoising
-
-		for(w = 0; w < TIME2; w++)
-			for(u = 0; u < SMS; u++)
-				for(v = 0; v < parameters; v++) {
-
-					temp_index = v+u*parameters+w*SMS*parameters;
-					scaling[temp_index] = md_norm(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index);
-
-					md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, 1.0/scaling[temp_index]);
-		}
-
-		iter_op_p_call(thresh, lambda_scale * tau, x, x);
-
-		for(w = 0; w < TIME2; w++)
-			for(u = 0; u < SMS; u++)
-				for(v = 0; v < parameters; v++) {
-
-					temp_index = v+u*parameters+w*SMS*parameters;
-					md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, scaling[temp_index]);
-		}
-
-		// Domain Prjoection for R1s
-		for(w = 0; w < TIME2; w++)
-			for(u = 0; u < SMS; u++) {
-				temp_index = res*res*2*(parameters-1) + (u + w*SMS)*res*res*2*parameters;
-				vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
-			//md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
-		}
-
-		ravine(vops, N, &ra, x, o);	// FISTA
-		iter_op_call(op, r, x);		// r = A x
-		vops->xpay(N, -1., r, b);	// r = b - r = b - A x
-
-		itrdata.rsnew = vops->norm(N, r);
-
-		debug_printf(DP_DEBUG3, "#It %03d: %f   \n", itrdata.iter, itrdata.rsnew / itrdata.rsnot);
-
-		if (itrdata.rsnew < epsilon)
-			break;
-
-		vops->axpy(N, x, tau, r);
-
-		for(w = 0; w < TIME2; w++)
-			for (u = 0; u < SMS; u++) {
-
-				temp_index = res*res*2*(parameters-1) + (u + w*SMS)*res*res*2*parameters;
-				vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
-//				md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
-		}
-
-
-		if (hogwild)
-			hogwild_k++;
-		
-		if (hogwild_k == hogwild_K) {
-
-			hogwild_K *= 2;
-			hogwild_k = 0;
-			tau /= 2;
-		}
-	}
-
-	debug_printf(DP_DEBUG3, "\n");
-	debug_printf(DP_DEBUG2, "\t\tFISTA iterations: %u\n", itrdata.iter);
-
-	vops->del(o);
-	vops->del(r);
-}
-
-/**
- * Iterative Soft Thresholding/FISTA to solve min || b - Ax ||_2 + lambda || T x ||_1
- *
- * @param maxiter maximum number of iterations
- * @param epsilon stop criterion
- * @param tau (step size) weighting on the residual term, A^H (b - Ax)
- * @param lambda_start initial regularization weighting
- * @param lambda_end final regularization weighting (for continuation)
- * @param N size of input, x
- * @param vops vector ops definition
- * @param op linear operator, e.g. A
- * @param thresh threshold function, e.g. complex soft threshold
- * @param x initial estimate
- * @param b observations
- */
 void fista(unsigned int maxiter, float epsilon, float tau,
 	float continuation, bool hogwild,
 	long N,
@@ -413,6 +265,7 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor)
 {
+
 	struct iter_data itrdata = {
 
 		.rsnew = 1.,
@@ -442,6 +295,7 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 
 		ls_old = lambda_scale;
 		lambda_scale = ist_continuation(&itrdata, continuation);
+
 
 		if (lambda_scale != ls_old) 
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
@@ -474,10 +328,13 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	}
 
 	debug_printf(DP_DEBUG3, "\n");
+	debug_printf(DP_DEBUG2, "\t\tFISTA iterations: %u\n", itrdata.iter);
 
 	vops->del(o);
 	vops->del(r);
 }
+
+
 
 /**
  *  Landweber L. An iteration formula for Fredholm integral equations of the
@@ -559,9 +416,9 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 	float rsnot = (float)pow(vops->norm(N, r), 2.);
 	float rsold = rsnot;
 	float rsnew = rsnot;
-
+#ifndef MPI_CGtol
 	float eps_squared = pow(epsilon, 2.);
-
+#endif
 
 	unsigned int i = 0;
 
@@ -598,12 +455,11 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 
 		rsold = rsnew;
 
-		kappa = 1 + beta*kappa;
+		kappa = 1 + beta * kappa;
 #ifdef MPI_CGtol
-		if (sqrt(rsnew / rsnot) <= sqrt(kappa) * 1.0/3.0 * l2lambda)
+		if (sqrt(rsnew / rsnot) <= sqrt(kappa) * l2lambda / 3.)
 			break;
 #else
-// 		if (rsnew <= sqrt(kappa) * eps_squared) {
 	        if (rsnew <= eps_squared)
 			break;
 #endif
@@ -652,21 +508,15 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
 
 	for (unsigned int i = 0; i < iter; i++) {
 
-//		printf("#--------\n");
-
-		debug_printf(DP_DEBUG2, "Step: %u, Y: %f\n", i, vops->norm(M, y));
 		iter_monitor(monitor, vops, x);
 
 		iter_op_call(op, r, x);			// r = F x
-		debug_printf(DP_DEBUG2, "Step: %u, Forward: %f\n", i, vops->norm(M, r));
 
 		vops->xpay(M, -1., r, y);	// r = y - F x
 
 		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
 
 		iter_op_call(adj, p, r);
-
-		debug_printf(DP_DEBUG3, "#reg. alpha = %f\n", alpha);
 
 		if (NULL != xref)
 			vops->axpy(N, p, +alpha, xref);
@@ -685,80 +535,6 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
 
 	vops->del(h);
 	vops->del(p);
-	vops->del(r);
-}
-
-/**
-* Iteratively Regularized Gauss-Newton Method
-* (Bakushinsky 1993)
-*
-* y = F(x) = F x0 + DF dx + ...
-*
-* IRGNM: DF^H ((y - F x_0) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
-*        DF^H ((y - F x_0)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
-*/
-
-void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* dims,
-	const struct vec_iter_s* vops,
-	struct iter_op_s op,
-	struct iter_op_s der,
-	struct iter_op_s adj,
-	struct iter_op_p_s inv,
-	float* x, const float* xref, const float* y,
-	struct iter_op_s callback)
-{
-	//x: N
-	//y: M
-	float* r = vops->allocate(M);
-	float* t = vops->allocate(M);
-	float* p = vops->allocate(N);
-
-	long img_dims[16];
-	md_select_dims(16, ~COIL_FLAG, img_dims, dims);
-
-	for (unsigned int i = 0; i < iter; i++) {
-		//		printf("#--------\n");
-        
-//         if (autoScaling && (3 == i))
-//         {
-//             float scaling[parameters + 1];
-//             void* x = md_alloc(1, MD_DIMS(M/2), CFL_SIZE);
-//             md_gaussian_rand(1, MD_DIMS(M/2), x);
-//             double maxeigen = power(20, data->size, select_vecops(src), (struct iter_op_s){normal_fista, CAST_UP(data)}, x);
-//             md_free(x);
-//             
-//         }
-        
-        
-		iter_op_call(op, r, x);		// r = F x
-
-		debug_printf(DP_DEBUG2, "\tF(x): %f\n", vops->norm(M, r));
-        
-        
-		debug_printf(DP_DEBUG2, "y: %f\n", vops->norm(M, y));
-        
-		vops->xpay(M, -1., r, y);	// r = y - F x
-		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
-		
-		iter_op_call(der, t, x);	// t = DF x
-		debug_printf(DP_DEBUG2, "Step: %u, Der: %f\n", i, vops->norm(M, t));
-		vops->axpy(M, r, 1.f, t);   // r = y - F x + DF x
-
-		iter_op_call(adj, p, r);		
-		debug_printf(DP_DEBUG2, "Step: %u, Adj: %f\n", i, vops->norm(N, p));
-		
-		if (NULL != xref)
-			vops->axpy(N, p, 0.9*alpha, xref);
-
-		iter_op_p_call(inv, alpha, x, p);
-
-		alpha /= redu;
-		if (NULL != callback.fun){
-			iter_op_call(callback, x, x);
-		}
-	}
-	vops->del(p);
-	vops->del(t);
 	vops->del(r);
 }
 

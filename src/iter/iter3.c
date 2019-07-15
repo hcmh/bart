@@ -27,6 +27,7 @@
 
 
 #include "iter/italgos.h"
+#include "iter/italgos_xw.h"
 #include "iter/vec.h"
 #include "iter/prox.h"
 #include "iter/thresh.h"

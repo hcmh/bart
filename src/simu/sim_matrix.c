@@ -75,17 +75,7 @@ void mat_exp_simu(int N, float t, float out[N][N], void* sim_data)
 	}
 }
 
-static void mm_mul(int N, float out[N][N], float in1[N][N], float in2[N][N])
-{
-	for (int i = 0; i < N; i++) 
-		for (int j = 0; j < N; j++){
-			
-			out[i][j] = 0.;
-			
-			for (int k = 0; k < N; k++)
-				out[i][j] += in1[i][k] * in2[k][j];
-		}
-}
+
 
 static void create_sim_matrix(int N, float matrix[N][N], float end, void* _data )
 {

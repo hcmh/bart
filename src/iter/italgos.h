@@ -96,7 +96,7 @@ void ist(unsigned int maxiter, float epsilon, float tau,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
-void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
+void fista(unsigned int maxiter, float epsilon, float tau, 
 	float continuation, _Bool hogwild,
 	long N,
 	const struct vec_iter_s* vops,
@@ -104,16 +104,6 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 	struct iter_op_p_s thresh,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
-
-void fista(unsigned int maxiter, float epsilon, float tau,
-	float continuation, _Bool hogwild,
-	long N,
-	const struct vec_iter_s* vops,
-	struct iter_op_s op,
-	struct iter_op_p_s thresh,
-	float* x, const float* b,
-	struct iter_monitor_s* monitor);
-	
 	
 
 void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
@@ -143,15 +133,6 @@ void altmin(unsigned int iter, float alpha, float redu,
 	struct iter_op_p_s min_ops[__VLA(NI)],
 	float* x[__VLA(NI)], const float* y,
 	struct iter_nlop_s callback);
-
-void irgnm_l1(unsigned int iter, float alpha, float redu, long N, long M, long* dims,
-	const struct vec_iter_s* vops,
-	struct iter_op_s op,
-	struct iter_op_s der,
-	struct iter_op_s adj,
-	struct iter_op_p_s inv,
-	float* x, const float* xref, const float* y,
-	struct iter_op_s callback);
 
 void pocs(unsigned int maxiter,
 	unsigned int D, struct iter_op_p_s proj_ops[__VLA(D)],

@@ -154,7 +154,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 		}
 
 		if ((mdh.evalinfo[0] & (1 << 5))
-			|| (max[READ_DIM] != mdh.samples) && 0) {
+			|| (max[READ_DIM] != mdh.samples)) {
 
 //			debug_printf(DP_WARN, "SYNC\n");
 
