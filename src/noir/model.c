@@ -1,10 +1,10 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2017-2018. Martin Uecker.
+ * Copyright 2017-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2011-2018 Martin Uecker
+ * 2011-2019 Martin Uecker
  *
  *
  * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized nonlinear
@@ -47,6 +47,8 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 	.rvc = false,
 	.use_gpu = false,
 	.noncart = false,
+	.a = 220.,
+	.b = 32.,
 };
 
 
@@ -79,7 +81,7 @@ struct noir_op_s {
 
 DEF_TYPEID(noir_op_s);
 
-static void noir_calc_weights(const long dims[3], complex float* dst)
+static void noir_calc_weights(const struct noir_model_conf_s* conf, const long dims[3], complex float* dst)
 {
 	unsigned int flags = 0;
 
@@ -88,9 +90,9 @@ static void noir_calc_weights(const long dims[3], complex float* dst)
 			flags = MD_SET(flags, i);
 
 	klaplace(3, dims, flags, dst);
-	md_zsmul(3, dims, dst, dst, 880.);
+	md_zsmul(3, dims, dst, dst, conf->a);
 	md_zsadd(3, dims, dst, dst, 1.);
-	md_zspow(3, dims, dst, dst, -16.);	// 1 + 222. \Laplace^16
+	md_zspow(3, dims, dst, dst, -conf->b / 2.);	// 1 + 220. \Laplace^16
 }
 
 
@@ -108,6 +110,8 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 
 	data->conf = *conf;
+
+	md_copy_dims(DIMS, data->dims, dims);
 
 
 	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, data->coil_dims, dims);
@@ -127,18 +131,21 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	data->wghts = md_alloc(DIMS, wght_dims, CFL_SIZE);
 
-	noir_calc_weights(dims, data->wghts);
+	noir_calc_weights(conf, dims, data->wghts);
 	fftmod(DIMS, wght_dims, FFT_FLAGS, data->wghts, data->wghts);
 	fftscale(DIMS, wght_dims, FFT_FLAGS, data->wghts, data->wghts);
 
-	data->weights = linop_chain(
-		linop_cdiag_create(DIMS, data->coil_dims, FFT_FLAGS, data->wghts),
-		linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS));
+	const struct linop_s* wghts = linop_cdiag_create(DIMS, data->coil_dims, FFT_FLAGS, data->wghts);
+	const struct linop_s* wghts_ifft = linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS);
+
+	data->weights = linop_chain(wghts, wghts_ifft);
+
+	linop_free(wghts);
+	linop_free(wghts_ifft);
 
 
 	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->data_dims, FFT_FLAGS);
 
-//    const struct linop_s* lop_pattern;
 
 	data->ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
 
@@ -157,14 +164,15 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	} else {
 
 		data->adj_ptr = md_alloc(DIMS, ptrn_dims, CFL_SIZE);
-		md_zfill(DIMS, ptrn_dims, data->adj_ptr , 1.);
-		fftmod(DIMS, ptrn_dims, conf->fft_flags, data->adj_ptr , data->adj_ptr );
+
+		md_zfill(DIMS, ptrn_dims, data->adj_ptr, 1.);
+
+		fftmod(DIMS, ptrn_dims, conf->fft_flags, data->adj_ptr, data->adj_ptr);
 
 		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, ~(conf->fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG), ~(conf->fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG), ~(conf->fft_flags|TE_FLAG|TIME2_FLAG), data->adj_ptr);
 	}
 
 	data->msk = my_alloc(DIMS, mask_dims, CFL_SIZE);
-
 
 	if (NULL == mask) {
 
@@ -180,27 +188,32 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	const struct linop_s* lop_mask = linop_cdiag_create(DIMS, data->data_dims, FFT_FLAGS, data->msk);
 
-	// could be moved to the benning, but see comment below
-	lop_fft = linop_chain(lop_mask, lop_fft);
+	const struct linop_s* lop_fft2 = linop_chain(lop_mask, lop_fft);
+	linop_free(lop_mask);
+	linop_free(lop_fft);
 
-	data->frw = linop_chain(lop_fft, lop_pattern);
-	data->adj = linop_chain(lop_fft, lop_adj_pattern);
+	data->frw = linop_chain(lop_fft2, lop_pattern);
+	linop_free(lop_pattern);
+
+	data->adj = linop_chain(lop_fft2, lop_adj_pattern);
+	linop_free(lop_fft2);
+	linop_free(lop_adj_pattern);
 
 
-	data->nl = nlop_tenmul_create(DIMS, data->data_dims, data->imgs_dims, data->coil_dims);
 
-	const struct nlop_s* nlw = nlop_from_linop(data->weights);
+	const struct nlop_s* nlw1 = nlop_tenmul_create(DIMS, data->data_dims, data->imgs_dims, data->coil_dims);
 
-	data->nl = nlop_chain2(nlw, 0, data->nl, 1);
+	const struct nlop_s* nlw2 = nlop_from_linop(data->weights);
+
+	data->nl = nlop_chain2(nlw2, 0, nlw1, 1);
+	nlop_free(nlw1);
+	nlop_free(nlw2);
 
 	const struct nlop_s* frw = nlop_from_linop(data->frw);
 
 	data->nl2 = nlop_chain2(data->nl, 0, frw, 0);
 
-	linop_free(lop_fft);
-	linop_free(lop_mask);
-	linop_free(lop_pattern);
-	linop_free(lop_adj_pattern);
+	nlop_free(frw);
 
 	return PTR_PASS(data);
 }
@@ -452,7 +465,7 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG, idims, dims);
 	idims[COIL_DIM] = dims[COIL_DIM] + dims[TE_DIM]; // add image
 
-	struct noir_s ret = { .linop = data->weights };
+	struct noir_s ret = { .linop = data->weights, .noir_op = data };
 	ret.nlop = nlop_create(DIMS, dims, DIMS, idims, CAST_UP(PTR_PASS(data)), noir_fun, noir_der, noir_adj, NULL, NULL, noir_del);
 
 	return ret;

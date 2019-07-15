@@ -59,7 +59,7 @@ static void orthogonalize(iter_op_data* ptr, float* _dst, const float* _src)
 
 	auto nlw = CAST_DOWN(nlop_wrapper_s, ptr);
 
-//	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
+	noir_orthogonalize(nlw->noir, (complex float*) _dst + nlw->split);
 #endif
 }
 
@@ -121,8 +121,6 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	mconf.rvc = conf->rvc;
 	mconf.use_gpu = conf->usegpu;
 	mconf.noncart = conf->noncart;
-
-	
 	mconf.fft_flags = fft_flags;
 	mconf.a = conf->a;
 	mconf.b = conf->b;
@@ -170,15 +168,8 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	md_copy(DIMS, coil_dims, ksens, x + skip, CFL_SIZE);
 
 
-#ifdef USE_CUDA
-	if (conf->usegpu) {
-
-		noir_forw_coils(nl.linop, x + skip, x + skip);
-		md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
-	} else
-#endif
-		noir_forw_coils(nl.linop, sens, x + skip);
-
+	noir_forw_coils(nl.linop, x + skip, x + skip);
+	md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);	// needed for GPU
 	fftmod(DIMS, coil_dims, fft_flags, sens, sens);
 
 

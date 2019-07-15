@@ -72,6 +72,8 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	mconf.use_gpu = conf->usegpu;
 	mconf.noncart = conf->noncart;
 	mconf.fft_flags = fft_flags;
+	mconf.a = 880.;
+	mconf.b = 32.;
 
 	//struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
 	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf);
