@@ -81,20 +81,29 @@ const struct noir_conf_s noir_defaults = {
 
 void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, complex float* ksens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data )
 {
+	struct noir_model_conf_s mconf = noir_model_conf_defaults;
+	mconf.rvc = conf->rvc;
+	mconf.noncart = conf->noncart;
+	mconf.fft_flags = FFT_FLAGS;
+	mconf.a = conf->a;
+	mconf.b = conf->b;
+	mconf.ptrn_flags = ~(MAPS_FLAG|COIL_FLAG);
+
+	if (conf->sms)
+		mconf.fft_flags |= SLICE_FLAG;
+
+	if (conf->pattern_for_each_coil)
+		mconf.ptrn_flags |= COIL_FLAG;
+
+
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
 	long data_dims[DIMS];
-	long img1_dims[DIMS];
 
-	unsigned int fft_flags = FFT_FLAGS;
 
-	if (conf->sms)
-		fft_flags |= SLICE_FLAG;
-
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG, imgs_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG, data_dims, dims);
-	md_select_dims(DIMS, fft_flags, img1_dims, dims);
+	md_select_dims(DIMS, ~COIL_FLAG, imgs_dims, dims);
+	md_select_dims(DIMS, ~mconf.cnstcoil_flags, coil_dims, dims);
+	md_select_dims(DIMS, ~MAPS_FLAG, data_dims, dims);
 
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);
@@ -116,19 +125,12 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 		md_copy(1, d1, xref, ref, CFL_SIZE);
 	}
 
-	struct noir_model_conf_s mconf = noir_model_conf_defaults;
-	mconf.rvc = conf->rvc;
-	mconf.noncart = conf->noncart;
-	mconf.fft_flags = fft_flags;
-	mconf.a = conf->a;
-	mconf.b = conf->b;
-	mconf.ptrn_flags = ~(MAPS_FLAG|COIL_FLAG);
-
-	if (conf->pattern_for_each_coil)
-		mconf.ptrn_flags |= COIL_FLAG;
-
+#if 1
 	struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
-
+#else
+	struct noir_s nl = noir_create3(dims, mask, pattern, &mconf);
+	nl.nlop = nlop_flatten(nl.nlop);
+#endif
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
 	irgnm_conf.iter = conf->iter;
@@ -137,6 +139,8 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
+	irgnm_conf.alpha_min = conf->alpha_min;
+
 
 	struct nlop_wrapper_s nlw;
 
@@ -159,7 +163,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	noir_forw_coils(nl.linop, x + skip, x + skip);
 	md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);	// needed for GPU
-	fftmod(DIMS, coil_dims, fft_flags, sens, sens);
+	fftmod(DIMS, coil_dims, mconf.fft_flags, sens, sens);
 
 
 	nlop_free(nl.nlop);

@@ -427,7 +427,7 @@ struct noir_s noir_create3(const long dims[DIMS], const complex float* mask, con
 	md_calc_strides(DIMS, nl_istr[0], idims, CFL_SIZE);
 	md_calc_strides(DIMS, nl_istr[1], cdims, CFL_SIZE);
 
-	struct noir_s ret = { .linop = data->weights };
+	struct noir_s ret = { .linop = data->weights, .noir_op = data };
 
 	ret.nlop = nlop_generic_create2(1, DIMS, nl_odims, nl_ostr, 2, DIMS, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
 			noir_fun2, (nlop_fun_t[2][1]){ { noir_derA2 }, { noir_derB2 } },
