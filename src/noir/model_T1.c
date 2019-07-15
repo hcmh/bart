@@ -40,7 +40,7 @@ s */
 
 
 
-struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf)
+struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, bool use_gpu)
 {
 	struct noir_s nlinv = noir_create3(dims, mask, psf, conf);
 	struct T1_s ret;
@@ -59,7 +59,7 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 
 #if 1 
 	// chain T1 model
-	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, conf->use_gpu);
+	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T1, 0)->dims);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(T1, 0)->dims);
 

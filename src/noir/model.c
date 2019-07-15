@@ -47,7 +47,6 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 	.cnstcoil_flags = TE_FLAG,
 	.ptrn_flags = ~(COIL_FLAG|MAPS_FLAG),
 	.rvc = false,
-	.use_gpu = false,
 	.noncart = false,
 	.a = 220.,
 	.b = 32.,
@@ -100,13 +99,6 @@ static void noir_calc_weights(const struct noir_model_conf_s* conf, const long d
 
 static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf)
 {
-#ifdef USE_CUDA
-	md_alloc_fun_t my_alloc = conf->use_gpu ? md_alloc_gpu : md_alloc;
-#else
-	assert(!conf->use_gpu);
-	md_alloc_fun_t my_alloc = md_alloc;
-#endif
-
 	PTR_ALLOC(struct noir_op_s, data);
 	SET_TYPEID(noir_op_s, data);
 
@@ -174,11 +166,10 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, 0, 0, COIL_FLAG, data->adj_ptr);
 	}
 
-	data->msk = my_alloc(DIMS, mask_dims, CFL_SIZE);
+	data->msk = md_alloc(DIMS, mask_dims, CFL_SIZE);
 
 	if (NULL == mask) {
 
-		assert(!conf->use_gpu);
 		md_zfill(DIMS, mask_dims, data->msk, 1.);
 
 	} else {

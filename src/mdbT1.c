@@ -209,7 +209,7 @@ int main_mdbT1(int argc, char* argv[])
 		// Choose a different initial guess for R1*
 		long pos[DIMS];
 
-		for (int i = 0; i < DIMS; i++)
+		for (int i = 0; i < (int)DIMS; i++)
 			pos[i] = 0;
 
 		pos[COEFF_DIM] = 2;

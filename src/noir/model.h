@@ -17,7 +17,6 @@ struct noir_model_conf_s {
 	unsigned int cnstcoil_flags;
 	unsigned int ptrn_flags;
 	_Bool rvc;
-	_Bool use_gpu;
 	_Bool noncart;
 	float a;
 	float b;

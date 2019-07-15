@@ -84,7 +84,6 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 {
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = conf->rvc;
-	mconf.use_gpu = conf->usegpu;
 	mconf.noncart = conf->noncart;
 	mconf.fft_flags = FFT_FLAGS;
 	mconf.a = conf->a;
