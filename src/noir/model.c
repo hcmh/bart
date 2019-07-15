@@ -45,6 +45,7 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 
 	.fft_flags = FFT_FLAGS,
 	.cnstcoil_flags = TE_FLAG,
+	.ptrn_flags = ~(COIL_FLAG|MAPS_FLAG),
 	.rvc = false,
 	.use_gpu = false,
 	.noncart = false,
@@ -115,9 +116,9 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	md_copy_dims(DIMS, data->dims, dims);
 
 
-	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, data->coil_dims, dims);
-	md_select_dims(DIMS, conf->fft_flags|MAPS_FLAG|TE_FLAG|TIME2_FLAG, data->imgs_dims, dims);
-	md_select_dims(DIMS, conf->fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG, data->data_dims, dims);
+	md_select_dims(DIMS, ~conf->cnstcoil_flags, data->coil_dims, dims);
+	md_select_dims(DIMS, ~COIL_FLAG, data->imgs_dims, dims);
+	md_select_dims(DIMS, ~MAPS_FLAG, data->data_dims, dims);
 
 	long mask_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, mask_dims, dims);
@@ -126,7 +127,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	md_select_dims(DIMS, FFT_FLAGS, wght_dims, dims);
 
 	long ptrn_dims[DIMS];
-	md_select_dims(DIMS, conf->fft_flags|TE_FLAG|TIME2_FLAG, ptrn_dims, dims);
+	md_select_dims(DIMS, conf->ptrn_flags, ptrn_dims, dims);
 
 
 
