@@ -77,9 +77,8 @@ struct irgnm_l1_s {
 	struct iter_op_s der;
 	struct iter_op_s adj;
     
-	float* tmp;
-    
-	long size;
+	long size_x;
+	long size_y;
 
 	int cgiter;
 	float cgtol;
@@ -102,8 +101,13 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 {
 	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
 
-	iter_op_call(data->der, data->tmp, src);
-	iter_op_call(data->adj, dst, data->tmp);
+
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
+
+	iter_op_call(data->der, tmp, src);
+	iter_op_call(data->adj, dst, tmp);
+
+	md_free(tmp);
 
 	long res = data->dims[0];
 	long SMS = data->dims[SLICE_DIM];
@@ -115,7 +119,7 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 	// only add l2 norm to the coils, not parameter maps
 	for(int u = 0; u < SMS; u++)
 		for(int v = 0; v < TIME2; v++){
-			select_vecops(src)->axpy(data->size*coils*SMS*TIME2/(coils*SMS*TIME2 + parameters*SMS*TIME2),
+			select_vecops(src)->axpy(data->size_x*coils*SMS*TIME2/(coils*SMS*TIME2 + parameters*SMS*TIME2),
 						 dst + res*res*2*(parameters*SMS*TIME2),
 						data->alpha,
 					src + res*res*2*(parameters*SMS*TIME2));
@@ -142,11 +146,11 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	if (alpha < data->alpha_min)
 		alpha = data->alpha_min;
 	data->alpha = alpha;
-	float eps = md_norm(1, MD_DIMS(data->size), src);
+
     
-	void* x = md_alloc_sameplace(1, MD_DIMS(data->size/2), CFL_SIZE, src);
-	md_gaussian_rand(1, MD_DIMS(data->size/2), x);
-	double maxeigen = power(20, data->size, select_vecops(src), (struct iter_op_s){normal_fista, CAST_UP(data)}, x);
+	void* x = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
+	md_gaussian_rand(1, MD_DIMS(data->size_x / 2), x);
+	double maxeigen = power(20, data->size_x, select_vecops(src), (struct iter_op_s){ normal_fista, CAST_UP(data) }, x);
 	md_free(x);
 //	debug_printf(DP_INFO, "\tMax eigv: %.2e\n", maxeigen);
 
@@ -190,15 +194,22 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	if(maxiter > 250)
 		maxiter = 250;
 
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
+
+	iter_op_call(data->adj, tmp, src);
+
+	float eps = md_norm(1, MD_DIMS(data->size_x), tmp);
+
 	fista_xw(maxiter, 0.01f * alpha * eps, step, data->dims,
 		iter_fista_defaults.continuation, iter_fista_defaults.hogwild,
-		data->size, 
+		data->size_x,
 		select_vecops(src),
-		(struct iter_op_s){normal_fista, CAST_UP(data)},
-//		OPERATOR_P2ITOP(prox),
-		(struct iter_op_p_s){combined_prox, CAST_UP(data)},
-		//data->prox,
-		dst, src, NULL);
+		(struct iter_op_s){ normal_fista, CAST_UP(data) },
+		(struct iter_op_p_s){ combined_prox, CAST_UP(data) },
+		dst, tmp, NULL);
+
+	md_free(tmp);
+
 	k_fista++;
 }
 
@@ -213,19 +224,17 @@ void iter3_irgnm_l1(const iter3_conf* _conf,
 {
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
 
-	float* tmp = md_alloc_sameplace(1, MD_DIMS(M), FL_SIZE, src);
-	struct irgnm_l1_s data = { { &TYPEID(irgnm_l1_s) }, frw, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims, NULL, NULL};
+	struct irgnm_l1_s data = { { &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims, NULL, NULL};
 
-	irgnm_l1(conf->iter, conf->alpha, conf->redu, N, M, conf->dims, select_vecops(src),
+	assert(NULL == ref);
+
+	irgnm2(conf->iter, conf->alpha, 0., conf->redu, N, M, select_vecops(src),
 		frw,
 		der,
-		adj,
-		(struct iter_op_p_s){ inverse_fista, CAST_UP(&data)},
-//		(struct iter_op_p_s){ inverse, CAST_UP(&data) },
+		(struct iter_op_p_s){ inverse_fista, CAST_UP(&data) },
 		dst, ref, src,
-		(struct iter_op_s){NULL, NULL});
-
-	md_free(tmp);
+		(struct iter_op_s){ NULL, NULL },
+		NULL);
 }
 
 
