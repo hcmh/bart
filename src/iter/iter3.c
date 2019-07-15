@@ -47,10 +47,9 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 	.INTERFACE.TYPEID = &TYPEID2(iter3_irgnm_conf),
 
 	.iter = 8,
-
-	.alpha = 0.1,
-	.alpha_min = 0.001,
-	.redu = 3.,
+	.alpha = 1.,
+	.alpha_min = 0.,
+	.redu = 2.,
 
 	.cgiter = 100,
 	.cgtol = 0.1,
