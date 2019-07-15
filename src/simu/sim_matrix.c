@@ -78,6 +78,8 @@ void mat_exp_simu(int N, float t, float out[N][N], void* sim_data)
 	}
 }
 
+#if 0
+#define MATRIX_SPLIT
 static void mm_mul(int N, float out[N][N], float in1[N][N], float in2[N][N])
 {
 	for (int i = 0; i < N; i++) 
@@ -89,6 +91,7 @@ static void mm_mul(int N, float out[N][N], float in1[N][N], float in2[N][N])
 				out[i][j] += in1[i][k] * in2[k][j];
 		}
 }
+#endif
 
 static void create_sim_matrix(int N, float matrix[N][N], float end, void* _data )
 {
@@ -96,7 +99,7 @@ static void create_sim_matrix(int N, float matrix[N][N], float end, void* _data 
 	
 
 	if (simdata->pulseData.pulse_applied)
-#if 1
+#ifndef MATRIX_SPLIT
 		create_rf_pulse(&simdata->pulseData, simdata->pulseData.RF_start, simdata->pulseData.RF_end, simdata->pulseData.flipangle, simdata->pulseData.phase, simdata->pulseData.nl, simdata->pulseData.nr, simdata->pulseData.alpha);
 #else
 	{	// Possible increase of precision by splitting into rf- and relaxation-matrix?

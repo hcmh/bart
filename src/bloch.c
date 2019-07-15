@@ -64,7 +64,7 @@ int main_bloch(int argc, char* argv[argc])
 	bool linear_offset = false;
 	bool matrix_exp_sim = false;
 	
-    const struct opt_s opts[] = {
+	const struct opt_s opts[] = {
 
 		/* Sequence Info */
 		OPT_INT('s', &seq, "sequence", "options: 0 = bSSFP[default], 1 = invbSSFP, 3 = pcbSSFP, 4 = turboSE, 5 = invFLASH, 6 = invpcbSSFP"),
@@ -210,9 +210,13 @@ int main_bloch(int argc, char* argv[argc])
 		}
 	}
 	else {
-
+		
 		dim_map[0] = xdim;
 		dim_map[1] = ydim;
+		map_T1 = md_alloc(DIMS, dim_map, CFL_SIZE);
+		map_T2 = md_alloc(DIMS, dim_map, CFL_SIZE);
+		map_M0 = md_alloc(DIMS, dim_map, CFL_SIZE);
+		
 	}
 
 	long dim_phantom[DIMS] = { [0 ... DIMS - 1] = 1 };
