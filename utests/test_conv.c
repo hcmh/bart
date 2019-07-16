@@ -8,6 +8,7 @@
 
 #include <math.h>
 #include <complex.h>
+#include <stdio.h>
 
 #include "num/casorati.h"
 #include "num/conv.h"
@@ -39,21 +40,20 @@ UXT_REGISTER_TEST(test_conv_small);
 #endif
 
 
-static bool test_conv_generic(enum conv_type type, 
-	enum conv_mode mode, int N, const complex float G[N])
+static bool test_conv_generic(enum conv_mode mode, enum conv_type type, int N, const complex float G[N])
 {
 	const complex float K[3] = { 0.5, 1., -1.i };
 	const complex float T[8] = { 1., 0., 0., 1., 0., 0., 0., 0. };
 	complex float O[N];
 
-	conv(1, 1u, mode, type,
+	conv(1, 1u, type, mode,
 		(long[]){ N }, O, (long[]){ 8 }, T, (long[]){ 3 }, K);
 
 	bool ok = true;
 
 	for (int i = 0; i < N; i++) {
 
-		if (type == CONV_SYMMETRIC)
+		if (mode == CONV_SYMMETRIC)
 		printf("%d %f+%fi %f+%fi\n", i, crealf(O[i]), cimagf(O[i]), crealf(G[i]), cimagf(G[i]));
 		ok &= (1.E-4 > cabsf(O[i] - G[i]));
 	}
