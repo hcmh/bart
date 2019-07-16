@@ -97,7 +97,21 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		}
 
 		md_free(dist_dump);
+		
+		// Symmetrize
+		for (int i = 0; i < L_dims[0];  i++) {
+			for (int j = i; j < L_dims[0]; j++) {
+
+				if (L[i * L_dims[0] + j] == 0)
+					L[i * L_dims[0] + j] = L[j * L_dims[0] + i];
+				else
+					L[j * L_dims[0] + i] = L[i * L_dims[0] + j];
+				
+			}
+		}
+		
 	}
+	
 
 	// D[i,0] = sum(W[i,:])
 	long D_dims[2];
