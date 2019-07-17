@@ -16,7 +16,7 @@ tests/test-bin-lable: ones scale zeros join transpose bin resize nrmse
 		$(TOOLDIR)/scale 4 o.ra o4.ra						;\
 		$(TOOLDIR)/join 0 o0.ra o2.ra o0.ra o3.ra o2.ra o4.ra o1.ra o1.ra o4.ra o3.ra o0.ra o1.ra o4.ra lab.ra	;\
 		$(TOOLDIR)/transpose 0 1 lab.ra lab1.ra						;\
-		$(TOOLDIR)/bin -d2 lab1.ra p.ra x.ra						;\
+		$(TOOLDIR)/bin -l2 lab1.ra p.ra x.ra						;\
 		$(TOOLDIR)/join 2 p0.ra p0.ra p0.ra pa.ra					;\
 		$(TOOLDIR)/resize 2 3 pa.ra paa.ra						;\
 		$(TOOLDIR)/join 2 p1.ra p1.ra pb.ra						;\

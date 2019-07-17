@@ -35,7 +35,7 @@ static const char help_str[] =
  *  
  * ---
  * 
- * Lable binning: [-d long]
+ * Lable binning: [-l long]
  * Bin a dimension according to the lable-file <bin-signal>
  * The label file must be 1D and the dimension of the <label> file and the <src> file must match at the dimension that you want to bin
  * -d must specify an empty dimension, in which the binned data is stored
@@ -202,7 +202,7 @@ int main_bin(int argc, char* argv[])
 
 
 	const struct opt_s opts[] = {
-		OPT_INT('d', &cluster_dim, "dim", "Bin according to lables: Specify cluster dimension"),
+		OPT_INT('l', &cluster_dim, "dim", "Bin according to lables: Specify cluster dimension"),
 		OPT_SET('o', &reorder, "Reorder according to lables"),
 		OPT_UINT('R', &n_resp, "n_resp", "Quadrature Binning: Number of respiratory lables"),
 		OPT_UINT('C', &n_card, "n_card", "Quadrature Binning: Number of cardiac lables"),
