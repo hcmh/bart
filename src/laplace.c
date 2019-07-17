@@ -31,7 +31,7 @@
 
 static const char usage_str[] = "<src> <L>";
 static const char help_str[] =
-		"Calculate Laplacian Matrix\n";
+		"Calculate Laplacian Matrix. <src>: [samples, coordinates]\n";
 
 int main_laplace(int argc, char* argv[])
 {

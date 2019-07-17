@@ -77,7 +77,7 @@
 
 static const char usage_str[] = "<src> <EOF> [<S>] [<backprojection>]";
 static const char help_str[] =
-		"Perform SSA-FARY or Singular Spectrum Analysis\n";
+		"Perform SSA-FARY or Singular Spectrum Analysis. <src>: [samples, coordinates]\n";
 
 static bool check_selection(const long group, const int j)
 {
