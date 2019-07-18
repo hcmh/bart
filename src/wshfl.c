@@ -98,18 +98,12 @@ static void print_opdims(const struct linop_s* op)
 	const struct iovec_s* domain   = linop_domain(op);
 	const struct iovec_s* codomain = linop_codomain(op);
 	debug_printf(DP_INFO, "\tDomain:   [");
-	for (long k = 0; k < domain->N; k ++) {
-		for (long t = (long) floor(log10(domain->dims[k])) + 1; t < 7; t ++)
-			debug_printf(DP_INFO, " ");
-		debug_printf(DP_INFO, "%d", domain->dims[k]);
-	}
+	for (long k = 0; k < domain->N; k ++)
+		debug_printf(DP_INFO, "%6ld", domain->dims[k]);
 	debug_printf(DP_INFO, "]\n");
 	debug_printf(DP_INFO, "\tCodomain: [");
-	for (long k = 0; k < codomain->N; k ++) {
-		for (long t = (long) floor(log10(codomain->dims[k])) + 1; t < 7; t ++)
-			debug_printf(DP_INFO, " ");
-		debug_printf(DP_INFO, "%d", codomain->dims[k]);
-	}
+	for (long k = 0; k < codomain->N; k ++)
+		debug_printf(DP_INFO, "%6ld", codomain->dims[k]);
 	debug_printf(DP_INFO, "]\n");
 }
 
@@ -564,7 +558,7 @@ static void multc_adjoint(const linop_data_t* _data, complex float* dst, const c
 
 	long dst_dims[] = { [0 ... DIMS - 1] = 1};
 	md_copy_dims(DIMS, dst_dims, sc_out_dims);
-	src_dims[MAPS_DIM] = md;
+	dst_dims[MAPS_DIM] = md;
 
 	long map_dims[] = { [0 ... DIMS - 1] = 1};
 	map_dims[0] = sx;
