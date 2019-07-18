@@ -45,6 +45,7 @@ int main_mdbT2(int argc, char* argv[])
 	struct noir_conf_s conf = noir_defaults;
 	bool out_sens = false;
 	bool scale_im = false;
+	bool usegpu = false;
 
 	const struct opt_s opts[] = {
 
@@ -57,7 +58,7 @@ int main_mdbT2(int argc, char* argv[])
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
-		OPT_SET('g', &conf.usegpu, "use gpu"),
+		OPT_SET('g', usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 	};
 
@@ -196,7 +197,7 @@ int main_mdbT2(int argc, char* argv[])
 	}
 
 #ifdef  USE_CUDA
-	if (conf.usegpu) {
+	if (usegpu) {
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
@@ -204,13 +205,13 @@ int main_mdbT2(int argc, char* argv[])
 		complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
 		md_copy(DIMS, TI_dims, TI_gpu, TI, CFL_SIZE);
 
-		T2_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu);
+		T2_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu, usegpu);
 
 		md_free(kspace_gpu);
 		md_free(TI_gpu);
 	} else
 #endif
-	T2_recon(&conf, dims, img, sens, pattern, mask, TI, kspace_data);
+	T2_recon(&conf, dims, img, sens, pattern, mask, TI, kspace_data, usegpu);
 
 	if (normalize) {
 

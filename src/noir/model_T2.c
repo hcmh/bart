@@ -35,7 +35,7 @@
 
 
 
-struct T2_s T2_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, bool use_gpu)
+struct T2_s T2_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, _Bool use_gpu)
 {
 	struct noir_s nlinv = noir_create2(dims, mask, psf, conf);
 	struct T2_s ret;
