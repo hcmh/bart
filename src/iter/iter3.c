@@ -117,12 +117,15 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
     
    
 	// only add l2 norm to the coils, not parameter maps
-	for(int u = 0; u < SMS; u++)
-		for(int v = 0; v < TIME2; v++){
+	for (int u = 0; u < SMS; u++) {
+
+		for (int v = 0; v < TIME2; v++) {
+
 			select_vecops(src)->axpy(data->size_x*coils*SMS*TIME2/(coils*SMS*TIME2 + parameters*SMS*TIME2),
 						 dst + res*res*2*(parameters*SMS*TIME2),
-						data->alpha,
-					src + res*res*2*(parameters*SMS*TIME2));
+						 data->alpha,
+						 src + res*res*2*(parameters*SMS*TIME2));
+		}
 	}
 //       select_vecops(src)->axpy(data->size, dst, data->alpha, src);
 
@@ -169,7 +172,9 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 		unsigned int jwflags_1 = 0;
 		unsigned int jwflags_2 = 0;
 		for (unsigned int i = 0; i < DIMS; i++) {
+
 			if ((1 < img_dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
+
 				wflags = MD_SET(wflags, i);
 				minsize[i] = MIN(img_dims[i], 16);
 			}

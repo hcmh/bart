@@ -163,7 +163,7 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 	long SMS = dims[SLICE_DIM];
 	long TIME2 = dims[TIME2_DIM];
 	int temp_index;
-	int u,v,w;
+	unsigned int u,v,w;
 	float lowerbound = 0.1;
 	float scaling[SMS*parameters*TIME2];
 
@@ -186,32 +186,43 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 
 		// normalize all the maps before joint wavelet denoising
 
-		for(w = 0; w < TIME2; w++)
-			for(u = 0; u < SMS; u++)
-				for(v = 0; v < parameters; v++) {
+		for (w = 0; w < TIME2; w++) {
 
-					temp_index = v+u*parameters+w*SMS*parameters;
-					scaling[temp_index] = md_norm(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index);
+			for (u = 0; u < SMS; u++) {
 
-					md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, 1.0/scaling[temp_index]);
+				for (v = 0; v < parameters; v++) {
+
+					temp_index = v + u * parameters + w * SMS * parameters;
+					scaling[temp_index] = md_norm(1, MD_DIMS(2 * md_calc_size(16, map_dims)), x + res * res * 2 * temp_index);
+					md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x + res * res * 2 * temp_index,
+					        x + res * res * 2 * temp_index, 1.0 / scaling[temp_index]);
+				}
+			}
 		}
 
 		iter_op_p_call(thresh, lambda_scale * tau, x, x);
 
-		for(w = 0; w < TIME2; w++)
-			for(u = 0; u < SMS; u++)
+		for (w = 0; w < TIME2; w++) {
+
+			for (u = 0; u < SMS; u++) {
+
 				for(v = 0; v < parameters; v++) {
 
-					temp_index = v+u*parameters+w*SMS*parameters;
-					md_smul(1, MD_DIMS(2*md_calc_size(16, map_dims)), x+res*res*2 * temp_index, x+res*res*2 * temp_index, scaling[temp_index]);
+					temp_index = v + u * parameters + w * SMS * parameters;
+					md_smul(1, MD_DIMS(2 * md_calc_size(16, map_dims)), x + res * res * 2 * temp_index,
+					        x + res * res * 2 * temp_index, scaling[temp_index]);
+				}
+			}
 		}
 
 		// Domain Prjoection for R1s
-		for(w = 0; w < TIME2; w++)
-			for(u = 0; u < SMS; u++) {
-				temp_index = res*res*2*(parameters-1) + (u + w*SMS)*res*res*2*parameters;
+		for (w = 0; w < TIME2; w++) {
+
+			for (u = 0; u < SMS; u++) {
+
+				temp_index = res * res * 2 * (parameters-1) + (u + w * SMS) * res * res * 2 * parameters;
 				vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
-			//md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
+			}
 		}
 
 		ravine(vops, N, &ra, x, o);	// FISTA
@@ -227,12 +238,14 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 
 		vops->axpy(N, x, tau, r);
 
-		for(w = 0; w < TIME2; w++)
+		for (w = 0; w < TIME2; w++) {
+
 			for (u = 0; u < SMS; u++) {
 
-				temp_index = res*res*2*(parameters-1) + (u + w*SMS)*res*res*2*parameters;
+				temp_index = res * res * 2 * (parameters-1) + (u + w * SMS) * res * res * 2 * parameters;
 				vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
 //				md_zreal(1, MD_DIMS(md_calc_size(16, map_dims)), x + temp_index, x + temp_index);
+			}
 		}
 
 
