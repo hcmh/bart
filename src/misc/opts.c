@@ -109,6 +109,8 @@ static void print_help(const char* help_str, int n, const struct opt_s opts[n ?:
 }
 
 
+
+
 static void check_options(int n, const struct opt_s opts[n ?: 1])
 {
 	bool f[256] = { false };
@@ -355,5 +357,28 @@ bool opt_subopt(void* _ptr, char c, const char* optarg)
 	process_option(optarg[0], optarg + 1, "", "", "", ptr->n, ptr->opts);
 	return false;
 }
+
+
+bool opt_idx(void* ptr, char c, const char* optarg)
+{
+	struct opt_idx_s* p = ptr;
+	struct idx_s* idxs = p->idxs;
+	const unsigned int r = p->r;
+
+	int ret = sscanf(optarg, "%d:%d", &idxs[r].dim, &idxs[r].idx);
+	assert(2 == ret);
+
+	assert(r < 16);
+
+	p->r++;
+	return false;
+}
+
+bool opt_idx_init(struct opt_idx_s* iopts)
+{
+	iopts->r = 0;
+	return false;
+}
+
 
 
