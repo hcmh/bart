@@ -453,7 +453,7 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 	struct noir_op_s* data = noir_init(dims, mask, psf, conf);
 
 	long idims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, idims, dims);
+	md_select_dims(DIMS, ~(COIL_FLAG|conf->cnstcoil_flags), idims, dims);
 
 	long edims[DIMS];
 	md_select_dims(DIMS, conf->cnstcoil_flags, edims, dims);
