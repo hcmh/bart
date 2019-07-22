@@ -6,14 +6,12 @@
 #include "misc/mri.h"
 #include "misc/debug.h"
 
-
 #include "num/multind.h"
 #include "num/flpmath.h"
 
 #include "nlops/nlop.h"
 
 #include "T2fun.h"
-#include "noir/model.h"
 
 
 

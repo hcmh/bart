@@ -11,7 +11,6 @@
 #include "nlops/nlop.h"
 
 #include "T1fun.h"
-#include "noir/model.h"
 
 //#define general
 //#define mphase
