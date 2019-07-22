@@ -620,7 +620,7 @@ static bool test_nlop_T1fun(void)
 	enum { N = 16 };
 	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-	long in_dims[N] = { 16, 16, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long TI_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 
 	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
@@ -630,7 +630,7 @@ static bool test_nlop_T1fun(void)
 
 	md_zfill(N, in_dims, src, 1.0);
 
-	struct nlop_s* T1 = nlop_T1_create(N, map_dims, out_dims, in_dims, TI_dims, TI);
+	struct nlop_s* T1 = nlop_T1_create(N, map_dims, out_dims, in_dims, TI_dims, TI, false);
 
 	nlop_apply(T1, N, out_dims, dst, N, in_dims, src);
 	
