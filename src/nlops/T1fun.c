@@ -11,7 +11,6 @@
 #include "nlops/nlop.h"
 
 #include "T1fun.h"
-#include "noir/model.h"
 
 //#define general
 //#define mphase
@@ -49,7 +48,6 @@ struct T1_s {
 
 	float scaling_M0;
 	float scaling_R1s;
-
 };
 
 DEF_TYPEID(T1_s);
@@ -86,23 +84,22 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 #ifdef mphase
 	long map_no_time2_dims[DIMS];
 	md_select_dims(DIMS, ~TIME2_FLAG, map_no_time2_dims, data->map_dims);
+
 	long map_no_time2_strs[DIMS];
 	md_calc_strides(DIMS, map_no_time2_strs, map_no_time2_dims, CFL_SIZE);
 
-	for (int w=0; w < (data->TI_dims[11]); w++)
-		for(int k=0; k < (data->TI_dims[5]); k++) {
+	for (int w = 0; w < (data->TI_dims[11]); w++)
+		for(int k = 0; k < (data->TI_dims[5]); k++) {
 
 			debug_printf(DP_DEBUG2, "\tTI: %f\n", creal(data->TI[k + data->TI_dims[5]*w]));
 			md_zsmul2(data->N, map_no_time2_dims, map_no_time2_strs, (void*)data->tmp_exp + data->out_strs[5] * k + data->out_strs[11] * w,
-			map_no_time2_strs, (void*)data->tmp_map + data->map_strs[11] * w, data->TI[k + data->TI_dims[5]*w]);
+				map_no_time2_strs, (void*)data->tmp_map + data->map_strs[11] * w, data->TI[k + data->TI_dims[5]*w]);
 	}
 #else
-	for(int k=0; k < (data->TI_dims[5]); k++) {
-
+	for(int k=0; k < (data->TI_dims[5]); k++)
 		md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->tmp_exp + data->out_strs[5] * k, data->map_strs, (void*)data->tmp_map, data->TI[k]);
-	}
-
 #endif
+
 	long img_dims[data->N];
 	md_select_dims(data->N, FFT_FLAGS, img_dims, data->map_dims);
 
@@ -138,20 +135,16 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 #ifdef mphase
 	for (int s=0; s < data->out_dims[13]; s++)
 		for (int w=0; w < data->TI_dims[11]; w++)
-			for(int k=0; k < data->TI_dims[5]; k++) {
-
-				md_zsmul(data->N, img_dims, (void*)data->tmp_exp + data->out_strs[5] * k + data->out_strs[11]*w + data->out_strs[13]*s,
-				(void*)data->tmp_exp + data->out_strs[5] * k + data->out_strs[11]*w + data->out_strs[13]*s, data->TI[k + data->TI_dims[5]*w]);
-	}
+			for(int k=0; k < data->TI_dims[5]; k++)
+				md_zsmul(data->N, img_dims, (void*)data->tmp_exp + data->out_strs[5] * k + data->out_strs[11] * w + data->out_strs[13] * s,
+					(void*)data->tmp_exp + data->out_strs[5] * k + data->out_strs[11] * w + data->out_strs[13] * s, data->TI[k + data->TI_dims[5] * w]);
 #else
 
 	for (int s=0; s < data->out_dims[13]; s++)
-		for(int k=0; k < data->TI_dims[5]; k++) {
-
+		for(int k=0; k < data->TI_dims[5]; k++)
 			//debug_printf(DP_DEBUG2, "\tTI: %f\n", creal(data->TI[k]));
-			md_zsmul(data->N, img_dims, (void*)data->tmp_exp + data->out_strs[5] * k + data->out_strs[13]*s, (void*)data->tmp_exp + data->out_strs[5] * k + data->out_strs[13]*s, data->TI[k]);
-	}
-
+			md_zsmul(data->N, img_dims, (void*)data->tmp_exp + data->out_strs[5] * k + data->out_strs[13] * s,
+						(void*)data->tmp_exp + data->out_strs[5] * k + data->out_strs[13] * s, data->TI[k]);
 #endif
 
 	// scaling_M0:*exp(-t.*scaling_R1s.*R1s).*t
@@ -165,7 +158,6 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 
 	// R1s' = (Mss + scaling_M0*M0) * scaling_M0.*exp(-t.*scaling_R1s.*R1s) * t
 	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->map_strs, data->tmp_ones, data->out_strs, data->tmp_exp);
-
 }
 
 static void T1_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
