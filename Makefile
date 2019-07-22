@@ -264,6 +264,12 @@ ifeq ($(MAKESTAGE),1)
 .PHONY: doc/commands.txt $(TARGETS)
 default all clean allclean distclean doc/commands.txt doxygen test utest gputest testague $(TARGETS):
 	make MAKESTAGE=2 $(MAKECMDGOALS)
+
+tests/test-%: force
+	make MAKESTAGE=2 $(MAKECMDGOALS)
+
+force: ;
+
 else
 
 
