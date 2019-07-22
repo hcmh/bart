@@ -58,7 +58,7 @@ int main_mdbT2(int argc, char* argv[])
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
-		OPT_SET('g', usegpu, "use gpu"),
+		OPT_SET('g', &usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 	};
 
