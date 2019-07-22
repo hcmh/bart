@@ -65,7 +65,6 @@ struct vec_ops {
 	void (*max)(long N, float* dst, const float* src1, const float* src2);
 	void (*min)(long N, float* dst, const float* src1, const float* src2);
 
-
 	void (*zsoftthresh_half)(long N, float lambda,  _Complex float* dst, const _Complex float* src);
 	void (*zsoftthresh)(long N, float lambda,  _Complex float* dst, const _Complex float* src);
 	void (*softthresh_half)(long N, float lambda,  float* dst, const float* src);

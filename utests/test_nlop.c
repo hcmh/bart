@@ -614,6 +614,7 @@ static bool test_nlop_link(void)
 
 UT_REGISTER_TEST(test_nlop_link);
 
+
 static bool test_nlop_T1fun(void) 
 {
 	enum { N = 16 };
@@ -625,7 +626,7 @@ static bool test_nlop_T1fun(void)
 	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
 	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
 
-	complex float TI[4] = { 0.+1*I, 1., 2., 3. };
+	complex float TI[4] = { 0., 1., 2., 3. };
 
 	md_zfill(N, in_dims, src, 1.0);
 
@@ -644,3 +645,4 @@ static bool test_nlop_T1fun(void)
 }
 
 UT_REGISTER_TEST(test_nlop_T1fun);
+

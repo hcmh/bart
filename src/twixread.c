@@ -12,7 +12,6 @@
 #include <complex.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <stdio.h>
 
 #include "num/multind.h"
 
@@ -119,7 +118,7 @@ struct mdh2 {	// second part of mdh
 	uint32_t evalinfo[2];
 	uint16_t samples;
 	uint16_t channels;
-	uint16_t sLC[16];
+	uint16_t sLC[14];
 	uint16_t dummy1[2];
 	uint16_t clmnctr;
 	uint16_t dummy2[5];
@@ -153,8 +152,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 			//max[COIL_DIM] = mdh.channels;
 		}
 
-		if ((mdh.evalinfo[0] & (1 << 5))
-			|| (max[READ_DIM] != mdh.samples)) {
+		if ((mdh.evalinfo[0] & (1 << 5))) {
 
 //			debug_printf(DP_WARN, "SYNC\n");
 
@@ -163,7 +161,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 
 			size_t dma_length = mdh1.flags_dmalength & 0x01FFFFFFL;
 			size_t offset = sizeof(scan_hdr) + sizeof(chan_hdr);
-			
+
 			if (dma_length < offset)
 				error("dma_length < offset.\n");
 
@@ -371,9 +369,7 @@ int main_twixread(int argc, char* argv[argc])
 			off[i] = -min[i];
 			dims[i] = max[i] + off[i];
 		}
-        
-        
-        
+
 		debug_printf(DP_DEBUG2, "Dimensions: ");
 		debug_print_dims(DP_DEBUG2, DIMS, dims);
 		debug_printf(DP_DEBUG2, "Offset: ");
@@ -412,7 +408,6 @@ int main_twixread(int argc, char* argv[argc])
 
 
 	long adc_dims[DIMS];
-    
 	md_select_dims(DIMS, READ_FLAG|COIL_FLAG, adc_dims, dims);
 
 	void* buf = md_alloc(DIMS, adc_dims, CFL_SIZE);
