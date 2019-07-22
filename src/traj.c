@@ -36,7 +36,7 @@ int main_traj(int argc, char* argv[])
 {
 	int X = 128;
 	int Y = 128;
-	int D = 128;
+	int D = 1;
 	int E = 1;
 	int mb = 1;
 	int turns = 1;
@@ -75,10 +75,10 @@ int main_traj(int argc, char* argv[])
 		OPT_FLVEC3('Q', &gdelays[1], "delays", "(gradient delays: z, xz, yz)"),
 		OPT_SET('O', &conf.transverse, "correct transverse gradient error for radial tajectories"),
 		OPT_SET('3', &conf.d3d, "3D"),
-		OPT_SET('C', &conf.asym_traj, "asymmetric trajectory"),
+		OPT_SET('c', &conf.asym_traj, "asymmetric trajectory"),
 		OPT_SET('E', &conf.mems_traj, "multi-echo multi-spoke trajectory"),
 		OPT_VEC2('z', &z_usamp, "Ref:Acel", "Undersampling in z-direction."),
-		OPT_STRING('c', &custom_angle, "file", "custom_angle"),
+		OPT_STRING('C', &custom_angle, "file", "custom_angle"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -113,12 +113,12 @@ int main_traj(int argc, char* argv[])
 
 	dims[TE_DIM] = E;
 
-	if (conf.mems_traj || conf.asym_traj) {
+	if (conf.mems_traj) {
 		conf.radial = true;
 	}
-
-	if (!conf.asym_traj) {
-		D = X;
+	
+	if (D < X) {
+	    D = X; // D is only needed for partial Fourier sampling
 	}
 
 	// Variables for z-undersampling
@@ -207,9 +207,9 @@ int main_traj(int argc, char* argv[])
 			 * for symmetric trajectory [DC between between sample no. X/2-1 and X/2, zero-based indexing]
 			 * or asymmetric trajectory [DC component at sample no. X/2, zero-based indexing]
 			 */
-			double read = (float)i + 0.5 - (float)X / 2.;
+			double read = (float)i + (conf.asym_traj ? 0 : 0.5) - (float)X / 2.;
 
-			if (conf.mems_traj || conf.asym_traj) {
+			if (conf.mems_traj) {
 
 				read = ((e%2) ? (float)(D-i-2) : (float)(i+D-X)) - (float)D/2.;
 			}
@@ -237,13 +237,14 @@ int main_traj(int argc, char* argv[])
 				angle2 = s * M_PI / Y * (conf.full_circle ? 2 : 1) * split;
 
 				if (NULL != custom_angle)
-						angle2 = cimag(custom_angle_val[p%X]);
+						angle2 = cimag(custom_angle_val[p/X]);
 
 			}
 
 
 			if (NULL != custom_angle)
-					angle = creal(custom_angle_val[p%X]);
+					angle = creal(custom_angle_val[p/X]);
+
 
 
 			float d[3] = { 0., 0., 0 };

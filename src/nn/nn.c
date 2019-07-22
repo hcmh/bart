@@ -65,7 +65,7 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 
 	long pos[6] = { 0 };
 
-	struct linop_s* resh = linop_reshape_create(5, dims2a, dims2b);
+	struct linop_s* resh = linop_reshape_create(5, dims2a, 5, dims2b);
 	struct nlop_s* nresh = nlop_from_linop(resh);
 	linop_free(resh);
 

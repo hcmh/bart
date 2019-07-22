@@ -7,7 +7,6 @@
 #include "num/matexp.h"
 
 #include "bloch.h"
-#include "simulation.h"
 
 
 
@@ -21,60 +20,6 @@ void bloch_ode(float out[3], const float in[3], float r1, float r2, const float 
 }
 
 
-
-long factorial (int k)
-{
-	if (k == 0)
-		return 1;
-	else
-		return (k * factorial(k - 1) );
-}
-
-//Sine Integral calculated with power series <- no analytical solution. 
-// approximation for x < 0.0003; Si(x) = x*exp(-x^2/18)
-float si(float x)
-{
-	long k_max = 10;
-	long double sum = 0;
-	
-	for (long k = 1; k < k_max; k++){
-		sum += pow(-1,(float) (k - 1)) * pow(x, (float)(2 * k - 1)) / ( (2 * k - 1) * factorial( 2 * k - 1 ) );
-	}
-	
-	return sum;
-}
-
-
-float get_pulse_energy(void * _pulseData)
-{	
-	//assert(si(PI) != 1.8519370519824658 );  //equal Wilbraham–Gibbs-Konstante
-	struct PulseData* pulseData = _pulseData;
-	//Assuming pulse starts at t=0
-	
-	float c = PI / pulseData->n / pulseData->t0;
-	float d = PI / pulseData->t0;
-	
-	float si0 = si( d * (pulseData->RF_end/2.) );
-	float si1 = si( - d * (pulseData->RF_end/2.) );
-	float si2 = si( (c - d) * pulseData->RF_end/2. );
-	float si3 = si( - (c - d) * pulseData->RF_end/2. );
-	float si4 = si( (c + d) * pulseData->RF_end/2. );
-	float si5 = si( - (c + d) * pulseData->RF_end/2. );
-	
-	return  pulseData->A * (1 - pulseData->alpha) / d * ( si0 - si1 ) + pulseData->A * pulseData->alpha / (2 * d) * ( si2 - si3 + si4 - si5 );
-}
-
-
-float sinc_pulse(void* _pulseData, float t)
-{
-	struct PulseData* pulseData = _pulseData;
-	
-	//assume pulse does not change much slighly around maximum
-	if( t-pulseData->RF_end/2 == 0 ) 
-		t += 0.000001;
-		
-	return pulseData->A * ( (1 - pulseData->alpha) + pulseData->alpha * cosf( PI * (t-pulseData->RF_end/2) / (pulseData->n * pulseData->t0) ) ) * sinf( PI * (t-pulseData->RF_end/2) / pulseData->t0 ) / ( PI * (t-pulseData->RF_end/2) / pulseData->t0 );
-}
 
 
 void bloch_pdy(float out[3][3], const float in[3], float r1, float r2, const float gb[3])
@@ -162,16 +107,16 @@ void bloch_matrix_ode_sa(float matrix[10][10], float r1, float r2, const float g
 {
 	float m0 = 1.;
 	float m[10][10] = {
-		{	-r2,		gb[2],		-gb[1],		0.,		0.,		0.,		0.,		0.,		0.,		0.	},
-		{	-gb[2],		-r2,		gb[0],		0.,		0.,		0.,		0.,		0.,		0.,		0.	},
-		{	gb[1],		-gb[0],		-r1,		0.,		0.,		0.,		0.,		0.,		0.,		m0 * r1 },
-		{	0.,			0.,			0.,			-r2,	gb[2],	-gb[1],	0.,		0.,		0.,		0.	},
-		{	0.,			0.,			0.,			-gb[2],	-r2,	gb[0],	0.,		0.,		0.,		0.	},
-		{	0.,			0.,			-1,			gb[1],	-gb[0],	-r1,	0.,		0.,		0.,		m0	},
-		{	-1,			0.,			0.,			0.,		0.,		0.,		-r2,	gb[2],	-gb[1],	0.	},
-		{	0.,			-1,			0.,			0.,		0.,		0.,		-gb[2],	-r2,	gb[0],	0.	},
-		{	0.,			0.,			0.,			0.,		0.,		0.,		gb[1],	-gb[0],	-r1,	0.	},
-		{	0.,				0.,		0.,			0.,		0.,		0.,		0.,		0.,		0.,		0.	},
+		{	-r2,	gb[2],	-gb[1],	0.,	0.,	0.,	0.,	0.,	0.,	0.	},
+		{	-gb[2],	-r2,	gb[0],	0.,	0.,	0.,	0.,	0.,	0.,	0.	},
+		{	gb[1],	-gb[0],	-r1,	0.,	0.,	0.,	0.,	0.,	0.,	m0 * r1 },
+		{	0.,	0.,	0.,	-r2,	gb[2],	-gb[1],	0.,	0.,	0.,	0.	},
+		{	0.,	0.,	0.,	-gb[2],	-r2,	gb[0],	0.,	0.,	0.,	0.	},
+		{	0.,	0.,	-1.,	gb[1],	-gb[0],	-r1,	0.,	0.,	0.,	m0	},
+		{	-1.,	0.,	0.,	0.,	0.,	0.,	-r2,	gb[2],	-gb[1],	0.	},
+		{	0.,	-1.,	0.,	0.,	0.,	0.,	-gb[2],	-r2,	gb[0],	0.	},
+		{	0.,	0.,	0.,	0.,	0.,	0.,	gb[1],	-gb[0],	-r1,	0.	},
+		{	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.	},
 	};
 
 	matf_copy(10, 10, matrix, m);

@@ -7,6 +7,7 @@
  * 2012-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014-2016 Frank Ong <frankong@berkeley.edu>
  * 2014-2018 Jon Tamir <jtamir@eecs.berkeley.edu>
+ * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  *
  */
 
@@ -136,6 +137,9 @@ int main_pics(int argc, char* argv[])
 
 	const char* basis_file = NULL;
 
+	const char* Q_file = NULL;
+
+
 	struct admm_conf admm = { false, false, false, iter_admm_defaults.rho, iter_admm_defaults.maxitercg };
 
 	enum algo_t algo = ALGO_DEFAULT;
@@ -189,6 +193,8 @@ int main_pics(int argc, char* argv[])
 		OPT_FLOAT('P', &bpsense_eps, "eps", "Basis Pursuit formulation, || y- Ax ||_2 <= eps"),
 		OPT_SELECT('a', enum algo_t, &algo, ALGO_PRIDU, "select Primal Dual"),
 		OPT_SET('M', &sms, "Simultaneous Multi-Slice reconstruction"),
+		OPT_STRING('Q', &Q_file, "file", "Q. Laplace L = QQH."),
+
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -355,7 +361,7 @@ int main_pics(int argc, char* argv[])
 
 	if (NULL != traj_file) {
 
-		if (NULL == pat_file && NULL == basis) {
+		if (NULL == pat_file && NULL == basis && Q_file == NULL) {
 
 			md_free(pattern);
 			pattern = NULL;
@@ -565,12 +571,18 @@ int main_pics(int argc, char* argv[])
 	}
 
 
+	// Regularization on manifolds
+	long Q_dims[DIMS];
+	complex float* Q = NULL;
+	if (Q_file != NULL)
+		Q = load_cfl(Q_file, DIMS, Q_dims);
+
 	// initialize prox functions
 
 	const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_configure(DIMS, img1_dims, &ropts, thresh_ops, trafos, llr_blk, shift_mode, conf.gpu);
+	opt_reg_configure(DIMS, img1_dims, &ropts, thresh_ops, trafos, llr_blk, shift_mode, Q_dims, Q, conf.gpu);
 
 	if (conf.bpsense)
 		opt_bpursuit_configure(&ropts, thresh_ops, trafos, forward_op, kspace, bpsense_eps);
@@ -699,6 +711,9 @@ int main_pics(int argc, char* argv[])
 
 	if (image_start)
 		unmap_cfl(DIMS, img_dims, image_start);
+
+	if (NULL != Q)
+		unmap_cfl(DIMS, Q_dims, Q);
 
 	xfree(pat_file);
 	xfree(traj_file);

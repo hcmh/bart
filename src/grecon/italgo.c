@@ -47,6 +47,8 @@ enum algo_t italgo_choose(int nr_penalties, const struct reg_s regs[nr_penalties
 		case TV:
 		case IMAGL1:
 		case IMAGL2:
+		case L1MAN:
+		case L2MAN:			
 
 			algo = ALGO_ADMM;
 			break;
@@ -80,7 +82,7 @@ struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s
 
 			debug_printf(DP_INFO, "conjugate gradients\n");
 
-			assert((0 == nr_penalties) || ((1 == nr_penalties) && (L2IMG == regs[0].xform)));
+			assert((0 == nr_penalties) || ((1 == nr_penalties) && ((L2MAN == regs[0].xform) || (L2IMG == regs[0].xform))));
 
 			PTR_ALLOC(struct iter_conjgrad_conf, cgconf);
 			*cgconf = iter_conjgrad_defaults;

@@ -1,8 +1,10 @@
+
 #include <complex.h>
 #include <stdbool.h>
 
 
 struct PulseData {
+
 	float pulse_length;
 	float RF_start;
 	float RF_end;
@@ -21,6 +23,7 @@ extern const struct PulseData pulseData_defaults;
 
 
 struct VoxelData {
+
 	float r1;
 	float r2;
 	float m0;
@@ -31,6 +34,7 @@ extern const struct VoxelData voxelData_defaults;
 
 
 struct SeqData {
+
 	int seq_type;
 	float TR;
 	float TE;
@@ -42,6 +46,7 @@ extern const struct SeqData seqData_defaults;
 
 
 struct SeqTmpData {
+
 	float t;
 	int rep_counter;
 	int spin_counter;
@@ -50,6 +55,7 @@ extern const struct SeqTmpData seqTmpData_defaults;
 
 
 struct GradData {
+
 	float gb[3];
 	float gb_eff[3];
 };
@@ -58,7 +64,7 @@ extern const struct GradData gradData_defaults;
 
 
 struct SimData {
-	
+
 	struct SeqData seqData;
 	struct VoxelData voxelData;
 	struct PulseData pulseData;

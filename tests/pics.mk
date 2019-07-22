@@ -240,6 +240,32 @@ tests/test-pics-basis-noncart-memory: traj scale phantom ones join transpose pic
 	touch $@
 
 
+tests/test-pics-manifold: phantom ones transpose flip join reshape resize laplace svd spow fmac pics fft nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
+		$(TOOLDIR)/phantom -k k0.ra 						;\
+		$(TOOLDIR)/ones 2 128 128 s.ra						;\
+		$(TOOLDIR)/transpose 0 1 k0.ra k1.ra					;\
+		$(TOOLDIR)/flip 2 k0.ra k2.ra						;\
+		$(TOOLDIR)/join 10 k0.ra k0.ra k1.ra k0.ra k2.ra k1.ra k2.ra k.ra	;\
+		$(TOOLDIR)/resize -c 0 5 1 5 k.ra krs0.ra				;\
+		$(TOOLDIR)/reshape 3 1 25 krs0.ra krs.ra				;\
+		$(TOOLDIR)/transpose 0 10 krs.ra ac.ra					;\
+		$(TOOLDIR)/laplace -n2 ac.ra L.ra					;\
+		$(TOOLDIR)/svd -e L.ra U.ra S.ra VH.ra					;\
+		$(TOOLDIR)/transpose 0 1 S.ra S1.ra					;\
+		$(TOOLDIR)/spow 0.5 S1.ra S05.ra					;\
+		$(TOOLDIR)/fmac U.ra S05.ra US.ra						;\
+		$(TOOLDIR)/pics -QUS.ra -R M2:1 k.ra s.ra rec_m2.ra			;\
+		$(TOOLDIR)/pics -QUS.ra -R M1:1 k.ra s.ra rec_m1.ra			;\
+		$(TOOLDIR)/fft -i 3 k0.ra im0.ra					;\
+		$(TOOLDIR)/fft -i 3 k1.ra im1.ra					;\
+		$(TOOLDIR)/fft -i 3 k2.ra im2.ra					;\
+		$(TOOLDIR)/join 10 im0.ra im0.ra im1.ra im0.ra im2.ra im1.ra im2.ra im.ra				;\
+		$(TOOLDIR)/nrmse -t0.12 rec_m2.ra im.ra					;\
+		$(TOOLDIR)/nrmse -t0.12 rec_m1.ra im.ra					;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+	
 
 
 
@@ -248,6 +274,6 @@ TESTS += tests/test-pics-wavl1 tests/test-pics-poisson-wavl1 tests/test-pics-joi
 TESTS += tests/test-pics-weights tests/test-pics-noncart-weights
 TESTS += tests/test-pics-warmstart tests/test-pics-batch
 TESTS += tests/test-pics-tedim tests/test-pics-bp-noncart
-TESTS += tests/test-pics-basis tests/test-pics-basis-noncart tests/test-pics-basis-noncart-memory
+TESTS += tests/test-pics-basis tests/test-pics-basis-noncart tests/test-pics-basis-noncart-memory tests/test-pics-manifold
 
 

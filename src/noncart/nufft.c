@@ -973,5 +973,3 @@ void estimate_fast_sq_im_dims(unsigned int N, long dims[3], const long tdims[N],
 		dims[j] = (0. == max_dims[j]) ? 1 : fast_size;
 }
 
-
-

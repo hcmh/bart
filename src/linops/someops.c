@@ -308,6 +308,65 @@ struct linop_s* linop_expand_create(unsigned int N, const long out_dims[N], cons
 
 
 
+struct extract_op_s {
+
+	INTERFACE(linop_data_t);
+
+	int N;
+	const long* pos;
+	const long* in_dims;
+	const long* out_dims;
+};
+
+static DEF_TYPEID(extract_op_s);
+
+static void extract_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(extract_op_s, _data);
+
+	md_clear(data->N, data->out_dims, dst, CFL_SIZE);
+	md_copy_block(data->N, data->pos, data->out_dims, dst, data->in_dims, src, CFL_SIZE);
+}
+
+static void extract_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(extract_op_s, _data);
+
+	md_clear(data->N, data->in_dims, dst, CFL_SIZE);
+	md_copy_block(data->N, data->pos, data->in_dims, dst, data->out_dims, src, CFL_SIZE);
+}
+
+static void extract_free(const linop_data_t* _data)
+{
+	const auto data = CAST_DOWN(extract_op_s, _data);
+
+	xfree(data->out_dims);
+	xfree(data->in_dims);
+	xfree(data->pos);
+
+	xfree(data);
+}
+
+extern struct linop_s* linop_extract_create(unsigned int N, const long pos[N], const long out_dims[N], const long in_dims[N])
+{
+	PTR_ALLOC(struct extract_op_s, data);
+	SET_TYPEID(extract_op_s, data);
+
+	data->N = N;
+	data->pos = *TYPE_ALLOC(long[N]);
+	data->out_dims = *TYPE_ALLOC(long[N]);
+	data->in_dims = *TYPE_ALLOC(long[N]);
+
+	md_copy_dims(N, (long*)data->pos, pos);
+	md_copy_dims(N, (long*)data->out_dims, out_dims);
+	md_copy_dims(N, (long*)data->in_dims, in_dims);
+
+	return linop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), extract_forward, extract_adjoint, NULL, NULL, extract_free);
+}
+
+
+
+
 
 struct reshape_op_s {
 
@@ -336,18 +395,93 @@ static void reshape_free(const linop_data_t* _data)
 }
 
 
-struct linop_s* linop_reshape_create(unsigned int N, const long out_dims[N], const long in_dims[N])
+struct linop_s* linop_reshape_create(unsigned int A, const long out_dims[A], int B, const long in_dims[B])
 {
 	PTR_ALLOC(struct reshape_op_s, data);
 	SET_TYPEID(reshape_op_s, data);
 
+	assert(md_calc_size(A, out_dims) == md_calc_size(B, in_dims));
+
+	unsigned int N = A;
 	data->N = N;
 	long* dims = *TYPE_ALLOC(long[N]);
 	md_copy_dims(N, dims, out_dims);
 	data->dims = dims;
 
-	return linop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), reshape_forward, reshape_forward, reshape_forward, NULL, reshape_free);
+	return linop_create(A, out_dims, B, in_dims, CAST_UP(PTR_PASS(data)), reshape_forward, reshape_forward, reshape_forward, NULL, reshape_free);
 }
+
+
+
+struct transpose_op_s {
+
+	INTERFACE(linop_data_t);
+
+	int N;
+	int a;
+	int b;
+	const long* dims;
+};
+
+static DEF_TYPEID(transpose_op_s);
+
+static void transpose_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(transpose_op_s, _data);
+
+	long odims[data->N];
+	md_copy_dims(data->N, odims, data->dims);
+	odims[data->a] = data->dims[data->b];
+	odims[data->b] = data->dims[data->a];
+
+	md_transpose(data->N, data->a, data->b, odims, dst, data->dims, src, CFL_SIZE);
+}
+
+static void transpose_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(transpose_op_s, _data);
+
+	md_copy(data->N, data->dims, dst, src, CFL_SIZE);
+}
+
+static void transpose_free(const linop_data_t* _data)
+{
+	auto data = CAST_DOWN(transpose_op_s, _data);
+
+	xfree(data->dims);
+
+	xfree(data);
+}
+
+
+struct linop_s* linop_transpose_create(int N, int a, int b, const long dims[N])
+{
+	assert((0 <= a) && (a < N));
+	assert((0 <= b) && (b < N));
+	assert(a != b);
+
+	PTR_ALLOC(struct transpose_op_s, data);
+	SET_TYPEID(transpose_op_s, data);
+
+	data->N = N;
+	data->a = a;
+	data->b = b;
+
+	long* idims = *TYPE_ALLOC(long[N]);
+	md_copy_dims(N, idims, dims);
+	data->dims = idims;
+
+	long odims[N];
+	md_copy_dims(N, odims, dims);
+	odims[a] = idims[b];
+	odims[b] = idims[a];
+
+	return linop_create(N, odims, N, idims, CAST_UP(PTR_PASS(data)), transpose_forward, transpose_forward, transpose_normal, NULL, transpose_free);
+}
+
+
+
+
 
 
 
@@ -843,13 +977,19 @@ static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned
 {
 	const struct operator_s* plan = NULL;
 	const struct operator_s* iplan = NULL;
+
 	if (measure) {
+
 		plan = fft_measure_create(N, dims, flags, true, false);
 		iplan = fft_measure_create(N, dims, flags, true, true);
+
 	} else {
+
 		complex float* tmp1 = md_alloc(N, dims, CFL_SIZE);
+
 		plan = fft_create(N, dims, flags, tmp1, tmp1, false);
 		iplan = fft_create(N, dims, flags, tmp1, tmp1, true);
+
 		md_free(tmp1);
 	}
 
@@ -895,15 +1035,15 @@ static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned
 		struct linop_s* modk = linop_cdiag_create(N, dims, ~0u, fftmodk_mat);
 
 		struct linop_s* tmp = linop_chain(mod, lop);
-		
+
 		linop_free(lop);
 		linop_free(mod);
-		
+
 		lop = linop_chain(tmp, modk);
-		
+
 		linop_free(tmp);
 		linop_free(modk);
-		
+
 		md_free(fftmod_mat);
 		md_free(fftmodk_mat);
 	}

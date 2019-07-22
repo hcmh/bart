@@ -25,15 +25,32 @@
 #include "misc/debug.h"
 
 
-static const char usage_str[] = "<bin-signal> <src> <dst>";
+static const char usage_str[] = "<lable> <src> <dst>";
 static const char help_str[] =
 		"Binning \n";
 
 
-// Assigns bin to samples
-/* n: Number of bins
+/* Reorder binning: [-o]
+ * Input a 1D file with <lables> at the <src> dimension, that you want to reorder (according to the lable order)
+ *  
+ * ---
+ * 
+ * Lable binning: [-l long]
+ * Bin a dimension according to the lable-file <bin-signal>
+ * The label file must be 1D and the dimension of the <label> file and the <src> file must match at the dimension that you want to bin
+ * -d must specify an empty dimension, in which the binned data is stored
+ *
+ * ---
+ * 
+ * Quadrature binning:
+ * Rosenzweig, S., Scholand, N., Holme, H. C. M., & Uecker, M. (2018).
+ * Cardiac and Respiratory Self-Gating in Radial MRI using an Adapted Singular Spectrum Analysis (SSA-FARY).
+ * arXiv preprint arXiv:1812.09057.
+ * 
+ * n: Number of bins
  * state: Contains amplitudes for both EOFs
  * idx: Bins for 'idx' motion (0: cardiac, 1: respiration)
+ *
  */
 
 // Binning by equal central angle
@@ -173,23 +190,25 @@ static void moving_average(const long state_dims[DIMS], complex float* state, co
 
 int main_bin(int argc, char* argv[])
 {
-	unsigned int n_resp = 9;
-	unsigned int n_card = 25;
+	unsigned int n_resp = 0;
+	unsigned int n_card = 0;
 	unsigned int mavg_window = 0;
+	int cluster_dim = -1;
 
-	long resp_states_idx[2] = { 0, 1 };
-	long card_states_idx[2] = { 2, 3 };
+	long resp_lables_idx[2] = { 0, 1 };
+	long card_lables_idx[2] = { 2, 3 };
 
-
+	bool reorder = false;
 
 
 	const struct opt_s opts[] = {
-
-		OPT_UINT('R', &n_resp, "n_resp", "Number of respiratory states [Default: 9]"),
-		OPT_UINT('C', &n_card, "n_card", "Number of cardiac states [Default: 25]"),
-		OPT_VEC2('r', &resp_states_idx, "x:y", "(Respiration: Eigenvector index)"),
-		OPT_VEC2('c', &card_states_idx, "x:y", "(Cardiac motion: Eigenvector index)"),
-		OPT_UINT('a', &mavg_window, "window", "Moving average"),
+		OPT_INT('l', &cluster_dim, "dim", "Bin according to lables: Specify cluster dimension"),
+		OPT_SET('o', &reorder, "Reorder according to lables"),
+		OPT_UINT('R', &n_resp, "n_resp", "Quadrature Binning: Number of respiratory lables"),
+		OPT_UINT('C', &n_card, "n_card", "Quadrature Binning: Number of cardiac lables"),
+		OPT_VEC2('r', &resp_lables_idx, "x:y", "(Respiration: Eigenvector index)"),
+		OPT_VEC2('c', &card_lables_idx, "x:y", "(Cardiac motion: Eigenvector index)"),
+		OPT_UINT('a', &mavg_window, "window", "Quadrature Binning: Moving average"),
 
 	};
 
@@ -198,99 +217,276 @@ int main_bin(int argc, char* argv[])
 	num_init();
 
 	// Input
-	long states_dims[DIMS];
-	complex float* states = load_cfl(argv[1], DIMS, states_dims);
-	if (states_dims[TIME_DIM] < 2)
-		error("Check dimensions of states array!");
+	long lables_dims[DIMS];
+	complex float* lables = load_cfl(argv[1], DIMS, lables_dims);
 
 	long src_dims[DIMS];
 	complex float* src = load_cfl(argv[2], DIMS, src_dims);
 
+	char c;
+	
+	// Identify binning type
+	if (n_resp > 0 || n_card > 0) {
 
-	// Extract respiratory states
-	long resp_state_dims[DIMS];
-	md_copy_dims(DIMS, resp_state_dims, states_dims);
-	resp_state_dims[TIME2_DIM] = 2;
-	complex float* resp_state = md_alloc(DIMS, resp_state_dims, CFL_SIZE);
+		c = 'Q';
+		assert(n_resp > 0 && n_card > 0);
+		assert(cluster_dim == -1);
+		assert(!reorder);
 
-	long resp_state_singleton_dims[DIMS];
-	md_copy_dims(DIMS, resp_state_singleton_dims, resp_state_dims);
-	resp_state_singleton_dims[TIME2_DIM] = 1;
-	complex float* resp_state_singleton = md_alloc(DIMS, resp_state_singleton_dims, CFL_SIZE);
+	} else if (cluster_dim != -1) {
+		
+		c = 'L';
+		if (cluster_dim < 0 || src_dims[cluster_dim] != 1) // Dimension to store data for each cluster must be empty
+			error("Choose empty cluster dimension!");
+		
+		assert(!reorder);
+		assert(n_resp == 0 && n_card == 0);
+		
+	} else if (reorder) {
+		
+		c = 'R';
+		assert(n_resp == 0 && n_card == 0);
+		assert(cluster_dim == -1);
 
-	long pos[DIMS] = { 0 };
-	for (int i = 0; i < 2; i++){
-
-		pos[TIME2_DIM] = resp_states_idx[i];
-		md_copy_block(DIMS, pos, resp_state_singleton_dims, resp_state_singleton, states_dims, states, CFL_SIZE);
-		pos[TIME2_DIM] = i;
-		md_copy_block(DIMS, pos, resp_state_dims, resp_state, resp_state_singleton_dims, resp_state_singleton, CFL_SIZE);
-
-	}
+		
+	} else 
+		error("Specify binning type!");
 
 
-	// Extract cardiac states
-	long card_state_dims[DIMS];
-	md_copy_dims(DIMS, card_state_dims, states_dims);
-	card_state_dims[TIME2_DIM] = 2;
-	complex float* card_state = md_alloc(DIMS, card_state_dims, CFL_SIZE);
+	switch (c) {
+	
+		case 'Q': { // Quadrature binning
 
-	long card_state_singleton_dims[DIMS];
-	md_copy_dims(DIMS, card_state_singleton_dims, card_state_dims);
-	card_state_singleton_dims[TIME2_DIM] = 1;
-	complex float* card_state_singleton = md_alloc(DIMS, card_state_singleton_dims, CFL_SIZE);
+			debug_printf(DP_INFO, "Quadrature binning...\n");
+			
+			if (lables_dims[TIME_DIM] < 2)
+				error("Check dimensions of lables array!");
 
-	for (int i = 0; i < 2; i++){
+			// Extract respiratory lables
+			long resp_state_dims[DIMS];
+			md_copy_dims(DIMS, resp_state_dims, lables_dims);
+			resp_state_dims[TIME2_DIM] = 2;
+			complex float* resp_state = md_alloc(DIMS, resp_state_dims, CFL_SIZE);
 
-		pos[TIME2_DIM] = card_states_idx[i];
-		md_copy_block(DIMS, pos, card_state_singleton_dims, card_state_singleton, states_dims, states, CFL_SIZE);
-		pos[TIME2_DIM] = i;
-		md_copy_block(DIMS, pos, card_state_dims, card_state, card_state_singleton_dims, card_state_singleton, CFL_SIZE);
+			long resp_state_singleton_dims[DIMS];
+			md_copy_dims(DIMS, resp_state_singleton_dims, resp_state_dims);
+			resp_state_singleton_dims[TIME2_DIM] = 1;
+			complex float* resp_state_singleton = md_alloc(DIMS, resp_state_singleton_dims, CFL_SIZE);
 
-	}
+			long pos[DIMS] = { 0 };
+			for (int i = 0; i < 2; i++){
 
-	if (mavg_window > 0) {
+				pos[TIME2_DIM] = resp_lables_idx[i];
+				md_copy_block(DIMS, pos, resp_state_singleton_dims, resp_state_singleton, lables_dims, lables, CFL_SIZE);
+				pos[TIME2_DIM] = i;
+				md_copy_block(DIMS, pos, resp_state_dims, resp_state, resp_state_singleton_dims, resp_state_singleton, CFL_SIZE);
 
-		moving_average(resp_state_dims, resp_state, mavg_window);
-		moving_average(card_state_dims, card_state, mavg_window);
+			}
 
-	}
 
-	// Array to store bin-index for samples
-	long bins_dims[DIMS];
-	md_copy_dims(DIMS, bins_dims, states_dims);
-	bins_dims[TIME2_DIM] = 2; // Respiration and Cardiac motion
-	float* bins = md_alloc(DIMS, bins_dims, FL_SIZE);
+			// Extract cardiac lables
+			long card_state_dims[DIMS];
+			md_copy_dims(DIMS, card_state_dims, lables_dims);
+			card_state_dims[TIME2_DIM] = 2;
+			complex float* card_state = md_alloc(DIMS, card_state_dims, CFL_SIZE);
 
-	// Determine bins
-	det_bins(resp_state, bins_dims, bins, 1, n_resp); // respiratory motion
-	det_bins(card_state, bins_dims, bins, 0, n_card); // cardiac motion
+			long card_state_singleton_dims[DIMS];
+			md_copy_dims(DIMS, card_state_singleton_dims, card_state_dims);
+			card_state_singleton_dims[TIME2_DIM] = 1;
+			complex float* card_state_singleton = md_alloc(DIMS, card_state_singleton_dims, CFL_SIZE);
 
-	int binsize_max = get_binsize_max(bins_dims, bins, n_card, n_resp);
+			for (int i = 0; i < 2; i++){
 
-	// Binned k-space
-	long binned_dims[DIMS];
-	md_copy_dims(DIMS, binned_dims, src_dims);
-	binned_dims[TIME_DIM] = n_card;
-	binned_dims[TIME2_DIM] = n_resp;
-	binned_dims[PHS2_DIM] = binsize_max;
-	complex float* binned = create_cfl(argv[3], DIMS, binned_dims);
-	md_clear(DIMS, binned_dims, binned, CFL_SIZE);
+				pos[TIME2_DIM] = card_lables_idx[i];
+				md_copy_block(DIMS, pos, card_state_singleton_dims, card_state_singleton, lables_dims, lables, CFL_SIZE);
+				pos[TIME2_DIM] = i;
+				md_copy_block(DIMS, pos, card_state_dims, card_state, card_state_singleton_dims, card_state_singleton, CFL_SIZE);
 
-	// Assign to bins
-	asgn_bins(bins_dims, bins, binned_dims, binned, src_dims, src, n_card, n_resp); // for k-space
+			}
 
-	unmap_cfl(DIMS, states_dims, states);
+			if (mavg_window > 0) {
+
+				moving_average(resp_state_dims, resp_state, mavg_window);
+				moving_average(card_state_dims, card_state, mavg_window);
+
+			}
+
+			// Array to store bin-index for samples
+			long bins_dims[DIMS];
+			md_copy_dims(DIMS, bins_dims, lables_dims);
+			bins_dims[TIME2_DIM] = 2; // Respiration and Cardiac motion
+			float* bins = md_alloc(DIMS, bins_dims, FL_SIZE);
+
+			// Determine bins
+			det_bins(resp_state, bins_dims, bins, 1, n_resp); // respiratory motion
+			det_bins(card_state, bins_dims, bins, 0, n_card); // cardiac motion
+
+			int binsize_max = get_binsize_max(bins_dims, bins, n_card, n_resp);
+
+			// Binned data
+			long binned_dims[DIMS];
+			md_copy_dims(DIMS, binned_dims, src_dims);
+			binned_dims[TIME_DIM] = n_card;
+			binned_dims[TIME2_DIM] = n_resp;
+			binned_dims[PHS2_DIM] = binsize_max;
+			complex float* binned = create_cfl(argv[3], DIMS, binned_dims);
+			md_clear(DIMS, binned_dims, binned, CFL_SIZE);
+
+			// Assign to bins
+			asgn_bins(bins_dims, bins, binned_dims, binned, src_dims, src, n_card, n_resp);
+
+			md_free(bins);
+			md_free(card_state);
+			md_free(card_state_singleton);
+
+			md_free(resp_state);
+			md_free(resp_state_singleton);
+
+			unmap_cfl(DIMS, binned_dims, binned);
+			
+			break;
+		}
+	
+		case 'L': { // Label binning: Bin elements from src according to lables
+
+			debug_printf(DP_INFO, "Label binning...\n");
+			
+			md_check_compat(DIMS, ~0u, src_dims, lables_dims);
+			md_check_bounds(DIMS, ~0u, lables_dims, src_dims);
+
+			// Allow only one dimension to be > 1
+			long dim = 0; // Dimension to be binned
+			long count = 0;
+			for (unsigned int i = 0; i < DIMS; i++)
+				if (lables_dims[i] > 1) {
+					dim = i;
+					count++;
+				}
+			assert(count == 1);
+
+			long N = lables_dims[dim]; // number of samples to be binned
+
+			// Determine number of clusters
+			long n_clusters = 0;
+			for (int i = 0; i < N; i++)
+				if (n_clusters < (long)lables[i])
+					n_clusters = (long)lables[i];
+
+			n_clusters += 1; // Account for zero-based indexing
+
+			// Determine all cluster sizes
+			long* cluster_size = md_alloc(1, &n_clusters, sizeof(long));
+			md_clear(1, &n_clusters, cluster_size, sizeof(long));
+
+			for (int i = 0; i < N; i++)
+				cluster_size[(long)lables[i]]++;
+
+			// Determine maximum cluster size
+			long cluster_max = 0;
+
+			for (int i = 0; i < n_clusters; i++)
+				cluster_max = (cluster_size[i] > cluster_max) ? cluster_size[i] : cluster_max;
+
+			// Initialize output
+			long dst_dims[DIMS];
+			md_copy_dims(DIMS, dst_dims, src_dims);
+			dst_dims[cluster_dim] = cluster_max;
+			dst_dims[dim] = n_clusters;
+			complex float* dst = create_cfl(argv[3], DIMS, dst_dims);
+			md_clear(DIMS, dst_dims, dst, CFL_SIZE);
+
+
+			// Do binning
+			long singleton_dims[DIMS];
+			md_select_dims(DIMS, ~MD_BIT(dim), singleton_dims, src_dims);
+			complex float* singleton = md_alloc(DIMS, singleton_dims, CFL_SIZE);
+
+			long* idx = md_alloc(1, &n_clusters, sizeof(long));
+			md_clear(1, &n_clusters, idx, sizeof(long));
+			long pos_src[DIMS] = { 0 };
+			long pos_dst[DIMS] = { 0 };
+
+			for (int i = 0; i < N; i++) { // TODO: Speed but by direct copying
+
+				pos_src[dim] = i;
+				md_copy_block(DIMS, pos_src, singleton_dims, singleton, src_dims, src, CFL_SIZE);
+
+				pos_dst[dim] = (long)lables[i];
+				pos_dst[cluster_dim] = idx[(long)lables[i]]; // Next empty singleton index for i-th cluster
+
+				md_copy_block(DIMS, pos_dst, dst_dims, dst, singleton_dims, singleton, CFL_SIZE);
+
+				idx[(long)lables[i]]++;
+
+				// Debug output
+				if (i % (long)(0.1 * N) == 0)
+					debug_printf(DP_DEBUG3, "Binning: %f%\n", i*1./N * 100);
+
+			}
+
+			md_free(idx);
+			md_free(singleton);
+			
+			break;
+	
+		}
+		
+		case 'R': { // Reorder: Reorder elements from src according to lable
+			
+			debug_printf(DP_INFO, "Reordering...\n");
+			
+			// Find dimension of interest
+			long dim;
+			int count = 0;
+			for (unsigned int i = 0; i < DIMS; i++)
+				if (lables_dims[i] > 1) {
+					dim = (long)i;
+					count++;
+				}
+			assert(count == 1);
+					
+			// Check lables and find maximum
+			float max = 0;
+			for (int i = 0; i < lables_dims[dim]; i++) {
+				
+				assert(creal(lables[i]) >= 0); // Only positive lables allowed!
+				max = (creal(lables[i]) > max) ? creal(lables[i]) : max;
+			}
+			assert(src_dims[dim] > max); 
+			
+			// Output
+			long reorder_dims[DIMS];
+			md_copy_dims(DIMS, reorder_dims, src_dims);
+			reorder_dims[dim] = lables_dims[dim];
+			complex float* reorder = create_cfl(argv[3], DIMS, reorder_dims);
+			
+			long singleton_dims[DIMS];
+			md_select_dims(DIMS, ~(1u << dim), singleton_dims, src_dims);
+			complex float* singleton = md_alloc(DIMS, singleton_dims, CFL_SIZE);
+			
+			long pos[DIMS] = { 0 };
+			
+			for (int i = 0; i < lables_dims[dim]; i++) {
+				
+				pos[dim] = creal(lables[i]);
+				md_copy_block(DIMS, pos, singleton_dims, singleton, src_dims, src, CFL_SIZE);
+								
+				pos[dim] = i;
+				md_copy_block(DIMS, pos, reorder_dims, reorder, singleton_dims, singleton, CFL_SIZE);				
+				
+			}
+
+			unmap_cfl(DIMS, reorder_dims, reorder);
+			md_free(singleton);
+			
+			break;
+		}
+
+	} // end switch case
+
+	unmap_cfl(DIMS, lables_dims, lables);
 	unmap_cfl(DIMS, src_dims, src);
-	unmap_cfl(DIMS, binned_dims, binned);
 
-
-	md_free(bins);
-	md_free(card_state);
-	md_free(card_state_singleton);
-
-	md_free(resp_state);
-	md_free(resp_state_singleton);
 
 
 	exit(0);

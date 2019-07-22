@@ -7,7 +7,7 @@
  * 2015-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2015-2016 Frank Ong <frankong@berkeley.edu>
  * 2015-2017 Jon Tamir <jtamir@eecs.berkeley.edu>
- *
+ * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  */
 
 #include <assert.h>
@@ -29,6 +29,8 @@
 #include "linops/grad.h"
 #include "linops/sum.h"
 #include "linops/waveop.h"
+#include "linops/fmac.h"
+
 
 #include "wavelet/wavthresh.h"
 
@@ -60,6 +62,8 @@ void help_reg(void)
 		        "-R H:A:B:C\tNIHT, wavelet domain\n"
 			"-R F:A:B:C\tl1-Fourier\n"
 			"-R T:A:B:C\ttotal variation\n"
+			"-R M2:C    \tmanifold l2-norm in image domain\n"
+			"-R M1:C    \tmanifold l1-norm in image domain\n"
 			"-R T:7:0:.01\t3D isotropic total variation with 0.01 regularization.\n"
 			"-R L:7:7:.02\tLocally low rank with spatial decimation and 0.02 regularization.\n"
 			"-R M:7:7:.03\tMulti-scale low rank with spatial decimation and 0.03 regularization.\n"
@@ -174,6 +178,21 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
 		}
+		else if (strcmp(rt, "M2") == 0) {
+
+			regs[r].xform = L2MAN;
+			int ret = sscanf(optarg, "%*[^:]:%f", &regs[r].lambda);
+			assert(1 == ret);
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
+		}
+		else if (strcmp(rt, "M1") == 0) {
+			regs[r].xform = L1MAN;
+			int ret = sscanf(optarg, "%*[^:]:%f", &regs[r].lambda);
+			assert(1 == ret);
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
+		}
 		else if (strcmp(rt, "F") == 0) {
 
 			regs[r].xform = FTL1;
@@ -245,7 +264,8 @@ void opt_bpursuit_configure(struct opt_reg_s* ropts, const struct operator_p_s* 
 	ropts->r++;
 }
 
-void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int llr_blk, unsigned int shift_mode, bool use_gpu)
+void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS],
+unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], const _Complex float* Q, bool use_gpu)
 {
 	float lambda = ropts->lambda;
 	bool randshift = shift_mode == 1;
@@ -375,7 +395,7 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 		case TV:
 			debug_printf(DP_INFO, "TV regularization: %f\n", regs[nr].lambda);
 
-			trafos[nr] = linop_grad_create(DIMS, img_dims, regs[nr].xflags);
+			trafos[nr] = linop_grad_create(DIMS, img_dims, DIMS, regs[nr].xflags);
 			prox_ops[nr] = prox_thresh_create(DIMS + 1,
 					linop_codomain(trafos[nr])->dims,
 					regs[nr].lambda, regs[nr].jflags | MD_BIT(DIMS));
@@ -502,8 +522,63 @@ void opt_reg_configure(unsigned int N, const long img_dims[N], struct opt_reg_s*
 			trafos[nr] = linop_fft_create(DIMS, img_dims, regs[nr].xflags);
 			prox_ops[nr] = prox_thresh_create(DIMS, img_dims, regs[nr].lambda, regs[nr].jflags);
 			break;
+
+
+		case L2MAN:
+		{
+			debug_printf(DP_INFO, "l2 regularization on manifold: %f\n", regs[nr].lambda);
+
+			/* out =  img @ Q
+			 * ---------------
+			 * Q 	    = [ 1  1   ...  1  ... 1  1  A  B  ...]
+			 *                                       ^--- TIME_DIM
+			 * img_dims = [ x  y  z  c  1  ... 1  1  A  1  ...]
+			 * out_dims = [ x  y  z  c  1  ... 1  1  1  B  ...]
+			 */
+			debug_printf(DP_INFO, "tot: %d\n. lambda: %f\n", nr_penalties, regs[nr].lambda);
+			long out_dims[DIMS];
+			md_copy_dims(DIMS, out_dims, img_dims);
+			out_dims[TIME_DIM] = 1;
+			out_dims[TIME_DIM + 1] = Q_dims[TIME_DIM + 1];
+
+			long dims[DIMS];
+			md_max_dims(DIMS, ~0lu, dims, img_dims, Q_dims);
+
+			trafos[nr] = linop_fmac_create(DIMS, dims, TIME_FLAG, TIME2_FLAG, ~(TIME2_FLAG|TIME_FLAG), Q);
+			
+			prox_ops[nr] = prox_leastsquares_create(DIMS, out_dims, regs[nr].lambda, NULL);
+			break;
 		}
 
+
+		case L1MAN:
+		{
+			debug_printf(DP_INFO, "l1 regularization on manifold: %f\n", regs[nr].lambda);
+
+			/* out =  img @ Q
+			 * ---------------
+			 * Q 	    = [ 1  1   ...  1  ... 1  1  A  B  ...]
+			 *                                       ^--- TIME_DIM
+			 * img_dims = [ x  y  z  c  1  ... 1  1  A  1  ...]
+			 * out_dims = [ x  y  z  c  1  ... 1  1  1  B  ...]
+			 */
+			debug_printf(DP_INFO, "tot: %d\n. lambda: %f\n", nr_penalties, regs[nr].lambda);
+			long out_dims[DIMS];
+			md_copy_dims(DIMS, out_dims, img_dims);
+			out_dims[TIME_DIM] = 1;
+			out_dims[TIME_DIM + 1] = Q_dims[TIME_DIM + 1];
+
+			long dims[DIMS];
+			md_max_dims(DIMS, ~0lu, dims, img_dims, Q_dims);
+
+			trafos[nr] = linop_fmac_create(DIMS, dims, TIME_FLAG, TIME2_FLAG, ~(TIME2_FLAG|TIME_FLAG), Q);
+			
+			prox_ops[nr] = prox_thresh_create(DIMS, out_dims, regs[nr].lambda, 0);
+			break;
+		}
+
+
+		}
 	}
 }
 
