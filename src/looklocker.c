@@ -32,13 +32,14 @@ static const char help_str[] = "Compute T1 map from M_0, M_ss, and R_1*.\n";
 
 int main_looklocker(int argc, char* argv[argc])
 {
-	float threshold = 0.5;
+	float threshold = 0.2;
 	float scaling_M0 = 2.0;
-	float Td = 15.3e-3; // time between the middle of inversion pulse and the first excitation
+	float Td = 0.;
 
 	const struct opt_s opts[] = {
 
 		OPT_FLOAT('t', &threshold, "threshold", "Pixels with M0 values smaller than {threshold} are set to zero."),
+		OPT_FLOAT('D', &Td, "delay", "Time between the middle of inversion pulse and the first excitation."),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -63,13 +64,13 @@ int main_looklocker(int argc, char* argv[argc])
 	long pos[DIMS] = { 0 };
 
 	do {
-		_Complex float Ms = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 0, pos), in_data);
-		_Complex float M0 = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 1, pos), in_data);
-		_Complex float R1s = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 2, pos), in_data);
+		complex float Ms = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 0, pos), in_data);
+		complex float M0 = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 1, pos), in_data);
+		complex float R1s = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 2, pos), in_data);
 
-		float T1 = scaling_M0 * cabs(M0) / (cabs(Ms) * cabs(R1s)) + 2 * Td;
+		float T1 = scaling_M0 * cabs(M0) / (cabs(Ms) * cabs(R1s)) + 2. * Td;
 
-		if (safe_isnanf(T1) || (cabs(M0) < threshold))
+		if (safe_isnanf(T1) || (cabs(Ms) < threshold))
 			T1 = 0.;
 
 		MD_ACCESS(DIMS, ostrs, (pos[COEFF_DIM] = 0, pos), out_data) = T1;
