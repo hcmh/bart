@@ -361,6 +361,7 @@ bool opt_subopt(void* _ptr, char c, const char* optarg)
 
 bool opt_idx(void* ptr, char c, const char* optarg)
 {
+	UNUSED(c);
 	struct opt_idx_s* p = ptr;
 	struct idx_s* idxs = p->idxs;
 	const unsigned int r = p->r;
