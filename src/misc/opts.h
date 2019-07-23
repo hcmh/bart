@@ -45,6 +45,19 @@ struct opt_subopt_s {
 	struct opt_s* opts;
 };
 
+struct idx_s {
+	unsigned int dim;
+	unsigned int idx;
+};
+
+struct opt_idx_s {
+	struct idx_s idxs[16];
+	unsigned int r;
+};
+
+extern _Bool opt_idx_init(struct opt_idx_s* iopts);
+extern _Bool opt_idx(void* ptr, char c, const char* optarg);
+
 typedef long opt_vec2_t[2];
 typedef float opt_fvec2_t[2];
 typedef long opt_vec3_t[3];
@@ -69,6 +82,7 @@ typedef float opt_fvec3_t[3];
 #define OPT_SUBOPT(c, argname, descr, NR, opts)	OPT_ARG(c, opt_subopt, struct opt_subopt_s, OPT_SUB(NR, opts), argname, descr)
 
 extern void cmdline(int* argc, char* argv[], int min_args, int max_args, const char* usage_str, const char* help_str, int n, const struct opt_s opts[n]);
+
 
 #include "misc/cppwrap.h"
 
