@@ -89,16 +89,17 @@ int main_traj(int argc, char* argv[])
 	long sdims[DIMS];
 	complex float* custom_angle_val = NULL;
 
-	if (NULL != custom_angle && conf.radial) {
+	if ((NULL != custom_angle) && conf.radial) {
 
 		debug_printf(DP_INFO, "custom_angle file is used \n");
+
 		custom_angle_val = load_cfl(custom_angle, DIMS, sdims);
 
-		if(Y != sdims[0]){
+		if (Y != sdims[0]) {
 
-			debug_printf(DP_INFO, "According to the custom angle file : y = %d\n",sdims[0]);
+			debug_printf(DP_INFO, "According to the custom angle file : y = %d\n", sdims[0]);
+
 			Y = sdims[0];
-
 		}
 	}
 
@@ -113,13 +114,12 @@ int main_traj(int argc, char* argv[])
 
 	dims[TE_DIM] = E;
 
-	if (conf.mems_traj) {
+	if (conf.mems_traj)
 		conf.radial = true;
-	}
 	
-	if (D < X) {
+	if (D < X)
 	    D = X; // D is only needed for partial Fourier sampling
-	}
+
 
 	// Variables for z-undersampling
 	long z_reflines = z_usamp[0];
@@ -133,7 +133,6 @@ int main_traj(int argc, char* argv[])
 
 		if ((mb2 < 1) || ((mb - z_reflines) % z_acc != 0))
 			error("Invalid z-Acceleration!\n");
-
 	}
 
 
@@ -209,10 +208,8 @@ int main_traj(int argc, char* argv[])
 			 */
 			double read = (float)i + (conf.asym_traj ? 0 : 0.5) - (float)X / 2.;
 
-			if (conf.mems_traj) {
-
-				read = ((e%2) ? (float)(D-i-2) : (float)(i+D-X)) - (float)D/2.;
-			}
+			if (conf.mems_traj)
+				read = ((e % 2) ? (float)(D - i - 2) : (float)(i + D - X)) - (float)D / 2.;
 
 			if (conf.golden_partition)
 				base_angle[1] = (m > 0) ? (fmod(angle_atom * m / golden_ratio, angle_atom) / m) : 0;
@@ -238,12 +235,11 @@ int main_traj(int argc, char* argv[])
 
 				if (NULL != custom_angle)
 						angle2 = cimag(custom_angle_val[p/X]);
-
 			}
 
 
 			if (NULL != custom_angle)
-					angle = creal(custom_angle_val[p/X]);
+				angle = creal(custom_angle_val[p/X]);
 
 
 
