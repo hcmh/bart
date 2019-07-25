@@ -109,14 +109,19 @@ int main_traj(int argc, char* argv[])
 		conf.golden = true;
 
 		int i = 0;
-
 		int spokes = M_PI / 2. * X;
-		int bn = 0;
 
-		while (spokes > (bn = gen_fibonacci(conf.tiny_gold, i)))
+		while (spokes > gen_fibonacci(conf.tiny_gold, i))
 			i++;
 
-		debug_printf(DP_INFO, "Optimal number of spokes: %d (Nyquist: %d).\n", bn, spokes);
+		int total = gen_fibonacci(conf.tiny_gold, i);
+
+		debug_printf(DP_INFO, "Rational approximation golden angle sampling:\n");
+		debug_printf(DP_INFO, "Optimal number of spokes: %d (Nyquist: %d).\n", total, spokes);
+		debug_printf(DP_INFO, "Base angle (full circle): %f = 2 pi / %d\n", 2. * M_PI / total, total);
+		debug_printf(DP_INFO, "Index increment per spoke: %d\n", gen_fibonacci(0, i - 1));
+		debug_printf(DP_INFO, "Index for spoke n: (n * %d) mod %d\n", gen_fibonacci(0, i - 1), total);
+		debug_printf(DP_INFO, "Angle for spoke n: ((n * %d) mod %d) * %f\n", gen_fibonacci(0, i - 1), total, 2. * M_PI / total);
 	}
 
 	int tot_sp = Y * E * mb * turns;	// total number of lines/spokes
