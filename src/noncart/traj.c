@@ -136,8 +136,6 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	if (conf.rational)
 		golden_angle = rational_angle(Y, conf.tiny_gold);
 
-	printf("A: %f\n", golden_angle);
-
 	// Angle between spokes of one slice/partition
 	double angle_s = angle_atom * (conf.full_circle ? 2 : 1);
 
