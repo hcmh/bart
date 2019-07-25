@@ -182,9 +182,6 @@ int main_traj(int argc, char* argv[])
 
 	md_clear(DIMS, dims, samples, CFL_SIZE);
 
-	double golden_ratio = (sqrtf(5.) + 1.) / 2;
-	double angle_atom = M_PI / Y;
-
 	double base_angle[DIMS] = { 0. };
 	calc_base_angles(base_angle, Y, E, mb2, turns, conf);
 
@@ -211,8 +208,13 @@ int main_traj(int argc, char* argv[])
 			if (conf.mems_traj)
 				read = ((e % 2) ? (float)(D - i - 2) : (float)(i + D - X)) - (float)D / 2.;
 
-			if (conf.golden_partition)
+			if (conf.golden_partition) {
+
+				double golden_ratio = (sqrtf(5.) + 1.) / 2;
+				double angle_atom = M_PI / Y;
+
 				base_angle[1] = (m > 0) ? (fmod(angle_atom * m / golden_ratio, angle_atom) / m) : 0;
+			}
 
 			double angle = 0.;
 
