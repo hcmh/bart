@@ -69,6 +69,7 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('G', &conf.golden, "golden-ratio sampling"),
 		OPT_SET('H', &conf.half_circle_gold, "halfCircle golden-ratio sampling"),
 		OPT_INT('s', &conf.tiny_gold, "# Tiny GA", "tiny golden angle"),
+		OPT_SET('A', &conf.rational, "rational approximation of golden angles"),
 		OPT_SET('D', &conf.full_circle, "projection angle in [0,360°), else in [0,180°)"),
 		OPT_FLOAT('R', &rot, "phi", "rotate"),
 		OPT_FLVEC3('q', &gdelays[0], "delays", "gradient delays: x, y, xy"),
@@ -101,6 +102,21 @@ int main_traj(int argc, char* argv[])
 
 			Y = sdims[0];
 		}
+	}
+
+	if (conf.rational) {
+
+		conf.golden = true;
+
+		int i = 0;
+
+		int spokes = M_PI / 2. * X;
+		int bn = 0;
+
+		while (spokes > (bn = gen_fibonacci(conf.tiny_gold, i)))
+			i++;
+
+		debug_printf(DP_INFO, "Optimal number of spokes: %d (Nyquist: %d).\n", bn, spokes);
 	}
 
 	int tot_sp = Y * E * mb * turns;	// total number of lines/spokes
