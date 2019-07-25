@@ -36,7 +36,7 @@ int main_traj(int argc, char* argv[])
 {
 	int X = 128;
 	int Y = 128;
-	int D = 1;
+	int D = X;
 	int E = 1;
 	int mb = 1;
 	int turns = 1;
@@ -118,7 +118,7 @@ int main_traj(int argc, char* argv[])
 		conf.radial = true;
 	
 	if (D < X)
-	    D = X; // D is only needed for partial Fourier sampling
+	    error("actual readout samples must be less than full samples");
 
 
 	// Variables for z-undersampling
@@ -234,12 +234,12 @@ int main_traj(int argc, char* argv[])
 				angle2 = s * M_PI / Y * (conf.full_circle ? 2 : 1) * split;
 
 				if (NULL != custom_angle)
-						angle2 = cimag(custom_angle_val[p/X]);
+						angle2 = cimag(custom_angle_val[p / X]);
 			}
 
 
 			if (NULL != custom_angle)
-				angle = creal(custom_angle_val[p/X]);
+				angle = creal(custom_angle_val[p / X]);
 
 
 
