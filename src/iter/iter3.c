@@ -87,6 +87,8 @@ struct irgnm_l1_s {
 	float alpha_min;
 	long* dims;
 
+	bool first_iter;
+
 	const struct operator_p_s* prox;
 };
 
@@ -116,13 +118,39 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 						 src + res * res * 2 * parameters);
 }
 
+static void pos_value(iter_op_data* _data, float* dst, const float* src)
+{
+	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
+
+	long res = data->dims[0];
+	long parameters = data->dims[COEFF_DIM];
+
+	long dims1[DIMS];
+
+	md_select_dims(DIMS, FFT_FLAGS, dims1, data->dims);
+
+	md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - 1) * res * res,
+			(const _Complex float*)src + (parameters - 1) * res * res, 0.1);
+}
+
 
 
 static void combined_prox(iter_op_data* _data, float rho, float* dst, const float* src)
 {
 	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
 
-	operator_p_apply_unchecked(data->prox, rho, (_Complex float*)dst, (const _Complex float*)src);
+	if (data->first_iter) {
+
+		data->first_iter = false;
+
+	} else {
+
+		pos_value(_data, dst, src);
+	}
+
+	operator_p_apply_unchecked(data->prox, rho, (_Complex float*)dst, (const _Complex float*)dst);
+
+	pos_value(_data, dst, dst);
 }
 
 
@@ -181,13 +209,17 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 	float eps = md_norm(1, MD_DIMS(data->size_x), tmp);
 
-	fista_xw(maxiter, 0.01f * alpha * eps, step, data->dims,
+	data->first_iter = true;
+
+	fista_xw(maxiter, 0.01f * alpha * eps, step,
 		iter_fista_defaults.continuation, iter_fista_defaults.hogwild,
 		data->size_x,
 		select_vecops(src),
 		(struct iter_op_s){ normal_fista, CAST_UP(data) },
 		(struct iter_op_p_s){ combined_prox, CAST_UP(data) },
 		dst, tmp, NULL);
+
+	pos_value(CAST_UP(data), dst, dst);
 
 	md_free(tmp);
 
@@ -205,7 +237,7 @@ void iter3_irgnm_l1(const iter3_conf* _conf,
 {
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
 
-	struct irgnm_l1_s data = { { &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims, NULL };
+	struct irgnm_l1_s data = { { &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims, true, NULL };
 
 	assert(NULL == ref);
 

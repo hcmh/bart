@@ -21,7 +21,7 @@ struct iter_nlop_s;
 struct iter_op_p_s;
 struct iter_monitor_s;
 
-void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
+void fista_xw(unsigned int maxiter, float epsilon, float tau,
 	float continuation, _Bool hogwild,
 	long N,
 	const struct vec_iter_s* vops,

@@ -126,7 +126,7 @@ static float ist_continuation(struct iter_data* itrdata, const float delta)
  * @param x initial estimate
  * @param b observations
  */
-void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
+void fista_xw(unsigned int maxiter, float epsilon, float tau,
 	float continuation, bool hogwild,
 	long N,
 	const struct vec_iter_s* vops,
@@ -158,15 +158,6 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 	int hogwild_k = 0;
 	int hogwild_K = 10;
 
-	long res = dims[0];
-	long parameters = dims[COEFF_DIM];
-	int temp_index;
-	float lowerbound = 0.1;
-
-	long map_dims[16];
-	md_select_dims(16, FFT_FLAGS, map_dims, dims);
-	long map_strs[16];
-	md_calc_strides(16, map_strs, map_dims, CFL_SIZE);
 
 	debug_printf(DP_DEBUG3, "##tau = %f\n", tau);
 
@@ -183,8 +174,6 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 		iter_op_p_call(thresh, lambda_scale * tau, x, x);
 
 		// Domain Prjoection for R1s
-		temp_index = res * res * 2 * (parameters - 1);
-		vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
 
 		ravine(vops, N, &ra, x, o);	// FISTA
 		iter_op_call(op, r, x);		// r = A x
@@ -198,10 +187,6 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 			break;
 
 		vops->axpy(N, x, tau, r);
-
-		temp_index = res * res * 2 * (parameters - 1);
-		vops->zsmax(md_calc_size(16, map_dims), (complex float)lowerbound, (complex float*)(x + temp_index), (complex float*)(x + temp_index));
-
 
 		if (hogwild)
 			hogwild_k++;
