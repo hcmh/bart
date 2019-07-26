@@ -1598,8 +1598,7 @@ void md_axpy2(unsigned int D, const long dims[D], const long ostr[D], float* opt
 		if (md_calc_blockdim(D, dims, istr, FL_SIZE) != D)
 			goto fallback;
 
-		if (iptr == optr)
-			goto fallback;
+		//  (iptr == optr) is safe.
 
 		gpu_ops.axpy(md_calc_size(D, dims), optr, val, iptr);
 		return;
