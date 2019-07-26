@@ -1,6 +1,7 @@
 
 #include <stdbool.h>
 #include <complex.h>
+#include <stdlib.h>
 #include <math.h>
 
 #include "misc/nested.h"
@@ -13,7 +14,7 @@
 #define SWAP(x, y)	({ __auto_type __t = (x); (x) = (y); (y) = __t; })
 
 
-typedef void pixel_f(int x, int y, float c);
+typedef void CLOSURE_TYPE(pixel_f)(int x, int y, float c);
 typedef void line_f(pixel_f out, int x0, int y0, int x1, int y1);
 
 static void setup(line_f line, int X, int Y, pixel_f out, int x0, int y0, int x1, int y1)
@@ -30,7 +31,7 @@ static void setup(line_f line, int X, int Y, pixel_f out, int x0, int y0, int x1
 			out(x2, y2, c);
 	};
 
-	if (fabsf(x1 - x0) < fabsf(y1 - y0)) {
+	if (abs(x1 - x0) < abs(y1 - y0)) {
 
 		NESTED(void, outT, (int x2, int y2, float c))
 		{
@@ -82,8 +83,12 @@ static void bresenham(pixel_f out, int x0, int y0, int x1, int y1)
 
 extern void bresenham_rgba_fl(int X, int Y, float (*out)[X][Y][4], const float (*val)[4], int x0, int y0, int x1, int y1)
 {
+	void* p = out;	// clang limitatio
+
 	NESTED(void, draw, (int x, int y, float c))
 	{
+		float (*out)[X][Y][4] = p;
+
 		for (int i = 0; i < 4; i++)
 			(*out)[x][y][i] = c * (*val)[i];
 	};
@@ -93,8 +98,12 @@ extern void bresenham_rgba_fl(int X, int Y, float (*out)[X][Y][4], const float (
 
 extern void bresenham_rgba(int X, int Y, unsigned char (*out)[X][Y][4], const unsigned char (*val)[4], int x0, int y0, int x1, int y1)
 {
+	void* p = out;	// clang limitatio
+
 	NESTED(void, draw, (int x, int y, float c))
 	{
+		float (*out)[X][Y][4] = p;
+
 		for (int i = 0; i < 4; i++)
 			(*out)[x][y][i] = c * (*val)[i];
 	};
@@ -104,8 +113,12 @@ extern void bresenham_rgba(int X, int Y, unsigned char (*out)[X][Y][4], const un
 
 extern void bresenham_cmplx(int X, int Y, complex float (*out)[X][Y], complex float val, int x0, int y0, int x1, int y1)
 {
+	void* p = out;	// clang limitatio
+
 	NESTED(void, draw, (int x, int y, float c))
 	{
+		float (*out)[X][Y] = p;
+
 		(*out)[x][y] = c * val;
 	};
 
@@ -125,17 +138,17 @@ static void xiaolin_wu(pixel_f out, int x0, int y0, int x1, int y1)
 
 	float grad = (0. == dx) ? 1. : (dy / dx);
 
-	float frac(float x) { return x - floorf(x); };
-	float rfrac(float x) { return 1. - frac(x); };
+	NESTED(float, frac, (float x)) { return x - floorf(x); };
+	NESTED(float, rfrac, (float x)) { return (float)(1. - frac(x)); };
 
-	void endp(float x, float y)
+	NESTED(void, endp, (float x, float y))
 	{
 		float ye = y + grad * (roundf(x) - x);
 		float gp = rfrac(x + 0.5);
 
 		out(roundf(x), floorf(ye) + 0, gp * rfrac(ye));
 		out(roundf(x), floorf(ye) + 1, gp * frac(ye));
-	}
+	};
 
 	endp(x0, y0);
 	endp(x1, y1);
@@ -153,8 +166,12 @@ static void xiaolin_wu(pixel_f out, int x0, int y0, int x1, int y1)
 
 extern void xiaolin_wu_cmplx(int X, int Y, complex float (*out)[X][Y], complex float val, int x0, int y0, int x1, int y1)
 {
+	void* p = out;	// clang limitation
+
 	NESTED(void, draw, (int x, int y, float c))
 	{
+		float (*out)[X][Y] = p;
+
 		(*out)[x][y] = c * val;
 	};
 
@@ -163,8 +180,12 @@ extern void xiaolin_wu_cmplx(int X, int Y, complex float (*out)[X][Y], complex f
 
 extern void xiaolin_wu_rgba_fl(int X, int Y, float (*out)[X][Y][4], const float (*val)[4], int x0, int y0, int x1, int y1)
 {
+	void* p = out;	// clang limitation
+
 	NESTED(void, draw, (int x, int y, float c))
 	{
+		float (*out)[X][Y][4] = p;
+
 		for (int i = 0; i < 4; i++)
 			(*out)[x][y][i] = c * (*val)[i];
 	};
@@ -174,8 +195,12 @@ extern void xiaolin_wu_rgba_fl(int X, int Y, float (*out)[X][Y][4], const float 
 
 extern void xiaolin_wu_rgba(int X, int Y, unsigned char (*out)[X][Y][4], const unsigned char (*val)[4], int x0, int y0, int x1, int y1)
 {
+	void* p = out;	// clang limitation
+
 	NESTED(void, draw, (int x, int y, float c))
 	{
+		float (*out)[X][Y][4] = p;
+
 		for (int i = 0; i < 4; i++)
 			(*out)[x][y][i] = c * (*val)[i];
 	};
