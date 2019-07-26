@@ -36,7 +36,6 @@
 #include "iter/iter2.h"
 #include "iter/iter3.h"
 
-//#define mphase
 
 int k_fista = 0;
 
@@ -88,8 +87,7 @@ struct irgnm_l1_s {
 	float alpha_min;
 	long* dims;
 
-	const struct operator_p_s* prox1;
-	const struct operator_p_s* prox2;
+	const struct operator_p_s* prox;
 };
 
 DEF_TYPEID(irgnm_l1_s);
@@ -124,8 +122,7 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 {
 	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
 
-	operator_p_apply_unchecked(data->prox1, rho, (_Complex float*)dst, (const _Complex float*)src);
-	operator_p_apply_unchecked(data->prox2, rho, (_Complex float*)dst, (const _Complex float*)src);
+	operator_p_apply_unchecked(data->prox, rho, (_Complex float*)dst, (const _Complex float*)src);
 }
 
 
@@ -156,8 +153,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 		bool randshift = true;
 		long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
 		unsigned int wflags = 0;
-		unsigned int jwflags_1 = 0;
-		unsigned int jwflags_2 = 0;
+
 		for (unsigned int i = 0; i < DIMS; i++) {
 
 			if ((1 < img_dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
@@ -166,17 +162,8 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 				minsize[i] = MIN(img_dims[i], 16);
 			}
 		}
-		jwflags_1 = MD_SET(jwflags_1, 6);
-		jwflags_2 = MD_SET(jwflags_2, 11);
-        
-//		prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags, minsize, alpha, randshift);
-#ifdef mphase
-		data->prox1 = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags_1, minsize, 0, randshift);
-		data->prox2 = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags_2, minsize, alpha, randshift);
-#else
-		data->prox1 = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags_1, minsize, alpha, randshift);
-		data->prox2 = prox_wavelet_thresh_create(DIMS, img_dims, wflags, jwflags_2, minsize, 0, randshift);
-#endif
+
+		data->prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, COEFF_FLAG, minsize, alpha, randshift);
 	}
     
 	debug_printf(DP_DEBUG3, "##reg. alpha = %f\n", alpha);
@@ -216,7 +203,7 @@ void iter3_irgnm_l1(const iter3_conf* _conf,
 {
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
 
-	struct irgnm_l1_s data = { { &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims, NULL, NULL};
+	struct irgnm_l1_s data = { { &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims, NULL };
 
 	assert(NULL == ref);
 
