@@ -551,7 +551,7 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
  * This version has an extra call to DF, but we can use a generic regularized
  * least-squares solver.
  */
-void irgnm2(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
+void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, float redu, long N, long M,
 	const struct vec_iter_s* vops,
 	struct iter_op_s op,
 	struct iter_op_s der,
@@ -586,6 +586,9 @@ void irgnm2(unsigned int iter, float alpha, float alpha_min, float redu, long N,
 			vops->axpy(N, x, +1., xref);
 
 		alpha = (alpha - alpha_min) / redu + alpha_min;
+
+		if (alpha < alpha_min0)
+			alpha = alpha_min0;
 
 		if (NULL != callback.fun)
 			iter_op_call(callback, x, x);
