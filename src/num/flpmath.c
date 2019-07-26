@@ -3435,6 +3435,19 @@ void md_zsmax2(unsigned int D, const long dim[D], const long ostr[D], complex fl
 }
 
 
+/**
+ * Elementwise maximum of input and scalar (without strides)
+ *
+ * optr = max(val, iptr)
+ */
+void md_zsmax(unsigned int D, const long dim[D], complex float* optr, const complex float* iptr, float val)
+{
+	long str[D];
+	md_calc_strides(D, str, dim, CFL_SIZE);
+
+	md_zsmax2(D, dim, str, optr, str, iptr, val);
+}
+
 
 /**
  * Elementwise minimum of input and scalar (without strides)
