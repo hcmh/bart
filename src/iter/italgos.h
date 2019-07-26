@@ -14,6 +14,7 @@
 #endif
 
 #include "misc/types.h"
+#include "misc/nested.h"
 
 struct vec_iter_s;
 
@@ -87,19 +88,44 @@ void landweber_sym(unsigned int maxiter, float epsilon, float alpha,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
+
+/**
+ * Store information about iterative algorithm.
+ * Used to flexibly modify behavior, e.g. continuation
+ *
+ * @param rsnew current residual
+ * @param rsnot initial residual
+ * @param iter current iteration
+ * @param maxiter maximum iteration
+ * @param tau tau
+ * @param scale scaling of regularization
+ */
+struct ist_data {
+
+	double rsnew;
+	double rsnot;
+	unsigned int iter;
+	const unsigned int maxiter;
+	float tau;
+	float scale;
+};
+
+typedef void CLOSURE_TYPE(ist_continuation_t)(struct ist_data* itrdata);
+
+
 void ist(unsigned int maxiter, float epsilon, float tau, 
-	float continuation, _Bool hogwild,
 	long N,
 	const struct vec_iter_s* vops,
+	ist_continuation_t ist_continuation,
 	struct iter_op_s op,
 	struct iter_op_p_s thresh,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
 void fista(unsigned int maxiter, float epsilon, float tau, 
-	float continuation, _Bool hogwild,
 	long N,
 	const struct vec_iter_s* vops,
+	ist_continuation_t ist_continuation,
 	struct iter_op_s op,
 	struct iter_op_p_s thresh,
 	float* x, const float* b,

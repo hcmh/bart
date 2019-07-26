@@ -211,9 +211,9 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	data->first_iter = true;
 
 	fista(maxiter, 0.01f * alpha * eps, step,
-		iter_fista_defaults.continuation, iter_fista_defaults.hogwild,
 		data->size_x,
 		select_vecops(src),
+		NULL,
 		(struct iter_op_s){ normal_fista, CAST_UP(data) },
 		(struct iter_op_p_s){ combined_prox, CAST_UP(data) },
 		dst, tmp, NULL);
