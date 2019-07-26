@@ -186,10 +186,15 @@ void iter2_ist(iter_conf* _conf,
 	if (checkeps(eps))
 		goto cleanup;
 
-	assert((conf->continuation >= 0.) && (conf->continuation <= 1.));
+	// This was probably broken for IST until v0.4.04
+	// better turn of it off with an error
+	assert(1 == conf->continuation);
 
-	ist(conf->maxiter, eps * conf->tol, conf->INTERFACE.alpha * conf->step, conf->continuation, conf->hogwild, size, select_vecops(image_adj),
-		OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
+	// Let's see whether somebody uses it...
+	assert(!conf->hogwild);
+
+	ist(conf->maxiter, eps * conf->tol, conf->INTERFACE.alpha * conf->step, size, select_vecops(image_adj),
+		NULL, OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
 
 cleanup:
 	;
@@ -222,14 +227,40 @@ void iter2_fista(iter_conf* _conf,
 	assert(check_ops(size, normaleq_op, D, prox_ops, ops));
 
 	if (checkeps(eps))
-		goto cleanup;
+		return; // clang limitation
+	//	goto cleanup;
 
 	assert((conf->continuation >= 0.) && (conf->continuation <= 1.));
 
-	fista(conf->maxiter, eps * conf->tol, conf->INTERFACE.alpha * conf->step, conf->continuation, conf->hogwild, size, select_vecops(image_adj),
-		OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
+	__block int hogwild_k = 0;
+	__block int hogwild_K = 10;
 
-cleanup:
+	NESTED(void, continuation, (struct ist_data* itrdata))
+	{
+		float a = logf(conf->continuation) / (float)itrdata->maxiter;
+		itrdata->scale = expf(a * itrdata->iter);
+
+		if (conf->hogwild) {
+
+			/* this is not exactly identical to what was implemented
+			 * before as tau is now reduced at the beginning. But this
+			 * seems more correct. */
+
+			hogwild_k++;
+
+			if (hogwild_k == hogwild_K) {
+
+				hogwild_k = 0;
+				hogwild_K *= 2;
+				itrdata->tau /= 2;
+			}
+		}
+	};
+
+	fista(conf->maxiter, eps * conf->tol, conf->INTERFACE.alpha * conf->step, size, select_vecops(image_adj),
+		continuation, OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
+
+// cleanup:
 	;
 }
 
