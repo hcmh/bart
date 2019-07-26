@@ -36,7 +36,6 @@
 #include "iter/iter3.h"
 
 
-int k_fista = 0;
 
 DEF_TYPEID(iter3_irgnm_conf);
 DEF_TYPEID(iter3_landweber_conf);
@@ -87,6 +86,7 @@ struct irgnm_l1_s {
 	long* dims;
 
 	bool first_iter;
+	int outer_iter;
 
 	const struct operator_p_s* prox1;
 	const struct operator_p_s* prox2;
@@ -174,11 +174,8 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 	wavthresh_rand_state_set(data->prox1, 1);
     
-	int maxiter = 10 * powf(2, k_fista);
+	int maxiter = MIN(250, 10 * powf(2, data->outer_iter));
     
-	if(maxiter > 250)
-		maxiter = 250;
-
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
 
 	iter_op_call(data->adj, tmp, src);
@@ -190,7 +187,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	NESTED(void, continuation, (struct ist_data* itrdata))
 	{
 		itrdata->scale = data->alpha;
-	}
+	};
 
 	fista(maxiter, 0.01f * alpha * eps, step,
 		data->size_x,
@@ -204,7 +201,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 	md_free(tmp);
 
-	k_fista++;
+	data->outer_iter++;
 }
 
 
@@ -219,7 +216,7 @@ static const struct operator_p_s* create_prox(const long img_dims[DIMS])
 		if ((1 < img_dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
 
 			wflags = MD_SET(wflags, i);
-			minsize[i] = MIN(img_dims[i], 16);
+			minsize[i] = MIN(img_dims[i], DIMS);
 		}
 	}
 
@@ -243,7 +240,12 @@ void iter3_irgnm_l1(const iter3_conf* _conf,
 	auto prox1 = create_prox(img_dims);
 	auto prox2 = op_p_auto_normalize(prox1, ~COEFF_FLAG);
 
-	struct irgnm_l1_s data = { { &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims, true, prox1, prox2 };
+	struct irgnm_l1_s data = {
+
+		{ &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M,
+		conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min,
+		conf->dims, true, 0, prox1, prox2
+	};
 
 	assert(NULL == ref);
 
