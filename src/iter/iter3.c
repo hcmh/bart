@@ -101,7 +101,6 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 {
 	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
 
-
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
 
 	iter_op_call(data->der, tmp, src);
@@ -110,25 +109,13 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 	md_free(tmp);
 
 	long res = data->dims[0];
-	long SMS = data->dims[SLICE_DIM];
 	long parameters = data->dims[COEFF_DIM];
 	long coils = data->dims[COIL_DIM];
-	long TIME2 = data->dims[TIME2_DIM];
-    
    
-	// only add l2 norm to the coils, not parameter maps
-	for (int u = 0; u < SMS; u++) {
-
-		for (int v = 0; v < TIME2; v++) {
-
-			select_vecops(src)->axpy(data->size_x*coils*SMS*TIME2/(coils*SMS*TIME2 + parameters*SMS*TIME2),
-						 dst + res*res*2*(parameters*SMS*TIME2),
+	select_vecops(src)->axpy(data->size_x * coils / (coils + parameters),
+						 dst + res * res * 2 * parameters,
 						 data->alpha,
-						 src + res*res*2*(parameters*SMS*TIME2));
-		}
-	}
-//       select_vecops(src)->axpy(data->size, dst, data->alpha, src);
-
+						 src + res * res * 2 * parameters);
 }
 
 
