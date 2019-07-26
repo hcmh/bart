@@ -372,6 +372,7 @@ const struct vec_ops gpu_ops = {
 	.le = cuda_le,
 
 	.zsmul = cuda_zsmul,
+	.zsmax = cuda_zsmax,
 
 	.zmul = cuda_zmul,
 	.zdiv = cuda_zdiv,
@@ -429,7 +430,6 @@ struct vec_iter_s {
 	void (*axpbz)(long N, float* out, const float a, const float* x, const float b, const float* z);
 
 	void (*zmul)(long N, complex float* dst, const complex float* src1, const complex float* src2);
-	void (*zsmax)(long N, complex float alpha, complex float* dst, const complex float* src);
 };
 
 extern const struct vec_iter_s gpu_iter_ops;
@@ -449,7 +449,6 @@ const struct vec_iter_s gpu_iter_ops = {
 	.sub = cuda_sub,
 	.swap = cuda_swap,
 	.zmul = cuda_zmul,
-	.zsmax = cuda_zsmax,
 };
 
 
