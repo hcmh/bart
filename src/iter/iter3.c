@@ -88,7 +88,8 @@ struct irgnm_l1_s {
 
 	bool first_iter;
 
-	const struct operator_p_s* prox;
+	const struct operator_p_s* prox1;
+	const struct operator_p_s* prox2;
 };
 
 DEF_TYPEID(irgnm_l1_s);
@@ -147,7 +148,7 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 		pos_value(_data, dst, src);
 	}
 
-	operator_p_apply_unchecked(data->prox, rho, (_Complex float*)dst, (const _Complex float*)dst);
+	operator_p_apply_unchecked(data->prox2, rho, (_Complex float*)dst, (const _Complex float*)dst);
 
 	pos_value(_data, dst, dst);
 }
@@ -166,38 +167,14 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	md_gaussian_rand(1, MD_DIMS(data->size_x / 2), x);
 	double maxeigen = power(20, data->size_x, select_vecops(src), (struct iter_op_s){ normal_fista, CAST_UP(data) }, x);
 	md_free(x);
-//	debug_printf(DP_INFO, "\tMax eigv: %.2e\n", maxeigen);
 
-	double step = 0.475/maxeigen;//fmin(iter_fista_defaults.step / maxeigen, iter_fista_defaults.step); // 0.95f is FISTA standard
-//	debug_printf(DP_INFO, "\tFISTA Stepsize: %.2e\n", step);
-//     float alpha_min = data->alpha_min;
-	long img_dims[16];
-	md_select_dims(16, ~COIL_FLAG, img_dims, data->dims);
-	debug_print_dims(DP_INFO, DIMS, img_dims);
+	double step = 0.475 / maxeigen;
 
-	if (1) {
-		// for FISTA+
-		bool randshift = true;
-		long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
-		unsigned int wflags = 0;
-
-		for (unsigned int i = 0; i < DIMS; i++) {
-
-			if ((1 < img_dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
-
-				wflags = MD_SET(wflags, i);
-				minsize[i] = MIN(img_dims[i], 16);
-			}
-		}
-
-		auto prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, COEFF_FLAG, minsize, 1., randshift);
-		data->prox = op_p_auto_normalize(prox, ~COEFF_FLAG);
-		operator_p_free(prox);
-	}
-    
 	debug_printf(DP_DEBUG3, "##reg. alpha = %f\n", alpha);
+
+	wavthresh_rand_state_set(data->prox1, 1);
     
-	int maxiter = 10*powf(2, k_fista);
+	int maxiter = 10 * powf(2, k_fista);
     
 	if(maxiter > 250)
 		maxiter = 250;
@@ -231,6 +208,24 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 }
 
 
+static const struct operator_p_s* create_prox(const long img_dims[DIMS])
+{
+	bool randshift = true;
+	long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
+	unsigned int wflags = 0;
+
+	for (unsigned int i = 0; i < DIMS; i++) {
+
+		if ((1 < img_dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
+
+			wflags = MD_SET(wflags, i);
+			minsize[i] = MIN(img_dims[i], 16);
+		}
+	}
+
+	return prox_wavelet_thresh_create(DIMS, img_dims, wflags, COEFF_FLAG, minsize, 1., randshift);
+}
+
 
 void iter3_irgnm_l1(const iter3_conf* _conf,
 		struct iter_op_s frw,
@@ -241,7 +236,14 @@ void iter3_irgnm_l1(const iter3_conf* _conf,
 {
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
 
-	struct irgnm_l1_s data = { { &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims, true, NULL };
+	long img_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, conf->dims);
+	debug_print_dims(DP_INFO, DIMS, img_dims);
+
+	auto prox1 = create_prox(img_dims);
+	auto prox2 = op_p_auto_normalize(prox1, ~COEFF_FLAG);
+
+	struct irgnm_l1_s data = { { &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M, conf->cgiter, conf->cgtol, conf->nlinv_legacy, 1.0, conf->alpha_min, conf->dims, true, prox1, prox2 };
 
 	assert(NULL == ref);
 
@@ -252,6 +254,9 @@ void iter3_irgnm_l1(const iter3_conf* _conf,
 		dst, ref, src,
 		(struct iter_op_s){ NULL, NULL },
 		NULL);
+
+	operator_p_free(prox1);
+	operator_p_free(prox2);
 }
 
 
