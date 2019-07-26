@@ -42,9 +42,7 @@ struct irgnm_l1_s {
 
 	INTERFACE(iter_op_data);
 
-	struct iter_op_s frw;
-	struct iter_op_s der;
-	struct iter_op_s adj;
+	struct nlop_s* nlop;
     
 	long size_x;
 	long size_y;
@@ -72,8 +70,8 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
 
-	iter_op_call(data->der, tmp, src);
-	iter_op_call(data->adj, dst, tmp);
+	linop_forward_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
+	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)dst, (const complex float*)tmp);
 
 	md_free(tmp);
 
@@ -147,7 +145,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
     
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
 
-	iter_op_call(data->adj, tmp, src);
+	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
 
 	float eps = md_norm(1, MD_DIMS(data->size_x), tmp);
 
@@ -193,43 +191,6 @@ static const struct operator_p_s* create_prox(const long img_dims[DIMS])
 }
 
 
-static void iter3_irgnm_l1(const iter3_conf* _conf,
-		const long dims[],
-		struct iter_op_s frw,
-		struct iter_op_s der,
-		struct iter_op_s adj,
-		long N, float* dst, const float* ref,
-		long M, const float* src)
-{
-	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
-
-	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
-	debug_print_dims(DP_INFO, DIMS, img_dims);
-
-	auto prox1 = create_prox(img_dims);
-	auto prox2 = op_p_auto_normalize(prox1, ~COEFF_FLAG);
-
-	struct irgnm_l1_s data = {
-
-		{ &TYPEID(irgnm_l1_s) }, frw, der, adj, N, M,
-		1.0, conf->alpha_min,
-		dims, true, 0, prox1, prox2
-	};
-
-	assert(NULL == ref);
-
-	irgnm2(conf->iter, conf->alpha, 0., conf->alpha_min, conf->redu, N, M, select_vecops(src),
-		frw,
-		der,
-		(struct iter_op_p_s){ inverse_fista, CAST_UP(&data) },
-		dst, ref, src,
-		(struct iter_op_s){ NULL, NULL },
-		NULL);
-
-	operator_p_free(prox1);
-	operator_p_free(prox2);
-}
 
 struct iterT1_nlop_s {
 
@@ -245,7 +206,6 @@ static void nlop_for_iter(iter_op_data* _o, float* _dst, const float* _src)
 {
 	const auto nlop = CAST_DOWN(iterT1_nlop_s, _o);
 
-	assert(2 == operator_nr_args(nlop->nlop.op));
 	operator_apply_unchecked(nlop->nlop.op, (complex float*)_dst, (const complex float*)_src);
 }
 
@@ -257,13 +217,7 @@ static void nlop_der_iter(iter_op_data* _o, float* _dst, const float* _src)
 	linop_forward_unchecked(nlop->nlop.derivative[0], (complex float*)_dst, (const complex float*)_src);
 }
 
-static void nlop_adj_iter(iter_op_data* _o, float* _dst, const float* _src)
-{
-	const auto nlop = CAST_DOWN(iterT1_nlop_s, _o);
 
-	assert(2 == operator_nr_args(nlop->nlop.op));
-	linop_adjoint_unchecked(nlop->nlop.derivative[0], (complex float*)_dst, (const complex float*)_src);
-}
 
 void iter4_irgnm_l1(const iter3_conf* _conf,
 	const long dims[],
@@ -273,8 +227,6 @@ void iter4_irgnm_l1(const iter3_conf* _conf,
 	const struct operator_p_s* pinv,
 	struct iter_op_s cb)
 {
-	struct iterT1_nlop_s data = { { &TYPEID(iterT1_nlop_s) }, *nlop };
-
 	auto cd = nlop_codomain(nlop);
 	auto dm = nlop_domain(nlop);
 
@@ -284,12 +236,36 @@ void iter4_irgnm_l1(const iter3_conf* _conf,
 	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
 	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
 
-	iter3_irgnm_l1(_conf,
-		dims,
-		(struct iter_op_s){ nlop_for_iter, CAST_UP(&data) },
-		(struct iter_op_s){ nlop_der_iter, CAST_UP(&data) },
-		(struct iter_op_s){ nlop_adj_iter, CAST_UP(&data) },
-		N, dst, ref, M, src);
-}
 
+	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
+
+	long img_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
+	debug_print_dims(DP_INFO, DIMS, img_dims);
+
+	auto prox1 = create_prox(img_dims);
+	auto prox2 = op_p_auto_normalize(prox1, ~COEFF_FLAG);
+
+	struct irgnm_l1_s data = {
+
+		{ &TYPEID(irgnm_l1_s) }, nlop, N, M,
+		1.0, conf->alpha_min,
+		dims, true, 0, prox1, prox2
+	};
+
+	struct iterT1_nlop_s nl_data = { { &TYPEID(iterT1_nlop_s) }, *nlop };
+
+	assert(NULL == ref);
+
+	irgnm2(conf->iter, conf->alpha, 0., conf->alpha_min, conf->redu, N, M, select_vecops(src),
+		(struct iter_op_s){ nlop_for_iter, CAST_UP(&nl_data) },
+		(struct iter_op_s){ nlop_der_iter, CAST_UP(&nl_data) },
+		(struct iter_op_p_s){ inverse_fista, CAST_UP(&data) },
+		dst, ref, src,
+		(struct iter_op_s){ NULL, NULL },
+		NULL);
+
+	operator_p_free(prox1);
+	operator_p_free(prox2);
+}
 
