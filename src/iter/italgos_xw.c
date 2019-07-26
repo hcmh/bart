@@ -162,7 +162,6 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 	long parameters = dims[COEFF_DIM];
 	int temp_index;
 	float lowerbound = 0.1;
-	float scaling[parameters];
 
 	long map_dims[16];
 	md_select_dims(16, FFT_FLAGS, map_dims, dims);
@@ -181,24 +180,7 @@ void fista_xw(unsigned int maxiter, float epsilon, float tau, long* dims,
 		if (lambda_scale != ls_old)
 			debug_printf(DP_DEBUG3, "##lambda_scale = %f\n", lambda_scale);
 
-		// normalize all the maps before joint wavelet denoising
-
-		for (int v = 0; v < parameters; v++) {
-
-			temp_index = v;
-			scaling[temp_index] = md_norm(1, MD_DIMS(2 * md_calc_size(16, map_dims)), x + res * res * 2 * temp_index);
-			md_smul(1, MD_DIMS(2 * md_calc_size(16, map_dims)), x + res * res * 2 * temp_index,
-			        x + res * res * 2 * temp_index, 1.0 / scaling[temp_index]);
-		}
-
 		iter_op_p_call(thresh, lambda_scale * tau, x, x);
-
-		for(int v = 0; v < parameters; v++) {
-
-			temp_index = v;
-			md_smul(1, MD_DIMS(2 * md_calc_size(16, map_dims)), x + res * res * 2 * temp_index,
-			        x + res * res * 2 * temp_index, scaling[temp_index]);
-		}
 
 		// Domain Prjoection for R1s
 		temp_index = res * res * 2 * (parameters - 1);

@@ -163,7 +163,9 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 			}
 		}
 
-		data->prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, COEFF_FLAG, minsize, alpha, randshift);
+		auto prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, COEFF_FLAG, minsize, alpha, randshift);
+		data->prox = op_p_auto_normalize(prox, ~COEFF_FLAG);
+		operator_p_free(prox);
 	}
     
 	debug_printf(DP_DEBUG3, "##reg. alpha = %f\n", alpha);
