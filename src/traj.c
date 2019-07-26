@@ -36,7 +36,7 @@ int main_traj(int argc, char* argv[])
 {
 	int X = 128;
 	int Y = 128;
-	int D = 1;
+	int D = -1;
 	int E = 1;
 	int mb = 1;
 	int turns = 1;
@@ -69,6 +69,7 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('G', &conf.golden, "golden-ratio sampling"),
 		OPT_SET('H', &conf.half_circle_gold, "halfCircle golden-ratio sampling"),
 		OPT_INT('s', &conf.tiny_gold, "# Tiny GA", "tiny golden angle"),
+		OPT_SET('A', &conf.rational, "rational approximation of golden angles"),
 		OPT_SET('D', &conf.full_circle, "projection angle in [0,360°), else in [0,180°)"),
 		OPT_FLOAT('R', &rot, "phi", "rotate"),
 		OPT_FLVEC3('q', &gdelays[0], "delays", "gradient delays: x, y, xy"),
@@ -89,17 +90,38 @@ int main_traj(int argc, char* argv[])
 	long sdims[DIMS];
 	complex float* custom_angle_val = NULL;
 
-	if (NULL != custom_angle && conf.radial) {
+	if ((NULL != custom_angle) && conf.radial) {
 
 		debug_printf(DP_INFO, "custom_angle file is used \n");
+
 		custom_angle_val = load_cfl(custom_angle, DIMS, sdims);
 
-		if(Y != sdims[0]){
+		if (Y != sdims[0]) {
 
-			debug_printf(DP_INFO, "According to the custom angle file : y = %d\n",sdims[0]);
+			debug_printf(DP_INFO, "According to the custom angle file : y = %d\n", sdims[0]);
+
 			Y = sdims[0];
-
 		}
+	}
+
+	if (conf.rational) {
+
+		conf.golden = true;
+
+		int i = 0;
+		int spokes = M_PI / 2. * X;
+
+		while (spokes > gen_fibonacci(conf.tiny_gold, i))
+			i++;
+
+		int total = gen_fibonacci(conf.tiny_gold, i);
+
+		debug_printf(DP_INFO, "Rational approximation golden angle sampling:\n");
+		debug_printf(DP_INFO, "Optimal number of spokes: %d (Nyquist: %d).\n", total, spokes);
+		debug_printf(DP_INFO, "Base angle (full circle): %f = 2 pi / %d\n", 2. * M_PI / total, total);
+		debug_printf(DP_INFO, "Index increment per spoke: %d\n", gen_fibonacci(0, i - 1));
+		debug_printf(DP_INFO, "Index for spoke n: (n * %d) mod %d\n", gen_fibonacci(0, i - 1), total);
+		debug_printf(DP_INFO, "Angle for spoke n: ((n * %d) mod %d) * %f\n", gen_fibonacci(0, i - 1), total, 2. * M_PI / total);
 	}
 
 	int tot_sp = Y * E * mb * turns;	// total number of lines/spokes
@@ -113,13 +135,15 @@ int main_traj(int argc, char* argv[])
 
 	dims[TE_DIM] = E;
 
-	if (conf.mems_traj) {
+	if (conf.mems_traj)
 		conf.radial = true;
-	}
+
+	if (-1 == D)
+		D = X;
 	
-	if (D < X) {
-	    D = X; // D is only needed for partial Fourier sampling
-	}
+	if (D < X)
+	    error("actual readout samples must be less than full samples");
+
 
 	// Variables for z-undersampling
 	long z_reflines = z_usamp[0];
@@ -133,7 +157,6 @@ int main_traj(int argc, char* argv[])
 
 		if ((mb2 < 1) || ((mb - z_reflines) % z_acc != 0))
 			error("Invalid z-Acceleration!\n");
-
 	}
 
 
@@ -183,9 +206,6 @@ int main_traj(int argc, char* argv[])
 
 	md_clear(DIMS, dims, samples, CFL_SIZE);
 
-	double golden_ratio = (sqrtf(5.) + 1.) / 2;
-	double angle_atom = M_PI / Y;
-
 	double base_angle[DIMS] = { 0. };
 	calc_base_angles(base_angle, Y, E, mb2, turns, conf);
 
@@ -209,13 +229,16 @@ int main_traj(int argc, char* argv[])
 			 */
 			double read = (float)i + (conf.asym_traj ? 0 : 0.5) - (float)X / 2.;
 
-			if (conf.mems_traj) {
+			if (conf.mems_traj)
+				read = ((e % 2) ? (float)(D - i - 2) : (float)(i + D - X)) - (float)D / 2.;
 
-				read = ((e%2) ? (float)(D-i-2) : (float)(i+D-X)) - (float)D/2.;
-			}
+			if (conf.golden_partition) {
 
-			if (conf.golden_partition)
+				double golden_ratio = (sqrtf(5.) + 1.) / 2;
+				double angle_atom = M_PI / Y;
+
 				base_angle[1] = (m > 0) ? (fmod(angle_atom * m / golden_ratio, angle_atom) / m) : 0;
+			}
 
 			double angle = 0.;
 
@@ -237,13 +260,12 @@ int main_traj(int argc, char* argv[])
 				angle2 = s * M_PI / Y * (conf.full_circle ? 2 : 1) * split;
 
 				if (NULL != custom_angle)
-						angle2 = cimag(custom_angle_val[p/X]);
-
+						angle2 = cimag(custom_angle_val[p / X]);
 			}
 
 
 			if (NULL != custom_angle)
-					angle = creal(custom_angle_val[p/X]);
+				angle = creal(custom_angle_val[p / X]);
 
 
 
