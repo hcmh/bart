@@ -173,15 +173,6 @@ void iter4_landweber(const iter3_conf* _conf,
 
 
 
-void irgnm2(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
-	const struct vec_iter_s* vops,
-	struct iter_op_s op,
-	struct iter_op_s der,
-	struct iter_op_p_s lsqr,
-	float* x, const float* xref, const float* y,
-	struct iter_op_s callback,
-	struct iter_monitor_s* monitor);
-
 
 static void inverse2(iter_op_data* _data, float alpha, float* dst, const float* src)
 {
@@ -227,7 +218,7 @@ void iter4_irgnm2(const iter3_conf* _conf,
 
 	struct iter_op_p_s inv2 = { inverse2, CAST_UP(&data2) };
 
-	irgnm2(conf->iter, conf->alpha, conf->alpha_min, conf->redu, N, M, select_vecops(src),
+	irgnm2(conf->iter, conf->alpha, conf->alpha_min, 0., conf->redu, N, M, select_vecops(src),
 		frw, der, (NULL == lsqr) ? inv2 : OPERATOR_P2ITOP(lsqr),
 		dst, ref, src, cb, NULL);
 
