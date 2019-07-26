@@ -17,6 +17,7 @@
 #include "num/flpmath.h"
 #include "num/fft.h"
 
+#include "iter/iterT1.h"
 #include "iter/iter3.h"
 #include "iter/iter4.h"
 #include "iter/thresh.h"
@@ -81,15 +82,17 @@ void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.nlinv_legacy = true;
 
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, irgnm_conf.dims, imgs_dims);
+	long irgnm_conf_dims[DIMS];
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, irgnm_conf_dims, imgs_dims);
 
-	irgnm_conf.dims[COIL_DIM] = coil_dims[COIL_DIM];
+	irgnm_conf_dims[COIL_DIM] = coil_dims[COIL_DIM];
 
 	debug_printf(DP_INFO, "imgs_dims:\n\t");
-	debug_print_dims(DP_INFO, DIMS, irgnm_conf.dims);
+	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
 
-	iter4_irgnm(CAST_UP(&irgnm_conf),
+	iter4_irgnm_l1(CAST_UP(&irgnm_conf),
+			irgnm_conf_dims,
 			nl.nlop,
 //  			size * 2, (float*)x, (float*)x,
 			size * 2, (float*)x, NULL,

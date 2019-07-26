@@ -12,14 +12,6 @@ struct iter_op_s;
 
 
 
-extern void iter3_irgnm_l1(const iter3_conf* _conf,
-		struct iter_op_s frw,
-		struct iter_op_s der,
-		struct iter_op_s adj,
-		long N, float* dst, const float* ref,
-		long M, const float* src);
-
-
 struct iter3_irgnm_conf {
 
 	INTERFACE(iter3_conf);
@@ -31,12 +23,11 @@ struct iter3_irgnm_conf {
 
 	int cgiter;
 	float cgtol;
-    
-	long N;
-	long dims[16];
 
 	_Bool nlinv_legacy;
 };
+
+
 
 
 
