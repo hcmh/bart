@@ -190,7 +190,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 			}
 		}
 
-		auto prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, COEFF_FLAG, minsize, alpha, randshift);
+		auto prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, COEFF_FLAG, minsize, 1., randshift);
 		data->prox = op_p_auto_normalize(prox, ~COEFF_FLAG);
 		operator_p_free(prox);
 	}
@@ -210,10 +210,15 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 	data->first_iter = true;
 
+	NESTED(void, continuation, (struct ist_data* itrdata))
+	{
+		itrdata->scale = data->alpha;
+	}
+
 	fista(maxiter, 0.01f * alpha * eps, step,
 		data->size_x,
 		select_vecops(src),
-		NULL,
+		continuation,
 		(struct iter_op_s){ normal_fista, CAST_UP(data) },
 		(struct iter_op_p_s){ combined_prox, CAST_UP(data) },
 		dst, tmp, NULL);
