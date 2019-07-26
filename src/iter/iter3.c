@@ -27,7 +27,6 @@
 
 
 #include "iter/italgos.h"
-#include "iter/italgos_xw.h"
 #include "iter/vec.h"
 #include "iter/prox.h"
 #include "iter/thresh.h"
@@ -211,7 +210,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 	data->first_iter = true;
 
-	fista_xw(maxiter, 0.01f * alpha * eps, step,
+	fista(maxiter, 0.01f * alpha * eps, step,
 		iter_fista_defaults.continuation, iter_fista_defaults.hogwild,
 		data->size_x,
 		select_vecops(src),
