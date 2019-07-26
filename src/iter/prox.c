@@ -697,14 +697,51 @@ static void auto_norm_apply(const operator_data_t* _data, float mu, complex floa
 	long sstrs[N];
 	md_calc_strides(N, sstrs, sdims, CFL_SIZE);
 
+#if 0
 	complex float* scale = md_alloc_sameplace(N, sdims, CFL_SIZE, x);
 
 	md_zrss(N, io->dims, data->flags, scale, x);
 	md_zdiv2(N, io->dims, io->strs, y, io->strs, x, sstrs, scale);
+#else
+	long pos[N];
+	for (unsigned int i = 0; i < N; i++)
+		pos[i] = 0;
+
+	long xdims[N];
+	md_select_dims(N, data->flags, xdims, io->dims);
+
+	complex float* scale = md_alloc(N, sdims, CFL_SIZE);
+
+
+
+	do {
+		MD_ACCESS(N, sstrs, pos, scale) = md_znorm2(N, xdims, io->strs, &MD_ACCESS(N, io->strs, pos, x));
+
+		complex float val = MD_ACCESS(N, sstrs, pos, scale);
+
+		md_zsmul2(N, xdims, io->strs, &MD_ACCESS(N, io->strs, pos, y),
+				io->strs, &MD_ACCESS(N, io->strs, pos, x),
+				(0. == val) ? 0. : (1. / val));
+
+	} while (md_next(N, io->dims, ~data->flags, pos));
+#endif
 
 	operator_p_apply_unchecked(data->op, mu, y, y);	// FIXME: input == output
-
+#if 0
 	md_zmul2(N, io->dims, io->strs, y, io->strs, y, sstrs, scale);
+#else
+	for (unsigned int i = 0; i < N; i++)
+		pos[i] = 0;
+
+	do {
+		complex float val = MD_ACCESS(N, sstrs, pos, scale);
+
+		md_zsmul2(N, xdims, io->strs, &MD_ACCESS(N, io->strs, pos, y),
+				io->strs, &MD_ACCESS(N, io->strs, pos, y),
+				val);
+
+	} while (md_next(N, io->dims, ~data->flags, pos));
+#endif
 
 	md_free(scale);
 }
