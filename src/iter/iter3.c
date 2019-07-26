@@ -146,9 +146,9 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const float* src)
 {
 	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
-	if (alpha < data->alpha_min)
-		alpha = data->alpha_min;
-	data->alpha = alpha;
+
+	assert(alpha >= data->alpha_min);
+	data->alpha = alpha;	// update alpha for normal operator
 
     
 	void* x = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
@@ -233,7 +233,7 @@ void iter3_irgnm_l1(const iter3_conf* _conf,
 
 	assert(NULL == ref);
 
-	irgnm2(conf->iter, conf->alpha, 0., conf->redu, N, M, select_vecops(src),
+	irgnm2(conf->iter, conf->alpha, 0., conf->alpha_min, conf->redu, N, M, select_vecops(src),
 		frw,
 		der,
 		(struct iter_op_p_s){ inverse_fista, CAST_UP(&data) },
