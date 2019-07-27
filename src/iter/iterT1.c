@@ -38,18 +38,17 @@
 
 
 
-struct irgnm_l1_s {
+struct T1inv_s {
 
 	INTERFACE(iter_op_data);
 
-	struct nlop_s* nlop;
+	const struct nlop_s* nlop;
     
 	long size_x;
 	long size_y;
 
 	float alpha;
     
-	float alpha_min;
 	const long* dims;
 
 	bool first_iter;
@@ -59,14 +58,14 @@ struct irgnm_l1_s {
 	const struct operator_p_s* prox2;
 };
 
-DEF_TYPEID(irgnm_l1_s);
+DEF_TYPEID(T1inv_s);
 
 
 
 
 static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 {
-	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
+	auto data = CAST_DOWN(T1inv_s, _data);
 
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
 
@@ -87,7 +86,7 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 
 static void pos_value(iter_op_data* _data, float* dst, const float* src)
 {
-	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
+	auto data = CAST_DOWN(T1inv_s, _data);
 
 	long res = data->dims[0];
 	long parameters = data->dims[COEFF_DIM];
@@ -104,7 +103,7 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 
 static void combined_prox(iter_op_data* _data, float rho, float* dst, const float* src)
 {
-	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
+	struct T1inv_s* data = CAST_DOWN(T1inv_s, _data);
 
 	if (data->first_iter) {
 
@@ -124,9 +123,8 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 
 static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const float* src)
 {
-	struct irgnm_l1_s* data = CAST_DOWN(irgnm_l1_s, _data);
+	auto data = CAST_DOWN(T1inv_s, _data);
 
-	assert(alpha >= data->alpha_min);
 	data->alpha = alpha;	// update alpha for normal operator
 
     
@@ -241,11 +239,10 @@ void iter4_irgnm_l1(const iter3_conf* _conf,
 	auto prox1 = create_prox(img_dims);
 	auto prox2 = op_p_auto_normalize(prox1, ~COEFF_FLAG);
 
-	struct irgnm_l1_s data = {
+	struct T1inv_s data = {
 
-		{ &TYPEID(irgnm_l1_s) }, nlop, N, M,
-		1.0, conf->alpha_min,
-		dims, true, 0, prox1, prox2
+		{ &TYPEID(T1inv_s) }, nlop, N, M,
+		1.0, dims, true, 0, prox1, prox2
 	};
 
 	struct iterT1_nlop_s nl_data = { { &TYPEID(iterT1_nlop_s) }, *nlop };
