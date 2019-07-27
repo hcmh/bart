@@ -222,16 +222,11 @@ static void nlop_der_iter(iter_op_data* _o, float* _dst, const float* _src)
 void iter4_irgnm_l1(const iter3_conf* _conf,
 	const long dims[],
 	struct nlop_s* nlop,
-	long N, float* dst, const float* ref,
-	long M, const float* src,
-	const struct operator_p_s* pinv,
-	struct iter_op_s cb)
+	long N, float* dst,
+	long M, const float* src)
 {
 	auto cd = nlop_codomain(nlop);
 	auto dm = nlop_domain(nlop);
-
-	(void)cb;
-	assert(NULL == pinv);
 
 	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
 	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
@@ -255,13 +250,12 @@ void iter4_irgnm_l1(const iter3_conf* _conf,
 
 	struct iterT1_nlop_s nl_data = { { &TYPEID(iterT1_nlop_s) }, *nlop };
 
-	assert(NULL == ref);
 
 	irgnm2(conf->iter, conf->alpha, 0., conf->alpha_min, conf->redu, N, M, select_vecops(src),
 		(struct iter_op_s){ nlop_for_iter, CAST_UP(&nl_data) },
 		(struct iter_op_s){ nlop_der_iter, CAST_UP(&nl_data) },
 		(struct iter_op_p_s){ inverse_fista, CAST_UP(&data) },
-		dst, ref, src,
+		dst, NULL, src,
 		(struct iter_op_s){ NULL, NULL },
 		NULL);
 
