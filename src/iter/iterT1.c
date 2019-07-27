@@ -33,6 +33,7 @@
 #include "iter/vec.h"
 #include "iter/italgos.h"
 #include "iter/iter3.h"
+#include "iter/iter2.h"
 
 #include "iterT1.h"
 
@@ -189,6 +190,73 @@ static const struct operator_p_s* create_prox(const long img_dims[DIMS])
 }
 
 
+struct T1inv2_s {
+
+	INTERFACE(operator_data_t);
+
+	struct T1inv_s data;
+};
+
+DEF_TYPEID(T1inv2_s);
+
+
+
+
+
+static void T1inv_apply(const operator_data_t* _data, float alpha, complex float* dst, const complex float* src)
+{
+	const auto data = &CAST_DOWN(T1inv2_s, _data)->data;
+	inverse_fista(CAST_UP(data), alpha, (float*)dst, (const float*)src);
+}
+
+static void T1inv_del(const operator_data_t* _data)
+{
+	auto data = CAST_DOWN(T1inv2_s, _data);
+
+	operator_p_free(data->data.prox1);
+	operator_p_free(data->data.prox2);
+
+	nlop_free(data->data.nlop);
+
+	xfree(data->data.dims);
+	xfree(data);
+}
+
+
+static const struct operator_p_s* T1inv_p_create(const long dims[DIMS], struct nlop_s* nlop)
+{
+	PTR_ALLOC(struct T1inv2_s, data);
+	SET_TYPEID(T1inv2_s, data);
+	SET_TYPEID(T1inv_s, &data->data);
+
+	auto cd = nlop_codomain(nlop);
+	auto dm = nlop_domain(nlop);
+
+	int M = 2 * md_calc_size(cd->N, cd->dims);
+	int N = 2 * md_calc_size(dm->N, dm->dims);
+
+	long* ndims = *TYPE_ALLOC(long[DIMS]);
+	md_copy_dims(DIMS, ndims, dims);
+
+	long img_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
+	debug_print_dims(DP_INFO, DIMS, img_dims);
+
+	auto prox1 = create_prox(img_dims);
+	auto prox2 = op_p_auto_normalize(prox1, ~COEFF_FLAG);
+
+	struct T1inv_s idata = {
+
+		{ &TYPEID(T1inv_s) }, nlop_clone(nlop), N, M,
+		1.0, ndims, true, 0, prox1, prox2
+	};
+
+	data->data = idata;
+
+	return operator_p_create(dm->N, dm->dims, cd->N, cd->dims, CAST_UP(PTR_PASS(data)), T1inv_apply, T1inv_del);
+}
+
+
 
 struct iterT1_nlop_s {
 
@@ -229,34 +297,20 @@ void iter4_irgnm_l1(const iter3_conf* _conf,
 	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
 	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
 
-
 	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
-
-	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
-	debug_print_dims(DP_INFO, DIMS, img_dims);
-
-	auto prox1 = create_prox(img_dims);
-	auto prox2 = op_p_auto_normalize(prox1, ~COEFF_FLAG);
-
-	struct T1inv_s data = {
-
-		{ &TYPEID(T1inv_s) }, nlop, N, M,
-		1.0, dims, true, 0, prox1, prox2
-	};
 
 	struct iterT1_nlop_s nl_data = { { &TYPEID(iterT1_nlop_s) }, *nlop };
 
+	const struct operator_p_s* inv_op = T1inv_p_create(dims, nlop);
 
 	irgnm2(conf->iter, conf->alpha, 0., conf->alpha_min, conf->redu, N, M, select_vecops(src),
 		(struct iter_op_s){ nlop_for_iter, CAST_UP(&nl_data) },
 		(struct iter_op_s){ nlop_der_iter, CAST_UP(&nl_data) },
-		(struct iter_op_p_s){ inverse_fista, CAST_UP(&data) },
+		OPERATOR_P2ITOP(inv_op),
 		dst, NULL, src,
 		(struct iter_op_s){ NULL, NULL },
 		NULL);
 
-	operator_p_free(prox1);
-	operator_p_free(prox2);
+	operator_p_free(inv_op);
 }
 
