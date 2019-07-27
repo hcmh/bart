@@ -1,10 +1,11 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+ * Copyright 2016-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2011-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2011-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2018-2019 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
  */
 
 #include <complex.h>
@@ -18,9 +19,8 @@
 #include "num/fft.h"
 
 #include "iter/iter3.h"
-#include "iter/iterT1.h"
-#include "iter/thresh.h"
-#include "iter/italgos.h"
+
+#include "nlops/nlop.h"
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -29,7 +29,7 @@
 
 #include "noir/model.h"
 #include "noir/model_T1.h"
-#include "nlops/nlop.h"
+#include "noir/iter_l1.h"
 
 #include "recon_T1.h"
 
@@ -90,7 +90,7 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
 
-	iter4_irgnm_l1(CAST_UP(&irgnm_conf),
+	mdb_irgnm_l1(CAST_UP(&irgnm_conf),
 			irgnm_conf_dims,
 			nl.nlop,
 			size * 2, (float*)x,

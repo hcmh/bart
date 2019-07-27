@@ -8,7 +8,7 @@ struct nlop_s;
 #define DIMS 16
 #endif
 
-void iter4_irgnm_l1(const struct iter3_conf_s* _conf,
+void mdb_irgnm_l1(const struct iter3_conf_s* _conf,
 		const long dims[DIMS],
 		struct nlop_s* nlop,
 		long N, float* dst,

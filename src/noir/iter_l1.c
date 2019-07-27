@@ -5,6 +5,7 @@
  *
  * Authors:
  * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2018-2019 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
  */
 
 #include <assert.h>
@@ -35,7 +36,7 @@
 #include "iter/iter3.h"
 #include "iter/iter2.h"
 
-#include "iterT1.h"
+#include "iter_l1.h"
 
 
 
@@ -285,7 +286,7 @@ static void nlop_der_iter(iter_op_data* _o, float* _dst, const float* _src)
 
 
 
-void iter4_irgnm_l1(const iter3_conf* _conf,
+void mdb_irgnm_l1(const iter3_conf* _conf,
 	const long dims[],
 	struct nlop_s* nlop,
 	long N, float* dst,
