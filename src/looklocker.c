@@ -26,33 +26,33 @@
 #endif
 
 
-static const char usage_str[] = "TR <input> <output>";
-static const char help_str[] = "Compute T1 map from M_0, M_ss, and R_1.\n";
+static const char usage_str[] = "<input> <output>";
+static const char help_str[] = "Compute T1 map from M_0, M_ss, and R_1*.\n";
 
 
 int main_looklocker(int argc, char* argv[argc])
 {
 	float threshold = 0.5;
+	float scaling_M0 = 2.0;
+	float Td = 15.3e-3; // time between the middle of inversion pulse and the first excitation
 
 	const struct opt_s opts[] = {
 
 		OPT_FLOAT('t', &threshold, "threshold", "Pixels with M0 values smaller than {threshold} are set to zero."),
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
-	float TR = atof(argv[1]);
-	
 	num_init();
 
 	long idims[DIMS];
 	
-	complex float* in_data = load_cfl(argv[2], DIMS, idims);
+	complex float* in_data = load_cfl(argv[1], DIMS, idims);
 
 	long odims[DIMS];
 	md_select_dims(DIMS, ~COEFF_FLAG, odims, idims);
 
-	complex float* out_data = create_cfl(argv[3], DIMS, odims);
+	complex float* out_data = create_cfl(argv[2], DIMS, odims);
 
 	long istrs[DIMS];
 	md_calc_strides(DIMS, istrs, idims, CFL_SIZE);
@@ -65,11 +65,11 @@ int main_looklocker(int argc, char* argv[argc])
 	do {
 		float Ms = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 0, pos), in_data);
 		float M0 = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 1, pos), in_data);
-		float R1 = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 2, pos), in_data);
+		float R1s = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 2, pos), in_data);
 
-		float T1 = -TR / logf(1. - (Ms / M0) * (1. - expf(-TR * R1)));
+		float T1 = scaling_M0 * M0 / (Ms * R1s) + 2 * Td;
 
-		if (safe_isnanf(T1) || (M0 < 0.5))
+		if (safe_isnanf(T1) || (M0 < threshold))
 			T1 = 0.;
 
 		MD_ACCESS(DIMS, ostrs, (pos[COEFF_DIM] = 0, pos), out_data) = T1;
