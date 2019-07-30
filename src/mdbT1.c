@@ -5,7 +5,7 @@
  *
  * Authors:
  * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018-2019 xiaoqing.wang <xiaoqing.wang@med.uni-goettingen.de>
+ * 2018-2019 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>

@@ -64,7 +64,7 @@ void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = conf->rvc;
-	mconf.noncart = conf->noncart;
+	mconf.noncart = !conf->noncart;
 	mconf.fft_flags = fft_flags;
 	mconf.a = 880.;
 	mconf.b = 32.;
