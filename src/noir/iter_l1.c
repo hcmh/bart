@@ -79,11 +79,12 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 	long res = data->dims[0];
 	long parameters = data->dims[COEFF_DIM];
 	long coils = data->dims[COIL_DIM];
+	long SMS = data->dims[SLICE_DIM];
 
-	md_axpy(1, MD_DIMS(data->size_x * coils / (coils + parameters)),
-						 dst + res * res * 2 * parameters,
+	md_axpy(1, MD_DIMS(data->size_x * coils * SMS / (coils * SMS + parameters * SMS)),
+	                                         dst + res * res * 2 * parameters * SMS,
 						 data->alpha,
-						 src + res * res * 2 * parameters);
+	                                         src + res * res * 2 * parameters * SMS);
 }
 
 static void pos_value(iter_op_data* _data, float* dst, const float* src)
@@ -92,13 +93,19 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 
 	long res = data->dims[0];
 	long parameters = data->dims[COEFF_DIM];
+	long SMS = data->dims[SLICE_DIM];
 
 	long dims1[DIMS];
 
 	md_select_dims(DIMS, FFT_FLAGS, dims1, data->dims);
 
-	md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - 1) * res * res,
-			(const _Complex float*)src + (parameters - 1) * res * res, 0.1);
+	for (int i = 0; i < SMS; i++) {
+
+		md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - 1) * res * res + i * res * res *  parameters,
+		                (const _Complex float*)src + (parameters - 1) * res * res + i * res * res *  parameters, 0.1);
+
+	}
+
 }
 
 
@@ -135,7 +142,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	double maxeigen = power(20, data->size_x, select_vecops(src), (struct iter_op_s){ normal_fista, CAST_UP(data) }, x);
 	md_free(x);
 
-	double step = 0.475 / maxeigen;
+	double step = 0.95 / maxeigen;
 
 	debug_printf(DP_DEBUG3, "##reg. alpha = %f\n", alpha);
 
