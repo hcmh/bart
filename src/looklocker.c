@@ -63,13 +63,13 @@ int main_looklocker(int argc, char* argv[argc])
 	long pos[DIMS] = { 0 };
 
 	do {
-		float Ms = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 0, pos), in_data);
-		float M0 = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 1, pos), in_data);
-		float R1s = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 2, pos), in_data);
+		_Complex float Ms = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 0, pos), in_data);
+		_Complex float M0 = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 1, pos), in_data);
+		_Complex float R1s = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 2, pos), in_data);
 
-		float T1 = scaling_M0 * M0 / (Ms * R1s) + 2 * Td;
+		float T1 = scaling_M0 * cabs(M0) / (cabs(Ms) * cabs(R1s)) + 2 * Td;
 
-		if (safe_isnanf(T1) || (M0 < threshold))
+		if (safe_isnanf(T1) || (cabs(M0) < threshold))
 			T1 = 0.;
 
 		MD_ACCESS(DIMS, ostrs, (pos[COEFF_DIM] = 0, pos), out_data) = T1;
