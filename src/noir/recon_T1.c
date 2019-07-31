@@ -79,7 +79,9 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.cgtol = 0.1f;
+	irgnm_conf.cgiter = 300;
 	irgnm_conf.nlinv_legacy = true;
+	irgnm_conf.step = 0.475;
 
 	long irgnm_conf_dims[DIMS];
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);

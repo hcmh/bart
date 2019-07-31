@@ -45,6 +45,7 @@ struct T1inv_s {
 	INTERFACE(iter_op_data);
 
 	const struct nlop_s* nlop;
+	const struct iter3_irgnm_conf* conf;
     
 	long size_x;
 	long size_y;
@@ -142,13 +143,13 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	double maxeigen = power(20, data->size_x, select_vecops(src), (struct iter_op_s){ normal_fista, CAST_UP(data) }, x);
 	md_free(x);
 
-	double step = 0.95 / maxeigen;
+	double step = data->conf->step / maxeigen;
 
 	debug_printf(DP_DEBUG3, "##reg. alpha = %f\n", alpha);
 
 	wavthresh_rand_state_set(data->prox1, 1);
     
-	int maxiter = MIN(250, 10 * powf(2, data->outer_iter));
+	int maxiter = MIN(data->conf->cgiter, 10 * powf(2, data->outer_iter));
     
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
 
@@ -163,7 +164,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 		itrdata->scale = data->alpha;
 	};
 
-	fista(maxiter, 0.01f * alpha * eps, step,
+	fista(maxiter, data->conf->cgtol * alpha * eps, step,
 		data->size_x,
 		select_vecops(src),
 		continuation,
@@ -231,7 +232,7 @@ static void T1inv_del(const operator_data_t* _data)
 }
 
 
-static const struct operator_p_s* T1inv_p_create(const long dims[DIMS], struct nlop_s* nlop)
+static const struct operator_p_s* T1inv_p_create(const struct iter3_irgnm_conf* conf, const long dims[DIMS], struct nlop_s* nlop)
 {
 	PTR_ALLOC(struct T1inv2_s, data);
 	SET_TYPEID(T1inv2_s, data);
@@ -255,8 +256,8 @@ static const struct operator_p_s* T1inv_p_create(const long dims[DIMS], struct n
 
 	struct T1inv_s idata = {
 
-		{ &TYPEID(T1inv_s) }, nlop_clone(nlop), N, M,
-		1.0, ndims, true, 0, prox1, prox2
+		{ &TYPEID(T1inv_s) }, nlop_clone(nlop), conf,
+		N, M, 1.0, ndims, true, 0, prox1, prox2
 	};
 
 	data->data = idata;
@@ -309,7 +310,7 @@ void mdb_irgnm_l1(const iter3_conf* _conf,
 
 	struct iterT1_nlop_s nl_data = { { &TYPEID(iterT1_nlop_s) }, *nlop };
 
-	const struct operator_p_s* inv_op = T1inv_p_create(dims, nlop);
+	const struct operator_p_s* inv_op = T1inv_p_create(conf, dims, nlop);
 
 	irgnm2(conf->iter, conf->alpha, 0., conf->alpha_min, conf->redu, N, M, select_vecops(src),
 		(struct iter_op_s){ nlop_for_iter, CAST_UP(&nl_data) },
