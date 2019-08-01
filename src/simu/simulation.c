@@ -58,6 +58,8 @@ const struct SeqData seqData_defaults = {
 	.rep_num = 1,
 	.spin_num = 1,
 	.num_average_rep = 1,
+	
+	.variable_fa = NULL,
 };
 
 
@@ -306,9 +308,12 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 	float *densSignal = malloc(data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
 
 	float flipangle_backup = data->pulseData.flipangle;
+	
 	float w_backup = data->voxelData.w;
 	
 	for (data->seqtmp.spin_counter = 0; data->seqtmp.spin_counter < data->seqData.spin_num; data->seqtmp.spin_counter++){
+		
+		
 		
 		if (NULL != input_sp) 
 			data->pulseData.flipangle = flipangle_backup * cabsf(input_sp[data->seqtmp.spin_counter]);
@@ -328,7 +333,7 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		* ----------------  Inversion Pulse Block ----------------------
 		* ------------------------------------------------------------*/
 		
-		if (data->seqData.seq_type == 1 || data->seqData.seq_type == 5 || data->seqData.seq_type == 6) {
+		if (data->seqData.seq_type == 1 || data->seqData.seq_type == 4 || data->seqData.seq_type == 5 || data->seqData.seq_type == 6) {
 			
 			struct SimData inv_data = *data;
 
@@ -368,14 +373,21 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		* ------------------------------------------------------------*/
 		data->seqtmp.t = 0;
 		
-		create_sim_block(data);
+		if (NULL == data->seqData.variable_fa)
+			create_sim_block(data);
         
 		while (data->seqtmp.rep_counter < data->seqData.rep_num) {
+			
+			if (NULL != data->seqData.variable_fa) {
+				
+				data->pulseData.flipangle = data->seqData.variable_fa[data->seqtmp.rep_counter];
+				create_sim_block(data);
+			}
 			
 			//Change phase for phase cycled bSSFP sequences //Check phase for FLASH!!
 			if (data->seqData.seq_type == 3 || data->seqData.seq_type == 6)
 				data->pulseData.phase = M_PI * (float) ( data->seqtmp.rep_counter % 2 ) + 360. * ( (float)data->seqtmp.rep_counter/(float)data->seqData.rep_num )/180. * M_PI;
-			else if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1)
+			else if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1 || data->seqData.seq_type == 4)
 				data->pulseData.phase = M_PI * (float) data->seqtmp.rep_counter;
 
 			run_sim_block(data, mxySignal, saT1Signal, saT2Signal, densSignal, h, tol, N, P, xp, true);

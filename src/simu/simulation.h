@@ -41,6 +41,8 @@ struct SeqData {
 	int rep_num;
 	int spin_num;
 	int num_average_rep;
+	
+	complex float* variable_fa;
 };
 extern const struct SeqData seqData_defaults;
 
