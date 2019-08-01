@@ -41,26 +41,28 @@ int main_bloch(int argc, char* argv[argc])
 	int seq = 0;
 	int xdim = 128;
 	int ydim = 128;
-	int repetition = 500;
-	int kspace = 0;
-	int aver_num = 1;
-	int spin_num = 1;
-	bool analytical = false;
-	bool spin_ensamble = false;
 	float tr = 0.0045;
 	float te = 0.00225;
 	float flipangle = 45.;
 	float rf_end = 0.0009;
+	
+	int aver_num = 1;
+	int spin_num = 1;
+	int repetition = 500;
 	float offresonance = 0.;
+	
 	bool inverse_relaxation = false;
 	const char* inputRel1 = NULL;
 	const char* inputRel2 = NULL;
 	const char* inputM0 = NULL;
 
+	float m0i = 1;
 	float t1i = WATER_T1;
 	float t2i = WATER_T2;
-	float m0i = 1;
 
+	bool analytical = false;
+	bool spin_ensamble = false;
+	int kspace = 0;
 	bool linear_offset = false;
 	bool matrix_exp_sim = false;
 	
