@@ -1,3 +1,11 @@
+/* Copyright 2017-2018. Martin Uecker.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors:
+ * 2018-2019 Nick Scholand <nick.scholand@med.uni-goettingen.de>
+ */
+
 
 #include <complex.h>
 #include <stdio.h>
@@ -9,6 +17,7 @@
 #include "misc/debug.h"
 
 #include "noir/model.h"
+#include "noir/model_Bloch.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -19,31 +28,8 @@
 #include "nlops/nlop.h"
 #include "nlops/blochfun.h"
 
-
-
-
-
-
-
-
 #define round(x)	((int) ((x) + .5))
 
-
-const struct modBlochFit modBlochFit_defaults = {
-	
-	.sequence = 1, /*inv. bSSFP*/
-	.rfduration = 0.0009,
-	.tr = 0.0045,
-	.te = 0.00225,
-	.averageSpokes = 1,
-	.n_slcp = 1,
-	
-	.r1scaling = 1.,
-	.r2scaling = 1.,
-	.m0scaling = 1.,
-	.fov_reduction_factor = 1.,
-	.rm_no_echo = 0.,
-};
 
 
 struct blochFun_s {
@@ -79,6 +65,8 @@ struct blochFun_s {
 	struct modBlochFit fitParameter;
 	
 	bool use_gpu;
+	
+	int counter;
 
 };
 
@@ -94,10 +82,22 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	long pos[data->N];
 	md_set_dims(data->N, pos, 0);
 	
+	if (DP_DEBUG3 <= debug_level) {
+		
+		char name[255] = {'\0'};
+		
+		sprintf(name, "current_map_%02d", data->counter); 
+		dump_cfl(name, data->N, data->in_dims, src);
+		
+		data->counter++;
+	}
+	
+	
 	// Allocate GPU memory
 	complex float* R1scale_tmp;
 	complex float* R2scale_tmp;
 	complex float* M0scale_tmp;
+	
 	
 #ifdef USE_CUDA
 	if (data->use_gpu) {
@@ -196,13 +196,13 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	if (0 == zend)
 		zend = 1;
 
-	debug_printf(DP_DEBUG3, "x:(%d,%d),\ty:(%d,%d),\tz:(%d,%d),\n", xstart, xend, ystart, yend, zstart, zend);
-	debug_printf(DP_DEBUG3, "seq: %d,\trfDuration: %f,\tTR:%f,\tTE:%f,\trep:%d,\tav:%d\n",
-								data->fitParameter.sequence, data->fitParameter.rfduration, data->fitParameter.tr, 
-								data->fitParameter.te, data->out_dims[TE_DIM], data->fitParameter.averageSpokes);
+// 	debug_printf(DP_DEBUG3, "x:(%d,%d),\ty:(%d,%d),\tz:(%d,%d),\n", xstart, xend, ystart, yend, zstart, zend);
+// 	debug_printf(DP_DEBUG3, "seq: %d,\trfDuration: %f,\tTR:%f,\tTE:%f,\trep:%d,\tav:%d\n",
+// 								data->fitParameter.sequence, data->fitParameter.rfduration, data->fitParameter.tr, 
+// 								data->fitParameter.te, data->out_dims[TE_DIM], data->fitParameter.averageSpokes);
 
 	int rm_first_echo = data->fitParameter.rm_no_echo;
-	debug_printf(DP_DEBUG1, "Removed first %d echoes from signal.\n", rm_first_echo);
+// 	debug_printf(DP_DEBUG1, "Removed first %d echoes from signal.\n", rm_first_echo);
 
 	float angle = 45.;
 
@@ -222,7 +222,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 				long spa_ind = md_calc_offset(data->N, data->map_strs, spa_pos) / CFL_SIZE;
 
-				debug_printf(DP_DEBUG3, "Pixel (x, y, z):\t(%d, %d, %d)\n", x, y, z);
+// 				debug_printf(DP_DEBUG3, "Pixel (x, y, z):\t(%d, %d, %d)\n", x, y, z);
 
 				//Get effective flipangle from B1 map -> this do not include inversion efficiency
 				float b1 = 1.;
@@ -259,10 +259,10 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 				float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 
-				debug_printf(DP_DEBUG3, "R1: %f,\tR2: %f,\tM0: %f\n", sim_data.voxelData.r1, sim_data.voxelData.r2, sim_data.voxelData.m0);
+// 				debug_printf(DP_DEBUG3, "R1: %f,\tR2: %f,\tM0: %f\n", sim_data.voxelData.r1, sim_data.voxelData.r2, sim_data.voxelData.m0);
 
-				ode_bloch_simulation3( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, SP_cpu );
-// 				matrix_bloch_simulation( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, SP_cpu );
+// 				ode_bloch_simulation3( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, SP_cpu );
+				matrix_bloch_simulation( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, SP_cpu );
 
 				long curr_pos[DIMS];
 				md_copy_dims(DIMS, curr_pos, spa_pos);
@@ -283,7 +283,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				}
 			}
 			
-	
+	debug_printf(DP_DEBUG3, "Copy data\n");
 	
 	md_copy(data->N, data->out_dims, data->dR1, dR1_cpu, CFL_SIZE);
 	md_copy(data->N, data->out_dims, data->dR2, dR2_cpu, CFL_SIZE);
@@ -408,11 +408,8 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	md_alloc_fun_t my_alloc = md_alloc;
 #endif
 
-
 	PTR_ALLOC(struct blochFun_s, data);
 	SET_TYPEID(blochFun_s, data);
-
-
 
 	PTR_ALLOC(long[N], ndims);
 	md_copy_dims(N, *ndims, map_dims);
@@ -439,14 +436,6 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	md_calc_strides(N, *nistr, in_dims, CFL_SIZE);
 	data->in_strs = *PTR_PASS(nistr);
 
-	PTR_ALLOC(long[N], nindims);
-	md_copy_dims(N, *nindims, input_dims);
-	data->input_dims = *PTR_PASS(nindims);
-
-	PTR_ALLOC(long[N], ninstr);
-	md_calc_strides(N, *ninstr, input_dims, CFL_SIZE);
-	data->input_strs = *PTR_PASS(ninstr);
-    
 
 	data->N = N;
 	data->scaling_R1 = fitPara->r1scaling;
@@ -456,15 +445,27 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->dR1 = my_alloc(N, out_dims, CFL_SIZE);
 	data->dR2 = my_alloc(N, out_dims, CFL_SIZE);
 	data->dM0 = my_alloc(N, out_dims, CFL_SIZE);
-
+	
+	
 	if (NULL != input_img) {
+		
+		PTR_ALLOC(long[N], nindims);
+		md_copy_dims(N, *nindims, input_dims);
+		data->input_dims = *PTR_PASS(nindims);
+		
+		PTR_ALLOC(long[N], ninstr);
+		md_calc_strides(N, *ninstr, input_dims, CFL_SIZE);
+		data->input_strs = *PTR_PASS(ninstr);
 
 		data->input_img = my_alloc(N, input_dims, CFL_SIZE);
 		md_copy(N, input_dims, data->input_img, input_img, CFL_SIZE);
 	}
-	else
+	else {
+		
 		data->input_img = NULL;
-	
+		data->input_dims = NULL;
+		data->input_strs = NULL;
+	}
 	
 	if (NULL != input_sp) {
 
@@ -479,6 +480,9 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	}
 	else
 		data->input_sp = NULL;
+	
+	
+	
 
 	//Set fitting parameter
 	data->fitParameter.sequence = fitPara->sequence;
@@ -493,7 +497,9 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->fitParameter.n_slcp = fitPara->n_slcp;
 	data->fitParameter.rm_no_echo = fitPara->rm_no_echo;
 	data->use_gpu = use_gpu;
-
+	
+	data->counter = 0;
+	
 	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), Bloch_fun, Bloch_der, Bloch_adj, NULL, NULL, Bloch_del);
 }
 
