@@ -119,6 +119,9 @@ int main_modbloch(int argc, char* argv[])
 	complex float* mask = NULL;
 
 	
+	md_zfill(DIMS, img_dims, img, 1.0);
+	md_clear(DIMS, coil_dims, sens, CFL_SIZE);
+	
 	// Load psf if given
 	complex float* pattern = NULL;
 	long pat_dims[DIMS];
@@ -193,7 +196,6 @@ int main_modbloch(int argc, char* argv[])
 		restrict_dims[1] = restrict_fov;
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
-		//md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask ,1.0);
 
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 	}
