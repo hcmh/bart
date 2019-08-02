@@ -97,9 +97,10 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 	long dims1[DIMS];
 
 	md_select_dims(DIMS, FFT_FLAGS, dims1, data->dims);
+	dims1[COEFF_DIM] = data->conf->constrained_maps;
 
-	md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - 1) * res * res,
-			(const _Complex float*)src + (parameters - 1) * res * res, 0.1);
+	md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - data->conf->constrained_maps) * res * res,
+			(const _Complex float*)src + (parameters - data->conf->constrained_maps) * res * res, data->conf->lower_bound);
 }
 
 
