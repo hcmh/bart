@@ -91,6 +91,8 @@ void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPa
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.cgiter = 300;
 	irgnm_conf.nlinv_legacy = true;
+	irgnm_conf.constrained_maps = 3;
+	irgnm_conf.lower_bound = 0.001;
 
 	long irgnm_conf_dims[DIMS];
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
