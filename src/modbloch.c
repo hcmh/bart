@@ -239,6 +239,8 @@ int main_modbloch(int argc, char* argv[])
 		bloch_recon(&conf, &fitPara, ksp_dims, img, sens, pattern, mask, kspace_data, input_b1, input_sp, usegpu);
 	
 	
+	pos[COEFF_DIM] = 2;
+	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 	
 	complex float* tmp_sens = md_alloc(DIMS, tmp_dims, CFL_SIZE);
 	
