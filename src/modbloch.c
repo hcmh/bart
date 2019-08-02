@@ -127,11 +127,7 @@ int main_modbloch(int argc, char* argv[])
 
 	if (NULL != psf) {
 
-		complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
-		pattern = anon_cfl("", DIMS, pat_dims);
-
-		md_copy(DIMS, pat_dims, pattern, tmp_psf, CFL_SIZE);
-		unmap_cfl(DIMS, pat_dims, tmp_psf);
+		pattern = load_cfl(psf, DIMS, pat_dims);
 		// FIXME: check compatibility
 
 		if (-1 == restrict_fov)
@@ -171,8 +167,6 @@ int main_modbloch(int argc, char* argv[])
 	
 	if (NULL != inputM0)
 		inputM0_img = load_cfl(inputM0, DIMS, input_dims);
-	
-	
 	
 	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
