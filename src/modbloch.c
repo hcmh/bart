@@ -99,11 +99,11 @@ int main_modbloch(int argc, char* argv[])
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[2], DIMS, img_dims);
-	
+	md_zfill(DIMS, img_dims, img, 1.0);
 	
 	//Create coil output
 	long coil_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG, coil_dims, ksp_dims);
+	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, coil_dims, ksp_dims);
 	
 	
 	// Create sensitivity output
@@ -119,8 +119,7 @@ int main_modbloch(int argc, char* argv[])
 	complex float* mask = NULL;
 
 	
-	md_zfill(DIMS, img_dims, img, 1.0);
-	md_clear(DIMS, coil_dims, sens, CFL_SIZE);
+	
 	
 	// Load psf if given
 	complex float* pattern = NULL;
