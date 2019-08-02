@@ -368,8 +368,6 @@ static void Bloch_adj(const nlop_data_t* _data, complex float* dst, const comple
 
 	md_clear(data->N, data->map_dims, tmp_map, CFL_SIZE);
 	md_zfmacc2(data->N, data->out_dims, data->map_strs, tmp_map, data->out_strs, src, data->out_strs, data->dM0);
-
-	debug_printf(DP_DEBUG3, "\n");
 }
 
 
