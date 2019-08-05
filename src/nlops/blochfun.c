@@ -48,6 +48,8 @@ struct blochFun_s {
 	const long* out_strs;
 	const long* input_strs;
 	
+	complex float* tmp_map;
+	
 	//scaling factors
 	float scaling_R1;
 	float scaling_R2;
@@ -79,8 +81,6 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	debug_printf(DP_DEBUG2, "Started Forward Calculation\n");
 	
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
-	long pos[data->N];
-	md_set_dims(data->N, pos, 0);
 	
 	if (DP_DEBUG3 <= debug_level) {
 		
@@ -117,6 +117,10 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	R2scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	M0scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
 #endif
+	
+	
+	long pos[data->N];
+	md_set_dims(data->N, pos, 0);
 
 	// Copy necessary files from GPU to CPU
 	// R1 
@@ -319,24 +323,29 @@ static void Bloch_der(const nlop_data_t* _data, complex float* dst, const comple
 
 	long pos[data->N];
 	md_set_dims(data->N, pos, 0);
+	
+	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
 
 	pos[COEFF_DIM] = 0;
-	const complex float* tmp_R1 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
+	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
+// 	const complex float* tmp_R1 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 
 	// dst = dR1 * R1'
-	md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, tmp_R1, data->out_strs, data->dR1);
+	md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->dR1);
 
 	pos[COEFF_DIM] = 1;
-	const complex float* tmp_R2 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
+	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
+// 	const complex float* tmp_R2 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 
 	// dst = dst + dR2 * R2'
-	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, tmp_R2, data->out_strs, data->dR2);
+	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->dR2);
 
 	pos[COEFF_DIM] = 2;
-	const complex float* tmp_M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
+	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
+// 	const complex float* tmp_M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 
 	// dst = dst + dM0 * M0'
-	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, tmp_M0, data->out_strs, data->dM0);
+	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->dM0);
 
 }
 
@@ -349,25 +358,31 @@ static void Bloch_adj(const nlop_data_t* _data, complex float* dst, const comple
 	long pos[data->N];
 	md_set_dims(data->N, pos, 0);
 
-	complex float* tmp_map;
 
 	pos[COEFF_DIM] = 0;	//R1
-	tmp_map = (void*)dst + md_calc_offset(data->N, data->in_strs, pos);
+// 	complex float* tmp_map;
+	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
+	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->dR1);
 
-	md_clear(data->N, data->map_dims, tmp_map, CFL_SIZE);
-	md_zfmacc2(data->N, data->out_dims, data->map_strs, tmp_map, data->out_strs, src, data->out_strs, data->dR1);
+	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
+// 	tmp_map = (void*)dst + md_calc_offset(data->N, data->in_strs, pos);
+
 
 	pos[COEFF_DIM] = 1;	//R2
-	tmp_map = (void*)dst + md_calc_offset(data->N, data->in_strs, pos);
+	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
+	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->dR2);
 
-	md_clear(data->N, data->map_dims, tmp_map, CFL_SIZE);
-	md_zfmacc2(data->N, data->out_dims, data->map_strs, tmp_map, data->out_strs, src, data->out_strs, data->dR2);
+	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
+// 	tmp_map = (void*)dst + md_calc_offset(data->N, data->in_strs, pos);
+
 
 	pos[COEFF_DIM] = 2;	//M0
-	tmp_map = (void*)dst + md_calc_offset(data->N, data->in_strs, pos);
+	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
+	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->dM0);
 
-	md_clear(data->N, data->map_dims, tmp_map, CFL_SIZE);
-	md_zfmacc2(data->N, data->out_dims, data->map_strs, tmp_map, data->out_strs, src, data->out_strs, data->dM0);
+	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
+// 	tmp_map = (void*)dst + md_calc_offset(data->N, data->in_strs, pos);
+	
 }
 
 
@@ -379,6 +394,8 @@ static void Bloch_del(const nlop_data_t* _data)
 	md_free(data->dR1);
 	md_free(data->dR2);
 	md_free(data->dM0);
+	
+	md_free(data->tmp_map);
 	
 	md_free(data->input_img);
 	md_free(data->input_sp);
@@ -443,6 +460,8 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->dR1 = my_alloc(N, out_dims, CFL_SIZE);
 	data->dR2 = my_alloc(N, out_dims, CFL_SIZE);
 	data->dM0 = my_alloc(N, out_dims, CFL_SIZE);
+	
+	data->tmp_map = my_alloc(N, map_dims, CFL_SIZE);
 	
 	
 	if (NULL != input_img) {
