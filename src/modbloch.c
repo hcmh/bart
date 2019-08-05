@@ -241,6 +241,8 @@ int main_modbloch(int argc, char* argv[])
 	
 	pos[COEFF_DIM] = 2;
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
+	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / scaling);
+	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, scaling_psf);
 	
 	complex float* tmp_sens = md_alloc(DIMS, tmp_dims, CFL_SIZE);
 	
@@ -260,9 +262,7 @@ int main_modbloch(int argc, char* argv[])
 		
 		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, grad_scale[i]);
 		
-		if (2 == i)
-			md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / scaling);
-		else
+		if (2 != i)
 			md_zdiv(DIMS, tmp_dims, tmp_img, ones, tmp_img);
 		
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE);
