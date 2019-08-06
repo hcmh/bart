@@ -29,7 +29,7 @@
 
 #include "noir/model.h"
 
-#include "mdb/T2fun.h"
+#include "moba/T2fun.h"
 
 #include "model_T2.h"
 
