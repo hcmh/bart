@@ -20,22 +20,24 @@
 
 #include "iter/iter3.h"
 
-#include "nlops/nlop.h"
-
 #include "misc/misc.h"
 #include "misc/types.h"
 #include "misc/mri.h"
 #include "misc/debug.h"
 
+#include "nlops/nlop.h"
+
 #include "noir/model.h"
-#include "noir/model_T1.h"
-#include "noir/iter_l1.h"
+#include "noir/recon.h"
 
-#include "recon_T1.h"
+#include "mdb/model_T2.h"
+#include "mdb/iter_l1.h"
+
+#include "recon_T2.h"
 
 
 
-void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* kspace_data, _Bool usegpu)
+void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* kspace_data, _Bool usegpu)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -44,12 +46,12 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 
 	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
 
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG, data_dims, dims);
-	md_select_dims(DIMS, fft_flags|TIME2_FLAG, img1_dims, dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, imgs_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG, coil_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG, data_dims, dims);
+	md_select_dims(DIMS, fft_flags, img1_dims, dims);
 
-	imgs_dims[COEFF_DIM] = 3;
+	imgs_dims[COEFF_DIM] = 2;
 
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);
@@ -64,13 +66,13 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = conf->rvc;
-	mconf.noncart = conf->noncart;
+	mconf.noncart = !conf->noncart;
 	mconf.fft_flags = fft_flags;
 	mconf.a = 880.;
 	mconf.b = 32.;
 
 	//struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
-	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, usegpu);
+	struct T2_s nl = T2_create(dims, mask, TI, pattern, &mconf, usegpu);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
@@ -79,12 +81,10 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.cgtol = 0.1f;
-	irgnm_conf.cgiter = 300;
 	irgnm_conf.nlinv_legacy = true;
-	irgnm_conf.step = 0.475;
 
 	long irgnm_conf_dims[DIMS];
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, irgnm_conf_dims, imgs_dims);
 
 	irgnm_conf_dims[COIL_DIM] = coil_dims[COIL_DIM];
 
@@ -108,7 +108,6 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	}
 
 	nlop_free(nl.nlop);
-
 
 	md_free(x);
 }

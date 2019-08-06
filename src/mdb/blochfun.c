@@ -8,8 +8,6 @@
 #include "misc/mri.h"
 #include "misc/debug.h"
 
-#include "noir/model.h"
-
 #include "num/multind.h"
 #include "num/flpmath.h"
 
@@ -17,7 +15,8 @@
 #include "simu/sim_matrix.h"
 
 #include "nlops/nlop.h"
-#include "nlops/blochfun.h"
+
+#include "blochfun.h"
 
 
 
