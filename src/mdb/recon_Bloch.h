@@ -11,7 +11,7 @@
 
 #include "misc/mri.h"
 
-#include "recon.h"
+#include "noir/recon.h"
 
 
 struct modBlochFit;

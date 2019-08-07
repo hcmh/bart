@@ -17,7 +17,6 @@
 #include "misc/debug.h"
 
 #include "noir/model.h"
-#include "noir/model_Bloch.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -26,7 +25,9 @@
 #include "simu/sim_matrix.h"
 
 #include "nlops/nlop.h"
-#include "nlops/blochfun.h"
+
+#include "model_Bloch.h"
+#include "blochfun.h"
 
 #define round(x)	((int) ((x) + .5))
 

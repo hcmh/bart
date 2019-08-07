@@ -22,15 +22,16 @@
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 #include "nlops/cast.h"
-#include "nlops/T1fun.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
-
 #include "num/iovec.h"
 
+#include "noir/model.h"
+
+#include "mdb/T1fun.h"
+
 #include "model_T1.h"
-#include "model.h"
 
 
 

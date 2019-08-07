@@ -1,11 +1,15 @@
-/* Copyright 2013. The Regents of the University of California.
- * Copyright 2016-2019. Martin Uecker.
+/* Copyright 2016-2017. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2011-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018-2019 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
+ * Authors: 
+ * 2011-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2018-2019 Nick Scholand <nick.scholand@med.uni-goettingen.de>
+ *
+ *
+ * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized
+ * nonlinear inversion – Joint estimation of coil sensitivities and image content.
+ * Magn Reson Med 2008; 60:674-682.
  */
 
 #include <complex.h>
@@ -18,9 +22,12 @@
 #include "num/flpmath.h"
 #include "num/fft.h"
 
-#include "iter/iter3.h"
-
 #include "nlops/nlop.h"
+
+#include "iter/iter3.h"
+#include "iter/iter4.h"
+#include "iter/thresh.h"
+#include "iter/italgos.h"
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -28,14 +35,13 @@
 #include "misc/debug.h"
 
 #include "noir/model.h"
-#include "noir/model_T1.h"
-#include "noir/iter_l1.h"
 
-#include "recon_T1.h"
+#include "iter_l1.h"
+#include "model_Bloch.h"
+#include "recon_Bloch.h"
 
 
-
-void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* kspace_data, _Bool usegpu)
+void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPara, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data, const complex float* input_b1, const complex float* input_sp, _Bool usegpu)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -69,11 +75,14 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	mconf.a = 880.;
 	mconf.b = 32.;
 
-	//struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
-	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, usegpu);
-
+	
+	//Create operator
+	struct modBloch_s nl = bloch_create(dims, mask, pattern, input_b1, input_sp, &mconf, fitPara, usegpu);
+	
+	
+	//Set up parameter for IRGNM
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
-
+	
 	irgnm_conf.iter = conf->iter;
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
@@ -81,13 +90,12 @@ void T1_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.cgtol = 0.1f;
 	irgnm_conf.cgiter = 300;
 	irgnm_conf.nlinv_legacy = true;
-	irgnm_conf.step = 0.475;
 
 	long irgnm_conf_dims[DIMS];
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
 
 	irgnm_conf_dims[COIL_DIM] = coil_dims[COIL_DIM];
-
+	
 	debug_printf(DP_INFO, "imgs_dims:\n\t");
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 

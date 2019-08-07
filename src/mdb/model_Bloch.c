@@ -1,5 +1,4 @@
-/* Copyright 2013. The Regents of the University of California.
- * Copyright 2017-2018. Martin Uecker.
+/* Copyright 2017-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
@@ -11,7 +10,7 @@
  * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized nonlinear
  * inversion – Joint estimation of coil sensitivities and image content. 
  * Magn Reson Med 2008; 60:674-682.
-s */
+ */
 
 
 #include <stdlib.h>
@@ -28,19 +27,21 @@ s */
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 #include "nlops/cast.h"
-#include "nlops/blochfun.h"
+
 #include "linops/someops.h"
+#include "linops/lintest.h"
+
 #include "sense/model.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
-
 #include "num/iovec.h"
 
-#include "model.h"
-#include "model_Bloch.h"
+#include "noir/model.h"
 
-#include "linops/lintest.h"
+#include "model_Bloch.h"
+#include "blochfun.h"
+
 
 
 const struct modBlochFit modBlochFit_defaults = {
