@@ -294,6 +294,7 @@ int main_bloch(int argc, char* argv[argc])
 			sim_data.seqData.num_average_rep = aver_num;
 			
 			if (NULL != vfa_file) {
+				
 				sim_data.seqData.variable_fa = md_alloc(DIMS, dim_vfa, CFL_SIZE);
 				md_copy(DIMS, dim_vfa, sim_data.seqData.variable_fa, vfa_file, CFL_SIZE);
 			}
@@ -344,9 +345,9 @@ int main_bloch(int argc, char* argv[argc])
 			else {	//start ODE based simulation
 
 				if (operator_sim)
-					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL);
+					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 				else
-					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL);
+					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 				
 				//Add data to phantom
 				for (int z = 0; z < dim_phantom[TE_DIM]; z++) {

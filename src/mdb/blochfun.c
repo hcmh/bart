@@ -163,15 +163,14 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 		md_copy(data->N, data->input_dims, B1_cpu, data->input_img, CFL_SIZE);
 	}
 
+	
+	long slcp_dims[DIMS];
+	md_set_dims(DIMS, slcp_dims, 1);
+	slcp_dims[READ_DIM] = data->fitParameter.n_slcp;
+	
 	complex float* SP_cpu = NULL;
 
 	if (NULL != data->input_sp) {
-
-		long slcp_dims[DIMS];
-
-		md_set_dims(DIMS, slcp_dims, 1);
-
-		slcp_dims[READ_DIM] = data->fitParameter.n_slcp;
 
 		SP_cpu = md_alloc(data->N, slcp_dims, CFL_SIZE);
 
@@ -263,11 +262,17 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				float saR1Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 				float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 				float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+				
+				if (NULL != data->input_sp) {
+					
+					sim_data.seqData.slice_profile = md_alloc(DIMS, slcp_dims, CFL_SIZE);
+					md_copy(DIMS, slcp_dims, sim_data.seqData.slice_profile, SP_cpu, CFL_SIZE);
+				}
 
 // 				debug_printf(DP_DEBUG3, "R1: %f,\tR2: %f,\tM0: %f\n", sim_data.voxelData.r1, sim_data.voxelData.r2, sim_data.voxelData.m0);
 
-// 				ode_bloch_simulation3( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, SP_cpu );
-				matrix_bloch_simulation( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, SP_cpu );
+// 				ode_bloch_simulation3( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig );
+				matrix_bloch_simulation( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig );
 
 				long curr_pos[DIMS];
 				md_copy_dims(DIMS, curr_pos, spa_pos);

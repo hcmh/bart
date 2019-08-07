@@ -240,7 +240,7 @@ static void collect_data(int N, float xp[N], float *mxySignal, float *saR1Signal
 }
     
 // for seq = 0, 1, 2, 5
-void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3], complex float* input_sp)
+void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3])
 {
 	struct SimData* data = _data;
 	
@@ -261,8 +261,8 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 	
 	for (data->seqtmp.spin_counter = 0; data->seqtmp.spin_counter < data->seqData.spin_num; data->seqtmp.spin_counter++) {
 
-		if (NULL != input_sp) 
-			data->pulseData.flipangle = flipangle_backup * cabsf(input_sp[data->seqtmp.spin_counter]);
+		if (NULL != data->seqData.slice_profile) 
+			data->pulseData.flipangle = flipangle_backup * cabsf(data->seqData.slice_profile[data->seqtmp.spin_counter]);
 
 		float xp[N] = { 0., 0., 1., 0., 0., 0., 0., 0., 0., 1. };
 

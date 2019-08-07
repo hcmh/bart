@@ -425,7 +425,7 @@ void calc_simu_phantom(void* _data,long dims[DIMS], complex float* out, bool ksp
 			float saR2Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
 			float saDensSig[data.seqData.rep_num / data.seqData.num_average_rep][3];
 
-			ode_bloch_simulation3( &data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL );
+			ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);
 			
 			//Add data to phantom
 			for(int z = 0; z < dims[TE_DIM]; z++){

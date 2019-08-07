@@ -42,6 +42,7 @@ struct SeqData {
 	int spin_num;
 	int num_average_rep;
 	
+	complex float* slice_profile;
 	complex float* variable_fa;
 };
 extern const struct SeqData seqData_defaults;
@@ -106,7 +107,7 @@ void create_rf_pulse(void* _pulseData, float RF_start, float RF_end, float angle
 
 void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 2][N]);
 
-void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3], complex float* input_sp);
+void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3]);
 
 void create_sim_block(void* _data);
 
