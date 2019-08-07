@@ -27,6 +27,7 @@ struct modBlochFit {
 	float te;
 	int averageSpokes;
 	int n_slcp;
+	int num_vfa;
 	
 	/*Reconstruction Parameter*/
 	float r1scaling;
@@ -39,6 +40,8 @@ struct modBlochFit {
 	/*Input Calibrations*/
 	complex float* input_b1;
 	complex float* input_sp;
+	complex float* input_fa_profile;
+	
 
 };
 

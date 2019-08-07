@@ -47,6 +47,7 @@ int main_modbloch(int argc, char* argv[])
 	bool usegpu = false;
 	const char* inputB1 = NULL;
 	const char* inputSP = NULL;
+	const char* inputVFA = NULL;
 
 	const struct opt_s opts[] = {
 
@@ -67,6 +68,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_STRING(	'P',	&inputSP, 		"", "Input Slice Profile image"),
+		OPT_STRING(	'V',	&inputVFA, 		"", "Input for variable flipangle profile"),
 		OPT_SET(	'O', 	&fitPara.full_ode_sim	,  "Apply full ODE simulation"),
 		OPT_SET(	'g', 	&usegpu			,  "use gpu"),
 	};
@@ -171,6 +173,21 @@ int main_modbloch(int argc, char* argv[])
 		
 		fitPara.input_sp = md_alloc(DIMS, input_sp_dims, CFL_SIZE);
 		md_copy(DIMS, input_sp_dims, fitPara.input_sp, input_sp, CFL_SIZE);
+		
+	}
+	
+	complex float* input_vfa = NULL;
+	long input_vfa_dims[DIMS];
+	
+	if (NULL != inputVFA) {
+		
+		input_vfa = load_cfl(inputVFA, DIMS, input_vfa_dims);
+		
+		fitPara.num_vfa = input_vfa_dims[READ_DIM];
+		debug_printf(DP_DEBUG3, "Number of variable flip angles: %d\n", fitPara.num_vfa);
+		
+		fitPara.input_fa_profile = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
+		md_copy(DIMS, input_vfa_dims, fitPara.input_fa_profile, input_vfa, CFL_SIZE);
 		
 	}
 	
@@ -291,6 +308,9 @@ int main_modbloch(int argc, char* argv[])
 	
 	if(NULL != input_sp)
 		unmap_cfl(DIMS, input_sp_dims, input_sp);
+	
+	if(NULL != input_vfa)
+		unmap_cfl(DIMS, input_vfa_dims, input_vfa);
 	
 
 	double recosecs = timestamp() - start_time;

@@ -64,6 +64,7 @@ struct blochFun_s {
 	
 	complex float* input_b1;
 	complex float* input_sp;
+	complex float* input_fa_profile;
 	
 	struct modBlochFit fitParameter;
 	
@@ -165,21 +166,34 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 	
 	long slcp_dims[DIMS];
-	md_set_dims(DIMS, slcp_dims, 1);
-	slcp_dims[READ_DIM] = data->fitParameter.n_slcp;
-	
+		
 	complex float* SP_cpu = NULL;
 
 	if (NULL != data->input_sp) {
-
+		
+		md_set_dims(DIMS, slcp_dims, 1);
+		slcp_dims[READ_DIM] = data->fitParameter.n_slcp;
+		
 		SP_cpu = md_alloc(data->N, slcp_dims, CFL_SIZE);
-
 		md_copy(data->N, slcp_dims, SP_cpu, data->input_sp, CFL_SIZE);
-
+		
 		debug_printf(DP_DEBUG2, "\n Slice Profile Estimates:\t");
 		for (int i = 0; i < data->fitParameter.n_slcp; i++)
 			debug_printf(DP_DEBUG2, "%f\t", cabsf(SP_cpu[i]) );
 		debug_printf(DP_DEBUG2, "\n");
+	}
+	
+	long vfa_dims[DIMS];
+		
+	complex float* VFA_cpu = NULL;
+
+	if (NULL != data->input_fa_profile) {
+		
+		md_set_dims(DIMS, vfa_dims, 1);
+		vfa_dims[READ_DIM] = data->fitParameter.num_vfa;
+		
+		VFA_cpu = md_alloc(data->N, vfa_dims, CFL_SIZE);
+		md_copy(data->N, vfa_dims, VFA_cpu, data->input_fa_profile, CFL_SIZE);
 	}
 
 	//Prepare reduced FOV
@@ -268,13 +282,19 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 					sim_data.seqData.slice_profile = md_alloc(DIMS, slcp_dims, CFL_SIZE);
 					md_copy(DIMS, slcp_dims, sim_data.seqData.slice_profile, SP_cpu, CFL_SIZE);
 				}
-
-// 				debug_printf(DP_DEBUG3, "R1: %f,\tR2: %f,\tM0: %f\n", sim_data.voxelData.r1, sim_data.voxelData.r2, sim_data.voxelData.m0);
 				
-				if (data->fitParameter.full_ode_sim)
+				if (NULL != data->input_fa_profile) {
+					
+					sim_data.seqData.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
+					md_copy(DIMS, vfa_dims, sim_data.seqData.variable_fa, VFA_cpu, CFL_SIZE);
+				}
+				
+				
+				if (data->fitParameter.full_ode_sim || NULL != data->input_fa_profile)	//variable flipangles are only included into ode simulation yet
 					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 				else
 					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
+
 
 				long curr_pos[DIMS];
 				md_copy_dims(DIMS, curr_pos, spa_pos);
@@ -318,6 +338,9 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	
 	if (NULL != data->input_b1)
 		md_free(B1_cpu);
+	
+	if (NULL != data->input_fa_profile)
+		md_free(VFA_cpu);
 	
 	double totaltime = timestamp() - starttime;
 	debug_printf(DP_DEBUG2, "Time = %.2f s\n", totaltime);
@@ -400,6 +423,7 @@ static void Bloch_del(const nlop_data_t* _data)
 	
 	md_free(data->input_b1);
 	md_free(data->input_sp);
+	md_free(data->input_fa_profile);
 
 	xfree(data->map_dims);
 	xfree(data->in_dims);
@@ -500,6 +524,19 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 		data->input_sp = NULL;
 	
 	
+	if (NULL != fitPara->input_fa_profile) {
+
+		long vfa_dims[DIMS];
+
+		md_set_dims(DIMS, vfa_dims, 1);
+		vfa_dims[READ_DIM] = fitPara->num_vfa;
+
+		data->input_fa_profile = my_alloc(N, vfa_dims, CFL_SIZE);
+
+		md_copy(N, vfa_dims, data->input_fa_profile, fitPara->input_fa_profile, CFL_SIZE);
+	}
+	else
+		data->input_fa_profile = NULL;
 	
 
 	//Set fitting parameter
@@ -514,6 +551,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->fitParameter.averageSpokes = fitPara->averageSpokes;
 	data->fitParameter.fov_reduction_factor = fitPara->fov_reduction_factor;
 	data->fitParameter.n_slcp = fitPara->n_slcp;
+	data->fitParameter.num_vfa = fitPara->num_vfa;
 	data->fitParameter.rm_no_echo = fitPara->rm_no_echo;
 	data->fitParameter.full_ode_sim = fitPara->full_ode_sim;
 	data->use_gpu = use_gpu;

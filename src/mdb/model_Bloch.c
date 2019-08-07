@@ -52,6 +52,7 @@ const struct modBlochFit modBlochFit_defaults = {
 	.te = 0.00225,
 	.averageSpokes = 1,
 	.n_slcp = 1,
+	.num_vfa = 1,
 	
 	.r1scaling = 1.,
 	.r2scaling = 1.,
@@ -62,6 +63,7 @@ const struct modBlochFit modBlochFit_defaults = {
 	
 	.input_b1 = NULL,
 	.input_sp = NULL,
+	.input_fa_profile = NULL,
 };
 
 
