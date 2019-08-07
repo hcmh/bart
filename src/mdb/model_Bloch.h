@@ -34,12 +34,16 @@ struct modBlochFit {
 	float m0scaling;
 	float fov_reduction_factor;
 	int rm_no_echo;
+	
+	/*Input Calibrations*/
+	complex float* input_b1;
+	complex float* input_sp;
 
 };
 
 extern const struct modBlochFit modBlochFit_defaults;
 
-extern struct modBloch_s bloch_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const complex float* input_img, const complex float* input_sp, const struct noir_model_conf_s* conf, const struct modBlochFit* fitPara, _Bool usegpu);
+extern struct modBloch_s bloch_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf, const struct modBlochFit* fitPara, _Bool usegpu);
 
 
 #include "misc/cppwrap.h"

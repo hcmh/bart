@@ -41,7 +41,7 @@
 #include "recon_Bloch.h"
 
 
-void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPara, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data, const complex float* input_b1, const complex float* input_sp, _Bool usegpu)
+void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPara, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data, _Bool usegpu)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -77,7 +77,7 @@ void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPa
 
 	
 	//Create operator
-	struct modBloch_s nl = bloch_create(dims, mask, pattern, input_b1, input_sp, &mconf, fitPara, usegpu);
+	struct modBloch_s nl = bloch_create(dims, mask, pattern, &mconf, fitPara, usegpu);
 	
 	
 	//Set up parameter for IRGNM

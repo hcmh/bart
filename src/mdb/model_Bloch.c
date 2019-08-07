@@ -58,10 +58,13 @@ const struct modBlochFit modBlochFit_defaults = {
 	.m0scaling = 1.,
 	.fov_reduction_factor = 1.,
 	.rm_no_echo = 0.,
+	
+	.input_b1 = NULL,
+	.input_sp = NULL,
 };
 
 
-struct modBloch_s bloch_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const complex float* input_img, const complex float* input_sp, const struct noir_model_conf_s* conf, const struct modBlochFit* fitPara, _Bool usegpu)
+struct modBloch_s bloch_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf, const struct modBlochFit* fitPara, _Bool usegpu)
 {
 	
 	struct noir_s nlinv = noir_create3(dims, mask, psf, conf);
@@ -76,13 +79,13 @@ struct modBloch_s bloch_create(const long dims[DIMS], const complex float* mask,
 	md_select_dims(DIMS, conf->fft_flags|TE_FLAG|TIME2_FLAG, out_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG|TIME2_FLAG, in_dims, dims);
 
-	if (NULL != input_img)
+	if (NULL != fitPara->input_b1)
 		md_select_dims(DIMS, READ_FLAG|PHS1_FLAG, input_dims, dims);
 
 	in_dims[COEFF_DIM] = 3;
 	
 #if 1
-	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, map_dims, out_dims, in_dims, input_dims, input_img, input_sp, fitPara, usegpu);
+	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, map_dims, out_dims, in_dims, input_dims, fitPara, usegpu);
 	debug_printf(DP_INFO, "Bloch(.)\n");
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(Bloch, 0)->dims); 			//input-dims of Bloch operator
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(Bloch, 0)->dims);			//output dims of bloch operator

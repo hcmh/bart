@@ -145,10 +145,16 @@ int main_modbloch(int argc, char* argv[])
 	
 	complex float* input_b1 = NULL;
 	
-	long input_dims[DIMS];
+	long input_b1_dims[DIMS];
 	
-	if (NULL != inputB1)
-		input_b1 = load_cfl(inputB1, DIMS, input_dims);
+	if (NULL != inputB1) {
+		
+		input_b1 = load_cfl(inputB1, DIMS, input_b1_dims);
+		
+		fitPara.input_b1 = md_alloc(DIMS, input_b1_dims, CFL_SIZE);
+		md_copy(DIMS, input_b1_dims, fitPara.input_b1, input_b1, CFL_SIZE);
+	}
+		
 	
 	
 	complex float* input_sp = NULL;
@@ -157,8 +163,13 @@ int main_modbloch(int argc, char* argv[])
 	if (NULL != inputSP) {
 		
 		input_sp = load_cfl(inputSP, DIMS, input_sp_dims);
+		
 		fitPara.n_slcp = input_sp_dims[READ_DIM];
 		debug_printf(DP_DEBUG3, "Number of slice profile estimates: %d\n", fitPara.n_slcp);
+		
+		fitPara.input_sp = md_alloc(DIMS, input_sp_dims, CFL_SIZE);
+		md_copy(DIMS, input_sp_dims, fitPara.input_sp, input_sp, CFL_SIZE);
+		
 	}
 	
 	
@@ -225,12 +236,12 @@ int main_modbloch(int argc, char* argv[])
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
 
-		bloch_recon(&conf, &fitPara, ksp_dims, img, sens, pattern, mask, kspace_gpu, input_b1, input_sp, usegpu);
+		bloch_recon(&conf, &fitPara, ksp_dims, img, sens, pattern, mask, kspace_gpu, usegpu);
 
 		md_free(kspace_gpu);
 	} else
 #endif
-		bloch_recon(&conf, &fitPara, ksp_dims, img, sens, pattern, mask, kspace_data, input_b1, input_sp, usegpu);
+		bloch_recon(&conf, &fitPara, ksp_dims, img, sens, pattern, mask, kspace_data, usegpu);
 	
 	
 	pos[COEFF_DIM] = 2;
@@ -275,7 +286,7 @@ int main_modbloch(int argc, char* argv[])
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
 	
 	if(NULL != input_b1)
-		unmap_cfl(DIMS, input_dims, input_b1);
+		unmap_cfl(DIMS, input_b1_dims, input_b1);
 	
 	if(NULL != input_sp)
 		unmap_cfl(DIMS, input_sp_dims, input_sp);

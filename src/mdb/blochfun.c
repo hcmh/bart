@@ -413,7 +413,7 @@ static void Bloch_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const complex float* input_b1, const complex float* input_sp, const struct modBlochFit* fitPara, bool use_gpu)
+struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const struct modBlochFit* fitPara, bool use_gpu)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
@@ -463,7 +463,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->tmp_map = my_alloc(N, map_dims, CFL_SIZE);
 	
 	
-	if (NULL != input_b1) {
+	if (NULL != fitPara->input_b1) {
 		
 		PTR_ALLOC(long[N], nindims);
 		md_copy_dims(N, *nindims, input_dims);
@@ -474,7 +474,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 		data->input_strs = *PTR_PASS(ninstr);
 
 		data->input_b1 = my_alloc(N, input_dims, CFL_SIZE);
-		md_copy(N, input_dims, data->input_b1, input_b1, CFL_SIZE);
+		md_copy(N, input_dims, data->input_b1, fitPara->input_b1, CFL_SIZE);
 	}
 	else {
 		
@@ -483,7 +483,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 		data->input_strs = NULL;
 	}
 	
-	if (NULL != input_sp) {
+	if (NULL != fitPara->input_sp) {
 
 		long slcp_dims[DIMS];
 
@@ -492,7 +492,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 
 		data->input_sp = my_alloc(N, slcp_dims, CFL_SIZE);
 
-		md_copy(N, slcp_dims, data->input_sp, input_sp, CFL_SIZE);
+		md_copy(N, slcp_dims, data->input_sp, fitPara->input_sp, CFL_SIZE);
 	}
 	else
 		data->input_sp = NULL;
