@@ -247,8 +247,7 @@ int main_modbloch(int argc, char* argv[])
 	
 	pos[COEFF_DIM] = 2;
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
-	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / scaling);
-	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, scaling_psf);
+	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, scaling_psf / scaling);
 	
 	complex float* tmp_sens = md_alloc(DIMS, tmp_dims, CFL_SIZE);
 	
