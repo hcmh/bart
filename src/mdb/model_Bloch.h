@@ -34,6 +34,7 @@ struct modBlochFit {
 	float m0scaling;
 	float fov_reduction_factor;
 	int rm_no_echo;
+	bool full_ode_sim;
 	
 	/*Input Calibrations*/
 	complex float* input_b1;

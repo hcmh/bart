@@ -66,6 +66,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_STRING(	'P',	&inputSP, 		"", "Input Slice Profile image"),
+		OPT_SET(	'O', 	&fitPara.full_ode_sim	,  "Apply full ODE simulation"),
 		OPT_SET(	'g', 	&usegpu			,  "use gpu"),
 	};
 

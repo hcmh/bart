@@ -270,9 +270,11 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				}
 
 // 				debug_printf(DP_DEBUG3, "R1: %f,\tR2: %f,\tM0: %f\n", sim_data.voxelData.r1, sim_data.voxelData.r2, sim_data.voxelData.m0);
-
-// 				ode_bloch_simulation3( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig );
-				matrix_bloch_simulation( &sim_data, mxySig, saR1Sig, saR2Sig, saDensSig );
+				
+				if (data->fitParameter.full_ode_sim)
+					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
+				else
+					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 
 				long curr_pos[DIMS];
 				md_copy_dims(DIMS, curr_pos, spa_pos);
@@ -512,6 +514,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->fitParameter.fov_reduction_factor = fitPara->fov_reduction_factor;
 	data->fitParameter.n_slcp = fitPara->n_slcp;
 	data->fitParameter.rm_no_echo = fitPara->rm_no_echo;
+	data->fitParameter.full_ode_sim = fitPara->full_ode_sim;
 	data->use_gpu = use_gpu;
 	
 	data->counter = 0;
