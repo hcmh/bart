@@ -380,8 +380,6 @@ void calc_simu_phantom(void* _data,long dims[DIMS], complex float* out, bool ksp
 	
 	sim_data->seqData.rep_num = dims[TE_DIM];
 	
-	
-	
 	//create map
 	complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* sensitivitiesR1 = md_alloc(DIMS, dims, CFL_SIZE);
@@ -428,13 +426,13 @@ void calc_simu_phantom(void* _data,long dims[DIMS], complex float* out, bool ksp
 			ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);
 			
 			//Add data to phantom
-			for(int z = 0; z < dims[TE_DIM]; z++){
+			for (int z = 0; z < dims[TE_DIM]; z++) {
+				
 				//changed x-and y-axis to have same orientation as measurements
 				sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR1Sig[z][1] + saR1Sig[z][0] * I; 
 				sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR2Sig[z][1] + saR2Sig[z][0] * I;
 				sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saDensSig[z][1] + saDensSig[z][0] * I;
 				phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = mxySig[z][1] + mxySig[z][0] * I;
-				
 			} 
 			
 			md_copy(DIMS, dims, out, phantom, CFL_SIZE);
