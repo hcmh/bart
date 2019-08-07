@@ -47,7 +47,6 @@ int main_modbloch(int argc, char* argv[])
 	bool usegpu = false;
 	const char* inputB1 = NULL;
 	const char* inputSP = NULL;
-	const char* inputM0 = NULL;
 
 	const struct opt_s opts[] = {
 
@@ -67,7 +66,6 @@ int main_modbloch(int argc, char* argv[])
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_STRING(	'P',	&inputSP, 		"", "Input Slice Profile image"),
-		OPT_STRING(	'M',	&inputM0, 		"", "Input M0 image"),
 		OPT_SET(	'g', 	&usegpu			,  "use gpu"),
 	};
 
@@ -163,10 +161,6 @@ int main_modbloch(int argc, char* argv[])
 		debug_printf(DP_DEBUG3, "Number of slice profile estimates: %d\n", fitPara.n_slcp);
 	}
 	
-	complex float* inputM0_img = NULL;
-	
-	if (NULL != inputM0)
-		inputM0_img = load_cfl(inputM0, DIMS, input_dims);
 	
 	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
@@ -286,8 +280,6 @@ int main_modbloch(int argc, char* argv[])
 	if(NULL != input_sp)
 		unmap_cfl(DIMS, input_sp_dims, input_sp);
 	
-	if(NULL != inputM0_img)
-		unmap_cfl(DIMS, input_dims, inputM0_img);
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
