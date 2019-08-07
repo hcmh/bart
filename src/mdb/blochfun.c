@@ -238,7 +238,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				struct SimData sim_data;
 				
 				sim_data.seqData = seqData_defaults;
-				sim_data.seqData.seq_type = 1;
+				sim_data.seqData.seq_type = data->fitParameter.sequence;
 				sim_data.seqData.TR = data->fitParameter.tr;
 				sim_data.seqData.TE = data->fitParameter.te;
 				sim_data.seqData.rep_num = (data->out_dims[TE_DIM] + rm_first_echo) * data->fitParameter.averageSpokes;
@@ -510,6 +510,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 
 	debug_printf(DP_DEBUG2, "TR: %f s,\t TE: %f s\n", data->fitParameter.tr, data->fitParameter.te);
 
+	data->fitParameter.sequence = fitPara->sequence;
 	data->fitParameter.averageSpokes = fitPara->averageSpokes;
 	data->fitParameter.fov_reduction_factor = fitPara->fov_reduction_factor;
 	data->fitParameter.n_slcp = fitPara->n_slcp;
