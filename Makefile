@@ -209,6 +209,8 @@ MODULES_kmeans = -lmanifold
 MODULES_tgv = -liter -llinops
 MODULES_mdbT1 = -lmdb
 MODULES_mdbT2 = -lmdb
+MODULES_bloch = -lsimu
+MODULES_modbloch = -lmdb -lnoir -lnlops -llinops -lsimu -lwavelet -liter
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
