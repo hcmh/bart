@@ -62,7 +62,7 @@ struct blochFun_s {
 	complex float* dR2;
 	complex float* dM0;
 	
-	complex float* input_img;
+	complex float* input_b1;
 	complex float* input_sp;
 	
 	struct modBlochFit fitParameter;
@@ -157,10 +157,10 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 	complex float* B1_cpu = NULL;
 
-	if (NULL != data->input_img) {
+	if (NULL != data->input_b1) {
 
 		B1_cpu = md_alloc(data->N, data->input_dims, CFL_SIZE);
-		md_copy(data->N, data->input_dims, B1_cpu, data->input_img, CFL_SIZE);
+		md_copy(data->N, data->input_dims, B1_cpu, data->input_b1, CFL_SIZE);
 	}
 
 	
@@ -231,8 +231,8 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				//Get effective flipangle from B1 map -> this do not include inversion efficiency
 				float b1 = 1.;
 				
-				if (NULL != data->input_img) 
-					b1 = cabsf( B1_cpu[spa_ind] ); 
+				if (NULL != data->input_b1) 
+					b1 = cabsf(B1_cpu[spa_ind]); 
 
 
 				struct SimData sim_data;
@@ -314,7 +314,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	if (NULL != data->input_sp)
 		md_free(SP_cpu);
 	
-	if (NULL != data->input_img)
+	if (NULL != data->input_b1)
 		md_free(B1_cpu);
 	
 	double totaltime = timestamp() - starttime;
@@ -396,7 +396,7 @@ static void Bloch_del(const nlop_data_t* _data)
 	
 	md_free(data->tmp_map);
 	
-	md_free(data->input_img);
+	md_free(data->input_b1);
 	md_free(data->input_sp);
 
 	xfree(data->map_dims);
@@ -413,7 +413,7 @@ static void Bloch_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const complex float* input_img, const complex float* input_sp, const struct modBlochFit* fitPara, bool use_gpu)
+struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const complex float* input_b1, const complex float* input_sp, const struct modBlochFit* fitPara, bool use_gpu)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
@@ -463,7 +463,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->tmp_map = my_alloc(N, map_dims, CFL_SIZE);
 	
 	
-	if (NULL != input_img) {
+	if (NULL != input_b1) {
 		
 		PTR_ALLOC(long[N], nindims);
 		md_copy_dims(N, *nindims, input_dims);
@@ -473,12 +473,12 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 		md_calc_strides(N, *ninstr, input_dims, CFL_SIZE);
 		data->input_strs = *PTR_PASS(ninstr);
 
-		data->input_img = my_alloc(N, input_dims, CFL_SIZE);
-		md_copy(N, input_dims, data->input_img, input_img, CFL_SIZE);
+		data->input_b1 = my_alloc(N, input_dims, CFL_SIZE);
+		md_copy(N, input_dims, data->input_b1, input_b1, CFL_SIZE);
 	}
 	else {
 		
-		data->input_img = NULL;
+		data->input_b1 = NULL;
 		data->input_dims = NULL;
 		data->input_strs = NULL;
 	}
