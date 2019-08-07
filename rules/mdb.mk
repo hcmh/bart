@@ -8,7 +8,7 @@ mdbobjs := $(mdbsrcs:.c=.o)
 lib/libmdb.a: libmdb.a($(mdbobjs))
 
 UTARGETS += test_mdb
-MODULES_test_mdb += -lmdb -lnlops -llinops
+MODULES_test_mdb += -lmdb -lnoir -lnlops -llinops -lsimu
 
 
 

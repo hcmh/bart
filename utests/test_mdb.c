@@ -24,6 +24,8 @@
 #include "nlops/nlop.h"
 
 #include "mdb/T1fun.h"
+#include "mdb/model_Bloch.h"
+#include "mdb/blochfun.h"
 
 #include "utest.h"
 
@@ -62,4 +64,38 @@ static bool test_nlop_T1fun(void)
 }
 
 UT_REGISTER_TEST(test_nlop_T1fun);
+
+
+static bool test_nlop_Blochfun(void) 
+{
+	enum { N = 16 };
+	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long out_dims[N] = { 16, 16, 1, 1, 1, 500, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long input_dims[N];
+	
+	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
+	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
+	complex float* input_sp = NULL;
+	complex float* input_img = NULL;
+	bool gpu_use = false;
+	struct modBlochFit fitPara = modBlochFit_defaults;
+	
+	md_zfill(N, in_dims, src, 1.0);
+
+	struct nlop_s* op_Bloch = nlop_Bloch_create(N, map_dims, out_dims, in_dims, input_dims, input_img, input_sp, &fitPara, gpu_use);
+
+	nlop_apply(op_Bloch, N, out_dims, dst, N, in_dims, src);
+	
+	float err2 = linop_test_adjoint(nlop_get_derivative(op_Bloch, 0, 0));
+
+	nlop_free(op_Bloch);
+
+	md_free(src);
+	md_free(dst);	
+	
+	UT_ASSERT(err2 < 1.E-3);
+}
+
+UT_REGISTER_TEST(test_nlop_Blochfun);
 
