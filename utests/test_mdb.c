@@ -78,7 +78,9 @@ static bool test_nlop_Blochfun(void)
 	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
 	complex float* input_sp = NULL;
 	complex float* input_img = NULL;
+	
 	bool gpu_use = false;
+	
 	struct modBlochFit fitPara = modBlochFit_defaults;
 	
 	md_zfill(N, in_dims, src, 1.0);
@@ -87,14 +89,14 @@ static bool test_nlop_Blochfun(void)
 
 	nlop_apply(op_Bloch, N, out_dims, dst, N, in_dims, src);
 	
-	float err2 = linop_test_adjoint(nlop_get_derivative(op_Bloch, 0, 0));
+	float err = linop_test_adjoint(nlop_get_derivative(op_Bloch, 0, 0));
 
 	nlop_free(op_Bloch);
 
 	md_free(src);
 	md_free(dst);	
 	
-	UT_ASSERT(err2 < 1.E-3);
+	UT_ASSERT(err < 1.E-3);
 }
 
 UT_REGISTER_TEST(test_nlop_Blochfun);

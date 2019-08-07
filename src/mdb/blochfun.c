@@ -329,21 +329,18 @@ static void Bloch_der(const nlop_data_t* _data, complex float* dst, const comple
 
 	pos[COEFF_DIM] = 0;
 	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-// 	const complex float* tmp_R1 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 
 	// dst = dR1 * R1'
 	md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->dR1);
 
 	pos[COEFF_DIM] = 1;
 	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-// 	const complex float* tmp_R2 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 
 	// dst = dst + dR2 * R2'
 	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->dR2);
 
 	pos[COEFF_DIM] = 2;
 	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-// 	const complex float* tmp_M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 
 	// dst = dst + dM0 * M0'
 	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->dM0);
@@ -361,12 +358,10 @@ static void Bloch_adj(const nlop_data_t* _data, complex float* dst, const comple
 
 
 	pos[COEFF_DIM] = 0;	//R1
-// 	complex float* tmp_map;
 	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
 	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->dR1);
 
 	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-// 	tmp_map = (void*)dst + md_calc_offset(data->N, data->in_strs, pos);
 
 
 	pos[COEFF_DIM] = 1;	//R2
@@ -374,7 +369,6 @@ static void Bloch_adj(const nlop_data_t* _data, complex float* dst, const comple
 	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->dR2);
 
 	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-// 	tmp_map = (void*)dst + md_calc_offset(data->N, data->in_strs, pos);
 
 
 	pos[COEFF_DIM] = 2;	//M0
@@ -382,7 +376,6 @@ static void Bloch_adj(const nlop_data_t* _data, complex float* dst, const comple
 	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->dM0);
 
 	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-// 	tmp_map = (void*)dst + md_calc_offset(data->N, data->in_strs, pos);
 	
 }
 
