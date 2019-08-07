@@ -383,42 +383,41 @@ void calc_simu_phantom(void* _data,long dims[DIMS], complex float* out, bool ksp
 	
 	
 	//create map
-    complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
-    complex float* sensitivitiesR1 = md_alloc(DIMS, dims, CFL_SIZE);
-    complex float* sensitivitiesR2 = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* sensitivitiesR1 = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* sensitivitiesR2 = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* sensitivitiesM0 = md_alloc(DIMS, dims, CFL_SIZE);
-    
-    
-    #pragma omp parallel for collapse(2)
-    for(int x = 0; x < dims[0]; x++ ){
-        
-        for(int y = 0; y < dims[1]; y++ ){
+	
+	
+	#pragma omp parallel for collapse(2)
+	for(int x = 0; x < dims[0]; x++ ){
+		
+		for(int y = 0; y < dims[1]; y++ ){
 			
 			struct SimData data = *sim_data;
 			
-            //Get offset values from -pi to +pi
-            //data.w = ( (float) y - (float) dims[1]/2. )/  ( (float) dims[1]/2.) * PI / data.TR;
-            
-            //Updating data
+			//Updating data
 			float t1 = crealf(in[(y * dims[0]) + x]);
 			float t2 = cimagf(in[(y * dims[0]) + x]);
 
-            //Skip empty voxels
-            if(t1 <= 0.001 || t2 <= 0.001){
-                for(int z = 0; z < dims[TE_DIM]; z++){
-                    phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-                    sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-                    sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+			//Skip empty voxels
+			if (t1 <= 0.001 || t2 <= 0.001) {
+				
+				for(int z = 0; z < dims[TE_DIM]; z++) {
+					
+					phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+					sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+					sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
 					sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-                }
-                continue;
-            }
-            
-            data.voxelData.r1 = 1/t1;  
-            data.voxelData.r2 = 1/t2; 
+				}
+				continue;
+			}
+		
+			data.voxelData.r1 = 1/t1;  
+			data.voxelData.r2 = 1/t2; 
 			data.voxelData.m0 = 1;			// TODO: Change to add coil profiles
 			
-			debug_printf(DP_DEBUG3,"%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data.seqData.TR, data.seqData.TE, data.voxelData.r1, data.voxelData.r2, data.seqtmp.rep_counter, data.pulseData.RF_end, data.pulseData.flipangle );
+			debug_printf(DP_DEBUG3,"%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data.seqData.TR, data.seqData.TE, data.voxelData.r1, data.voxelData.r2, 	data.seqtmp.rep_counter, data.pulseData.RF_end, data.pulseData.flipangle );
 			
 			
 			float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
