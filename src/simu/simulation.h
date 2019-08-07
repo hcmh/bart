@@ -10,13 +10,13 @@ struct PulseData {
 	float RF_end;
 	float flipangle;
 	float phase;
-	float nl;						/*number of zero crossings to the left of the main loop*/
-	float nr; 						/*number of zero crossings to the right of the main loop*/
-	float n;						/*max(nl, nr)*/
-	float t0;						/*time of main lope: t0 =  = pulse_len / ( 2 + (nl-1)  + (nr-1))*/
-	float alpha; 					/*windows of pulse ( 0: normal sinc, 0.5: Hanning, 0.46: Hamming)*/
-	float A;						/*offset*/
-	float energy_scale;				/*Define energy scale factor*/
+	float nl;		/*number of zero crossings to the left of the main loop*/
+	float nr; 		/*number of zero crossings to the right of the main loop*/
+	float n;		/*max(nl, nr)*/
+	float t0;		/*time of main lope: t0 =  = pulse_len / ( 2 + (nl-1)  + (nr-1))*/
+	float alpha; 		/*windows of pulse ( 0: normal sinc, 0.5: Hanning, 0.46: Hamming)*/
+	float A;		/*offset*/
+	float energy_scale;	/*Define energy scale factor*/
 	bool pulse_applied;
 };
 extern const struct PulseData pulseData_defaults;
@@ -41,6 +41,8 @@ struct SeqData {
 	int rep_num;
 	int spin_num;
 	int num_average_rep;
+	
+	complex float* variable_fa;
 };
 extern const struct SeqData seqData_defaults;
 
@@ -60,7 +62,6 @@ struct GradData {
 	float gb_eff[3];
 };
 extern const struct GradData gradData_defaults;
-
 
 
 struct SimData {

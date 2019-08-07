@@ -5,6 +5,7 @@
  *
  * Authors: 
  * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2018-2019 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
@@ -23,8 +24,9 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
-#include "noir/recon_T2.h"
-//#include "noir/recon.h"
+#include "noir/recon.h"
+
+#include "mdb/recon_T2.h"
 
 
 

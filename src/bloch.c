@@ -41,33 +41,36 @@ int main_bloch(int argc, char* argv[argc])
 	int seq = 0;
 	int xdim = 128;
 	int ydim = 128;
-	int repetition = 500;
-	int kspace = 0;
-	int aver_num = 1;
-	int spin_num = 1;
-	bool analytical = false;
-	bool spin_ensamble = false;
 	float tr = 0.0045;
 	float te = 0.00225;
 	float flipangle = 45.;
 	float rf_end = 0.0009;
+	
+	int aver_num = 1;
+	int spin_num = 1;
+	int repetition = 500;
 	float offresonance = 0.;
+	
 	bool inverse_relaxation = false;
 	const char* inputRel1 = NULL;
 	const char* inputRel2 = NULL;
 	const char* inputM0 = NULL;
 
+	float m0i = 1;
 	float t1i = WATER_T1;
 	float t2i = WATER_T2;
-	float m0i = 1;
 
+	bool analytical = false;
+	bool spin_ensamble = false;
+	int kspace = 0;
 	bool linear_offset = false;
 	bool matrix_exp_sim = false;
+	const char* fa_file = NULL;
 	
 	const struct opt_s opts[] = {
 
 		/* Sequence Info */
-		OPT_INT('s', &seq, "sequence", "options: 0 = bSSFP[default], 1 = invbSSFP, 3 = pcbSSFP, 4 = turboSE, 5 = invFLASH, 6 = invpcbSSFP"),
+		OPT_INT('s', &seq, "sequence", "options: 0 = bSSFP[default], 1 = invbSSFP, 3 = pcbSSFP, 4 = inv. bSSFP without preparation, 5 = invFLASH, 6 = invpcbSSFP"),
 		OPT_INT('x', &xdim, "n", "dimensions in x for shepp-logan phantom"),
 		OPT_INT('y', &ydim, "n", "dimensions in y for shepp-logan phantom"),
 		OPT_FLOAT('t', &tr, "", "TR [s]"),
@@ -99,6 +102,7 @@ int main_bloch(int argc, char* argv[argc])
 		OPT_INT('k', &kspace, "d", "kspace output? default:0=no"),
 		OPT_SET('L', &linear_offset, "Add linear distribution of off-set freq."),
 		OPT_SET('S', &matrix_exp_sim, "Simulate using matrix exponentials."),
+		OPT_STRING('F', &fa_file, "", "Variable flipangle file"),
 	};
 	
 	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -126,6 +130,9 @@ int main_bloch(int argc, char* argv[argc])
 	
 	if (matrix_exp_sim && (rf_end == 0.))
 		error( "Simulation tool does not allow to hard-pulses using matrix exponentials yet.\n" );
+	
+	if (matrix_exp_sim && (NULL != fa_file))
+		error( "Simulation tool does not allow variable flipangles for operator based simulation.\n" );
 	
 	
 	long dim_map[DIMS] = { [0 ... DIMS - 1] = 1 };
@@ -229,7 +236,18 @@ int main_bloch(int argc, char* argv[argc])
 	complex float* sensitivitiesT1 = create_cfl(argv[2], DIMS, dim_phantom);
 	complex float* sensitivitiesT2 = create_cfl(argv[3], DIMS, dim_phantom);
 	complex float* sensitivitiesDens = create_cfl(argv[4], DIMS, dim_phantom);
-
+	
+	
+	
+	
+	long dim_vfa[DIMS] = { [0 ... DIMS - 1] = 1 };
+	complex float* vfa_file = NULL;
+	
+	if (NULL != fa_file)
+		vfa_file = load_cfl(fa_file, DIMS, dim_vfa);
+	
+	
+	
 	#pragma omp parallel for collapse(2)
 	for (int x = 0; x < dim_phantom[0]; x++) 
 		for (int y = 0; y < dim_phantom[1]; y++) {
@@ -274,6 +292,11 @@ int main_bloch(int argc, char* argv[argc])
 			sim_data.seqData.rep_num = repetition;
 			sim_data.seqData.spin_num = spin_num;
 			sim_data.seqData.num_average_rep = aver_num;
+			
+			if (NULL != vfa_file) {
+				sim_data.seqData.variable_fa = md_alloc(DIMS, dim_vfa, CFL_SIZE);
+				md_copy(DIMS, dim_vfa, sim_data.seqData.variable_fa, vfa_file, CFL_SIZE);
+			}
 			
 			sim_data.voxelData = voxelData_defaults;
 			sim_data.voxelData.r1 = 1 / t1;

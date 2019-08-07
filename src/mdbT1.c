@@ -24,8 +24,9 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
-#include "noir/recon_T1.h"
-//#include "noir/recon.h"
+#include "noir/recon.h"
+
+#include "mdb/recon_T1.h"
 
 
 
@@ -39,14 +40,12 @@ int main_mdbT1(int argc, char* argv[])
 {
 	double start_time = timestamp();
 
-	bool normalize = true;
 	float restrict_fov = -1.;
 	const char* psf = NULL;
-	const char* init_file = NULL;
 	struct noir_conf_s conf = noir_defaults;
 	bool out_sens = false;
-	bool scale_im = false;
 	bool usegpu = false;
+	bool unused = false;
 
 	const struct opt_s opts[] = {
 
@@ -54,20 +53,16 @@ int main_mdbT1(int argc, char* argv[])
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
 		OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
-		OPT_SET('c', &conf.rvc, "Real-value constraint"),
-		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
+		OPT_SET('N', &unused, "(normalize)"), // no-op
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
-		OPT_STRING('I', &init_file, "file", "File for initialization"),
 		OPT_SET('g', &usegpu, "use gpu"),
-		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	if (5 == argc)
 		out_sens = true;
-
 
 
 	num_init();
@@ -79,16 +74,6 @@ int main_mdbT1(int argc, char* argv[])
 	complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
 
 	assert(TI_dims[TE_DIM] == ksp_dims[TE_DIM]);
-
-	// SMS
-	if (1 != ksp_dims[SLICE_DIM]) {
-
-		debug_printf(DP_INFO, "SMS Model-based reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
-		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace_data, kspace_data); // fftmod to get correct slice order in output
-		conf.sms = true;
-	}
-
-
 	assert(1 == ksp_dims[MAPS_DIM]);
 
 	long dims[DIMS];
@@ -127,25 +112,9 @@ int main_mdbT1(int argc, char* argv[])
 	complex float* norm = md_alloc(DIMS, img_dims, CFL_SIZE);
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[4] : "", DIMS, coil_dims);
 
-	// initialization
-	if (NULL != init_file) {
 
-		long skip = md_calc_size(DIMS, img_dims);
-		long init_dims[DIMS];
-		complex float* init = load_cfl(init_file, DIMS, init_dims);
-
-		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
-
-		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
-		fftmod(DIMS, coil_dims, FFT_FLAGS|SLICE_FLAG|MAPS_FLAG|TIME2_FLAG, sens, init + skip);
-
-	} else {
-
-		md_zfill(DIMS, img_dims, img, 1.0);
-
-
-		md_clear(DIMS, coil_dims, sens, CFL_SIZE);
-	}
+	md_zfill(DIMS, img_dims, img, 1.0);
+	md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 
 	complex float* pattern = NULL;
 	long pat_dims[DIMS];
@@ -171,20 +140,9 @@ int main_mdbT1(int argc, char* argv[])
 		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace_data);
 	}
 
-#if 0
-	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
-#else
 	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
-
-	if (1 != ksp_dims[SLICE_DIM]) // SMS
-		scaling *= sqrt(ksp_dims[SLICE_DIM] / 2.);
-
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
 
-	if (1 != ksp_dims[SLICE_DIM]) // SMS
-		scaling_psf *= sqrt(ksp_dims[SLICE_DIM] / 2.);
-
-#endif
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
 
@@ -217,9 +175,6 @@ int main_mdbT1(int argc, char* argv[])
 		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, 1.5);
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
-
-
-
 	}
 
 // 	conf.alpha = 0.1;
@@ -239,26 +194,6 @@ int main_mdbT1(int argc, char* argv[])
 	} else
 #endif
 	T1_recon(&conf, dims, img, sens, pattern, mask, TI, kspace_data, usegpu);
-
-	if (normalize) {
-
-		md_zrss(DIMS, ksp_dims, COIL_FLAG, norm, sens);
-		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, img_strs, norm);
-	}
-
-	if (out_sens) {
-
-		long strs[DIMS];
-		md_calc_strides(DIMS, strs, ksp_dims, CFL_SIZE);
-
-		if (normalize)
-			md_zdiv2(DIMS, coil_dims, strs, sens, strs, sens, img_strs, norm);
-
-// 		fftmod(DIMS, coil_dims, FFT_FLAGS, sens, sens);
-	}
-
-	if (scale_im)
-		md_zsmul(DIMS, img_dims, img, img, 1. / scaling);
 
 	md_free(norm);
 	md_free(mask);
