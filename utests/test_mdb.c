@@ -76,8 +76,6 @@ static bool test_nlop_Blochfun(void)
 	
 	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
 	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
-	complex float* input_sp = NULL;
-	complex float* input_img = NULL;
 	
 	bool gpu_use = false;
 	
@@ -85,7 +83,7 @@ static bool test_nlop_Blochfun(void)
 	
 	md_zfill(N, in_dims, src, 1.0);
 
-	struct nlop_s* op_Bloch = nlop_Bloch_create(N, map_dims, out_dims, in_dims, input_dims, input_img, input_sp, &fitPara, gpu_use);
+	struct nlop_s* op_Bloch = nlop_Bloch_create(N, map_dims, out_dims, in_dims, input_dims, &fitPara, gpu_use);
 
 	nlop_apply(op_Bloch, N, out_dims, dst, N, in_dims, src);
 	
