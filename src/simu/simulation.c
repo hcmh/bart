@@ -376,12 +376,18 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		
 		if (NULL == data->seqData.variable_fa)
 			create_sim_block(data);
-        
+		
+		int vfa_ind = 0;
+		
 		while (data->seqtmp.rep_counter < data->seqData.rep_num) {
+			
 			
 			if (NULL != data->seqData.variable_fa) {
 				
-				data->pulseData.flipangle = data->seqData.variable_fa[data->seqtmp.rep_counter];
+				vfa_ind = (data->seqtmp.rep_counter - data->seqtmp.rep_counter % 2) / 2;
+				
+				data->pulseData.flipangle = data->seqData.variable_fa[vfa_ind];
+				
 				create_sim_block(data);
 			}
 			
