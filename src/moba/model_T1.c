@@ -1,10 +1,10 @@
-/* Copyright 2013. The Regents of the University of California.
- * Copyright 2017-2018. Martin Uecker.
+/* Copyright 2018-2019. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2011-2018 Martin Uecker
+ * 2018-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2018-2019 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
  */
 
 
