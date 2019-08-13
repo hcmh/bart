@@ -60,7 +60,7 @@ int main_laplace(int argc, char* argv[])
 	long L_dims[2];
 
 	if (conf.temporal_nn) {
-		debug_printf(DP_INFO, "Calculating temporal nearest neighbour Laplacian!");
+		debug_printf(DP_INFO, "Calculating temporal nearest neighbour Laplacian!\n");
 		
 		int max = 0;
 		for (int i = 0; i < src_dims[0]; i++)
@@ -71,7 +71,7 @@ int main_laplace(int argc, char* argv[])
 		
 	} else {
 		
-		debug_printf(DP_INFO, "Calculating Laplacian!");
+		debug_printf(DP_INFO, "Calculating Laplacian!\n");
 		
 		L_dims[0] = src_dims[0];
 		L_dims[1] = src_dims[0];
