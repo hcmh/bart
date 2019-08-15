@@ -31,8 +31,8 @@ void auto_scale(const struct modBlochFit* fitPara, float scale[3], const long ks
 {
 	
 	long int dims[DIMS] = { [0 ... DIMS - 1] = 1. };
-	dims[0] = 32;
-	dims[1] = 32;
+	dims[0] = 100;
+	dims[1] = 100;
 	dims[TE_DIM] = ksp_dims[TE_DIM];
 	
 	complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
