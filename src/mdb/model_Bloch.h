@@ -28,6 +28,7 @@ struct modBlochFit {
 	int averageSpokes;
 	int n_slcp;
 	int num_vfa;
+	float fa;
 	
 	/*Reconstruction Parameter*/
 	float scale[3];

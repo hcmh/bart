@@ -219,7 +219,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	int rm_first_echo = data->fitParameter.rm_no_echo;
 // 	debug_printf(DP_DEBUG1, "Removed first %d echoes from signal.\n", rm_first_echo);
 
-	float angle = 45.;
+	float angle = data->fitParameter.fa;
 
 	#pragma omp parallel for collapse(3)
 	for (int x = xstart; x < xend; x++)
@@ -541,6 +541,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->fitParameter.rfduration = fitPara->rfduration;
 	data->fitParameter.tr = fitPara->tr;
 	data->fitParameter.te = fitPara->te;
+	data->fitParameter.fa = fitPara->fa;
 
 	debug_printf(DP_DEBUG2, "TR: %f s,\t TE: %f s\n", data->fitParameter.tr, data->fitParameter.te);
 

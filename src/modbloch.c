@@ -61,6 +61,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_FLOAT(	'D', 	&fitPara.rfduration, 	"", "Duration of RF-pulse [s]"),
 		OPT_FLOAT(	't', 	&fitPara.tr, 		"", "TR [s]"),
 		OPT_FLOAT(	'e', 	&fitPara.te, 		"", "TE [s]"),
+		OPT_FLOAT(	'F', 	&fitPara.fa, 		"", "Flipangle [deg]"),
 		OPT_INT(	'a', 	&fitPara.averageSpokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fitPara.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),

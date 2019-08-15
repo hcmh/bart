@@ -67,7 +67,7 @@ void auto_scale(const struct modBlochFit* fitPara, float scale[3], const long ks
 			sim_data.voxelData.w = 0;
 			
 			sim_data.pulseData = pulseData_defaults;
-			sim_data.pulseData.flipangle = 45.;
+			sim_data.pulseData.flipangle = fitPara->fa;
 			sim_data.pulseData.RF_end = fitPara->rfduration;
 			sim_data.gradData = gradData_defaults;
 			sim_data.seqtmp = seqTmpData_defaults;
