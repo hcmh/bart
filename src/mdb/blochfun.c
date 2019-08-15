@@ -51,10 +51,7 @@ struct blochFun_s {
 	
 	complex float* tmp_map;
 	
-	//scaling factors
-	float scaling_R1;
-	float scaling_R2;
-	float scaling_M0;
+	float scale[3];
 	
 	//derivatives
 	complex float* Sig;
@@ -128,7 +125,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	// R1 
 	pos[COEFF_DIM] = 0;	
 	const complex float* R1 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, R1scale_tmp, data->map_strs, R1, data->scaling_R1);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, R1scale_tmp, data->map_strs, R1, data->scale[0]);
 
 	complex float* R1scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, R1scale, R1scale_tmp, CFL_SIZE);
@@ -136,7 +133,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	// R2 
 	pos[COEFF_DIM] = 1;	 
 	const complex float* R2 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, R2scale_tmp, data->map_strs, R2, data->scaling_R2);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, R2scale_tmp, data->map_strs, R2, data->scale[1]);
 
 	complex float* R2scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, R2scale, R2scale_tmp, CFL_SIZE);
@@ -144,7 +141,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	// M0 
 	pos[COEFF_DIM] = 2;	 
 	const complex float* M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, M0scale_tmp, data->map_strs, M0, data->scaling_M0);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, M0scale_tmp, data->map_strs, M0, data->scale[2]);
 
 	complex float* M0scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, M0scale, M0scale_tmp, CFL_SIZE);
@@ -308,9 +305,9 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 					//Scaling: dB/dRi = dB/dRis * dRis/dRi
 					//Write to possible GPU memory
-					dR1_cpu[position] = data->scaling_R1 * ( saR1Sig[j+rm_first_echo][1] + saR1Sig[j+rm_first_echo][0] * I );//+1 to skip first frame, where data is empty
-					dR2_cpu[position] = data->scaling_R2 * ( saR2Sig[j+rm_first_echo][1] + saR2Sig[j+rm_first_echo][0] * I );
-					dM0_cpu[position] = data->scaling_M0 * ( saDensSig[j+rm_first_echo][1] + saDensSig[j+rm_first_echo][0] * I);
+					dR1_cpu[position] = data->scale[0] * ( saR1Sig[j+rm_first_echo][1] + saR1Sig[j+rm_first_echo][0] * I );//+1 to skip first frame, where data is empty
+					dR2_cpu[position] = data->scale[1] * ( saR2Sig[j+rm_first_echo][1] + saR2Sig[j+rm_first_echo][0] * I );
+					dM0_cpu[position] = data->scale[2] * ( saDensSig[j+rm_first_echo][1] + saDensSig[j+rm_first_echo][0] * I);
 					Sig_cpu[position] = mxySig[j+rm_first_echo][1] + mxySig[j+rm_first_echo][0] * I;
 				}
 			}
@@ -478,9 +475,9 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 
 
 	data->N = N;
-	data->scaling_R1 = fitPara->r1scaling;
-	data->scaling_R2 = fitPara->r2scaling;
-	data->scaling_M0 = fitPara->m0scaling;
+	data->scale[0] = fitPara->scale[0];
+	data->scale[1] = fitPara->scale[1];
+	data->scale[2] = fitPara->scale[2];
 	data->Sig = my_alloc(N, out_dims, CFL_SIZE);
 	data->dR1 = my_alloc(N, out_dims, CFL_SIZE);
 	data->dR2 = my_alloc(N, out_dims, CFL_SIZE);

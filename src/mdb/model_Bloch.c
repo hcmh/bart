@@ -54,9 +54,7 @@ const struct modBlochFit modBlochFit_defaults = {
 	.n_slcp = 1,
 	.num_vfa = 1,
 	
-	.r1scaling = 1.,
-	.r2scaling = 1.,
-	.m0scaling = 1.,
+	.scale = {1., 1., 1.},
 	.fov_reduction_factor = 1.,
 	.rm_no_echo = 0.,
 	.full_ode_sim = false,

@@ -226,14 +226,9 @@ int main_modbloch(int argc, char* argv[])
 	//Values for Initialization of maps
 	complex float initval[3] = {0.8, 11., 4.} ;//	R1, R2, M0 
 	
-	float grad_scale[3];
-	//autoscaling: pass simulation info
-	auto_scale(&fitPara, grad_scale, ksp_dims, kspace_data);
-	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", grad_scale[0], grad_scale[1], grad_scale[2]);
-	
-	fitPara.r1scaling = grad_scale[0];
-	fitPara.r2scaling = grad_scale[1];
-	fitPara.m0scaling = grad_scale[2];
+	auto_scale(&fitPara, fitPara.scale, ksp_dims, kspace_data);
+	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fitPara.scale[0], fitPara.scale[1], fitPara.scale[2]);
+
 
 	long pos[DIMS];
 	md_set_dims(DIMS, pos, 0);
@@ -249,7 +244,7 @@ int main_modbloch(int argc, char* argv[])
 		
 		md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, initval[i]);
-		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / grad_scale[i]);
+		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / fitPara.scale[i]);
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE);  
 	
 	}
@@ -288,7 +283,7 @@ int main_modbloch(int argc, char* argv[])
 		
 		md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 		
-		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, grad_scale[i]);
+		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, fitPara.scale[i]);
 		
 		if (2 != i)
 			md_zdiv(DIMS, tmp_dims, tmp_img, ones, tmp_img);

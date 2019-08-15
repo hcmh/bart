@@ -30,9 +30,7 @@ struct modBlochFit {
 	int num_vfa;
 	
 	/*Reconstruction Parameter*/
-	float r1scaling;
-	float r2scaling;
-	float m0scaling;
+	float scale[3];
 	float fov_reduction_factor;
 	int rm_no_echo;
 	bool full_ode_sim;
