@@ -26,6 +26,7 @@
 
 #include "mdb/recon_Bloch.h"
 #include "mdb/model_Bloch.h"
+#include "mdb/scale.h"
 
 
 
@@ -228,8 +229,15 @@ int main_modbloch(int argc, char* argv[])
 	//Values for Initialization of maps
 	complex float initval[3] = {0.8, 11., 4.} ;//	R1, R2, M0 
 	
-	float grad_scale[3] = {fitPara.r1scaling, fitPara.r2scaling, fitPara.m0scaling};
+	float grad_scale[3];
+	//autoscaling: pass simulation info
+	auto_scale(&fitPara, grad_scale, ksp_dims, kspace_data);
+	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", grad_scale[0], grad_scale[1], grad_scale[2]);
 	
+	fitPara.r1scaling = grad_scale[0];
+	fitPara.r2scaling = grad_scale[1];
+	fitPara.m0scaling = grad_scale[2];
+
 	long pos[DIMS];
 	md_set_dims(DIMS, pos, 0);
 	
