@@ -19,10 +19,8 @@
 #include "misc/mri.h"
 #include "misc/debug.h"
 
-#include "simu/shepplogan.h"
-#include "simu/sens.h"
-#include "simu/coil.h"
 #include "simu/simulation.h"
+#include "simu/sim_matrix.h"
 
 #include "recon_Bloch.h"
 #include "model_Bloch.h"
@@ -89,8 +87,13 @@ void auto_scale(const struct modBlochFit* fitPara, float scale[3], const long ks
 			float saR1Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+			
+			
+			if (fitPara->full_ode_sim || NULL != fitPara->input_fa_profile)	//variable flipangles are only included into ode simulation yet
+				ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
+			else
+				matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 
-			ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 			
 			//Add data to phantom
 			for (int z = 0; z < dims[TE_DIM]; z++) {
