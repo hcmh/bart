@@ -1,3 +1,10 @@
+/* Copyright 2019. Uecker Lab, University Medical Center Goettingen.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors: Xiaoqing Wang, Martin Uecker
+ */
+
 #include <complex.h>
 
 #include "misc/types.h"

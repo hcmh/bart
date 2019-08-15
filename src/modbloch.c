@@ -24,9 +24,9 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
-#include "mdb/recon_Bloch.h"
-#include "mdb/model_Bloch.h"
-#include "mdb/scale.h"
+#include "moba/recon_Bloch.h"
+#include "moba/model_Bloch.h"
+#include "moba/scale.h"
 
 
 

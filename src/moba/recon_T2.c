@@ -1,5 +1,5 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2016-2019. Martin Uecker.
+ * Copyright 2016-2019. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
@@ -30,8 +30,8 @@
 #include "noir/model.h"
 #include "noir/recon.h"
 
-#include "mdb/model_T2.h"
-#include "mdb/iter_l1.h"
+#include "moba/model_T2.h"
+#include "moba/iter_l1.h"
 
 #include "recon_T2.h"
 

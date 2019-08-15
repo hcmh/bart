@@ -1,11 +1,9 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2016-2019. Martin Uecker.
+ * Copyright 2019. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2011-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018-2019 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
+ * Authors: Xiaoqing Wang, Martin Uecker
  */
 
 #include <complex.h>
@@ -30,8 +28,8 @@
 #include "noir/model.h"
 #include "noir/recon.h"
 
-#include "mdb/model_T1.h"
-#include "mdb/iter_l1.h"
+#include "moba/model_T1.h"
+#include "moba/iter_l1.h"
 
 #include "recon_T1.h"
 

@@ -1,9 +1,8 @@
-/* Copyright 2018. Martin Uecker.
+/* Copyright 2019. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * Authors: Xiaoqing Wang, Martin Uecker, Nick Scholand
  */
 
 #include <complex.h>
@@ -23,9 +22,10 @@
 
 #include "nlops/nlop.h"
 
-#include "mdb/T1fun.h"
-#include "mdb/model_Bloch.h"
-#include "mdb/blochfun.h"
+#include "moba/T1fun.h"
+#include "moba/model_Bloch.h"
+#include "moba/blochfun.h"
+
 
 #include "utest.h"
 

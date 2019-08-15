@@ -1,10 +1,8 @@
-/* Copyright 2013. The Regents of the University of California.
- * Copyright 2017-2018. Martin Uecker.
+/* Copyright 2019. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2011-2018 Martin Uecker
+ * Authors: Xiaoqing Wang, Martin Uecker
  */
 
 
@@ -29,7 +27,7 @@
 
 #include "noir/model.h"
 
-#include "mdb/T1fun.h"
+#include "moba/T1fun.h"
 
 #include "model_T1.h"
 

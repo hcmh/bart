@@ -24,6 +24,7 @@ const struct laplace_conf laplace_conf_default = {
 
 	.sigma 		= -1,
 	.nn 		= -1,
+	.temporal_nn = false,
 	.gen_out	= false,
 };
 
@@ -32,71 +33,43 @@ const struct laplace_conf laplace_conf_default = {
 void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float* L, const long src_dims[2], const complex float* src)
 {
 
-	// L[i,j,:] = src[i,:] - src[j,:]
-	assert(L_dims[0] == src_dims[0]);
+	if (conf->temporal_nn) { // Laplace for temporal nearest neigbours
+		
+		md_clear(2, L_dims, L, CFL_SIZE);
 
-	complex float* dist = md_alloc(2, L_dims, CFL_SIZE);
+		assert(src_dims[1] == 1);
+		
+		int idx_past;
+		int idx;
+		int idx_future;
+		
+		for (int l = 0; l < src_dims[0]; l++) {
+			
+			if (creal(src[l]) > L_dims[0])
+				error("Lable index larger than Laplacian size!");
+			
+			idx = creal(src[l]);
 
-	long src_strs[2];
-	md_calc_strides(2, src_strs, src_dims, CFL_SIZE);
+			if (l > 0)
+				idx_past = creal(src[l - 1]);
+			else
+				idx_past = idx;			
+			
+			if (l < src_dims[0] - 1)
+				idx_future = creal(src[l + 1]);
+			else
+				idx_future = idx;
+			
+			
+			if (idx_past != idx)
+				L[idx * L_dims[0] + idx_past] += 1 + 0i;
+			
+			if (idx_future != idx)
+				L[idx * L_dims[0] + idx_future] += 1 + 0i;
 
-	long src_singleton_dims[2];
-	src_singleton_dims[0] = 1;
-	src_singleton_dims[1] = src_dims[1];
 
-	long src_singleton_strs[2];
-	md_calc_strides(2, src_singleton_strs, src_singleton_dims, CFL_SIZE);
-
-	long src_singleton1_strs[2];
-	src_singleton1_strs[0] = 0;
-	src_singleton1_strs[1] = src_strs[1];
-
-	// dist[i,j] = ||src[i,:] - src[j,:]||^2
-#pragma omp parallel for
-	for (int i = 0; i < L_dims[0]; i++)
-		for (int j = 0; j <= i ; j++) {
-
-			complex float* src_singleton = md_alloc(2, src_singleton_dims, CFL_SIZE);
-
-			md_zsub2(2, src_singleton_dims, src_singleton_strs, src_singleton, src_singleton1_strs, &src[i], src_singleton1_strs, &src[j]);
-			dist[i * L_dims[0] + j] = md_zscalar(2, src_singleton_dims, src_singleton, src_singleton) ;
-			dist[j * L_dims[0] + i] = dist[i * L_dims[0] + j]; // exploit symmetry
-
-			md_free(src_singleton);
+			
 		}
-
-	if (conf->sigma == -1) {
-		// Set sigma to maximum distance
-		complex float* dist_tmp = md_alloc(2, L_dims, CFL_SIZE);
-		md_copy(2, L_dims, dist_tmp, dist, CFL_SIZE);
-
-		conf->sigma = sqrtf(quickselect_complex(dist_tmp, L_dims[0] * L_dims[0], 1)); // Quickselect destroys dist_tmp
-		debug_printf(DP_INFO, "Estimated sigma: %f\n", conf->sigma);
-
-		md_free(dist_tmp);
-	}
-
-	// W = exp(- dist^2 / sigma^2)
-	md_zsmul(2, L_dims, L, dist, -1. /  pow(conf->sigma,2));
-	md_zexp(2, L_dims, L, L);
-
-	// Keep only nn-th nearest neighbours
-	if (conf->nn != -1) {
-
-		complex float* dist_dump = md_alloc(2, L_dims, CFL_SIZE);
-		md_copy(2, L_dims, dist_dump, dist, CFL_SIZE);
-
-		float thresh;
-		for (int i = 0; i < L_dims[0];  i++) {
-
-			thresh = quickselect_complex(&dist_dump[i * L_dims[0]], L_dims[0], L_dims[0] - conf->nn); // Get nn-th smallest distance. (Destroys dist_dump-array!)
-
-			for (int j = 0; j < L_dims[0]; j++)
-				L[i * L_dims[0] + j] *= (cabs(dist[i * L_dims[0] + j]) > thresh) ? 0 : 1;
-
-		}
-
-		md_free(dist_dump);
 		
 		// Symmetrize
 		for (int i = 0; i < L_dims[0];  i++) {
@@ -110,8 +83,91 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			}
 		}
 		
-	}
+	} else { // Conventional Laplace calculation
+		
+		// L[i,j,:] = src[i,:] - src[j,:]
+		assert(L_dims[0] == src_dims[0]);
+
+		complex float* dist = md_alloc(2, L_dims, CFL_SIZE);
+
+		long src_strs[2];
+		md_calc_strides(2, src_strs, src_dims, CFL_SIZE);
+
+		long src_singleton_dims[2];
+		src_singleton_dims[0] = 1;
+		src_singleton_dims[1] = src_dims[1];
+
+		long src_singleton_strs[2];
+		md_calc_strides(2, src_singleton_strs, src_singleton_dims, CFL_SIZE);
+
+		long src_singleton1_strs[2];
+		src_singleton1_strs[0] = 0;
+		src_singleton1_strs[1] = src_strs[1];
+
+		// dist[i,j] = ||src[i,:] - src[j,:]||^2
+	#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)
+			for (int j = 0; j <= i ; j++) {
+
+				complex float* src_singleton = md_alloc(2, src_singleton_dims, CFL_SIZE);
+
+				md_zsub2(2, src_singleton_dims, src_singleton_strs, src_singleton, src_singleton1_strs, &src[i], src_singleton1_strs, &src[j]);
+				dist[i * L_dims[0] + j] = md_zscalar(2, src_singleton_dims, src_singleton, src_singleton) ;
+				dist[j * L_dims[0] + i] = dist[i * L_dims[0] + j]; // exploit symmetry
+
+				md_free(src_singleton);
+			}
+
+		if (conf->sigma == -1) {
+			// Set sigma to maximum distance
+			complex float* dist_tmp = md_alloc(2, L_dims, CFL_SIZE);
+			md_copy(2, L_dims, dist_tmp, dist, CFL_SIZE);
+
+			conf->sigma = sqrtf(quickselect_complex(dist_tmp, L_dims[0] * L_dims[0], 1)); // Quickselect destroys dist_tmp
+			debug_printf(DP_INFO, "Estimated sigma: %f\n", conf->sigma);
+
+			md_free(dist_tmp);
+		}
+
+		// W = exp(- dist^2 / sigma^2)
+		md_zsmul(2, L_dims, L, dist, -1. /  pow(conf->sigma,2));
+		md_zexp(2, L_dims, L, L);
+
+		// Keep only nn-th nearest neighbours
+		if (conf->nn != -1) {
+
+			complex float* dist_dump = md_alloc(2, L_dims, CFL_SIZE);
+			md_copy(2, L_dims, dist_dump, dist, CFL_SIZE);
+
+			float thresh;
+			for (int i = 0; i < L_dims[0];  i++) {
+
+				thresh = quickselect_complex(&dist_dump[i * L_dims[0]], L_dims[0], L_dims[0] - conf->nn); // Get nn-th smallest distance. (Destroys dist_dump-array!)
+
+				for (int j = 0; j < L_dims[0]; j++)
+					L[i * L_dims[0] + j] *= (cabs(dist[i * L_dims[0] + j]) > thresh) ? 0 : 1;
+
+			}
+
+			md_free(dist_dump);
+			
+			// Symmetrize
+			for (int i = 0; i < L_dims[0];  i++) {
+				for (int j = i; j < L_dims[0]; j++) {
+
+					if (L[i * L_dims[0] + j] == 0)
+						L[i * L_dims[0] + j] = L[j * L_dims[0] + i];
+					else
+						L[j * L_dims[0] + i] = L[i * L_dims[0] + j];
+					
+				}
+			}
+			
+		}
+		
+		md_free(dist);
 	
+	}
 
 	// D[i,0] = sum(W[i,:])
 	long D_dims[2];
@@ -146,7 +202,6 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 
 	md_free(D);
-	md_free(dist);
 
 }
 

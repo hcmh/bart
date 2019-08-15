@@ -1,11 +1,9 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2015-2016. Martin Uecker.
+ * Copyright 2019. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018-2019 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
+ * Authors: Xiaoqing Wang, Martin Uecker
  */
 
 #include <stdbool.h>
@@ -26,17 +24,17 @@
 
 #include "noir/recon.h"
 
-#include "mdb/recon_T1.h"
+#include "moba/recon_T1.h"
+#include "moba/recon_T2.h"
 
 
 
 
-static const char usage_str[] = "<kspace> <TI> <output> [<sensitivities>]";
-static const char help_str[] =
-		"Model-based nonlinear inverse reconstruction\n";
+static const char usage_str[] = "<kspace> <TI/TE> <output> [<sensitivities>]";
+static const char help_str[] = "Model-based nonlinear inverse reconstruction\n";
 
 
-int main_mdbT1(int argc, char* argv[])
+int main_moba(int argc, char* argv[])
 {
 	double start_time = timestamp();
 
@@ -46,9 +44,11 @@ int main_mdbT1(int argc, char* argv[])
 	bool out_sens = false;
 	bool usegpu = false;
 	bool unused = false;
+	enum mdb_t { MDB_T1 } mode = { MDB_T1 };
 
 	const struct opt_s opts[] = {
 
+		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
 		OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),
@@ -187,13 +187,23 @@ int main_mdbT1(int argc, char* argv[])
 		complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
 		md_copy(DIMS, TI_dims, TI_gpu, TI, CFL_SIZE);
 
-		T1_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu, usegpu);
+		switch (mode) {
+
+		case MDB_T1:
+			T1_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu, usegpu);
+			break;
+		};
 
 		md_free(kspace_gpu);
 		md_free(TI_gpu);
 	} else
 #endif
-	T1_recon(&conf, dims, img, sens, pattern, mask, TI, kspace_data, usegpu);
+	switch (mode) {
+
+	case MDB_T1:
+		T1_recon(&conf, dims, img, sens, pattern, mask, TI, kspace_data, usegpu);
+		break;
+	};
 
 	md_free(norm);
 	md_free(mask);
