@@ -42,7 +42,7 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 	.nlinv_legacy = false,
 	
 	.constrained_maps = 1,
-	.lower_bound = 0.1,
+	.lower_bound = 0.3,
 };
 
 const struct iter3_landweber_conf iter3_landweber_defaults = {
