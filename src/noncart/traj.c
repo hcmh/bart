@@ -32,6 +32,7 @@ const struct traj_conf traj_defaults = {
 	.accel = 1,
 	.tiny_gold = 0,
 	.rational = false,
+	.multiple_ga = 1,
 };
 
 const struct traj_conf rmfreq_defaults = {
@@ -130,7 +131,7 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	 */
 
 	double golden_ratio = (sqrtf(5.) + 1.) / 2;
-	double golden_angle = M_PI / (golden_ratio + conf.tiny_gold - 1.);
+	double golden_angle = conf.multiple_ga * M_PI / (golden_ratio + conf.tiny_gold - 1.);
 	double angle_atom = M_PI / Y;
 
 	if (conf.rational)
