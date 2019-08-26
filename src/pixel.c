@@ -141,6 +141,8 @@ int main_pixel(int argc, char* argv[])
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / scaling);
 	
+	md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE); 
+	
 	//Convert R1 and R2 to T1 and T2 image
 	for (int i = 0; i < img_dims[COEFF_DIM]; i++) {
 		
