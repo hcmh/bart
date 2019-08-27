@@ -240,7 +240,6 @@ tests/test-pics-basis-noncart-memory: traj scale phantom ones join transpose pic
 	touch $@
 
 
-	
 tests/test-pics-basis-noncart-memory2: traj scale phantom ones join noise transpose fmac pics slice nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
 	$(TOOLDIR)/traj -r -x256 -D -y301 traj.ra					;\
@@ -300,7 +299,6 @@ TESTS += tests/test-pics-wavl1 tests/test-pics-poisson-wavl1 tests/test-pics-joi
 TESTS += tests/test-pics-weights tests/test-pics-noncart-weights
 TESTS += tests/test-pics-warmstart tests/test-pics-batch
 TESTS += tests/test-pics-tedim tests/test-pics-bp-noncart
-TESTS += tests/test-pics-basis tests/test-pics-basis-noncart tests/test-pics-manifold
-TESTS+ = tests/test-pics-basis-noncart-memory tests/test-pics-basis-noncart-memory2
-
+TESTS += tests/test-pics-basis tests/test-pics-basis-noncart tests/test-pics-basis-noncart-memory
+TESTS += tests/test-pics-basis-noncart-memory2
 
