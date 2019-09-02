@@ -111,25 +111,23 @@ static complex float* compute_linphases(int N, long lph_dims[N + 1], unsigned lo
 
 
 
-static void compute_kern_basis(unsigned int N, const long krn_dims[N], complex float* krn,
+static void compute_kern_basis(unsigned int N, unsigned int flags, const long pos[N],
+				const long krn_dims[N], complex float* krn,
 				const long bas_dims[N], const complex float* basis,
 				const long wgh_dims[N], const complex float* weights)
 {
-	// Use `time_dim` to unfold temporal dimension
-	long time_dim = 3;
-
- 	assert(1 == krn_dims[time_dim]);
-	assert(1 == wgh_dims[time_dim]);
-	assert(1 == bas_dims[time_dim]);
+// 	assert(1 == krn_dims[N - 1]);
+	assert(1 == wgh_dims[N - 1]);
+	assert(1 == bas_dims[N - 1]);
 
 	long baT_dims[N];
 	md_copy_dims(N, baT_dims, bas_dims);
-	baT_dims[time_dim] = bas_dims[5];
+	baT_dims[N - 1] = bas_dims[5];
 	baT_dims[5] = 1;
 
 	long wgT_dims[N];
 	md_copy_dims(N, wgT_dims, wgh_dims);
-	wgT_dims[time_dim] = wgh_dims[5];
+	wgT_dims[N - 1] = wgh_dims[5];
 	wgT_dims[5] = 1;
 
 	long max_dims[N];
@@ -143,7 +141,7 @@ static void compute_kern_basis(unsigned int N, const long krn_dims[N], complex f
 
 	long baT_strs[N];
 	md_copy_strides(N, baT_strs, bas_strs);
-	baT_strs[time_dim] = bas_strs[5];
+	baT_strs[N - 1] = bas_strs[5];
 	baT_strs[5] = 0;
 
 	long wgh_strs[N];
@@ -151,8 +149,10 @@ static void compute_kern_basis(unsigned int N, const long krn_dims[N], complex f
 
 	long wgT_strs[N];
 	md_copy_strides(N, wgT_strs, wgh_strs);
-	wgT_strs[time_dim] = wgh_strs[5];
+	wgT_strs[N - 1] = wgh_strs[5];
 	wgT_strs[5] = 0;
+
+	debug_printf(DP_DEBUG1, "Allocating %ld\n", md_calc_size(N, max_dims));
 
 	complex float* tmp = md_alloc(N, max_dims, CFL_SIZE);
 
@@ -167,45 +167,38 @@ static void compute_kern_basis(unsigned int N, const long krn_dims[N], complex f
 	baT_strs[5] = baT_strs[6];
 	baT_strs[6] = 0;
 
-	long krn2_dims[N];
-	md_copy_dims(N, krn2_dims, krn_dims);
-
-	// Ensure valid dimensions for following tensor product
-	// This corrects the dimensions in case of:
-	// I) Only one spoke per time-step
-	// II) Different spoke pattern per time-step
-	if (krn_dims[2] > wgh_dims[2]) {
-
-		krn2_dims[2] = wgh_dims[2];
-		krn2_dims[3] = wgh_dims[5];
-	}
-
-
 	long krn_strs[N];
-	md_calc_strides(N, krn_strs, krn2_dims, CFL_SIZE);
+	md_calc_strides(N, krn_strs, krn_dims, CFL_SIZE);
 
 	long ma2_dims[N];
-	md_tenmul_dims(N, ma2_dims, krn2_dims, max_dims, baT_dims);
+	md_tenmul_dims(N, ma2_dims, krn_dims, max_dims, baT_dims);
 
-	md_ztenmulc2(N, ma2_dims, krn_strs, krn, max_strs, tmp, baT_strs, basis);
+	long ma3_dims[N];
+	md_select_dims(N, flags, ma3_dims, ma2_dims);
 
-	md_zsmul(N, krn2_dims, krn, krn, (double)bas_dims[6]);	// FIXME: Why?
+	long tmp_off = md_calc_offset(N, max_strs, pos);
+	long bas_off = md_calc_offset(N, baT_strs, pos);
 
-	// Note: krn_dims[3] = 1, i.e. krn_dims[2] = krn2_dims[2] * krn2_dims[3]
-	// Hence the dimensions `2` and `3` of krn2_dims are implicitly joined
+	md_zsmul(N, max_dims, tmp, tmp, (double)bas_dims[6]);	// FIXME: Why?
+
+	md_ztenmulc2(N, ma3_dims, krn_strs, krn, 
+			max_strs, (void*)tmp + tmp_off,
+			baT_strs, (void*)basis + bas_off);
 
 	md_free(tmp);
 }
 
 
 
-static void compute_kern(unsigned int N, const long krn_dims[N], complex float* krn,
+static void compute_kern(unsigned int N, unsigned int flags, const long pos[N],
+				const long krn_dims[N], complex float* krn,
 				const long bas_dims[N], const complex float* basis,
 				const long wgh_dims[N], const complex float* weights)
 {
 	if (NULL != basis)
-		return compute_kern_basis(N, krn_dims, krn, bas_dims, basis, wgh_dims, weights);
+		return compute_kern_basis(N, flags, pos, krn_dims, krn, bas_dims, basis, wgh_dims, weights);
 
+	assert(~0u == flags);
 
 	md_zfill(N, krn_dims, krn, 1.);
 
@@ -226,52 +219,128 @@ static void compute_kern(unsigned int N, const long krn_dims[N], complex float* 
 
 
 
-complex float* compute_psf(unsigned int N, const long img2_dims[N], const long trj_dims[N], const complex float* traj,
+complex float* compute_psf(unsigned int N, const long img_dims[N], const long trj_dims[N], const complex float* traj,
 				const long bas_dims[N], const complex float* basis,
-				const long wgh_dims[N], const complex float* weights, bool periodic)
+				const long wgh_dims[N], const complex float* weights,
+				bool periodic, bool lowmem)
 {
-	long trj2_dims[N];
+	long img2_dims[N + 1];
+	md_copy_dims(N, img2_dims, img_dims);
+	img2_dims[N] = 1;
+
+	long trj2_dims[N + 1];
 	md_copy_dims(N, trj2_dims, trj_dims);
+	trj2_dims[N] = 1;
+
+	long bas2_dims[N + 1];
+	md_copy_dims(N, bas2_dims, bas_dims);
+	bas2_dims[N] = 1;
+
+	long wgh2_dims[N + 1];
+	md_copy_dims(N, wgh2_dims, wgh_dims);
+	wgh2_dims[N] = 1;
+
+	N++;
+
+	long ksp2_dims[N];
+	md_copy_dims(N, ksp2_dims, img2_dims);
+	md_select_dims(3, ~MD_BIT(0), ksp2_dims, trj2_dims);
 
 	if (NULL != basis) {
 
-		trj2_dims[2] = trj_dims[2] * trj_dims[5];
-		trj2_dims[5] = 1;
+		assert(1 == trj2_dims[6]);
+		ksp2_dims[N - 1] = trj2_dims[5];
+		trj2_dims[N - 1] = trj2_dims[5];
+		trj2_dims[5] = 1;	// FIXME copy?
 	}
-
-	long ksp_dims1[N];
-	md_copy_dims(N, ksp_dims1, img2_dims);
-	md_select_dims(3, ~MD_BIT(0), ksp_dims1, trj2_dims);
-
 
 	struct nufft_conf_s conf = nufft_conf_defaults;
 	conf.periodic = periodic;
 	conf.toeplitz = false;	// avoid infinite loop
 
 
-	complex float* ones = md_alloc(N, ksp_dims1, CFL_SIZE);
+	debug_printf(DP_DEBUG2, "nufft kernel dims: ");
+	debug_print_dims(DP_DEBUG2, N, ksp2_dims);
 
-	debug_printf(DP_INFO, "nufft kernel size: %ld (= %ld x %ld)\n",
-		md_calc_size(N, ksp_dims1), md_calc_size(3, ksp_dims1), md_calc_size(N - 3, ksp_dims1 + 3));
+	debug_printf(DP_DEBUG2, "nufft psf dims:    ");
+	debug_print_dims(DP_DEBUG2, N, img2_dims);
 
-	compute_kern(N, ksp_dims1, ones, bas_dims, basis, wgh_dims, weights);
+	debug_printf(DP_DEBUG2, "nufft traj dims:   ");
+	debug_print_dims(DP_DEBUG2, N, trj2_dims);
 
-	complex float* psft = md_alloc(N, img2_dims, CFL_SIZE);
+	complex float* psft = NULL;
 
-	struct linop_s* op2 = nufft_create(N, ksp_dims1, img2_dims, trj2_dims, traj, NULL, conf);
+	long pos[N];
+	for (unsigned int i = 0; i < N; i++)
+		pos[i] = 0;
 
-	linop_adjoint_unchecked(op2, psft, ones);
+	long A = md_calc_size(N, ksp2_dims);
+	long B = md_calc_size(N - 1, ksp2_dims) + md_calc_size(N - 1, img2_dims);
+	long C = md_calc_size(N, img2_dims);
 
-	linop_free(op2);
+	if ((A <= B) || !lowmem) {
 
-	md_free(ones);
+		debug_printf(DP_DEBUG1, "Allocating %ld (vs. %ld) + %ld\n", A, B, C);
+
+		complex float* ones = md_alloc(N, ksp2_dims, CFL_SIZE);
+
+		compute_kern(N, ~0u, pos, ksp2_dims, ones, bas2_dims, basis, wgh2_dims, weights);
+
+		psft = md_alloc(N, img2_dims, CFL_SIZE);
+
+		struct linop_s* op2 = nufft_create(N, ksp2_dims, img2_dims, trj2_dims, traj, NULL, conf);
+
+		linop_adjoint_unchecked(op2, psft, ones);
+
+		linop_free(op2);
+
+		md_free(ones);
+
+	} else {
+
+		debug_printf(DP_DEBUG1, "Allocating %ld (vs. %ld) + %ld\n", B, A, C);
+
+		psft = md_calloc(N, img2_dims, CFL_SIZE);
+
+		long trj2_strs[N];
+		md_calc_strides(N, trj2_strs, trj2_dims, CFL_SIZE);
+
+		complex float* ones = md_alloc(N - 1, ksp2_dims, CFL_SIZE);
+		complex float* tmp = md_alloc(N - 1, img2_dims, CFL_SIZE);
+
+		assert(!((1 != trj2_dims[N - 1]) && (NULL == basis)));
+
+		for (long i = 0; i < trj2_dims[N - 1]; i++) {
+
+			debug_printf(DP_DEBUG1, "KERN %03ld\n", i);
+
+			unsigned int flags = ~0u;
+
+			if (1 != trj2_dims[N - 1])
+				flags = ~(1u << (N - 1u));
+
+			pos[N - 1] = i;
+			compute_kern(N, flags, pos, ksp2_dims, ones, bas2_dims, basis, wgh2_dims, weights);
+
+			struct linop_s* op2 = nufft_create(N - 1, ksp2_dims, img2_dims, trj2_dims, (void*)traj + i * trj2_strs[N - 1], NULL, conf);
+
+			linop_adjoint_unchecked(op2, tmp, ones);
+			md_zadd(N - 1, img2_dims, psft, psft, tmp);
+
+			linop_free(op2);
+		}
+
+		md_free(ones);
+		md_free(tmp);
+	}
 
 	return psft;
 }
 
 
 static complex float* compute_psf2(int N, const long psf_dims[N + 1], unsigned long flags, const long trj_dims[N + 1], const complex float* traj,
-				const long bas_dims[N + 1], const complex float* basis, const long wgh_dims[N + 1], const complex float* weights, bool periodic)
+				const long bas_dims[N + 1], const complex float* basis, const long wgh_dims[N + 1], const complex float* weights,
+				bool periodic, bool lowmem)
 {
 	int ND = N + 1;
 
@@ -297,7 +366,7 @@ static complex float* compute_psf2(int N, const long psf_dims[N + 1], unsigned l
 	complex float* traj2 = md_alloc(ND, trj_dims, CFL_SIZE);
 	md_zsmul(ND, trj_dims, traj2, traj, 2.);
 
-	complex float* psft = compute_psf(ND, img2_dims, trj_dims, traj2, bas_dims, basis, wgh_dims, weights, periodic);
+	complex float* psft = compute_psf(ND, img2_dims, trj_dims, traj2, bas_dims, basis, wgh_dims, weights, periodic, lowmem);
 	md_free(traj2);
 
 	fftuc(ND, img2_dims, flags, psft, psft);
@@ -368,7 +437,7 @@ struct linop_s* nufft_create2(unsigned int N,
 
 	// dim 0 must be transformed (we treat this special in the trajectory)
 	assert(MD_IS_SET(data->flags, 0));
-	assert(md_check_bounds(N, ~(data->flags | (1 << 5)), ksp_dims, cim_dims)); // Allow toeplitz trick for basis function reconstruction
+//	assert(md_check_compat(N, ~data->flags, ksp_dims, cim_dims));
 	assert(md_check_bounds(N, ~data->flags, cim_dims, ksp_dims));
 
 	// extend internal dimensions by one for linear phases
@@ -416,7 +485,7 @@ struct linop_s* nufft_create2(unsigned int N,
 	long chk_dims[N];
 	md_select_dims(N, ~data->flags, chk_dims, traj_dims);
 	assert(md_check_compat(N, ~0ul, chk_dims, ksp_dims));
-	assert(md_check_bounds(N, ~0ul, chk_dims, ksp_dims));
+//	assert(md_check_bounds(N, ~0ul, chk_dims, ksp_dims));
 
 
 	md_copy_dims(N, data->trj_dims, traj_dims);
@@ -528,7 +597,9 @@ struct linop_s* nufft_create2(unsigned int N,
 
 		md_calc_strides(ND, data->psf_strs, data->psf_dims, CFL_SIZE);
 
-		data->psf = compute_psf2(N, data->psf_dims, data->flags, data->trj_dims, data->traj, data->bas_dims, data->basis, data->wgh_dims, data->weights, true /*conf.periodic*/);
+		data->psf = compute_psf2(N, data->psf_dims, data->flags, data->trj_dims, data->traj,
+					data->bas_dims, data->basis, data->wgh_dims, data->weights,
+					true /*conf.periodic*/, conf.lowmem);
 	}
 
 

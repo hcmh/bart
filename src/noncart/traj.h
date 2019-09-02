@@ -23,6 +23,7 @@ struct traj_conf {
 	_Bool rational;
 	int accel;
 	int tiny_gold;
+	int multiple_ga;
 };
 
 extern const struct traj_conf traj_defaults;

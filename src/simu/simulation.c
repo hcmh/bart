@@ -59,6 +59,7 @@ const struct SeqData seqData_defaults = {
 	.spin_num = 1,
 	.num_average_rep = 1,
 	
+	.slice_profile = NULL,
 	.variable_fa = NULL,
 };
 
@@ -287,7 +288,7 @@ void run_sim_block(void* _data, float* mxySignal, float* saR1Signal, float* saR2
 }
 
 
-void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3], complex float* input_sp)
+void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3])
 {
 	struct SimData* data = _data;
 
@@ -315,8 +316,8 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		
 		
 		
-		if (NULL != input_sp) 
-			data->pulseData.flipangle = flipangle_backup * cabsf(input_sp[data->seqtmp.spin_counter]);
+		if (NULL != data->seqData.slice_profile) 
+			data->pulseData.flipangle = flipangle_backup * cabsf(data->seqData.slice_profile[data->seqtmp.spin_counter]);
 
 		float xp[4][3] = { { 0., 0. , 1. }, { 0. }, { 0. }, { 0. } }; //xp[P + 2][N]
 		
@@ -375,12 +376,14 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		
 		if (NULL == data->seqData.variable_fa)
 			create_sim_block(data);
-        
+		
 		while (data->seqtmp.rep_counter < data->seqData.rep_num) {
+			
 			
 			if (NULL != data->seqData.variable_fa) {
 				
 				data->pulseData.flipangle = data->seqData.variable_fa[data->seqtmp.rep_counter];
+				
 				create_sim_block(data);
 			}
 			

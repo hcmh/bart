@@ -380,45 +380,42 @@ void calc_simu_phantom(void* _data,long dims[DIMS], complex float* out, bool ksp
 	
 	sim_data->seqData.rep_num = dims[TE_DIM];
 	
-	
-	
 	//create map
-    complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
-    complex float* sensitivitiesR1 = md_alloc(DIMS, dims, CFL_SIZE);
-    complex float* sensitivitiesR2 = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* sensitivitiesR1 = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* sensitivitiesR2 = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* sensitivitiesM0 = md_alloc(DIMS, dims, CFL_SIZE);
-    
-    
-    #pragma omp parallel for collapse(2)
-    for(int x = 0; x < dims[0]; x++ ){
-        
-        for(int y = 0; y < dims[1]; y++ ){
+	
+	
+	#pragma omp parallel for collapse(2)
+	for(int x = 0; x < dims[0]; x++ ){
+		
+		for(int y = 0; y < dims[1]; y++ ){
 			
 			struct SimData data = *sim_data;
 			
-            //Get offset values from -pi to +pi
-            //data.w = ( (float) y - (float) dims[1]/2. )/  ( (float) dims[1]/2.) * PI / data.TR;
-            
-            //Updating data
+			//Updating data
 			float t1 = crealf(in[(y * dims[0]) + x]);
 			float t2 = cimagf(in[(y * dims[0]) + x]);
 
-            //Skip empty voxels
-            if(t1 <= 0.001 || t2 <= 0.001){
-                for(int z = 0; z < dims[TE_DIM]; z++){
-                    phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-                    sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-                    sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+			//Skip empty voxels
+			if (t1 <= 0.001 || t2 <= 0.001) {
+				
+				for(int z = 0; z < dims[TE_DIM]; z++) {
+					
+					phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+					sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
+					sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
 					sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-                }
-                continue;
-            }
-            
-            data.voxelData.r1 = 1/t1;  
-            data.voxelData.r2 = 1/t2; 
+				}
+				continue;
+			}
+		
+			data.voxelData.r1 = 1/t1;  
+			data.voxelData.r2 = 1/t2; 
 			data.voxelData.m0 = 1;			// TODO: Change to add coil profiles
 			
-			debug_printf(DP_DEBUG3,"%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data.seqData.TR, data.seqData.TE, data.voxelData.r1, data.voxelData.r2, data.seqtmp.rep_counter, data.pulseData.RF_end, data.pulseData.flipangle );
+			debug_printf(DP_DEBUG3,"%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data.seqData.TR, data.seqData.TE, data.voxelData.r1, data.voxelData.r2, 	data.seqtmp.rep_counter, data.pulseData.RF_end, data.pulseData.flipangle );
 			
 			
 			float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
@@ -426,16 +423,16 @@ void calc_simu_phantom(void* _data,long dims[DIMS], complex float* out, bool ksp
 			float saR2Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
 			float saDensSig[data.seqData.rep_num / data.seqData.num_average_rep][3];
 
-			ode_bloch_simulation3( &data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL );
+			ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);
 			
 			//Add data to phantom
-			for(int z = 0; z < dims[TE_DIM]; z++){
+			for (int z = 0; z < dims[TE_DIM]; z++) {
+				
 				//changed x-and y-axis to have same orientation as measurements
 				sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR1Sig[z][1] + saR1Sig[z][0] * I; 
 				sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR2Sig[z][1] + saR2Sig[z][0] * I;
 				sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saDensSig[z][1] + saDensSig[z][0] * I;
 				phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = mxySig[z][1] + mxySig[z][0] * I;
-				
 			} 
 			
 			md_copy(DIMS, dims, out, phantom, CFL_SIZE);

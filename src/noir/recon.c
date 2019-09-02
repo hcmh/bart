@@ -193,7 +193,6 @@ void ds_init(struct ds_s* in, size_t size)
 // Normalization of PSF and scaling of k-space
 void scale_psf_k(struct ds_s* pat_s, complex float* pattern, struct ds_s* k_s, complex float* kspace_data, struct ds_s* traj_s, complex float* traj)
 {
-
 		/* PSF
 		* Since for each frame we can have a different number of spokes,
 		* some spoke-lines are empty in certain frames. To ensure
@@ -234,7 +233,7 @@ void scale_psf_k(struct ds_s* pat_s, complex float* pattern, struct ds_s* k_s, c
 
 		// Multiply PSF
 		md_zmul2(DIMS, pat_s->dims_full, pat_s->strs_full, pattern, pat_s->strs_full, pattern, no_spf_s->strs_full, inv_no_spf);
-		dump_cfl("PSF", DIMS, pat_s->dims_full, pattern);
+// 		dump_cfl("PSF", DIMS, pat_s->dims_full, pattern);
 
 		/* k
 		 * Scaling of k-space (depending on total [= all partitions] number of spokes per frame)
@@ -285,3 +284,4 @@ void reduce_frames(const long reduced_frames, long src_dims[DIMS], complex float
 		*src = dst;
 		md_copy_dims(DIMS, src_dims, dst_dims);
 }
+

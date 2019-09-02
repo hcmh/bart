@@ -44,20 +44,42 @@ int main_laplace(int argc, char* argv[])
 		OPT_INT('n', &conf.nn, "nn", "Number of nearest neighbours"),
 		OPT_FLOAT('s', &conf.sigma, "sigma", "Standard deviation"),
 		OPT_SET('g', &conf.gen_out, "Output inv(D) @ W"),
+		OPT_SET('T', &conf.temporal_nn, "Temporal nearest neighbours"),
+
 
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
+	
 
 	long src_dims[DIMS];
 	complex float* src = load_cfl(argv[1], DIMS, src_dims);
 
 	long L_dims[2];
-	L_dims[0] = src_dims[0];
-	L_dims[1] = src_dims[0];
+
+	if (conf.temporal_nn) {
+		debug_printf(DP_INFO, "Calculating temporal nearest neighbour Laplacian!\n");
+		
+		int max = 0;
+		for (int i = 0; i < src_dims[0]; i++)
+			max = (max < creal(src[i])) ? creal(src[i]) : max;
+		
+		L_dims[0] = max + 1;
+		L_dims[1] = max + 1;
+		
+	} else {
+		
+		debug_printf(DP_INFO, "Calculating Laplacian!\n");
+		
+		L_dims[0] = src_dims[0];
+		L_dims[1] = src_dims[0];
+	}
+		
+
 	complex float* L = create_cfl(argv[2], 2, L_dims);
+
 
 	calc_laplace(&conf, L_dims, L, src_dims, src);
 

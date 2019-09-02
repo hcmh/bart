@@ -69,6 +69,7 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('G', &conf.golden, "golden-ratio sampling"),
 		OPT_SET('H', &conf.half_circle_gold, "halfCircle golden-ratio sampling"),
 		OPT_INT('s', &conf.tiny_gold, "# Tiny GA", "tiny golden angle"),
+		OPT_INT('M', &conf.multiple_ga, "# Multiple", "multiple golden angle"),
 		OPT_SET('A', &conf.rational, "rational approximation of golden angles"),
 		OPT_SET('D', &conf.full_circle, "projection angle in [0,360°), else in [0,180°)"),
 		OPT_FLOAT('R', &rot, "phi", "rotate"),

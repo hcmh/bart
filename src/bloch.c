@@ -64,7 +64,7 @@ int main_bloch(int argc, char* argv[argc])
 	bool spin_ensamble = false;
 	int kspace = 0;
 	bool linear_offset = false;
-	bool matrix_exp_sim = false;
+	bool operator_sim = false;
 	const char* fa_file = NULL;
 	
 	const struct opt_s opts[] = {
@@ -101,7 +101,7 @@ int main_bloch(int argc, char* argv[argc])
 		OPT_SET('E', &spin_ensamble, "Input inverse relaxation?"),
 		OPT_INT('k', &kspace, "d", "kspace output? default:0=no"),
 		OPT_SET('L', &linear_offset, "Add linear distribution of off-set freq."),
-		OPT_SET('S', &matrix_exp_sim, "Simulate using matrix exponentials."),
+		OPT_SET('O', &operator_sim, "Simulate using operator based simulation."),
 		OPT_STRING('F', &fa_file, "", "Variable flipangle file"),
 	};
 	
@@ -125,13 +125,13 @@ int main_bloch(int argc, char* argv[argc])
 	*/
 	
 	// Check cases
-	if (matrix_exp_sim && (seq == 3 || seq == 6))
+	if (operator_sim && (seq == 3 || seq == 6))
 		error( "Simulation tool does not allow to simulate pcbSSFP sequences using matrix exponentials yet.\n" );
 	
-	if (matrix_exp_sim && (rf_end == 0.))
+	if (operator_sim && (rf_end == 0.))
 		error( "Simulation tool does not allow to hard-pulses using matrix exponentials yet.\n" );
 	
-	if (matrix_exp_sim && (NULL != fa_file))
+	if (operator_sim && (NULL != fa_file))
 		error( "Simulation tool does not allow variable flipangles for operator based simulation.\n" );
 	
 	
@@ -294,6 +294,7 @@ int main_bloch(int argc, char* argv[argc])
 			sim_data.seqData.num_average_rep = aver_num;
 			
 			if (NULL != vfa_file) {
+				
 				sim_data.seqData.variable_fa = md_alloc(DIMS, dim_vfa, CFL_SIZE);
 				md_copy(DIMS, dim_vfa, sim_data.seqData.variable_fa, vfa_file, CFL_SIZE);
 			}
@@ -343,10 +344,10 @@ int main_bloch(int argc, char* argv[argc])
 			}
 			else {	//start ODE based simulation
 
-				if (matrix_exp_sim)
-					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL);
+				if (operator_sim)
+					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 				else
-					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig, NULL);
+					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 				
 				//Add data to phantom
 				for (int z = 0; z < dim_phantom[TE_DIM]; z++) {

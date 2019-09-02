@@ -1,11 +1,9 @@
 /* Copyright 2013-2014. The Regents of the University of California.
- * Copyright 2016-2019. Martin Uecker.
+ * Copyright 2019. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by 
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018-2019 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
+ * Authors: Xiaoqing Wang, Martin Uecker
  */
 
 #include <assert.h>
@@ -45,7 +43,7 @@ struct T1inv_s {
 	INTERFACE(iter_op_data);
 
 	const struct nlop_s* nlop;
-	const struct iter3_irgnm_conf* conf;
+	const struct mdb_irgnm_l1_conf* conf;
     
 	long size_x;
 	long size_y;
@@ -99,14 +97,14 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 	long dims1[DIMS];
 
 	md_select_dims(DIMS, FFT_FLAGS, dims1, data->dims);
+	dims1[COEFF_DIM] = data->conf->constrained_maps;
 
 	for (int i = 0; i < SMS; i++) {
 
-		md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - 1) * res * res + i * res * res *  parameters,
-		                (const _Complex float*)src + (parameters - 1) * res * res + i * res * res *  parameters, 0.1);
+	        md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - data->conf->constrained_maps) * res * res + i * res * res * parameters,
+			(const _Complex float*)src + (parameters - data->conf->constrained_maps) * res * res + i * res * res * parameters, data->conf->lower_bound);
 
-	}
-
+        }
 }
 
 
@@ -149,7 +147,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 	wavthresh_rand_state_set(data->prox1, 1);
     
-	int maxiter = MIN(data->conf->cgiter, 10 * powf(2, data->outer_iter));
+	int maxiter = MIN(data->conf->c2->cgiter, 10 * powf(2, data->outer_iter));
     
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
 
@@ -164,7 +162,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 		itrdata->scale = data->alpha;
 	};
 
-	fista(maxiter, data->conf->cgtol * alpha * eps, step,
+	fista(maxiter, data->conf->c2->cgtol * alpha * eps, step,
 		data->size_x,
 		select_vecops(src),
 		continuation,
@@ -232,7 +230,7 @@ static void T1inv_del(const operator_data_t* _data)
 }
 
 
-static const struct operator_p_s* T1inv_p_create(const struct iter3_irgnm_conf* conf, const long dims[DIMS], struct nlop_s* nlop)
+static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, const long dims[DIMS], struct nlop_s* nlop)
 {
 	PTR_ALLOC(struct T1inv2_s, data);
 	SET_TYPEID(T1inv2_s, data);
@@ -294,7 +292,7 @@ static void nlop_der_iter(iter_op_data* _o, float* _dst, const float* _src)
 
 
 
-void mdb_irgnm_l1(const iter3_conf* _conf,
+void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
 	const long dims[],
 	struct nlop_s* nlop,
 	long N, float* dst,
@@ -306,13 +304,11 @@ void mdb_irgnm_l1(const iter3_conf* _conf,
 	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
 	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
 
-	struct iter3_irgnm_conf* conf = CAST_DOWN(iter3_irgnm_conf, _conf);
-
 	struct iterT1_nlop_s nl_data = { { &TYPEID(iterT1_nlop_s) }, *nlop };
 
 	const struct operator_p_s* inv_op = T1inv_p_create(conf, dims, nlop);
 
-	irgnm2(conf->iter, conf->alpha, 0., conf->alpha_min, conf->redu, N, M, select_vecops(src),
+	irgnm2(conf->c2->iter, conf->c2->alpha, 0., conf->c2->alpha_min, conf->c2->redu, N, M, select_vecops(src),
 		(struct iter_op_s){ nlop_for_iter, CAST_UP(&nl_data) },
 		(struct iter_op_s){ nlop_der_iter, CAST_UP(&nl_data) },
 		OPERATOR_P2ITOP(inv_op),

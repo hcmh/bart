@@ -12,6 +12,7 @@
 #include <complex.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdio.h>
 
 #include "num/multind.h"
 
@@ -43,8 +44,8 @@ struct entry_s {
 	uint32_t fileid;
 	uint64_t offset;
 	uint64_t length;
-        char patient[64];
-        char protocol[64];
+	char patient[64];
+	char protocol[64];
 };
 
 static void xread(int fd, void* buf, size_t size)
@@ -55,7 +56,7 @@ static void xread(int fd, void* buf, size_t size)
 
 static void xseek(int fd, off_t pos)
 {
-        if (-1 == lseek(fd, pos, SEEK_SET))
+	if (-1 == lseek(fd, pos, SEEK_SET))
 		error("seeking");
 }
 
@@ -100,7 +101,7 @@ static bool siemens_meas_setup(int fd, struct hdr_s* hdr)
 
 	xseek(fd, start);
 
-        return vd;
+	return vd;
 }
 
 
@@ -165,7 +166,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 			if (dma_length < offset)
 				error("dma_length < offset.\n");
 
-		        if (-1 == lseek(fd, dma_length - offset, SEEK_CUR))
+			if (-1 == lseek(fd, dma_length - offset, SEEK_CUR))
 				error("seeking");
 
 			return 0;
@@ -243,7 +244,7 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 			if (dma_length < offset)
 				error("dma_length < offset.\n");
 
-		        if (-1 == lseek(fd, dma_length - offset, SEEK_CUR))
+			if (-1 == lseek(fd, dma_length - offset, SEEK_CUR))
 				error("seeking");
 
 			return 0;
@@ -286,6 +287,32 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 }
 
 
+// TODO: in the case of "cfl" file output,
+// don't add ".cfl" to the name.
+static char* create_bc_name(const char* name)
+{
+	char* last_name = strrchr(name, '.');
+
+	bool true_last_name = (NULL!=last_name) && (name!=last_name) && ((0==strcmp(last_name, ".ra")) || (0==strcmp(last_name, ".coo")) || (0==strcmp(last_name, ".mem")));
+
+	if (!true_last_name)
+		last_name = "";
+
+	size_t vor_len = strlen(name) - strlen(last_name);
+
+	const char* addi_name = "_BC";
+
+	char* bc_name = (char *)malloc(vor_len + strlen(addi_name) + strlen(last_name));
+
+	memcpy(bc_name, name, vor_len);
+	bc_name[vor_len] = '\0';
+	strcat(bc_name, addi_name);
+	strcat(bc_name, last_name);
+
+	return bc_name;
+}
+
+
 
 
 static const char usage_str[] = "<dat file> <output> [<pmu>]";
@@ -298,6 +325,8 @@ int main_twixread(int argc, char* argv[argc])
 {
 	long adcs = 0;
 	long radial_lines = -1;
+	long bc_scans = 0;
+	long bc_adcs = 0;
 
 	bool autoc = false;
 	bool linectr = false;
@@ -321,6 +350,7 @@ int main_twixread(int argc, char* argv[argc])
 		OPT_LONG('p', &(dims[COEFF_DIM]), "P", "number of cardicac phases"),
 		OPT_LONG('f', &(dims[TIME2_DIM]), "F", "number of flow encodings"),
 		OPT_LONG('i', &(dims[LEVEL_DIM]), "I", "number inversion experiments"),
+		OPT_LONG('b', &bc_scans, "B", "number of body-coil scans"),
 		OPT_LONG('a', &adcs, "A", "total number of ADCs"),
 		OPT_SET('A', &autoc, "automatic [guess dimensions]"),
 		OPT_SET('L', &linectr, "use linectr offset"),
@@ -336,11 +366,35 @@ int main_twixread(int argc, char* argv[argc])
 	if (0 == adcs)
 		adcs = dims[PHS1_DIM] * dims[PHS2_DIM] * dims[SLICE_DIM] * dims[TIME_DIM];
 
+
+
+	long bc_dims[DIMS] = {[0 ... DIMS - 1] = 0};
+
+	md_copy_dims(DIMS, bc_dims, dims);
+	bc_dims[COIL_DIM] = 2;
+	bc_dims[TIME_DIM] = bc_scans;
+
+	bc_adcs = bc_dims[PHS1_DIM] * bc_dims[PHS2_DIM] * bc_dims[SLICE_DIM] * bc_dims[TIME_DIM];
+
+	if (0 < bc_scans) {
+		radial_lines = -1;
+		autoc = false;
+		mpi = false;
+	}
+
+
+
+	debug_printf(DP_DEBUG1, "bodycoil dims:\t");
+	debug_print_dims(DP_DEBUG1, DIMS, bc_dims);
+
+	debug_printf(DP_DEBUG1, "measured dims:\t");
 	debug_print_dims(DP_DEBUG1, DIMS, dims);
 
-        int ifd;
-        if (-1 == (ifd = open(argv[1], O_RDONLY)))
-                error("error opening file.");
+
+
+	int ifd;
+	if (-1 == (ifd = open(argv[1], O_RDONLY)))
+		error("error opening file.");
 
 	struct hdr_s hdr;
 	bool vd = siemens_meas_setup(ifd, &hdr);
@@ -378,6 +432,8 @@ int main_twixread(int argc, char* argv[argc])
 		siemens_meas_setup(ifd, &hdr); // reset
 	}
 
+	
+
 	long odims[DIMS];
 	md_copy_dims(DIMS, odims, dims);
 
@@ -390,8 +446,18 @@ int main_twixread(int argc, char* argv[argc])
 		assert(1 == dims[2]);
 	}
 
+
+
 	complex float* out = create_cfl(argv[2], DIMS, odims);
 	md_clear(DIMS, odims, out, CFL_SIZE);
+
+
+
+	long bc_odims[DIMS];
+	md_copy_dims(DIMS, bc_odims, bc_dims);
+	
+	complex float* bc_out = (0<bc_scans) ? create_cfl(create_bc_name(argv[2]), DIMS, bc_odims) : NULL;
+
 
 	long pmu_dims[DIMS];
 	md_select_dims(DIMS, ~(READ_FLAG|COIL_FLAG), pmu_dims, dims);
@@ -407,10 +473,6 @@ int main_twixread(int argc, char* argv[argc])
 	}
 
 
-	long adc_dims[DIMS];
-	md_select_dims(DIMS, READ_FLAG|COIL_FLAG, adc_dims, dims);
-
-	void* buf = md_alloc(DIMS, adc_dims, CFL_SIZE);
 
 	uint32_t buf_pmu;
 	complex float* val_pmu;
@@ -418,6 +480,58 @@ int main_twixread(int argc, char* argv[argc])
 
 	if (out_pmu)
 		val_pmu = md_alloc(DIMS, val_pmu_dims, CFL_SIZE);
+
+
+
+	debug_printf(DP_DEBUG1, "___ reading BC data.\n");
+
+	long bc_adc_dims[DIMS];
+	md_select_dims(DIMS, READ_FLAG|COIL_FLAG, bc_adc_dims, bc_dims);
+
+	void* bc_buf = md_alloc(DIMS, bc_adc_dims, CFL_SIZE);
+
+	while (bc_adcs--) {
+
+		long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
+
+		if (-1 == siemens_adc_read(vd, ifd, linectr, partctr, bc_dims, pos, bc_buf, &buf_pmu)) {
+
+			debug_printf(DP_WARN, "Stopping.\n");
+			break;
+		}
+
+		for (unsigned int i = 0; i < DIMS; i++)
+			pos[i] += off[i];
+
+		debug_print_dims(DP_DEBUG1, DIMS, pos);
+
+		if (!md_is_index(DIMS, pos, bc_dims)) {
+
+			debug_printf(DP_WARN, "Index out of bounds.\n");
+			debug_printf(DP_WARN, " bc_dims: ");
+			debug_print_dims(DP_WARN, DIMS, bc_dims);
+			debug_printf(DP_WARN, "     pos: ");
+			debug_print_dims(DP_WARN, DIMS, pos);
+			continue;
+		}
+
+		md_copy_block(DIMS, pos, bc_dims, bc_out, bc_adc_dims, bc_buf, CFL_SIZE); 
+
+	}
+
+	md_free(bc_buf);
+	
+	(0 < bc_scans) ? unmap_cfl(DIMS, bc_odims, bc_out) : NULL;
+
+
+
+	debug_printf(DP_DEBUG1, "___ reading measured data.\n");
+
+
+	long adc_dims[DIMS];
+	md_select_dims(DIMS, READ_FLAG|COIL_FLAG, adc_dims, dims);
+
+	void* buf = md_alloc(DIMS, adc_dims, CFL_SIZE);
 
 
 	long mpi_slice = -1;
@@ -448,7 +562,9 @@ int main_twixread(int argc, char* argv[argc])
 		if (!md_is_index(DIMS, pos, dims)) {
 
 			debug_printf(DP_WARN, "Index out of bounds.\n");
+			debug_printf(DP_WARN, " dims: ");
 			debug_print_dims(DP_WARN, DIMS, dims);
+			debug_printf(DP_WARN, "  pos: ");
 			debug_print_dims(DP_WARN, DIMS, pos);
 			continue;
 		}
@@ -466,7 +582,7 @@ int main_twixread(int argc, char* argv[argc])
 	}
 
 	md_free(buf);
-	unmap_cfl(DIMS, dims, out);
+	unmap_cfl(DIMS, odims, out);
 
 	if (out_pmu) {
 
