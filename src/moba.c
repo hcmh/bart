@@ -76,6 +76,15 @@ int main_moba(int argc, char* argv[])
 
 	assert(TI_dims[TE_DIM] == ksp_dims[TE_DIM]);
 	assert(1 == ksp_dims[MAPS_DIM]);
+        
+        // SMS
+	if (1 != ksp_dims[SLICE_DIM]) {
+
+		debug_printf(DP_INFO, "SMS Model-based reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
+		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace_data, kspace_data); // fftmod to get correct slice order in output
+		conf.sms = true;
+	}
+
 
 	long dims[DIMS];
 	md_copy_dims(DIMS, dims, ksp_dims);
@@ -142,7 +151,14 @@ int main_moba(int argc, char* argv[])
 	}
 
 	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
+        
+        if (1 != ksp_dims[SLICE_DIM]) // SMS
+		scaling *= sqrt(ksp_dims[SLICE_DIM] / 1.);
+
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
+
+	if (1 != ksp_dims[SLICE_DIM]) // SMS
+		scaling_psf *= sqrt(ksp_dims[SLICE_DIM] / 1.);
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
@@ -178,7 +194,6 @@ int main_moba(int argc, char* argv[])
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
 	}
 
-// 	conf.alpha = 0.1;
 #ifdef  USE_CUDA
 	if (usegpu) {
 
