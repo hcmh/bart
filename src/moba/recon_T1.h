@@ -15,6 +15,7 @@ struct moba_conf {
 	float tolerance;
 	unsigned int inner_iter;
 	bool noncartesian;
+        _Bool sms;
 };
 
 
