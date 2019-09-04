@@ -756,6 +756,35 @@ void md_zdiv(unsigned int D, const long dims[D], complex float* optr, const comp
 	make_z3op_simple(md_zdiv2, D, dims, optr, iptr1, iptr2);
 }
 
+/**
+ * Divide the first complex array by the second complex array with regularization and save to output (with strides)
+ *
+ * optr = iptr1 / (iptr2 + epsilon)
+ */
+void md_zdiv_reg2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2, complex float lambda)
+{
+	NESTED(void, nary_zdiv_reg, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		data->ops->zdiv_reg(data->size, ptr[0], ptr[1], ptr[2], lambda);
+	};
+
+	optimized_threeop_oii(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2,
+				(size_t[3]){ [0 ... 2] = CFL_SIZE }, nary_zdiv_reg);
+}
+
+/**
+ * Divide the first complex array by the second complex array with regularization and save to output (without strides)
+ *
+ * optr = iptr1 / (iptr2 + epsilon)
+ */
+void md_zdiv_reg(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr1, const complex float* iptr2, complex float lambda)
+{
+	long str[D];
+	md_calc_strides(D, str, dims, CFL_SIZE);
+
+	md_zdiv_reg2(D, dims, str, optr, str, iptr1, str, iptr2, lambda);
+}
+
 
 
 /**
