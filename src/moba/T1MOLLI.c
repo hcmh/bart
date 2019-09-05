@@ -85,12 +85,12 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	md_zexp(data->N, data->out_dims, data->tmp_exp, data->tmp_exp);
 
 	//1 + R1/R1*
-	md_zdiv(data->N, data->map_dims, data->tmp_map, data->R1, data->R1s);
+	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->R1s, 1e-4);
 	md_zsmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, 1./data->scaling_R1s);
 
 	md_zfill(data->N, data->map_dims, data->tmp_ones, 1.0);
 
-  md_zadd(data->N, data->map_dims, data->tmp_map1, data->tmp_ones, data->tmp_map);
+        md_zadd(data->N, data->map_dims, data->tmp_map1, data->tmp_ones, data->tmp_map);
 
 	// (1 + R1/R1*).*exp(-t.*scaling_R1s*R1s)
 	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->map_strs, data->tmp_map1, data->out_strs, data->tmp_exp);
@@ -98,16 +98,16 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	//Model: M0*( R1/R1* -(1 + R1/R1*).*exp(-t.*scaling_R1s*R1s))
 	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_dM0, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dR1s);
 	
-  md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->M0, data->out_strs, data->tmp_dM0);
+        md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->M0, data->out_strs, data->tmp_dM0);
 
 	// Calculating derivatives
-  // R1'
-	md_zdiv(data->N, data->map_dims, data->tmp_map1, data->M0, data->R1s);
+        // R1'
+	md_zdiv_reg(data->N, data->map_dims, data->tmp_map1, data->M0, data->R1s, 1e-4);
 	md_zsmul(data->N, data->map_dims, data->tmp_map1, data->tmp_map1, 1./data->scaling_R1s);
 	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->tmp_ones, data->out_strs, data->tmp_exp);
-  md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->tmp_map1, data->out_strs, data->tmp_dR1);
+        md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->tmp_map1, data->out_strs, data->tmp_dR1);
 
-  // R1s'
+        // R1s'
 	long img_dims[data->N];
 	md_select_dims(data->N, FFT_FLAGS, img_dims, data->map_dims);
 
@@ -117,14 +117,14 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 			md_zsmul(data->N, img_dims, (void*)data->tmp_dR1s + data->out_strs[5] * k + data->out_strs[13] * s,
 						(void*)data->tmp_dR1s + data->out_strs[5] * k + data->out_strs[13] * s, data->TI[k]);
 	
-  md_zmul(data->N, data->map_dims, data->tmp_map, data->R1s, data->R1s);
-	md_zdiv(data->N, data->map_dims, data->tmp_map, data->R1, data->tmp_map);
+        md_zmul(data->N, data->map_dims, data->tmp_map, data->R1s, data->R1s);
+	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->tmp_map, 1e-4);
 	md_zsmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, 1./(data->scaling_R1s*data->scaling_R1s));
 	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_ones);
-  md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_map, data->out_strs, data->tmp_exp);
-  md_zadd(data->N, data->out_dims, data->tmp_dR1s, data->tmp_dR1s, data->tmp_exp);
+        md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_map, data->out_strs, data->tmp_exp);
+        md_zadd(data->N, data->out_dims, data->tmp_dR1s, data->tmp_dR1s, data->tmp_exp);
   
-  md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->map_strs, data->M0, data->out_strs, data->tmp_dR1s);
+        md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->map_strs, data->M0, data->out_strs, data->tmp_dR1s);
 
 }
 
@@ -228,7 +228,7 @@ static void T1_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_T1_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long TI_dims[N], const complex float* TI, bool use_gpu)
+struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long TI_dims[N], const complex float* TI, bool use_gpu)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
