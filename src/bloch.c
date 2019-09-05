@@ -66,6 +66,7 @@ int main_bloch(int argc, char* argv[argc])
 	bool linear_offset = false;
 	bool operator_sim = false;
 	const char* fa_file = NULL;
+	const char* spherical_coord = NULL;
 	
 	const struct opt_s opts[] = {
 
@@ -103,6 +104,7 @@ int main_bloch(int argc, char* argv[argc])
 		OPT_SET('L', &linear_offset, "Add linear distribution of off-set freq."),
 		OPT_SET('O', &operator_sim, "Simulate using operator based simulation."),
 		OPT_STRING('F', &fa_file, "", "Variable flipangle file"),
+		OPT_STRING('c', &spherical_coord, "", "Output spherical coordinates: r "),
 	};
 	
 	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -236,10 +238,12 @@ int main_bloch(int argc, char* argv[argc])
 	complex float* sensitivitiesT1 = create_cfl(argv[2], DIMS, dim_phantom);
 	complex float* sensitivitiesT2 = create_cfl(argv[3], DIMS, dim_phantom);
 	complex float* sensitivitiesDens = create_cfl(argv[4], DIMS, dim_phantom);
+	complex float* r_out = NULL;
 	
+	if (NULL != spherical_coord)
+		r_out = create_cfl(spherical_coord, DIMS, dim_phantom);
 	
-	
-	
+
 	long dim_vfa[DIMS] = { [0 ... DIMS - 1] = 1 };
 	complex float* vfa_file = NULL;
 	
@@ -357,7 +361,12 @@ int main_bloch(int argc, char* argv[argc])
 					sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = saR2Sig[z][1] + saR2Sig[z][0] * I;
 					sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = saDensSig[z][1] + saDensSig[z][0] * I;
 					phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = mxySig[z][1] + mxySig[z][0] * I;
-				}  
+					
+					if (NULL != spherical_coord)
+						r_out[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = sqrtf(mxySig[z][0] * mxySig[z][0] + 
+																mxySig[z][1] * mxySig[z][1] + 
+																mxySig[z][2] * mxySig[z][2]);
+				}
 			}
 		}
 
@@ -381,6 +390,9 @@ int main_bloch(int argc, char* argv[argc])
 	unmap_cfl(DIMS, dim_phantom, sensitivitiesT1);
 	unmap_cfl(DIMS, dim_phantom, sensitivitiesT2);
 	unmap_cfl(DIMS, dim_phantom, sensitivitiesDens);
+	
+	if (NULL != spherical_coord)
+		unmap_cfl(DIMS, dim_phantom, r_out);
 
 	//Calculate and print elapsed time 
 	gettimeofday(&t_end, NULL);
