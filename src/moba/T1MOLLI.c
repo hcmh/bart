@@ -53,7 +53,7 @@ struct T1_s {
 
 DEF_TYPEID(T1_s);
 
-// Calculate Model: Mss - (Mss + M0) * exp(-t.*R1s)
+// Calculate Model: M0 * (R1/R1s - (1 + R1/R1s) * exp(-t.*R1s))
 static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	struct T1_s* data = CAST_DOWN(T1_s, _data);
@@ -61,6 +61,8 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 
 	for (int i = 0; i < data->N; i++)
 		pos[i] = 0;
+        
+        float reg_parameter = 1e-6;
 
 	// M0
 	pos[COEFF_DIM] = 0;
@@ -85,7 +87,7 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	md_zexp(data->N, data->out_dims, data->tmp_exp, data->tmp_exp);
 
 	//1 + R1/R1*
-	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->R1s, 1e-4);
+	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->R1s, reg_parameter);
 	md_zsmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, 1./data->scaling_R1s);
 
 	md_zfill(data->N, data->map_dims, data->tmp_ones, 1.0);
@@ -102,7 +104,7 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 
 	// Calculating derivatives
         // R1'
-	md_zdiv_reg(data->N, data->map_dims, data->tmp_map1, data->M0, data->R1s, 1e-4);
+	md_zdiv_reg(data->N, data->map_dims, data->tmp_map1, data->M0, data->R1s, reg_parameter);
 	md_zsmul(data->N, data->map_dims, data->tmp_map1, data->tmp_map1, 1./data->scaling_R1s);
 	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->tmp_ones, data->out_strs, data->tmp_exp);
         md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->tmp_map1, data->out_strs, data->tmp_dR1);
@@ -118,7 +120,7 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 						(void*)data->tmp_dR1s + data->out_strs[5] * k + data->out_strs[13] * s, data->TI[k]);
 	
         md_zmul(data->N, data->map_dims, data->tmp_map, data->R1s, data->R1s);
-	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->tmp_map, 1e-4);
+	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->tmp_map, reg_parameter);
 	md_zsmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, 1./(data->scaling_R1s*data->scaling_R1s));
 	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_ones);
         md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_map, data->out_strs, data->tmp_exp);
@@ -207,6 +209,7 @@ static void T1_del(const nlop_data_t* _data)
 	md_free(data->TI);
 
 	md_free(data->tmp_map);
+        md_free(data->tmp_map1);
 	md_free(data->tmp_ones);
 	md_free(data->tmp_exp);
 
@@ -278,6 +281,7 @@ struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out
 	data->M0 = my_alloc(N, map_dims, CFL_SIZE);
 	data->R1s = my_alloc(N, map_dims, CFL_SIZE);
 	data->tmp_map = my_alloc(N, map_dims, CFL_SIZE);
+        data->tmp_map1 = my_alloc(N, map_dims, CFL_SIZE);
 	data->tmp_ones = my_alloc(N, map_dims, CFL_SIZE);
 	data->tmp_exp = my_alloc(N, out_dims, CFL_SIZE);
 	data->tmp_dM0 = my_alloc(N, out_dims, CFL_SIZE);
