@@ -11,4 +11,4 @@ struct HSFP_model {
 };
 extern const struct HSFP_model hsfp_defaults;
 
-void hsfp_simu(const struct HSFP_model* data, _Complex float* out);
+void hsfp_simu(const struct HSFP_model* data, float* out);

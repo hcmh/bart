@@ -336,6 +336,8 @@ int main_bloch(int argc, char* argv[argc])
 			float saR1Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+			
+			float r[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep];	// radial magnetization
 
 			float fa = flipangle * M_PI / 180.; //conversion to rad
 			
@@ -346,7 +348,7 @@ int main_bloch(int argc, char* argv[argc])
 					hsfp_data.t1 = t1;
 					hsfp_data.t2 = t2;
 					
-					hsfp_simu(&hsfp_data, r_out);
+					hsfp_simu(&hsfp_data, r);
 					
 					int ind = 0;
 					
@@ -354,10 +356,12 @@ int main_bloch(int argc, char* argv[argc])
 						
 						ind = (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x;
 						
-						phantom[ind] = sinf(cabsf(vfa_file[ind])) * r_out[ind];
+						phantom[ind] = sinf(cabsf(vfa_file[z])) * r[z];
 						sensitivitiesT1[ind] = 0.;
 						sensitivitiesT2[ind] = 0.;
 						sensitivitiesDens[ind] = 0.;
+						
+						r_out[ind] = r[z];
 					}
 				}
 				else {

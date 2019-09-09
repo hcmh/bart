@@ -89,10 +89,10 @@ static float hsfp_signal(const struct HSFP_model* data, float r0_val, float t)
 }
 
 
-void hsfp_simu(const struct HSFP_model* data, complex float* out)
+void hsfp_simu(const struct HSFP_model* data, float* out)
 {
 	float r0_val = r0(data);
 	
 	for (int ind = 0; ind < data->repetitions; ind++)
-		out[ind] = hsfp_signal(data, r0_val, (float) ind*data->tr) + 0 * I;
+		out[ind] = hsfp_signal(data, r0_val, (float) ind*data->tr);
 }
