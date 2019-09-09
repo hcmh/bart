@@ -355,11 +355,15 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		* --------------------- Signal Preparation ---------------------
 		* ------------------------------------------------------------*/
 		//for bSSFP based sequences: alpha/2 and TR/2 preparation
-		if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1 || data->seqData.seq_type == 3 || data->seqData.seq_type == 6) { 
+		if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1 || data->seqData.seq_type == 3 || data->seqData.seq_type == 4 || data->seqData.seq_type == 6) { 
 
 			struct SimData prep_data = *data;
 			
-			prep_data.pulseData.flipangle = data->pulseData.flipangle/2.;
+			if (data->seqData.seq_type == 4)
+				prep_data.pulseData.flipangle = data->seqData.variable_fa[0]/2.;
+			else
+				prep_data.pulseData.flipangle = data->pulseData.flipangle/2.;
+			
 			prep_data.pulseData.phase = M_PI;
 			prep_data.seqData.TE = data->seqData.TR/2.;
 			prep_data.seqData.TR = data->seqData.TR/2.;
