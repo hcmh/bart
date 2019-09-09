@@ -43,20 +43,28 @@ int main_pixel(int argc, char* argv[])
 	struct modBlochFit fitPara = modBlochFit_defaults;
 	bool usegpu = false;
 	float data_scale = 600;
-
+	const char* inputB1 = NULL;
+	const char* inputSP = NULL;
+	const char* fa_file = NULL;
+	
 	const struct opt_s opts[] = {
 
 		OPT_UINT(	'i', 	&conf.iter, 		"iter", 	"Number of Newton steps"),
 		OPT_FLOAT(	'R', 	&conf.redu, 		"", 		"reduction factor"),
 		OPT_FLOAT(	'w', 	&conf.alpha_min, 	"", 		"alpha_min"),
 		OPT_INT(	'd', 	&debug_level, 		"level", 	"Debug level"),
+		OPT_INT(	'M', 	&fitPara.sequence,	"", 		"Define sequence mode: 0 = bSSFP[default], 1 = invbSSFP, 3 = pcbSSFP, 4 = inv. bSSFP without preparation, 5 = invFLASH, 6 = invpcbSSFP"),
 		OPT_FLOAT(	'D', 	&fitPara.rfduration, 	"", 		"Duration of RF-pulse [s]"),
 		OPT_FLOAT(	't', 	&fitPara.tr, 		"", 		"TR [s]"),
 		OPT_FLOAT(	'e', 	&fitPara.te, 		"", 		"TE [s]"),
+		OPT_FLOAT(	'F', 	&fitPara.fa, 		"", 		"Flipangle [deg]"),
 		OPT_INT(	'a', 	&fitPara.averageSpokes, "", 		"Number of averaged spokes"),
 		OPT_INT(	'r', 	&fitPara.rm_no_echo, 	"", 		"Number of removed echoes."),
 		OPT_FLOAT(	'S', 	&data_scale, 		"", 		"Raw data scaling"),
 		OPT_SET(	'O', 	&fitPara.full_ode_sim	, 		"Apply full ODE simulation"),
+		OPT_STRING(	'I',	&inputB1, 		"", 		"Input B1 image"),
+		OPT_STRING(	'P',	&inputSP, 		"", 		"Input Slice Profile image"),
+		OPT_STRING(	'V', 	&fa_file, 		"", 		"Variable flipangle file"),
 		OPT_SET(	'g', 	&usegpu, 				"use gpu"),
 	};
 
@@ -87,7 +95,53 @@ int main_pixel(int argc, char* argv[])
 	
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, dims, data, data, scaling); 
-
+	
+	
+	complex float* input_b1 = NULL;
+	
+	long input_b1_dims[DIMS];
+	
+	if (NULL != inputB1) {
+		
+		input_b1 = load_cfl(inputB1, DIMS, input_b1_dims);
+		
+		fitPara.input_b1 = md_alloc(DIMS, input_b1_dims, CFL_SIZE);
+		md_copy(DIMS, input_b1_dims, fitPara.input_b1, input_b1, CFL_SIZE);
+	}
+		
+	
+	
+	complex float* input_sp = NULL;
+	long input_sp_dims[DIMS];
+	
+	if (NULL != inputSP) {
+		
+		input_sp = load_cfl(inputSP, DIMS, input_sp_dims);
+		
+		fitPara.n_slcp = input_sp_dims[READ_DIM];
+		debug_printf(DP_DEBUG3, "Number of slice profile estimates: %d\n", fitPara.n_slcp);
+		
+		fitPara.input_sp = md_alloc(DIMS, input_sp_dims, CFL_SIZE);
+		md_copy(DIMS, input_sp_dims, fitPara.input_sp, input_sp, CFL_SIZE);
+		
+	}
+	
+	
+	complex float* input_vfa = NULL;
+	long input_vfa_dims[DIMS];
+	
+	if (NULL != fa_file) {
+		
+		input_vfa = load_cfl(fa_file, DIMS, input_vfa_dims);
+		
+		fitPara.num_vfa = input_vfa_dims[READ_DIM];
+		debug_printf(DP_DEBUG3, "Number of variable flip angles: %d\n", fitPara.num_vfa);
+		
+		fitPara.input_fa_profile = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
+		md_copy(DIMS, input_vfa_dims, fitPara.input_fa_profile, input_vfa, CFL_SIZE);
+		
+	}
+	
 	
 	//Assign initial guesses to maps
 	long tmp_dims[DIMS];
@@ -98,7 +152,6 @@ int main_pixel(int argc, char* argv[])
 	
 	//Values for Initialization of maps
 	complex float initval[3] = {0.8, 11., 4.} ;//	R1, R2, M0 
-	
 	
 	auto_scale(&fitPara, fitPara.scale, dims, data);
 	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fitPara.scale[0], fitPara.scale[1], fitPara.scale[2]);
@@ -166,6 +219,15 @@ int main_pixel(int argc, char* argv[])
 	
 	unmap_cfl(DIMS, img_dims, img );
 	unmap_cfl(DIMS, dims, data);
+	
+	if(NULL != input_b1)
+		unmap_cfl(DIMS, input_b1_dims, input_b1);
+	
+	if(NULL != input_sp)
+		unmap_cfl(DIMS, input_sp_dims, input_sp);
+	
+	if(NULL != input_vfa)
+		unmap_cfl(DIMS, input_vfa_dims, input_vfa);
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
