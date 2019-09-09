@@ -341,6 +341,17 @@ static void zabs(long N, complex float* dst, const complex float* src)
 		dst[i] = cabsf(src[i]);
 }
 
+static void zsin(long N, complex float* dst, const complex float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = csinf(src[i]);
+}
+
+static void zcos(long N, complex float* dst, const complex float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = ccosf(src[i]);
+}
 
 static void zmax(long N, complex float* dst, const complex float* src1, const complex float* src2)
 {
@@ -635,6 +646,9 @@ const struct vec_ops cpu_ops = {
 	.zexp = zexp,
 	.zarg = zarg,
 	.zabs = zabs,
+	
+	.zsin = zsin,
+	.zcos = zcos,
 
 	.zcmp = zcmp,
 	.zdiv_reg = zdiv_reg,
