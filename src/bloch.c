@@ -17,6 +17,7 @@
 #include "num/flpmath.h"
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
+#include "simu/hsfp_model.h"
 #include "misc/debug.h"
 #include "num/fft.h"
 
@@ -251,6 +252,17 @@ int main_bloch(int argc, char* argv[argc])
 		vfa_file = load_cfl(fa_file, DIMS, dim_vfa);
 	
 	
+	struct HSFP_model hsfp_data = hsfp_defaults;
+	
+	if ( 4 == seq && analytical) {
+		
+		hsfp_data.tr = tr;
+		hsfp_data.repetitions = dim_vfa[READ_DIM];
+		hsfp_data.beta = -1;
+		hsfp_data.pa_profile = md_alloc(DIMS, dim_vfa, CFL_SIZE);
+		md_copy(DIMS, dim_vfa, hsfp_data.pa_profile, vfa_file, CFL_SIZE);
+	}
+		
 	
 	#pragma omp parallel for collapse(2)
 	for (int x = 0; x < dim_phantom[0]; x++) 
@@ -329,22 +341,42 @@ int main_bloch(int argc, char* argv[argc])
 			
 			if (analytical) {
 				
-				//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
-				//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
-				//Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058
-				float t1s = 1 / ( (cosf( fa/2. )*cosf( fa/2. ))/t1 + (sinf( fa/2. )*sinf( fa/2. ))/t2 );
-				float s0 = m0 * sinf( fa/2. );
-				float stst = m0 * sinf(fa) / ( (t1/t2 + 1) - cosf(fa) * (t1/t2 -1) );
-				float inv = 1 + s0 / stst;
-				
-				for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
+				if( 4 == seq && NULL != spherical_coord) {
 					
-					phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = stst * ( 1 - inv * expf( - z * tr / t1s ));
-					sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-					sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-					sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+					hsfp_data.t1 = t1;
+					hsfp_data.t2 = t2;
+					
+					hsfp_simu(&hsfp_data, r_out);
+					
+					int ind = 0;
+					
+					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
+						
+						ind = (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x;
+						
+						phantom[ind] = sinf(cabsf(vfa_file[ind])) * r_out[ind];
+						sensitivitiesT1[ind] = 0.;
+						sensitivitiesT2[ind] = 0.;
+						sensitivitiesDens[ind] = 0.;
+					}
 				}
-				
+				else {
+					//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
+					//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
+					//Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058
+					float t1s = 1 / ( (cosf( fa/2. )*cosf( fa/2. ))/t1 + (sinf( fa/2. )*sinf( fa/2. ))/t2 );
+					float s0 = m0 * sinf( fa/2. );
+					float stst = m0 * sinf(fa) / ( (t1/t2 + 1) - cosf(fa) * (t1/t2 -1) );
+					float inv = 1 + s0 / stst;
+					
+					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
+						
+						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = stst * ( 1 - inv * expf( - z * tr / t1s ));
+						sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+					}
+				}
 			}
 			else {	//start ODE based simulation
 
