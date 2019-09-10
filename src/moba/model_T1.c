@@ -29,11 +29,12 @@
 
 #include "moba/T1fun.h"
 #include "moba/T1MOLLI.h"
+#include "moba/T1_repara.h"
 
 #include "model_T1.h"
 
 
-#define MOLLI
+#define T1repara
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, _Bool use_gpu)
 {
@@ -54,8 +55,8 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 
 #if 1
 	// chain T1 model
-#ifdef MOLLI
-        struct nlop_s* T1 = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+#ifdef T1repara
+        struct nlop_s* T1 = nlop_T1_repara_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
 #else
 	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
 #endif
