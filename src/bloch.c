@@ -252,15 +252,15 @@ int main_bloch(int argc, char* argv[argc])
 		vfa_file = load_cfl(fa_file, DIMS, dim_vfa);
 	
 	
-	struct HSFP_model hsfp_data = hsfp_defaults;
+	struct HSFP_model hsfp_data2 = hsfp_defaults;
 	
 	if ( 4 == seq && analytical) {
 		
-		hsfp_data.tr = tr;
-		hsfp_data.repetitions = dim_vfa[READ_DIM];
-		hsfp_data.beta = -1;
-		hsfp_data.pa_profile = md_alloc(DIMS, dim_vfa, CFL_SIZE);
-		md_copy(DIMS, dim_vfa, hsfp_data.pa_profile, vfa_file, CFL_SIZE);
+		hsfp_data2.tr = tr;
+		hsfp_data2.repetitions = repetition;
+		hsfp_data2.beta = -1;
+		hsfp_data2.pa_profile = md_alloc(DIMS, dim_vfa, CFL_SIZE);
+		md_copy(DIMS, dim_vfa, hsfp_data2.pa_profile, vfa_file, CFL_SIZE);
 	}
 		
 	
@@ -345,6 +345,8 @@ int main_bloch(int argc, char* argv[argc])
 				
 				if( 4 == seq && NULL != spherical_coord) {
 					
+					struct HSFP_model hsfp_data = hsfp_data2;
+					
 					hsfp_data.t1 = t1;
 					hsfp_data.t2 = t2;
 					
@@ -361,7 +363,7 @@ int main_bloch(int argc, char* argv[argc])
 						sensitivitiesT2[ind] = 0.;
 						sensitivitiesDens[ind] = 0.;
 						
-						r_out[ind] = r[z];
+						r_out[ind] = fabsf(r[z]);
 					}
 				}
 				else {
