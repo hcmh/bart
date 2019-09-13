@@ -186,6 +186,7 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]){
 	}
 }
 
+// TODO: Fix correction for FLASH sequences, where phase is the same for all repetitions!
 static void collect_signal(void* _data, int N, int P, float *mxySignal, float *saT1Signal, float *saT2Signal, float *densSignal, float xp[P + 2][N])
 {    
 	struct SimData* data = _data;

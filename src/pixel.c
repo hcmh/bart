@@ -217,7 +217,7 @@ int main_pixel(int argc, char* argv[])
 	md_free(tmp_img);
 	md_free(ones);
 	
-	unmap_cfl(DIMS, img_dims, img );
+	unmap_cfl(DIMS, img_dims, img);
 	unmap_cfl(DIMS, dims, data);
 	
 	if(NULL != input_b1)

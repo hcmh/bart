@@ -87,7 +87,6 @@ int main_bloch(int argc, char* argv[argc])
 		OPT_FLOAT('w', &offresonance, "", "off-resonance frequency [rad]"),
 
 		/* Input Maps */
-		OPT_SET('R', &inverse_relaxation, "Input inverse relaxation?"),
 		OPT_STRING('I', &inputRel1, "Input Rel1", "Input relaxation parameter 1."),
 		OPT_STRING('i', &inputRel2, "Input Rel2", "Input relaxation parameter 2."),
 		OPT_STRING('M', &inputM0, "Input M0", "Input M0."),
@@ -100,7 +99,7 @@ int main_bloch(int argc, char* argv[argc])
 		/* Special Cases */
 		OPT_SET('A', &analytical, "Use analytical model for simulation"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),   
-		OPT_SET('E', &spin_ensamble, "Input inverse relaxation?"),
+		OPT_SET('E', &spin_ensamble, "Spin Ensample"),
 		OPT_INT('k', &kspace, "d", "kspace output? default:0=no"),
 		OPT_SET('L', &linear_offset, "Add linear distribution of off-set freq."),
 		OPT_SET('O', &operator_sim, "Simulate using operator based simulation."),
@@ -246,6 +245,7 @@ int main_bloch(int argc, char* argv[argc])
 	
 
 	long dim_vfa[DIMS] = { [0 ... DIMS - 1] = 1 };
+	
 	complex float* vfa_file = NULL;
 	
 	if (NULL != fa_file)
@@ -274,7 +274,7 @@ int main_bloch(int argc, char* argv[argc])
 			
 			if (xdim != 1 && ydim != 1) {
 
-				t1 = cabs(map_T1[(y * dim_phantom[0]) + x]);  
+				t1 = crealf(map_T1[(y * dim_phantom[0]) + x]);  
 				t2 = cimagf(map_T2[(y * dim_phantom[0]) + x]); 
 				m0 = cabsf(map_M0[(y * dim_phantom[0]) + x]);
 			}
@@ -388,7 +388,8 @@ int main_bloch(int argc, char* argv[argc])
 					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 				else
 					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
-				
+
+
 				//Add data to phantom
 				for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
 					
