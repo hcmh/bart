@@ -51,8 +51,8 @@ int main_bloch(int argc, char* argv[argc])
 	int spin_num = 1;
 	int repetition = 500;
 	float offresonance = 0.;
+	int runs = 1;
 	
-	bool inverse_relaxation = false;
 	const char* inputRel1 = NULL;
 	const char* inputRel2 = NULL;
 	const char* inputM0 = NULL;
@@ -85,6 +85,7 @@ int main_bloch(int argc, char* argv[argc])
 		OPT_INT('n', &spin_num, "n", "number of spins"),
 		OPT_INT('r', &repetition, "n", "repetitions/train-length"),
 		OPT_FLOAT('w', &offresonance, "", "off-resonance frequency [rad]"),
+		OPT_INT('X', &runs, "", "runs of sequence"),
 
 		/* Input Maps */
 		OPT_STRING('I', &inputRel1, "Input Rel1", "Input relaxation parameter 1."),
@@ -308,6 +309,7 @@ int main_bloch(int argc, char* argv[argc])
 			sim_data.seqData.rep_num = repetition;
 			sim_data.seqData.spin_num = spin_num;
 			sim_data.seqData.num_average_rep = aver_num;
+			sim_data.seqData.run_num = runs;
 			
 			if (NULL != vfa_file) {
 				
