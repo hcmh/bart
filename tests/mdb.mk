@@ -13,7 +13,7 @@ tests/test-mdb-bloch: phantom creal saxpy conj threshold ones fmac cabs join cop
 	$(TOOLDIR)/ones 16 24 24 1 1 1 1000 1 1 1 1 1 1 1 1 1 1 psf.ra										;\
 	$(TOOLDIR)/copy m0.ra b1.ra														;\
 	$(TOOLDIR)/ones 16 10 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 slice_profile.ra									;\
-	$(TOOLDIR)/bloch -R -I t1.ra -i t2.ra -M m0.ra -s1 -f45 -p0.0009 -r1000 -a1 -O -t0.0045 -e0.00225 sig.ra sr1.ra sr2.ra sm0.ra		;\
+	$(TOOLDIR)/bloch -I t1.ra -i t2.ra -M m0.ra -s1 -f45 -p0.0009 -r1000 -a1 -O -t0.0045 -e0.00225 sig.ra sr1.ra sr2.ra sm0.ra		;\
 	$(TOOLDIR)/fft -u 7 sig.ra sig_ksp.ra													;\
 	$(TOOLDIR)/modbloch -t0.0045 -e0.00225 -R3 -i15 -F45 -f1 -a1 -w0.001 -r0 -O -I b1.ra -p psf.ra -P slice_profile.ra sig_ksp.ra reco.ra sens.ra	;\
 	$(TOOLDIR)/slice 6 2 reco.ra m0reco.ra													;\
