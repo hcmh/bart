@@ -62,6 +62,7 @@ int main_pixel(int argc, char* argv[])
 		OPT_INT(	'r', 	&fitPara.rm_no_echo, 	"", 		"Number of removed echoes."),
 		OPT_FLOAT(	'S', 	&data_scale, 		"", 		"Raw data scaling"),
 		OPT_SET(	'O', 	&fitPara.full_ode_sim	, 		"Apply full ODE simulation"),
+		OPT_INT(	'X', 	&fitPara.runs, 		"", 		"Number of applied whole sequence trains."),
 		OPT_STRING(	'I',	&inputB1, 		"", 		"Input B1 image"),
 		OPT_STRING(	'P',	&inputSP, 		"", 		"Input Slice Profile image"),
 		OPT_STRING(	'V', 	&fa_file, 		"", 		"Variable flipangle file"),

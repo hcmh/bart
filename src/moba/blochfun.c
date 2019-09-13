@@ -255,6 +255,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				sim_data.seqData.rep_num = (data->out_dims[TE_DIM] + rm_first_echo) * data->fitParameter.averageSpokes;
 				sim_data.seqData.spin_num = data->fitParameter.n_slcp;
 				sim_data.seqData.num_average_rep = data->fitParameter.averageSpokes;
+				sim_data.seqData.run_num = data->fitParameter.runs;
 				
 				sim_data.voxelData = voxelData_defaults;
 				sim_data.voxelData.r1 = crealf(R1scale[spa_ind]);
@@ -542,6 +543,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->fitParameter.tr = fitPara->tr;
 	data->fitParameter.te = fitPara->te;
 	data->fitParameter.fa = fitPara->fa;
+	data->fitParameter.runs = fitPara->runs;
 
 	debug_printf(DP_DEBUG2, "TR: %f s,\t TE: %f s\n", data->fitParameter.tr, data->fitParameter.te);
 
