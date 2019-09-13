@@ -41,6 +41,7 @@ struct SeqData {
 	int rep_num;
 	int spin_num;
 	int num_average_rep;
+	int run_num; /* Number of applied sequence trains*/
 	
 	complex float* slice_profile;
 	complex float* variable_fa;
@@ -53,6 +54,7 @@ struct SeqTmpData {
 	float t;
 	int rep_counter;
 	int spin_counter;
+	int run_counter;
 };
 extern const struct SeqTmpData seqTmpData_defaults;
 

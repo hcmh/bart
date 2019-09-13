@@ -58,6 +58,7 @@ const struct SeqData seqData_defaults = {
 	.rep_num = 1,
 	.spin_num = 1,
 	.num_average_rep = 1,
+	.run_num = 1,
 	
 	.slice_profile = NULL,
 	.variable_fa = NULL,
@@ -69,6 +70,7 @@ const struct SeqTmpData seqTmpData_defaults = {
 	.t = 0.,
 	.rep_counter = 0,
 	.spin_counter = 0,
+	.run_counter = 0,
 };
 
 
@@ -197,10 +199,17 @@ static void collect_signal(void* _data, int N, int P, float *mxySignal, float *s
 
 	for (int i = 0; i < N; i++) {
 
-		mxySignal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[0][i] : xp[0][i];
-		saT1Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[1][i] : xp[1][i];
-		saT2Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[2][i] : xp[2][i];
-		densSignal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[3][i] : xp[3][i];
+		mxySignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[0][i] : xp[0][i];
+				
+		saT1Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[1][i] : xp[1][i];
+				
+		saT2Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[2][i] : xp[2][i];
+				
+		densSignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[3][i] : xp[3][i];
 	}
 }
 
@@ -304,21 +313,23 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		isochromDistribution( data, isochromats);
 
 	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows 
-	float *mxySignal = malloc(data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
-	float *saT1Signal = malloc(data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
-	float *saT2Signal = malloc(data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
-	float *densSignal = malloc(data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
+	float *mxySignal = malloc(data->seqData.run_num * data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
+	float *saT1Signal = malloc(data->seqData.run_num * data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
+	float *saT2Signal = malloc(data->seqData.run_num * data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
+	float *densSignal = malloc(data->seqData.run_num * data->seqData.spin_num * data->seqData.rep_num * 3 * sizeof(float));
 
 	float flipangle_backup = data->pulseData.flipangle;
 	
 	float w_backup = data->voxelData.w;
 	
+	float slice_factor = 1.;
+	
 	for (data->seqtmp.spin_counter = 0; data->seqtmp.spin_counter < data->seqData.spin_num; data->seqtmp.spin_counter++){
 		
-		
-		
 		if (NULL != data->seqData.slice_profile) 
-			data->pulseData.flipangle = flipangle_backup * cabsf(data->seqData.slice_profile[data->seqtmp.spin_counter]);
+			slice_factor = cabsf(data->seqData.slice_profile[data->seqtmp.spin_counter]);
+			
+		data->pulseData.flipangle = flipangle_backup * slice_factor;
 
 		float xp[4][3] = { { 0., 0. , 1. }, { 0. }, { 0. }, { 0. } }; //xp[P + 2][N]
 		
@@ -326,89 +337,94 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		
 		if (data->voxelData.spin_ensamble)
 			data->voxelData.w = w_backup + isochromats[data->seqtmp.spin_counter];
-
+		
 		data->pulseData.phase = 0;
-		data->seqtmp.t = 0;
-		data->seqtmp.rep_counter = 0;
-		
-		/*--------------------------------------------------------------
-		* ----------------  Inversion Pulse Block ----------------------
-		* ------------------------------------------------------------*/
-		
-		if (data->seqData.seq_type == 1 || data->seqData.seq_type == 4 || data->seqData.seq_type == 5 || data->seqData.seq_type == 6) {
-			
-			struct SimData inv_data = *data;
 
-			if(inv_data.pulseData.RF_end != 0) //Hard Pulses
-				inv_data.pulseData.RF_end = 0.01;
-			
-			inv_data.pulseData.flipangle = 180.;
-			inv_data.seqData.TE = data->pulseData.RF_end;
-			inv_data.seqData.TR = data->pulseData.RF_end;
-			
-			create_sim_block(&inv_data);
-			
-			run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
-			
-		}
-		
-		/*--------------------------------------------------------------
-		* --------------------- Signal Preparation ---------------------
-		* ------------------------------------------------------------*/
-		//for bSSFP based sequences: alpha/2 and TR/2 preparation
-		if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1 || data->seqData.seq_type == 3 || data->seqData.seq_type == 4 || data->seqData.seq_type == 6) { 
+		for (data->seqtmp.run_counter = 0; data->seqtmp.run_counter < data->seqData.run_num; data->seqtmp.run_counter++) {
 
-			struct SimData prep_data = *data;
+			data->seqtmp.t = 0;
+			data->seqtmp.rep_counter = 0;
+
+			/*--------------------------------------------------------------
+			* ----------------  Inversion Pulse Block ----------------------
+			* ------------------------------------------------------------*/
 			
-			if (data->seqData.seq_type == 4)
-				prep_data.pulseData.flipangle = data->seqData.variable_fa[0]/2.;
-			else
-				prep_data.pulseData.flipangle = data->pulseData.flipangle/2.;
-			
-			prep_data.pulseData.phase = M_PI;
-			prep_data.seqData.TE = data->seqData.TR/2.;
-			prep_data.seqData.TR = data->seqData.TR/2.;
-			
-			create_sim_block(&prep_data);
-			
-			run_sim_block(&prep_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
-		}
-		
-		/*--------------------------------------------------------------
-		* --------------  Loop over Pulse Blocks  ----------------------
-		* ------------------------------------------------------------*/
-		data->seqtmp.t = 0;
-		
-		if (NULL == data->seqData.variable_fa)
-			create_sim_block(data);
-		
-		while (data->seqtmp.rep_counter < data->seqData.rep_num) {
-			
-			
-			if (NULL != data->seqData.variable_fa) {
+			if (data->seqData.seq_type == 1 || data->seqData.seq_type == 4 || data->seqData.seq_type == 5 || data->seqData.seq_type == 6) {
 				
-				data->pulseData.flipangle = data->seqData.variable_fa[data->seqtmp.rep_counter];
+				struct SimData inv_data = *data;
+
+				if(inv_data.pulseData.RF_end != 0) //Hard Pulses
+					inv_data.pulseData.RF_end = 0.01;
 				
-				create_sim_block(data);
+				inv_data.pulseData.flipangle = 180.;
+				inv_data.seqData.TE = data->pulseData.RF_end;
+				inv_data.seqData.TR = data->pulseData.RF_end;
+				
+				create_sim_block(&inv_data);
+				
+				run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+				
 			}
 			
-			//Change phase for phase cycled bSSFP sequences //Check phase for FLASH!!
-			if (data->seqData.seq_type == 3 || data->seqData.seq_type == 6)
-				data->pulseData.phase = M_PI * (float) ( data->seqtmp.rep_counter % 2 ) + 360. * ( (float)data->seqtmp.rep_counter/(float)data->seqData.rep_num )/180. * M_PI;
-			else if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1 || data->seqData.seq_type == 4)
-				data->pulseData.phase = M_PI * (float) data->seqtmp.rep_counter;
-
-			run_sim_block(data, mxySignal, saT1Signal, saT2Signal, densSignal, h, tol, N, P, xp, true);
 			
-			//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
-			if (data->seqData.seq_type == 2 || data->seqData.seq_type == 5)
-				for (int i = 0; i < P + 2; i ++) {
+			/*--------------------------------------------------------------
+			* --------------------- Signal Preparation ---------------------
+			* ------------------------------------------------------------*/
+			//for bSSFP based sequences: alpha/2 and TR/2 preparation
+			if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1 || data->seqData.seq_type == 3 || (data->seqData.seq_type == 4 && data->seqtmp.run_counter == 0) || data->seqData.seq_type == 6) { 
 
-					xp[i][0] = 0.;
-					xp[i][1] = 0.; 
+				struct SimData prep_data = *data;
+				
+				if (data->seqData.seq_type == 4)
+					prep_data.pulseData.flipangle = cabsf(data->seqData.variable_fa[data->seqtmp.rep_counter])/2. * slice_factor;
+				else
+					prep_data.pulseData.flipangle = data->pulseData.flipangle/2. * slice_factor;
+
+				prep_data.pulseData.phase = M_PI;
+				prep_data.seqData.TE = data->seqData.TR/2.;
+				prep_data.seqData.TR = data->seqData.TR/2.;
+				
+				create_sim_block(&prep_data);
+				
+				run_sim_block(&prep_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+			}
+			
+			/*--------------------------------------------------------------
+			* --------------  Loop over Pulse Blocks  ----------------------
+			* ------------------------------------------------------------*/
+			data->seqtmp.t = 0;
+			
+			if (NULL == data->seqData.variable_fa)
+				create_sim_block(data);
+			
+			while (data->seqtmp.rep_counter < data->seqData.rep_num) {
+				
+				
+				if (NULL != data->seqData.variable_fa) {
+					
+					data->pulseData.flipangle = cabsf(data->seqData.variable_fa[data->seqtmp.rep_counter]) * slice_factor;
+					
+					create_sim_block(data);
 				}
+				
+				//Change phase for phase cycled bSSFP sequences
+				if (data->seqData.seq_type == 3 || data->seqData.seq_type == 6)
+					data->pulseData.phase = M_PI * (float) ( data->seqtmp.rep_counter % 2 ) + 360. * ( (float)data->seqtmp.rep_counter/(float)data->seqData.rep_num )/180. * M_PI;
+				else if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1 || data->seqData.seq_type == 4)
+					data->pulseData.phase = M_PI * (float) (data->seqtmp.rep_counter + data->seqtmp.run_counter * data->seqData.rep_num);
 
-			data->seqtmp.rep_counter++;
+				run_sim_block(data, mxySignal, saT1Signal, saT2Signal, densSignal, h, tol, N, P, xp, true);
+				
+				//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
+				if (data->seqData.seq_type == 2 || data->seqData.seq_type == 5)
+					for (int i = 0; i < P + 2; i ++) {
+
+						xp[i][0] = 0.;
+						xp[i][1] = 0.; 
+					}
+
+				data->seqtmp.rep_counter++;
+			}
 		}
 	}
 	
@@ -427,13 +443,22 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		for (int save_repe = 0, repe = 0; repe < data->seqData.rep_num; repe++) {
 			
 			if (av_num == data->seqData.num_average_rep)
-					av_num = 0.;
+				av_num = 0.;
 			
 			for (int spin = 0; spin < data->seqData.spin_num; spin++) {
 				
-				sumMxyTmp += mxySignal[ (dim *data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
-				sumSaT1 += saT1Signal[ (dim * data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
-				sumSaT2 += saT2Signal[ (dim * data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
+				sumMxyTmp += mxySignal[ ((data->seqData.run_num-1) * 3 * data->seqData.spin_num * data->seqData.rep_num) +
+							(dim * data->seqData.spin_num * data->seqData.rep_num) + 
+							(repe * data->seqData.spin_num) + 
+							spin ];
+				sumSaT1 += saT1Signal[ ((data->seqData.run_num-1) * 3 * data->seqData.spin_num * data->seqData.rep_num) + 
+							(dim * data->seqData.spin_num * data->seqData.rep_num) + 
+							(repe * data->seqData.spin_num) + 
+							spin ];
+				sumSaT2 += saT2Signal[ ((data->seqData.run_num-1) * 3 * data->seqData.spin_num * data->seqData.rep_num) + 
+							(dim * data->seqData.spin_num * data->seqData.rep_num) + 
+							(repe * data->seqData.spin_num) + 
+							spin ];
 			}
 			
 			if (av_num == data->seqData.num_average_rep - 1) {
