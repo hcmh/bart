@@ -306,7 +306,17 @@ int main_bloch(int argc, char* argv[argc])
 			sim_data.seqData.seq_type = seq;
 			sim_data.seqData.TR = tr;
 			sim_data.seqData.TE = te;
-			sim_data.seqData.rep_num = repetition;
+			
+			if (NULL != vfa_file) {
+				
+				sim_data.seqData.variable_fa = md_alloc(DIMS, dim_vfa, CFL_SIZE);
+				md_copy(DIMS, dim_vfa, sim_data.seqData.variable_fa, vfa_file, CFL_SIZE);
+				
+				sim_data.seqData.rep_num = dim_vfa[0];
+			}
+			else
+				sim_data.seqData.rep_num = repetition;
+			
 			sim_data.seqData.spin_num = spin_num;
 			sim_data.seqData.num_average_rep = aver_num;
 			sim_data.seqData.run_num = runs;

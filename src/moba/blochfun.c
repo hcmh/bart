@@ -252,7 +252,12 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				sim_data.seqData.seq_type = data->fitParameter.sequence;
 				sim_data.seqData.TR = data->fitParameter.tr;
 				sim_data.seqData.TE = data->fitParameter.te;
-				sim_data.seqData.rep_num = (data->out_dims[TE_DIM] + rm_first_echo) * data->fitParameter.averageSpokes;
+				
+				if (4 == sim_data.seqData.seq_type)
+					sim_data.seqData.rep_num = data->fitParameter.num_vfa;
+				else
+					sim_data.seqData.rep_num = (data->out_dims[TE_DIM] + rm_first_echo) * data->fitParameter.averageSpokes;
+				
 				sim_data.seqData.spin_num = data->fitParameter.n_slcp;
 				sim_data.seqData.num_average_rep = data->fitParameter.averageSpokes;
 				sim_data.seqData.run_num = data->fitParameter.runs;
@@ -299,14 +304,14 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				
 				long position = 0;
 				
-				for (int j = 0; j < sim_data.seqData.rep_num / sim_data.seqData.num_average_rep - rm_first_echo; j++) { 
+				for (int j = 0; j < data->out_dims[TE_DIM] - rm_first_echo; j++) { 
 
 					curr_pos[TE_DIM] = j;
 					position = md_calc_offset(data->N, data->out_strs, curr_pos) / CFL_SIZE;
 
 					//Scaling: dB/dRi = dB/dRis * dRis/dRi
 					//Write to possible GPU memory
-					dR1_cpu[position] = data->scale[0] * ( saR1Sig[j+rm_first_echo][1] + saR1Sig[j+rm_first_echo][0] * I );//+1 to skip first frame, where data is empty
+					dR1_cpu[position] = data->scale[0] * ( saR1Sig[j+rm_first_echo][1] + saR1Sig[j+rm_first_echo][0] * I );
 					dR2_cpu[position] = data->scale[1] * ( saR2Sig[j+rm_first_echo][1] + saR2Sig[j+rm_first_echo][0] * I );
 					dM0_cpu[position] = data->scale[2] * ( saDensSig[j+rm_first_echo][1] + saDensSig[j+rm_first_echo][0] * I);
 					Sig_cpu[position] = mxySig[j+rm_first_echo][1] + mxySig[j+rm_first_echo][0] * I;
