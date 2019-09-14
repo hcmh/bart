@@ -259,10 +259,16 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 	float flipangle_backup = data->pulseData.flipangle;
 	float w_backup = data->voxelData.w;
 	
+	float slice_correction = 1.;
+	
 	for (data->seqtmp.spin_counter = 0; data->seqtmp.spin_counter < data->seqData.spin_num; data->seqtmp.spin_counter++) {
+		
+		slice_correction = 1;
 
 		if (NULL != data->seqData.slice_profile) 
-			data->pulseData.flipangle = flipangle_backup * cabsf(data->seqData.slice_profile[data->seqtmp.spin_counter]);
+			slice_correction = cabsf(data->seqData.slice_profile[data->seqtmp.spin_counter]);
+		
+		data->pulseData.flipangle = flipangle_backup * slice_correction;
 
 		float xp[N] = { 0., 0., 1., 0., 0., 0., 0., 0., 0., 1. };
 

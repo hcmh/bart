@@ -378,7 +378,7 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 				if (data->seqData.seq_type == 4)
 					prep_data.pulseData.flipangle = cabsf(data->seqData.variable_fa[data->seqtmp.rep_counter])/2. * slice_factor;
 				else
-					prep_data.pulseData.flipangle = data->pulseData.flipangle/2. * slice_factor;
+					prep_data.pulseData.flipangle = data->pulseData.flipangle/2.;
 
 				prep_data.pulseData.phase = M_PI;
 				prep_data.seqData.TE = data->seqData.TR/2.;
