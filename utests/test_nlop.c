@@ -27,6 +27,7 @@
 #include "nlops/cast.h"
 #include "nlops/chain.h"
 #include "nlops/nltest.h"
+#include "nlops/T1MOLLI_0.h"
 
 #include "utest.h"
 
@@ -608,8 +609,81 @@ static bool test_nlop_link(void)
 	UT_ASSERT(err < 1.E-6);
 }
 
-
-
 UT_REGISTER_TEST(test_nlop_link);
+
+
+static bool test_T1relax(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	complex float* dst1 = md_alloc(N, dims, CFL_SIZE);
+	complex float* dst2 = md_alloc(N, dims, CFL_SIZE);
+	complex float* src1 = md_alloc(N, dims, CFL_SIZE);
+        complex float* src2 = md_alloc(N, dims, CFL_SIZE);
+        complex float* src3 = md_alloc(N, dims, CFL_SIZE);
+        complex float* tmp = md_alloc(N, dims, CFL_SIZE);
+
+	md_gaussian_rand(N, dims, src1);
+        md_gaussian_rand(N, dims, src2);
+        md_gaussian_rand(N, dims, src3);
+
+	struct nlop_s* T1 = nlop_T1relax_create(N, dims);
+        
+        md_zsmul(N, dims, dst1, src3, -1.0);
+	md_zexp(N, dims, dst1, dst1);
+        
+        md_zsub(N, dims, tmp, src1, src2);        
+        md_zmul(N, dims, dst1, tmp, dst1);        
+        md_zadd(N, dims, dst1, dst1, src2);
+        
+        
+//         md_copy(N, dims, dst3, dst1, CFL_SIZE);
+        
+        nlop_generic_apply_unchecked(T1, 4, (void*[]){ dst2, src1, src2, src3 });
+        
+	double err = md_znrmse(N, dims, dst2, dst1);
+
+	nlop_free(T1);
+
+        md_free(src1);
+	md_free(src2);
+        md_free(src3);
+        md_free(tmp);
+	md_free(dst1);
+	md_free(dst2);
+
+	UT_ASSERT(err < UT_TOL);
+}
+
+UT_REGISTER_TEST(test_T1relax);
+
+
+
+static bool test_nlop_T1relax_der_adj(void)
+{
+	enum { N = 3 };
+	long odims[N] = { 10, 1, 3 };
+// 	long idims1[N] = { 1, 7, 3 };
+// 	long idims2[N] = { 10, 7, 1 };
+
+	struct nlop_s* T1 = nlop_T1relax_create(N, odims);
+
+	struct nlop_s* flat = nlop_flatten(T1);
+
+	random_application(flat);
+
+	double err = linop_test_adjoint(nlop_get_derivative(flat, 0, 0));
+
+	nlop_free(flat);
+	nlop_free(T1);
+
+	UT_ASSERT((!safe_isnanf(err)) && (err < 6.E-2));
+}
+
+UT_REGISTER_TEST(test_nlop_T1relax_der_adj);
+
+
+
 
 
