@@ -27,7 +27,7 @@
 
 
 static const char usage_str[] = "<input> <output>";
-static const char help_str[] = "Compute T1 map from M_0, M_ss, and R_1*.\n";
+static const char help_str[] = "Compute T1 and FA maps from M_0, M_ss, and R_1*.\n";
 
 
 int main_looklocker(int argc, char* argv[argc])
@@ -41,6 +41,7 @@ int main_looklocker(int argc, char* argv[argc])
 
 		OPT_FLOAT('t', &threshold, "threshold", "Pixels with M0 values smaller than {threshold} are set to zero."),
 		OPT_FLOAT('D', &Td, "delay", "Time between the middle of inversion pulse and the first excitation."),
+		OPT_FLOAT('R', &TR, "TR", "Repetition time."),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -75,7 +76,7 @@ int main_looklocker(int argc, char* argv[argc])
 		complex float R1s = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 2, pos), in_data);
 
 		float T1 = scaling_M0 * cabs(M0) / (cabs(Ms) * cabs(R1s)) + 2. * Td;
-
+                
 		if (safe_isnanf(T1) || (cabs(Ms) < threshold))
 			T1 = 0.;
                 
