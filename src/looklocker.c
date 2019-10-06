@@ -27,7 +27,7 @@
 
 
 static const char usage_str[] = "<input> <output>";
-static const char help_str[] = "Compute T1 map from M_0, M_ss, and R_1*.\n";
+static const char help_str[] = "Compute T1 and FA maps from M_0, M_ss, and R_1*.\n";
 
 
 int main_looklocker(int argc, char* argv[argc])
@@ -35,11 +35,13 @@ int main_looklocker(int argc, char* argv[argc])
 	float threshold = 0.2;
 	float scaling_M0 = 2.0;
 	float Td = 0.;
+        float TR = 2.67e-3;
 
 	const struct opt_s opts[] = {
 
 		OPT_FLOAT('t', &threshold, "threshold", "Pixels with M0 values smaller than {threshold} are set to zero."),
 		OPT_FLOAT('D', &Td, "delay", "Time between the middle of inversion pulse and the first excitation."),
+		OPT_FLOAT('R', &TR, "TR", "Repetition time."),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -52,6 +54,7 @@ int main_looklocker(int argc, char* argv[argc])
 
 	long odims[DIMS];
 	md_select_dims(DIMS, ~COEFF_FLAG, odims, idims);
+        odims[COEFF_DIM] = 2;
 
 	complex float* out_data = create_cfl(argv[2], DIMS, odims);
 
@@ -69,11 +72,17 @@ int main_looklocker(int argc, char* argv[argc])
 		complex float R1s = MD_ACCESS(DIMS, istrs, (pos[COEFF_DIM] = 2, pos), in_data);
 
 		float T1 = scaling_M0 * cabs(M0) / (cabs(Ms) * cabs(R1s)) + 2. * Td;
-
+                
+                float FA = 180/M_PI * acosf(exp(TR * (1/T1 - cabs(R1s))));
+                
 		if (safe_isnanf(T1) || (cabs(Ms) < threshold))
 			T1 = 0.;
+                
+                if (safe_isnanf(FA))
+			FA = 0.;
 
 		MD_ACCESS(DIMS, ostrs, (pos[COEFF_DIM] = 0, pos), out_data) = T1;
+                MD_ACCESS(DIMS, ostrs, (pos[COEFF_DIM] = 1, pos), out_data) = FA;
 
 	} while(md_next(DIMS, odims, ~COEFF_FLAG, pos));
 
