@@ -20,7 +20,6 @@
 
 #include "T1MOLLI_1.h"
 
-#define _2output
 
 struct zT1relax_s {
 
@@ -55,7 +54,6 @@ DEF_TYPEID(zT1relax_s);
 static void zT1relax_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	const auto data = CAST_DOWN(zT1relax_s, _data);
-#ifdef _2output
         assert(5 == N);
 
 	complex float* dst1 = args[0]; 
@@ -63,16 +61,7 @@ static void zT1relax_fun(const nlop_data_t* _data, int N, complex float* args[N]
 	const complex float* src1 = args[2]; // M_start
         const complex float* src2 = args[3]; // M0
         const complex float* src3 = args[4]; // R1
-#else
 
-        assert(4 == N);
-
-	complex float* dst1 = args[0]; 
-	const complex float* src1 = args[1]; // M_start
-        const complex float* src2 = args[2]; // M0
-        const complex float* src3 = args[3]; // R1
-#endif
-        
         
 //         md_zsmul2(data->N, data->dims, data->strs, data->xn, data->dims, src, -1);
         // exp(-t.*R1)
@@ -114,18 +103,13 @@ static void zT1relax_fun(const nlop_data_t* _data, int N, complex float* args[N]
         md_zmul2(data->N, data->out_dims, data->out_strs, data->dR1, data->out_strs, data->dR1, data->TI_strs, data->TI);
         md_zsmul(data->N, data->out_dims, data->dR1, data->dR1, -1.0);
         
-// #ifdef _2output
-    
-        // derivatives (second output)
-        
         md_copy_block(data->N, pos, data->map_dims, data->dM_start_1, data->out_dims, data->xn, CFL_SIZE); 
         md_copy_block(data->N, pos, data->map_dims, data->dM0_1, data->out_dims, data->dM0, CFL_SIZE); 
         md_copy_block(data->N, pos, data->map_dims, data->dR1_1, data->out_dims, data->dR1, CFL_SIZE);
-// #endif
 
         
 }
-#ifdef _2output
+
 static void zT1relax_der_0_0(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(zT1relax_s, _data);
@@ -150,7 +134,6 @@ static void zT1relax_der_0_2(const nlop_data_t* _data, complex float* dst, const
         
         md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, src, data->out_strs, data->dR1);
 }
-#endif
 
 static void zT1relax_der_1_0(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
@@ -173,8 +156,6 @@ static void zT1relax_der_1_2(const nlop_data_t* _data, complex float* dst, const
 
         md_zmul(data->N, data->map_dims, dst, src, data->dR1_1);
 }
-
-#ifdef _2output
 
 static void zT1relax_adj_0_0(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
@@ -199,14 +180,11 @@ static void zT1relax_adj_0_2(const nlop_data_t* _data, complex float* dst, const
         md_clear(data->N, data->map_dims, dst, CFL_SIZE);
 	md_zfmacc2(data->N, data->out_dims, data->map_strs, dst, data->out_strs, src, data->out_strs, data->dR1);
 }
-#endif
 
 static void zT1relax_adj_1_0(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(zT1relax_s, _data);
-// 	md_zmulc(data->N, data->out_dims, dst, src, data->xn);
         
-        	// sum (conj(M_start') * src, t)
 	md_clear(data->N, data->map_dims, dst, CFL_SIZE);
 	md_zfmacc(data->N, data->map_dims,  dst,  src, data->dM_start_1);
 }
@@ -296,7 +274,6 @@ struct nlop_s* nlop_T1relax_create(int N, const long map_dims[N], const long out
 	md_calc_strides(N, *nostr2, TI_dims, CFL_SIZE);
 	data->TI_strs = *PTR_PASS(nostr2);
 
-#ifdef _2output        
         long nl_odims[2][N];
 	md_copy_dims(N, nl_odims[0], data->out_dims);
         md_copy_dims(N, nl_odims[1], data->map_dims);
@@ -304,20 +281,7 @@ struct nlop_s* nlop_T1relax_create(int N, const long map_dims[N], const long out
         long nl_ostr[2][N];
 	md_copy_strides(N, nl_ostr[0], data->out_strs);
         md_copy_strides(N, nl_ostr[1], data->map_strs);
-#else
-//         long nl_odims[1][N];
-// 	md_copy_dims(N, nl_odims[0], data->out_dims);
-//         
-//         long nl_ostr[1][N];
-// 	md_copy_strides(N, nl_ostr[0], data->out_strs);
-        
-        long nl_odims[1][N];
-	md_copy_dims(N, nl_odims[0], data->map_dims);
-        
-        long nl_ostr[1][N];
-	md_copy_strides(N, nl_ostr[0], data->map_strs);
-#endif
-        
+ 
         data->TI = md_alloc(N, TI_dims, CFL_SIZE);
          
         md_copy(N, TI_dims, data->TI, TI, CFL_SIZE);
@@ -332,27 +296,12 @@ struct nlop_s* nlop_T1relax_create(int N, const long map_dims[N], const long out
 	md_copy_strides(N, nl_istr[1], data->map_strs);
         md_copy_strides(N, nl_istr[2], data->map_strs);
         
-#ifdef _2output        
 
         return nlop_generic_create2(2, N, nl_odims, nl_ostr, 3, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), zT1relax_fun, 
-                                    (nlop_fun_t[3][2]){ {zT1relax_der_0_0, zT1relax_der_1_0 }, {zT1relax_der_0_1, zT1relax_der_1_1 }, { zT1relax_der_0_2,  zT1relax_der_1_2 }}, 
-                                    (nlop_fun_t[3][2]){{ zT1relax_adj_0_0, zT1relax_adj_1_0  }, {zT1relax_adj_0_1, zT1relax_adj_1_1 }, { zT1relax_adj_0_2 , zT1relax_adj_1_2 }}, 
+                                    (nlop_fun_t[3][2]){{ zT1relax_der_0_0, zT1relax_der_1_0 }, {zT1relax_der_0_1, zT1relax_der_1_1 }, { zT1relax_der_0_2,  zT1relax_der_1_2 }}, 
+                                    (nlop_fun_t[3][2]){{ zT1relax_adj_0_0, zT1relax_adj_1_0 }, {zT1relax_adj_0_1, zT1relax_adj_1_1 }, { zT1relax_adj_0_2 , zT1relax_adj_1_2 }}, 
                                     NULL, NULL, zT1relax_del);
-//         return nlop_generic_create2(2, N, nl_odims, nl_ostr, 3, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), zT1relax_fun, 
-//                                     (nlop_fun_t[3][2]){ {zT1relax_der_0_0, zT1relax_der_0_1 }, {zT1relax_der_0_2, zT1relax_der_1_0 }, { zT1relax_der_1_1,  zT1relax_der_1_2 }}, 
-//                                     (nlop_fun_t[3][2]){{ zT1relax_adj_0_0, zT1relax_adj_0_1  }, {zT1relax_adj_0_2, zT1relax_adj_1_0  }, { zT1relax_adj_1_1 , zT1relax_adj_1_2 }}, 
-//                                     NULL, NULL, zT1relax_del);
-#else        
-//          return nlop_generic_create2(1, N, nl_odims, nl_ostr, 3, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), zT1relax_fun, 
-//                                     (nlop_fun_t[3][1]){ {zT1relax_der_0_0}, {zT1relax_der_0_1}, {zT1relax_der_0_2 }}, 
-//                                     (nlop_fun_t[3][1]){ {zT1relax_adj_0_0}, {zT1relax_adj_0_1},  {zT1relax_adj_0_2 }}, 
-//                                     NULL, NULL, zT1relax_del);
-        return nlop_generic_create2(1, N, nl_odims, nl_ostr, 3, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), zT1relax_fun, 
-                                    (nlop_fun_t[3][1]){ {zT1relax_der_1_0}, {zT1relax_der_1_1}, {zT1relax_der_1_2 }}, 
-                                    (nlop_fun_t[3][1]){ {zT1relax_adj_1_0}, {zT1relax_adj_1_1},  {zT1relax_adj_1_2 }}, 
-                                    NULL, NULL, zT1relax_del);
-#endif
-        
+
 
 }
 

@@ -86,8 +86,7 @@ static void random_application(const struct nlop_s* nlop)
 
 static bool test_T1relax(void)
 {
-	
-        
+   
         enum { N = 16 };
 	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
@@ -144,12 +143,9 @@ static bool test_T1relax(void)
         
                 
         nlop_generic_apply_unchecked(T1, 5, (void*[]){ dst2, dst3, src1, src2, src3 });
-//         
+        
 	double err = md_znrmse(N, out_dims, dst2, dst1) + md_znrmse(N, map_dims, dst4, dst3);
-        
-//         nlop_generic_apply_unchecked(T1, 4, (void*[]){ dst2, src1, src2, src3 });
-        
-// 	double err = md_znrmse(N, map_dims, dst2, dst4);
+
 
 	nlop_free(T1);
 
@@ -168,7 +164,6 @@ static bool test_T1relax(void)
 }
 
 UT_REGISTER_TEST(test_T1relax);
-
 
 
 static bool test_nlop_T1relax_der_adj(void)
@@ -191,8 +186,9 @@ static bool test_nlop_T1relax_der_adj(void)
 
 	nlop_free(flat);
 	nlop_free(T1);
+        
 
-	UT_ASSERT((!safe_isnanf(err)) && (err < 6.E-2));
+	UT_ASSERT((!safe_isnanf(err)) && (err < 7.E-2));
 }
 
 UT_REGISTER_TEST(test_nlop_T1relax_der_adj);
