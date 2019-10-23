@@ -28,13 +28,13 @@
 #include "noir/model.h"
 
 #include "moba/T1fun.h"
-#include "moba/T1MOLLI.h"
+//#include "moba/T1MOLLI.h"
 #include "moba/T1_repara.h"
 
 #include "model_T1.h"
 
 
-#define T1repara
+//#define T1repara
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, _Bool use_gpu)
 {
