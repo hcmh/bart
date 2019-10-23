@@ -364,7 +364,7 @@ int main_twixread(int argc, char* argv[argc])
 		dims[PHS1_DIM] = radial_lines;
 
 	if (0 == adcs)
-		adcs = dims[PHS1_DIM] * dims[PHS2_DIM] * dims[SLICE_DIM] * dims[TIME_DIM];
+		adcs = dims[PHS1_DIM] * dims[PHS2_DIM] * dims[SLICE_DIM] * dims[TIME_DIM] *  dims[TIME2_DIM];
 
 
 
@@ -374,7 +374,7 @@ int main_twixread(int argc, char* argv[argc])
 	bc_dims[COIL_DIM] = 2;
 	bc_dims[TIME_DIM] = bc_scans;
 
-	bc_adcs = bc_dims[PHS1_DIM] * bc_dims[PHS2_DIM] * bc_dims[SLICE_DIM] * bc_dims[TIME_DIM];
+	bc_adcs = bc_dims[PHS1_DIM] * bc_dims[PHS2_DIM] * bc_dims[SLICE_DIM] * bc_dims[TIME_DIM] * bc_dims[TIME2_DIM];
 
 	if (0 < bc_scans) {
 		radial_lines = -1;
