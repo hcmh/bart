@@ -192,24 +192,44 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]){
 static void collect_signal(void* _data, int N, int P, float *mxySignal, float *saT1Signal, float *saT2Signal, float *densSignal, float xp[P + 2][N])
 {    
 	struct SimData* data = _data;
-
-	float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } }; 
-
-	ADCcorr(N, P, tmp, xp);
-
-	for (int i = 0; i < N; i++) {
+	
+	if (2 == data->seqData.seq_type || 5 == data->seqData.seq_type ) {
+		
+		for (int i = 0; i < N; i++) {
 
 		mxySignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[0][i] : xp[0][i];
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = xp[0][i];
 				
 		saT1Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[1][i] : xp[1][i];
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = xp[1][i];
 				
 		saT2Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[2][i] : xp[2][i];
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = xp[2][i];
 				
 		densSignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[3][i] : xp[3][i];
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = xp[3][i];
+		}
+	}
+	else {
+
+		float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } }; 
+
+		ADCcorr(N, P, tmp, xp);
+
+		for (int i = 0; i < N; i++) {
+
+			mxySignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[0][i] : xp[0][i];
+					
+			saT1Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[1][i] : xp[1][i];
+					
+			saT2Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[2][i] : xp[2][i];
+					
+			densSignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[3][i] : xp[3][i];
+		}
 	}
 }
 

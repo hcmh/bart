@@ -226,15 +226,26 @@ static void collect_data(int N, float xp[N], float *mxySignal, float *saR1Signal
 {    
 	struct SimData* data = _data;
 	
-	float tmp[N];
-    
-	ADCcorrection(N, tmp, xp);
+	if (2 == data->seqData.seq_type || 5 == data->seqData.seq_type ) {
+	
+		for (int i = 0; i < 3; i++) {
 
-	for (int i = 0; i < 3; i++) {
+			mxySignal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = xp[i];
+			saR1Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = xp[i+3];
+			saR2Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = xp[i+6];
+		}	
+	}
+	else {
+		float tmp[N];
+	
+		ADCcorrection(N, tmp, xp);
 
-		mxySignal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[i] : xp[i];
-		saR1Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[i+3] : xp[i+3];
-		saR2Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[i+6] : xp[i+6];
+		for (int i = 0; i < 3; i++) {
+
+			mxySignal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[i] : xp[i];
+			saR1Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[i+3] : xp[i+3];
+			saR2Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[i+6] : xp[i+6];
+		}
 	}
     
 }
