@@ -54,6 +54,7 @@ int main_modbloch(int argc, char* argv[])
 
 		OPT_UINT(	'i', 	&conf.iter, 		"", "Number of Newton steps"),
 		OPT_FLOAT(	'R', 	&conf.redu, 		"", "reduction factor"),
+		OPT_FLOAT(	'l', 	&conf.alpha, 		"", "alpha"),
 		OPT_FLOAT(	'w', 	&conf.alpha_min, 	"", "alpha_min"),
 		OPT_INT(	'n', 	&fitPara.not_wav_maps, 	"", "# Removed Maps from Wav.Denoisng"),
 		OPT_INT(	'd', 	&debug_level, 		"", "Debug level"),
