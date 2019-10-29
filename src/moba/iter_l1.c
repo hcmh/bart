@@ -121,7 +121,6 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 
 		pos_value(_data, dst, src);
 	}
-
 	operator_p_apply_unchecked(data->prox2, rho, (_Complex float*)dst, (const _Complex float*)dst);
 
 	pos_value(_data, dst, dst);
@@ -246,7 +245,8 @@ static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf*
 	md_copy_dims(DIMS, ndims, dims);
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims); 
+	img_dims[COEFF_DIM] = img_dims[COEFF_DIM] - conf->not_wav_maps;	// Just penalize T1 map
 	debug_print_dims(DP_INFO, DIMS, img_dims);
 
 	auto prox1 = create_prox(img_dims);

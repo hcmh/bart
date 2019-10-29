@@ -55,6 +55,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_UINT(	'i', 	&conf.iter, 		"", "Number of Newton steps"),
 		OPT_FLOAT(	'R', 	&conf.redu, 		"", "reduction factor"),
 		OPT_FLOAT(	'w', 	&conf.alpha_min, 	"", "alpha_min"),
+		OPT_INT(	'n', 	&fitPara.not_wav_maps, 	"", "# Removed Maps from Wav.Denoisng"),
 		OPT_INT(	'd', 	&debug_level, 		"", "Debug level"),
 		OPT_FLOAT(	'f', 	&restrict_fov, 		"", "FoV scaling factor"),
 		OPT_INT(	'M', 	&fitPara.sequence,	"", "Define sequence mode: 0 = bSSFP[default], 1 = invbSSFP, 3 = pcbSSFP, 4 = inv. bSSFP without preparation, 5 = invFLASH, 6 = invpcbSSFP"),
