@@ -152,7 +152,7 @@ int main_pixel(int argc, char* argv[])
 	md_calc_strides(DIMS, tmp_strs, tmp_dims, CFL_SIZE);
 	
 	//Values for Initialization of maps
-	complex float initval[3] = {0.8, 11., 4.} ;//	R1, R2, M0 
+	complex float initval[3] = {0.8, 20., 4.} ;//	R1, R2, M0 
 	
 	auto_scale(&fitPara, fitPara.scale, dims, data);
 	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fitPara.scale[0], fitPara.scale[1], fitPara.scale[2]);
