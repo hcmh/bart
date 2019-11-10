@@ -80,7 +80,7 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('c', &conf.asym_traj, "asymmetric trajectory"),
 		OPT_SET('E', &conf.mems_traj, "multi-echo multi-spoke trajectory"),
 		OPT_VEC2('z', &z_usamp, "Ref:Acel", "Undersampling in z-direction."),
-		OPT_STRING('C', &custom_angle, "file", "custom_angle"),
+		OPT_STRING('C', &custom_angle, "file", "custom_angle file [phi + i * psi]"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -99,8 +99,7 @@ int main_traj(int argc, char* argv[])
 
 		if (Y != sdims[0]) {
 
-			debug_printf(DP_INFO, "According to the custom angle file : y = %d\n", sdims[0]);
-
+			debug_printf(DP_INFO, "According to the custom angle file : number of projection (y) = %d\n", sdims[0]);
 			Y = sdims[0];
 		}
 	}
@@ -238,7 +237,7 @@ int main_traj(int argc, char* argv[])
 				double golden_ratio = (sqrtf(5.) + 1.) / 2;
 				double angle_atom = M_PI / Y;
 
-				base_angle[1] = (m > 0) ? (fmod(angle_atom * m / golden_ratio, angle_atom) / m) : 0;
+				base_angle[SLICE_DIM] = (m > 0) ? (fmod(angle_atom * m / golden_ratio, angle_atom) / m) : 0;
 			}
 
 			double angle = 0.;
@@ -261,13 +260,12 @@ int main_traj(int argc, char* argv[])
 				angle2 = s * M_PI / Y * (conf.full_circle ? 2 : 1) * split;
 
 				if (NULL != custom_angle)
-						angle2 = cimag(custom_angle_val[p / X]);
+					angle2 = cimag(custom_angle_val[j]);
 			}
 
 
 			if (NULL != custom_angle)
-				angle = creal(custom_angle_val[p / X]);
-
+				angle = creal(custom_angle_val[j]);
 
 
 			float d[3] = { 0., 0., 0 };
