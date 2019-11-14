@@ -49,7 +49,8 @@ int main_modbloch(int argc, char* argv[])
 	const char* inputB1 = NULL;
 	const char* inputSP = NULL;
 	const char* inputVFA = NULL;
-
+	float data_scaling = 5000.;
+	
 	const struct opt_s opts[] = {
 
 		OPT_UINT(	'i', 	&conf.iter, 		"", "Number of Newton steps"),
@@ -67,6 +68,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_INT(	'a', 	&fitPara.averageSpokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fitPara.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'X', 	&fitPara.runs, 		"", "Number of applied whole sequence trains."),
+		OPT_FLOAT(	's', 	&data_scaling, 		"", "Scaling of data"),
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_STRING(	'P',	&inputSP, 		"", "Input Slice Profile image"),
@@ -194,8 +196,8 @@ int main_modbloch(int argc, char* argv[])
 	}
 	
 	
-	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
-	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
+	double scaling = data_scaling / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling_psf = data_scaling / 5. / md_znorm(DIMS, pat_dims, pattern);
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
