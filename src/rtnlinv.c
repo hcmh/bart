@@ -97,7 +97,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
-		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconsctruction"),
+		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconstruction"),
 		OPT_CLEAR('U', &combine, "Do not combine ENLIVE maps in output"),
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
@@ -122,7 +122,7 @@ int main_rtnlinv(int argc, char* argv[])
 	num_init();
 
 	if ((NULL != psf) && (NULL != trajectory))
-		error("Pass either trajectory (-t) OR PSF (-p)!\n");
+		error("Pass either trajectory (-t) or PSF (-p)!\n");
 
 	// kspace dimensions and strides struct
 	struct ds_s* k_s = (struct ds_s*)malloc(sizeof(struct ds_s));
@@ -272,7 +272,7 @@ int main_rtnlinv(int argc, char* argv[])
 		complex float* init = load_cfl(init_file, DIMS, init_dims);
 
 		if (!md_check_bounds(DIMS, 0, img_s->dims_singleFrame, init_dims))
-			error("Image dimensions and init dimensions to not match!");
+			error("Image dimensions and init dimensions do not match!");
 
 		md_copy(DIMS, img_s->dims_singleFrame, img_singleFrame, init, CFL_SIZE);
 		md_clear(DIMS, sens_s->dims_singleFrame, ksens_singleFrame, CFL_SIZE);
@@ -549,7 +549,7 @@ int main_rtnlinv(int argc, char* argv[])
 	free(kgrid_s);
 
 	double recosecs = timestamp() - start_time;
-	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
+	debug_printf(DP_DEBUG2, "Total time: %.2f s\n", recosecs);
 
 	exit(0);
 }
