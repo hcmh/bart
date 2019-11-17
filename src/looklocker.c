@@ -35,6 +35,7 @@ int main_looklocker(int argc, char* argv[argc])
 	float threshold = 0.2;
 	float scaling_M0 = 2.0;
 	float Td = 0.;
+        float TR = -1.;
 
 	const struct opt_s opts[] = {
 
@@ -52,6 +53,11 @@ int main_looklocker(int argc, char* argv[argc])
 
 	long odims[DIMS];
 	md_select_dims(DIMS, ~COEFF_FLAG, odims, idims);
+
+	bool output_fa = (-1. != TR);
+
+	if (output_fa)
+		odims[COEFF_DIM] = 2;
 
 	complex float* out_data = create_cfl(argv[2], DIMS, odims);
 
@@ -72,8 +78,18 @@ int main_looklocker(int argc, char* argv[argc])
 
 		if (safe_isnanf(T1) || (cabs(Ms) < threshold))
 			T1 = 0.;
-
+                
 		MD_ACCESS(DIMS, ostrs, (pos[COEFF_DIM] = 0, pos), out_data) = T1;
+
+		if (output_fa) {
+
+			float FA = 0.;
+
+			if (0. != T1)
+				FA = 180. / M_PI * acos(exp(TR * (1. / T1 - cabs(R1s))));
+
+			MD_ACCESS(DIMS, ostrs, (pos[COEFF_DIM] = 1, pos), out_data) = FA;
+		}
 
 	} while(md_next(DIMS, odims, ~COEFF_FLAG, pos));
 
@@ -81,5 +97,4 @@ int main_looklocker(int argc, char* argv[argc])
 	unmap_cfl(DIMS, odims, out_data);
 	return 0;
 }
-
 
