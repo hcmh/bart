@@ -30,10 +30,9 @@
 #include "misc/types.h"
 #include "misc/mri.h"
 #include "misc/debug.h"
-#include "misc/mmio.h"
-
 
 #include "noir/model.h"
+
 #include "nlops/nlop.h"
 
 #include "recon.h"
@@ -270,17 +269,4 @@ void scale_psf_k(struct ds_s* pat_s, complex float* pattern, struct ds_s* k_s, c
 	md_free(inv_no_spf);
 }
 
-// Reduce number of frames to be reconstructed
-void reduce_frames(const long reduced_frames, long src_dims[DIMS], complex float** src)
-{
-	long dst_dims[DIMS];
-	md_copy_dims(DIMS, dst_dims, src_dims);
-	dst_dims[TIME_DIM] = reduced_frames;
-	long pos[DIMS] = { 0 };
-	complex float* dst = anon_cfl("", DIMS, dst_dims);
-	md_copy_block(DIMS, pos, dst_dims, dst, src_dims, *src, CFL_SIZE);
-	unmap_cfl(DIMS, src_dims, *src);
-	*src = dst;
-	md_copy_dims(DIMS, src_dims, dst_dims);
-}
 

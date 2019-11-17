@@ -43,6 +43,20 @@ static const char help_str[] =
 		"the sensitivities.";
 
 
+// Reduce number of frames to be reconstructed
+static void reduce_frames(const long reduced_frames, long src_dims[DIMS], complex float** src)
+{
+	long dst_dims[DIMS];
+	md_copy_dims(DIMS, dst_dims, src_dims);
+	dst_dims[TIME_DIM] = reduced_frames;
+	long pos[DIMS] = { 0 };
+	complex float* dst = anon_cfl("", DIMS, dst_dims);
+	md_copy_block(DIMS, pos, dst_dims, dst, src_dims, *src, CFL_SIZE);
+	unmap_cfl(DIMS, src_dims, *src);
+	*src = dst;
+	md_copy_dims(DIMS, src_dims, dst_dims);
+}
+
 
 int main_rtnlinv(int argc, char* argv[])
 {

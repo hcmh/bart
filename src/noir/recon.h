@@ -64,7 +64,6 @@ extern void scale_psf_k(struct ds_s* pat_s,
 			struct ds_s* traj_s,
 			_Complex float* traj);
 
-extern void reduce_frames(const long reduced_frames, long src_dims[DIMS], _Complex float** src);
 
 #include "misc/cppwrap.h"
 
