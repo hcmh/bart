@@ -121,17 +121,20 @@ int main_rtnlinv(int argc, char* argv[])
 
 	num_init();
 
-	if (NULL != psf && NULL != trajectory)
+	if ((NULL != psf) && (NULL != trajectory))
 		error("Pass either trajectory (-t) OR PSF (-p)!\n");
 
 	// kspace dimensions and strides struct
-	struct ds_s* k_s = (struct ds_s*) malloc(sizeof(struct ds_s));
+	struct ds_s* k_s = (struct ds_s*)malloc(sizeof(struct ds_s));
+
 	complex float* k = load_cfl(argv[1], DIMS, k_s->dims_full);
+
 	ds_init(k_s, CFL_SIZE);
+
 	long frames = k_s->dims_full[TIME_DIM];
 
 	// Reduce kspace (-F)
-	if( reduced_frames > 0 ) {
+	if (reduced_frames > 0) {
 
 		if (reduced_frames > k_s->dims_full[TIME_DIM])
 			error("Number of frames to be reconstructed (-F) must be smaller than number of acquired frames!");
@@ -140,6 +143,7 @@ int main_rtnlinv(int argc, char* argv[])
 		ds_init(k_s, CFL_SIZE);
 		frames = reduced_frames;
 	}
+
 	// SMS
 	if (1 != k_s->dims_full[SLICE_DIM]) {
 
@@ -149,25 +153,31 @@ int main_rtnlinv(int argc, char* argv[])
 	}
 
 	complex float* pattern = NULL;
-	struct ds_s* pat_s = (struct ds_s*) malloc(sizeof(struct ds_s));
+	struct ds_s* pat_s = (struct ds_s*)malloc(sizeof(struct ds_s));
 
 	complex float* traj = NULL;
-	struct ds_s* traj_s = (struct ds_s*) malloc(sizeof(struct ds_s));
+	struct ds_s* traj_s = (struct ds_s*)malloc(sizeof(struct ds_s));
 
-	struct ds_s* sens_s = (struct ds_s*) malloc(sizeof(struct ds_s));
+	struct ds_s* sens_s = (struct ds_s*)malloc(sizeof(struct ds_s));
 	md_copy_dims(DIMS, sens_s->dims_full, k_s->dims_full);
 
 
 	if (NULL != psf) {
+
 		conf.noncart = true;
-		complex float* tmp_psf =load_cfl(psf, DIMS, pat_s->dims_full);
+
+		complex float* tmp_psf = load_cfl(psf, DIMS, pat_s->dims_full);
+
 		ds_init(pat_s, CFL_SIZE);
+
 		pattern = anon_cfl("", DIMS, pat_s->dims_full);
 
 		md_copy(DIMS, pat_s->dims_full, pattern, tmp_psf, CFL_SIZE);
+
 		unmap_cfl(DIMS, pat_s->dims_full, tmp_psf);
 
-		if (reduced_frames > 0 && reduced_frames < pat_s->dims_full[TIME_DIM]) {
+		if ((reduced_frames > 0) && (reduced_frames < pat_s->dims_full[TIME_DIM])) {
+
 			reduce_frames(reduced_frames, pat_s->dims_full, &pattern);
 			ds_init(pat_s, CFL_SIZE);
 		}
@@ -175,6 +185,7 @@ int main_rtnlinv(int argc, char* argv[])
 		turns = pat_s->dims_full[TIME_DIM];
 
 	} else if (NULL != trajectory) {
+
 		conf.noncart = true;
 		traj = load_cfl(trajectory, DIMS, traj_s->dims_full);
 
@@ -182,27 +193,31 @@ int main_rtnlinv(int argc, char* argv[])
 		md_zsmul(DIMS, traj_s->dims_full, traj, traj, oversampling);
 		ds_init(traj_s, CFL_SIZE);
 
-		if (reduced_frames > 0 && reduced_frames < traj_s->dims_full[TIME_DIM]) {
+		if ((reduced_frames > 0) && (reduced_frames < traj_s->dims_full[TIME_DIM])) {
+
 			reduce_frames(reduced_frames, traj_s->dims_full, &traj);
 			ds_init(traj_s, CFL_SIZE);
 		}
 
 		turns = traj_s->dims_full[TIME_DIM];
 		debug_print_dims(DP_INFO, 3, my_img_dims);
-		if ( my_img_dims[0] + my_img_dims[1] + my_img_dims[2] == 0 )
+
+		if (my_img_dims[0] + my_img_dims[1] + my_img_dims[2] == 0)
 			estimate_fast_sq_im_dims(3, sens_s->dims_full, traj_s->dims_full, traj);
 		else
 			md_copy_dims(3, sens_s->dims_full, my_img_dims);
 
 	} else {
+
 		error("Pass either trajectory (-t) or PSF (-p)!\n");
 	}
+
 	sens_s->dims_full[MAPS_DIM] = nmaps;
 	ds_init(sens_s, CFL_SIZE);
 
 
 	if (conf.pattern_for_each_coil)
-		assert( 1 != pat_s->dims_full[COIL_DIM] );
+		assert(1 != pat_s->dims_full[COIL_DIM]);
 	else if (-1 == restrict_fov)
 		restrict_fov = 0.5;
 
@@ -211,11 +226,14 @@ int main_rtnlinv(int argc, char* argv[])
 	// we allow multiple images and sensitivities during the reconsctruction (ENLIVE)
 	assert(1 == k_s->dims_full[MAPS_DIM]);
 
-	struct ds_s* img_s = (struct ds_s*) malloc(sizeof(struct ds_s));
+	struct ds_s* img_s = (struct ds_s*)malloc(sizeof(struct ds_s));
+
 	md_select_dims(DIMS, ~COIL_FLAG, img_s->dims_full, sens_s->dims_full);
+
 	ds_init(img_s, CFL_SIZE);
 
 	if (!combine) {
+
 		// The conventional img-dimensions contain only one map.
 		// The 'output' dimensions might contain multiple maps (ENLIVE)
 		img_s->dims_output[MAPS_DIM] = nmaps;
@@ -223,12 +241,14 @@ int main_rtnlinv(int argc, char* argv[])
 	}
 
 	complex float* img_output = create_cfl(argv[2], DIMS, img_s->dims_output);
+
 	md_clear(DIMS, img_s->dims_output, img_output, CFL_SIZE);
 
 	complex float* img_singleFrame = md_alloc(DIMS, img_s->dims_singleFrame, CFL_SIZE);
 
 	struct ds_s* msk_s = (struct ds_s*) malloc(sizeof(struct ds_s));
 	md_select_dims(DIMS, FFT_FLAGS, msk_s->dims_full, img_s->dims_singleFrame);
+
 	ds_init(msk_s, CFL_SIZE);
 
 	complex float* mask = NULL;
@@ -269,8 +289,8 @@ int main_rtnlinv(int argc, char* argv[])
 
 	// Gridding
 	if (NULL != trajectory) {
-		debug_printf(DP_DEBUG3, "Start gridding...");
 
+		debug_printf(DP_DEBUG3, "Start gridding...");
 
 		md_select_dims(DIMS, ~(COIL_FLAG|MAPS_FLAG), pat_s->dims_full, sens_s->dims_full);
 		pat_s->dims_full[TIME_DIM] = turns;
@@ -287,6 +307,7 @@ int main_rtnlinv(int argc, char* argv[])
 		long ones_dims[DIMS];
 		md_copy_dims(DIMS, ones_dims, traj_s->dims_full);
 		ones_dims[READ_DIM] = 1L;
+
 		complex float* ones = md_alloc(DIMS, ones_dims, CFL_SIZE);
 		md_clear(DIMS, ones_dims, ones, CFL_SIZE);
 
@@ -309,20 +330,25 @@ int main_rtnlinv(int argc, char* argv[])
 		fftc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
 
 		if (frames > turns) {
+
 			// For turn-based reconstructions we use the conventional scaling
 			float patnorm = 1.f / k_s->dims_full[2];
 			md_zsmul(DIMS, pat_s->dims_full, pattern, pattern, patnorm);
-		} else // This scaling accounts for variable spokes per frame
+
+		} else {
+
+			// This scaling accounts for variable spokes per frame
 			scale_psf_k(pat_s, pattern, k_s, k, traj_s, traj);
+		}
 
 		linop_free(nufft_op);
 		md_free(ones);
 		md_free(k_dummy);
-		debug_printf(DP_DEBUG3, "finished\n");
 
+		debug_printf(DP_DEBUG3, "finished\n");
 	}
 
-	struct ds_s* kgrid_s = (struct ds_s*) malloc(sizeof(struct ds_s));
+	struct ds_s* kgrid_s = (struct ds_s*)malloc(sizeof(struct ds_s));
 	md_select_dims(DIMS, ~MAPS_FLAG, kgrid_s->dims_full, sens_s->dims_full);
 	ds_init(kgrid_s, CFL_SIZE);
 
@@ -357,9 +383,11 @@ int main_rtnlinv(int argc, char* argv[])
 	complex float* traj_singleFrame = NULL;
 
 	if (NULL != trajectory) { 	// Crecte nufft objects
+
 		debug_printf(DP_DEBUG3, "Start creating nufft-objects...");
 
 		for (unsigned int i = 0; i < turns; ++i) {
+
 			// pick trajectory for current frame
 			traj_singleFrame = md_alloc(DIMS, traj_s->dims_singleFrame, CFL_SIZE);
 			long pos[DIMS] = { 0 };
@@ -377,12 +405,13 @@ int main_rtnlinv(int argc, char* argv[])
 
 		md_zfill(DIMS, kgrid_s->dims_singleFrame, fftc_mod, 1.);
 		fftmod(DIMS, kgrid_s->dims_singleFrame, FFT_FLAGS, fftc_mod, fftc_mod);
-		debug_printf(DP_DEBUG3, "finished\n");
 
+		debug_printf(DP_DEBUG3, "finished\n");
 	}
 
 
 	debug_printf(DP_DEBUG3, "Start reconstruction\n");
+
 	complex float* img_output_singleFrame = md_alloc(DIMS, img_s->dims_output_singleFrame, CFL_SIZE);
 	complex float* sens_output_singleFrame = md_alloc(DIMS, sens_s->dims_singleFrame, CFL_SIZE);
 	complex float* k_singleFrame = md_alloc(DIMS, k_s->dims_singleFrame, CFL_SIZE);
@@ -400,12 +429,14 @@ int main_rtnlinv(int argc, char* argv[])
 		md_slice(DIMS, TIME_FLAG, pos, pat_s->dims_full, pat_singleFrame, pattern, CFL_SIZE);
 
 		if (NULL != trajectory)  {
+
 			// grid data frame by frame
 			linop_adjoint(nufft_ops[frame % turns], DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, DIMS, k_s->dims_singleFrame, k_singleFrame);
 
 			md_zmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, fftc_mod);
 			fft_exec(fftc, kgrid_singleFrame, kgrid_singleFrame);
 			md_zmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, fftc_mod);
+
 		} else {
 
 			kgrid_singleFrame = k_singleFrame;
@@ -425,6 +456,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 			noir_recon(&conf, sens_s->dims_singleFrame, img_singleFrame, sens_singleFrame, ksens_singleFrame, ref, pat_singleFrame, mask, kgrid_gpu_singleFrame);
 			md_free(kgrid_gpu_singleFrame);
+
 		} else
 #endif
 			noir_recon(&conf, sens_s->dims_singleFrame, img_singleFrame, sens_singleFrame, ksens_singleFrame, ref, pat_singleFrame, mask, kgrid_singleFrame);
@@ -454,7 +486,7 @@ int main_rtnlinv(int argc, char* argv[])
 			}
 			md_zmul2(DIMS, img_s->dims_output_singleFrame, img_s->strs_output_singleFrame, img_output_singleFrame, img_s->strs_output_singleFrame, img_output_singleFrame, msk_s->strs_singleFrame, mask);
 
-			if (1 == nmaps || !combine) {
+			if ((1 == nmaps) || !combine) {
 
 				// restore phase
 				md_zphsr(DIMS, img_s->dims_output_singleFrame, buf, img_singleFrame);
@@ -462,15 +494,16 @@ int main_rtnlinv(int argc, char* argv[])
 			}
 
 			md_free(buf);
+
 		} else {
 
 			if (combine) {
 
 				// just sum up the map images
 				md_zaxpy2(DIMS, img_s->dims_singleFrame, img_s->strs_output_singleFrame, img_output_singleFrame, 1., img_s->strs_singleFrame, img_singleFrame);
+
 			} else { // !normalize && !combine
 
-				// just copy
 				md_copy(DIMS, img_s->dims_output_singleFrame, img_output_singleFrame, img_singleFrame, CFL_SIZE);
 			}
 		}
@@ -482,9 +515,9 @@ int main_rtnlinv(int argc, char* argv[])
 		long pos2[DIMS] = { 0 };
 		pos2[TIME_DIM] = frame;
 		md_copy_block(DIMS, pos2, img_s->dims_output, img_output, img_s->dims_output_singleFrame, img_output_singleFrame, CFL_SIZE);
+
 		if(out_sens)
 			md_copy_block(DIMS, pos2, sens_s->dims_full, sens, sens_s->dims_singleFrame, sens_singleFrame, CFL_SIZE);
-
 	}
 
 	md_free(mask);
@@ -498,6 +531,7 @@ int main_rtnlinv(int argc, char* argv[])
 	md_free(ref);
 
 	if (NULL != trajectory) {
+
 		md_free(traj_singleFrame);
 		md_free(kgrid_singleFrame);
 		md_free(fftc_mod);
@@ -508,7 +542,6 @@ int main_rtnlinv(int argc, char* argv[])
 	unmap_cfl(DIMS, img_s->dims_output, img_output);
 	unmap_cfl(DIMS, k_s->dims_full, k);
 
-
 	free(k_s);
 	free(img_s);
 	free(sens_s);
@@ -517,6 +550,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
+
 	exit(0);
 }
 
