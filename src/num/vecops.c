@@ -646,7 +646,7 @@ const struct vec_ops cpu_ops = {
 	.zexp = zexp,
 	.zarg = zarg,
 	.zabs = zabs,
-	
+
 	.zsin = zsin,
 	.zcos = zcos,
 
