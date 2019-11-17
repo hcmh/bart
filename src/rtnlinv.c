@@ -49,12 +49,16 @@ static void reduce_frames(const long reduced_frames, long src_dims[DIMS], comple
 	long dst_dims[DIMS];
 	md_copy_dims(DIMS, dst_dims, src_dims);
 	dst_dims[TIME_DIM] = reduced_frames;
-	long pos[DIMS] = { 0 };
+
 	complex float* dst = anon_cfl("", DIMS, dst_dims);
+
+	long pos[DIMS] = { 0 };
 	md_copy_block(DIMS, pos, dst_dims, dst, src_dims, *src, CFL_SIZE);
+
 	unmap_cfl(DIMS, src_dims, *src);
-	*src = dst;
+
 	md_copy_dims(DIMS, src_dims, dst_dims);
+	*src = dst;
 }
 
 
@@ -106,7 +110,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.5]"),
 		OPT_FLOAT('T', &temp_damp, "temp_damp", "temporal damping [default: 0.9]"),
-		OPT_INT('F', &reduced_frames, "Frames", "Reconstruct only 'noFrames' frames."),
+		OPT_INT('F', &reduced_frames, "Frames", "Reconstruct only 'noFrames' frames. (deprecated! Use 'resize')"),	
 		OPT_VEC3('x', &my_img_dims, "x:y:z", "(img dims)"),
 	};
 
