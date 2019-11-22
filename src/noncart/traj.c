@@ -150,7 +150,7 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	double angle_t = 0.;
 
 	if (turns > 1)
-		angle_t = angle_atom / (turns * mb) * (conf.full_circle ? 2 : 1);
+		angle_t = angle_atom / turns * (conf.full_circle ? 2 : 1);
 
 	/* radial multi-echo multi-spoke sampling
 	 *
