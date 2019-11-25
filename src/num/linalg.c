@@ -172,7 +172,7 @@ bool (mat_inverse)(unsigned int N, complex float out[N][N], const complex float 
 }
 
 
-
+// Moore-Penrose (left-inverse)
 void mat_pinv(unsigned int A, unsigned int B, complex float out[B][A], const complex float in[A][B])
 {
 	if (A == B) {
@@ -193,6 +193,29 @@ void mat_pinv(unsigned int A, unsigned int B, complex float out[B][A], const com
 	mat_inverse(B, inv, prod);
 
 	mat_mul(B, B, A, out, inv, adj);
+}
+
+// Moore-Penrose (right-inverse)
+void mat_pinv_r(unsigned int A, unsigned int B, complex float out[B][A], const complex float in[A][B])
+{
+	if (A == B) {
+
+		mat_inverse(A, out, in);
+		return;
+	}
+
+	assert(A < B);
+
+	complex float adj[B][A];
+	mat_adjoint(A, B, adj, in);
+
+	complex float prod[A][A];
+	mat_mul(A, B, A, prod, in, adj);
+
+	complex float inv[A][A];
+	mat_inverse(A, inv, prod);
+
+	mat_mul(B, A, A, out, adj, inv); 
 }
 
 
