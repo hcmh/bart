@@ -63,7 +63,7 @@ tests/test-estdelay-ring-b0: estdelay scale index zexp fmac traj phantom nrmse
 	$(TOOLDIR)/index 2 5 i.ra								;\
 	$(TOOLDIR)/zexp -i i.ra ii.ra								;\
 	$(TOOLDIR)/fmac k.ra ii.ra ki.ra							;\
-	$(TOOLDIR)/traj -D -r -q`$(TOOLDIR)/estdelay -B -R ns.ra ki.ra` -O -c -y5 t2.ra		;\
+	$(TOOLDIR)/traj -D -r -q`$(TOOLDIR)/estdelay -b -R ns.ra ki.ra` -O -c -y5 t2.ra		;\
 	$(TOOLDIR)/nrmse -t 0.00015 t.ra t2.ra							;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
