@@ -11,5 +11,19 @@ tests/test-cordelay: traj phantom cordelay nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-cordelay-B0: traj phantom estdelay cordelay nrmse
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
+		$(TOOLDIR)/traj -x4 -y91 -r -G -s7 -q0.2:0.2:0 -c t.ra			;\
+		$(TOOLDIR)/phantom -k -t t.ra -s7 k.ra					;\
+		$(TOOLDIR)/traj -x4 -y91 -r -G -s7 -c t0.ra				;\
+		$(TOOLDIR)/phantom -k -t t0.ra -s7 k0.ra      				;\
+		$(TOOLDIR)/carg k0.ra k0arg.ra						;\
+		$(TOOLDIR)/estdelay -B t0.ra k.ra G.ra					;\
+		$(TOOLDIR)/cordelay -B G t.ra k.ra kcor.ra				;\
+		$(TOOLDIR)/carg kcor.ra kcorarg.ra					;\
+		$(TOOLDIR)/nrmse -t 0.7 k0arg.ra kcorarg.ra				;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+	
 
 TESTS += tests/test-cordelay
