@@ -41,6 +41,8 @@ int main_traj(int argc, char* argv[])
 	int mb = 1;
 	int turns = 1;
 	float rot = 0.;
+	const char* pat_file = NULL;
+
 
 	struct traj_conf conf = traj_defaults;
 
@@ -81,6 +83,7 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('E', &conf.mems_traj, "multi-echo multi-spoke trajectory"),
 		OPT_VEC2('z', &z_usamp, "Ref:Acel", "Undersampling in z-direction."),
 		OPT_STRING('C', &custom_angle, "file", "custom_angle file [phi + i * psi]"),
+		OPT_STRING('p', &pat_file, "file", "Pattern"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -306,6 +309,83 @@ int main_traj(int argc, char* argv[])
 
 	if (NULL != custom_angle_val)
 		unmap_cfl(3, sdims, custom_angle_val);
+	
+	// Rearrange according to pattern
+	/* If you pass a k-space pattern with undersampling, this
+	 * guarantees a continously increasing angle and avoids the 
+	 * jumps due to undersampling.
+	 */
+	if (pat_file != NULL) {
+		
+		// Load pattern and extract single readout sample
+		long pat_dims[DIMS];
+		complex float* pat = load_cfl(pat_file, DIMS, pat_dims);
+		
+		if (!md_check_equal_dims(DIMS, dims, pat_dims, ~(READ_FLAG|COIL_FLAG)))
+			error("Pattern and trajectory options are inconsistent!");
+		
+		long pat1_dims[DIMS];
+		md_select_dims(DIMS, ~(PHS1_FLAG|COIL_FLAG), pat1_dims, pat_dims);
+		complex float* pat1 = md_alloc(DIMS, pat1_dims, CFL_SIZE);
+		
+		long pos[DIMS] = { 0 };
+		md_copy_block(DIMS, pos, pat1_dims, pat1, pat_dims, pat, CFL_SIZE);
+
+		// Reorder trajectory according to (temporal) acquisition order (SLICE_DIM before PHS2_DIM before TIME_DIM)
+		long samples_t1_dims[DIMS];
+		long samples_t_dims[DIMS];
+		
+		md_transpose_dims(DIMS, 2, 3, samples_t1_dims, dims);
+		md_transpose_dims(DIMS, 2, 13, samples_t_dims, samples_t1_dims);
+		complex float* samples_t = md_alloc(DIMS, samples_t_dims, CFL_SIZE);		
+		md_transpose(DIMS, 2, 13, samples_t_dims, samples_t, samples_t1_dims, samples, CFL_SIZE);
+		
+		md_clear(DIMS, dims, samples, CFL_SIZE); // Output file to zeros
+		
+		long samples_flat_dims[DIMS] = { [0 ... DIMS - 1] = 1 };
+		samples_flat_dims[0] = 3;
+		samples_flat_dims[1] = dims[PHS1_DIM];
+		samples_flat_dims[2] = dims[SLICE_DIM] * dims[PHS2_DIM] * dims[TIME_DIM];
+
+		
+		long buf_dims[DIMS];
+		md_select_dims(DIMS, READ_FLAG|PHS1_FLAG, buf_dims, dims);
+		complex float* buf = md_alloc(DIMS, buf_dims, CFL_SIZE);
+
+		long pat1_buf_dims[DIMS] = { [0 ... DIMS - 1] = 1 };
+		complex float* pat1_buf = md_alloc(DIMS, pat1_buf_dims, CFL_SIZE);
+		
+		long pos1[DIMS] = { 0 };
+		long pos2[DIMS] = { 0 };		
+		
+		// Copy from flattend (time-continuous) array "samples_t" to correct position of the undersampled array "samples"
+		for (int i = 0; i < dims[TIME_DIM]; i++) {
+			
+			pos1[TIME_DIM] = i;
+			for (int j = 0; j < dims[PHS2_DIM]; j++) {
+				
+				pos1[PHS2_DIM] = j;
+				for (int k = 0; k < dims[SLICE_DIM]; k++) {
+					
+					pos1[SLICE_DIM] = k;
+					md_copy_block(DIMS, pos1, pat1_buf_dims, pat1_buf, pat1_dims, pat1, CFL_SIZE);
+
+					if (crealf(*pat1_buf) != 0) {
+						md_copy_block(DIMS, pos2, buf_dims, buf, samples_flat_dims, samples_t, CFL_SIZE);
+						md_copy_block(DIMS, pos1, dims, samples, buf_dims, buf, CFL_SIZE);						
+						pos2[2] += 1;
+					}
+										
+				}
+			}
+		}
+		
+		md_free(pat1);
+		md_free(samples_t);
+		md_free(buf);
+		md_free(pat1_buf);
+	}
+
 
 	unmap_cfl(3, dims, samples);
 
