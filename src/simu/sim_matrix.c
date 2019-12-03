@@ -236,7 +236,7 @@ static void prepare_matrix_to_tr( int N, float matrix[N][N], void* _data )
 
 	tmp_data.pulseData.pulse_applied = false;
 
-	create_sim_matrix(N, matrix, tmp_data.seqData.TE, &tmp_data);
+	create_sim_matrix(N, matrix, (tmp_data.seqData.TR-tmp_data.seqData.TE), &tmp_data);
 }
 
 static void ADCcorrection(int N, float out[N], float in[N])
