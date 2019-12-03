@@ -378,6 +378,20 @@ int main_bloch(int argc, char* argv[argc])
 						r_out[ind] = fabsf(r[z]);
 					}
 				}
+				else if (5 == seq) {
+					//Look DC, Locker DR. Time saving in measurement of NMR and EPR relaxation times. Rev Sci Instrum 1970;41:250–251.
+					float s0 = m0; //* sinf(fa);
+					float r1s = 1 / t1 - logf(cosf(fa))/tr;
+					float mss = s0 / (t1*r1s);
+					
+					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
+						
+						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = mss - (mss + s0) * expf( - z * tr * r1s );
+						sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+					}
+				}
 				else {
 					//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
 					//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
