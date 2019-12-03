@@ -369,8 +369,9 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 		
 		struct SimData data = *sim_data;
 		
-		data.voxelData.r1 = 1/crealf(phantom[j].intensity);
-		data.voxelData.r2 = 1/cimagf(phantom[j].intensity);
+		// Background ellipse need to be compensated
+		data.voxelData.r1 = (0 == j) ? 1/crealf(phantom[j].intensity) : 1/crealf(phantom[0].intensity + phantom[j].intensity);
+		data.voxelData.r2 = (0 == j) ? 1/cimagf(phantom[j].intensity) : 1/cimagf(phantom[0].intensity + phantom[j].intensity);
 		data.voxelData.m0 = 1;
 
 		float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
@@ -378,8 +379,8 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 		float saR2Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
 		float saDensSig[data.seqData.rep_num / data.seqData.num_average_rep][3];
 
-// 		ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);
-		matrix_bloch_simulation(&data, mxySig, saR1Sig, saR2Sig, saDensSig);
+// 		ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);	// ODE simulation
+		matrix_bloch_simulation(&data, mxySig, saR1Sig, saR2Sig, saDensSig);	// OBS simulation
 		
 		for (int t = 0; t < dims[TE_DIM]; t++) 
 			signal_evolution[j * dims[TE_DIM] + t] = mxySig[t][1] + mxySig[t][0] * I;
@@ -414,31 +415,24 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 
 }
 
-void calc_simu_phantom(struct SimData* data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+void calc_phantom_t1t2(struct SimData* data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {	
 	struct ellipsis_s t1t2phantom[] = {
-		{(3. + 1. * I)		, { .75	,   .75    }	, { 0.,     0. }	, 0.},
-		{(0.877 + 0.048 * I)	, { .125,   .125   }	, { -0.13,     -0.19 }	, 0.},
-		{(1.140 + 0.06 * I)	, { .125,   .125   }	, { -0.45,     -0.32 }	, 0.},
-		{(1.404 + 0.06 * I)	, { .125,   .125   }	, { -0.55,     0.05 }	, 0.},
-		{(0.866 + 0.095 * I)	, { .125,   .125   }	, { -0.37,     0.37 }	, 0.},
-		{(1.159 + 0.108 * I)	, { .125,   .125   }	, { -0.05,     0.55 }	, 0.},
-		{(1.456 + 0.122 * I)	, { .125,   .125   }	, { 0.33,     0.40 }	, 0.},
-		{(0.883 + 0.129 * I)	, { .125,   .125   }	, { 0.53,     0.12 }	, 0.},
-		{(1.166 + 0.150 * I)	, { .125,   .125   }	, { 0.5,     -0.24 }	, 0.},
-		{(1.442 + 0.163 * I)	, { .125,   .125   }	, { 0.2,     -0.05 }	, 0.}
+		{(3. + 1. * I)				, { .75	,   .75    }	, { 0.,     0. }	, 0.},		/* Background ellipse, needs to be added for simulation and 
+															subtrackted for visualization*/
+		{-(3. + 1. * I)+(0.877 + 0.048 * I)	, { .125,   .125   }	, { -0.13,     -0.19 }	, 0.},
+		{-(3. + 1. * I)+(1.140 + 0.06 * I)	, { .125,   .125   }	, { -0.45,     -0.32 }	, 0.},
+		{-(3. + 1. * I)+(1.404 + 0.06 * I)	, { .125,   .125   }	, { -0.55,     0.05 }	, 0.},
+		{-(3. + 1. * I)+(0.866 + 0.095 * I)	, { .125,   .125   }	, { -0.37,     0.37 }	, 0.},
+		{-(3. + 1. * I)+(1.159 + 0.108 * I)	, { .125,   .125   }	, { -0.05,     0.55 }	, 0.},
+		{-(3. + 1. * I)+(1.456 + 0.122 * I)	, { .125,   .125   }	, { 0.33,     0.40 }	, 0.},
+		{-(3. + 1. * I)+(0.883 + 0.129 * I)	, { .125,   .125   }	, { 0.53,     0.12 }	, 0.},
+		{-(3. + 1. * I)+(1.166 + 0.150 * I)	, { .125,   .125   }	, { 0.5,     -0.24 }	, 0.},
+		{-(3. + 1. * I)+(1.442 + 0.163 * I)	, { .125,   .125   }	, { 0.2,     -0.05 }	, 0.}
 	};
 	
-	calc_signal_simu(data, dims, out, kspace, tstrs, traj, ARRAY_SIZE(t1t2phantom), t1t2phantom);
-}
-
-void calc_phantom_t1t2(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
-{
-	(void) d3;
-	
-	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(t1t2phantom), t1t2phantom }, krn2d, kspace);
-}
-
+	(NULL == data) ? sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(t1t2phantom), t1t2phantom }, krn2d, kspace) 
+				: calc_signal_simu(data, dims, out, kspace, tstrs, traj, ARRAY_SIZE(t1t2phantom), t1t2phantom);
 }
 
 void calc_phantom_bart(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)

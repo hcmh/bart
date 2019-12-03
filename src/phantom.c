@@ -121,17 +121,15 @@ int main_phantom(int argc, char* argv[])
 
 		dims[TE_DIM] = sdims[TE_DIM];
 	}
-	else if(NULL == traj && simulation) //simulation default
-		dims[TE_DIM] = 500;
 	
 	// values for simulation
 	struct SimData sim_data;
-				
+
 	sim_data.seqData = seqData_defaults;
 	sim_data.seqData.seq_type = 1;
 	sim_data.seqData.TR = 0.0045;
 	sim_data.seqData.TE = 0.00225;
-	sim_data.seqData.rep_num = dims[TE_DIM];
+	sim_data.seqData.rep_num = (NULL == traj) ? 500 : dims[TE_DIM];
 	sim_data.seqData.spin_num = 1;
 	sim_data.seqData.num_average_rep = 1; //need to be 1 in this implementation!!
 	
@@ -142,6 +140,7 @@ int main_phantom(int argc, char* argv[])
 	sim_data.pulseData.RF_end = 0.0009;
 	sim_data.gradData = gradData_defaults;
 	sim_data.seqtmp = seqTmpData_defaults;
+
 	
 	if (sens > 0)
 		dims[3] = sens;
@@ -204,11 +203,8 @@ int main_phantom(int argc, char* argv[])
 		break;
         
 	case T1T2:
-
-		calc_phantom_t1t2(dims, out, d3, kspace, sstrs, samples);
 		
-		if (simulation)
-			calc_simu_phantom(&sim_data, dims, out, kspace, sstrs, samples);
+		calc_phantom_t1t2((simulation) ? &sim_data : NULL, dims, out, kspace, sstrs, samples);
 		
 		break;
 	
