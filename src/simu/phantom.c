@@ -348,7 +348,8 @@ void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const lo
 	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc);
 }
 
-static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj, int N, const struct ellipsis_s phantom[N])
+static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], 
+			     const complex float* traj, int N, const struct ellipsis_s phantom[N])
 {
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, sizeof(complex float));
@@ -418,8 +419,8 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 void calc_phantom_t1t2(struct SimData* data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {	
 	struct ellipsis_s t1t2phantom[] = {
-		{(3. + 1. * I)				, { .75	,   .75    }	, { 0.,     0. }	, 0.},		/* Background ellipse, needs to be added for simulation and 
-															subtrackted for visualization*/
+		/* Background ellipse [0], needs to be added for simulation and subtracted for visualization*/
+		{(3. + 1. * I)				, { .75	,   .75    }	, { 0.,     0. }	, 0.},
 		{-(3. + 1. * I)+(0.877 + 0.048 * I)	, { .125,   .125   }	, { -0.13,     -0.19 }	, 0.},
 		{-(3. + 1. * I)+(1.140 + 0.06 * I)	, { .125,   .125   }	, { -0.45,     -0.32 }	, 0.},
 		{-(3. + 1. * I)+(1.404 + 0.06 * I)	, { .125,   .125   }	, { -0.55,     0.05 }	, 0.},
