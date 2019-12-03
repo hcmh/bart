@@ -164,8 +164,7 @@ int main_bloch(int argc, char* argv[argc])
 			calc_phantom_t1t2(dim_map, map, false/*d3*/, false/*kspace*/, sstrs, samples);
 			
 			complex float* dens = create_cfl("DensParameter", DIMS, dim_map);
-			md_clear(DIMS, dim_map, dens, CFL_SIZE);
-			calc_phantom_dens(dim_map, dens, false/*d3*/, false/*kspace*/, sstrs, samples);
+			md_zfill(DIMS, dim_map, dens, 1.0);
 			
 			md_zreal(DIMS, dim_map, map_T1, map);
 			md_zimag(DIMS, dim_map, map_T2, map);
