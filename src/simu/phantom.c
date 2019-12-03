@@ -1,12 +1,14 @@
 /* Copyright 2014. The Regents of the University of California.
- * Copyright 2015-2017. Martin Uecker.
+ * Copyright 2015-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * 2012-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2019	     Nick Scholand <nick.scholand@med.uni-goettingen.de>
  *
  * Simple numerical phantom which simulates image-domain or
- * k-space data with multiple channels.
+ * k-space data with multiple channels and additional option for 
+ * simple simulated phantom.
  *
  */
 
@@ -28,6 +30,7 @@
 #include "simu/sens.h"
 #include "simu/coil.h"
 #include "simu/simulation.h"
+#include "simu/sim_matrix.h"
 
 #include "phantom.h"
 
@@ -226,32 +229,6 @@ void calc_geo_phantom(const long dims[DIMS], complex float* out, bool kspace, in
 	md_free(angular);
 }
 
-
-void calc_phantom_t1t2(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
-{
-	(void) d3;
-	
-	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(t1t2phantom), t1t2phantom }, krn2d, kspace);
-}
-
-void calc_phantom_dens(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
-{
-	(void) d3;
-	
-	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(dens_phantom), dens_phantom }, krn2d, kspace);
-}
-
-void calc_phantom_bart(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
-{
-	(void) d3;
-	
-	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(bart_img), bart_img }, krn2d, kspace);
-}
-
-
-
-
-
 static complex float cnst_one(void* _data, const double mpos[2])
 {
 	UNUSED(_data);
@@ -371,77 +348,109 @@ void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const lo
 	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc);
 }
 
-
-void calc_simu_phantom(void* _data,long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* in)
+static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj, int N, const struct ellipsis_s phantom[N])
 {
-	
-	(void) kspace; (void) tstrs;
-	struct SimData* sim_data = _data;
-	
-	sim_data->seqData.rep_num = dims[TE_DIM];
-	
-	//create map
-	complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
-	complex float* sensitivitiesR1 = md_alloc(DIMS, dims, CFL_SIZE);
-	complex float* sensitivitiesR2 = md_alloc(DIMS, dims, CFL_SIZE);
-	complex float* sensitivitiesM0 = md_alloc(DIMS, dims, CFL_SIZE);
-	
-	
-	#pragma omp parallel for collapse(2)
-	for(int x = 0; x < dims[0]; x++ ){
-		
-		for(int y = 0; y < dims[1]; y++ ){
-			
-			struct SimData data = *sim_data;
-			
-			//Updating data
-			float t1 = crealf(in[(y * dims[0]) + x]);
-			float t2 = cimagf(in[(y * dims[0]) + x]);
+	long strs[DIMS];
+	md_calc_strides(DIMS, strs, dims, sizeof(complex float));
 
-			//Skip empty voxels
-			if (t1 <= 0.001 || t2 <= 0.001) {
-				
-				for(int z = 0; z < dims[TE_DIM]; z++) {
-					
-					phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-					sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-					sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-					sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = 0.;
-				}
-				continue;
-			}
+	long dims1[DIMS];
+	md_select_dims(DIMS, ~MD_BIT(TE_DIM), dims1, dims);
+	
+	long dim2[DIMS] = { [0 ... DIMS - 1] = 1 };
+	
+	dim2[READ_DIM] = N;
+	dim2[PHS1_DIM] = dims[TE_DIM];
+	
+	complex float* signal_evolution = md_alloc(DIMS, dim2, CFL_SIZE);
+	
+	// Apply simulation to all ellipses to determine time evolution of intensities
+	#pragma omp parallel for
+	for (int j = 0; j < N; j++) {
 		
-			data.voxelData.r1 = 1/t1;  
-			data.voxelData.r2 = 1/t2; 
-			data.voxelData.m0 = 1;			// TODO: Change to add coil profiles
-			
-			debug_printf(DP_DEBUG3,"%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data.seqData.TR, data.seqData.TE, data.voxelData.r1, data.voxelData.r2, 	data.seqtmp.rep_counter, data.pulseData.RF_end, data.pulseData.flipangle );
-			
-			
-			float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-			float saR1Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-			float saR2Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-			float saDensSig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+		struct SimData data = *sim_data;
+		
+		data.voxelData.r1 = 1/crealf(phantom[j].intensity);
+		data.voxelData.r2 = 1/cimagf(phantom[j].intensity);
+		data.voxelData.m0 = 1;
 
-			ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);
-			
-			//Add data to phantom
-			for (int z = 0; z < dims[TE_DIM]; z++) {
-				
-				//changed x-and y-axis to have same orientation as measurements
-				sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR1Sig[z][1] + saR1Sig[z][0] * I; 
-				sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR2Sig[z][1] + saR2Sig[z][0] * I;
-				sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saDensSig[z][1] + saDensSig[z][0] * I;
-				phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = mxySig[z][1] + mxySig[z][0] * I;
-			} 
-			
-			md_copy(DIMS, dims, out, phantom, CFL_SIZE);
-			
-        }
-        
-    }
+		float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+		float saR1Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+		float saR2Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+		float saDensSig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+
+// 		ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);
+		matrix_bloch_simulation(&data, mxySig, saR1Sig, saR2Sig, saDensSig);
+		
+		for (int t = 0; t < dims[TE_DIM]; t++) 
+			signal_evolution[j * dims[TE_DIM] + t] = mxySig[t][1] + mxySig[t][0] * I;
+	}
 	
+	// Create phantom
+	#pragma omp parallel for
+	for (int i = 0; i < dims[TE_DIM]; i++) {
+		
+		struct ellipsis_s timestep_phantom[N];
+
+		for (int j = 0; j < N; j++) {
+			
+			if (0 == j)
+				timestep_phantom[j].intensity = signal_evolution[j * dims[TE_DIM] + i];
+			else	//subtract background central circle to get unfolded signal of tube in image
+				timestep_phantom[j].intensity = -signal_evolution[0 + i] + signal_evolution[j * dims[TE_DIM] + i];
+			
+			timestep_phantom[j].center[0] = phantom[j].center[0];
+			timestep_phantom[j].center[1] = phantom[j].center[1];
+			timestep_phantom[j].axis[0] = phantom[j].axis[0];
+			timestep_phantom[j].axis[1] = phantom[j].axis[1];
+			timestep_phantom[j].angle = phantom[j].angle;
+		}
+		
+		void* traj2 = (NULL == traj) ? NULL : ((void*)traj + i * tstrs[TE_DIM]);
+
+		sample(dims1, (void*)out + i * strs[TE_DIM], tstrs, traj2, &(struct krn2d_data){ kspace, N, timestep_phantom }, krn2d, kspace);
+	}
 	
+	md_free(signal_evolution);
+
+}
+
+void calc_simu_phantom(struct SimData* data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{	
+	struct ellipsis_s t1t2phantom[] = {
+		{(3. + 1. * I)		, { .75	,   .75    }	, { 0.,     0. }	, 0.},
+		{(0.877 + 0.048 * I)	, { .125,   .125   }	, { -0.13,     -0.19 }	, 0.},
+		{(1.140 + 0.06 * I)	, { .125,   .125   }	, { -0.45,     -0.32 }	, 0.},
+		{(1.404 + 0.06 * I)	, { .125,   .125   }	, { -0.55,     0.05 }	, 0.},
+		{(0.866 + 0.095 * I)	, { .125,   .125   }	, { -0.37,     0.37 }	, 0.},
+		{(1.159 + 0.108 * I)	, { .125,   .125   }	, { -0.05,     0.55 }	, 0.},
+		{(1.456 + 0.122 * I)	, { .125,   .125   }	, { 0.33,     0.40 }	, 0.},
+		{(0.883 + 0.129 * I)	, { .125,   .125   }	, { 0.53,     0.12 }	, 0.},
+		{(1.166 + 0.150 * I)	, { .125,   .125   }	, { 0.5,     -0.24 }	, 0.},
+		{(1.442 + 0.163 * I)	, { .125,   .125   }	, { 0.2,     -0.05 }	, 0.}
+	};
+	
+	calc_signal_simu(data, dims, out, kspace, tstrs, traj, ARRAY_SIZE(t1t2phantom), t1t2phantom);
+}
+
+void calc_phantom_t1t2(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	(void) d3;
+	
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(t1t2phantom), t1t2phantom }, krn2d, kspace);
+}
+
+void calc_phantom_dens(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	(void) d3;
+	
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(dens_phantom), dens_phantom }, krn2d, kspace);
+}
+
+void calc_phantom_bart(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	(void) d3;
+	
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(bart_img), bart_img }, krn2d, kspace);
 }
 
 
