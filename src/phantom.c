@@ -214,11 +214,7 @@ int main_phantom(int argc, char* argv[])
 	
 	case BART:
 
-		calc_phantom_bart(dims, out, false, false, sstrs, samples);
-		
-		if (simulation)
-			calc_simu_phantom(&sim_data, dims, out, kspace, sstrs, samples);
-		
+		calc_phantom_bart(dims, out, false, false, sstrs, samples);	
 		break;
 	}
 
