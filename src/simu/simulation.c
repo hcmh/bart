@@ -317,6 +317,19 @@ void run_sim_block(void* _data, float* mxySignal, float* saR1Signal, float* saR2
 	relaxation2(data, h, tol, N, P, xp, data->seqData.TE, data->seqData.TR);
 }
 
+//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
+static void xyspoiling(int N, int P, float xp[P + 2][N], void* _data)
+{
+	struct SimData* simdata = _data;
+	
+	if (simdata->seqData.seq_type == 2 || simdata->seqData.seq_type == 5)
+		for (int i = 0; i < P + 2; i ++) {
+
+			xp[i][0] = 0.;
+			xp[i][1] = 0.; 
+		}
+}
+
 
 void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3])
 {
@@ -355,8 +368,10 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		
 		float h = 0.0001;
 		
+		data->voxelData.w = w_backup; 
+		
 		if (data->voxelData.spin_ensamble)
-			data->voxelData.w = w_backup + isochromats[data->seqtmp.spin_counter];
+			data->voxelData.w += isochromats[data->seqtmp.spin_counter];
 		
 		data->pulseData.phase = 0;
 
@@ -384,8 +399,9 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 				
 				run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 				
+				xyspoiling(N, P, xp, &inv_data);
+				
 			}
-			
 			
 			/*--------------------------------------------------------------
 			* --------------------- Signal Preparation ---------------------

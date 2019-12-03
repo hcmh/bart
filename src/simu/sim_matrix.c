@@ -152,6 +152,18 @@ static void apply_sim_matrix(int N, float m[N], float matrix[N][N])
 	vm_mul_transpose(N, m, matrix, tmp);
 }
 
+//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
+static void xyspoiling(int N, float out[N], void* _data)
+{
+	struct SimData* simdata = _data;
+	
+	if (simdata->seqData.seq_type == 2 || simdata->seqData.seq_type == 5)
+		for(int i = 0; i < 3 ; i ++) {
+
+			out[3*i] = 0.;
+			out[3*i+1] = 0.;
+		}
+}
 
 static void apply_inversion(int N, float m[N], float pulse_length, void* _data )
 {
@@ -167,6 +179,24 @@ static void apply_inversion(int N, float m[N], float pulse_length, void* _data )
 	create_sim_matrix(N, matrix, tmp_data.pulseData.RF_end, &tmp_data);
 
 	apply_sim_matrix(N, m, matrix);
+	
+	xyspoiling(N, m, &tmp_data);
+}
+
+
+static void spoiler_relaxation(int N, float m[N], float spoiler_length, void* _data )
+{
+	struct SimData* simdata = _data;
+	struct SimData tmp_data = *simdata;
+
+	tmp_data.pulseData.pulse_applied = false;
+
+	float matrix[N][N];
+	create_sim_matrix(N, matrix, spoiler_length, &tmp_data);
+
+	apply_sim_matrix(N, m, matrix);
+	
+	xyspoiling(N, m, &tmp_data);
 }
 
 
@@ -274,7 +304,7 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 	
 	for (data->seqtmp.spin_counter = 0; data->seqtmp.spin_counter < data->seqData.spin_num; data->seqtmp.spin_counter++) {
 		
-		slice_correction = 1;
+		slice_correction = 1.;
 
 		if (NULL != data->seqData.slice_profile) 
 			slice_correction = cabsf(data->seqData.slice_profile[data->seqtmp.spin_counter]);
@@ -291,11 +321,11 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 		data->pulseData.phase = 0;
 
 		if (data->seqData.seq_type == 1 || data->seqData.seq_type == 5)
-			apply_inversion( N, xp, 0.01, data );
+			apply_inversion(N, xp, 0.01, data);
 
 		//for bSSFP based sequences: alpha/2 and TR/2 preparation
 		if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1)
-			apply_signal_preparation( N, xp, data );
+			apply_signal_preparation(N, xp, data);
 
 		// Create matrices which describe signal development	
 		float matrix_to_te[N][N];
@@ -320,13 +350,7 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 
 			apply_sim_matrix( N, xp, matrix_to_tr );
 
-			//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
-			if (data->seqData.seq_type == 2 || data->seqData.seq_type == 5)
-				for(int i = 0; i < 3 ; i ++) {
-
-					xp[3*i] = 0.;
-					xp[3*i+1] = 0.;
-				}
+			xyspoiling(N, xp, data);
 
 			data->seqtmp.rep_counter++;
 		}
@@ -369,8 +393,6 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 
 			av_num++;
 		}
-		
-		
 	}
 
 	free(mxySignal);
