@@ -29,7 +29,6 @@
  * Jakob Assländer, Dmitry S. Novikov, Riccardo Lattanzi, Daniel K. Sodickson & Martijn A. Cloos.
  * Communications Physics. Volume 2, Article number: 73 (2019)
  */
-
 const struct HSFP_model hsfp_defaults = {
 	
 	.t1 = 0.781,
@@ -98,4 +97,30 @@ void hsfp_simu(const struct HSFP_model* data, float* out)
 	
 	for (int ind = 0; ind < data->repetitions; ind++)
 		out[ind] = hsfp_signal(data, r0_val, (float) ind*data->tr);
+}
+
+
+
+/*
+ * Time saving in measurement of NMR and EPR relaxation times.
+ * Look DC, Locker DR.  Rev Sci Instrum 1970;41:250–251.
+ */
+const struct LookLocker_model looklocker_defaults = {
+	
+	.t1 = 1.,
+	.m0 = 1.,
+	.tr = 0.0041,
+	.fa = 8.,
+	.repetitions = 1000,
+};
+
+void looklocker_simu(const struct LookLocker_model* data, float* out)
+{
+	float s0 = data->m0;
+	float r1s = 1 /data->t1 - logf(cosf(data->fa))/data->tr;
+	float mss = s0 / (data->t1*r1s);
+
+	for (int ind = 0; ind < data->repetitions; ind++)
+		out[ind] = mss - (mss + s0) * expf( - ind * data->tr * r1s );
+
 }

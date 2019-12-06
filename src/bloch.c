@@ -253,7 +253,6 @@ int main_bloch(int argc, char* argv[argc])
 	
 	
 	struct HSFP_model hsfp_data2 = hsfp_defaults;
-	
 	if ( 4 == seq && analytical) {
 		
 		hsfp_data2.tr = tr;
@@ -261,6 +260,12 @@ int main_bloch(int argc, char* argv[argc])
 		hsfp_data2.beta = -1;
 		hsfp_data2.pa_profile = md_alloc(DIMS, dim_vfa, CFL_SIZE);
 		md_copy(DIMS, dim_vfa, hsfp_data2.pa_profile, vfa_file, CFL_SIZE);
+	} 
+	
+	struct LookLocker_model ll_data = looklocker_defaults;
+	if ( 5 == seq && analytical) {
+		ll_data.tr = tr;
+		ll_data.repetitions = repetition;
 	}
 		
 	
@@ -348,7 +353,7 @@ int main_bloch(int argc, char* argv[argc])
 			float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			
-			float r[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep];	// radial magnetization
+			float signal[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep];	// radial magnetization
 
 			float fa = flipangle * M_PI / 180.; //conversion to rad
 			
@@ -361,7 +366,7 @@ int main_bloch(int argc, char* argv[argc])
 					hsfp_data.t1 = t1;
 					hsfp_data.t2 = t2;
 					
-					hsfp_simu(&hsfp_data, r);
+					hsfp_simu(&hsfp_data, signal);
 					
 					int ind = 0;
 					
@@ -369,29 +374,31 @@ int main_bloch(int argc, char* argv[argc])
 						
 						ind = (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x;
 						
-						phantom[ind] = sinf(cabsf(vfa_file[z])) * r[z];
+						phantom[ind] = sinf(cabsf(vfa_file[z])) * signal[z];
 						sensitivitiesT1[ind] = 0.;
 						sensitivitiesT2[ind] = 0.;
 						sensitivitiesDens[ind] = 0.;
 						
-						r_out[ind] = fabsf(r[z]);
+						r_out[ind] = fabsf(signal[z]);
 					}
-				}
-				else if (5 == seq) {
-					//Look DC, Locker DR. Time saving in measurement of NMR and EPR relaxation times. Rev Sci Instrum 1970;41:250–251.
-					float s0 = m0; //* sinf(fa);
-					float r1s = 1 / t1 - logf(cosf(fa))/tr;
-					float mss = s0 / (t1*r1s);
+				} else if (5 == seq) {
+					
+					struct LookLocker_model ll_data2 = ll_data;
+					
+					ll_data2.t1 = t1;
+					ll_data2.m0 = m0;
+					ll_data2.fa = fa;
+					
+					looklocker_simu(&ll_data2, signal);
 					
 					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
 						
-						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = mss - (mss + s0) * expf( - z * tr * r1s );
+						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = signal[z];
 						sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 						sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 					}
-				}
-				else {
+				} else {
 					//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
 					//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
 					//Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058
