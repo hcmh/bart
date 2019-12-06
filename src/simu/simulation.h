@@ -34,7 +34,8 @@ extern const struct VoxelData voxelData_defaults;
 
 
 struct SeqData {
-
+	
+	int analytical;
 	int seq_type;
 	float TR;
 	float TE;

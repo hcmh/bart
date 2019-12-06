@@ -52,6 +52,7 @@ const struct VoxelData voxelData_defaults = {
 
 const struct SeqData seqData_defaults = {
 
+	.analytical = 0, /*new substruct simData? Also for Simulation type (ODE,OBS)?*/
 	.seq_type = 1,
 	.TR = 0.004,
 	.TE = 0.002,
