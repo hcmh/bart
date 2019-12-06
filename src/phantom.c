@@ -47,7 +47,7 @@ static void help_seq(void)
 		"TR:\t Repetition time [s]\n"
 		"TE:\t Echo time [s]\n"
 		"Drf:\t Duration of RF pulse [s]\n"
-		"TA:\t Flipangle of rf pulses [deg]\n"
+		"FA:\t Flip angle of rf pulses [deg]\n"
 	);
 }
 

@@ -413,7 +413,6 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 	}
 	
 	md_free(signal_evolution);
-
 }
 
 void calc_phantom_t1t2(struct SimData* data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
