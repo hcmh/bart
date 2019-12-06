@@ -100,7 +100,6 @@ void hsfp_simu(const struct HSFP_model* data, float* out)
 }
 
 
-
 /*
  * Time saving in measurement of NMR and EPR relaxation times.
  * Look DC, Locker DR.  Rev Sci Instrum 1970;41:250–251.
@@ -124,3 +123,32 @@ void looklocker_simu(const struct LookLocker_model* data, float* out)
 		out[ind] = mss - (mss + s0) * expf( - ind * data->tr * r1s );
 
 }
+
+
+/*
+ * Inversion recovery TrueFISP: Quantification of T1, T2, and spin density.
+ * Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A., 
+ * Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058, (2004)
+ */
+const struct IRbSSFP_model IRbSSFP_defaults = {
+	
+	.t1 = 1.,
+	.t2 = 0.1,
+	.m0 = 1.,
+	.tr = 0.0045,
+	.fa = 45.,
+	.repetitions = 1000,
+};
+
+void IR_bSSFP_simu(const struct IRbSSFP_model* data, float* out)
+{
+	float t1s = 1 / ( (cosf( data->fa/2. )*cosf( data->fa/2. ))/data->t1 + (sinf( data->fa/2. )*sinf( data->fa/2. ))/data->t2 );
+	float s0 = data->m0 * sinf( data->fa/2. );
+	float stst = data->m0 * sinf(data->fa) / ( (data->t1/data->t2 + 1) - cosf(data->fa) * (data->t1/data->t2 -1) );
+	float inv = 1 + s0 / stst;
+	
+	for (int ind = 0; ind < data->repetitions; ind++)
+		out[ind] = stst * ( 1 - inv * expf( - ind * data->tr / t1s ));
+
+}
+

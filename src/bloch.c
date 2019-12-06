@@ -267,6 +267,12 @@ int main_bloch(int argc, char* argv[argc])
 		ll_data.tr = tr;
 		ll_data.repetitions = repetition;
 	}
+	
+	struct IRbSSFP_model irbSSFP_data = IRbSSFP_defaults;
+	if ( 1 == seq && analytical) {
+		irbSSFP_data.tr = tr;
+		irbSSFP_data.repetitions = repetition;
+	}
 		
 	
 	#pragma omp parallel for collapse(2)
@@ -399,17 +405,18 @@ int main_bloch(int argc, char* argv[argc])
 						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 					}
 				} else {
-					//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
-					//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
-					//Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058
-					float t1s = 1 / ( (cosf( fa/2. )*cosf( fa/2. ))/t1 + (sinf( fa/2. )*sinf( fa/2. ))/t2 );
-					float s0 = m0 * sinf( fa/2. );
-					float stst = m0 * sinf(fa) / ( (t1/t2 + 1) - cosf(fa) * (t1/t2 -1) );
-					float inv = 1 + s0 / stst;
+					struct IRbSSFP_model irbSSFP_data2 = irbSSFP_data;
+					
+					irbSSFP_data2.t1 = t1;
+					irbSSFP_data2.t2 = t2;
+					irbSSFP_data2.m0 = m0;
+					irbSSFP_data2.fa = fa;
+					
+					IR_bSSFP_simu(&irbSSFP_data2, signal);
 					
 					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
 						
-						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = stst * ( 1 - inv * expf( - z * tr / t1s ));
+						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = signal[z];
 						sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 						sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
