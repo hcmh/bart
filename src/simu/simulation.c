@@ -220,16 +220,16 @@ static void collect_signal(void* _data, int N, int P, float *mxySignal, float *s
 		for (int i = 0; i < N; i++) {
 
 			mxySignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[0][i] : xp[0][i];
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[0][i] : xp[0][i];
 					
 			saT1Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[1][i] : xp[1][i];
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[1][i] : xp[1][i];
 					
 			saT2Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[2][i] : xp[2][i];
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[2][i] : xp[2][i];
 					
 			densSignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[3][i] : xp[3][i];
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[3][i] : xp[3][i];
 		}
 	}
 }
