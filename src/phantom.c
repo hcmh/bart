@@ -36,6 +36,7 @@ static const char help_str[] = "Image and k-space domain phantoms.";
 static void help_seq(void)
 {
 	printf( "Sequence Simulation Parameter\n\n"
+		"Typ:\t Define if analytical (1) or numerical simulation (0) should be performed \n"
 		"#SEQ:\t Define sequence mode: \n"
 		"\t\t\t0 = bSSFP[default]\n"
 		"\t\t\t1 = invbSSFP\n"
@@ -71,12 +72,13 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 		// Collect simulation data
 		struct SimData* sim_data = ptr;
 
-		ret = sscanf(optarg, "%d:%f:%f:%f:%f",	&sim_data->seqData.seq_type, 
-							&sim_data->seqData.TR, 
-							&sim_data->seqData.TE, 
-							&sim_data->pulseData.RF_end, 
-							&sim_data->pulseData.flipangle);
-		assert(5 == ret);
+		ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f",	&sim_data->seqData.analytical,
+								&sim_data->seqData.seq_type, 
+								&sim_data->seqData.TR, 
+								&sim_data->seqData.TE, 
+								&sim_data->pulseData.RF_end, 
+								&sim_data->pulseData.flipangle);
+		assert(6 == ret);
 	}
 	return false;
 }
@@ -127,7 +129,7 @@ int main_phantom(int argc, char* argv[])
 		OPT_INT('g', &geo, "n=1,2", "select geometry for object phantom"),
 		OPT_SET('3', &d3, "3D"),
 		OPT_SET('n', &simulation, "simulation"),
-		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E\tParameters for Simulation <Seq:TR:TE:Drf:FA> (-Ph for help)" },
+		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F\tParameters for Simulation <Typ:Seq:TR:TE:Drf:FA> (-Ph for help)" },
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);

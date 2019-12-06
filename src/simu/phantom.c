@@ -31,6 +31,7 @@
 #include "simu/coil.h"
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
+#include "simu/seq_model.h"
 
 #include "phantom.h"
 
@@ -365,12 +366,16 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 	long dims1[DIMS];
 	md_select_dims(DIMS, ~MD_BIT(TE_DIM), dims1, dims);
 	
-	long dim2[DIMS] = { [0 ... DIMS - 1] = 1 };
+	long dims2[DIMS] = { [0 ... DIMS - 1] = 1 };
+	dims2[READ_DIM] = N;
+	dims2[PHS1_DIM] = dims[TE_DIM];
 	
-	dim2[READ_DIM] = N;
-	dim2[PHS1_DIM] = dims[TE_DIM];
 	
-	complex float* signal_evolution = md_alloc(DIMS, dim2, CFL_SIZE);
+	long dims3[DIMS] = { [0 ... DIMS - 1] = 1 };
+	dims3[READ_DIM] = dims[TE_DIM];
+	
+	
+	complex float* signal_evolution = md_alloc(DIMS, dims2, CFL_SIZE);
 	
 	// Apply simulation to all ellipses to determine time evolution of intensities
 	#pragma omp parallel for
@@ -382,17 +387,34 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 		data.voxelData.r1 = 1/phantom[j].t1;
 		data.voxelData.r2 = 1/phantom[j].t2;
 		data.voxelData.m0 = phantom[j].geom.intensity;
-
-		float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-		float saR1Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-		float saR2Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-		float saDensSig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-
-// 		ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);	// ODE simulation
-		matrix_bloch_simulation(&data, mxySig, saR1Sig, saR2Sig, saDensSig);	// OBS simulation
 		
-		for (int t = 0; t < dims[TE_DIM]; t++) 
-			signal_evolution[j * dims[TE_DIM] + t] = mxySig[t][1] + mxySig[t][0] * I;
+		if (data.seqData.analytical) {
+			
+			complex float* signal = md_alloc(DIMS, dims3, CFL_SIZE);
+			
+			if (5 == data.seqData.seq_type)
+				looklocker_analytical(&data, signal);
+			else if (1 == data.seqData.seq_type)
+				IR_bSSFP_analytical(&data, signal);
+			else
+				debug_printf(DP_ERROR, "Analytical function of desired sequence is not provided.\n");
+			
+			for (int t = 0; t < dims[TE_DIM]; t++) 
+				signal_evolution[j * dims[TE_DIM] + t] = signal[t];
+			
+		} else { // TODO: change to complex floats!!
+			
+			float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+			float saR1Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+			float saR2Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+			float saDensSig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+
+			ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);	// ODE simulation
+// 			matrix_bloch_simulation(&data, mxySig, saR1Sig, saR2Sig, saDensSig);	// OBS simulation, does not work with hard-pulses!
+			
+			for (int t = 0; t < dims[TE_DIM]; t++) 
+				signal_evolution[j * dims[TE_DIM] + t] = mxySig[t][1] + mxySig[t][0] * I;
+		}
 	}
 	
 	// Create phantom
