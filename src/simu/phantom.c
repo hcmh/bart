@@ -348,8 +348,16 @@ void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const lo
 	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc);
 }
 
+struct simulated_ellipsis_s {
+
+	struct ellipsis_s geom; //geom.intensity = M0 for simulation
+	float t1;
+	float t2;
+};
+
+
 static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], 
-			     const complex float* traj, int N, const struct ellipsis_s phantom[N])
+			     const complex float* traj, int N, const struct simulated_ellipsis_s phantom[N])
 {
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, sizeof(complex float));
@@ -371,9 +379,9 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 		struct SimData data = *sim_data;
 		
 		// Background ellipse need to be compensated
-		data.voxelData.r1 = (0 == j) ? 1/crealf(phantom[j].intensity) : 1/crealf(phantom[0].intensity + phantom[j].intensity);
-		data.voxelData.r2 = (0 == j) ? 1/cimagf(phantom[j].intensity) : 1/cimagf(phantom[0].intensity + phantom[j].intensity);
-		data.voxelData.m0 = 1;
+		data.voxelData.r1 = 1/phantom[j].t1;
+		data.voxelData.r2 = 1/phantom[j].t2;
+		data.voxelData.m0 = phantom[j].geom.intensity;
 
 		float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
 		float saR1Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
@@ -400,11 +408,11 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 			else	//subtract background central circle to get unfolded signal of tube in image
 				timestep_phantom[j].intensity = -signal_evolution[0 + i] + signal_evolution[j * dims[TE_DIM] + i];
 			
-			timestep_phantom[j].center[0] = phantom[j].center[0];
-			timestep_phantom[j].center[1] = phantom[j].center[1];
-			timestep_phantom[j].axis[0] = phantom[j].axis[0];
-			timestep_phantom[j].axis[1] = phantom[j].axis[1];
-			timestep_phantom[j].angle = phantom[j].angle;
+			timestep_phantom[j].center[0] = phantom[j].geom.center[0];
+			timestep_phantom[j].center[1] = phantom[j].geom.center[1];
+			timestep_phantom[j].axis[0] = phantom[j].geom.axis[0];
+			timestep_phantom[j].axis[1] = phantom[j].geom.axis[1];
+			timestep_phantom[j].angle = phantom[j].geom.angle;
 		}
 		
 		void* traj2 = (NULL == traj) ? NULL : ((void*)traj + i * tstrs[TE_DIM]);
@@ -417,22 +425,32 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 
 void calc_phantom_t1t2(struct SimData* data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {	
-	struct ellipsis_s t1t2phantom[] = {
+	struct simulated_ellipsis_s t1t2phantom[] = {
 		/* Background ellipse [0], needs to be added for simulation and subtracted for visualization*/
-		{(3. + 1. * I)				, { .75	,   .75    }	, { 0.,     0. }	, 0.},
-		{-(3. + 1. * I)+(0.877 + 0.048 * I)	, { .125,   .125   }	, { -0.13,     -0.19 }	, 0.},
-		{-(3. + 1. * I)+(1.140 + 0.06 * I)	, { .125,   .125   }	, { -0.45,     -0.32 }	, 0.},
-		{-(3. + 1. * I)+(1.404 + 0.06 * I)	, { .125,   .125   }	, { -0.55,     0.05 }	, 0.},
-		{-(3. + 1. * I)+(0.866 + 0.095 * I)	, { .125,   .125   }	, { -0.37,     0.37 }	, 0.},
-		{-(3. + 1. * I)+(1.159 + 0.108 * I)	, { .125,   .125   }	, { -0.05,     0.55 }	, 0.},
-		{-(3. + 1. * I)+(1.456 + 0.122 * I)	, { .125,   .125   }	, { 0.33,     0.40 }	, 0.},
-		{-(3. + 1. * I)+(0.883 + 0.129 * I)	, { .125,   .125   }	, { 0.53,     0.12 }	, 0.},
-		{-(3. + 1. * I)+(1.166 + 0.150 * I)	, { .125,   .125   }	, { 0.5,     -0.24 }	, 0.},
-		{-(3. + 1. * I)+(1.442 + 0.163 * I)	, { .125,   .125   }	, { 0.2,     -0.05 }	, 0.}
+		{.geom = {1.	, { .75	,   .75    }	, { 0.,     0. }	, 0.},	.t1 = 3.,	.t2 = 1., }, /*Background*/
+		{.geom = {1	, { .125,   .125   }	, { -0.13,     -0.19 }	, 0.},	.t1 = 0.877,	.t2 = 0.048, },
+		{.geom = {1	, { .125,   .125   }	, { -0.45,     -0.32 }	, 0.},	.t1 = 1.140,	.t2 = 0.06, },
+		{.geom = {1	, { .125,   .125   }	, { -0.55,     0.05 }	, 0.},	.t1 = 1.404,	.t2 = 0.06, },
+		{.geom = {1	, { .125,   .125   }	, { -0.37,     0.37 }	, 0.},	.t1 = 0.866,	.t2 = 0.095, },
+		{.geom = {1	, { .125,   .125   }	, { -0.05,     0.55 }	, 0.},	.t1 = 1.159,	.t2 = 0.108, },
+		{.geom = {1	, { .125,   .125   }	, { 0.33,     0.40 }	, 0.},	.t1 = 1.456,	.t2 = 0.122, },
+		{.geom = {1	, { .125,   .125   }	, { 0.53,     0.12 }	, 0.},	.t1 = 0.883,	.t2 = 0.129, },
+		{.geom = {1	, { .125,   .125   }	, { 0.5,     -0.24 }	, 0.},	.t1 = 1.166,	.t2 = 0.150, },
+		{.geom = {1	, { .125,   .125   }	, { 0.2,     -0.05 }	, 0.},	.t1 = 1.442,	.t2 = 0.163, },
 	};
 	
-	(NULL == data) ? sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(t1t2phantom), t1t2phantom }, krn2d, kspace) 
-				: calc_signal_simu(data, dims, out, kspace, tstrs, traj, ARRAY_SIZE(t1t2phantom), t1t2phantom);
+	if (NULL != data)
+		calc_signal_simu(data, dims, out, kspace, tstrs, traj, ARRAY_SIZE(t1t2phantom), t1t2phantom);
+	else {
+		
+		// extract only ellipsis_s struct for sample function
+		struct ellipsis_s phantom[ARRAY_SIZE(t1t2phantom)];
+		
+		for (unsigned int i = 0; i < ARRAY_SIZE(t1t2phantom); i++)
+			phantom[i] = t1t2phantom[i].geom;
+		
+		sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom), phantom }, krn2d, kspace) ;
+	}
 }
 
 void calc_phantom_bart(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
