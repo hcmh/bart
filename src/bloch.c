@@ -17,7 +17,7 @@
 #include "num/flpmath.h"
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
-#include "simu/hsfp_model.h"
+#include "simu/seq_model.h"
 #include "misc/debug.h"
 #include "num/fft.h"
 

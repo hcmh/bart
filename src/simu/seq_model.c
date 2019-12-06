@@ -1,11 +1,6 @@
 /* Copyright 2019 Nick Scholand
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
- * 
- * 
- * Hybrid-state free precession in nuclear magnetic resonance. 
- * Jakob Assländer, Dmitry S. Novikov, Riccardo Lattanzi, Daniel K. Sodickson & Martijn A. Cloos.
- * Communications Physics. Volume 2, Article number: 73 (2019)
  */
 
 #include <complex.h>
@@ -24,8 +19,16 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
-#include "hsfp_model.h"
+#include "seq_model.h"
 
+
+
+
+/*
+ * Hybrid-state free precession in nuclear magnetic resonance. 
+ * Jakob Assländer, Dmitry S. Novikov, Riccardo Lattanzi, Daniel K. Sodickson & Martijn A. Cloos.
+ * Communications Physics. Volume 2, Article number: 73 (2019)
+ */
 
 const struct HSFP_model hsfp_defaults = {
 	
