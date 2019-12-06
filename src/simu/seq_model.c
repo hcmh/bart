@@ -19,6 +19,7 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
+#include "simulation.h"
 #include "seq_model.h"
 
 
@@ -113,7 +114,7 @@ const struct LookLocker_model looklocker_defaults = {
 	.repetitions = 1000,
 };
 
-void looklocker_simu(const struct LookLocker_model* data, float* out)
+static void looklocker_model(const struct LookLocker_model* data, complex float* out)
 {
 	float s0 = data->m0;
 	float r1s = 1 /data->t1 - logf(cosf(data->fa))/data->tr;
@@ -122,6 +123,19 @@ void looklocker_simu(const struct LookLocker_model* data, float* out)
 	for (int ind = 0; ind < data->repetitions; ind++)
 		out[ind] = mss - (mss + s0) * expf( - ind * data->tr * r1s );
 
+}
+
+void looklocker_analytical(struct SimData* simu_data, complex float* out)
+{
+	struct LookLocker_model data;
+	
+	data.t1 = 1/simu_data->voxelData.r1;
+	data.m0 = simu_data->voxelData.m0;
+	data.tr = simu_data->seqData.TR;
+	data.fa = simu_data->pulseData.flipangle * M_PI / 180.;	//conversion to rad
+	data.repetitions = simu_data->seqData.rep_num;
+	
+	looklocker_model(&data, out);
 }
 
 
@@ -140,7 +154,7 @@ const struct IRbSSFP_model IRbSSFP_defaults = {
 	.repetitions = 1000,
 };
 
-void IR_bSSFP_simu(const struct IRbSSFP_model* data, float* out)
+static void IR_bSSFP_model(const struct IRbSSFP_model* data, complex float* out)
 {
 	float t1s = 1 / ( (cosf( data->fa/2. )*cosf( data->fa/2. ))/data->t1 + (sinf( data->fa/2. )*sinf( data->fa/2. ))/data->t2 );
 	float s0 = data->m0 * sinf( data->fa/2. );
@@ -152,3 +166,16 @@ void IR_bSSFP_simu(const struct IRbSSFP_model* data, float* out)
 
 }
 
+void IR_bSSFP_analytical(struct SimData* simu_data, complex float* out)
+{
+	struct IRbSSFP_model data;
+	
+	data.t1 = 1/simu_data->voxelData.r1;
+	data.t2 = 1/simu_data->voxelData.r2;
+	data.m0 = simu_data->voxelData.m0;
+	data.tr = simu_data->seqData.TR;
+	data.fa = simu_data->pulseData.flipangle * M_PI / 180.;	//conversion to rad
+	data.repetitions = simu_data->seqData.rep_num;
+	
+	IR_bSSFP_model(&data, out);
+}

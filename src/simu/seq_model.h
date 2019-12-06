@@ -14,6 +14,8 @@ extern const struct HSFP_model hsfp_defaults;
 void hsfp_simu(const struct HSFP_model* data, float* out);
 
 
+struct SimData;
+
 struct LookLocker_model {
 	
 	float t1;
@@ -24,7 +26,7 @@ struct LookLocker_model {
 };
 extern const struct LookLocker_model looklocker_defaults;
 
-void looklocker_simu(const struct LookLocker_model* data, float* out);
+void looklocker_analytical(struct SimData* simu_data, complex float* out);
 
 
 struct IRbSSFP_model {
@@ -38,4 +40,4 @@ struct IRbSSFP_model {
 };
 extern const struct IRbSSFP_model IRbSSFP_defaults;
 
-void IR_bSSFP_simu(const struct IRbSSFP_model* data, float* out);
+void IR_bSSFP_analytical(struct SimData* simu_data, complex float* out);
