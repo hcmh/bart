@@ -82,10 +82,15 @@ phase term vanishes. Then \xi_N^{kc} and \xi_N^{xc} are simply the
 alternating sequence of 1, -1, 1, -1, ...  Because ifftmod applies 
 the conjugate phase this implies that it is the same as fftmod in
 this special case.
+However, as the phase is still spread to two (i)fftmods, applying 
+(i)fftmod corresponds to multiplying with -1, 1, -1, ... if N is a
+multiple of four and not of eight. If N is a multiple of eight, it
+corresponds to multiplying with 1, -1, 1, ...
 
-If N is a multiple of two, the additional phase is -pi/2. Evenly
-distributed this yields a factor of '-i' (i the imaginary number),
+If N is a multiple of two and not of four, the additional phase is -pi/2.
+Evenly distributed this yields a factor of '-i' (i the imaginary number),
 i.e. fftmod applies -i, +i, -i, +i, ...
+If additionally N-2 is not a multiple of eight, the signs are alternated.
 
 For N odd the phase is more complicated.
 
