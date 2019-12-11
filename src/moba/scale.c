@@ -54,9 +54,15 @@ void auto_scale(const struct modBlochFit* fitPara, float scale[3], const long ks
 			sim_data.seqData.seq_type = fitPara->sequence;
 			sim_data.seqData.TR = fitPara->tr;
 			sim_data.seqData.TE = fitPara->te;
-			sim_data.seqData.rep_num = dims[TE_DIM];
+			
+			if (4 == sim_data.seqData.seq_type)
+				sim_data.seqData.rep_num = fitPara->num_vfa;
+			else
+				sim_data.seqData.rep_num = dims[TE_DIM];
+			
 			sim_data.seqData.spin_num = fitPara->n_slcp;
 			sim_data.seqData.num_average_rep = fitPara->averageSpokes;
+			sim_data.seqData.run_num = fitPara->runs;
 			
 			sim_data.voxelData = voxelData_defaults;
 			sim_data.voxelData.r1 = 1 / (lim_T1[0] + x * lim_T1[1]/(dims[0]-1));

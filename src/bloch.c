@@ -17,6 +17,7 @@
 #include "num/flpmath.h"
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
+#include "simu/hsfp_model.h"
 #include "misc/debug.h"
 #include "num/fft.h"
 
@@ -50,8 +51,8 @@ int main_bloch(int argc, char* argv[argc])
 	int spin_num = 1;
 	int repetition = 500;
 	float offresonance = 0.;
+	int runs = 1;
 	
-	bool inverse_relaxation = false;
 	const char* inputRel1 = NULL;
 	const char* inputRel2 = NULL;
 	const char* inputM0 = NULL;
@@ -66,6 +67,7 @@ int main_bloch(int argc, char* argv[argc])
 	bool linear_offset = false;
 	bool operator_sim = false;
 	const char* fa_file = NULL;
+	const char* spherical_coord = NULL;
 	
 	const struct opt_s opts[] = {
 
@@ -83,9 +85,9 @@ int main_bloch(int argc, char* argv[argc])
 		OPT_INT('n', &spin_num, "n", "number of spins"),
 		OPT_INT('r', &repetition, "n", "repetitions/train-length"),
 		OPT_FLOAT('w', &offresonance, "", "off-resonance frequency [rad]"),
+		OPT_INT('X', &runs, "", "runs of sequence"),
 
 		/* Input Maps */
-		OPT_SET('R', &inverse_relaxation, "Input inverse relaxation?"),
 		OPT_STRING('I', &inputRel1, "Input Rel1", "Input relaxation parameter 1."),
 		OPT_STRING('i', &inputRel2, "Input Rel2", "Input relaxation parameter 2."),
 		OPT_STRING('M', &inputM0, "Input M0", "Input M0."),
@@ -98,11 +100,12 @@ int main_bloch(int argc, char* argv[argc])
 		/* Special Cases */
 		OPT_SET('A', &analytical, "Use analytical model for simulation"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),   
-		OPT_SET('E', &spin_ensamble, "Input inverse relaxation?"),
+		OPT_SET('E', &spin_ensamble, "Spin Ensample"),
 		OPT_INT('k', &kspace, "d", "kspace output? default:0=no"),
 		OPT_SET('L', &linear_offset, "Add linear distribution of off-set freq."),
 		OPT_SET('O', &operator_sim, "Simulate using operator based simulation."),
 		OPT_STRING('F', &fa_file, "", "Variable flipangle file"),
+		OPT_STRING('c', &spherical_coord, "", "Output spherical coordinates: r "),
 	};
 	
 	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -236,17 +239,31 @@ int main_bloch(int argc, char* argv[argc])
 	complex float* sensitivitiesT1 = create_cfl(argv[2], DIMS, dim_phantom);
 	complex float* sensitivitiesT2 = create_cfl(argv[3], DIMS, dim_phantom);
 	complex float* sensitivitiesDens = create_cfl(argv[4], DIMS, dim_phantom);
+	complex float* r_out = NULL;
 	
+	if (NULL != spherical_coord)
+		r_out = create_cfl(spherical_coord, DIMS, dim_phantom);
 	
-	
-	
+
 	long dim_vfa[DIMS] = { [0 ... DIMS - 1] = 1 };
+	
 	complex float* vfa_file = NULL;
 	
 	if (NULL != fa_file)
 		vfa_file = load_cfl(fa_file, DIMS, dim_vfa);
 	
 	
+	struct HSFP_model hsfp_data2 = hsfp_defaults;
+	
+	if ( 4 == seq && analytical) {
+		
+		hsfp_data2.tr = tr;
+		hsfp_data2.repetitions = repetition;
+		hsfp_data2.beta = -1;
+		hsfp_data2.pa_profile = md_alloc(DIMS, dim_vfa, CFL_SIZE);
+		md_copy(DIMS, dim_vfa, hsfp_data2.pa_profile, vfa_file, CFL_SIZE);
+	}
+		
 	
 	#pragma omp parallel for collapse(2)
 	for (int x = 0; x < dim_phantom[0]; x++) 
@@ -258,7 +275,7 @@ int main_bloch(int argc, char* argv[argc])
 			
 			if (xdim != 1 && ydim != 1) {
 
-				t1 = cabs(map_T1[(y * dim_phantom[0]) + x]);  
+				t1 = crealf(map_T1[(y * dim_phantom[0]) + x]);  
 				t2 = cimagf(map_T2[(y * dim_phantom[0]) + x]); 
 				m0 = cabsf(map_M0[(y * dim_phantom[0]) + x]);
 			}
@@ -289,9 +306,20 @@ int main_bloch(int argc, char* argv[argc])
 			sim_data.seqData.seq_type = seq;
 			sim_data.seqData.TR = tr;
 			sim_data.seqData.TE = te;
-			sim_data.seqData.rep_num = repetition;
+			
+			if (NULL != vfa_file) {
+				
+				sim_data.seqData.variable_fa = md_alloc(DIMS, dim_vfa, CFL_SIZE);
+				md_copy(DIMS, dim_vfa, sim_data.seqData.variable_fa, vfa_file, CFL_SIZE);
+				
+				sim_data.seqData.rep_num = dim_vfa[0];
+			}
+			else
+				sim_data.seqData.rep_num = repetition;
+			
 			sim_data.seqData.spin_num = spin_num;
 			sim_data.seqData.num_average_rep = aver_num;
+			sim_data.seqData.run_num = runs;
 			
 			if (NULL != vfa_file) {
 				
@@ -320,27 +348,53 @@ int main_bloch(int argc, char* argv[argc])
 			float saR1Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+			
+			float r[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep];	// radial magnetization
 
 			float fa = flipangle * M_PI / 180.; //conversion to rad
 			
 			if (analytical) {
 				
-				//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
-				//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
-				//Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058
-				float t1s = 1 / ( (cosf( fa/2. )*cosf( fa/2. ))/t1 + (sinf( fa/2. )*sinf( fa/2. ))/t2 );
-				float s0 = m0 * sinf( fa/2. );
-				float stst = m0 * sinf(fa) / ( (t1/t2 + 1) - cosf(fa) * (t1/t2 -1) );
-				float inv = 1 + s0 / stst;
-				
-				for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
+				if( 4 == seq && NULL != spherical_coord) {
 					
-					phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = stst * ( 1 - inv * expf( - z * tr / t1s ));
-					sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-					sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-					sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+					struct HSFP_model hsfp_data = hsfp_data2;
+					
+					hsfp_data.t1 = t1;
+					hsfp_data.t2 = t2;
+					
+					hsfp_simu(&hsfp_data, r);
+					
+					int ind = 0;
+					
+					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
+						
+						ind = (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x;
+						
+						phantom[ind] = sinf(cabsf(vfa_file[z])) * r[z];
+						sensitivitiesT1[ind] = 0.;
+						sensitivitiesT2[ind] = 0.;
+						sensitivitiesDens[ind] = 0.;
+						
+						r_out[ind] = fabsf(r[z]);
+					}
 				}
-				
+				else {
+					//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
+					//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
+					//Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058
+					float t1s = 1 / ( (cosf( fa/2. )*cosf( fa/2. ))/t1 + (sinf( fa/2. )*sinf( fa/2. ))/t2 );
+					float s0 = m0 * sinf( fa/2. );
+					float stst = m0 * sinf(fa) / ( (t1/t2 + 1) - cosf(fa) * (t1/t2 -1) );
+					float inv = 1 + s0 / stst;
+					
+					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
+						
+						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = stst * ( 1 - inv * expf( - z * tr / t1s ));
+						sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+					}
+				}
 			}
 			else {	//start ODE based simulation
 
@@ -348,7 +402,8 @@ int main_bloch(int argc, char* argv[argc])
 					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
 				else
 					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
-				
+
+
 				//Add data to phantom
 				for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
 					
@@ -357,7 +412,12 @@ int main_bloch(int argc, char* argv[argc])
 					sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = saR2Sig[z][1] + saR2Sig[z][0] * I;
 					sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = saDensSig[z][1] + saDensSig[z][0] * I;
 					phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = mxySig[z][1] + mxySig[z][0] * I;
-				}  
+					
+					if (NULL != spherical_coord)
+						r_out[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = sqrtf(mxySig[z][0] * mxySig[z][0] + 
+																mxySig[z][1] * mxySig[z][1] + 
+																mxySig[z][2] * mxySig[z][2]);
+				}
 			}
 		}
 
@@ -381,6 +441,9 @@ int main_bloch(int argc, char* argv[argc])
 	unmap_cfl(DIMS, dim_phantom, sensitivitiesT1);
 	unmap_cfl(DIMS, dim_phantom, sensitivitiesT2);
 	unmap_cfl(DIMS, dim_phantom, sensitivitiesDens);
+	
+	if (NULL != spherical_coord)
+		unmap_cfl(DIMS, dim_phantom, r_out);
 
 	//Calculate and print elapsed time 
 	gettimeofday(&t_end, NULL);

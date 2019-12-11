@@ -2156,7 +2156,6 @@ void md_zexp(unsigned int D, const long dims[D], complex float* optr, const comp
 
 
 
-
 /**
  * Get argument of complex arrays (with strides)
  *
@@ -2178,6 +2177,51 @@ void md_zarg(unsigned int D, const long dims[D], complex float* optr, const comp
 {
 	make_z2op_simple(md_zarg2, D, dims, optr, iptr);
 }
+
+
+/**
+ * Complex sinus
+ *
+ * optr = zexp(iptr)
+ */
+void md_zsin2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
+{
+	MAKE_Z2OP(zsin, D, dims, ostr, optr, istr, iptr);
+}
+
+
+/**
+ * Complex sinus
+ *
+ * optr = zsin(iptr)
+ */
+void md_zsin(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr)
+{
+	make_z2op_simple(md_zsin2, D, dims, optr, iptr);
+}
+
+
+/**
+ * Complex cosinus
+ *
+ * optr = zexp(iptr)
+ */
+void md_zcos2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
+{
+	MAKE_Z2OP(zcos, D, dims, ostr, optr, istr, iptr);
+}
+
+
+/**
+ * Complex cosinus
+ *
+ * optr = zsin(iptr)
+ */
+void md_zcos(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr)
+{
+	make_z2op_simple(md_zcos2, D, dims, optr, iptr);
+}
+
 
 
 /**

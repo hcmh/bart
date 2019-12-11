@@ -29,6 +29,7 @@ struct modBlochFit {
 	int n_slcp;
 	int num_vfa;
 	float fa;
+	int runs; /*Number of applied sequence trains*/
 	
 	/*Reconstruction Parameter*/
 	float scale[3];

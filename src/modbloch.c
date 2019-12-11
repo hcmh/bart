@@ -64,6 +64,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_FLOAT(	'F', 	&fitPara.fa, 		"", "Flipangle [deg]"),
 		OPT_INT(	'a', 	&fitPara.averageSpokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fitPara.rm_no_echo, 	"", "Number of removed echoes."),
+		OPT_INT(	'X', 	&fitPara.runs, 		"", "Number of applied whole sequence trains."),
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_STRING(	'P',	&inputSP, 		"", "Input Slice Profile image"),
