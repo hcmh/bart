@@ -110,11 +110,7 @@ void auto_scale(const struct modBlochFit* fitPara, float scale[3], const long ks
 				sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saDensSig[z][1] + saDensSig[z][0] * I;
 				phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = mxySig[z][1] + mxySig[z][0] * I;
 			}
-			
-			
-			
 		}
-        
 	}
 	
 	double mean_sig = md_znorm(DIMS, ksp_dims, kspace_data);
@@ -123,7 +119,9 @@ void auto_scale(const struct modBlochFit* fitPara, float scale[3], const long ks
 	scale[0] = mean_sig / mean_r1;
 	
 	double mean_r2 = md_znorm(DIMS, dims, sensitivitiesR2);
-	scale[1] = mean_sig / mean_r2;
+	
+	if (2 != fitPara->sequence && 5 != fitPara->sequence)
+		scale[1] = mean_sig / mean_r2;
 	
 	double mean_m0 = md_znorm(DIMS, dims, sensitivitiesM0);
 	scale[2] = mean_sig / mean_m0;

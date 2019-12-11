@@ -132,6 +132,11 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 
 	double golden_ratio = (sqrtf(5.) + 1.) / 2;
 	double golden_angle = conf.multiple_ga * M_PI / (golden_ratio + conf.tiny_gold - 1.);
+
+	// For numerical stability
+	if (1 == conf.tiny_gold)
+		golden_angle = M_PI * (2. - (3. - sqrtf(5.))) / 2.;
+
 	double angle_atom = M_PI / Y;
 
 	if (conf.rational)
@@ -150,7 +155,7 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	double angle_t = 0.;
 
 	if (turns > 1)
-		angle_t = angle_atom / (turns * mb) * (conf.full_circle ? 2 : 1);
+		angle_t = angle_atom / turns * (conf.full_circle ? 2 : 1);
 
 	/* radial multi-echo multi-spoke sampling
 	 *

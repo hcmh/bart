@@ -60,6 +60,7 @@ const struct modBlochFit modBlochFit_defaults = {
 	.fov_reduction_factor = 1.,
 	.rm_no_echo = 0.,
 	.full_ode_sim = false,
+	.not_wav_maps = 0,
 	
 	.input_b1 = NULL,
 	.input_sp = NULL,

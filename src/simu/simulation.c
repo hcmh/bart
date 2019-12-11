@@ -52,6 +52,7 @@ const struct VoxelData voxelData_defaults = {
 
 const struct SeqData seqData_defaults = {
 
+	.analytical = 0, /*new substruct simData? Also for Simulation type (ODE,OBS)?*/
 	.seq_type = 1,
 	.TR = 0.004,
 	.TE = 0.002,
@@ -192,24 +193,44 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]){
 static void collect_signal(void* _data, int N, int P, float *mxySignal, float *saT1Signal, float *saT2Signal, float *densSignal, float xp[P + 2][N])
 {    
 	struct SimData* data = _data;
-
-	float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } }; 
-
-	ADCcorr(N, P, tmp, xp);
-
-	for (int i = 0; i < N; i++) {
+	
+	if (2 == data->seqData.seq_type || 5 == data->seqData.seq_type ) {
+		
+		for (int i = 0; i < N; i++) {
 
 		mxySignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[0][i] : xp[0][i];
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = xp[0][i];
 				
 		saT1Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[1][i] : xp[1][i];
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = xp[1][i];
 				
 		saT2Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[2][i] : xp[2][i];
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = xp[2][i];
 				
 		densSignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
-				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 0) ? tmp[3][i] : xp[3][i];
+				(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = xp[3][i];
+		}
+	}
+	else {
+
+		float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } }; 
+
+		ADCcorr(N, P, tmp, xp);
+
+		for (int i = 0; i < N; i++) {
+
+			mxySignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[0][i] : xp[0][i];
+					
+			saT1Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[1][i] : xp[1][i];
+					
+			saT2Signal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[2][i] : xp[2][i];
+					
+			densSignal[(data->seqtmp.run_counter * 3 * data->seqData.spin_num * data->seqData.rep_num) + (i * data->seqData.spin_num * data->seqData.rep_num) + 
+					(data->seqtmp.rep_counter * data->seqData.spin_num) + data->seqtmp.spin_counter] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[3][i] : xp[3][i];
+		}
 	}
 }
 
@@ -297,6 +318,19 @@ void run_sim_block(void* _data, float* mxySignal, float* saR1Signal, float* saR2
 	relaxation2(data, h, tol, N, P, xp, data->seqData.TE, data->seqData.TR);
 }
 
+//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
+static void xyspoiling(int N, int P, float xp[P + 2][N], void* _data)
+{
+	struct SimData* simdata = _data;
+	
+	if (simdata->seqData.seq_type == 2 || simdata->seqData.seq_type == 5)
+		for (int i = 0; i < P + 2; i ++) {
+
+			xp[i][0] = 0.;
+			xp[i][1] = 0.; 
+		}
+}
+
 
 void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3])
 {
@@ -335,8 +369,10 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 		
 		float h = 0.0001;
 		
+		data->voxelData.w = w_backup; 
+		
 		if (data->voxelData.spin_ensamble)
-			data->voxelData.w = w_backup + isochromats[data->seqtmp.spin_counter];
+			data->voxelData.w += isochromats[data->seqtmp.spin_counter];
 		
 		data->pulseData.phase = 0;
 
@@ -364,8 +400,9 @@ void ode_bloch_simulation3( void* _data, float (*mxyOriSig)[3], float (*saT1OriS
 				
 				run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 				
+				xyspoiling(N, P, xp, &inv_data);
+				
 			}
-			
 			
 			/*--------------------------------------------------------------
 			* --------------------- Signal Preparation ---------------------

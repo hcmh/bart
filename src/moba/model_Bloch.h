@@ -36,6 +36,7 @@ struct modBlochFit {
 	float fov_reduction_factor;
 	int rm_no_echo;
 	bool full_ode_sim;
+	int not_wav_maps;
 	
 	/*Input Calibrations*/
 	complex float* input_b1;

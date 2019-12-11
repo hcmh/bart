@@ -1,10 +1,11 @@
 /* Copyright 2014. The Regents of the University of California.
- * Copyright 2015-2016. Martin Uecker.
+ * Copyright 2015-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors: 
  * 2013-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2019	     Nick Scholand <nick.scholand@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
@@ -32,6 +33,56 @@ static const char usage_str[] = "<output>";
 static const char help_str[] = "Image and k-space domain phantoms.";
 
 
+static void help_seq(void)
+{
+	printf( "Sequence Simulation Parameter\n\n"
+		"Typ:\t Define if analytical (1) or numerical simulation (0) should be performed \n"
+		"#SEQ:\t Define sequence mode: \n"
+		"\t\t\t0 = bSSFP[default]\n"
+		"\t\t\t1 = invbSSFP\n"
+		"\t\t\t2 = FLASH\n"
+		"\t\t\t3 = pcbSSFP\n"
+		"\t\t\t4 = inv. bSSFP without preparation\n"
+		"\t\t\t5 = invFLASH\n"
+		"\t\t\t6 = invpcbSSFP\n"
+		"TR:\t Repetition time [s]\n"
+		"TE:\t Echo time [s]\n"
+		"Drf:\t Duration of RF pulse [s]\n"
+		"FA:\t Flip angle of rf pulses [deg]\n"
+	);
+}
+
+
+static bool opt_seq(void* ptr, char c, const char* optarg)
+{
+	(void) c;
+	
+	// Check if help function is called
+	char rt[5];
+	
+	int ret = sscanf(optarg, "%4[^:]", rt);
+	assert(1 == ret);
+	
+	if (strcmp(rt, "h") == 0) {
+
+		help_seq();
+		exit(0);
+	} else {
+		
+		// Collect simulation data
+		struct SimData* sim_data = ptr;
+
+		ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f",	&sim_data->seqData.analytical,
+								&sim_data->seqData.seq_type, 
+								&sim_data->seqData.TR, 
+								&sim_data->seqData.TE, 
+								&sim_data->pulseData.RF_end, 
+								&sim_data->pulseData.flipangle);
+		assert(6 == ret);
+	}
+	return false;
+}
+
 
 
 int main_phantom(int argc, char* argv[])
@@ -46,13 +97,22 @@ int main_phantom(int argc, char* argv[])
 	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM, BART, T1T2 } ptype = SHEPPLOGAN;
 
 	const char* traj = NULL;
-	bool numerical_simu = false;
+	bool simulation = false;
 
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 	dims[0] = 128;
 	dims[1] = 128;
 	dims[2] = 1;
-
+	
+	// initalize values for simulation
+	struct SimData sim_data;
+	sim_data.seqData = seqData_defaults;
+	sim_data.voxelData = voxelData_defaults;
+	sim_data.pulseData = pulseData_defaults;
+	sim_data.gradData = gradData_defaults;
+	sim_data.seqtmp = seqTmpData_defaults;
+	
+	
 	const struct opt_s opts[] = {
 
 		OPT_INT('s', &sens, "nc", "nc sensitivities"),
@@ -68,7 +128,8 @@ int main_phantom(int argc, char* argv[])
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_INT('g', &geo, "n=1,2", "select geometry for object phantom"),
 		OPT_SET('3', &d3, "3D"),
-		OPT_SET('n', &numerical_simu, "numerical simulation"),
+		OPT_SET('n', &simulation, "simulation"),
+		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F\tParameters for Simulation <Typ:Seq:TR:TE:Drf:FA> (-Ph for help)" },
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -120,56 +181,25 @@ int main_phantom(int argc, char* argv[])
 
 		dims[TE_DIM] = sdims[TE_DIM];
 	}
-	
-	// values for simulation
-	struct SimData sim_data;
-				
-	sim_data.seqData = seqData_defaults;
-	sim_data.seqData.seq_type = 1;
-	sim_data.seqData.TR = 0.0045;
-	sim_data.seqData.TE = 0.00225;
-	sim_data.seqData.rep_num = 500.;
-	sim_data.seqData.spin_num = 1;
-	sim_data.seqData.num_average_rep = 1;
-	
-	sim_data.voxelData = voxelData_defaults;
-	sim_data.voxelData.r1 = 1./WATER_T1;
-	sim_data.voxelData.r2 = 1./WATER_T2;
-	sim_data.voxelData.m0 = 1.;
-	sim_data.voxelData.w = 0;
-	
-	sim_data.pulseData = pulseData_defaults;
-	sim_data.pulseData.flipangle = 45.;
-	sim_data.pulseData.RF_end = 0.0009;
-	sim_data.gradData = gradData_defaults;
-	sim_data.seqtmp = seqTmpData_defaults;
-
-	long simu_dims[DIMS];
-	md_copy_dims(DIMS, simu_dims, dims);
-	simu_dims[TE_DIM] = sim_data.seqData.rep_num / sim_data.seqData.num_average_rep;
+	else if (simulation)
+		dims[TE_DIM] = 500;
 	
 	if (sens > 0)
 		dims[3] = sens;
 
-	complex float* out_simu; 
 	complex float* out;
 	
-
-	out = md_alloc(DIMS, dims, CFL_SIZE);
-	out_simu = md_alloc(DIMS, simu_dims, CFL_SIZE);
+	out = create_cfl(argv[1], DIMS, dims);
 	md_zfill(DIMS, dims, out, 0.);
-	md_zfill(DIMS, simu_dims, out_simu, 0.);
 	
 	md_clear(DIMS, dims, out, sizeof(complex float));
 	
-	if ( numerical_simu && ( ptype != BART && ptype != T1T2 ) ){
-		debug_printf(DP_ERROR, "Please chose either T1T2 or BART phantom for numerical simulation.\n");
-		exit(0);
-	}
-	if ( numerical_simu && d3 ){
+	if ( simulation && d3 ){
 		debug_printf(DP_ERROR, "Numerical phantom does not work with 3D yet...\n");
 		exit(0);
 	}
+	
+	sim_data.seqData.rep_num = dims[TE_DIM];
 	
 	switch (ptype) {
 
@@ -216,58 +246,25 @@ int main_phantom(int argc, char* argv[])
 		calc_phantom(dims, out, d3, kspace, sstrs, samples);
 		break;
         
-    case T1T2:
-
-		calc_phantom_t1t2(dims, out, false, false, sstrs, samples);
+	case T1T2:
 		
-		if (numerical_simu){
-			
-			calc_simu_phantom( &sim_data, simu_dims, out_simu, kspace, sstrs, out);
-			if (kspace)
-				fftuc(DIMS, simu_dims, FFT_FLAGS|TE_FLAG, out_simu, out_simu);
-		}
-		else
-			if (kspace)
-				fftuc(DIMS, dims, FFT_FLAGS, out, out);
+		calc_phantom_t1t2((simulation) ? &sim_data : NULL, dims, out, kspace, sstrs, samples);
 		
 		break;
 	
-    case BART:
+	case BART:
 
-		calc_phantom_bart(dims, out, false, false, sstrs, samples);
-		
-		if (numerical_simu){
-			
-			calc_simu_phantom( &sim_data, simu_dims, out_simu, kspace, sstrs, out);
-			if (kspace)
-				fftuc(DIMS, simu_dims, FFT_FLAGS|TE_FLAG, out_simu, out_simu);
-		}
-		else
-			if (kspace)
-				fftuc(DIMS, dims, FFT_FLAGS, out, out);
-		
+		calc_phantom_bart(dims, out, false, false, sstrs, samples);	
 		break;
 	}
 
 	if (NULL != traj)
 		free((void*)traj);
-
+	
 	if (NULL != samples)
 		unmap_cfl(3, sdims, samples);
-	
-	
-	complex float* out_final;
-	out_final = create_cfl(argv[1], DIMS, ( numerical_simu ) ? simu_dims : dims);
-	
-	if ( numerical_simu )
-		md_copy(DIMS, simu_dims, out_final, out_simu, CFL_SIZE);	
-	else
-		md_copy(DIMS, dims, out_final, out, CFL_SIZE);
 
-	unmap_cfl(DIMS, ( numerical_simu ) ? simu_dims : dims, out_final);
-	
-	md_free( out );
-	md_free( out_simu );
+	unmap_cfl(DIMS, dims, out);
 	
 	return 0;
 }

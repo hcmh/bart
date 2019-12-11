@@ -116,6 +116,7 @@ int main_nlinv(int argc, char* argv[])
 
 	long img_output_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|SLICE_FLAG, img_output_dims, sens_dims);
+
 	if (!combine)
 		img_output_dims[MAPS_DIM] = nmaps;
 
@@ -165,15 +166,21 @@ int main_nlinv(int argc, char* argv[])
 	if (NULL != psf) {
 
 		complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
+
 		pattern = anon_cfl("", DIMS, pat_dims);
 
 		md_copy(DIMS, pat_dims, pattern, tmp_psf, CFL_SIZE);
+
 		unmap_cfl(DIMS, pat_dims, tmp_psf);
+
 		// FIXME: check compatibility
 
 		if (conf.pattern_for_each_coil) {
-			assert( 1 != pat_dims[COIL_DIM] );
+
+			assert(1 != pat_dims[COIL_DIM]);
+
 		} else {
+
 			if (-1 == restrict_fov)
 				restrict_fov = 0.5;
 
@@ -223,6 +230,7 @@ int main_nlinv(int argc, char* argv[])
 
 		noir_recon(&conf, sens_dims, img, sens, ksens, ref, pattern, mask, kspace_gpu);
 		md_free(kspace_gpu);
+
 	} else
 #endif
 		noir_recon(&conf, sens_dims, img, sens, ksens, ref, pattern, mask, kspace_data);
@@ -253,15 +261,16 @@ int main_nlinv(int argc, char* argv[])
 		}
 
 		md_free(buf);
+
 	} else {
 
 		if (combine) {
 
 			// just sum up the map images
 			md_zaxpy2(DIMS, img_dims, img_output_strs, img_output, 1., img_strs, img);
+
 		} else { /*!normalize && !combine */
 
-			// Just copy
 			md_copy(DIMS, img_output_dims, img_output, img, CFL_SIZE);
 		}
 	}

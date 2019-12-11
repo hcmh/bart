@@ -49,15 +49,18 @@ int main_modbloch(int argc, char* argv[])
 	const char* inputB1 = NULL;
 	const char* inputSP = NULL;
 	const char* inputVFA = NULL;
-
+	float data_scaling = 5000.;
+	
 	const struct opt_s opts[] = {
 
 		OPT_UINT(	'i', 	&conf.iter, 		"", "Number of Newton steps"),
 		OPT_FLOAT(	'R', 	&conf.redu, 		"", "reduction factor"),
+		OPT_FLOAT(	'l', 	&conf.alpha, 		"", "alpha"),
 		OPT_FLOAT(	'w', 	&conf.alpha_min, 	"", "alpha_min"),
+		OPT_INT(	'n', 	&fitPara.not_wav_maps, 	"", "# Removed Maps from Wav.Denoisng"),
 		OPT_INT(	'd', 	&debug_level, 		"", "Debug level"),
 		OPT_FLOAT(	'f', 	&restrict_fov, 		"", "FoV scaling factor"),
-		OPT_INT(	'M', 	&fitPara.sequence,	"", "Define sequence mode: 0 = bSSFP[default], 1 = invbSSFP, 3 = pcbSSFP, 4 = inv. bSSFP without preparation, 5 = invFLASH, 6 = invpcbSSFP"),
+		OPT_INT(	'M', 	&fitPara.sequence,	"", "Define sequence mode: 0 = bSSFP[default], 1 = invbSSFP, 2 = FLASH, 3 = pcbSSFP, 4 = inv. bSSFP without preparation, 5 = invFLASH, 6 = invpcbSSFP"),
 		OPT_FLOAT(	'D', 	&fitPara.rfduration, 	"", "Duration of RF-pulse [s]"),
 		OPT_FLOAT(	't', 	&fitPara.tr, 		"", "TR [s]"),
 		OPT_FLOAT(	'e', 	&fitPara.te, 		"", "TE [s]"),
@@ -65,6 +68,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_INT(	'a', 	&fitPara.averageSpokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fitPara.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'X', 	&fitPara.runs, 		"", "Number of applied whole sequence trains."),
+		OPT_FLOAT(	's', 	&data_scaling, 		"", "Scaling of data"),
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_STRING(	'P',	&inputSP, 		"", "Input Slice Profile image"),
@@ -192,8 +196,8 @@ int main_modbloch(int argc, char* argv[])
 	}
 	
 	
-	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
-	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
+	double scaling = data_scaling / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling_psf = data_scaling / 5. / md_znorm(DIMS, pat_dims, pattern);
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
@@ -226,7 +230,7 @@ int main_modbloch(int argc, char* argv[])
 
 	
 	//Values for Initialization of maps
-	complex float initval[3] = {0.8, 11., 4.} ;//	R1, R2, M0 
+	complex float initval[3] = {0.8, 10., 4.} ;//	R1, R2, M0 
 	
 	auto_scale(&fitPara, fitPara.scale, ksp_dims, kspace_data);
 	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fitPara.scale[0], fitPara.scale[1], fitPara.scale[2]);

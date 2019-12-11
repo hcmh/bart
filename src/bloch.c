@@ -17,7 +17,7 @@
 #include "num/flpmath.h"
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
-#include "simu/hsfp_model.h"
+#include "simu/seq_model.h"
 #include "misc/debug.h"
 #include "num/fft.h"
 
@@ -161,11 +161,10 @@ int main_bloch(int argc, char* argv[argc])
 			
 			complex float* map = create_cfl("T1T2Parameter", DIMS, dim_map);
 			md_clear(DIMS, dim_map, map, CFL_SIZE);
-			calc_phantom_t1t2(dim_map, map, false/*d3*/, false/*kspace*/, sstrs, samples);
+			calc_phantom_t1t2(NULL, dim_map, map, false/*kspace*/, sstrs, samples);
 			
 			complex float* dens = create_cfl("DensParameter", DIMS, dim_map);
-			md_clear(DIMS, dim_map, dens, CFL_SIZE);
-			calc_phantom_dens(dim_map, dens, false/*d3*/, false/*kspace*/, sstrs, samples);
+			md_zfill(DIMS, dim_map, dens, 1.0);
 			
 			md_zreal(DIMS, dim_map, map_T1, map);
 			md_zimag(DIMS, dim_map, map_T2, map);
@@ -254,7 +253,6 @@ int main_bloch(int argc, char* argv[argc])
 	
 	
 	struct HSFP_model hsfp_data2 = hsfp_defaults;
-	
 	if ( 4 == seq && analytical) {
 		
 		hsfp_data2.tr = tr;
@@ -262,7 +260,7 @@ int main_bloch(int argc, char* argv[argc])
 		hsfp_data2.beta = -1;
 		hsfp_data2.pa_profile = md_alloc(DIMS, dim_vfa, CFL_SIZE);
 		md_copy(DIMS, dim_vfa, hsfp_data2.pa_profile, vfa_file, CFL_SIZE);
-	}
+	} 
 		
 	
 	#pragma omp parallel for collapse(2)
@@ -349,9 +347,9 @@ int main_bloch(int argc, char* argv[argc])
 			float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
 			
-			float r[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep];	// radial magnetization
-
-			float fa = flipangle * M_PI / 180.; //conversion to rad
+			complex float signal[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep];	
+			
+			float r[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep]; // radial magnetization
 			
 			if (analytical) {
 				
@@ -377,19 +375,24 @@ int main_bloch(int argc, char* argv[argc])
 						
 						r_out[ind] = fabsf(r[z]);
 					}
-				}
-				else {
-					//Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
-					//Inversion recovery TrueFISP: Quantification of T1, T2, and spin density. 
-					//Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058
-					float t1s = 1 / ( (cosf( fa/2. )*cosf( fa/2. ))/t1 + (sinf( fa/2. )*sinf( fa/2. ))/t2 );
-					float s0 = m0 * sinf( fa/2. );
-					float stst = m0 * sinf(fa) / ( (t1/t2 + 1) - cosf(fa) * (t1/t2 -1) );
-					float inv = 1 + s0 / stst;
+				} else if (5 == seq) {
+					
+					looklocker_analytical(&sim_data, signal);
 					
 					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
 						
-						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = stst * ( 1 - inv * expf( - z * tr / t1s ));
+						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = signal[z];
+						sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+					}
+				} else {
+					
+					IR_bSSFP_analytical(&sim_data, signal);
+					
+					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
+						
+						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = signal[z];
 						sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 						sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
