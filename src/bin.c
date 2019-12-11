@@ -54,12 +54,61 @@ static const char help_str[] =
  */
 
 // Binning by equal central angle
-static void det_bins(const complex float* state, const long bins_dims[DIMS], float* bins, const int idx, const unsigned int n)
+static void det_bins(const complex float* state, const long bins_dims[DIMS], float* bins, const int idx, const unsigned int n, const bool bin_mod)
 {
 	unsigned int T = bins_dims[TIME_DIM];
+
+	float offset_angle = 0;
 	float central_angle = 2. * M_PI / n;
-	for (unsigned int t=0; t<T; t++) {
-		bins[idx * T + t] = floor( ( M_PI + atan2f(crealf(state[t]), crealf(state[T + t]))) / central_angle );
+	
+	if (bin_mod) {
+		
+		// Adjust bins for end-expiration 	
+		/* This is a heuristic to do the binning such that end-expiration gets an entire bin
+		* The idea is to find the symmetric EOF first, as it is in phase with the actual motion.
+		* Then, we offset the binning angle to ensure that all samples on a peak of the symmetric EOF 
+		* (which belong to end expiration) are assigned to the same bin.
+		*/
+		
+		
+		// Find symmetric EOF
+		int sym_EOF;
+		float slope_start = crealf(state[0] - state[1]);
+		float slope_end = crealf(state[T - 2] - state[T - 1]);
+		
+		if (slope_start * slope_end < 0) // EOF 0 is the symmetric EOF
+			sym_EOF = 0;
+		else
+			sym_EOF = 1;
+		
+		// Find first peak
+		float past;
+		float current;
+		float future;
+		int peak_idx = 0;
+		for (unsigned int t = 1; t < T - 1; t++) {
+			past = crealf(state[T * sym_EOF + t - 1]);
+			current = crealf(state[T * sym_EOF + t]);
+			future = crealf(state[T * sym_EOF + t + 1]);
+			
+			if (past < current && future < current) { // Peak found
+				peak_idx = t;
+				break;
+			}			
+		}
+		
+		float peak_angle = (M_PI + atan2f(crealf(state[T * sym_EOF + peak_idx]), crealf(state[T * sym_EOF + peak_idx])));
+		offset_angle = - peak_angle + central_angle / 2.;				
+
+	}
+
+	float angle;
+	for (unsigned int t = 0; t < T; t++) {
+		
+		angle = M_PI + atan2f(crealf(state[t]), crealf(state[T + t])) + offset_angle;
+		angle = angle < 0 ? angle + 2. * M_PI : angle;
+		
+		bins[idx * T + t] = floor( angle / central_angle );
  		//debug_printf(DP_INFO, "%f: bin %f\n", (M_PI + atan2f(crealf(state[t]), crealf(state[T + t]))) * 360 / 2. / M_PI, bins[idx * T + t]);
 	}
 }
@@ -129,6 +178,7 @@ static void asgn_bins(const long bins_dims[DIMS], const float* bins, const long 
 	}
 
 	md_free(in_singleton);
+	md_free(count);
 }
 
 static void moving_average(const long state_dims[DIMS], complex float* state, const unsigned int mavg_window)
@@ -193,6 +243,7 @@ int main_bin(int argc, char* argv[])
 	unsigned int n_resp = 0;
 	unsigned int n_card = 0;
 	unsigned int mavg_window = 0;
+	bool bin_mod = false;
 	int cluster_dim = -1;
 
 	long resp_lables_idx[2] = { 0, 1 };
@@ -209,6 +260,7 @@ int main_bin(int argc, char* argv[])
 		OPT_VEC2('r', &resp_lables_idx, "x:y", "(Respiration: Eigenvector index)"),
 		OPT_VEC2('c', &card_lables_idx, "x:y", "(Cardiac motion: Eigenvector index)"),
 		OPT_UINT('a', &mavg_window, "window", "Quadrature Binning: Moving average"),
+		OPT_SET('M', &bin_mod, "(Modified Quadrature Binning)"),
 
 	};
 
@@ -318,8 +370,8 @@ int main_bin(int argc, char* argv[])
 			float* bins = md_alloc(DIMS, bins_dims, FL_SIZE);
 
 			// Determine bins
-			det_bins(resp_state, bins_dims, bins, 1, n_resp); // respiratory motion
-			det_bins(card_state, bins_dims, bins, 0, n_card); // cardiac motion
+			det_bins(resp_state, bins_dims, bins, 1, n_resp, bin_mod); // respiratory motion
+			det_bins(card_state, bins_dims, bins, 0, n_card, bin_mod); // cardiac motion
 
 			int binsize_max = get_binsize_max(bins_dims, bins, n_card, n_resp);
 
