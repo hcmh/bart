@@ -110,7 +110,7 @@ int main_moba(int argc, char* argv[])
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[3], DIMS, img_dims);
-	complex float* single_map = create_cfl("", DIMS, single_map_dims);
+	complex float* single_map = anon_cfl("", DIMS, single_map_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, dims);
@@ -153,12 +153,12 @@ int main_moba(int argc, char* argv[])
 	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
         
         if (1 != ksp_dims[SLICE_DIM]) // SMS
-		scaling *= sqrt(ksp_dims[SLICE_DIM] / 2.5);
+		scaling *= sqrt(ksp_dims[SLICE_DIM] / 2.0);
 
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
-		scaling_psf *= sqrt(ksp_dims[SLICE_DIM] / 2.5);
+		scaling_psf *= sqrt(ksp_dims[SLICE_DIM] / 2.0);
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
@@ -190,7 +190,7 @@ int main_moba(int argc, char* argv[])
 
 		pos[COEFF_DIM] = 2;
 		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
-		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, 1.5);
+		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, 3.0);
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
 	}
 

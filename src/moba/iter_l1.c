@@ -84,6 +84,8 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 	                                         dst + res * res * 2 * parameters * SMS,
 						 data->alpha,
 	                                         src + res * res * 2 * parameters * SMS);
+	
+// 	md_axpy(1, MD_DIMS(data->size_x), dst, data->alpha, src);
 }
 
 static void pos_value(iter_op_data* _data, float* dst, const float* src)
@@ -134,7 +136,6 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	auto data = CAST_DOWN(T1inv_s, _data);
 
 	data->alpha = alpha;	// update alpha for normal operator
-
     
 	void* x = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
 	md_gaussian_rand(1, MD_DIMS(data->size_x / 2), x);
@@ -171,6 +172,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 		dst, tmp, NULL);
 
 	pos_value(CAST_UP(data), dst, dst);
+
 
 	md_free(tmp);
 
