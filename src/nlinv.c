@@ -89,6 +89,7 @@ int main_nlinv(int argc, char* argv[])
 	if (1 != ksp_dims[SLICE_DIM]) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
+
 		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace_data, kspace_data); // fftmod to get correct slice order in output
 		conf.sms = true;
 	}
@@ -165,7 +166,7 @@ int main_nlinv(int argc, char* argv[])
 
 	if (NULL != psf) {
 
-		complex float* tmp_psf =load_cfl(psf, DIMS, pat_dims);
+		complex float* tmp_psf = load_cfl(psf, DIMS, pat_dims);
 
 		pattern = anon_cfl("", DIMS, pat_dims);
 
@@ -200,10 +201,11 @@ int main_nlinv(int argc, char* argv[])
 	double scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
-			scaling *= sqrt(ksp_dims[SLICE_DIM]); 
-
+		scaling *= sqrt(ksp_dims[SLICE_DIM]);
 #endif
+
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
+
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
 
 	if (-1. == restrict_fov) {
@@ -246,33 +248,32 @@ int main_nlinv(int argc, char* argv[])
 
 			md_zfmac2(DIMS, sens_dims, ksp_strs, buf, img_strs, img, sens_strs, sens);
 			md_zrss(DIMS, ksp_dims, COIL_FLAG, img_output, buf);
+
 		} else {
 
 			md_zfmac2(DIMS, sens_dims, sens_strs, buf, img_strs, img, sens_strs, sens);
 			md_zrss(DIMS, sens_dims, COIL_FLAG, img_output, buf);
 		}
+
 		md_zmul2(DIMS, img_output_dims, img_output_strs, img_output, img_output_strs, img_output, msk_strs, mask);
 
-		if (1 == nmaps || !combine) {
+		if ((1 == nmaps) || !combine) {
 
-			//restore phase
+			// restore phase
 			md_zphsr(DIMS, img_output_dims, buf, img);
 			md_zmul(DIMS, img_output_dims, img_output, img_output, buf);
 		}
 
 		md_free(buf);
 
-	} else {
+	} else if (combine) {
 
-		if (combine) {
+		// just sum up the map images
+		md_zaxpy2(DIMS, img_dims, img_output_strs, img_output, 1., img_strs, img);
 
-			// just sum up the map images
-			md_zaxpy2(DIMS, img_dims, img_output_strs, img_output, 1., img_strs, img);
+	} else { /*!normalize && !combine */
 
-		} else { /*!normalize && !combine */
-
-			md_copy(DIMS, img_output_dims, img_output, img, CFL_SIZE);
-		}
+		md_copy(DIMS, img_output_dims, img_output, img, CFL_SIZE);
 	}
 
 	if (scale_im)
@@ -289,6 +290,7 @@ int main_nlinv(int argc, char* argv[])
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
+
 	exit(0);
 }
 
