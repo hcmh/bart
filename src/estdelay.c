@@ -1,10 +1,10 @@
-/* Copyright 2017-2019. Martin Uecker.
+/* Copyright 2017-2019. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2017-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
+ * Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  *
  *
  * Kai Tobias Block and Martin Uecker, Simple Method for Adaptive
