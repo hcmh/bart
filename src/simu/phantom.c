@@ -465,11 +465,14 @@ void calc_phantom_t1t2(struct SimData* data, const long dims[DIMS], complex floa
 		calc_signal_simu(data, dims, out, kspace, tstrs, traj, ARRAY_SIZE(t1t2phantom), t1t2phantom);
 	else {
 		
-		// extract only ellipsis_s struct for sample function
+		// extract only ellipsis_s struct for calling sample()
 		struct ellipsis_s phantom[ARRAY_SIZE(t1t2phantom)];
 		
-		for (unsigned int i = 0; i < ARRAY_SIZE(t1t2phantom); i++)
+		for (unsigned int i = 0; i < ARRAY_SIZE(t1t2phantom); i++) {
+			
 			phantom[i] = t1t2phantom[i].geom;
+			phantom[i].intensity = (i == 0) ? t1t2phantom[i].t1 + t1t2phantom[i].t2 * I : -(t1t2phantom[0].t1 + t1t2phantom[0].t2 * I) + t1t2phantom[i].t1 + t1t2phantom[i].t2 * I;
+		}
 		
 		sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom), phantom }, krn2d, kspace) ;
 	}
