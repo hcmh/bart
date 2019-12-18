@@ -380,7 +380,7 @@ void dicom_generate_uid(char buf[64])
 
 #ifndef HAVE_UUID
 	(void)double_dabble;
-	assert(0);
+	error("UID generation requires UUID support\n");
 #else
 	uuid_t uuid;
 	uuid_generate(uuid);

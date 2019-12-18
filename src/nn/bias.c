@@ -48,7 +48,7 @@ static void bias_deriv(const nlop_data_t* _data, complex float* dst, const compl
 {
 	UNUSED(dst); UNUSED(src);
 	UNUSED(_data);
-	assert(0);
+	error("Not implemented\n");
 }
 
 static void bias_free(const nlop_data_t* _data)

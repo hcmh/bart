@@ -256,7 +256,7 @@ float svthresh_blockproc( const void* _data, const long blkdims[DIMS], complex f
 	else if (data->remove_mean == 0)
 		svthresh(M, N, data->lambda , dst, src);
 	else
-		assert(0);
+		error("Selected remove_mean mode is not implemented\n");
 
 	return 0;
 	

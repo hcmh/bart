@@ -229,7 +229,7 @@ void calc_geo_phantom(const long dims[DIMS], complex float* out, bool kspace, in
 		break;
 
 	default:
-		assert(0);
+		error("Invalid phantom type\n");
 	}
 
 	md_free(round);
