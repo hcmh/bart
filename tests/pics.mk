@@ -328,4 +328,5 @@ TESTS += tests/test-pics-tedim tests/test-pics-bp-noncart
 TESTS += tests/test-pics-basis tests/test-pics-basis-noncart tests/test-pics-basis-noncart-memory
 TESTS += tests/test-pics-basis-noncart-memory2
 TESTS += tests/test-pics-noncart-sms
+TESTS += tests/test-pics-manifold
 
