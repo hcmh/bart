@@ -1,14 +1,13 @@
 /* Copyright 2013-2018. The Regents of the University of California.
- * Copyright 2015-2018. Martin Uecker.
+ * Copyright 2015-2019. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014-2016 Frank Ong <frankong@berkeley.edu>
  * 2014-2018 Jon Tamir <jtamir@eecs.berkeley.edu>
  * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
- *
  */
 
 #include <assert.h>
@@ -30,7 +29,6 @@
 #include "linops/linop.h"
 #include "linops/fmac.h"
 #include "linops/sampling.h"
-#include "linops/someops.h"
 
 #include "noncart/nufft.h"
 
@@ -56,7 +54,7 @@ static const char help_str[] = "Parallel-imaging compressed-sensing reconstructi
 
 
 
-static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long map_dims[DIMS], const complex float* maps, const long ksp_dims[DIMS], const long traj_dims[DIMS], const complex float* traj, struct nufft_conf_s conf, const long wgs_dims[DIMS], const complex float* weights, const long basis_dims[DIMS], const complex float* basis, struct operator_s** precond_op, bool sms)
+static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long map_dims[DIMS], const complex float* maps, const long ksp_dims[DIMS], const long traj_dims[DIMS], const complex float* traj, struct nufft_conf_s conf, const long wgs_dims[DIMS], const complex float* weights, const long basis_dims[DIMS], const complex float* basis, struct operator_s** precond_op)
 {
 	long coilim_dims[DIMS];
 	long img_dims[DIMS];
@@ -73,18 +71,6 @@ static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long
 
 	const struct linop_s* fft_op = nufft_create2(DIMS, ksp_dims2, coilim_dims, traj_dims, traj, wgs_dims, weights, basis_dims, basis, conf);
 	const struct linop_s* maps_op = maps2_create(coilim_dims, map_dims, img_dims, maps);
-
-	if (sms) {
-
-		/**
-		 * Apply Fourier encoding in image space (after coil
-		 * sensitivity weighting but before NUFFT).
-		 */
-		const struct linop_s* fft_slice = linop_fft_create_no_measure(DIMS, coilim_dims, SLICE_FLAG);
-
-		fft_op = linop_chain_FF(fft_slice, fft_op);
-	}
-
 	const struct linop_s* lop = linop_chain_FF(maps_op, fft_op);
 
 	//precond_op[0] = (struct operator_s*) nufft_precond_create( fft_op );
@@ -229,6 +215,11 @@ int main_pics(int argc, char* argv[])
 
         if (sms) {
 
+		if (NULL == traj_file)
+			error("SMS is only supported for non-Cartesian trajectories.\n");
+
+		nuconf.cfft |= SLICE_FLAG;
+
                 debug_printf(DP_INFO, "SMS reconstruction: MB = %ld\n", ksp_dims[SLICE_DIM]);
         }
 
@@ -276,9 +267,6 @@ int main_pics(int argc, char* argv[])
 
 		debug_printf(DP_INFO, "Max:   ");
 		debug_print_dims(DP_INFO, DIMS, max_dims);
-
-//		if (NULL != traj_file)
-//			nuconf.toeplitz = false;
 	}
 
 
@@ -333,6 +321,7 @@ int main_pics(int argc, char* argv[])
 			debug_printf(DP_WARN, "Turning off random shifts\n");
 
 		shift_mode = 2;
+
 		debug_printf(DP_INFO, "Fully overlapping LLR blocks\n");
 	}
 
@@ -361,7 +350,7 @@ int main_pics(int argc, char* argv[])
 
 	if (NULL != traj_file) {
 
-		if (NULL == pat_file && NULL == basis && Q_file == NULL) {
+		if ((NULL == pat_file) && (NULL == basis) && (NULL == Q_file)) { // FIXME: Why Q_file?
 
 			md_free(pattern);
 			pattern = NULL;
@@ -426,7 +415,7 @@ int main_pics(int argc, char* argv[])
 	} else {
 
 		forward_op = sense_nc_init(max_dims, map_dims, maps, ksp_dims, traj_dims, traj, nuconf,
-				pat_dims, pattern, basis_dims, basis, (struct operator_s**)&precond_op, sms);
+				pat_dims, pattern, basis_dims, basis, (struct operator_s**)&precond_op);
 	}
 
 
@@ -449,7 +438,7 @@ int main_pics(int argc, char* argv[])
 		}
 	}
 
-	if (0. == scaling ) {
+	if (0. == scaling) {
 
 		debug_printf(DP_WARN, "Estimated scale is zero. Set to one.");
 		scaling = 1.;
@@ -483,7 +472,9 @@ int main_pics(int argc, char* argv[])
 		if (conf.gpu) {
 
 			complex float* gpu_image_truth = md_gpu_move(DIMS, img_dims, image_truth, CFL_SIZE);
+
 			unmap_cfl(DIMS, img_dims, image_truth);
+
 			image_truth = gpu_image_truth;
 		}
 #endif
@@ -505,7 +496,7 @@ int main_pics(int argc, char* argv[])
 
 		// if rescaling at the end, assume the input has also been rescaled
 		if (scale_im && (scaling != 0.))
-			md_zsmul(DIMS, img_dims, image_start, image_start, 1. /  scaling);
+			md_zsmul(DIMS, img_dims, image_start, image_start, 1. / scaling);
 	}
 
 
@@ -551,12 +542,7 @@ int main_pics(int argc, char* argv[])
 		if (conf.bpsense) {
 
 			const struct linop_s* sample_op = linop_sampling_create(max1_dims, pat1_dims, pattern1);
-			struct linop_s* tmp = linop_chain(forward_op, sample_op);
-
-			linop_free(sample_op);
-			linop_free(forward_op);
-
-			forward_op = tmp;
+			forward_op = linop_chain_FF(forward_op, sample_op);
 		}
 	}
 
@@ -567,7 +553,6 @@ int main_pics(int argc, char* argv[])
 		maxeigen = estimate_maxeigenval(forward_op->normal);
 
 		debug_printf(DP_INFO, "Maximum eigenvalue: %.2e\n", maxeigen);
-
 	}
 
 
