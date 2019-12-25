@@ -6,6 +6,8 @@
 
 #include "misc/nested.h"
 
+#include "num/splines.h"
+
 #include "draw.h"
 
 
@@ -206,6 +208,43 @@ extern void xiaolin_wu_rgba(int X, int Y, unsigned char (*out)[X][Y][4], const u
 	};
 
 	setup(xiaolin_wu, X, Y, draw, x0, y0, x1, y1);
+}
+
+
+static double csplineX(double t, const double coeff[4])
+{
+	return coeff[3] * t + coeff[0] * (1. - t);
+}
+
+
+static void draw_cspline(int X, int Y, pixel_f out, const double coeff[2][4])
+{
+	int old[2];
+
+	for (double t = 0.; t <= 1.; t += 0.1) {	// FIXME
+
+		int cur[2];
+
+		cur[0] = (int)cspline(t, coeff[0]);
+		cur[1] = (int)cspline(t, coeff[1]);
+
+		if (t > 0.)
+			setup(bresenham, X, Y, out, old[0], old[1], cur[0], cur[1]);
+
+		old[0] = cur[0];
+		old[1] = cur[1];
+	}
+}
+
+
+extern void cspline_cmplx(int X, int Y, complex float (*out)[X][Y], complex float val, const double coeff[2][4])
+{
+	NESTED(void, draw, (int x, int y, float c))
+	{
+		(*out)[x][y] = c * val;
+	};
+
+	draw_cspline(X, Y, draw, coeff);
 }
 
 
