@@ -32,7 +32,8 @@ static double sdot(const double a[2], const double b[2])
 
 static complex double kpolygon1(int N, const double pg[N][2], const double c[2], const double q0[2])
 {
-	assert(1. == polygon_winding_number(N, pg, c));
+	assert(    (1. == polygon_winding_number(N, pg, c))
+		|| (-1. == polygon_winding_number(N, pg, c)));
 
 	double q[2];
 

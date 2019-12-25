@@ -260,7 +260,7 @@ int main_phantom(int argc, char* argv[])
 	
 	case BART:
 
-		calc_phantom_bart(dims, out, false, false, sstrs, samples);	
+		calc_bart(dims, out, kspace, sstrs, samples);	
 		break;
 	}
 

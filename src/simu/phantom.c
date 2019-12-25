@@ -21,10 +21,13 @@
 #include "num/multind.h"
 #include "num/loop.h"
 #include "num/flpmath.h"
+#include "num/splines.h"
 
 #include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/debug.h"
+
+#include "geom/logo.h"
 
 #include "simu/shepplogan.h"
 #include "simu/sens.h"
@@ -437,6 +440,43 @@ void calc_star3d(const long dims[DIMS], complex float* out, bool kspace, const l
 }
 
 
+void calc_bart(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	int N = 11 + 6 + 6;
+	double points[N * 11][2];
+
+	struct poly poly = {
+		kspace,
+		N * 11,
+		&points,
+	};
+
+	for (int i = 0; i < N; i++) {
+
+		for (int j = 0; j <= 10; j++) {
+
+			double t = j * 0.1;
+			int n = i * 11 + j;
+
+			points[n][1] = cspline(t, bart_logo[i][0]) / 250.;
+			points[n][0] = cspline(t, bart_logo[i][1]) / 250.;
+		}
+	}
+
+	struct data data = {
+
+		.traj = traj,
+		.tstrs = tstrs,
+		.sens = (dims[COIL_DIM] > 1),
+		.dims = { dims[0], dims[1], dims[2] },
+		.data = &poly,
+		.fun = krn_poly,
+	};
+
+	md_parallel_zsample(DIMS, dims, out, &data, kspace ? kkernel : xkernel);
+}
+
+
 
 
 
@@ -568,14 +608,5 @@ void calc_phantom_t1t2(struct SimData* data, const long dims[DIMS], complex floa
 		sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom), phantom }, krn2d, kspace) ;
 	}
 }
-
-void calc_phantom_bart(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
-{
-	(void) d3;
-	
-	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(bart_img), bart_img }, krn2d, kspace);
-}
-
-
 
 
