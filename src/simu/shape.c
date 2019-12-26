@@ -13,7 +13,7 @@ complex double xpolygon(int N, const double pg[N][2], const double p[3])
 
 	int w = polygon_winding_number(N, pg, p);
 
-	return (0 == w % 2) ? 0. : 1.;
+	return w;
 }
 
 static double sinc(double x)
@@ -32,9 +32,12 @@ static double sdot(const double a[2], const double b[2])
 
 static complex double kpolygon1(int N, const double pg[N][2], const double c[2], const double q0[2])
 {
-	assert(    (1. == polygon_winding_number(N, pg, c))
-		|| (-1. == polygon_winding_number(N, pg, c)));
+#if 0
+	double pwn = polygon_winding_number(N, pg, c);
 
+	assert(    (1. == pwn)
+		|| (-1. == pwn));
+#endif
 	double q[2];
 
 	q[0] = q0[0] * M_PI;

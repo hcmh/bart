@@ -356,33 +356,53 @@ void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const lo
 }
 
 
+struct poly1 {
+
+	int N;
+	complex float coeff;
+	double (*pg)[][2];
+};
+
 struct poly {
 
 	bool kspace;
-	int N;
-	double (*pg)[][2];
+	int P;
+	struct poly1 (*p)[];
 };
 
 static complex float krn_poly(void* _data, const double mpos[3])
 {
 	struct poly* data = _data;
-	return (data->kspace ? kpolygon : xpolygon)(data->N, *data->pg, mpos);
+
+	complex float val = 0.;
+
+	for (int p = 0; p < data->P; p++)
+		val += (*data->p)[p].coeff * (data->kspace ? kpolygon : xpolygon)((*data->p)[p].N, *(*data->p)[p].pg, mpos);
+
+	return val;
 }
 
 void calc_star(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
 	struct poly poly = {
 		kspace,
-		8,
-		&(double[][2]){
-			{ -0.5, -0.5 },
-			{  0.0, -0.3 },
-			{ +0.5, -0.5 },
-			{  0.3,  0.0 },
-			{ +0.5, +0.5 },
-			{  0.0, +0.3 },
-			{ -0.5, +0.5 },
-			{ -0.3,  0.0 },	}
+		1,
+		&(struct poly1[]){
+			{
+			8,
+			1.,
+			&(double[][2]){
+				{ -0.5, -0.5 },
+				{  0.0, -0.3 },
+				{ +0.5, -0.5 },
+				{  0.3,  0.0 },
+				{ +0.5, +0.5 },
+				{  0.0, +0.3 },
+				{ -0.5, +0.5 },
+				{ -0.3,  0.0 },
+			}
+			}
+		}
 	};
 
 	struct data data = {
@@ -442,13 +462,24 @@ void calc_star3d(const long dims[DIMS], complex float* out, bool kspace, const l
 
 void calc_bart(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
-	int N = 11 + 6 + 6;
+	int N = 11 + 6 + 6 + 8 + 4 + 16 + 6 + 8 + 6 + 6 + 6;
 	double points[N * 11][2];
 
 	struct poly poly = {
 		kspace,
-		N * 11,
-		&points,
+		10,
+		&(struct poly1[]){
+			{ 11 * 11, -1., &points },
+			{  6 * 11, -1., &points[11 * 11] },
+			{  6 * 11, -1., &points[17 * 11] },
+			{  8 * 11, -1., &points[23 * 11] },
+			{  4 * 11, -1., &points[31 * 11] },
+			{ 16 * 11, -1., &points[35 * 11] },
+			{  6 * 11, -1., &points[51 * 11] },
+			{  8 * 11, -1., &points[57 * 11] },
+			{  6 * 11, -1., &points[65 * 11] },
+			{  6 * 11, -1., &points[71 * 11] },
+		}
 	};
 
 	for (int i = 0; i < N; i++) {
@@ -458,8 +489,8 @@ void calc_bart(const long dims[DIMS], complex float* out, bool kspace, const lon
 			double t = j * 0.1;
 			int n = i * 11 + j;
 
-			points[n][1] = cspline(t, bart_logo[i][0]) / 250.;
-			points[n][0] = cspline(t, bart_logo[i][1]) / 250.;
+			points[n][1] = cspline(t, bart_logo[i][0]) / 250. - 0.50;
+			points[n][0] = cspline(t, bart_logo[i][1]) / 250. - 0.75;
 		}
 	}
 
