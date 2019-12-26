@@ -40,8 +40,8 @@ static complex double kpolygon1(int N, const double pg[N][2], const double c[2],
 #endif
 	double q[2];
 
-	q[0] = q0[0] * M_PI;
-	q[1] = q0[1] * M_PI;
+	q[0] = -q0[0] * M_PI;
+	q[1] = -q0[1] * M_PI;
 
 	double q2 = q[0] * q[0] + q[1] * q[1];
 
@@ -93,7 +93,7 @@ complex double kpolygon(int N, const double pg0[N][2], const double q0[3])
 
 	assert(0. == q0[2]);
 
-	return cexp(M_PI * 2.i * sdot(cg, q0)) * kpolygon1(N, pg, cg, q0);
+	return cexp(-M_PI * 2.i * sdot(cg, q0)) * kpolygon1(N, pg, cg, q0);
 //	return kpolygon1(N, pg, (double[]){ 0., 0. }, q0);
 }
 
