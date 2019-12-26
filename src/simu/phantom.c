@@ -459,26 +459,27 @@ void calc_star3d(const long dims[DIMS], complex float* out, bool kspace, const l
 	md_parallel_zsample(DIMS, dims, out, &data, kspace ? kkernel : xkernel);
 }
 
+#define ARRAY_SLICE(x, a, b) ({ __auto_type __x = &(x); assert((0 <= a) && (a < b) && (b <= ARRAY_SIZE(*__x))); ((__typeof__((*__x)[0]) (*)[b - a])&((*__x)[a])); })
 
 void calc_bart(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
-	int N = 11 + 6 + 6 + 8 + 4 + 16 + 6 + 8 + 6 + 6 + 6;
+	int N = 11 + 6 + 6 + 8 + 4 + 16 + 6 + 8 + 6 + 6;
 	double points[N * 11][2];
 
 	struct poly poly = {
 		kspace,
 		10,
 		&(struct poly1[]){
-			{ 11 * 11, -1., &points },
-			{  6 * 11, -1., &points[11 * 11] },
-			{  6 * 11, -1., &points[17 * 11] },
-			{  8 * 11, -1., &points[23 * 11] },
-			{  4 * 11, -1., &points[31 * 11] },
-			{ 16 * 11, -1., &points[35 * 11] },
-			{  6 * 11, -1., &points[51 * 11] },
-			{  8 * 11, -1., &points[57 * 11] },
-			{  6 * 11, -1., &points[65 * 11] },
-			{  6 * 11, -1., &points[71 * 11] },
+			{ 11 * 11, -1., ARRAY_SLICE(points,  0 * 11, 11 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 11 * 11, 17 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 17 * 11, 23 * 11) },
+			{  8 * 11, -1., ARRAY_SLICE(points, 23 * 11, 31 * 11) },
+			{  4 * 11, -1., ARRAY_SLICE(points, 31 * 11, 35 * 11) },
+			{ 16 * 11, -1., ARRAY_SLICE(points, 35 * 11, 51 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 51 * 11, 57 * 11) },
+			{  8 * 11, -1., ARRAY_SLICE(points, 57 * 11, 65 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 65 * 11, 71 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 71 * 11, 77 * 11) },
 		}
 	};
 
