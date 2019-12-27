@@ -170,6 +170,9 @@ int main_phantom(int argc, char* argv[])
 
 	if (NULL != traj) {
 
+		if (-1 != xdim)
+			debug_printf(DP_WARN, "size ignored.\n");
+
 		kspace = true;
 
 		samples = load_cfl(traj, DIMS, sdims);
