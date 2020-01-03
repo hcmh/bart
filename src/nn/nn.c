@@ -75,7 +75,7 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 
 		debug_printf(DP_INFO, "Layer: %d/%d\n", l, layers);
 
-		struct linop_s* conv = linop_conv_create(5, flags, CONV_SYMMETRIC, CONV_CYCLIC,
+		struct linop_s* conv = linop_conv_create(5, flags, CONV_CYCLIC, CONV_SYMMETRIC,
 			dims2b, dims2a, krn_dims, &MD_ACCESS(6, krn_strs, pos, krn));
 
 
