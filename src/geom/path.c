@@ -38,10 +38,13 @@ static int path2splines(int N, double p[N][2][4], const char* str)
 	char c;
 	int pos = 0;
 	int off = 0;
-	int l = 0;
+	__block int l = 0;
+	void* pp = p;	// clang limitation
 
-	void xspline(float a[2], float c0[2], float c1[2], float b[2])
+	NESTED(void, xspline, (float a[2], float c0[2], float c1[2], float b[2]))
 	{
+		double (*p)[2][4] = pp;
+
 		p[l][0][0] = a[0];
 		p[l][1][0] = a[1];
 		p[l][0][1] = c0[0];
@@ -51,12 +54,12 @@ static int path2splines(int N, double p[N][2][4], const char* str)
 		p[l][0][3] = b[0];
 		p[l][1][3] = b[1];
 		l++;
-	}
+	};
 
-	void xline(float a[2], float b[2])
+	NESTED(void, xline, (float a[2], float b[2]))
 	{
 		xspline(a, a, b, b);
-	}
+	};
 
 	float old[2] = { 0., 0. };
 	float cur[2] = { 0., 0. };

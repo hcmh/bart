@@ -100,7 +100,7 @@ extern void bresenham_rgba_fl(int X, int Y, float (*out)[X][Y][4], const float (
 
 extern void bresenham_rgba(int X, int Y, unsigned char (*out)[X][Y][4], const unsigned char (*val)[4], int x0, int y0, int x1, int y1)
 {
-	void* p = out;	// clang limitatio
+	void* p = out;	// clang limitation
 
 	NESTED(void, draw, (int x, int y, float c))
 	{
@@ -115,7 +115,7 @@ extern void bresenham_rgba(int X, int Y, unsigned char (*out)[X][Y][4], const un
 
 extern void bresenham_cmplx(int X, int Y, complex float (*out)[X][Y], complex float val, int x0, int y0, int x1, int y1)
 {
-	void* p = out;	// clang limitatio
+	void* p = out;	// clang limitation
 
 	NESTED(void, draw, (int x, int y, float c))
 	{
@@ -239,8 +239,12 @@ static void draw_cspline(int X, int Y, pixel_f out, const double coeff[2][4])
 
 extern void cspline_cmplx(int X, int Y, complex float (*out)[X][Y], complex float val, const double coeff[2][4])
 {
+	void* p = out;	// clang limitation
+
 	NESTED(void, draw, (int x, int y, float c))
 	{
+		float (*out)[X][Y] = p;
+
 		(*out)[x][y] = c * val;
 	};
 
