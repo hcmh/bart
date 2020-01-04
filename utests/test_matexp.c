@@ -29,7 +29,7 @@ static bool test_matexp(void)
 
 	for (int i = 0; i < 2; i++)
 		for (int j = 0; j < 2; j++)
-			ok &= (fabsf(o[i][j] - ((i == j) ? -1. : 0.)) < 1.E-5);
+			ok &= (fabsf(o[i][j] - ((i == j) ? -1.f : 0.f)) < 1.E-5);
 
 	return ok;
 }
