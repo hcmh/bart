@@ -132,6 +132,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 {
 	char scan_hdr[vd ? 192 : 0];
 	size_t size = sizeof(scan_hdr);
+
 	if (size != (size_t)read(fd, scan_hdr, size))
 		return -1;
 
@@ -141,6 +142,7 @@ static int siemens_bounds(bool vd, int fd, long min[DIMS], long max[DIMS])
 
 		char chan_hdr[vd ? 32 : 128];
 		size_t size = sizeof(chan_hdr);
+
 		if (size != (size_t)read(fd, chan_hdr, size))
 			return -1;
 
@@ -218,6 +220,7 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 
 	struct mdh1 mdh_1;
 	memcpy(&mdh_1, scan_hdr, sizeof(mdh_1));
+
 	*buf_pmu = mdh_1.pmutime;
 	//debug_printf(DP_DEBUG1, "PMUtimestamp: %lu\n", mdh_1.pmutime);
 
@@ -230,8 +233,8 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 		struct mdh2 mdh;
 		memcpy(&mdh, vd ? (scan_hdr + 40) : (chan_hdr + 20), sizeof(mdh));
 
-		if ((mdh.evalinfo[0] & (1 << 5))
-			|| ( (dims[READ_DIM] != mdh.samples) && 0 ) ) {
+		if (   (mdh.evalinfo[0] & (1 << 5))
+		    || ((dims[READ_DIM] != mdh.samples) && 0)) {	// FIXME
 
 //			debug_printf(DP_WARN, "SYNC\n");
 
@@ -377,6 +380,7 @@ int main_twixread(int argc, char* argv[argc])
 	bc_adcs = bc_dims[PHS1_DIM] * bc_dims[PHS2_DIM] * bc_dims[SLICE_DIM] * bc_dims[TIME_DIM] * bc_dims[TIME2_DIM];
 
 	if (0 < bc_scans) {
+
 		radial_lines = -1;
 		autoc = false;
 		mpi = false;
@@ -456,7 +460,10 @@ int main_twixread(int argc, char* argv[argc])
 	long bc_odims[DIMS];
 	md_copy_dims(DIMS, bc_odims, bc_dims);
 	
-	complex float* bc_out = (0<bc_scans) ? create_cfl(create_bc_name(argv[2]), DIMS, bc_odims) : NULL;
+	complex float* bc_out = NULL;
+
+	if (0 < bc_scans)
+		bc_out = create_cfl(create_bc_name(argv[2]), DIMS, bc_odims);
 
 
 	long pmu_dims[DIMS];
@@ -464,7 +471,7 @@ int main_twixread(int argc, char* argv[argc])
 
 	complex float* pmu;
 
-	if (argc == 4) {
+	if (4 == argc) {
 
 		out_pmu = true;
 
@@ -516,12 +523,12 @@ int main_twixread(int argc, char* argv[argc])
 		}
 
 		md_copy_block(DIMS, pos, bc_dims, bc_out, bc_adc_dims, bc_buf, CFL_SIZE); 
-
 	}
 
 	md_free(bc_buf);
 	
-	(0 < bc_scans) ? unmap_cfl(DIMS, bc_odims, bc_out) : NULL;
+	if (0 < bc_scans)
+		unmap_cfl(DIMS, bc_odims, bc_out);
 
 
 
