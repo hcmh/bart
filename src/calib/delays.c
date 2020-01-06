@@ -162,7 +162,6 @@ static void check_intersections(const int Nint, const int N, const float S[3], c
 
 
 
-// [RING] Caclucate intersection points
 static void calc_intersections(int Nint, int N, int no_intersec_sp, bool b0, float dist[Nint][2], long idx[Nint][2],
 		const float angles[N], const long kc_dims[DIMS], const complex float* kc)
 {
