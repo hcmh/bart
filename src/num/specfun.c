@@ -8,6 +8,10 @@
 
 #include <math.h>
 
+#ifdef USE_GSL
+#include <gsl/gsl_specfunc.h>
+#endif
+
 #include "misc/misc.h"
 
 #include "num/chebfun.h"
@@ -43,6 +47,9 @@ static const float coeff_8toinf[] = {
  */
 double bessel_i0(double x)
 {
+#ifdef USE_GSL
+	return gsl_sf_bessel_I0(x);
+#else
 	if (x < 0.)
 		return bessel_i0(-x);
 
@@ -50,6 +57,7 @@ double bessel_i0(double x)
 		return exp(x) * chebeval(x  / 4. - 1., ARRAY_SIZE(coeff_0to8), coeff_0to8);
 
 	return exp(x) * chebeval(16. / x - 1., ARRAY_SIZE(coeff_8toinf), coeff_8toinf) / sqrt(x);
+#endif
 }
 
 
