@@ -20,6 +20,7 @@ tests/test-nufft-forward: traj nufft reshape nrmse $(TESTS_OUT)/shepplogan.ra $(
 	$(TOOLDIR)/traj -x128 -y128 traj.ra						;\
 	$(TOOLDIR)/nufft -P traj.ra $(TESTS_OUT)/shepplogan.ra shepplogan_ksp2.ra	;\
 	$(TOOLDIR)/reshape 7 128 128 1 shepplogan_ksp2.ra shepplogan_ksp3.ra		;\
+	$(TOOLDIR)/nrmse -s -t 0.00008 $(TESTS_OUT)/shepplogan_fftu.ra shepplogan_ksp3.ra	;\
 	$(TOOLDIR)/nrmse -t 0.0015 $(TESTS_OUT)/shepplogan_fftu.ra shepplogan_ksp3.ra	;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
