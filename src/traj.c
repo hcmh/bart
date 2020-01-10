@@ -84,6 +84,7 @@ int main_traj(int argc, char* argv[])
 		OPT_VEC2('z', &z_usamp, "Ref:Acel", "Undersampling in z-direction."),
 		OPT_STRING('C', &custom_angle, "file", "custom_angle file [phi + i * psi]"),
 		OPT_STRING('p', &pat_file, "file", "Pattern"),
+		OPT_SET('T', &conf.sms_turns, "(Modified SMS Turn Scheme)"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);

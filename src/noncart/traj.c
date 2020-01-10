@@ -33,6 +33,7 @@ const struct traj_conf traj_defaults = {
 	.tiny_gold = 0,
 	.rational = false,
 	.multiple_ga = 1,
+	.sms_turns = false,
 };
 
 const struct traj_conf rmfreq_defaults = {
@@ -155,7 +156,7 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	double angle_t = 0.;
 
 	if (turns > 1)
-		angle_t = angle_atom / turns * (conf.full_circle ? 2 : 1);
+		angle_t = angle_atom / (turns * (conf.sms_turns ? mb : 1)) * (conf.full_circle ? 2 : 1);
 
 	/* radial multi-echo multi-spoke sampling
 	 *
