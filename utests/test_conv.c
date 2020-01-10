@@ -53,8 +53,9 @@ static bool test_conv_generic(enum conv_mode mode, enum conv_type type, int N, c
 
 	for (int i = 0; i < N; i++) {
 
-		if (mode == CONV_SYMMETRIC)
-		printf("%d %f+%fi %f+%fi\n", i, crealf(O[i]), cimagf(O[i]), crealf(G[i]), cimagf(G[i]));
+//		if (mode == CONV_SYMMETRIC)
+//		printf("%d %f+%fi %f+%fi\n", i, crealf(O[i]), cimagf(O[i]), crealf(G[i]), cimagf(G[i]));
+
 		ok &= (1.E-4 > cabsf(O[i] - G[i]));
 	}
 
