@@ -136,7 +136,7 @@ CUDA_BASE ?= /usr/local/
 ACML_BASE ?= /usr/local/acml/acml4.4.0/gfortran64_mp/
 
 # mkl
-MKL_BASE ?= /opt/intel/mkl/lib/intel64/ 
+MKL_BASE ?= /opt/intel/mkl/
 
 # fftw
 
