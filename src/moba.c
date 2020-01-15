@@ -190,7 +190,7 @@ int main_moba(int argc, char* argv[])
 
 		pos[COEFF_DIM] = 2;
 		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
-		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, 3.0);
+		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, 2.0);
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
 	}
 

@@ -50,7 +50,7 @@ int main_genLLbasis(int argc, char* argv[argc])
         
 	const struct opt_s opts[] = {
 
-		OPT_FLOAT('R', &TR, "TR", "Repetition time."),
+		OPT_FLOAT('R', &TR, "TR", "Repetition time (ms)."),
 		OPT_INT('n', &nR1s, "nR1s", "Number of R1s to simulate."),
 		OPT_INT('N', &nMss, "nMss", "Number of Mss to simulate."),
 		OPT_INT('s', &nspokes, "nSpokes", "Number of spokes per frame."),
@@ -106,7 +106,7 @@ int main_genLLbasis(int argc, char* argv[argc])
 		for (int j = 0; j < nR1s; j++)
 			for (int k = 0; k < nTI; k++) {
 
-				t = TR * nspokes * k + TR * nspokes / 2 ;
+				t = (TR * nspokes * k + TR * nspokes / 2);
 				out_data[k + odims_strs[COEFF_DIM]/CFL_SIZE * j + odims_strs[COEFF2_DIM]/CFL_SIZE * i] = cabsf(Mss[i]) - (cabsf(Mss[i]) + 1.0) * exp(-t*cabsf(R1s[j]));
 			}
 
