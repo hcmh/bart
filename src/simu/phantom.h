@@ -18,6 +18,7 @@ extern void calc_moving_circ(const long dims[DIMS], _Complex float* out, _Bool k
 extern void calc_heart(const long dims[DIMS], _Complex float* out, _Bool ksp, const long tstrs[DIMS], const _Complex float* traj);
 
 extern void calc_phantom_t1t2(const long dims[DIMS], _Complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
+extern void calc_phantom_t1t2_base(const long dims[DIMS], _Complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
 
 extern void calc_star(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
 extern void calc_star3d(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);

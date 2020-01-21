@@ -44,7 +44,7 @@ int main_phantom(int argc, char* argv[])
 	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM, STAR, BART, T1T2 } ptype = SHEPPLOGAN;
 
 	const char* traj = NULL;
-	bool simulation = false;
+	bool base = false;
 
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 	dims[0] = 128;
@@ -68,7 +68,7 @@ int main_phantom(int argc, char* argv[])
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_INT('g', &geo, "n=1,2", "select geometry for object phantom"),
 		OPT_SET('3', &d3, "3D"),
-		OPT_SET('n', &simulation, "simulation"),
+		OPT_SET('b', &base, "create basis geometry"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -126,6 +126,9 @@ int main_phantom(int argc, char* argv[])
 	
 	if (sens > 0)
 		dims[3] = sens;
+
+	if ( (T1T2 == ptype) && base)
+		dims[MAPS_DIM] = 10; // Length of const struct ellipsis_s t1t2phantom. see src/shepplogan.c
 
 	complex float* out;
 	
@@ -186,8 +189,7 @@ int main_phantom(int argc, char* argv[])
         
 	case T1T2:
 		
-		calc_phantom_t1t2(dims, out, kspace, sstrs, samples);
-		
+		(base ? calc_phantom_t1t2_base : calc_phantom_t1t2)(dims, out, kspace, sstrs, samples);
 		break;
 	
 	case BART:
