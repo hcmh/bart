@@ -64,7 +64,7 @@ int main_phantom(int argc, char* argv[])
 		OPT_SELECT('G', enum ptype_e, &ptype, GEOM, "geometric object phantom"),
 		OPT_SELECT('C', enum ptype_e, &ptype, HEART, "heart"),
 		OPT_SELECT('T', enum ptype_e, &ptype, T1T2, "T1-T2 phantom"),
-		OPT_SELECT('B', enum ptype_e, &ptype, BART, "BART letters"),
+		OPT_SELECT('B', enum ptype_e, &ptype, BART, "BART logo"),
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_INT('g', &geo, "n=1,2", "select geometry for object phantom"),
 		OPT_SET('3', &d3, "3D"),
