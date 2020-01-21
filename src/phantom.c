@@ -32,59 +32,6 @@
 static const char usage_str[] = "<output>";
 static const char help_str[] = "Image and k-space domain phantoms.";
 
-
-static void help_seq(void)
-{
-	printf( "Sequence Simulation Parameter\n\n"
-		"Typ:\t Define if analytical (1) or numerical simulation (0) should be performed \n"
-		"#SEQ:\t Define sequence mode: \n"
-		"\t\t\t0 = bSSFP[default]\n"
-		"\t\t\t1 = invbSSFP\n"
-		"\t\t\t2 = FLASH\n"
-		"\t\t\t3 = pcbSSFP\n"
-		"\t\t\t4 = inv. bSSFP without preparation\n"
-		"\t\t\t5 = invFLASH\n"
-		"\t\t\t6 = invpcbSSFP\n"
-		"TR:\t Repetition time [s]\n"
-		"TE:\t Echo time [s]\n"
-		"Drf:\t Duration of RF pulse [s]\n"
-		"FA:\t Flip angle of rf pulses [deg]\n"
-	);
-}
-
-
-static bool opt_seq(void* ptr, char c, const char* optarg)
-{
-	(void) c;
-	
-	// Check if help function is called
-	char rt[5];
-	
-	int ret = sscanf(optarg, "%4[^:]", rt);
-	assert(1 == ret);
-	
-	if (strcmp(rt, "h") == 0) {
-
-		help_seq();
-		exit(0);
-	} else {
-		
-		// Collect simulation data
-		struct SimData* sim_data = ptr;
-
-		ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f",	&sim_data->seqData.analytical,
-								&sim_data->seqData.seq_type, 
-								&sim_data->seqData.TR, 
-								&sim_data->seqData.TE, 
-								&sim_data->pulseData.RF_end, 
-								&sim_data->pulseData.flipangle);
-		assert(6 == ret);
-	}
-	return false;
-}
-
-
-
 int main_phantom(int argc, char* argv[])
 {
 	bool kspace = false;
@@ -104,14 +51,6 @@ int main_phantom(int argc, char* argv[])
 	dims[1] = 128;
 	dims[2] = 1;
 	
-	// initalize values for simulation
-	struct SimData sim_data;
-	sim_data.seqData = seqData_defaults;
-	sim_data.voxelData = voxelData_defaults;
-	sim_data.pulseData = pulseData_defaults;
-	sim_data.gradData = gradData_defaults;
-	sim_data.seqtmp = seqTmpData_defaults;
-	
 	
 	const struct opt_s opts[] = {
 
@@ -130,7 +69,6 @@ int main_phantom(int argc, char* argv[])
 		OPT_INT('g', &geo, "n=1,2", "select geometry for object phantom"),
 		OPT_SET('3', &d3, "3D"),
 		OPT_SET('n', &simulation, "simulation"),
-		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F\tParameters for Simulation <Typ:Seq:TR:TE:Drf:FA> (-Ph for help)" },
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -185,8 +123,6 @@ int main_phantom(int argc, char* argv[])
 
 		dims[TE_DIM] = sdims[TE_DIM];
 	}
-	else if (simulation)
-		dims[TE_DIM] = 500;
 	
 	if (sens > 0)
 		dims[3] = sens;
@@ -197,13 +133,6 @@ int main_phantom(int argc, char* argv[])
 	md_zfill(DIMS, dims, out, 0.);
 	
 	md_clear(DIMS, dims, out, sizeof(complex float));
-	
-	if ( simulation && d3 ){
-		debug_printf(DP_ERROR, "Numerical phantom does not work with 3D yet...\n");
-		exit(0);
-	}
-	
-	sim_data.seqData.rep_num = dims[TE_DIM];
 	
 	switch (ptype) {
 
@@ -257,7 +186,7 @@ int main_phantom(int argc, char* argv[])
         
 	case T1T2:
 		
-		calc_phantom_t1t2((simulation) ? &sim_data : NULL, dims, out, kspace, sstrs, samples);
+		calc_phantom_t1t2(dims, out, kspace, sstrs, samples);
 		
 		break;
 	

@@ -39,6 +39,8 @@ extern const struct ellipsis_s phantom_geo2[2];
 extern const struct ellipsis_s phantom_geo3[7];
 extern const struct ellipsis_s phantom_geo4[1];
 
+extern const struct ellipsis_s t1t2phantom[10];
+
 extern const struct ellipsis_s bart_img[21];
 
 

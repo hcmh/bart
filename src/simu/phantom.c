@@ -608,37 +608,9 @@ static void calc_signal_simu(struct SimData* sim_data, const long dims[DIMS], co
 	md_free(signal_evolution);
 }
 
-void calc_phantom_t1t2(struct SimData* data, const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+void calc_phantom_t1t2(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {	
-	struct simulated_ellipsis_s t1t2phantom[] = {
-		/* Background ellipse [0], needs to be added for simulation and subtracted for visualization*/
-		{.geom = {1.	, { .75	,   .75    }	, { 0.,     0. }	, 0.},	.t1 = 3.,	.t2 = 1., }, /*Background*/
-		{.geom = {1	, { .125,   .125   }	, { -0.13,     -0.19 }	, 0.},	.t1 = 0.877,	.t2 = 0.048, },
-		{.geom = {1	, { .125,   .125   }	, { -0.45,     -0.32 }	, 0.},	.t1 = 1.140,	.t2 = 0.06, },
-		{.geom = {1	, { .125,   .125   }	, { -0.55,     0.05 }	, 0.},	.t1 = 1.404,	.t2 = 0.06, },
-		{.geom = {1	, { .125,   .125   }	, { -0.37,     0.37 }	, 0.},	.t1 = 0.866,	.t2 = 0.095, },
-		{.geom = {1	, { .125,   .125   }	, { -0.05,     0.55 }	, 0.},	.t1 = 1.159,	.t2 = 0.108, },
-		{.geom = {1	, { .125,   .125   }	, { 0.33,     0.40 }	, 0.},	.t1 = 1.456,	.t2 = 0.122, },
-		{.geom = {1	, { .125,   .125   }	, { 0.53,     0.12 }	, 0.},	.t1 = 0.883,	.t2 = 0.129, },
-		{.geom = {1	, { .125,   .125   }	, { 0.5,     -0.24 }	, 0.},	.t1 = 1.166,	.t2 = 0.150, },
-		{.geom = {1	, { .125,   .125   }	, { 0.2,     -0.05 }	, 0.},	.t1 = 1.442,	.t2 = 0.163, },
-	};
-	
-	if (NULL != data)
-		calc_signal_simu(data, dims, out, kspace, tstrs, traj, ARRAY_SIZE(t1t2phantom), t1t2phantom);
-	else {
-		
-		// extract only ellipsis_s struct for calling sample()
-		struct ellipsis_s phantom[ARRAY_SIZE(t1t2phantom)];
-		
-		for (unsigned int i = 0; i < ARRAY_SIZE(t1t2phantom); i++) {
-			
-			phantom[i] = t1t2phantom[i].geom;
-			phantom[i].intensity = (i == 0) ? t1t2phantom[i].t1 + t1t2phantom[i].t2 * I : -(t1t2phantom[0].t1 + t1t2phantom[0].t2 * I) + t1t2phantom[i].t1 + t1t2phantom[i].t2 * I;
-		}
-		
-		sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom), phantom }, krn2d, kspace) ;
-	}
+	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(t1t2phantom), t1t2phantom }, krn2d, kspace) ;
 }
 
 
