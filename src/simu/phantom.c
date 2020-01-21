@@ -616,19 +616,15 @@ void calc_phantom_t1t2(const long dims[DIMS], complex float* out, bool kspace, c
 
 
 void calc_phantom_t1t2_base(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
-{		
+{
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, sizeof(complex float));
 
 	long dims1[DIMS];
-	md_select_dims(DIMS, ~(MD_BIT(TE_DIM)|MD_BIT(MAPS_DIM)), dims1, dims);
-	
-	
-	print_dims(DIMS, dims);
-	print_dims(DIMS, dims1);
+	md_select_dims(DIMS, ~(MD_BIT(TE_DIM)|MD_BIT(COEFF_DIM)), dims1, dims);
 	
 	#pragma omp parallel for
-	for (int i = 0; i < dims[MAPS_DIM]; i++) {
+	for (int i = 0; i < dims[COEFF_DIM]; i++) {
 		
 		struct ellipsis_s base[1];
 		base[0] = t1t2phantom[i];
@@ -637,7 +633,7 @@ void calc_phantom_t1t2_base(const long dims[DIMS], complex float* out, bool kspa
 			
 			void* traj2 = (NULL == traj) ? NULL : ((void*)traj + j * tstrs[TE_DIM]);
 
-			sample(dims1, (void*)out + i * strs[MAPS_DIM] + j * strs[TE_DIM], tstrs, traj2, &(struct krn2d_data){ kspace, ARRAY_SIZE(base), base }, krn2d, kspace);
+			sample(dims1, (void*)out + i * strs[COEFF_DIM] + j * strs[TE_DIM], tstrs, traj2, &(struct krn2d_data){ kspace, ARRAY_SIZE(base), base }, krn2d, kspace);
 		}
 	}
 	

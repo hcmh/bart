@@ -128,7 +128,7 @@ int main_phantom(int argc, char* argv[])
 		dims[3] = sens;
 
 	if ( (T1T2 == ptype) && base)
-		dims[MAPS_DIM] = 10; // Length of const struct ellipsis_s t1t2phantom. see src/shepplogan.c
+		dims[COEFF_DIM] = 10; // Length of const struct ellipsis_s t1t2phantom. see src/shepplogan.c
 
 	complex float* out;
 	
