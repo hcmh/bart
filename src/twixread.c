@@ -350,7 +350,7 @@ int main_twixread(int argc, char* argv[argc])
 		OPT_LONG('v', &(dims[AVG_DIM]), "V", "number of averages"),
 		OPT_LONG('c', &(dims[COIL_DIM]), "C", "number of channels"),
 		OPT_LONG('n', &(dims[TIME_DIM]), "N", "number of repetitions"),
-		OPT_LONG('p', &(dims[COEFF_DIM]), "P", "number of cardicac phases"),
+		OPT_LONG('p', &(dims[COEFF_DIM]), "P", "number of cardiac phases"),
 		OPT_LONG('f', &(dims[TIME2_DIM]), "F", "number of flow encodings"),
 		OPT_LONG('i', &(dims[LEVEL_DIM]), "I", "number inversion experiments"),
 		OPT_LONG('b', &bc_scans, "B", "number of body-coil scans"),
