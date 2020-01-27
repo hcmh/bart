@@ -113,6 +113,29 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 	}
 }
 
+// Check if time is consistent with increasing bin index
+/* Idea: Calculate the angles defined by EOF_a & EOF_b (phase diagram!) for time steps 0 and 1. If the angle increases, time evolution is consistent with increasing bin-index.
+ */
+static bool check_valid_time(const long singleton_dims[DIMS], complex float* singleton, const long lables_dims[DIMS], const complex float* lables, const long lables_idx[2])
+{
+
+	long pos[DIMS] = { 0 };
+	pos[TIME2_DIM] = lables_idx[0];
+	md_copy_block(DIMS, pos, singleton_dims, singleton, lables_dims, lables, CFL_SIZE);
+	float a_0 = crealf(singleton[0]);
+	float a_1 = crealf(singleton[1]);
+
+	pos[TIME2_DIM] = lables_idx[1];
+	md_copy_block(DIMS, pos, singleton_dims, singleton, lables_dims, lables, CFL_SIZE);
+	float b_0 = crealf(singleton[0]);
+	float b_1 = crealf(singleton[1]);
+
+	float angle_0 = atan2f(a_0, b_0);
+	float angle_1 = atan2f(a_1, b_1);
+
+	return (angle_1 >= angle_0) ? true : false;
+
+}
 
 // Calculate maximum number of samples in a bin
 static int get_binsize_max(const long bins_dims[DIMS], const float* bins, unsigned int n_card, unsigned int n_resp)
@@ -325,12 +348,19 @@ int main_bin(int argc, char* argv[])
 			resp_state_singleton_dims[TIME2_DIM] = 1;
 			complex float* resp_state_singleton = md_alloc(DIMS, resp_state_singleton_dims, CFL_SIZE);
 
+			bool valid_time_resp = check_valid_time(resp_state_singleton_dims, resp_state_singleton, lables_dims, lables, resp_lables_idx);
+
 			long pos[DIMS] = { 0 };
 			for (int i = 0; i < 2; i++){
 
 				pos[TIME2_DIM] = resp_lables_idx[i];
 				md_copy_block(DIMS, pos, resp_state_singleton_dims, resp_state_singleton, lables_dims, lables, CFL_SIZE);
-				pos[TIME2_DIM] = i;
+
+				if (valid_time_resp)
+					pos[TIME2_DIM] = i;
+				else
+					pos[TIME2_DIM] = 1 - i;
+
 				md_copy_block(DIMS, pos, resp_state_dims, resp_state, resp_state_singleton_dims, resp_state_singleton, CFL_SIZE);
 
 			}
@@ -347,11 +377,18 @@ int main_bin(int argc, char* argv[])
 			card_state_singleton_dims[TIME2_DIM] = 1;
 			complex float* card_state_singleton = md_alloc(DIMS, card_state_singleton_dims, CFL_SIZE);
 
+			bool valid_time_card = check_valid_time(card_state_singleton_dims, card_state_singleton, lables_dims, lables, card_lables_idx);
+
 			for (int i = 0; i < 2; i++){
 
 				pos[TIME2_DIM] = card_lables_idx[i];
 				md_copy_block(DIMS, pos, card_state_singleton_dims, card_state_singleton, lables_dims, lables, CFL_SIZE);
-				pos[TIME2_DIM] = i;
+
+				if (valid_time_card)
+					pos[TIME2_DIM] = i;
+				else // If time evolution is not consistent with increasing bin-index, swap order of the two EOFs
+					pos[TIME2_DIM] = 1 - i;
+
 				md_copy_block(DIMS, pos, card_state_dims, card_state, card_state_singleton_dims, card_state_singleton, CFL_SIZE);
 
 			}
