@@ -80,12 +80,18 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 	long coils = data->dims[COIL_DIM];
 	long SMS = data->dims[SLICE_DIM];
 
-	md_axpy(1, MD_DIMS(data->size_x * coils * SMS / (coils * SMS + parameters * SMS)),
-	                                         dst + res * res * 2 * parameters * SMS,
-						 data->alpha,
-	                                         src + res * res * 2 * parameters * SMS);
+	if (1 == data->conf->opt_reg) {
+
+		md_axpy(1, MD_DIMS(data->size_x * coils * SMS / (coils * SMS + parameters * SMS)),
+	                                        dst + res * res * 2 * parameters * SMS,
+						data->alpha,
+	                                        src + res * res * 2 * parameters * SMS);
+	} else {
+
+		md_axpy(1, MD_DIMS(data->size_x), dst, data->alpha, src);
+	}
+
 	
-// 	md_axpy(1, MD_DIMS(data->size_x), dst, data->alpha, src);
 }
 
 static void pos_value(iter_op_data* _data, float* dst, const float* src)
@@ -123,7 +129,11 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 
 		pos_value(_data, dst, src);
 	}
-	operator_p_apply_unchecked(data->prox2, rho, (_Complex float*)dst, (const _Complex float*)dst);
+
+	if (1 == data->conf->opt_reg) {
+
+		operator_p_apply_unchecked(data->prox2, rho, (_Complex float*)dst, (const _Complex float*)dst);
+	}
 
 	pos_value(_data, dst, dst);
 }

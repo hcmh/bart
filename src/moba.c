@@ -47,6 +47,7 @@ int main_moba(int argc, char* argv[])
 	const struct opt_s opts[] = {
 
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
+		OPT_UINT('l', &conf.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
 		OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),

@@ -12,6 +12,7 @@ struct mdb_irgnm_l1_conf {
 
 	struct iter3_irgnm_conf* c2;
 
+	int opt_reg;
 	float step;
 	float lower_bound;
 	int constrained_maps;
