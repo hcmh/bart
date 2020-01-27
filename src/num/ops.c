@@ -715,7 +715,7 @@ static void op_loop_fun(const operator_data_t* _data, unsigned int N, void* args
                 omp_set_num_threads(nr_cuda_devices * 2);
 //              fft_set_num_threads(1);
 #else
-                assert(0);
+                error("Both OpenMP and CUDA are necessary for op_loop_fun. At least one was not found.\n");
 #endif
 	}
 
@@ -1003,7 +1003,7 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 
 #else
 	UNUSED(_data); UNUSED(N); UNUSED(args);
-	assert(0);
+	error("Both OpenMP and CUDA are necessary for automatic GPU execution. At least one was not found.\n");
 #endif
 }
 

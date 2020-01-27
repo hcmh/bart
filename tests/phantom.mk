@@ -49,6 +49,18 @@ tests/test-phantom-ksp-coil: fft nrmse $(TESTS_OUT)/shepplogan_coil.ra $(TESTS_O
 	touch $@
 
 
+tests/test-phantom-bart: fft nrmse phantom
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+	$(TOOLDIR)/phantom -B -k k.ra								;\
+	$(TOOLDIR)/fft -i 3 k.ra x.ra								;\
+	$(TOOLDIR)/phantom -B r.ra								;\
+	$(TOOLDIR)/nrmse -t 0.21 r.ra x.ra							;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+
+
 
 TESTS += tests/test-phantom-ksp tests/test-phantom-noncart tests/test-phantom-coil tests/test-phantom-ksp-coil
+TESTS += tests/test-phantom-bart
 

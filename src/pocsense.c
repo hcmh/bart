@@ -185,7 +185,7 @@ int main_pocsense(int argc, char* argv[])
 #ifdef USE_CUDA
 		pocs_recon_gpu2(italgo, iconf, (const struct linop_s**)ops2, dims, thresh_op, alpha, lambda, result, sens_maps, pattern, kspace_data);
 #else
-		assert(0);
+		error("Using the GPU requires CUDA\n");
 #endif
 	else
 		pocs_recon2(italgo, iconf, (const struct linop_s**)ops2, dims, thresh_op, alpha, lambda, result, sens_maps, pattern, kspace_data);

@@ -25,4 +25,6 @@ tests/test-mdb-bloch: phantom creal saxpy conj threshold ones fmac cabs join cop
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-TESTS += tests/test-mdb-bloch
+# too slow...
+#TESTS += tests/test-mdb-bloch
+

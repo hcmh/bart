@@ -94,7 +94,7 @@ int main_phantom(int argc, char* argv[])
 	int xdim = -1;
 
 	int geo = -1;
-	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM, BART, T1T2 } ptype = SHEPPLOGAN;
+	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM, STAR, BART, T1T2 } ptype = SHEPPLOGAN;
 
 	const char* traj = NULL;
 	bool simulation = false;
@@ -120,6 +120,7 @@ int main_phantom(int argc, char* argv[])
 		OPT_SET('k', &kspace, "k-space"),
 		OPT_STRING('t', &traj, "file", "trajectory"),
 		OPT_SELECT('c', enum ptype_e, &ptype, CIRC, "()"),
+		OPT_SELECT('a', enum ptype_e, &ptype, STAR, "()"),
 		OPT_SELECT('m', enum ptype_e, &ptype, TIME, "()"),
 		OPT_SELECT('G', enum ptype_e, &ptype, GEOM, "geometric object phantom"),
 		OPT_SELECT('C', enum ptype_e, &ptype, HEART, "heart"),
@@ -168,6 +169,9 @@ int main_phantom(int argc, char* argv[])
 	complex float* samples = NULL;
 
 	if (NULL != traj) {
+
+		if (-1 != xdim)
+			debug_printf(DP_WARN, "size ignored.\n");
 
 		kspace = true;
 
@@ -229,6 +233,11 @@ int main_phantom(int argc, char* argv[])
 		calc_geo_phantom(dims, out, kspace, geo, sstrs, samples);
 		break;
 
+	case STAR:
+
+		(d3 ? calc_star3d : calc_star)(dims, out, kspace, sstrs, samples);
+		break;
+
 	case TIME:
 
 		assert(!d3);
@@ -254,7 +263,7 @@ int main_phantom(int argc, char* argv[])
 	
 	case BART:
 
-		calc_phantom_bart(dims, out, false, false, sstrs, samples);	
+		calc_bart(dims, out, kspace, sstrs, samples);	
 		break;
 	}
 

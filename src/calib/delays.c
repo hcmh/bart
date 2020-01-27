@@ -1,10 +1,10 @@
-/* Copyright 2017-2019. Martin Uecker.
+/* Copyright 2017-2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2017-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
+ * Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  *
  *
  * Kai Tobias Block and Martin Uecker, Simple Method for Adaptive
@@ -135,6 +135,7 @@ static void check_intersections(const int Nint, const int N, const float S[3], c
 
 		float phi0 = angles[idx[i][0]];
 		float phi1 = angles[idx[i][1]];
+
 		float N1 = cosf(phi0) - cosf(phi1);
 		float N2 = sinf(phi0) - sinf(phi1);
 
@@ -162,7 +163,8 @@ static void check_intersections(const int Nint, const int N, const float S[3], c
 
 
 // [RING] Caclucate intersection points
-static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[Nint][2], long idx[Nint][2], const float angles[N], const long kc_dims[DIMS], const complex float* kc)
+static void calc_intersections(int Nint, int N, int no_intersec_sp, bool b0, float dist[Nint][2], long idx[Nint][2],
+		const float angles[N], const long kc_dims[DIMS], const complex float* kc)
 {
 	long spoke_dims[DIMS];
 	md_select_dims(DIMS, ~PHS2_FLAG, spoke_dims, kc_dims);
@@ -202,13 +204,32 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, float dist[N
 
 				for (int m = 0; m < ROI; m++) {
 
+					complex float A = 1.;
+
+					if (b0) {
+
+						assert(channels > 1);
+
+						A = 0.;
+						float N = 0.;
+
+						for (int c = 0; c < channels; c++)
+							A += spoke_i[l + c * ROI] * conjf(spoke_j[m + c * ROI]);
+
+						for (int c = 0; c < channels; c++)
+							//N += powf(cabsf(spoke_j[m + c * ROI]), 2.);
+							N += cabsf(spoke_i[l + c * ROI]) * cabsf(spoke_j[m + c * ROI]);
+
+						A /= N;
+					}
+
 					float diff_ss = 0.;
 
 					for (int c = 0; c < channels; c++) {
 
-						complex float diff = spoke_i[l + c * ROI] - spoke_j[m + c * ROI];
+						complex float diff = spoke_i[l + c * ROI] - A * spoke_j[m + c * ROI];
 
-						diff_ss += pow(crealf(diff), 2.) + pow(cimagf(diff), 2.);
+						diff_ss += powf(cabsf(diff), 2.);
 					}
 
 					if (diff_ss < ss) { // New minimum found
@@ -297,6 +318,7 @@ struct ring_conf ring_defaults = {
 	.size = 1.5,
 	.no_intersec_sp = 1,
 	.crop_factor = 0.6,
+	.b0 = false,
 };
 
 void ring(const struct ring_conf* conf, float S[3], int N, const float angles[N], const long dims[DIMS], const complex float* in)
@@ -365,7 +387,7 @@ void ring(const struct ring_conf* conf, float S[3], int N, const float angles[N]
 	long idx[Nint][2];
 	float dist[Nint][2];
 
-	calc_intersections(Nint, N, conf->no_intersec_sp, dist, idx, angles, kc_dims, kc);
+	calc_intersections(Nint, N, conf->no_intersec_sp, conf->b0, dist, idx, angles, kc_dims, kc);
 
 	calc_S(Nint, N, S, angles, dist, idx);
 

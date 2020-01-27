@@ -369,7 +369,7 @@ void rolloff_correction(float os, float width, float beta, const long dimensions
 				dst[x + dimensions[0] * (y + z * dimensions[1])] 
 					= rolloff(pos(dimensions[0], x), beta, width)
 					* rolloff(pos(dimensions[1], y), beta, width)
-					* rolloff(pos(dimensions[2], z), beta, width);
+					* rolloff(pos(dimensions[2], z), beta, width) / 1.001411;
 }
 
 

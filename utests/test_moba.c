@@ -384,7 +384,7 @@ static bool test_nlop_T1relax_comb_der_adj(void)
 	random_application(flat);
 
 // 	double err = linop_test_adjoint(nlop_get_derivative(flat, 0, 0));
-        double err = nlop_test_derivative(flat);        
+        double err = nlop_test_derivative(flat);
         
         nlop_free(flat);
         nlop_free(T1_1);
@@ -604,6 +604,5 @@ static bool test_nlop_T1_MOLLI_relax_der_adj(void)
 	UT_ASSERT((!safe_isnanf(err)) && (err < 7.E-2));
 }
 
-UT_REGISTER_TEST(test_nlop_T1_MOLLI_relax_der_adj);
 
 

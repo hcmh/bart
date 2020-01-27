@@ -76,7 +76,7 @@ struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s
 
 		case ALGO_DEFAULT:
 
-			assert(0);
+			error("ALGO_DEFAULT not implemented\n");
 
 		case ALGO_CG: {
 
@@ -215,7 +215,7 @@ struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s
 		}
 
 		default:
-			assert(0);
+			error("Selected algorithm not implemented\n");
 	}
 
 	return (struct iter){ italgo, iconf };

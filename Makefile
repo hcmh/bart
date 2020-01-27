@@ -136,7 +136,7 @@ CUDA_BASE ?= /usr/local/
 ACML_BASE ?= /usr/local/acml/acml4.4.0/gfortran64_mp/
 
 # mkl
-MKL_BASE ?= /opt/intel/mkl/lib/intel64/ 
+MKL_BASE ?= /opt/intel/mkl/
 
 # fftw
 
@@ -157,9 +157,16 @@ ISMRM_BASE ?= /usr/local/ismrmrd/
 
 
 
-# Main build targets are defined in build_targets.mk so that both CMake and Make can use the same definitions
-# set values for TBASE TFLP TNUM TRECO TCALIB TMRI TSIM TIO in build_targets.mk
-include build_targets.mk
+# Main build targets
+#
+TBASE=show slice crop resize join transpose squeeze flatten zeros ones flip circshift extract repmat bitmask reshape version delta copy casorati vec poly index linspace
+TFLP=scale invert conj fmac saxpy sdot spow cpyphs creal carg normalize cdf97 pattern nrmse mip avg cabs zexp
+TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavelet window var std fftrot
+TRECO=pics pocsense sqpics itsense nlinv T1fun moba mdbT2 modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv
+TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten ssa bin cordelay laplace kmeans
+TMRI=homodyne poisson twixread fakeksp umgread looklocker
+TSIM=phantom traj upat bloch
+TIO=toimg dcmread
 
 
 
@@ -185,8 +192,8 @@ MODULES_nufft = -lnoncart -liter -llinops
 MODULES_rof = -liter -llinops
 MODULES_tgv = -liter -llinops
 MODULES_bench = -lwavelet -llinops
-MODULES_phantom = -lsimu
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -lmanifold -lmoba
+MODULES_phantom = -lsimu -lgeom
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -lnlops -lmanifold -lmoba -lgeom
 MODULES_sake = -lsake
 MODULES_traj = -lnoncart
 MODULES_wave = -liter -lwavelet -llinops -llowrank
@@ -280,7 +287,7 @@ else
 
 CPPFLAGS += $(DEPFLAG) -iquote $(srcdir)/
 CFLAGS += -std=gnu11
-CXXFLAGS += -std=c++11
+CXXFLAGS += -std=c++14
 
 
 
@@ -455,12 +462,92 @@ endif
 
 .LIBPATTERNS := lib%.a
 
-
 vpath %.a lib
 
-DIRS = $(root)/rules/*.mk
+boxextrasrcs := $(XTARGETS:%=src/%.c)
 
-include $(DIRS)
+define alib
+$(1)srcs := $(wildcard $(srcdir)/$(1)/*.c)
+$(1)cudasrcs := $(wildcard $(srcdir)/$(1)/*.cu)
+$(1)objs := $$($(1)srcs:.c=.o)
+$(1)objs += $$($(1)extrasrcs:.c=.o)
+$(1)objs += $$($(1)extracxxsrcs:.cc=.o)
+
+ifeq ($(CUDA),1)
+$(1)objs += $$($(1)cudasrcs:.cu=.o)
+endif
+
+.INTERMEDIATE: $(filter %.o,$$($(1)objs))
+
+lib/lib$(1).a: lib$(1).a($$($(1)objs))
+
+endef
+
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box rkhs na nn geom manifold
+$(eval $(foreach t,$(ALIBS),$(eval $(call alib,$(t)))))
+
+
+# additional rules for lib misc
+$(eval $(shell $(root)/rules/update-version.sh))
+
+$(srcdir)/misc/version.o: $(srcdir)/misc/version.inc
+
+
+# additional rules for lib ismrm
+lib/libismrm.a: CPPFLAGS += $(ISMRM_H)
+
+
+# lib linop
+UTARGETS += test_linop_matrix test_linop test_linop_conv
+MODULES_test_linop += -llinops
+MODULES_test_linop_matrix += -llinops
+MODULES_test_linop_conv += -llinops
+
+# lib lowrank
+UTARGETS += test_batchsvd
+MODULES_test_batchsvd = -llowrank
+
+# lib misc
+UTARGETS += test_pattern test_types test_misc
+
+# lib moba
+UTARGETS += test_moba
+MODULES_test_moba += -lmoba -lnoir -lnlops -llinops -lsimu
+
+# lib nlop
+UTARGETS += test_nlop
+MODULES_test_nlop += -lnlops -llinops
+
+# lib noncart
+UTARGETS += test_nufft
+MODULES_test_nufft += -lnoncart -llinops
+
+# lib num
+UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2
+UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test_ops_p test_specfun
+UTARGETS_GPU += test_cudafft
+
+# lib simu
+UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_ode_simu
+MODULES_test_ode_bloch += -lsimu
+MODULES_test_tsegf += -lsimu
+MODULES_test_biot_savart += -lsimu
+MODULES_test_ode_simu += -lsimu
+
+# lib geom
+UTARGETS += test_geom
+MODULES_test_geom += -lgeom
+
+# lib iter
+UTARGETS += test_iter test_prox
+MODULES_test_iter += -liter -lnlops -llinops
+MODULES_test_prox += -liter -llinops
+
+# lib nn
+# UTARGETS += test_nn
+MODULES_test_nn += -lnn -lnlops -llinops
+
+
 
 # sort BTARGETS after everything is included
 BTARGETS:=$(sort $(BTARGETS))

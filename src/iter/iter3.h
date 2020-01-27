@@ -25,9 +25,6 @@ struct iter3_irgnm_conf {
 	float cgtol;
 
 	_Bool nlinv_legacy;
-	
-	int constrained_maps;
-	float lower_bound;
 };
 
 

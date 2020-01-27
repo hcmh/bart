@@ -179,7 +179,7 @@ struct conv_plan* conv_plan(int N, unsigned int flags, enum conv_type ctype, enu
 		break;
 
 	default:
-		assert(0);
+		error("Unsupported convolution mode\n");
 	}
 
 	

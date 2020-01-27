@@ -1,5 +1,6 @@
 
 #include <complex.h>
+#include <stdbool.h>
 
 #ifndef DIMS
 #define DIMS 16
@@ -11,10 +12,11 @@ extern void radial_self_delays(int N, float shifts[N], const float phi[N], const
 
 struct ring_conf {
 
-	int pad_factor;
+	unsigned int pad_factor;
 	float size;
-	int no_intersec_sp;
+	unsigned int no_intersec_sp;
 	float crop_factor;
+	bool b0;
 };
 
 extern struct ring_conf ring_defaults;

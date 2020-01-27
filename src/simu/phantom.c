@@ -21,14 +21,20 @@
 #include "num/multind.h"
 #include "num/loop.h"
 #include "num/flpmath.h"
+#include "num/splines.h"
 
 #include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/debug.h"
 
+#include "geom/logo.h"
+
 #include "simu/shepplogan.h"
 #include "simu/sens.h"
 #include "simu/coil.h"
+#include "simu/shape.h"
+#include "simu/volume.h"
+
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
 #include "simu/seq_model.h"
@@ -223,7 +229,7 @@ void calc_geo_phantom(const long dims[DIMS], complex float* out, bool kspace, in
 		break;
 
 	default:
-		assert(0);
+		error("Invalid phantom type\n");
 	}
 
 	md_free(round);
@@ -349,6 +355,163 @@ void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const lo
 	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc);
 }
 
+
+struct poly1 {
+
+	int N;
+	complex float coeff;
+	double (*pg)[][2];
+};
+
+struct poly {
+
+	bool kspace;
+	int P;
+	struct poly1 (*p)[];
+};
+
+static complex float krn_poly(void* _data, const double mpos[3])
+{
+	struct poly* data = _data;
+
+	complex float val = 0.;
+
+	for (int p = 0; p < data->P; p++)
+		val += (*data->p)[p].coeff * (data->kspace ? kpolygon : xpolygon)((*data->p)[p].N, *(*data->p)[p].pg, mpos);
+
+	return val;
+}
+
+void calc_star(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	struct poly poly = {
+		kspace,
+		1,
+		&(struct poly1[]){
+			{
+			8,
+			1.,
+			&(double[][2]){
+				{ -0.5, -0.5 },
+				{  0.0, -0.3 },
+				{ +0.5, -0.5 },
+				{  0.3,  0.0 },
+				{ +0.5, +0.5 },
+				{  0.0, +0.3 },
+				{ -0.5, +0.5 },
+				{ -0.3,  0.0 },
+			}
+			}
+		}
+	};
+
+	struct data data = {
+
+		.traj = traj,
+		.tstrs = tstrs,
+		.sens = (dims[COIL_DIM] > 1),
+		.dims = { dims[0], dims[1], dims[2] },
+		.data = &poly,
+		.fun = krn_poly,
+	};
+
+	md_parallel_zsample(DIMS, dims, out, &data, kspace ? kkernel : xkernel);
+}
+
+struct poly3d {
+
+	bool kspace;
+	int N;
+	double (*pg)[][3][3];
+};
+
+static complex float krn_poly3d(void* _data, const double mpos[3])
+{
+	struct poly3d* data = _data;
+	return (data->kspace ? kvolume : xvolume)(data->N, *data->pg, mpos);
+}
+
+void calc_star3d(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	struct poly3d poly3d = {
+
+		kspace,
+		4,
+		&(double[][3][3]){
+
+			{ { 0., 0., 0. }, { 0.5, 0., 0. }, { 0., 0.5, 0. }, },
+			{ { 0.5, 0., 0. }, { 0., 0., 0. }, { 0., 0., 0.5 }, },
+			{ { 0., 0., 0. }, { 0., 0.5, 0. }, { 0., 0., 0.5 }, },
+			{ { 0.5, 0., 0. }, { 0., 0., 0.5 }, { 0., 0.5, 0. }, },
+		},
+	};
+
+	struct data data = {
+
+		.traj = traj,
+		.tstrs = tstrs,
+		.sens = (dims[COIL_DIM] > 1),
+		.dims = { dims[0], dims[1], dims[2] },
+		.data = &poly3d,
+		.fun = krn_poly3d,
+	};
+
+	md_parallel_zsample(DIMS, dims, out, &data, kspace ? kkernel : xkernel);
+}
+
+#define ARRAY_SLICE(x, a, b) ({ __auto_type __x = &(x); assert((0 <= a) && (a < b) && (b <= ARRAY_SIZE(*__x))); ((__typeof__((*__x)[0]) (*)[b - a])&((*__x)[a])); })
+
+void calc_bart(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	int N = 11 + 6 + 6 + 8 + 4 + 16 + 6 + 8 + 6 + 6;
+	double points[N * 11][2];
+
+	struct poly poly = {
+		kspace,
+		10,
+		&(struct poly1[]){
+			{ 11 * 11, -1., ARRAY_SLICE(points,  0 * 11, 11 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 11 * 11, 17 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 17 * 11, 23 * 11) },
+			{  8 * 11, -1., ARRAY_SLICE(points, 23 * 11, 31 * 11) },
+			{  4 * 11, -1., ARRAY_SLICE(points, 31 * 11, 35 * 11) },
+			{ 16 * 11, -1., ARRAY_SLICE(points, 35 * 11, 51 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 51 * 11, 57 * 11) },
+			{  8 * 11, -1., ARRAY_SLICE(points, 57 * 11, 65 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 65 * 11, 71 * 11) },
+			{  6 * 11, -1., ARRAY_SLICE(points, 71 * 11, 77 * 11) },
+		}
+	};
+
+	for (int i = 0; i < N; i++) {
+
+		for (int j = 0; j <= 10; j++) {
+
+			double t = j * 0.1;
+			int n = i * 11 + j;
+
+			points[n][1] = cspline(t, bart_logo[i][0]) / 250. - 0.50;
+			points[n][0] = cspline(t, bart_logo[i][1]) / 250. - 0.75;
+		}
+	}
+
+	struct data data = {
+
+		.traj = traj,
+		.tstrs = tstrs,
+		.sens = (dims[COIL_DIM] > 1),
+		.dims = { dims[0], dims[1], dims[2] },
+		.data = &poly,
+		.fun = krn_poly,
+	};
+
+	md_parallel_zsample(DIMS, dims, out, &data, kspace ? kkernel : xkernel);
+}
+
+
+
+
+
 struct simulated_ellipsis_s {
 
 	struct ellipsis_s geom; //geom.intensity = M0 for simulation
@@ -465,22 +628,17 @@ void calc_phantom_t1t2(struct SimData* data, const long dims[DIMS], complex floa
 		calc_signal_simu(data, dims, out, kspace, tstrs, traj, ARRAY_SIZE(t1t2phantom), t1t2phantom);
 	else {
 		
-		// extract only ellipsis_s struct for sample function
+		// extract only ellipsis_s struct for calling sample()
 		struct ellipsis_s phantom[ARRAY_SIZE(t1t2phantom)];
 		
-		for (unsigned int i = 0; i < ARRAY_SIZE(t1t2phantom); i++)
+		for (unsigned int i = 0; i < ARRAY_SIZE(t1t2phantom); i++) {
+			
 			phantom[i] = t1t2phantom[i].geom;
+			phantom[i].intensity = (i == 0) ? t1t2phantom[i].t1 + t1t2phantom[i].t2 * I : -(t1t2phantom[0].t1 + t1t2phantom[0].t2 * I) + t1t2phantom[i].t1 + t1t2phantom[i].t2 * I;
+		}
 		
 		sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(phantom), phantom }, krn2d, kspace) ;
 	}
 }
-
-void calc_phantom_bart(const long dims[DIMS], complex float* out, bool d3, bool kspace, const long tstrs[DIMS], const complex float* traj)
-{
-	(void) d3;
-	
-	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(bart_img), bart_img }, krn2d, kspace);
-}
-
 
 
