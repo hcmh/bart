@@ -400,6 +400,11 @@ int main_bin(int argc, char* argv[])
 
 			}
 
+#ifdef SSAFARY_PAPER
+			dump_cfl("resp", DIMS, resp_state_dims,resp_state);
+			dump_cfl("card", DIMS, card_state_dims,card_state);
+#endif
+
 			// Array to store bin-index for samples
 			long bins_dims[DIMS];
 			md_copy_dims(DIMS, bins_dims, lables_dims);

@@ -12,6 +12,10 @@
 #include <math.h>
 #include <assert.h>
 
+#ifdef SSAFARY_PAPER
+#include "misc/debug.h"
+#endif
+
 #include "misc/mri.h"
 
 #include "traj.h"
@@ -189,7 +193,21 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 
 		}
 
+#ifdef SSAFARY_PAPER
+		/* Specific trajectory designed for z-undersampled Stack-of-Stars imaging:
+		 * Sebastian Rosenzweig, Nick Scholand, H. Christian M. Holme, Martin Uecker.
+		 * Cardiac and Respiratory Self-Gating in Radial MRI using an Adapted Singular Spectrum
+		 * Analysis (SSA-FARY), arXiv preprint
+		 */
+		if (mb == 14) {
+			int mb_red = 8;
+			angle_m = golden_angle;
+			angle_s = golden_angle * mb_red;
+			angle_t = golden_angle * Y * mb_red;
+			debug_printf(DP_INFO, "Trajectory generation to reproduce SSA-FARY Paper!\n");
 		}
+#endif
+
 	}
 
 	base_angle[PHS2_DIM] = angle_s;
