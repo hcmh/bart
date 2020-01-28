@@ -4,7 +4,7 @@
  * a BSD-style license which can be found in the LICENSE file.
  *
  * 2014-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
+ * 2018-2020 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  * 2019 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
  */
 
@@ -177,16 +177,18 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	if (conf.golden) {
 
 		angle_s = golden_angle;
+		angle_m = 0;
+		angle_t = golden_angle * Y;
 
-		if (conf.aligned) {
+		// Continuous golden angle with multiple partitions/slices
+		if ((mb > 1) && (!conf.aligned)) {
 
-			angle_m = 0;
-			angle_t = golden_angle * Y;
+			angle_m = golden_angle;
+			angle_s = golden_angle * mb;
+			angle_t = golden_angle * mb * Y;
 
-		} else {
+		}
 
-			angle_m = golden_angle * Y;
-			angle_t = golden_angle * Y * mb;
 		}
 	}
 
