@@ -37,6 +37,7 @@
 struct moba_conf moba_defaults = {
 
 	.iter = 8,
+	.opt_reg = 1,
 	.alpha = 1.,
 	.alpha_min = 0.,
 	.redu = 2.,
@@ -81,6 +82,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	mconf.fft_flags = fft_flags;
 	mconf.a = 880.;
 	mconf.b = 32.;
+	mconf.cnstcoil_flags = TE_FLAG;
 
 	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, usegpu);
 
@@ -94,7 +96,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 1, .not_wav_maps = 0 };
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 1, .not_wav_maps = 0 };
 
 	long irgnm_conf_dims[DIMS];
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);

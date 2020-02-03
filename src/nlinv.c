@@ -1,10 +1,10 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2015-2016. Martin Uecker.
+ * Copyright 2015-2020. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors: 
- * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
@@ -67,6 +67,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
 		OPT_SET('g', &usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
+		OPT_UINT('s', &conf.cnstcoil_flags, "flags", "dimensions with constant sensitivities"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
@@ -101,25 +102,32 @@ int main_nlinv(int argc, char* argv[])
 	long ksp_strs[DIMS];
 	md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
 
+	long dims[DIMS];
+	md_copy_dims(DIMS, dims, ksp_dims);
+	dims[MAPS_DIM] = nmaps;
+
+	long strs[DIMS];
+	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
+
+
 	long sens_dims[DIMS];
-	md_copy_dims(DIMS, sens_dims, ksp_dims);
-	sens_dims[MAPS_DIM] = nmaps;
+	md_select_dims(DIMS, ~conf.cnstcoil_flags, sens_dims, dims);
 
 	long sens_strs[DIMS];
 	md_calc_strides(DIMS, sens_strs, sens_dims, CFL_SIZE);
 
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|SLICE_FLAG, img_dims, sens_dims);
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
 	long img_output_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|SLICE_FLAG, img_output_dims, sens_dims);
+	md_copy_dims(DIMS, img_output_dims, img_dims);
 
-	if (!combine)
-		img_output_dims[MAPS_DIM] = nmaps;
+	if (combine)
+		img_output_dims[MAPS_DIM] = 1;
 
 	long img_output_strs[DIMS];
 	md_calc_strides(DIMS, img_output_strs, img_output_dims, CFL_SIZE);
@@ -146,12 +154,13 @@ int main_nlinv(int argc, char* argv[])
 
 		long skip = md_calc_size(DIMS, img_dims);
 		long init_dims[DIMS];
+
 		complex float* init = load_cfl(init_file, DIMS, init_dims);
 
 		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
 
 		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
-		fftmod(DIMS, sens_dims, FFT_FLAGS|SLICE_FLAG, ksens, init + skip);
+		fftmod(DIMS, sens_dims, FFT_FLAGS | (conf.sms ? SLICE_FLAG : 0u), ksens, init + skip);
 
 		unmap_cfl(DIMS, init_dims, init);
 
@@ -191,7 +200,9 @@ int main_nlinv(int argc, char* argv[])
 	} else {
 
 		md_copy_dims(DIMS, pat_dims, img_dims);
+
 		pattern = anon_cfl("", DIMS, pat_dims);
+
 		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace_data);
 	}
 
@@ -200,7 +211,7 @@ int main_nlinv(int argc, char* argv[])
 #else
 	double scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data);
 
-	if (1 != ksp_dims[SLICE_DIM]) // SMS
+	if (conf.sms)
 		scaling *= sqrt(ksp_dims[SLICE_DIM]);
 #endif
 
@@ -228,31 +239,33 @@ int main_nlinv(int argc, char* argv[])
 	if (usegpu) {
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
+
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
 
-		noir_recon(&conf, sens_dims, img, sens, ksens, ref, pattern, mask, kspace_gpu);
+		noir_recon(&conf, dims, img, sens, ksens, ref, pattern, mask, kspace_gpu);
+
 		md_free(kspace_gpu);
 
 	} else
 #endif
-		noir_recon(&conf, sens_dims, img, sens, ksens, ref, pattern, mask, kspace_data);
+		noir_recon(&conf, dims, img, sens, ksens, ref, pattern, mask, kspace_data);
 
 
 	// image output
 	if (normalize) {
 
-		complex float* buf = md_alloc(DIMS, sens_dims, CFL_SIZE);
-		md_clear(DIMS, sens_dims, buf, CFL_SIZE);
+		complex float* buf = md_alloc(DIMS, dims, CFL_SIZE);
+		md_clear(DIMS, dims, buf, CFL_SIZE);
 
 		if (combine) {
 
-			md_zfmac2(DIMS, sens_dims, ksp_strs, buf, img_strs, img, sens_strs, sens);
+			md_zfmac2(DIMS, dims, ksp_strs, buf, img_strs, img, sens_strs, sens);
 			md_zrss(DIMS, ksp_dims, COIL_FLAG, img_output, buf);
 
 		} else {
 
-			md_zfmac2(DIMS, sens_dims, sens_strs, buf, img_strs, img, sens_strs, sens);
-			md_zrss(DIMS, sens_dims, COIL_FLAG, img_output, buf);
+			md_zfmac2(DIMS, dims, strs, buf, img_strs, img, sens_strs, sens);
+			md_zrss(DIMS, dims, COIL_FLAG, img_output, buf);
 		}
 
 		md_zmul2(DIMS, img_output_dims, img_output_strs, img_output, img_output_strs, img_output, msk_strs, mask);
@@ -266,14 +279,17 @@ int main_nlinv(int argc, char* argv[])
 
 		md_free(buf);
 
-	} else if (combine) {
+	} else {
 
-		// just sum up the map images
-		md_zaxpy2(DIMS, img_dims, img_output_strs, img_output, 1., img_strs, img);
+		if (combine) {
 
-	} else { /*!normalize && !combine */
+			// just sum up the map images
+			md_zaxpy2(DIMS, img_dims, img_output_strs, img_output, 1., img_strs, img);
 
-		md_copy(DIMS, img_output_dims, img_output, img, CFL_SIZE);
+		} else { /*!normalize && !combine */
+
+			md_copy(DIMS, img_output_dims, img_output, img, CFL_SIZE);
+		}
 	}
 
 	if (scale_im)

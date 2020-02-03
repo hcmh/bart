@@ -21,6 +21,7 @@ struct traj_conf {
 	_Bool asym_traj;
 	_Bool mems_traj;
 	_Bool rational;
+	_Bool sms_turns;
 	int accel;
 	int tiny_gold;
 	int multiple_ga;

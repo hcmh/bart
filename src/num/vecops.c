@@ -404,14 +404,14 @@ static void vec_sqrt(long N, float* dst, const float* src)
 static void vec_zle(long N, complex float* dst, const complex float* src1, const complex float* src2)
 {
 	for (long i = 0; i < N; i++)
-		dst[i] = (crealf(src1[i]) <= crealf(src2[i]));
+		dst[i] = (crealf(src1[i]) <= crealf(src2[i])) ? 1. : 0.;
 }
 
 
 static void vec_le(long N, float* dst, const float* src1, const float* src2)
 {
 	for (long i = 0; i < N; i++)
-		dst[i] = (src1[i] <= src2[i]);
+		dst[i] = (src1[i] <= src2[i]) ? 1. : 0.;
 }
 
 /**

@@ -26,10 +26,12 @@
 #include "misc/mmio.h"
 #include "misc/opts.h"
 #include "misc/mri.h"
+#include "misc/debug.h"
 
 #include "num/init.h"
 #include "num/qform.h"
 #include "num/multind.h"
+#include "num/flpmath.h"
 
 #include "calib/delays.h"
 
@@ -45,7 +47,7 @@
 
 
 
-static const char usage_str[] = "<trajectory> <data>";
+static const char usage_str[] = "<trajectory> <data> [<b0>]";
 static const char help_str[] = "Estimate gradient delays from radial data.";
 
 
@@ -53,6 +55,9 @@ int main_estdelay(int argc, char* argv[])
 {
 	bool do_ring = false;
 	struct ring_conf conf = ring_defaults;
+	bool do_b0 = false;
+	bool do_ac_adaptive = false;
+	unsigned int pad_factor = 100;
 
 	const struct opt_s opts[] = {
 
@@ -60,14 +65,23 @@ int main_estdelay(int argc, char* argv[])
 		OPT_UINT('p', &conf.pad_factor, "p", "[RING] Padding"),
 		OPT_UINT('n', &conf.no_intersec_sp, "n", "[RING] Number of intersecting spokes"),
 		OPT_FLOAT('r', &conf.size, "r", "[RING] Central region size"),
-		OPT_SET('B', &conf.b0, "[RING] Assume B0 eddy currents"),
+		OPT_SET('b', &conf.b0, "[RING] Assume B0 eddy currents"),
+		OPT_SET('B', &do_b0, "B0 correction"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
-	if (0 != conf.pad_factor % 2)
+	if (do_ring && do_b0)
+		error("Do either b0 or RING");
+	
+	if (!do_b0 && !do_ring) {
+		do_ac_adaptive = true;
+	}
+	
+		
+	if (0 != pad_factor % 2)
 		error("Pad_factor -p should be even\n");
 
 
@@ -120,7 +134,7 @@ int main_estdelay(int argc, char* argv[])
 
 	float qf[3];	// S in RING
 
-	if (!do_ring) {
+	if (do_ac_adaptive) {
 
 		// Block and Uecker, ISMRM 19:2816 (2001)
 
@@ -133,20 +147,81 @@ int main_estdelay(int argc, char* argv[])
 		 */
 
 		fit_quadratic_form(qf, N, angles, delays);
+		
+		bart_printf("%f:%f:%f\n", qf[0], qf[1], qf[2]);
 
-	} else {
+
+	} else if (do_ring) {
 
 		/* RING method
 		 * Rosenzweig et al., MRM 81:1898-1906 (2019)
 		 */
 
 		ring(&conf, qf, N, angles, dims, in);
-	}
+		
+		bart_printf("%f:%f:%f\n", qf[0], qf[1], qf[2]);
 
-	bart_printf("%f:%f:%f\n", qf[0], qf[1], qf[2]);
+		
+	} else {
+		
+			/* B0 correction method
+			* Moussavi et al., MRM 71:308-312 (2014)
+			*/
+			assert(argc == 4);
+
+			long b0_dims[2];
+			b0_dims[0] = 2;
+			b0_dims[1] = full_dims[COIL_DIM];
+			complex float* b0 = create_cfl(argv[3], 2, b0_dims);
+			
+			// Get DC component of a coil
+			long dc_dims[DIMS];
+			md_select_dims(DIMS, PHS2_FLAG, dc_dims, full_dims);
+			
+			complex float* dc = md_alloc(DIMS, dims, CFL_SIZE);
+
+			long pos1[DIMS] = { 0 };		
+			assert(full_dims[PHS1_DIM] % 2 == 0);
+			pos1[PHS1_DIM] = full_dims[PHS1_DIM] / 2;
+			
+			for (unsigned int i = 0; i < full_dims[COIL_DIM]; i++) {
+
+				pos1[COIL_DIM] = i;
+
+				// Phase of DC component
+				md_copy_block(DIMS, pos1, dc_dims, dc, full_dims, full_in, CFL_SIZE);
+				md_zarg(DIMS, dc_dims, dc, dc);
+				
+				float phase[N];
+
+				// Phase unwrap
+				phase[0] = (float)dc[0];
+				
+				for (int j = 1; j < N; j++) {
+				
+					if (fabs(phase[0] - (float)dc[j]) > M_PI) {
+						
+							float sign = copysignf(1, phase[0] - (float)dc[j]);
+							phase[j] = (float)dc[j] + sign * 2 * M_PI;
+							
+					} else
+							phase[j] = (float)dc[j];
+		
+				}
+		
+								
+				fit_bilinear_form(qf, N, angles, phase);
+				b0[i * 2] = qf[0] + I * 0;
+				b0[i * 2 + 1] = qf[1] + I * 0;
+				
+			}
+			md_free(dc);
+			unmap_cfl(2, b0_dims, b0);
+	}
 
 	unmap_cfl(DIMS, full_dims, full_in);
 	unmap_cfl(DIMS, tdims, traj);
+
 	md_free(in);
 
 	return 0;
