@@ -38,11 +38,11 @@ static void help_seq(void)
 		"\t\t\t4 = inv. bSSFP without preparation\n"
 		"\t\t\t5 = invFLASH\n"
 		"\t\t\t6 = invpcbSSFP\n"
-		"TR:\t Repetition time [s]\n"
-		"TE:\t Echo time [s]\n"
+		"tr:\t Repetition time [s]\n"
+		"te:\t Echo time [s]\n"
 		"Drf:\t Duration of RF pulse [s]\n"
 		"FA:\t Flip angle of rf pulses [deg]\n"
-		"#TR:\t Number of repetitions\n"
+		"#tr:\t Number of repetitions\n"
 	);
 }
 
@@ -64,15 +64,15 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 	} else {
 		
 		// Collect simulation data
-		struct SimData* sim_data = ptr;
+		struct sim_data* sim_data = ptr;
 
-		ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d",	&sim_data->seqData.analytical,
-								&sim_data->seqData.seq_type, 
-								&sim_data->seqData.TR, 
-								&sim_data->seqData.TE, 
-								&sim_data->pulseData.RF_end, 
-								&sim_data->pulseData.flipangle,
-								&sim_data->seqData.rep_num);
+		ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d",	&sim_data->seq.analytical,
+								&sim_data->seq.seq_type, 
+								&sim_data->seq.tr, 
+								&sim_data->seq.te, 
+								&sim_data->pulse.rf_end, 
+								&sim_data->pulse.flipangle,
+								&sim_data->seq.rep_num);
 		assert(7 == ret);
 	}
 	return false;
@@ -85,18 +85,18 @@ int main_sim(int argc, char* argv[])
 	int nbf = 8;
 	
 	// initalize values for simulation
-	struct SimData sim_data;
-	sim_data.seqData = seqData_defaults;
-	sim_data.voxelData = voxelData_defaults;
-	sim_data.pulseData = pulseData_defaults;
-	sim_data.gradData = gradData_defaults;
-	sim_data.seqtmp = seqTmpData_defaults;
+	struct sim_data sim_data;
+	sim_data.seq = simdata_seq_defaults;
+	sim_data.voxel = simdata_voxel_defaults;
+	sim_data.pulse = simdata_pulse_defaults;
+	sim_data.grad = simdata_grad_defaults;
+	sim_data.tmp = simdata_tmp_defaults;
 	
 	
 	const struct opt_s opts[] = {
 		
 		OPT_INT('n', &nbf, "nbf", "No. Basis Functions"),
-		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G\tParameters for Simulation <Typ:Seq:TR:TE:Drf:FA:#TR> (-Ph for help)" },
+		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr> (-Ph for help)" },
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -104,7 +104,7 @@ int main_sim(int argc, char* argv[])
 	num_init();
 	
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
-	dims[TE_DIM] = sim_data.seqData.rep_num;
+	dims[TE_DIM] = sim_data.seq.rep_num;
 	dims[COEFF_DIM] = nbf;
 	
 	long dims1[DIMS];
@@ -129,21 +129,21 @@ int main_sim(int argc, char* argv[])
 	#pragma omp parallel for
 	for (int j = 0; j < dims[COEFF_DIM]; j++) {
 		
-		struct SimData data = sim_data;
+		struct sim_data data = sim_data;
 
-		data.voxelData.r1 = 1/t1[j];
-		data.voxelData.r2 = 1/t2[j];
-		data.voxelData.m0 = m0;
+		data.voxel.r1 = 1/t1[j];
+		data.voxel.r2 = 1/t2[j];
+		data.voxel.m0 = m0;
 		
-		if (data.seqData.analytical) {
+		if (data.seq.analytical) {
 			
 			complex float* signal = md_alloc(DIMS, dims1, CFL_SIZE);
 			
-			if (5 == data.seqData.seq_type)
+			if (5 == data.seq.seq_type)
 				
 				looklocker_analytical(&data, signal);
 			
-			else if (1 == data.seqData.seq_type)
+			else if (1 == data.seq.seq_type)
 				
 				IR_bSSFP_analytical(&data, signal);
 			else
@@ -157,16 +157,16 @@ int main_sim(int argc, char* argv[])
 			
 		} else { // TODO: change to complex floats!!
 			
-			float mxySig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-			float saR1Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-			float saR2Sig[data.seqData.rep_num / data.seqData.num_average_rep][3];
-			float saDensSig[data.seqData.rep_num / data.seqData.num_average_rep][3];
+			float mxy_sig[data.seq.rep_num / data.seq.num_average_rep][3];
+			float sa_r1_sig[data.seq.rep_num / data.seq.num_average_rep][3];
+			float sa_r2_sig[data.seq.rep_num / data.seq.num_average_rep][3];
+			float sa_m0_sig[data.seq.rep_num / data.seq.num_average_rep][3];
 
-			ode_bloch_simulation3(&data, mxySig, saR1Sig, saR2Sig, saDensSig);	// ODE simulation
-// 			matrix_bloch_simulation(&data, mxySig, saR1Sig, saR2Sig, saDensSig);	// OBS simulation, does not work with hard-pulses!
+			ode_bloch_simulation3(&data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// ODE simulation
+// 			matrix_bloch_simulation(&data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// OBS simulation, does not work with hard-pulses!
 			
 			for (int t = 0; t < dims[TE_DIM]; t++) 
-				basis_functions[j * dims[TE_DIM] + t] = mxySig[t][1] + mxySig[t][0] * I;
+				basis_functions[j * dims[TE_DIM] + t] = mxy_sig[t][1] + mxy_sig[t][0] * I;
 		}
 	}
 	

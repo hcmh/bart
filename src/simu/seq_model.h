@@ -1,6 +1,6 @@
 
 
-struct HSFP_model {
+struct hsfp_model {
 	
 	float t1;
 	float t2;
@@ -9,12 +9,12 @@ struct HSFP_model {
 	float beta;
 	complex float* pa_profile; /*Polar angle */
 };
-extern const struct HSFP_model hsfp_defaults;
+extern const struct hsfp_model hsfp_defaults;
 
-void hsfp_simu(const struct HSFP_model* data, float* out);
+void hsfp_simu(const struct hsfp_model* data, float* out);
 
 
-struct SimData;
+struct sim_data;
 
 struct LookLocker_model {
 	
@@ -26,7 +26,7 @@ struct LookLocker_model {
 };
 extern const struct LookLocker_model looklocker_defaults;
 
-void looklocker_analytical(struct SimData* simu_data, complex float* out);
+void looklocker_analytical(struct sim_data* simu_data, complex float* out);
 
 
 struct IRbSSFP_model {
@@ -40,4 +40,4 @@ struct IRbSSFP_model {
 };
 extern const struct IRbSSFP_model IRbSSFP_defaults;
 
-void IR_bSSFP_analytical(struct SimData* simu_data, complex float* out);
+void IR_bSSFP_analytical(struct sim_data* simu_data, complex float* out);

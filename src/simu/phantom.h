@@ -1,7 +1,7 @@
 
 #include "misc/mri.h"
 
-struct SimData;
+struct sim_data;
 
 extern void calc_sens(const long dims[DIMS], complex float* sens);
 

@@ -40,7 +40,7 @@ int main_pixel(int argc, char* argv[])
 	double start_time = timestamp();
 
 	struct noir_conf_s conf = noir_defaults;
-	struct modBlochFit fitPara = modBlochFit_defaults;
+	struct modBlochFit fit_para = modBlochFit_defaults;
 	bool usegpu = false;
 	float data_scale = 600;
 	const char* inputB1 = NULL;
@@ -53,16 +53,16 @@ int main_pixel(int argc, char* argv[])
 		OPT_FLOAT(	'R', 	&conf.redu, 		"", 		"reduction factor"),
 		OPT_FLOAT(	'w', 	&conf.alpha_min, 	"", 		"alpha_min"),
 		OPT_INT(	'd', 	&debug_level, 		"level", 	"Debug level"),
-		OPT_INT(	'M', 	&fitPara.sequence,	"", 		"Define sequence mode: 0 = bSSFP[default], 1 = invbSSFP, 3 = pcbSSFP, 4 = inv. bSSFP without preparation, 5 = invFLASH, 6 = invpcbSSFP"),
-		OPT_FLOAT(	'D', 	&fitPara.rfduration, 	"", 		"Duration of RF-pulse [s]"),
-		OPT_FLOAT(	't', 	&fitPara.tr, 		"", 		"TR [s]"),
-		OPT_FLOAT(	'e', 	&fitPara.te, 		"", 		"TE [s]"),
-		OPT_FLOAT(	'F', 	&fitPara.fa, 		"", 		"Flipangle [deg]"),
-		OPT_INT(	'a', 	&fitPara.averageSpokes, "", 		"Number of averaged spokes"),
-		OPT_INT(	'r', 	&fitPara.rm_no_echo, 	"", 		"Number of removed echoes."),
+		OPT_INT(	'M', 	&fit_para.sequence,	"", 		"Define sequence mode: 0 = bSSFP[default], 1 = invbSSFP, 3 = pcbSSFP, 4 = inv. bSSFP without preparation, 5 = invFLASH, 6 = invpcbSSFP"),
+		OPT_FLOAT(	'D', 	&fit_para.rfduration, 	"", 		"Duration of RF-pulse [s]"),
+		OPT_FLOAT(	't', 	&fit_para.tr, 		"", 		"tr [s]"),
+		OPT_FLOAT(	'e', 	&fit_para.te, 		"", 		"te [s]"),
+		OPT_FLOAT(	'F', 	&fit_para.fa, 		"", 		"Flipangle [deg]"),
+		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", 		"Number of averaged spokes"),
+		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", 		"Number of removed echoes."),
 		OPT_FLOAT(	'S', 	&data_scale, 		"", 		"Raw data scaling"),
-		OPT_SET(	'O', 	&fitPara.full_ode_sim	, 		"Apply full ODE simulation"),
-		OPT_INT(	'X', 	&fitPara.runs, 		"", 		"Number of applied whole sequence trains."),
+		OPT_SET(	'O', 	&fit_para.full_ode_sim	, 		"Apply full ODE simulation"),
+		OPT_INT(	'X', 	&fit_para.runs, 		"", 		"Number of applied whole sequence trains."),
 		OPT_STRING(	'I',	&inputB1, 		"", 		"Input B1 image"),
 		OPT_STRING(	'P',	&inputSP, 		"", 		"Input Slice Profile image"),
 		OPT_STRING(	'V', 	&fa_file, 		"", 		"Variable flipangle file"),
@@ -106,24 +106,24 @@ int main_pixel(int argc, char* argv[])
 		
 		input_b1 = load_cfl(inputB1, DIMS, input_b1_dims);
 		
-		fitPara.input_b1 = md_alloc(DIMS, input_b1_dims, CFL_SIZE);
-		md_copy(DIMS, input_b1_dims, fitPara.input_b1, input_b1, CFL_SIZE);
+		fit_para.input_b1 = md_alloc(DIMS, input_b1_dims, CFL_SIZE);
+		md_copy(DIMS, input_b1_dims, fit_para.input_b1, input_b1, CFL_SIZE);
 	}
 		
 	
 	
-	complex float* input_sp = NULL;
+	complex float* input_sliceprofile = NULL;
 	long input_sp_dims[DIMS];
 	
 	if (NULL != inputSP) {
 		
-		input_sp = load_cfl(inputSP, DIMS, input_sp_dims);
+		input_sliceprofile = load_cfl(inputSP, DIMS, input_sp_dims);
 		
-		fitPara.n_slcp = input_sp_dims[READ_DIM];
-		debug_printf(DP_DEBUG3, "Number of slice profile estimates: %d\n", fitPara.n_slcp);
+		fit_para.sliceprofile_spins = input_sp_dims[READ_DIM];
+		debug_printf(DP_DEBUG3, "Number of slice profile estimates: %d\n", fit_para.sliceprofile_spins);
 		
-		fitPara.input_sp = md_alloc(DIMS, input_sp_dims, CFL_SIZE);
-		md_copy(DIMS, input_sp_dims, fitPara.input_sp, input_sp, CFL_SIZE);
+		fit_para.input_sliceprofile = md_alloc(DIMS, input_sp_dims, CFL_SIZE);
+		md_copy(DIMS, input_sp_dims, fit_para.input_sliceprofile, input_sliceprofile, CFL_SIZE);
 		
 	}
 	
@@ -135,11 +135,11 @@ int main_pixel(int argc, char* argv[])
 		
 		input_vfa = load_cfl(fa_file, DIMS, input_vfa_dims);
 		
-		fitPara.num_vfa = input_vfa_dims[READ_DIM];
-		debug_printf(DP_DEBUG3, "Number of variable flip angles: %d\n", fitPara.num_vfa);
+		fit_para.num_vfa = input_vfa_dims[READ_DIM];
+		debug_printf(DP_DEBUG3, "Number of variable flip angles: %d\n", fit_para.num_vfa);
 		
-		fitPara.input_fa_profile = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
-		md_copy(DIMS, input_vfa_dims, fitPara.input_fa_profile, input_vfa, CFL_SIZE);
+		fit_para.input_fa_profile = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
+		md_copy(DIMS, input_vfa_dims, fit_para.input_fa_profile, input_vfa, CFL_SIZE);
 		
 	}
 	
@@ -154,8 +154,8 @@ int main_pixel(int argc, char* argv[])
 	//Values for Initialization of maps
 	complex float initval[3] = {0.8, 20., 4.} ;//	R1, R2, M0 
 	
-	auto_scale(&fitPara, fitPara.scale, dims, data);
-	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fitPara.scale[0], fitPara.scale[1], fitPara.scale[2]);
+	auto_scale(&fit_para, fit_para.scale, dims, data);
+	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2]);
 
 	
 	long pos[DIMS];
@@ -172,7 +172,7 @@ int main_pixel(int argc, char* argv[])
 		
 		md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, initval[i]);
-		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / fitPara.scale[i]);
+		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / fit_para.scale[i]);
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE);  
 	
 	}
@@ -184,12 +184,12 @@ int main_pixel(int argc, char* argv[])
 		complex float* data_gpu = md_alloc_gpu(DIMS, dims, CFL_SIZE);
 		md_copy(DIMS, dims, data_gpu, data, CFL_SIZE);
 
-		pixel_recon(&conf, &fitPara, dims, img, data_gpu, usegpu);
+		pixel_recon(&conf, &fit_para, dims, img, data_gpu, usegpu);
 
 		md_free(data_gpu);
 	} else
 #endif
-		pixel_recon(&conf, &fitPara, dims, img, data, usegpu);
+		pixel_recon(&conf, &fit_para, dims, img, data, usegpu);
 	
 	pos[COEFF_DIM] = 2;
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
@@ -204,7 +204,7 @@ int main_pixel(int argc, char* argv[])
 		
 		md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 		
-		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, fitPara.scale[i]);
+		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, fit_para.scale[i]);
 		
 		if (2 != i)
 			md_zdiv(DIMS, tmp_dims, tmp_img, ones, tmp_img);
@@ -224,8 +224,8 @@ int main_pixel(int argc, char* argv[])
 	if(NULL != input_b1)
 		unmap_cfl(DIMS, input_b1_dims, input_b1);
 	
-	if(NULL != input_sp)
-		unmap_cfl(DIMS, input_sp_dims, input_sp);
+	if(NULL != input_sliceprofile)
+		unmap_cfl(DIMS, input_sp_dims, input_sliceprofile);
 	
 	if(NULL != input_vfa)
 		unmap_cfl(DIMS, input_vfa_dims, input_vfa);

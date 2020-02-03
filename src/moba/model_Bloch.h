@@ -25,8 +25,8 @@ struct modBlochFit {
 	float rfduration;
 	float tr;
 	float te;
-	int averageSpokes;
-	int n_slcp;
+	int averaged_spokes;
+	int sliceprofile_spins;
 	int num_vfa;
 	float fa;
 	int runs; /*Number of applied sequence trains*/
@@ -40,7 +40,7 @@ struct modBlochFit {
 	
 	/*Input Calibrations*/
 	complex float* input_b1;
-	complex float* input_sp;
+	complex float* input_sliceprofile;
 	complex float* input_fa_profile;
 	
 
@@ -48,7 +48,7 @@ struct modBlochFit {
 
 extern const struct modBlochFit modBlochFit_defaults;
 
-extern struct modBloch_s bloch_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf, const struct modBlochFit* fitPara, _Bool usegpu);
+extern struct modBloch_s bloch_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf, const struct modBlochFit* fit_para, _Bool usegpu);
 
 
 #include "misc/cppwrap.h"

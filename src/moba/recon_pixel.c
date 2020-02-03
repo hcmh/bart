@@ -37,7 +37,7 @@
 #include "blochfun.h"
 #include "recon_pixel.h"
 
-void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPara, const long dims[DIMS], complex float* img, const complex float* data, _Bool usegpu)
+void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_para, const long dims[DIMS], complex float* img, const complex float* data, _Bool usegpu)
 {
 	
 	long imgs_dims[DIMS];
@@ -69,7 +69,7 @@ void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPa
 	struct modBloch_s nl;
 	
 	// Add option for multiple different models
-	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, img1_dims, data_dims, imgs_dims, NULL, fitPara, usegpu);
+	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, img1_dims, data_dims, imgs_dims, NULL, fit_para, usegpu);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(Bloch, 0)->dims); 			//input-dims of Bloch operator
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(Bloch, 0)->dims);
 
@@ -99,7 +99,7 @@ void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPa
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 0.001, .constrained_maps = 3, .not_wav_maps = fitPara->not_wav_maps};
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 0.001, .constrained_maps = 3, .not_wav_maps = fit_para->not_wav_maps};
 
 
 	mdb_irgnm_l1(&conf2,

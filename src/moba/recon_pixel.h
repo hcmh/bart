@@ -16,6 +16,6 @@
 
 struct modBlochFit;
 
-extern void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPara, const long dims[DIMS], complex float* img, const complex float* data, _Bool usegpu);
+extern void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_para, const long dims[DIMS], complex float* img, const complex float* data, _Bool usegpu);
 
 #endif

@@ -235,9 +235,9 @@ int main_bloch(int argc, char* argv[argc])
 	dim_phantom[TE_DIM] = repetition / aver_num ;
 
 	complex float* phantom = create_cfl(argv[1], DIMS, dim_phantom);
-	complex float* sensitivitiesT1 = create_cfl(argv[2], DIMS, dim_phantom);
-	complex float* sensitivitiesT2 = create_cfl(argv[3], DIMS, dim_phantom);
-	complex float* sensitivitiesDens = create_cfl(argv[4], DIMS, dim_phantom);
+	complex float* sensitivities_t1 = create_cfl(argv[2], DIMS, dim_phantom);
+	complex float* sensitivities_t2 = create_cfl(argv[3], DIMS, dim_phantom);
+	complex float* sensitivities_dens = create_cfl(argv[4], DIMS, dim_phantom);
 	complex float* r_out = NULL;
 	
 	if (NULL != spherical_coord)
@@ -252,7 +252,7 @@ int main_bloch(int argc, char* argv[argc])
 		vfa_file = load_cfl(fa_file, DIMS, dim_vfa);
 	
 	
-	struct HSFP_model hsfp_data2 = hsfp_defaults;
+	struct hsfp_model hsfp_data2 = hsfp_defaults;
 	if ( 4 == seq && analytical) {
 		
 		hsfp_data2.tr = tr;
@@ -290,72 +290,72 @@ int main_bloch(int argc, char* argv[argc])
 				for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
 					
 					phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-					sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-					sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-					sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+					sensitivities_t1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+					sensitivities_t2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+					sensitivities_dens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 				}
 					
 				continue;
 			}
 
-			struct SimData sim_data;
+			struct sim_data sim_data;
 			
-			sim_data.seqData = seqData_defaults;
-			sim_data.seqData.seq_type = seq;
-			sim_data.seqData.TR = tr;
-			sim_data.seqData.TE = te;
+			sim_data.seq = simdata_seq_defaults;
+			sim_data.seq.seq_type = seq;
+			sim_data.seq.tr = tr;
+			sim_data.seq.te = te;
 			
 			if (NULL != vfa_file) {
 				
-				sim_data.seqData.variable_fa = md_alloc(DIMS, dim_vfa, CFL_SIZE);
-				md_copy(DIMS, dim_vfa, sim_data.seqData.variable_fa, vfa_file, CFL_SIZE);
+				sim_data.seq.variable_fa = md_alloc(DIMS, dim_vfa, CFL_SIZE);
+				md_copy(DIMS, dim_vfa, sim_data.seq.variable_fa, vfa_file, CFL_SIZE);
 				
-				sim_data.seqData.rep_num = dim_vfa[0];
+				sim_data.seq.rep_num = dim_vfa[0];
 			}
 			else
-				sim_data.seqData.rep_num = repetition;
+				sim_data.seq.rep_num = repetition;
 			
-			sim_data.seqData.spin_num = spin_num;
-			sim_data.seqData.num_average_rep = aver_num;
-			sim_data.seqData.run_num = runs;
+			sim_data.seq.spin_num = spin_num;
+			sim_data.seq.num_average_rep = aver_num;
+			sim_data.seq.run_num = runs;
 			
 			if (NULL != vfa_file) {
 				
-				sim_data.seqData.variable_fa = md_alloc(DIMS, dim_vfa, CFL_SIZE);
-				md_copy(DIMS, dim_vfa, sim_data.seqData.variable_fa, vfa_file, CFL_SIZE);
+				sim_data.seq.variable_fa = md_alloc(DIMS, dim_vfa, CFL_SIZE);
+				md_copy(DIMS, dim_vfa, sim_data.seq.variable_fa, vfa_file, CFL_SIZE);
 			}
 			
-			sim_data.voxelData = voxelData_defaults;
-			sim_data.voxelData.r1 = 1 / t1;
-			sim_data.voxelData.r2 = 1 / t2;
-			sim_data.voxelData.m0 = m0;
-			sim_data.voxelData.spin_ensamble = spin_ensamble;
+			sim_data.voxel = simdata_voxel_defaults;
+			sim_data.voxel.r1 = 1 / t1;
+			sim_data.voxel.r2 = 1 / t2;
+			sim_data.voxel.m0 = m0;
+			sim_data.voxel.spin_ensamble = spin_ensamble;
 			
 			if (linear_offset)
-				sim_data.voxelData.w = (float) y / (float) dim_phantom[1]  * M_PI / sim_data.seqData.TE; //Get offset values from -pi to +pi
+				sim_data.voxel.w = (float) y / (float) dim_phantom[1]  * M_PI / sim_data.seq.te; //Get offset values from -pi to +pi
 			else
-				sim_data.voxelData.w = offresonance;
+				sim_data.voxel.w = offresonance;
 			
-			sim_data.pulseData = pulseData_defaults;
-			sim_data.pulseData.flipangle = flipangle;
-			sim_data.pulseData.RF_end = rf_end;
-			sim_data.gradData = gradData_defaults;
-			sim_data.seqtmp = seqTmpData_defaults;
+			sim_data.pulse = simdata_pulse_defaults;
+			sim_data.pulse.flipangle = flipangle;
+			sim_data.pulse.rf_end = rf_end;
+			sim_data.grad = simdata_grad_defaults;
+			sim_data.tmp = simdata_tmp_defaults;
 			
-			float mxySig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			float saR1Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+			float mxy_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 			
-			complex float signal[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep];	
+			complex float signal[sim_data.seq.rep_num / sim_data.seq.num_average_rep];	
 			
-			float r[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep]; // radial magnetization
+			float r[sim_data.seq.rep_num / sim_data.seq.num_average_rep]; // radial magnetization
 			
 			if (analytical) {
 				
 				if( 4 == seq && NULL != spherical_coord) {
 					
-					struct HSFP_model hsfp_data = hsfp_data2;
+					struct hsfp_model hsfp_data = hsfp_data2;
 					
 					hsfp_data.t1 = t1;
 					hsfp_data.t2 = t2;
@@ -369,9 +369,9 @@ int main_bloch(int argc, char* argv[argc])
 						ind = (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x;
 						
 						phantom[ind] = sinf(cabsf(vfa_file[z])) * r[z];
-						sensitivitiesT1[ind] = 0.;
-						sensitivitiesT2[ind] = 0.;
-						sensitivitiesDens[ind] = 0.;
+						sensitivities_t1[ind] = 0.;
+						sensitivities_t2[ind] = 0.;
+						sensitivities_dens[ind] = 0.;
 						
 						r_out[ind] = fabsf(r[z]);
 					}
@@ -382,9 +382,9 @@ int main_bloch(int argc, char* argv[argc])
 					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
 						
 						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = signal[z];
-						sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-						sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivities_t1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivities_t2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivities_dens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 					}
 				} else {
 					
@@ -393,33 +393,33 @@ int main_bloch(int argc, char* argv[argc])
 					for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
 						
 						phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = signal[z];
-						sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-						sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
-						sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivities_t1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivities_t2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
+						sensitivities_dens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = 0.;
 					}
 				}
 			}
 			else {	//start ODE based simulation
 
 				if (operator_sim)
-					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
+					matrix_bloch_simulation(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
 				else
-					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
+					ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
 
 
 				//Add data to phantom
 				for (int z = 0; z < dim_phantom[TE_DIM]; z++) {
 					
 					//changed x-and y-axis to have same orientation as measurements
-					sensitivitiesT1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = saR1Sig[z][1] + saR1Sig[z][0] * I; 
-					sensitivitiesT2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = saR2Sig[z][1] + saR2Sig[z][0] * I;
-					sensitivitiesDens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = saDensSig[z][1] + saDensSig[z][0] * I;
-					phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = mxySig[z][1] + mxySig[z][0] * I;
+					sensitivities_t1[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = sa_r1_sig[z][1] + sa_r1_sig[z][0] * I; 
+					sensitivities_t2[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = sa_r2_sig[z][1] + sa_r2_sig[z][0] * I;
+					sensitivities_dens[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = sa_m0_sig[z][1] + sa_m0_sig[z][0] * I;
+					phantom[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = mxy_sig[z][1] + mxy_sig[z][0] * I;
 					
 					if (NULL != spherical_coord)
-						r_out[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = sqrtf(mxySig[z][0] * mxySig[z][0] + 
-																mxySig[z][1] * mxySig[z][1] + 
-																mxySig[z][2] * mxySig[z][2]);
+						r_out[ (z * dim_phantom[0] * dim_phantom[1]) + (y * dim_phantom[0]) + x] = sqrtf(mxy_sig[z][0] * mxy_sig[z][0] + 
+																mxy_sig[z][1] * mxy_sig[z][1] + 
+																mxy_sig[z][2] * mxy_sig[z][2]);
 				}
 			}
 		}
@@ -441,9 +441,9 @@ int main_bloch(int argc, char* argv[argc])
 	}
 
 	unmap_cfl(DIMS, dim_phantom, phantom);    
-	unmap_cfl(DIMS, dim_phantom, sensitivitiesT1);
-	unmap_cfl(DIMS, dim_phantom, sensitivitiesT2);
-	unmap_cfl(DIMS, dim_phantom, sensitivitiesDens);
+	unmap_cfl(DIMS, dim_phantom, sensitivities_t1);
+	unmap_cfl(DIMS, dim_phantom, sensitivities_t2);
+	unmap_cfl(DIMS, dim_phantom, sensitivities_dens);
 	
 	if (NULL != spherical_coord)
 		unmap_cfl(DIMS, dim_phantom, r_out);

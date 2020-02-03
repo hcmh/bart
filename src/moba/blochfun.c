@@ -60,7 +60,7 @@ struct blochFun_s {
 	complex float* dM0;
 	
 	complex float* input_b1;
-	complex float* input_sp;
+	complex float* input_sliceprofile;
 	complex float* input_fa_profile;
 	
 	struct modBlochFit fitParameter;
@@ -93,28 +93,28 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	
 	
 	// Allocate GPU memory
-	complex float* R1scale_tmp;
-	complex float* R2scale_tmp;
-	complex float* M0scale_tmp;
+	complex float* r1scale_tmp;
+	complex float* r2scale_tmp;
+	complex float* m0scale_tmp;
 	
 	
 #ifdef USE_CUDA
 	if (data->use_gpu) {
 
-		R1scale_tmp = md_alloc_gpu(data->N, data->map_dims, CFL_SIZE);
-		R2scale_tmp = md_alloc_gpu(data->N, data->map_dims, CFL_SIZE);
-		M0scale_tmp = md_alloc_gpu(data->N, data->map_dims, CFL_SIZE);
+		r1scale_tmp = md_alloc_gpu(data->N, data->map_dims, CFL_SIZE);
+		r2scale_tmp = md_alloc_gpu(data->N, data->map_dims, CFL_SIZE);
+		m0scale_tmp = md_alloc_gpu(data->N, data->map_dims, CFL_SIZE);
 	}
 	else {
 
-		R1scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
-		R2scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
-		M0scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
+		r1scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
+		r2scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
+		m0scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	}
 #else
-	R1scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
-	R2scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
-	M0scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
+	r1scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
+	r2scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
+	m0scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
 #endif
 	
 	
@@ -125,79 +125,79 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	// R1 
 	pos[COEFF_DIM] = 0;	
 	const complex float* R1 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, R1scale_tmp, data->map_strs, R1, data->scale[0]);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, r1scale_tmp, data->map_strs, R1, data->scale[0]);
 
-	complex float* R1scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
-	md_copy(data->N, data->map_dims, R1scale, R1scale_tmp, CFL_SIZE);
+	complex float* r1scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
+	md_copy(data->N, data->map_dims, r1scale, r1scale_tmp, CFL_SIZE);
 	
 	// R2 
 	pos[COEFF_DIM] = 1;	 
 	const complex float* R2 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, R2scale_tmp, data->map_strs, R2, data->scale[1]);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, r2scale_tmp, data->map_strs, R2, data->scale[1]);
 
-	complex float* R2scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
-	md_copy(data->N, data->map_dims, R2scale, R2scale_tmp, CFL_SIZE);
+	complex float* r2scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
+	md_copy(data->N, data->map_dims, r2scale, r2scale_tmp, CFL_SIZE);
 	
 	// M0 
 	pos[COEFF_DIM] = 2;	 
 	const complex float* M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, M0scale_tmp, data->map_strs, M0, data->scale[2]);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, m0scale_tmp, data->map_strs, M0, data->scale[2]);
 
-	complex float* M0scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
-	md_copy(data->N, data->map_dims, M0scale, M0scale_tmp, CFL_SIZE);
+	complex float* m0scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
+	md_copy(data->N, data->map_dims, m0scale, m0scale_tmp, CFL_SIZE);
 
 
 	//Allocate Output CPU memory
-	complex float* Sig_cpu = md_alloc(data->N, data->out_dims, CFL_SIZE);
-	complex float* dR1_cpu = md_alloc(data->N, data->out_dims, CFL_SIZE);
-	complex float* dR2_cpu = md_alloc(data->N, data->out_dims, CFL_SIZE);
-	complex float* dM0_cpu = md_alloc(data->N, data->out_dims, CFL_SIZE);
+	complex float* sig_cpu = md_alloc(data->N, data->out_dims, CFL_SIZE);
+	complex float* dr1_cpu = md_alloc(data->N, data->out_dims, CFL_SIZE);
+	complex float* dr2_cpu = md_alloc(data->N, data->out_dims, CFL_SIZE);
+	complex float* dm0_cpu = md_alloc(data->N, data->out_dims, CFL_SIZE);
 
-	complex float* B1_cpu = NULL;
+	complex float* b1_cpu = NULL;
 
 	if (NULL != data->input_b1) {
 
-		B1_cpu = md_alloc(data->N, data->input_dims, CFL_SIZE);
-		md_copy(data->N, data->input_dims, B1_cpu, data->input_b1, CFL_SIZE);
+		b1_cpu = md_alloc(data->N, data->input_dims, CFL_SIZE);
+		md_copy(data->N, data->input_dims, b1_cpu, data->input_b1, CFL_SIZE);
 	}
 
 	
-	long slcp_dims[DIMS];
+	long sliceprofile_dims[DIMS];
 		
-	complex float* SP_cpu = NULL;
+	complex float* sliceprofile_cpu = NULL;
 
-	if (NULL != data->input_sp) {
+	if (NULL != data->input_sliceprofile) {
 		
-		md_set_dims(DIMS, slcp_dims, 1);
-		slcp_dims[READ_DIM] = data->fitParameter.n_slcp;
+		md_set_dims(DIMS, sliceprofile_dims, 1);
+		sliceprofile_dims[READ_DIM] = data->fitParameter.sliceprofile_spins;
 		
-		SP_cpu = md_alloc(data->N, slcp_dims, CFL_SIZE);
-		md_copy(data->N, slcp_dims, SP_cpu, data->input_sp, CFL_SIZE);
+		sliceprofile_cpu = md_alloc(data->N, sliceprofile_dims, CFL_SIZE);
+		md_copy(data->N, sliceprofile_dims, sliceprofile_cpu, data->input_sliceprofile, CFL_SIZE);
 		
 		debug_printf(DP_DEBUG2, "\n Slice Profile Estimates:\t");
-		for (int i = 0; i < data->fitParameter.n_slcp; i++)
-			debug_printf(DP_DEBUG2, "%f\t", cabsf(SP_cpu[i]) );
+		for (int i = 0; i < data->fitParameter.sliceprofile_spins; i++)
+			debug_printf(DP_DEBUG2, "%f\t", cabsf(sliceprofile_cpu[i]) );
 		debug_printf(DP_DEBUG2, "\n");
 	}
 	
 	long vfa_dims[DIMS];
 		
-	complex float* VFA_cpu = NULL;
+	complex float* var_fa_cpu = NULL;
 
 	if (NULL != data->input_fa_profile) {
 		
 		md_set_dims(DIMS, vfa_dims, 1);
 		vfa_dims[READ_DIM] = data->fitParameter.num_vfa;
 		
-		VFA_cpu = md_alloc(data->N, vfa_dims, CFL_SIZE);
-		md_copy(data->N, vfa_dims, VFA_cpu, data->input_fa_profile, CFL_SIZE);
+		var_fa_cpu = md_alloc(data->N, vfa_dims, CFL_SIZE);
+		md_copy(data->N, vfa_dims, var_fa_cpu, data->input_fa_profile, CFL_SIZE);
 	}
 
 	//Prepare reduced FOV
-	md_zfill(data->N, data->out_dims, Sig_cpu, 0.);
-	md_zfill(data->N, data->out_dims, dR1_cpu, 0.);
-	md_zfill(data->N, data->out_dims, dR2_cpu, 0.);
-	md_zfill(data->N, data->out_dims, dM0_cpu, 0.);
+	md_zfill(data->N, data->out_dims, sig_cpu, 0.);
+	md_zfill(data->N, data->out_dims, dr1_cpu, 0.);
+	md_zfill(data->N, data->out_dims, dr2_cpu, 0.);
+	md_zfill(data->N, data->out_dims, dm0_cpu, 0.);
 
 	//Get start and end values of reduced F0V
 	int xstart = round( data->map_dims[0]/2. - (data->fitParameter.fov_reduction_factor * data->map_dims[0])/2. );
@@ -214,7 +214,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 // 	debug_printf(DP_DEBUG3, "x:(%d,%d),\ty:(%d,%d),\tz:(%d,%d),\n", xstart, xend, ystart, yend, zstart, zend);
 // 	debug_printf(DP_DEBUG3, "seq: %d,\trfDuration: %f,\tTR:%f,\tTE:%f,\trep:%d,\tav:%d\n",
 // 								data->fitParameter.sequence, data->fitParameter.rfduration, data->fitParameter.tr, 
-// 								data->fitParameter.te, data->out_dims[TE_DIM], data->fitParameter.averageSpokes);
+// 								data->fitParameter.te, data->out_dims[TE_DIM], data->fitParameter.averaged_spokes);
 
 	int rm_first_echo = data->fitParameter.rm_no_echo;
 // 	debug_printf(DP_DEBUG1, "Removed first %d echoes from signal.\n", rm_first_echo);
@@ -243,60 +243,60 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				float b1 = 1.;
 				
 				if (NULL != data->input_b1) 
-					b1 = cabsf(B1_cpu[spa_ind]); 
+					b1 = cabsf(b1_cpu[spa_ind]); 
 
 
-				struct SimData sim_data;
+				struct sim_data sim_data;
 				
-				sim_data.seqData = seqData_defaults;
-				sim_data.seqData.seq_type = data->fitParameter.sequence;
-				sim_data.seqData.TR = data->fitParameter.tr;
-				sim_data.seqData.TE = data->fitParameter.te;
+				sim_data.seq = simdata_seq_defaults;
+				sim_data.seq.seq_type = data->fitParameter.sequence;
+				sim_data.seq.tr = data->fitParameter.tr;
+				sim_data.seq.te = data->fitParameter.te;
 				
-				if (4 == sim_data.seqData.seq_type)
-					sim_data.seqData.rep_num = data->fitParameter.num_vfa;
+				if (4 == sim_data.seq.seq_type)
+					sim_data.seq.rep_num = data->fitParameter.num_vfa;
 				else
-					sim_data.seqData.rep_num = (data->out_dims[TE_DIM] + rm_first_echo) * data->fitParameter.averageSpokes;
+					sim_data.seq.rep_num = (data->out_dims[TE_DIM] + rm_first_echo) * data->fitParameter.averaged_spokes;
 				
-				sim_data.seqData.spin_num = data->fitParameter.n_slcp;
-				sim_data.seqData.num_average_rep = data->fitParameter.averageSpokes;
-				sim_data.seqData.run_num = data->fitParameter.runs;
+				sim_data.seq.spin_num = data->fitParameter.sliceprofile_spins;
+				sim_data.seq.num_average_rep = data->fitParameter.averaged_spokes;
+				sim_data.seq.run_num = data->fitParameter.runs;
 				
-				sim_data.voxelData = voxelData_defaults;
-				sim_data.voxelData.r1 = crealf(R1scale[spa_ind]);
-				sim_data.voxelData.r2 = crealf(R2scale[spa_ind]);
-				sim_data.voxelData.m0 = crealf(M0scale[spa_ind]);
-				sim_data.voxelData.w = 0;
+				sim_data.voxel = simdata_voxel_defaults;
+				sim_data.voxel.r1 = crealf(r1scale[spa_ind]);
+				sim_data.voxel.r2 = crealf(r2scale[spa_ind]);
+				sim_data.voxel.m0 = crealf(m0scale[spa_ind]);
+				sim_data.voxel.w = 0;
 				
-				sim_data.pulseData = pulseData_defaults;
-				sim_data.pulseData.flipangle = angle * b1;
-				sim_data.pulseData.RF_end = data->fitParameter.rfduration;
-				sim_data.gradData = gradData_defaults;
-				sim_data.seqtmp = seqTmpData_defaults;
+				sim_data.pulse = simdata_pulse_defaults;
+				sim_data.pulse.flipangle = angle * b1;
+				sim_data.pulse.rf_end = data->fitParameter.rfduration;
+				sim_data.grad = simdata_grad_defaults;
+				sim_data.tmp = simdata_tmp_defaults;
 
 
-				float mxySig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-				float saR1Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-				float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-				float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+				float mxy_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+				float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+				float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+				float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 				
-				if (NULL != data->input_sp) {
+				if (NULL != data->input_sliceprofile) {
 					
-					sim_data.seqData.slice_profile = md_alloc(DIMS, slcp_dims, CFL_SIZE);
-					md_copy(DIMS, slcp_dims, sim_data.seqData.slice_profile, SP_cpu, CFL_SIZE);
+					sim_data.seq.slice_profile = md_alloc(DIMS, sliceprofile_dims, CFL_SIZE);
+					md_copy(DIMS, sliceprofile_dims, sim_data.seq.slice_profile, sliceprofile_cpu, CFL_SIZE);
 				}
 				
 				if (NULL != data->input_fa_profile) {
 					
-					sim_data.seqData.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
-					md_copy(DIMS, vfa_dims, sim_data.seqData.variable_fa, VFA_cpu, CFL_SIZE);
+					sim_data.seq.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
+					md_copy(DIMS, vfa_dims, sim_data.seq.variable_fa, var_fa_cpu, CFL_SIZE);
 				}
 				
 				
 				if (data->fitParameter.full_ode_sim || NULL != data->input_fa_profile)	//variable flipangles are only included into ode simulation yet
-					ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
+					ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
 				else
-					matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
+					matrix_bloch_simulation(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
 
 
 				long curr_pos[DIMS];
@@ -311,39 +311,39 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 					//Scaling: dB/dRi = dB/dRis * dRis/dRi
 					//Write to possible GPU memory
-					dR1_cpu[position] = data->scale[0] * (saR1Sig[j+rm_first_echo][1] + saR1Sig[j+rm_first_echo][0] * I);
-					dR2_cpu[position] = data->scale[1] * (saR2Sig[j+rm_first_echo][1] + saR2Sig[j+rm_first_echo][0] * I);
-					dM0_cpu[position] = data->scale[2] * (saDensSig[j+rm_first_echo][1] + saDensSig[j+rm_first_echo][0] * I);
-					Sig_cpu[position] = mxySig[j+rm_first_echo][1] + mxySig[j+rm_first_echo][0] * I;
+					dr1_cpu[position] = data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
+					dr2_cpu[position] = data->scale[1] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
+					dm0_cpu[position] = data->scale[2] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
+					sig_cpu[position] = mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I;
 				}
 			}
 			
 	debug_printf(DP_DEBUG3, "Copy data\n");
 	
-	md_copy(data->N, data->out_dims, data->dR1, dR1_cpu, CFL_SIZE);
-	md_copy(data->N, data->out_dims, data->dR2, dR2_cpu, CFL_SIZE);
-	md_copy(data->N, data->out_dims, data->dM0, dM0_cpu, CFL_SIZE);
-	md_copy(data->N, data->out_dims, dst, Sig_cpu, CFL_SIZE); 
+	md_copy(data->N, data->out_dims, data->dR1, dr1_cpu, CFL_SIZE);
+	md_copy(data->N, data->out_dims, data->dR2, dr2_cpu, CFL_SIZE);
+	md_copy(data->N, data->out_dims, data->dM0, dm0_cpu, CFL_SIZE);
+	md_copy(data->N, data->out_dims, dst, sig_cpu, CFL_SIZE); 
 	
-	md_free(R1scale_tmp);
-	md_free(R2scale_tmp);
-	md_free(M0scale_tmp);
-	md_free(dR1_cpu);
-	md_free(dR2_cpu);
-	md_free(dM0_cpu);
-	md_free(Sig_cpu);
-	md_free(R1scale);
-	md_free(R2scale);
-	md_free(M0scale);
+	md_free(r1scale_tmp);
+	md_free(r2scale_tmp);
+	md_free(m0scale_tmp);
+	md_free(dr1_cpu);
+	md_free(dr2_cpu);
+	md_free(dm0_cpu);
+	md_free(sig_cpu);
+	md_free(r1scale);
+	md_free(r2scale);
+	md_free(m0scale);
 	
-	if (NULL != data->input_sp)
-		md_free(SP_cpu);
+	if (NULL != data->input_sliceprofile)
+		md_free(sliceprofile_cpu);
 	
 	if (NULL != data->input_b1)
-		md_free(B1_cpu);
+		md_free(b1_cpu);
 	
 	if (NULL != data->input_fa_profile)
-		md_free(VFA_cpu);
+		md_free(var_fa_cpu);
 	
 	double totaltime = timestamp() - starttime;
 	debug_printf(DP_DEBUG2, "Time = %.2f s\n", totaltime);
@@ -425,7 +425,7 @@ static void Bloch_del(const nlop_data_t* _data)
 	md_free(data->tmp_map);
 	
 	md_free(data->input_b1);
-	md_free(data->input_sp);
+	md_free(data->input_sliceprofile);
 	md_free(data->input_fa_profile);
 
 	xfree(data->map_dims);
@@ -442,7 +442,7 @@ static void Bloch_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const struct modBlochFit* fitPara, bool use_gpu)
+struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const struct modBlochFit* fit_para, bool use_gpu)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
@@ -481,9 +481,9 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 
 
 	data->N = N;
-	data->scale[0] = fitPara->scale[0];
-	data->scale[1] = fitPara->scale[1];
-	data->scale[2] = fitPara->scale[2];
+	data->scale[0] = fit_para->scale[0];
+	data->scale[1] = fit_para->scale[1];
+	data->scale[2] = fit_para->scale[2];
 	data->Sig = my_alloc(N, out_dims, CFL_SIZE);
 	data->dR1 = my_alloc(N, out_dims, CFL_SIZE);
 	data->dR2 = my_alloc(N, out_dims, CFL_SIZE);
@@ -492,7 +492,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->tmp_map = my_alloc(N, map_dims, CFL_SIZE);
 	
 	
-	if (NULL != fitPara->input_b1) {
+	if (NULL != fit_para->input_b1) {
 		
 		PTR_ALLOC(long[N], nindims);
 		md_copy_dims(N, *nindims, input_dims);
@@ -503,7 +503,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 		data->input_strs = *PTR_PASS(ninstr);
 
 		data->input_b1 = my_alloc(N, input_dims, CFL_SIZE);
-		md_copy(N, input_dims, data->input_b1, fitPara->input_b1, CFL_SIZE);
+		md_copy(N, input_dims, data->input_b1, fit_para->input_b1, CFL_SIZE);
 	}
 	else {
 		
@@ -512,53 +512,53 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 		data->input_strs = NULL;
 	}
 	
-	if (NULL != fitPara->input_sp) {
+	if (NULL != fit_para->input_sliceprofile) {
 
-		long slcp_dims[DIMS];
+		long sliceprofile_dims[DIMS];
 
-		md_set_dims(DIMS, slcp_dims, 1);
-		slcp_dims[READ_DIM] = fitPara->n_slcp;
+		md_set_dims(DIMS, sliceprofile_dims, 1);
+		sliceprofile_dims[READ_DIM] = fit_para->sliceprofile_spins;
 
-		data->input_sp = my_alloc(N, slcp_dims, CFL_SIZE);
+		data->input_sliceprofile = my_alloc(N, sliceprofile_dims, CFL_SIZE);
 
-		md_copy(N, slcp_dims, data->input_sp, fitPara->input_sp, CFL_SIZE);
+		md_copy(N, sliceprofile_dims, data->input_sliceprofile, fit_para->input_sliceprofile, CFL_SIZE);
 	}
 	else
-		data->input_sp = NULL;
+		data->input_sliceprofile = NULL;
 	
 	
-	if (NULL != fitPara->input_fa_profile) {
+	if (NULL != fit_para->input_fa_profile) {
 
 		long vfa_dims[DIMS];
 
 		md_set_dims(DIMS, vfa_dims, 1);
-		vfa_dims[READ_DIM] = fitPara->num_vfa;
+		vfa_dims[READ_DIM] = fit_para->num_vfa;
 
 		data->input_fa_profile = my_alloc(N, vfa_dims, CFL_SIZE);
 
-		md_copy(N, vfa_dims, data->input_fa_profile, fitPara->input_fa_profile, CFL_SIZE);
+		md_copy(N, vfa_dims, data->input_fa_profile, fit_para->input_fa_profile, CFL_SIZE);
 	}
 	else
 		data->input_fa_profile = NULL;
 	
 
 	//Set fitting parameter
-	data->fitParameter.sequence = fitPara->sequence;
-	data->fitParameter.rfduration = fitPara->rfduration;
-	data->fitParameter.tr = fitPara->tr;
-	data->fitParameter.te = fitPara->te;
-	data->fitParameter.fa = fitPara->fa;
-	data->fitParameter.runs = fitPara->runs;
+	data->fitParameter.sequence = fit_para->sequence;
+	data->fitParameter.rfduration = fit_para->rfduration;
+	data->fitParameter.tr = fit_para->tr;
+	data->fitParameter.te = fit_para->te;
+	data->fitParameter.fa = fit_para->fa;
+	data->fitParameter.runs = fit_para->runs;
 
-	debug_printf(DP_DEBUG2, "TR: %f s,\t TE: %f s\n", data->fitParameter.tr, data->fitParameter.te);
+	debug_printf(DP_DEBUG2, "tr: %f s,\t te: %f s\n", data->fitParameter.tr, data->fitParameter.te);
 
-	data->fitParameter.sequence = fitPara->sequence;
-	data->fitParameter.averageSpokes = fitPara->averageSpokes;
-	data->fitParameter.fov_reduction_factor = fitPara->fov_reduction_factor;
-	data->fitParameter.n_slcp = fitPara->n_slcp;
-	data->fitParameter.num_vfa = fitPara->num_vfa;
-	data->fitParameter.rm_no_echo = fitPara->rm_no_echo;
-	data->fitParameter.full_ode_sim = fitPara->full_ode_sim;
+	data->fitParameter.sequence = fit_para->sequence;
+	data->fitParameter.averaged_spokes = fit_para->averaged_spokes;
+	data->fitParameter.fov_reduction_factor = fit_para->fov_reduction_factor;
+	data->fitParameter.sliceprofile_spins = fit_para->sliceprofile_spins;
+	data->fitParameter.num_vfa = fit_para->num_vfa;
+	data->fitParameter.rm_no_echo = fit_para->rm_no_echo;
+	data->fitParameter.full_ode_sim = fit_para->full_ode_sim;
 	data->use_gpu = use_gpu;
 	
 	data->counter = 0;

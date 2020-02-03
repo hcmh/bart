@@ -30,7 +30,7 @@
  * Jakob Assländer, Dmitry S. Novikov, Riccardo Lattanzi, Daniel K. Sodickson & Martijn A. Cloos.
  * Communications Physics. Volume 2, Article number: 73 (2019)
  */
-const struct HSFP_model hsfp_defaults = {
+const struct hsfp_model hsfp_defaults = {
 	
 	.t1 = 0.781,
 	.t2 = 0.065,
@@ -41,14 +41,14 @@ const struct HSFP_model hsfp_defaults = {
 };
 
 
-static float a_core(const struct HSFP_model* data, float t)
+static float a_core(const struct hsfp_model* data, float t)
 {
 	return sinf(cabsf(data->pa_profile[(int)(t/data->tr)])) * sinf(cabsf(data->pa_profile[(int)(t/data->tr)])) / data->t2 +
 		cosf(cabsf(data->pa_profile[(int)(t/data->tr)])) * cosf(cabsf(data->pa_profile[(int)(t/data->tr)])) / data->t1;
 }
 
 
-static float a(const struct HSFP_model* data, float t_lim)
+static float a(const struct hsfp_model* data, float t_lim)
 {
 	float sum = 0;
 	
@@ -59,13 +59,13 @@ static float a(const struct HSFP_model* data, float t_lim)
 }
 
 
-static float r0_core(const struct HSFP_model* data, float t)
+static float r0_core(const struct hsfp_model* data, float t)
 {
 	return cosf(cabsf(data->pa_profile[(int)(t/data->tr)])) / a(data, t); 
 }
 
 
-static float r0(const struct HSFP_model* data)
+static float r0(const struct hsfp_model* data)
 {
 	float tc = data->repetitions * data->tr;
 	
@@ -81,7 +81,7 @@ static float r0(const struct HSFP_model* data)
 }
 
 
-static float hsfp_signal(const struct HSFP_model* data, float r0_val, float t)
+static float hsfp_signal(const struct hsfp_model* data, float r0_val, float t)
 {
 	float sum = 0;
 	
@@ -92,7 +92,7 @@ static float hsfp_signal(const struct HSFP_model* data, float r0_val, float t)
 }
 
 
-void hsfp_simu(const struct HSFP_model* data, float* out)
+void hsfp_simu(const struct hsfp_model* data, float* out)
 {
 	float r0_val = r0(data);
 	
@@ -125,15 +125,15 @@ static void looklocker_model(const struct LookLocker_model* data, complex float*
 
 }
 
-void looklocker_analytical(struct SimData* simu_data, complex float* out)
+void looklocker_analytical(struct sim_data* simu_data, complex float* out)
 {
 	struct LookLocker_model data;
 	
-	data.t1 = 1/simu_data->voxelData.r1;
-	data.m0 = simu_data->voxelData.m0;
-	data.tr = simu_data->seqData.TR;
-	data.fa = simu_data->pulseData.flipangle * M_PI / 180.;	//conversion to rad
-	data.repetitions = simu_data->seqData.rep_num;
+	data.t1 = 1/simu_data->voxel.r1;
+	data.m0 = simu_data->voxel.m0;
+	data.tr = simu_data->seq.tr;
+	data.fa = simu_data->pulse.flipangle * M_PI / 180.;	//conversion to rad
+	data.repetitions = simu_data->seq.rep_num;
 	
 	looklocker_model(&data, out);
 }
@@ -166,16 +166,16 @@ static void IR_bSSFP_model(const struct IRbSSFP_model* data, complex float* out)
 
 }
 
-void IR_bSSFP_analytical(struct SimData* simu_data, complex float* out)
+void IR_bSSFP_analytical(struct sim_data* simu_data, complex float* out)
 {
 	struct IRbSSFP_model data;
 	
-	data.t1 = 1/simu_data->voxelData.r1;
-	data.t2 = 1/simu_data->voxelData.r2;
-	data.m0 = simu_data->voxelData.m0;
-	data.tr = simu_data->seqData.TR;
-	data.fa = simu_data->pulseData.flipangle * M_PI / 180.;	//conversion to rad
-	data.repetitions = simu_data->seqData.rep_num;
+	data.t1 = 1/simu_data->voxel.r1;
+	data.t2 = 1/simu_data->voxel.r2;
+	data.m0 = simu_data->voxel.m0;
+	data.tr = simu_data->seq.tr;
+	data.fa = simu_data->pulse.flipangle * M_PI / 180.;	//conversion to rad
+	data.repetitions = simu_data->seq.rep_num;
 	
 	IR_bSSFP_model(&data, out);
 }

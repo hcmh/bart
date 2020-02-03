@@ -23,26 +23,26 @@ struct ode_matrix_simu_s {
 static void ode_matrix_fun_simu(void* _data, float* x, float t, const float* in)
 {
 	struct ode_matrix_simu_s* data = _data;
-	struct SimData* sim_data = data->sim_data;
+	struct sim_data* sim_data = data->sim_data;
 
 	unsigned int N = data->N;
 
-	if (sim_data->pulseData.pulse_applied && t <= sim_data->pulseData.RF_end) { 
+	if (sim_data->pulse.pulse_applied && t <= sim_data->pulse.rf_end) { 
 		
-		float w1 = sinc_pulse( &sim_data->pulseData, t );
-		sim_data->gradData.gb_eff[0] = cosf( sim_data->pulseData.phase ) * w1 + sim_data->gradData.gb[0];
-		sim_data->gradData.gb_eff[1] = sinf( sim_data->pulseData.phase ) * w1 + sim_data->gradData.gb[1];
+		float w1 = sinc_pulse( &sim_data->pulse, t );
+		sim_data->grad.gb_eff[0] = cosf( sim_data->pulse.phase ) * w1 + sim_data->grad.gb[0];
+		sim_data->grad.gb_eff[1] = sinf( sim_data->pulse.phase ) * w1 + sim_data->grad.gb[1];
 	}
 	else {
 
-		sim_data->gradData.gb_eff[0] = sim_data->gradData.gb[0];
-		sim_data->gradData.gb_eff[1] = sim_data->gradData.gb[1];
+		sim_data->grad.gb_eff[0] = sim_data->grad.gb[0];
+		sim_data->grad.gb_eff[1] = sim_data->grad.gb[1];
 	}
 
-	sim_data->gradData.gb_eff[2] = sim_data->gradData.gb[2] + sim_data->voxelData.w;
+	sim_data->grad.gb_eff[2] = sim_data->grad.gb[2] + sim_data->voxel.w;
 	
 	float matrix_time[N][N];
-	bloch_matrix_ode_sa(matrix_time, sim_data->voxelData.r1, sim_data->voxelData.r2, sim_data->gradData.gb_eff);
+	bloch_matrix_ode_sa(matrix_time, sim_data->voxel.r1, sim_data->voxel.r2, sim_data->grad.gb_eff);
 
 	for (unsigned int i = 0; i < N; i++) {
 
@@ -95,20 +95,20 @@ static void mm_mul(int N, float out[N][N], float in1[N][N], float in2[N][N])
 
 static void create_sim_matrix(int N, float matrix[N][N], float end, void* _data )
 {
-	struct SimData* simdata = _data;
+	struct sim_data* simdata = _data;
 	
 
-	if (simdata->pulseData.pulse_applied)
+	if (simdata->pulse.pulse_applied)
 #ifndef MATRIX_SPLIT
-		create_rf_pulse(&simdata->pulseData, simdata->pulseData.RF_start, simdata->pulseData.RF_end, simdata->pulseData.flipangle, simdata->pulseData.phase, simdata->pulseData.nl, simdata->pulseData.nr, simdata->pulseData.alpha);
+		create_rf_pulse(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.nl, simdata->pulse.nr, simdata->pulse.alpha);
 #else
 	{	// Possible increase of precision by splitting into rf- and relaxation-matrix?
 
-		create_rf_pulse(&simdata->pulseData, simdata->pulseData.RF_start, simdata->pulseData.RF_end, simdata->pulseData.flipangle, simdata->pulseData.phase, simdata->pulseData.nl, simdata->pulseData.nr, simdata->pulseData.alpha);
+		create_rf_pulse(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.nl, simdata->pulse.nr, simdata->pulse.alpha);
 
 		float tmp1[N][N];
 
-		mat_exp_simu(N, simdata->pulseData.RF_end, tmp1, simdata);
+		mat_exp_simu(N, simdata->pulse.rf_end, tmp1, simdata);
 
 		float tmp2[N][N];
 
@@ -117,10 +117,10 @@ static void create_sim_matrix(int N, float matrix[N][N], float end, void* _data 
 				tmp2[i][j] = ( (i == j) ? 1 : 0 );
 				
 
-		if (simdata->pulseData.RF_end < end) {
+		if (simdata->pulse.rf_end < end) {
 			
-			simdata->pulseData.pulse_applied = false;
-			mat_exp_simu(N, end - simdata->pulseData.RF_end, tmp2, simdata);
+			simdata->pulse.pulse_applied = false;
+			mat_exp_simu(N, end - simdata->pulse.rf_end, tmp2, simdata);
 		}
 
 		mm_mul(N, matrix, tmp1, tmp2);
@@ -155,9 +155,9 @@ static void apply_sim_matrix(int N, float m[N], float matrix[N][N])
 //Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
 static void xyspoiling(int N, float out[N], void* _data)
 {
-	struct SimData* simdata = _data;
+	struct sim_data* simdata = _data;
 	
-	if (simdata->seqData.seq_type == 2 || simdata->seqData.seq_type == 5)
+	if (simdata->seq.seq_type == 2 || simdata->seq.seq_type == 5)
 		for(int i = 0; i < 3 ; i ++) {
 
 			out[3*i] = 0.;
@@ -167,16 +167,16 @@ static void xyspoiling(int N, float out[N], void* _data)
 
 static void apply_inversion(int N, float m[N], float pulse_length, void* _data )
 {
-	struct SimData* simdata = _data;
-	struct SimData tmp_data = *simdata;
+	struct sim_data* simdata = _data;
+	struct sim_data tmp_data = *simdata;
 
-	tmp_data.pulseData.pulse_applied = true;
-	tmp_data.pulseData.flipangle = 180.;
-	tmp_data.pulseData.RF_end = pulse_length;
+	tmp_data.pulse.pulse_applied = true;
+	tmp_data.pulse.flipangle = 180.;
+	tmp_data.pulse.rf_end = pulse_length;
 
 	float matrix[N][N];
 
-	create_sim_matrix(N, matrix, tmp_data.pulseData.RF_end, &tmp_data);
+	create_sim_matrix(N, matrix, tmp_data.pulse.rf_end, &tmp_data);
 
 	apply_sim_matrix(N, m, matrix);
 	
@@ -186,10 +186,10 @@ static void apply_inversion(int N, float m[N], float pulse_length, void* _data )
 
 static void spoiler_relaxation(int N, float m[N], float spoiler_length, void* _data )
 {
-	struct SimData* simdata = _data;
-	struct SimData tmp_data = *simdata;
+	struct sim_data* simdata = _data;
+	struct sim_data tmp_data = *simdata;
 
-	tmp_data.pulseData.pulse_applied = false;
+	tmp_data.pulse.pulse_applied = false;
 
 	float matrix[N][N];
 	create_sim_matrix(N, matrix, spoiler_length, &tmp_data);
@@ -202,17 +202,17 @@ static void spoiler_relaxation(int N, float m[N], float spoiler_length, void* _d
 
 static void apply_signal_preparation(int N, float m[N], void* _data )// provides alpha/2. preparation only
 {
-	struct SimData* simdata = _data;
-	struct SimData tmp_data = *simdata;
+	struct sim_data* simdata = _data;
+	struct sim_data tmp_data = *simdata;
 
-	tmp_data.pulseData.pulse_applied = true;
-	tmp_data.pulseData.flipangle = simdata->pulseData.flipangle/2.;
-	tmp_data.pulseData.phase = M_PI;
-	tmp_data.seqData.TR = simdata->seqData.TR/2.;
+	tmp_data.pulse.pulse_applied = true;
+	tmp_data.pulse.flipangle = simdata->pulse.flipangle/2.;
+	tmp_data.pulse.phase = M_PI;
+	tmp_data.seq.tr = simdata->seq.tr/2.;
 
 	float matrix[N][N];
 
-	create_sim_matrix(N, matrix, tmp_data.seqData.TR, &tmp_data);
+	create_sim_matrix(N, matrix, tmp_data.seq.tr, &tmp_data);
 
 	apply_sim_matrix(N, m, matrix);
 }
@@ -220,49 +220,49 @@ static void apply_signal_preparation(int N, float m[N], void* _data )// provides
 
 static void prepare_matrix_to_te( int N, float matrix[N][N], void* _data )
 {
-	struct SimData* simdata = _data;
-	struct SimData tmp_data = *simdata;
+	struct sim_data* simdata = _data;
+	struct sim_data tmp_data = *simdata;
 
-	tmp_data.pulseData.pulse_applied = true;
+	tmp_data.pulse.pulse_applied = true;
 
-	create_sim_matrix(N, matrix, tmp_data.seqData.TE, &tmp_data);
+	create_sim_matrix(N, matrix, tmp_data.seq.te, &tmp_data);
 }
 
 
 static void prepare_matrix_to_tr( int N, float matrix[N][N], void* _data )
 {
-	struct SimData* simdata = _data;
-	struct SimData tmp_data = *simdata;
+	struct sim_data* simdata = _data;
+	struct sim_data tmp_data = *simdata;
 
-	tmp_data.pulseData.pulse_applied = false;
+	tmp_data.pulse.pulse_applied = false;
 
-	create_sim_matrix(N, matrix, (tmp_data.seqData.TR-tmp_data.seqData.TE), &tmp_data);
+	create_sim_matrix(N, matrix, (tmp_data.seq.tr-tmp_data.seq.te), &tmp_data);
 }
 
 static void ADCcorrection(int N, float out[N], float in[N])
 {
-	float corrAngle = M_PI; // for bSSFP
+	float corr_angle = M_PI; // for bSSFP
 
 	for (int i = 0; i < 3; i++) {	// 3 parameter: Sig, S_R1, S_R2
 		
-		out[3*i] = in[3*i] * cosf(corrAngle) + in[3*i+1] * sinf(corrAngle);
-		out[3*i+1] = in[3*i] * sinf(corrAngle) + in[3*i+1] * cosf(corrAngle);
+		out[3*i] = in[3*i] * cosf(corr_angle) + in[3*i+1] * sinf(corr_angle);
+		out[3*i+1] = in[3*i] * sinf(corr_angle) + in[3*i+1] * cosf(corr_angle);
 		out[3*i+2] = in[3*i+2];
 	}
 
 }
 
-static void collect_data(int N, float xp[N], float *mxySignal, float *saR1Signal, float *saR2Signal, void* _data)
+static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa_r2, void* _data)
 {    
-	struct SimData* data = _data;
+	struct sim_data* data = _data;
 	
-	if (2 == data->seqData.seq_type || 5 == data->seqData.seq_type ) {
+	if (2 == data->seq.seq_type || 5 == data->seq.seq_type ) {
 	
 		for (int i = 0; i < 3; i++) {
 
-			mxySignal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = xp[i];
-			saR1Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = xp[i+3];
-			saR2Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = xp[i+6];
+			mxy[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = xp[i];
+			sa_r1[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = xp[i+3];
+			sa_r2[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = xp[i+6];
 		}	
 	}
 	else {
@@ -272,59 +272,59 @@ static void collect_data(int N, float xp[N], float *mxySignal, float *saR1Signal
 
 		for (int i = 0; i < 3; i++) {
 
-			mxySignal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[i] : xp[i];
-			saR1Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[i+3] : xp[i+3];
-			saR2Signal[ (i * data->seqData.spin_num * (data->seqData.rep_num) ) + ( (data->seqtmp.rep_counter) * data->seqData.spin_num) + data->seqtmp.spin_counter ] = (data->seqtmp.rep_counter % 2 == 1) ? tmp[i+6] : xp[i+6];
+			mxy[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = (data->tmp.rep_counter % 2 == 1) ? tmp[i] : xp[i];
+			sa_r1[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = (data->tmp.rep_counter % 2 == 1) ? tmp[i+3] : xp[i+3];
+			sa_r2[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = (data->tmp.rep_counter % 2 == 1) ? tmp[i+6] : xp[i+6];
 		}
 	}
     
 }
     
 // for seq = 0, 1, 2, 5
-void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1OriSig)[3], float (*saT2OriSig)[3], float (*densOriSig)[3])
+void matrix_bloch_simulation( void* _data, float (*mxy_sig)[3], float (*sa_r1_sig)[3], float (*sa_r2_sig)[3], float (*sa_m0_sig)[3])
 {
-	struct SimData* data = _data;
+	struct sim_data* data = _data;
 	
 	enum { N = 10 };
     
-	float isochromats[data->seqData.spin_num];
+	float isochromats[data->seq.spin_num];
 
-	if (data->voxelData.spin_ensamble)
-		isochromDistribution( data, isochromats);
+	if (data->voxel.spin_ensamble)
+		isochrom_distribution( data, isochromats);
 
 	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows 
-	float *mxySignal = malloc( (data->seqData.spin_num * (data->seqData.rep_num) * 3) * sizeof(float) );
-	float *saT1Signal = malloc( (data->seqData.spin_num * (data->seqData.rep_num) * 3) * sizeof(float) );
-	float *saT2Signal = malloc( (data->seqData.spin_num * (data->seqData.rep_num) * 3) * sizeof(float) );
+	float *mxy = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
+	float *sa_r1 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
+	float *sa_r2 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
     
-	float flipangle_backup = data->pulseData.flipangle;
-	float w_backup = data->voxelData.w;
+	float flipangle_backup = data->pulse.flipangle;
+	float w_backup = data->voxel.w;
 	
 	float slice_correction = 1.;
 	
-	for (data->seqtmp.spin_counter = 0; data->seqtmp.spin_counter < data->seqData.spin_num; data->seqtmp.spin_counter++) {
+	for (data->tmp.spin_counter = 0; data->tmp.spin_counter < data->seq.spin_num; data->tmp.spin_counter++) {
 		
 		slice_correction = 1.;
 
-		if (NULL != data->seqData.slice_profile) 
-			slice_correction = cabsf(data->seqData.slice_profile[data->seqtmp.spin_counter]);
+		if (NULL != data->seq.slice_profile) 
+			slice_correction = cabsf(data->seq.slice_profile[data->tmp.spin_counter]);
 		
-		data->pulseData.flipangle = flipangle_backup * slice_correction;
+		data->pulse.flipangle = flipangle_backup * slice_correction;
 
 		float xp[N] = { 0., 0., 1., 0., 0., 0., 0., 0., 0., 1. };
 
-		if (data->voxelData.spin_ensamble)
-			data->voxelData.w = w_backup + isochromats[data->seqtmp.spin_counter]; //just on-resonant pulse for now.
+		if (data->voxel.spin_ensamble)
+			data->voxel.w = w_backup + isochromats[data->tmp.spin_counter]; //just on-resonant pulse for now.
 
-		data->seqtmp.t = 0;
-		data->seqtmp.rep_counter = 0;
-		data->pulseData.phase = 0;
+		data->tmp.t = 0;
+		data->tmp.rep_counter = 0;
+		data->pulse.phase = 0;
 
-		if (data->seqData.seq_type == 1 || data->seqData.seq_type == 5)
+		if (data->seq.seq_type == 1 || data->seq.seq_type == 5)
 			apply_inversion(N, xp, 0.01, data);
 
-		//for bSSFP based sequences: alpha/2 and TR/2 preparation
-		if (data->seqData.seq_type == 0 || data->seqData.seq_type == 1)
+		//for bSSFP based sequences: alpha/2 and tr/2 preparation
+		if (data->seq.seq_type == 0 || data->seq.seq_type == 1)
 			apply_signal_preparation(N, xp, data);
 
 		// Create matrices which describe signal development	
@@ -332,27 +332,27 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 		prepare_matrix_to_te( N, matrix_to_te, data);
 
 		float matrix_to_te_PI[N][N];
-		data->pulseData.phase = M_PI;
+		data->pulse.phase = M_PI;
 		prepare_matrix_to_te( N, matrix_to_te_PI, data);
 
 
 		float matrix_to_tr[N][N];
 		prepare_matrix_to_tr( N, matrix_to_tr, data);
         
-		while (data->seqtmp.rep_counter < data->seqData.rep_num) { 
+		while (data->tmp.rep_counter < data->seq.rep_num) { 
 			
-			if (data->seqData.seq_type == 2 || data->seqData.seq_type == 5)
+			if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
 				apply_sim_matrix( N, xp, matrix_to_te );
 			else
-				apply_sim_matrix( N, xp, ( ( data->seqtmp.rep_counter % 2 == 0 ) ? matrix_to_te : matrix_to_te_PI) );
+				apply_sim_matrix( N, xp, ( ( data->tmp.rep_counter % 2 == 0 ) ? matrix_to_te : matrix_to_te_PI) );
 
-			collect_data( N, xp, mxySignal, saT1Signal, saT2Signal, data);
+			collect_data( N, xp, mxy, sa_r1, sa_r2, data);
 
 			apply_sim_matrix( N, xp, matrix_to_tr );
 
 			xyspoiling(N, xp, data);
 
-			data->seqtmp.rep_counter++;
+			data->tmp.rep_counter++;
 		}
 	}
 	
@@ -360,34 +360,34 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 	* ---------------  Sum up magnetization  -----------------------
 	* ------------------------------------------------------------*/
    
-	float sumMxyTmp;
-	float sumSaT1;
-	float sumSaT2; 
+	float sum_mxy_tmp;
+	float sum_sa_r1;
+	float sum_sa_r2; 
 
 	for (int av_num = 0, dim = 0; dim < 3; dim++) {
 
-		sumMxyTmp = sumSaT1 = sumSaT2 = 0.;
+		sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = 0.;
 
-		for (int save_repe = 0, repe = 0; repe < data->seqData.rep_num; repe++) {
+		for (int save_repe = 0, repe = 0; repe < data->seq.rep_num; repe++) {
 
-			if (av_num == data->seqData.num_average_rep)
+			if (av_num == data->seq.num_average_rep)
 				av_num = 0.;
 			
-			for (int spin = 0; spin < data->seqData.spin_num; spin++)  {
+			for (int spin = 0; spin < data->seq.spin_num; spin++)  {
 				
-				sumMxyTmp += mxySignal[ (dim *data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
-				sumSaT1 += saT1Signal[ (dim * data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
-				sumSaT2 += saT2Signal[ (dim * data->seqData.spin_num * (data->seqData.rep_num) ) + (repe * data->seqData.spin_num) + spin ];
+				sum_mxy_tmp += mxy[ (dim *data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
+				sum_sa_r1 += sa_r1[ (dim * data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
+				sum_sa_r2 += sa_r2[ (dim * data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
 			}
 			
-			if (av_num == data->seqData.num_average_rep - 1) {
+			if (av_num == data->seq.num_average_rep - 1) {
 
-				mxyOriSig[save_repe][dim] = sumMxyTmp * data->voxelData.m0 / (float)( data->seqData.spin_num * data->seqData.num_average_rep );
-				saT1OriSig[save_repe][dim] = sumSaT1 * data->voxelData.m0 / (float)( data->seqData.spin_num * data->seqData.num_average_rep );
-				saT2OriSig[save_repe][dim] = sumSaT2 * data->voxelData.m0 / (float)( data->seqData.spin_num * data->seqData.num_average_rep );
-				densOriSig[save_repe][dim] = sumMxyTmp / (float)( data->seqData.spin_num * data->seqData.num_average_rep );
+				mxy_sig[save_repe][dim] = sum_mxy_tmp * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
+				sa_r1_sig[save_repe][dim] = sum_sa_r1 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
+				sa_r2_sig[save_repe][dim] = sum_sa_r2 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
+				sa_m0_sig[save_repe][dim] = sum_mxy_tmp / (float)( data->seq.spin_num * data->seq.num_average_rep );
 
-				sumMxyTmp = sumSaT1 = sumSaT2 = 0.;
+				sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = 0.;
 				save_repe++;
 			}
 
@@ -395,8 +395,8 @@ void matrix_bloch_simulation( void* _data, float (*mxyOriSig)[3], float (*saT1Or
 		}
 	}
 
-	free(mxySignal);
-	free(saT1Signal);
-	free(saT2Signal);
+	free(mxy);
+	free(sa_r1);
+	free(sa_r2);
 }
 

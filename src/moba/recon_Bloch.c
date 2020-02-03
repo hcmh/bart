@@ -41,7 +41,7 @@
 #include "recon_Bloch.h"
 
 
-void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPara, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data, _Bool usegpu)
+void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_para, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data, _Bool usegpu)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -77,7 +77,7 @@ void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPa
 
 	
 	//Create operator
-	struct modBloch_s nl = bloch_create(dims, mask, pattern, &mconf, fitPara, usegpu);
+	struct modBloch_s nl = bloch_create(dims, mask, pattern, &mconf, fit_para, usegpu);
 	
 	
 	//Set up parameter for IRGNM
@@ -99,7 +99,7 @@ void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fitPa
 	debug_printf(DP_INFO, "imgs_dims:\n\t");
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 10E-5, .constrained_maps = 3, .not_wav_maps = fitPara->not_wav_maps };
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 10E-5, .constrained_maps = 3, .not_wav_maps = fit_para->not_wav_maps };
 
 	mdb_irgnm_l1(&conf2,
 			irgnm_conf_dims,

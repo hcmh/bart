@@ -212,11 +212,11 @@ static bool test_nlop_Blochfun(void)
 	
 	bool gpu_use = false;
 	
-	struct modBlochFit fitPara = modBlochFit_defaults;
+	struct modBlochFit fit_para = modBlochFit_defaults;
 	
 	md_zfill(N, in_dims, src, 1.0);
 
-	struct nlop_s* op_Bloch = nlop_Bloch_create(N, map_dims, out_dims, in_dims, input_dims, &fitPara, gpu_use);
+	struct nlop_s* op_Bloch = nlop_Bloch_create(N, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
 
 	nlop_apply(op_Bloch, N, out_dims, dst, N, in_dims, src);
 	

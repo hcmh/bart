@@ -27,7 +27,7 @@
 
 #include "scale.h"
 
-void auto_scale(const struct modBlochFit* fitPara, float scale[3], const long ksp_dims[DIMS], complex float* kspace_data)
+void auto_scale(const struct modBlochFit* fit_para, float scale[3], const long ksp_dims[DIMS], complex float* kspace_data)
 {
 	
 	long int dims[DIMS] = { [0 ... DIMS - 1] = 1. };
@@ -36,9 +36,9 @@ void auto_scale(const struct modBlochFit* fitPara, float scale[3], const long ks
 	dims[TE_DIM] = ksp_dims[TE_DIM];
 	
 	complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
-	complex float* sensitivitiesR1 = md_alloc(DIMS, dims, CFL_SIZE);
-	complex float* sensitivitiesR2 = md_alloc(DIMS, dims, CFL_SIZE);
-	complex float* sensitivitiesM0 = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* sens_r1 = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* sens_r2 = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* sens_m0 = md_alloc(DIMS, dims, CFL_SIZE);
 	
 	float lim_T1[2] = {0.3, 3.};
 	float lim_T2[2] = {0.01, 1.};
@@ -48,82 +48,82 @@ void auto_scale(const struct modBlochFit* fitPara, float scale[3], const long ks
 		
 		for(int y = 0; y < dims[1]; y++ ){
 
-			struct SimData sim_data;
+			struct sim_data sim_data;
 				
-			sim_data.seqData = seqData_defaults;
-			sim_data.seqData.seq_type = fitPara->sequence;
-			sim_data.seqData.TR = fitPara->tr;
-			sim_data.seqData.TE = fitPara->te;
+			sim_data.seq = simdata_seq_defaults;
+			sim_data.seq.seq_type = fit_para->sequence;
+			sim_data.seq.tr = fit_para->tr;
+			sim_data.seq.te = fit_para->te;
 			
-			if (4 == sim_data.seqData.seq_type)
-				sim_data.seqData.rep_num = fitPara->num_vfa;
+			if (4 == sim_data.seq.seq_type)
+				sim_data.seq.rep_num = fit_para->num_vfa;
 			else
-				sim_data.seqData.rep_num = dims[TE_DIM];
+				sim_data.seq.rep_num = dims[TE_DIM];
 			
-			sim_data.seqData.spin_num = fitPara->n_slcp;
-			sim_data.seqData.num_average_rep = fitPara->averageSpokes;
-			sim_data.seqData.run_num = fitPara->runs;
+			sim_data.seq.spin_num = fit_para->sliceprofile_spins;
+			sim_data.seq.num_average_rep = fit_para->averaged_spokes;
+			sim_data.seq.run_num = fit_para->runs;
 			
-			sim_data.voxelData = voxelData_defaults;
-			sim_data.voxelData.r1 = 1 / (lim_T1[0] + x * lim_T1[1]/(dims[0]-1));
-			sim_data.voxelData.r2 = 1 / (lim_T2[0] + x * lim_T2[1]/(dims[1]-1));
-			sim_data.voxelData.m0 = 1;
-			sim_data.voxelData.w = 0;
+			sim_data.voxel = simdata_voxel_defaults;
+			sim_data.voxel.r1 = 1 / (lim_T1[0] + x * lim_T1[1]/(dims[0]-1));
+			sim_data.voxel.r2 = 1 / (lim_T2[0] + x * lim_T2[1]/(dims[1]-1));
+			sim_data.voxel.m0 = 1;
+			sim_data.voxel.w = 0;
 			
-			sim_data.pulseData = pulseData_defaults;
-			sim_data.pulseData.flipangle = fitPara->fa;
-			sim_data.pulseData.RF_end = fitPara->rfduration;
-			sim_data.gradData = gradData_defaults;
-			sim_data.seqtmp = seqTmpData_defaults;
+			sim_data.pulse = simdata_pulse_defaults;
+			sim_data.pulse.flipangle = fit_para->fa;
+			sim_data.pulse.rf_end = fit_para->rfduration;
+			sim_data.grad = simdata_grad_defaults;
+			sim_data.tmp = simdata_tmp_defaults;
 			
-			if (NULL != fitPara->input_fa_profile) {
+			if (NULL != fit_para->input_fa_profile) {
 				
 				long vfa_dims[DIMS];
 				md_set_dims(DIMS, vfa_dims, 1);
-				vfa_dims[READ_DIM] = fitPara->num_vfa;
+				vfa_dims[READ_DIM] = fit_para->num_vfa;
 				
-				sim_data.seqData.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
-				md_copy(DIMS, vfa_dims, sim_data.seqData.variable_fa, fitPara->input_fa_profile, CFL_SIZE);
+				sim_data.seq.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
+				md_copy(DIMS, vfa_dims, sim_data.seq.variable_fa, fit_para->input_fa_profile, CFL_SIZE);
 			}
 			
-// 			debug_printf(DP_DEBUG3,"%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data.seqData.TR, data.seqData.TE, data.voxelData.r1, data.voxelData.r2, 	data.seqtmp.rep_counter, data.pulseData.RF_end, data.pulseData.flipangle );
+// 			debug_printf(DP_DEBUG3,"%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data.seq.tr, data.seq.te, data.voxel.r1, data.voxel.r2, 	data.tmp.rep_counter, data.pulse.rf_end, data.pulse.flipangle );
 			
 			
-			float mxySig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			float saR1Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			float saR2Sig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
-			float saDensSig[sim_data.seqData.rep_num / sim_data.seqData.num_average_rep][3];
+			float mxy_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 			
 			
-			if (fitPara->full_ode_sim || NULL != fitPara->input_fa_profile)	//variable flipangles are only included into ode simulation yet
-				ode_bloch_simulation3(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
+			if (fit_para->full_ode_sim || NULL != fit_para->input_fa_profile)	//variable flipangles are only included into ode simulation yet
+				ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
 			else
-				matrix_bloch_simulation(&sim_data, mxySig, saR1Sig, saR2Sig, saDensSig);
+				matrix_bloch_simulation(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
 
 			
 			//Add data to phantom
 			for (int z = 0; z < dims[TE_DIM]; z++) {
 				
 				//changed x-and y-axis to have same orientation as measurements
-				sensitivitiesR1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR1Sig[z][1] + saR1Sig[z][0] * I; 
-				sensitivitiesR2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saR2Sig[z][1] + saR2Sig[z][0] * I;
-				sensitivitiesM0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = saDensSig[z][1] + saDensSig[z][0] * I;
-				phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = mxySig[z][1] + mxySig[z][0] * I;
+				sens_r1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = sa_r1_sig[z][1] + sa_r1_sig[z][0] * I; 
+				sens_r2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = sa_r2_sig[z][1] + sa_r2_sig[z][0] * I;
+				sens_m0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = sa_m0_sig[z][1] + sa_m0_sig[z][0] * I;
+				phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = mxy_sig[z][1] + mxy_sig[z][0] * I;
 			}
 		}
 	}
 	
 	double mean_sig = md_znorm(DIMS, ksp_dims, kspace_data);
 	
-	double mean_r1 = md_znorm(DIMS, dims, sensitivitiesR1);
+	double mean_r1 = md_znorm(DIMS, dims, sens_r1);
 	scale[0] = mean_sig / mean_r1;
 	
-	double mean_r2 = md_znorm(DIMS, dims, sensitivitiesR2);
+	double mean_r2 = md_znorm(DIMS, dims, sens_r2);
 	
-	if (2 != fitPara->sequence && 5 != fitPara->sequence)
+	if (2 != fit_para->sequence && 5 != fit_para->sequence)
 		scale[1] = mean_sig / mean_r2;
 	
-	double mean_m0 = md_znorm(DIMS, dims, sensitivitiesM0);
+	double mean_m0 = md_znorm(DIMS, dims, sens_m0);
 	scale[2] = mean_sig / mean_m0;
 	
 	

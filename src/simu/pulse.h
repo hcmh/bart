@@ -1,9 +1,9 @@
 
 
-struct PulseData;
+struct simdata_pulse;
 
-float get_pulse_energy(void* pulseData);
+float get_pulse_energy(void* pulse);
 
-float sinc_pulse(void * pulseData, float t);
+float sinc_pulse(void * pulse, float t);
 
 
