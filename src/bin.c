@@ -26,21 +26,21 @@
 
 /* Reorder binning: [-o]
  * Input a 1D file with <lables> at the <src> dimension, that you want to reorder (according to the lable order)
- *  
+ *
  * ---
- * 
+ *
  * Lable binning: [-l long]
  * Bin a dimension according to the lable-file <bin-signal>
  * The label file must be 1D and the dimension of the <label> file and the <src> file must match at the dimension that you want to bin
  * -d must specify an empty dimension, in which the binned data is stored
  *
  * ---
- * 
+ *
  * Quadrature binning:
  * Rosenzweig, S., Scholand, N., Holme, H. C. M., & Uecker, M. (2018).
  * Cardiac and Respiratory Self-Gating in Radial MRI using an Adapted Singular Spectrum Analysis (SSA-FARY).
  * arXiv preprint arXiv:1812.09057.
- * 
+ *
  * n: Number of bins
  * state: Contains amplitudes for both EOFs
  * idx: Bins for 'idx' motion (0: cardiac, 1: respiration)
@@ -58,12 +58,13 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 	if (bin_mod) {
 
 		// Adjust bins for end-expiration
-		
+
 		/* This is a heuristic to do the binning such that end-expiration gets an entire bin
 		 * The idea is to find the symmetric EOF first, as it is in phase with the actual motion.
 		 * Then, we offset the binning angle to ensure that all samples on a peak of the symmetric EOF
 		 * (which belong to end expiration) are assigned to the same bin.
 		 */
+
 
 
 		// Find symmetric EOF
@@ -103,43 +104,68 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 
 	for (unsigned int t = 0; t < T; t++) {
 
-		angle = M_PI + atan2f(crealf(state[t]), crealf(state[T + t])) + offset_angle;
-		angle = (angle < 0) ? (angle + 2. * M_PI) : angle;
+		angle = atan2f(crealf(state[T + t]), crealf(state[t])) + offset_angle;
+		angle = angle < 0 ? angle + 2. * M_PI : angle;
 
 		bins[idx * T + t] = floor(angle / central_angle);
+
  		//debug_printf(DP_INFO, "%f: bin %f\n", (M_PI + atan2f(crealf(state[t]), crealf(state[T + t]))) * 360 / 2. / M_PI, bins[idx * T + t]);
 	}
 }
 
-
 /* Check if time is consistent with increasing bin index
  *
  * Idea: Calculate the angles defined by EOF_a & EOF_b (phase diagram!) for time
- * steps 0 and 1. If the angle increases, time evolution is consistent with
- * increasing bin-index.
+ * steps total_time/2 and total_time/2+1. If the angle increases, time evolution is consistent with
+ * increasing bin-index.  Otherwise, swap EOF_a with EOF_b.
  */
+
 static bool check_valid_time(const long singleton_dims[DIMS], complex float* singleton, const long lables_dims[DIMS], const complex float* lables, const long lables_idx[2])
 {
-	long pos[DIMS] = { 0 };
 
+	// Indices at half of total time
+	int idx_0 = floor(singleton_dims[TIME_DIM] / 2);
+	int idx_1 = idx_0 + 1;
+
+	long pos[DIMS] = { 0 };
 	pos[TIME2_DIM] = lables_idx[0];
 	md_copy_block(DIMS, pos, singleton_dims, singleton, lables_dims, lables, CFL_SIZE);
-
-	float a_0 = crealf(singleton[0]);
-	float a_1 = crealf(singleton[1]);
+	float a_0 = crealf(singleton[idx_0]);
+	float a_1 = crealf(singleton[idx_1]);
 
 	pos[TIME2_DIM] = lables_idx[1];
 	md_copy_block(DIMS, pos, singleton_dims, singleton, lables_dims, lables, CFL_SIZE);
+	float b_0 = crealf(singleton[idx_0]);
+	float b_1 = crealf(singleton[idx_1]);
 
-	float b_0 = crealf(singleton[0]);
-	float b_1 = crealf(singleton[1]);
+	float angle_0 = atan2f(b_0, a_0);
+ 	if (angle_0 < 0) // phase unwrap
+ 		angle_0 += 2 * M_PI;
 
-	float angle_0 = atan2f(a_0, b_0);
-	float angle_1 = atan2f(a_1, b_1);
+	float angle_1 = atan2f(b_1, a_1);
+ 	if (angle_1 < 0)
+		angle_1 += 2 * M_PI;
 
-	return (angle_1 >= angle_0);
+	// Check if angle increases (and consider phase wrap!)
+	bool valid_time;
+	float diff = angle_1 - angle_0;
+	float abs_diff = fabsf(diff);
+
+	if (diff >= 0) {
+		if (abs_diff <= M_PI)
+			valid_time = true;
+		else
+			valid_time = false;
+	} else {
+		if (abs_diff <= M_PI)
+			valid_time = false;
+		else
+			valid_time = true;
+	}
+
+	return valid_time;
+
 }
-
 
 
 // Calculate maximum number of samples in a bin
@@ -181,7 +207,8 @@ static int get_binsize_max(const long bins_dims[DIMS], const float* bins, unsign
 
 
 // Copy spokes from input array to correct position in output array
-static void asgn_bins(const long bins_dims[DIMS], const float* bins, const long sg_dims[DIMS], complex float* sg, const long in_dims[DIMS], const complex float* in, const int n_card, const int n_resp)
+static void asgn_bins(const long bins_dims[DIMS], const float* bins, const long sg_dims[DIMS], complex float* sg, const long in_dims[DIMS], const complex float* in, const int
+n_card, const int n_resp)
 {
 	// Array to keep track of numbers of spokes already asigned to each bin
 	long count_dims[2] = { n_card, n_resp };
@@ -353,8 +380,9 @@ int main_bin(int argc, char* argv[])
 		assert(!reorder);
 		assert((n_resp == 0) && (n_card == 0));
 
+
 	} else if (reorder) {
-		
+
 		c = 'R';
 
 		assert((n_resp == 0) && (n_card == 0));
@@ -441,7 +469,6 @@ int main_bin(int argc, char* argv[])
 			}
 
 #ifdef SSAFARY_PAPER
-			dump_cfl("resp", DIMS, resp_state_dims, resp_state);
 			dump_cfl("card", DIMS, card_state_dims, card_state);
 #endif
 
@@ -569,6 +596,7 @@ int main_bin(int argc, char* argv[])
 			md_free(singleton);
 
 			break;
+
 		}
 
 		case 'R': { // Reorder: Reorder elements from src according to lable
@@ -602,6 +630,7 @@ int main_bin(int argc, char* argv[])
 
 			assert(src_dims[dim] > max); 
 
+
 			// Output
 			long reorder_dims[DIMS];
 			md_copy_dims(DIMS, reorder_dims, src_dims);
@@ -623,6 +652,7 @@ int main_bin(int argc, char* argv[])
 
 				pos[dim] = i;
 				md_copy_block(DIMS, pos, reorder_dims, reorder, singleton_dims, singleton, CFL_SIZE);				
+
 			}
 
 			unmap_cfl(DIMS, reorder_dims, reorder);
