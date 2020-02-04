@@ -327,6 +327,7 @@ int main_bin(int argc, char* argv[])
 	unsigned int n_resp = 0;
 	unsigned int n_card = 0;
 	unsigned int mavg_window = 0;
+	unsigned int mavg_window_card = 0;
 	bool bin_mod = false;
 	int cluster_dim = -1;
 
@@ -345,6 +346,7 @@ int main_bin(int argc, char* argv[])
 		OPT_VEC2('r', &resp_lables_idx, "x:y", "(Respiration: Eigenvector index)"),
 		OPT_VEC2('c', &card_lables_idx, "x:y", "(Cardiac motion: Eigenvector index)"),
 		OPT_UINT('a', &mavg_window, "window", "Quadrature Binning: Moving average"),
+		OPT_UINT('A', &mavg_window_card, "window", "(Quadrature Binning: Cardiac moving average window)"),
 		OPT_SET('M', &bin_mod, "(Modified Quadrature Binning)"),
 	};
 
@@ -465,7 +467,8 @@ int main_bin(int argc, char* argv[])
 			if (mavg_window > 0) {
 
 				moving_average(resp_state_dims, resp_state, mavg_window);
-				moving_average(card_state_dims, card_state, mavg_window);
+				moving_average(card_state_dims, card_state, (mavg_window_card > 0) ? mavg_window_card : mavg_window);
+
 			}
 
 #ifdef SSAFARY_PAPER
