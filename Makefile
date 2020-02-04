@@ -339,6 +339,7 @@ CFLAGS += -Wno-unknown-pragmas
 CXXFLAGS += -Wno-unknown-pragmas
 endif
 
+#CFLAGS += -DSSAFARY_PAPER # For reproduction of SSA-FARY paper!
 
 
 # BLAS/LAPACK
