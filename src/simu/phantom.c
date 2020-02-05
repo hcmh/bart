@@ -519,22 +519,16 @@ void calc_phantom_arb_base(int N, const struct ellipsis_s data[N], const long di
 	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
 
 	long dims1[DIMS];
-	md_select_dims(DIMS, ~(MD_BIT(TE_DIM) | MD_BIT(COEFF_DIM)), dims1, dims);
+	md_select_dims(DIMS, ~MD_BIT(COEFF_DIM), dims1, dims);
 
 	assert(0 == tstrs[COEFF_DIM]);
 
 	#pragma omp parallel for
 	for (int i = 0; i < dims[COEFF_DIM]; i++) {
 
-		struct ellipsis_s base[1];
-		base[0] = data[i];
+		struct ellipsis_s base[1] = { data[i] };
 
-		for (int j = 0; j < dims[TE_DIM]; j++) {
-
-			void* traj2 = (NULL == traj) ? NULL : ((void*)traj + j * tstrs[TE_DIM]);
-
-			sample(dims1, (void*)out + i * strs[COEFF_DIM] + j * strs[TE_DIM], tstrs, traj2, &(struct krn2d_data){ kspace, ARRAY_SIZE(base), base }, krn2d, kspace);
-		}
+		sample(dims1, (void*)out + i * strs[COEFF_DIM], tstrs, traj, &(struct krn2d_data){ kspace, ARRAY_SIZE(base), base }, krn2d, kspace);
 	}
 }
 
