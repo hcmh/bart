@@ -188,7 +188,7 @@ int main_phantom(int argc, char* argv[])
         
 	case T1T2:
 		
-		(base ? calc_phantom_t1t2_base : calc_phantom_t1t2)(dims, out, kspace, sstrs, samples);
+		calc_phantom_t1t2(dims, out, kspace, sstrs, samples);
 		break;
 	
 	case BART:

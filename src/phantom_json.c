@@ -180,7 +180,7 @@ int main_phantom_json(int argc, char* argv[])
 		calc_sens(dims, out);
 	}
 	else 
-		(base ? calc_phantom_arb_base : calc_phantom_arb)(N, phantom_data, dims, out, kspace, sstrs, samples);
+		calc_phantom_arb(N, phantom_data, dims, out, kspace, sstrs, samples);
 
 	
 	// Clean up

@@ -1,6 +1,4 @@
 
-#include "misc/mri.h"
-#include "simu/shepplogan.h"
 
 extern void calc_sens(const long dims[DIMS], complex float* sens);
 
@@ -20,8 +18,9 @@ extern void calc_phantom_t1t2(const long dims[DIMS], _Complex float* out, bool k
 extern void calc_phantom_t1t2_base(const long dims[DIMS], _Complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
 
 
-extern void calc_phantom_arb(int N, const struct ellipsis_s data[N], const long dims[DIMS], _Complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
-extern void calc_phantom_arb_base(int N, const struct ellipsis_s data[N], const long dims[DIMS], _Complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
+struct ellipsis_s;
+extern void calc_phantom_arb(int N, const struct ellipsis_s* data /*[N]*/, const long dims[DIMS], _Complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
+extern void calc_phantom_arb_base(int N, const struct ellipsis_s* data/*[N]*/, const long dims[DIMS], _Complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
 
 extern void calc_star(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
 extern void calc_star3d(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj);
