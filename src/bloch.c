@@ -161,7 +161,7 @@ int main_bloch(int argc, char* argv[argc])
 			
 			complex float* map = create_cfl("T1T2Parameter", DIMS, dim_map);
 			md_clear(DIMS, dim_map, map, CFL_SIZE);
-			calc_phantom_t1t2(dim_map, map, false/*kspace*/, sstrs, samples);
+			calc_phantom_tubes(dim_map, map, false/*kspace*/, sstrs, samples);
 			
 			complex float* dens = create_cfl("DensParameter", DIMS, dim_map);
 			md_zfill(DIMS, dim_map, dens, 1.0);

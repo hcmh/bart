@@ -40,7 +40,7 @@ int main_phantom(int argc, char* argv[])
 	int xdim = -1;
 
 	int geo = -1;
-	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM, STAR, BART, T1T2 } ptype = SHEPPLOGAN;
+	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM, STAR, BART, TUBES } ptype = SHEPPLOGAN;
 
 	const char* traj = NULL;
 	bool base = false;
@@ -62,7 +62,7 @@ int main_phantom(int argc, char* argv[])
 		OPT_SELECT('m', enum ptype_e, &ptype, TIME, "()"),
 		OPT_SELECT('G', enum ptype_e, &ptype, GEOM, "geometric object phantom"),
 		OPT_SELECT('C', enum ptype_e, &ptype, HEART, "heart"),
-		OPT_SELECT('T', enum ptype_e, &ptype, T1T2, "T1-T2 phantom"),
+		OPT_SELECT('T', enum ptype_e, &ptype, TUBES, "tubes phantom"),
 		OPT_SELECT('B', enum ptype_e, &ptype, BART, "BART logo"),
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_INT('g', &geo, "n=1,2", "select geometry for object phantom"),
@@ -126,8 +126,11 @@ int main_phantom(int argc, char* argv[])
 	if (sens > 0)
 		dims[3] = sens;
 
-	if ( (T1T2 == ptype) && base)
-		dims[COEFF_DIM] = 10; // Length of const struct ellipsis_s t1t2phantom. see src/shepplogan.c
+	if (base) {
+
+		assert(TUBES == ptype);
+		dims[COEFF_DIM] = 10; // Length of const struct ellipsis_s tube phantom. see src/shepplogan.c
+	}
 
 	complex float* out;
 	
@@ -186,9 +189,9 @@ int main_phantom(int argc, char* argv[])
 		calc_phantom(dims, out, d3, kspace, sstrs, samples);
 		break;
         
-	case T1T2:
+	case TUBES:
 		
-		calc_phantom_t1t2(dims, out, kspace, sstrs, samples);
+		calc_phantom_tubes(dims, out, kspace, sstrs, samples);
 		break;
 	
 	case BART:

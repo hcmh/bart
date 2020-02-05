@@ -90,7 +90,7 @@ const struct ellipsis_s phantom_geo4[1] = {
 };
 
 
-const struct ellipsis_s t1t2phantom[10] = {
+const struct ellipsis_s phantom_tubes[10] = {
 		/* Background ellipse [0], needs to be added for simulation and subtracted for visualization*/
 		{1	, { .75	,   .75    }	, { 0.,     0. }	, 0.}, /*Background*/
 		{1	, { .125,   .125   }	, { -0.13,     -0.19 }	, 0.},

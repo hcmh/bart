@@ -255,7 +255,7 @@ void calc_geo_phantom(const long dims[DIMS], complex float* out, bool kspace, in
 		break;
 
 	default:
-		error("Invalid phantom type\n");
+		assert(0);
 	}
 
 	md_free(round);
@@ -578,8 +578,8 @@ void calc_phantom_arb(int N, const struct ellipsis_s data[N], const long dims[DI
 }
 
 
-void calc_phantom_t1t2(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+void calc_phantom_tubes(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
-	calc_phantom_arb(ARRAY_SIZE(t1t2phantom), t1t2phantom, dims, out, kspace, tstrs, traj);
+	calc_phantom_arb(ARRAY_SIZE(phantom_tubes), phantom_tubes, dims, out, kspace, tstrs, traj);
 }
 
