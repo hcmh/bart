@@ -4,6 +4,9 @@
  * a BSD-style license which can be found in the LICENSE file.
  */
 
+#ifndef __SHEPPLOGAN_H
+#define __SHEPPLOGAN_H
+
 #include <complex.h>
 
 #include "misc/cppwrap.h"
@@ -62,3 +65,4 @@ extern complex double phantom3d(unsigned int N, const struct ellipsis3d_s arr[__
 
 #include "misc/cppwrap.h"
 
+#endif	// __SHEPPLOGAN_H
