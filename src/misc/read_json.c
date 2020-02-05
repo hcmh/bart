@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "simu/cJSON.h"
+#include "misc/cJSON.h"
 
 #include "read_json.h"
 

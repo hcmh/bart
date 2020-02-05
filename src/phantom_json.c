@@ -14,8 +14,8 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
-#include "simu/cJSON.h"
-#include "simu/read_json.h"
+#include "misc/cJSON.h"
+#include "misc/read_json.h"
 
 #include "simu/phantom.h"
 #include "simu/simulation.h"
