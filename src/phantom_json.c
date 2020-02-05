@@ -24,6 +24,49 @@
 
 
 
+/*
+ * Example of *.json file to pass geomtry to phantom_json.c
+{
+	"objects": [
+		{
+			"type": "ellipse",
+			"intensity": 1,
+			"axis": [0.75, 0.75],
+			"center": [0, 0],
+			"angle": 0,
+			"background": true
+		},
+		{
+			"type": "ellipse",
+			"intensity": 0.7,
+			"axis": [0.55, 0.55],
+			"center": [0.1, 0.1],
+			"angle": 10,
+			"background": false
+		},
+		{
+			"type": "ellipse",
+			"intensity": 0.5,
+			"axis": [0.25, 0.15],
+			"center": [0.3, -0.2],
+			"angle": 45,
+			"background": false
+		},
+		{
+			"type": "ellipse",
+			"intensity": 0.3,
+			"axis": [0.3, 0.05],
+			"center": [0, 0],
+			"angle": -45,
+			"background": false
+		}
+	]
+}
+*/
+
+
+
+
 static const char usage_str[] = "<geometry.json> <output>";
 static const char help_str[] = "Image and k-space domain phantoms.";
 
