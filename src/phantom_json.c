@@ -1,12 +1,3 @@
-/* Copyright 2014. The Regents of the University of California.
- * Copyright 2015-2019. Martin Uecker.
- * All rights reserved. Use of this source code is governed by
- * a BSD-style license which can be found in the LICENSE file.
- *
- * Authors: 
- * 2013-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2019	     Nick Scholand <nick.scholand@med.uni-goettingen.de>
- */
 
 #include <stdbool.h>
 #include <complex.h>

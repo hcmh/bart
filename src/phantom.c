@@ -5,7 +5,6 @@
  *
  * Authors: 
  * 2013-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2019	     Nick Scholand <nick.scholand@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
