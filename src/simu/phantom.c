@@ -522,6 +522,7 @@ void calc_phantom_arb_base(int N, const struct ellipsis_s data[N], const long di
 	md_select_dims(DIMS, ~MD_BIT(COEFF_DIM), dims1, dims);
 
 	assert(0 == tstrs[COEFF_DIM]);
+	assert(N == dims[COEFF_DIM]);
 
 	#pragma omp parallel for
 	for (int i = 0; i < dims[COEFF_DIM]; i++) {
