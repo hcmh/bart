@@ -249,8 +249,8 @@ void calc_geo_phantom(const long dims[DIMS], complex float* out, bool kspace, in
 		break;
 
 	case 2:
-		sample(dims, round, tstrs, traj, &(struct krn2d_data){ kspace, coeff, ARRAY_SIZE(phantom_geo4), phantom_geo1 }, krn2d, kspace);
-		sample(dims, angular, tstrs, traj, &(struct krn2d_data){ kspace, coeff, ARRAY_SIZE(phantom_geo3), phantom_geo2 }, krnX, kspace);
+		sample(dims, round, tstrs, traj, &(struct krn2d_data){ kspace, coeff, ARRAY_SIZE(phantom_geo4), phantom_geo4 }, krn2d, kspace);
+		sample(dims, angular, tstrs, traj, &(struct krn2d_data){ kspace, coeff, ARRAY_SIZE(phantom_geo3), phantom_geo3 }, krnX, kspace);
 		md_zadd(DIMS, dims, out, round, angular);
 		break;
 
