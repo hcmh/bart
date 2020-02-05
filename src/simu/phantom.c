@@ -5,10 +5,8 @@
  *
  * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  *
- * Simple numerical phantom which simulates image-domain or
- * k-space data with multiple channels and additional option for 
- * simple simulated phantom.
- *
+ * Simple numerical phantoms that simulate image-domain or
+ * k-space data with multiple channels.
  */
 
 #include <math.h>
