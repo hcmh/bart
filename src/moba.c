@@ -47,7 +47,7 @@ int main_moba(int argc, char* argv[])
 	const struct opt_s opts[] = {
 
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
-		OPT_UINT('l', &conf.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
+		OPT_UINT('l', &conf.opt_reg, "reg", "l1Wav / l2 / LLR / Joint l1Wav and LLR (1/2/3/4)\ttoggle\tl1-wavelet / l2 / lowrank / joint l1-wavelet and LLR regularization"),
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
 		OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),
@@ -154,12 +154,12 @@ int main_moba(int argc, char* argv[])
 	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
         
         if (1 != ksp_dims[SLICE_DIM]) // SMS
-		scaling *= sqrt(ksp_dims[SLICE_DIM] / 2.0);
+		scaling *= sqrt(ksp_dims[SLICE_DIM] / 1.0);
 
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
 
 	if (1 != ksp_dims[SLICE_DIM]) // SMS
-		scaling_psf *= sqrt(ksp_dims[SLICE_DIM] / 2.0);
+		scaling_psf *= sqrt(ksp_dims[SLICE_DIM] / 1.0);
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
@@ -197,6 +197,8 @@ int main_moba(int argc, char* argv[])
 
 #ifdef  USE_CUDA
 	if (usegpu) {
+
+		cuda_use_global_memory();
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);

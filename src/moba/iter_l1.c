@@ -25,6 +25,8 @@
 #include "num/iovec.h"
 
 #include "wavelet/wavthresh.h"
+#include "lowrank/lrthresh.h"
+
 
 #include "nlops/nlop.h"
 
@@ -57,6 +59,8 @@ struct T1inv_s {
 
 	const struct operator_p_s* prox1;
 	const struct operator_p_s* prox2;
+	const struct operator_p_s* prox3;
+	const struct operator_p_s* prox4;
 };
 
 DEF_TYPEID(T1inv_s);
@@ -130,10 +134,22 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 		pos_value(_data, dst, src);
 	}
 
-	if (1 == data->conf->opt_reg) {
+        // regularizations: 1 - L1Wav; 2 - L2; 3 - LLR; 4 - Joint L1Wav and LLR
+        //
+	if ((1 == data->conf->opt_reg) || (4 == data->conf->opt_reg)) { // FIXME 
 
-		operator_p_apply_unchecked(data->prox2, rho, (_Complex float*)dst, (const _Complex float*)dst);
-	}
+		operator_p_apply_unchecked(data->prox2, 1.0*rho, (_Complex float*)dst, (const _Complex float*)dst);
+        }
+	
+        if (3 == data->conf->opt_reg) { // FIXME 
+
+		operator_p_apply_unchecked(data->prox4, 0.3*rho, (_Complex float*)dst, (const _Complex float*)dst);
+        }
+        
+        if (4 == data->conf->opt_reg) { // FIXME 
+
+		operator_p_apply_unchecked(data->prox4, 0.3*rho, (_Complex float*)dst, (const _Complex float*)dst);
+        }
 
 	pos_value(_data, dst, dst);
 }
@@ -155,8 +171,9 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 	debug_printf(DP_DEBUG3, "##reg. alpha = %f\n", alpha);
 
-	wavthresh_rand_state_set(data->prox1, 1);
-    
+	if ((1 == data->conf->opt_reg) || (4 == data->conf->opt_reg)) // FIXME 
+                wavthresh_rand_state_set(data->prox1, 1);
+	    
 	int maxiter = MIN(data->conf->c2->cgiter, 10 * powf(2, data->outer_iter));
     
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
@@ -189,7 +206,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 }
 
 
-static const struct operator_p_s* create_prox(const long img_dims[DIMS])
+static const struct operator_p_s* create_prox_L1WAV(const long img_dims[DIMS], unsigned int jflags)
 {
 	bool randshift = true;
 	long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
@@ -204,8 +221,32 @@ static const struct operator_p_s* create_prox(const long img_dims[DIMS])
 		}
 	}
 
-	return prox_wavelet_thresh_create(DIMS, img_dims, wflags, COEFF_FLAG, minsize, 1., randshift);
+	return prox_wavelet_thresh_create(DIMS, img_dims, wflags, jflags, minsize, 1., randshift);
 }
+
+
+static const struct operator_p_s* create_prox_LLR(const long img_dims[DIMS], unsigned int jflags)
+{
+	// TODO
+	// if (use_gpu)
+	// 	error("GPU operation is not currently implemented for lowrank regularization.\n");
+
+	bool randshift = true;
+	bool overlapping_blocks = false;
+	long blkdims[MAX_LEV][DIMS];
+	unsigned int llr_blk = 8;
+
+	// add locally lowrank penalty
+	int levels = llr_blkdims(blkdims, ~jflags, img_dims, llr_blk);
+
+	UNUSED(levels);
+
+	debug_printf(DP_DEBUG2, "blkdims:\n\t");
+	debug_print_dims(DP_DEBUG2, DIMS, blkdims[0]);
+
+	return lrthresh_create(img_dims, randshift, ~jflags, (const long (*)[DIMS])blkdims, 1., false, 0, overlapping_blocks);
+}
+
 
 
 struct T1inv2_s {
@@ -233,6 +274,8 @@ static void T1inv_del(const operator_data_t* _data)
 
 	operator_p_free(data->data.prox1);
 	operator_p_free(data->data.prox2);
+	operator_p_free(data->data.prox3);
+	operator_p_free(data->data.prox4);
 
 	nlop_free(data->data.nlop);
 
@@ -256,18 +299,20 @@ static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf*
 	long* ndims = *TYPE_ALLOC(long[DIMS]);
 	md_copy_dims(DIMS, ndims, dims);
 
-	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims); 
-	img_dims[COEFF_DIM] = img_dims[COEFF_DIM] - conf->not_wav_maps;	// Just penalize T1 map
-	debug_print_dims(DP_INFO, DIMS, img_dims);
+	long maps_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, maps_dims, dims); 
+	maps_dims[COEFF_DIM] = maps_dims[COEFF_DIM] - conf->not_wav_maps;	// Just penalize T1 map
+	debug_print_dims(DP_INFO, DIMS, maps_dims);
 
-	auto prox1 = create_prox(img_dims);
-	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | SLICE_FLAG));
+	auto prox1 = ((1 == conf->opt_reg)||(4 == conf->opt_reg)) ? create_prox_L1WAV(maps_dims, COEFF_FLAG) : NULL;
+	auto prox2 = ((1 == conf->opt_reg)||(4 == conf->opt_reg)) ? op_p_auto_normalize(prox1, ~(COEFF_FLAG | SLICE_FLAG)) : NULL;
+	auto prox3 = ((3 == conf->opt_reg)||(4 == conf->opt_reg)) ? create_prox_LLR(maps_dims, COEFF_FLAG) : NULL;
+	auto prox4 = ((3 == conf->opt_reg)||(4 == conf->opt_reg)) ? op_p_auto_normalize(prox3, ~(COEFF_FLAG | SLICE_FLAG)) : NULL;
 
 	struct T1inv_s idata = {
 
 		{ &TYPEID(T1inv_s) }, nlop_clone(nlop), conf,
-		N, M, 1.0, ndims, true, 0, prox1, prox2
+		N, M, 1.0, ndims, true, 0, prox1, prox2, prox3, prox4
 	};
 
 	data->data = idata;
