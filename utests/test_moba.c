@@ -6,6 +6,7 @@
  */
 
 #include <complex.h>
+#include <stdio.h>
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -384,7 +385,7 @@ static bool test_nlop_T1relax_comb_der_adj(void)
 	random_application(flat);
 
 // 	double err = linop_test_adjoint(nlop_get_derivative(flat, 0, 0));
-        double err = nlop_test_derivative(flat);
+        double err = nlop_test_derivative(flat);        
         
         nlop_free(flat);
         nlop_free(T1_1);
@@ -546,6 +547,210 @@ static bool test_T1srelax_link1(void)
 
 UT_REGISTER_TEST(test_T1srelax_link1);
 
+static bool test_nlop_T1srelax_comb_der_adj(void)
+{
+        enum { N = 16 };
+        long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        long TI_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        
+        long map_strs[N];
+        md_calc_strides(N, map_strs, map_dims, CFL_SIZE);
+        
+        long out_strs[N];
+        md_calc_strides(N, out_strs, out_dims, CFL_SIZE);
+        
+        long TI_strs[N];
+        md_calc_strides(N, TI_strs, TI_dims, CFL_SIZE);
+        
+        complex float* TI1 = md_alloc(N, TI_dims, CFL_SIZE);
+        complex float* TI2 = md_alloc(N, TI_dims, CFL_SIZE);
+        
+        complex float TI_1[4] = { 1., 2., 3., 4. };
+        complex float TI_2[4] = { 4., 5., 6., 7. };
+                
+        md_copy(N, TI_dims, TI1, TI_1, CFL_SIZE);
+        md_copy(N, TI_dims, TI2, TI_2, CFL_SIZE);
+
+        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1);
+        struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1);
+        
+        struct nlop_s* T1s_combine = nlop_combine(T1s_2, T1s_1);
+        struct nlop_s* T1s_link = nlop_link(T1s_combine, 3, 0);
+        struct nlop_s* T1s_dup1 = nlop_dup(T1s_link, 2, 6);
+        struct nlop_s* T1s_dup2 = nlop_dup(T1s_dup1, 1, 5);
+        struct nlop_s* T1s_dup = nlop_dup(T1s_dup2, 0, 4);
+
+        struct nlop_s* flat = nlop_flatten(T1s_dup);
+
+        random_application(flat);
+
+        // double err = linop_test_adjoint(nlop_get_derivative(flat, 0, 0));
+        double err = nlop_test_derivative(flat);       
+        
+        nlop_free(flat);
+        nlop_free(T1s_1);
+        nlop_free(T1s_2);
+        nlop_free(T1s_combine);
+        nlop_free(T1s_link);
+        
+        md_free(TI1);
+        md_free(TI2);
+        
+        UT_ASSERT((!safe_isnanf(err)) && (err < 7.E-2));
+}
+
+UT_REGISTER_TEST(test_nlop_T1srelax_comb_der_adj);
+
+static bool test_T1_MOLLI_relax_link1(void)
+{
+        enum { N = 16 };
+        long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        long TI_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        long TI2_dims[N] = { 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        long out2_dims[N] = { 16, 16, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        
+        long map_strs[N];
+        md_calc_strides(N, map_strs, map_dims, CFL_SIZE);
+        
+        long out_strs[N];
+        md_calc_strides(N, out_strs, out_dims, CFL_SIZE);
+
+        long out2_strs[N];
+        md_calc_strides(N, out2_strs, out2_dims, CFL_SIZE);
+        
+        long TI_strs[N];
+        md_calc_strides(N, TI_strs, TI_dims, CFL_SIZE);
+
+        long TI2_strs[N];
+        md_calc_strides(N, TI2_strs, TI2_dims, CFL_SIZE);
+
+        complex float* dst1 = md_alloc(N, out_dims, CFL_SIZE);
+        complex float* dst2 = md_alloc(N, out_dims, CFL_SIZE);
+        complex float* dst3 = md_alloc(N, map_dims, CFL_SIZE);
+        complex float* dst4 = md_alloc(N, map_dims, CFL_SIZE);
+        complex float* dst5 = md_alloc(N, out2_dims, CFL_SIZE);
+        complex float* dst6 = md_alloc(N, map_dims, CFL_SIZE);
+        complex float* dst7 = md_alloc(N, out2_dims, CFL_SIZE);
+        
+        complex float* src1 = md_alloc(N, map_dims, CFL_SIZE); // M_start
+        complex float* src2 = md_alloc(N, map_dims, CFL_SIZE); // M0
+        complex float* src3 = md_alloc(N, map_dims, CFL_SIZE); // R1
+        complex float* src4 = md_alloc(N, map_dims, CFL_SIZE); // R1s
+        
+        complex float* tmp = md_alloc(N, map_dims, CFL_SIZE);
+        complex float* tmp1 = md_alloc(N, map_dims, CFL_SIZE);
+        complex float* TI = md_alloc(N, TI_dims, CFL_SIZE);
+        complex float* TI2 = md_alloc(N, TI2_dims, CFL_SIZE);
+        
+        complex float TI_1[4] = { 1., 2., 3., 4. };
+        complex float TI_2[2] = {  7., 8. };
+                
+        md_copy(N, TI_dims, TI, TI_1, CFL_SIZE);
+        md_copy(N, TI2_dims, TI2, TI_2, CFL_SIZE);
+
+        md_gaussian_rand(N, map_dims, src1);
+        md_gaussian_rand(N, map_dims, src2);
+        md_gaussian_rand(N, map_dims, src3);
+        md_gaussian_rand(N, map_dims, src4);
+        
+        float scaling_R1s = 1.0;
+        float regularization = 1e-6;
+        
+        // md_zfill(N, map_dims, src1, -5);
+        // md_zfill(N, map_dims, src2, 10.0);
+        // md_zfill(N, map_dims, src3, 0.1);
+        // md_zfill(N, map_dims, src4, 0.2);
+
+        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
+        struct nlop_s* T1_2 = nlop_T1relax_create(N, map_dims, out2_dims, TI2_dims, TI2);
+        
+        struct nlop_s* T1c_combine = nlop_combine(T1_2, T1s_1);
+        struct nlop_s* T1c_link = nlop_link(T1c_combine, 3, 0);
+        
+        struct nlop_s* T1c_dup1 = nlop_dup(T1c_link, 1, 4);
+        struct nlop_s* T1c_dup = nlop_dup(T1c_dup1, 0, 3);
+//     
+        // T1* relaxation
+        md_zsmul(N, map_dims, tmp, src4, -1.0 *scaling_R1s);
+        md_zmul2(N, out_dims, out_strs, dst1, map_strs, tmp, TI_strs, TI);
+        md_zexp(N, out_dims, dst1, dst1);
+        
+        //M0 * R1/R1s - M_start
+        md_zdiv_reg(N, map_dims, tmp, src3, src4, regularization);
+        md_zsmul(N, map_dims, tmp, tmp, 1./scaling_R1s);
+
+        md_zmul(N, map_dims, tmp, tmp, src2);
+        md_zsub(N, map_dims, tmp1, tmp, src1);
+
+        // (M0 * R1/R1s - M_start).*exp(-t.*scaling_R1s*R1s)
+        md_zmul2(N, out_dims, out_strs, dst1, map_strs, tmp1, out_strs, dst1);
+
+        //Model: (M0 * R1/R1s -(-M_start + M0 * R1/R1s).*exp(-t.*scaling_R1s*R1s))
+        md_zsub2(N, out_dims, out_strs, dst1, map_strs, tmp, out_strs, dst1);
+     
+       
+        long pos[N];
+
+        for (int i = 0; i < N; i++)
+                pos[i] = 0;
+        
+        pos[TE_DIM] = TI_dims[TE_DIM] - 1;
+        md_copy_block(N, pos, map_dims, dst4, out_dims, dst1, CFL_SIZE);
+
+        
+        // T1 relaxation
+        // M0 + (Mstart - M0)* exp(-t*R1)
+        md_zsmul(N, map_dims, tmp, src3, -1.0);
+        md_zmul2(N, out2_dims, out2_strs, dst5, map_strs, tmp, TI2_strs, TI2);
+        md_zexp(N, out2_dims, dst5, dst5);
+     
+        md_zsub(N, map_dims, tmp, dst4, src2);        
+        md_zmul2(N, out2_dims, out2_strs, dst5, map_strs, tmp, out2_strs, dst5);
+        md_zadd2(N, out2_dims, out2_strs, dst5, map_strs, src2, out2_strs, dst5);
+        
+
+        pos[TE_DIM] = TI2_dims[TE_DIM] - 1;
+        md_copy_block(N, pos, map_dims, dst6, out2_dims, dst5, CFL_SIZE);
+
+
+        nlop_generic_apply_unchecked(T1c_dup, 7, (void*[]){ dst7, dst3, dst2, src2, src3, src1, src4 });
+        
+        
+        double err = md_znrmse(N, out2_dims, dst7, dst5) + md_znrmse(N, map_dims, dst3, dst6) + md_znrmse(N, out_dims, dst1, dst2);
+
+
+
+        md_free(src1);
+        md_free(src2);
+        md_free(src3);
+        md_free(src4);
+        
+        md_free(tmp);
+        md_free(tmp1);
+        md_free(TI);
+        md_free(TI2);
+        
+        md_free(dst1);
+        md_free(dst2);
+        md_free(dst3);
+        md_free(dst4);
+        md_free(dst5);
+        md_free(dst6);
+        md_free(dst7);
+        
+        nlop_free(T1s_1);
+        nlop_free(T1_2);
+        nlop_free(T1c_combine);
+        nlop_free(T1c_link);
+
+        
+        UT_ASSERT(err < UT_TOL);
+}
+
+UT_REGISTER_TEST(test_T1_MOLLI_relax_link1);
+
 static bool test_nlop_T1_MOLLI_relax_der_adj(void)
 {
         enum { N = 16 };
@@ -554,7 +759,7 @@ static bool test_nlop_T1_MOLLI_relax_der_adj(void)
 	long TI_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
         long TI2_dims[N] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long out2_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-        
+
         long map_strs[N];
 	md_calc_strides(N, map_strs, map_dims, CFL_SIZE);
         
@@ -573,18 +778,26 @@ static bool test_nlop_T1_MOLLI_relax_der_adj(void)
         md_copy(N, TI_dims, TI1, TI_1, CFL_SIZE);
         md_copy(N, TI2_dims, TI2, TI_2, CFL_SIZE);
 
-        struct nlop_s* T1_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1);
+        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1);
         struct nlop_s* T1_2 = nlop_T1relax_create(N, map_dims, out2_dims, TI2_dims, TI2);
+
+        struct nlop_s* T1_3 = nlop_T1relax_create(N, map_dims, out2_dims, TI2_dims, TI2);
         
-        struct nlop_s* T1_combine = nlop_combine(T1_2, T1_1);
-	struct nlop_s* T1_link = nlop_link(T1_combine, 3, 0);
+        // first chain
+        struct nlop_s* T1_combine = nlop_combine(T1_2, T1s_1);
+        struct nlop_s* T1_link = nlop_link(T1_combine, 3, 0);
         
-//         struct nlop_s* T1_dup1 = nlop_dup(T1_link, 2, 6);
-//         struct nlop_s* T1_dup2 = nlop_dup(T1_dup1, 1, 5);
         struct nlop_s* T1c_dup1 = nlop_dup(T1_link, 1, 4);
         struct nlop_s* T1c_dup = nlop_dup(T1c_dup1, 0, 3);
-
-	struct nlop_s* flat = nlop_flatten(T1c_dup);
+        
+        // second chain
+        struct nlop_s* T1_combine1 = nlop_combine(T1c_dup, T1_3);
+        struct nlop_s* T1_link1 = nlop_link(T1_combine1, 4, 2);
+        
+        struct nlop_s* T1c_dup2 = nlop_dup(T1_link1, 1 , 5);
+        struct nlop_s* T1c_dup3 = nlop_dup(T1c_dup2, 0, 4);
+        
+	struct nlop_s* flat = nlop_flatten(T1c_dup3);
 
 	random_application(flat);
 
@@ -593,7 +806,7 @@ static bool test_nlop_T1_MOLLI_relax_der_adj(void)
 
         
         nlop_free(flat);
-        nlop_free(T1_1);
+        nlop_free(T1s_1);
         nlop_free(T1_2);
         nlop_free(T1_combine);
         nlop_free(T1_link);
@@ -604,5 +817,6 @@ static bool test_nlop_T1_MOLLI_relax_der_adj(void)
 	UT_ASSERT((!safe_isnanf(err)) && (err < 7.E-2));
 }
 
+UT_REGISTER_TEST(test_nlop_T1_MOLLI_relax_der_adj);
 
 
