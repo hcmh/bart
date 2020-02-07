@@ -610,7 +610,7 @@ void calc_phantom_tubes(long dims[DIMS], complex float* out, bool kspace, const 
 {
 	bool single = (1 == dims[COEFF_DIM]);
 
-	complex float* tmp;
+	complex float* tmp = NULL;
 	
 	// Set basis function splitting to default <- for overlay correction even for (1 == dims[COEFF_DIM])
 	if (single) {
