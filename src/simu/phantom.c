@@ -606,15 +606,32 @@ static void compensate_bckgrd(int N, const long dims[DIMS], complex float* out, 
 
 }
 
-void calc_phantom_tubes(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+void calc_phantom_tubes(long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
-	calc_phantom_arb(ARRAY_SIZE(phantom_tubes), phantom_tubes, dims, out, kspace, tstrs, traj);
+	bool single = (1 == dims[COEFF_DIM]);
+
+	complex float* tmp;
+	
+	// Set basis function splitting to default <- for overlay correction even for (1 == dims[COEFF_DIM])
+	if (single) {
+
+		dims[COEFF_DIM] = ARRAY_SIZE(phantom_tubes);
+
+		tmp = md_alloc(DIMS, dims, CFL_SIZE);
+	}
+	
+	calc_phantom_arb(ARRAY_SIZE(phantom_tubes), phantom_tubes, dims, (single) ? tmp : out, kspace, tstrs, traj);
 
 
 	// Compensate for overlay with background without additional call of "calc_phantom_arb"
-	if (dims[COEFF_DIM] > 1) 
-		compensate_bckgrd(ARRAY_SIZE(phantom_tubes), dims, out, phantom_tubes);
+	compensate_bckgrd(ARRAY_SIZE(phantom_tubes), dims, (single) ? tmp : out, phantom_tubes);
+	
+	if (single) {
 
+		md_zsum(DIMS, dims, COEFF_FLAG, out, tmp);
+
+		dims[COEFF_DIM] = 1;
+	}
 
 }
 
