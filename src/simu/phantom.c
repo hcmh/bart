@@ -633,5 +633,6 @@ void calc_phantom_tubes(long dims[DIMS], complex float* out, bool kspace, const 
 		dims[COEFF_DIM] = 1;
 	}
 
+	md_free(tmp);
 }
 
