@@ -576,7 +576,7 @@ void calc_phantom_arb(int N, const struct ellipsis_s data[N], const long dims[DI
 }
 
 
-static void compensate_bckgrd(int N, long dims[DIMS], complex float* out, const struct ellipsis_s data[N])
+static void compensate_bckgrd(int N, const long dims[DIMS], complex float* out, const struct ellipsis_s data[N])
 {
 	long dims2[DIMS];
 	md_copy_dims(DIMS, dims2, dims);
@@ -606,7 +606,7 @@ static void compensate_bckgrd(int N, long dims[DIMS], complex float* out, const 
 
 }
 
-void calc_phantom_tubes(long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+void calc_phantom_tubes(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
 	calc_phantom_arb(ARRAY_SIZE(phantom_tubes), phantom_tubes, dims, out, kspace, tstrs, traj);
 
