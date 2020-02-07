@@ -71,5 +71,5 @@ tests/test-phantom-basis: nrmse phantom fmac
 
 
 TESTS += tests/test-phantom-ksp tests/test-phantom-noncart tests/test-phantom-coil tests/test-phantom-ksp-coil
-TESTS += tests/test-phantom-bart
+TESTS += tests/test-phantom-bart tests/test-phantom-basis
 
