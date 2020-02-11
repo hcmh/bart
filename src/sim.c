@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <complex.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "num/multind.h"
 #include "num/init.h"
@@ -20,10 +21,18 @@
 #include "simu/seq_model.h"
 #include "simu/bloch.h"
 
+#define MAX_PASS_VALUES 10
 
 
 static const char usage_str[] = "<OUT:basis-functions>";
 static const char help_str[] = "Basis function based simulation tool.";
+
+
+struct sim_parameter {
+	
+	float t1;
+	float t2;
+};
 
 
 static void help_seq(void)
@@ -49,41 +58,71 @@ static void help_seq(void)
 
 static bool opt_seq(void* ptr, char c, const char* optarg)
 {
-	(void) c;
-
 	// Check if help function is called
 	char rt[5];
+	
+	switch (c) {
 
-	int ret = sscanf(optarg, "%4[^:]", rt);
-	assert(1 == ret);
+	case 'P': {
+		
+		int ret = sscanf(optarg, "%7[^:]", rt);
+		assert(1 == ret);
 
-	if (strcmp(rt, "h") == 0) {
+		if (strcmp(rt, "h") == 0) {
 
-		help_seq();
-		exit(0);
+			help_seq();
+			exit(0);
+		}
+		else {
+
+			// Collect simulation data
+			struct sim_data* sim_data = ptr;
+
+			ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d",	&sim_data->seq.analytical,
+									&sim_data->seq.seq_type, 
+									&sim_data->seq.tr, 
+									&sim_data->seq.te, 
+									&sim_data->pulse.rf_end, 
+									&sim_data->pulse.flipangle,
+									&sim_data->seq.rep_num);
+			assert(7 == ret);
+		}
+		break;
 	}
-	else {
+	case 'V': {
 
-		// Collect simulation data
-		struct sim_data* sim_data = ptr;
+		// Collect simulation parameter
+		struct sim_parameter* values = ptr;
 
-		ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d",	&sim_data->seq.analytical,
-								&sim_data->seq.seq_type, 
-								&sim_data->seq.tr, 
-								&sim_data->seq.te, 
-								&sim_data->pulse.rf_end, 
-								&sim_data->pulse.flipangle,
-								&sim_data->seq.rep_num);
-		assert(7 == ret);
+		int ret = 0;
+		unsigned int count = 0;
+
+		char* pair = strtok((char *)optarg, ":");
+
+		do {
+
+			ret = sscanf(pair, "%f,%f", &values[count].t1, &values[count].t2);
+			assert(2 == ret);
+
+			pair = strtok(NULL, ":");
+			count++;
+		} while( pair != NULL );
+
+		break;
+	}
 	}
 	return false;
 }
 
 
-
 int main_sim(int argc, char* argv[])
 {
 	int nbf = 8;
+	bool homogeneous = false;
+
+	struct sim_parameter values[MAX_PASS_VALUES];
+
+	assert(10 == MAX_PASS_VALUES);
 
 	// initalize values for simulation
 	struct sim_data sim_data;
@@ -97,8 +136,11 @@ int main_sim(int argc, char* argv[])
 	const struct opt_s opts[] = {
 
 		OPT_INT('n', &nbf, "nbf", "No. Basis Functions"),
+		OPT_SET('h', &homogeneous, "homogeneously distributed T1 and T2 values"),
 		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr> (-Ph for help)" },
+		{ 'V', true, opt_seq, &values, "\t<T1>,<T2>:<T1>,<T2>:..\tT1 and T2 values for each geometrical basis function. Only for 10 entries of tube phantom." },
 	};
+
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
@@ -115,14 +157,20 @@ int main_sim(int argc, char* argv[])
 	md_zfill(DIMS, dims, basis_functions, 1.0);
 
 
-	// Choose more realistic values (rand, manual and homogeneously distributed)
+	// Choose more realistic values (manual and homogeneously distributed)
 	float t1[nbf];
 	float t2[nbf];
 
+	// TODO: Add test for length of array elements.
 	for (int i = 0; i < nbf; i++) {
 
-		t1[i] = 3. - i * (3. - 0.1)/(float) nbf;
-		t2[i] = 1. - i * (1. - 0.04)/(float) nbf;
+// 		printf( "%f,\t%f\n", values[i].t1, values[i].t2 ); //printing each pair
+
+		t1[i] = (homogeneous) ? 3. - i * (3. - 0.1)/(float) nbf : values[i].t1;
+		t2[i] = (homogeneous) ? 1. - i * (1. - 0.04)/(float) nbf : values[i].t2;
+
+		assert(0 != t1[i]);
+		assert(0 != t2[i]);
 	}
 
 	float m0 = 1.;
