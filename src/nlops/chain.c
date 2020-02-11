@@ -123,12 +123,11 @@ struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
 				auto dom = nlop_generic_domain(a, i);
 				auto cod = nlop_generic_codomain(b, o - ao);
 
-				//assert(dom->N == cod->N);
 				assert(sizeof(complex float) == dom->size);
 				assert(sizeof(complex float) == cod->size);
 
-				(*der)[i][o] = linop_null_create2(dom->N,
-					cod->dims, cod->strs, dom->dims, dom->strs);
+				(*der)[i][o] = linop_null_create2(cod->N,
+					cod->dims, cod->strs, dom->N, dom->dims, dom->strs);
 
 			} else
 			if ((ai <= i) && (o < ao)) {
@@ -136,12 +135,11 @@ struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
 				auto dom = nlop_generic_domain(b, i - ai);
 				auto cod = nlop_generic_codomain(a, o);
 
-				assert(dom->N == cod->N);
 				assert(sizeof(complex float) == dom->size);
 				assert(sizeof(complex float) == cod->size);
 
-				(*der)[i][o] = linop_null_create2(dom->N,
-					cod->dims, cod->strs, dom->dims, dom->strs);
+				(*der)[i][o] = linop_null_create2(cod->N,
+					cod->dims, cod->strs, dom->N, dom->dims, dom->strs);
 			}
 		}
 	}
