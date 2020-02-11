@@ -32,7 +32,7 @@
 #include "num/gpuops.h"
 #endif
 
-static const struct nlop_s* nlop_fftc_create(int N, const long dims[N], unsigned int flags, bool inv)
+static const struct nlop_s* nlop_fftc_create(long N, const long dims[N], unsigned int flags, bool inv)
 {
 	auto lfft = (inv ? linop_ifftc_create : linop_fftc_create)(N, dims, flags);
 	auto nfft = nlop_from_linop(lfft);
@@ -40,7 +40,7 @@ static const struct nlop_s* nlop_fftc_create(int N, const long dims[N], unsigned
 	return nfft;
 }
 
-struct nlop_s* nlop_conv_create(int N, unsigned int flags, const long odims[N], const long idims1[N], const long idims2[N])
+struct nlop_s* nlop_conv_create(long N, unsigned int flags, const long odims[N], const long idims1[N], const long idims2[N])
 {
 	auto nl = nlop_tenmul_create(N, odims, idims1, idims2);
 
@@ -62,7 +62,7 @@ struct nlop_s* nlop_conv_create(int N, unsigned int flags, const long odims[N], 
 	return nl4;
 }
 
-static struct nlop_s* nlop_resize_create(int N, const long out_dims[N], const long in_dims[N], bool center)//
+static struct nlop_s* nlop_resize_create(long N, const long out_dims[N], const long in_dims[N], bool center)//
 {
 	auto lresize = (center ? linop_resize_center_create : linop_resize_create)(N, out_dims, in_dims);
 	auto nresize = nlop_from_linop(lresize);
@@ -75,7 +75,7 @@ struct convcorr_geom_s {
 
 	INTERFACE(nlop_data_t);
 
-	int N;
+	long N;
 
 	const struct iovec_s* idom;
 	const struct iovec_s* kdom;
@@ -330,7 +330,7 @@ static void convcorr_geom_del(const nlop_data_t* _data)
 	xfree(data);
 }
 
-static struct nlop_s* nlop_convcorr_geom_create2(int N, unsigned int flags, const long odims[N], const long ostr[N], const long idims[N], const long istr[N], const long kdims[N], const long kstr[N], bool conv)
+static struct nlop_s* nlop_convcorr_geom_create2(long N, unsigned int flags, const long odims[N], const long ostr[N], const long idims[N], const long istr[N], const long kdims[N], const long kstr[N], bool conv)
 {
 	for (int i = 0; i < N; i++)
 		if MD_IS_SET(flags, i)
@@ -370,12 +370,12 @@ static struct nlop_s* nlop_convcorr_geom_create2(int N, unsigned int flags, cons
 				    (nlop_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del);
 }
 
-static struct nlop_s* nlop_convcorr_geom_create(int N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], bool conv)
+static struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], bool conv)
 {
 	return nlop_convcorr_geom_create2(N, flags, odims, MD_STRIDES(N, odims, CFL_SIZE), idims, MD_STRIDES(N, idims, CFL_SIZE), kdims, MD_STRIDES(N, kdims, CFL_SIZE), conv);
 }
 
-struct nlop_s* nlop_conv_geom_create(int N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad)
+struct nlop_s* nlop_conv_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad)
 {
 	struct nlop_s* result = NULL;
 	long idims2[N];
@@ -425,7 +425,7 @@ struct nlop_s* nlop_conv_geom_create(int N, unsigned int flags, const long odims
 struct conv_fft_s {
 
 	INTERFACE(nlop_data_t);
-	int N;
+	long N;
 	unsigned int flags;
 
 	const long* odims;
@@ -588,7 +588,7 @@ static void conv_fft_del(const nlop_data_t* _data)
 	xfree(data);
 }
 
-static struct nlop_s* nlop_conv_fft_cyclic_create(unsigned long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N])
+static struct nlop_s* nlop_conv_fft_cyclic_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N])
 {
 	complex float scaling = 1.;
 	long kdims2[N];
@@ -659,7 +659,7 @@ static struct nlop_s* nlop_conv_fft_cyclic_create(unsigned long N, unsigned int 
 				   (nlop_fun_t[2][1]){ { conv_fft_adj1 }, { conv_fft_adj2 } }, NULL, NULL, conv_fft_del);
 }
 
-struct nlop_s* nlop_conv_fft_create(int N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad)
+struct nlop_s* nlop_conv_fft_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad)
 {
 	long odims2[N];
 	long idims2[N];

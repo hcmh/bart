@@ -7,6 +7,6 @@ enum CONV_PAD {PADDING_VALID, PADDING_SAME, PADDING_CYCLIC, PADDING_CAUSAL};
 #endif
 
 struct nlop_s;
-extern struct nlop_s* nlop_conv_create(int N, unsigned int flags, const long odims[N], const long idims1[N], const long idims2[N]);
-extern struct nlop_s* nlop_conv_geom_create(int N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad);
-extern struct nlop_s* nlop_conv_fft_create(int N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad);
+extern struct nlop_s* nlop_conv_create(long N, unsigned int flags, const long odims[N], const long idims1[N], const long idims2[N]);
+extern struct nlop_s* nlop_conv_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad);
+extern struct nlop_s* nlop_conv_fft_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad);
