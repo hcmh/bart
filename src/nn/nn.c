@@ -83,7 +83,6 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 		nl = nlop_chain_FF(nl, conv);
 		nl = nlop_chain_FF(nl, nlop_bias_create(5, dims2b, bias_dims, &MD_ACCESS(6, bias_strs, pos, bias)));
 
-		nlop_free(conv);
 
 		if (l < layers - 1)
 			nl = nlop_chain_FF(nl, nlop_relu_create(5, dims2b));
