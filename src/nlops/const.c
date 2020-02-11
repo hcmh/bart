@@ -70,7 +70,7 @@ struct nlop_s* nlop_const_create2(int N, const long dims[N], const long strs[N],
 	long tdims[1][N];
 	md_copy_dims(N, tdims[0], dims);
 
-	return nlop_generic_create(1, N, tdims, 0, NULL, CAST_UP(PTR_PASS(data)), const_fun, NULL, NULL, NULL,NULL, const_del);
+	return nlop_generic_create(1, N, tdims, 0, 0, NULL, CAST_UP(PTR_PASS(data)), const_fun, NULL, NULL, NULL,NULL, const_del);
 }
 
 /**
@@ -183,7 +183,7 @@ struct nlop_s* nlop_del_out_create(int N, const long dims[N])
 	long tdims[1][N];
 	md_copy_dims(N, tdims[0], dims);
 
-	return nlop_generic_create(0, N, NULL, 1, tdims, CAST_UP(PTR_PASS(data)), del_out_fun, NULL, NULL, NULL,NULL, del_out_del);
+	return nlop_generic_create(0, 0, NULL, 1, N, tdims, CAST_UP(PTR_PASS(data)), del_out_fun, NULL, NULL, NULL,NULL, del_out_del);
 }
 
 /**

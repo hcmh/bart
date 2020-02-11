@@ -199,6 +199,19 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 	return PTR_PASS(n);
 }
 
+struct nlop_s* nlop_generic_create(int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
+	nlop_data_t* data, nlop_gen_fun_t forward, nlop_fun_t deriv[II][OO], nlop_fun_t adjoint[II][OO], nlop_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del)
+{
+	long istrs[II][IN];
+	for (int i = 0; i < II; i++)
+		md_calc_strides(IN, istrs[i], idims[i], CFL_SIZE);
+	long ostrs[OO][ON];
+	for (int o = 0; o < OO; o++)
+		md_calc_strides(ON, ostrs[o], odims[o], CFL_SIZE);
+
+	return nlop_generic_create2(OO, ON, odims, ostrs, II, IN, idims, istrs, data, forward, deriv, adjoint, normal, norm_inv, del);
+}
+
 struct nlop_s* nlop_create2(unsigned int ON, const long odims[__VLA(ON)], const long ostrs[__VLA(ON)],
 				unsigned int IN, const long idims[__VLA(IN)], const long istrs[__VLA(IN)], nlop_data_t* data,
 				nlop_fun_t forward, nlop_fun_t deriv, nlop_fun_t adjoint, nlop_fun_t normal, nlop_p_fun_t norm_inv, nlop_del_fun_t del)
