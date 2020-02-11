@@ -118,7 +118,7 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 int main_sim(int argc, char* argv[])
 {
 	int nbf = 8;
-	bool homogeneous = false;
+	bool linear = false;
 
 	struct sim_parameter values[MAX_PASS_VALUES];
 
@@ -136,7 +136,7 @@ int main_sim(int argc, char* argv[])
 	const struct opt_s opts[] = {
 
 		OPT_INT('n', &nbf, "nbf", "No. Basis Functions"),
-		OPT_SET('h', &homogeneous, "homogeneously distributed T1 and T2 values"),
+		OPT_SET('l', &linear, "homogeneously distributed T1 and T2 values"),
 		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr> (-Ph for help)" },
 		{ 'V', true, opt_seq, &values, "\t<T1>,<T2>:<T1>,<T2>:..\tT1 and T2 values for each geometrical basis function. Only for 10 entries of tube phantom." },
 	};
@@ -166,8 +166,8 @@ int main_sim(int argc, char* argv[])
 
 // 		printf( "%f,\t%f\n", values[i].t1, values[i].t2 ); //printing each pair
 
-		t1[i] = (homogeneous) ? 3. - i * (3. - 0.1)/(float) nbf : values[i].t1;
-		t2[i] = (homogeneous) ? 1. - i * (1. - 0.04)/(float) nbf : values[i].t2;
+		t1[i] = (linear) ? 3. - i * (3. - 0.1)/(float) nbf : values[i].t1;
+		t2[i] = (linear) ? 1. - i * (1. - 0.04)/(float) nbf : values[i].t2;
 
 		assert(0 != t1[i]);
 		assert(0 != t2[i]);
