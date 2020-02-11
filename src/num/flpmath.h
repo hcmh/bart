@@ -86,6 +86,11 @@ extern void md_zconv(int N, unsigned long flags,
 				const long kdims[__VLA(N)], const _Complex float* krn,
 				const long idims[__VLA(N)], const _Complex float* in);
 
+extern int calc_convcorr_geom(int N, unsigned long flags,
+ 			long mdims[__VLA(2 * N)], long ostrs2[__VLA(2 * N)], long kstrs2[__VLA(2 * N)], long istrs2[__VLA(2 * N)],
+ 			const long odims[__VLA(N)], const long ostrs[__VLA(N)],
+ 			const long kdims[__VLA(N)], const long kstrs[__VLA(N)],
+ 			const long idims[__VLA(N)], const long istrs[__VLA(N)], _Bool conv);
 
 extern void md_matmul_dims(unsigned int D, long max_dims[__VLA(D)], const long out_dims[__VLA(D)], const long mat_dims[__VLA(D)], const long in_dims[__VLA(D)]);
 

@@ -1176,55 +1176,86 @@ void md_ztenmulc(unsigned int D, const long out_dims[D], complex float* out, con
 				  MD_STRIDES(D, in2_dims, CFL_SIZE), in2);
 }
 
+static int calc_convcorr_geom_strs_dil(int N, unsigned long flags,
+				       long mdims[2 * N], long ostrs2[2 * N], long kstrs2[2 * N], long istrs2[2 * N],
+				       const long odims[N], const long ostrs[N], const long kdims[N], const long kstrs[N], const long idims[N], const long istrs[N],
+				       const long dilation[N], const long strides[N], bool conv, bool test_mode)
+ {
+ 	int shift = 0;
 
-static int calc_conv_geom(int N, unsigned long flags,
-			long mdims[2 * N], long ostrs2[2 * N], long kstrs2[2 * N], long istrs2[2 * N],
-			const long odims[N], const long ostrs[N],
-			const long kdims[N], const long kstrs[N],
-			const long idims[N], const long istrs[N])
-{
-	int shift = 0;
+	long mdims_tmp[2 * N];
+	long ostrs2_tmp[2 * N];
+	long kstrs2_tmp[2 * N];
+	long istrs2_tmp[2 * N];
 
-	md_copy_strides(N, ostrs2, ostrs);
-	md_singleton_strides(N, ostrs2 + N);
+	md_copy_strides(N, ostrs2_tmp, ostrs);
+	md_singleton_strides(N, ostrs2_tmp + N);
 
-	md_copy_strides(N, kstrs2, kstrs);
-	md_singleton_strides(N, kstrs2 + N);
+	md_copy_strides(N, kstrs2_tmp, kstrs);
+	md_singleton_strides(N, kstrs2_tmp + N);
 
-	md_copy_strides(N, istrs2, istrs);
-	md_singleton_strides(N, istrs2 + N);
+	md_copy_strides(N, istrs2_tmp, istrs);
+	md_singleton_strides(N, istrs2_tmp + N);
 
-	md_copy_dims(N, mdims, odims);
-	md_singleton_dims(N, mdims + N);
+	md_copy_dims(N, mdims_tmp, odims);
+	md_singleton_dims(N, mdims_tmp + N);
 
 	for (int i = 0; i < N; i++) {
 
 		if (MD_IS_SET(flags, i)) {
 
-			assert(odims[i] == idims[i] - kdims[i] + 1);
+			if (!test_mode)
+				assert(idims[i] == strides[i] * odims[i] + (kdims[i] - 1) * dilation[i]);
 
-			mdims[0 + i] = odims[i];
-			mdims[N + i] = kdims[i];
+			mdims_tmp[0 + i] = odims[i];
+			mdims_tmp[N + i] = kdims[i];
 
-			kstrs2[0 + i] = 0;
-			kstrs2[N + i] = -kstrs[i];
+			kstrs2_tmp[0 + i] = 0;
+			kstrs2_tmp[N + i] = (conv ? -kstrs[i] : kstrs[i]);
 
-			shift += (kdims[i] - 1) * kstrs[i];
+			if (conv)
+				shift += (kdims[i] - 1) * kstrs[i];
 
-			istrs2[0 + i] = istrs[i];
-			istrs2[N + i] = istrs[i];
+			istrs2_tmp[0 + i] = strides[i] * istrs[i];
+			istrs2_tmp[N + i] = dilation[i] * istrs[i];
 
 		} else {
 
-			assert((1 == odims[i]) || (odims[i] == idims[i]) || (odims[i] == kdims[i]));
-			assert((1 == idims[i]) || (odims[i] == idims[i]) || (idims[i] == kdims[i]));
-			assert((1 == kdims[i]) || (kdims[i] == idims[i]) || (odims[i] == kdims[i]));
+			if (1 == mdims_tmp[i])
+				mdims_tmp[i] = idims[i];
+			if (1 == mdims_tmp[i])
+				mdims_tmp[i] = kdims[i];
+			if (1 == mdims_tmp[i])
+				mdims_tmp[i] = odims[i];
+
+			if (!test_mode) assert((1 == odims[i]) || (odims[i] == idims[i]) || (odims[i] == kdims[i]));
+			if (!test_mode) assert((1 == idims[i]) || (odims[i] == idims[i]) || (idims[i] == kdims[i]));
+			if (!test_mode) assert((1 == kdims[i]) || (kdims[i] == idims[i]) || (odims[i] == kdims[i]));
 		}
 	}
+
+	unsigned int perm[2 * N];
+
+	for (int i = 0; i < N; i++) {
+
+		perm[2 * i] = 2 * i;
+		perm[2 * i + 1] = 2* i + 1;
+	}
+
+	md_permute_dims(2 * N, perm, mdims, mdims_tmp);
+	md_permute_dims(2 * N, perm, ostrs2, ostrs2_tmp);
+	md_permute_dims(2 * N, perm, istrs2, istrs2_tmp);
+	md_permute_dims(2 * N, perm, kstrs2, kstrs2_tmp);
 
 	return shift;
 }
 
+int calc_convcorr_geom(int N, unsigned long flags,
+		       long mdims[2 * N], long ostrs2[2 * N], long kstrs2[2 * N], long istrs2[2 * N],
+		       const long odims[N], const long ostrs[N], const long kdims[N], const long kstrs[N], const long idims[N], const long istrs[N], bool conv)
+{
+	return calc_convcorr_geom_strs_dil(N, flags, mdims, ostrs2, kstrs2, istrs2, odims, ostrs, kdims, kstrs, idims, istrs, MD_SINGLETON_DIMS(N), MD_SINGLETON_DIMS(N), conv, false);
+}
 
 void md_zconv2(int N, unsigned long flags,
 				const long odims[N], const long ostrs[N], complex float* out,
@@ -1236,8 +1267,8 @@ void md_zconv2(int N, unsigned long flags,
 	long kstrs2[2 * N];
 	long istrs2[2 * N];
 
-	krn += calc_conv_geom(N, flags, mdims, ostrs2, kstrs2, istrs2,
-			odims, ostrs, kdims, kstrs, idims, istrs) / CFL_SIZE;
+	krn += calc_convcorr_geom(N, flags, mdims, ostrs2, kstrs2, istrs2,
+				  odims, ostrs, kdims, kstrs, idims, istrs, true) / CFL_SIZE;
 
 	md_ztenmul2(2 * N, mdims, ostrs2, out, kstrs2, krn, istrs2, in);
 }
