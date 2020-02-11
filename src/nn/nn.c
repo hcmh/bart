@@ -24,6 +24,8 @@
 #include "nlops/nlop.h"
 #include "nlops/cast.h"
 #include "nlops/chain.h"
+#include "nlops/conv.h"
+#include "nlops/const.h"
 
 #include "nn/relu.h"
 #include "nn/bias.h"
@@ -74,12 +76,11 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 		pos[5] = l;
 
 		debug_printf(DP_INFO, "Layer: %d/%d\n", l, layers);
+		
+		struct nlop_s* conv = nlop_conv_geom_create(5, flags, dims2b, dims2a, krn_dims, PADDING_SAME);
+		conv = nlop_set_input_const_F(conv, 1, 5, krn_dims, &MD_ACCESS(6, krn_strs, pos, krn));
 
-		struct linop_s* conv = linop_conv_create(5, flags, CONV_CYCLIC, CONV_SYMMETRIC,
-			dims2b, dims2a, krn_dims, &MD_ACCESS(6, krn_strs, pos, krn));
-
-
-		nl = nlop_chain_FF(nl, nlop_from_linop(conv));
+		nl = nlop_chain_FF(nl, conv);
 		nl = nlop_chain_FF(nl, nlop_bias_create(5, dims2b, bias_dims, &MD_ACCESS(6, bias_strs, pos, bias)));
 
 		linop_free(conv);
