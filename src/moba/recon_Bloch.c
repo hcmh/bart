@@ -48,7 +48,7 @@ void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 	long data_dims[DIMS];
 	long img1_dims[DIMS];
 
-	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
+	unsigned int fft_flags = FFT_FLAGS; //SLICE_FLAG;
 
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
