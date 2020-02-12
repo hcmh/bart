@@ -44,7 +44,6 @@ static bool run_cuda_fft_test(const unsigned int D, const long* dims, const unsi
 
 
 
-enum { test_cuda_fft_dims = 7 };
 
 static bool test_cuda_fft(void)
 {
@@ -55,14 +54,17 @@ static bool test_cuda_fft(void)
 
 	num_rand_init(5);
 
+	enum { test_cuda_fft_dims = 7 };
+
 	const long dims[test_cuda_fft_dims] = { 4, 4, 4, 4, 4, 4, 1 }; // in last dim != 1 works...
 
-	const bool transform_dims[5][test_cuda_fft_dims] = {
+	const bool transform_dims[][test_cuda_fft_dims] = {
 		{ 1, 1, 1, 0, 0, 0, 0 },
 		{ 1, 1, 0, 0, 1, 0, 0 },
 		{ 1, 0, 1, 0, 1, 0, 0 },
 		{ 1, 1, 0, 1, 1, 1, 0 },
 		{ 1, 1, 0, 1, 1, 0, 1 },
+		{ 0, 0, 0, 0, 0, 0, 0 },
 	};
 
 	const unsigned int D = test_cuda_fft_dims;
