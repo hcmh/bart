@@ -388,15 +388,15 @@ bool md_check_dimensions(unsigned int N, const long dims[N], unsigned int flags)
 	return (1 != md_calc_size(N, d));
 }
 
+
+
 /**
  * Check if dimensions at 'flags' position are equal
  */
 bool md_check_equal_dims(unsigned int N, const long dims1[N], const long dims2[N], unsigned int flags)
 {
-	if (md_check_bounds(N, flags, dims1, dims2) && md_check_bounds(N, flags, dims2, dims1))
-		return true;
-	else 
-		return false;
+	return (   md_check_bounds(N, flags, dims1, dims2)
+	        && md_check_bounds(N, flags, dims2, dims1));
 }
 
 
