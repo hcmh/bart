@@ -76,9 +76,8 @@ int main_estdelay(int argc, char* argv[])
 	if (do_ring && do_b0)
 		error("Do either b0 or RING");
 	
-	if (!do_b0 && !do_ring) {
+	if (!(do_b0 || do_ring))
 		do_ac_adaptive = true;
-	}
 	
 		
 	if (0 != pad_factor % 2)
@@ -164,59 +163,57 @@ int main_estdelay(int argc, char* argv[])
 		
 	} else {
 		
-			/* B0 correction method
-			* Moussavi et al., MRM 71:308-312 (2014)
-			*/
-			assert(argc == 4);
+		/* B0 correction method
+		 * Moussavi et al., MRM 71:308-312 (2014)
+		 */
+		assert(argc == 4);
 
-			long b0_dims[2];
-			b0_dims[0] = 2;
-			b0_dims[1] = full_dims[COIL_DIM];
-			complex float* b0 = create_cfl(argv[3], 2, b0_dims);
-			
-			// Get DC component of a coil
-			long dc_dims[DIMS];
-			md_select_dims(DIMS, PHS2_FLAG, dc_dims, full_dims);
-			
-			complex float* dc = md_alloc(DIMS, dims, CFL_SIZE);
+		long b0_dims[2];
+		b0_dims[0] = 2;
+		b0_dims[1] = full_dims[COIL_DIM];
 
-			long pos1[DIMS] = { 0 };		
-			assert(full_dims[PHS1_DIM] % 2 == 0);
-			pos1[PHS1_DIM] = full_dims[PHS1_DIM] / 2;
-			
-			for (unsigned int i = 0; i < full_dims[COIL_DIM]; i++) {
+		complex float* b0 = create_cfl(argv[3], 2, b0_dims);
 
-				pos1[COIL_DIM] = i;
+		// Get DC component of a coil
+		long dc_dims[DIMS];
+		md_select_dims(DIMS, PHS2_FLAG, dc_dims, full_dims);
 
-				// Phase of DC component
-				md_copy_block(DIMS, pos1, dc_dims, dc, full_dims, full_in, CFL_SIZE);
-				md_zarg(DIMS, dc_dims, dc, dc);
-				
-				float phase[N];
+		complex float* dc = md_alloc(DIMS, dims, CFL_SIZE);
 
-				// Phase unwrap
-				phase[0] = (float)dc[0];
-				
-				for (int j = 1; j < N; j++) {
-				
-					if (fabs(phase[0] - (float)dc[j]) > M_PI) {
-						
-							float sign = copysignf(1, phase[0] - (float)dc[j]);
-							phase[j] = (float)dc[j] + sign * 2 * M_PI;
-							
-					} else
-							phase[j] = (float)dc[j];
-		
-				}
-		
-								
-				fit_harmonic(qf, N, angles, phase);
-				b0[i * 2] = qf[0] + I * 0;
-				b0[i * 2 + 1] = qf[1] + I * 0;
-				
+		long pos1[DIMS] = { 0 };
+
+		assert(full_dims[PHS1_DIM] % 2 == 0);
+		pos1[PHS1_DIM] = full_dims[PHS1_DIM] / 2;
+
+		for (unsigned int i = 0; i < full_dims[COIL_DIM]; i++) {
+
+			pos1[COIL_DIM] = i;
+
+			// Phase of DC component
+			md_copy_block(DIMS, pos1, dc_dims, dc, full_dims, full_in, CFL_SIZE);
+			md_zarg(DIMS, dc_dims, dc, dc);
+
+			float phase[N];
+
+			// Phase unwrap
+			phase[0] = crealf(dc[0]);
+
+			for (int j = 1; j < N; j++) {
+
+				phase[j] = crealf(dc[j]);
+
+				if (fabs(phase[0] - phase[j]) > M_PI)
+					phase[j] += 2. * M_PI * copysignf(1., phase[0] - phase[j]);
 			}
-			md_free(dc);
-			unmap_cfl(2, b0_dims, b0);
+
+			fit_harmonic(qf, N, angles, phase);
+
+			b0[i * 2 + 0] = qf[0];
+			b0[i * 2 + 1] = qf[1];
+		}
+
+		md_free(dc);
+		unmap_cfl(2, b0_dims, b0);
 	}
 
 	unmap_cfl(DIMS, full_dims, full_in);
