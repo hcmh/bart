@@ -470,7 +470,7 @@ static bool test_T1srelax_link1(void)
         struct nlop_s* T1s_dup2 = nlop_dup(T1s_dup1, 1, 5);
         struct nlop_s* T1s_dup = nlop_dup(T1s_dup2, 0, 4);
 
-        
+        // Here comes the stack operator
         md_copy_dims(N, sodims, out_dims);
         sodims[TE_DIM] = 2 * out_dims[TE_DIM];
         struct nlop_s* stack = nlop_stack_create(N, sodims, out_dims, out_dims, TE_DIM);
@@ -481,11 +481,13 @@ static bool test_T1srelax_link1(void)
         struct nlop_s* T1s_link_stack_2 = nlop_link(T1s_link_stack_1, 2, 0);
 
         nlop_generic_apply_unchecked(T1s_link_stack_2, 6, (void*[]){ dst8, dst6, src2, src3, src4, src1 });
-    	
+  	
         nlop_free(T1s_combine_stack);
         nlop_free(T1s_link_stack_1);
         nlop_free(T1s_link_stack_2);
-//     
+
+
+        // Here comes the analytical model:
         md_zsmul(N, map_dims, tmp, src4, -1.0 *scaling_R1s);
         md_zmul2(N, out_dims, out_strs, dst1, map_strs, tmp, TI_strs, TI1);
         md_zexp(N, out_dims, dst1, dst1);
@@ -608,7 +610,18 @@ static bool test_nlop_T1srelax_comb_der_adj(void)
         struct nlop_s* T1s_dup2 = nlop_dup(T1s_dup1, 1, 5);
         struct nlop_s* T1s_dup = nlop_dup(T1s_dup2, 0, 4);
 
-        struct nlop_s* flat = nlop_flatten(T1s_dup);
+        // Here comes the stack operator
+        long sodims[N];
+        md_copy_dims(N, sodims, out_dims);
+        sodims[TE_DIM] = 2 * out_dims[TE_DIM];
+        struct nlop_s* stack = nlop_stack_create(N, sodims, out_dims, out_dims, TE_DIM);
+
+        struct nlop_s* T1s_combine_stack = nlop_combine(stack, T1s_dup);
+        struct nlop_s* T1s_link_stack_1 = nlop_link(T1s_combine_stack, 1, 1);
+
+        struct nlop_s* T1s_link_stack_2 = nlop_link(T1s_link_stack_1, 2, 0);       
+
+        struct nlop_s* flat = nlop_flatten(T1s_link_stack_2);
 
         random_application(flat);
 
@@ -620,6 +633,10 @@ static bool test_nlop_T1srelax_comb_der_adj(void)
         nlop_free(T1s_2);
         nlop_free(T1s_combine);
         nlop_free(T1s_link);
+        nlop_free(T1s_combine_stack);
+        nlop_free(T1s_link_stack_1);
+        nlop_free(T1s_link_stack_2);
+
         
         md_free(TI1);
         md_free(TI2);

@@ -32,7 +32,8 @@ struct stack_s {
 	const long* idims2;
 	const long* odims;
 
-	const long* istrs;
+	const long* istrs1;
+	const long* istrs2;
 	const long* ostrs;
 
 	long offset;
@@ -94,7 +95,8 @@ static void stack_del(const nlop_data_t* _data)
 	xfree(data->idims2);
 	xfree(data->odims);
 
-	xfree(data->istrs);
+	xfree(data->istrs1);
+	xfree(data->istrs2);
 	xfree(data->ostrs);
 	
 	xfree(data);
@@ -104,13 +106,12 @@ static void stack_del(const nlop_data_t* _data)
 struct nlop_s* nlop_stack_create(int N, const long odims[N], const long idims1[N], const long idims2[N], unsigned long stack_dim)
 {
 	
-
 	PTR_ALLOC(struct stack_s, data);
 	SET_TYPEID(stack_s, data);
 
 	data->offset = 1;
 
-	for(unsigned int i = 0; i < (unsigned)N; i++)
+	for (unsigned int i = 0; i < (unsigned)N; i++)
 	{
 		if (i == stack_dim)
 			assert(odims[i] == (idims1[i] + idims2[i]));
@@ -129,13 +130,17 @@ struct nlop_s* nlop_stack_create(int N, const long odims[N], const long idims1[N
 	md_copy_dims(N, *nidims1, idims1);
 	md_copy_dims(N, *nidims2, idims2);
 
-	PTR_ALLOC(long[N], nostr);
-	md_calc_strides(N, *nostr, idims1, CFL_SIZE);
-	data->istrs = *PTR_PASS(nostr);
+	PTR_ALLOC(long[N], nistr1);
+	md_calc_strides(N, *nistr1, idims1, CFL_SIZE);
+	data->istrs1 = *PTR_PASS(nistr1);
+
+	PTR_ALLOC(long[N], nistr2);
+	md_calc_strides(N, *nistr2, idims1, CFL_SIZE);
+	data->istrs2 = *PTR_PASS(nistr2);
         
-        PTR_ALLOC(long[N], nostr1);
-	md_calc_strides(N, *nostr1, odims, CFL_SIZE);
-	data->ostrs = *PTR_PASS(nostr1);
+        PTR_ALLOC(long[N], nostr);
+	md_calc_strides(N, *nostr, odims, CFL_SIZE);
+	data->ostrs = *PTR_PASS(nostr);
 	
 	data->N = N;
 	data->odims = *PTR_PASS(nodims);
@@ -153,8 +158,8 @@ struct nlop_s* nlop_stack_create(int N, const long odims[N], const long idims1[N
 	md_copy_dims(N, nl_idims[1], data->idims2);
 
 	long nl_istr[2][N];
-	md_copy_strides(N, nl_istr[0], data->istrs);
-	md_copy_strides(N, nl_istr[1], data->istrs);
+	md_copy_strides(N, nl_istr[0], data->istrs1);
+	md_copy_strides(N, nl_istr[1], data->istrs2);
 
 	return nlop_generic_create2(1, N, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
 		stack_fun, (nlop_fun_t[2][1]){ { stack_der1 }, { stack_der2 } }, (nlop_fun_t[2][1]){ { stack_adj1 }, { stack_adj2 } }, NULL, NULL, stack_del);
