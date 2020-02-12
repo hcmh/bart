@@ -150,7 +150,7 @@ int main_rmfreq(int argc, char* argv[])
 			md_copy_block(DIMS, pos1, k_singleton_dims, k_singleton, k_dims, k, CFL_SIZE);
 
 			// pinv(n)
-			mat_pinv_r(2 * n_harmonics, k_dims[TIME_DIM], (complex float (*)[k_dims[TIME_DIM]])pinv, (complex float (*)[2 * n_harmonics])n_part_singleton);
+			mat_pinv_right(2 * n_harmonics, k_dims[TIME_DIM], (complex float (*)[k_dims[TIME_DIM]])pinv, (complex float (*)[2 * n_harmonics])n_part_singleton);
 
 			// k * pinv(n)
 			mat_mul(1, k_dims[TIME_DIM], 2 * n_harmonics, (complex float (*)[1])proj, (complex float (*)[1])k_singleton, (complex float (*)[k_dims[TIME_DIM]])pinv);
