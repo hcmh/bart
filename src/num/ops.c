@@ -267,6 +267,7 @@ const struct iovec_s* operator_arg_domain(const struct operator_s* op, unsigned 
 	return op->domain[n];
 }
 
+
 /**
  * Return the iovec of input arg n
  *
@@ -276,40 +277,38 @@ const struct iovec_s* operator_arg_domain(const struct operator_s* op, unsigned 
 const struct iovec_s* operator_arg_in_domain(const struct operator_s* op, unsigned int n)
 {
 	assert(n < operator_nr_in_args(op));
-	int index = -1;
-	int count = -1;
 
-	while (count < (int)n) {
+	unsigned int count = 0;
+	unsigned int index = 0;
 
-		index += 1;
-		if (!MD_IS_SET(operator_ioflags(op),index))
-		count +=1;
-	}
+	for (; count <= n; index++)
+		if (!MD_IS_SET(operator_ioflags(op), index))
+			count++;
 
-	return operator_arg_domain(op, (unsigned int)index);
+	return operator_arg_domain(op, index - 1);
 }
+
 
 /**
  * Return the iovec of output arg n
  *
  * @param op operator
- * @param n  output arg number
+ * @param n output arg number
  */
 const struct iovec_s* operator_arg_out_codomain(const struct operator_s* op, unsigned int n)
 {
 	assert(n < operator_nr_out_args(op));
-	int index = -1;
-	int count = -1;
 
-	while (count < (int)n) {
+	unsigned int count = 0;
+	unsigned int index = 0;
 
-		index += 1;
-		if (MD_IS_SET(operator_ioflags(op),index))
-		count +=1;
-	}
+	for (; count <= n; index++)
+		if (MD_IS_SET(operator_ioflags(op), index))
+			count++;
 
-	return operator_arg_domain(op, (unsigned int)index);
+	return operator_arg_domain(op, index - 1);
 }
+
 
 /**
  * Return the dimensions and strides of the domain of an operator
