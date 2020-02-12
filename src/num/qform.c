@@ -55,7 +55,8 @@ void fit_quadratic_form(float qf[3], unsigned int N, const float phi[N], const f
 	qf[2] = out[2];
 }
 
-void fit_bilinear_form(float qf[3], unsigned int N, const float phi[N], const float v[N])
+
+void fit_harmonic(float qf[3], unsigned int N, const float phi[N], const float v[N])
 {
 	complex float lhs[3] = { 0., 0., 0. };
 	complex float mat[3][3] = { { 0. } };
@@ -69,15 +70,15 @@ void fit_bilinear_form(float qf[3], unsigned int N, const float phi[N], const fl
 		lhs[1] += y * v[i];
 		lhs[2] += v[i];
 
-		mat[0][0] +=      x * x;
-		mat[0][1] +=      x * y;
-		mat[0][2] +=      x;
-		mat[1][0] +=      y * x;
-		mat[1][1] +=      y * y;
-		mat[1][2] +=      y;
-		mat[2][0] += 	  x;
-		mat[2][1] +=      y;
-		mat[2][2] +=      1;
+		mat[0][0] += x * x;
+		mat[0][1] += x * y;
+		mat[0][2] += x;
+		mat[1][0] += y * x;
+		mat[1][1] += y * y;
+		mat[1][2] += y;
+		mat[2][0] += x;
+		mat[2][1] += y;
+		mat[2][2] += 1;
 	}
 
 	complex float inv[3][3];

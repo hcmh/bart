@@ -210,7 +210,7 @@ int main_estdelay(int argc, char* argv[])
 				}
 		
 								
-				fit_bilinear_form(qf, N, angles, phase);
+				fit_harmonic(qf, N, angles, phase);
 				b0[i * 2] = qf[0] + I * 0;
 				b0[i * 2 + 1] = qf[1] + I * 0;
 				
