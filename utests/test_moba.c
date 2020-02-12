@@ -26,6 +26,7 @@
 #include "nlops/cast.h"
 #include "nlops/chain.h"
 #include "nlops/nltest.h"
+#include "nlops/stack.h"
 
 #include "moba/T1fun.h"
 #include "moba/model_Bloch.h"
@@ -417,6 +418,10 @@ static bool test_T1srelax_link1(void)
         long TI_strs[N];
 	md_calc_strides(N, TI_strs, TI_dims, CFL_SIZE);
 
+        long sodims[N];
+        md_copy_dims(N, sodims, out_dims);
+        sodims[TE_DIM] = 2 * out_dims[TE_DIM];
+
 	complex float* dst1 = md_alloc(N, out_dims, CFL_SIZE);
 	complex float* dst2 = md_alloc(N, out_dims, CFL_SIZE);
         complex float* dst3 = md_alloc(N, map_dims, CFL_SIZE);
@@ -424,6 +429,8 @@ static bool test_T1srelax_link1(void)
         complex float* dst5 = md_alloc(N, out_dims, CFL_SIZE);
         complex float* dst6 = md_alloc(N, map_dims, CFL_SIZE);
         complex float* dst7 = md_alloc(N, out_dims, CFL_SIZE);
+        complex float* dst8 = md_alloc(N, sodims, CFL_SIZE);
+        complex float* dst9 = md_alloc(N, sodims, CFL_SIZE);
         
 	complex float* src1 = md_alloc(N, map_dims, CFL_SIZE); // M_start
         complex float* src2 = md_alloc(N, map_dims, CFL_SIZE); // M0
@@ -462,6 +469,22 @@ static bool test_T1srelax_link1(void)
         struct nlop_s* T1s_dup1 = nlop_dup(T1s_link, 2, 6);
         struct nlop_s* T1s_dup2 = nlop_dup(T1s_dup1, 1, 5);
         struct nlop_s* T1s_dup = nlop_dup(T1s_dup2, 0, 4);
+
+        
+        md_copy_dims(N, sodims, out_dims);
+        sodims[TE_DIM] = 2 * out_dims[TE_DIM];
+        struct nlop_s* stack = nlop_stack_create(N, sodims, out_dims, out_dims, TE_DIM);
+
+        struct nlop_s* T1s_combine_stack = nlop_combine(stack, T1s_dup);
+        struct nlop_s* T1s_link_stack_1 = nlop_link(T1s_combine_stack, 1, 1);
+
+        struct nlop_s* T1s_link_stack_2 = nlop_link(T1s_link_stack_1, 2, 0);
+
+        nlop_generic_apply_unchecked(T1s_link_stack_2, 6, (void*[]){ dst8, dst6, src2, src3, src4, src1 });
+    	
+        nlop_free(T1s_combine_stack);
+        nlop_free(T1s_link_stack_1);
+        nlop_free(T1s_link_stack_2);
 //     
         md_zsmul(N, map_dims, tmp, src4, -1.0 *scaling_R1s);
         md_zmul2(N, out_dims, out_strs, dst1, map_strs, tmp, TI_strs, TI1);
@@ -507,6 +530,8 @@ static bool test_T1srelax_link1(void)
 	md_zsub2(N, out_dims, out_strs, dst7, map_strs, tmp, out_strs, dst7);
         
         md_copy_block(N, pos, map_dims, dst4, out_dims, dst7, CFL_SIZE);
+
+        double err1 = md_znrmse(N, map_dims, dst4, dst6);
     
 //         nlop_generic_apply_unchecked(T1_combine, 12, (void*[]){ dst5, dst6, dst2, dst3, src1, src2, src3, src4, src1, src2, src3, src4 });
 //         nlop_generic_apply_unchecked(T1s_link, 10, (void*[]){ dst5, dst6, dst2, src2, src3, src4, src1, src2, src3, src4 });
@@ -535,6 +560,8 @@ static bool test_T1srelax_link1(void)
         md_free(dst5);
         md_free(dst6);
         md_free(dst7);
+        md_free(dst8);
+        md_free(dst9);
         
         nlop_free(T1s_1);
         nlop_free(T1s_2);
@@ -542,7 +569,7 @@ static bool test_T1srelax_link1(void)
         nlop_free(T1s_link);
 
         
-	UT_ASSERT(err < UT_TOL);
+	UT_ASSERT((err < UT_TOL) && (err1 < UT_TOL));
 }
 
 UT_REGISTER_TEST(test_T1srelax_link1);
