@@ -12,30 +12,31 @@
 
 float pulse_energy(const struct simdata_pulse* pulse)
 {	
-	//Assuming pulse starts at t=0
-	
+	// Assuming pulse starts at t=0
+
 	float c = M_PI / pulse->n / pulse->t0;
 	float d = M_PI / pulse->t0;
-	
-	float si0 = Si( d * (pulse->rf_end/2.) );
-	float si1 = Si( - d * (pulse->rf_end/2.) );
-	float si2 = Si( (c - d) * pulse->rf_end/2. );
-	float si3 = Si( - (c - d) * pulse->rf_end/2. );
-	float si4 = Si( (c + d) * pulse->rf_end/2. );
-	float si5 = Si( - (c + d) * pulse->rf_end/2. );
-	
-	return  pulse->A * (1 - pulse->alpha) / d * ( si0 - si1 ) + pulse->A * pulse->alpha / (2 * d) * ( si2 - si3 + si4 - si5 );
+
+	float si0 = Si( d * (pulse->rf_end / 2.));
+	float si1 = Si(-d * (pulse->rf_end / 2.));
+	float si2 = Si( (c - d) * pulse->rf_end / 2.);
+	float si3 = Si(-(c - d) * pulse->rf_end / 2.);
+	float si4 = Si( (c + d) * pulse->rf_end / 2.);
+	float si5 = Si(-(c + d) * pulse->rf_end / 2.);
+
+	return pulse->A * (1. - pulse->alpha) / d * (si0 - si1) + pulse->A * pulse->alpha / (2. * d) * (si2 - si3 + si4 - si5);
 }
 
 
 float pulse_sinc(const struct simdata_pulse* pulse, float t)
 {
-	
-	//assume pulse does not change much slighly around maximum
-	if( t-pulse->rf_end/2 == 0 ) 
+	// assume pulse does not change much slighly around maximum
+
+	if (t - pulse->rf_end / 2. == 0.)
 		t += 0.000001;
-		
-	return pulse->A * ( (1 - pulse->alpha) + pulse->alpha * cosf( M_PI * (t-pulse->rf_end/2) / (pulse->n * pulse->t0) ) ) * sinf( M_PI * (t-pulse->rf_end/2) / pulse->t0 ) / ( M_PI * (t-pulse->rf_end/2) / pulse->t0 );
+
+	return pulse->A * ((1. - pulse->alpha) + pulse->alpha * cosf(M_PI * (t - pulse->rf_end / 2.) / (pulse->n * pulse->t0)))
+				* sinf(M_PI * (t - pulse->rf_end / 2.) / pulse->t0) / (M_PI * (t - pulse->rf_end / 2.) / pulse->t0);
 }
 
 
