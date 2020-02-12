@@ -342,6 +342,8 @@ static void fft_free_plan(const operator_data_t* _data)
 
 const struct operator_s* fft_measure_create(unsigned int D, const long dimensions[D], unsigned long flags, bool inplace, bool backwards)
 {
+	flags &= md_nontriv_dims(D, dimensions);
+
 	PTR_ALLOC(struct fft_plan_s, plan);
 	SET_TYPEID(fft_plan_s, plan);
 
@@ -387,6 +389,8 @@ const struct operator_s* fft_measure_create(unsigned int D, const long dimension
 
 const struct operator_s* fft_create2(unsigned int D, const long dimensions[D], unsigned long flags, const long ostrides[D], complex float* dst, const long istrides[D], const complex float* src, bool backwards)
 {
+	flags &= md_nontriv_dims(D, dimensions);
+
 	PTR_ALLOC(struct fft_plan_s, plan);
 	SET_TYPEID(fft_plan_s, plan);
 
