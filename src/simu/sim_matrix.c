@@ -29,7 +29,7 @@ static void ode_matrix_fun_simu(void* _data, float* x, float t, const float* in)
 
 	if (sim_data->pulse.pulse_applied && t <= sim_data->pulse.rf_end) { 
 		
-		float w1 = sinc_pulse( &sim_data->pulse, t );
+		float w1 = pulse_sinc( &sim_data->pulse, t );
 		sim_data->grad.gb_eff[0] = cosf( sim_data->pulse.phase ) * w1 + sim_data->grad.gb[0];
 		sim_data->grad.gb_eff[1] = sinf( sim_data->pulse.phase ) * w1 + sim_data->grad.gb[1];
 	}

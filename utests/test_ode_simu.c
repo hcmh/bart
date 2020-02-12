@@ -154,7 +154,7 @@ static bool test_sinc_function(void)
 	
 
 	for (int i = 0; i < samples ; i ++)
-		storage[i] = sinc_pulse(&pulse, pulse.rf_start + i * dt );
+		storage[i] = pulse_sinc(&pulse, pulse.rf_start + i * dt );
 #if 0
 	dump_cfl("_pulse_shape", DIMS, dims, storage);
 #endif

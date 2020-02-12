@@ -125,7 +125,7 @@ void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 	
 	if (data->pulse.pulse_applied) { 
 		
-		float w1 = sinc_pulse(&data->pulse, t);
+		float w1 = pulse_sinc(&data->pulse, t);
 		
 		data->grad.gb_eff[0] = cosf(data->pulse.phase) * w1 + data->grad.gb[0];
 		data->grad.gb_eff[1] = sinf(data->pulse.phase) * w1 + data->grad.gb[1];
@@ -252,12 +252,13 @@ void create_rf_pulse(void* _pulseData, float rf_start, float rf_end, float angle
 	pulse->alpha = alpha;
 	pulse->A = 1;
 
-	float pulse_energy = get_pulse_energy(pulse);
+	float energy = pulse_energy(pulse);
 
+	// WTF is this?
 	float calibration_energy = 0.991265;//2.3252; // turns M by 90°
 
 	// change scale to reach desired flipangle
-	pulse->A = (calibration_energy / pulse_energy) / 90 * angle;
+	pulse->A = (calibration_energy / energy) / 90 * angle;
 }
 
 

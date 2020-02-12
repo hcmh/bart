@@ -10,10 +10,8 @@
 #include "pulse.h"
 
 
-float get_pulse_energy(void * _pulse_data)
+float pulse_energy(const struct simdata_pulse* pulse)
 {	
-
-	struct simdata_pulse* pulse = _pulse_data;
 	//Assuming pulse starts at t=0
 	
 	float c = M_PI / pulse->n / pulse->t0;
@@ -30,9 +28,8 @@ float get_pulse_energy(void * _pulse_data)
 }
 
 
-float sinc_pulse(void* _pulse_data, float t)
+float pulse_sinc(const struct simdata_pulse* pulse, float t)
 {
-	struct simdata_pulse* pulse = _pulse_data;
 	
 	//assume pulse does not change much slighly around maximum
 	if( t-pulse->rf_end/2 == 0 ) 
