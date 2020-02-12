@@ -258,6 +258,7 @@ static fftwf_plan fft_fftwf_plan(unsigned int D, const long dimensions[D], unsig
 	unsigned int l = 0;
 
 	char* wisdom = fftw_wisdom_name(D, backwards, flags, dimensions);
+
 	if (NULL != wisdom)
 		fftwf_import_wisdom_from_filename(wisdom);
 
@@ -306,8 +307,8 @@ static void fft_apply(const operator_data_t* _plan, unsigned int N, void* args[N
 #ifdef  USE_CUDA
 	if (cuda_ondevice(src)) {
 #ifdef	LAZY_CUDA
-          if (NULL == plan->cuplan)
-		((struct fft_plan_s*)plan)->cuplan = fft_cuda_plan(plan->D, plan->dims, plan->flags, plan->ostrs, plan->istrs, plan->backwards);
+		if (NULL == plan->cuplan)
+			((struct fft_plan_s*)plan)->cuplan = fft_cuda_plan(plan->D, plan->dims, plan->flags, plan->ostrs, plan->istrs, plan->backwards);
 #endif
 		assert(NULL != plan->cuplan);
 		fft_cuda_exec(plan->cuplan, dst, src);
@@ -361,7 +362,7 @@ const struct operator_s* fft_measure_create(unsigned int D, const long dimension
 	plan->cuplan = NULL;
 #ifndef LAZY_CUDA
 	if (cuda_ondevice(src))
-          plan->cuplan = fft_cuda_plan(D, dimensions, flags, strides, strides, backwards);
+		plan->cuplan = fft_cuda_plan(D, dimensions, flags, strides, strides, backwards);
 #else
 	plan->D = D;
 	plan->flags = flags;
