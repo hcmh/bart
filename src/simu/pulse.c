@@ -28,15 +28,17 @@ float pulse_energy(const struct simdata_pulse* pulse)
 }
 
 
+static float sincf(float x)
+{
+	return (0. == x) ? 1. : (sinf(x) / x);
+}
+
+
+
 float pulse_sinc(const struct simdata_pulse* pulse, float t)
 {
-	// assume pulse does not change much slighly around maximum
-
-	if (t - pulse->rf_end / 2. == 0.)
-		t += 0.000001;
-
 	return pulse->A * ((1. - pulse->alpha) + pulse->alpha * cosf(M_PI * (t - pulse->rf_end / 2.) / (pulse->n * pulse->t0)))
-				* sinf(M_PI * (t - pulse->rf_end / 2.) / pulse->t0) / (M_PI * (t - pulse->rf_end / 2.) / pulse->t0);
+				* sincf(M_PI * (t - pulse->rf_end / 2.) / pulse->t0);
 }
 
 
