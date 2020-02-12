@@ -99,7 +99,7 @@ int main_phantom(int argc, char* argv[])
 
 
 	long sdims[DIMS];
-	long sstrs[DIMS];
+	long sstrs[DIMS] = { 0 };
 	complex float* samples = NULL;
 
 	if (NULL != traj) {
