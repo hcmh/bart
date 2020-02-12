@@ -576,34 +576,23 @@ void calc_phantom_arb(int N, const struct ellipsis_s data[N], const long dims[DI
 }
 
 
-static void compensate_bckgrd(int N, const long dims[DIMS], complex float* out, const struct ellipsis_s data[N])
+static void compensate_bckgrd(const long dims[DIMS], complex float* out, float intensity)
 {
+	long strs[DIMS];
+	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
+
 	long dims2[DIMS];
 	md_copy_dims(DIMS, dims2, dims);
-	dims2[COEFF_DIM] = dims[COEFF_DIM] - 1; //remove dimension of background
+	dims2[COEFF_DIM]--; // remove background
+
+	long strs2[DIMS];
+	md_copy_strides(DIMS, strs2, strs);
+	strs2[COEFF_DIM] = 0;
 
 	long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
-	pos[COEFF_DIM] = 1; // Start copying from first foreground object
+	pos[COEFF_DIM] = 1; // first foreground object
 
-	complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
-	complex float* tmp2 = md_alloc(DIMS, dims, CFL_SIZE);
-
-	// Extract foreground slices
-	md_copy_block(DIMS, pos, dims2, tmp, dims, out, CFL_SIZE);
-
-	// Scale foreground signal with background intensity
-	md_zaxpy(DIMS, dims, tmp2, data[0].intensity, tmp);
-	md_clear(DIMS, dims, tmp, CFL_SIZE);
-
-	// Sum up foreground signal
-	md_zsum(DIMS, dims, COEFF_FLAG, tmp, tmp2);
-
-	// Subtract foreground from background signal
-	md_zsub(DIMS, dims, out, out, tmp);
-
-	md_free(tmp);
-	md_free(tmp2);
-
+	md_zaxpy2(DIMS, dims2, strs2, out, -intensity, strs, &MD_ACCESS(DIMS, strs, pos, out));
 }
 
 void calc_phantom_tubes(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
@@ -612,7 +601,7 @@ void calc_phantom_tubes(const long dims[DIMS], complex float* out, bool kspace, 
 
 		calc_phantom_arb(ARRAY_SIZE(phantom_tubes), phantom_tubes, dims, out, kspace, tstrs, traj);
 
-		compensate_bckgrd(ARRAY_SIZE(phantom_tubes), dims, out, phantom_tubes);
+		compensate_bckgrd(dims, out, phantom_tubes[0].intensity);
 
 	} else { // sum up all objects
 
