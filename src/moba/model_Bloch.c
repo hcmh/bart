@@ -90,13 +90,24 @@ struct modBloch_s bloch_create(const long dims[DIMS], const complex float* mask,
 	
 #if 1
 	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, map_dims, out_dims, in_dims, input_dims, fit_para, usegpu);
+
 	debug_printf(DP_INFO, "Bloch(.)\n");
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(Bloch, 0)->dims); 			//input-dims of Bloch operator
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(Bloch, 0)->dims);			//output dims of bloch operator
 
+	debug_printf(DP_INFO, "NLINV(.)\n");
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 0)->dims);
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(nlinv.nlop, 1)->dims);
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(nlinv.nlop, 0)->dims);
+
 	const struct nlop_s* b = nlinv.nlop;
 	const struct nlop_s* c = nlop_chain2(Bloch, 0, b, 0);
 	nlop_free(b);
+
+	debug_printf(DP_INFO, "Chained(.)\n");
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(c, 0)->dims);
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(c, 1)->dims);
+	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(c, 0)->dims);
 
 	nlinv.nlop = nlop_permute_inputs(c, 2, (const int[2]){ 1, 0 });
 	nlop_free(c);

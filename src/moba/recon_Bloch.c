@@ -96,7 +96,7 @@ void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 
 	irgnm_conf_dims[COIL_DIM] = coil_dims[COIL_DIM];
 	
-	debug_printf(DP_INFO, "imgs_dims:\n\t");
+	debug_printf(DP_INFO, "irgnm_conf_dims:\n\t");
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
 	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = 0, .step = 0.9, .lower_bound = 10E-5, .constrained_maps = 3, .not_wav_maps = fit_para->not_wav_maps };
