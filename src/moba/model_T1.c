@@ -19,7 +19,6 @@
 
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
-#include "nlops/cast.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -30,11 +29,12 @@
 #include "moba/T1fun.h"
 //#include "moba/T1MOLLI.h"
 #include "moba/T1_repara.h"
+#include "moba/T1MOLLI_test.h"
 
 #include "model_T1.h"
 
 
-//#define T1repara
+#define T1repara
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, _Bool use_gpu)
 {
@@ -56,7 +56,16 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 #if 1
 	// chain T1 model
 #ifdef T1repara
-        struct nlop_s* T1 = nlop_T1_repara_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+	out_dims[TE_DIM] /= 2;
+	TI_dims[TE_DIM] /= 2;
+	
+	complex float* TI1 = md_alloc(DIMS, TI_dims, CFL_SIZE);
+
+	md_copy(DIMS, TI_dims, TI1, TI, CFL_SIZE);
+
+        struct nlop_s* T1 = nlop_T1MOLLI_test_create(DIMS, map_dims, out_dims, TI_dims, TI);
+
+        md_free(TI1);
 #else
 	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
 #endif

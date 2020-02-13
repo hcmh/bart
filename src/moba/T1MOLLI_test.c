@@ -28,7 +28,7 @@
 //#define general
 //#define mphase
 
-struct nlop_s* nlop_T1MOLLItest_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI) 
+struct nlop_s* nlop_T1MOLLI_test_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI) 
 {
 
         long scale_dims[N];
