@@ -85,14 +85,14 @@ void bloch_simu_fun2(void* _data, float* out, float t, const float* in);
 
 void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]);
 
-void relaxation2(void* _data, float h, float tol, int N, int P, float xp[P + 2][N], float st, float end);
+void relaxation2(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 2][N], float st, float end);
 
-void isochrom_distribution( void* _data, float *isochromats );
+void isochrom_distribution(struct sim_data* data, float *isochromats );
 
-void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 2][N]);
+void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 2][N]);
 
-void ode_bloch_simulation3( void* _data, float (*mxy_sig)[3], float (*sa_r1_sig)[3], float (*sa_r2_sig)[3], float (*sa_m0_sig)[3]);
+void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*sa_r1_sig)[3], float (*sa_r2_sig)[3], float (*sa_m0_sig)[3]);
 
-void create_sim_block(void* _data);
+void create_sim_block(struct sim_data* data);
 
-void run_sim_block(void* _data, float* mxy, float* sa_r1, float* sa_r2, float* saM0Signal, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal);
+void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* saM0Signal, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal);

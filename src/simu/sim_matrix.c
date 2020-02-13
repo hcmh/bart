@@ -184,9 +184,8 @@ static void apply_inversion(int N, float m[N], float pulse_length, void* _data )
 }
 
 
-static void spoiler_relaxation(int N, float m[N], float spoiler_length, void* _data )
+static void spoiler_relaxation(int N, float m[N], float spoiler_length, struct sim_data* simdata)
 {
-	struct sim_data* simdata = _data;
 	struct sim_data tmp_data = *simdata;
 
 	tmp_data.pulse.pulse_applied = false;

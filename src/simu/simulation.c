@@ -129,9 +129,8 @@ void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 
 
 
-void isochrom_distribution(void* _data, float *isochromats){
+void isochrom_distribution(struct sim_data* data, float *isochromats){
 	
-	struct sim_data* data = _data;
 	
 	float s = 1.;		//scaling parameters
 	float t = 0.;		// location of max
@@ -173,9 +172,8 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]){
 }
 
 // TODO: Fix correction for FLASH sequences, where phase is the same for all repetitions!
-static void collect_signal(void* _data, int N, int P, float *mxy, float *sa_r1, float *sa_r2, float *sa_m0, float xp[P + 2][N])
+static void collect_signal(struct sim_data* data, int N, int P, float *mxy, float *sa_r1, float *sa_r2, float *sa_m0, float xp[P + 2][N])
 {    
-	struct sim_data* data = _data;
 	
 	if (2 == data->seq.seq_type || 5 == data->seq.seq_type ) {
 		
@@ -221,9 +219,8 @@ static void collect_signal(void* _data, int N, int P, float *mxy, float *sa_r1, 
 
 
 //Module for RF-pulses
-void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 2][N])
+void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 2][N])
 {	
-	struct sim_data* data = _data;
 	
 	data->pulse.pulse_applied = true;
 
@@ -240,32 +237,29 @@ void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 
 		xp[0][2] = ytmp * - cosf(data->pulse.phase) * sinf(data->pulse.flipangle/180 * M_PI) + ztmp * cosf(data->pulse.flipangle/180 * M_PI);
 	}
 	else 
-		ode_direct_sa(h, tol, N, P, xp, data->pulse.rf_start, data->pulse.rf_end, _data,  bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
+		ode_direct_sa(h, tol, N, P, xp, data->pulse.rf_start, data->pulse.rf_end, data,  bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
 
 }
 
 
-void relaxation2(void* _data, float h, float tol, int N, int P, float xp[P + 2][N], float st, float end)
+void relaxation2(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 2][N], float st, float end)
 {
-	struct sim_data* data = _data;
 
 	data->pulse.pulse_applied = false;
 
-	ode_direct_sa(h, tol, N, P, xp, st, end, _data, bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
+	ode_direct_sa(h, tol, N, P, xp, st, end, data, bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
 }
 
 
-void create_sim_block(void* _data)
+void create_sim_block(struct sim_data* data)
 {
-	struct sim_data* data = _data;
 
 	pulse_create(&data->pulse, data->pulse.rf_start, data->pulse.rf_end, data->pulse.flipangle, data->pulse.phase, data->pulse.nl, data->pulse.nr, data->pulse.alpha);
 }
 
 
-void run_sim_block(void* _data, float* mxy, float* sa_r1, float* sa_r2, float* saM0Signal, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal)
+void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* saM0Signal, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal)
 {
-	struct sim_data* data = _data;
 
 	start_rf_pulse(data, h, tol, N, P, xp);
 
@@ -278,9 +272,8 @@ void run_sim_block(void* _data, float* mxy, float* sa_r1, float* sa_r2, float* s
 }
 
 //Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
-static void xyspoiling(int N, int P, float xp[P + 2][N], void* _data)
+static void xyspoiling(int N, int P, float xp[P + 2][N], struct sim_data* simdata)
 {
-	struct sim_data* simdata = _data;
 	
 	if (simdata->seq.seq_type == 2 || simdata->seq.seq_type == 5)
 		for (int i = 0; i < P + 2; i ++) {
@@ -291,10 +284,8 @@ static void xyspoiling(int N, int P, float xp[P + 2][N], void* _data)
 }
 
 
-void ode_bloch_simulation3( void* _data, float (*mxy_sig)[3], float (*sa_r1_sig)[3], float (*sa_r2_sig)[3], float (*sa_m0_sig)[3])
+void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*sa_r1_sig)[3], float (*sa_r2_sig)[3], float (*sa_m0_sig)[3])
 {
-	struct sim_data* data = _data;
-
 	float tol = 10E-6; 
 
 	int N = 3;
