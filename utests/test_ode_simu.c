@@ -21,7 +21,7 @@
 static bool test_ode_bloch_simulation(void)
 {   
 	float e = 1.E-3;
-	float tol = 1.E-5;
+	float tol = 1.E-4;
 	float t1 = 1.5;
 	float t2 = 0.1;
 	float m0 = 1;
@@ -139,7 +139,7 @@ static bool test_sinc_function(void)
 {
 	struct simdata_pulse pulse = simdata_pulse_defaults;
 	
-	create_rf_pulse(&pulse, 0, 0.009, 90, 0, 2, 2, 0.46);
+	pulse_create(&pulse, 0, 0.009, 90, 0, 2, 2, 0.46);
 
 	float pulse_length = pulse.rf_end - pulse.rf_start;
 	float samples = 1000;
@@ -207,7 +207,7 @@ static bool test_RF_pulse(void)
 			data.grad = simdata_grad_defaults;
 			data.tmp = simdata_tmp_defaults;
 	
-			create_rf_pulse(&data.pulse, 0, trf, angle, 0, 2, 2, 0.46);
+			pulse_create(&data.pulse, 0, trf, angle, 0, 2, 2, 0.46);
 			
 			float xp[4][3] = { { 0., 0., 1. }, { 0. }, { 0. }, { 0. } }; //xp[P + 2][N]
 			
@@ -396,7 +396,7 @@ static bool test_RF_pulse_matexp(void)
 			data.pulse.pulse_applied = true;
 				
 	
-			create_rf_pulse(&data.pulse, 0, trf, angle, 0, 2, 2, 0.46);
+			pulse_create(&data.pulse, 0, trf, angle, 0, 2, 2, 0.46);
 			
 			enum { N = 10 };
 			

@@ -89,8 +89,6 @@ void relaxation2(void* _data, float h, float tol, int N, int P, float xp[P + 2][
 
 void isochrom_distribution( void* _data, float *isochromats );
 
-void create_rf_pulse(void* _pulseData, float rf_start, float rf_end, float angle, float phase, float nl, float nr, float alpha);
-
 void start_rf_pulse(void* _data, float h, float tol, int N, int P, float xp[P + 2][N]);
 
 void ode_bloch_simulation3( void* _data, float (*mxy_sig)[3], float (*sa_r1_sig)[3], float (*sa_r2_sig)[3], float (*sa_m0_sig)[3]);

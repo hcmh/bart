@@ -100,11 +100,11 @@ static void create_sim_matrix(int N, float matrix[N][N], float end, void* _data 
 
 	if (simdata->pulse.pulse_applied)
 #ifndef MATRIX_SPLIT
-		create_rf_pulse(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.nl, simdata->pulse.nr, simdata->pulse.alpha);
+		pulse_create(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.nl, simdata->pulse.nr, simdata->pulse.alpha);
 #else
 	{	// Possible increase of precision by splitting into rf- and relaxation-matrix?
 
-		create_rf_pulse(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.nl, simdata->pulse.nr, simdata->pulse.alpha);
+		pulse_create(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.nl, simdata->pulse.nr, simdata->pulse.alpha);
 
 		float tmp1[N][N];
 

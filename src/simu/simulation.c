@@ -22,23 +22,6 @@
 #include "simu/simulation.h"
 
 
-const struct simdata_pulse simdata_pulse_defaults = {
-
-	.pulse_length = 1.,
-	.rf_start = 0.,
-	.rf_end = 0.009,
-	.flipangle = 1.,
-	.phase = 0.,
-	.nl = 2.,
-	.nr = 2.,
-	.n = 2.,
-	.t0 = 1.,
-	.alpha = 0.46,
-	.A = 1.,
-	.energy_scale = 1.,
-	.pulse_applied = false,
-};
-
 
 const struct simdata_voxel simdata_voxel_defaults = {
 
@@ -235,31 +218,6 @@ static void collect_signal(void* _data, int N, int P, float *mxy, float *sa_r1, 
 }
 
 
-void create_rf_pulse(void* _pulseData, float rf_start, float rf_end, float angle /*[°]*/, float phase, float nl, float nr, float alpha)
-{
-	struct simdata_pulse* pulse = _pulseData;
-
-	// For windowed sinc-pluses only
-	pulse->rf_start = rf_start;
-	pulse->rf_end = rf_end;
-	pulse->pulse_length = rf_end - rf_start;
-	pulse->flipangle = angle;
-	pulse->phase = phase;
-	pulse->nl = nl;
-	pulse->nr = nr;
-	pulse->n = MAX(nl, nr);
-	pulse->t0 = pulse->pulse_length / ( 2 + (nl-1) + (nr-1) );
-	pulse->alpha = alpha;
-	pulse->A = 1;
-
-	float energy = pulse_energy(pulse);
-
-	// WTF is this?
-	float calibration_energy = 0.991265;//2.3252; // turns M by 90°
-
-	// change scale to reach desired flipangle
-	pulse->A = (calibration_energy / energy) / 90 * angle;
-}
 
 
 //Module for RF-pulses
@@ -301,7 +259,7 @@ void create_sim_block(void* _data)
 {
 	struct sim_data* data = _data;
 
-	create_rf_pulse( &data->pulse, data->pulse.rf_start, data->pulse.rf_end, data->pulse.flipangle, data->pulse.phase, data->pulse.nl, data->pulse.nr, data->pulse.alpha);
+	pulse_create(&data->pulse, data->pulse.rf_start, data->pulse.rf_end, data->pulse.flipangle, data->pulse.phase, data->pulse.nl, data->pulse.nr, data->pulse.alpha);
 }
 
 
