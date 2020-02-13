@@ -68,7 +68,7 @@ const struct simdata_grad simdata_grad_defaults = {
 
 
 
-void bloch_pdy2(void* _data, float* out, float t, const float* in)
+static void bloch_pdy2(void* _data, float* out, float t, const float* in)
 {
 	struct bloch_s* data = _data;
 	(void)t;
@@ -76,7 +76,7 @@ void bloch_pdy2(void* _data, float* out, float t, const float* in)
 	bloch_pdy((float(*)[3])out, in, data->r1, data->r2, data->gb_eff);
 }
 
-void bloch_pdp2(void* _data, float* out, float t, const float* in)
+static void bloch_pdp2(void* _data, float* out, float t, const float* in)
 {
 	struct bloch_s* data = _data;
 	(void)t;
@@ -85,7 +85,7 @@ void bloch_pdp2(void* _data, float* out, float t, const float* in)
 }
 
 
-void bloch_pdy3(void* _data, float* out, float t, const float* in)
+static void bloch_pdy3(void* _data, float* out, float t, const float* in)
 {
 	struct sim_data* data = _data;
 	(void)t;
@@ -93,7 +93,7 @@ void bloch_pdy3(void* _data, float* out, float t, const float* in)
 	bloch_pdy((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff);
 }
 
-void bloch_pdp3(void* _data, float* out, float t, const float* in)
+static void bloch_pdp3(void* _data, float* out, float t, const float* in)
 {
 	struct sim_data* data = _data;
 	(void)t;
@@ -102,7 +102,7 @@ void bloch_pdp3(void* _data, float* out, float t, const float* in)
 }
 
 
-void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
+static void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 {
 	struct sim_data* data = _data;
 	

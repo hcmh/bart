@@ -73,15 +73,6 @@ struct bloch_s {
 };
 
 
-void bloch_pdy2(void* _data, float* out, float t, const float* in);
-
-void bloch_pdp2(void* _data, float* out, float t, const float* in);
-
-void bloch_pdy3(void* _data, float* out, float t, const float* in);
-
-void bloch_pdp3(void* _data, float* out, float t, const float* in);
-
-void bloch_simu_fun2(void* _data, float* out, float t, const float* in);
 
 void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]);
 
