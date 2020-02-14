@@ -133,8 +133,9 @@ const struct IRbSSFP_model IRbSSFP_defaults = {
 
 static float signal_IR_bSSFP(const struct IRbSSFP_model* data, int ind)
 {
-	float t1s = 1. / ((cosf(data->fa / 2.) * cosf(data->fa / 2.)) / data->t1 + (sinf(data->fa / 2.) * sinf(data->fa / 2.)) / data->t2);
-	float s0 = data->m0 * sinf(data->fa / 2.);
+	float fa2 = data->fa / 2.;
+	float t1s = 1. / ((cosf(fa2) * cosf(fa2)) / data->t1 + (sinf(fa2) * sinf(fa2)) / data->t2);
+	float s0 = data->m0 * sinf(fa2);
 	float stst = data->m0 * sinf(data->fa) / ((data->t1 / data->t2 + 1.) - cosf(data->fa) * (data->t1 / data->t2 - 1.));
 	float inv = 1. + s0 / stst;
 
