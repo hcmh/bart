@@ -350,7 +350,7 @@ int main_bloch(int argc, char* argv[argc])
 			
 			complex float signal[sim_data.seq.rep_num / sim_data.seq.num_average_rep];	
 			
-			float r[sim_data.seq.rep_num / sim_data.seq.num_average_rep]; // radial magnetization
+			complex float r[sim_data.seq.rep_num / sim_data.seq.num_average_rep]; // radial magnetization
 			
 			if (analytical) {
 				

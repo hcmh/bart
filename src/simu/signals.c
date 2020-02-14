@@ -78,7 +78,7 @@ static float signal_hsfp(const struct hsfp_model* data, float r0_val, float t)
 }
 
 
-void hsfp_simu(const struct hsfp_model* data, float* out)
+void hsfp_simu(const struct hsfp_model* data, complex float* out)
 {
 	float r0_val = r0(data);
 

@@ -12,7 +12,7 @@ struct hsfp_model {
 
 extern const struct hsfp_model hsfp_defaults;
 
-extern void hsfp_simu(const struct hsfp_model* data, float* out);
+extern void hsfp_simu(const struct hsfp_model* data, complex float* out);
 
 
 
