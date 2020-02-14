@@ -17,7 +17,7 @@
 
 void looklocker_analytical(struct sim_data* simu_data, complex float* out)
 {
-	struct LookLocker_model data;
+	struct signal_model data;
 
 	data.t1 = 1 / simu_data->voxel.r1;
 	data.m0 = simu_data->voxel.m0;
@@ -30,7 +30,7 @@ void looklocker_analytical(struct sim_data* simu_data, complex float* out)
 
 void IR_bSSFP_analytical(struct sim_data* simu_data, complex float* out)
 {
-	struct IRbSSFP_model data;
+	struct signal_model data;
 
 	data.t1 = 1 / simu_data->voxel.r1;
 	data.t2 = 1 / simu_data->voxel.r2;

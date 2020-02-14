@@ -16,7 +16,7 @@
  * Jakob Assländer, Dmitry S. Novikov, Riccardo Lattanzi, Daniel K. Sodickson & Martijn A. Cloos.
  * Communications Physics. Volume 2, Article number: 73 (2019)
  */
-const struct hsfp_model hsfp_defaults = {
+const struct signal_model signal_hsfp_defaults = {
 
 	.t1 = 0.781,
 	.t2 = 0.065,
@@ -25,13 +25,13 @@ const struct hsfp_model hsfp_defaults = {
 };
 
 
-static float a_core(const struct hsfp_model* data, float x)
+static float a_core(const struct signal_model* data, float x)
 {
 	return sinf(x) * sinf(x) / data->t2 + cosf(x) * cosf(x) / data->t1;
 }
 
 
-static float a(const struct hsfp_model* data, int N, const float pa[N], int ind)
+static float a(const struct signal_model* data, int N, const float pa[N], int ind)
 {
 	float sum = 0.;
 
@@ -42,13 +42,13 @@ static float a(const struct hsfp_model* data, int N, const float pa[N], int ind)
 }
 
 
-static float r0_core(const struct hsfp_model* data, int N, const float pa[N], int ind)
+static float r0_core(const struct signal_model* data, int N, const float pa[N], int ind)
 {
 	return cosf(fabsf(pa[ind])) / a(data, N, pa, ind);
 }
 
 
-static float r0(const struct hsfp_model* data, int N, const float pa[N])
+static float r0(const struct signal_model* data, int N, const float pa[N])
 {
 	float sum = 0.;
 
@@ -61,7 +61,7 @@ static float r0(const struct hsfp_model* data, int N, const float pa[N])
 }
 
 
-static float signal_hsfp(const struct hsfp_model* data, float r0_val, int N, const float pa[N], int ind)
+static float signal_hsfp(const struct signal_model* data, float r0_val, int N, const float pa[N], int ind)
 {
 	float sum = 0.;
 
@@ -72,7 +72,7 @@ static float signal_hsfp(const struct hsfp_model* data, float r0_val, int N, con
 }
 
 
-void hsfp_simu(const struct hsfp_model* data, int N, const float pa[N], complex float out[N])
+void hsfp_simu(const struct signal_model* data, int N, const float pa[N], complex float out[N])
 {
 	float r0_val = r0(data, N, pa);
 
@@ -85,7 +85,7 @@ void hsfp_simu(const struct hsfp_model* data, int N, const float pa[N], complex 
  * Time saving in measurement of NMR and EPR relaxation times.
  * Look DC, Locker DR.  Rev Sci Instrum 1970;41:250–251.
  */
-const struct LookLocker_model looklocker_defaults = {
+const struct signal_model signal_looklocker_defaults = {
 
 	.t1 = 1.,
 	.m0 = 1.,
@@ -93,7 +93,7 @@ const struct LookLocker_model looklocker_defaults = {
 	.fa = 8.,
 };
 
-static float signal_looklocker(const struct LookLocker_model* data, int ind)
+static float signal_looklocker(const struct signal_model* data, int ind)
 {
 	float fa = data->fa;
 	float t1 = data->t1;
@@ -107,7 +107,7 @@ static float signal_looklocker(const struct LookLocker_model* data, int ind)
 	return mss - (mss + s0) * expf(-ind * tr * r1s);
 }
 
-void looklocker_model(const struct LookLocker_model* data, int N, complex float out[N])
+void looklocker_model(const struct signal_model* data, int N, complex float out[N])
 {
 	for (int ind = 0; ind < N; ind++)
 		out[ind] = signal_looklocker(data, ind);
@@ -119,7 +119,7 @@ void looklocker_model(const struct LookLocker_model* data, int N, complex float 
  * Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A., 
  * Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058, (2004)
  */
-const struct IRbSSFP_model IRbSSFP_defaults = {
+const struct signal_model IRbSSFP_defaults = {
 
 	.t1 = 1.,
 	.t2 = 0.1,
@@ -128,7 +128,7 @@ const struct IRbSSFP_model IRbSSFP_defaults = {
 	.fa = 45.,
 };
 
-static float signal_IR_bSSFP(const struct IRbSSFP_model* data, int ind)
+static float signal_IR_bSSFP(const struct signal_model* data, int ind)
 {
 	float fa = data->fa;
 	float t1 = data->t1;
@@ -144,7 +144,7 @@ static float signal_IR_bSSFP(const struct IRbSSFP_model* data, int ind)
 	return mss - (mss + s0) * expf(-ind * tr * r1s);
 }
 
-void IR_bSSFP_model(const struct IRbSSFP_model* data, int N, complex float out[N])
+void IR_bSSFP_model(const struct signal_model* data, int N, complex float out[N])
 {
 	for (int ind = 0; ind < N; ind++)
 		out[ind] = signal_IR_bSSFP(data, ind);

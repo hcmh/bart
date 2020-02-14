@@ -253,7 +253,7 @@ int main_bloch(int argc, char* argv[argc])
 		vfa_file = load_cfl(fa_file, DIMS, dim_vfa);
 	
 	
-	struct hsfp_model hsfp_data2 = hsfp_defaults;
+	struct signal_model hsfp_data2 = signal_hsfp_defaults;
 	float* pa = NULL;
 
 	if ( 4 == seq && analytical) {
@@ -357,7 +357,7 @@ int main_bloch(int argc, char* argv[argc])
 				
 				if( 4 == seq && NULL != spherical_coord) {
 					
-					struct hsfp_model hsfp_data = hsfp_data2;
+					struct signal_model hsfp_data = hsfp_data2;
 					
 					hsfp_data.t1 = t1;
 					hsfp_data.t2 = t2;
