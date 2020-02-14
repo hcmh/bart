@@ -28,38 +28,38 @@ const struct hsfp_model hsfp_defaults = {
 };
 
 
-static float a_core(const struct hsfp_model* data, float t)
+static float a_core(const struct hsfp_model* data, int ind)
 {
-	float x = cabsf(data->pa_profile[(int)(t / data->tr)]);
+	float x = cabsf(data->pa_profile[ind]);
 
 	return sinf(x) * sinf(x) / data->t2 + cosf(x) * cosf(x) / data->t1;
 }
 
 
-static float a(const struct hsfp_model* data, float t_lim)
+static float a(const struct hsfp_model* data, int ind)
 {
 	float sum = 0.;
 
-	for (float t = 0.; t < t_lim; t += data->tr)
-		sum += a_core(data, t) * data->tr;
+	for (int i2 = 0.; i2 < ind; i2++)
+		sum += a_core(data, i2) * data->tr;
 
 	return expf(-sum);
 }
 
 
-static float r0_core(const struct hsfp_model* data, float t)
+static float r0_core(const struct hsfp_model* data, int ind)
 {
-	return cosf(cabsf(data->pa_profile[(int)(t / data->tr)])) / a(data, t);
+	return cosf(cabsf(data->pa_profile[ind])) / a(data, ind);
 }
 
 
 static float r0(const struct hsfp_model* data)
 {
-	float tc = data->repetitions * data->tr;
+	float tc = data->repetitions;
 	float sum = 0.;
 
-	for (float t = 0.; t < tc; t += data->tr)
-		sum += r0_core(data, t) * data->tr;
+	for (int ind = 0; ind < tc; ind++)
+		sum += r0_core(data, ind) * data->tr;
 
 	float a_tc = a(data, tc);
 
@@ -67,14 +67,14 @@ static float r0(const struct hsfp_model* data)
 }
 
 
-static float signal_hsfp(const struct hsfp_model* data, float r0_val, float t)
+static float signal_hsfp(const struct hsfp_model* data, float r0_val, int ind)
 {
 	float sum = 0.;
 
-	for (float tau = 0.; tau < t; tau += data->tr)
-		sum += r0_core(data, tau) * data->tr;
+	for (int i2 = 0; i2 < ind; i2++)
+		sum += r0_core(data, i2) * data->tr;
 
-	return a(data, t) * (r0_val + 1. / data->t1 * sum);
+	return a(data, ind) * (r0_val + 1. / data->t1 * sum);
 }
 
 
@@ -83,7 +83,7 @@ void hsfp_simu(const struct hsfp_model* data, complex float* out)
 	float r0_val = r0(data);
 
 	for (int ind = 0; ind < data->repetitions; ind++)
-		out[ind] = signal_hsfp(data, r0_val, (float)ind * data->tr);
+		out[ind] = signal_hsfp(data, r0_val, ind);
 }
 
 
