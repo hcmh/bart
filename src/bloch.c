@@ -254,13 +254,14 @@ int main_bloch(int argc, char* argv[argc])
 	
 	
 	struct hsfp_model hsfp_data2 = hsfp_defaults;
+	float* pa = NULL;
+
 	if ( 4 == seq && analytical) {
 		
 		hsfp_data2.tr = tr;
-		hsfp_data2.repetitions = repetition;
 		hsfp_data2.beta = -1;
-		hsfp_data2.pa_profile = md_alloc(DIMS, dim_vfa, FL_SIZE);
-		md_real(DIMS, dim_vfa, hsfp_data2.pa_profile, vfa_file);
+		pa = md_alloc(DIMS, dim_vfa, FL_SIZE);
+		md_real(DIMS, dim_vfa, pa, vfa_file);
 	} 
 		
 	
@@ -361,7 +362,7 @@ int main_bloch(int argc, char* argv[argc])
 					hsfp_data.t1 = t1;
 					hsfp_data.t2 = t2;
 					
-					hsfp_simu(&hsfp_data, r);
+					hsfp_simu(&hsfp_data, sim_data.seq.rep_num / sim_data.seq.num_average_rep, pa, r);
 					
 					int ind = 0;
 					

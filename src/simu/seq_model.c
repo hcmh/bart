@@ -23,9 +23,8 @@ void looklocker_analytical(struct sim_data* simu_data, complex float* out)
 	data.m0 = simu_data->voxel.m0;
 	data.tr = simu_data->seq.tr;
 	data.fa = simu_data->pulse.flipangle * M_PI / 180.;	//conversion to rad
-	data.repetitions = simu_data->seq.rep_num;
 
-	looklocker_model(&data, out);
+	looklocker_model(&data, simu_data->seq.rep_num, out);
 }
 
 
@@ -38,9 +37,8 @@ void IR_bSSFP_analytical(struct sim_data* simu_data, complex float* out)
 	data.m0 = simu_data->voxel.m0;
 	data.tr = simu_data->seq.tr;
 	data.fa = simu_data->pulse.flipangle * M_PI / 180.;	//conversion to rad
-	data.repetitions = simu_data->seq.rep_num;
 
-	IR_bSSFP_model(&data, out);
+	IR_bSSFP_model(&data, simu_data->seq.rep_num, out);
 }
 
 

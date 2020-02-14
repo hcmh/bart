@@ -3,7 +3,6 @@
  * a BSD-style license which can be found in the LICENSE file.
  */
 
-#include <stdlib.h>
 #include <complex.h>
 #include <math.h>
 
@@ -22,68 +21,63 @@ const struct hsfp_model hsfp_defaults = {
 	.t1 = 0.781,
 	.t2 = 0.065,
 	.tr = 0.0045,
-	.repetitions = 1000,
 	.beta = -1.,
-	.pa_profile = NULL,
 };
 
 
-static float a_core(const struct hsfp_model* data, int ind)
+static float a_core(const struct hsfp_model* data, float x)
 {
-	float x = fabsf(data->pa_profile[ind]);
-
 	return sinf(x) * sinf(x) / data->t2 + cosf(x) * cosf(x) / data->t1;
 }
 
 
-static float a(const struct hsfp_model* data, int ind)
+static float a(const struct hsfp_model* data, int N, const float pa[N], int ind)
 {
 	float sum = 0.;
 
 	for (int i2 = 0.; i2 < ind; i2++)
-		sum += a_core(data, i2) * data->tr;
+		sum += a_core(data, fabsf(pa[i2])) * data->tr;
 
 	return expf(-sum);
 }
 
 
-static float r0_core(const struct hsfp_model* data, int ind)
+static float r0_core(const struct hsfp_model* data, int N, const float pa[N], int ind)
 {
-	return cosf(fabsf(data->pa_profile[ind])) / a(data, ind);
+	return cosf(fabsf(pa[ind])) / a(data, N, pa, ind);
 }
 
 
-static float r0(const struct hsfp_model* data)
+static float r0(const struct hsfp_model* data, int N, const float pa[N])
 {
-	float tc = data->repetitions;
 	float sum = 0.;
 
-	for (int ind = 0; ind < tc; ind++)
-		sum += r0_core(data, ind) * data->tr;
+	for (int ind = 0; ind < N; ind++)
+		sum += r0_core(data, N, pa, ind) * data->tr;
 
-	float a_tc = a(data, tc);
+	float a_tc = a(data, N, pa, N);
 
 	return data->beta / data->t1 * a_tc / (1. - data->beta * a_tc) * sum;
 }
 
 
-static float signal_hsfp(const struct hsfp_model* data, float r0_val, int ind)
+static float signal_hsfp(const struct hsfp_model* data, float r0_val, int N, const float pa[N], int ind)
 {
 	float sum = 0.;
 
 	for (int i2 = 0; i2 < ind; i2++)
-		sum += r0_core(data, i2) * data->tr;
+		sum += r0_core(data, N, pa, i2) * data->tr;
 
-	return a(data, ind) * (r0_val + 1. / data->t1 * sum);
+	return a(data, N, pa, ind) * (r0_val + 1. / data->t1 * sum);
 }
 
 
-void hsfp_simu(const struct hsfp_model* data, complex float* out)
+void hsfp_simu(const struct hsfp_model* data, int N, const float pa[N], complex float out[N])
 {
-	float r0_val = r0(data);
+	float r0_val = r0(data, N, pa);
 
-	for (int ind = 0; ind < data->repetitions; ind++)
-		out[ind] = signal_hsfp(data, r0_val, ind);
+	for (int ind = 0; ind < N; ind++)
+		out[ind] = signal_hsfp(data, r0_val, N, pa, ind);
 }
 
 
@@ -97,14 +91,12 @@ const struct LookLocker_model looklocker_defaults = {
 	.m0 = 1.,
 	.tr = 0.0041,
 	.fa = 8.,
-	.repetitions = 1000,
 };
 
 static float signal_looklocker(const struct LookLocker_model* data, int ind)
 {
 	float fa = data->fa;
 	float t1 = data->t1;
-	float t2 = data->t2;
 	float m0 = data->m0;
 	float tr = data->tr;
 
@@ -115,9 +107,9 @@ static float signal_looklocker(const struct LookLocker_model* data, int ind)
 	return mss - (mss + s0) * expf(-ind * tr * r1s);
 }
 
-void looklocker_model(const struct LookLocker_model* data, complex float* out)
+void looklocker_model(const struct LookLocker_model* data, int N, complex float out[N])
 {
-	for (int ind = 0; ind < data->repetitions; ind++)
+	for (int ind = 0; ind < N; ind++)
 		out[ind] = signal_looklocker(data, ind);
 }
 
@@ -134,7 +126,6 @@ const struct IRbSSFP_model IRbSSFP_defaults = {
 	.m0 = 1.,
 	.tr = 0.0045,
 	.fa = 45.,
-	.repetitions = 1000,
 };
 
 static float signal_IR_bSSFP(const struct IRbSSFP_model* data, int ind)
@@ -153,9 +144,9 @@ static float signal_IR_bSSFP(const struct IRbSSFP_model* data, int ind)
 	return mss - (mss + s0) * expf(-ind * tr * r1s);
 }
 
-void IR_bSSFP_model(const struct IRbSSFP_model* data, complex float* out)
+void IR_bSSFP_model(const struct IRbSSFP_model* data, int N, complex float out[N])
 {
-	for (int ind = 0; ind < data->repetitions; ind++)
+	for (int ind = 0; ind < N; ind++)
 		out[ind] = signal_IR_bSSFP(data, ind);
 }
 
