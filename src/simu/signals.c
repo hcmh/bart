@@ -31,44 +31,49 @@ static float a_core(const struct signal_model* data, float x)
 }
 
 
-static float a(const struct signal_model* data, int N, const float pa[N], int ind)
+static float r0_core(float a, int N, const float pa[N], int ind)
 {
-	float sum = 0.;
-
-	for (int i2 = 0.; i2 < ind; i2++)
-		sum += a_core(data, fabsf(pa[i2])) * data->tr;
-
-	return expf(-sum);
+	return cosf(fabsf(pa[ind])) / a;
 }
 
+struct r0_a_sum {
 
-static float r0_core(const struct signal_model* data, int N, const float pa[N], int ind)
+	float r0;
+	float a;
+};
+
+static struct r0_a_sum r0_a_sum(const struct signal_model* data, int N, const float pa[N], int ind)
 {
-	return cosf(fabsf(pa[ind])) / a(data, N, pa, ind);
+	struct r0_a_sum sum = { 0., 0. };
+
+	for (int i2= 0; i2 < ind; i2++) {
+
+		sum.a += a_core(data, fabsf(pa[i2]));
+		float a = expf(-sum.a * data->tr);
+
+		sum.r0 += r0_core(a, N, pa, ind);
+	}
+
+	sum.r0 *= data->tr;
+	sum.a *= data->tr;
+
+	return sum;
 }
 
 
 static float r0(const struct signal_model* data, int N, const float pa[N])
 {
-	float sum = 0.;
+	struct r0_a_sum sum = r0_a_sum(data, N, pa, N);
 
-	for (int ind = 0; ind < N; ind++)
-		sum += r0_core(data, N, pa, ind) * data->tr;
-
-	float a_tc = a(data, N, pa, N);
-
-	return data->beta / data->t1 * a_tc / (1. - data->beta * a_tc) * sum;
+	return data->beta / data->t1 * sum.a / (1. - data->beta * sum.a) * sum.r0;
 }
 
 
 static float signal_hsfp(const struct signal_model* data, float r0_val, int N, const float pa[N], int ind)
 {
-	float sum = 0.;
+	struct r0_a_sum sum = r0_a_sum(data, N, pa, ind);
 
-	for (int i2 = 0; i2 < ind; i2++)
-		sum += r0_core(data, N, pa, i2) * data->tr;
-
-	return a(data, N, pa, ind) * (r0_val + 1. / data->t1 * sum);
+	return sum.a * (r0_val + 1. / data->t1 * sum.r0);
 }
 
 
