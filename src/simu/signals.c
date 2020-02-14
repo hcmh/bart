@@ -25,16 +25,6 @@ const struct signal_model signal_hsfp_defaults = {
 };
 
 
-static float a_core(const struct signal_model* data, float x)
-{
-	return sinf(x) * sinf(x) / data->t2 + cosf(x) * cosf(x) / data->t1;
-}
-
-
-static float r0_core(float a, int N, const float pa[N], int ind)
-{
-	return cosf(fabsf(pa[ind])) / a;
-}
 
 struct r0_a_sum {
 
@@ -48,10 +38,10 @@ static struct r0_a_sum r0_a_sum(const struct signal_model* data, int N, const fl
 
 	for (int i2= 0; i2 < ind; i2++) {
 
-		sum.a += a_core(data, fabsf(pa[i2]));
-		float a = expf(-sum.a * data->tr);
+		float x = fabsf(pa[i2]);
 
-		sum.r0 += r0_core(a, N, pa, ind);
+		sum.a += sinf(x) * sinf(x) / data->t2 + cosf(x) * cosf(x) / data->t1;
+		sum.r0 += cosf(x) * expf(sum.a * data->tr);
 	}
 
 	sum.r0 *= data->tr;
