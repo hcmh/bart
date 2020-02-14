@@ -35,7 +35,7 @@
 #include "moba/blochfun.h"
 #include "moba/T1relax.h"
 #include "moba/T1srelax.h"
-#include "moba/T1MOLLI_test.h"
+#include "moba/T1s_chain.h"
 
 
 
@@ -77,7 +77,7 @@ static bool test_nlop_T1fun(void)
 
 UT_REGISTER_TEST(test_nlop_T1fun);
 
-static bool test_nlop_T1MOLLItest(void) 
+static bool test_nlop_T1s_chain(void) 
 {
         enum { N = 16 };
         long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
@@ -99,7 +99,7 @@ static bool test_nlop_T1MOLLItest(void)
         md_zfill(N, map_dims, src2, 1.0);
         md_zfill(N, map_dims, src3, 1.0);
 
-        struct nlop_s* T1 = nlop_T1MOLLItest_create(N, map_dims, out_dims, TI_dims, TI);
+        struct nlop_s* T1 = nlop_T1s_chain_create(N, map_dims, out_dims, TI_dims, TI, false);
 
         nlop_generic_apply_unchecked(T1, 4, (void*[]){ dst, src1, src2, src3});
         
@@ -115,7 +115,7 @@ static bool test_nlop_T1MOLLItest(void)
         UT_ASSERT(err < 1.E-3);
 }
 
-UT_REGISTER_TEST(test_nlop_T1MOLLItest);
+UT_REGISTER_TEST(test_nlop_T1s_chain);
 
 static void random_application(const struct nlop_s* nlop)
 {
@@ -161,12 +161,9 @@ static bool test_T1relax(void)
         complex float* src2 = md_alloc(N, map_dims, CFL_SIZE);
         complex float* src3 = md_alloc(N, map_dims, CFL_SIZE);
         complex float* tmp = md_alloc(N, map_dims, CFL_SIZE);
-        complex float* TI1 = md_alloc(N, TI_dims, CFL_SIZE);
         
         complex float TI[4] = { 0., 1., 2., 3. };
                        
-        md_copy(N, TI_dims, TI1, TI, CFL_SIZE);
-
 	md_gaussian_rand(N, map_dims, src1);
         md_gaussian_rand(N, map_dims, src2);
         md_gaussian_rand(N, map_dims, src3);
@@ -202,7 +199,6 @@ static bool test_T1relax(void)
 	md_free(src2);
         md_free(src3);
         md_free(tmp);
-        md_free(TI1);
 	md_free(dst1);
 	md_free(dst2);
         md_free(dst3);

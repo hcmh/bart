@@ -28,13 +28,13 @@
 
 #include "moba/T1fun.h"
 //#include "moba/T1MOLLI.h"
-#include "moba/T1_repara.h"
-#include "moba/T1MOLLI_test.h"
+#include "moba/T1s_repara.h"
+#include "moba/T1s_chain.h"
 
 #include "model_T1.h"
 
 
-#define T1repara
+#define T1s_chain
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, _Bool use_gpu)
 {
@@ -55,15 +55,22 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 
 #if 1
 	// chain T1 model
-#ifdef T1repara
+#ifdef T1s_chain
+	#ifdef USE_CUDA
+	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
+	#else
+	assert(!use_gpu);
+	md_alloc_fun_t my_alloc = md_alloc;
+	#endif
+
 	out_dims[TE_DIM] /= 2;
 	TI_dims[TE_DIM] /= 2;
 	
-	complex float* TI1 = md_alloc(DIMS, TI_dims, CFL_SIZE);
+	complex float* TI1 = my_alloc(DIMS, TI_dims, CFL_SIZE);
 
 	md_copy(DIMS, TI_dims, TI1, TI, CFL_SIZE);
 
-        struct nlop_s* T1 = nlop_T1MOLLI_test_create(DIMS, map_dims, out_dims, TI_dims, TI);
+        struct nlop_s* T1 = nlop_T1s_chain_create(DIMS, map_dims, out_dims, TI_dims, TI, use_gpu);
 
         md_free(TI1);
 #else
@@ -80,10 +87,14 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	const struct nlop_s* c = nlop_chain2(T1, 0, b, 0);
 	nlop_free(b);
 
+#ifdef T1s_chain
+	nlinv.nlop = nlop_permute_inputs(c, 4, (const int[4]){ 1, 2, 3, 0 });
+#else
 	nlinv.nlop = nlop_permute_inputs(c, 2, (const int[2]){ 1, 0 });
-	nlop_free(c);
 #endif
+	nlop_free(c);
 
+#endif
 	ret.nlop = nlop_flatten(nlinv.nlop);
 	ret.linop = nlinv.linop;
 	nlop_free(nlinv.nlop);

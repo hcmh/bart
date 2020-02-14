@@ -33,6 +33,8 @@
 
 #include "recon_T1.h"
 
+#define T1s_chain
+
 
 struct moba_conf moba_defaults = {
 
@@ -97,6 +99,10 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 
 	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 1, .not_wav_maps = 0 };
 
+#ifdef T1s_chain
+	conf2.constrained_maps = 2;
+#endif
+	
 	long irgnm_conf_dims[DIMS];
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
 

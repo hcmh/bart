@@ -23,19 +23,26 @@
 #include "T1MOLLI.h"
 #include "T1relax.h"
 #include "T1srelax.h"
-#include "T1MOLLI_test.h"
+#include "T1s_chain.h"
 
 //#define general
 //#define mphase
 
-struct nlop_s* nlop_T1MOLLI_test_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI) 
+struct nlop_s* nlop_T1s_chain_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI, bool use_gpu) 
 {
+
+        #ifdef USE_CUDA
+        md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
+        #else
+        assert(!use_gpu);
+        md_alloc_fun_t my_alloc = md_alloc;
+        #endif
 
         long scale_dims[N];
 
         md_singleton_dims(N, scale_dims);
 
-        complex float* scale = md_alloc(N, scale_dims, CFL_SIZE);
+        complex float* scale = my_alloc(N, scale_dims, CFL_SIZE);
 
         struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
     	struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
