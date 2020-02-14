@@ -3,21 +3,9 @@
  * a BSD-style license which can be found in the LICENSE file.
  */
 
+#include <stdlib.h>
 #include <complex.h>
 #include <math.h>
-
-#include "num/multind.h"
-#include "num/flpmath.h"
-#include "num/fft.h"
-#include "num/gpuops.h"
-#include "num/init.h"
-
-#include "misc/mri.h"
-#include "misc/misc.h"
-#include "misc/mmio.h"
-#include "misc/utils.h"
-#include "misc/opts.h"
-#include "misc/debug.h"
 
 #include "simulation.h"
 #include "seq_model.h"
