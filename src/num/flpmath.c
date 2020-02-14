@@ -1,5 +1,5 @@
 /* Copyright 2013-2018 The Regents of the University of California.
- * Copyright 2016-2019. Martin Uecker.
+ * Copyright 2016-2020. Martin Uecker.
  * Copyright 2017. University of Oxford.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
@@ -3832,5 +3832,59 @@ void md_zsum(unsigned int D, const long dims[D], unsigned int flags, complex flo
 	md_free(ones);
 }
 
+
+
+void md_real2(unsigned int D, const long dims[D], const long ostrs[D], float* dst, const long istrs[D], const complex float* src)
+{
+	md_copy2(D, dims, ostrs, dst, istrs, (const float*)src + 0, FL_SIZE);
+}
+
+void md_real(unsigned int D, const long dims[D], float* dst, const complex float* src)
+{
+	md_real2(D, dims, MD_STRIDES(D, dims, FL_SIZE), dst, MD_STRIDES(D, dims, CFL_SIZE), src);
+}
+
+void md_imag2(unsigned int D, const long dims[D], const long ostrs[D], float* dst, const long istrs[D], const complex float* src)
+{
+	md_copy2(D, dims, ostrs, dst, istrs, (const float*)src + 1, FL_SIZE);
+}
+
+void md_imag(unsigned int D, const long dims[D], float* dst, const complex float* src)
+{
+	md_imag2(D, dims, MD_STRIDES(D, dims, FL_SIZE), dst, MD_STRIDES(D, dims, CFL_SIZE), src);
+}
+
+void md_zcmpl_real2(unsigned int D, const long dims[D], const long ostrs[D], complex float* dst, const long istrs[D], const float* src)
+{
+	md_copy2(D, dims, ostrs, (float*)dst + 0, istrs, src, FL_SIZE);
+	md_clear2(D, dims, ostrs, (float*)dst + 1, FL_SIZE);
+}
+
+void md_zcmpl_real(unsigned int D, const long dims[D], complex float* dst, const float* src)
+{
+	md_zcmpl_real2(D, dims, MD_STRIDES(D, dims, CFL_SIZE), dst, MD_STRIDES(D, dims, FL_SIZE), src);
+}
+
+void md_zcmpl_imag2(unsigned int D, const long dims[D], const long ostrs[D], complex float* dst, const long istrs[D], const float* src)
+{
+	md_clear2(D, dims, ostrs, (float*)dst + 0, FL_SIZE);
+	md_copy2(D, dims, ostrs, (float*)dst + 1, istrs, src, FL_SIZE);
+}
+
+void md_zcmpl_imag(unsigned int D, const long dims[D], complex float* dst, const float* src)
+{
+	md_zcmpl_imag2(D, dims, MD_STRIDES(D, dims, CFL_SIZE), dst, MD_STRIDES(D, dims, FL_SIZE), src);
+}
+
+void md_zcmpl2(unsigned int D, const long dims[D], const long ostr[D], complex float* dst, const long istr1[D], const float* src_real, const long istr2[D], const float* src_imag)
+{
+	md_copy2(D, dims, ostr, (float*)dst + 0, istr1, src_real, FL_SIZE);
+	md_copy2(D, dims, ostr, (float*)dst + 1, istr2, src_imag, FL_SIZE);
+}
+
+extern void md_zcmpl(unsigned int D, const long dims[D], complex float* dst, const float* src_real, const float* src_imag)
+{
+	md_zcmpl2(D, dims, MD_STRIDES(D, dims, CFL_SIZE), dst, MD_STRIDES(D, dims, FL_SIZE), src_real, MD_STRIDES(D, dims, FL_SIZE), src_imag);
+}
 
 

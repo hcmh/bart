@@ -1,5 +1,5 @@
 /* Copyright 2013-2014. The Regents of the University of California.
- * Copyright 2015-2019. Martin Uecker.
+ * Copyright 2015-2020. Martin Uecker.
  * Copyright 2017. University of Oxford.
  * All rights reserved. Use of this source code is governed by 
  * a BSD-style license which can be found in the LICENSE file.
@@ -318,6 +318,19 @@ extern void md_zfftmod(unsigned int D, const long dim[__VLA(D)], _Complex float*
 extern void md_zfftmod2(unsigned int D, const long dim[__VLA(D)], const long ostr[__VLA(D)], _Complex float* optr, const long istr[__VLA(D)], const _Complex float* iptr, _Bool inv, double phase);
 
 extern void md_zsum(unsigned int D, const long dims[__VLA(D)], unsigned int flags, _Complex float* dst, const _Complex float* src);
+
+extern void md_imag2(unsigned int D, const long dims[__VLA(D)], const long ostr[__VLA(D)], float* dst, const long istr[__VLA(D)], const _Complex float* src);
+extern void md_imag(unsigned int D, const long dims[__VLA(D)], float* dst, const _Complex float* src);
+extern void md_real2(unsigned int D, const long dims[__VLA(D)], const long ostr[__VLA(D)], float* dst, const long istr[__VLA(D)], const _Complex float* src);
+extern void md_real(unsigned int D, const long dims[__VLA(D)], float* dst, const _Complex float* src);
+extern void md_zcmpl_real2(unsigned int D, const long dims[__VLA(D)], const long ostr[__VLA(D)], _Complex float* dst, const long istr[__VLA(D)], const float* src);
+extern void md_zcmpl_real(unsigned int D, const long dims[__VLA(D)], _Complex float* dst, const float* src);
+extern void md_zcmpl_imag2(unsigned int D, const long dims[__VLA(D)], const long ostr[__VLA(D)], _Complex float* dst, const long istr[__VLA(D)], const float* src);
+extern void md_zcmpl_imag(unsigned int D, const long dims[__VLA(D)], _Complex float* dst, const float* src);
+extern void md_zcmpl2(unsigned int D, const long dims[__VLA(D)], const long ostr[__VLA(D)], _Complex float* dst, const long istr1[__VLA(D)], const float* src_real, const long istr2[__VLA(D)], const float* src_imag);
+extern void md_zcmpl(unsigned int D, const long dims[__VLA(D)], _Complex float* dst, const float* src_real, const float* src_imag);
+
+
 
 
 #include "misc/cppwrap.h"
