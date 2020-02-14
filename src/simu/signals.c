@@ -30,7 +30,7 @@ const struct hsfp_model hsfp_defaults = {
 
 static float a_core(const struct hsfp_model* data, int ind)
 {
-	float x = cabsf(data->pa_profile[ind]);
+	float x = fabsf(data->pa_profile[ind]);
 
 	return sinf(x) * sinf(x) / data->t2 + cosf(x) * cosf(x) / data->t1;
 }
@@ -49,7 +49,7 @@ static float a(const struct hsfp_model* data, int ind)
 
 static float r0_core(const struct hsfp_model* data, int ind)
 {
-	return cosf(cabsf(data->pa_profile[ind])) / a(data, ind);
+	return cosf(fabsf(data->pa_profile[ind])) / a(data, ind);
 }
 
 

@@ -259,8 +259,8 @@ int main_bloch(int argc, char* argv[argc])
 		hsfp_data2.tr = tr;
 		hsfp_data2.repetitions = repetition;
 		hsfp_data2.beta = -1;
-		hsfp_data2.pa_profile = md_alloc(DIMS, dim_vfa, CFL_SIZE);
-		md_copy(DIMS, dim_vfa, hsfp_data2.pa_profile, vfa_file, CFL_SIZE);
+		hsfp_data2.pa_profile = md_alloc(DIMS, dim_vfa, FL_SIZE);
+		md_real(DIMS, dim_vfa, hsfp_data2.pa_profile, vfa_file);
 	} 
 		
 	

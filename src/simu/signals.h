@@ -7,7 +7,7 @@ struct hsfp_model {
 	float tr;
 	int repetitions;
 	float beta;
-	complex float* pa_profile; /*Polar angle */
+	float* pa_profile; /*Polar angle */
 };
 
 extern const struct hsfp_model hsfp_defaults;
