@@ -199,7 +199,7 @@ int main_modbloch(int argc, char* argv[])
 	
 	
 	double scaling = data_scaling / md_znorm(DIMS, ksp_dims, kspace_data);
-	double scaling_psf = data_scaling / 5. / md_znorm(DIMS, pat_dims, pattern);
+	double scaling_psf = 1; // md_znorm(DIMS, pat_dims, pattern);
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
