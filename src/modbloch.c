@@ -24,6 +24,7 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
+#include "moba/recon_T1.h"
 #include "moba/recon_Bloch.h"
 #include "moba/model_Bloch.h"
 #include "moba/scale.h"
@@ -42,7 +43,7 @@ int main_modbloch(int argc, char* argv[])
 
 	float restrict_fov = -1.;
 	const char* psf = NULL;
-	struct noir_conf_s conf = noir_defaults;
+	struct moba_conf conf = moba_defaults;
 	struct modBlochFit fit_para = modBlochFit_defaults;
 	bool out_sens = false;
 	bool usegpu = false;
@@ -57,6 +58,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_FLOAT(	'R', 	&conf.redu, 		"", "reduction factor"),
 		OPT_FLOAT(	'l', 	&conf.alpha, 		"", "alpha"),
 		OPT_FLOAT(	'w', 	&conf.alpha_min, 	"", "alpha_min"),
+		OPT_UINT(	'o', 	&conf.opt_reg, 		"", "regularization option (0: l2, 1: l1-wav)"),
 		OPT_INT(	'n', 	&fit_para.not_wav_maps, 	"", "# Removed Maps from Wav.Denoisng"),
 		OPT_INT(	'd', 	&debug_level, 		"", "Debug level"),
 		OPT_FLOAT(	'f', 	&restrict_fov, 		"", "FoV scaling factor"),
@@ -141,7 +143,7 @@ int main_modbloch(int argc, char* argv[])
 		
 		fit_para.fov_reduction_factor = restrict_fov;
 
-		conf.noncart = true;
+		conf.noncartesian = true;
 
 	} else {
 

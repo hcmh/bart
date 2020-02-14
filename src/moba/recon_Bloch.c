@@ -37,11 +37,12 @@
 #include "noir/model.h"
 
 #include "iter_l1.h"
+#include "recon_T1.h"
 #include "model_Bloch.h"
 #include "recon_Bloch.h"
 
 
-void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_para, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data, _Bool usegpu)
+void bloch_recon(const struct moba_conf* conf, const struct modBlochFit* fit_para, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data, _Bool usegpu)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -69,8 +70,8 @@ void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
 
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
-	mconf.rvc = conf->rvc;
-	mconf.noncart = conf->noncart;
+	mconf.rvc = false;
+	mconf.noncart = conf->noncartesian;
 	mconf.fft_flags = fft_flags;
 	mconf.a = 880.;
 	mconf.b = 32.;
@@ -88,7 +89,7 @@ void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.cgtol = 0.1f;
-	irgnm_conf.cgiter = 300;
+	irgnm_conf.cgiter = 250;
 	irgnm_conf.nlinv_legacy = true;
 
 	long irgnm_conf_dims[DIMS];
@@ -99,7 +100,7 @@ void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 	debug_printf(DP_INFO, "irgnm_conf_dims:\n\t");
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = 0, .step = 0.9, .lower_bound = 10E-5, .constrained_maps = 3, .not_wav_maps = fit_para->not_wav_maps };
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = 0.9, .lower_bound = 10E-5, .constrained_maps = 3, .not_wav_maps = fit_para->not_wav_maps };
 
 	mdb_irgnm_l1(&conf2,
 			irgnm_conf_dims,

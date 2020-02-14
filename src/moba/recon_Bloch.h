@@ -15,7 +15,8 @@
 
 
 struct modBlochFit;
+struct moba_conf;
 
-extern void bloch_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_para, const long dims[DIMS], _Complex float* img, _Complex float* sens, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data, _Bool usegpu);
+extern void bloch_recon(const struct moba_conf* conf, const struct modBlochFit* fit_para, const long dims[DIMS], _Complex float* img, _Complex float* sens, const _Complex float* pattern, const _Complex float* mask, const _Complex float* kspace_data, _Bool usegpu);
 
 #endif
