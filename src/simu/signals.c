@@ -102,11 +102,17 @@ const struct LookLocker_model looklocker_defaults = {
 
 static float signal_looklocker(const struct LookLocker_model* data, int ind)
 {
-	float s0 = data->m0;
-	float r1s = 1. / data->t1 - logf(cosf(data->fa)) / data->tr;
-	float mss = s0 / (data->t1 * r1s);
+	float fa = data->fa;
+	float t1 = data->t1;
+	float t2 = data->t2;
+	float m0 = data->m0;
+	float tr = data->tr;
 
-	return mss - (mss + s0) * expf(-ind * data->tr * r1s);
+	float s0 = m0;
+	float r1s = 1. / t1 - logf(cosf(fa)) / tr;
+	float mss = s0 / (t1 * r1s);
+
+	return mss - (mss + s0) * expf(-ind * tr * r1s);
 }
 
 void looklocker_model(const struct LookLocker_model* data, complex float* out)
@@ -133,13 +139,18 @@ const struct IRbSSFP_model IRbSSFP_defaults = {
 
 static float signal_IR_bSSFP(const struct IRbSSFP_model* data, int ind)
 {
-	float fa2 = data->fa / 2.;
-	float t1s = 1. / ((cosf(fa2) * cosf(fa2)) / data->t1 + (sinf(fa2) * sinf(fa2)) / data->t2);
-	float s0 = data->m0 * sinf(fa2);
-	float stst = data->m0 * sinf(data->fa) / ((data->t1 / data->t2 + 1.) - cosf(data->fa) * (data->t1 / data->t2 - 1.));
-	float inv = 1. + s0 / stst;
+	float fa = data->fa;
+	float t1 = data->t1;
+	float t2 = data->t2;
+	float m0 = data->m0;
+	float tr = data->tr;
 
-	return stst * (1. - inv * expf(-ind * data->tr / t1s));
+	float fa2 = fa / 2.;
+	float s0 = m0 * sinf(fa2);
+	float r1s = (cosf(fa2) * cosf(fa2)) / t1 + (sinf(fa2) * sinf(fa2)) / t2;
+	float mss = m0 * sinf(fa) / ((t1 / t2 + 1.) - cosf(fa) * (t1 / t2 - 1.));
+
+	return mss - (mss + s0) * expf(-ind * tr * r1s);
 }
 
 void IR_bSSFP_model(const struct IRbSSFP_model* data, complex float* out)
