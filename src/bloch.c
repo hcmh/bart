@@ -18,6 +18,7 @@
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
 #include "simu/seq_model.h"
+#include "simu/signals.h"
 #include "misc/debug.h"
 #include "num/fft.h"
 
