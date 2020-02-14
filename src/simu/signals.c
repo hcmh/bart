@@ -67,7 +67,7 @@ static float r0(const struct hsfp_model* data)
 }
 
 
-static float hsfp_signal(const struct hsfp_model* data, float r0_val, float t)
+static float signal_hsfp(const struct hsfp_model* data, float r0_val, float t)
 {
 	float sum = 0.;
 
@@ -83,7 +83,7 @@ void hsfp_simu(const struct hsfp_model* data, float* out)
 	float r0_val = r0(data);
 
 	for (int ind = 0; ind < data->repetitions; ind++)
-		out[ind] = hsfp_signal(data, r0_val, (float)ind * data->tr);
+		out[ind] = signal_hsfp(data, r0_val, (float)ind * data->tr);
 }
 
 
@@ -100,14 +100,19 @@ const struct LookLocker_model looklocker_defaults = {
 	.repetitions = 1000,
 };
 
-void looklocker_model(const struct LookLocker_model* data, complex float* out)
+static float signal_looklocker(const struct LookLocker_model* data, int ind)
 {
 	float s0 = data->m0;
 	float r1s = 1. / data->t1 - logf(cosf(data->fa)) / data->tr;
 	float mss = s0 / (data->t1 * r1s);
 
+	return mss - (mss + s0) * expf(-ind * data->tr * r1s);
+}
+
+void looklocker_model(const struct LookLocker_model* data, complex float* out)
+{
 	for (int ind = 0; ind < data->repetitions; ind++)
-		out[ind] = mss - (mss + s0) * expf(-ind * data->tr * r1s);
+		out[ind] = signal_looklocker(data, ind);
 }
 
 
@@ -126,15 +131,20 @@ const struct IRbSSFP_model IRbSSFP_defaults = {
 	.repetitions = 1000,
 };
 
-void IR_bSSFP_model(const struct IRbSSFP_model* data, complex float* out)
+static float signal_IR_bSSFP(const struct IRbSSFP_model* data, int ind)
 {
 	float t1s = 1. / ((cosf(data->fa / 2.) * cosf(data->fa / 2.)) / data->t1 + (sinf(data->fa / 2.) * sinf(data->fa / 2.)) / data->t2);
 	float s0 = data->m0 * sinf(data->fa / 2.);
 	float stst = data->m0 * sinf(data->fa) / ((data->t1 / data->t2 + 1.) - cosf(data->fa) * (data->t1 / data->t2 - 1.));
 	float inv = 1. + s0 / stst;
 
+	return stst * (1. - inv * expf(-ind * data->tr / t1s));
+}
+
+void IR_bSSFP_model(const struct IRbSSFP_model* data, complex float* out)
+{
 	for (int ind = 0; ind < data->repetitions; ind++)
-		out[ind] = stst * (1. - inv * expf(-ind * data->tr / t1s));
+		out[ind] = signal_IR_bSSFP(data, ind);
 }
 
 
