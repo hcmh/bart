@@ -1,9 +1,9 @@
 /* Copyright 2015. The Regents of the University of California.
- * Copyright 2018-2019. Martin Uecker.
+ * Copyright 2018-2020. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * 2015-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2015-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2015 Jonathan Tamir <jtamir@eecs.berkeley.edu>
  */
 
@@ -106,22 +106,6 @@ enum eoffset {
 	ITAG_PIXEL_DATA, 
 
 	NR_ENTRIES,
-};
-
-
-struct tag {
-
-	uint16_t group;
-	uint16_t element;
-};
-
-struct element {
-
-	struct tag tag;
-	char vr[2];
-
-	unsigned int len;
-	const void* data;
 };
 
 
@@ -513,9 +497,10 @@ cleanup:
 
 static int dicom_query(size_t len, const unsigned char buf[len], bool use_implicit, int N, struct element ellist[N])
 {
+	int i;
 	size_t off = 0;
 
-	for (int i = 0; i < N; i++) {
+	for (i = 0; i < N; i++) {
 
 		struct element element;
 
@@ -528,14 +513,20 @@ static int dicom_query(size_t len, const unsigned char buf[len], bool use_implic
 
 			off += l;
 
+			if (off == len)
+				break;
+
 		} while(0 > dicom_tag_compare(element.tag,
 				ellist[i].tag));
 
 		if (0 == dicom_tag_compare(element.tag, ellist[i].tag))
 			memcpy(&ellist[i], &element, sizeof(element));
+
+		if (off == len)
+			break;
 	}
 
-	return off;
+	return i;
 }
 
 
@@ -619,7 +610,7 @@ void dicom_close(const struct dicom_obj_s* dobj)
 }
 
 
-static int dicom_query_tags(const struct dicom_obj_s* dobj, int N, struct element ellist[N])
+int dicom_query_tags(const struct dicom_obj_s* dobj, int N, struct element ellist[N])
 {
 	off_t off = dobj->off;
 

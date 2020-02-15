@@ -165,7 +165,7 @@ TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavele
 TRECO=pics pocsense sqpics itsense nlinv T1fun moba mdbT2 modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten ssa bin cordelay laplace kmeans rmfreq
 TMRI=homodyne poisson twixread fakeksp umgread looklocker paradiseread
-TIO=toimg dcmread
+TIO=toimg dcmread dcmtag
 TSIM=phantom phantom_json traj upat bloch sim
 
 
