@@ -36,7 +36,7 @@ static struct r0_a_sum r0_a_sum(const struct signal_model* data, int N, const fl
 {
 	struct r0_a_sum sum = { 0., 0. };
 
-	for (int i2= 0; i2 < ind; i2++) {
+	for (int i2 = 0; i2 < ind; i2++) {
 
 		float x = fabsf(pa[i2]);
 
