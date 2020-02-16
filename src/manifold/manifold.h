@@ -4,7 +4,6 @@
  * 
  * Authors:
  * 2019 Sebastian Rosenzweig (sebastian.rosenzweig@med.uni-goettingen.de)
-
  */
 
 #include "misc/cppwrap.h"
@@ -16,7 +15,6 @@ struct laplace_conf {
 	float sigma;	 // Standard deviation
 	_Bool temporal_nn; // Laplacian for temporal nearest neigbours
 	_Bool gen_out;	 // Output D^-1 @ W (For caclualtion of generalized Laplacian EV's v: Lv = Dv)
-
 };
 
 extern const struct laplace_conf laplace_conf_default;
