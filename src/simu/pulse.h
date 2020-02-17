@@ -23,7 +23,7 @@ extern const struct simdata_pulse simdata_pulse_defaults;
 
 extern void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle, float phase, float nl, float nr, float alpha);
 
-extern float pulse_energy(const struct simdata_pulse* pulse);
+extern float pulse_integral(const struct simdata_pulse* pulse);
 extern float pulse_sinc(const struct simdata_pulse* pulse, float t);
 
 #endif

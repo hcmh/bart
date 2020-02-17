@@ -28,24 +28,23 @@ const struct simdata_pulse simdata_pulse_defaults = {
 	.pulse_applied = false,
 };
 
-
-
-float pulse_energy(const struct simdata_pulse* pulse)
-{	
+static float pulse_antiderivative(const struct simdata_pulse* pulse, float t)
+{
 	float c = M_PI / pulse->n / pulse->t0;
-	float d = M_PI / pulse->t0;
 
+	return 	pulse->A * pulse->t0 *
+			( pulse->alpha 	* ( Si(c * t * (pulse->n-1))
+					+ Si(c * t * (pulse->n+1)) )
+			-2 * (pulse->alpha-1) * Si(M_PI / pulse->t0 * t) )
+		/ 2 / M_PI;
+}
+
+
+float pulse_integral(const struct simdata_pulse* pulse)
+{
 	float durh = (pulse->rf_end - pulse->rf_start) / 2.;
 
-	float si0 = Si( d * durh);
-	float si1 = Si(-d * durh);
-	float si2 = Si( (c - d) * durh);
-	float si3 = Si(-(c - d) * durh);
-	float si4 = Si( (c + d) * durh);
-	float si5 = Si(-(c + d) * durh);
-
-	return    pulse->A * (1. - pulse->alpha) / d * (si0 - si1)
-		+ pulse->A * pulse->alpha / (2. * d) * (si2 - si3 + si4 - si5);
+	return pulse_antiderivative(pulse, durh) - pulse_antiderivative(pulse, -durh);
 }
 
 
@@ -74,20 +73,21 @@ void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, flo
 	pulse->rf_start = rf_start;
 	pulse->rf_end = rf_end;
 	pulse->pulse_length = rf_end - rf_start;
-	pulse->flipangle = angle;
+	pulse->flipangle = 90.;
 	pulse->phase = phase;
 	pulse->nl = nl;
 	pulse->nr = nr;
 	pulse->n = MAX(nl, nr);
 	pulse->t0 = pulse->pulse_length / ( 2 + (nl-1) + (nr-1) );
 	pulse->alpha = alpha;
-	pulse->A = 1;
+	pulse->A = 1.;
 
-	float energy = pulse_energy(pulse);
+	// Determine scaling factor to Ensure pi/2 = PulseIntegral -> 90 degree roatation
+	float integral = pulse_integral(pulse); 
 
-	// WTF is this?
-	float calibration_energy = 0.991265;//2.3252; // turns M by 90°
+	float scaling = M_PI / 2. / integral;
 
-	// change scale to reach desired flipangle
-	pulse->A = (calibration_energy / energy) / 90 * angle;
+	//Update parameters
+	pulse->flipangle = angle;
+	pulse->A = scaling / 90 * angle;
 }
