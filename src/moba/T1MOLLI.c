@@ -8,392 +8,121 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 
+#include "nlops/zexp.h"
 #include "nlops/nlop.h"
+#include "nlops/cast.h"
+#include "nlops/chain.h"
+#include "nlops/nltest.h"
+#include "nlops/stack.h"
+#include "nlops/const.h"
+
+#include "linops/linop.h"
+#include "linops/lintest.h"
+#include "linops/someops.h"
 
 #include "T1MOLLI.h"
+#include "T1relax.h"
+#include "T1srelax.h"
 
 //#define general
 //#define mphase
 
-struct T1_s {
-
-	INTERFACE(nlop_data_t);
-
-	int N;
-
-	const long* map_dims;
-	const long* TI_dims;
-	const long* in_dims;
-	const long* out_dims;
-
-	const long* map_strs;
-	const long* TI_strs;
-	const long* in_strs;
-	const long* out_strs;
-
-	// Parameter maps
-	complex float* M0;
-	complex float* R1;
-	complex float* R1s;
-
-	complex float* tmp_map;
-	complex float* tmp_map1;
-	complex float* tmp_ones;
-	complex float* tmp_exp;
-        complex float* tmp_exp_R1;
-
-	complex float* tmp_dM0;
-	complex float* tmp_dR1;
-	complex float* tmp_dR1s;
-        
-        complex float* M_start;
-//         complex float* M_end;
-
-	complex float* TI;
-
-//	float scaling_R1;
-	float scaling_R1s;
-};
-
-DEF_TYPEID(T1_s);
-
-// Mt = M0 + (M_start - M0) * exp(-t.*R1)
-static void T1_relax(const struct T1_s* data, float time)
+struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI, bool use_gpu) 
 {
+
+        #ifdef USE_CUDA
+        md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
+        #else
+        assert(!use_gpu);
+        md_alloc_fun_t my_alloc = md_alloc;
+        #endif
+
+        long scale_dims[N];
+        long TI2_dims[N];
+
+        md_singleton_dims(N, scale_dims);
+        md_singleton_dims(N, TI2_dims);
+
+        complex float* scale = my_alloc(N, scale_dims, CFL_SIZE);
+        complex float* TI2 = my_alloc(N, TI2_dims, CFL_SIZE);
+
+        long out2_dims[N];
+        md_copy_dims(N, out2_dims, out_dims);
+        out2_dims[TE_DIM] = 1;
+
+
+        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
+        struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI2);
+        struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
         
-        // -t.*R1
-        md_zsmul(data->N, data->map_dims, data->tmp_map, data->R1, -1.0*time);
-        md_zexp(data->N, data->map_dims, data->tmp_exp_R1, data->tmp_map);
-        md_zsub(data->N, data->map_dims, data->tmp_map, data->M_start, data->M0);
-        md_zmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, data->tmp_exp_R1);
-        md_zadd(data->N, data->map_dims, data->M_start, data->tmp_map, data->M0);
-}
-
-// // Mt = M0.*(R1/R1s) - (M0.*(R1/R1s) -(-M0)) * exp(-t.*R1s)
-// static void T1s_relax(const struct T1_s* data, complex float* dst)
-// {
-//         // exp(-t.*scaling_R1s*R1s):
-//         // -1*scaling_R1s.*R1s
-// 	md_zsmul(data->N, data->map_dims, data->tmp_map, data->R1s, -1.0*data->scaling_R1s);
-//         
-//         for(int k=0; k < (data->TI_dims[5]); k++)
-// 		md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->tmp_exp + data->out_strs[5] * k, data->map_strs, (void*)data->tmp_map, data->TI[k]);
-// 
-//         md_zexp(data->N, data->out_dims, data->tmp_exp, data->tmp_exp);
-//         
-// 	const float reg_parameter = 1e-6;
-//         
-//         //1 + R1/R1*
-// 	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->R1s, reg_parameter);
-// 	md_zsmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, 1./data->scaling_R1s);
-// 
-// 	md_zfill(data->N, data->map_dims, data->tmp_ones, 1.0);
-// 
-//         md_zadd(data->N, data->map_dims, data->tmp_map1, data->tmp_ones, data->tmp_map);
-// 
-// 	// (1 + R1/R1*).*exp(-t.*scaling_R1s*R1s)
-// 	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->map_strs, data->tmp_map1, data->out_strs, data->tmp_exp);
-// 
-// 	//Model: M0*( R1/R1* -(1 + R1/R1*).*exp(-t.*scaling_R1s*R1s))
-// 	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_dM0, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dR1s);
-// 	
-//         md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->M0, data->out_strs, data->tmp_dM0);
-// }
-
-// Mt = M0.*(R1/R1s) - (M0.*(R1/R1s) -M_start) * exp(-t.*R1s)
-static void T1s_relax(const struct T1_s* data, complex float* dst)
-{
-        // exp(-t.*scaling_R1s*R1s):
-        // -1*scaling_R1s.*R1s
-	md_zsmul(data->N, data->map_dims, data->tmp_map, data->R1s, -1.0*data->scaling_R1s);
+        // first chain
+        struct nlop_s* T1c_combine = nlop_combine(T1_1, T1s_1);
+        struct nlop_s* T1c_link = nlop_link(T1c_combine, 2, 0);
         
-        for(int k=0; k < (data->TI_dims[5]); k++)
-		md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->tmp_exp + data->out_strs[5] * k, data->map_strs, (void*)data->tmp_map, data->TI[k]);
+        struct nlop_s* T1c_dup1 = nlop_dup(T1c_link, 1, 4);
+        struct nlop_s* T1c_dup1_1 = nlop_dup(T1c_dup1, 0, 3);
 
-        md_zexp(data->N, data->out_dims, data->tmp_exp, data->tmp_exp);
-        
-	const float reg_parameter = 1e-6;
-        
-        //M0 * R1/R1s - M_start
-	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->R1s, reg_parameter);
-	md_zsmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, 1./data->scaling_R1s);
+        nlop_free(T1s_1);
+        nlop_free(T1_1);
+        nlop_free(T1c_combine);
 
-        md_zmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, data->M0);
-        md_zsub(data->N, data->map_dims, data->tmp_map1, data->tmp_map, data->M_start);
+        // second chain
+        struct nlop_s* T1c_combine2 = nlop_combine(T1s_2, T1c_dup1_1);
+        struct nlop_s* T1c_link2 = nlop_link(T1c_combine2, 2, 0);
 
-	// (M0 * R1/R1s - M_start).*exp(-t.*scaling_R1s*R1s)
-	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->map_strs, data->tmp_map1, data->out_strs, data->tmp_exp);
+        struct nlop_s* T1c_dup2 = nlop_dup(T1c_link2, 2, 6);
+        struct nlop_s* T1c_dup2_1 = nlop_dup(T1c_dup2, 1, 4);
+        struct nlop_s* T1c_dup2_2 = nlop_dup(T1c_dup2_1, 0, 3);
 
-	//Model: (M0 * R1/R1s -(-M_start + M0 * R1/R1s).*exp(-t.*scaling_R1s*R1s))
-	md_zsub2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dR1s);
-        
-        long pos[data->N];
+        // struct nlop_s* T1c_dup2_2_del = nlop_del_out(T1c_dup2_2, 1);
 
-	for (int i = 0; i < data->N; i++)
-		pos[i] = 0;
-        
-        pos[TE_DIM] = data->TI_dims[5]-1;
-	md_copy_block(data->N, pos, data->map_dims, data->M_start, data->out_dims, dst, CFL_SIZE);
-	
-}
+        nlop_free(T1c_link);
+        nlop_free(T1c_dup1_1);
+        nlop_free(T1s_2);
+        nlop_free(T1c_combine2);
 
+        // stack two outputs
+        long sodims[N];
+        md_copy_dims(N, sodims, out_dims);
+        sodims[TE_DIM] = 2 * out_dims[TE_DIM];
+        struct nlop_s* stack = nlop_stack_create(N, sodims, out_dims, out_dims, TE_DIM);
 
-// Calculate Model: M0 * (R1/R1s - (1 + R1/R1s) * exp(-t.*R1s))
-static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
-{
-	struct T1_s* data = CAST_DOWN(T1_s, _data);
-	long pos[data->N];
+        struct nlop_s* T1s_combine_stack = nlop_combine(stack, T1s_dup3);
+        struct nlop_s* T1s_link_stack_1 = nlop_link(T1s_combine_stack, 1, 1);
 
-	for (int i = 0; i < data->N; i++)
-		pos[i] = 0;
-        
-        const float reg_parameter = 1e-6;
-        const float time_sys = 400e-3;
-        
-//         const int frame_per_HB = 8;
+        struct nlop_s* T1s_link_stack_2 = nlop_link(T1s_link_stack_1, 2, 0);
 
-	// M0
-	pos[COEFF_DIM] = 0;
-	md_copy_block(data->N, pos, data->map_dims, data->M0, data->in_dims, src, CFL_SIZE);
-
-	// R1
-	pos[COEFF_DIM] = 1;
-	md_copy_block(data->N, pos, data->map_dims, data->R1, data->in_dims, src, CFL_SIZE);
-
-	// R1s
-	pos[COEFF_DIM] = 2;
-	md_copy_block(data->N, pos, data->map_dims, data->R1s, data->in_dims, src, CFL_SIZE);
-        
-        md_zsmul(data->N, data->map_dims, data->M_start, data->M0, -1.0);
-        
-        
-//         T1_relax( data, M_end, M_start, time);
-        T1s_relax(data, dst);
-        T1_relax(data, time_sys);
-        T1s_relax(data, dst);
-
-// 	// -1*scaling_R1s.*R1s
-// 	md_zsmul(data->N, data->map_dims, data->tmp_map, data->R1s, -1.0*data->scaling_R1s);
-// 
-// 	// exp(-t.*scaling_R1s*R1s):
-// 
-// 	for(int k=0; k < (data->TI_dims[5]); k++)
-// 		md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->tmp_exp + data->out_strs[5] * k, data->map_strs, (void*)data->tmp_map, data->TI[k]);
-// 
-// 	md_zexp(data->N, data->out_dims, data->tmp_exp, data->tmp_exp);
-// 
-	//1 + R1/R1*
-	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->R1s, reg_parameter);
-	md_zsmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, 1./data->scaling_R1s);
-
-	md_zfill(data->N, data->map_dims, data->tmp_ones, 1.0);
-
-        md_zadd(data->N, data->map_dims, data->tmp_map1, data->tmp_ones, data->tmp_map);
-// 
-// 	// (1 + R1/R1*).*exp(-t.*scaling_R1s*R1s)
-	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->map_strs, data->tmp_map1, data->out_strs, data->tmp_exp);
-// 
-// 	//Model: M0*( R1/R1* -(1 + R1/R1*).*exp(-t.*scaling_R1s*R1s))
-	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_dM0, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dR1s);
-// 	
-//         md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->M0, data->out_strs, data->tmp_dM0);
-
-	// Calculating derivatives
-        // R1'
-	md_zdiv_reg(data->N, data->map_dims, data->tmp_map1, data->M0, data->R1s, reg_parameter);
-	md_zsmul(data->N, data->map_dims, data->tmp_map1, data->tmp_map1, 1./data->scaling_R1s);
-	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->tmp_ones, data->out_strs, data->tmp_exp);
-        md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->tmp_map1, data->out_strs, data->tmp_dR1);
-
-        // R1s'
-	long img_dims[data->N];
-	md_select_dims(data->N, FFT_FLAGS, img_dims, data->map_dims);
-
-	for (int s=0; s < data->out_dims[13]; s++)
-		for(int k=0; k < data->TI_dims[5]; k++)
-			//debug_printf(DP_DEBUG2, "\tTI: %f\n", creal(data->TI[k]));
-			md_zsmul(data->N, img_dims, (void*)data->tmp_dR1s + data->out_strs[5] * k + data->out_strs[13] * s,
-						(void*)data->tmp_dR1s + data->out_strs[5] * k + data->out_strs[13] * s, data->TI[k]);
-	
-        md_zmul(data->N, data->map_dims, data->tmp_map, data->R1s, data->R1s);
-	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->tmp_map, reg_parameter);
-	md_zsmul(data->N, data->map_dims, data->tmp_map, data->tmp_map, 1./(data->scaling_R1s*data->scaling_R1s));
-	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_ones);
-        md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_map, data->out_strs, data->tmp_exp);
-        md_zadd(data->N, data->out_dims, data->tmp_dR1s, data->tmp_dR1s, data->tmp_exp);
-  
-        md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1s, data->map_strs, data->M0, data->out_strs, data->tmp_dR1s);
-
-}
-
-static void T1_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
-{
-	struct T1_s* data = CAST_DOWN(T1_s, _data);
-	long pos[data->N];
-
-	for (int i = 0; i < data->N; i++)
-		pos[i] = 0;
-
-	// tmp = dR1
-	pos[COEFF_DIM] = 1;
-	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-
-	//const complex float* tmp_M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-
-	// dst = R1' * dR1
-	md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dR1);
-
-	// tmp = dMss
-	pos[COEFF_DIM] = 0;
-	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-	//const complex float* tmp_Mss = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	// dst = dst + dMss * Mss'
-	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dM0);
-
-	// tmp =  dR1s
-	pos[COEFF_DIM] = 2;
-	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-	//const complex float* tmp_R1s = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-
-	// dst = dst + dR1s * R1s'
-	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dR1s);
-}
-
-static void T1_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
-{
-	struct T1_s* data = CAST_DOWN(T1_s, _data);
-
-	long pos[data->N];
-
-	for (int i = 0; i < data->N; i++)
-		pos[i] = 0;
-
-	// sum (conj(M0') * src, t)
-	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
-	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->tmp_dR1);
-
-	// dst[1] = sum (conj(M0') * src, t)
-	pos[COEFF_DIM] = 1;
-	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-
-	// sum (conj(Mss') * src, t)
-	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
-	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->tmp_dM0);
-
-	// dst[0] = sum (conj(Mss') * src, t)
-	pos[COEFF_DIM] = 0;
-	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-
-	// sum (conj(R1s') * src, t)
-	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
-	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->tmp_dR1s);
-	//md_zreal(data->N, data->map_dims, data->tmp_map, data->tmp_map);
-
-	// dst[2] = sum (conj(R1s') * src, t)
-	pos[COEFF_DIM] = 2;
-	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-}
-
-static void T1_del(const nlop_data_t* _data)
-{
-	struct T1_s* data = CAST_DOWN(T1_s, _data);
-
-	md_free(data->R1);
-	md_free(data->M0);
-	md_free(data->R1s);
-
-	md_free(data->TI);
-
-	md_free(data->tmp_map);
-        md_free(data->tmp_map1);
-	md_free(data->tmp_ones);
-        md_free(data->M_start);
-	md_free(data->tmp_exp);
-
-	md_free(data->tmp_dM0);
-	md_free(data->tmp_dR1);
-	md_free(data->tmp_dR1s);
-
-	xfree(data->map_dims);
-	xfree(data->TI_dims);
-	xfree(data->in_dims);
-	xfree(data->out_dims);
-
-	xfree(data->map_strs);
-	xfree(data->TI_strs);
-	xfree(data->in_strs);
-	xfree(data->out_strs);
-
-	xfree(data);
-}
+        struct nlop_s* T1s_link_stack_3 = nlop_del_out(T1s_link_stack_2, 1);
 
 
-struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long TI_dims[N], const complex float* TI, bool use_gpu)
-{
-#ifdef USE_CUDA
-	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
-#else
-	assert(!use_gpu);
-	md_alloc_fun_t my_alloc = md_alloc;
-#endif
+        // scaling operator
+        complex float diag[1] = {-1.0};
+        md_copy(N, scale_dims, scale, diag, CFL_SIZE);
 
-	PTR_ALLOC(struct T1_s, data);
-	SET_TYPEID(T1_s, data);
+        struct linop_s* linop_scalar = linop_cdiag_create(N, map_dims, COEFF_FLAG, scale);
+
+        struct nlop_s* nl_scalar = nlop_from_linop(linop_scalar);
+
+        linop_free(linop_scalar);
+
+        struct nlop_s* T1s_combine_scale = nlop_combine(T1s_link_stack_3, nl_scalar);
+        struct nlop_s* T1s_link_scale = nlop_link(T1s_combine_scale, 1, 3);
+        struct nlop_s* T1s_dup_scale = nlop_dup(T1s_link_scale, 0, 3);
 
 
-	PTR_ALLOC(long[N], ndims);
-	md_copy_dims(N, *ndims, map_dims);
-	data->map_dims = *PTR_PASS(ndims);
+        nlop_free(T1s_combine_scale);
+        nlop_free(nl_scalar);
+    	nlop_free(T1s_link_stack_3);
+        nlop_free(T1s_link_stack_2);
+        nlop_free(T1s_link_stack_1);
+        nlop_free(T1s_combine_stack);
+        nlop_free(T1s_1);
+    	nlop_free(T1s_2);
+    	nlop_free(T1s_combine);
 
-	PTR_ALLOC(long[N], nodims);
-	md_copy_dims(N, *nodims, out_dims);
-	data->out_dims = *PTR_PASS(nodims);
+        md_free(scale);
+        md_free(TI2);
 
-	PTR_ALLOC(long[N], nidims);
-	md_copy_dims(N, *nidims, in_dims);
-	data->in_dims = *PTR_PASS(nidims);
 
-	PTR_ALLOC(long[N], ntidims);
-	md_copy_dims(N, *ntidims, TI_dims);
-	data->TI_dims = *PTR_PASS(ntidims);
-
-	PTR_ALLOC(long[N], nmstr);
-	md_calc_strides(N, *nmstr, map_dims, CFL_SIZE);
-	data->map_strs = *PTR_PASS(nmstr);
-
-	PTR_ALLOC(long[N], nostr);
-	md_calc_strides(N, *nostr, out_dims, CFL_SIZE);
-	data->out_strs = *PTR_PASS(nostr);
-
-	PTR_ALLOC(long[N], nistr);
-	md_calc_strides(N, *nistr, in_dims, CFL_SIZE);
-	data->in_strs = *PTR_PASS(nistr);
-
-	PTR_ALLOC(long[N], ntistr);
-	md_calc_strides(N, *ntistr, TI_dims, CFL_SIZE);
-	data->TI_strs = *PTR_PASS(ntistr);
-
-	data->N = N;
-	data->R1 = my_alloc(N, map_dims, CFL_SIZE);
-	data->M0 = my_alloc(N, map_dims, CFL_SIZE);
-	data->R1s = my_alloc(N, map_dims, CFL_SIZE);
-	data->tmp_map = my_alloc(N, map_dims, CFL_SIZE);
-        data->tmp_map1 = my_alloc(N, map_dims, CFL_SIZE);
-	data->tmp_ones = my_alloc(N, map_dims, CFL_SIZE);
-        data->M_start = my_alloc(N, map_dims, CFL_SIZE);
-	data->tmp_exp = my_alloc(N, out_dims, CFL_SIZE);
-	data->tmp_dM0 = my_alloc(N, out_dims, CFL_SIZE);
-	data->tmp_dR1 = my_alloc(N, out_dims, CFL_SIZE);
-	data->tmp_dR1s = my_alloc(N, out_dims, CFL_SIZE);
-#ifdef general
-	data->TI = my_alloc(N, TI_dims, CFL_SIZE);
-#else
-	data->TI = md_alloc(N, TI_dims, CFL_SIZE);
-#endif
-	md_copy(N, TI_dims, data->TI, TI, CFL_SIZE);
-
-//	data->scaling_M0 = 2.0;
-	data->scaling_R1s = 1.0;
-
-	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
+        return T1s_dup_scale;
 }

@@ -870,6 +870,8 @@ static bool test_T1_MOLLI_relax_link1(void)
         struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
         struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI2);
         struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
+        struct nlop_s* T1_2 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI2);
+        struct nlop_s* T1s_3 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
         
         // first chain
         struct nlop_s* T1c_combine = nlop_combine(T1_1, T1s_1);
@@ -890,45 +892,91 @@ static bool test_T1_MOLLI_relax_link1(void)
         struct nlop_s* T1c_dup2_1 = nlop_dup(T1c_dup2, 1, 4);
         struct nlop_s* T1c_dup2_2 = nlop_dup(T1c_dup2_1, 0, 3);
 
-        struct nlop_s* T1c_dup2_2_del = nlop_del_out(T1c_dup2_2, 1);
+        // struct nlop_s* T1c_dup2_2_del = nlop_del_out(T1c_dup2_2, 1);
 
      	nlop_free(T1c_link);
         nlop_free(T1s_2);
  	nlop_free(T1c_combine2);
 
-  //       // stack two outputs
+ 	// third chain
+ 	struct nlop_s* T1c_combine3 = nlop_combine(T1_2, T1c_dup2_2);
+ 	struct nlop_s* T1c_link3 = nlop_link(T1c_combine3, 2, 0);
+
+ 	struct nlop_s* T1c_dup3 = nlop_dup(T1c_link3, 1, 3);
+ 	struct nlop_s* T1c_dup3_1 = nlop_dup(T1c_dup3, 0, 2);
+
+ 	nlop_free(T1c_combine3);
+        nlop_free(T1_2);
+        nlop_free(T1c_dup2_2);
+
+        //  stack the outputs together
         long sodims[N];
         md_copy_dims(N, sodims, out_dims);
         sodims[TE_DIM] = 2 * out_dims[TE_DIM];
         struct nlop_s* stack = nlop_stack_create(N, sodims, out_dims, out_dims, TE_DIM);
 
-        struct nlop_s* T1c_combine_stack = nlop_combine(stack, T1c_dup2_2_del);
-        struct nlop_s* T1c_link_stack_1 = nlop_link(T1c_combine_stack, 1, 1);
+        struct nlop_s* T1c_combine_stack = nlop_combine(stack, T1c_dup3_1);
+        struct nlop_s* T1c_link_stack_1 = nlop_link(T1c_combine_stack, 3, 0);
 
-        struct nlop_s* T1c_link_stack_2 = nlop_link(T1c_link_stack_1, 1, 0);
+        struct nlop_s* T1c_link_stack_2 = nlop_link(T1c_link_stack_1, 2, 0);
 
         
         nlop_free(stack);
-        nlop_free(T1c_dup2_2_del);
         nlop_free(T1c_combine_stack);
-        nlop_free(T1c_link_stack_1);
+        nlop_free(T1c_dup3_1);
+        nlop_free(T1c_link_stack_1); 
 
-        // // scaling operator
-        complex float diag[1] = {-1.0};
-        md_copy(N, scale_dims, scale, diag, CFL_SIZE);
+        // fourth chain
+ 	struct nlop_s* T1c_combine4 = nlop_combine(T1s_3, T1c_link_stack_2);
+ 	struct nlop_s* T1c_link4 = nlop_link(T1c_combine4, 3, 0);
 
-        struct linop_s* linop_scalar = linop_cdiag_create(N, map_dims, COEFF_FLAG, scale);
+ 	struct nlop_s* T1c_dup4 = nlop_dup(T1c_link4, 2, 5);
+ 	struct nlop_s* T1c_dup4_1 = nlop_dup(T1c_dup4, 1, 4);
+ 	struct nlop_s* T1c_dup4_2 = nlop_dup(T1c_dup4_1, 0, 3);
 
-        struct nlop_s* nl_scalar = nlop_from_linop(linop_scalar);
+ 	nlop_free(T1c_combine4);
+        nlop_free(T1s_3);
+        nlop_free(T1c_link_stack_2);
 
-        linop_free(linop_scalar);
 
-        struct nlop_s* T1c_combine_scale = nlop_combine(T1c_link_stack_2, nl_scalar);
-        struct nlop_s* T1c_link_scale = nlop_link(T1c_combine_scale, 1, 3);
-        struct nlop_s* T1c_dup_scale = nlop_dup(T1c_link_scale, 0, 3);
 
-        nlop_free(nl_scalar);
-        nlop_free(T1c_combine_scale);
+  //       // stack two outputs
+        // long sodims[N];
+        // md_copy_dims(N, sodims, out_dims);
+        // sodims[TE_DIM] = 2 * out_dims[TE_DIM];
+        // struct nlop_s* stack = nlop_stack_create(N, sodims, out_dims, out_dims, TE_DIM);
+
+        // struct nlop_s* T1c_combine_stack = nlop_combine(stack, T1c_dup2_2_del);
+        // struct nlop_s* T1c_link_stack_1 = nlop_link(T1c_combine_stack, 1, 1);
+
+        // struct nlop_s* T1c_link_stack_2 = nlop_link(T1c_link_stack_1, 1, 0);
+
+        
+        // nlop_free(stack);
+        // nlop_free(T1c_dup2_2_del);
+        // nlop_free(T1c_combine_stack);
+        // nlop_free(T1c_link_stack_1);
+
+        
+
+
+
+        // // // scaling operator
+        // complex float diag[1] = {-1.0};
+        // md_copy(N, scale_dims, scale, diag, CFL_SIZE);
+
+        // struct linop_s* linop_scalar = linop_cdiag_create(N, map_dims, COEFF_FLAG, scale);
+
+        // struct nlop_s* nl_scalar = nlop_from_linop(linop_scalar);
+
+        // linop_free(linop_scalar);
+
+        // struct nlop_s* T1c_combine_scale = nlop_combine(T1c_link_stack_2, nl_scalar);
+        // struct nlop_s* T1c_link_scale = nlop_link(T1c_combine_scale, 1, 3);
+        // struct nlop_s* T1c_dup_scale = nlop_dup(T1c_link_scale, 0, 3);
+
+        // nlop_free(nl_scalar);
+        // nlop_free(T1c_combine_scale);
 
         // Analytical model    
         // T1* relaxation
