@@ -1,9 +1,9 @@
-/* Copyright 2018. Uecker Lab. University Medical Center Göttingen.
+/* Copyright 2018-2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2018 Sebastian Rosenzweig
+ * 2018-2020 Sebastian Rosenzweig
  *
  */
 
@@ -25,12 +25,12 @@
 
 
 /* Reorder binning: [-o]
- * Input a 1D file with <lables> at the <src> dimension, that you want to reorder (according to the lable order)
+ * Input a 1D file with <labels> at the <src> dimension, that you want to reorder (according to the label order)
  *
  * ---
  *
  * Lable binning: [-l long]
- * Bin a dimension according to the lable-file <bin-signal>
+ * Bin a dimension according to the label-file <bin-signal>
  * The label file must be 1D and the dimension of the <label> file and the <src> file must match at the dimension that you want to bin
  * -d must specify an empty dimension, in which the binned data is stored
  *
@@ -48,11 +48,11 @@
  */
 
 // Binning by equal central angle
-static void det_bins(const complex float* state, const long bins_dims[DIMS], float* bins, const int idx, const unsigned int n, const bool bin_mod)
+static void det_bins(const complex float* state, const long bins_dims[DIMS], float* bins, const int idx, const int n, const bool bin_mod)
 {
-	unsigned int T = bins_dims[TIME_DIM];
+	int T = bins_dims[TIME_DIM];
 
-	float offset_angle = 0;
+	float offset_angle = 0.;
 	float central_angle = 2. * M_PI / n;
 
 	if (bin_mod) {
@@ -64,8 +64,6 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 		 * Then, we offset the binning angle to ensure that all samples on a peak of the symmetric EOF
 		 * (which belong to end expiration) are assigned to the same bin.
 		 */
-
-
 
 		// Find symmetric EOF
 		int sym_EOF;
@@ -83,29 +81,29 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 		float future;
 		int peak_idx = 0;
 
-		for (unsigned int t = 1; t < T - 1; t++) {
+		for (int t = 1; t < T - 1; t++) {
 
 			past = crealf(state[T * sym_EOF + t - 1]);
 			current = crealf(state[T * sym_EOF + t]);
 			future = crealf(state[T * sym_EOF + t + 1]);
 
-			if (past < current && future < current) { // Peak found
+			if ((past < current) && (future < current)) { // Peak found
 
 				peak_idx = t;
 				break;
 			}
 		}
 
-		float peak_angle = (M_PI + atan2f(crealf(state[T * sym_EOF + peak_idx]), crealf(state[T * sym_EOF + peak_idx])));
+		float peak_angle = M_PI + atan2f(crealf(state[T * sym_EOF + peak_idx]), crealf(state[T * sym_EOF + peak_idx]));
 		offset_angle = - peak_angle + central_angle / 2.;
 	}
 
 	float angle;
 
-	for (unsigned int t = 0; t < T; t++) {
+	for (int t = 0; t < T; t++) {
 
 		angle = atan2f(crealf(state[T + t]), crealf(state[t])) + offset_angle;
-		angle = angle < 0 ? angle + 2. * M_PI : angle;
+		angle = (angle < 0) ? (angle + 2. * M_PI) : angle;
 
 		bins[idx * T + t] = floor(angle / central_angle);
 
@@ -116,69 +114,58 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 /* Check if time is consistent with increasing bin index
  *
  * Idea: Calculate the angles defined by EOF_a & EOF_b (phase diagram!) for time
- * steps total_time/2 and total_time/2+1. If the angle increases, time evolution is consistent with
- * increasing bin-index.  Otherwise, swap EOF_a with EOF_b.
+ * steps total_time/2 and total_time/2+1. If the angle increases, time evolution
+ * is consistent with increasing bin-index.  Otherwise, swap EOF_a with EOF_b.
  */
 
-static bool check_valid_time(const long singleton_dims[DIMS], complex float* singleton, const long lables_dims[DIMS], const complex float* lables, const long lables_idx[2])
+static bool check_valid_time(const long singleton_dims[DIMS], complex float* singleton, const long labels_dims[DIMS], const complex float* labels, const long labels_idx[2])
 {
-
 	// Indices at half of total time
-	int idx_0 = floor(singleton_dims[TIME_DIM] / 2);
+	int idx_0 = floor(singleton_dims[TIME_DIM] / 2);	// FIXME? argument of floor is an integer type  maybe /2. ?
 	int idx_1 = idx_0 + 1;
 
 	long pos[DIMS] = { 0 };
-	pos[TIME2_DIM] = lables_idx[0];
-	md_copy_block(DIMS, pos, singleton_dims, singleton, lables_dims, lables, CFL_SIZE);
+
+	pos[TIME2_DIM] = labels_idx[0];
+	md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
+
 	float a_0 = crealf(singleton[idx_0]);
 	float a_1 = crealf(singleton[idx_1]);
 
-	pos[TIME2_DIM] = lables_idx[1];
-	md_copy_block(DIMS, pos, singleton_dims, singleton, lables_dims, lables, CFL_SIZE);
+	pos[TIME2_DIM] = labels_idx[1];
+	md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
+
 	float b_0 = crealf(singleton[idx_0]);
 	float b_1 = crealf(singleton[idx_1]);
 
 	float angle_0 = atan2f(b_0, a_0);
- 	if (angle_0 < 0) // phase unwrap
- 		angle_0 += 2 * M_PI;
+
+	if (angle_0 < 0.)
+		angle_0 += 2. * M_PI;
 
 	float angle_1 = atan2f(b_1, a_1);
- 	if (angle_1 < 0)
-		angle_1 += 2 * M_PI;
+
+	if (angle_1 < 0.)
+		angle_1 += 2. * M_PI;
 
 	// Check if angle increases (and consider phase wrap!)
-	bool valid_time;
 	float diff = angle_1 - angle_0;
-	float abs_diff = fabsf(diff);
 
-	if (diff >= 0) {
-		if (abs_diff <= M_PI)
-			valid_time = true;
-		else
-			valid_time = false;
-	} else {
-		if (abs_diff <= M_PI)
-			valid_time = false;
-		else
-			valid_time = true;
-	}
-
-	return valid_time;
-
+	return ((diff >= 0.) == (fabsf(diff) <= M_PI));
 }
 
 
 // Calculate maximum number of samples in a bin
-static int get_binsize_max(const long bins_dims[DIMS], const float* bins, unsigned int n_card, unsigned int n_resp)
+static int get_binsize_max(const long bins_dims[DIMS], const float* bins, const int n_card, const int n_resp)
 {
 	// Array to count number of appearances of a bin
 	long count_dims[2] = { n_card, n_resp };
 
 	int* count = md_calloc(2, count_dims, sizeof(int));
 
-	unsigned int T = bins_dims[TIME_DIM]; // Number of time samples
+	int T = bins_dims[TIME_DIM]; // Number of time samples
 
-	for (unsigned int t = 0; t < T; t++) { // Iterate through time
+	for (int t = 0; t < T; t++) { // Iterate through time
 
 		int cBin = (int)bins[0 * T + t];
 		int rBin = (int)bins[1 * T + t];
@@ -189,9 +176,9 @@ static int get_binsize_max(const long bins_dims[DIMS], const float* bins, unsign
 	// Determine value of array maximum
 	int binsize_max = 0;
 
-	for (unsigned int r = 0; r < n_resp; r++) {
+	for (int r = 0; r < n_resp; r++) {
 
-		for (unsigned int c = 0; c < n_card; c++) {
+		for (int c = 0; c < n_card; c++) {
 
 			if (count[r * n_card + c] > binsize_max)
 				binsize_max = count[r * n_card + c];
@@ -222,12 +209,12 @@ n_card, const int n_resp)
 
 	complex float* in_singleton = md_alloc(DIMS, in_singleton_dims, CFL_SIZE);
 
-	unsigned int T = bins_dims[TIME_DIM]; // Number of time samples
+	int T = bins_dims[TIME_DIM]; // Number of time samples
 
 	long pos0[DIMS] = { 0 };
 	long pos1[DIMS] = { 0 };
 
-	for (unsigned int t = 0; t < T; t++) { // Iterate all spokes of input array
+	for (int t = 0; t < T; t++) { // Iterate all spokes of input array
 
 		pos0[TIME_DIM] = t;
 		md_copy_block(DIMS, pos0, in_singleton_dims, in_singleton, in_dims, in, CFL_SIZE);
@@ -249,7 +236,7 @@ n_card, const int n_resp)
 }
 
 
-static void moving_average(const long state_dims[DIMS], complex float* state, const unsigned int mavg_window)
+static void moving_average(const long state_dims[DIMS], complex float* state, const int mavg_window)
 {
 	// Pad with boundary values
 	long pad_dims[DIMS];
@@ -317,7 +304,7 @@ static void moving_average(const long state_dims[DIMS], complex float* state, co
 
 
 
-static const char usage_str[] = "<lable> <src> <dst>";
+static const char usage_str[] = "<label> <src> <dst>";
 static const char help_str[] = "Binning\n";
 
 
@@ -331,20 +318,20 @@ int main_bin(int argc, char* argv[])
 	bool bin_mod = false;
 	int cluster_dim = -1;
 
-	long resp_lables_idx[2] = { 0, 1 };
-	long card_lables_idx[2] = { 2, 3 };
+	long resp_labels_idx[2] = { 0, 1 };
+	long card_labels_idx[2] = { 2, 3 };
 
 	bool reorder = false;
 
 
 	const struct opt_s opts[] = {
 
-		OPT_INT('l', &cluster_dim, "dim", "Bin according to lables: Specify cluster dimension"),
-		OPT_SET('o', &reorder, "Reorder according to lables"),
-		OPT_UINT('R', &n_resp, "n_resp", "Quadrature Binning: Number of respiratory lables"),
-		OPT_UINT('C', &n_card, "n_card", "Quadrature Binning: Number of cardiac lables"),
-		OPT_VEC2('r', &resp_lables_idx, "x:y", "(Respiration: Eigenvector index)"),
-		OPT_VEC2('c', &card_lables_idx, "x:y", "(Cardiac motion: Eigenvector index)"),
+		OPT_INT('l', &cluster_dim, "dim", "Bin according to labels: Specify cluster dimension"),
+		OPT_SET('o', &reorder, "Reorder according to labels"),
+		OPT_UINT('R', &n_resp, "n_resp", "Quadrature Binning: Number of respiratory labels"),
+		OPT_UINT('C', &n_card, "n_card", "Quadrature Binning: Number of cardiac labels"),
+		OPT_VEC2('r', &resp_labels_idx, "x:y", "(Respiration: Eigenvector index)"),
+		OPT_VEC2('c', &card_labels_idx, "x:y", "(Cardiac motion: Eigenvector index)"),
 		OPT_UINT('a', &mavg_window, "window", "Quadrature Binning: Moving average"),
 		OPT_UINT('A', &mavg_window_card, "window", "(Quadrature Binning: Cardiac moving average window)"),
 		OPT_SET('M', &bin_mod, "(Modified Quadrature Binning)"),
@@ -355,8 +342,8 @@ int main_bin(int argc, char* argv[])
 	num_init();
 
 	// Input
-	long lables_dims[DIMS];
-	complex float* lables = load_cfl(argv[1], DIMS, lables_dims);
+	long labels_dims[DIMS];
+	complex float* labels = load_cfl(argv[1], DIMS, labels_dims);
 
 	long src_dims[DIMS];
 	complex float* src = load_cfl(argv[2], DIMS, src_dims);
@@ -398,16 +385,16 @@ int main_bin(int argc, char* argv[])
 
 	switch (c) {
 
-		case 'Q': { // Quadrature binning
+	case 'Q': { // Quadrature binning
 
 			debug_printf(DP_INFO, "Quadrature binning...\n");
 
-			if (lables_dims[TIME_DIM] < 2)
-				error("Check dimensions of lables array!");
+			if (labels_dims[TIME_DIM] < 2)
+				error("Check dimensions of labels array!");
 
-			// Extract respiratory lables
+			// Extract respiratory labels
 			long resp_state_dims[DIMS];
-			md_copy_dims(DIMS, resp_state_dims, lables_dims);
+			md_copy_dims(DIMS, resp_state_dims, labels_dims);
 			resp_state_dims[TIME2_DIM] = 2;
 
 			complex float* resp_state = md_alloc(DIMS, resp_state_dims, CFL_SIZE);
@@ -418,14 +405,14 @@ int main_bin(int argc, char* argv[])
 
 			complex float* resp_state_singleton = md_alloc(DIMS, resp_state_singleton_dims, CFL_SIZE);
 
-			bool valid_time_resp = check_valid_time(resp_state_singleton_dims, resp_state_singleton, lables_dims, lables, resp_lables_idx);
+			bool valid_time_resp = check_valid_time(resp_state_singleton_dims, resp_state_singleton, labels_dims, labels, resp_labels_idx);
 
 			long pos[DIMS] = { 0 };
 
 			for (int i = 0; i < 2; i++){
 
-				pos[TIME2_DIM] = resp_lables_idx[i];
-				md_copy_block(DIMS, pos, resp_state_singleton_dims, resp_state_singleton, lables_dims, lables, CFL_SIZE);
+				pos[TIME2_DIM] = resp_labels_idx[i];
+				md_copy_block(DIMS, pos, resp_state_singleton_dims, resp_state_singleton, labels_dims, labels, CFL_SIZE);
 
 				if (valid_time_resp)
 					pos[TIME2_DIM] = i;
@@ -436,9 +423,9 @@ int main_bin(int argc, char* argv[])
 			}
 
 
-			// Extract cardiac lables
+			// Extract cardiac labels
 			long card_state_dims[DIMS];
-			md_copy_dims(DIMS, card_state_dims, lables_dims);
+			md_copy_dims(DIMS, card_state_dims, labels_dims);
 			card_state_dims[TIME2_DIM] = 2;
 
 			complex float* card_state = md_alloc(DIMS, card_state_dims, CFL_SIZE);
@@ -449,12 +436,12 @@ int main_bin(int argc, char* argv[])
 
 			complex float* card_state_singleton = md_alloc(DIMS, card_state_singleton_dims, CFL_SIZE);
 
-			bool valid_time_card = check_valid_time(card_state_singleton_dims, card_state_singleton, lables_dims, lables, card_lables_idx);
+			bool valid_time_card = check_valid_time(card_state_singleton_dims, card_state_singleton, labels_dims, labels, card_labels_idx);
 
 			for (int i = 0; i < 2; i++) {
 
-				pos[TIME2_DIM] = card_lables_idx[i];
-				md_copy_block(DIMS, pos, card_state_singleton_dims, card_state_singleton, lables_dims, lables, CFL_SIZE);
+				pos[TIME2_DIM] = card_labels_idx[i];
+				md_copy_block(DIMS, pos, card_state_singleton_dims, card_state_singleton, labels_dims, labels, CFL_SIZE);
 
 				if (valid_time_card)
 					pos[TIME2_DIM] = i;
@@ -468,7 +455,6 @@ int main_bin(int argc, char* argv[])
 
 				moving_average(resp_state_dims, resp_state, mavg_window);
 				moving_average(card_state_dims, card_state, (mavg_window_card > 0) ? mavg_window_card : mavg_window);
-
 			}
 
 #ifdef SSAFARY_PAPER
@@ -477,7 +463,7 @@ int main_bin(int argc, char* argv[])
 
 			// Array to store bin-index for samples
 			long bins_dims[DIMS];
-			md_copy_dims(DIMS, bins_dims, lables_dims);
+			md_copy_dims(DIMS, bins_dims, labels_dims);
 			bins_dims[TIME2_DIM] = 2; // Respiration and Cardiac motion
 
 			float* bins = md_alloc(DIMS, bins_dims, FL_SIZE);
@@ -509,16 +495,16 @@ int main_bin(int argc, char* argv[])
 			md_free(resp_state_singleton);
 
 			unmap_cfl(DIMS, binned_dims, binned);
-
-			break;
 		}
 
-		case 'L': { // Label binning: Bin elements from src according to lables
+		break;
+
+	case 'L': { // Label binning: Bin elements from src according to labels
 
 			debug_printf(DP_INFO, "Label binning...\n");
 
-			md_check_compat(DIMS, ~0u, src_dims, lables_dims);
-			md_check_bounds(DIMS, ~0u, lables_dims, src_dims);
+			md_check_compat(DIMS, ~0u, src_dims, labels_dims);
+			md_check_bounds(DIMS, ~0u, labels_dims, src_dims);
 
 			// Allow only one dimension to be > 1
 			long dim = 0; // Dimension to be binned
@@ -526,7 +512,7 @@ int main_bin(int argc, char* argv[])
 
 			for (unsigned int i = 0; i < DIMS; i++) {
 
-				if (lables_dims[i] > 1) {
+				if (labels_dims[i] > 1) {
 
 					dim = i;
 					count++;
@@ -535,13 +521,14 @@ int main_bin(int argc, char* argv[])
 
 			assert(count == 1);
 
-			long N = lables_dims[dim]; // number of samples to be binned
+			long N = labels_dims[dim]; // number of samples to be binned
 
 			// Determine number of clusters
 			long n_clusters = 0;
+
 			for (int i = 0; i < N; i++)
-				if (n_clusters < (long)lables[i])
-					n_clusters = (long)lables[i];
+				if (n_clusters < (long)labels[i])
+					n_clusters = (long)labels[i];
 
 			n_clusters += 1; // Account for zero-based indexing
 
@@ -549,7 +536,7 @@ int main_bin(int argc, char* argv[])
 			long* cluster_size = md_calloc(1, &n_clusters, sizeof(long));
 
 			for (int i = 0; i < N; i++)
-				cluster_size[(long)lables[i]]++;
+				cluster_size[(long)labels[i]]++;
 
 			// Determine maximum cluster size
 			long cluster_max = 0;
@@ -564,6 +551,7 @@ int main_bin(int argc, char* argv[])
 			dst_dims[dim] = n_clusters;
 
 			complex float* dst = create_cfl(argv[3], DIMS, dst_dims);
+
 			md_clear(DIMS, dst_dims, dst, CFL_SIZE);
 
 
@@ -583,12 +571,12 @@ int main_bin(int argc, char* argv[])
 				pos_src[dim] = i;
 				md_copy_block(DIMS, pos_src, singleton_dims, singleton, src_dims, src, CFL_SIZE);
 
-				pos_dst[dim] = (long)lables[i];
-				pos_dst[cluster_dim] = idx[(long)lables[i]]; // Next empty singleton index for i-th cluster
+				pos_dst[dim] = (long)labels[i];
+				pos_dst[cluster_dim] = idx[(long)labels[i]]; // Next empty singleton index for i-th cluster
 
 				md_copy_block(DIMS, pos_dst, dst_dims, dst, singleton_dims, singleton, CFL_SIZE);
 
-				idx[(long)lables[i]]++;
+				idx[(long)labels[i]]++;
 
 				// Debug output
 				if (i % (long)(0.1 * N) == 0)
@@ -597,12 +585,11 @@ int main_bin(int argc, char* argv[])
 
 			md_free(idx);
 			md_free(singleton);
-
-			break;
-
 		}
 
-		case 'R': { // Reorder: Reorder elements from src according to lable
+		break;
+
+	case 'R': { // Reorder: Reorder elements from src according to label
 
 			debug_printf(DP_INFO, "Reordering...\n");
 
@@ -610,25 +597,25 @@ int main_bin(int argc, char* argv[])
 			long dim;
 			int count = 0;
 
-			for (unsigned int i = 0; i < DIMS; i++) {
+			for (int i = 0; i < (int)DIMS; i++) {
 
-				if (lables_dims[i] > 1) {
+				if (labels_dims[i] > 1) {
 
-					dim = (long)i;
+					dim = i;
 					count++;
 				}
 			}
 
 			assert(count == 1);
 
-			// Check lables and find maximum
+			// Check labels and find maximum
 			float max = 0;
 
-			for (int i = 0; i < lables_dims[dim]; i++) {
+			for (int i = 0; i < labels_dims[dim]; i++) {
 
-				assert(creal(lables[i]) >= 0); // Only positive lables allowed!
+				assert(creal(labels[i]) >= 0); // Only positive labels allowed!
 
-				max = (creal(lables[i]) > max) ? creal(lables[i]) : max;
+				max = (creal(labels[i]) > max) ? creal(labels[i]) : max;
 			}
 
 			assert(src_dims[dim] > max); 
@@ -637,7 +624,7 @@ int main_bin(int argc, char* argv[])
 			// Output
 			long reorder_dims[DIMS];
 			md_copy_dims(DIMS, reorder_dims, src_dims);
-			reorder_dims[dim] = lables_dims[dim];
+			reorder_dims[dim] = labels_dims[dim];
 
 			complex float* reorder = create_cfl(argv[3], DIMS, reorder_dims);
 
@@ -648,25 +635,24 @@ int main_bin(int argc, char* argv[])
 
 			long pos[DIMS] = { 0 };
 
-			for (int i = 0; i < lables_dims[dim]; i++) {
+			for (int i = 0; i < labels_dims[dim]; i++) {
 
-				pos[dim] = creal(lables[i]);
+				pos[dim] = creal(labels[i]);
 				md_copy_block(DIMS, pos, singleton_dims, singleton, src_dims, src, CFL_SIZE);
 
 				pos[dim] = i;
 				md_copy_block(DIMS, pos, reorder_dims, reorder, singleton_dims, singleton, CFL_SIZE);				
-
 			}
 
 			unmap_cfl(DIMS, reorder_dims, reorder);
 			md_free(singleton);
-
-			break;
 		}
+
+		break;
 
 	} // end switch case
 
-	unmap_cfl(DIMS, lables_dims, lables);
+	unmap_cfl(DIMS, labels_dims, labels);
 	unmap_cfl(DIMS, src_dims, src);
 
 	exit(0);
