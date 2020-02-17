@@ -121,7 +121,7 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 static bool check_valid_time(const long singleton_dims[DIMS], complex float* singleton, const long labels_dims[DIMS], const complex float* labels, const long labels_idx[2])
 {
 	// Indices at half of total time
-	int idx_0 = floor(singleton_dims[TIME_DIM] / 2);	// FIXME? argument of floor is an integer type  maybe /2. ?
+	int idx_0 = floor(singleton_dims[TIME_DIM] / 2.);
 	int idx_1 = idx_0 + 1;
 
 	long pos[DIMS] = { 0 };
