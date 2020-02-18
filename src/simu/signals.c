@@ -6,6 +6,8 @@
 #include <complex.h>
 #include <math.h>
 
+#include "misc/misc.h"
+
 #include "signals.h"
 
 
@@ -85,7 +87,7 @@ const struct signal_model signal_looklocker_defaults = {
 	.t1 = 1.,
 	.m0 = 1.,
 	.tr = 0.0041,
-	.fa = 8.,
+	.fa = 8. * M_PI / 180.,
 };
 
 static float signal_looklocker(const struct signal_model* data, int ind)
@@ -114,13 +116,13 @@ void looklocker_model(const struct signal_model* data, int N, complex float out[
  * Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A., 
  * Magn. Reson. Med., 51: 661-667. doi:10.1002/mrm.20058, (2004)
  */
-const struct signal_model IRbSSFP_defaults = {
+const struct signal_model signal_IR_bSSFP_defaults = {
 
 	.t1 = 1.,
 	.t2 = 0.1,
 	.m0 = 1.,
 	.tr = 0.0045,
-	.fa = 45.,
+	.fa = 45. * M_PI / 180.,
 };
 
 static float signal_IR_bSSFP(const struct signal_model* data, int ind)
