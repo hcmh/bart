@@ -70,6 +70,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'X', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
+		OPT_FLOAT(	'v', 	&fit_para.inversion_pulse_length, 	"", "Inversion Pulse Length [s]"),
 		OPT_FLOAT(	's', 	&data_scaling, 		"", "Scaling of data"),
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),

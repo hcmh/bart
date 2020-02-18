@@ -43,6 +43,7 @@ const struct simdata_seq simdata_seq_defaults = {
 	.spin_num = 1,
 	.num_average_rep = 1,
 	.run_num = 1,
+	.inversion_pulse_length = 0.01,
 	
 	.slice_profile = NULL,
 	.variable_fa = NULL,
@@ -350,7 +351,7 @@ void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*s
 				struct sim_data inv_data = *data;
 
 				if (0 != inv_data.pulse.rf_end) //Hard Pulses
-					inv_data.pulse.rf_end = 0.01;
+					inv_data.pulse.rf_end = data->seq.inversion_pulse_length;
 
 				inv_data.pulse.flipangle = 180.;
 				inv_data.seq.te = data->pulse.rf_end;

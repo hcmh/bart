@@ -320,7 +320,7 @@ void matrix_bloch_simulation( void* _data, float (*mxy_sig)[3], float (*sa_r1_si
 		data->pulse.phase = 0;
 
 		if (data->seq.seq_type == 1 || data->seq.seq_type == 5)
-			apply_inversion(N, xp, 0.01, data);
+			apply_inversion(N, xp, data->seq.inversion_pulse_length, data);
 
 		//for bSSFP based sequences: alpha/2 and tr/2 preparation
 		if (data->seq.seq_type == 0 || data->seq.seq_type == 1)
