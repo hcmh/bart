@@ -65,8 +65,8 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	md_alloc_fun_t my_alloc = md_alloc;
 	#endif
 
-	out_dims[TE_DIM] /= 5;
-	TI_dims[TE_DIM] /= 5;
+	out_dims[TE_DIM] /= 3;
+	TI_dims[TE_DIM] /= 3;
 	
 	complex float* TI1 = my_alloc(DIMS, TI_dims, CFL_SIZE);
 
