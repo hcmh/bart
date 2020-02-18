@@ -813,6 +813,16 @@ static bool test_T1_MOLLI_relax_link1(void)
         long TI2_dims[N] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
         long out2_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
         long scale_dims[N] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+        long out1_dims[N] = { 16, 16, 1, 1, 1, 12, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        long out1_strs[N];
+        md_calc_strides(N, out1_strs, out1_dims, CFL_SIZE);
+
+        long TI1_dims[N] = { 1, 1, 1, 1, 1, 12, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+        long TI1_strs[N];
+        md_calc_strides(N, TI1_strs, TI1_dims, CFL_SIZE);
+
         
         long map_strs[N];
         md_calc_strides(N, map_strs, map_dims, CFL_SIZE);
@@ -836,6 +846,9 @@ static bool test_T1_MOLLI_relax_link1(void)
         complex float* dst5 = md_alloc(N, out2_dims, CFL_SIZE);
         complex float* dst6 = md_alloc(N, map_dims, CFL_SIZE);
         complex float* dst7 = md_alloc(N, out2_dims, CFL_SIZE);
+
+        complex float* dst8 = md_alloc(N, out1_dims, CFL_SIZE);
+        complex float* dst9 = md_alloc(N, out1_dims, CFL_SIZE);
         
         complex float* src1 = md_alloc(N, map_dims, CFL_SIZE); // M_start
         complex float* src2 = md_alloc(N, map_dims, CFL_SIZE); // M0
@@ -847,35 +860,36 @@ static bool test_T1_MOLLI_relax_link1(void)
         complex float* TI = md_alloc(N, TI_dims, CFL_SIZE);
         complex float* TI2 = md_alloc(N, TI2_dims, CFL_SIZE);
         complex float* scale = md_alloc(N, scale_dims, CFL_SIZE);
+
+        complex float* TI1 = md_alloc(N, TI1_dims, CFL_SIZE);
         
         complex float TI_1[4] = { 1., 2., 3., 4. };
-        complex float TI_2[1] = {  7. };
+        complex float TI_2[1] = {  0.0 };
+        complex float TI_1_1[12] = { 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12. };
                 
         md_copy(N, TI_dims, TI, TI_1, CFL_SIZE);
         md_copy(N, TI2_dims, TI2, TI_2, CFL_SIZE);
+        md_copy(N, TI1_dims, TI1, TI_1_1, CFL_SIZE);
 
         md_gaussian_rand(N, map_dims, src1);
-        md_gaussian_rand(N, map_dims, src2);
-        md_gaussian_rand(N, map_dims, src3);
-        md_gaussian_rand(N, map_dims, src4);
+        md_zsmul(N, map_dims, src2, src1, -1.0);
+        //md_gaussian_rand(N, map_dims, src3);
+        //md_gaussian_rand(N, map_dims, src4);
         
         float scaling_R1s = 1.0;
         float regularization = 1e-6;
         
-        // md_zfill(N, map_dims, src1, -5);
-        // md_zfill(N, map_dims, src2, 10.0);
-        // md_zfill(N, map_dims, src3, 0.1);
-        // md_zfill(N, map_dims, src4, 0.2);
-
-        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
-        struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI2);
-        struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
-        struct nlop_s* T1_2 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI2);
-        struct nlop_s* T1s_3 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
-        struct nlop_s* T1_3 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI2);
-        struct nlop_s* T1s_4 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
-        struct nlop_s* T1_4 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI2);
-        struct nlop_s* T1s_5 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
+        // md_zfill(N, map_dims, src1, -5.0);
+        // md_zfill(N, map_dims, src2, 5.0);
+        md_zfill(N, map_dims, src3, 0.6);
+        md_zfill(N, map_dims, src4, 0.8);
+        
+        
+        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1);
+        struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI_2);
+        struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1);
+        struct nlop_s* T1_2 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI_2);
+        struct nlop_s* T1s_3 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1);
         
         // first chain: T1(T1s)
         struct nlop_s* T1c_combine = nlop_combine(T1_1, T1s_1);
@@ -884,7 +898,7 @@ static bool test_T1_MOLLI_relax_link1(void)
         struct nlop_s* T1c_dup1 = nlop_dup(T1c_link, 1, 4);
         struct nlop_s* T1c_dup1_1 = nlop_dup(T1c_dup1, 0, 3);
 
-   	nlop_free(T1s_1);
+        nlop_free(T1s_1);
         nlop_free(T1_1);
         nlop_free(T1c_combine);
 
@@ -898,18 +912,18 @@ static bool test_T1_MOLLI_relax_link1(void)
 
         // struct nlop_s* T1c_dup2_2_del = nlop_del_out(T1c_dup2_2, 1);
 
-     	nlop_free(T1c_link);
+        nlop_free(T1c_link);
         nlop_free(T1s_2);
- 	nlop_free(T1c_combine2);
+        nlop_free(T1c_combine2);
 
- 	// third chain: T1(T1s(T1(T1s)))
- 	struct nlop_s* T1c_combine3 = nlop_combine(T1_2, T1c_dup2_2);
- 	struct nlop_s* T1c_link3 = nlop_link(T1c_combine3, 2, 0);
+        // third chain: T1(T1s(T1(T1s)))
+        struct nlop_s* T1c_combine3 = nlop_combine(T1_2, T1c_dup2_2);
+        struct nlop_s* T1c_link3 = nlop_link(T1c_combine3, 2, 0);
 
- 	struct nlop_s* T1c_dup3 = nlop_dup(T1c_link3, 1, 3);
- 	struct nlop_s* T1c_dup3_1 = nlop_dup(T1c_dup3, 0, 2);
+        struct nlop_s* T1c_dup3 = nlop_dup(T1c_link3, 1, 3);
+        struct nlop_s* T1c_dup3_1 = nlop_dup(T1c_dup3, 0, 2);
 
- 	nlop_free(T1c_combine3);
+        nlop_free(T1c_combine3);
         nlop_free(T1_2);
         nlop_free(T1c_dup2_2);
 
@@ -931,18 +945,18 @@ static bool test_T1_MOLLI_relax_link1(void)
         nlop_free(T1c_link_stack_1); 
 
         // fourth chain : T1s(T1(T1s(T1(T1s))))
- 	struct nlop_s* T1c_combine4 = nlop_combine(T1s_3, T1c_link_stack_2);
- 	struct nlop_s* T1c_link4 = nlop_link(T1c_combine4, 3, 0);
+        struct nlop_s* T1c_combine4 = nlop_combine(T1s_3, T1c_link_stack_2);
+        struct nlop_s* T1c_link4 = nlop_link(T1c_combine4, 3, 0);
 
- 	struct nlop_s* T1c_dup4 = nlop_dup(T1c_link4, 2, 5);
- 	struct nlop_s* T1c_dup4_1 = nlop_dup(T1c_dup4, 1, 4);
- 	struct nlop_s* T1c_dup4_2 = nlop_dup(T1c_dup4_1, 0, 3);
+        struct nlop_s* T1c_dup4 = nlop_dup(T1c_link4, 2, 5);
+        struct nlop_s* T1c_dup4_1 = nlop_dup(T1c_dup4, 1, 4);
+        struct nlop_s* T1c_dup4_2 = nlop_dup(T1c_dup4_1, 0, 3);
 
- 	nlop_free(T1c_combine4);
+        nlop_free(T1c_combine4);
         nlop_free(T1s_3);
         nlop_free(T1c_link_stack_2);
 
-        //  stack the outputs together
+          //  stack the outputs together
         long sodims1[N];
         md_copy_dims(N, sodims1, out_dims);
         sodims1[TE_DIM] = sodims[TE_DIM] + out_dims[TE_DIM];
@@ -959,87 +973,7 @@ static bool test_T1_MOLLI_relax_link1(void)
         nlop_free(T1c_dup4_2);
         nlop_free(T1c_link_stack_1_1); 
 
-        // fifth chain : T1(T1s(T1(T1s(T1(T1s)))))
-        struct nlop_s* T1c_combine5 = nlop_combine(T1_3, T1c_link_stack_2_1);
-        struct nlop_s* T1c_link5 = nlop_link(T1c_combine5, 2, 0);
-
-        struct nlop_s* T1c_dup5 = nlop_dup(T1c_link5, 1, 3);
-        struct nlop_s* T1c_dup5_1 = nlop_dup(T1c_dup5, 0, 2);
-
-        nlop_free(T1c_combine5);
-        nlop_free(T1_3);
-        nlop_free(T1c_link_stack_2_1);
-
-        // Sixth chain : T1s(T1(T1s(T1(T1s(T1(T1s))))))
-        struct nlop_s* T1c_combine6 = nlop_combine(T1s_4, T1c_dup5_1);
-        struct nlop_s* T1c_link6 = nlop_link(T1c_combine6, 2, 0);
-
-        struct nlop_s* T1c_dup6 = nlop_dup(T1c_link6, 2, 5);
-        struct nlop_s* T1c_dup6_1 = nlop_dup(T1c_dup6, 1, 4);
-        struct nlop_s* T1c_dup6_2 = nlop_dup(T1c_dup6_1, 0, 3);
-
-        nlop_free(T1c_combine6);
-        nlop_free(T1s_4);
-        nlop_free(T1c_dup5_1);
-
-        //  stack the outputs together
-        long sodims2[N];
-        md_copy_dims(N, sodims2, out_dims);
-        sodims2[TE_DIM] = sodims1[TE_DIM] + out_dims[TE_DIM];
-        struct nlop_s* stack2 = nlop_stack_create(N, sodims2, sodims1, out_dims, TE_DIM);
-
-        struct nlop_s* T1c_combine_stack2 = nlop_combine(stack2, T1c_dup6_2);
-        struct nlop_s* T1c_link_stack_1_2 = nlop_link(T1c_combine_stack2, 3, 0);
-
-        struct nlop_s* T1c_link_stack_2_2 = nlop_link(T1c_link_stack_1_2, 1, 0);
-
-        nlop_free(stack2);
-        nlop_free(T1c_combine_stack2);
-        nlop_free(T1c_dup6_2);
-        nlop_free(T1c_link_stack_1_2); 
-
-
-        // seventh chain : T1(T1s(T1(T1s(T1(T1s(T1(T1s)))))))
-        struct nlop_s* T1c_combine7 = nlop_combine(T1_4, T1c_link_stack_2_2);
-        struct nlop_s* T1c_link7 = nlop_link(T1c_combine7, 2, 0);
-
-        struct nlop_s* T1c_dup7 = nlop_dup(T1c_link7, 1, 3);
-        struct nlop_s* T1c_dup7_1 = nlop_dup(T1c_dup7, 0, 2);
-
-        nlop_free(T1c_combine7);
-        nlop_free(T1_4);
-        nlop_free(T1c_link_stack_2_2);
-
-        // eighth chain : T1s(T1(T1s(T1(T1s(T1(T1s(T1(T1s))))))))
-        struct nlop_s* T1c_combine8 = nlop_combine(T1s_5, T1c_dup7_1);
-        struct nlop_s* T1c_link8 = nlop_link(T1c_combine8, 2, 0);
-
-        struct nlop_s* T1c_dup8 = nlop_dup(T1c_link8, 2, 5);
-        struct nlop_s* T1c_dup8_1 = nlop_dup(T1c_dup8, 1, 4);
-        struct nlop_s* T1c_dup8_2 = nlop_dup(T1c_dup8_1, 0, 3);
-
-        nlop_free(T1c_combine8);
-        nlop_free(T1s_5);
-        nlop_free(T1c_dup7_1);
-
-        //  stack the outputs together
-        long sodims3[N];
-        md_copy_dims(N, sodims3, out_dims);
-        sodims3[TE_DIM] = sodims2[TE_DIM] + out_dims[TE_DIM];
-        struct nlop_s* stack3 = nlop_stack_create(N, sodims3, sodims2, out_dims, TE_DIM);
-
-        struct nlop_s* T1c_combine_stack3 = nlop_combine(stack3, T1c_dup8_2);
-        struct nlop_s* T1c_link_stack_1_3 = nlop_link(T1c_combine_stack3, 3, 0);
-
-        struct nlop_s* T1c_link_stack_2_3 = nlop_link(T1c_link_stack_1_3, 1, 0);
-
-        nlop_free(stack3);
-        nlop_free(T1c_combine_stack3);
-        nlop_free(T1c_dup8_2);
-        nlop_free(T1c_link_stack_1_3); 
-
-        struct nlop_s* T1c_del = nlop_del_out(T1c_link_stack_2_3, 1);
-
+        struct nlop_s* T1c_del = nlop_del_out(T1c_link_stack_2_1, 1);
 
         // // scaling operator
         complex float diag[1] = {-1.0};
@@ -1059,6 +993,7 @@ static bool test_T1_MOLLI_relax_link1(void)
         nlop_free(T1c_del);
         nlop_free(T1c_combine_scale);
 
+
         // Analytical model    
         // T1* relaxation
         md_zsmul(N, map_dims, tmp, src4, -1.0 *scaling_R1s);
@@ -1077,6 +1012,29 @@ static bool test_T1_MOLLI_relax_link1(void)
 
         //Model: (M0 * R1/R1s -(-M_start + M0 * R1/R1s).*exp(-t.*scaling_R1s*R1s))
         md_zsub2(N, out_dims, out_strs, dst1, map_strs, tmp, out_strs, dst1);
+
+
+
+        // Analytical model for longer period
+        // T1* relaxation
+        md_zsmul(N, map_dims, tmp, src4, -1.0 *scaling_R1s);
+        md_zmul2(N, out1_dims, out1_strs, dst8, map_strs, tmp, TI1_strs, TI1);
+        md_zexp(N, out1_dims, dst8, dst8);
+        
+        //M0 * R1/R1s - M_start
+        md_zdiv_reg(N, map_dims, tmp, src3, src4, regularization);
+        md_zsmul(N, map_dims, tmp, tmp, 1./scaling_R1s);
+
+        md_zmul(N, map_dims, tmp, tmp, src2);
+        md_zsub(N, map_dims, tmp1, tmp, src1);
+
+        // (M0 * R1/R1s - M_start).*exp(-t.*scaling_R1s*R1s)
+        md_zmul2(N, out1_dims, out1_strs, dst8, map_strs, tmp1, out1_strs, dst8);
+
+        //Model: (M0 * R1/R1s -(-M_start + M0 * R1/R1s).*exp(-t.*scaling_R1s*R1s))
+        md_zsub2(N, out1_dims, out1_strs, dst8, map_strs, tmp, out1_strs, dst8);
+
+        nlop_generic_apply_unchecked(T1c_dup_scale, 4, (void*[]){ dst9, src2, src3, src4});
      
        
         long pos[N];
@@ -1098,12 +1056,9 @@ static bool test_T1_MOLLI_relax_link1(void)
         md_zmul2(N, out2_dims, out2_strs, dst5, map_strs, tmp, out2_strs, dst5);
         md_zadd2(N, out2_dims, out2_strs, dst5, map_strs, src2, out2_strs, dst5);
         
-
         nlop_generic_apply_unchecked(T1c_dup1_1, 6, (void*[]){ dst7, dst2, src2, src3, src1, src4 });
-        
-        
-        double err = md_znrmse(N, out2_dims, dst7, dst5) + md_znrmse(N, out_dims, dst1, dst2);
-
+                
+        double err = md_znrmse(N, out1_dims, dst9, dst8) + md_znrmse(N, out2_dims, dst7, dst5) + md_znrmse(N, out_dims, dst1, dst2);
 
         md_free(src1);
         md_free(src2);
@@ -1114,6 +1069,7 @@ static bool test_T1_MOLLI_relax_link1(void)
         md_free(tmp1);
         md_free(TI);
         md_free(TI2);
+        md_free(TI1);
         
         md_free(dst1);
         md_free(dst2);
@@ -1122,6 +1078,9 @@ static bool test_T1_MOLLI_relax_link1(void)
         md_free(dst5);
         md_free(dst6);
         md_free(dst7);
+
+        md_free(dst8);
+        md_free(dst9);
         md_free(scale);
         
         UT_ASSERT(err < UT_TOL);

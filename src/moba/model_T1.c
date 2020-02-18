@@ -72,8 +72,8 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 
 	md_copy(DIMS, TI_dims, TI1, TI, CFL_SIZE);
 
-        //struct nlop_s* T1 = nlop_T1s_chain_create(DIMS, map_dims, out_dims, TI_dims, TI, use_gpu);
-        struct nlop_s* T1 = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI, use_gpu);
+        //struct nlop_s* T1 = nlop_T1s_chain_create(DIMS, map_dims, out_dims, TI_dims, TI1, use_gpu);
+        struct nlop_s* T1 = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI1, use_gpu);
 
         md_free(TI1);
 #else
