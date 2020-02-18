@@ -158,6 +158,7 @@ static bool test_sinc_function(void)
 #if 0
 	dump_cfl("_pulse_shape", DIMS, dims, storage);
 #endif
+	md_free(storage);
 	return 1;	
 }
 
