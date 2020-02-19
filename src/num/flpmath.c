@@ -103,7 +103,7 @@ static void make_2op_simple(md_2op_t fun, unsigned int D, const long dims[D], fl
  * @param optr output
  * @param istr1 input 1 strides
  * @param iptr1 input 1 (constant)
- * @param size size of data structures, e.g. complex float 
+ * @param size size of data structures, e.g. complex float
  * @param too two-op multiply function
  */
 static void optimized_twoop_oi(unsigned int D, const long dim[D], const long ostr[D], void* optr, const long istr1[D], const void* iptr1, size_t sizes[2], md_nary_opt_fun_t too)
@@ -132,7 +132,7 @@ static void optimized_twoop_oi(unsigned int D, const long dim[D], const long ost
  * @param iptr1 input 1 (constant)
  * @param istr2 input 2 strides
  * @param iptr2 input 2 (constant)
- * @param size size of data structures, e.g. complex float 
+ * @param size size of data structures, e.g. complex float
  * @param too three-op multiply function
  */
 static void optimized_threeop_oii(unsigned int D, const long dim[D], const long ostr[D], void* optr, const long istr1[D], const void* iptr1, const long istr2[D], const void* iptr2, size_t sizes[3], md_nary_opt_fun_t too)
@@ -1057,12 +1057,12 @@ void md_tenmul_dims(unsigned int D, long max_dims[D], const long out_dims[D], co
 
 static bool detect_matrix(const long dims[3], const long ostrs[3], const long mstrs[3], const long istrs[3])
 {
-        return (   (0 == ostrs[1])
-                && (0 == mstrs[2])
-                && (0 == istrs[0])
-                && ((CFL_SIZE == ostrs[0]) && (ostrs[0] * dims[0] == ostrs[2]))
-                && ((CFL_SIZE == mstrs[0]) && (mstrs[0] * dims[0] == mstrs[1]))
-                && ((CFL_SIZE == istrs[1]) && (istrs[1] * dims[1] == istrs[2])));
+	return (   (0 == ostrs[1])
+		&& (0 == mstrs[2])
+		&& (0 == istrs[0])
+		&& ((CFL_SIZE == ostrs[0]) && (ostrs[0] * dims[0] == ostrs[2]))
+		&& ((CFL_SIZE == mstrs[0]) && (mstrs[0] * dims[0] == mstrs[1]))
+		&& ((CFL_SIZE == istrs[1]) && (istrs[1] * dims[1] == istrs[2])));
 }
 
 
@@ -1133,6 +1133,174 @@ static bool simple_matmul(unsigned int N, const long max_dims[N], const long ost
 	return false;
 }
 
+
+/**
+ * Functions for optimizing fmac using blas
+ * Checks if strides strides define a matrix,
+ * i.e. one dimension is continuously in memory and followed by the other
+*/
+static bool is_matrix(const long dims[3], const long strs[3], int i1, int i2, size_t size)
+{
+	assert(i1 != i2);
+	bool a = ((strs[i1] == (signed long) size) && (strs[i2] == (signed long)(size * dims[i1])));
+	bool b = ((strs[i2] == (signed int)size) && (strs[i1] == (signed long)(size * dims[i2])));;
+	return  a || b;
+}
+
+/**
+ * 1.) Simplify dims
+ * 2.) Order dims/strs of first three dims to form a matmul
+ * 3.) Return nr of new dims if succesful and 0 else
+ * if succesful, the out strides have the form:
+ * nostrs:(size, 0, x)
+ * the in strides have the form
+ * nistrs1: (0, x, x)
+ * nistrs2: (x, x, 0)
+ * or
+ * nistrs1: (x, x, 0)
+ * nistrs2: (0, x, x)
+ */
+static int make_matrix(unsigned long N, long ndims[N], long nostrs[N], long nistrs1[N], long nistrs2[N], const long dims[N], const long ostrs[N], const long istrs1[N], const long istrs2[N], size_t size)
+{
+	long tdims[N];
+	long tostrs[N];
+	long tistrs1[N];
+	long tistrs2[N];
+
+	md_copy_dims(N, tdims, dims);
+	md_copy_strides(N, tostrs, ostrs);
+	md_copy_strides(N, tistrs1, istrs1);
+	md_copy_strides(N, tistrs2, istrs2);
+
+	long (*strs[3])[N] = { &tostrs, &tistrs1, &tistrs2 };
+	N = simplify_dims(3, N,  tdims , strs);
+
+	if (3 > N)
+		return 0;
+
+	/*
+	 * Find zeros in strides, matmuls have strides of the form
+	 * (0, x, x)
+	 * (x, 0, x)
+	 * (x, x, 0)
+	 * or permutations
+	 */
+	int opos = -1;
+	int ipos1 = -1;
+	int ipos2 = -1;
+	for (int i = 0; i < 3; i++){
+
+		if (tostrs[i] == 0)
+			opos = i;
+		if (tistrs1[i] == 0)
+			ipos1 = i;
+		if (tistrs2[i] == 0)
+			ipos2 = i;
+	}
+
+	//pos of zeros do not equal
+	bool matrix = ((opos != ipos1) && (opos != ipos2) && (ipos1 != ipos2) && (3 == opos + ipos1 + ipos2));
+	//Check if matrix dims are continous in memory
+	matrix = matrix && (is_matrix(tdims, tostrs, (opos + 1) % 3, (opos + 2) % 3, size));
+	matrix = matrix && (is_matrix(tdims, tistrs1, (ipos1 + 1) % 3, (ipos1 + 2) % 3, size));
+	matrix = matrix && (is_matrix(tdims, tistrs2, (ipos2 + 1) % 3, (ipos2 + 2) % 3, size));
+
+	if (!matrix)
+		return 0;
+
+	/*
+	 * Permute dims such that strides of output have the form
+	 * (size, 0, x)
+	 * the in strides have the form
+	 * (0, x, x)
+	 * (x, x, 0)
+	 * or
+	 * (x, x, 0)
+	 * (0, x, x)
+	 */
+	unsigned int perm[N];
+	for (unsigned int i = 0; i < N; i++)
+		perm[i] = i;
+
+	perm[1] = opos;
+	if (tostrs[(opos + 1) % 3] == (signed)size){
+
+		perm[0] = (opos + 1) % 3;
+		perm[2] = (opos + 2) % 3;
+	} else {
+
+		perm[0] = (opos + 2) % 3;
+		perm[2] = (opos + 1) % 3;
+	}
+
+	md_permute_dims(N, perm, ndims, tdims);
+	md_permute_dims(N, perm, nostrs, tostrs);
+	md_permute_dims(N, perm, nistrs1, tistrs1);
+	md_permute_dims(N, perm, nistrs2, tistrs2);
+
+	return N;
+}
+
+static bool simple_inner_matmul_zfmac(unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+	size_t size = CFL_SIZE;
+	long ndims[N];
+	long nostrs[N];
+	long tistrs1[N];
+	long tistrs2[N];
+
+	N = make_matrix(N, ndims, nostrs, tistrs1, tistrs2, dims, ostrs, istrs1, istrs2, size);
+	if (N < 3)
+		return false;
+	/* *
+	 * Permute inputs if necessary, result:
+	 * nostrs:(size, 0, x)
+	 * nistrs1: (0, x, x)
+	 * nistrs2: (x, x, 0)
+	 */
+	bool perm = (tistrs1[0] == 0);
+	long* nistrs1 = (perm ? tistrs2 : tistrs1);
+	long* nistrs2 = (perm ? tistrs1 : tistrs2);
+	const complex float* nin1 = (perm ? in2 : in1);
+	const complex float* nin2 = (perm ? in1 : in2);
+
+	//Check if matrices are transposed in storage
+	char i1_trans = (nistrs1[0] == (signed)size) ? 'N' : 'T';
+	char i2_trans = (nistrs2[1] == (signed)size) ? 'N' : 'T';
+
+#if 0
+	//saved code for zfmacc
+	if (perm){
+
+		if (i1_trans != 'T')
+			return false;
+		i1_trans = 'C';
+	} else {
+
+		if (i2_trans != 'T')
+			return false;
+		i2_trans = 'C';
+	}
+#endif
+
+	long M1 = ndims[0];
+	long K1 = ndims[1];
+	long N1 = ndims[2];
+
+	NESTED(void, nary_inner_matmul, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+
+		(void)data;
+		blas_matrix_zfmac(M1, N1, K1,
+			(complex float*)ptr[0],
+			(const complex float*)ptr[1], i1_trans,
+			(const complex float*)ptr[2], i2_trans);
+	};
+
+	optimized_threeop_oii(N - 3, ndims + 3, nostrs + 3, (void*)out, nistrs1 + 3, (void*)nin1, nistrs2 + 3, (void*)nin2, (size_t[3]){size * M1 * N1, size * M1 * K1, size * N1 * K1}, nary_inner_matmul);
+
+	return true;
+}
 
 /*
  * tenmul (tensor multiplication) family of functions are revised
@@ -1363,6 +1531,9 @@ void md_zmatmul(unsigned int D, const long out_dims[D], complex float* dst, cons
  */
 void md_zfmac2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
+	if (simple_inner_matmul_zfmac(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
+
 	MAKE_Z3OP(zfmac, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
@@ -1938,6 +2109,7 @@ void md_zcmp(unsigned int D, const long dims[D], complex float* optr, const comp
 	make_z3op_simple(md_zcmp2, D, dims, optr, iptr1, iptr2);
 }
 
+
 /**
  * Elementwise less than or equal to (with strides)
  *
@@ -2152,7 +2324,7 @@ void md_zexpj2(unsigned int D, const long dims[D], const long ostr[D], complex f
 
 /**
  * Get complex exponential with phase = complex arrays (without strides)
- * 
+ *
  * optr = zexp(j * iptr)
  */
 void md_zexpj(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr)
@@ -2184,6 +2356,7 @@ void md_zexp(unsigned int D, const long dims[D], complex float* optr, const comp
 {
 	make_z2op_simple(md_zexp2, D, dims, optr, iptr);
 }
+
 
 
 
@@ -2290,7 +2463,7 @@ float md_scalar2(unsigned int D, const long dim[D], const long str1[D], const fl
 	md_singleton_strides(D, stro);
 
 	// Because this might lose precision for large data sets
-	// we use double precision to accumlate result 
+	// we use double precision to accumlate result
 	// (Kahan summation formula would be another option)
 
 	md_fmacD2(D, dim, stro, retp, str1, ptr1, str2, ptr2);
@@ -3478,7 +3651,7 @@ void md_zhardthresh_joint2(unsigned int D, const long dims[D], unsigned int k, u
  * Hard thresholding (with strides)
  *
  * y = HT(x, k), selects k largest elements of x
- * computes y = x * (abs(x) > t(k)), 
+ * computes y = x * (abs(x) > t(k)),
  * k = threshold index of sorted x, t(k)= value of sorted x at k
  *
  * @param D number of dimensions
@@ -3812,6 +3985,7 @@ void md_zfftmod(unsigned int D, const long dims[D], complex float* optr, const c
  * @param dims -- full dimensions of src image
  * @param flags -- bitmask for applying the sum, i.e. the dimensions that will not stay
  */
+
 void md_zsum(unsigned int D, const long dims[D], unsigned int flags, complex float* dst, const complex float* src)
 {
 	long str1[D];
@@ -3823,13 +3997,8 @@ void md_zsum(unsigned int D, const long dims[D], unsigned int flags, complex flo
 	md_calc_strides(D, str1, dims, CFL_SIZE);
 	md_calc_strides(D, str2, dims2, CFL_SIZE);
 
-	complex float* ones = md_alloc_sameplace(D, dims, CFL_SIZE, dst);
-	md_zfill(D, dims, ones, 1.);
-
 	md_clear(D, dims2, dst, CFL_SIZE);
-	md_zfmac2(D, dims, str2, dst, str1, src, str1, ones);
-
-	md_free(ones);
+	md_zadd2(D, dims, str2, dst, str2, dst, str1, src);
 }
 
 
@@ -3886,5 +4055,3 @@ extern void md_zcmpl(unsigned int D, const long dims[D], complex float* dst, con
 {
 	md_zcmpl2(D, dims, MD_STRIDES(D, dims, CFL_SIZE), dst, MD_STRIDES(D, dims, FL_SIZE), src_real, MD_STRIDES(D, dims, FL_SIZE), src_imag);
 }
-
-

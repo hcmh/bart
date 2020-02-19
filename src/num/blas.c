@@ -52,6 +52,19 @@ void (blas_matrix_multiply)(long M, long N, long K, complex float C[N][M], const
 	blas_cgemm(CblasNoTrans, CblasNoTrans, M, N, K, 1., M, A, K, B, 0., M, C);
 }
 
+void (blas_matrix_zfmac)(long M, long N, long K, complex float* C, const complex float* A, char transa, const complex float* B, char transb)
+{
+    	assert((transa == 'N') || (transa == 'T') || (transa == 'C'));
+    	assert((transb == 'N') || (transb == 'T') || (transb == 'C'));
+
+    	long lda = (transa == 'N' ? M: K);
+    	long ldb = (transb == 'N' ? K: N);
+
+	blas_cgemm(('T' == transa) ? CblasTrans : (('C' == transa) ? CblasConjTrans : CblasNoTrans),
+                   ('T' == transb) ? CblasTrans : (('C' == transb) ? CblasConjTrans : CblasNoTrans),
+		    M, N, K, 1., lda, A, ldb, B, 1., M, C);
+
+}
 
 
 void (blas_csyrk)(char uplo, char trans, long N, long K, const complex float alpha, long lda, const complex float A[][lda], complex float beta, long ldc, complex float C[][ldc])
@@ -61,6 +74,3 @@ void (blas_csyrk)(char uplo, char trans, long N, long K, const complex float alp
 
 	cblas_csyrk(CblasColMajor, CblasUpper, ('T' == trans) ? CblasTrans : CblasNoTrans, N, K, (void*)&alpha, (void*)A, lda, (void*)&beta, (void*)C, ldc);
 }
-
-
-
