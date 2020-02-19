@@ -1,3 +1,6 @@
+#ifndef NLOPS_CONV_H
+#define NLOPS_CONV_H
+
 enum CONV_PAD {PADDING_VALID, PADDING_SAME, PADDING_CYCLIC, PADDING_CAUSAL};
 
 #ifndef TIMER
@@ -10,3 +13,5 @@ struct nlop_s;
 extern struct nlop_s* nlop_conv_create(long N, unsigned int flags, const long odims[N], const long idims1[N], const long idims2[N]);
 extern struct nlop_s* nlop_conv_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad);
 extern struct nlop_s* nlop_conv_fft_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad);
+
+#endif
