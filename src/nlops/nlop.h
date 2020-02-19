@@ -79,3 +79,5 @@ extern const struct nlop_s* nlop_flatten_get_op(struct nlop_s* op);
 enum debug_levels;
 extern void nlop_debug(enum debug_levels dl, const struct nlop_s* x);
 
+extern const struct nlop_s* nlop_reshape_out(const struct nlop_s* op, int o, int NO, long odims[NO]);
+extern const struct nlop_s* nlop_reshape_in(const struct nlop_s* op, int i, int NI, long idims[NI]);

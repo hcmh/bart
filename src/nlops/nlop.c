@@ -22,6 +22,11 @@
 
 #include "nlop.h"
 
+//only needed for reshape (should be optimized)
+#include "linops/someops.h"
+#include "cast.h"
+#include "chain.h"
+
 #ifndef CFL_SIZE
 #define CFL_SIZE sizeof(complex float)
 #endif
@@ -534,6 +539,83 @@ const struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
 	return (NULL == data) ? NULL : data->op;
 }
 
+ const struct nlop_s* nlop_reshape_in(const struct nlop_s* op, int i, int NI, long idims[NI])
+ {
+	//faster if dims are changed in operator than by reshape operator
+	int II = nlop_get_nr_in_args(op);
+
+	assert(i < II);
+
+	int NO = nlop_generic_domain(op, i)->N;
+	long odims[NO];
+	long ostrs[NO];
+
+	md_copy_dims(NO, odims, nlop_generic_domain(op, i)->dims);
+	md_copy_strides(NO, ostrs, nlop_generic_domain(op, i)->strs);
+
+	struct linop_s* lin_resh = linop_reshape_create(NO, odims, NI, idims);
+	struct nlop_s* resh = nlop_from_linop(lin_resh);
+	linop_free(lin_resh);
+
+	struct nlop_s* tmp = nlop_chain2(resh, 0, op, i);
+	nlop_free(op);
+	nlop_free(resh);
+
+	int perm[II];
+
+	for (int j = 0; j < II; j++){
+
+		if (j < i)
+			perm[j] = j;
+		if (j == i)
+			perm[j] = II - 1;
+		if (j > i)
+			perm[j] = j - 1;
+	}
+
+	struct nlop_s* result = nlop_permute_inputs(tmp, II, perm);
+	nlop_free(tmp);
+
+	return result;
+}
+
+ const struct nlop_s* nlop_reshape_out(const struct nlop_s* op, int o, int NO, long odims[NO])
+ {
+	int OO = nlop_get_nr_out_args(op);
+	assert(o < OO);
+
+	int NI = nlop_generic_codomain(op, o)->N;
+	long idims[NI];
+	long istrs[NI];
+
+	md_copy_dims(NI, idims, nlop_generic_codomain(op, o)->dims);
+	md_copy_strides(NI, istrs, nlop_generic_codomain(op, o)->strs);
+
+	struct linop_s* lin_resh = linop_reshape_create(NO, odims, NI, idims);
+	struct nlop_s* resh = nlop_from_linop(lin_resh);
+	linop_free(lin_resh);
+
+	struct nlop_s* tmp = nlop_chain2(op, o, resh, 0);
+	nlop_free(op);
+	nlop_free(resh);
+
+	int perm[OO];
+
+	for (int j = 0; j < OO; j++){
+
+		if (j < o)
+			perm[j] = j + 1;
+		if (j == o)
+			perm[j] = 0;
+		if (j > o)
+			perm[j] = j;
+	}
+
+	struct nlop_s* result = nlop_permute_outputs(tmp, OO, perm);
+	nlop_free(tmp);
+
+	return result;
+}
 
 void nlop_debug(enum debug_levels dl, const struct nlop_s* x)
 {

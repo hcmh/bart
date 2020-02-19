@@ -11,7 +11,11 @@
 #include <stddef.h>
 #include <assert.h>
 
+#include "misc/debug.h"
+
 #include "num/ops.h"
+#include "num/multind.h"
+#include "num/flpmath.h"
 #include "num/iovec.h"
 
 #include "misc/misc.h"
@@ -249,7 +253,7 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 		for (int o = 0; o < OO; o++) {
 
                         (*der)[i][o] = nlop_get_derivative(x, o, ip);
-                        
+
                         if (i == a)
                                 (*der)[i][o] = linop_plus((*der)[i][o], nlop_get_derivative(x, o, b));
 		}
@@ -286,4 +290,29 @@ struct nlop_s* nlop_permute_inputs(const struct nlop_s* x, int I2, const int per
 	return PTR_PASS(n);
 }
 
+struct nlop_s* nlop_permute_outputs(const struct nlop_s* x, int O2, const int perm[O2])
+{
+	int II = nlop_get_nr_in_args(x);
+	int OO = nlop_get_nr_out_args(x);
 
+	assert(OO == O2);
+
+	PTR_ALLOC(struct nlop_s, n);
+
+	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[II][OO]);
+	n->derivative = &(*der)[0][0];
+
+	for (int i = 0; i < II; i++)
+		for (int o = 0; o < OO; o++)
+			(*der)[i][o] = linop_clone(nlop_get_derivative(x, perm[o], i));
+
+
+	int perm2[II + OO];
+
+	for (int i = 0; i < II + OO; i++)
+		perm2[i] = ((i < OO) ? perm[i] : i);
+
+	n->op = operator_permute(x->op, II + OO, perm2);
+
+	return PTR_PASS(n);
+}
