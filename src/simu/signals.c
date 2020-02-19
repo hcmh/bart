@@ -46,8 +46,8 @@ static struct r0_a_sum r0_a_sum(const struct signal_model* data, int N, const fl
 		sum.r0 += cosf(x) * expf(sum.a * data->tr);
 	}
 
+	sum.a = expf(-sum.a * data->tr);
 	sum.r0 *= data->tr;
-	sum.a *= data->tr;
 
 	return sum;
 }
