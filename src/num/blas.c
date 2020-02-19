@@ -62,7 +62,7 @@ void (blas_matrix_zfmac)(long M, long N, long K, complex float* C, const complex
 
 	blas_cgemm(('T' == transa) ? CblasTrans : (('C' == transa) ? CblasConjTrans : CblasNoTrans),
                    ('T' == transb) ? CblasTrans : (('C' == transb) ? CblasConjTrans : CblasNoTrans),
-		    M, N, K, 1., lda, A, ldb, B, 1., M, C);
+		    M, N, K, 1., lda, *(complex float (*)[K][lda])A, ldb, *(complex float (*)[N][ldb])B, 1., M, *(complex float (*)[N][M])C);
 
 }
 

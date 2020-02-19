@@ -1443,7 +1443,7 @@ static bool detect_convcorr(unsigned long N,
 			    const long dims[2 * N], const long ostrs[2 * N], const long istrs[2 * N], const long kstrs[2 * N],
 			    unsigned long flags, bool conv, size_t size)
 {
-	for (int i = 0; i < N; i++){
+	for (unsigned int i = 0; i < N; i++){
 
 		if (MD_IS_SET(flags, i)){
 
@@ -1463,9 +1463,9 @@ static bool detect_convcorr(unsigned long N,
 	long tistrs[2 * N];
 	long tkstrs[2 * N];
 
-	calc_convcorr_geom_strs_dil(N, flags, tdims, tostrs, tkstrs, tistrs, nodims, MD_STRIDES(N, nodims, size), nkdims, MD_STRIDES(N, nkdims, size), nidims, MD_STRIDES(N, nidims, size), MD_SINGLETON_DIMS(N), MD_SINGLETON_DIMS(N), conv, true);
+	UNUSED(calc_convcorr_geom_strs_dil(N, flags, tdims, tostrs, tkstrs, tistrs, nodims, MD_STRIDES(N, nodims, size), nkdims, MD_STRIDES(N, nkdims, size), nidims, MD_STRIDES(N, nidims, size), MD_SINGLETON_DIMS(N), MD_SINGLETON_DIMS(N), conv, true));
 
-	for (int i = 0; i < 2 * N; i++){
+	for (unsigned int i = 0; i < 2 * N; i++){
 
 		if (tdims[i] != dims[i])
 			return false;
@@ -1517,11 +1517,12 @@ static bool simple_zconvcorr_im2col_channelfirst(unsigned int N, const long dims
 		if (MD_IS_SET(flags, i))
 			corr_strs[i] = -corr_strs[i];
 
-	complex float* krn;
+	const complex float* krn;
 	if (conv){
 
-		krn = md_alloc_sameplace(5, kdims, size, in2);
-		md_copy2(5, kdims, MD_STRIDES(5, kdims, size), krn, corr_strs, in2, size);
+		complex float* tmp = md_alloc_sameplace(5, kdims, size, in2);
+		md_copy2(5, kdims, MD_STRIDES(5, kdims, size), tmp, corr_strs, in2, size);
+		krn = tmp;
 	} else {
 
 		krn = in2;
@@ -1698,7 +1699,7 @@ static bool simple_zconvcorr_im2col_channelfirst_batch(unsigned int N, const lon
 	if ((1 != idims[0]) || (1 != odims[1]) || (1 != kdims[5]))
 		return false;
 
-	complex float* krn;
+	const complex float* krn;
 	if (conv){
 
 		long kstrs_flip[6];
@@ -1706,8 +1707,10 @@ static bool simple_zconvcorr_im2col_channelfirst_batch(unsigned int N, const lon
 		for (int i = 0; i < 6; i++)
 			kstrs_flip[i] = (MD_IS_SET(flags, i)) ? -kstrs_flip[i] : kstrs_flip[i];
 
-		krn = md_alloc_sameplace(6, kdims, size, in2);
-		md_copy2(6, kdims, MD_STRIDES(6, kdims, size), krn, kstrs_flip, in2, size);
+		complex float* tmp = md_alloc_sameplace(6, kdims, size, in2);
+		md_copy2(6, kdims, MD_STRIDES(6, kdims, size), tmp, kstrs_flip, in2, size);
+
+		krn = tmp;
 	} else
 		krn = in2;
 
@@ -1715,7 +1718,7 @@ static bool simple_zconvcorr_im2col_channelfirst_batch(unsigned int N, const lon
 	long ostrs2b[10];
 	long kstrs2b[10];
 	long istrs2b[10];
-	calc_convcorr_geom(5, flags, mdimsb, ostrs2b, kstrs2b, istrs2b, odims, MD_STRIDES(5, odims, size), kdims, MD_STRIDES(5, kdims, size), idims, MD_STRIDES(5, idims, size), false) / size;
+	UNUSED(calc_convcorr_geom(5, flags, mdimsb, ostrs2b, kstrs2b, istrs2b, odims, MD_STRIDES(5, odims, size), kdims, MD_STRIDES(5, kdims, size), idims, MD_STRIDES(5, idims, size), false));
 
     	//only parallelize batch dims if present
     	if ( 1 < idims[5]){
@@ -1863,7 +1866,7 @@ static bool simple_zconvcorr_im2col_channelfirst_adjim(unsigned int N, const lon
 	if ((1 != idims[0]) || (1 != odims[1]) || (1 != kdims[5]))
 		return false;
 
-	complex float* krn;
+	const complex float* krn;
 	if (conv){
 
 		long kstrs_flip[6];
@@ -1871,8 +1874,9 @@ static bool simple_zconvcorr_im2col_channelfirst_adjim(unsigned int N, const lon
 		for (int i = 0; i < 6; i++)
 			kstrs_flip[i] = (MD_IS_SET(flags, i)) ? -kstrs_flip[i] : kstrs_flip[i];
 
-		krn = md_alloc_sameplace(6, kdims, size, in2);
-		md_copy2(6, kdims, MD_STRIDES(6, kdims, size), krn, kstrs_flip, in2, size);
+		complex float* tmp = md_alloc_sameplace(6, kdims, size, in2);
+		md_copy2(6, kdims, MD_STRIDES(6, kdims, size), tmp, kstrs_flip, in2, size);
+		krn = tmp;
 	} else
 		krn = in2;
 
@@ -1904,7 +1908,7 @@ static bool simple_zconvcorr_im2col_channelfirst_adjim(unsigned int N, const lon
 	long nostrs2[10];
 	long nkstrs2[10];
 	long nistrs2[10];
-	calc_convcorr_geom(5, flags, mdims, nostrs2, nkstrs2, nistrs2, idims_transp, MD_STRIDES(5, idims_transp, size), kdims_transp, MD_STRIDES(5, kdims_transp, size), nodims_transp, MD_STRIDES(5, nodims_transp, size), false) / size;
+	UNUSED(calc_convcorr_geom(5, flags, mdims, nostrs2, nkstrs2, nistrs2, idims_transp, MD_STRIDES(5, idims_transp, size), kdims_transp, MD_STRIDES(5, kdims_transp, size), nodims_transp, MD_STRIDES(5, nodims_transp, size), false));
 
 	#pragma omp parallel for
 	for (int j = 0; j < idims_transp[5]; j++){
