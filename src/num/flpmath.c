@@ -1344,6 +1344,12 @@ void md_ztenmulc(unsigned int D, const long out_dims[D], complex float* out, con
 				  MD_STRIDES(D, in2_dims, CFL_SIZE), in2);
 }
 
+/**
+ * Write strides for conv or corr into mdims, ostrs2, kstrs2 and istrs2
+ * Supports "strides" and dilation
+ * The flag conv decides if conv or corr
+ * The flag test_mode turns of all assertions for detecting strides
+ **/
 static int calc_convcorr_geom_strs_dil(int N, unsigned long flags,
 				       long mdims[2 * N], long ostrs2[2 * N], long kstrs2[2 * N], long istrs2[2 * N],
 				       const long odims[N], const long ostrs[N], const long kdims[N], const long kstrs[N], const long idims[N], const long istrs[N],
@@ -1351,22 +1357,17 @@ static int calc_convcorr_geom_strs_dil(int N, unsigned long flags,
  {
  	int shift = 0;
 
-	long mdims_tmp[2 * N];
-	long ostrs2_tmp[2 * N];
-	long kstrs2_tmp[2 * N];
-	long istrs2_tmp[2 * N];
+	md_copy_strides(N, ostrs2, ostrs);
+	md_singleton_strides(N, ostrs2 + N);
 
-	md_copy_strides(N, ostrs2_tmp, ostrs);
-	md_singleton_strides(N, ostrs2_tmp + N);
+	md_copy_strides(N, kstrs2, kstrs);
+	md_singleton_strides(N, kstrs2 + N);
 
-	md_copy_strides(N, kstrs2_tmp, kstrs);
-	md_singleton_strides(N, kstrs2_tmp + N);
+	md_copy_strides(N, istrs2, istrs);
+	md_singleton_strides(N, istrs2 + N);
 
-	md_copy_strides(N, istrs2_tmp, istrs);
-	md_singleton_strides(N, istrs2_tmp + N);
-
-	md_copy_dims(N, mdims_tmp, odims);
-	md_singleton_dims(N, mdims_tmp + N);
+	md_copy_dims(N, mdims, odims);
+	md_singleton_dims(N, mdims + N);
 
 	for (int i = 0; i < N; i++) {
 
@@ -1375,45 +1376,30 @@ static int calc_convcorr_geom_strs_dil(int N, unsigned long flags,
 			if (!test_mode)
 				assert(idims[i] == strides[i] * odims[i] + (kdims[i] - 1) * dilation[i]);
 
-			mdims_tmp[0 + i] = odims[i];
-			mdims_tmp[N + i] = kdims[i];
+			mdims[0 + i] = odims[i];
+			mdims[N + i] = kdims[i];
 
-			kstrs2_tmp[0 + i] = 0;
-			kstrs2_tmp[N + i] = (conv ? -kstrs[i] : kstrs[i]);
+			kstrs2[0 + i] = 0;
+			kstrs2[N + i] = (conv ? -kstrs[i] : kstrs[i]);
 
 			if (conv)
 				shift += (kdims[i] - 1) * kstrs[i];
-
-			istrs2_tmp[0 + i] = strides[i] * istrs[i];
-			istrs2_tmp[N + i] = dilation[i] * istrs[i];
-
+			istrs2[0 + i] = strides[i] * istrs[i];
+			istrs2[N + i] = dilation[i] * istrs[i];
 		} else {
 
-			if (1 == mdims_tmp[i])
-				mdims_tmp[i] = idims[i];
-			if (1 == mdims_tmp[i])
-				mdims_tmp[i] = kdims[i];
-			if (1 == mdims_tmp[i])
-				mdims_tmp[i] = odims[i];
+			if (1 == mdims[i])
+				mdims[i] = idims[i];
+			if (1 == mdims[i])
+				mdims[i] = kdims[i];
+			if (1 == mdims[i])
+				mdims[i] = odims[i];
 
 			if (!test_mode) assert((1 == odims[i]) || (odims[i] == idims[i]) || (odims[i] == kdims[i]));
 			if (!test_mode) assert((1 == idims[i]) || (odims[i] == idims[i]) || (idims[i] == kdims[i]));
 			if (!test_mode) assert((1 == kdims[i]) || (kdims[i] == idims[i]) || (odims[i] == kdims[i]));
 		}
 	}
-
-	unsigned int perm[2 * N];
-
-	for (int i = 0; i < N; i++) {
-
-		perm[2 * i] = 2 * i;
-		perm[2 * i + 1] = 2* i + 1;
-	}
-
-	md_permute_dims(2 * N, perm, mdims, mdims_tmp);
-	md_permute_dims(2 * N, perm, ostrs2, ostrs2_tmp);
-	md_permute_dims(2 * N, perm, istrs2, istrs2_tmp);
-	md_permute_dims(2 * N, perm, kstrs2, kstrs2_tmp);
 
 	return shift;
 }
@@ -1426,9 +1412,9 @@ int calc_convcorr_geom(int N, unsigned long flags,
 }
 
 void md_zconv2(int N, unsigned long flags,
-				const long odims[N], const long ostrs[N], complex float* out,
-				const long kdims[N], const long kstrs[N], const complex float* krn,
-				const long idims[N], const long istrs[N], const complex float* in)
+	       const long odims[N], const long ostrs[N], complex float* out,
+	       const long kdims[N], const long kstrs[N], const complex float* krn,
+	       const long idims[N], const long istrs[N], const complex float* in)
 {
 	long mdims[2 * N];
 	long ostrs2[2 * N];
@@ -1442,9 +1428,9 @@ void md_zconv2(int N, unsigned long flags,
 }
 
 void md_zconv(int N, unsigned long flags,
-				const long odims[N], complex float* out,
-				const long kdims[N], const complex float* krn,
-				const long idims[N], const complex float* in)
+	      const long odims[N], complex float* out,
+	      const long kdims[N], const complex float* krn,
+	      const long idims[N], const complex float* in)
 {
 	long ostrs[N];
 	md_calc_strides(N, ostrs, odims, CFL_SIZE);
@@ -1458,7 +1444,533 @@ void md_zconv(int N, unsigned long flags,
 	md_zconv2(N, flags, odims, ostrs, out, kdims, kstrs, krn, idims, istrs, in);
 }
 
+/**
+ * Detect if strides and dims belong to convolution with specified flags
+ **/
+static bool detect_convcorr(unsigned long N,
+			    long nodims[N], long nidims[N], long nkdims[N],
+			    const long dims[2 * N], const long ostrs[2 * N], const long istrs[2 * N], const long kstrs[2 * N],
+			    unsigned long flags, bool conv, size_t size)
+{
+	for (int i = 0; i < N; i++){
 
+		if (MD_IS_SET(flags, i)){
+
+			nodims[i] = dims[0 + i];
+			nkdims[i] = dims[N + i];
+			nidims[i] = nodims[i] + nkdims[i] - 1;
+		} else {
+
+			nodims[i] = (ostrs[i] == 0) ? 1 : dims[i];
+			nidims[i] = (istrs[i] == 0) ? 1 : dims[i];
+			nkdims[i] = (kstrs[i] == 0) ? 1 : dims[i];
+		}
+	}
+
+	long tdims[2 * N];
+	long tostrs[2 * N];
+	long tistrs[2 * N];
+	long tkstrs[2 * N];
+
+	calc_convcorr_geom_strs_dil(N, flags, tdims, tostrs, tkstrs, tistrs, nodims, MD_STRIDES(N, nodims, size), nkdims, MD_STRIDES(N, nkdims, size), nidims, MD_STRIDES(N, nidims, size), MD_SINGLETON_DIMS(N), MD_SINGLETON_DIMS(N), conv, true);
+
+	for (int i = 0; i < 2 * N; i++){
+
+		if (tdims[i] != dims[i])
+			return false;
+		if (tostrs[i] != ostrs[i])
+			return false;
+		if (tistrs[i] != istrs[i])
+			return false;
+		if (tkstrs[i] != kstrs[i])
+			return false;
+	}
+
+	return true;
+}
+
+static bool simple_zconvcorr_im2col_channelfirst(unsigned int N, const long dims[N], const long ostrs[N], complex float* out,
+		const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+#ifdef USE_CUDA
+	// Fallback: not tested on GPU
+	return false;
+#endif
+	size_t size = CFL_SIZE;
+	unsigned long flags = 28;
+
+	if (10 != N)
+		return false;
+	N = N / 2;
+
+	long odims[5];
+	long idims[5];
+	long kdims[5];
+
+	/*
+	 * istrs1 = istrs
+	 * istrs2 = kstrs
+	 * */
+	bool conv = detect_convcorr(5, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, true, size);
+	if (!detect_convcorr(5, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, conv, size))
+		return false;
+
+
+	//Check matmul in first two dims
+	if ((1 != idims[0]) || (1 != odims[1]))
+		return false;
+
+	long corr_strs[5];
+	md_calc_strides(5, corr_strs, kdims, size);
+	for (int i = 0; i < 5; i++)
+		if (MD_IS_SET(flags, i))
+			corr_strs[i] = -corr_strs[i];
+
+	complex float* krn;
+	if (conv){
+
+		krn = md_alloc_sameplace(5, kdims, size, in2);
+		md_copy2(5, kdims, MD_STRIDES(5, kdims, size), krn, corr_strs, in2, size);
+	} else {
+
+		krn = in2;
+	}
+
+	long odims_tile[5];
+    	md_copy_dims(5, odims_tile, odims);
+
+#if 1
+	//compute tile size, else full tiles are used
+    	long cache_size = 256 * 800 / size;
+	long filter_size = md_calc_size(5, kdims);
+	bool stop = false;
+	while (!stop){
+
+		long cost = filter_size;
+		cost += odims[0] * odims_tile[2] * odims_tile[3] * odims_tile[4];
+		cost += idims[1] * (odims_tile[2] + kdims[2] - 1) * (odims_tile[3] + kdims[3] - 1) * (odims_tile[4] + kdims[4] - 1);
+
+        	if (cost < cache_size){
+			stop = true;
+			continue;
+		}
+		if (odims_tile[4] > 4 * kdims[4]){
+			odims_tile[4] /= 2;
+			continue;
+		}
+		if (odims_tile[3] > 4 * kdims[3]){
+			odims_tile[3] /= 2;
+			continue;
+		}
+		if (odims_tile[2] > 4 * kdims[2]){
+			odims_tile[2] /= 2;
+			continue;
+		}
+
+		stop = true;
+        	debug_printf(DP_DEBUG2, "Failed to get cach size, output tiles:\n");
+        	debug_print_dims(DP_DEBUG2, 5, odims_tile);
+	}
+#endif
+
+	long tiles[5] = {1, 1, 1, 1, 1};
+	long N_tiles = 1;
+
+	long odims_last_tile[5];
+	md_copy_dims(5, odims_last_tile, odims);
+
+	long idims_tile[5];
+	long idims_last_tile[5];
+	md_copy_dims(5, idims_tile, idims);
+	md_copy_dims(5, idims_last_tile, idims);
+
+	for (int i = 2; i < 5; i++){
+
+       		tiles[i] =  odims[i] / odims_tile[i];
+        	odims_last_tile[i] = odims[i] % odims_tile[i];
+
+        	if (0 != odims_last_tile[i])
+            		tiles[i] += 1;
+        	else
+            		odims_last_tile[i] = odims_tile[i];
+
+		idims_tile[i] = odims_tile[i] + kdims[i] - 1;
+       		idims_last_tile[i] = odims_last_tile[i] + kdims[i] - 1;
+
+		N_tiles *= tiles[i];
+	}
+
+	long kdims_mat[8]; // (nr_filter | nr_in_channel, kx, ky, kz | 1, 1, 1)
+	md_singleton_dims(8, kdims_mat);
+	md_copy_dims(5, kdims_mat, kdims);
+
+	long idims_mat[8]; // (1 | nr_in_channel, kx, ky, kz | outx, outy, outz)
+	md_copy_dims(2, idims_mat, idims_tile);
+	md_copy_dims(3, idims_mat + 2, kdims + 2);
+	md_copy_dims(3, idims_mat + 5, odims_tile + 2);
+
+	long idims_last_mat[8];
+	md_copy_dims(2, idims_last_mat, idims_last_tile);
+	md_copy_dims(3, idims_last_mat + 2, kdims + 2);
+	md_copy_dims(3, idims_last_mat + 5, odims_last_tile + 2);
+
+	long istrs_mat[8];
+	md_copy_strides(5, istrs_mat, MD_STRIDES(5, idims, size));
+	md_copy_strides(3, istrs_mat + 5, MD_STRIDES(5, idims, size)+ 2);
+
+	long odims_mat[8]; // (nr_filter | 1, 1, 1, 1 | outx, outy, outz)
+	md_select_dims(8, ~31, odims_mat, idims_mat);
+	odims_mat[0] = kdims_mat[0];
+
+	long odims_last_mat[8];
+	md_select_dims(8, ~31, odims_last_mat, idims_last_mat);
+	odims_last_mat[0] = kdims_mat[0];
+
+	complex float* image_mat = md_alloc_sameplace(8, idims_mat, size, krn);
+	complex float* out_mat = md_alloc_sameplace(8, odims_mat, size, krn);
+
+	long mdims_tmp[8];
+	long idims_mat_tmp[8];
+	long odims_mat_tmp[8];
+        long odims_tmp[5];
+
+	long pos[] = {0, 0, 0, 0, 0};
+	for (int i = 0; i < N_tiles; i ++){
+
+        	int it = i;
+		for (int j = 2; j < 5; j++){
+
+		    	pos[j] = (it % tiles[j]);
+            		it = (it -pos[j]) /tiles[j];
+            		pos[j] *= odims_tile[j];
+        	}
+
+		md_copy_dims(8, idims_mat_tmp, idims_mat);
+		md_copy_dims(8, odims_mat_tmp, odims_mat);
+        	md_copy_dims(5, odims_tmp, odims_tile);
+
+        	for (int j = 0; j < 3; j++)
+			if (pos[j + 2] == (tiles[j + 2] - 1) * odims_tile[j + 2]){
+
+				idims_mat_tmp[j + 5] = idims_last_mat[j + 5];
+				odims_mat_tmp[j + 5] = odims_last_mat[j + 5];
+                		odims_tmp[j + 2] = odims_last_tile[j + 2];
+			}
+
+		md_max_dims(8, ~0, mdims_tmp, idims_mat_tmp, kdims_mat);
+
+		md_copy2(8, idims_mat_tmp, MD_STRIDES(8, idims_mat_tmp, size), image_mat, istrs_mat, &MD_ACCESS(5, MD_STRIDES(5, idims, size), pos, in1), size);
+		md_clear(8, odims_mat_tmp, out_mat, size);
+		md_zfmac2(8, mdims_tmp, MD_STRIDES(8, odims_mat_tmp, size), out_mat, MD_STRIDES(8, kdims_mat, size), krn, MD_STRIDES(8, idims_mat_tmp, size), image_mat);
+		md_copy2(5, odims_tmp, MD_STRIDES(5, odims, size), &MD_ACCESS(5, MD_STRIDES(5, odims, size), pos, out), MD_STRIDES(5, odims_tmp, size), out_mat, size);
+	}
+
+	md_free(image_mat);
+	md_free(out_mat);
+	if (conv)
+		md_free(krn);
+
+	return true;
+}
+
+
+static bool simple_zconvcorr_im2col_channelfirst_batch(unsigned int N, const long dims[N],
+							const long ostrs[N], complex float* out,
+							const long istrs1[N], const complex float* in1,
+							const long istrs2[N], const complex float* in2)
+{
+#ifdef USE_CUDA
+	// Not tested on GPU
+	return false;
+#endif
+	size_t size = CFL_SIZE;
+	unsigned long flags = 28;
+
+	if (12 != N)
+		return false;
+
+	long odims[6];
+	long idims[6];
+	long kdims[6];
+
+	/**
+	 * Check if
+	 * ostrs = ostrs of convcorr
+	 * istrs1 = istrs of convcorr
+	 * istrs2 = kstrs of convcorr
+	 **/
+	bool conv = detect_convcorr(6, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, true, size);
+	if (!detect_convcorr(6, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, conv, size))
+		return false;
+
+	//Check if matmul in first two dims and batch in last dimension
+	if ((1 != idims[0]) || (1 != odims[1]) || (1 != kdims[5]))
+		return false;
+
+	complex float* krn;
+	if (conv){
+
+		long kstrs_flip[6];
+		md_calc_strides(6, kstrs_flip, kdims, size);
+		for (int i = 0; i < 6; i++)
+			kstrs_flip[i] = (MD_IS_SET(flags, i)) ? -kstrs_flip[i] : kstrs_flip[i];
+
+		krn = md_alloc_sameplace(6, kdims, size, in2);
+		md_copy2(6, kdims, MD_STRIDES(6, kdims, size), krn, kstrs_flip, in2, size);
+	} else
+		krn = in2;
+
+	long mdimsb[10];
+	long ostrs2b[10];
+	long kstrs2b[10];
+	long istrs2b[10];
+	calc_convcorr_geom(5, flags, mdimsb, ostrs2b, kstrs2b, istrs2b, odims, MD_STRIDES(5, odims, size), kdims, MD_STRIDES(5, kdims, size), idims, MD_STRIDES(5, idims, size), false) / size;
+
+    	//only parallelize batch dims if present
+    	if ( 1 < idims[5]){
+
+    		#pragma omp parallel for
+	    	for (int i = 0; i < idims[5]; i++){
+
+		    	long pos[] = {0,0,0,0,0,i};
+		    	simple_zconvcorr_im2col_channelfirst(10, mdimsb, ostrs2b, &MD_ACCESS(6, MD_STRIDES(6, odims, size), pos, out),
+			    					istrs2b, &MD_ACCESS(6, MD_STRIDES(6, idims, size), pos, in1),
+								kstrs2b, krn);
+	    	}
+    	} else {
+
+		simple_zconvcorr_im2col_channelfirst(10, mdimsb, ostrs2b, out, istrs2b, in1, kstrs2b, krn);
+    	}
+
+	if (conv)
+		md_free(krn);
+	return true;
+}
+
+static bool simple_zconvcorr_im2col_channelfirst_adjkrn(unsigned int N, const long dims[N], const long ostrs[N], complex float* out,
+		const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+#ifdef USE_CUDA
+	// Convolution Kernel only implemented for CPU
+	return false;
+#endif
+
+	size_t size = CFL_SIZE;
+	unsigned long flags = 28;
+
+	if (12 != N)
+		return false;
+
+	long odims[6];
+	long idims[6];
+	long kdims[6];
+
+	/**
+	 * Backwardspath, i.e.
+	 * ostrs = kstrs of convcorr
+	 * istrs1 = istrs of convcorr
+	 * istrs2 = ostrs of convcorr
+	 **/
+	bool conv = detect_convcorr(6, odims, idims, kdims, dims, istrs2, istrs1, ostrs, flags, true, size);
+	if (!detect_convcorr(6, odims, idims, kdims, dims, istrs2, istrs1, ostrs, flags, conv, size))
+		return false;
+
+	//Check matmul in first two dims, batch last dimension
+	if ((1 != idims[0]) || (1 != odims[1]) || (1 != kdims[5]))
+		return false;
+
+	long idims_mat[9];
+	md_copy_dims(2, idims_mat, idims);
+	md_copy_dims(3, idims_mat + 2, kdims + 2);
+	md_copy_dims(4, idims_mat + 5, odims + 2);
+
+	long istrs_tmp[6];
+	md_calc_strides(6, istrs_tmp, idims, size);
+
+	long istrs_mat[9];
+	md_copy_strides(5, istrs_mat, istrs_tmp);
+	md_copy_strides(4, istrs_mat + 5, istrs_tmp + 2);
+
+	long kdims_mat[9];
+	md_singleton_dims(9, kdims_mat);
+	md_copy_dims(5, kdims_mat, kdims);
+
+	long odims_mat[9];
+	md_select_dims(9, ~31, odims_mat, idims_mat);
+	odims_mat[0] = kdims_mat[0];
+
+	long mdims[9];
+	md_max_dims(9, ~0, mdims, idims_mat, kdims_mat);
+
+
+	complex float* krn; //i.e. the result
+	if (conv){
+
+		krn = md_alloc_sameplace(6, kdims, size, out);
+		md_clear(6, kdims, krn, size);
+	} else
+		krn = out;
+
+#if 1
+	complex float* image_mat = md_alloc_sameplace(8, idims_mat, size, in1);
+	for (int i = 0; i < idims[5]; i++){
+
+		long pos[] = {0,0,0,0,0,i};
+		md_copy2(8, idims_mat, MD_STRIDES(8, idims_mat, size), image_mat, istrs_mat, &MD_ACCESS(6, MD_STRIDES(6, idims, size), pos, in1), size);
+		md_zfmac2(8, mdims, MD_STRIDES(8, kdims_mat, size), krn, MD_STRIDES(8, odims_mat, size), &MD_ACCESS(6, MD_STRIDES(6, odims, size), pos, in2), MD_STRIDES(8, idims_mat, size), image_mat);
+	}
+#else
+	complex float* image_mat = md_alloc_sameplace(9, idims_mat, size, in1);
+	md_copy2(9, idims_mat, MD_STRIDES(9, idims_mat, size), image_mat, istrs_mat, in1, size);
+	md_zfmac2(9, mdims, MD_STRIDES(9, kdims_mat, size), krn, MD_STRIDES(9, odims_mat, size), in2, MD_STRIDES(9, idims_mat, size), image_mat);
+#endif
+
+	md_free(image_mat);
+
+	if (conv){
+
+		long corr_strs[6];
+		md_calc_strides(6, corr_strs, kdims, size);
+		for (int i = 0; i < 6; i++)
+			if (MD_IS_SET(flags, i))
+				corr_strs[i] = -corr_strs[i];
+		md_copy2(6, kdims, corr_strs, out, MD_STRIDES(6, kdims, size), krn, size);
+		md_free(krn);
+	}
+
+	return true;
+}
+
+static bool simple_zconvcorr_im2col_channelfirst_adjim(unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+#ifdef USE_CUDA
+	// Convolution Kernel only implemented for CPU
+	return false;
+#endif
+
+	size_t size = CFL_SIZE;
+	unsigned long flags = 28;
+
+	if (12 != N)
+		return false;
+
+	long odims[6];
+	long idims[6];
+	long kdims[6];
+
+	/**
+	 * Transposed convolutio, i.e.
+	 * ostrs = istrs of convcorr
+	 * istrs1 = ostrs of convcorr
+	 * istrs2 = kstrs of convcorr
+	 **/
+	bool conv = detect_convcorr(6, odims, idims, kdims, dims, istrs1, ostrs, istrs2, flags, true, size);
+	if (!detect_convcorr(6, odims, idims, kdims, dims, istrs1, ostrs, istrs2, flags, conv, size))
+		return false;
+
+	//Check matmul in first two dims, batch last dimension
+	if ((1 != idims[0]) || (1 != odims[1]) || (1 != kdims[5]))
+		return false;
+
+	complex float* krn;
+	if (conv){
+
+		long kstrs_flip[6];
+		md_calc_strides(6, kstrs_flip, kdims, size);
+		for (int i = 0; i < 6; i++)
+			kstrs_flip[i] = (MD_IS_SET(flags, i)) ? -kstrs_flip[i] : kstrs_flip[i];
+
+		krn = md_alloc_sameplace(6, kdims, size, in2);
+		md_copy2(6, kdims, MD_STRIDES(6, kdims, size), krn, kstrs_flip, in2, size);
+	} else
+		krn = in2;
+
+	//transpose (matdims) and flip (convdims) kernel
+	complex float* tmp = md_alloc_sameplace(6, kdims, size, krn);
+	md_flip(6, kdims, flags, tmp, krn, size);
+	if (conv)
+		md_free(krn);
+
+	long kdims_transp[6];
+	md_transpose_dims(6, 0, 1, kdims_transp, kdims);
+	complex float* krn_transp = md_alloc_sameplace(6, kdims_transp, size, krn);
+	md_transpose(6, 0, 1, kdims_transp, krn_transp, kdims, tmp, size);
+	md_free(tmp);
+
+	long idims_transp[6];
+	md_transpose_dims(6, 0, 1, idims_transp, idims);
+	long odims_transp[6];
+	md_transpose_dims(6, 0, 1, odims_transp, odims);
+
+	long nodims_transp[6];
+	md_copy_dims(6, nodims_transp, odims_transp);
+
+	for (int i = 0; i < 6; i++)
+		if MD_IS_SET(flags, i)
+			nodims_transp[i] = idims_transp[i] + kdims_transp[i] - 1;
+
+	long mdims[10];
+	long nostrs2[10];
+	long nkstrs2[10];
+	long nistrs2[10];
+	calc_convcorr_geom(5, flags, mdims, nostrs2, nkstrs2, nistrs2, idims_transp, MD_STRIDES(5, idims_transp, size), kdims_transp, MD_STRIDES(5, kdims_transp, size), nodims_transp, MD_STRIDES(5, nodims_transp, size), false) / size;
+
+	#pragma omp parallel for
+	for (int j = 0; j < idims_transp[5]; j++){
+
+		long pos_batch[] = {0, 0, 0, 0, 0, j};
+
+		//*in1 = (o0, o1, o2) -> *nin1 = (0, 0, 0, o1, o2, o3)
+		complex float* nin1 = md_alloc_sameplace(5, nodims_transp, size, in1);
+		long pos[5];
+		for (int i = 0; i< 5; i++)
+			pos[i] = MD_IS_SET(flags, i) ? kdims_transp[i] - 1 : 0;
+		md_clear(5, nodims_transp, nin1, size);
+		md_copy_block(5, pos, nodims_transp, nin1, odims_transp, &MD_ACCESS(6, MD_STRIDES(6, odims_transp, size), pos_batch, in1), size);
+
+		simple_zconvcorr_im2col_channelfirst(10, mdims, nostrs2, &MD_ACCESS(6, MD_STRIDES(6, idims_transp, size), pos_batch, out), nistrs2, nin1, nkstrs2, krn_transp);
+
+		md_free(nin1);
+	}
+
+	md_free(krn_transp);
+
+	return true;
+}
+
+static bool simple_zconvcorr_im2col(unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+	if (simple_zconvcorr_im2col_channelfirst(N, dims, ostrs, out, istrs1, in1, istrs2, in2))
+		return true;
+	if (simple_zconvcorr_im2col_channelfirst(N, dims, ostrs, out, istrs2, in2, istrs1, in1))
+		return true;
+
+	if (simple_zconvcorr_im2col_channelfirst_batch(N, dims, ostrs, out, istrs1, in1, istrs2, in2))
+		return true;
+	if (simple_zconvcorr_im2col_channelfirst_batch(N, dims, ostrs, out, istrs2, in2, istrs1, in1))
+		return true;
+
+	if (simple_zconvcorr_im2col_channelfirst_adjim(N, dims, ostrs, out, istrs1, in1, istrs2, in2))
+		return true;
+	if (simple_zconvcorr_im2col_channelfirst_adjim(N, dims, ostrs, out, istrs2, in2, istrs1, in1))
+		return true;
+
+	if (simple_zconvcorr_im2col_channelfirst_adjkrn(N, dims, ostrs, out, istrs1, in1, istrs2, in2))
+		return true;
+	if (simple_zconvcorr_im2col_channelfirst_adjkrn(N, dims, ostrs, out, istrs2, in2, istrs1, in1))
+		return true;
+
+	return false;
+}
+
+static bool simple_zconvcorr(unsigned int N, const long dims[N], const long ostrs[N], complex float* out,
+		const long istrs[N], const complex float* image, const long kstrs[N], const complex float* kernel)
+{
+	if(simple_zconvcorr_im2col(N, dims, ostrs, out, istrs, image, kstrs, kernel))
+		return true;
+
+	return false;
+}
 
 
 /*
@@ -1531,6 +2043,9 @@ void md_zmatmul(unsigned int D, const long out_dims[D], complex float* dst, cons
  */
 void md_zfmac2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
+	if (simple_zconvcorr(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
+
 	if (simple_inner_matmul_zfmac(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
 		return;
 
