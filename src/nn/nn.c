@@ -27,8 +27,8 @@
 #include "nlops/conv.h"
 #include "nlops/const.h"
 
-#include "nn/relu.h"
-#include "nn/bias.h"
+#include "nn/activation.h"
+#include "nn/layers.h"
 
 #include "nn.h"
 
@@ -38,13 +38,14 @@
 extern void simple_dcnn(const long dims[6], const long krn_dims[6], const complex float* krn, const long bias_dims[6], const complex float* bias, complex float* out, const complex float* in)
 {
 	unsigned int N = 6;
-	unsigned int flags = 3;
 	unsigned int layers = krn_dims[5];
 
 	assert(krn_dims[3] == krn_dims[4]);
 	assert(layers == bias_dims[5]);
 	assert(krn_dims[4] == bias_dims[4]);
 	assert((1 == dims[3]) && (1 == dims[4]));
+
+	long filters = krn_dims[4];
 
 	long krn_strs[N];
 	md_calc_strides(N, krn_strs, krn_dims, CFL_SIZE);
@@ -65,29 +66,22 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 	const struct nlop_s* nl = nlop_from_linop(lres1);
 	linop_free(lres1);
 
-	long pos[6] = { 0 };
-
 	struct linop_s* resh = linop_reshape_create(5, dims2a, 5, dims2b);
 	struct nlop_s* nresh = nlop_from_linop(resh);
 	linop_free(resh);
 
 	for (unsigned int l = 0; l < layers; l++) {
 
-		pos[5] = l;
+        	long kernel_size[] = {3, 3, 1};
+        	long strides[] = {1, 1, 1};
+        	long dilation[] = {1, 1, 1};
 
-		debug_printf(DP_INFO, "Layer: %d/%d\n", l, layers);
-		
-		struct nlop_s* conv = nlop_conv_geom_create(5, flags, dims2b, dims2a, krn_dims, PADDING_SAME);
-		conv = nlop_set_input_const_F(conv, 1, 5, krn_dims, &MD_ACCESS(6, krn_strs, pos, krn));
+        	nl = append_conv_layer(nl, 0, filters, kernel_size, PADDING_SAME, false, strides, dilation);
+		nl = append_activation_bias(nl, (l < layers - 1) ? ACT_RELU : ACT_LIN, 0, MD_BIT(3));
 
-		nl = nlop_chain_FF(nl, conv);
-		nl = nlop_chain_FF(nl, nlop_bias_create(5, dims2b, bias_dims, &MD_ACCESS(6, bias_strs, pos, bias)));
-
-
-		if (l < layers - 1)
-			nl = nlop_chain_FF(nl, nlop_relu_create(5, dims2b));
-
-		nl = nlop_chain_FF(nl, nlop_clone(nresh));
+		long bdims[] = {filters};
+        	nl = nlop_set_input_const_F(nl, 1, 5, krn_dims, krn + l * md_calc_size(5, krn_dims));
+        	nl = nlop_set_input_const_F(nl, 1, 1, bdims, bias + l * filters);
 	}
 
 	nlop_free(nresh);
