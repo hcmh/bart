@@ -1432,16 +1432,7 @@ void md_zconv(int N, unsigned long flags,
 	      const long kdims[N], const complex float* krn,
 	      const long idims[N], const complex float* in)
 {
-	long ostrs[N];
-	md_calc_strides(N, ostrs, odims, CFL_SIZE);
-
-	long kstrs[N];
-	md_calc_strides(N, kstrs, kdims, CFL_SIZE);
-
-	long istrs[N];
-	md_calc_strides(N, istrs, idims, CFL_SIZE);
-
-	md_zconv2(N, flags, odims, ostrs, out, kdims, kstrs, krn, idims, istrs, in);
+	md_zconv2(N, flags, odims, MD_STRIDES(N, odims, CFL_SIZE), out, kdims, MD_STRIDES(N, kdims, CFL_SIZE), krn, idims, MD_STRIDES(N, idims, CFL_SIZE), in);
 }
 
 /**
@@ -2873,7 +2864,25 @@ void md_zexp(unsigned int D, const long dims[D], complex float* optr, const comp
 }
 
 
+/**
+ * Complex logarithm
+ *
+ * optr = zlog(iptr)
+ */
+void md_zlog2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
+{
+	MAKE_Z2OP(zlog, D, dims, ostr, optr, istr, iptr);
+}
 
+/**
+ * Complex logarithm
+ *
+ * optr = zlog(iptr)
+ */
+void md_zlog(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr)
+{
+	make_z2op_simple(md_zlog2, D, dims, optr, iptr);
+}
 
 /**
  * Get argument of complex arrays (with strides)
@@ -2901,7 +2910,7 @@ void md_zarg(unsigned int D, const long dims[D], complex float* optr, const comp
 /**
  * Complex sinus
  *
- * optr = zexp(iptr)
+ * optr = zsin(iptr)
  */
 void md_zsin2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
 {

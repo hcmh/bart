@@ -7,7 +7,7 @@
  * 2012-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2015-2018 Jon Tamir <jtamir@eecs.berkeley.edu>
  *
- * 
+ *
  * This file defines basic operations on vectors of floats/complex floats
  * for operations on the GPU. See the CPU version (vecops.c) for more
  * information.
@@ -55,7 +55,7 @@ static int blocksize(int N)
 {
 	int warps_total = (N + WARPSIZE - 1) / WARPSIZE;
 	int warps_block = MAX(1, MIN(4, warps_total));
-	
+
 	return WARPSIZE * warps_block;
 }
 
@@ -63,7 +63,7 @@ static int gridsize(int N)
 {
 	int warps_total = (N + WARPSIZE - 1) / WARPSIZE;
 	int warps_block = MAX(1, MIN(4, warps_total));
-	
+
 	return MIN(MAXBLOCKS, MAX(1, warps_total / warps_block));
 }
 #endif
@@ -408,7 +408,7 @@ __device__ cuFloatComplex zlog(cuFloatComplex x)
 }
 
 
-// x^y = e^{y ln(x)} = e^{y 
+// x^y = e^{y ln(x)} = e^{y
 __device__ cuFloatComplex zpow(cuFloatComplex x, cuFloatComplex y)
 {
 	return zexp(cuCmulf(y, zlog(x)));
@@ -538,7 +538,22 @@ extern "C" void cuda_zexpj(long N, _Complex float* dst, const _Complex float* sr
 	kern_zexpj<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
 }
 
+__global__ void kern_zlog(int N, cuFloatComplex* dst, const cuFloatComplex* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
 
+	for (int i = start; i < N; i += stride){
+
+		float abs = cuCabsf(src[i]); // moved out, otherwise it triggers a compiler error in nvcc
+		dst[i] = (0. == abs) ? make_cuFloatComplex(0., 0.): zlog(src[i]);
+	}
+}
+
+extern "C" void cuda_zlog(long N, _Complex float* dst, const _Complex float* src)
+{
+	kern_zlog<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
+}
 
 __global__ void kern_zarg(int N, cuFloatComplex* dst, const cuFloatComplex* src)
 {
@@ -870,6 +885,3 @@ extern "C" void cuda_zsum(long N, _Complex float* dst)
 		B /= 32;
 	}
 }
-
-
-

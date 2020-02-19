@@ -218,7 +218,7 @@ static void fmac(long N, float* dst, const float* src1, const float* src2)
 	for (long i = 0; i < N; i++)
 		dst[i] += src1[i] * src2[i];
 	//dst[i] = fmaf(src1[i], src2[i], dst[i]);
-		
+
 }
 
 static void fmac2(long N, double* dst, const float* src1, const float* src2)
@@ -328,6 +328,14 @@ static void zexpj(long N, complex float* dst, const complex float* src)
 	for (long i = 0; i < N; i++)
 		dst[i] = cexpf(1.I * src[i]);
 }
+
+static void zlog(long N, complex float* dst, const complex float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = (src[i] == (complex float)0.) ? 0. : clogf(src[i]);
+}
+
+
 
 static void zarg(long N, complex float* dst, const complex float* src)
 {
@@ -483,10 +491,10 @@ static void softthresh(long N, float lambda, float* d, const float* x)
 static float klargest_complex_partsort( unsigned int N,  unsigned int k, const complex float* ar)
 {
 	assert(k <= N);
-	
+
 	complex float* tmp =  (complex float*)xmalloc(N * sizeof(complex float));
 	copy(2 * N, (float*)tmp, (float*)ar);
-	
+
 	float thr = quickselect_complex(tmp, N, k);
 
 	xfree(tmp);
@@ -497,9 +505,9 @@ static float klargest_complex_partsort( unsigned int N,  unsigned int k, const c
 /**
  * Hard thesholding, y = HT(x, thr).
  * computes the thresholded vector, y = x * (abs(x) >= t(kmax))
- * 
+ *
  * @param N number of elements
- * @param k threshold parameter, index of kth largest element of sorted x 
+ * @param k threshold parameter, index of kth largest element of sorted x
  * @param d pointer to destination, y
  * @param x pointer to input
  */
@@ -507,7 +515,7 @@ static float klargest_complex_partsort( unsigned int N,  unsigned int k, const c
 static void zhardthresh(long N,  unsigned int k, complex float* d, const complex float* x)
 {
 	float thr = klargest_complex_partsort(N, k, x);
-   
+
 	for (long i = 0; i < N; i++) {
 
 		float norm = cabsf(x[i]);
@@ -644,6 +652,7 @@ const struct vec_ops cpu_ops = {
 	.zconj = zconj,
 	.zexpj = zexpj,
 	.zexp = zexp,
+	.zlog = zlog,
 	.zarg = zarg,
 	.zabs = zabs,
 
@@ -711,5 +720,3 @@ const struct vec_iter_s cpu_iter_ops = {
 	.swap = swap,
 	.zmul = zmul,
 };
-
-
