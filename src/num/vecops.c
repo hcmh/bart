@@ -79,6 +79,12 @@ static void clear(long N, float* vec)
 		vec[i] = 0.;
 }
 
+static void sadd(long N, float* vec, float src)
+{
+	for (long i = 0; i < N; i++)
+		vec[i] += src;
+}
+
 static double dot(long N, const float* vec1, const float* vec2)
 {
 	double res = 0.;
@@ -213,12 +219,17 @@ static void vec_div(long N, float* dst, const float* src1, const float* src2)
 		dst[i] = (src2[i] == 0) ? 0.f : src1[i] / src2[i];
 }
 
+static void sdiv(long N, float* dst, float src1, const float* src2)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = (src2[i] == 0) ? 0.f : src1 / src2[i];
+}
+
 static void fmac(long N, float* dst, const float* src1, const float* src2)
 {
 	for (long i = 0; i < N; i++)
 		dst[i] += src1[i] * src2[i];
 	//dst[i] = fmaf(src1[i], src2[i], dst[i]);
-
 }
 
 static void fmac2(long N, double* dst, const float* src1, const float* src2)
@@ -385,6 +396,13 @@ static void min(long N, float* dst, const float* src1, const float* src2)
 {
 	for (long i = 0; i < N; i++)
 		dst[i] = MIN(src1[i], src2[i]);
+}
+
+
+static void smin(long N, float val, float* dst, const float* src1)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = MIN(src1[i], val);
 }
 
 
@@ -693,12 +711,23 @@ struct vec_iter_s {
 
 	void (*sub)(long N, float* a, const float* x, const float* y);
 	void (*add)(long N, float* a, const float* x, const float* y);
+	void (*div)(long N, float* a, const float* x, const float* y);
+	void (*sqrt)(long N, float* a, const float* x);
 
 	void (*smul)(long N, float alpha, float* a, const float* x);
+	void (*sadd)(long N, float* x, float y);
+	void (*sdiv)(long N, float* a, float x, const float* y);
+
 	void (*xpay)(long N, float alpha, float* a, const float* x);
 	void (*axpy)(long N, float* a, float alpha, const float* x);
 	void (*axpbz)(long N, float* out, const float a, const float* x, const float b, const float* z);
+	void (*fmac)(long N, float* a, const float* x, const float* y);
+
+	void (*smax)(long N, float alpha, float* a, const float* x);
+	void (*smin)(long N, float alpha, float* a, const float* x);
+
 	void (*zmul)(long N, complex float* dst, const complex float* src1, const complex float* src2);
+ 	void (*zsmax)(long N, complex float val, complex float* dst, const complex float* src1);
 };
 
 
@@ -719,4 +748,11 @@ const struct vec_iter_s cpu_iter_ops = {
 	.sub = sub,
 	.swap = swap,
 	.zmul = zmul,
+	.fmac = fmac,
+	.sqrt = vec_sqrt,
+	.sdiv = sdiv,
+	.sadd = sadd,
+	.div = vec_div,
+	.smax = smax,
+	.smin = smin,
 };
