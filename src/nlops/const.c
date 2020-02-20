@@ -87,7 +87,7 @@ struct nlop_s* nlop_const_create(int N, const long dims[N], const complex float*
 
 /**
  * Chain operator with a constant operator
- * @param a operator whose input should be set constant 
+ * @param a operator whose input should be set constant
  * @param i index which should be set constant
  * @param N #dimensions of input array
  * @param dims dimensions of input array
@@ -108,7 +108,7 @@ struct nlop_s* nlop_set_input_const2(const struct nlop_s* a, int i, int N, const
 
 /**
  * Chain operator with a constant operator
- * @param a operator whose input should be set constant 
+ * @param a operator whose input should be set constant
  * @param i index which should be set constant
  * @param N #dimensions of input array
  * @param dims dimensions of input array
@@ -121,7 +121,7 @@ struct nlop_s* nlop_set_input_const(const struct nlop_s* a, int i, int N, const 
 
 /**
  * Chain operator with a constant operator and free the input operator
- * @param a operator whose input should be set constant 
+ * @param a operator whose input should be set constant
  * @param i index which should be set constant
  * @param N #dimensions of input array
  * @param dims dimensions of input array
@@ -137,7 +137,7 @@ struct nlop_s* nlop_set_input_const_F2(const struct nlop_s* a, int i, int N, con
 
 /**
  * Chain operator with a constant operator and free the input operator
- * @param a operator whose input should be set constant 
+ * @param a operator whose input should be set constant
  * @param i index which should be set constant
  * @param N #dimensions of input array
  * @param dims dimensions of input array
@@ -197,7 +197,7 @@ struct nlop_s* nlop_del_out(const struct nlop_s* a, int o)
 	assert(ao > o);
 
 	const struct iovec_s* codomain = nlop_generic_codomain(a, o);
-    
+
 	struct nlop_s* nlop_del_out_op = nlop_del_out_create(codomain->N, codomain->dims);
 	struct nlop_s* result = nlop_chain2(a, o,  nlop_del_out_op,  0);
 	nlop_free(nlop_del_out_op);
