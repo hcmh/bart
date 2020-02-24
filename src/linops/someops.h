@@ -1,5 +1,5 @@
 /* Copyright 2014. The Regents of the University of California.
- * All rights reserved. Use of this source code is governed by 
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  */
 
@@ -22,6 +22,8 @@ extern struct linop_s* linop_reshape_create(unsigned int A, const long out_dims[
 extern struct linop_s* linop_extract_create(unsigned int N, const long pos[N], const long out_dims[N], const long in_dims[N]);
 extern struct linop_s* linop_transpose_create(int N, int a, int b, const long dims[N]);
 
+extern struct linop_s* linop_copy_selected_create(unsigned int N, const long odims[__VLA(N)], long size_in, long iptr_offset);
+extern struct linop_s* linop_copy_selected_create2(unsigned int N, const long odims[__VLA(N)], const long ostrs[__VLA(N)], long size_in, long iptr_offset);
 
 extern struct linop_s* linop_fft_create(int N, const long dims[__VLA(N)], unsigned int flags);
 extern struct linop_s* linop_ifft_create(int N, const long dims[__VLA(N)], unsigned int flags);

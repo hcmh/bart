@@ -189,7 +189,7 @@ static void identity_apply(const linop_data_t* _data, complex float* dst, const 
 }
 
 static void identity_free(const linop_data_t* _data)
-{	
+{
 	const auto data = CAST_DOWN(identity_data_s, _data);
 
 	iovec_free(data->domain);
@@ -909,7 +909,60 @@ struct linop_s* linop_matrix_chain(const struct linop_s* a, const struct linop_s
 }
 
 
+struct copy_selected_op_s {
 
+	INTERFACE(linop_data_t);
+
+	long size_in;
+	long pos;
+	const struct iovec_s* codom;
+};
+
+static DEF_TYPEID(copy_selected_op_s);
+
+static void copy_selected_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(copy_selected_op_s, _data);
+	md_copy(data->codom->N, data->codom->dims, dst, src + data->pos, CFL_SIZE);
+}
+
+static void copy_selected_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(copy_selected_op_s, _data);
+
+	long dims[] = {data->size_in};
+	md_clear(1, dims, dst, CFL_SIZE);
+	md_copy(data->codom->N, data->codom->dims, dst + data->pos, src, CFL_SIZE);
+}
+
+
+static void copy_selected_free(const linop_data_t* _data)
+{
+	const auto data = CAST_DOWN(copy_selected_op_s, _data);
+
+	iovec_free(data->codom);
+	xfree(data);
+}
+
+
+struct linop_s* linop_copy_selected_create2(unsigned int N, const long odims[N], const long ostrs[N], long size_in, long iptr_offset)
+{
+	PTR_ALLOC(struct copy_selected_op_s, data);
+	SET_TYPEID(copy_selected_op_s, data);
+
+	data->size_in = size_in;
+	data->pos = iptr_offset;
+	data->codom = iovec_create2(N, odims, ostrs, CFL_SIZE);
+
+	long idims[] = {size_in};
+
+	return linop_create2(N, odims, ostrs, 1, idims, MD_STRIDES(1, idims, CFL_SIZE), CAST_UP(PTR_PASS(data)), copy_selected_forward, copy_selected_adjoint, NULL, NULL, copy_selected_free);
+}
+
+struct linop_s* linop_copy_selected_create(unsigned int N, const long odims[N], long size_in, long iptr_offset)
+{
+	return linop_copy_selected_create2(N, odims, MD_STRIDES(N, odims, CFL_SIZE), size_in, iptr_offset);
+}
 
 
 struct fft_linop_s {
@@ -921,7 +974,7 @@ struct fft_linop_s {
 
 	bool center;
 	float nscale;
-	
+
 	int N;
 	long* dims;
 	long* strs;
@@ -1229,9 +1282,9 @@ static void linop_conv_free(const linop_data_t* _data)
  * @param ctype
  * @param cmode
  * @param odims output dimensions
- * @param idims input dimensions 
+ * @param idims input dimensions
  * @param kdims kernel dimensions
- * @param krn convolution kernel 
+ * @param krn convolution kernel
  */
 struct linop_s* linop_conv_create(int N, unsigned int flags, enum conv_type ctype, enum conv_mode cmode, const long odims[N],
                 const long idims[N], const long kdims[N], const complex float* krn)
