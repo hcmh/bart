@@ -167,7 +167,7 @@ TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten ssa bin c
 TMRI=homodyne poisson twixread fakeksp umgread looklocker paradiseread
 TIO=toimg dcmread dcmtag
 TSIM=phantom phantom_json traj upat bloch sim
-
+TNN=mnist
 
 
 MODULES = -lnum -lmisc -lnum -lmisc -lna
@@ -193,7 +193,7 @@ MODULES_rof = -liter -llinops
 MODULES_tgv = -liter -llinops
 MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu -lgeom
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -lnlops -lmanifold -lmoba -lgeom
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -liter -lnlops -lmanifold -lmoba -lgeom
 MODULES_sake = -lsake
 MODULES_traj = -lnoncart
 MODULES_wave = -liter -lwavelet -llinops -llowrank
@@ -253,7 +253,7 @@ endif
 
 
 
-XTARGETS += $(TBASE) $(TFLP) $(TNUM) $(TIO) $(TRECO) $(TCALIB) $(TMRI) $(TSIM)
+XTARGETS += $(TBASE) $(TFLP) $(TNUM) $(TIO) $(TRECO) $(TCALIB) $(TMRI) $(TSIM) $(TNN)
 TARGETS = bart $(XTARGETS)
 
 
@@ -312,10 +312,10 @@ ifeq ($(BUILDTYPE), MacOSX)
 CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -m64 -lstdc++
 else
 CUDA_L := -L$(CUDA_BASE)/lib64 -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib64
-endif 
+endif
 else
 CUDA_H :=
-CUDA_L :=  
+CUDA_L :=
 endif
 
 # sm_20 no longer supported in CUDA 9
