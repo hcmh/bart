@@ -10,6 +10,7 @@
 
 #include "misc/types.h"
 #include "misc/misc.h"
+#include "misc/debug.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -66,8 +67,8 @@ static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N])
 #endif
 	tenmul_initialize(data, dst);
 
-	md_copy2(data->N, data->dims1, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1, data->istr1, src1, CFL_SIZE);
-	md_copy2(data->N, data->dims2, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2, data->istr2, src2, CFL_SIZE);
+	md_zconj2(data->N, data->dims1, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1, data->istr1, src1);
+	md_zconj2(data->N, data->dims2, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2, data->istr2, src2);
 
 	md_ztenmul2(data->N, data->dims, data->ostr, dst, data->istr1, src1, data->istr2, src2);
 }
@@ -76,36 +77,28 @@ static void tenmul_der2(const nlop_data_t* _data, complex float* dst, const comp
 {
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
-	md_ztenmul2(data->N, data->dims, data->ostr, dst,
-			data->istr2, src,
-			MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1);
+	md_ztenmulc2(data->N, data->dims, data->ostr, dst, data->istr2, src, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1);
 }
 
 static void tenmul_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
-	md_ztenmulc2(data->N, data->dims, data->istr2, dst,
-			data->ostr, src,
-			MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1);
+	md_ztenmul2(data->N, data->dims, data->istr2, dst, data->ostr, src, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1);
 }
 
 static void tenmul_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
-	md_ztenmul2(data->N, data->dims, data->ostr, dst,
-			data->istr1, src,
-			MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2);
+	md_ztenmulc2(data->N, data->dims, data->ostr, dst, data->istr1, src, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2);
 }
 
 static void tenmul_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
-	md_ztenmulc2(data->N, data->dims, data->istr1, dst,
-			data->ostr, src,
-			MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2);
+	md_ztenmul2(data->N, data->dims, data->istr1, dst, data->ostr, src, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2);
 }
 
 
@@ -148,8 +141,8 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 	PTR_ALLOC(long[N], nistr2);
 	md_select_dims(N, md_nontriv_strides(N, istr2), *ndims2, dims);
 	md_copy_strides(N, *nistr2, istr2);
-	
-	
+
+
 	data->N = N;
 	data->dims = *PTR_PASS(ndims);
 	data->ostr = *PTR_PASS(nostr);
