@@ -85,7 +85,7 @@ static void bresenham(pixel_f out, int x0, int y0, int x1, int y1)
 
 extern void bresenham_rgba_fl(int X, int Y, float (*out)[X][Y][4], const float (*val)[4], int x0, int y0, int x1, int y1)
 {
-	void* p = out;	// clang limitatio
+	void* p = out;	// clang limitation
 
 	NESTED(void, draw, (int x, int y, float c))
 	{
@@ -104,7 +104,7 @@ extern void bresenham_rgba(int X, int Y, unsigned char (*out)[X][Y][4], const un
 
 	NESTED(void, draw, (int x, int y, float c))
 	{
-		float (*out)[X][Y][4] = p;
+		unsigned char (*out)[X][Y][4] = p;
 
 		for (int i = 0; i < 4; i++)
 			(*out)[x][y][i] = c * (*val)[i];
@@ -119,7 +119,7 @@ extern void bresenham_cmplx(int X, int Y, complex float (*out)[X][Y], complex fl
 
 	NESTED(void, draw, (int x, int y, float c))
 	{
-		float (*out)[X][Y] = p;
+		complex float (*out)[X][Y] = p;
 
 		(*out)[x][y] = c * val;
 	};
@@ -172,7 +172,7 @@ extern void xiaolin_wu_cmplx(int X, int Y, complex float (*out)[X][Y], complex f
 
 	NESTED(void, draw, (int x, int y, float c))
 	{
-		float (*out)[X][Y] = p;
+		complex float (*out)[X][Y] = p;
 
 		(*out)[x][y] = c * val;
 	};
@@ -201,7 +201,7 @@ extern void xiaolin_wu_rgba(int X, int Y, unsigned char (*out)[X][Y][4], const u
 
 	NESTED(void, draw, (int x, int y, float c))
 	{
-		float (*out)[X][Y][4] = p;
+		unsigned char (*out)[X][Y][4] = p;
 
 		for (int i = 0; i < 4; i++)
 			(*out)[x][y][i] = c * (*val)[i];
@@ -211,10 +211,12 @@ extern void xiaolin_wu_rgba(int X, int Y, unsigned char (*out)[X][Y][4], const u
 }
 
 
+#if 0
 static double csplineX(double t, const double coeff[4])
 {
 	return coeff[3] * t + coeff[0] * (1. - t);
 }
+#endif
 
 
 static void draw_cspline(int X, int Y, pixel_f out, const double coeff[2][4])
@@ -243,7 +245,7 @@ extern void cspline_cmplx(int X, int Y, complex float (*out)[X][Y], complex floa
 
 	NESTED(void, draw, (int x, int y, float c))
 	{
-		float (*out)[X][Y] = p;
+		complex float (*out)[X][Y] = p;
 
 		(*out)[x][y] = c * val;
 	};
