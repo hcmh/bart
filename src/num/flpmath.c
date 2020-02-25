@@ -2364,6 +2364,38 @@ void md_axpy(unsigned int D, const long dims[D], float* optr, float val, const f
 	md_axpy2(D, dims, strs, optr, val, strs, iptr);
 }
 
+static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
+{
+#ifdef USE_CUDA
+	return false;
+#endif
+	if (optr != iptr1)
+		return false;
+
+	long tostr[D];
+	long tistr1[D];
+	long tistr2[D];
+	long tdims[D];
+
+	md_copy_dims(D, tdims, dims);
+	md_copy_strides(D, tostr, ostr);
+	md_copy_strides(D, tistr1, istr1);
+	md_copy_strides(D, tistr2, istr2);
+
+	long (*strs[3])[D] = { &tostr, &tistr1, &tistr2 };
+	D = simplify_dims(3, D, tdims, strs);
+
+	//sum over outer dimension
+	if ((2 == D) && (CFL_SIZE == tostr[0]) && (CFL_SIZE == tistr1[0]) && (CFL_SIZE == tistr2[0]) && (0 == tostr[1]) && (0 == tistr1[1]) && ((signed)CFL_SIZE * tdims[0] == tistr2[1])){
+
+		for (int j = 0; j < tdims[1]; j++)
+			for (int i = 0; i < tdims[0]; i++)
+				optr[i] += iptr2[i + tdims[0] * j];
+		return true;
+	}
+
+	return false;
+}
 
 
 /**
@@ -2373,6 +2405,8 @@ void md_axpy(unsigned int D, const long dims[D], float* optr, float val, const f
  */
 void md_zadd2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
+	if (simple_zsum(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
 	MAKE_Z3OP_FROM_REAL(add, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
