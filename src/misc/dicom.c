@@ -306,9 +306,12 @@ static int dicom_read_sequence(unsigned int len, const unsigned char buf[len], b
 			};
 
 			assert(use_implicit);	// FIXME: explicit
-			o += dicom_query(len - o, e.data, use_implicit, 1, end);
+			int r = dicom_query(len - o, e.data, use_implicit, 1, end);
 
+			assert(1 == r);
 			assert(0 == end[0].len);
+
+			o = (const unsigned char*)end[0].data - buf;
 
 		} else {
 
@@ -503,6 +506,7 @@ static int dicom_query(size_t len, const unsigned char buf[len], bool use_implic
 	for (i = 0; i < N; i++) {
 
 		struct element element;
+		memcpy(element.vr, ellist[i].vr, sizeof(element.vr));
 
 		do {
 			size_t l;
@@ -516,11 +520,11 @@ static int dicom_query(size_t len, const unsigned char buf[len], bool use_implic
 			if (off == len)
 				break;
 
-		} while(0 > dicom_tag_compare(element.tag,
-				ellist[i].tag));
+		} while(0 > dicom_tag_compare(element.tag, ellist[i].tag));
 
 		if (0 == dicom_tag_compare(element.tag, ellist[i].tag))
 			memcpy(&ellist[i], &element, sizeof(element));
+
 
 		if (off == len)
 			break;
