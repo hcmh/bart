@@ -17,7 +17,11 @@ static const char* help_str = "";
 
 int main_dcmtag(int argc, char* argv[])
 {
+	const char* repr = NULL;
+
 	const struct opt_s opts[] = {
+
+		OPT_STRING('r', &repr, "XX", "value representation"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -38,16 +42,24 @@ int main_dcmtag(int argc, char* argv[])
 		error("reading dicom file '%s'\n", argv[2]);
 
 
-	struct element el = { .tag = { (uint16_t)x, (uint16_t)y } };
+	struct element el = { .tag = { (uint16_t)x, (uint16_t)y }, .vr = "--" };
+
+	if (NULL != repr) {
+
+		if (2 != strlen(repr))
+			error("incorrect value representation\n");
+
+		el.vr[0] = repr[0];
+		el.vr[1] = repr[1];
+	}
 
 	dicom_query_tags(dobj, 1, &el);
 
 	if (NULL == el.data)
 		error("tag not found\n");
 
-
 	if (NULL != argv[3]) {
-		
+
 		int fd = open(argv[3], O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);
 
 		if (-1 == fd)
@@ -104,7 +116,7 @@ int main_dcmtag(int argc, char* argv[])
 		break;
 
 	default:
-		error("unsupported element type: %s\n", el.vr);
+		error("unsupported element type: %2s\n", el.vr);
 	}
 
 end:
