@@ -67,24 +67,44 @@ int main_dcmtag(int argc, char* argv[])
 	switch (VR(el.vr)) {
 		const char* str;
 
-	case VR2('I', 'S'):
-	case VR2('C', 'S'):
-	case VR2('L', 'T'):
+	case VR2('D', 'A'):	// date
+	case VR2('D', 'T'):	// date time
+	case VR2('T', 'M'):	// time
+
+	case VR2('P', 'N'):	// person name
+	case VR2('A', 'S'):	// age string
+	case VR2('D', 'S'):	// decimal string
+	case VR2('I', 'S'):	// integer string
+	case VR2('C', 'S'):	// code string
+	case VR2('L', 'T'):	// long text
+	case VR2('S', 'T'):	// short text
+	case VR2('U', 'T'):	// unlimited text
+
+	case VR2('U', 'I'):	// unique identifier
+
 		str = strndup(el.data, el.len);
 		bart_printf("%s\n", str);
 		xfree(str);
 		break;
 
-	case VR2('U', 'S'):
+	case VR2('F', 'L'):	// IEEE 754:1985 32 bit
+		bart_printf("%f\n", (double)(*(float*)el.data));
+		break;
+
+	case VR2('F', 'D'):	// IEEE 754:1985 64 bit
+		bart_printf("%f\n", *(double*)el.data);
+		break;
+
+	case VR2('U', 'S'):	// unsigned short
 		bart_printf("%d\n", *(uint16_t*)el.data);
 		break;
 
-	case VR2('L', 'S'):
+	case VR2('S', 'L'):	// signed long
 		bart_printf("%d\n", *(uint32_t*)el.data);
 		break;
 
 	default:
-		error("unsupported element type\n");
+		error("unsupported element type: %s\n", el.vr);
 	}
 
 end:
