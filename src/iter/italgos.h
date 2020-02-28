@@ -34,6 +34,7 @@ typedef struct iter_op_data_s { TYPEID* TYPEID; } iter_op_data;
 typedef void (*iter_op_fun_t)(iter_op_data* data, float* dst, const float* src);
 typedef void (*iter_nlop_fun_t)(iter_op_data* data, int N, float* args[N]);
 typedef void (*iter_op_p_fun_t)(iter_op_data* data, float rho, float* dst, const float* src);
+typedef void (*iter_op_arr_fun_t)(iter_op_data* data, int NO, unsigned long oflags, float* dst[NO], int NI, unsigned long iflags, const float* src[NI]);
 
 struct iter_op_s {
 
@@ -53,6 +54,12 @@ struct iter_op_p_s {
 	iter_op_data* data;
 };
 
+struct iter_op_arr_s {
+
+	iter_op_arr_fun_t fun;
+	iter_op_data* data;
+};
+
 inline void iter_op_call(struct iter_op_s op, float* dst, const float* src)
 {
 	op.fun(op.data, dst, src);
@@ -66,6 +73,11 @@ inline void iter_nlop_call(struct iter_nlop_s op, int N, float* args[N])
 inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src)
 {
 	op.fun(op.data, rho, dst, src);
+}
+
+inline void iter_op_arr_call(struct iter_op_arr_s op, int NO, unsigned long oflags, float* dst[NO], int NI, unsigned long iflags, const float* src[NI])
+{
+	op.fun(op.data, NO, oflags, dst, NI, iflags, src);
 }
 
 
@@ -96,20 +108,18 @@ void landweber_sym(unsigned int maxiter, float epsilon, float alpha,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
-typedef void iter6_algo1_f(unsigned int epochs, float clipnorm, float clipval,
-             float learningrate, float momentum,
+typedef void iter6_algo_f(unsigned int epochs,
              long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
              long NO, long osize[NO], enum OUT_TYPE out_type[NI],
              int N_batch, int N_total,
              const struct vec_iter_s* vops,
              struct iter_nlop_s nlop,
-             struct iter_op_s adj[NO][NI],
+             struct iter_op_arr_s adj,
+	     struct iter_op_arr_s update,
              struct iter_op_s callback,
              struct iter_monitor_s* monitor);
 
-
-iter6_algo1_f sgd;
-iter6_algo1_f adadelta;
+iter6_algo_f sgd;
 
 /**
  * Store information about iterative algorithm.
@@ -208,5 +218,3 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 #include "misc/cppwrap.h"
 
 #endif // __ITALGOS_H
-
-

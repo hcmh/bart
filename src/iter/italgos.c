@@ -765,190 +765,61 @@ static void print_progress(int NO, enum OUT_TYPE out_type[NO], float** args, int
 }
 
 
-static void getgrad(int NI, float* grad[NI], long i_size[NI], enum IN_TYPE in_type[NI], int NO, enum OUT_TYPE out_type[NO], struct iter_op_s adj[NO][NI], const struct vec_iter_s* vops, float clipnorm, float clipval)
+static void getgrad(int NI, float* grad[NI], long i_size[NI], enum IN_TYPE in_type[NI], int NO, enum OUT_TYPE out_type[NO], struct iter_op_arr_s adj, const struct vec_iter_s* vops)
 {
 	_Complex float one = 1.;
+
+	const float* one_arr[] = {(const float*)&one};
+	long in_optimize_flag = 0;
+
+	float* tmp_grad[NI];
 
 	for (int i = 0; i < NI; i++)
 		if (in_type[i] == IN_OPTIMIZE) {
 
-			float* tmp = NULL;
-			int count = 0;
+			in_optimize_flag = MD_SET(in_optimize_flag, i);
 
 			if (NULL == grad[i])
 				grad[i] = vops->allocate(i_size[i]);
 
-			for (int o = 0; o < NO; o++)
-				if (out_type[o] == OUT_OPTIMIZE){
-
-					if (count == 0){
-						iter_op_call(adj[o][i], grad[i], (float*)&one);
-						count += 1;
-						continue;
-					}
-					if (count == 1)
-						tmp = vops->allocate(i_size[i]);
-					iter_op_call(adj[o][i], tmp, (float*)&one);
-					vops->axpy(i_size[i], grad[i], 1., tmp);
-					count += 1;
-				}
-			if (clipnorm != 0.){
-
-				float norm = vops->norm(i_size[i], grad[i]) / (float)i_size[i];
-				vops->smul(i_size[i], (norm > clipnorm) ? (clipnorm / norm) : 1., grad[i], grad[i]);
-			}
-			if (clipval != 0.){
-
-				vops->smax(i_size[i], -clipval, grad[i], grad[i]);
-				vops->smin(i_size[i], clipval, grad[i], grad[i]);
-			}
-
-			vops->del(tmp);
-		}
-}
-
-
-void sgd(unsigned int epochs, float clipnorm, float clipval,
-             float learningrate, float momentum,
-             long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
-             long NO, long osize[NO], enum OUT_TYPE out_type[NO],
-             int N_batch, int N_total,
-             const struct vec_iter_s* vops,
-             struct iter_nlop_s nlop,
-             struct iter_op_s adj[NO][NI],
-             struct iter_op_s callback,
-             struct iter_monitor_s* monitor)
-{
-	UNUSED(monitor);
-	UNUSED(callback);
-	double starttime = timestamp();
-
-	float* grad[NI];
-	float* mom[NI];
-	float* args[NI + NO];
-
-	for (int i = 0; i< NI; i++){
-
-		if (in_type[i] == IN_OPTIMIZE){
-
-			grad[i] = vops->allocate(isize[i]);
-			mom[i] = vops->allocate(isize[i]);
-			vops->clear(isize[i], mom[i]);
-		} else {
-
-			grad[i] = NULL;
-			mom[i] = NULL;
-		}
-		args[NO + i] = x[i];
-	}
-
-	for (int o = 0; o < NO; o++)
-		args[o] = vops->allocate(osize[o]);
-
-
-	for (unsigned int epoch = 0; epoch < epochs; epoch++) {
-
-		for (int i_batch = 0; i_batch < N_total / N_batch; i_batch++){
-
-			iter_nlop_call(nlop, NO + NI, args); 	// r = F x
-			getgrad(NI, grad, isize, in_type, NO, out_type, adj, vops, clipnorm, clipval);
-
-			for (int i = 0; i < NI; i++){
-
-				if (in_type[i] == IN_OPTIMIZE){
-
-					if (momentum > 0.){
-
-						vops->smul(isize[i], momentum, mom[i], mom[i]);
-						vops->axpy(isize[i], mom[i], -learningrate, grad[i]);
-						vops->axpy(isize[i], args[NO + i], 1., mom[i]);
-					} else
-						vops->axpy(isize[i], args[NO + i], -learningrate, grad[i]);
-				}
-			}
-
-			for (int i = 0; i < NI; i++)
-				if (in_type[i] == IN_BATCH)
-					args[NO + i] += isize[i];
-
-			print_progress(NO, out_type, args, epoch, i_batch, N_total/N_batch, starttime);
+			if (1 < NO)
+				tmp_grad[i] = vops->allocate(i_size[i]);
 		}
 
-		for (int i = 0; i < NI; i++)
-			if (in_type[i] == IN_BATCH)
-			args[NO + i] -= isize[i] * (N_total / N_batch);
+	int count = 0;
+
+	for (int o = 0; o < NO; o++) {
+
+		if (out_type[o] == OUT_OPTIMIZE) {
+
+			if (0 == count) {
+
+				iter_op_arr_call(adj, NI, in_optimize_flag, grad, 1, MD_BIT(o), one_arr);
+				count += 1;
+			} else {
+
+				iter_op_arr_call(adj, NI, in_optimize_flag, tmp_grad, 1, MD_BIT(o), one_arr);
+				for (int i = 0; i < NI; i++)
+					if (in_type[i] == IN_OPTIMIZE)
+						vops->axpy(i_size[i], grad[i], 1., tmp_grad[i]);
+			}
+		}
 	}
 
-	for (int i = 0; i< NI; i++){
-
-		vops->del(grad[i]);
-		vops->del(mom[i]);
-	}
-
-	for (int o = 0; o < NO; o++)
-		vops->del(args[o]);
+	for (int i = 0; i < NI; i++)
+		if (in_type[i] == IN_OPTIMIZE)
+			if (1 < NO)
+				vops->del(tmp_grad[i]);
 }
 
-
-static void adadelta_get_update(int isize, float* grad, float* dx, float learningrate, const struct vec_iter_s* vops, float rho, float** floating_g_point, float** floating_dx_point)
-{
-	if (NULL == *floating_g_point){
-
-		*floating_g_point = vops->allocate(isize);
-		vops->clear(isize, *floating_g_point);
-	}
-	if (NULL == *floating_dx_point){
-
-		*floating_dx_point = vops->allocate(isize);
-		vops->clear(isize, *floating_dx_point);
-	}
-
-	float* floating_dx = *floating_dx_point;
-	float* floating_g = *floating_g_point;
-
-	//Accumulate E[g²]
-	vops->smul(isize, rho / (1. - rho), floating_g, floating_g);
-	vops->fmac(isize, floating_g, grad, grad);
-	vops->smul(isize, (1. - rho), floating_g, floating_g);
-
-	//Compute RMS[g]
-	float* rmsg = vops->allocate(isize);
-	vops->copy(isize, rmsg, floating_g);
-	vops->sadd(isize, rmsg, 1.e-7);
-	vops->sqrt(isize, rmsg, rmsg);
-
-	//Compute RMS[x]/RMS[g]
-	float* rmsx_rmsg = vops->allocate(isize);
-	vops->copy(isize, rmsx_rmsg, floating_dx);
-	vops->sadd(isize, rmsx_rmsg, 1.e-7);
-	vops->sqrt(isize, rmsx_rmsg, rmsx_rmsg);
-	vops->div(isize, rmsx_rmsg, rmsx_rmsg, rmsg);
-	vops->del(rmsg);
-
-	//Compute dx
-	vops->clear(isize, dx);
-	vops->fmac(isize, dx, rmsx_rmsg, grad);
-	vops->smul(isize, -learningrate, dx, dx);
-	vops->del(rmsx_rmsg);
-
-	//Accumulate E[dx²]
-	vops->smul(isize, rho / (1. - rho), floating_dx, floating_dx);
-	vops->fmac(isize, floating_dx, dx, dx);
-	vops->smul(isize, (1. - rho), floating_dx, floating_dx);
-}
-
-
-//https://arxiv.org/pdf/1212.5701.pdf
-void adadelta(unsigned int epochs, float clipnorm, float clipval,
-             float learningrate, float rho,
-             long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
-             long NO, long osize[NO], enum OUT_TYPE out_type[NI],
-             int N_batch, int N_total,
-             const struct vec_iter_s* vops,
-             struct iter_nlop_s nlop,
-             struct iter_op_s adj[NO][NI],
-             struct iter_op_s callback,
-             struct iter_monitor_s* monitor)
+void sgd(unsigned int epochs,
+		long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
+		long NO, long osize[NO], enum OUT_TYPE out_type[NI],
+		int N_batch, int N_total,
+        	const struct vec_iter_s* vops,
+        	struct iter_nlop_s nlop, struct iter_op_arr_s adj,
+		struct iter_op_arr_s update,
+        	struct iter_op_s callback, struct iter_monitor_s* monitor)
 {
 	UNUSED(monitor);
 	UNUSED(callback);
@@ -956,15 +827,10 @@ void adadelta(unsigned int epochs, float clipnorm, float clipval,
 
 	float* grad[NI];
 	float* args[NO + NI];
-	float* floating_g[NI];
-	float* floating_dx[NI];
 
 	for (int i = 0; i< NI; i++){
 
 		grad[i] = NULL;
-		floating_g[i]=NULL;
-		floating_dx[i]=NULL;
-
 		args[NO + i] = x[i];
 	}
 
@@ -976,16 +842,29 @@ void adadelta(unsigned int epochs, float clipnorm, float clipval,
 		for (int i_batch = 0; i_batch < N_total / N_batch; i_batch++) {
 
 			iter_nlop_call(nlop, NO + NI, args); 	// r = F x
-			getgrad(NI, grad, isize, in_type, NO, out_type, adj, vops, clipnorm, clipval);
+			getgrad(NI, grad, isize, in_type, NO, out_type, adj, vops);
+
+			float* dxs[NI];
+			unsigned long in_opt_flag = 0;
 
 			for (int i = 0; i < NI; i++)
 				if (in_type[i] == IN_OPTIMIZE){
 
-					float* dx = vops->allocate(isize[i]);
-					adadelta_get_update(isize[i], grad[i], dx, learningrate, vops, rho, &(floating_g[i]), &(floating_dx[i]));
-					vops->add(isize[i], args[NO + i], args[NO + i], dx);
-					vops->del(dx);
+					dxs[i] = vops->allocate(isize[i]);
+					in_opt_flag = MD_SET(in_opt_flag, i);
 				}
+
+			iter_op_arr_call(update, NI, in_opt_flag, dxs, NI, in_opt_flag, (const float**)grad);
+
+			for (int i = 0; i < NI; i++)
+				if (in_type[i] == IN_OPTIMIZE){
+
+					vops->add(isize[i], args[NO + i], args[NO + i], dxs[i]);
+					vops->del(dxs[i]);
+				}
+
+			//perform projection:
+			//iter_op_arr_call(update, NI, in_opt_flag, args + NO, NI, in_opt_flag, args + NO);
 
 			for (int i = 0; i < NI; i++)
 				if (in_type[i] == IN_BATCH)
@@ -1003,8 +882,6 @@ void adadelta(unsigned int epochs, float clipnorm, float clipval,
 	for (int i = 0; i< NI; i++){
 
 		vops->del(grad[i]);
-		vops->del(floating_g[i]);
-		vops->del(floating_dx[i]);
 	}
 
 	for (int o = 0; o < NO; o++)

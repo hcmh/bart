@@ -1,0 +1,2 @@
+extern const struct operator_s* operator_clip_create(unsigned int N, const long dims[__VLA(N)], float clipnorm, float clipval);
+extern const struct operator_s* operator_adadelta_update_create(unsigned int N, const long dims[__VLA(N)], float lr, float rho, float epsilon);
