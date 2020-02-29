@@ -620,7 +620,6 @@ void md_zsmul2(unsigned int D, const long dims[D], const long ostr[D], complex f
 	optimized_twoop_oi(D, dims, ostr, optr, istr, iptr,
 		(size_t[2]){ CFL_SIZE, CFL_SIZE }, nary_zsmul);
 #endif
-
 }
 
 
@@ -756,6 +755,7 @@ void md_zdiv(unsigned int D, const long dims[D], complex float* optr, const comp
 	make_z3op_simple(md_zdiv2, D, dims, optr, iptr1, iptr2);
 }
 
+
 /**
  * Divide the first complex array by the second complex array with regularization and save to output (with strides)
  *
@@ -771,6 +771,7 @@ void md_zdiv_reg2(unsigned int D, const long dims[D], const long ostr[D], comple
 	optimized_threeop_oii(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2,
 				(size_t[3]){ [0 ... 2] = CFL_SIZE }, nary_zdiv_reg);
 }
+
 
 /**
  * Divide the first complex array by the second complex array with regularization and save to output (without strides)
@@ -1129,7 +1130,6 @@ static bool simple_matmul(unsigned int N, const long max_dims[N], const long ost
 		return true;
 	}
 
-
 	return false;
 }
 
@@ -1138,14 +1138,20 @@ static bool simple_matmul(unsigned int N, const long max_dims[N], const long ost
  * Functions for optimizing fmac using blas
  * Checks if strides strides define a matrix,
  * i.e. one dimension is continuously in memory and followed by the other
-*/
+ */
 static bool is_matrix(const long dims[3], const long strs[3], int i1, int i2, size_t size)
 {
 	assert(i1 != i2);
-	bool a = ((strs[i1] == (signed long) size) && (strs[i2] == (signed long)(size * dims[i1])));
-	bool b = ((strs[i2] == (signed int)size) && (strs[i1] == (signed long)(size * dims[i2])));;
-	return  a || b;
+
+	bool a = (   (strs[i1] == (long)size)
+		  && (strs[i2] == (long)size * dims[i1]));
+
+	bool b = (   (strs[i2] == (long)size)
+		  && (strs[i1] == (long)size * dims[i2]));
+
+	return a || b;
 }
+
 
 /**
  * 1.) Simplify dims
@@ -1173,7 +1179,8 @@ static int make_matrix(unsigned long N, long ndims[N], long nostrs[N], long nist
 	md_copy_strides(N, tistrs2, istrs2);
 
 	long (*strs[3])[N] = { &tostrs, &tistrs1, &tistrs2 };
-	N = simplify_dims(3, N,  tdims , strs);
+
+	N = simplify_dims(3, N, tdims, strs);
 
 	if (3 > N)
 		return 0;
@@ -1188,22 +1195,29 @@ static int make_matrix(unsigned long N, long ndims[N], long nostrs[N], long nist
 	int opos = -1;
 	int ipos1 = -1;
 	int ipos2 = -1;
-	for (int i = 0; i < 3; i++){
 
-		if (tostrs[i] == 0)
+	for (int i = 0; i < 3; i++) {
+
+		if (0 == tostrs[i])
 			opos = i;
-		if (tistrs1[i] == 0)
+
+		if (0 == tistrs1[i])
 			ipos1 = i;
-		if (tistrs2[i] == 0)
+
+		if (0 == tistrs2[i])
 			ipos2 = i;
 	}
 
-	//pos of zeros do not equal
-	bool matrix = ((opos != ipos1) && (opos != ipos2) && (ipos1 != ipos2) && (3 == opos + ipos1 + ipos2));
-	//Check if matrix dims are continous in memory
-	matrix = matrix && (is_matrix(tdims, tostrs, (opos + 1) % 3, (opos + 2) % 3, size));
-	matrix = matrix && (is_matrix(tdims, tistrs1, (ipos1 + 1) % 3, (ipos1 + 2) % 3, size));
-	matrix = matrix && (is_matrix(tdims, tistrs2, (ipos2 + 1) % 3, (ipos2 + 2) % 3, size));
+	// pos of zeros do not equal
+	bool matrix = (   (opos != ipos1)
+		       && (opos != ipos2)
+                       && (ipos1 != ipos2)
+                       && (3 == opos + ipos1 + ipos2));
+
+	// Check if matrix dims are continous in memory
+	matrix &= is_matrix(tdims, tostrs, (opos + 1) % 3, (opos + 2) % 3, size);
+	matrix &= is_matrix(tdims, tistrs1, (ipos1 + 1) % 3, (ipos1 + 2) % 3, size);
+	matrix &= is_matrix(tdims, tistrs2, (ipos2 + 1) % 3, (ipos2 + 2) % 3, size);
 
 	if (!matrix)
 		return 0;
@@ -1219,14 +1233,17 @@ static int make_matrix(unsigned long N, long ndims[N], long nostrs[N], long nist
 	 * (0, x, x)
 	 */
 	unsigned int perm[N];
+
 	for (unsigned int i = 0; i < N; i++)
 		perm[i] = i;
 
 	perm[1] = opos;
+
 	if (tostrs[(opos + 1) % 3] == (signed)size){
 
 		perm[0] = (opos + 1) % 3;
 		perm[2] = (opos + 2) % 3;
+
 	} else {
 
 		perm[0] = (opos + 2) % 3;
@@ -1250,17 +1267,21 @@ static bool simple_inner_matmul_zfmac(unsigned int N, const long dims[N], const 
 	long tistrs2[N];
 
 	N = make_matrix(N, ndims, nostrs, tistrs1, tistrs2, dims, ostrs, istrs1, istrs2, size);
+
 	if (N < 3)
 		return false;
-	/* *
+
+	/**
 	 * Permute inputs if necessary, result:
 	 * nostrs:(size, 0, x)
 	 * nistrs1: (0, x, x)
 	 * nistrs2: (x, x, 0)
 	 */
-	bool perm = (tistrs1[0] == 0);
+	bool perm = (0 == tistrs1[0]);
+
 	long* nistrs1 = (perm ? tistrs2 : tistrs1);
 	long* nistrs2 = (perm ? tistrs1 : tistrs2);
+
 	const complex float* nin1 = (perm ? in2 : in1);
 	const complex float* nin2 = (perm ? in1 : in2);
 
@@ -1269,16 +1290,20 @@ static bool simple_inner_matmul_zfmac(unsigned int N, const long dims[N], const 
 	char i2_trans = (nistrs2[1] == (signed)size) ? 'N' : 'T';
 
 #if 0
-	//saved code for zfmacc
+	// saved code for zfmacc
+
 	if (perm){
 
 		if (i1_trans != 'T')
 			return false;
+
 		i1_trans = 'C';
+
 	} else {
 
 		if (i2_trans != 'T')
 			return false;
+
 		i2_trans = 'C';
 	}
 #endif
@@ -1289,18 +1314,20 @@ static bool simple_inner_matmul_zfmac(unsigned int N, const long dims[N], const 
 
 	NESTED(void, nary_inner_matmul, (struct nary_opt_data_s* data, void* ptr[]))
 	{
-
 		(void)data;
+
 		blas_matrix_zfmac(M1, N1, K1,
 			(complex float*)ptr[0],
 			(const complex float*)ptr[1], i1_trans,
 			(const complex float*)ptr[2], i2_trans);
 	};
 
-	optimized_threeop_oii(N - 3, ndims + 3, nostrs + 3, (void*)out, nistrs1 + 3, (void*)nin1, nistrs2 + 3, (void*)nin2, (size_t[3]){size * M1 * N1, size * M1 * K1, size * N1 * K1}, nary_inner_matmul);
+	optimized_threeop_oii(N - 3, ndims + 3, nostrs + 3, (void*)out, nistrs1 + 3, (void*)nin1, nistrs2 + 3, (void*)nin2,
+				(size_t[3]){ size * M1 * N1, size * M1 * K1, size * N1 * K1 }, nary_inner_matmul);
 
 	return true;
 }
+
 
 /*
  * tenmul (tensor multiplication) family of functions are revised
@@ -1344,6 +1371,8 @@ void md_ztenmulc(unsigned int D, const long out_dims[D], complex float* out, con
 				  MD_STRIDES(D, in2_dims, CFL_SIZE), in2);
 }
 
+
+
 /**
  * Write strides for conv or corr into mdims, ostrs2, kstrs2 and istrs2
  * Supports "strides" and dilation
@@ -1384,20 +1413,27 @@ static int calc_convcorr_geom_strs_dil(int N, unsigned long flags,
 
 			if (conv)
 				shift += (kdims[i] - 1) * kstrs[i];
+
 			istrs2[0 + i] = strides[i] * istrs[i];
 			istrs2[N + i] = dilation[i] * istrs[i];
+
 		} else {
 
 			if (1 == mdims[i])
 				mdims[i] = idims[i];
+
 			if (1 == mdims[i])
 				mdims[i] = kdims[i];
+
 			if (1 == mdims[i])
 				mdims[i] = odims[i];
 
-			if (!test_mode) assert((1 == odims[i]) || (odims[i] == idims[i]) || (odims[i] == kdims[i]));
-			if (!test_mode) assert((1 == idims[i]) || (odims[i] == idims[i]) || (idims[i] == kdims[i]));
-			if (!test_mode) assert((1 == kdims[i]) || (kdims[i] == idims[i]) || (odims[i] == kdims[i]));
+			if (!test_mode) {
+
+				assert((1 == odims[i]) || (odims[i] == idims[i]) || (odims[i] == kdims[i]));
+				assert((1 == idims[i]) || (odims[i] == idims[i]) || (idims[i] == kdims[i]));
+				assert((1 == kdims[i]) || (kdims[i] == idims[i]) || (odims[i] == kdims[i]));
+			}
 		}
 	}
 
@@ -1410,6 +1446,7 @@ int calc_convcorr_geom(int N, unsigned long flags,
 {
 	return calc_convcorr_geom_strs_dil(N, flags, mdims, ostrs2, kstrs2, istrs2, odims, ostrs, kdims, kstrs, idims, istrs, MD_SINGLETON_DIMS(N), MD_SINGLETON_DIMS(N), conv, false);
 }
+
 
 void md_zconv2(int N, unsigned long flags,
 	       const long odims[N], const long ostrs[N], complex float* out,
@@ -1435,21 +1472,22 @@ void md_zconv(int N, unsigned long flags,
 	md_zconv2(N, flags, odims, MD_STRIDES(N, odims, CFL_SIZE), out, kdims, MD_STRIDES(N, kdims, CFL_SIZE), krn, idims, MD_STRIDES(N, idims, CFL_SIZE), in);
 }
 
+
 /**
  * Detect if strides and dims belong to convolution with specified flags
  **/
-static bool detect_convcorr(unsigned long N,
-			    long nodims[N], long nidims[N], long nkdims[N],
+static bool detect_convcorr(int N, long nodims[N], long nidims[N], long nkdims[N],
 			    const long dims[2 * N], const long ostrs[2 * N], const long istrs[2 * N], const long kstrs[2 * N],
 			    unsigned long flags, bool conv, size_t size)
 {
-	for (unsigned int i = 0; i < N; i++){
+	for (int i = 0; i < N; i++) {
 
 		if (MD_IS_SET(flags, i)){
 
 			nodims[i] = dims[0 + i];
 			nkdims[i] = dims[N + i];
 			nidims[i] = nodims[i] + nkdims[i] - 1;
+
 		} else {
 
 			nodims[i] = (ostrs[i] == 0) ? 1 : dims[i];
@@ -1463,16 +1501,19 @@ static bool detect_convcorr(unsigned long N,
 	long tistrs[2 * N];
 	long tkstrs[2 * N];
 
-	UNUSED(calc_convcorr_geom_strs_dil(N, flags, tdims, tostrs, tkstrs, tistrs, nodims, MD_STRIDES(N, nodims, size), nkdims, MD_STRIDES(N, nkdims, size), nidims, MD_STRIDES(N, nidims, size), MD_SINGLETON_DIMS(N), MD_SINGLETON_DIMS(N), conv, true));
+	calc_convcorr_geom_strs_dil(N, flags, tdims, tostrs, tkstrs, tistrs, nodims, MD_STRIDES(N, nodims, size), nkdims, MD_STRIDES(N, nkdims, size), nidims, MD_STRIDES(N, nidims, size), MD_SINGLETON_DIMS(N), MD_SINGLETON_DIMS(N), conv, true);
 
-	for (unsigned int i = 0; i < 2 * N; i++){
+	for (int i = 0; i < 2 * N; i++) {
 
 		if (tdims[i] != dims[i])
 			return false;
+
 		if (tostrs[i] != ostrs[i])
 			return false;
+
 		if (tistrs[i] != istrs[i])
 			return false;
+
 		if (tkstrs[i] != kstrs[i])
 			return false;
 	}
@@ -1492,6 +1533,7 @@ static bool simple_zconvcorr_im2col_channelfirst(unsigned int N, const long dims
 
 	if (10 != N)
 		return false;
+
 	N = N / 2;
 
 	long odims[5];
@@ -1503,9 +1545,9 @@ static bool simple_zconvcorr_im2col_channelfirst(unsigned int N, const long dims
 	 * istrs2 = kstrs
 	 * */
 	bool conv = detect_convcorr(5, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, true, size);
+
 	if (!detect_convcorr(5, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, conv, size))
 		return false;
-
 
 	//Check matmul in first two dims
 	if ((1 != idims[0]) || (1 != odims[1]))
@@ -1513,16 +1555,21 @@ static bool simple_zconvcorr_im2col_channelfirst(unsigned int N, const long dims
 
 	long corr_strs[5];
 	md_calc_strides(5, corr_strs, kdims, size);
+
 	for (int i = 0; i < 5; i++)
 		if (MD_IS_SET(flags, i))
 			corr_strs[i] = -corr_strs[i];
 
 	const complex float* krn;
-	if (conv){
+
+	if (conv) {
 
 		complex float* tmp = md_alloc_sameplace(5, kdims, size, in2);
+
 		md_copy2(5, kdims, MD_STRIDES(5, kdims, size), tmp, corr_strs, in2, size);
+
 		krn = tmp;
+
 	} else {
 
 		krn = in2;
@@ -1532,40 +1579,52 @@ static bool simple_zconvcorr_im2col_channelfirst(unsigned int N, const long dims
     	md_copy_dims(5, odims_tile, odims);
 
 #if 1
-	//compute tile size, else full tiles are used
-    	long cache_size = 256 * 800 / size;
+	// compute tile size, else full tiles are used
+	long cache_size = 256 * 800 / size;
 	long filter_size = md_calc_size(5, kdims);
 	bool stop = false;
-	while (!stop){
+
+	while (!stop) {
 
 		long cost = filter_size;
-		cost += odims[0] * odims_tile[2] * odims_tile[3] * odims_tile[4];
-		cost += idims[1] * (odims_tile[2] + kdims[2] - 1) * (odims_tile[3] + kdims[3] - 1) * (odims_tile[4] + kdims[4] - 1);
 
-        	if (cost < cache_size){
+		cost += odims[0] * odims_tile[2] * odims_tile[3] * odims_tile[4];
+		cost += idims[1] * (odims_tile[2] + kdims[2] - 1)
+				 * (odims_tile[3] + kdims[3] - 1)
+				 * (odims_tile[4] + kdims[4] - 1);
+
+		if (cost < cache_size) {
+
 			stop = true;
 			continue;
 		}
-		if (odims_tile[4] > 4 * kdims[4]){
+
+		if (odims_tile[4] > 4 * kdims[4]) {
+
 			odims_tile[4] /= 2;
 			continue;
 		}
-		if (odims_tile[3] > 4 * kdims[3]){
+
+		if (odims_tile[3] > 4 * kdims[3]) {
+
 			odims_tile[3] /= 2;
 			continue;
 		}
-		if (odims_tile[2] > 4 * kdims[2]){
+
+		if (odims_tile[2] > 4 * kdims[2]) {
+
 			odims_tile[2] /= 2;
 			continue;
 		}
 
 		stop = true;
-        	debug_printf(DP_DEBUG2, "Failed to get cach size, output tiles:\n");
+
+		debug_printf(DP_DEBUG2, "Failed to get cache size, output tiles:\n");
         	debug_print_dims(DP_DEBUG2, 5, odims_tile);
 	}
 #endif
 
-	long tiles[5] = {1, 1, 1, 1, 1};
+	long tiles[5] = { 1, 1, 1, 1, 1 };
 	long N_tiles = 1;
 
 	long odims_last_tile[5];
@@ -1576,9 +1635,9 @@ static bool simple_zconvcorr_im2col_channelfirst(unsigned int N, const long dims
 	md_copy_dims(5, idims_tile, idims);
 	md_copy_dims(5, idims_last_tile, idims);
 
-	for (int i = 2; i < 5; i++){
+	for (int i = 2; i < 5; i++) {
 
-       		tiles[i] =  odims[i] / odims_tile[i];
+		tiles[i] = odims[i] / odims_tile[i];
         	odims_last_tile[i] = odims[i] % odims_tile[i];
 
         	if (0 != odims_last_tile[i])
@@ -1626,28 +1685,32 @@ static bool simple_zconvcorr_im2col_channelfirst(unsigned int N, const long dims
 	long odims_mat_tmp[8];
         long odims_tmp[5];
 
-	long pos[] = {0, 0, 0, 0, 0};
-	for (int i = 0; i < N_tiles; i ++){
+	long pos[] = { 0, 0, 0, 0, 0 };
+
+	for (int i = 0; i < N_tiles; i++) {
 
         	int it = i;
-		for (int j = 2; j < 5; j++){
 
-		    	pos[j] = (it % tiles[j]);
-            		it = (it -pos[j]) /tiles[j];
-            		pos[j] *= odims_tile[j];
+		for (int j = 2; j < 5; j++) {
+
+			pos[j] = (it % tiles[j]);
+			it = (it - pos[j]) / tiles[j];
+			pos[j] *= odims_tile[j];
         	}
 
 		md_copy_dims(8, idims_mat_tmp, idims_mat);
 		md_copy_dims(8, odims_mat_tmp, odims_mat);
         	md_copy_dims(5, odims_tmp, odims_tile);
 
-        	for (int j = 0; j < 3; j++)
-			if (pos[j + 2] == (tiles[j + 2] - 1) * odims_tile[j + 2]){
+		for (int j = 0; j < 3; j++) {
+
+			if (pos[j + 2] == (tiles[j + 2] - 1) * odims_tile[j + 2]) {
 
 				idims_mat_tmp[j + 5] = idims_last_mat[j + 5];
 				odims_mat_tmp[j + 5] = odims_last_mat[j + 5];
                 		odims_tmp[j + 2] = odims_last_tile[j + 2];
 			}
+		}
 
 		md_max_dims(8, ~0, mdims_tmp, idims_mat_tmp, kdims_mat);
 
@@ -1659,6 +1722,7 @@ static bool simple_zconvcorr_im2col_channelfirst(unsigned int N, const long dims
 
 	md_free(image_mat);
 	md_free(out_mat);
+
 	if (conv)
 		md_free(krn);
 
@@ -1692,6 +1756,7 @@ static bool simple_zconvcorr_im2col_channelfirst_batch(unsigned int N, const lon
 	 * istrs2 = kstrs of convcorr
 	 **/
 	bool conv = detect_convcorr(6, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, true, size);
+
 	if (!detect_convcorr(6, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, conv, size))
 		return false;
 
@@ -1700,37 +1765,49 @@ static bool simple_zconvcorr_im2col_channelfirst_batch(unsigned int N, const lon
 		return false;
 
 	const complex float* krn;
-	if (conv){
+
+	if (conv) {
 
 		long kstrs_flip[6];
 		md_calc_strides(6, kstrs_flip, kdims, size);
+
 		for (int i = 0; i < 6; i++)
-			kstrs_flip[i] = (MD_IS_SET(flags, i)) ? -kstrs_flip[i] : kstrs_flip[i];
+			kstrs_flip[i] = MD_IS_SET(flags, i) ? -kstrs_flip[i] : kstrs_flip[i];
 
 		complex float* tmp = md_alloc_sameplace(6, kdims, size, in2);
+
 		md_copy2(6, kdims, MD_STRIDES(6, kdims, size), tmp, kstrs_flip, in2, size);
 
 		krn = tmp;
-	} else
+
+	} else {
+
 		krn = in2;
+	}
 
 	long mdimsb[10];
 	long ostrs2b[10];
 	long kstrs2b[10];
 	long istrs2b[10];
-	UNUSED(calc_convcorr_geom(5, flags, mdimsb, ostrs2b, kstrs2b, istrs2b, odims, MD_STRIDES(5, odims, size), kdims, MD_STRIDES(5, kdims, size), idims, MD_STRIDES(5, idims, size), false));
 
-    	//only parallelize batch dims if present
-    	if ( 1 < idims[5]){
+	calc_convcorr_geom(5, flags, mdimsb, ostrs2b, kstrs2b, istrs2b,
+				odims, MD_STRIDES(5, odims, size),
+				kdims, MD_STRIDES(5, kdims, size),
+				idims, MD_STRIDES(5, idims, size), false);
 
-    		#pragma omp parallel for
-	    	for (int i = 0; i < idims[5]; i++){
+	// only parallelize batch dims if present
+	if (1 < idims[5]) {
 
-		    	long pos[] = {0,0,0,0,0,i};
+		#pragma omp parallel for
+		for (int i = 0; i < idims[5]; i++) {
+
+			long pos[6] = { [5] = i };
+
 		    	simple_zconvcorr_im2col_channelfirst(10, mdimsb, ostrs2b, &MD_ACCESS(6, MD_STRIDES(6, odims, size), pos, out),
 			    					istrs2b, &MD_ACCESS(6, MD_STRIDES(6, idims, size), pos, in1),
 								kstrs2b, krn);
 	    	}
+
     	} else {
 
 		simple_zconvcorr_im2col_channelfirst(10, mdimsb, ostrs2b, out, istrs2b, in1, kstrs2b, krn);
@@ -1738,6 +1815,7 @@ static bool simple_zconvcorr_im2col_channelfirst_batch(unsigned int N, const lon
 
 	if (conv)
 		md_free(krn);
+
 	return true;
 }
 
@@ -1766,10 +1844,11 @@ static bool simple_zconvcorr_im2col_channelfirst_adjkrn(unsigned int N, const lo
 	 * istrs2 = ostrs of convcorr
 	 **/
 	bool conv = detect_convcorr(6, odims, idims, kdims, dims, istrs2, istrs1, ostrs, flags, true, size);
+
 	if (!detect_convcorr(6, odims, idims, kdims, dims, istrs2, istrs1, ostrs, flags, conv, size))
 		return false;
 
-	//Check matmul in first two dims, batch last dimension
+	// Check matmul in first two dims, batch last dimension
 	if ((1 != idims[0]) || (1 != odims[1]) || (1 != kdims[5]))
 		return false;
 
@@ -1798,20 +1877,28 @@ static bool simple_zconvcorr_im2col_channelfirst_adjkrn(unsigned int N, const lo
 
 
 	complex float* krn; //i.e. the result
-	if (conv){
+
+	if (conv) {
 
 		krn = md_alloc_sameplace(6, kdims, size, out);
 		md_clear(6, kdims, krn, size);
-	} else
-		krn = out;
 
+	} else {
+
+		krn = out;
+	}
 #if 1
 	complex float* image_mat = md_alloc_sameplace(8, idims_mat, size, in1);
-	for (int i = 0; i < idims[5]; i++){
 
-		long pos[] = {0,0,0,0,0,i};
+	for (int i = 0; i < idims[5]; i++) {
+
+		long pos[] = { [5] = i };
+
 		md_copy2(8, idims_mat, MD_STRIDES(8, idims_mat, size), image_mat, istrs_mat, &MD_ACCESS(6, MD_STRIDES(6, idims, size), pos, in1), size);
-		md_zfmac2(8, mdims, MD_STRIDES(8, kdims_mat, size), krn, MD_STRIDES(8, odims_mat, size), &MD_ACCESS(6, MD_STRIDES(6, odims, size), pos, in2), MD_STRIDES(8, idims_mat, size), image_mat);
+
+		md_zfmac2(8, mdims, MD_STRIDES(8, kdims_mat, size), krn,
+				    MD_STRIDES(8, odims_mat, size), &MD_ACCESS(6, MD_STRIDES(6, odims, size), pos, in2),
+				    MD_STRIDES(8, idims_mat, size), image_mat);
 	}
 #else
 	complex float* image_mat = md_alloc_sameplace(9, idims_mat, size, in1);
@@ -1821,14 +1908,17 @@ static bool simple_zconvcorr_im2col_channelfirst_adjkrn(unsigned int N, const lo
 
 	md_free(image_mat);
 
-	if (conv){
+	if (conv) {
 
 		long corr_strs[6];
 		md_calc_strides(6, corr_strs, kdims, size);
+
 		for (int i = 0; i < 6; i++)
 			if (MD_IS_SET(flags, i))
 				corr_strs[i] = -corr_strs[i];
+
 		md_copy2(6, kdims, corr_strs, out, MD_STRIDES(6, kdims, size), krn, size);
+
 		md_free(krn);
 	}
 
@@ -1858,7 +1948,9 @@ static bool simple_zconvcorr_im2col_channelfirst_adjim(unsigned int N, const lon
 	 * istrs1 = ostrs of convcorr
 	 * istrs2 = kstrs of convcorr
 	 **/
+
 	bool conv = detect_convcorr(6, odims, idims, kdims, dims, istrs1, ostrs, istrs2, flags, true, size);
+
 	if (!detect_convcorr(6, odims, idims, kdims, dims, istrs1, ostrs, istrs2, flags, conv, size))
 		return false;
 
@@ -1867,33 +1959,46 @@ static bool simple_zconvcorr_im2col_channelfirst_adjim(unsigned int N, const lon
 		return false;
 
 	const complex float* krn;
-	if (conv){
+
+	if (conv) {
 
 		long kstrs_flip[6];
 		md_calc_strides(6, kstrs_flip, kdims, size);
+
 		for (int i = 0; i < 6; i++)
-			kstrs_flip[i] = (MD_IS_SET(flags, i)) ? -kstrs_flip[i] : kstrs_flip[i];
+			kstrs_flip[i] = MD_IS_SET(flags, i) ? -kstrs_flip[i] : kstrs_flip[i];
 
 		complex float* tmp = md_alloc_sameplace(6, kdims, size, in2);
+
 		md_copy2(6, kdims, MD_STRIDES(6, kdims, size), tmp, kstrs_flip, in2, size);
+
 		krn = tmp;
-	} else
+
+	} else {
+
 		krn = in2;
+	}
 
 	//transpose (matdims) and flip (convdims) kernel
 	complex float* tmp = md_alloc_sameplace(6, kdims, size, krn);
+
 	md_flip(6, kdims, flags, tmp, krn, size);
+
 	if (conv)
 		md_free(krn);
 
 	long kdims_transp[6];
 	md_transpose_dims(6, 0, 1, kdims_transp, kdims);
+
 	complex float* krn_transp = md_alloc_sameplace(6, kdims_transp, size, krn);
+
 	md_transpose(6, 0, 1, kdims_transp, krn_transp, kdims, tmp, size);
+
 	md_free(tmp);
 
 	long idims_transp[6];
 	md_transpose_dims(6, 0, 1, idims_transp, idims);
+
 	long odims_transp[6];
 	md_transpose_dims(6, 0, 1, odims_transp, odims);
 
@@ -1908,22 +2013,30 @@ static bool simple_zconvcorr_im2col_channelfirst_adjim(unsigned int N, const lon
 	long nostrs2[10];
 	long nkstrs2[10];
 	long nistrs2[10];
-	UNUSED(calc_convcorr_geom(5, flags, mdims, nostrs2, nkstrs2, nistrs2, idims_transp, MD_STRIDES(5, idims_transp, size), kdims_transp, MD_STRIDES(5, kdims_transp, size), nodims_transp, MD_STRIDES(5, nodims_transp, size), false));
+
+	calc_convcorr_geom(5, flags, mdims, nostrs2, nkstrs2, nistrs2, idims_transp,
+				MD_STRIDES(5, idims_transp, size), kdims_transp,
+				MD_STRIDES(5, kdims_transp, size), nodims_transp,
+				MD_STRIDES(5, nodims_transp, size), false);
 
 	#pragma omp parallel for
-	for (int j = 0; j < idims_transp[5]; j++){
+	for (int j = 0; j < idims_transp[5]; j++) {
 
-		long pos_batch[] = {0, 0, 0, 0, 0, j};
+		long pos_batch[] = { [5] = j };
 
 		//*in1 = (o0, o1, o2) -> *nin1 = (0, 0, 0, o1, o2, o3)
 		complex float* nin1 = md_alloc_sameplace(5, nodims_transp, size, in1);
+
 		long pos[5];
 		for (int i = 0; i< 5; i++)
-			pos[i] = MD_IS_SET(flags, i) ? kdims_transp[i] - 1 : 0;
+			pos[i] = MD_IS_SET(flags, i) ? (kdims_transp[i] - 1) : 0;
+
 		md_clear(5, nodims_transp, nin1, size);
 		md_copy_block(5, pos, nodims_transp, nin1, odims_transp, &MD_ACCESS(6, MD_STRIDES(6, odims_transp, size), pos_batch, in1), size);
 
-		simple_zconvcorr_im2col_channelfirst(10, mdims, nostrs2, &MD_ACCESS(6, MD_STRIDES(6, idims_transp, size), pos_batch, out), nistrs2, nin1, nkstrs2, krn_transp);
+		simple_zconvcorr_im2col_channelfirst(10, mdims,
+							nostrs2, &MD_ACCESS(6, MD_STRIDES(6, idims_transp, size), pos_batch, out),
+							nistrs2, nin1, nkstrs2, krn_transp);
 
 		md_free(nin1);
 	}
@@ -1937,21 +2050,28 @@ static bool simple_zconvcorr_im2col(unsigned int N, const long dims[N], const lo
 {
 	if (simple_zconvcorr_im2col_channelfirst(N, dims, ostrs, out, istrs1, in1, istrs2, in2))
 		return true;
+
 	if (simple_zconvcorr_im2col_channelfirst(N, dims, ostrs, out, istrs2, in2, istrs1, in1))
 		return true;
 
+
 	if (simple_zconvcorr_im2col_channelfirst_batch(N, dims, ostrs, out, istrs1, in1, istrs2, in2))
 		return true;
+
 	if (simple_zconvcorr_im2col_channelfirst_batch(N, dims, ostrs, out, istrs2, in2, istrs1, in1))
 		return true;
 
+
 	if (simple_zconvcorr_im2col_channelfirst_adjim(N, dims, ostrs, out, istrs1, in1, istrs2, in2))
 		return true;
+
 	if (simple_zconvcorr_im2col_channelfirst_adjim(N, dims, ostrs, out, istrs2, in2, istrs1, in1))
 		return true;
 
+
 	if (simple_zconvcorr_im2col_channelfirst_adjkrn(N, dims, ostrs, out, istrs1, in1, istrs2, in2))
 		return true;
+
 	if (simple_zconvcorr_im2col_channelfirst_adjkrn(N, dims, ostrs, out, istrs2, in2, istrs1, in1))
 		return true;
 
@@ -1961,7 +2081,7 @@ static bool simple_zconvcorr_im2col(unsigned int N, const long dims[N], const lo
 static bool simple_zconvcorr(unsigned int N, const long dims[N], const long ostrs[N], complex float* out,
 		const long istrs[N], const complex float* image, const long kstrs[N], const complex float* kernel)
 {
-	if(simple_zconvcorr_im2col(N, dims, ostrs, out, istrs, image, kstrs, kernel))
+	if (simple_zconvcorr_im2col(N, dims, ostrs, out, istrs, image, kstrs, kernel))
 		return true;
 
 	return false;
@@ -1971,7 +2091,6 @@ static bool simple_zconvcorr(unsigned int N, const long dims[N], const long ostr
 /*
  * matmul family of functions is deprecated - use tenmul instead
  */
-
 static void md_zmatmul2_priv(unsigned int D, const long out_dims[D], const long out_strs[D], complex float* dst, const long mat_dims[D], const long mat_strs[D], const complex float* mat, const long in_dims[D], const long in_strs[D], const complex float* src, bool conj)
 {
 	long max_dims[D];
@@ -2386,11 +2505,13 @@ static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], 
 	D = simplify_dims(3, D, tdims, strs);
 
 	//sum over outer dimension
-	if ((2 == D) && (CFL_SIZE == tostr[0]) && (CFL_SIZE == tistr1[0]) && (CFL_SIZE == tistr2[0]) && (0 == tostr[1]) && (0 == tistr1[1]) && ((signed)CFL_SIZE * tdims[0] == tistr2[1])){
+	if ((2 == D) && (CFL_SIZE == tostr[0]) && (CFL_SIZE == tistr1[0]) && (CFL_SIZE == tistr2[0])
+		     && (0 == tostr[1]) && (0 == tistr1[1]) && ((long)CFL_SIZE * tdims[0] == tistr2[1])) {
 
 		for (int j = 0; j < tdims[1]; j++)
 			for (int i = 0; i < tdims[0]; i++)
 				optr[i] += iptr2[i + tdims[0] * j];
+
 		return true;
 	}
 
@@ -2407,6 +2528,7 @@ void md_zadd2(unsigned int D, const long dims[D], const long ostr[D], complex fl
 {
 	if (simple_zsum(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
 		return;
+
 	MAKE_Z3OP_FROM_REAL(add, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
