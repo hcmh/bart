@@ -169,7 +169,7 @@ int main_wave(int argc, char* argv[])
 	bool  hgwld     = false;
 	float cont      = 1;
 	float eval      = -1;
-	int   gpun      = -1;
+	bool  gpu       = false;
 	bool  dcx       = false;
 
 	const struct opt_s opts[] = {
@@ -180,7 +180,7 @@ int main_wave(int argc, char* argv[])
 		OPT_FLOAT( 'c', &cont,    "cntnu",  "Continuation value for IST/FISTA."),
 		OPT_FLOAT( 't', &tol,     "toler",  "Tolerance convergence condition for iterative method."),
 		OPT_FLOAT( 'e', &eval,    "eigvl",  "Maximum eigenvalue of normal operator, if known."),
-		OPT_INT(   'g', &gpun,    "gpunm",  "GPU device number."),
+		OPT_SET(   'g', &gpu,               "use GPU"),
 		OPT_SET(   'f', &fista,             "Reconstruct using FISTA instead of IST."),
 		OPT_SET(   'H', &hgwld,             "Use hogwild in IST/FISTA."),
 		OPT_SET(   'v', &dcx,               "Split result to real and imaginary components."),
@@ -203,8 +203,8 @@ int main_wave(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Done.\n");
 
-	if (gpun >= 0)
-		num_init_gpu_device(gpun);
+	if (gpu)
+		num_init_gpu();
 	else
 		num_init();
 
@@ -287,7 +287,7 @@ int main_wave(int argc, char* argv[])
 
 	if (eval < 0)	
 #ifdef USE_CUDA
-		eval = (gpun >= 0) ? estimate_maxeigenval_gpu(A->normal) : estimate_maxeigenval(A->normal);
+		eval = gpu ? estimate_maxeigenval_gpu(A->normal) : estimate_maxeigenval(A->normal);
 #else
 		eval = estimate_maxeigenval(A->normal);
 #endif
@@ -398,7 +398,7 @@ int main_wave(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Reconstruction... ");
 	complex float* recon = create_cfl(argv[4], DIMS, recon_dims);
-	struct lsqr_conf lsqr_conf = { 0., gpun >= 0 };
+	struct lsqr_conf lsqr_conf = { 0., gpu };
 	double recon_start = timestamp();
 	const struct operator_p_s* J = lsqr2_create(&lsqr_conf, italgo, iconf, NULL, A, NULL, 1, &T, NULL, NULL);
 	operator_p_apply(J, 1., DIMS, recon_dims, recon, DIMS, kspc_dims, kspc);

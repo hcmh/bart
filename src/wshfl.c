@@ -894,7 +894,7 @@ int main_wshfl(int argc, char* argv[])
 	float eval      = -1;
 	const char* fwd = NULL;
 	const char* x0  = NULL;
-	int   gpun      = -1;
+	bool  gpu       = false;
 	bool  dcx       = false;
 	bool  pf        = false;
 
@@ -908,7 +908,7 @@ int main_wshfl(int argc, char* argv[])
 		OPT_FLOAT( 'e', &eval,    "eigvl",  "Maximum eigenvalue of normal operator, if known."),
 		OPT_STRING('F', &fwd,     "frwrd",  "Go from shfl-coeffs to data-table. Pass in coeffs path."),
 		OPT_STRING('O', &x0,      "initl",  "Initialize reconstruction with guess."),
-		OPT_INT(   'g', &gpun,    "gpunm",  "GPU device number."),
+		OPT_SET(   'g', &gpu,               "GPU device number."),
 		OPT_SET(   'f', &fista,             "Reconstruct using FISTA instead of IST."),
 		OPT_SET(   'H', &hgwld,             "Use hogwild in IST/FISTA."),
 		OPT_SET(   'v', &dcx,               "Split coefficients to real and imaginary components."),
@@ -941,8 +941,8 @@ int main_wshfl(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Done.\n");
 
-	if (gpun >= 0)
-		num_init_gpu_device(gpun);
+	if (gpu)
+		num_init_gpu();
 	else
 		num_init();
 
@@ -1012,7 +1012,7 @@ int main_wshfl(int argc, char* argv[])
 	long single_channel_table_dims[] = { [0 ... DIMS - 1] = 1 };
 	md_copy_dims(DIMS, single_channel_table_dims, table_dims);
 	single_channel_table_dims[1] = 1;
-	const struct linop_s* K = linop_kern_create(gpun >= 0, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, single_channel_table_dims);
+	const struct linop_s* K = linop_kern_create(gpu, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, single_channel_table_dims);
 	t2 = timestamp();
 	debug_printf(DP_INFO, "\tK:   %f seconds.\n", t2 - t1);
 
@@ -1023,7 +1023,7 @@ int main_wshfl(int argc, char* argv[])
 	print_opdims(A_sc);
 	if (eval < 0)	
 #ifdef USE_CUDA
-		eval = (gpun >= 0) ? estimate_maxeigenval_gpu(A_sc->normal) : estimate_maxeigenval(A_sc->normal);
+		eval = gpu ? estimate_maxeigenval_gpu(A_sc->normal) : estimate_maxeigenval(A_sc->normal);
 #else
 		eval = estimate_maxeigenval(A_sc->normal);
 #endif
@@ -1043,7 +1043,7 @@ int main_wshfl(int argc, char* argv[])
 		const struct linop_s* CFx    = linop_fx_create( wx, sy, sz, 1, tk, true);
 		const struct linop_s* W      = linop_wave_create(wx, sy, sz, 1, tk, wave_dims[COEFF_DIM], wave);
 		const struct linop_s* CFyz   = linop_fyz_create(wx, sy, sz, 1, tk, true);
-		const struct linop_s* K      = linop_kern_create(gpun >= 0, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, single_channel_table_dims);
+		const struct linop_s* K      = linop_kern_create(gpu, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, single_channel_table_dims);
 		struct linop_s* AC_sc = linop_chain_FF(linop_chain_FF(linop_chain_FF(linop_chain_FF(
 			R, CFx), W), CFyz), K);
 		struct linop_s* AC = linop_multc_create(nc, md, maps, AC_sc);
@@ -1192,7 +1192,7 @@ int main_wshfl(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Reconstruction... ");
 	complex float* recon = create_cfl(argv[6], DIMS, coeff_dims);
-	struct lsqr_conf lsqr_conf = { 0., gpun >= 0 };
+	struct lsqr_conf lsqr_conf = { 0., gpu };
 	double recon_start = timestamp();
 	const struct operator_p_s* J = lsqr2_create(&lsqr_conf, italgo, iconf, (const float*) init, A, NULL, 1, &T, NULL, NULL);
 	operator_p_apply(J, 1., DIMS, coeff_dims, recon, DIMS, table_dims, table);
