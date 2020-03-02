@@ -695,7 +695,7 @@ test:	${TESTS}
 
 testslow: ${TESTS_SLOW}
 
-testague: ${TESTS_AGUE}
+testague: ${TESTS_AGUE} # test importing *.dat-files specified in tests/twixread.mk
 
 gputest: ${TESTS_GPU}
 
