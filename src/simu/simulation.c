@@ -384,8 +384,8 @@ void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*s
 					prep_data.pulse.flipangle = data->pulse.flipangle / 2.;
 
 				prep_data.pulse.phase = M_PI;
-				prep_data.seq.te = data->seq.tr / 2.;
-				prep_data.seq.tr = data->seq.tr / 2.;
+				prep_data.seq.te = data->pulse.rf_end; //data->seq.tr / 2.;
+				prep_data.seq.tr = data->pulse.rf_end; //data->seq.tr / 2.;
 
 				create_sim_block(&prep_data);
 

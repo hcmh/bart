@@ -207,7 +207,7 @@ static void apply_signal_preparation(int N, float m[N], void* _data )// provides
 	tmp_data.pulse.pulse_applied = true;
 	tmp_data.pulse.flipangle = simdata->pulse.flipangle/2.;
 	tmp_data.pulse.phase = M_PI;
-	tmp_data.seq.tr = simdata->seq.tr/2.;
+	tmp_data.seq.tr = simdata->pulse.rf_end;//seq.tr/2.;
 
 	float matrix[N][N];
 
