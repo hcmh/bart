@@ -136,7 +136,7 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	 */
 
 	double golden_ratio = (sqrtf(5.) + 1.) / 2;
-	double golden_angle = conf.multiple_ga * M_PI / (golden_ratio + conf.tiny_gold - 1.);
+	double golden_angle = M_PI / (golden_ratio + conf.tiny_gold - 1.);
 
 	// For numerical stability
 	if (1 == conf.tiny_gold)
@@ -146,6 +146,8 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 
 	if (conf.rational)
 		golden_angle = rational_angle(Y, conf.tiny_gold);
+
+	golden_angle *= conf.multiple_ga;
 
 	// Angle between spokes of one slice/partition
 	double angle_s = angle_atom * (conf.full_circle ? 2 : 1);
