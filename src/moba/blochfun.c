@@ -304,10 +304,20 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				md_copy_dims(DIMS, curr_pos, spa_pos);
 				
 				long position = 0;
-				
-				for (int j = 0; j < data->out_dims[TE_DIM] - rm_first_echo; j++) { 
 
-					curr_pos[TE_DIM] = j;
+				for (int i = 0, j = 0; j < sim_data.seq.rep_num - rm_first_echo; j++) {
+
+					// 1.2 deg is threshold to keep 601 data points
+					// ->	see: J. Asslaender et al.
+					//		Hybrid-State Free Precession in Nuclear Magnetic Resonance
+					//		arXiv:1807.03424
+					if (NULL != data->input_fa_profile)
+						if (cabsf(var_fa_cpu[j]) <= 1.2)
+							continue;
+
+					assert(i <= data->out_dims[TE_DIM]);
+
+					curr_pos[TE_DIM] = i;
 					position = md_calc_offset(data->N, data->out_strs, curr_pos) / CFL_SIZE;
 
 					//Scaling: dB/dRi = dB/dRis * dRis/dRi
@@ -316,6 +326,8 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 					dr2_cpu[position] = data->scale[1] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
 					dm0_cpu[position] = data->scale[2] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
 					sig_cpu[position] = mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I;
+
+					i++;
 				}
 			}
 			
@@ -336,7 +348,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	md_free(r1scale);
 	md_free(r2scale);
 	md_free(m0scale);
-	
+
 	if (NULL != data->input_sliceprofile)
 		md_free(sliceprofile_cpu);
 	
