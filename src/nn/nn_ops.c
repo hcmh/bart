@@ -17,6 +17,10 @@
 #include "num/iovec.h"
 #include "num/rand.h"
 
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
+
 #include "nlops/nlop.h"
 #include "nn/layers.h"
 
