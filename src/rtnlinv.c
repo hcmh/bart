@@ -26,6 +26,7 @@
 #include "misc/debug.h"
 
 #include "noir/recon.h"
+#include "noir/misc.h"
 
 #include "noncart/nufft.h"
 
