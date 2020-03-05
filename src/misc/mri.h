@@ -11,6 +11,9 @@
 
 #include "misc/cppwrap.h"
 
+#ifndef GYRO
+#define GYRO 42.57747892
+#endif
 
 enum mri_dims {
 	READ_DIM,
