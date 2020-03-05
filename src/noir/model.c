@@ -130,10 +130,8 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	const struct linop_s* wghts = linop_cdiag_create(DIMS, data->coil_dims, FFT_FLAGS, data->wghts);
 	const struct linop_s* wghts_ifft = linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS);
 
-	data->weights = linop_chain(wghts, wghts_ifft);
+	data->weights = linop_chain_FF(wghts, wghts_ifft);
 
-	linop_free(wghts);
-	linop_free(wghts_ifft);
 
 
 	const struct linop_s* lop_fft = linop_fft_create(DIMS, data->data_dims, conf->fft_flags);
@@ -179,16 +177,12 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 	const struct linop_s* lop_mask = linop_cdiag_create(DIMS, data->data_dims, FFT_FLAGS, data->msk);
 
-	const struct linop_s* lop_fft2 = linop_chain(lop_mask, lop_fft);
-	linop_free(lop_mask);
-	linop_free(lop_fft);
+	const struct linop_s* lop_fft2 = linop_chain_FF(lop_mask, lop_fft);
 
 	data->frw = linop_chain(lop_fft2, lop_pattern);
 	linop_free(lop_pattern);
 
-	data->adj = linop_chain(lop_fft2, lop_adj_pattern);
-	linop_free(lop_fft2);
-	linop_free(lop_adj_pattern);
+	data->adj = linop_chain_FF(lop_fft2, lop_adj_pattern);
 
 
 
