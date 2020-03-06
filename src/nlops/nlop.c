@@ -554,13 +554,13 @@ const struct nlop_s* nlop_reshape_in(const struct nlop_s* op, int i, int NI, con
 	PTR_ALLOC(struct linop_s, resh_t);
 	resh_t->forward = operator_reshape_create(oNI, oidims, NI, idims);
 	resh_t->adjoint = operator_reshape_create(NI, idims, oNI, oidims);
-	resh_t->normal= operator_reshape_create(NI, idims, NI, idims);
+	resh_t->normal = operator_reshape_create(NI, idims, NI, idims);
 	resh_t->norm_inv = NULL;
 	auto resh = PTR_PASS(resh_t);
 
 	for (int ii = 0; ii < II; ii++)
 		for (int io = 0; io < OO; io++)
-			(*der)[ii][io] = (ii == i) ? linop_chain(resh, nlop_get_derivative(op, io, ii)) : nlop_get_derivative(op, io, ii);
+			(*der)[ii][io] = (ii == i) ? linop_chain(resh, nlop_get_derivative(op, io, ii)) : linop_clone(nlop_get_derivative(op, io, ii));
 
 	linop_free(resh);
 
@@ -593,7 +593,7 @@ const struct nlop_s* nlop_reshape_out(const struct nlop_s* op, int o, int NO, co
 
 	for (int ii = 0; ii < II; ii++)
 		for (int io = 0; io < OO; io++)
-			(*der)[ii][io] = (io == o) ? linop_chain(nlop_get_derivative(op, io, ii), resh) : nlop_get_derivative(op, io, ii);
+			(*der)[ii][io] = (io == o) ? linop_chain(nlop_get_derivative(op, io, ii), resh) : linop_clone(nlop_get_derivative(op, io, ii));
 
 	linop_free(resh);
 
