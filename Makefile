@@ -550,6 +550,8 @@ MODULES_test_prox += -liter -llinops
 # UTARGETS += test_nn
 MODULES_test_nn += -lnn -lnlops -llinops
 
+UTARGETS_GPU += test_cuda_nlop
+MODULES_test_cuda_nlop += -lnn -lnlops -llinops -lnum
 
 
 # sort BTARGETS after everything is included
@@ -738,4 +740,3 @@ install: bart $(root)/doc/commands.txt
 # symbol table
 bart.syms: bart
 	rules/make_symbol_table.sh bart bart.syms
-
