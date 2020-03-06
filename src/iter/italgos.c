@@ -725,7 +725,7 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	vops->del(u_new);
 }
 
-static void print_progress(int NO, enum OUT_TYPE out_type[NO], float** args, int epoch, int i_batch, int I_batch, double starttime)
+static void print_progress(int NO, enum OUT_TYPE out_type[NO], float** args, int epoch, int i_batch, int I_batch, double starttime, const struct vec_iter_s* vops)
 {
 	float sum_err = 0.;
 	int length = 10;
@@ -751,10 +751,12 @@ static void print_progress(int NO, enum OUT_TYPE out_type[NO], float** args, int
 	for (int o = 0; o < NO; o++){
 
 		if (out_type[o] == OUT_OPTIMIZE){
+			float tmp[1];
+			vops->copy(1, tmp, args[o]);
 #if 0
-			debug_printf(DP_INFO, "err[%d]=%.2f", o, args[o][0]);
+			debug_printf(DP_INFO, "err[%d]=%.2f", o, tmp[0]);
 #endif
-			sum_err += args[o][0];
+			sum_err += tmp[0];
 		}
 	}
 
@@ -767,9 +769,11 @@ static void print_progress(int NO, enum OUT_TYPE out_type[NO], float** args, int
 
 static void getgrad(int NI, float* grad[NI], long i_size[NI], enum IN_TYPE in_type[NI], int NO, enum OUT_TYPE out_type[NO], struct iter_op_arr_s adj, const struct vec_iter_s* vops)
 {
-	_Complex float one = 1.;
+	float* one = vops->allocate(2);
+	_Complex float one_var = 1.;
+	vops->copy(2, one, (float*)&one_var);
+	const float* one_arr[] = {one};
 
-	const float* one_arr[] = {(const float*)&one};
 	long in_optimize_flag = 0;
 
 	float* tmp_grad[NI];
@@ -810,6 +814,7 @@ static void getgrad(int NI, float* grad[NI], long i_size[NI], enum IN_TYPE in_ty
 		if (in_type[i] == IN_OPTIMIZE)
 			if (1 < NO)
 				vops->del(tmp_grad[i]);
+	vops->del(one);
 }
 
 void sgd(unsigned int epochs,
@@ -870,7 +875,7 @@ void sgd(unsigned int epochs,
 				if (in_type[i] == IN_BATCH)
 					args[NO + i] += isize[i];
 
-			print_progress(NO, out_type, args, epoch, i_batch, N_total/N_batch, starttime);
+			print_progress(NO, out_type, args, epoch, i_batch, N_total/N_batch, starttime, vops);
 		}
 
 
