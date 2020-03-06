@@ -4,7 +4,7 @@
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  */
- 
+
 #ifndef __DEBUG_H
 #define __DEBUG_H 1
 
@@ -64,6 +64,11 @@ extern void vendor_log(int level,
 		const char* message);
 #endif
 
+#ifndef TIMER
+#define TIMER
+#define START_TIMER static double time = 0.; static long count = 0.; time -= timestamp();
+#define PRINT_TIMER(name) { time += timestamp(); count += 1; debug_printf(DP_DEBUG1, "%d %s\tapplied in %3.4f seconds\n", count, name, time); }
+#endif
 
 
 #include "misc/cppwrap.h"
