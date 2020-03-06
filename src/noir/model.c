@@ -1,10 +1,10 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2017-2019. Martin Uecker.
+ * Copyright 2017-2020. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2011-2019 Martin Uecker
+ * 2011-2020 Martin Uecker
  *
  *
  * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized nonlinear
@@ -472,18 +472,34 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 
 
 
-__attribute__((optimize("-fno-finite-math-only")))
-static void proj_add(unsigned int D, const long dims[D], const long ostrs[D],
-			complex float* optr, const long v1_strs[D], complex float* v1, const long v2_strs[D], complex float* v2)
+static void proj_add(unsigned int D, const long dims[D],
+			const long ostrs[D], complex float* optr,
+			const long v1_strs[D], complex float* v1,
+			const long v2_strs[D], complex float* v2)
 {
-	float v22 = md_zscalar_real2(D, dims, v2_strs, v2, v2_strs, v2); // since it is real anyway
+	unsigned long flags = 0ul; //FFT_FLAGS;
+//	unsigned long flags = FFT_FLAGS;
 
-	complex float v12 = md_zscalar2(D, dims, v1_strs, v1, v2_strs, v2) / v22;
+	long v_dims[D];
+	md_select_dims(D, flags, v_dims, dims);
 
-	if (!isfinite(crealf(v12)) || !isfinite(cimagf(v12)))
-		v12 = 0.;
+	long v_strs[D];
+	md_calc_strides(D, v_strs, v_dims, CFL_SIZE);
 
-	md_zaxpy2(D, dims, ostrs, optr, v12, v2_strs, v2);
+	complex float* v22 = md_alloc_sameplace(D, v_dims, CFL_SIZE, optr);
+
+	md_ztenmulc2(D, dims, v_strs, v22, v2_strs, v2, v2_strs, v2);
+
+	complex float* v12 = md_alloc_sameplace(D, v_dims, CFL_SIZE, optr);
+
+	md_ztenmulc2(D, dims, v_strs, v12, v1_strs, v1, v2_strs, v2);
+	md_zdiv(D, v_dims, v12, v12, v22);
+
+	md_free(v22);
+
+	md_ztenmul2(D, dims, ostrs, optr, v_strs, v12, v2_strs, v2);
+
+	md_free(v12);
 }
 
 
