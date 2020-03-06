@@ -12,6 +12,7 @@
 #include "num/flpmath.h"
 #include "num/rand.h"
 #include "num/iovec.h"
+#include "num/ops.h"
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -667,3 +668,73 @@ static bool test_nlop_reshape()
 }
 
 UT_REGISTER_TEST(test_nlop_reshape);
+
+struct count_op_s {
+
+	INTERFACE(linop_data_t);
+	int* counter;
+};
+
+static DEF_TYPEID(count_op_s);
+
+static void count_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const struct count_op_s* data = CAST_DOWN(count_op_s, _data);
+	*(data->counter) += 1;
+	long dim[2] = {1};
+	md_copy(1, dim, dst, src, CFL_SIZE);
+}
+
+static void count_free(const linop_data_t* _data)
+{
+	const struct count_op_s* data = CAST_DOWN(count_op_s, _data);
+	xfree(data);
+}
+
+static struct linop_s* linop_counter_create(int* counter)
+{
+	PTR_ALLOC(struct count_op_s, data);
+	SET_TYPEID(count_op_s, data);
+	data->counter = counter;
+	long dim[1] = {1};
+	return linop_create(1, dim, 1, dim, CAST_UP(PTR_PASS(data)), count_forward, count_forward, count_forward, NULL, count_free);
+}
+
+static bool test_nlop_parallel_derivatives()
+{
+
+	long dim[1] = {1};
+	int counter = 0;
+
+	complex float in[1] ={1.};
+	complex float out1[1] ={1.};
+	complex float out2[1] ={1.};
+	complex float* outs[2] = {out1, out2};
+
+	auto countop1 = linop_counter_create(&counter);
+	auto chain = linop_chain(countop1, countop1);
+
+	operator_apply_parallel_unchecked(2, MAKE_ARRAY(chain->forward, chain->forward), outs, in);
+
+	bool result = (2 == counter);
+
+	counter = 0;
+	auto plus_op = linop_plus(chain, chain);
+	linop_forward_unchecked(plus_op, out1, in);
+
+	result = result && (2 == counter);
+
+	auto tenmul_op = nlop_tenmul_create(1, dim, dim ,dim);
+	const struct nlop_s* tenmul_chain = nlop_chain2(tenmul_op, 0, nlop_from_linop(chain), 0);
+	tenmul_chain = nlop_reshape_in_F(tenmul_chain, 0, 1, dim);
+	nlop_generic_apply_unchecked(tenmul_chain, 3, (void*[]){ out1, out2, in });
+	counter = 0;
+	const struct operator_s* op1 = nlop_get_derivative(tenmul_chain, 0, 0)->adjoint;
+	const struct operator_s* op2 = nlop_get_derivative(tenmul_chain, 0, 1)->adjoint;
+	operator_apply_parallel_unchecked(2, MAKE_ARRAY(op1, op2), outs, in);
+	result = result && (2 == counter);
+
+	return result;
+}
+
+UT_REGISTER_TEST(test_nlop_parallel_derivatives);
