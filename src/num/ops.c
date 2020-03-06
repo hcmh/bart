@@ -8,7 +8,7 @@
  * 2014 Jonathan Tamir <jtamir@eecs.berkeley.edu>
  * 2014 Frank Ong <frankong@berkeley.edu>
  *
- * operator expressions working on multi-dimensional arrays 
+ * operator expressions working on multi-dimensional arrays
  */
 
 #include <complex.h>
@@ -140,7 +140,7 @@ const struct operator_s* operator_create2(unsigned int ON, const long out_dims[O
  * @param apply function that applies the operation
  * @param del function that frees the data
  */
-const struct operator_s* operator_create(unsigned int ON, const long out_dims[ON], 
+const struct operator_s* operator_create(unsigned int ON, const long out_dims[ON],
 		unsigned int IN, const long in_dims[IN],
 		operator_data_t* data, operator_fun_t apply, operator_del_t del)
 {
@@ -152,7 +152,7 @@ const struct operator_s* operator_create(unsigned int ON, const long out_dims[ON
 
 /**
  * Increment the reference count of an operator
- * 
+ *
  * @param x operator
  */
 const struct operator_s* operator_ref(const struct operator_s* x)
@@ -201,7 +201,7 @@ operator_data_t* operator_get_data(const struct operator_s* x)
  */
 void operator_free(const struct operator_s* x)
 {
-	if (NULL == x) 
+	if (NULL == x)
 		return;
 
 	shared_obj_destroy(&x->sptr);
@@ -217,7 +217,7 @@ unsigned int operator_nr_args(const struct operator_s* op)
 {
 	return op->N;
 }
- 
+
 
 /**
  * Return the number of input args
@@ -392,6 +392,96 @@ const struct operator_s* operator_identity_create(unsigned int N, const long dim
         return operator_identity_create2(N, dims, strs, strs);
 }
 
+struct reshape_s {
+
+	INTERFACE(operator_data_t);
+
+	const struct iovec_s* domain;
+};
+
+static DEF_TYPEID(reshape_s);
+
+static void reshape_apply(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+        const auto d = CAST_DOWN(reshape_s, _data);
+	assert(2 == N);
+        md_copy(d->domain->N, d->domain->dims, args[0], args[1], d->domain->size);
+}
+
+
+static void reshape_free(const operator_data_t* _data)
+{
+        const auto d = CAST_DOWN(reshape_s, _data);
+        iovec_free(d->domain);
+	xfree(d);
+}
+
+
+const struct operator_s* operator_reshape_create(unsigned int A, const long out_dims[A], int B, const long in_dims[B])
+{
+	PTR_ALLOC(struct reshape_s, data);
+	SET_TYPEID(reshape_s, data);
+
+	assert(md_calc_size(A, out_dims) == md_calc_size(B, in_dims));
+        data->domain = iovec_create(B, in_dims, CFL_SIZE);
+
+        return operator_create(A, out_dims, B, in_dims, CAST_UP(PTR_PASS(data)), reshape_apply, reshape_free);
+}
+
+
+struct reshape_container_s {
+
+	INTERFACE(operator_data_t);
+
+	const struct operator_s* x;
+};
+
+static DEF_TYPEID(reshape_container_s );
+
+static void reshape_container_apply(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+        const auto d = CAST_DOWN(reshape_container_s, _data);
+        operator_generic_apply_unchecked(d->x, N, args);
+}
+
+static void reshape_container_free(const operator_data_t* _data)
+{
+        const auto d = CAST_DOWN(reshape_container_s, _data);
+        operator_free(d->x);
+	xfree(d);
+}
+
+const struct operator_s* operator_reshape(const struct operator_s* op, unsigned int i, long N, const long dims[N])
+{
+	PTR_ALLOC(struct reshape_container_s, data);
+	SET_TYPEID(reshape_container_s, data);
+
+	assert(md_calc_size(N, dims) == md_calc_size(operator_arg_domain(op, i)->N, operator_arg_domain(op, i)->dims));
+
+	data->x = operator_ref(op);
+
+	long strs[N];
+	md_calc_strides(N, strs, dims, operator_arg_domain(op, i)->size);
+
+	unsigned int A = operator_nr_args(op);
+	unsigned int D[A];
+	const long* op_dims[A];
+	const long* op_strs[A];
+
+	for (unsigned int j = 0; j < A; j++) {
+
+		auto iov = operator_arg_domain(op, j);
+		D[j] = iov->N;
+		op_dims[j] = iov->dims;
+		op_strs[j] = iov->strs;
+	}
+
+	D[i] = N;
+	op_dims[i] = dims;
+	op_strs[i] = strs;
+
+        return operator_generic_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), reshape_container_apply, reshape_container_free);
+}
 
 
 
@@ -1027,7 +1117,7 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 	omp_set_lock(&gpulock[gpun]);
 	operator_generic_apply_unchecked(op, N, gpu_ptr);
 	omp_unset_lock(&gpulock[gpun]);
-	
+
 	for (unsigned int i = 0; i < N; i++) {
 
 		if (!MD_IS_SET(data->move_flags, i))
@@ -1293,7 +1383,6 @@ const struct operator_s* operator_dup_create(const struct operator_s* op, unsign
 
 
 // FIXME: we should reimplement link in terms of dup and bind (caveat: gpu)
-
 struct operator_link_s {
 
 	INTERFACE(operator_data_t);
@@ -1720,5 +1809,3 @@ bool operator_zero_or_null_p(const struct operator_s* op)
 
 	return false;
 }
-
-

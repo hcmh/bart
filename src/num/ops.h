@@ -45,6 +45,7 @@ extern const struct operator_s* operator_generic_create2(unsigned int N, unsigne
 extern const struct operator_s* operator_identity_create(unsigned int N, const long dims[__VLA(N)]);
 extern const struct operator_s* operator_identity_create2(unsigned int N, const long dims[__VLA(N)],
 					const long ostr[__VLA(N)], const long istr[__VLA(N)]);
+extern const struct operator_s* operator_reshape_create(unsigned int A, const long out_dims[__VLA(A)], int B, const long in_dims[__VLA(B)]);
 
 
 extern const struct operator_s* operator_zero_create(unsigned int N, const long dims[N]);
@@ -127,6 +128,7 @@ extern const struct operator_s* operator_dup_create(const struct operator_s* op,
 extern const struct operator_s* operator_extract_create(const struct operator_s* op, int a, int N, const long dims[N], const long pos[N]);
 extern const struct operator_s* operator_extract_create2(const struct operator_s* op, int a, int Da, const long dimsa[Da], const long strsa[Da], const long pos[Da]);
 extern const struct operator_s* operator_permute(const struct operator_s* op, int N, const int perm[N]);
+extern const struct operator_s* operator_reshape(const struct operator_s* op, unsigned int i, long N, const long dims[__VLA(N)]);
 
 
 extern _Bool operator_zero_or_null_p(const struct operator_s* op);
