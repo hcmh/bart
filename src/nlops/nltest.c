@@ -305,6 +305,8 @@ float compare_gpu(const struct nlop_s* cpu_op, const struct nlop_s* gpu_op)
 
 	return result;
 #else
+	UNUSED(cpu_op);
+	UNUSED(gpu_op);
 	assert(0);
 #endif
 }
