@@ -46,6 +46,7 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 	.fft_flags = FFT_FLAGS,
 	.cnstcoil_flags = 0u,
 	.ptrn_flags = ~(COIL_FLAG|MAPS_FLAG),
+	.enlive_flags = 0u,
 	.rvc = false,
 	.noncart = false,
 	.a = 220.,
@@ -472,14 +473,11 @@ struct noir_s noir_create(const long dims[DIMS], const complex float* mask, cons
 
 
 
-static void proj_add(unsigned int D, const long dims[D],
+static void proj_add(unsigned int flags, unsigned int D, const long dims[D],
 			const long ostrs[D], complex float* optr,
 			const long v1_strs[D], complex float* v1,
 			const long v2_strs[D], complex float* v2)
 {
-	unsigned long flags = 0ul; //FFT_FLAGS;
-//	unsigned long flags = FFT_FLAGS;
-
 	long v_dims[D];
 	md_select_dims(D, flags, v_dims, dims);
 
@@ -538,7 +536,8 @@ void noir_orthogonalize(struct noir_s* op, complex float* coils)
 
 			complex float* prev_map_ptr = (void*)coils + prev * data_strs[MAPS_DIM];
 
-			proj_add(DIMS, single_map_dims, single_map_strs, tmp, single_map_strs, map_ptr, data_strs, prev_map_ptr);
+			proj_add(data->conf.enlive_flags, DIMS, single_map_dims,
+				single_map_strs, tmp, single_map_strs, map_ptr, data_strs, prev_map_ptr);
 		}
 
 		md_zsub2(DIMS, single_map_dims, data_strs, map_ptr, data_strs, map_ptr, single_map_strs, tmp);
