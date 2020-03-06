@@ -539,8 +539,8 @@ const struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
 	return (NULL == data) ? NULL : data->op;
 }
 
- const struct nlop_s* nlop_reshape_in(const struct nlop_s* op, int i, int NI, long idims[NI])
- {
+const struct nlop_s* nlop_reshape_in(const struct nlop_s* op, int i, int NI, const long idims[NI])
+{
 	//faster if dims are changed in operator than by reshape operator
 	int II = nlop_get_nr_in_args(op);
 
@@ -579,7 +579,7 @@ const struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
 	return result;
 }
 
- const struct nlop_s* nlop_reshape_out(const struct nlop_s* op, int o, int NO, long odims[NO])
+ const struct nlop_s* nlop_reshape_out(const struct nlop_s* op, int o, int NO, const long odims[NO])
  {
 	int OO = nlop_get_nr_out_args(op);
 	assert(o < OO);
@@ -616,6 +616,21 @@ const struct nlop_s* nlop_flatten_get_op(struct nlop_s* op)
 
 	return result;
 }
+
+const struct nlop_s* nlop_reshape_in_F(const struct nlop_s* op, int i, int NI, const long idims[NI])
+{
+	auto result = nlop_reshape_in(op, i, NI,idims);
+	nlop_free(op);
+	return result;
+}
+
+const struct nlop_s* nlop_reshape_out_F(const struct nlop_s* op, int o, int NO, const long odims[NO])
+{
+	auto result = nlop_reshape_out(op, o, NO,odims);
+	nlop_free(op);
+	return result;
+}
+
 
 void nlop_debug(enum debug_levels dl, const struct nlop_s* x)
 {
