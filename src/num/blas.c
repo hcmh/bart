@@ -26,7 +26,6 @@
 
 #include <cublas.h>
 #endif
-
 #include "blas.h"
 
 
@@ -43,13 +42,13 @@ void blas_cgemm(char transa, char transb, long M, long N,  long K, const complex
                                 (cuComplex*)C, ldc);
         } else
 #endif
-        cblas_cgemm(CblasColMajor, transa, transb, M, N, K, (void*)&alpha, (void*)A, lda, (void*)B, ldb, (void*)&beta, (void*)C, ldc);
+        cblas_cgemm(CblasColMajor, ('T' == transa) ? CblasTrans : (('C' == transa) ? CblasConjTrans : CblasNoTrans), ('T' == transb) ? CblasTrans : (('C' == transb) ? CblasConjTrans : CblasNoTrans), M, N, K, (void*)&alpha, (void*)A, lda, (void*)B, ldb, (void*)&beta, (void*)C, ldc);
 }
 
 
 void (blas_matrix_multiply)(long M, long N, long K, complex float C[N][M], const complex float A[K][M], const complex float B[N][K])
 {
-	blas_cgemm(CblasNoTrans, CblasNoTrans, M, N, K, 1., M, A, K, B, 0., M, C);
+	blas_cgemm('N', 'N', M, N, K, 1., M, A, K, B, 0., M, C);
 }
 
 void (blas_matrix_zfmac)(long M, long N, long K, complex float* C, const complex float* A, char transa, const complex float* B, char transb)
@@ -60,9 +59,7 @@ void (blas_matrix_zfmac)(long M, long N, long K, complex float* C, const complex
     	long lda = (transa == 'N' ? M: K);
     	long ldb = (transb == 'N' ? K: N);
 
-	blas_cgemm(('T' == transa) ? CblasTrans : (('C' == transa) ? CblasConjTrans : CblasNoTrans),
-                   ('T' == transb) ? CblasTrans : (('C' == transb) ? CblasConjTrans : CblasNoTrans),
-		    M, N, K, 1., lda, *(complex float (*)[K][lda])A, ldb, *(complex float (*)[N][ldb])B, 1., M, *(complex float (*)[N][M])C);
+	blas_cgemm(transa, transb, M, N, K, 1., lda, *(complex float (*)[K][lda])A, ldb, *(complex float (*)[N][ldb])B, 1., M, *(complex float (*)[N][M])C);
 
 }
 
