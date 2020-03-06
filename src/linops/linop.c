@@ -54,7 +54,7 @@ static void shared_del(const operator_data_t* _data)
 	auto data = CAST_DOWN(shared_data_s, _data);
 
 	shared_ptr_destroy(&data->sptr);
-	
+
 	xfree(data);
 }
 
@@ -144,7 +144,7 @@ struct linop_s* linop_create2(unsigned int ON, const long odims[ON], const long 
 	if (NULL != norm_inv) {
 
 		lo->norm_inv = operator_p_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[3]), shared_apply_p, shared_del);
-	
+
 	} else {
 
 		shared_ptr_destroy(&shared_data[3]->sptr);
@@ -182,7 +182,7 @@ struct linop_s* linop_create(unsigned int ON, const long odims[ON], unsigned int
 
 /**
  * Return the data associated with the linear operator
- * 
+ *
  * @param ptr linear operator
  */
 const linop_data_t* linop_get_data(const struct linop_s* ptr)
@@ -221,7 +221,7 @@ extern const struct linop_s* linop_clone(const struct linop_s* x)
  * @param sdims dimensions of the input (domain)
  * @param src input data
  */
-void linop_forward(const struct linop_s* op, unsigned int DN, const long ddims[DN], complex float* dst, 
+void linop_forward(const struct linop_s* op, unsigned int DN, const long ddims[DN], complex float* dst,
 			unsigned int SN, const long sdims[SN], const complex float* src)
 {
 	assert(op->forward);
@@ -410,7 +410,7 @@ struct linop_s* linop_null_create(unsigned int NO, const long odims[NO], unsigne
 
 /**
  * Create chain of linear operators.
- * C = B A 
+ * C = B A
  * C^H = A^H B^H
  * C^H C = A^H B^H B A
  */
@@ -532,57 +532,6 @@ void linop_free(const struct linop_s* op)
 }
 
 
-
-
-struct plus_data_s {
-
-	INTERFACE(linop_data_t);
-
-	const struct linop_s* a;
-	const struct linop_s* b;
-};
-
-static DEF_TYPEID(plus_data_s);
-
-static void plus_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
-{
-	auto data = CAST_DOWN(plus_data_s, _data);
-	auto iov = linop_codomain(data->a);
-
-	complex float* tmp = md_alloc_sameplace(iov->N, iov->dims, iov->size, dst);
-
-	linop_forward_unchecked(data->a, dst, src);
-	linop_forward_unchecked(data->b, tmp, src);
-
-	md_zadd(iov->N, iov->dims, dst, dst, tmp);
-	md_free(tmp);
-}
-
-static void plus_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
-{
-	auto data = CAST_DOWN(plus_data_s, _data);
-	auto iov = linop_domain(data->a);
-
-	complex float* tmp = md_alloc_sameplace(iov->N, iov->dims, iov->size, dst);
-
-	linop_adjoint_unchecked(data->a, dst, src);
-	linop_adjoint_unchecked(data->b, tmp, src);
-
-	md_zadd(iov->N, iov->dims, dst, dst, tmp);
-	md_free(tmp);
-}
-
-
-static void plus_free(const linop_data_t* _data)
-{
-	auto data = CAST_DOWN(plus_data_s, _data);
-
-	linop_free(data->a);
-	linop_free(data->b);
-
-	xfree(data);
-}
-
 struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
 {
 #if 1
@@ -595,21 +544,34 @@ struct linop_s* linop_plus(const struct linop_s* a, const struct linop_s* b)
 		return (struct linop_s*)linop_clone(a);
 #endif
 
-	auto bdo = linop_domain(b);
-	assert(CFL_SIZE == bdo->size);
-	iovec_check(linop_domain(a), bdo->N, bdo->dims, bdo->strs);
+	PTR_ALLOC(struct linop_s, c);
 
-	auto bco = linop_codomain(b);
-	assert(CFL_SIZE == bco->size);
-	iovec_check(linop_codomain(a), bco->N, bco->dims, bco->strs);
+	c->forward = operator_plus_create(a->forward, b->forward);
+	c->adjoint = operator_plus_create(a->adjoint, b->adjoint);
 
-	PTR_ALLOC(struct plus_data_s, data);
-	SET_TYPEID(plus_data_s, data);
+	if ((NULL != a->normal) && (NULL != b->normal))
+		c->normal = operator_plus_create(a->normal, b->normal);
 
-	data->a = linop_clone(a);
-	data->b = linop_clone(b);
+	if ((NULL != a->normal) && (NULL == b->normal)) {
 
-	return linop_create(bco->N, bco->dims, bdo->N, bdo->dims, CAST_UP(PTR_PASS(data)), plus_apply, plus_adjoint, NULL, NULL, plus_free);
+		auto tmp = operator_chain(b->forward, b->adjoint);
+		c->normal = operator_plus_create(a->normal, tmp);
+		operator_free(tmp);
+	}
+
+	if ((NULL == a->normal) && (NULL != b->normal)) {
+
+		auto tmp = operator_chain(a->forward, a->adjoint);
+		c->normal = operator_plus_create(tmp, b->normal);
+		operator_free(tmp);
+	}
+
+	if ((NULL == a->normal) && (NULL == b->normal))
+		c->normal = NULL;
+
+	c->norm_inv = NULL;
+
+	return PTR_PASS(c);
 }
 
 struct linop_s* linop_plus_FF(const struct linop_s* a, const struct linop_s* b)
@@ -621,4 +583,3 @@ struct linop_s* linop_plus_FF(const struct linop_s* a, const struct linop_s* b)
 
 	return x;
 }
-

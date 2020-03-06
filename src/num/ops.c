@@ -20,6 +20,7 @@
 
 #include "num/multind.h"
 #include "num/iovec.h"
+#include "num/flpmath.h"
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -1808,4 +1809,84 @@ bool operator_zero_or_null_p(const struct operator_s* op)
 	}
 
 	return false;
+}
+
+/**
+ * For simple operators with one in and one output, we provide "flat containers".
+ * These operators can be optimized (simultaneous application) easily.
+ * There are two types of containers, i.e. chains and sums.
+ * */
+
+struct operator_plus_s {
+
+	INTERFACE(operator_data_t);
+
+	const struct operator_s* a;
+	const struct operator_s* b;
+};
+
+static DEF_TYPEID(operator_plus_s);
+
+static void plus_apply(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+	auto data = CAST_DOWN(operator_plus_s, _data);
+
+	assert(2 == N);
+
+	void* src = args[1];
+	void* dst = args[0];
+
+	auto iov = operator_codomain(data->b);
+	complex float* tmp = md_alloc_sameplace(iov->N, iov->dims, iov->size, src);
+
+	operator_apply_unchecked(data->a, (complex float*)dst, (complex float*)src);
+	operator_apply_unchecked(data->b, tmp, (complex float*)src);
+
+	md_zadd2(iov->N, iov->dims, iov->strs, dst,iov->strs, dst, iov->strs, tmp);
+	md_free(tmp);
+}
+
+static void plus_free(const operator_data_t* _data)
+{
+	auto data = CAST_DOWN(operator_plus_s, _data);
+
+	operator_free(data->a);
+	operator_free(data->b);
+
+	xfree(data);
+}
+
+/**
+ * Create a new operator that adds the output of two
+ */
+const struct operator_s* operator_plus_create(const struct operator_s* a, const struct operator_s* b)
+{
+	//check compatibility
+	assert((2 == a->N) && (2 == b->N));
+	assert(MD_BIT(0) == a->io_flags);
+	assert(MD_BIT(0) == b->io_flags);
+
+	auto doma = operator_domain(a);
+	auto domb = operator_domain(b);
+	assert(iovec_check(doma, domb->N, domb->dims, domb->strs));
+	assert(doma->size == domb->size);
+
+	auto codoma = operator_codomain(a);
+	auto codomb = operator_codomain(b);
+	assert(iovec_check(codoma, codomb->N, codomb->dims, codomb->strs));
+	assert(codoma->size == codomb->size);
+	//endcheck compatibility
+
+	PTR_ALLOC(struct operator_plus_s, c);
+	SET_TYPEID(operator_plus_s, c);
+
+	c->a = operator_ref(a);
+	c->b = operator_ref(b);
+
+	unsigned int io_flags = MD_BIT(0);
+	unsigned int D[] = {codoma->N, doma->N};
+	const long* dims[] = {codoma->dims, doma->dims};
+	const long* strs[] = {codoma->strs, doma->strs};
+
+	return operator_generic_create2(2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), plus_apply, plus_free);
 }

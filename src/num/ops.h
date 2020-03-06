@@ -57,6 +57,7 @@ extern const struct operator_s* operator_null_create2(unsigned int N, const long
 
 extern const struct operator_s* operator_chain(const struct operator_s* a, const struct operator_s* b);
 extern const struct operator_s* operator_chainN(unsigned int N, const struct operator_s* ops[__VLA(N)]);
+extern const struct operator_s* operator_plus_create(const struct operator_s* a, const struct operator_s* b);
 
 
 //extern const struct operator_s* operator_mul(const struct operator_s* a, const struct operator_s* b);
