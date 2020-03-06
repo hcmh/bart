@@ -683,6 +683,13 @@ TESTS_OUT=$(root)/tests/out/
 include $(root)/tests/*.mk
 
 test:	${TESTS}
+	@echo -n "The following tools do not have tests: "
+	for i in ${XTARGETS} ; do \
+		if [ ! -f ${root}/tests/$$i.mk ] ; then \
+			echo -n "$$i "; \
+		fi ; \
+	done
+	@echo
 
 testague: ${TESTS_AGUE}
 
