@@ -207,7 +207,7 @@ static bool test_nlop_tenmul_der(void)
 
 	linop_forward(der1, N, odims, dst2, N, idims1, src1);
 	linop_forward(der2, N, odims, dst3, N, idims2, src2);
-	
+
 
 	double err = md_znrmse(N, odims, dst2, dst1)
 		   + md_znrmse(N, odims, dst3, dst1);
@@ -613,3 +613,57 @@ static bool test_nlop_link(void)
 UT_REGISTER_TEST(test_nlop_link);
 
 
+static bool test_nlop_reshape()
+{
+	enum { N = 3 };
+	long odims[N] = { 10, 1, 3 };
+	long idims1[N] = { 1, 7, 3 };
+	long idims2[N] = { 10, 7, 1 };
+
+	complex float* dst1 = md_alloc(N, odims, CFL_SIZE);
+	complex float* dst2 = md_alloc(N, odims, CFL_SIZE);
+	complex float* src1 = md_alloc(N, idims1, CFL_SIZE);
+	complex float* src2 = md_alloc(N, idims2, CFL_SIZE);
+
+	md_gaussian_rand(N, idims1, src1);
+	md_gaussian_rand(N, idims2, src2);
+
+	auto op = nlop_tenmul_create(N, odims, idims1, idims2);
+
+	long nodims[1] = {md_calc_size(N, odims)};
+	long nidims1[3] = {1, 1, md_calc_size(N, idims1)};
+	long nidims2[2] = {md_calc_size(N, idims2), 1};
+
+	auto op_reshape = nlop_reshape_out(op, 0, 1, nodims);
+	op_reshape = nlop_reshape_in_F(op_reshape, 0, 3, nidims1);
+	op_reshape = nlop_reshape_in_F(op_reshape, 1, 2, nidims2);
+
+	nlop_generic_apply_unchecked(op, 3, (void*[]){ dst1, src1, src2 });
+	nlop_generic_apply_unchecked(op_reshape, 3, (void*[]){ dst2, src1, src2 });
+
+	double err = md_znrmse(N, odims, dst2, dst1);
+
+	auto der1 = nlop_get_derivative(op, 0, 0);
+	auto der1_resh = nlop_get_derivative(op_reshape, 0, 0);
+	linop_forward_unchecked(der1, dst1, src1);
+	linop_forward_unchecked(der1_resh, dst2, src1);
+	err += md_znrmse(N, odims, dst2, dst1);
+
+	auto der2 = nlop_get_derivative(op, 0, 1);
+	auto der2_resh = nlop_get_derivative(op_reshape, 0, 1);
+	linop_forward_unchecked(der2, dst1, src2);
+	linop_forward_unchecked(der2_resh, dst2, src2);
+	err += md_znrmse(N, odims, dst2, dst1);
+
+	nlop_free(op_reshape);
+	nlop_free(op);
+
+	md_free(src1);
+	md_free(src2);
+	md_free(dst1);
+	md_free(dst2);
+
+	UT_ASSERT(err < UT_TOL);
+}
+
+UT_REGISTER_TEST(test_nlop_reshape);
