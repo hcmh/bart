@@ -47,7 +47,7 @@ static float linop_test_adjoint_generic(const struct linop_s* op, bool rvc)
 	md_gaussian_rand(N_cod, dims_cod, tmp2);
 
 	if (rvc)
-		md_zreal(N_dom, dims_cod, tmp2, tmp2);
+		md_zreal(N_cod, dims_cod, tmp2, tmp2);
 
 	linop_adjoint_unchecked(op, tmp4, tmp2);
 
@@ -61,7 +61,8 @@ static float linop_test_adjoint_generic(const struct linop_s* op, bool rvc)
 
 	debug_printf(DP_DEBUG4, "- %f%+fi - %f%+fi -\n", crealf(sc1), cimagf(sc1), crealf(sc2), cimagf(sc2));
 
-	return cabsf(sc1 - sc2);
+	float scale = (cabsf(sc1) + cabsf(sc1)) / 2.;
+	return cabsf(sc1 - sc2) / (1. < scale ? scale : 1.);
 }
 
 
