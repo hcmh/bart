@@ -100,7 +100,7 @@ void md_rand_one(unsigned int D, const long dims[D], complex float* dst, double 
 	if (cuda_ondevice(dst)) {
 
 		complex float* tmp = md_alloc(D, dims, sizeof(complex float));
-		md_rand_one(D, dims, dst, p);
+		md_rand_one(D, dims, tmp, p);
 		md_copy(D, dims, dst, tmp, sizeof(complex float));
 		md_free(tmp);
 		return;
