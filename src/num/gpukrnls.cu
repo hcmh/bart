@@ -273,8 +273,12 @@ __global__ void kern_zdiv(int N, cuFloatComplex* dst, const cuFloatComplex* src1
 	int start = threadIdx.x + blockDim.x * blockIdx.x;
 	int stride = blockDim.x * gridDim.x;
 
-	for (int i = start; i < N; i += stride)
-		dst[i] = cuCdivf(src1[i], src2[i]);
+	for (int i = start; i < N; i += stride) {
+
+		float abs = cuCabsf(src2[i]);
+
+		dst[i] = (0. == abs) ? 0. : cuCdivf(src1[i], src2[i]);
+	}
 }
 
 extern "C" void cuda_zdiv(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2)

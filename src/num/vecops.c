@@ -253,7 +253,7 @@ static void zmul(long N, complex float* dst, const complex float* src1, const co
 static void zdiv(long N, complex float* dst, const complex float* src1, const complex float* src2)
 {
 	for (long i = 0; i < N; i++)
-		dst[i] = (src2[i] == 0) ? 0.f : src1[i] / src2[i];
+		dst[i] = (src2[i] == 0.) ? 0. : (src1[i] / src2[i]);
 }
 
 static void zpow(long N, complex float* dst, const complex float* src1, const complex float* src2)
