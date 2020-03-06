@@ -43,8 +43,13 @@ static void perm_shift(int N, int from, int to, int perm[N])
 	}
 }
 
-const struct nlop_s* append_conv_layer(const struct nlop_s* network, int o, int filters, long kernel_size[3], enum CONV_PAD conv_pad, bool channel_first, long strides[3], long dilations[3])
+const struct nlop_s* append_conv_layer(const struct nlop_s* network, int o, int filters, long const kernel_size[3], enum CONV_PAD conv_pad, bool channel_first, const long strides[3], const long dilations[3])
 {
+	const long ones[3] = {1, 1, 1};
+	if (NULL == strides)
+		strides = ones;
+	if (NULL == dilations)
+		dilations = strides;
 
 	int NO = nlop_get_nr_out_args(network);
 	int NI = nlop_get_nr_in_args(network);
@@ -158,7 +163,7 @@ const struct nlop_s* append_conv_layer(const struct nlop_s* network, int o, int 
 	return result;
 }
 
-const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, long pool_size[3], enum CONV_PAD conv_pad, bool channel_first)
+const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum CONV_PAD conv_pad, bool channel_first)
 {
 	int NO = nlop_get_nr_out_args(network);
 	assert(o < NO);
