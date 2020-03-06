@@ -20,6 +20,10 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
+
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 
@@ -186,9 +190,11 @@ static void cce_fun(const nlop_data_t* _data, int D, complex float* args[D])
 
 	md_zlog(data->N, data->dom->dims, data->tmp_log, src_pred);
 	md_zdiv_reg(data->N, data->dom->dims, data->tmp_div, src_true, src_pred, 1.e-7);
-
 	md_ztenmul2(data->N, data->dom->dims, MD_SINGLETON_STRS(data->N), dst, data->dom->strs, data->tmp_log, data->dom->strs, src_true);
-	dst[0] = (complex float)(-1) * dst[0] / data->dom->dims[data->N-1];
+
+	long odims[1];
+	md_singleton_dims(1, odims);
+	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
 }
 
 
@@ -198,8 +204,10 @@ static void cce_der1(const nlop_data_t* _data, complex float* dst, const complex
 	assert(NULL != data->tmp_log);
 	assert(NULL != data->tmp_div);
 
+	long odims[1];
+	md_singleton_dims(1, odims);
 	md_ztenmul2(data->N, data->dom->dims, MD_SINGLETON_STRS(data->N), dst, data->dom->strs, src, data->dom->strs, data->tmp_div);
-	dst[0] = (complex float)(-1) * dst[0] / data->dom->dims[data->N-1];
+	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
 }
 
 static void cce_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -208,8 +216,10 @@ static void cce_der2(const nlop_data_t* _data, complex float* dst, const complex
 	assert(NULL != data->tmp_log);
 	assert(NULL != data->tmp_div);
 
+	long odims[1];
+	md_singleton_dims(1, odims);
 	md_ztenmul2(data->N, data->dom->dims, MD_SINGLETON_STRS(data->N), dst, data->dom->strs, src, data->dom->strs, data->tmp_log);
-	dst[0] = (complex float)(-1) * dst[0] / data->dom->dims[data->N-1];
+	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
 }
 
 static void cce_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -218,8 +228,12 @@ static void cce_adj1(const nlop_data_t* _data, complex float* dst, const complex
 	assert(NULL != data->tmp_log);
 	assert(NULL != data->tmp_div);
 
-	complex float tmp = src[0] * (complex float)(-1) / data->dom->dims[data->N-1];
-	md_ztenmulc2(data->N, data->dom->dims, data->dom->strs, dst, MD_SINGLETON_STRS(data->N), &tmp, data->dom->strs, data->tmp_div);
+	long odims[1];
+	md_singleton_dims(1, odims);
+	complex float* tmp = md_alloc_sameplace(1, odims, CFL_SIZE, dst);
+	md_zsmul(1, odims,  tmp, src, (complex float)(-1) / data->dom->dims[data->N-1]);
+	md_ztenmulc2(data->N, data->dom->dims, data->dom->strs, dst, MD_SINGLETON_STRS(data->N), tmp, data->dom->strs, data->tmp_div);
+	md_free(tmp);
 }
 
 static void cce_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -228,8 +242,12 @@ static void cce_adj2(const nlop_data_t* _data, complex float* dst, const complex
 	assert(NULL != data->tmp_log);
 	assert(NULL != data->tmp_div);
 
-	complex float tmp = src[0] * (complex float)(-1) / data->dom->dims[data->N-1];
-	md_ztenmul2(data->N, data->dom->dims, data->dom->strs, dst, MD_SINGLETON_STRS(data->N), &tmp, data->dom->strs, data->tmp_log);
+	long odims[1];
+	md_singleton_dims(1, odims);
+	complex float* tmp = md_alloc_sameplace(1, odims, CFL_SIZE, dst);
+	md_zsmul(1, odims,  tmp, src, (complex float)(-1) / data->dom->dims[data->N-1]);
+	md_ztenmul2(data->N, data->dom->dims, data->dom->strs, dst, MD_SINGLETON_STRS(data->N), tmp, data->dom->strs, data->tmp_log);
+	md_free(tmp);
 }
 
 static void cce_del(const nlop_data_t* _data)
