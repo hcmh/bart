@@ -563,64 +563,6 @@ const struct operator_s* operator_null_create(unsigned int N, const long dims[N]
         return operator_null_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
 }
 
-
-
-
-/**
- * Create a new operator that first applies a, then applies b:
- * c(x) = b(a(x))
- */
-const struct operator_s* operator_chain(const struct operator_s* a, const struct operator_s* b)
-{
-	assert((2 == a->N) && (2 == b->N));
-
-	// check compatibility
-
-	debug_printf(DP_DEBUG4, "operator chain:\n");
-	debug_print_dims(DP_DEBUG4, a->domain[0]->N, a->domain[0]->dims);
-	debug_print_dims(DP_DEBUG4, b->domain[1]->N, b->domain[1]->dims);
-	debug_printf(DP_DEBUG4, "IO Flags: %d %d\n", a->io_flags, b->io_flags);
-
-
-	assert((MD_BIT(0) == a->io_flags) && (MD_BIT(0) == b->io_flags));
-	assert(a->domain[0]->N == b->domain[1]->N);
-	assert(md_calc_size(a->domain[0]->N, a->domain[0]->dims) == md_calc_size(b->domain[1]->N, b->domain[1]->dims));
-
-	// check whether intermediate storage can be simple
-
-	assert(a->domain[0]->N == md_calc_blockdim(a->domain[0]->N, a->domain[0]->dims, a->domain[0]->strs, a->domain[0]->size));
-	assert(b->domain[1]->N == md_calc_blockdim(b->domain[1]->N, b->domain[1]->dims, b->domain[1]->strs, b->domain[1]->size));
-
-
-
-	auto op = operator_combi_create(2, MAKE_ARRAY(b, a));
-
-	assert((MD_BIT(0) | MD_BIT(2)) == op->io_flags);
-
-	auto op2 = operator_link_create(op, 2, 1);
-	operator_free(op);
-	return op2;
-}
-
-
-
-
-const struct operator_s* operator_chainN(unsigned int N, const struct operator_s* ops[N])
-{
-	assert(N > 0);
-
-	const struct operator_s* s = operator_identity_create(ops[0]->domain[0]->N, ops[0]->domain[1]->dims);
-
-	for (unsigned int i = 0; i < N; i++)
-		s = operator_chain(OP_PASS(s), ops[i]);
-
-	return s;
-}
-
-
-
-
-
 void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int N, void* args[N])
 {
 	assert(op->N == N);
@@ -1889,4 +1831,134 @@ const struct operator_s* operator_plus_create(const struct operator_s* a, const 
 	const long* strs[] = {codoma->strs, doma->strs};
 
 	return operator_generic_create2(2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), plus_apply, plus_free);
+}
+
+struct operator_chain_s {
+
+	INTERFACE(operator_data_t);
+
+	unsigned int N;
+	const struct operator_s** x;
+};
+
+static DEF_TYPEID(operator_chain_s);
+
+static void chain_apply(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+	auto data = CAST_DOWN(operator_chain_s, _data);
+
+	assert(2 == N);
+
+	complex float* src = (complex float*)args[1];
+
+	for(unsigned int i = 0; i < data->N; i++) {
+
+		auto iov = operator_codomain(data->x[i]);
+		complex float* dst = (i == data->N - 1) ? (complex float*)args[0] : md_alloc_sameplace(iov->N, iov->dims, iov->size, src);
+
+		operator_apply_unchecked(data->x[i], dst, src);
+
+		if (0 != i) md_free(src);
+		src = dst;
+	}
+}
+
+static void chain_free(const operator_data_t* _data)
+{
+	auto data = CAST_DOWN(operator_chain_s, _data);
+
+	for (unsigned int i = 0; i < data->N; i++)
+		operator_free(data->x[i]);
+
+	xfree(data->x);
+	xfree(data);
+}
+
+/**
+ * Create a new operator that chaines several others
+ */
+const struct operator_s* operator_chainN(unsigned int N, const struct operator_s* x[N])
+{
+
+	for (unsigned int i = 0; i < N; i++) {
+
+		assert(2 == x[i]->N);
+		assert(MD_BIT(0) == x[i]->io_flags);
+
+		if ((signed)i < (signed)N - 2) {
+
+			auto a = x[i];
+			auto b = x[i+1];
+
+			debug_printf(DP_DEBUG4, "operator chain:\n");
+			debug_print_dims(DP_DEBUG4, a->domain[0]->N, a->domain[0]->dims);
+			debug_print_dims(DP_DEBUG4, b->domain[1]->N, b->domain[1]->dims);
+			debug_printf(DP_DEBUG4, "IO Flags: %d %d\n", a->io_flags, b->io_flags);
+
+			assert(a->domain[0]->N == b->domain[1]->N);
+			assert(md_calc_size(a->domain[0]->N, a->domain[0]->dims) == md_calc_size(b->domain[1]->N, b->domain[1]->dims));
+			assert(a->domain[0]->N == md_calc_blockdim(a->domain[0]->N, a->domain[0]->dims, a->domain[0]->strs, a->domain[0]->size));
+			assert(b->domain[1]->N == md_calc_blockdim(b->domain[1]->N, b->domain[1]->dims, b->domain[1]->strs, b->domain[1]->size));
+		}
+	}
+
+	PTR_ALLOC(struct operator_chain_s, c);
+	SET_TYPEID(operator_chain_s, c);
+
+	PTR_ALLOC(const struct operator_s*[N], xp);
+
+	for (unsigned int i = 0; i < N; i++)
+		(*xp)[i] = operator_ref(x[i]);
+
+	c->x = *PTR_PASS(xp);
+	c->N = N;
+
+	return operator_create2(operator_codomain(x[N-1])->N, operator_codomain(x[N-1])->dims, operator_codomain(x[N-1])->strs,
+				operator_domain(x[0])->N, operator_domain(x[0])->dims, operator_domain(x[0])->strs,
+				CAST_UP(PTR_PASS(c)), chain_apply, chain_free);
+}
+
+static const struct operator_chain_s* get_chain_data(const struct operator_s* chain_op)
+{
+	return CAST_MAYBE(operator_chain_s, operator_get_data(chain_op));
+}
+
+
+/**
+ * Create a new operator that first applies a, then applies b:
+ * c(x) = b(a(x))
+ */
+const struct operator_s* operator_chain(const struct operator_s* a, const struct operator_s* b)
+{
+	//Get array of operators in a
+	unsigned int Na = 1;
+	const struct operator_s** ops_a;
+	if (NULL != get_chain_data(a)) {
+
+		auto ad = get_chain_data(a);
+		Na = ad->N;
+		ops_a = ad->x;
+	} else
+		ops_a = &a;
+
+	//Get array of operators in b
+	unsigned int Nb = 1;
+	const struct operator_s** ops_b;
+	if (NULL != get_chain_data(b)) {
+
+		auto bd = get_chain_data(b);
+		Nb = bd->N;
+		ops_b = bd->x;
+	} else
+		ops_b = &b;
+
+	unsigned int N = Na + Nb;
+	const struct operator_s* ops[N];
+
+	for (unsigned int i = 0; i < Na; i++)
+		ops[i] = ops_a[i];
+	for (unsigned int i = 0; i < Nb; i++)
+		ops[i + Na] = ops_b[i];
+
+	return operator_chainN(N, ops);
 }
