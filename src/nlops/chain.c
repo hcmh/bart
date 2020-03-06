@@ -90,6 +90,16 @@ struct nlop_s* nlop_chain2(const struct nlop_s* a, int o, const struct nlop_s* b
 	return li;
 }
 
+struct nlop_s* nlop_chain2_FF(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
+{
+	auto result = nlop_chain2(a, o, b, i);
+
+	nlop_free(a);
+	nlop_free(b);
+
+	return result;
+}
+
 
 
 /*
@@ -177,6 +187,14 @@ struct nlop_s* nlop_combine(const struct nlop_s* a, const struct nlop_s* b)
 	return PTR_PASS(n);
 }
 
+struct nlop_s* nlop_combine_FF(const struct nlop_s* a, const struct nlop_s* b)
+{
+	auto result = nlop_combine(a, b);
+	nlop_free(a);
+	nlop_free(b);
+	return result;
+}
+
 
 
 struct nlop_s* nlop_link(const struct nlop_s* x, int oo, int ii)
@@ -224,6 +242,13 @@ struct nlop_s* nlop_link(const struct nlop_s* x, int oo, int ii)
 	return PTR_PASS(n);
 }
 
+struct nlop_s* nlop_link_F(const struct nlop_s* x, int oo, int ii)
+{
+	auto result = nlop_link(x, oo, ii);
+	nlop_free(x);
+	return result;
+}
+
 
 struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 {
@@ -264,6 +289,13 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 	return PTR_PASS(n);
 }
 
+struct nlop_s* nlop_dup_F(const struct nlop_s* x, int a, int b)
+{
+	auto result = nlop_dup(x, a, b);
+	nlop_free(x);
+	return result;
+}
+
 struct nlop_s* nlop_permute_inputs(const struct nlop_s* x, int I2, const int perm[I2])
 {
 	int II = nlop_get_nr_in_args(x);
@@ -288,6 +320,13 @@ struct nlop_s* nlop_permute_inputs(const struct nlop_s* x, int I2, const int per
 	n->op = operator_permute(x->op, II + OO, perm2);
 
 	return PTR_PASS(n);
+}
+
+struct nlop_s* nlop_permute_inputs_F(const struct nlop_s* x, int I2, const int perm[I2])
+{
+	auto result = nlop_permute_inputs(x, I2, perm);
+	nlop_free(x);
+	return result;
 }
 
 struct nlop_s* nlop_permute_outputs(const struct nlop_s* x, int O2, const int perm[O2])
@@ -315,4 +354,11 @@ struct nlop_s* nlop_permute_outputs(const struct nlop_s* x, int O2, const int pe
 	n->op = operator_permute(x->op, II + OO, perm2);
 
 	return PTR_PASS(n);
+}
+
+struct nlop_s* nlop_permute_outputs_F(const struct nlop_s* x, int O2, const int perm[O2])
+{
+	auto result = nlop_permute_outputs(x, O2, perm);
+	nlop_free(x);
+	return result;
 }
