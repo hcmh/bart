@@ -277,10 +277,11 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 
 		for (int o = 0; o < OO; o++) {
 
-                        (*der)[i][o] = nlop_get_derivative(x, o, ip);
-
                         if (i == a)
-                                (*der)[i][o] = linop_plus((*der)[i][o], nlop_get_derivative(x, o, b));
+				(*der)[i][o] = linop_plus(nlop_get_derivative(x, o, ip), nlop_get_derivative(x, o, b));
+			else
+				(*der)[i][o] = linop_clone(nlop_get_derivative(x, o, ip));
+
 		}
 	}
 
