@@ -721,18 +721,34 @@ static bool test_nlop_parallel_derivatives()
 	counter = 0;
 	auto plus_op = linop_plus(chain, chain);
 	linop_forward_unchecked(plus_op, out1, in);
+	linop_free(plus_op);
 
 	result = result && (2 == counter);
 
 	auto tenmul_op = nlop_tenmul_create(1, dim, dim ,dim);
-	const struct nlop_s* tenmul_chain = nlop_chain2(tenmul_op, 0, nlop_from_linop(chain), 0);
+	const struct nlop_s* tenmul_chain = nlop_chain2_FF(tenmul_op, 0, nlop_from_linop(chain), 0);
+	tenmul_chain = nlop_chain2_FF(nlop_from_linop(chain), 0, tenmul_chain, 0);
+	tenmul_chain = nlop_chain2_FF(nlop_from_linop(chain), 0, tenmul_chain, 0);
 	tenmul_chain = nlop_reshape_in_F(tenmul_chain, 0, 1, dim);
 	nlop_generic_apply_unchecked(tenmul_chain, 3, (void*[]){ out1, out2, in });
 	counter = 0;
 	const struct operator_s* op1 = nlop_get_derivative(tenmul_chain, 0, 0)->adjoint;
 	const struct operator_s* op2 = nlop_get_derivative(tenmul_chain, 0, 1)->adjoint;
 	operator_apply_parallel_unchecked(2, MAKE_ARRAY(op1, op2), outs, in);
-	result = result && (2 == counter);
+	result = result && (6 == counter);
+
+	auto tmp = nlop_reshape_in(tenmul_chain, 0, 1, dim);
+	const struct nlop_s* bridge = nlop_chain2(tmp, 0, tenmul_chain, 0);
+	bridge = nlop_dup_F(bridge, 0, 1);
+	bridge = nlop_dup_F(bridge, 0, 1);
+
+	counter = 0;
+	linop_adjoint_unchecked(nlop_get_derivative(bridge, 0, 0), out1, in);
+	result = result && (12 == counter);
+
+	nlop_free(bridge);
+	linop_free(countop1);
+	linop_free(chain);
 
 	return result;
 }
