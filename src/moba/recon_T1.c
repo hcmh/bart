@@ -45,6 +45,7 @@ struct moba_conf moba_defaults = {
 	.tolerance = 0.01,
 	.inner_iter = 250,
 	.noncartesian = false,
+        .sms = false,
 };
 
 
