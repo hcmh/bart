@@ -76,6 +76,8 @@ struct vec_ops {
 //	void (*swap)(long N, float* a, float* b);
 	void (*zhardthresh)(long N,  unsigned int k, _Complex float* d, const _Complex float* x);
 	void (*zhardthresh_mask)(long N,  unsigned int k, _Complex float* d, const _Complex float* x);
+
+	void (*zconvcorr_3D)(_Complex float* dst, const _Complex float* src, const _Complex float* krn, long odims[3], long idims[3], long kdims[3], _Bool conv);
 };
 
 

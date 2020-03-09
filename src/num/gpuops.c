@@ -407,6 +407,8 @@ const struct vec_ops gpu_ops = {
 	.softthresh = cuda_softthresh,
 	.softthresh_half = cuda_softthresh_half,
 	.zhardthresh = NULL,
+
+	.zconvcorr_3D = cuda_zconvcorr_3D,
 };
 
 

@@ -890,3 +890,43 @@ extern "C" void cuda_zsum(long N, _Complex float* dst)
 		B /= 32;
 	}
 }
+
+__global__ void kern_zconvcorr_3D(cuFloatComplex* dst, const cuFloatComplex* src, const cuFloatComplex* krn,
+					long NO0, long NO1, long NO2,
+					long NI0, long NI1, long NI2,
+					long NK0, long NK1, long NK2, _Bool conv)
+{
+	int x = blockIdx.x * blockDim.x + threadIdx.x;
+	int y = blockIdx.y * blockDim.y + threadIdx.y;
+	int z = blockIdx.z * blockDim.z + threadIdx.z;
+
+	if ((x >= NO0) || (y >= NO1) || (z >= NO2))
+		return;
+
+	for(int k2 = 0; k2 < NK2; k2++)
+	for(int k1 = 0; k1 < NK1; k1++)
+	for(int k0 = 0; k0 < NK0; k0++)
+	{
+		int oind = x + NO0 * y + NO0 * NO1 * z;
+		int kind = (k0 + NK0 * k1 + NK0 * NK1 * k2);
+		if (conv)
+			kind = (NK0 * NK1 * NK2) - kind - 1;
+		int iind = (x + k0) + NI0 * (y + k1) + NI0 * NI1 * (z + k2);
+
+		dst[oind] = cuCaddf(dst[oind], cuCmulf(src[iind], krn[kind]));
+	}
+}
+
+extern "C" void cuda_zconvcorr_3D(_Complex float* dst, const _Complex float* src, const _Complex float* krn, long odims[3], long idims[3], long kdims[3], _Bool conv)
+{
+	dim3 threadsPerBlock(32, 32, 1);
+	dim3 numBlocks(	(0 == odims[0] % threadsPerBlock.x) ? odims[0] / threadsPerBlock.x : odims[0] / threadsPerBlock.x + 1,
+			(0 == odims[1] % threadsPerBlock.y) ? odims[1] / threadsPerBlock.y : odims[1] / threadsPerBlock.y + 1,
+			(0 == odims[2] % threadsPerBlock.z) ? odims[2] / threadsPerBlock.z : odims[2] / threadsPerBlock.z + 1);
+
+	kern_zconvcorr_3D<<<numBlocks, threadsPerBlock>>>((cuFloatComplex*) dst, (cuFloatComplex*) src, (cuFloatComplex*) krn,
+								odims[0], odims[1], odims[2],
+								idims[0], idims[1], idims[2],
+								kdims[0], kdims[1], kdims[2], conv);
+	cudaDeviceSynchronize();
+}

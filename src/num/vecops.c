@@ -623,6 +623,27 @@ static void zfftmod(long N, complex float* dst, const complex float* src, unsign
 			dst[i * n + j] = src[i * n + j] * fftmod_phase2(n, j, inv, phase);
 }
 
+static void zconvcorr_3D(complex float* dst, const complex float* src, const complex float* krn, long odims[3], long idims[3], long kdims[3], _Bool conv)
+{
+
+
+	for(int o2 = 0; o2 < odims[2]; o2++)
+	for(int k0 = 0; k0 < kdims[0]; k0++)
+	for(int k1 = 0; k1 < kdims[1]; k1++)
+	for(int k2 = 0; k2 < kdims[2]; k2++)
+	for(int o1 = 0; o1 < odims[1]; o1++)
+	for(int o0 = 0; o0 < odims[0]; o0++)
+	{
+		int oind = o0 + odims[0] * o1 + odims[0] * odims[1] * o2;
+		int kind = (k0 + kdims[0] * k1 + kdims[0] * kdims[1] * k2);
+		if (conv)
+			kind = (kdims[0] * kdims[1] * kdims[2]) - kind - 1;
+		int iind = (o0 + k0) + idims[0] * (o1 + k1) + idims[0] * idims[1] * (o2 + k2);
+
+		dst[oind] += src[iind] * krn[kind];
+	}
+}
+
 
 
 /*
@@ -693,6 +714,8 @@ const struct vec_ops cpu_ops = {
 	.softthresh_half = softthresh_half,
 	.zhardthresh = zhardthresh,
 	.zhardthresh_mask = zhardthresh_mask,
+
+	.zconvcorr_3D = zconvcorr_3D,
 };
 
 

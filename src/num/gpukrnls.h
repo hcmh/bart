@@ -53,6 +53,7 @@ extern void cuda_max(long N, float* dst, const float* src1, const float* src2);
 extern void cuda_min(long N, float* dst, const float* src1, const float* src2);
 extern void cuda_zsum(long N, _Complex float* dst);
 extern void cuda_zsmax(long N, float alpha, _Complex float* dst, const _Complex float* src);
+extern void cuda_zconvcorr_3D(_Complex float* dst, const _Complex float* src, const _Complex float* krn, long odims[3], long idims[3], long kdims[3], _Bool conv);
 
 #ifdef __cplusplus
 }
