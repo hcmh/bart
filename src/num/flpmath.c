@@ -2078,10 +2078,49 @@ static bool simple_zconvcorr_im2col(unsigned int N, const long dims[N], const lo
 	return false;
 }
 
+static bool simple_zconvcorr_direct_3D(unsigned int N, const long dims[N], const long ostrs[N], complex float* out,
+		const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+	size_t size = CFL_SIZE;
+	unsigned long flags = 7; //flags of first three dimensions
+
+	if (0 != N % 2)
+		return false;
+
+	N = N / 2;
+
+	long odims[N];
+	long idims[N];
+	long kdims[N];
+
+	bool conv = detect_convcorr(N, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, true, size);
+
+	if (!detect_convcorr(N, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, conv, size))
+		return false;
+
+	if (conv)
+		in2 -= (kdims[0] * kdims[1] * kdims[2] - 1);
+
+	NESTED(void, nary_zconvcorr3D, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		data->ops->zconvcorr_3D(ptr[0], ptr[1], ptr[2], odims, idims, kdims, conv);
+	};
+
+	optimized_threeop_oii(N - 3, dims + 3, ostrs + 3, (void*)out, istrs1 + 3, (void*)in1, istrs2 + 3, (void*)in2,
+				(size_t[3]){ size * odims[0] * odims[1] * odims[2] , size * idims[0] * idims[1] * idims[2], size * kdims[0] * kdims[1] * kdims[2] },
+				nary_zconvcorr3D);
+
+	return true;
+}
+
+
 static bool simple_zconvcorr(unsigned int N, const long dims[N], const long ostrs[N], complex float* out,
 		const long istrs[N], const complex float* image, const long kstrs[N], const complex float* kernel)
 {
 	if (simple_zconvcorr_im2col(N, dims, ostrs, out, istrs, image, kstrs, kernel))
+		return true;
+
+	if (simple_zconvcorr_direct_3D(N, dims, ostrs, out, istrs, image, kstrs, kernel))
 		return true;
 
 	return false;
