@@ -277,7 +277,7 @@ __global__ void kern_zdiv(int N, cuFloatComplex* dst, const cuFloatComplex* src1
 
 		float abs = cuCabsf(src2[i]);
 
-		dst[i] = (0. == abs) ? 0. : cuCdivf(src1[i], src2[i]);
+		dst[i] = (0. == abs) ? make_cuFloatComplex(0., 0.) : cuCdivf(src1[i], src2[i]);
 	}
 }
 
