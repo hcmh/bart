@@ -110,7 +110,7 @@ static void iter6_op_arr_fun_deradj(iter_op_data* _o, int NO, unsigned long ofla
 			dst_t[NO_t] = dst[o];
 			NO_t += 1;
 		}
-#if 1
+#if 0
 	for (int i = 0; i < NO_t; i++)
 		operator_apply_unchecked(op_arr[i], ((complex float**)dst_t)[i], (const complex float*)(src[0]));
 #else
