@@ -37,10 +37,12 @@ static const char help_str[] = "Applies a pre-trained convolutional neural netwo
 int main_dcnn(int argc, char* argv[])
 {
 	bool subinp = false;
+	bool use_gpu = false;
 
 	const struct opt_s opts[] = {
 
 		OPT_SET('r', &subinp, "subtract output from input"),
+		OPT_SET('g', &use_gpu, "run on gpu"),
 	};
 
 	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -60,7 +62,36 @@ int main_dcnn(int argc, char* argv[])
 
 	complex float* out = create_cfl(argv[4], N, dims);
 
-	simple_dcnn(dims, krn_dims, krn, bias_dims, bias, out, in);
+	if (use_gpu){
+
+		num_init_gpu_device(1);
+
+#ifdef  USE_CUDA
+
+		complex float* bias_gpu = md_alloc_gpu(N, bias_dims, CFL_SIZE);
+		complex float* krn_gpu = md_alloc_gpu(N, krn_dims, CFL_SIZE);
+		complex float* in_gpu = md_alloc_gpu(N, dims, CFL_SIZE);
+		complex float* out_gpu = md_alloc_gpu(N, dims, CFL_SIZE);
+
+		md_copy(N, bias_dims, bias_gpu, bias, CFL_SIZE);
+		md_copy(N, krn_dims, krn_gpu, krn, CFL_SIZE);
+		md_copy(N, dims, in_gpu, in, CFL_SIZE);
+
+		simple_dcnn(dims, krn_dims, krn_gpu, bias_dims, bias_gpu, out_gpu, in_gpu);
+
+		md_copy(3, dims, out, out_gpu, CFL_SIZE);
+
+		md_free(in_gpu);
+		md_free(out_gpu);
+		md_free(bias_gpu);
+		md_free(krn_gpu);
+
+#endif
+
+	} else {
+
+		simple_dcnn(dims, krn_dims, krn, bias_dims, bias, out, in);
+	}
 
 	if (subinp)
 		md_zsub(N, dims, out, in, out);
@@ -71,4 +102,3 @@ int main_dcnn(int argc, char* argv[])
 	unmap_cfl(N, dims, in);
 	exit(0);
 }
-
