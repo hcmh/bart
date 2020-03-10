@@ -517,6 +517,8 @@ int main_rtnlinv(int argc, char* argv[])
 
 			if (combine) {
 
+				md_clear(DIMS, img_s->dims_singleFrame, img_output_singleFrame, CFL_SIZE);
+
 				// just sum up the map images
 				md_zaxpy2(DIMS, img_s->dims_singleFrame, img_s->strs_output_singleFrame, img_output_singleFrame, 1., img_s->strs_singleFrame, img_singleFrame);
 
