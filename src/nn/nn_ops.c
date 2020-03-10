@@ -48,6 +48,7 @@ static void maxpool_initialize(struct maxpool_s* data, const complex float* arg)
 
 static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(maxpool_s, _data);
 	unsigned long N = data->N;
 
@@ -89,6 +90,7 @@ static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const comp
 	}
 
 	md_zgreatequal2(2 * data->N, data->pool_dims, data->pool_strs, data->pool, data->pool_strs, src, data->compare_strs, dst);
+	PRINT_TIMER("mpools");
 }
 
 static void maxpool_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -102,10 +104,12 @@ static void maxpool_der(const nlop_data_t* _data, complex float* dst, const comp
 
 static void maxpool_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(maxpool_s, _data);
     	md_ztenmulc2(2 * data->N, data->pool_dims, data->pool_strs, dst,
 			data->compare_strs, src,
 			data->pool_strs, data->pool);
+	PRINT_TIMER("mpool adjs");
 }
 
 
@@ -187,6 +191,7 @@ DEF_TYPEID(dropout_s);
 
 static void dropout_fun(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(dropout_s, _data);
 
 	if (NULL == data->tmp)
@@ -200,6 +205,7 @@ static void dropout_fun(const struct nlop_data_s* _data, complex float* dst, con
 	if (network_status == STAT_TEST){
 
 		md_zsmul2(data->N, data->codom->dims, data->codom->strs, dst, data->dom->strs, src, (complex float)data->p);
+		PRINT_TIMER("douts");
 		return;
 	}
 
@@ -208,6 +214,7 @@ static void dropout_fun(const struct nlop_data_s* _data, complex float* dst, con
 		md_rand_one(data->N, data->tmpdom->dims, data->tmp, (1. - data->p));
 
 		md_ztenmul2(data->N, data->codom->dims, data->codom->strs, dst, data->tmpdom->strs, data->tmp, data->dom->strs, src);
+		PRINT_TIMER("douts");
 		return;
 	}
 
@@ -234,18 +241,21 @@ static void dropout_der(const struct nlop_data_s* _data, complex float* dst, con
 
 static void dropout_adj(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(dropout_s, _data);
 	assert(NULL != data->tmp);
 
 	if (network_status == STAT_TEST){
 
 		md_zsmul2(data->N, data->dom->dims, data->dom->strs, dst, data->codom->strs, src, (complex float)data->p);
+		PRINT_TIMER("dout adjs");
 		return;
 	}
 
 	if (network_status == STAT_TRAIN){
 
 		md_ztenmul2(data->N, data->dom->dims, data->dom->strs, dst, data->tmpdom->strs, data->tmp, data->codom->strs, src);
+		PRINT_TIMER("dout adjs");
 		return;
 	}
 }
