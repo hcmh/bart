@@ -19,6 +19,10 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
+
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 
@@ -287,6 +291,8 @@ DEF_TYPEID(relu_s);
 
 static void relu_apply(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
+
 	struct relu_s* d = CAST_DOWN(relu_s, _data);
 
 	if (NULL == d->tmp)
@@ -294,6 +300,8 @@ static void relu_apply(const nlop_data_t* _data, complex float* dst, const compl
 
 	md_smax2(d->dom->N, d->dom->dims, d->codom->strs, (float*)dst, d->codom->strs, (float*)src, 0.);
 	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+
+	PRINT_TIMER("relus");
 }
 
 
@@ -381,6 +389,8 @@ DEF_TYPEID(relu_bias_s);
 
 static void relu_bias_apply(const nlop_data_t* _data, int N, complex float* args[N])
 {
+	START_TIMER;
+
 	complex float* dst = args[0];
 	complex float* src = args[1];
 	complex float* bsrc = args[2];
@@ -390,10 +400,32 @@ static void relu_bias_apply(const nlop_data_t* _data, int N, complex float* args
 	if (NULL == d->tmp)
 		d->tmp = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
 
-	md_add2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->bdom->strs, (float*)bsrc);
-	md_smax2(d->tmpdom->N, d->tmpdom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, 0.);
+#ifdef USE_CUDA
 
+	if (cuda_ondevice(bsrc)) {
+
+		float* bias_cpu = md_alloc(d->bdom->N, d->bdom->dims, d->bdom->size);
+		float* bias_spread_cpu = md_alloc(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size);
+		float* bias_spread_gpu = md_alloc_gpu(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size);
+
+
+		md_copy(d->bdom->N, d->bdom->dims, bias_cpu, (float*)bsrc, d->bdom->size);
+		md_copy2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, bias_spread_cpu, d->bdom->strs, bias_cpu, FL_SIZE);
+		md_copy(d->tmpdom->N, d->tmpdom->dims, bias_spread_gpu, bias_spread_cpu, d->tmpdom->size);
+
+		md_add2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->tmpdom->strs, bias_spread_gpu);
+
+		md_free(bias_cpu);
+		md_free(bias_spread_cpu);
+		md_free(bias_spread_gpu);
+	} else
+#endif
+		md_add2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->bdom->strs, (float*)bsrc);
+
+	md_smax2(d->tmpdom->N, d->tmpdom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, 0.);
 	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->tmpdom->strs, (float*)d->tmp, d->codom->strs, (float*)dst);
+
+	PRINT_TIMER("relu/bias");
 }
 
 static void relu_bias_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
