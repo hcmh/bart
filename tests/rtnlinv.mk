@@ -13,4 +13,5 @@ tests/test-rtnlinv-noncart-pi: traj scale phantom rtnlinv fmac nufft nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-TESTS += tests/test-rtnlinv-noncart-pi
+TESTS_SLOW += tests/test-rtnlinv-noncart-pi
+
