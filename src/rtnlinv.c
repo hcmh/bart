@@ -351,6 +351,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 		fftuc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
 
+#if 0
 		if (frames > turns) {
 
 			// For turn-based reconstructions we use the conventional scaling
@@ -362,7 +363,7 @@ int main_rtnlinv(int argc, char* argv[])
 			// This scaling accounts for variable spokes per frame
 			scale_psf_k(pat_s, pattern, k_s, k, traj_s, traj);
 		}
-
+#endif
 		debug_printf(DP_DEBUG3, "finished\n");
 	}
 
@@ -450,10 +451,14 @@ int main_rtnlinv(int argc, char* argv[])
 
 			// grid data frame by frame
 			linop_adjoint(nufft_ops[frame % turns], DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, DIMS, k_s->dims_singleFrame, k_singleFrame);
-
+#if 1
 			md_zmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, fftc_mod);
 			fft_exec(fftc, kgrid_singleFrame, kgrid_singleFrame);
 			md_zmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, fftc_mod);
+			fftscale(DIMS, kgrid_s->dims_singleFrame, FFT_FLAGS, kgrid_singleFrame, kgrid_singleFrame);
+#else
+			fftuc(DIMS, kgrid_s->dims_singleFrame, FFT_FLAGS, kgrid_singleFrame, kgrid_singleFrame);
+#endif
 
 		} else {
 
