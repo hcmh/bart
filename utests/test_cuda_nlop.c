@@ -47,15 +47,39 @@ static bool test_dense_layer_gpu(void)
 UT_GPU_REGISTER_TEST(test_dense_layer_gpu);
 
 
-static bool test_conv_layer_gpu(void)
+static bool test_conv_layer_gpu_CF(void)
 {
 	unsigned int N = 5;
-	long indims[] = {3, 4, 6, 1, 2};
+	long indims[] = {4, 3, 1, 2, 2};
 
 	long ones [] ={1, 1, 1};
 
-	auto op_cpu = append_conv_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(2l,3l,1l), PADDING_SAME, true, ones, ones);
-	auto op_gpu = append_conv_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(2l,3l,1l), PADDING_SAME, true, ones, ones);
+	auto op_cpu = append_conv_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(2l,2l,1l), PADDING_SAME, true, ones, ones);
+	auto op_gpu = append_conv_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(2l,2l,1l), PADDING_SAME, true, ones, ones);
+
+
+	float err = compare_gpu(op_cpu, op_gpu);
+
+	debug_printf(DP_DEBUG1, "err: %f\n", err);
+
+
+	nlop_free(op_cpu);
+	nlop_free(op_gpu);
+
+	return(err < 1.e-5);
+}
+
+UT_GPU_REGISTER_TEST(test_conv_layer_gpu_CF);
+
+static bool test_conv_layer_gpu(void)
+{
+	unsigned int N = 5;
+	long indims[] = {4, 3, 1, 2, 2};
+
+	long ones [] ={1, 1, 1};
+
+	auto op_cpu = append_conv_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(2l,2l,1l), PADDING_SAME, false, ones, ones);
+	auto op_gpu = append_conv_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(2l,2l,1l), PADDING_SAME, false, ones, ones);
 
 	float err = compare_gpu(op_cpu, op_gpu);
 
