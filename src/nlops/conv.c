@@ -128,42 +128,10 @@ static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* ar
 
 	const complex float *krn = src2;
 	krn += calc_convcorr_geom(data->N, data->flags, mdims, ostrs2, kstrs2, istrs2, data->codom->dims, data->codom->strs, data->kdom->dims, data->kdom->strs, data->idom->dims, data->idom->strs, data->conv) / CFL_SIZE;
-#if 0
-	//This needs other ordering in calc_convcor_geom
-	long out_dims[data->N];
-	md_select_dims(data->N, md_nontriv_strides(data->N, ostrs2), out_dims, mdims);
-	long tmp_out_dims[data->N];
-	md_select_dims(data->N, md_nontriv_strides(data->N, ostrs2), tmp_out_dims, mdims);
 
-	for (int i = 0; i < data->N; i++)
-		if (MD_IS_SET(data->flags, i)){
+	md_clear(data->N, data->codom->dims, dst, CFL_SIZE);
+	md_zfmac2(2 * data->N, mdims, ostrs2, dst, istrs2, src1, kstrs2, krn);
 
-			tmp_out_dims[i] = data->idom->dims[i];
-			mdims[i] = data->idom->dims[i];
-		}
-
-	md_calc_strides(data->N, ostrs2, tmp_out_dims, CFL_SIZE);
-
-	long new_insize[] = {1};
-	for (int i = 0; i < 2 * data->N; i ++)
-		new_insize[0] += (mdims[i]-1) * istrs2[i] / CFL_SIZE;
-	long old_insize[] = {md_calc_size(data->N, data->idom->dims)};
-
-	complex float* tmpin = md_alloc_sameplace(1, new_insize, CFL_SIZE, src1);
-	md_resize(1, new_insize, tmpin, old_insize, src1, CFL_SIZE);
-
-	complex float* tmpout = md_alloc_sameplace(data->N, tmp_out_dims, CFL_SIZE, src1);
-	md_clear(data->N, tmp_out_dims, tmpout, CFL_SIZE);
-
-	md_zfmac2(2 * data->N, mdims, ostrs2, tmpout, istrs2, tmpin, kstrs2, krn);
-	md_resize(data->N, out_dims, dst, tmp_out_dims, tmpout, CFL_SIZE);
-
-	md_free(tmpin);
-	md_free(tmpout);
-
-#else
-	md_ztenmul2(2 * data->N, mdims, ostrs2, dst, istrs2, src1, kstrs2, krn);
-#endif
 	PRINT_TIMER("convgeos");
 }
 
@@ -202,41 +170,9 @@ static void convcorr_geom_adj2(const nlop_data_t* _data, complex float* dst, con
 	complex float *krn = dst;
 	krn += calc_convcorr_geom(data->N, data->flags, mdims, ostrs2, kstrs2, istrs2, data->codom->dims, data->codom->strs, data->kdom->dims, MD_STRIDES(data->N, data->kdom->dims,CFL_SIZE), data->idom->dims, data->idom->strs, data->conv) / CFL_SIZE;
 
-#if 0
-	long out_dims[data->N];
-	md_select_dims(data->N, md_nontriv_strides(data->N, ostrs2), out_dims, mdims);
-
-	long tmp_out_dims[data->N];
-	md_select_dims(data->N, md_nontriv_strides(data->N, ostrs2), tmp_out_dims, mdims);
-
-	for (int i = 0; i < data->N; i++)
-		if (MD_IS_SET(data->flags, i)){
-
-			tmp_out_dims[i] = data->idom->dims[i];
-			mdims[i] = data->idom->dims[i];
-		}
-
-	md_calc_strides(data->N, ostrs2, tmp_out_dims, CFL_SIZE);
-
-	long new_insize[] = {1};
-	for (int i = 0; i < 2 * data->N; i ++)
-		new_insize[0] += (mdims[i]-1) * istrs2[i] / CFL_SIZE;
-	long old_insize[] = {md_calc_size(data->N, data->idom->dims)};
-
-	complex float* tmpin = md_alloc_sameplace(1, new_insize, CFL_SIZE, data->i);
-	md_resize(1, new_insize, tmpin, old_insize, data->i, CFL_SIZE);
-
-	complex float* tmpout = md_alloc_sameplace(data->N, tmp_out_dims, CFL_SIZE, src);
-	md_resize(data->N, tmp_out_dims, tmpout, out_dims, src, CFL_SIZE);
-
 	md_clear(data->N, data->kdom->dims, dst, CFL_SIZE);
-	md_zfmac2(2 * data->N, mdims, kstrs2, krn, ostrs2, tmpout, istrs2, tmpin);
+	md_zfmac2(2 * data->N, mdims, kstrs2, krn, ostrs2, src, istrs2, data->i);
 
-	md_free(tmpin);
-	md_free(tmpout);
-#else
-	md_ztenmul2(2 * data->N, mdims, kstrs2, krn, ostrs2, src, istrs2, data->i);
-#endif
 	PRINT_TIMER("convgeo adj2s");
 }
 
@@ -279,39 +215,11 @@ static void convcorr_geom_adj1(const nlop_data_t* _data, complex float* dst, con
 					data->kdom->dims, MD_STRIDES(data->N, data->kdom->dims, CFL_SIZE),
 					data->idom->dims, data->idom->strs,
 					data->conv) / CFL_SIZE;
-#if 0
-	long out_dims[data->N];
-	md_select_dims(data->N, md_nontriv_strides(data->N, ostrs2), out_dims, mdims);
 
-	long tmp_out_dims[data->N];
-	md_select_dims(data->N, md_nontriv_strides(data->N, ostrs2), tmp_out_dims, mdims);
-
-	for (int i = 0; i < data->N; i++)
-		if (MD_IS_SET(data->flags, i)){
-
-			tmp_out_dims[i] = data->idom->dims[i];
-			mdims[i] = data->idom->dims[i];
-		}
-
-	md_calc_strides(data->N, ostrs2, tmp_out_dims, CFL_SIZE);
-
-	long new_insize[] = {1};
-	for (int i = 0; i < 2 * data->N; i ++)
-		new_insize[0] += (mdims[i]-1) * istrs2[i] / CFL_SIZE;
-	long old_insize[] = {md_calc_size(data->N, data->idom->dims)};
-
-	complex float* tmpin = md_alloc_sameplace(1, new_insize, CFL_SIZE, data->i);
-	complex float* tmpout = md_alloc_sameplace(data->N, tmp_out_dims, CFL_SIZE, src);
-	md_resize(data->N, tmp_out_dims, tmpout, out_dims, src, CFL_SIZE);
-
+	//tenmul is slow due two clear with strides
 	md_clear(data->N, data->idom->dims, dst, CFL_SIZE);
-	md_zfmac2(2 * data->N, mdims, istrs2, tmpin, ostrs2, tmpout, kstrs2, krn);
-	md_resize(1, old_insize, dst, new_insize, tmpin, CFL_SIZE);
-	md_free(tmpin);
-	md_free(tmpout);
-#else
-	md_ztenmul2(2 * data->N, mdims, istrs2, dst, ostrs2, src, kstrs2, krn);
-#endif
+	md_zfmac2(2 * data->N, mdims, istrs2, dst, ostrs2, src, kstrs2, krn);
+
 	PRINT_TIMER("convgeo adj1s");
 }
 
@@ -733,4 +641,3 @@ struct nlop_s* nlop_conv_fft_create(long N, unsigned int flags, const long odims
 
 	return result;
 }
-
