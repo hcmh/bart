@@ -939,6 +939,9 @@ __global__ void kern_zconvcorr_3D_CF(cuFloatComplex* dst, const cuFloatComplex* 
 {
 	long i = (long)blockIdx.x * (long)blockDim.x + (long)threadIdx.x;
 
+	if (!(i < NOm * NO0 * NO1 * NO2))
+		return;
+
 	long om = i % NOm;
 	i = (i - om) /NOm;
 	long o0 = i % NO0;
