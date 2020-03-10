@@ -220,6 +220,7 @@ MODULES_moba = -lmoba
 MODULES_mdbT2 = -lmoba
 MODULES_bloch = -lsimu
 MODULES_modbloch = -lmoba -lnoir -lnlops -llinops -lsimu -lwavelet -liter
+MODULES_rtnlinv = -lnoncart -lnoir -lnlops -liter -llinops
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
