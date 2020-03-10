@@ -625,12 +625,10 @@ static void zfftmod(long N, complex float* dst, const complex float* src, unsign
 
 static void zconvcorr_3D(complex float* dst, const complex float* src, const complex float* krn, long odims[3], long idims[3], long kdims[3], _Bool conv)
 {
-
-
 	for(int o2 = 0; o2 < odims[2]; o2++)
+	for(int k2 = 0; k2 < kdims[2]; k2++)
 	for(int k0 = 0; k0 < kdims[0]; k0++)
 	for(int k1 = 0; k1 < kdims[1]; k1++)
-	for(int k2 = 0; k2 < kdims[2]; k2++)
 	for(int o1 = 0; o1 < odims[1]; o1++)
 	for(int o0 = 0; o0 < odims[0]; o0++)
 	{
@@ -644,6 +642,29 @@ static void zconvcorr_3D(complex float* dst, const complex float* src, const com
 	}
 }
 
+static void zconvcorr_3D_CF(complex float* dst, const complex float* src, const complex float* krn, long odims[5], long idims[5], long kdims[5], _Bool conv)
+{
+	for(int k2 = 0; k2 < kdims[4]; k2++)
+	for(int o2 = 0; o2 < odims[4]; o2++)
+	for(int k0 = 0; k0 < kdims[2]; k0++)
+	for(int k1 = 0; k1 < kdims[3]; k1++)
+	for(int o1 = 0; o1 < odims[3]; o1++)
+	for(int o0 = 0; o0 < odims[2]; o0++)
+	for(int km = 0; km < kdims[1]; km++)
+	for(int om = 0; om < odims[0]; om++)
+	{
+		long oind = om + odims[0] * o0 + odims[0] * odims[2] * o1 + odims[0] * odims[2] * odims[3] * o2;
+		long kind = om + kdims[0] * km; // matrix index
+		if (conv)
+			kind += (kdims[0] * kdims [1]) * ((kdims[2] - k0 - 1) + kdims[2] * (kdims[3] - k1 - 1) + kdims[2] * kdims[3] * (kdims[4] - k2 - 1));
+		else
+			kind += (kdims[0] * kdims [1]) * (k0 + kdims[2] * k1 + kdims[2] * kdims[3] * k2);
+
+		long iind = km + idims[1] * (o0 + k0) + idims[1] * idims[2] * (o1 + k1) + idims[1] * idims[2] * idims[3] * (o2 + k2);
+
+		dst[oind] += src[iind] * krn[kind];
+	}
+}
 
 
 /*
@@ -716,6 +737,7 @@ const struct vec_ops cpu_ops = {
 	.zhardthresh_mask = zhardthresh_mask,
 
 	.zconvcorr_3D = zconvcorr_3D,
+	.zconvcorr_3D_CF = zconvcorr_3D_CF,
 };
 
 

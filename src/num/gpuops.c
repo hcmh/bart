@@ -409,6 +409,7 @@ const struct vec_ops gpu_ops = {
 	.zhardthresh = NULL,
 
 	.zconvcorr_3D = cuda_zconvcorr_3D,
+	.zconvcorr_3D_CF = cuda_zconvcorr_3D_CF,
 };
 
 

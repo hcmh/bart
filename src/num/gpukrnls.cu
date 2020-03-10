@@ -930,3 +930,50 @@ extern "C" void cuda_zconvcorr_3D(_Complex float* dst, const _Complex float* src
 								kdims[0], kdims[1], kdims[2], conv);
 	cudaDeviceSynchronize();
 }
+
+__global__ void kern_zconvcorr_3D_CF(cuFloatComplex* dst, const cuFloatComplex* src, const cuFloatComplex* krn,
+					long NOm, long NKm,
+					long NO0, long NO1, long NO2,
+					long NI0, long NI1, long NI2,
+					long NK0, long NK1, long NK2, _Bool conv)
+{
+	long i = (long)blockIdx.x * (long)blockDim.x + (long)threadIdx.x;
+
+	long om = i % NOm;
+	i = (i - om) /NOm;
+	long o0 = i % NO0;
+	i = (i - o0) /NO0;
+	long o1 = i % NO1;
+	i = (i - o1) / NO1;
+	long o2 = i % NO2;
+
+	for(int k2 = 0; k2 < NK2; k2++)
+	for(int k0 = 0; k0 < NK1; k0++)
+	for(int k1 = 0; k1 < NK0; k1++)
+	for(int km = 0; km < NKm; km++)
+	{
+		long oind = om + NOm * o0 + NOm * NO0 * o1 + NOm * NO0 * NO1 * o2;
+		long kind = om + NOm * km; // matrix index
+		if (conv)
+			kind += (NOm * NKm) * ((NK0 - k0 - 1) + NK0 * (NK1 - k1 - 1) + NK0 * NK1 * (NK2 - k2 - 1));
+		else
+			kind += (NOm * NKm) * (k0 + NK0 * k1 + NK0 * NK1 * k2);
+
+		long iind = km + NKm * (o0 + k0) + NKm * NI0 * (o1 + k1) + NKm * NI0 * NI1 * (o2 + k2);
+
+		dst[oind] = cuCaddf(dst[oind], cuCmulf(src[iind], krn[kind]));
+	}
+
+}
+
+extern "C" void cuda_zconvcorr_3D_CF(_Complex float* dst, const _Complex float* src, const _Complex float* krn, long odims[5], long idims[5], long kdims[5], _Bool conv)
+{
+	long N = odims[0] * odims[1] * odims[2] * odims[3] * odims[4];
+
+	kern_zconvcorr_3D_CF<<<gridsize(N), blocksize(N)>>>((cuFloatComplex*) dst, (cuFloatComplex*) src, (cuFloatComplex*) krn,
+								kdims[0], kdims[1],
+								odims[2], odims[3], odims[4],
+								idims[2], idims[3], idims[4],
+								kdims[2], kdims[3], kdims[4], conv);
+	cudaDeviceSynchronize();
+}
