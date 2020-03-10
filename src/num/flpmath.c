@@ -1312,14 +1312,17 @@ static bool simple_inner_matmul_zfmac(unsigned int N, const long dims[N], const 
 	long K1 = ndims[1];
 	long N1 = ndims[2];
 
+	long csize = M1 * N1;
+	long asize = M1 * K1;
+	long bsize = N1 * K1;
+
 	NESTED(void, nary_inner_matmul, (struct nary_opt_data_s* data, void* ptr[]))
 	{
-		(void)data;
-
-		blas_matrix_zfmac(M1, N1, K1,
-			(complex float*)ptr[0],
-			(const complex float*)ptr[1], i1_trans,
-			(const complex float*)ptr[2], i2_trans);
+		for (long i = 0; i < data->size; i++)
+			blas_matrix_zfmac(	M1, N1, K1,
+						(complex float*)ptr[0] + i * csize,
+						(const complex float*)ptr[1] + i * asize, i1_trans,
+						(const complex float*)ptr[2] + i * bsize, i2_trans);
 	};
 
 	optimized_threeop_oii(N - 3, ndims + 3, nostrs + 3, (void*)out, nistrs1 + 3, (void*)nin1, nistrs2 + 3, (void*)nin2,
@@ -2098,17 +2101,174 @@ static bool simple_zconvcorr_direct_3D(unsigned int N, const long dims[N], const
 	if (!detect_convcorr(N, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, conv, size))
 		return false;
 
-	if (conv)
-		in2 -= (kdims[0] * kdims[1] * kdims[2] - 1);
+	long tdims [2 * N];
+	long tstrs1 [2 * N];
+	long tstrs2 [2 * N];
+	long tstrs3 [2 * N];
+
+	in2 -= calc_convcorr_geom(N, flags, tdims, tstrs1, tstrs2, tstrs3,
+					odims, MD_STRIDES(N, odims, size),
+					kdims, MD_STRIDES(N, kdims, size),
+					idims, MD_STRIDES(N, idims, size), conv) / size;
+
+	long osize = odims[0] * odims[1] * odims[2];
+	long ksize = kdims[0] * kdims[1] * kdims[2];
+	long isize = idims[0] * idims[1] * idims[2];
 
 	NESTED(void, nary_zconvcorr3D, (struct nary_opt_data_s* data, void* ptr[]))
 	{
-		data->ops->zconvcorr_3D(ptr[0], ptr[1], ptr[2], odims, idims, kdims, conv);
+		for (long i = 0; i < data->size; i++)
+			data->ops->zconvcorr_3D((complex float*)ptr[0] + i * osize,
+						(complex float*)ptr[1] + i * isize,
+						(complex float*)ptr[2] + i * ksize,
+						odims, idims, kdims, conv);
 	};
 
 	optimized_threeop_oii(N - 3, dims + 3, ostrs + 3, (void*)out, istrs1 + 3, (void*)in1, istrs2 + 3, (void*)in2,
 				(size_t[3]){ size * odims[0] * odims[1] * odims[2] , size * idims[0] * idims[1] * idims[2], size * kdims[0] * kdims[1] * kdims[2] },
 				nary_zconvcorr3D);
+
+	return true;
+}
+
+static bool simple_zconvcorr_direct_3D_CF(unsigned int N, const long dims[N], const long ostrs[N], complex float* out,
+		const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+	size_t size = CFL_SIZE;
+	unsigned long flags = 28; //flags of dims 2, 3, 4
+
+	if (0 != N % 2)
+		return false;
+
+	N = N / 2;
+
+	long odims[N];
+	long idims[N];
+	long kdims[N];
+
+	bool conv = detect_convcorr(N, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, true, size);
+
+	if (!detect_convcorr(N, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, conv, size))
+		return false;
+
+	//Check matmul in first two dims
+	if ((1 != idims[0]) || (1 != odims[1]))
+		return false;
+
+	long tdims [2 * N];
+	long tstrs1 [2 * N];
+	long tstrs2 [2 * N];
+	long tstrs3 [2 * N];
+
+	in2 -= calc_convcorr_geom(N, flags, tdims, tstrs1, tstrs2, tstrs3,
+					odims, MD_STRIDES(N, odims, size),
+					kdims, MD_STRIDES(N, kdims, size),
+					idims, MD_STRIDES(N, idims, size), conv) / size;
+
+	long osize = odims[0] * odims[1] * odims[2] * odims[3] * odims[4];
+	long ksize = kdims[0] * kdims[1] * kdims[2] * kdims[3] * kdims[4];
+	long isize = idims[0] * idims[1] * idims[2] * idims[3] * idims[4];
+
+	NESTED(void, nary_zconvcorr3D_CF, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		for (long i = 0; i < data->size; i++)
+			data->ops->zconvcorr_3D_CF(	(complex float*)ptr[0] + i * osize,
+							(complex float*)ptr[1] + i * isize,
+							(complex float*)ptr[2] + i * ksize,
+							odims, idims, kdims, conv);
+	};
+
+	optimized_threeop_oii(N - 5, dims + 5, ostrs + 5, (void*)out, istrs1 + 5, (void*)in1, istrs2 + 5, (void*)in2,
+				(size_t[3]){ size * osize, size * isize, size * ksize},
+				nary_zconvcorr3D_CF);
+
+	return true;
+}
+
+
+static bool simple_zconvcorr_3D_CF_TI(unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+	size_t size = CFL_SIZE;
+	unsigned long flags = 28;
+
+	if (0 != N % 2)
+		return false;
+	if (10  > N)
+		return false;
+
+	N = N / 2;
+
+	long odims[N];
+	long idims[N];
+	long kdims[N];
+
+	/**
+	 * Transposed convolutio, i.e.
+	 * ostrs = istrs of convcorr
+	 * istrs1 = ostrs of convcorr
+	 * istrs2 = kstrs of convcorr
+	 **/
+
+	bool conv = detect_convcorr(N, odims, idims, kdims, dims, istrs1, ostrs, istrs2, flags, true, size);
+
+	if (!detect_convcorr(N, odims, idims, kdims, dims, istrs1, ostrs, istrs2, flags, conv, size))
+		return false;
+
+	//Check matmul in first two dims, batch last dimension
+	if ((1 != idims[0]) || (1 != odims[1]) || (1 != kdims[5]))
+		return false;
+
+	//transposed convolution is convolution with flipped kernel
+	// 1.) flip the convolution kernel along the conv->dims (conv -> !conv)
+	// 2.) zeropad the input (valid convolution)
+	// 3.) we transpose dimensios 0 and 1 to fit optimized convolutions
+	// 4.) apply convolution
+
+	long tdims [2 * N];
+	long tstrs1 [2 * N];
+	long tstrs2 [2 * N];
+	long tstrs3 [2 * N];
+
+	in2 -= calc_convcorr_geom(N, flags, tdims, tstrs1, tstrs2, tstrs3, odims, MD_STRIDES(N, odims, size), kdims, MD_STRIDES(N, kdims, size), idims, MD_STRIDES(N, idims, size), conv) / size;
+
+	complex float* in2_transp = md_alloc_sameplace(6, kdims, size, in2);
+
+	long kdims_transp[N];
+	md_transpose_dims(N, 0, 1, kdims_transp, kdims);
+	md_transpose(N, 0, 1, kdims_transp, in2_transp, kdims, in2, size);
+
+	long idims_transp[N];
+	md_transpose_dims(N, 0, 1, idims_transp, idims);
+
+	long odims_transp[N];
+	md_transpose_dims(N, 0, 1, odims_transp, odims);
+
+	long nodims_transp[6];
+	md_copy_dims(6, nodims_transp, odims_transp);
+
+	for (int i = 0; i < 6; i++)
+		if MD_IS_SET(flags, i)
+			nodims_transp[i] = idims_transp[i] + kdims_transp[i] - 1;
+
+
+	complex float * in1_padded = md_alloc_sameplace(N, nodims_transp, size, in1);
+	md_resize_center(N, nodims_transp, in1_padded, odims_transp, in1, size);
+
+	long mdims[2 * N];
+	long nostrs2[2 * N];
+	long nkstrs2[2 * N];
+	long nistrs2[2 * N];
+
+	in2_transp += calc_convcorr_geom(N, flags, mdims, nostrs2, nkstrs2, nistrs2,
+					idims_transp, MD_STRIDES(N, idims_transp, size),
+					kdims_transp, MD_STRIDES(N, kdims_transp, size),
+					nodims_transp, MD_STRIDES(N, nodims_transp, size),
+					!conv) / CFL_SIZE;
+
+	md_zfmac2(2 * N, mdims, nostrs2, out, nistrs2, in1_padded, nkstrs2, in2_transp);
+
+	md_free(in2_transp);
+	md_free(in1_padded);
 
 	return true;
 }
@@ -2121,6 +2281,12 @@ static bool simple_zconvcorr(unsigned int N, const long dims[N], const long ostr
 		return true;
 
 	if (simple_zconvcorr_direct_3D(N, dims, ostrs, out, istrs, image, kstrs, kernel))
+		return true;
+
+	if (simple_zconvcorr_direct_3D_CF(N, dims, ostrs, out, istrs, image, kstrs, kernel))
+		return true;
+
+	if (simple_zconvcorr_3D_CF_TI(N, dims, ostrs, out, istrs, image, kstrs, kernel))
 		return true;
 
 	return false;
