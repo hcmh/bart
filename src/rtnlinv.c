@@ -7,6 +7,7 @@
  * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2018 Christian Holme
  * 2018 Sebastian Rosenzweig
+ * 2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
@@ -291,11 +292,13 @@ int main_rtnlinv(int argc, char* argv[])
 	// Gridding
 	if (NULL != trajectory) {
 
-		debug_printf(DP_DEBUG3, "Start gridding...");
+		debug_printf(DP_DEBUG3, "Start gridding psf ...");
 
 		md_select_dims(DIMS, ~(COIL_FLAG|MAPS_FLAG), pat_s->dims_full, sens_s->dims_full);
 		pat_s->dims_full[TIME_DIM] = turns;
 		ds_init(pat_s, CFL_SIZE);
+
+		pattern = anon_cfl("", DIMS, pat_s->dims_full);
 
 		// calculate pattern by nufft gridding:
 		// we generate an array of ones, and grid it in the same way we
@@ -304,6 +307,8 @@ int main_rtnlinv(int argc, char* argv[])
 		// Here we do not want ones in the zero-padded beginning.
 		// Therefore, we generate an array of ones ONLY where the
 		// original data is != 0.
+
+#if 0
 
 		long ones_dims[DIMS];
 		md_copy_dims(DIMS, ones_dims, traj_s->dims_full);
@@ -324,11 +329,27 @@ int main_rtnlinv(int argc, char* argv[])
 		md_zdiv(DIMS, ones_dims, ones, k_dummy, k_dummy);
 
 		const struct linop_s* nufft_op = nufft_create(DIMS, ones_dims, pat_s->dims_full, traj_s->dims_full, traj, NULL, nufft_conf);
-		pattern = anon_cfl("", DIMS, pat_s->dims_full);
+
 		linop_adjoint(nufft_op, DIMS, pat_s->dims_full, pattern, DIMS, ones_dims, ones);
 
-		fftscale(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
-		fftc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
+		md_free(ones);
+		md_free(k_dummy);
+		linop_free(nufft_op);
+
+#else
+
+		long wgh_dims[DIMS];
+		md_select_dims(DIMS, ~COIL_FLAG, wgh_dims, k_s->dims_full);
+
+		complex float* wgh = md_alloc(DIMS, wgh_dims, CFL_SIZE);
+
+		estimate_pattern(DIMS, k_s->dims_full, COIL_FLAG, wgh, k);
+
+		pattern = compute_psf(DIMS, pat_s->dims_full, traj_s->dims_full, traj, traj_s->dims_full, NULL, wgh_dims, wgh, false, false);
+
+#endif
+
+		fftuc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
 
 		if (frames > turns) {
 
@@ -341,10 +362,6 @@ int main_rtnlinv(int argc, char* argv[])
 			// This scaling accounts for variable spokes per frame
 			scale_psf_k(pat_s, pattern, k_s, k, traj_s, traj);
 		}
-
-		linop_free(nufft_op);
-		md_free(ones);
-		md_free(k_dummy);
 
 		debug_printf(DP_DEBUG3, "finished\n");
 	}
