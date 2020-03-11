@@ -410,6 +410,8 @@ const struct vec_ops gpu_ops = {
 
 	.zconvcorr_3D = cuda_zconvcorr_3D,
 	.zconvcorr_3D_CF = cuda_zconvcorr_3D_CF,
+	.zconvcorr_3D_CF_TK = cuda_zconvcorr_3D_CF_TK,
+	.zconvcorr_3D_CF_TI = cuda_zconvcorr_3D_CF_TI,
 };
 
 

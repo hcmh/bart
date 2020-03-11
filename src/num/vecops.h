@@ -79,6 +79,8 @@ struct vec_ops {
 
 	void (*zconvcorr_3D)(_Complex float* dst, const _Complex float* src, const _Complex float* krn, long odims[3], long idims[3], long kdims[3], _Bool conv);
 	void (*zconvcorr_3D_CF)(_Complex float* dst, const _Complex float* src, const _Complex float* krn, long odims[5], long idims[5], long kdims[5], _Bool conv);
+	void (*zconvcorr_3D_CF_TK)(_Complex float* krn, const _Complex float* src, const _Complex float* out, long odims[5], long idims[5], long kdims[5], _Bool conv);
+	void (*zconvcorr_3D_CF_TI)(_Complex float* im, const _Complex float* out, const _Complex float* krn, long odims[5], long idims[5], long kdims[5], _Bool conv);
 };
 
 
