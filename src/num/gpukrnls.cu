@@ -1082,7 +1082,7 @@ extern "C" void cuda_zconvcorr_3D_CF_TI(_Complex float* im, const _Complex float
 {
 	long N = idims[0] * idims[1] * idims[2] * idims[3] * idims[4];
 
-	kern_zconvcorr_3D_CF<<<gridsize(N), blocksize(N)>>>((cuFloatComplex*) im, (cuFloatComplex*) out, (cuFloatComplex*) krn,
+	kern_zconvcorr_3D_CF_TI<<<gridsize(N), blocksize(N)>>>((cuFloatComplex*) im, (cuFloatComplex*) out, (cuFloatComplex*) krn,
 								kdims[0], kdims[1],
 								odims[2], odims[3], odims[4],
 								idims[2], idims[3], idims[4],
