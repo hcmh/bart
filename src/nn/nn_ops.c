@@ -33,18 +33,11 @@ struct maxpool_s {
 	unsigned long N;
 	const long* pool_dims;
 	const long* pool_strs;
-	const long* compare_strs;
 
 	complex float* pool;
 };
 
 DEF_TYPEID(maxpool_s);
-
-static void maxpool_initialize(struct maxpool_s* data, const complex float* arg)
-{
-	if (NULL == data->pool)
-		data->pool = md_alloc_sameplace(2 * data->N, data->pool_dims, CFL_SIZE, arg);
-}
 
 static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
@@ -55,41 +48,25 @@ static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const comp
 #ifdef USE_CUDA
 	assert((cuda_ondevice(dst) == cuda_ondevice(src)));
 #endif
-	maxpool_initialize(data, dst);
+	if (NULL == data->pool)
+		data->pool = md_alloc_sameplace(2 * data->N, data->pool_dims, CFL_SIZE, dst);
 
-	md_copy2(N, data->pool_dims, MD_STRIDES(data->N, data->pool_dims, CFL_SIZE), dst, data->pool_strs, src, CFL_SIZE);
+	complex float* tmp = md_alloc_sameplace(2 * N,  data->pool_dims, CFL_SIZE, dst);
 
-	long pos[N];
-	for (unsigned int i = 0; i < N; i++)
-        	pos[i] = 0;
+	md_copy2(2 * N, data->pool_dims, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, data->pool_strs, src, CFL_SIZE);
 
-    	bool finished = false;
+	long tdims[2] = {md_calc_size(N, data->pool_dims), md_calc_size(N, data->pool_dims + N)};
+	long tstrs[2] = {CFL_SIZE, tdims[0] * CFL_SIZE};
+	long tstrs0[2] = {CFL_SIZE, 0};
 
-    	while (!finished){
+	md_copy(1, tdims, dst, tmp, CFL_SIZE);
 
-		pos[0] += 1;
-        	for (unsigned int i = 1; i < data->N; i++){
+	for (long i = 1; i < tdims[1]; i++)
+		md_zmax(1, tdims, dst, dst, tmp + tdims[0]);
 
-			if (pos[i - 1] == data->pool_dims[N + i - 1]) {
+	md_zgreatequal2(2, tdims, tstrs, data->pool, tstrs, tmp, tstrs0, dst);
 
-				pos[i - 1] = 0;
-				pos[i] += 1;
-			}
-		}
-
-		int offset = 0;
-		for (unsigned int i = 0; i < N; i++)
-			offset += pos[i] * data->pool_strs[i + N] / CFL_SIZE;
-
-		finished = (pos[N - 1] == data->pool_dims[2 * N - 1]);
-
-		if (!finished)
-			md_zmax2(N, data->pool_dims, MD_STRIDES(data->N, data->pool_dims, CFL_SIZE), dst,
-					MD_STRIDES(data->N, data->pool_dims, CFL_SIZE), dst,
-					data->pool_strs, src + offset);
-	}
-
-	md_zgreatequal2(2 * data->N, data->pool_dims, data->pool_strs, data->pool, data->pool_strs, src, data->compare_strs, dst);
+	md_free(tmp);
 	PRINT_TIMER("mpools");
 }
 
@@ -97,18 +74,35 @@ static void maxpool_der(const nlop_data_t* _data, complex float* dst, const comp
 {
 	const auto data = CAST_DOWN(maxpool_s, _data);
 
-	md_ztenmul2(2 * data->N, data->pool_dims, data->compare_strs, dst,
-			data->pool_strs, src,
-			data->pool_strs, data->pool);
+	long N = data->N;
+	long tdims[2] = {md_calc_size(N, data->pool_dims), md_calc_size(N, data->pool_dims + N)};
+	long tstrs[2] = {CFL_SIZE, tdims[0] * CFL_SIZE};
+	long tstrs0[2] = {CFL_SIZE, 0};
+
+	complex float* tmp = md_alloc_sameplace(2 * N,  data->pool_dims, CFL_SIZE, dst);
+	md_copy2(2 * N, data->pool_dims, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), dst, data->pool_strs, src, CFL_SIZE);
+
+	md_ztenmul2(2, tdims, tstrs0, dst, tstrs, tmp, tstrs, data->pool);
+
+	md_free(tmp);
 }
 
 static void maxpool_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(maxpool_s, _data);
-    	md_ztenmulc2(2 * data->N, data->pool_dims, data->pool_strs, dst,
-			data->compare_strs, src,
-			data->pool_strs, data->pool);
+
+	long N = data->N;
+	long tdims[2] = {md_calc_size(N, data->pool_dims), md_calc_size(N, data->pool_dims + N)};
+	long tstrs[2] = {CFL_SIZE, tdims[0] * CFL_SIZE};
+	long tstrs0[2] = {CFL_SIZE, 0};
+
+	complex float* tmp = md_alloc_sameplace(2 * N,  data->pool_dims, CFL_SIZE, dst);
+	md_ztenmul2(2, tdims, tstrs ,tmp, tstrs0, src, tstrs, data->pool);
+
+	md_copy2(2 * N, data->pool_dims, data->pool_strs, dst, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, CFL_SIZE);
+
+	md_free(tmp);
 	PRINT_TIMER("mpool adjs");
 }
 
@@ -121,7 +115,6 @@ static void maxpool_del(const struct nlop_data_s* _data)
 
 	xfree(data->pool_dims);
 	xfree(data->pool_strs);
-	xfree(data->compare_strs);
 
 	xfree(data);
 }
@@ -157,13 +150,10 @@ const struct nlop_s* nlop_maxpool_create(int N, const long dims[N], const long p
 	md_copy_dims(2 * N, *pool_dims, pool_dims_tmp);
 	PTR_ALLOC(long[2 * N], pool_strs);
 	md_copy_dims(2 * N, *pool_strs, pool_strs_tmp);
-	PTR_ALLOC(long[2 * N], compare_strs);
-	md_copy_dims(2 * N, *compare_strs, compare_strs_tmp);
 
 	data->N = N;
 	data->pool_dims = *PTR_PASS(pool_dims);
 	data->pool_strs = *PTR_PASS(pool_strs);
-	data->compare_strs = *PTR_PASS(compare_strs);
 
 	// will be initialized later, to transparently support GPU
 	data->pool = NULL;
