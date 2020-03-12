@@ -162,6 +162,32 @@ UT_REGISTER_TEST(test_conv_der);
 
 
 
+static bool test_mpool_der(void)
+{
+	unsigned int N = 5;
+	long indims[] = {2, 4, 1, 1, 2};
+	long outdims[] = {2, 2, 1, 1, 2};
+
+
+	complex float in[] = {1101., 1202., 1103., 1204., 1105., 1206., 1107., 1208., 2103., 2204., 2101., 2202., 2107., 2208., 2105., 2206. };
+	complex float adj_exp[] = {0., 0., 1103., 1204., 0., 0., 1107., 1208., 2103., 2204., 0., 0., 2107., 2208., 0., 0. };
+	complex float out_exp[] = {1103., 1204., 1107., 1208., 2103., 2204., 2107., 2208.};
+	complex float* out = md_alloc(N, indims, CFL_SIZE);
+
+	const struct nlop_s* network = nlop_from_linop_F(linop_identity_create(N, indims));
+	network = append_maxpool_layer(network, 0, MAKE_ARRAY(2l, 1l, 1l), PADDING_VALID, true);
+	nlop_apply(network, 5, outdims, out, N, indims, in);
+	nlop_adjoint(network, N, indims, in, N, outdims, out);
+
+	nlop_free(network);
+
+	UT_ASSERT(1.e-8 > md_zrmse(N, outdims, out, out_exp) + md_zrmse(N, indims, in, adj_exp));
+}
+
+UT_REGISTER_TEST(test_mpool_der);
+
+
+
 static bool test_bias_der(void)
 {
 	unsigned int N = 4;
@@ -204,11 +230,3 @@ static bool test_relu_der(void)
 }
 
 UT_REGISTER_TEST(test_relu_der);
-
-
-
-
-
-
-
-
