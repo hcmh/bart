@@ -2543,9 +2543,6 @@ void md_axpy(unsigned int D, const long dims[D], float* optr, float val, const f
 
 static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
-#ifdef USE_CUDA
-	return false;
-#endif
 	if (optr != iptr1)
 		return false;
 
@@ -2565,6 +2562,27 @@ static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], 
 	//sum over outer dimension
 	if ((2 == D) && (CFL_SIZE == tostr[0]) && (CFL_SIZE == tistr1[0]) && (CFL_SIZE == tistr2[0])
 		     && (0 == tostr[1]) && (0 == tistr1[1]) && ((long)CFL_SIZE * tdims[0] == tistr2[1])) {
+
+#ifdef USE_CUDA
+
+		if (cuda_ondevice(iptr2)) {
+
+			assert(cuda_ondevice(optr));
+
+			if(8 * tdims[0] >= tdims[1])
+				return false;
+
+			long tdimst[2] = {tdims[1], tdims[0]};
+
+			complex float *tmp = md_alloc_gpu(2, tdims, CFL_SIZE);
+			md_transpose(2, 0, 1, tdimst, tmp, tdims, iptr2, CFL_SIZE);
+			cuda_zsum(tdimst[0], tmp);
+			md_copy2(1, tdims, tostr, optr, MD_STRIDES(2, tdimst, CFL_SIZE)+1, tmp, CFL_SIZE);
+			md_free(tmp);
+
+			return true;
+		}
+#endif
 
 		for (int j = 0; j < tdims[1]; j++)
 			for (int i = 0; i < tdims[0]; i++)
