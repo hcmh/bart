@@ -128,9 +128,7 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 	const struct nlop_s* network = get_nn_mnist(N_batch);
 	const struct nlop_s* loss = nlop_cce_create(nlop_generic_codomain(network, 0)->N, nlop_generic_codomain(network, 0)->dims);
 
-	const struct nlop_s* nlop_train = nlop_chain2(network, 0, loss, 0);
-	nlop_free(loss);
-	nlop_free(network);
+	const struct nlop_s* nlop_train = nlop_chain2_FF(network, 0, loss, 0);
 
 	float* src[nlop_get_nr_in_args(nlop_train)];
 	src[0] = (float*)out;
@@ -155,8 +153,6 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 	in_type[0] = IN_BATCH;
 	in_type[1] = IN_BATCH;
 
-	START_TIMER;
-
 	struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
 	_conf.epochs = epochs;
 
@@ -166,10 +162,7 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 			NO, out_type,
 			N_batch, N_total);
 
-	long dl_tmp = debug_level;
-	debug_level = MAX(DP_DEBUG1, debug_level);
-	PRINT_TIMER("Trainings");
-	debug_level = dl_tmp;
+	nlop_free(nlop_train);
 }
 
 void predict_nn_mnist(int N_batch, long prediction[N_batch], const complex float* weights, const complex float* in)
