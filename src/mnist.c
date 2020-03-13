@@ -17,6 +17,7 @@
 #include "misc/debug.h"
 #include "misc/opts.h"
 #include "misc/mmio.h"
+#include "misc/misc.h"
 
 #include "nn/mnist.h"
 
@@ -86,10 +87,7 @@ int main_mnist(int argc, char* argv[])
 	if (N_batch == 0)
 		N_batch = 128;
 
-	if (use_gpu){
-
-		num_init_gpu_device(1);
-
+	if (use_gpu && train){
 
 #ifdef  USE_CUDA
 
@@ -102,27 +100,16 @@ int main_mnist(int argc, char* argv[])
 		complex float* out_gpu = md_alloc_gpu(2, dims_out, CFL_SIZE);
 		md_copy(2, dims_out, out_gpu, out, CFL_SIZE);
 
-		if (train){
+		printf("Train\n");
+		train_nn_mnist(N_batch, dims_in[2], weights_gpu, in_gpu, out_gpu, epochs);
 
-			printf("Train\n");
-			train_nn_mnist(N_batch, dims_in[2], weights_gpu, in_gpu, out_gpu, epochs);
-		}
-
-		long prediction[N_batch];
-		if (predict){
-
-			printf("Predict first %ld numbers:\n", N_batch);
-			predict_nn_mnist(N_batch, prediction, weights_gpu, in_gpu);
-			print_long(N_batch, prediction);
-		}
-
-		if (accuracy)
-        		printf("Accuracy = %f\n", accuracy_nn_mnist(N_batch, weights_gpu, in_gpu, out_gpu));
-
-		md_copy(3, dims_in, in, in_gpu, CFL_SIZE);
 		md_copy(1, dims_weights, weights, weights_gpu, CFL_SIZE);
-		md_copy(2, dims_out, out, out_gpu, CFL_SIZE);
 
+		md_free(in_gpu);
+		md_free(out_gpu);
+		md_free(weights_gpu);
+#else
+		error("BART compiled without GPU support.\n");
 #endif
 
 	} else {
@@ -132,18 +119,19 @@ int main_mnist(int argc, char* argv[])
 			printf("Train\n");
 			train_nn_mnist(N_batch, dims_in[2], weights, in, out, epochs);
 		}
-
-		long prediction[N_batch];
-		if (predict){
-
-			printf("Predict first %ld numbers:\n", N_batch);
-			predict_nn_mnist(N_batch, prediction, weights, in);
-			print_long(N_batch, prediction);
-		}
-
-		if (accuracy)
-        		printf("Accuracy = %f\n", accuracy_nn_mnist(N_batch, weights, in, out));
 	}
+
+	long prediction[N_batch];
+	if (predict){
+
+		printf("Predict first %ld numbers:\n", N_batch);
+		predict_nn_mnist(N_batch, prediction, weights, in);
+		print_long(N_batch, prediction);
+	}
+
+	if (accuracy)
+        	printf("Accuracy = %f\n", accuracy_nn_mnist(N_batch, weights, in, out));
+
 
 	unmap_cfl(2, dims_out, out);
 	unmap_cfl(3, dims_in, in);
