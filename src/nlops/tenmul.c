@@ -55,6 +55,7 @@ static void tenmul_initialize(struct tenmul_s* data, const complex float* arg)
 
 static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
 	assert(3 == N);
 
@@ -71,6 +72,7 @@ static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	md_zconj2(data->N, data->dims2, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2, data->istr2, src2);
 
 	md_ztenmul2(data->N, data->dims, data->ostr, dst, data->istr1, src1, data->istr2, src2);
+	PRINT_TIMER("tenmuls");
 }
 
 static void tenmul_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -82,9 +84,11 @@ static void tenmul_der2(const nlop_data_t* _data, complex float* dst, const comp
 
 static void tenmul_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
 	md_ztenmul2(data->N, data->dims, data->istr2, dst, data->ostr, src, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1);
+	PRINT_TIMER("tenmul adj2");
 }
 
 static void tenmul_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -96,9 +100,11 @@ static void tenmul_der1(const nlop_data_t* _data, complex float* dst, const comp
 
 static void tenmul_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
 	md_ztenmul2(data->N, data->dims, data->istr1, dst, data->ostr, src, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2);
+	PRINT_TIMER("tenmul adj1");
 }
 
 
@@ -183,5 +189,3 @@ struct nlop_s* nlop_tenmul_create(int N, const long odim[N], const long idim1[N]
 					MD_STRIDES(N, idim1, CFL_SIZE),
 					MD_STRIDES(N, idim2, CFL_SIZE));
 }
-
-
