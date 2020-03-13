@@ -657,32 +657,45 @@ void md_copy2(unsigned int D, const long dim[D], const long ostr[D], void* optr,
 	long (*nstr2_fill[2])[D] = { &tostr_fill, &tistr_fill };
 	int ND_fill = simplify_dims(2, D, tdims_fill, nstr2_fill);
 
-	bool fill = (2 == ND_fill);
-	fill = fill && ((*nstr2_fill[0])[0] == (*nstr2_fill[1])[0]);
-	fill = fill && ((*nstr2_fill[0])[0] == (signed)size);
-	fill = fill && ((*nstr2_fill[0])[1] == (*nstr2_fill[0])[0] * tdims_fill[0]);
-	fill = fill && (0 == (*nstr2_fill[1])[1]);
-	// fill == true corresponds to
-	// tdims_fill = [dim1, dim2]
-	// tistrs_fill =[size, dim1 * size]
-	// tostrs_fill =[size, 0]
-	// ie, the output is a repeated copy of the input
+	bool fill = (2 == ND_fill) || (1 == ND_fill);
+
+	size_t cp_size = 0;
+	unsigned long repetitions = 0;
+
+	if (2 == ND_fill) {
+
+		fill = fill && ((*nstr2_fill[0])[0] == (signed)size);
+		fill = fill && ((*nstr2_fill[1])[0] == (signed)size);
+
+		cp_size = tdims_fill[0] * size;
+		repetitions = tdims_fill[1];
+
+		fill = fill && ((*nstr2_fill[0])[1] == (signed)cp_size);
+		fill = fill && ((*nstr2_fill[1])[1] == 0);
+	}
+
+	if (1 == ND_fill) {
+
+		fill = fill && ((*nstr2_fill[0])[0] == (signed)size);
+		fill = fill && ((*nstr2_fill[1])[0] == 0);
+
+		cp_size = size;
+		repetitions = tdims_fill[0];
+	}
 
 	if (use_gpu && fill) {
 
-		long sizes = size * tdims_fill[0];
-
-		cuda_memcpy(sizes, optr, iptr);
+		cuda_memcpy(cp_size, optr, iptr);
 
 		unsigned int i = 1;
-		while (2 * i < tdims_fill[1]) {
+		while (2 * i <= repetitions) {
 
-			cuda_memcpy(sizes * i, optr + i * sizes, optr);
+			cuda_memcpy(cp_size * i, optr + i * cp_size, optr);
 			i = i * 2;
 		}
 
-		if (0 < tdims_fill[1] - i)
-			cuda_memcpy(sizes * (tdims_fill[1] - i), optr + i * sizes, optr);
+		if (0 < repetitions - i)
+			cuda_memcpy(cp_size * (repetitions - i), optr + i * cp_size, optr);
 
 		return;
 	}
