@@ -89,7 +89,11 @@ void num_init_gpu(void)
 {
 	num_init();
 
-	// don't call cuda_init so that GPU can get assigned by driver
+#ifdef USE_CUDA
+	cuda_init();
+#else
+	error("BART compiled without GPU support.\n");
+#endif
 
 #ifdef USE_CULA
 	culaInitialize();
@@ -97,14 +101,32 @@ void num_init_gpu(void)
 }
 
 
-void num_init_gpu_device(int device) 
+void num_init_multigpu(unsigned long requested_gpus)
 {
 	num_init();
 
 #ifdef USE_CUDA
-	cuda_init(device);
+	cuda_init_multigpu(requested_gpus);
 #else
-	(void)device;
+	UNUSED(requested_gpus);
+	error("BART compiled without GPU support.\n");
+#endif
+
+#ifdef USE_CULA
+	culaInitialize();
+#endif
+}
+
+
+void num_init_gpu_device(int device)
+{
+	num_init();
+
+#ifdef USE_CUDA
+	if (!cuda_try_init(device))
+		error("Could not allocate selected GPU device!");
+#else
+	UNUSED(device);
 	error("BART compiled without GPU support.\n");
 #endif
 

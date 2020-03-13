@@ -30,6 +30,7 @@
 #include "num/gpuops.h"
 #include "num/gpukrnls.h"
 #include "num/mem.h"
+#include "num/multind.h"
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -37,6 +38,12 @@
 #include "gpuops.h"
 
 #define MiBYTE (1024*1024)
+
+extern unsigned int reserved_gpus;
+unsigned int reserved_gpus = 0U;
+
+int n_reserved_gpus = 0;
+int gpu_map[MAX_CUDA_DEVICES] = { [0 ... MAX_CUDA_DEVICES - 1] = -1 };
 
 
 static void cuda_error(int line, cudaError_t code)
@@ -73,7 +80,21 @@ int cuda_devices(void)
 	return count;
 }
 
-static __thread int last_init = -1;
+//static __thread int last_init = -1; // TODO: this needs work so that the memcache works!
+
+int cuda_get_device(void)
+{
+	int device;
+	CUDA_ERROR(cudaGetDevice(&device));
+	return device;
+}
+
+
+int cuda_reserved_devices(void)
+{
+	return bitcount(reserved_gpus);
+}
+
 
 void cuda_p2p_table(int n, bool table[n][n])
 {
@@ -101,17 +122,102 @@ void cuda_p2p(int a, int b)
 }
 
 
-void cuda_init(int device)
+
+static void cuda_set_reserved_gpus()
 {
-	last_init = device;
-	CUDA_ERROR(cudaSetDevice(device));
+	// TODO: find a function which actually enforces this for the process.
+	// This is not it:
+	//CUDA_ERROR(cudaSetValidDevices(gpu_map, n_reserved_gpus));
+}
+
+
+void cuda_init()
+{
+
+	int num_devices = cuda_devices();
+	for (int device = 0; device < num_devices; ++device)
+		if (cuda_try_init(device)) {
+
+			cuda_set_reserved_gpus();
+			return;
+		}
+
+	error("Could not allocate any GPU device\n");
+}
+
+
+
+bool cuda_try_init(int device)
+{
+	cudaError_t errval = cudaSetDevice(device);
+	if (cudaSuccess == errval) {
+
+		errval = cudaDeviceSynchronize();
+
+		if (cudaSuccess == errval) {
+
+			gpu_map[n_reserved_gpus++] = device;
+			reserved_gpus = MD_SET(reserved_gpus, device);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+static void remove_from_gpu_map(int device)
+{
+	int device_index = -1;
+	for (int i = 0; i < n_reserved_gpus; ++i) {
+
+		if (device == gpu_map[i]) {
+
+			device_index = i;
+			break;
+		}
+	}
+
+	for (int i = device_index; i < MIN(n_reserved_gpus, MAX_CUDA_DEVICES); ++i)
+		gpu_map[i] = gpu_map[i + 1];
+
+	gpu_map[n_reserved_gpus - 1] = -1;
+
+}
+
+void cuda_deinit(int device)
+{
+	cuda_set_device(device);
+	CUDA_ERROR(cudaDeviceReset());
+	remove_from_gpu_map(device);
+	n_reserved_gpus--;
+	reserved_gpus = MD_CLEAR(reserved_gpus, device);
+}
+
+
+void cuda_init_multigpu(unsigned int requested_gpus)
+{
+
+	int num_devices = cuda_devices();
+	for (int device = 0; device < num_devices; ++device) {
+
+		if (MD_IS_SET(requested_gpus, device))
+			cuda_try_init(device);
+	}
+
+	if (0UL == reserved_gpus )
+		error("No GPUs could be allocated!\n");
+	else if (reserved_gpus != requested_gpus)
+		debug_printf(DP_WARN, "Not all requested gpus could be allocated, continuing with fewer\n");
+
+	cuda_set_reserved_gpus();
 }
 
 int cuda_init_memopt(void)
 {
 	int num_devices = cuda_devices();
 	int device;
-	int max_device = 0;
+	int max_device = -1;
 
 	if (num_devices > 1) {
 
@@ -121,9 +227,13 @@ int cuda_init_memopt(void)
 
 		for (device = 0; device < num_devices; device++) {
 
-			cuda_init(device);
-			CUDA_ERROR(cudaMemGetInfo(&mem_free, &mem_total));
-			//printf(" device (%d): %d\n", device, mem_available);
+			if (!cuda_try_init(device))
+				continue;
+
+			cudaError_t  errval = cudaMemGetInfo(&mem_free, &mem_total);
+			if (cudaSuccess != errval)
+				continue;
+
 
 			if (mem_max < mem_free) {
 
@@ -131,19 +241,42 @@ int cuda_init_memopt(void)
 				max_device = device;
 			}
 		}
-		//printf(" max device: %d\n", max_device);
-		CUDA_ERROR(cudaSetDevice(max_device));
-		// FIXME: we should set last_init
+
+		if (-1 == max_device)
+			error("Could not allocate any GPU device\n");
+
+		for (device = 0; device < num_devices; device++) {
+
+			if (MD_IS_SET(reserved_gpus, device) && (device != max_device))
+				cuda_deinit(device);
+		}
+
+		cuda_set_device(max_device);
+
+	} else {
+
+		cuda_try_init(0);
 	}
+
+	cuda_set_reserved_gpus();
 
 	return max_device;
 }
 
-bool cuda_memcache = true;
+void cuda_set_device(int device)
+{
+	if (!MD_IS_SET(reserved_gpus, device))
+		error("Trying to use non-reserved GPU! Reserve first by using cuda_try_init(device)\n");
+
+	CUDA_ERROR(cudaSetDevice(device));
+}
+
+
+
+bool cuda_memcache = false; // Memcache needs to be rewritte to work with multiple GPUs
 
 void cuda_memcache_off(void)
 {
-	assert(-1 == last_init);
 	cuda_memcache = false;
 }
 
@@ -186,7 +319,7 @@ void cuda_memcache_clear(void)
 	if (!cuda_memcache)
 		return;
 
-	memcache_clear(last_init, cuda_free_wrapper);
+	memcache_clear(cuda_get_device(), cuda_free_wrapper);
 }
 
 void cuda_exit(void)
@@ -270,7 +403,7 @@ static void* cuda_malloc_wrapper(size_t size)
 
 void* cuda_malloc(long size)
 {
-	return mem_device_malloc(last_init, size, cuda_malloc_wrapper);
+	return mem_device_malloc(cuda_get_device(), size, cuda_malloc_wrapper);
 }
 
 
