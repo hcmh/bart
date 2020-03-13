@@ -77,7 +77,7 @@ int main_moba(int argc, char* argv[])
 
 	assert(TI_dims[TE_DIM] == ksp_dims[TE_DIM]);
 	assert(1 == ksp_dims[MAPS_DIM]);
-        
+
         // SMS
 	if (1 != ksp_dims[SLICE_DIM]) {
 
