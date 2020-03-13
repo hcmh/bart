@@ -114,7 +114,7 @@ int main_modbloch(int argc, char* argv[])
 
 	bool out_sens = false;
 	bool inputSP = false;
-	bool usegpu = false;
+	bool use_gpu = false;
 
 	const char* inputB1 = NULL;
 	const char* inputVFA = NULL;
@@ -138,7 +138,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'w', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
-		OPT_SET(	'g', 	&usegpu			,  "use gpu"),
+		OPT_SET(	'g', 	&use_gpu			,  "use gpu"),
 		{ 'P', NULL, true, opt_seq, &fit_para, "\tA:B:C:D:E:F:G\tSequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep> (-Ph for help)" },
 	};
 
@@ -147,9 +147,10 @@ int main_modbloch(int argc, char* argv[])
 	if (4 == argc)
 		out_sens = true;
 	
+
 	// assert(fit_para.rfduration <= fit_para.prep_pulse_length);
-	
-	num_init();
+
+	(use_gpu ? num_init_gpu_memopt : num_init)();
 	
 	// Load k-space data
 	long ksp_dims[DIMS];
@@ -451,23 +452,26 @@ int main_modbloch(int argc, char* argv[])
 	// START RECONSTRUCTION
 
 #ifdef  USE_CUDA
-	if (usegpu) {
+	if (use_gpu) {
 
 		cuda_use_global_memory();
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, grid_dims, CFL_SIZE);
 		md_copy(DIMS, grid_dims, kspace_gpu, k_grid_data, CFL_SIZE);
 
-		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, kspace_gpu, usegpu);
+
+		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
 
 		md_free(kspace_gpu);
 	} else
 #endif
-		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, k_grid_data, usegpu);
+
+		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, k_grid_data, use_gpu);
 
 	// Rescale resulting PARAMETER maps
 
 	pos[COEFF_DIM] = 1;
+
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / scaling);
 	

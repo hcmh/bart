@@ -152,7 +152,7 @@ int main_mobaT2star(int argc, char* argv[])
 
 	conf.noncart = true;
 
-	num_init();
+	(use_gpu ? num_init_gpu_memopt : num_init)();
 
 #ifdef USE_CUDA
 	cuda_use_global_memory();

@@ -56,7 +56,7 @@ int main_moba(int argc, char* argv[])
 	const char* time_T1relax = NULL;
 	struct moba_conf conf = moba_defaults;
 	bool out_sens = false;
-	bool usegpu = false;
+	bool use_gpu = false;
 	bool unused = false;
 	enum mdb_t { MDB_T1 } mode = { MDB_T1 };
 
@@ -80,7 +80,7 @@ int main_moba(int argc, char* argv[])
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
 		OPT_SET('M', &conf.sms, "Simultaneous Multi-Slice reconstruction"),
-		OPT_SET('g', &usegpu, "use gpu"),
+		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_STRING('t', &trajectory, "Traj", ""),
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.25]"),
 		OPT_SET('m', &conf.MOLLI, "use MOLLI model"),
@@ -96,7 +96,7 @@ int main_moba(int argc, char* argv[])
 		out_sens = true;
 
 
-	num_init();
+	(use_gpu ? num_init_gpu_memopt : num_init)();
 	
 	conf.algo = ALGO_FISTA;
 
@@ -346,7 +346,7 @@ int main_moba(int argc, char* argv[])
 	}
 
 #ifdef  USE_CUDA
-	if (usegpu) {
+	if (use_gpu) {
 
 		cuda_use_global_memory();
 
@@ -367,7 +367,7 @@ int main_moba(int argc, char* argv[])
 		switch (mode) {
 
 		case MDB_T1:
-			T1_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, TI_t1relax_gpu, kspace_gpu, usegpu);
+			T1_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, TI_t1relax_gpu, kspace_gpu, use_gpu);
 			break;
 		};
 
@@ -378,7 +378,7 @@ int main_moba(int argc, char* argv[])
 	switch (mode) {
 
 	case MDB_T1:
-		T1_recon(&conf, dims, img, sens, pattern, mask, TI, TI_t1relax, k_grid_data, usegpu);
+		T1_recon(&conf, dims, img, sens, pattern, mask, TI, TI_t1relax, k_grid_data, use_gpu);
 		break;
 	};
 

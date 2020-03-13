@@ -41,7 +41,7 @@ int main_pixel(int argc, char* argv[])
 
 	struct noir_conf_s conf = noir_defaults;
 	struct modBlochFit fit_para = modBlochFit_defaults;
-	bool usegpu = false;
+	bool use_gpu = false;
 	float data_scale = 600;
 	const char* inputB1 = NULL;
 	const char* inputSP = NULL;
@@ -66,12 +66,12 @@ int main_pixel(int argc, char* argv[])
 		OPT_STRING(	'I',	&inputB1, 		"", 		"Input B1 image"),
 		OPT_STRING(	'P',	&inputSP, 		"", 		"Input Slice Profile image"),
 		OPT_STRING(	'V', 	&fa_file, 		"", 		"Variable flipangle file"),
-		OPT_SET(	'g', 	&usegpu, 				"use gpu"),
+		OPT_SET(	'g', 	&use_gpu, 				"use gpu"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 	
-	num_init();
+	(use_gpu ? num_init_gpu_memopt : num_init)();
 	
 	// Load k-space data
 	long dims[DIMS];
@@ -179,17 +179,17 @@ int main_pixel(int argc, char* argv[])
 	
 	
 #ifdef  USE_CUDA	
-	if (usegpu) {
+	if (use_gpu) {
 
 		complex float* data_gpu = md_alloc_gpu(DIMS, dims, CFL_SIZE);
 		md_copy(DIMS, dims, data_gpu, data, CFL_SIZE);
 
-		pixel_recon(&conf, &fit_para, dims, img, data_gpu, usegpu);
+		pixel_recon(&conf, &fit_para, dims, img, data_gpu, use_gpu);
 
 		md_free(data_gpu);
 	} else
 #endif
-		pixel_recon(&conf, &fit_para, dims, img, data, usegpu);
+		pixel_recon(&conf, &fit_para, dims, img, data, use_gpu);
 	
 	pos[COEFF_DIM] = 2;
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);

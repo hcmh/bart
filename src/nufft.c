@@ -46,7 +46,7 @@ int main_nufft(int argc, char* argv[])
 	bool inverse = false;
 	bool precond = false;
 	bool dft = false;
-	bool gpu = false;
+	bool use_gpu = false;
 
 	struct nufft_conf_s conf = nufft_conf_defaults;
 	struct iter_conjgrad_conf cgconf = iter_conjgrad_defaults;
@@ -68,7 +68,7 @@ int main_nufft(int argc, char* argv[])
 		OPT_UINT('m', &cgconf.maxiter, "", "()"),
 		OPT_SET('P', &conf.periodic, "periodic k-space"),
 		OPT_SET('s', &dft, "DFT"),
-		OPT_SET('g', &gpu, "GPU (only inverse)"),
+		OPT_SET('g', &use_gpu, "GPU (only inverse)"),
 		OPT_CLEAR('1', &conf.decomp, "use/return oversampled grid"),
 	};
 
@@ -88,7 +88,7 @@ int main_nufft(int argc, char* argv[])
 	assert(3 == traj_dims[0]);
 
 
-	(gpu ? num_init_gpu : num_init)();
+	(use_gpu ? num_init_gpu_memopt : num_init)();
 
 	if (inverse || adjoint) {
 
@@ -132,7 +132,7 @@ int main_nufft(int argc, char* argv[])
 			if (conf.toeplitz && precond)
 				precond_op = nufft_precond_create(nufft_op);
 
-			lsqr(DIMS, &(struct lsqr_conf){ lambda, gpu }, iter_conjgrad, CAST_UP(&cgconf),
+			lsqr(DIMS, &(struct lsqr_conf){ lambda, use_gpu }, iter_conjgrad, CAST_UP(&cgconf),
 			     nufft_op, NULL, coilim_dims, img, ksp_dims, ksp, precond_op);
 
 			if (conf.toeplitz && precond)

@@ -55,7 +55,7 @@ int main_nlinv(int argc, char* argv[])
 	struct noir_conf_s conf = noir_defaults;
 	bool out_sens = false;
 	bool scale_im = false;
-	bool usegpu = false;
+	bool use_gpu = false;
 	float scaling = -1.;
 
 	const struct opt_s opts[] = {
@@ -72,7 +72,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_STRING('p', &psf_file, "file", "pattern / transfer function"),
 		OPT_STRING('t', &trajectory, "file", "kspace trajectory"),
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
-		OPT_SET('g', &usegpu, "use gpu"),
+		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 		OPT_UINT('s', &conf.cnstcoil_flags, "flags", "dimensions with constant sensitivities"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
@@ -88,8 +88,7 @@ int main_nlinv(int argc, char* argv[])
 		out_sens = true;
 
 
-
-	num_init();
+	(use_gpu ? num_init_gpu_memopt : num_init)();
 
 	long ksp_dims[DIMS];
 	complex float* kspace = load_cfl(argv[1], DIMS, ksp_dims);
@@ -319,7 +318,7 @@ int main_nlinv(int argc, char* argv[])
 	complex float* ref = NULL;
 
 #ifdef  USE_CUDA
-	if (usegpu) {
+	if (use_gpu) {
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, kgrid_dims, CFL_SIZE);
 
