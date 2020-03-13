@@ -885,11 +885,11 @@ void sgd(unsigned int epochs,
 				args[NO + i] -= isize[i] * (N_total / N_batch);
 	}
 
-	for (int i = 0; i< NI; i++){
-
-		vops->del(grad[i]);
-	}
+	for (int i = 0; i< NI; i++)
+		if(NULL != grad[i])
+			vops->del(grad[i]);
 
 	for (int o = 0; o < NO; o++)
-		vops->del(args[o]);
+		if(NULL != args[o])
+			vops->del(args[o]);
 }
