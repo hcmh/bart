@@ -192,10 +192,25 @@ DEF_TYPEID(bias_op_s);
 
 static void bias_op_apply(const nlop_data_t* _data, int N, complex float* args[N])
 {
+	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 	assert(3 == N);
 
+	#ifdef USE_CUDA
+
+	if (cuda_ondevice(args[0])) {
+
+		complex float* tmp = md_alloc_gpu(d->N, d->dims, CFL_SIZE);
+		md_copy2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), tmp, MD_STRIDES(d->N, d->bdims, CFL_SIZE), args[2], CFL_SIZE);
+
+		md_zadd(d->N, d->dims, args[0], args[1], tmp);
+
+		md_free(tmp);
+	} else
+#endif
+
 	md_zadd2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), args[0], MD_STRIDES(d->N, d->dims, CFL_SIZE), args[1], MD_STRIDES(d->N, d->bdims, CFL_SIZE), args[2]);
+	PRINT_TIMER("biases");
 }
 
 static void bias_op_deriv1(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -212,15 +227,19 @@ static void bias_op_deriv2(const nlop_data_t* _data, complex float* dst, const c
 
 static void bias_op_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 	md_copy2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), dst, MD_STRIDES(d->N, d->dims, CFL_SIZE), src, CFL_SIZE);
+	PRINT_TIMER("bias adj1");
 }
 
 static void bias_op_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 	md_clear(d->N, d->bdims, dst, CFL_SIZE);
 	md_zsum(d->N, d->dims, ~md_nontriv_dims(d->N, d->bdims), dst, src);
+	PRINT_TIMER("bias adj2");
 }
 
 static void bias_op_free(const nlop_data_t* _data)
@@ -371,6 +390,8 @@ const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])
 
 	return nlop_relu_create2(N, dims, strs, strs);
 }
+
+#if 0
 
 struct relu_bias_s {
 
@@ -534,7 +555,6 @@ static const struct nlop_s* nlop_relu_bias_create2(unsigned int N, const long di
 	return nlop_generic_create2(1, N, nl_odims, nl_ostrs, 2, N, nl_idims, nl_istrs, CAST_UP(PTR_PASS(data)), relu_bias_apply, (nlop_fun_t[2][1]){ { relu_bias_der1 }, { relu_bias_der2 } }, (nlop_fun_t[2][1]){ { relu_bias_adj1 }, { relu_bias_adj2 } }, NULL, NULL, relu_bias_free);
 }
 
-#if 1
 const struct nlop_s* nlop_relu_bias_create(unsigned int N, const long dims[N], const long bdims[N])
 {
 	long strs[N];
