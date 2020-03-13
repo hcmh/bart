@@ -793,8 +793,7 @@ static void op_loop_fun(const operator_data_t* _data, unsigned int N, void* args
 
 	if (data->gpu) {
 #if defined(USE_CUDA) && defined(_OPENMP)
-                int nr_cuda_devices = cuda_devices();
-                omp_set_num_threads(nr_cuda_devices * 2);
+		omp_set_num_threads(n_reserved_gpus * 2);
 //              fft_set_num_threads(1);
 #else
                 error("Both OpenMP and CUDA are necessary for op_loop_fun. At least one was not found.\n");
@@ -1046,10 +1045,10 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 
 	debug_printf(DP_DEBUG1, "GPU start.\n");
 
-        int nr_cuda_devices = MIN(cuda_devices(), MAX_CUDA_DEVICES);
-        int gpun = omp_get_thread_num() % nr_cuda_devices;
+	int gpun = gpu_map[omp_get_thread_num() % n_reserved_gpus];
 
-        cuda_init(gpun);
+
+	cuda_set_device(gpun);
 
 	for (unsigned int i = 0; i < N; i++) {
 
