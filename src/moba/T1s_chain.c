@@ -28,7 +28,7 @@
 //#define general
 //#define mphase
 
-struct nlop_s* nlop_T1s_chain_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI, bool use_gpu) 
+struct nlop_s* nlop_T1s_chain_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI1, const complex float* TI2, bool use_gpu) 
 {
 
         #ifdef USE_CUDA
@@ -44,8 +44,8 @@ struct nlop_s* nlop_T1s_chain_create(int N, const long map_dims[N], const long o
 
         complex float* scale = my_alloc(N, scale_dims, CFL_SIZE);
 
-        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
-    	struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
+        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1);
+    	struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2);
    
     	struct nlop_s* T1s_combine = nlop_combine(T1s_2, T1s_1);
         struct nlop_s* T1s_link = nlop_link(T1s_combine, 3, 0);

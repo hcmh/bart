@@ -27,7 +27,7 @@
 //#define general
 //#define mphase
 
-struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI, bool use_gpu) 
+struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI1, const complex float* TI2, bool use_gpu) 
 {
 
 #ifdef USE_CUDA
@@ -38,27 +38,27 @@ struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out
 #endif
 
         long scale_dims[N];
-        long TI2_dims[N];
+        long TI_T1_dims[N];
 
         md_singleton_dims(N, scale_dims);
-        md_singleton_dims(N, TI2_dims);
+        md_singleton_dims(N, TI_T1_dims);
 
         complex float* scale = my_alloc(N, scale_dims, CFL_SIZE);
-        complex float* TI2 = my_alloc(N, TI2_dims, CFL_SIZE);
+        complex float* TI_T1 = my_alloc(N, TI_T1_dims, CFL_SIZE);
 
-        complex float TI2_init[1] = {0.0};
-        md_copy(N, TI2_dims, TI2, TI2_init, CFL_SIZE);
+        complex float TI_T1_init[1] = {0.0};
+        md_copy(N, TI_T1_dims, TI_T1, TI_T1_init, CFL_SIZE);
 
         long out2_dims[N];
         md_copy_dims(N, out2_dims, out_dims);
-        out2_dims[TE_DIM] = TI2_dims[TE_DIM];
+        out2_dims[TE_DIM] = TI_T1_dims[TE_DIM];
 
 
-        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
-        struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI2);
-        struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
-        struct nlop_s* T1_2 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI2);
-        struct nlop_s* T1s_3 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI);
+        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1);
+        struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, TI_T1);
+        struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2);
+        struct nlop_s* T1_2 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, TI_T1);
+        struct nlop_s* T1s_3 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2);
         
         // first chain: T1(T1s)
         struct nlop_s* T1c_combine = nlop_combine(T1_1, T1s_1);
@@ -164,7 +164,7 @@ struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out
 
 
         md_free(scale);
-        md_free(TI2);
+        md_free(TI_T1);
 
 
         return T1c_dup_scale;

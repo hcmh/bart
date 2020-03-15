@@ -69,6 +69,7 @@ static void stack_der2(const nlop_data_t* _data, complex float* dst, const compl
 static void stack_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(stack_s, _data);
+	md_clear(data->N, data->idims2, dst, CFL_SIZE);
 	md_copy2(data->N, data->idims2, MD_STRIDES(data->N, data->idims2, CFL_SIZE) , dst, MD_STRIDES(data->N, data->odims, CFL_SIZE), src + data->offset, CFL_SIZE);
 }
 
@@ -83,6 +84,7 @@ static void stack_der1(const nlop_data_t* _data, complex float* dst, const compl
 static void stack_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(stack_s, _data);
+	md_clear(data->N, data->idims1, dst, CFL_SIZE);
 	md_copy2(data->N, data->idims1, MD_STRIDES(data->N, data->idims1, CFL_SIZE), dst, MD_STRIDES(data->N, data->odims, CFL_SIZE), src, CFL_SIZE);
 }
 
