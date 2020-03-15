@@ -8,7 +8,7 @@ extern enum NETWORK_STATUS network_status;
 
 extern const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int out_neurons);
 
-extern const struct nlop_s* append_conv_layer(const struct nlop_s* network, int o, int filters, const long kernel_size[3], enum CONV_PAD conv_pad, _Bool channel_first, const long strides[3], const long dilations[3]);
+extern const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, int filters, const long kernel_size[3], _Bool conv, enum CONV_PAD conv_pad, _Bool channel_first, const long strides[3], const long dilations[3]);
 extern const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum CONV_PAD conv_pad, _Bool channel_first);
 
 extern const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, float p);

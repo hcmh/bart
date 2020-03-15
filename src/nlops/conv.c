@@ -278,12 +278,12 @@ static struct nlop_s* nlop_convcorr_geom_create2(long N, unsigned int flags, con
 				    (nlop_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del);
 }
 
-static struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], bool conv)
+static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], bool conv)
 {
 	return nlop_convcorr_geom_create2(N, flags, odims, MD_STRIDES(N, odims, CFL_SIZE), idims, MD_STRIDES(N, idims, CFL_SIZE), kdims, MD_STRIDES(N, kdims, CFL_SIZE), conv);
 }
 
-struct nlop_s* nlop_conv_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad)
+struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad, bool conv)
 {
 	struct nlop_s* result = NULL;
 	long idims2[N];
@@ -291,7 +291,7 @@ struct nlop_s* nlop_conv_geom_create(long N, unsigned int flags, const long odim
 	switch (conv_pad){
 		case PADDING_VALID:
 
-			result = nlop_convcorr_geom_create(N, flags, odims, idims, kdims, true);
+			result = nlop_convcorr_geom_valid_create(N, flags, odims, idims, kdims, conv);
 			break;
 
 	case PADDING_SAME:
@@ -304,7 +304,7 @@ struct nlop_s* nlop_conv_geom_create(long N, unsigned int flags, const long odim
 		}
 
 		struct nlop_s* nresize = nlop_resize_create(N, idims2, idims, true);
-		struct nlop_s* nconv_valid = nlop_convcorr_geom_create(N, flags, odims, idims2, kdims, true);
+		struct nlop_s* nconv_valid = nlop_convcorr_geom_valid_create(N, flags, odims, idims2, kdims, conv);
 		struct nlop_s* nchained = nlop_chain2(nresize, 0, nconv_valid, 0);
 		int perm[2]={1,0};
 		result = nlop_permute_inputs(nchained, 2, perm);
@@ -432,7 +432,6 @@ static void conv_fft_adj2(const nlop_data_t* _data, complex float* dst, const co
 
 	fftmod(data->N, data->kdims2, data->flags, kernel_tmp, kernel_tmp);
 	fft(data->N, data->kdims2, data->flags, kernel_tmp, kernel_tmp);
-
 	md_resize_center(data->N, data->kdims, dst, data->kdims2, kernel_tmp, CFL_SIZE);
 	md_zsmul(data->N, data->kdims, dst, dst, conjf(data->scaling));
 }
@@ -567,7 +566,7 @@ static struct nlop_s* nlop_conv_fft_cyclic_create(long N, unsigned int flags, co
 				   (nlop_fun_t[2][1]){ { conv_fft_adj1 }, { conv_fft_adj2 } }, NULL, NULL, conv_fft_del);
 }
 
-struct nlop_s* nlop_conv_fft_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad)
+struct nlop_s* nlop_convcorr_fft_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad, bool conv)
 {
 	long odims2[N];
 	long idims2[N];
@@ -638,6 +637,9 @@ struct nlop_s* nlop_conv_fft_create(long N, unsigned int flags, const long odims
 			assert(0);//not implemented
 			break;
 	}
+
+	if (!conv)
+		result = nlop_chain2_FF(nlop_from_linop_F(linop_flip_create(N, kdims, flags)), 0, result, 1);
 
 	return result;
 }

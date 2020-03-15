@@ -43,7 +43,7 @@ static void perm_shift(int N, int from, int to, int perm[N])
 	}
 }
 
-const struct nlop_s* append_conv_layer(const struct nlop_s* network, int o, int filters, long const kernel_size[3], enum CONV_PAD conv_pad, bool channel_first, const long strides[3], const long dilations[3])
+const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, int filters, long const kernel_size[3], bool conv, enum CONV_PAD conv_pad, bool channel_first, const long strides[3], const long dilations[3])
 {
 	const long ones[3] = {1, 1, 1};
 	if (NULL == strides)
@@ -141,14 +141,14 @@ const struct nlop_s* append_conv_layer(const struct nlop_s* network, int o, int 
 		kdims_working[5] = 1;
 	}
 
-	const struct nlop_s* conv = nlop_conv_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working, conv_pad);
+	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working, conv_pad, conv);
 
-	conv = nlop_reshape_out(conv, 0, 5, odims_layer);
-	conv = nlop_reshape_in(conv, 0, 5, idims_layer);
-	conv = nlop_reshape_in(conv, 1, 5, kdims_layer);
-	const struct nlop_s* tmp = nlop_chain2(network, o, conv, 0);
+	nlop_conv = nlop_reshape_out(nlop_conv, 0, 5, odims_layer);
+	nlop_conv = nlop_reshape_in(nlop_conv, 0, 5, idims_layer);
+	nlop_conv = nlop_reshape_in(nlop_conv, 1, 5, kdims_layer);
+	const struct nlop_s* tmp = nlop_chain2(network, o, nlop_conv, 0);
 	nlop_free(network);
-	nlop_free(conv);
+	nlop_free(nlop_conv);
 
 	int perm_in[NI + 1];
 	perm_shift(NI + 1, 0, NI, perm_in);
