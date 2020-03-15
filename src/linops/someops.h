@@ -21,6 +21,7 @@ extern struct linop_s* linop_expand_create(unsigned int N, const long out_dims[_
 extern struct linop_s* linop_reshape_create(unsigned int A, const long out_dims[__VLA(A)], int B, const long in_dims[__VLA(B)]);
 extern struct linop_s* linop_extract_create(unsigned int N, const long pos[N], const long out_dims[N], const long in_dims[N]);
 extern struct linop_s* linop_transpose_create(int N, int a, int b, const long dims[N]);
+extern struct linop_s* linop_flip_create(int N, const long dims[N], unsigned long flags);
 
 extern struct linop_s* linop_copy_selected_create(unsigned int N, const long odims[__VLA(N)], long size_in, long iptr_offset);
 extern struct linop_s* linop_copy_selected_create2(unsigned int N, const long odims[__VLA(N)], const long ostrs[__VLA(N)], long size_in, long iptr_offset);
@@ -50,4 +51,3 @@ extern struct linop_s* linop_matrix_chain(const struct linop_s* a, const struct 
 
 #include "misc/cppwrap.h"
 #endif // __SOMEOPS_H
-
