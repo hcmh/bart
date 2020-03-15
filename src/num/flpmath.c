@@ -1814,6 +1814,7 @@ static bool simple_zconvcorr_im2col_3D_CF_TI(unsigned int N, const long dims[N],
 	in2 -= calc_convcorr_geom(N, flags, tdims, tstrs1, tstrs2, tstrs3, odims, MD_STRIDES(N, odims, size), kdims, MD_STRIDES(N, kdims, size), idims, MD_STRIDES(N, idims, size), conv) / size;
 
 	complex float* in2_transp = md_alloc_sameplace(6, kdims, size, in2);
+	complex float* in2_transp_free = in2_transp;
 
 	long kdims_transp[N];
 	md_transpose_dims(N, 0, 1, kdims_transp, kdims);
@@ -1849,7 +1850,7 @@ static bool simple_zconvcorr_im2col_3D_CF_TI(unsigned int N, const long dims[N],
 
 	md_zfmac2(2 * N, mdims, nostrs2, out, nistrs2, in1_padded, nkstrs2, in2_transp);
 
-	md_free(in2_transp);
+	md_free(in2_transp_free);
 	md_free(in1_padded);
 
 	return true;
