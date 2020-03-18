@@ -45,7 +45,7 @@ struct moba_conf moba_defaults = {
 	.tolerance = 0.01,
 	.inner_iter = 250,
 	.noncartesian = false,
-        .sms = false,
+	.sms = false,
 };
 
 
@@ -56,7 +56,10 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	long data_dims[DIMS];
 	long img1_dims[DIMS];
 
-	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
+	unsigned int fft_flags = FFT_FLAGS;
+
+	if (conf->sms)
+		fft_flags |= SLICE_FLAG;
 
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
@@ -123,7 +126,6 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	}
 
 	nlop_free(nl.nlop);
-
 
 	md_free(x);
 }
