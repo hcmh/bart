@@ -7,6 +7,7 @@
  */
 
 #include <complex.h>
+#include <stdio.h>
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -32,8 +33,23 @@
 #include "nn/mnist.h"
 #include "utest.h"
 
+// for convolution: output_dim == input_dim - (kernel_dim - 1)
+// for other dimensions: two dimensions are same and other == 1
 
+/**
+static bool test_nlop_trans_con(void)
+{
+	enum { N = 1 };
+	long dims_image[N] = {10};
+	long dims_kernel[N] = {3};
+	long dims_output[N] = {8};
+	unsigned int conv_flags = 1;
 
+	complex float* dst_trans = md_alloc(N, dims_output, CFL_SIZE);
+	complex float* dst_conv = md_alloc(N, dims_output, CFL_SIZE)
+}
+
+*/
 
 static bool test_nlop_conv_compare(void)
 {
@@ -41,7 +57,7 @@ static bool test_nlop_conv_compare(void)
  	long dims_image[N] = { 10, 1, 4, 7, 1, 8};
 	long dims_kernel[N] = { 3, 4, 4, 2, 1, 8};
 	long dims_output[N] = { 8, 4, 4, 6, 1, 1};
-	unsigned int conv_flags = 9;
+	unsigned int conv_flags = 9; //100100
 
 	complex float* dst_geom = md_alloc(N, dims_output, CFL_SIZE);
 	complex float* dst_fft = md_alloc(N, dims_output, CFL_SIZE);
@@ -55,8 +71,8 @@ static bool test_nlop_conv_compare(void)
 	md_gaussian_rand(N, dims_image, src1);
 	md_gaussian_rand(N, dims_kernel, src2);
 
-	const struct nlop_s* conv_geom = nlop_conv_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID);
-	const struct nlop_s* conv_fft = nlop_conv_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID);
+	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID, true);
+	const struct nlop_s* conv_fft = nlop_convcorr_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID, true);
 
 	const struct nlop_s* conv_geom_const = nlop_set_input_const_F(conv_geom, 1, N, dims_kernel, src2);
 	const struct nlop_s* conv_fft_const = nlop_set_input_const_F(conv_fft, 1, N, dims_kernel, src2);
@@ -88,10 +104,10 @@ static bool test_nlop_conv_derivative(void)
 	long dims_image[N] = { 6, 1, 2, 5, 1, 2};
 	long dims_kernel[N] = { 3, 4, 2, 2, 1, 2};
 	long dims_output[N] = { 4, 4, 2, 4, 1, 1};
-	unsigned long conv_flags = 9;
+	unsigned long conv_flags = 9; //100100
 
-	const struct nlop_s* conv_geom = nlop_conv_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID);
-	const struct nlop_s* conv_fft = nlop_conv_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID);
+	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID, true);
+	const struct nlop_s* conv_fft = nlop_convcorr_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID, true);
 
 	float err_adj_geom = nlop_test_adj_derivatives(conv_geom, false);
 	float err_der_geom = nlop_test_derivatives(conv_geom);
@@ -146,7 +162,7 @@ static bool test_conv_der(void)
 	long kernel_size[] = {3, 3, 1};
 	long ones[] = {1, 1, 1};
 
-	network = append_conv_layer(network, 0, 4, kernel_size, PADDING_VALID, true, ones, ones);
+	network = append_convcorr_layer(network, 0, 4, kernel_size, true, PADDING_VALID, true, ones, ones);
 
 	float err_adj = nlop_test_adj_derivatives(network, true);
 	float err_der = nlop_test_derivatives(network);
@@ -160,22 +176,26 @@ static bool test_conv_der(void)
 
 UT_REGISTER_TEST(test_conv_der);
 
-
-
+//test max pooling for pooling layers >2
 static bool test_mpool_der(void)
 {
-	unsigned int N = 5;
-	long indims[] = {2, 4, 1, 1, 2};
-	long outdims[] = {2, 2, 1, 1, 2};
+	unsigned int N = 5;	
+	long indims[] = {2, 6, 1, 1, 2}; //channel, x, y, z, batch 
+	long outdims[] = {2, 2, 1, 1, 2}; //channel, x, y, z, batch 
 
+	//digits reference, e.g. 1204.: batch(1), channel(2), count(04)
+	complex float in[] = {	1101., 1202., 1103., 1204., 1105., 1206., 1107., 1208., 1109., 1210., 1111., 1212.,
+				2103., 2204., 2101., 2202., 2107., 2208., 2105., 2206., 2109., 2210., 2111., 2212. };
+	
+	complex float adj_exp[] = {	0., 0., 0., 0., 1105., 1206., 0., 0., 0., 0., 1111., 1212., 
+					0., 0., 0., 0., 2107., 2208., 0., 0., 0., 0., 2111., 2212. };
 
-	complex float in[] = {1101., 1202., 1103., 1204., 1105., 1206., 1107., 1208., 2103., 2204., 2101., 2202., 2107., 2208., 2105., 2206. };
-	complex float adj_exp[] = {0., 0., 1103., 1204., 0., 0., 1107., 1208., 2103., 2204., 0., 0., 2107., 2208., 0., 0. };
-	complex float out_exp[] = {1103., 1204., 1107., 1208., 2103., 2204., 2107., 2208.};
+	complex float out_exp[] = {	1105., 1206., 1111., 1212.,
+					2107., 2208., 2111., 2212.};
 	complex float* out = md_alloc(N, indims, CFL_SIZE);
 
 	const struct nlop_s* network = nlop_from_linop_F(linop_identity_create(N, indims));
-	network = append_maxpool_layer(network, 0, MAKE_ARRAY(2l, 1l, 1l), PADDING_VALID, true);
+	network = append_maxpool_layer(network, 0, MAKE_ARRAY(3l, 1l, 1l), PADDING_VALID, true);
 	nlop_apply(network, 5, outdims, out, N, indims, in);
 	nlop_adjoint(network, N, indims, in, N, outdims, out);
 
