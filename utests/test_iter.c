@@ -151,6 +151,7 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 
 	const struct operator_p_s* lsqr = NULL;
 	struct iter_admm_conf conf = iter_admm_defaults;
+	conf.rho = 1.E-5;
 
 	auto p1 = prox_thresh_create(3, dims1, 0.5, 0u);
 	auto p2 = prox_thresh_create(3, dims2, 0.5, 0u);
@@ -160,7 +161,7 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 	operator_p_free(p1);
 	operator_p_free(p2);
 
-	const struct linop_s* trafos[1] = { &zexp->derivative[0][0] };
+	const struct linop_s* trafos[1] = { linop_identity_create(3, dims) };
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_admm, CAST_UP(&conf),
@@ -176,8 +177,8 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 		2 * md_calc_size(N, dims), (const float*)dst1, lsqr,
 		(struct iter_op_s){ NULL, NULL });
 
-	dump_cfl("/home/ztan/temp/src1.ra", N, dims, src1);
-	dump_cfl("/home/ztan/temp/src2.ra", N, dims, src2);
+	// dump_cfl("/home/ztan/temp/src1.ra", N, dims, src1);
+	// dump_cfl("/home/ztan/temp/src2.ra", N, dims, src2);
 
 	double err = md_znrmse(N, dims, src1, src2);
 
@@ -188,7 +189,7 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 	md_free(dst1);
 	md_free(src2);
 
-	UT_ASSERT(err < 1.E-10);
+	UT_ASSERT(err < 1.E-5);
 }
 
 
