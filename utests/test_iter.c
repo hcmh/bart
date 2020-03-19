@@ -125,6 +125,72 @@ static bool test_iter_irgnm_lsqr0(bool ref)
 }
 
 
+static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
+{
+	enum { N = 3 };
+	long dims[N]  = { 10, 7, 3 };
+	long dims1[N] = { 10, 7, 1 };
+	long dims2[N] = { 10, 7, 2 };
+
+	complex float* dst1 = md_alloc(N, dims, CFL_SIZE);
+	complex float* src1 = md_alloc(N, dims, CFL_SIZE);
+	complex float* src2 = md_alloc(N, dims, CFL_SIZE);
+
+	md_zfill(N, dims, src1, 1.);
+
+	struct nlop_s* zexp = nlop_zexp_create(N, dims);
+
+	nlop_apply(zexp, N, dims, dst1, N, dims, src1);
+
+	md_zfill(N, dims, src2, 0.);
+
+
+	debug_printf(DP_DEBUG2, "___ ref %d; regu %d\n", ref, regu);
+
+
+
+	const struct operator_p_s* lsqr = NULL;
+	struct iter_admm_conf conf = iter_admm_defaults;
+
+	auto p1 = prox_thresh_create(3, dims1, 0.5, 0u);
+	auto p2 = prox_thresh_create(3, dims2, 0.5, 0u);
+
+	const struct operator_p_s* prox_ops[1] = { operator_p_stack(2, 2, p1, p2) };
+
+	operator_p_free(p1);
+	operator_p_free(p2);
+
+	const struct linop_s* trafos[1] = { &zexp->derivative[0][0] };
+
+	lsqr = lsqr2_create(&lsqr_defaults,
+				iter2_admm, CAST_UP(&conf),
+				NULL, &zexp->derivative[0][0], NULL,
+				regu ? 1 : 0, 
+				regu ? prox_ops : NULL, 
+				regu ? trafos : NULL, 
+				NULL);
+
+
+	iter4_irgnm2(CAST_UP(&iter3_irgnm_defaults), zexp,
+		2 * md_calc_size(N, dims), (float*)src2, ref ? (const float*)src1 : NULL,
+		2 * md_calc_size(N, dims), (const float*)dst1, lsqr,
+		(struct iter_op_s){ NULL, NULL });
+
+	dump_cfl("/home/ztan/temp/src1.ra", N, dims, src1);
+	dump_cfl("/home/ztan/temp/src2.ra", N, dims, src2);
+
+	double err = md_znrmse(N, dims, src1, src2);
+
+	operator_p_free(lsqr);
+	nlop_free(zexp);
+
+	md_free(src1);
+	md_free(dst1);
+	md_free(src2);
+
+	UT_ASSERT(err < 1.E-10);
+}
+
 
 static bool test_iter_irgnm(void)
 {
@@ -150,7 +216,15 @@ static bool test_iter_irgnm_lsqr(void)
 
 UT_REGISTER_TEST(test_iter_irgnm_lsqr);
 
+static bool test_iter_irgnm_lsqr_l1(void)
+{
+	return    test_iter_irgnm_lsqr1(false, true);
+	    //    && test_iter_irgnm_lsqr1(false, false)
+	    //    && test_iter_irgnm_lsqr1(true,  true)
+	    //    && test_iter_irgnm_lsqr1(true,  false);
+}
 
+UT_REGISTER_TEST(test_iter_irgnm_lsqr_l1);
 
 
 static bool test_iter_irgnm_l1(void)
