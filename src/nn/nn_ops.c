@@ -43,6 +43,7 @@ static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const comp
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(maxpool_s, _data);
+	
 	unsigned long N = data->N;
 
 #ifdef USE_CUDA
@@ -62,7 +63,7 @@ static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const comp
 	md_copy(1, tdims, dst, tmp, CFL_SIZE);
 
 	for (long i = 1; i < tdims[1]; i++)
-		md_zmax(1, tdims, dst, dst, tmp + tdims[0]);
+		md_zmax(1, tdims, dst, dst, tmp + tdims[0] * i);
 
 	md_zgreatequal2(2, tdims, tstrs, data->pool, tstrs, tmp, tstrs0, dst);
 
@@ -134,13 +135,13 @@ const struct nlop_s* nlop_maxpool_create(int N, const long dims[N], const long p
 	long pool_dims_tmp[2 * N];
 	long pool_strs_tmp[2 * N];
 	long compare_strs_tmp[2 * N];
-
+	//pooldims_tmp: img_x_out, img_y_out, px, py
     	for (int i = 0; i< N; i++){
 
 		pool_dims_tmp[i] = dims[i] / pool_size[i];
 		pool_dims_tmp[i + N] = pool_size[i];
 		pool_strs_tmp[i] = strs[i] * pool_size[i];
-		pool_strs_tmp[i + N] = (pool_dims_tmp[i + N] > 1) * strs[i];
+		pool_strs_tmp[i + N] = (pool_dims_tmp[i + N] > 1) ? strs[i] : 0;
 	}
 
 	md_singleton_strides(2 * N, compare_strs_tmp);
