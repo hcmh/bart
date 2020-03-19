@@ -11,6 +11,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <stdio.h>
 
 #include "misc/misc.h"
 #include "misc/mri.h"
@@ -65,17 +66,52 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	md_alloc_fun_t my_alloc = md_alloc;
 	#endif
 
-	out_dims[TE_DIM] /= 3;
-	TI_dims[TE_DIM] /= 3;
+	// test
+	// complex float* dst = md_alloc(DIMS, out_dims, CFL_SIZE);
+        // complex float* src1 = md_alloc(DIMS, map_dims, CFL_SIZE); // M0
+        // complex float* src2 = md_alloc(DIMS, map_dims, CFL_SIZE); // R1
+        // complex float* src3 = md_alloc(DIMS, map_dims, CFL_SIZE); // R1s
+
+	// complex float* src = md_alloc(DIMS, in_dims, CFL_SIZE); // maps
+
+	// md_zfill(DIMS, map_dims, src1, 1.0);
+	// md_zfill(DIMS, map_dims, src2, 1.0);
+	// md_zfill(DIMS, map_dims, src3, 1.0);
+
+	// md_zfill(DIMS, in_dims, src, 1.0);
+
+        int parts = 5;
+	out_dims[TE_DIM] /= parts;
+	TI_dims[TE_DIM] /= parts;
 	
 	complex float* TI1 = my_alloc(DIMS, TI_dims, CFL_SIZE);
+	complex float* TI2 = my_alloc(DIMS, TI_dims, CFL_SIZE);
 
 	md_copy(DIMS, TI_dims, TI1, TI, CFL_SIZE);
 
-        //struct nlop_s* T1 = nlop_T1s_chain_create(DIMS, map_dims, out_dims, TI_dims, TI1, use_gpu);
-        struct nlop_s* T1 = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI1, use_gpu);
+	printf("TE_DIM is %ld\n", TI_dims[TE_DIM]);
+
+	for (int i = 0; i < TI_dims[TE_DIM]; i++)
+	{
+		float T2_real = crealf(TI[1]) - crealf(TI[0]) + i * (crealf(TI[1]) - crealf(TI[0]));
+		TI2[i] = CMPLX(T2_real, 0.0);
+		printf("%f%+fi\n", crealf(TI2[i]), cimagf(TI2[i]));
+	}
+
+        // struct nlop_s* T1 = nlop_T1_repara_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+	//struct nlop_s* T1 = nlop_T1s_chain_create(DIMS, map_dims, out_dims, TI_dims, TI1, TI2, use_gpu);
+
+        struct nlop_s* T1 = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI1, TI2, use_gpu);
+	//out_dims[TE_DIM] *= parts;
 
         md_free(TI1);
+	md_free(TI2);
+
+        // md_free(src1);
+        // md_free(src2);
+        // md_free(src3);
+	// md_free(src);
+	// md_free(dst);
 #else
 	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
 #endif
@@ -90,7 +126,6 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	const struct nlop_s* c = nlop_chain2(T1, 0, b, 0);
 	nlop_free(b);
 
-//#ifdef T1s_chain
 #ifdef T1_MOLLI
 	nlinv.nlop = nlop_permute_inputs(c, 4, (const int[4]){ 1, 2, 3, 0 });
 #else
