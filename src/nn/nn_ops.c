@@ -135,7 +135,7 @@ const struct nlop_s* nlop_maxpool_create(int N, const long dims[N], const long p
 	long pool_dims_tmp[2 * N];
 	long pool_strs_tmp[2 * N];
 	long compare_strs_tmp[2 * N];
-	//pooldims_tmp: img_x_out, img_y_out, px, py
+	
     	for (int i = 0; i< N; i++){
 
 		pool_dims_tmp[i] = dims[i] / pool_size[i];
