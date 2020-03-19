@@ -100,7 +100,7 @@ static bool test_nlop_T1s_chain(void)
         md_zfill(N, map_dims, src2, 1.0);
         md_zfill(N, map_dims, src3, 1.0);
 
-        struct nlop_s* T1 = nlop_T1s_chain_create(N, map_dims, out_dims, TI_dims, TI, false);
+        struct nlop_s* T1 = nlop_T1s_chain_create(N, map_dims, out_dims, TI_dims, TI, TI, false);
 
         nlop_generic_apply_unchecked(T1, 4, (void*[]){ dst, src1, src2, src3});
         
