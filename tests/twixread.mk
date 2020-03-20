@@ -42,5 +42,5 @@ tests/test-umgread: umgread ${TWIXFILE3}
 
 
 
-TESTS_AGUE += tests/test-twixread tests/test-twixread-multiraid tests/test-twixread-multiinversion tests/test-twixread-mpi tests/test-umgread
+TESTS_AGUE += tests/test-twixread tests/test-twixread-multiraid tests/test-twixread-mpi tests/test-umgread
 
