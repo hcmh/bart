@@ -119,6 +119,7 @@ int main_sim(int argc, char* argv[])
 {
 	int nbf = 8;
 	bool linear = false;
+	bool ode = false;
 
 	struct sim_parameter values[MAX_PASS_VALUES];
 
@@ -137,6 +138,7 @@ int main_sim(int argc, char* argv[])
 
 		OPT_INT('n', &nbf, "nbf", "No. Basis Functions"),
 		OPT_SET('l', &linear, "homogeneously distributed T1 and T2 values"),
+		OPT_SET('o', &ode, "ODE based simulation"),
 		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr> (-Ph for help)" },
 		{ 'V', true, opt_seq, &values, "\t<T1>,<T2>:<T1>,<T2>:..\tT1 and T2 values for each geometrical basis function. Only for 10 entries of tube phantom." },
 	};
@@ -209,8 +211,10 @@ int main_sim(int argc, char* argv[])
 			float sa_r2_sig[data.seq.rep_num / data.seq.num_average_rep][3];
 			float sa_m0_sig[data.seq.rep_num / data.seq.num_average_rep][3];
 
-			ode_bloch_simulation3(&data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// ODE simulation
-// 			matrix_bloch_simulation(&data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// OBS simulation, does not work with hard-pulses!
+			if (ode)
+				ode_bloch_simulation3(&data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// ODE simulation
+			else
+				matrix_bloch_simulation(&data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// OBS simulation, does not work with hard-pulses!
 
 			for (int t = 0; t < dims[TE_DIM]; t++) 
 				basis_functions[j * dims[TE_DIM] + t] = mxy_sig[t][1] + mxy_sig[t][0] * I;
