@@ -44,6 +44,7 @@ const struct simdata_seq simdata_seq_defaults = {
 	.num_average_rep = 1,
 	.run_num = 1,
 	.inversion_pulse_length = 0.01,
+	.prep_pulse_length = 0.001,
 	
 	.slice_profile = NULL,
 	.variable_fa = NULL,
@@ -384,8 +385,8 @@ void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*s
 					prep_data.pulse.flipangle = data->pulse.flipangle / 2.;
 
 				prep_data.pulse.phase = M_PI;
-				prep_data.seq.te = data->pulse.rf_end; //data->seq.tr / 2.;
-				prep_data.seq.tr = data->pulse.rf_end; //data->seq.tr / 2.;
+				prep_data.seq.te = data->seq.prep_pulse_length;
+				prep_data.seq.tr = data->seq.prep_pulse_length;
 
 				create_sim_block(&prep_data);
 

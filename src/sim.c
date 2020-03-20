@@ -148,6 +148,9 @@ int main_sim(int argc, char* argv[])
 
 	num_init();
 
+	// Preparation for realistic sequence simulation
+	sim_data.seq.prep_pulse_length = sim_data.seq.tr/2.;
+
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 	dims[TE_DIM] = sim_data.seq.rep_num;
 	dims[COEFF_DIM] = nbf;

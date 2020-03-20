@@ -27,6 +27,7 @@ struct simdata_seq {
 	int num_average_rep;
 	int run_num; /* Number of applied sequence trains*/
 	float inversion_pulse_length;
+	float prep_pulse_length;
 	
 	complex float* slice_profile;
 	complex float* variable_fa;

@@ -31,6 +31,7 @@ struct modBlochFit {
 	float fa;
 	int runs; /*Number of applied sequence trains*/
 	float inversion_pulse_length;
+	float prep_pulse_length;
 	
 	/*Reconstruction Parameter*/
 	float scale[3];

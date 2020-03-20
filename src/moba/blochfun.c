@@ -262,6 +262,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				sim_data.seq.num_average_rep = data->fitParameter.averaged_spokes;
 				sim_data.seq.run_num = data->fitParameter.runs;
 				sim_data.seq.inversion_pulse_length = data->fitParameter.inversion_pulse_length;
+				sim_data.seq.prep_pulse_length = data->fitParameter.prep_pulse_length;
 				
 				sim_data.voxel = simdata_voxel_defaults;
 				sim_data.voxel.r1 = crealf(r1scale[spa_ind]);
@@ -573,6 +574,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->fitParameter.rm_no_echo = fit_para->rm_no_echo;
 	data->fitParameter.full_ode_sim = fit_para->full_ode_sim;
 	data->fitParameter.inversion_pulse_length = fit_para->inversion_pulse_length;
+	data->fitParameter.prep_pulse_length = fit_para->prep_pulse_length;
 	data->use_gpu = use_gpu;
 	
 	data->counter = 0;
