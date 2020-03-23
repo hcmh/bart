@@ -81,7 +81,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
 	
-	if (DP_DEBUG3 <= debug_level) {
+	if (DP_DEBUG2 <= debug_level) {
 		
 		char name[255] = {'\0'};
 		
