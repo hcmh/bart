@@ -1,30 +1,26 @@
 
-tests/test-mdb-bloch: phantom creal saxpy conj threshold ones fmac cabs join copy bloch fft modbloch slice avg show repmat nrmse
-	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)												;\
-	$(TOOLDIR)/phantom -x 24 -T map.ra													;\
-	$(TOOLDIR)/creal map.ra t1.ra														;\
-	$(TOOLDIR)/saxpy -- -1 map.ra t1.ra tmp1.ra												;\
-	$(TOOLDIR)/conj tmp1.ra t2.ra														;\
-	$(TOOLDIR)/threshold -B 0.01 t1.ra mask.ra												;\
-	$(TOOLDIR)/ones 16 24 24 1 1 1 1 1 1 1 1 1 1 1 1 1 1 tmp_m0.ra										;\
-	$(TOOLDIR)/fmac tmp_m0.ra mask.ra m0.ra													;\
-	$(TOOLDIR)/cabs t2.ra t2_conj.ra													;\
-	$(TOOLDIR)/join 6 t1.ra t2_conj.ra m0.ra ref.ra												;\
-	$(TOOLDIR)/ones 16 24 24 1 1 1 1000 1 1 1 1 1 1 1 1 1 1 psf.ra										;\
-	$(TOOLDIR)/copy m0.ra b1.ra														;\
-	$(TOOLDIR)/ones 16 10 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 slice_profile.ra									;\
-	$(TOOLDIR)/bloch -I t1.ra -i t2.ra -M m0.ra -s1 -f45 -p0.0009 -r1000 -a1 -O -t0.0045 -e0.00225 sig.ra sr1.ra sr2.ra sm0.ra		;\
-	$(TOOLDIR)/fft -u 7 sig.ra sig_ksp.ra													;\
-	$(TOOLDIR)/modbloch -t0.0045 -e0.00225 -R3 -i15 -F45 -f1 -a1 -w0.001 -r0 -O -I b1.ra -p psf.ra -P slice_profile.ra sig_ksp.ra reco.ra sens.ra	;\
-	$(TOOLDIR)/slice 6 2 reco.ra m0reco.ra													;\
-	$(TOOLDIR)/avg 7 m0reco.ra mean.ra													;\
-	$(TOOLDIR)/threshold -B 0.8171278 m0reco.ra tmp_mask.ra											;\
-	$(TOOLDIR)/repmat 6 3 tmp_mask.ra mask2.ra												;\
-	$(TOOLDIR)/fmac reco.ra mask2.ra reco_masked.ra												;\
-	$(TOOLDIR)/nrmse -t 0.01 ref.ra reco_masked.ra												;\
+tests/test-mdb-bloch: phantom sim fmac fft ones modbloch transpose slice mip scale nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	;\
+	$(TOOLDIR)/phantom -x 20 -T -b basis_geom.ra	;\
+	$(TOOLDIR)/sim -n 10 -V"3,1:0.877,0.048:1.140,0.06:1.404,0.06:0.866,0.095:1.159,0.108:1.456,0.122:0.883,0.129:1.166,0.150:1.442,0.163" -P 1:1:0.0045:0.00225:0.00001:45:1000 basis_simu.ra	;\
+	$(TOOLDIR)/fmac -s 64 basis_geom.ra basis_simu.ra image.ra	;\
+	$(TOOLDIR)/fft 3 image.ra k_space.ra	;\
+	$(TOOLDIR)/ones 16 1 20 20 1 1 1000 1 1 1 1 1 1 1 1 1 1 psf.ra	;\
+	$(TOOLDIR)/modbloch -t0.0045 -e0.00225 -R2 -f1 -s5000 -F45 -M1 -o0 -l1 -v0.00001 -b0.00001 -n0 -i15 -D0.00001 -a1 -w0 -r0 -p psf.ra k_space.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/transpose 6 7 basis_geom.ra mask.ra	;\
+	$(TOOLDIR)/fmac reco.ra mask.ra segments.ra		;\
+	$(TOOLDIR)/slice 6 0 7 1 segments.ra tube.ra	;\
+	$(TOOLDIR)/mip 7 tube.ra mean.ra				;\
+	$(TOOLDIR)/ones 1 1 ones.ra						;\
+	$(TOOLDIR)/scale -- 0.877 ones.ra ref.ra		;\
+	$(TOOLDIR)/nrmse -t 0.01 mean.ra ref.ra			;\
+	$(TOOLDIR)/slice 6 1 7 1 segments.ra tube.ra	;\
+	$(TOOLDIR)/mip 7 tube.ra mean.ra				;\
+	$(TOOLDIR)/scale -- 0.048 ones.ra ref.ra		;\
+	$(TOOLDIR)/nrmse -t 0.012 mean.ra ref.ra		;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
 
-#TESTS_SLOW += tests/test-mdb-bloch
+TESTS += tests/test-mdb-bloch
 
