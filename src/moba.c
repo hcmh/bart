@@ -111,7 +111,7 @@ int main_moba(int argc, char* argv[])
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[3], DIMS, img_dims);
-	complex float* single_map = create_cfl("", DIMS, single_map_dims);
+	complex float* single_map = create_cfl("single_map", DIMS, single_map_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, dims);
