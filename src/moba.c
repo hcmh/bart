@@ -111,7 +111,7 @@ int main_moba(int argc, char* argv[])
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[3], DIMS, img_dims);
-	complex float* single_map = md_alloc(DIMS, single_map_dims, CFL_SIZE);
+	complex float* single_map = anon_cfl("", DIMS, single_map_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, dims);
@@ -224,11 +224,11 @@ int main_moba(int argc, char* argv[])
 
 	md_free(norm);
 	md_free(mask);
-	md_free(single_map);
 
 	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_dims, img);
+        unmap_cfl(DIMS, single_map_dims, single_map);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
 	unmap_cfl(DIMS, TI_dims, TI);
 
