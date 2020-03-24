@@ -216,7 +216,6 @@ MODULES_ssa = -lcalib -lmanifold
 MODULES_laplace = -lmanifold
 MODULES_kmeans = -lmanifold
 MODULES_tgv = -liter -llinops
-MODULES_moba = -lmoba
 MODULES_mdbT2 = -lmoba
 MODULES_bloch = -lsimu
 MODULES_modbloch = -lmoba -lnoir -lnlops -llinops -lsimu -lwavelet -liter
