@@ -72,7 +72,7 @@ tests/test-mdb-t1: phantom sim fmac fft ones index scale moba looklocker transpo
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-mb-t1-traj: traj phantom sim fmac nufft fft ones index scale moba looklocker resize transpose slice mip scale nrmse
+tests/test-mdb-t1-traj: traj phantom sim fmac nufft fft ones index scale moba looklocker resize transpose slice mip scale nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
 	$(TOOLDIR)/traj -x32 -y1 -r -D -G -s7 -t1000 _traj.ra   		;\
 	$(TOOLDIR)/transpose 5 10 _traj.ra _traj2.ra   				;\
