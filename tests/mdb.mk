@@ -51,7 +51,7 @@ tests/test-mdb-bloch-traj: phantom sim fmac fft ones modbloch transpose slice mi
 	touch $@
 
 
-tests/test-moba-t1: phantom sim fmac fft ones index scale moba looklocker transpose slice mip scale nrmse
+tests/test-mdb-t1: phantom sim fmac fft ones index scale moba looklocker transpose slice mip scale nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	                	;\
 	$(TOOLDIR)/phantom -x 32 -T -b basis_geom.ra                    	;\
 	$(TOOLDIR)/sim -n 10 -V"3,1:0.877,0.048:1.140,0.06:1.404,0.06:0.866,0.095:1.159,0.108:1.456,0.122:0.883,0.129:1.166,0.150:1.442,0.163" -P 1:5:0.0045:0.00225:0.00001:6:1000 basis_simu.ra  ;\
@@ -72,7 +72,7 @@ tests/test-moba-t1: phantom sim fmac fft ones index scale moba looklocker transp
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-moba-t1-traj: traj phantom sim fmac nufft fft ones index scale moba looklocker resize transpose slice mip scale nrmse
+tests/test-mb-t1-traj: traj phantom sim fmac nufft fft ones index scale moba looklocker resize transpose slice mip scale nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
 	$(TOOLDIR)/traj -x32 -y1 -r -D -G -s7 -t1000 _traj.ra   		;\
 	$(TOOLDIR)/transpose 5 10 _traj.ra _traj2.ra   				;\
@@ -101,7 +101,7 @@ tests/test-moba-t1-traj: traj phantom sim fmac nufft fft ones index scale moba l
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-TESTS += tests/test-mdb-bloch tests/test-moba-t1 tests/test-moba-t1-traj
+TESTS += tests/test-mdb-bloch tests/test-mdb-t1 tests/test-mdb-t1-traj
 
 
 
