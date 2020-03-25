@@ -133,7 +133,9 @@ int main_moba(int argc, char* argv[])
 
 		md_copy(DIMS, pat_dims, pattern, tmp_psf, CFL_SIZE);
 		unmap_cfl(DIMS, pat_dims, tmp_psf);
-		// FIXME: check compatibility
+
+		if (0 == md_check_compat(DIMS, 0u, ksp_dims, pat_dims))
+			error("pattern not compatible with kspace dimensions\n");
 
 		if (-1 == restrict_fov)
 			restrict_fov = 0.5;
