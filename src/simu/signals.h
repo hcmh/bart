@@ -1,4 +1,5 @@
 
+#include <complex.h>
 
 struct signal_model {
 	

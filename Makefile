@@ -166,7 +166,7 @@ TRECO=pics pocsense sqpics itsense nlinv T1fun moba mdbT2 modbloch pixel nufft r
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten ssa bin cordelay laplace kmeans rmfreq
 TMRI=homodyne poisson twixread fakeksp umgread looklocker paradiseread phasediff dixon
 TIO=toimg dcmread dcmtag
-TSIM=phantom phantom_json traj upat bloch sim tbasis
+TSIM=phantom phantom_json traj upat bloch sim tbasis signal
 TNN=mnist
 
 
@@ -221,6 +221,7 @@ MODULES_bloch = -lsimu
 MODULES_modbloch = -lmoba -lnoir -lnlops -llinops -lsimu -lwavelet -liter
 MODULES_sim = -lsimu
 MODULES_rtnlinv = -lnoncart -lnoir -lnlops -liter -llinops
+MODULES_signal = -lsimu
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
