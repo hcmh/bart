@@ -46,11 +46,13 @@ struct opt_subopt_s {
 };
 
 struct idx_s {
+
 	unsigned int dim;
 	unsigned int idx;
 };
 
 struct opt_idx_s {
+
 	struct idx_s idxs[16];
 	unsigned int r;
 };
