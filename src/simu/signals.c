@@ -88,6 +88,7 @@ const struct signal_model signal_looklocker_defaults = {
 	.m0 = 1.,
 	.tr = 0.0041,
 	.fa = 8. * M_PI / 180.,
+        .ir = true,
 };
 
 static float signal_looklocker(const struct signal_model* data, int ind)
@@ -96,12 +97,13 @@ static float signal_looklocker(const struct signal_model* data, int ind)
 	float t1 = data->t1;
 	float m0 = data->m0;
 	float tr = data->tr;
+        bool  ir = data->ir;
 
-	float s0 = m0;
+	float s0 = ir ? (-1) * m0 : m0;
 	float r1s = 1. / t1 - logf(cosf(fa)) / tr;
-	float mss = s0 / (t1 * r1s);
+	float mss = m0 / (t1 * r1s);
 
-	return mss - (mss + s0) * expf(-ind * tr * r1s);
+	return mss - (mss - s0) * expf(-ind * tr * r1s);
 }
 
 void looklocker_model(const struct signal_model* data, int N, complex float out[N])

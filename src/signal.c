@@ -61,8 +61,8 @@ int main_signal(int argc, char* argv[])
 
 	struct signal_model parm;
 
-	if (!IR)
-		error("only IR signal supported");
+	if ((!IR) && (BSSFP == seq))
+		error("only IR signal supported for bSSFP");
 
 	switch (seq) {
 
@@ -77,6 +77,8 @@ int main_signal(int argc, char* argv[])
 
 	if (-1. != TR)
 		parm.tr = TR;
+
+        parm.ir = IR;
 
 	// if (-1 != TE)
 	// 	parm.te = TE;
@@ -98,8 +100,6 @@ int main_signal(int argc, char* argv[])
 	do {
 		parm.t1 = T1[0] + (T1[1] - T1[0]) / T1[2] * (float)pos[COEFF_DIM];
 		parm.t2 = T2[0] + (T2[1] - T2[0]) / T2[2] * (float)pos[COEFF2_DIM];
-
-		assert(IR);
 
 		complex float out[N];
 

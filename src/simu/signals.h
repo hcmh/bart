@@ -1,5 +1,6 @@
 
 #include <complex.h>
+#include <stdbool.h>
 
 struct signal_model {
 	
@@ -9,6 +10,8 @@ struct signal_model {
 	float tr;
 	float fa;
 	float beta;
+        bool ir;
+
 };
 
 extern const struct signal_model signal_hsfp_defaults;
