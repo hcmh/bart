@@ -1,7 +1,7 @@
 
 
 
-tests/test-moba-t1: phantom signal fft ones index scale moba looklocker fmac scale nrmse 
+tests/test-moba-t1: phantom signal fft ones index scale moba looklocker fmac nrmse 
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
 	$(TOOLDIR)/phantom -x16 -c circ.ra 		                  		;\
 	$(TOOLDIR)/signal -I -F -r0.005 -n100 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
@@ -19,7 +19,25 @@ tests/test-moba-t1: phantom signal fft ones index scale moba looklocker fmac sca
 	touch $@
 
 
-tests/test-moba-t1-sms: phantom signal fft ones index scale moba looklocker fmac scale nrmse
+tests/test-moba-t1-magn: phantom signal fft ones index scale moba normalize slice fmac nrmse 
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
+	$(TOOLDIR)/phantom -x16 -c circ.ra 		                  		;\
+	$(TOOLDIR)/signal -I -F -r0.005 -n100 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
+	$(TOOLDIR)/fmac circ.ra signal.ra image.ra					;\
+	$(TOOLDIR)/fft 3 image.ra k_space.ra						;\
+	$(TOOLDIR)/ones 6 16 16 1 1 1 100 psf.ra					;\
+	$(TOOLDIR)/index 5 100 tmp1.ra   						;\
+	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                    	       		;\
+	$(TOOLDIR)/moba -L -i11 -f1 -C200 -p psf.ra k_space.ra TI.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/normalize 8 sens.ra norm.ra						;\
+	$(TOOLDIR)/slice 6 0 reco.ra magn.ra						;\
+	$(TOOLDIR)/fmac magn.ra norm.ra reco2.ra		    			;\
+	$(TOOLDIR)/nrmse -s -t 0.001 circ.ra reco2.ra			    		;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+
+tests/test-moba-t1-sms: phantom signal fft ones index scale moba looklocker fmac nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
 	$(TOOLDIR)/phantom -x16 circ.ra 		                  		;\
 	$(TOOLDIR)/repmat 13 3 circ.ra circ2.ra		                  		;\
@@ -58,5 +76,6 @@ tests/test-moba-t1-no-IR: phantom signal fft ones index scale moba looklocker fm
 
 
 TESTS += tests/test-moba-t1 tests/test-moba-t1-sms tests/test-moba-t1-no-IR
+TESTS += tests/test-moba-t1-magn
 
 
