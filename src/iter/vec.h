@@ -31,7 +31,7 @@ struct vec_iter_s {
 	void (*sdiv)(long N, float* a, float x, const float* y);
 
 	void (*zmul)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2);
- 	void (*zsmax)(long N, _Complex float val, _Complex float* dst, const _Complex float* src1);
+	void (*zsmax)(long N, float val, _Complex float* dst, const _Complex float* src1);
 };
 
 #ifdef USE_CUDA
