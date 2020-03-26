@@ -22,6 +22,7 @@
 
 #include <math.h>
 
+#include "misc/debug.h"
 #include "misc/misc.h"
 #include "misc/mmio.h"
 #include "misc/opts.h"
@@ -47,7 +48,7 @@
 
 
 
-static const char usage_str[] = "<trajectory> <data> [<b0>]";
+static const char usage_str[] = "<trajectory> <data> [<b0> or <qf>]";
 static const char help_str[] = "Estimate gradient delays from radial data.";
 
 
@@ -131,7 +132,9 @@ int main_estdelay(int argc, char* argv[])
 	assert(dims[1] == tdims[1]);
 	assert(dims[2] == tdims[2]);
 
-	float qf[3];	// S in RING
+	enum { NC = 3 };
+
+	float qf[NC];	// S in RING
 
 	if (do_ac_adaptive) {
 
@@ -214,6 +217,23 @@ int main_estdelay(int argc, char* argv[])
 
 		md_free(dc);
 		unmap_cfl(2, b0_dims, b0);
+	}
+
+	if ((do_ac_adaptive || do_ring) && (NULL != argv[3])) {
+
+		long qf_dims[DIMS];
+		md_singleton_dims(DIMS, qf_dims);
+		qf_dims[0] = NC;
+
+		complex float *pqf = calloc(NC, sizeof(complex float));
+		for (int i = 0; i < NC; i++)
+			pqf[i] = qf[i] + 0. * I;
+
+		complex float* oqf = create_cfl(argv[3], DIMS, qf_dims);
+		md_copy(DIMS, qf_dims, oqf, pqf, sizeof(complex float));
+
+		unmap_cfl(DIMS, qf_dims, oqf);
+		xfree(pqf);
 	}
 
 	unmap_cfl(DIMS, full_dims, full_in);

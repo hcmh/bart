@@ -22,5 +22,5 @@ extern void meco_forw_fB0(const struct linop_s* op, complex float* dst, const co
 extern void meco_back_fB0(const struct linop_s* op, complex float* dst, const complex float* src);
 
 
-extern struct nlop_s* nlop_meco_create(const int N, const long y_dims[N], const long x_dims[N], const complex float* TE, unsigned int sel_model, bool use_gpu);
+extern struct nlop_s* nlop_meco_create(const int N, const long y_dims[N], const long x_dims[N], const complex float* TE, unsigned int sel_model, _Bool use_gpu);
 

@@ -30,9 +30,8 @@
 #include "moba/model_Bloch.h"
 #include "moba/blochfun.h"
 #include "moba/T1relax.h"
+#include "moba/meco.h"
 //#include "moba/T1srelax.h"
-
-
 
 #include "utest.h"
 
@@ -199,6 +198,7 @@ UT_REGISTER_TEST(test_nlop_T1relax_der_adj);
 
 
 
+
 static bool test_nlop_Blochfun(void) 
 {
 	enum { N = 16 };
@@ -231,6 +231,8 @@ static bool test_nlop_Blochfun(void)
 }
 
 UT_REGISTER_TEST(test_nlop_Blochfun);
+
+
 
 static bool test_T1relax_link1(void)
 {
@@ -402,6 +404,43 @@ UT_REGISTER_TEST(test_nlop_T1relax_comb_der_adj);
 
 
 
+static bool test_nlop_meco(void) 
+{
+	/* 
+	 * please don't use any real constraint on R2* and fB0 maps 
+	 * when making utest
+	 */
+	enum { N = 16 };
+	enum { NECO = 3 };
 
+	for (int m = 0; m < 4; m++) {
 
+		long NCOEFF = set_num_of_coeff(m);
+
+		long y_dims[N]		= { 16, 16, 1, 1, 1, NECO,      1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+		long x_dims[N]		= { 16, 16, 1, 1, 1,    1, NCOEFF, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+		complex float* dst = md_alloc(N, y_dims, CFL_SIZE);
+		complex float* src = md_alloc(N, x_dims, CFL_SIZE);
+
+		complex float TE[NECO] = { 1.26 + I*0., 2.66, 3.69 };
+
+		md_zfill(N, x_dims, src, 1.0);
+
+		struct nlop_s* meco = nlop_meco_create(N, y_dims, x_dims, TE, m, false);
+
+		nlop_apply(meco, N, y_dims, dst, N, x_dims, src);
+		
+		float err = linop_test_adjoint(nlop_get_derivative(meco, 0, 0));
+
+		nlop_free(meco);
+
+		md_free(src);
+		md_free(dst);
+
+		UT_ASSERT(err < 1.E-3);
+	}
+}
+
+UT_REGISTER_TEST(test_nlop_meco);
 

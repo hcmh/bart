@@ -37,6 +37,7 @@ extern void cuda_zexp(long N, _Complex float* dst, const _Complex float* src);
 extern void cuda_zlog(long N, _Complex float* dst, const _Complex float* src);
 extern void cuda_zarg(long N, _Complex float* dst, const _Complex float* src);
 extern void cuda_zabs(long N, _Complex float* dst, const _Complex float* src);
+extern void cuda_zatanr(long N, _Complex float* dst, const _Complex float* src);
 extern void cuda_zsoftthresh_half(long N, float lambda, _Complex float* d, const _Complex float* x);
 extern void cuda_zsoftthresh(long N, float lambda, _Complex float* d, const _Complex float* x);
 extern void cuda_softthresh_half(long N, float lambda, float* d, const float* x);

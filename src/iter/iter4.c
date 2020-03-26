@@ -93,7 +93,7 @@ static void inverse(iter_op_data* _data, float alpha, float* dst, const float* s
 
 	md_clear(1, MD_DIMS(data->size), dst, FL_SIZE);
 
-        float eps = data->cgtol * md_norm(1, MD_DIMS(data->size), src);
+	float eps = data->cgtol * md_norm(1, MD_DIMS(data->size), src);
 
 
 	/* The original (Matlab) nlinv implementation uses
@@ -101,8 +101,10 @@ static void inverse(iter_op_data* _data, float alpha, float* dst, const float* s
 	 */
 	if (data->nlinv_legacy)
 		eps = powf(eps, 2.);
+	else 
+		eps = -1.;
 
-        conjgrad(data->cgiter, alpha, eps, data->size, select_vecops(src),
+	conjgrad(data->cgiter, alpha, eps, data->size, select_vecops(src),
 			(struct iter_op_s){ normal, CAST_UP(data) }, dst, src, NULL);
 }
 
@@ -218,7 +220,7 @@ void iter4_irgnm2(const iter3_conf* _conf,
 
 	struct iter_op_p_s inv2 = { inverse2, CAST_UP(&data2) };
 
-	irgnm2(conf->iter, conf->alpha, conf->alpha_min, 0., conf->redu, N, M, select_vecops(src),
+	irgnm2(conf->iter, conf->alpha, 0., conf->alpha_min, conf->redu, N, M, select_vecops(src),
 		frw, der, (NULL == lsqr) ? inv2 : OPERATOR_P2ITOP(lsqr),
 		dst, ref, src, cb, NULL);
 

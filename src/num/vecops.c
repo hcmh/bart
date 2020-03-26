@@ -360,6 +360,12 @@ static void zabs(long N, complex float* dst, const complex float* src)
 		dst[i] = cabsf(src[i]);
 }
 
+static void zatanr(long N, complex float* dst, const complex float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = atan(crealf(src[i])) + 0.I;
+}
+
 static void zsin(long N, complex float* dst, const complex float* src)
 {
 	for (long i = 0; i < N; i++)
@@ -371,6 +377,7 @@ static void zcos(long N, complex float* dst, const complex float* src)
 	for (long i = 0; i < N; i++)
 		dst[i] = ccosf(src[i]);
 }
+
 
 static void zmax(long N, complex float* dst, const complex float* src1, const complex float* src2)
 {
@@ -767,6 +774,7 @@ const struct vec_ops cpu_ops = {
 	.zlog = zlog,
 	.zarg = zarg,
 	.zabs = zabs,
+	.zatanr = zatanr,
 
 	.zsin = zsin,
 	.zcos = zcos,

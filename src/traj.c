@@ -54,6 +54,7 @@ int main_traj(int argc, char* argv[])
 	long z_usamp[2] = { 0, 1 }; // { reference Lines, acceleration }
 
 	const char* custom_angle = NULL;
+	const char* custom_gdelays = NULL;
 
 
 	const struct opt_s opts[] = {
@@ -83,6 +84,7 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('E', &conf.mems_traj, "multi-echo multi-spoke trajectory"),
 		OPT_VEC2('z', &z_usamp, "Ref:Acel", "Undersampling in z-direction."),
 		OPT_STRING('C', &custom_angle, "file", "custom_angle file [phi + i * psi]"),
+		OPT_STRING('V', &custom_gdelays, "file", "custom_gdelays"),
 		OPT_STRING('p', &pat_file, "file", "Pattern"),
 		OPT_SET('T', &conf.sms_turns, "(Modified SMS Turn Scheme)"),
 	};
@@ -206,6 +208,12 @@ int main_traj(int argc, char* argv[])
 	}
 
 
+
+	long gdims[DIMS] = { 0 };
+	complex float* custom_gdelays_val = (NULL!=custom_gdelays) ? load_cfl(custom_gdelays, DIMS, gdims) : NULL;
+
+
+
 	complex float* samples = create_cfl(argv[1], DIMS, dims);
 
 	md_clear(DIMS, dims, samples, CFL_SIZE);
@@ -231,10 +239,15 @@ int main_traj(int argc, char* argv[])
 			 * for symmetric trajectory [DC between between sample no. X/2-1 and X/2, zero-based indexing]
 			 * or asymmetric trajectory [DC component at sample no. X/2, zero-based indexing]
 			 */
-			double read = (float)i + (conf.asym_traj ? 0 : 0.5) - (float)X / 2.;
+			double read = (float)(i + D - X) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
 
-			if (conf.mems_traj)
-				read = ((e % 2) ? (float)(D - i - 2) : (float)(i + D - X)) - (float)D / 2.;
+			if (conf.mems_traj) {
+				// read = ((e % 2) ? (float)(D - i - 2) : (float)(i + D - X)) - (float)D / 2.;
+				if (e % 2) // even
+					read = (float)(D - i - 2) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
+				else // odd
+					read = (float)(i + D - X) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
+			}
 
 			if (conf.golden_partition) {
 
@@ -272,6 +285,15 @@ int main_traj(int argc, char* argv[])
 				angle = creal(custom_angle_val[j]);
 
 
+			if (NULL != custom_gdelays) {
+
+				long eind = e * 3;
+
+				for (int qind = 0; qind < 3; qind++) {
+					gdelays[0][qind] = creal(custom_gdelays_val[eind+qind]);
+				}
+			}
+
 			float d[3] = { 0., 0., 0 };
 			gradient_delay(d, gdelays, angle, angle2);
 
@@ -307,6 +329,10 @@ int main_traj(int argc, char* argv[])
 	} while(md_next(DIMS, dims, ~1L, pos));
 
 	assert(p == N - 0);
+
+	if (NULL != custom_gdelays)
+		unmap_cfl(DIMS, gdims, custom_gdelays_val);
+
 
 	if (NULL != custom_angle_val)
 		unmap_cfl(3, sdims, custom_angle_val);

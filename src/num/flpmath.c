@@ -3562,6 +3562,29 @@ void md_zabs(unsigned int D, const long dims[D], complex float* optr, const comp
 }
 
 
+/**
+ * Calculate arc tangent of real part.
+ *
+ */
+void md_zatanr2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr,
+		const long istr[D], const complex float* iptr)
+{
+	MAKE_Z2OP(zatanr, D, dims, ostr, optr, istr, iptr);
+}
+
+
+
+/**
+ * Calculate arc tangent of real part.
+ *
+ */
+void md_zatanr(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr)
+{
+	make_z2op_simple(md_zatanr2, D, dims, optr, iptr);
+}
+
+
+
 
 /**
  * Calculate sum of absolute values.

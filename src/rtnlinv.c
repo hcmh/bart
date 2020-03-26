@@ -351,7 +351,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 		fftuc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
 
-#if 0
+#if 1
 		if (frames > turns) {
 
 			// For turn-based reconstructions we use the conventional scaling

@@ -390,6 +390,7 @@ const struct vec_ops gpu_ops = {
 	.zlog = cuda_zlog,
 	.zarg = cuda_zarg,
 	.zabs = cuda_zabs,
+	.zatanr = cuda_zatanr,
 
 	.zcmp = cuda_zcmp,
 	.zdiv_reg = cuda_zdiv_reg,

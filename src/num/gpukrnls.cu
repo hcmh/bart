@@ -590,6 +590,22 @@ extern "C" void cuda_zabs(long N, _Complex float* dst, const _Complex float* src
 }
 
 
+__global__ void kern_zatanr(int N, cuFloatComplex* dst, const cuFloatComplex* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = make_cuFloatComplex(atan(cuCrealf(src[i])), 0.);
+}
+
+extern "C" void cuda_zatanr(long N, _Complex float* dst, const _Complex float* src)
+{
+	kern_zatanr<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
+}
+
+
+
 /**
  * (GPU) Step (1) of soft thesholding, y = ST(x, lambda).
  * Only computes the residual, resid = MAX( (abs(x) - lambda)/abs(x)), 0 )
