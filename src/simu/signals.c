@@ -158,12 +158,13 @@ const struct signal_model signal_multi_grad_echo_defaults = {
 	.m0_water = .80,
 	.m0_fat = .20,
 	.t2star = .03, // s
-	.delta_b0 = 100, // Hz
+	.off_reson = 100, // Hz
 	.te = 3. * 1.E-3, // s
+	.b0 = 3., // Tesla
 };
 
 
-static complex float calc_fat_modulation(float delta_b0, float TE)
+static complex float calc_fat_modulation(float b0, float TE)
 {
 	enum { FATPEAKS = 6 };
 	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60 };
@@ -173,7 +174,7 @@ static complex float calc_fat_modulation(float delta_b0, float TE)
 
 	for (int pind = 0; pind < FATPEAKS; pind++) {
 
-		complex float phs = 2.i * M_PI * GYRO * delta_b0 * ppm[pind] * TE;
+		complex float phs = 2.i * M_PI * GYRO * b0 * ppm[pind] * TE;
 		out += amp[pind] * cexpf(phs);
 	}
 
@@ -187,12 +188,12 @@ static complex float signal_multi_grad_echo(const struct signal_model* data, int
 
 	float TE = data->te * ind;
 
-	complex float cshift = calc_fat_modulation(data->delta_b0, TE);
+	complex float cshift = calc_fat_modulation(data->b0, TE);
 
 	float W = data->m0_water;
 	float F = data->m0_fat;
 
-	complex float z = -1. / data->t2star + 2.i * M_PI * data->delta_b0;
+	complex float z = -1. / data->t2star + 2.i * M_PI * data->off_reson;
 
 	return (W + F * cshift) * cexpf(z * TE);
 }

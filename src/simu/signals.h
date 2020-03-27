@@ -12,7 +12,8 @@ struct signal_model {
 	float t2star;
 	float te;
 	float tr;
-	float delta_b0;
+	float b0;
+	float off_reson;
 	float fa;
 	float beta;
 	bool ir;
