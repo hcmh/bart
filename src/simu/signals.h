@@ -34,6 +34,6 @@ extern const struct signal_model signal_IR_bSSFP_defaults;
 extern void IR_bSSFP_model(const struct signal_model* data, int N, complex float out[N]);
 
 
-extern const struct signal_model signal_multi_grad_echo_defaults;
+// extern const struct signal_model signal_multi_grad_echo_defaults;
 
-extern void multi_grad_echo_model(const struct signal_model* data, int N, float TE[N], complex float out[N]);
+// extern void multi_grad_echo_model(const struct signal_model* data, int N, float TE[N], complex float out[N]);

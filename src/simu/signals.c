@@ -8,7 +8,7 @@
 
 #include "misc/misc.h"
 
-#include "moba/meco.h"
+// #include "moba/meco.h"
 
 #include "signals.h"
 
@@ -152,35 +152,35 @@ void IR_bSSFP_model(const struct signal_model* data, int N, complex float out[N]
 /*
  * multi gradient echo model (WFR2S)
  */
-const struct signal_model signal_multi_grad_echo_defaults = {
+// const struct signal_model signal_multi_grad_echo_defaults = {
 
-	.m0 = 1.,
-	.m0_water = .80,
-	.m0_fat = .20,
-	.t2star = .03, // sec
-	.delta_b0 = 100, // Hz
-	.te = 3., // ms
-};
+// 	.m0 = 1.,
+// 	.m0_water = .80,
+// 	.m0_fat = .20,
+// 	.t2star = .03, // sec
+// 	.delta_b0 = 100, // Hz
+// 	.te = 3., // ms
+// };
 
-static complex float signal_multi_grad_echo(const struct signal_model* data, float TEi)
-{
-	// assert(data->m0 == (data->m0_water + data->m0_fat));
+// static complex float signal_multi_grad_echo(const struct signal_model* data, float TEi)
+// {
+// 	// assert(data->m0 == (data->m0_water + data->m0_fat));
 
-	long dims_TE[1] = { 1 };
-	complex float TE[1] = { TEi + 0.*I };
+// 	long dims_TE[1] = { 1 };
+// 	complex float TE[1] = { TEi + 0.*I };
 
-	complex float cshift[1];
-	meco_calc_fat_modu(1, dims_TE, TE, cshift);
+// 	complex float cshift[1];
+// 	meco_calc_fat_modu(1, dims_TE, TE, cshift);
 
-	complex float W = data->m0_water + I * 0.;
-	complex float F = data->m0_fat + I * 0.;
-	complex float z = -1./data->t2star + I * 2.*M_PI * data->delta_b0;
+// 	complex float W = data->m0_water + I * 0.;
+// 	complex float F = data->m0_fat + I * 0.;
+// 	complex float z = -1./data->t2star + I * 2.*M_PI * data->delta_b0;
 
-	return (W + F * cshift[0]) * cexpf(z * TE[0] * 1.E-3);
-}
+// 	return (W + F * cshift[0]) * cexpf(z * TE[0] * 1.E-3);
+// }
 
-void multi_grad_echo_model(const struct signal_model* data, int N, float TE[N], complex float out[N])
-{
-	for (int ind = 0; ind < N; ind++)
-		out[ind] = signal_multi_grad_echo(data, TE[ind]);
-}
+// void multi_grad_echo_model(const struct signal_model* data, int N, float TE[N], complex float out[N])
+// {
+// 	for (int ind = 0; ind < N; ind++)
+// 		out[ind] = signal_multi_grad_echo(data, TE[ind]);
+// }
