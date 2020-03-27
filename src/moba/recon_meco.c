@@ -55,6 +55,7 @@ struct mecoinv_s {
 	const long* x_dims;
 
 	float alpha;
+	float step;
 
 	bool first_iter;
 	int outer_iter;
@@ -166,7 +167,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	double maxeigen = power(20, data->x_size, select_vecops(src), (struct iter_op_s){ normal_equ, CAST_UP(data) }, x);
 	md_free(x);
 
-	double step = data->conf->step / maxeigen;
+	double step = data->step / maxeigen;
 
 	if (WAV == data->regu)
 		wavthresh_rand_state_set(data->prox1, 1);
@@ -302,7 +303,7 @@ static const struct operator_p_s* mecoinv_p_create(const struct iter3_irgnm_conf
 	struct mecoinv_s idata = {
 
 		{ &TYPEID(mecoinv_s) }, sel_model, sel_regu, nlop_clone(nlop), conf,
-		N, M, ndims, 1.0, true, 0, prox1, prox2
+		N, M, ndims, 1.0, 1., true, 0, prox1, prox2
 	};
 
 	data->data = idata;
@@ -364,7 +365,7 @@ void meco_recon(const struct noir_conf_s* conf, unsigned int sel_model, unsigned
 	irgnm_conf.cgiter = 260;
 	irgnm_conf.cgtol = (sel_model == PI) ? 0.1 : 0.01; // 1./3.;
 	irgnm_conf.nlinv_legacy = (sel_model == PI) ? true : false;
-	irgnm_conf.step = 1.; // 0.9; // 0.475;
+	// irgnm_conf.step = 1.; // 0.9; // 0.475;
 
 
 	long x_dims[DIMS];
