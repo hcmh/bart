@@ -164,7 +164,7 @@ const struct signal_model signal_multi_grad_echo_defaults = {
 };
 
 
-static complex float calc_fat_modulation(float b0, float TE)
+complex float calc_fat_modulation(float b0, complex float TE)
 {
 	enum { FATPEAKS = 6 };
 	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60 };
@@ -186,7 +186,7 @@ static complex float signal_multi_grad_echo(const struct signal_model* data, int
 {
 	assert(data->m0 == data->m0_water + data->m0_fat);
 
-	float TE = data->te * ind;
+	complex float TE = data->te * ind + 0.i;
 
 	complex float cshift = calc_fat_modulation(data->b0, TE);
 

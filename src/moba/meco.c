@@ -76,14 +76,13 @@ long set_num_of_coeff(unsigned int sel_model)
 
 void meco_calc_fat_modu(unsigned int N, const long dims[N], const complex float* TE, complex float* dst)
 {
-	struct signal_model meco = signal_multi_grad_echo_defaults;
+	// struct signal_model meco = signal_multi_grad_echo_defaults;
 
 	md_clear(N, dims, dst, CFL_SIZE);
 
 	for (int eind = 0; eind < dims[TE_DIM]; eind++) {
 
-		meco.te = TE[eind] * 1.E-3; // ms -> s
-		multi_grad_echo_model(&meco, 1, &dst[eind]);
+		dst[eind] = calc_fat_modulation(3.0, TE[eind]);
 	}
 }
 
