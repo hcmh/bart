@@ -23,6 +23,7 @@ extern opt_conv_f opt_int;
 extern opt_conv_f opt_uint;
 extern opt_conv_f opt_long;
 extern opt_conv_f opt_float;
+extern opt_conv_f opt_cfloat;
 extern opt_conv_f opt_string;
 extern opt_conv_f opt_vec2;
 extern opt_conv_f opt_float_vec2;
@@ -76,6 +77,7 @@ typedef float opt_fvec3_t[3];
 #define OPT_INT(c, ptr, argname, descr)		OPT_ARG(c, opt_int, int, ptr, argname, descr)
 #define OPT_LONG(c, ptr, argname, descr)	OPT_ARG(c, opt_long, long, ptr, argname, descr)
 #define OPT_FLOAT(c, ptr, argname, descr)	OPT_ARG(c, opt_float, float, ptr, argname, descr)
+#define OPT_CFLOAT(c, ptr, argname, descr)	OPT_ARG(c, opt_cfloat, complex float, ptr, argname, descr)
 #define OPT_VEC2(c, ptr, argname, descr)	OPT_ARG(c, opt_vec2, opt_vec2_t, ptr, argname, descr)
 #define OPT_FLVEC2(c, ptr, argname, descr)	OPT_ARG(c, opt_float_vec2, opt_fvec2_t, ptr, argname, descr)
 #define OPT_VEC3(c, ptr, argname, descr)	OPT_ARG(c, opt_vec3, opt_vec3_t, ptr, argname, descr)

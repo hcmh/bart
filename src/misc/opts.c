@@ -18,13 +18,15 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <complex.h>
+
 
 #include "misc/misc.h"
 #include "misc/debug.h"
 
 #include "opts.h"
 
-enum OPT_ARG_TYPE { OPT_SPECIAL, OPT_SET, OPT_CLEAR, OPT_INT, OPT_UINT, OPT_LONG, OPT_FLOAT, OPT_STRING };
+enum OPT_ARG_TYPE { OPT_SPECIAL, OPT_SET, OPT_CLEAR, OPT_INT, OPT_UINT, OPT_LONG, OPT_FLOAT, OPT_CFLOAT, OPT_STRING };
 
 static const char* opt_arg_types[] = { " ...", "", "", " d", " d", " d", " f", " <string>" };
 
@@ -47,6 +49,9 @@ static enum OPT_ARG_TYPE opt_arg_type(opt_conv_f fun)
 
 	if (opt_float == fun)
 		return OPT_FLOAT;
+
+	if (opt_cfloat == fun)
+		return OPT_CFLOAT;
 
 	if (opt_string == fun)
 		return OPT_STRING;
@@ -265,6 +270,13 @@ bool opt_float(void* ptr, char c, const char* optarg)
 {
 	UNUSED(c);
 	*(float*)ptr = atof(optarg);
+	return false;
+}
+
+bool opt_cfloat(void* ptr, char c, const char* optarg)
+{
+	UNUSED(c);
+	parse_cfl((complex float*)ptr, optarg);
 	return false;
 }
 
