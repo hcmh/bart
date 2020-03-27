@@ -12,6 +12,8 @@
 #include "num/flpmath.h"
 #include "num/multind.h"
 
+#include "simu/signals.h"
+
 #include "linops/linop.h"
 #include "linops/someops.h"
 
@@ -74,17 +76,15 @@ long set_num_of_coeff(unsigned int sel_model)
 
 void meco_calc_fat_modu(unsigned int N, const long dims[N], const complex float* TE, complex float* dst)
 {
-	float ppm[FATPEAKS] = {-3.80, -3.40, -2.60, -1.94, -0.39, +0.60};
-	float amp[FATPEAKS] = {0.087, 0.693, 0.128, 0.004, 0.039, 0.048};
-	float b0field = 3.0;
+	struct signal_model meco = signal_multi_grad_echo_defaults;
+	meco.delta_b0 = 3.0;
 
 	md_clear(N, dims, dst, CFL_SIZE);
 
 	for (int eind = 0; eind < dims[TE_DIM]; eind++) {
-		for (int pind = 0; pind < FATPEAKS; pind++) {
-			complex float phs = 2.*M_PI*GYRO * b0field * ppm[pind] * TE[eind] * 0.001 * I;
-			dst[eind] += amp[pind] * cexpf(phs);
-		}
+
+		meco.te = TE[eind];
+		multi_grad_echo_model(&meco, 1, &dst[eind]);
 	}
 }
 
