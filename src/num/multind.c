@@ -1086,6 +1086,22 @@ void md_resize_center(unsigned int D, const long odim[D], void* optr, const long
 	md_copy_block(D, pos, odim, optr, idim, iptr, size);
 }
 
+/**
+ * Pad an array on both ends by val.
+ *
+ * optr = [val val iptr val val]
+ *
+ */
+void md_pad_center(unsigned int D, const void* val, const long odim[D], void* optr, const long idim[D], const void* iptr, size_t size)
+{
+
+	long pos[D];
+	for (unsigned int i = 0; i < D; i++)
+		pos[i] = labs((odim[i] / 2) - (idim[i] / 2));
+
+	md_fill(D, odim, optr, val, size);
+	md_copy_block(D, pos, odim, optr, idim, iptr, size);
+}
 
 
 /**
