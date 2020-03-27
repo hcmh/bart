@@ -1,14 +1,14 @@
-/* Copyright 2019. Uecker Lab. University Medical Center Göttingen.
+/* Copyright 2019-2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  */
 
 #include <complex.h>
 #include <math.h>
+#include <assert.h>
 
 #include "misc/misc.h"
-
-// #include "moba/meco.h"
+#include "misc/mri.h"
 
 #include "signals.h"
 
@@ -152,35 +152,56 @@ void IR_bSSFP_model(const struct signal_model* data, int N, complex float out[N]
 /*
  * multi gradient echo model (WFR2S)
  */
-// const struct signal_model signal_multi_grad_echo_defaults = {
+const struct signal_model signal_multi_grad_echo_defaults = {
 
-// 	.m0 = 1.,
-// 	.m0_water = .80,
-// 	.m0_fat = .20,
-// 	.t2star = .03, // sec
-// 	.delta_b0 = 100, // Hz
-// 	.te = 3., // ms
-// };
+	.m0 = 1.,
+	.m0_water = .80,
+	.m0_fat = .20,
+	.t2star = .03, // s
+	.delta_b0 = 100, // Hz
+	.te = 3. * 1.E-3, // s
+};
 
-// static complex float signal_multi_grad_echo(const struct signal_model* data, float TEi)
-// {
-// 	// assert(data->m0 == (data->m0_water + data->m0_fat));
 
-// 	long dims_TE[1] = { 1 };
-// 	complex float TE[1] = { TEi + 0.*I };
+static complex float calc_fat_modulation(float delta_b0, float TE)
+{
+	enum { FATPEAKS = 6 };
+	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60 };
+	float amp[FATPEAKS] = { 0.087, 0.693, 0.128, 0.004, 0.039, 0.048 };
 
-// 	complex float cshift[1];
-// 	meco_calc_fat_modu(1, dims_TE, TE, cshift);
+	complex float out = 0.;
 
-// 	complex float W = data->m0_water + I * 0.;
-// 	complex float F = data->m0_fat + I * 0.;
-// 	complex float z = -1./data->t2star + I * 2.*M_PI * data->delta_b0;
+	for (int pind = 0; pind < FATPEAKS; pind++) {
 
-// 	return (W + F * cshift[0]) * cexpf(z * TE[0] * 1.E-3);
-// }
+		complex float phs = 2.i * M_PI * GYRO * delta_b0 * ppm[pind] * TE;
+		out += amp[pind] * cexpf(phs);
+	}
 
-// void multi_grad_echo_model(const struct signal_model* data, int N, float TE[N], complex float out[N])
-// {
-// 	for (int ind = 0; ind < N; ind++)
-// 		out[ind] = signal_multi_grad_echo(data, TE[ind]);
-// }
+	return out;
+}
+
+
+static complex float signal_multi_grad_echo(const struct signal_model* data, int ind)
+{
+	assert(data->m0 == data->m0_water + data->m0_fat);
+
+	float TE = data->te * ind;
+
+	complex float cshift = calc_fat_modulation(data->delta_b0, TE);
+
+	float W = data->m0_water;
+	float F = data->m0_fat;
+
+	complex float z = -1. / data->t2star + 2.i * M_PI * data->delta_b0;
+
+	return (W + F * cshift) * cexpf(z * TE);
+}
+
+void multi_grad_echo_model(const struct signal_model* data, int N, complex float out[N])
+{
+	for (int ind = 0; ind < N; ind++)
+		out[ind] = signal_multi_grad_echo(data, ind);
+}
+
+
+
