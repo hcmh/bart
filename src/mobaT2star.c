@@ -66,28 +66,28 @@ static void init_maps(long N, long* maps_dims, long* maps_strs, complex float* m
 }
 
 
-static void edge_weight(const long dims[3], complex float* dst)
-{
-	unsigned int flags = 0;
+// static void edge_weight(const long dims[3], complex float* dst)
+// {
+// 	unsigned int flags = 0;
 
-	for (int i = 0; i < 3; i++)
-		if (1 != dims[i])
-			flags = MD_SET(flags, i);
+// 	for (int i = 0; i < 3; i++)
+// 		if (1 != dims[i])
+// 			flags = MD_SET(flags, i);
 
 
-	float beta = 100.;
+// 	float beta = 100.;
 
-	// FIXME: when dims[0] != dims[1]
-	klaplace(3, dims, flags, dst);
-	md_zspow(3, dims, dst, dst, 0.5);
+// 	// FIXME: when dims[0] != dims[1]
+// 	klaplace(3, dims, flags, dst);
+// 	md_zspow(3, dims, dst, dst, 0.5);
 
-	md_zsmul(3, dims, dst, dst, -beta*2);
-	md_zsadd(3, dims, dst, dst, beta);
+// 	md_zsmul(3, dims, dst, dst, -beta*2);
+// 	md_zsadd(3, dims, dst, dst, beta);
 
-	md_zatanr(3, dims, dst, dst);
-	md_zsmul(3, dims, dst, dst, -0.1/M_PI);
-	md_zsadd(3, dims, dst, dst, 0.05);
-}
+// 	md_zatanr(3, dims, dst, dst);
+// 	md_zsmul(3, dims, dst, dst, -0.1/M_PI);
+// 	md_zsadd(3, dims, dst, dst, 0.05);
+// }
 
 
 int main_mobaT2star(int argc, char* argv[])
@@ -114,6 +114,7 @@ int main_mobaT2star(int argc, char* argv[])
 	bool out_origin_maps = false;
 	bool out_sens = false;
 	bool use_gpu = false;
+	bool use_nufft = false;
 
 	const struct opt_s opts[] = {
 
@@ -132,7 +133,7 @@ int main_mobaT2star(int argc, char* argv[])
 		OPT_SET('O', &out_origin_maps, "Output original maps from reconstruction without post processing"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint [default: 0]"),
 		OPT_SET('g', &use_gpu, "Use gpu"),
-		OPT_SET('n', &conf.use_nufft, "Use nufft"),
+		OPT_SET('n', &/*conf.*/use_nufft, "Use nufft"),
 		OPT_STRING('I', &init_file, "init", "File for initialization"),
 		// OPT_STRING('p', &psf_file, "psf", "File for point spread function"),
 		OPT_STRING('t', &traj_file, "traj", "File for trajectory"),
@@ -250,7 +251,7 @@ int main_mobaT2star(int argc, char* argv[])
 
 	struct linop_s* nufft_op = NULL;
 
-	if ( !conf.use_nufft ) {
+	if ( !/*conf.*/use_nufft ) {
 
 		long ones_dims[DIMS];
 		md_copy_dims(DIMS, ones_dims, traj_dims);
