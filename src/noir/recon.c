@@ -68,7 +68,6 @@ const struct noir_conf_s noir_defaults = {
 	.iter = 8,
 	.rvc = false,
 	.noncart = false,
-	.use_nufft = false,
 	.alpha = 1.,
 	.alpha_min = 0.,
 	.redu = 2.,

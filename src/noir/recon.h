@@ -14,7 +14,6 @@ struct noir_conf_s {
 	unsigned int iter;
 	_Bool rvc;
 	_Bool noncart;
-	_Bool use_nufft;
 	float alpha;
 	float alpha_min;
 	float redu;
