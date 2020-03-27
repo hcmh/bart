@@ -223,6 +223,7 @@ MODULES_modbloch = -lmoba -lnoir -lnlops -llinops -lsimu -lwavelet -liter
 MODULES_sim = -lsimu
 MODULES_rtnlinv = -lnoncart -lnoir -lnlops -liter -llinops
 MODULES_signal = -lsimu
+MODULES_pad = -lnum
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
