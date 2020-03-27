@@ -166,8 +166,10 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 				regu ? trafos : NULL, 
 				NULL);
 
+	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
+	irgnm_conf.iter = 5;
 
-	iter4_irgnm2(CAST_UP(&iter3_irgnm_defaults), zexp,
+	iter4_irgnm2(CAST_UP(&irgnm_conf), zexp,
 		2 * md_calc_size(N, dims), (float*)src2, ref ? (const float*)src1 : NULL,
 		2 * md_calc_size(N, dims), (const float*)dst1, lsqr,
 		(struct iter_op_s){ NULL, NULL });
