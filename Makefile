@@ -178,6 +178,7 @@ MODULES_sqpics = -lsense -liter -llinops -lwavelet -llowrank -lnoncart
 MODULES_pocsense = -lsense -liter -llinops -lwavelet
 MODULES_nlinv = -lnoir -liter -lnlops -llinops
 MODULES_moba = -lmoba -lnoir -liter -lnlops -llinops -lwavelet
+MODULES_mobaT2star = -lmoba -lnoir -liter -lnlops -llinops -lwavelet -lsimu -lnoncart -llowrank
 MODULES_bpsense = -lsense -lnoncart -liter -llinops -lwavelet
 MODULES_itsense = -liter -llinops
 MODULES_ecalib = -lcalib
