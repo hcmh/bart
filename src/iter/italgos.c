@@ -336,7 +336,7 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 	float rsold = rsnot;
 	float rsnew = rsnot;
 
-	float eps_squared = (epsilon == -1.) ? -1. : pow(epsilon, 2.);
+	float eps_squared = pow(epsilon, 2.);
 
 
 	unsigned int i = 0;
@@ -346,9 +346,6 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 		debug_printf(DP_DEBUG3, "CG: early out\n");
 		goto cleanup;
 	}
-
-	float kappa = 1.0;
-	bool stop_criterion = false;
 
 	for (i = 0; i < maxiter; i++) {
 
@@ -375,11 +372,7 @@ float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 
 		rsold = rsnew;
 
-		kappa = 1. + beta * kappa;
-
-		stop_criterion = (eps_squared == -1.) ? (sqrt(rsnew/rsnot) <= sqrt(kappa) * l2lambda / 3.) : (rsnew <= eps_squared);
-
-		if (stop_criterion)
+		if (rsnew <= eps_squared)
 			break;
 
 		vops->xpay(N, beta, p, r);	// p = beta * p + r
