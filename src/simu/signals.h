@@ -16,7 +16,6 @@ struct signal_model {
 	float fa;
 	float beta;
 	bool ir;
-
 };
 
 extern const struct signal_model signal_hsfp_defaults;
