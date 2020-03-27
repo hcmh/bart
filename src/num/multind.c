@@ -1052,6 +1052,20 @@ void md_resize(unsigned int D, const long odim[D], void* optr, const long idim[D
 	md_copy_block(D, pos, odim, optr, idim, iptr, size);
 }
 
+/**
+ * Pad an array by val at the end.
+ *
+ * optr = [iptr val val val val]
+ *
+ */
+void md_pad(unsigned int D, const void* val, const long odim[D], void* optr, const long idim[D], const void* iptr, size_t size)
+{
+	long pos[D];
+	memset(pos, 0, D * sizeof(long));
+
+	md_fill(D, odim, optr, val, size);
+	md_copy_block(D, pos, odim, optr, idim, iptr, size);
+}
 
 /**
  * Resize an array by zero-padding or by truncation at both ends symmetrically.
