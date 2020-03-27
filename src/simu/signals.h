@@ -19,6 +19,12 @@ struct signal_model {
 	bool ir;
 };
 
+
+extern const struct signal_model signal_TSE_defaults;
+
+extern void TSE_model(const struct signal_model* data, int N, complex float out[N]);
+
+
 extern const struct signal_model signal_hsfp_defaults;
 
 extern void hsfp_simu(const struct signal_model* data, int N, const float pa[N], complex float out[N]);

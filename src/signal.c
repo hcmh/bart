@@ -33,7 +33,7 @@ int main_signal(int argc, char* argv[])
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 	dims[TE_DIM] = 100;
 
-	enum seq_type { BSSFP, FLASH };
+	enum seq_type { BSSFP, FLASH, TSE };
 	enum seq_type seq = FLASH;
 
 	bool IR = false;
@@ -48,6 +48,7 @@ int main_signal(int argc, char* argv[])
 
 		OPT_SELECT('F', enum seq_type, &seq, FLASH, "FLASH"),
 		OPT_SELECT('B', enum seq_type, &seq, BSSFP, "bSSFP"),
+		OPT_SELECT('T', enum seq_type, &seq, TSE, "TSE"),
 		OPT_SET('I', &IR, "inversion recovery"),
 		OPT_FLVEC3('1', &T1, "min:max:N", "range of T1s"),
 		OPT_FLVEC3('2', &T2, "min:max:N", "range of T2s"),
@@ -68,6 +69,7 @@ int main_signal(int argc, char* argv[])
 
 	case FLASH: parm = signal_looklocker_defaults; break;
 	case BSSFP: parm = signal_IR_bSSFP_defaults; break;
+	case TSE:   parm = signal_TSE_defaults; break;
 
 	default: error("sequence type not supported");
 	}
@@ -107,6 +109,7 @@ int main_signal(int argc, char* argv[])
 
 		case FLASH: looklocker_model(&parm, N, out); break;
 		case BSSFP: IR_bSSFP_model(&parm, N, out); break;
+		case TSE:   TSE_model(&parm, N, out); break;
 
 		default: assert(0);
 		}

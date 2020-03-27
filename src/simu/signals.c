@@ -12,6 +12,32 @@
 
 #include "signals.h"
 
+
+
+
+const struct signal_model signal_TSE_defaults = {
+
+	.t2 = 0.1,
+	.m0 = 1.,
+	.te = 0.01,
+};
+
+static float signal_TSE(const struct signal_model* data, int ind)
+{
+	float t2 = data->t2;
+	float m0 = data->m0;
+	float te = data->te;
+
+	return m0 * expf(-ind * te * t2);
+}
+
+void TSE_model(const struct signal_model* data, int N, complex float out[N])
+{
+	for (int ind = 0; ind < N; ind++)
+		out[ind] = signal_TSE(data, ind);
+}
+
+
 /*
  * Hybrid-state free precession in nuclear magnetic resonance. 
  * Jakob Assländer, Dmitry S. Novikov, Riccardo Lattanzi, Daniel K. Sodickson & Martijn A. Cloos.
