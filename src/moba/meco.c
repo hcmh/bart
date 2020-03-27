@@ -82,7 +82,7 @@ void meco_calc_fat_modu(unsigned int N, const long dims[N], const complex float*
 
 	for (int eind = 0; eind < dims[TE_DIM]; eind++) {
 
-		dst[eind] = calc_fat_modulation(3.0, TE[eind]);
+		dst[eind] = calc_fat_modulation(3.0, TE[eind] * 1.E-3);
 	}
 }
 
