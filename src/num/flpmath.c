@@ -1865,6 +1865,9 @@ static bool simple_zconvcorr_im2col_3D_CF_TI(unsigned int N, const long dims[N],
 
 static bool simple_zconvcorr_im2col(unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
 {
+	if (3 > N)
+		return false;
+
 	if ((1 < dims[0]) && (1 < dims[1]) && (1 < dims[2]) && (16 * 16 * 16 < dims[0] * dims[1] * dims[2]))
 		return false; //innermost multiplication is gemm matmul anyway
 
@@ -1897,6 +1900,9 @@ static bool simple_zconvcorr_direct_3D(unsigned int N, const long dims[N], const
 
 	if (0 != N % 2)
 		return false;
+	if (3 > N)
+		return false;
+
 
 	N = N / 2;
 
