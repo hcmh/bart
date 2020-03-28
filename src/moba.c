@@ -164,7 +164,7 @@ int main_moba(int argc, char* argv[])
 		md_copy(DIMS, grid_dims, k_grid_data, kspace_data, CFL_SIZE);
 		unmap_cfl(DIMS, ksp_dims, kspace_data);
 
-		if (0 == md_check_compat(DIMS, 8u, ksp_dims, pat_dims))
+		if (0 == md_check_compat(DIMS, COIL_FLAG, ksp_dims, pat_dims))
 			error("pattern not compatible with kspace dimensions\n");
 
 		if (-1 == restrict_fov)
