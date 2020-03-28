@@ -90,7 +90,7 @@ double Si_power(double x)
 //	arXiv:1407.7676
 //  		-> Appendix B: Efficient evaluation of the Sine and Cosine integrals
 
-
+#if 0
 // Look out! Mistake in algorithm or publication?!
 // TODO: Look up/contact authors...
 // for now powerseries is accurate enough for x < 4
@@ -117,6 +117,7 @@ static double Si_small_x(double x)
 
 	return x * num / denum;
 }
+#endif
 
 // helper function to calculate Si accurate for large arguments (> 4)
 static double Si_help_f(double x)
