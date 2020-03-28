@@ -1815,11 +1815,13 @@ const struct operator_s* operator_plus_create(const struct operator_s* a, const 
 
 	auto doma = operator_domain(a);
 	auto domb = operator_domain(b);
+
 	assert(iovec_check(doma, domb->N, domb->dims, domb->strs));
 	assert(doma->size == domb->size);
 
 	auto codoma = operator_codomain(a);
 	auto codomb = operator_codomain(b);
+
 	assert(iovec_check(codoma, codomb->N, codomb->dims, codomb->strs));
 	assert(codoma->size == codomb->size);
 	//endcheck compatibility
@@ -1831,9 +1833,9 @@ const struct operator_s* operator_plus_create(const struct operator_s* a, const 
 	c->b = operator_ref(b);
 
 	unsigned int io_flags = MD_BIT(0);
-	unsigned int D[] = {codoma->N, doma->N};
-	const long* dims[] = {codoma->dims, doma->dims};
-	const long* strs[] = {codoma->strs, doma->strs};
+	unsigned int D[] = { codoma->N, doma->N };
+	const long* dims[] = { codoma->dims, doma->dims };
+	const long* strs[] = { codoma->strs, doma->strs };
 
 	return operator_generic_create2(2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), plus_apply, plus_free);
 }
@@ -1923,7 +1925,7 @@ const struct operator_s* operator_chainN(unsigned int N, const struct operator_s
 	c->x = *PTR_PASS(xp);
 	c->N = N;
 
-	return operator_create2(operator_codomain(x[N-1])->N, operator_codomain(x[N-1])->dims, operator_codomain(x[N-1])->strs,
+	return operator_create2(operator_codomain(x[N - 1])->N, operator_codomain(x[N - 1])->dims, operator_codomain(x[N - 1])->strs,
 				operator_domain(x[0])->N, operator_domain(x[0])->dims, operator_domain(x[0])->strs,
 				CAST_UP(PTR_PASS(c)), chain_apply, chain_free);
 }
@@ -1943,30 +1945,41 @@ const struct operator_s* operator_chain(const struct operator_s* a, const struct
 	//Get array of operators in a
 	unsigned int Na = 1;
 	const struct operator_s** ops_a;
+
 	if (NULL != get_chain_data(a)) {
 
 		auto ad = get_chain_data(a);
+
 		Na = ad->N;
 		ops_a = ad->x;
-	} else
+
+	} else {
+
 		ops_a = &a;
+	}
 
 	//Get array of operators in b
 	unsigned int Nb = 1;
 	const struct operator_s** ops_b;
+
 	if (NULL != get_chain_data(b)) {
 
 		auto bd = get_chain_data(b);
+
 		Nb = bd->N;
 		ops_b = bd->x;
-	} else
+
+	} else {
+
 		ops_b = &b;
+	}
 
 	unsigned int N = Na + Nb;
 	const struct operator_s* ops[N];
 
 	for (unsigned int i = 0; i < Na; i++)
 		ops[i] = ops_a[i];
+
 	for (unsigned int i = 0; i < Nb; i++)
 		ops[i + Na] = ops_b[i];
 
@@ -1991,6 +2004,7 @@ static const struct operator_s* operator_chain_optimized(const struct operator_s
 			auto tmp = operator_reshape(ops_tmp[nN - 1], 0, operator_codomain(chain->x[i])->N, operator_codomain(chain->x[i])->dims);
 			operator_free(ops_tmp[nN - 1]);
 			ops_tmp[nN - 1] = tmp;
+
 		} else {
 
 			ops_tmp[nN] = operator_ref(chain->x[i]);
@@ -2146,6 +2160,7 @@ static bool check_start_plus(unsigned int N, const struct operator_s* op[N], com
 			return true;
 		}
 	}
+
 	return false;
 }
 
@@ -2161,6 +2176,7 @@ static bool check_mututal_start(unsigned int N, const struct operator_s* op[N], 
 	for (unsigned int i = 0; i < N; i++) {
 
 		assert(NULL != get_chain_data(op[i]));
+
 		auto op_chain_data = get_chain_data(op[i]);
 
 		if (0 == min_length)
@@ -2183,6 +2199,7 @@ static bool check_mututal_start(unsigned int N, const struct operator_s* op[N], 
 
 		for (unsigned int j = 1; j < N; j++)
 			same = same && (get_chain_data(op[j])->x[i] == get_chain_data(op[j-1])->x[i]);
+
 		if (same)
 			nr_same += 1;
 	}
@@ -2197,6 +2214,7 @@ static bool check_mututal_start(unsigned int N, const struct operator_s* op[N], 
 		auto iov = operator_codomain(same_op);
 
 		complex float* tmp = md_alloc_sameplace(iov->N, iov->dims, iov->size, src);
+
 		operator_apply_unchecked(same_op, tmp, src);
 
 		for (unsigned int i = 0; i < N; i++) {
@@ -2208,6 +2226,7 @@ static bool check_mututal_start(unsigned int N, const struct operator_s* op[N], 
 				nop[nN] = operator_chainN(current_chain->N - nr_same, current_chain->x + nr_same);
 				ndst[nN] = dst[i];
 				nN += 1;
+
 			} else {
 
 				md_copy(iov->N, iov->dims, dst[i], tmp, iov->size);
@@ -2243,7 +2262,8 @@ static void reorder_operators(unsigned int N, const struct operator_s* op[N], co
 		bool found = false;
 		for (unsigned int j = 0; j < nr_diff_first_ops; j ++) {
 
-			if (found || (first_ops[j] != get_chain_data(op[i])->x[0]))  continue;
+			if (found || (first_ops[j] != get_chain_data(op[i])->x[0]))
+				continue;
 
 			nops[j][nNs[j]] = op[i];
 			ndsts[j][nNs[j]] = dst[i];
@@ -2252,7 +2272,8 @@ static void reorder_operators(unsigned int N, const struct operator_s* op[N], co
 			found = true;
 		}
 
-		if (found) continue;
+		if (found)
+			continue;
 
 		nops[nr_diff_first_ops][0] = op[i];
 		ndsts[nr_diff_first_ops][0] = dst[i];
