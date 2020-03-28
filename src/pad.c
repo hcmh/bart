@@ -1,5 +1,4 @@
-/* Copyright 2013-2014. The Regents of the University of California.
- * Copyright 2015-2016. Martin Uecker.
+/* Copyright 2020. Uecker Lab.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  * 
@@ -47,14 +46,16 @@ int main_pad(int argc, char* argv[])
 
 	num_init();
 
-    int dim = atoi(argv[1]);
-    assert(dim >= 0 && dim < DIMS);
+	int dim = atoi(argv[1]);
+	assert((dim >= 0) && (dim < DIMS));
 
-    int len = atoi(argv[2]);
-    assert(len > 0);
+	int len = atoi(argv[2]);
+	assert(len > 0);
 
-    complex float val = 0;
-	if (argc == 6) {
+	complex float val = 0.;
+
+	if (6 == argc) {
+
 		parse_cfl(&val, argv[3]);
 		pad_by_value = true;
 	}
@@ -65,54 +66,51 @@ int main_pad(int argc, char* argv[])
 	void* in_data = load_cfl(argv[argc - 2], DIMS, in_dims);
 	md_copy_dims(DIMS, out_dims, in_dims);
 
-	out_dims[dim] = in_dims[dim] + (asym ? len : 2 * len); // padding on one end or both
+	out_dims[dim] = in_dims[dim] + (asym ? len : (2 * len)); // padding on one end or both
 
 	void* out_data = create_cfl(argv[argc - 1], DIMS, out_dims);
 
 	// Assign position of in_data and pad by value
-    if (asym)
-        md_pad(DIMS, &val, out_dims, out_data, in_dims, in_data, CFL_SIZE);
-    else
-        md_pad_center(DIMS, &val, out_dims, out_data, in_dims, in_data, CFL_SIZE);
+	if (asym)
+		md_pad(DIMS, &val, out_dims, out_data, in_dims, in_data, CFL_SIZE);
+	else
+		md_pad_center(DIMS, &val, out_dims, out_data, in_dims, in_data, CFL_SIZE);
 
 	// Overwrite padding by edge value
 	if (!pad_by_value) {
 
 		long in_strs[DIMS];
-        md_calc_strides(DIMS, in_strs, in_dims, CFL_SIZE);
+		md_calc_strides(DIMS, in_strs, in_dims, CFL_SIZE);
 
-        long in_mod_strs[DIMS];
-        md_calc_strides(DIMS, in_mod_strs, in_dims, CFL_SIZE);
-        in_mod_strs[dim] = 0;
+		long in_mod_strs[DIMS];
+		md_calc_strides(DIMS, in_mod_strs, in_dims, CFL_SIZE);
+		in_mod_strs[dim] = 0;
 
-        long pad_dims[DIMS];
-        md_copy_dims(DIMS, pad_dims, in_dims);
-        pad_dims[dim] = len;
+		long pad_dims[DIMS];
+		md_copy_dims(DIMS, pad_dims, in_dims);
+		pad_dims[dim] = len;
 
-        long out_strs[DIMS]; 
-        md_calc_strides(DIMS, out_strs, out_dims, CFL_SIZE); 
+		long out_strs[DIMS];
+		md_calc_strides(DIMS, out_strs, out_dims, CFL_SIZE);
 
-        long pos[DIMS] = { 0 };
+		long pos[DIMS] = { 0 };
 		long pos1[DIMS] = { 0 };
 		pos1[dim] = in_dims[dim] - 1;
-		long offset_in = md_calc_offset(DIMS, in_strs, pos1); 
-		
+		long offset_in = md_calc_offset(DIMS, in_strs, pos1);
+
 		pos1[dim] = in_dims[dim] + (asym ? 0 : len);
-		long offset_out = md_calc_offset(DIMS, out_strs, pos1); 
+		long offset_out = md_calc_offset(DIMS, out_strs, pos1);
 		
 		md_copy_block2(DIMS, pos, pad_dims, out_strs, out_data + offset_out, pad_dims, in_mod_strs, in_data + offset_in, CFL_SIZE); 
 	
 		if (!asym)
-         	md_copy_block2(DIMS, pos, pad_dims, out_strs, out_data, pad_dims, in_mod_strs, in_data, CFL_SIZE); 
-		
-
+			md_copy_block2(DIMS, pos, pad_dims, out_strs, out_data, pad_dims, in_mod_strs, in_data, CFL_SIZE);
 	}
-	
+
 	unmap_cfl(DIMS, in_dims, in_data);
 	unmap_cfl(DIMS, out_dims, out_data);
 
 	return 0;
-
 }
 
 
