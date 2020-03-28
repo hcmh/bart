@@ -161,7 +161,7 @@ group)
 
 	// Reorder & Anti-diagonal summation
 	long kern_dims[4];
-	md_set_dims(DIMS, kern_dims, 1);
+	md_set_dims(4, kern_dims, 1);
 	md_min_dims(4, ~0u, kern_dims, kernelCoil_dims, cal_dims);
 
 	long cal_strs[DIMS];
