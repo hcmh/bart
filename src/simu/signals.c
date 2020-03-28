@@ -190,7 +190,7 @@ const struct signal_model signal_multi_grad_echo_defaults = {
 };
 
 
-complex float calc_fat_modulation(float b0, complex float TE)
+complex float calc_fat_modulation(float b0, float TE)
 {
 	enum { FATPEAKS = 6 };
 	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60 };

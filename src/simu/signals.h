@@ -42,7 +42,7 @@ extern void IR_bSSFP_model(const struct signal_model* data, int N, complex float
 
 extern const struct signal_model signal_multi_grad_echo_defaults;
 
-extern complex float calc_fat_modulation(float b0, complex float TE);
+extern complex float calc_fat_modulation(float b0, float TE);
 
 extern void multi_grad_echo_model(const struct signal_model* data, int N, complex float out[N]);
 
