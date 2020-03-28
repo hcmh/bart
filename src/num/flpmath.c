@@ -1617,13 +1617,16 @@ static bool simple_zconvcorr_im2col_3D_CF(unsigned int N, const long dims[N], co
 	long K1 = dims_mat[1] * dims_mat[2] * dims_mat[3] * dims_mat[4];
 	long N1 = dims_mat[5] * dims_mat[6] * dims_mat[7];
 
+	long* idims_matP = idims_mat; // clang
+	long* istrs_matP = istrs_mat;
+
 	NESTED(void, nary_zconvcorr3D_I2C_CF, (struct nary_opt_data_s* data, void* ptr[]))
 	{
-
 		for (long i = 0; i < data->size; i++){
 
-			complex float* imat_tmp = md_alloc_sameplace(8, idims_mat, size, in1);
-			md_copy2(8, idims_mat, MD_STRIDES(8, idims_mat, size), imat_tmp, istrs_mat, (const complex float*)ptr[1] + i * isize, size);
+			complex float* imat_tmp = md_alloc_sameplace(8, idims_matP, size, in1);
+
+			md_copy2(8, idims_matP, MD_STRIDES(8, idims_matP, size), imat_tmp, istrs_matP, (const complex float*)ptr[1] + i * isize, size);
 
 			blas_matrix_zfmac(	M1, N1, K1,
 						(complex float*)ptr[0] + i * osize,
@@ -1723,13 +1726,16 @@ static bool simple_zconvcorr_im2col_3D_CF_TK(unsigned int N, const long dims[N],
 
 	SWAP(K1, N1, long);
 
+	long* idims_matP = idims_mat; // clang
+	long* istrs_matP = istrs_mat; // clang
+
 	NESTED(void, nary_zconvcorr3D_I2C_CF_TK, (struct nary_opt_data_s* data, void* ptr[]))
 	{
 
 		for (long i = 0; i < data->size; i++){
 
-			complex float* imat_tmp = md_alloc_sameplace(8, idims_mat, size, in1);
-			md_copy2(8, idims_mat, MD_STRIDES(8, idims_mat, size), imat_tmp, istrs_mat, (const complex float*)ptr[1] + i * isize, size);
+			complex float* imat_tmp = md_alloc_sameplace(8, idims_matP, size, in1);
+			md_copy2(8, idims_matP, MD_STRIDES(8, idims_matP, size), imat_tmp, istrs_matP, (const complex float*)ptr[1] + i * isize, size);
 
 			blas_matrix_zfmac(	M1, N1, K1,
 						(complex float*)ptr[0] + i * ksize,
@@ -1903,10 +1909,10 @@ static bool simple_zconvcorr_direct_3D(unsigned int N, const long dims[N], const
 	if (!detect_convcorr(N, odims, idims, kdims, dims, ostrs, istrs1, istrs2, flags, conv, size))
 		return false;
 
-	long tdims [2 * N];
-	long tstrs1 [2 * N];
-	long tstrs2 [2 * N];
-	long tstrs3 [2 * N];
+	long tdims[2 * N];
+	long tstrs1[2 * N];
+	long tstrs2[2 * N];
+	long tstrs3[2 * N];
 
 	in2 -= calc_convcorr_geom(N, flags, tdims, tstrs1, tstrs2, tstrs3,
 					odims, MD_STRIDES(N, odims, size),
@@ -1917,13 +1923,17 @@ static bool simple_zconvcorr_direct_3D(unsigned int N, const long dims[N], const
 	long ksize = kdims[0] * kdims[1] * kdims[2];
 	long isize = idims[0] * idims[1] * idims[2];
 
+	long* odimsP = odims;	// clang
+	long* idimsP = idims;	// clang
+	long* kdimsP = kdims;	// clang
+
 	NESTED(void, nary_zconvcorr3D, (struct nary_opt_data_s* data, void* ptr[]))
 	{
 		for (long i = 0; i < data->size; i++)
 			data->ops->zconvcorr_3D((complex float*)ptr[0] + i * osize,
 						(complex float*)ptr[1] + i * isize,
 						(complex float*)ptr[2] + i * ksize,
-						odims, idims, kdims, conv);
+						odimsP, idimsP, kdimsP, conv);
 	};
 
 	optimized_threeop_oii(N - 3, dims + 3, ostrs + 3, (void*)out, istrs1 + 3, (void*)in1, istrs2 + 3, (void*)in2,
@@ -1958,10 +1968,10 @@ static bool simple_zconvcorr_direct_3D_CF(unsigned int N, const long dims[N], co
 	if ((1 != idims[0]) || (1 != odims[1]))
 		return false;
 
-	long tdims [2 * N];
-	long tstrs1 [2 * N];
-	long tstrs2 [2 * N];
-	long tstrs3 [2 * N];
+	long tdims[2 * N];
+	long tstrs1[2 * N];
+	long tstrs2[2 * N];
+	long tstrs3[2 * N];
 
 	in2 -= calc_convcorr_geom(N, flags, tdims, tstrs1, tstrs2, tstrs3,
 					odims, MD_STRIDES(N, odims, size),
@@ -1972,17 +1982,21 @@ static bool simple_zconvcorr_direct_3D_CF(unsigned int N, const long dims[N], co
 	long ksize = kdims[0] * kdims[1] * kdims[2] * kdims[3] * kdims[4];
 	long isize = idims[0] * idims[1] * idims[2] * idims[3] * idims[4];
 
+	long* odimsP = odims; // clang
+	long* idimsP = idims; // clang
+	long* kdimsP = kdims; // clang
+
 	NESTED(void, nary_zconvcorr3D_CF, (struct nary_opt_data_s* data, void* ptr[]))
 	{
 		for (long i = 0; i < data->size; i++)
 			data->ops->zconvcorr_3D_CF(	(complex float*)ptr[0] + i * osize,
 							(complex float*)ptr[1] + i * isize,
 							(complex float*)ptr[2] + i * ksize,
-							odims, idims, kdims, conv);
+							odimsP, idimsP, kdimsP, conv);
 	};
 
 	optimized_threeop_oii(N - 5, dims + 5, ostrs + 5, (void*)out, istrs1 + 5, (void*)in1, istrs2 + 5, (void*)in2,
-				(size_t[3]){ size * osize, size * isize, size * ksize},
+				(size_t[3]){ size * osize, size * isize, size * ksize },
 				nary_zconvcorr3D_CF);
 
 	return true;
@@ -2034,13 +2048,17 @@ static bool simple_zconvcorr_direct_3D_CF_TK(unsigned int N, const long dims[N],
 	long ksize = kdims[0] * kdims[1] * kdims[2] * kdims[3] * kdims[4];
 	long isize = idims[0] * idims[1] * idims[2] * idims[3] * idims[4];
 
+	long* odimsP = odims; // clang
+	long* idimsP = idims; // clang
+	long* kdimsP = kdims; // clang
+
 	NESTED(void, nary_zconvcorr3D_CF_TF, (struct nary_opt_data_s* data, void* ptr[]))
 	{
 		for (long i = 0; i < data->size; i++)
 			data->ops->zconvcorr_3D_CF_TK(	(complex float*)ptr[0] + i * ksize,
 							(complex float*)ptr[1] + i * isize,
 							(complex float*)ptr[2] + i * osize,
-							odims, idims, kdims, conv);
+							odimsP, idimsP, kdimsP, conv);
 	};
 
 	optimized_threeop_oii(N - 5, dims + 5, ostrs + 5, (void*)dst, istrs1 + 5, (void*)in1, istrs2 + 5, (void*)in2,
@@ -2082,10 +2100,10 @@ static bool simple_zconvcorr_direct_3D_CF_TI(unsigned int N, const long dims[N],
 	if ((1 != idims[0]) || (1 != odims[1]))
 		return false;
 
-	long tdims [2 * N];
-	long tstrs1 [2 * N];
-	long tstrs2 [2 * N];
-	long tstrs3 [2 * N];
+	long tdims[2 * N];
+	long tstrs1[2 * N];
+	long tstrs2[2 * N];
+	long tstrs3[2 * N];
 
 	in2 -= calc_convcorr_geom(N, flags, tdims, tstrs1, tstrs2, tstrs3, odims, MD_STRIDES(N, odims, size), kdims, MD_STRIDES(N, kdims, size), idims, MD_STRIDES(N, idims, size), conv) / size;
 
@@ -2093,17 +2111,21 @@ static bool simple_zconvcorr_direct_3D_CF_TI(unsigned int N, const long dims[N],
 	long ksize = kdims[0] * kdims[1] * kdims[2] * kdims[3] * kdims[4];
 	long isize = idims[0] * idims[1] * idims[2] * idims[3] * idims[4];
 
+	long* odimsP = odims; // clang
+	long* idimsP = idims; // clang
+	long* kdimsP = kdims; // clang
+
 	NESTED(void, nary_zconvcorr3D_CF_TI, (struct nary_opt_data_s* data, void* ptr[]))
 	{
 		for (long i = 0; i < data->size; i++)
 			data->ops->zconvcorr_3D_CF_TI(	(complex float*)ptr[0] + i * isize,
 							(complex float*)ptr[1] + i * osize,
 							(complex float*)ptr[2] + i * ksize,
-							odims, idims, kdims, conv);
+							odimsP, idimsP, kdimsP, conv);
 	};
 
 	optimized_threeop_oii(N - 5, dims + 5, ostrs + 5, (void*)dst, istrs1 + 5, (void*)in1, istrs2 + 5, (void*)in2,
-				(size_t[3]){ size * ksize, size * isize, size * osize},
+				(size_t[3]){ size * ksize, size * isize, size * osize },
 				nary_zconvcorr3D_CF_TI);
 
 	return true;
