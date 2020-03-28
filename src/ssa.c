@@ -167,7 +167,7 @@ group)
 	long cal_strs[DIMS];
 	md_calc_strides(DIMS, cal_strs, cal_dims, CFL_SIZE);
 
-	long A1_dims[3] = { N, M };
+	long A1_dims[2] = { N, M };
 
 	casorati_matrixH(4, kern_dims, cal_dims, cal_strs, back, A1_dims, A_backproj);
 
@@ -253,7 +253,7 @@ A_dims[2], const complex float* A, const long U_dims[2], const complex float* U,
 
 	// Reorder & Anti-diagonal summation
 	long kern_dims[4];
-	md_set_dims(DIMS, kern_dims, 1);
+	md_set_dims(4, kern_dims, 1);
 	md_min_dims(4, ~0u, kern_dims, kernelCoil_dims, cal_dims);
 
 	long cal_strs[DIMS];
