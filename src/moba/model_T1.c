@@ -29,7 +29,6 @@
 
 #include "moba/T1fun.h"
 #include "moba/T1MOLLI.h"
-#include "moba/T1s_chain.h"
 
 #include "model_T1.h"
 
