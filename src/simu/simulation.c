@@ -19,7 +19,8 @@
 #include "num/linalg.h"
 #include "misc/debug.h"
 
-#include "simu/simulation.h"
+#include "simulation.h"
+#include "sim_matrix.h"
 
 
 
@@ -491,7 +492,20 @@ void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*s
 }
 
 
+void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, bool ode)
+{
+	float mxy_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	float sa_r1_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	float sa_r2_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	float sa_m0_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
 
+	if (ode)
+		ode_bloch_simulation3(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);		// ODE simulation
+	else
+		matrix_bloch_simulation(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// OBS simulation, does not work with hard-pulses!
 
+	for (int t = 0; t < N; t++) 
+		out[t] = mxy_sig[t][1] + mxy_sig[t][0] * I;
+}
 
 

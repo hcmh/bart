@@ -5,6 +5,9 @@
 
 #include "simu/pulse.h"
 
+#ifndef SIMULATION_H
+#define SIMULATION_H
+
 struct simdata_voxel {
 
 	float r1;
@@ -84,3 +87,6 @@ extern void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], fl
 extern void create_sim_block(struct sim_data* data);
 extern void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* saM0Signal, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal);
 
+extern void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, bool ode);
+
+#endif
