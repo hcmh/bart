@@ -75,7 +75,7 @@ int main_signal(int argc, char* argv[])
 	}
 
 	if (-1. != FA)
-		parm.fa = FA;
+		parm.fa = FA * M_PI / 180.;
 
 	if (-1. != TR)
 		parm.tr = TR;
