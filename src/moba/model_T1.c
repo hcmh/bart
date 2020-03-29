@@ -11,6 +11,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <stdio.h>
 
 #include "misc/misc.h"
 #include "misc/mri.h"
@@ -19,7 +20,6 @@
 
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
-#include "nlops/cast.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -28,13 +28,13 @@
 #include "noir/model.h"
 
 #include "moba/T1fun.h"
+#include "moba/T1MOLLI.h"
+#include "moba/T1s_chain.h"
 
 #include "model_T1.h"
 
 
-
-
-struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, _Bool use_gpu)
+struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, bool use_gpu, bool MOLLI)
 {
 	struct noir_s nlinv = noir_create3(dims, mask, psf, conf);
 	struct T1_s ret;
@@ -52,8 +52,35 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	in_dims[COEFF_DIM] = 3;
 
 #if 1
+
+	struct nlop_s* T1 = NULL;
 	// chain T1 model
-	struct nlop_s* T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+	if (MOLLI)
+	{
+        	int parts = 5;
+		out_dims[TE_DIM] /= parts;
+		TI_dims[TE_DIM] /= parts;
+	
+		complex float* TI1 = md_alloc(DIMS, TI_dims, CFL_SIZE);
+		complex float* TI2 = md_alloc(DIMS, TI_dims, CFL_SIZE);
+
+		md_copy(DIMS, TI_dims, TI1, TI, CFL_SIZE);
+
+		
+		for (int i = 0; i < TI_dims[TE_DIM]; i++)
+		{
+			float TI2_real = crealf(TI[1]) - crealf(TI[0]) + i * (crealf(TI[1]) - crealf(TI[0]));
+			TI2[i] = CMPLX(TI2_real, 0.0);
+		}
+
+        	T1 = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI1, TI2, use_gpu);
+
+        	md_free(TI1);
+		md_free(TI2);
+	} else {
+		
+		T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+	}
 
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T1, 0)->dims);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(T1, 0)->dims);
@@ -66,10 +93,14 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	const struct nlop_s* c = nlop_chain2(T1, 0, b, 0);
 	nlop_free(b);
 
-	nlinv.nlop = nlop_permute_inputs(c, 2, (const int[2]){ 1, 0 });
+	if (MOLLI)
+		nlinv.nlop = nlop_permute_inputs(c, 4, (const int[4]){ 1, 2, 3, 0 });
+	else
+		nlinv.nlop = nlop_permute_inputs(c, 2, (const int[2]){ 1, 0 });
+		
 	nlop_free(c);
-#endif
 
+#endif
 	ret.nlop = nlop_flatten(nlinv.nlop);
 	ret.linop = nlinv.linop;
 	nlop_free(nlinv.nlop);
