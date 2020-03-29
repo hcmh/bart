@@ -130,6 +130,21 @@ int main_sim(int argc, char* argv[])
 
 	num_init();
 
+
+	// Hidden option for MOLLI
+#if 0
+	
+	sim_data.seq.molli_break = 200; // unit [#tr]
+	sim_data.seq.molli_measure = 100; // unit [#tr]. Number of TR after which a break for $molli_break occurrs
+
+	// Number of repetitions needs to be multiple of molli_measure number 
+	assert(floor(sim_data.seq.rep_num/sim_data.seq.molli_measure) == sim_data.seq.rep_num/sim_data.seq.molli_measure);
+	assert(5 == sim_data.seq.seq_type);
+
+	if ( (0. != sim_data.seq.molli_break) && (!ode) )
+		error("MOLLI mode only for ODE simulation yet!");
+#endif
+
 	// Pass pre defined data
 	dims[TE_DIM] = sim_data.seq.rep_num;
 

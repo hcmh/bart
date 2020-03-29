@@ -46,6 +46,8 @@ const struct simdata_seq simdata_seq_defaults = {
 	.run_num = 1,
 	.inversion_pulse_length = 0.01,
 	.prep_pulse_length = 0.001,
+	.molli_break = 0,
+	.molli_measure = 0,
 	
 	.slice_profile = NULL,
 	.variable_fa = NULL,
@@ -429,6 +431,9 @@ void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*s
 						xp[i][1] = 0.;
 					}
 				}
+
+				if (0 != data->seq.molli_break && (data->tmp.rep_counter%data->seq.molli_measure == 0))
+					relaxation2(data, h, tol, N, P, xp, 0., data->seq.molli_break * data->seq.tr);
 
 				data->tmp.rep_counter++;
 			}

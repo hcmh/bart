@@ -31,6 +31,8 @@ struct simdata_seq {
 	int run_num; /* Number of applied sequence trains*/
 	float inversion_pulse_length;
 	float prep_pulse_length;
+	int molli_break;
+	int molli_measure;
 	
 	complex float* slice_profile;
 	complex float* variable_fa;
