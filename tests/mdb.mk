@@ -2,7 +2,7 @@
 tests/test-mdb-bloch: phantom sim fmac fft ones modbloch transpose slice mip scale nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
 	$(TOOLDIR)/phantom -x 20 -T -b basis_geom.ra				;\
-	$(TOOLDIR)/sim -n 10 -V"3,1:0.877,0.048:1.140,0.06:1.404,0.06:0.866,0.095:1.159,0.108:1.456,0.122:0.883,0.129:1.166,0.150:1.442,0.163" -P 1:1:0.0045:0.00225:0.00001:45:1000 basis_simu.ra	;\
+	$(TOOLDIR)/sim -n 10 -P 1:1:0.0045:0.00225:0.00001:45:1000 basis_simu.ra	;\
 	$(TOOLDIR)/fmac -s 64 basis_geom.ra basis_simu.ra image.ra		;\
 	$(TOOLDIR)/fft 3 image.ra k_space.ra					;\
 	$(TOOLDIR)/ones 16 1 20 20 1 1 1000 1 1 1 1 1 1 1 1 1 1 psf.ra		;\
@@ -27,7 +27,7 @@ tests/test-mdb-bloch-traj: phantom sim fmac fft ones modbloch transpose slice mi
 	$(TOOLDIR)/transpose 5 10 _traj.ra _traj2.ra				;\
 	$(TOOLDIR)/scale 0.75 _traj2.ra traj.ra					;\
 	$(TOOLDIR)/phantom -T -k -b -t traj.ra basis_geom.ra			;\
-	$(TOOLDIR)/sim -n 10 -V"3,1:0.877,0.048:1.140,0.06:1.404,0.06:0.866,0.095:1.159,0.108:1.456,0.122:0.883,0.129:1.166,0.150:1.442,0.163" -P 1:1:0.0045:0.00225:0.00001:45:1000 basis_simu.ra	;\
+	$(TOOLDIR)/sim -n 10 -P 1:1:0.0045:0.00225:0.00001:45:1000 basis_simu.ra	;\
 	$(TOOLDIR)/fmac -s 64 basis_geom.ra basis_simu.ra data.ra		;\
 	$(TOOLDIR)/ones 16 1 20 1 1 1 1000 1 1 1 1 1 1 1 1 1 1 ones.ra		;\
 	$(TOOLDIR)/nufft -d 20:20:1 -a traj.ra ones.ra psf.ra			;\
@@ -54,7 +54,7 @@ tests/test-mdb-bloch-traj: phantom sim fmac fft ones modbloch transpose slice mi
 tests/test-mdb-t1: phantom sim fmac fft ones index scale moba looklocker transpose slice mip scale nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	                	;\
 	$(TOOLDIR)/phantom -x 32 -T -b basis_geom.ra                    	;\
-	$(TOOLDIR)/sim -n 10 -V"3,1:0.877,0.048:1.140,0.06:1.404,0.06:0.866,0.095:1.159,0.108:1.456,0.122:0.883,0.129:1.166,0.150:1.442,0.163" -P 1:5:0.0045:0.00225:0.00001:6:1000 basis_simu.ra  ;\
+	$(TOOLDIR)/sim -n 10 -P 1:5:0.0045:0.00225:0.00001:6:1000 basis_simu.ra  ;\
 	$(TOOLDIR)/fmac -s 64 basis_geom.ra basis_simu.ra image.ra		;\
 	$(TOOLDIR)/fft 3 image.ra k_space.ra					;\
 	$(TOOLDIR)/ones 16 32 32 1 1 1 1000 1 1 1 1 1 1 1 1 1 1 psf.ra		;\
@@ -78,7 +78,7 @@ tests/test-mdb-t1-traj: traj phantom sim fmac nufft fft ones index scale moba lo
 	$(TOOLDIR)/transpose 5 10 _traj.ra _traj2.ra   				;\
 	$(TOOLDIR)/scale 0.5 _traj2.ra traj.ra  				;\
 	$(TOOLDIR)/phantom -T -k -b -t traj.ra basis_geom.ra  			;\
-	$(TOOLDIR)/sim -n 10 -V"3,1:0.877,0.048:1.140,0.06:1.404,0.06:0.866,0.095:1.159,0.108:1.456,0.122:0.883,0.129:1.166,0.150:1.442,0.163" -P 1:5:0.0045:0.00225:0.00001:6:1000 basis_simu.ra  ;\
+	$(TOOLDIR)/sim -n 10 -P 1:5:0.0045:0.00225:0.00001:6:1000 basis_simu.ra  ;\
 	$(TOOLDIR)/fmac -s 64 basis_geom.ra basis_simu.ra data.ra	   	;\
 	$(TOOLDIR)/ones 16 1 32 1 1 1 1000 1 1 1 1 1 1 1 1 1 1 ones.ra	   	;\
 	$(TOOLDIR)/nufft -d 32:32:1 -a _traj2.ra ones.ra pattern.ra	   	;\

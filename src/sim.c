@@ -20,19 +20,11 @@
 #include "simu/sim_matrix.h"
 #include "simu/seq_model.h"
 #include "simu/bloch.h"
-
-#define MAX_PASS_VALUES 10
+#include "simu/sim_para.h"
 
 
 static const char usage_str[] = "<OUT:basis-functions>";
 static const char help_str[] = "Basis function based simulation tool.";
-
-
-struct sim_parameter {
-	
-	float t1;
-	float t2;
-};
 
 
 static void help_seq(void)
@@ -89,27 +81,6 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 		}
 		break;
 	}
-	case 'V': {
-
-		// Collect simulation parameter
-		struct sim_parameter* values = ptr;
-
-		int ret = 0;
-		unsigned int count = 0;
-
-		char* pair = strtok((char *)optarg, ":");
-
-		do {
-
-			ret = sscanf(pair, "%f,%f", &values[count].t1, &values[count].t2);
-			assert(2 == ret);
-
-			pair = strtok(NULL, ":");
-			count++;
-		} while( pair != NULL );
-
-		break;
-	}
 	}
 	return false;
 }
@@ -117,13 +88,8 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 
 int main_sim(int argc, char* argv[])
 {
-	int nbf = 8;
-	bool linear = false;
+	int nbf = 1;
 	bool ode = false;
-
-	struct sim_parameter values[MAX_PASS_VALUES];
-
-	assert(10 == MAX_PASS_VALUES);
 
 	// initalize values for simulation
 	struct sim_data sim_data;
@@ -137,16 +103,16 @@ int main_sim(int argc, char* argv[])
 	const struct opt_s opts[] = {
 
 		OPT_INT('n', &nbf, "nbf", "No. Basis Functions"),
-		OPT_SET('l', &linear, "homogeneously distributed T1 and T2 values"),
-		OPT_SET('o', &ode, "ODE based simulation"),
+		OPT_SET('o', &ode, "ODE based simulation [Default: OBS]"),
 		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr> (-Ph for help)" },
-		{ 'V', true, opt_seq, &values, "\t<T1>,<T2>:<T1>,<T2>:..\tT1 and T2 values for each geometrical basis function. Only for 10 entries of tube phantom." },
 	};
 
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
+
+	assert(nbf <= MAX_REF_VALUES);
 
 	// Preparation for realistic sequence simulation
 	sim_data.seq.prep_pulse_length = sim_data.seq.tr/2.;
@@ -161,34 +127,15 @@ int main_sim(int argc, char* argv[])
 	complex float* basis_functions = create_cfl(argv[1], DIMS, dims);
 	md_zfill(DIMS, dims, basis_functions, 1.0);
 
-
-	// Choose more realistic values (manual and homogeneously distributed)
-	float t1[nbf];
-	float t2[nbf];
-
-	// TODO: Add test for length of array elements.
-	for (int i = 0; i < nbf; i++) {
-
-// 		printf( "%f,\t%f\n", values[i].t1, values[i].t2 ); //printing each pair
-
-		t1[i] = (linear) ? 3. - i * (3. - 0.1)/(float) nbf : values[i].t1;
-		t2[i] = (linear) ? 1. - i * (1. - 0.04)/(float) nbf : values[i].t2;
-
-		assert(0 != t1[i]);
-		assert(0 != t2[i]);
-	}
-
-	float m0 = 1.;
-
 	// Apply simulation to all geometrical structures to determine time evolution of signal
 	#pragma omp parallel for
 	for (int j = 0; j < dims[COEFF_DIM]; j++) {
 
 		struct sim_data data = sim_data;
 
-		data.voxel.r1 = 1/t1[j];
-		data.voxel.r2 = 1/t2[j];
-		data.voxel.m0 = m0;
+		data.voxel.r1 = 1 / tissue_ref_para[j].t1;
+		data.voxel.r2 = 1 / tissue_ref_para[j].t2;
+		data.voxel.m0 = tissue_ref_para[j].m0;
 
 		if (data.seq.analytical) {
 
