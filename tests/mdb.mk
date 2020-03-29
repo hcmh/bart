@@ -1,5 +1,24 @@
 
-tests/test-mdb-bloch: phantom sim fmac fft ones modbloch transpose slice mip scale nrmse
+tests/test-mdb-bloch: phantom signal fmac fft ones modbloch slice scale nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
+	$(TOOLDIR)/phantom -x16 -c basis_geom.ra				;\
+	$(TOOLDIR)/signal -I -B -r0.0045 -e0.0025 -n1000 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
+	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra image.ra		;\
+	$(TOOLDIR)/fft 3 image.ra k_space.ra					;\
+	$(TOOLDIR)/ones 6 16 16 1 1 1 1000 psf.ra		;\
+	$(TOOLDIR)/modbloch -t0.0045 -e0.00225 -R2 -f1 -s5000 -F45 -M1 -o0 -l1 -v0.00001 -b0.00001 -n0 -i15 -D0.00001 -a1 -w0 -r0 -p psf.ra k_space.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/slice 6 0 reco.ra t1map.ra				;\
+	$(TOOLDIR)/fmac t1map.ra basis_geom.ra masked_t1.ra				;\
+	$(TOOLDIR)/scale -- 1.12 basis_geom.ra ref_t1.ra				;\
+	$(TOOLDIR)/nrmse -t 0.007 masked_t1.ra ref_t1.ra				;\
+	$(TOOLDIR)/slice 6 1 reco.ra t2map.ra				;\
+	$(TOOLDIR)/fmac t2map.ra basis_geom.ra masked_t2.ra				;\
+	$(TOOLDIR)/scale -- 0.1 basis_geom.ra ref_t2.ra				;\
+	$(TOOLDIR)/nrmse -t 0.005 masked_t2.ra ref_t2.ra				;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+tests/test-mdb-bloch-multi-tube: phantom sim fmac fft ones modbloch transpose slice mip scale nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
 	$(TOOLDIR)/phantom -x 20 -T -b basis_geom.ra				;\
 	$(TOOLDIR)/sim -n 10 -P 1:1:0.0045:0.00225:0.00001:45:1000 basis_simu.ra	;\
