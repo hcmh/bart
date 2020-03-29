@@ -141,7 +141,7 @@ int main_sim(int argc, char* argv[])
 
 			complex float* signal = md_alloc(DIMS, dims1, CFL_SIZE);
 
-			if (5 == data.seq.seq_type)
+			if (2 == data.seq.seq_type || 5 == data.seq.seq_type)
 				looklocker_analytical(&data, signal);
 			else if (1 == data.seq.seq_type)
 				IR_bSSFP_analytical(&data, signal);
