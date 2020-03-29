@@ -1,3 +1,26 @@
+tests/test-sim-to-signal-irflash: sim signal nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+	$(TOOLDIR)/sim -P 1:5:0.0041:0.00258:0.001:8:1000 -1 3:3:1 -2 1:1:1 sim.ra	;\
+	$(TOOLDIR)/signal -I -F -r0.0041 -e0.00258 -f8 -n1000 -1 3:3:1 -2 1:1:1 signal.ra		;\
+	$(TOOLDIR)/nrmse -t 0.00001 sim.ra signal.ra			    		;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+tests/test-sim-to-signal-flash: sim signal nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+	$(TOOLDIR)/sim -P 1:2:0.0041:0.00258:0.001:8:1000 -1 3:3:1 -2 1:1:1 sim.ra	;\
+	$(TOOLDIR)/signal -F -r0.0041 -e0.00258 -f8 -n1000 -1 3:3:1 -2 1:1:1 signal.ra		;\
+	$(TOOLDIR)/nrmse -t 0.00001 sim.ra signal.ra			    		;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+tests/test-sim-to-signal-irbSSFP: sim signal nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+	$(TOOLDIR)/sim -P 1:1:0.0045:0.00225:0.001:45:1000 -1 3:3:1 -2 1:1:1 sim.ra	;\
+	$(TOOLDIR)/signal -I -B -r0.0045 -e0.00225 -f45 -n1000 -1 3:3:1 -2 1:1:1 signal.ra		;\
+	$(TOOLDIR)/nrmse -t 0.00001 sim.ra signal.ra			    		;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
 
 tests/test-sim-analy-irbssfp: sim nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
@@ -63,4 +86,4 @@ tests/test-sim-ode-irflash: sim nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-TESTS += tests/test-sim-analy-irbssfp tests/test-sim-analy-flash tests/test-sim-analy-irflash tests/test-sim-ode-bssfp tests/test-sim-ode-irbssfp tests/test-sim-ode-flash tests/test-sim-ode-irflash
+TESTS += tests/test-sim-to-signal-irflash tests/test-sim-to-signal-flash tests/test-sim-to-signal-irbSSFP tests/test-sim-analy-irbssfp tests/test-sim-analy-flash tests/test-sim-analy-irflash tests/test-sim-ode-bssfp tests/test-sim-ode-irbssfp tests/test-sim-ode-flash tests/test-sim-ode-irflash
