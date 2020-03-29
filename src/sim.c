@@ -20,7 +20,6 @@
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
 #include "simu/bloch.h"
-#include "simu/sim_para.h"
 #include "simu/signals.h"
 
 
