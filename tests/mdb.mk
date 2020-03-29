@@ -2,7 +2,7 @@
 tests/test-mdb-bloch: phantom signal fmac fft ones modbloch slice scale nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
 	$(TOOLDIR)/phantom -x16 -c basis_geom.ra				;\
-	$(TOOLDIR)/signal -I -B -r0.0045 -e0.0025 -n1000 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
+	$(TOOLDIR)/sim -P 1:1:0.0045:0.00225:0.001:45:1000 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
 	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra image.ra		;\
 	$(TOOLDIR)/fft 3 image.ra k_space.ra					;\
 	$(TOOLDIR)/ones 6 16 16 1 1 1 1000 psf.ra		;\
