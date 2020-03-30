@@ -375,7 +375,7 @@ int main_bloch(int argc, char* argv[argc])
 						sensitivities_t2[ind] = 0.;
 						sensitivities_dens[ind] = 0.;
 						
-						r_out[ind] = fabsf(r[z]);
+						r_out[ind] = rabsf(r[z]); // FIXME: cabsf?
 					}
 				} else if (5 == seq) {
 					
