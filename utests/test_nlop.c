@@ -614,7 +614,7 @@ static bool test_nlop_link(void)
 UT_REGISTER_TEST(test_nlop_link);
 
 
-static bool test_nlop_reshape()
+static bool test_nlop_reshape(void)
 {
 	enum { N = 3 };
 	long odims[N] = { 10, 1, 3 };
@@ -631,9 +631,9 @@ static bool test_nlop_reshape()
 
 	auto op = nlop_tenmul_create(N, odims, idims1, idims2);
 
-	long nodims[1] = {md_calc_size(N, odims)};
-	long nidims1[3] = {1, 1, md_calc_size(N, idims1)};
-	long nidims2[2] = {md_calc_size(N, idims2), 1};
+	long nodims[1] = { md_calc_size(N, odims) };
+	long nidims1[3] = { 1, 1, md_calc_size(N, idims1) };
+	long nidims2[2] = { md_calc_size(N, idims2), 1 };
 
 	auto op_reshape = nlop_reshape_out(op, 0, 1, nodims);
 	op_reshape = nlop_reshape_in_F(op_reshape, 0, 3, nidims1);
@@ -646,14 +646,18 @@ static bool test_nlop_reshape()
 
 	auto der1 = nlop_get_derivative(op, 0, 0);
 	auto der1_resh = nlop_get_derivative(op_reshape, 0, 0);
+
 	linop_forward_unchecked(der1, dst1, src1);
 	linop_forward_unchecked(der1_resh, dst2, src1);
+
 	err += md_znrmse(N, odims, dst2, dst1);
 
 	auto der2 = nlop_get_derivative(op, 0, 1);
 	auto der2_resh = nlop_get_derivative(op_reshape, 0, 1);
+
 	linop_forward_unchecked(der2, dst1, src2);
 	linop_forward_unchecked(der2_resh, dst2, src2);
+
 	err += md_znrmse(N, odims, dst2, dst1);
 
 	nlop_free(op_reshape);
@@ -669,6 +673,8 @@ static bool test_nlop_reshape()
 
 UT_REGISTER_TEST(test_nlop_reshape);
 
+
+
 struct count_op_s {
 
 	INTERFACE(linop_data_t);
@@ -680,8 +686,10 @@ static DEF_TYPEID(count_op_s);
 static void count_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const struct count_op_s* data = CAST_DOWN(count_op_s, _data);
-	*(data->counter) += 1;
-	long dim[2] = {1};
+
+	(*data->counter)++;
+
+	long dim[2] = { 1 };
 	md_copy(1, dim, dst, src, CFL_SIZE);
 }
 
@@ -695,21 +703,23 @@ static struct linop_s* linop_counter_create(int* counter)
 {
 	PTR_ALLOC(struct count_op_s, data);
 	SET_TYPEID(count_op_s, data);
+
 	data->counter = counter;
-	long dim[1] = {1};
+
+	long dim[1] = { 1 };
+
 	return linop_create(1, dim, 1, dim, CAST_UP(PTR_PASS(data)), count_forward, count_forward, count_forward, NULL, count_free);
 }
 
-static bool test_nlop_parallel_derivatives()
+static bool test_nlop_parallel_derivatives(void)
 {
-
-	long dim[1] = {1};
+	long dim[1] = { 1 };
 	int counter = 0;
 
-	complex float in[1] ={1.};
-	complex float out1[1] ={1.};
-	complex float out2[1] ={1.};
-	complex float* outs[2] = {out1, out2};
+	complex float in[1] ={ 1. };
+	complex float out1[1] ={ 1. };
+	complex float out2[1] ={ 1. };
+	complex float* outs[2] = { out1, out2 };
 
 	auto countop1 = linop_counter_create(&counter);
 	auto chain = linop_chain(countop1, countop1);
@@ -719,8 +729,11 @@ static bool test_nlop_parallel_derivatives()
 	bool result = (2 == counter);
 
 	counter = 0;
+
 	auto plus_op = linop_plus(chain, chain);
+
 	linop_forward_unchecked(plus_op, out1, in);
+
 	linop_free(plus_op);
 
 	result = result && (2 == counter);
@@ -730,11 +743,16 @@ static bool test_nlop_parallel_derivatives()
 	tenmul_chain = nlop_chain2_FF(nlop_from_linop(chain), 0, tenmul_chain, 0);
 	tenmul_chain = nlop_chain2_FF(nlop_from_linop(chain), 0, tenmul_chain, 0);
 	tenmul_chain = nlop_reshape_in_F(tenmul_chain, 0, 1, dim);
+
 	nlop_generic_apply_unchecked(tenmul_chain, 3, (void*[]){ out1, out2, in });
+
 	counter = 0;
+
 	const struct operator_s* op1 = nlop_get_derivative(tenmul_chain, 0, 0)->adjoint;
 	const struct operator_s* op2 = nlop_get_derivative(tenmul_chain, 0, 1)->adjoint;
+
 	operator_apply_parallel_unchecked(2, MAKE_ARRAY(op1, op2), outs, in);
+
 	result = result && (6 == counter);
 
 	auto tmp = nlop_reshape_in(tenmul_chain, 0, 1, dim);
@@ -743,7 +761,9 @@ static bool test_nlop_parallel_derivatives()
 	bridge = nlop_dup_F(bridge, 0, 1);
 
 	counter = 0;
+
 	linop_adjoint_unchecked(nlop_get_derivative(bridge, 0, 0), out1, in);
+
 	result = result && (12 == counter);
 
 	nlop_free(bridge);
@@ -754,3 +774,4 @@ static bool test_nlop_parallel_derivatives()
 }
 
 UT_REGISTER_TEST(test_nlop_parallel_derivatives);
+
