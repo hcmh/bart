@@ -432,7 +432,7 @@ void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*s
 					}
 				}
 
-				if (0 != data->seq.molli_break && (data->tmp.rep_counter%data->seq.molli_measure == 0))
+				if (0 != data->tmp.rep_counter && 0 != data->seq.molli_break && (data->tmp.rep_counter%data->seq.molli_measure == 0))
 					relaxation2(data, h, tol, N, P, xp, 0., data->seq.molli_break * data->seq.tr);
 
 				data->tmp.rep_counter++;
