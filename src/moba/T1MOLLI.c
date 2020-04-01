@@ -46,7 +46,7 @@ struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out
         complex float* scale = my_alloc(N, scale_dims, CFL_SIZE);
         complex float* TI_T1 = my_alloc(N, TI_T1_dims, CFL_SIZE);
 
-        complex float TI_T1_init[1] = {0.0};
+        complex float TI_T1_init[1] = {0.36};
         md_copy(N, TI_T1_dims, TI_T1, TI_T1_init, CFL_SIZE);
 
         long out2_dims[N];

@@ -64,13 +64,7 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 		complex float* TI2 = md_alloc(DIMS, TI_dims, CFL_SIZE);
 
 		md_copy(DIMS, TI_dims, TI1, TI, CFL_SIZE);
-
-		
-		for (int i = 0; i < TI_dims[TE_DIM]; i++)
-		{
-			float TI2_real = crealf(TI[1]) - crealf(TI[0]) + i * (crealf(TI[1]) - crealf(TI[0]));
-			TI2[i] = CMPLX(TI2_real, 0.0);
-		}
+		md_copy(DIMS, TI_dims, TI2, TI1, CFL_SIZE);
 
         	T1 = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI1, TI2, use_gpu);
 
