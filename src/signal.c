@@ -33,13 +33,15 @@ int main_signal(int argc, char* argv[])
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 	dims[TE_DIM] = 100;
 
-	enum seq_type { BSSFP, FLASH, TSE };
+	enum seq_type { BSSFP, FLASH, TSE, MOLLI };
 	enum seq_type seq = FLASH;
 
 	bool IR = false;
 	float FA = -1.;
 	float TR = -1.;
 	float TE = -1.;
+	float time_T1relax = -1.; // second
+	long Hbeats = -1;
 
 	float T1[3] = { 500., 1500., 10 };
 	float T2[3] = {  50.,  150., 10 };
@@ -49,13 +51,16 @@ int main_signal(int argc, char* argv[])
 		OPT_SELECT('F', enum seq_type, &seq, FLASH, "FLASH"),
 		OPT_SELECT('B', enum seq_type, &seq, BSSFP, "bSSFP"),
 		OPT_SELECT('T', enum seq_type, &seq, TSE, "TSE"),
+		OPT_SELECT('M', enum seq_type, &seq, MOLLI, "MOLLI"),
 		OPT_SET('I', &IR, "inversion recovery"),
 		OPT_FLVEC3('1', &T1, "min:max:N", "range of T1s"),
 		OPT_FLVEC3('2', &T2, "min:max:N", "range of T2s"),
 		OPT_FLOAT('r', &TR, "TR", "repetition time"),
 		OPT_FLOAT('e', &TE, "TE", "echo time"),
 		OPT_FLOAT('f', &FA, "FA", "flip ange"),
+		OPT_FLOAT('t', &time_T1relax, "T1 relax", "T1 relax period (second) for MOLLI"),
 		OPT_LONG('n', &dims[TE_DIM], "n", "number of measurements"),
+		OPT_LONG('b', &Hbeats, "heart beats", "number of heart beats for MOLLI"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -70,6 +75,7 @@ int main_signal(int argc, char* argv[])
 	case FLASH: parm = signal_looklocker_defaults; break;
 	case BSSFP: parm = signal_IR_bSSFP_defaults; break;
 	case TSE:   parm = signal_TSE_defaults; break;
+	case MOLLI: parm = signal_looklocker_defaults; break;
 
 	default: error("sequence type not supported");
 	}
@@ -110,6 +116,7 @@ int main_signal(int argc, char* argv[])
 		case FLASH: looklocker_model(&parm, N, out); break;
 		case BSSFP: IR_bSSFP_model(&parm, N, out); break;
 		case TSE:   TSE_model(&parm, N, out); break;
+		case MOLLI: MOLLI_model(&parm, N, Hbeats, time_T1relax, out); break;
 
 		default: assert(0);
 		}

@@ -116,7 +116,7 @@ const struct signal_model signal_looklocker_defaults = {
 	.ir = true,
 };
 
-static float signal_looklocker(const struct signal_model* data, int ind)
+static float signal_looklocker(const struct signal_model* data, int ind, float* m_start)
 {
 	float fa = data->fa;
 	float t1 = data->t1;
@@ -124,7 +124,13 @@ static float signal_looklocker(const struct signal_model* data, int ind)
 	float tr = data->tr;
 	bool  ir = data->ir;
 
-	float s0 = ir ? (-1) * m0 : m0;
+	float s0 = 0.; 
+	
+	if (NULL == m_start)
+		s0 = ir ? (-1) * m0 : m0;
+	else
+		s0 = *m_start;
+	
 	float r1s = 1. / t1 - logf(cosf(fa)) / tr;
 	float mss = m0 / (t1 * r1s);
 
@@ -134,9 +140,35 @@ static float signal_looklocker(const struct signal_model* data, int ind)
 void looklocker_model(const struct signal_model* data, int N, complex float out[N])
 {
 	for (int ind = 0; ind < N; ind++)
-		out[ind] = signal_looklocker(data, ind);
+		out[ind] = signal_looklocker(data, ind, NULL);
 }
 
+/*
+ * MOLLI
+ */
+
+extern void MOLLI_model(const struct signal_model* data, int N, int Hbeats, float time_T1relax, complex float out[N])
+{
+	assert(0 == (N % Hbeats));
+
+	bool  ir   = data->ir;
+	float m0   = data->m0;
+	float s0   = ir ? (-1) * m0 : m0;
+	float temp = s0;
+	float r1   = 1.0 / data->t1;
+	int cycle  = 0;
+
+	for (int ind = 0; ind < N; ind++)
+	{
+		if((0 < ind) && (0 == ind % (N / Hbeats)))
+		{
+			temp = m0 + (out[ind-1] - m0) * expf(-1.0 * time_T1relax * r1);
+			cycle++;
+		}
+			
+		out[ind] = signal_looklocker(data, ind - cycle * (N / Hbeats), &temp);
+	}
+}
 
 /*
  * Inversion recovery TrueFISP: Quantification of T1, T2, and spin density.
