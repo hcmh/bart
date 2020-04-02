@@ -2601,11 +2601,16 @@ static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], 
 			if(8 * tdims[0] >= tdims[1])
 				return false;
 
+			//transpose data -> sum over inner dimensions
+			//cuda_zsum accumulates the sum in the first element
+			//copy the first elements to output
+			
 			long tdimst[2] = {tdims[1], tdims[0]};
 
 			complex float *tmp = md_alloc_gpu(2, tdims, CFL_SIZE);
 			md_transpose(2, 0, 1, tdimst, tmp, tdims, iptr2, CFL_SIZE);
-			cuda_zsum(tdimst[0], tmp);
+			for (long i = 0; i < tdimst[1]; i++)
+				cuda_zsum(tdimst[0], tmp + i * tdimst[0]);
 			md_copy2(1, tdims, tostr, optr, MD_STRIDES(2, tdimst, CFL_SIZE)+1, tmp, CFL_SIZE);
 			md_free(tmp);
 
