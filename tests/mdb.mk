@@ -1,5 +1,5 @@
 
-tests/test-mdb-bloch: phantom signal fmac fft ones modbloch slice scale nrmse
+tests/test-mdb-bloch: phantom sim fmac fft ones modbloch slice scale nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
 	$(TOOLDIR)/phantom -x16 -c basis_geom.ra				;\
 	$(TOOLDIR)/sim -P 1:1:0.0045:0.00225:0.001:45:1000 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
