@@ -43,7 +43,7 @@ tests/test-mdb-bloch-psf: traj repmat phantom sim fmac ones nufft fft modbloch s
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-mdb-bloch-traj: traj repmat phantom sim fmac ones nufft fft modbloch slice scale nrmse
+tests/test-mdb-bloch-traj: traj repmat phantom sim fmac modbloch slice scale nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
 	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
 	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
