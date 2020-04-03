@@ -6,7 +6,7 @@ tests/test-mdb-bloch: phantom sim fmac fft ones modbloch slice scale nrmse
 	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra image.ra		;\
 	$(TOOLDIR)/fft 3 image.ra k_space.ra					;\
 	$(TOOLDIR)/ones 6 16 16 1 1 1 1000 psf.ra		;\
-	$(TOOLDIR)/modbloch -t0.0045 -e0.00225 -R2 -f1 -s5000 -F45 -M1 -o0 -l1 -v0.00001 -b0.00001 -n0 -i15 -D0.00001 -a1 -w0 -r0 -p psf.ra k_space.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -p psf.ra k_space.ra reco.ra sens.ra	;\
 	$(TOOLDIR)/slice 6 0 reco.ra t1map.ra				;\
 	$(TOOLDIR)/fmac t1map.ra basis_geom.ra masked_t1.ra				;\
 	$(TOOLDIR)/scale -- 1.12 basis_geom.ra ref_t1.ra				;\
