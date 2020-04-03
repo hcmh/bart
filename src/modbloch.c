@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <complex.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -29,13 +30,69 @@
 #include "moba/model_Bloch.h"
 #include "moba/scale.h"
 
+static void help_seq(void)
+{
+	printf( "Sequence Simulation Parameter\n\n"
+		"#SEQ:\t Define sequence mode: \n"
+		"\t\t\t0 = bSSFP[default]\n"
+		"\t\t\t1 = invbSSFP\n"
+		"\t\t\t2 = FLASH\n"
+		"\t\t\t3 = pcbSSFP\n"
+		"\t\t\t4 = inv. bSSFP without preparation\n"
+		"\t\t\t5 = invFLASH\n"
+		"\t\t\t6 = invpcbSSFP\n"
+		"TR:\t Repetition time [s]\n"
+		"TE:\t Echo time [s]\n"
+		"FA:\t Flip angle of rf pulses [deg]\n"
+		"Drf:\t Duration of RF pulse [s]\n"
+		"Dinv:\t Duration of Inversion [s]\n"
+		"Dprep:\t Duration of magnetization preparation [s]\n"
+	);
+}
 
+
+static bool opt_seq(void* ptr, char c, const char* optarg)
+{
+	// Check if help function is called
+	char rt[5];
+	
+	switch (c) {
+
+	case 'P': {
+		
+		int ret = sscanf(optarg, "%7[^:]", rt);
+		assert(1 == ret);
+
+		if (strcmp(rt, "h") == 0) {
+
+			help_seq();
+			exit(0);
+		}
+		else {
+
+			// Collect simulation data
+			struct modBlochFit* data = ptr;
+
+			ret = sscanf(optarg, "%d:%f:%f:%f:%f:%f:%f",	
+									&data->sequence,
+									&data->tr, 
+									&data->te, 
+									&data->fa, 
+									&data->rfduration, 
+									&data->inversion_pulse_length,
+									&data->prep_pulse_length);
+			assert(7 == ret);
+		}
+		break;
+	}
+	}
+	return false;
+}
 
 
 static const char usage_str[] = "<kspace> <output> [<sensitivities>]";
 static const char help_str[] = 
 		"Model-based nonlinear inverse reconstructionus using Bloch equations as signal model.\n";
-
 
 int main_modbloch(int argc, char* argv[])
 {
@@ -50,35 +107,27 @@ int main_modbloch(int argc, char* argv[])
 	const char* inputB1 = NULL;
 	const char* inputSP = NULL;
 	const char* inputVFA = NULL;
-	float data_scaling = 5000.;
 	
 	const struct opt_s opts[] = {
 
 		OPT_UINT(	'i', 	&conf.iter, 		"", "Number of Newton steps"),
 		OPT_FLOAT(	'R', 	&conf.redu, 		"", "reduction factor"),
 		OPT_FLOAT(	'l', 	&conf.alpha, 		"", "alpha"),
-		OPT_FLOAT(	'w', 	&conf.alpha_min, 	"", "alpha_min"),
+		OPT_FLOAT(	'm', 	&conf.alpha_min, 	"", "alpha_min"),
 		OPT_UINT(	'o', 	&conf.opt_reg, 		"", "regularization option (0: l2, 1: l1-wav)"),
-		OPT_INT(	'n', 	&fit_para.not_wav_maps, 	"", "# Removed Maps from Wav.Denoisng"),
 		OPT_INT(	'd', 	&debug_level, 		"", "Debug level"),
 		OPT_FLOAT(	'f', 	&restrict_fov, 		"", "FoV scaling factor"),
-		OPT_INT(	'M', 	&fit_para.sequence,	"", "Define sequence mode: 0 = bSSFP[default], 1 = invbSSFP, 2 = FLASH, 3 = pcbSSFP, 4 = inv. bSSFP without preparation, 5 = invFLASH, 6 = invpcbSSFP"),
-		OPT_FLOAT(	'D', 	&fit_para.rfduration, 	"", "Duration of RF-pulse [s]"),
-		OPT_FLOAT(	't', 	&fit_para.tr, 		"", "tr [s]"),
-		OPT_FLOAT(	'e', 	&fit_para.te, 		"", "te [s]"),
-		OPT_FLOAT(	'F', 	&fit_para.fa, 		"", "Flipangle [deg]"),
-		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", "Number of averaged spokes"),
-		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
-		OPT_INT(	'X', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
-		OPT_FLOAT(	'v', 	&fit_para.inversion_pulse_length, 	"", "Inversion Pulse Length [s]"),
-		OPT_FLOAT(	'b', 	&fit_para.prep_pulse_length, 	"", "Preparation Pulse Length [s]"),
-		OPT_FLOAT(	's', 	&data_scaling, 		"", "Scaling of data"),
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
-		OPT_STRING(	'P',	&inputSP, 		"", "Input Slice Profile image"),
-		OPT_STRING(	'V',	&inputVFA, 		"", "Input for variable flipangle profile"),
+		OPT_STRING(	'S',	&inputSP, 		"", "Input Slice Profile image"),
+		OPT_STRING(	'F',	&inputVFA, 		"", "Input for variable flipangle profile"),
+		OPT_INT(	'n', 	&fit_para.not_wav_maps, 	"", "# Removed Maps from Wav.Denoisng"),
 		OPT_SET(	'O', 	&fit_para.full_ode_sim	,  "Apply full ODE simulation"),
+		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", "Number of averaged spokes"),
+		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
+		OPT_INT(	'w', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
 		OPT_SET(	'g', 	&usegpu			,  "use gpu"),
+		{ 'P', true, opt_seq, &fit_para, "\tA:B:C:D:E:F:G\tSequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep> (-Ph for help)" },
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -202,8 +251,8 @@ int main_modbloch(int argc, char* argv[])
 	}
 	
 	
-	double scaling = data_scaling / md_znorm(DIMS, ksp_dims, kspace_data);
-	double scaling_psf = 1.;// data_scaling / 5. / md_znorm(DIMS, pat_dims, pattern);
+	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling_psf = 1.;
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
