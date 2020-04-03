@@ -103,6 +103,7 @@ int main_moba(int argc, char* argv[])
 		grid_size = sample_size * oversampling;
 		grid_dims[READ_DIM] = grid_size;
 		grid_dims[PHS1_DIM] = grid_size;
+		grid_dims[PHS2_DIM] = 1L;
 				
 		if (-1 == restrict_fov)
 			restrict_fov = 0.5;
