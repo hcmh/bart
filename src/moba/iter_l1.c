@@ -31,8 +31,18 @@
 #include "iter/prox.h"
 #include "iter/vec.h"
 #include "iter/italgos.h"
-#include "iter/iter3.h"
 #include "iter/iter2.h"
+#include "iter/iter3.h"
+#include "iter/iter4.h"
+#include "iter/thresh.h"
+#include "iter/lsqr.h"
+#include "iter/prox.h"
+
+#include "linops/linop.h"
+#include "linops/someops.h"
+#include "linops/grad.h"
+
+
 
 #include "iter_l1.h"
 
@@ -274,6 +284,39 @@ static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf*
 	return operator_p_create(dm->N, dm->dims, cd->N, cd->dims, CAST_UP(PTR_PASS(data)), T1inv_apply, T1inv_del);
 }
 
+static const struct operator_p_s* T1inv_p_lsqr_create(const struct mdb_irgnm_l1_conf* conf, const long dims[DIMS], struct nlop_s* nlop, const float* dst, unsigned int flags)
+{
+	long* ndims = *TYPE_ALLOC(long[DIMS]);
+	md_copy_dims(DIMS, ndims, dims);
+
+	long img_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims); 
+
+	img_dims[COEFF_DIM] = img_dims[COEFF_DIM] + dims[COIL_DIM]; //FIXME
+
+	debug_print_dims(DP_INFO, DIMS, img_dims);
+
+	unsigned int num_funs = 1;
+
+	struct iter_admm_conf admmconf = iter_admm_defaults;
+
+	admmconf.cg_eps = 0.01;
+
+	admmconf.maxiter = 80;
+
+	float lambda = 0.0001;
+
+	// Total-variation penalty
+	auto grad_op = linop_grad_create(DIMS, img_dims, DIMS, flags);
+	const struct linop_s* trafos[1] = { grad_op };
+
+	auto thresh_prox = prox_thresh_create(DIMS + 1, linop_codomain(trafos[0])->dims, lambda, MD_BIT(DIMS));
+	const struct operator_p_s* prox_ops[1] = { thresh_prox };
+
+	return lsqr2_create(&lsqr_defaults, iter2_admm, CAST_UP(&admmconf), (float*)dst, &nlop->derivative[0][0], 
+				NULL, num_funs, prox_ops, trafos, NULL);
+}
+
 
 
 struct iterT1_nlop_s {
@@ -284,22 +327,6 @@ struct iterT1_nlop_s {
 };
 
 DEF_TYPEID(iterT1_nlop_s);
-
-
-static void nlop_for_iter(iter_op_data* _o, float* _dst, const float* _src)
-{
-	const auto nlop = CAST_DOWN(iterT1_nlop_s, _o);
-
-	operator_apply_unchecked(nlop->nlop.op, (complex float*)_dst, (const complex float*)_src);
-}
-
-static void nlop_der_iter(iter_op_data* _o, float* _dst, const float* _src)
-{
-	const auto nlop = CAST_DOWN(iterT1_nlop_s, _o);
-
-	assert(2 == operator_nr_args(nlop->nlop.op));
-	linop_forward_unchecked(nlop->nlop.derivative[0], (complex float*)_dst, (const complex float*)_src);
-}
 
 
 
@@ -315,17 +342,16 @@ void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
 	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
 	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
 
-	struct iterT1_nlop_s nl_data = { { &TYPEID(iterT1_nlop_s) }, *nlop };
+	const struct operator_p_s* inv_op = NULL;
+	
+	if (3 == conf->opt_reg) // FIXME
+		inv_op = T1inv_p_lsqr_create(conf, dims, nlop, dst, conf->flags);
+	else
+		inv_op = T1inv_p_create(conf, dims, nlop);
 
-	const struct operator_p_s* inv_op = T1inv_p_create(conf, dims, nlop);
-
-	irgnm2(conf->c2->iter, conf->c2->alpha, 0., conf->c2->alpha_min, conf->c2->redu, N, M, select_vecops(src),
-		(struct iter_op_s){ nlop_for_iter, CAST_UP(&nl_data) },
-		(struct iter_op_s){ nlop_der_iter, CAST_UP(&nl_data) },
-		OPERATOR_P2ITOP(inv_op),
-		dst, NULL, src,
-		(struct iter_op_s){ NULL, NULL },
-		NULL);
+	iter4_irgnm2(CAST_UP(conf->c2), nlop, 
+		N, dst, NULL, M, src, inv_op,
+		(struct iter_op_s){ NULL, NULL });
 
 	operator_p_free(inv_op);
 }
