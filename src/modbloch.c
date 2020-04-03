@@ -18,6 +18,10 @@
 #include "num/init.h"
 #include "num/gpuops.h"
 
+#include "noncart/nufft.h"
+
+#include "linops/linop.h"
+
 #include "misc/mri.h"
 #include "misc/misc.h"
 #include "misc/mmio.h"
@@ -99,11 +103,16 @@ int main_modbloch(int argc, char* argv[])
 	double start_time = timestamp();
 
 	float restrict_fov = -1.;
+
 	const char* psf = NULL;
+	const char* trajectory = NULL;
+
 	struct moba_conf conf = moba_defaults;
 	struct modBlochFit fit_para = modBlochFit_defaults;
+
 	bool out_sens = false;
 	bool usegpu = false;
+
 	const char* inputB1 = NULL;
 	const char* inputSP = NULL;
 	const char* inputVFA = NULL;
@@ -118,6 +127,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_INT(	'd', 	&debug_level, 		"", "Debug level"),
 		OPT_FLOAT(	'f', 	&restrict_fov, 		"", "FoV scaling factor"),
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
+		OPT_STRING(	't',	&trajectory,	"Traj", ""),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_STRING(	'S',	&inputSP, 		"", "Input Slice Profile image"),
 		OPT_STRING(	'F',	&inputVFA, 		"", "Input for variable flipangle profile"),
@@ -144,15 +154,42 @@ int main_modbloch(int argc, char* argv[])
 	
 	// Load k-space data
 	long ksp_dims[DIMS];
-	
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
+
 	assert(1 == ksp_dims[MAPS_DIM]);
 
+
+	unsigned int sample_size = 0;
+	unsigned int grid_size = 0;
+	float oversampling = 1.;
+
+	long grid_dims[DIMS];
+	md_copy_dims(DIMS, grid_dims, ksp_dims);
+
+	if (NULL != trajectory)
+	{
+		sample_size = ksp_dims[1];
+		grid_size = sample_size * oversampling;
+		grid_dims[READ_DIM] = grid_size;
+		grid_dims[PHS1_DIM] = grid_size;
+		grid_dims[PHS2_DIM] = 1L;
+
+		if (-1 == restrict_fov)
+			fit_para.fov_reduction_factor = 0.5;
+
+		conf.noncartesian = true;
+	}
+
+	debug_printf(DP_DEBUG1, "ksp_dims\n");
+	debug_print_dims(DP_DEBUG1, DIMS, ksp_dims);
+
+	debug_printf(DP_DEBUG1, "grid_dims\n");
+	debug_print_dims(DP_DEBUG1, DIMS, grid_dims);
 	
 	// Create image output
 	long img_dims[DIMS];
 	
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|SLICE_FLAG, img_dims, ksp_dims);
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|SLICE_FLAG, img_dims, grid_dims);
 	img_dims[COEFF_DIM] = 3;
 	
 	long img_strs[DIMS];
@@ -164,7 +201,7 @@ int main_modbloch(int argc, char* argv[])
 	
 	//Create coil output
 	long coil_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, coil_dims, ksp_dims);
+	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, coil_dims, grid_dims);
 	
 	
 	// Create sensitivity output
@@ -174,13 +211,13 @@ int main_modbloch(int argc, char* argv[])
 	
 	// Restrict field of view
 	long msk_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS, msk_dims, ksp_dims);
+	md_select_dims(DIMS, FFT_FLAGS, msk_dims, grid_dims);
 	long msk_strs[DIMS];
 	md_calc_strides(DIMS, msk_strs, msk_dims, CFL_SIZE);
 	complex float* mask = NULL;
-
 	
-	
+	complex float* k_grid_data = NULL;
+	k_grid_data = anon_cfl("", DIMS, grid_dims);
 	
 	// Load psf if given
 	complex float* pattern = NULL;
@@ -189,22 +226,68 @@ int main_modbloch(int argc, char* argv[])
 	if (NULL != psf) {
 
 		pattern = load_cfl(psf, DIMS, pat_dims);
-		// FIXME: check compatibility
+
+		if (0 == md_check_compat(DIMS, COIL_FLAG, ksp_dims, pat_dims))
+			error("pattern not compatible with kspace dimensions\n");
 
 		if (-1 == restrict_fov)
 			restrict_fov = 0.5;
-		
+
 		fit_para.fov_reduction_factor = restrict_fov;
 
 		conf.noncartesian = true;
+
+		md_copy(DIMS, grid_dims, k_grid_data, kspace_data, CFL_SIZE);
+
+	} else if (NULL != trajectory) {
+
+		struct nufft_conf_s nufft_conf = nufft_conf_defaults;
+		nufft_conf.toeplitz = false;
+
+		struct linop_s* nufft_op_p = NULL;
+		struct linop_s* nufft_op_k = NULL;
+
+		long traj_dims[DIMS];
+		long traj_strs[DIMS];
+
+		complex float* traj = load_cfl(trajectory, DIMS, traj_dims);
+		md_calc_strides(DIMS, traj_strs, traj_dims, CFL_SIZE);
+
+		md_zsmul(DIMS, traj_dims, traj, traj, oversampling);
+
+		long ones_dims[DIMS];
+		md_copy_dims(DIMS, ones_dims, traj_dims);
+		ones_dims[READ_DIM] = 1L;
+		complex float* ones = md_alloc(DIMS, ones_dims, CFL_SIZE);
+		md_zfill(DIMS, ones_dims, ones, 1.0);
+
+		// Gridding sampling pattern
+
+		md_select_dims(DIMS, FFT_FLAGS|TE_FLAG|SLICE_FLAG|TIME2_FLAG, pat_dims, grid_dims);
+		pattern = anon_cfl("", DIMS, pat_dims);
+
+		nufft_op_p = nufft_create(DIMS, ones_dims, pat_dims, traj_dims, traj, NULL, nufft_conf);
+		linop_adjoint(nufft_op_p, DIMS, pat_dims, pattern, DIMS, ones_dims, ones);
+		fftuc(DIMS, pat_dims, FFT_FLAGS, pattern, pattern);
+
+		// Gridding raw data
+
+		nufft_op_k = nufft_create(DIMS, ksp_dims, grid_dims, traj_dims, traj, NULL, nufft_conf);
+		linop_adjoint(nufft_op_k, DIMS, grid_dims, k_grid_data, DIMS, ksp_dims, kspace_data);
+		fftuc(DIMS, grid_dims, FFT_FLAGS, k_grid_data, k_grid_data);
+
+		linop_free(nufft_op_p);
+		linop_free(nufft_op_k);
+
+		md_free(ones);
 
 	} else {
 
 		md_copy_dims(DIMS, pat_dims, img_dims);
 		pattern = anon_cfl("", DIMS, pat_dims);
 		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace_data);
+		md_copy(DIMS, grid_dims, k_grid_data, kspace_data, CFL_SIZE);
 	}
-	
 	
 	complex float* input_b1 = NULL;
 	
@@ -217,7 +300,7 @@ int main_modbloch(int argc, char* argv[])
 		fit_para.input_b1 = md_alloc(DIMS, input_b1_dims, CFL_SIZE);
 		md_copy(DIMS, input_b1_dims, fit_para.input_b1, input_b1, CFL_SIZE);
 	}
-		
+
 	
 	
 	complex float* input_sliceprofile = NULL;
@@ -251,11 +334,11 @@ int main_modbloch(int argc, char* argv[])
 	}
 	
 	
-	double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);
 	double scaling_psf = 1.;
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
-	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
+	md_zsmul(DIMS, grid_dims, k_grid_data, k_grid_data, scaling);
 
 	debug_printf(DP_INFO, "Scaling_psf: %f\n", scaling_psf);
 	md_zsmul(DIMS, pat_dims, pattern, pattern, scaling_psf);
@@ -282,12 +365,10 @@ int main_modbloch(int argc, char* argv[])
 	long tmp_strs[DIMS];
 	md_calc_strides(DIMS, tmp_strs, tmp_dims, CFL_SIZE);
 	
-
-	
 	//Values for Initialization of maps
 	complex float initval[3] = {0.8, 10., 4.} ;//	R1, R2, M0 
 	
-	auto_scale(&fit_para, fit_para.scale, ksp_dims, kspace_data);
+	auto_scale(&fit_para, fit_para.scale, grid_dims, k_grid_data);
 	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2]);
 
 
@@ -295,8 +376,8 @@ int main_modbloch(int argc, char* argv[])
 	md_set_dims(DIMS, pos, 0);
 	
 	complex float* tmp_img = md_alloc(DIMS, tmp_dims, CFL_SIZE);
-	complex float* ones = md_alloc(DIMS, tmp_dims, CFL_SIZE);
-	md_zfill(DIMS, tmp_dims, ones, 1.);
+	complex float* ones_tmp = md_alloc(DIMS, tmp_dims, CFL_SIZE);
+	md_zfill(DIMS, tmp_dims, ones_tmp, 1.);
 	
 	
 	for (int i = 0; i < img_dims[COEFF_DIM]; i++) {
@@ -309,21 +390,21 @@ int main_modbloch(int argc, char* argv[])
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE);  
 	
 	}
-	
+
 #ifdef  USE_CUDA
 	if (usegpu) {
 
-		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
-		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
+		complex float* kspace_gpu = md_alloc_gpu(DIMS, grid_dims, CFL_SIZE);
+		md_copy(DIMS, grid_dims, kspace_gpu, k_grid_data, CFL_SIZE);
 
-		bloch_recon(&conf, &fit_para, ksp_dims, img, sens, pattern, mask, kspace_gpu, usegpu);
+		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, kspace_gpu, usegpu);
 
 		md_free(kspace_gpu);
 	} else
 #endif
-		bloch_recon(&conf, &fit_para, ksp_dims, img, sens, pattern, mask, kspace_data, usegpu);
-	
-	
+		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, k_grid_data, usegpu);
+
+
 	pos[COEFF_DIM] = 2;
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, scaling_psf / scaling);
@@ -332,7 +413,7 @@ int main_modbloch(int argc, char* argv[])
 	
 	md_zrss(DIMS, tmp_dims, COIL_FLAG, tmp_sens, sens);
 	md_zmul(DIMS, tmp_dims, tmp_img, tmp_img, tmp_sens);
-	
+
 	md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE); 
 	
 	md_free(tmp_sens);
@@ -347,7 +428,7 @@ int main_modbloch(int argc, char* argv[])
 		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, fit_para.scale[i]);
 		
 		if (2 != i)
-			md_zdiv(DIMS, tmp_dims, tmp_img, ones, tmp_img);
+			md_zdiv(DIMS, tmp_dims, tmp_img, ones_tmp, tmp_img);
 		
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE);
 			
@@ -355,15 +436,15 @@ int main_modbloch(int argc, char* argv[])
 	}
 
 	md_free(tmp_img);
-	md_free(ones);
+	md_free(ones_tmp);
 	
 	md_free(mask);
 
 	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
-	unmap_cfl(DIMS, img_dims, img );
+	unmap_cfl(DIMS, img_dims, img);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
-	
+	unmap_cfl(DIMS, grid_dims, k_grid_data);
 	if(NULL != input_b1)
 		unmap_cfl(DIMS, input_b1_dims, input_b1);
 	
@@ -373,7 +454,6 @@ int main_modbloch(int argc, char* argv[])
 	if(NULL != input_vfa)
 		unmap_cfl(DIMS, input_vfa_dims, input_vfa);
 	
-
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
 	exit(0);
