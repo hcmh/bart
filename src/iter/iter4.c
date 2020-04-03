@@ -182,7 +182,13 @@ static void inverse2(iter_op_data* _data, float alpha, float* dst, const float* 
 
 	iter_op_call(data->adj, tmp, src);
 
-	inverse(_data, alpha, dst, tmp);
+	float eps = data->cgtol * md_norm(1, MD_DIMS(data->size), src);
+
+	if (data->nlinv_legacy)
+		eps = powf(eps, 2.);
+
+        conjgrad(data->cgiter, alpha, eps, data->size, select_vecops(src),
+			(struct iter_op_s){ normal, CAST_UP(data) }, dst, src, NULL);
 
 	md_free(tmp);
 }
