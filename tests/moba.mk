@@ -127,8 +127,10 @@ tests/test-moba-t1-MOLLI: phantom signal fft ones index scale moba slice invert 
 	$(TOOLDIR)/fft 3 image.ra k_space.ra						;\
 	$(TOOLDIR)/ones 6 32 32 1 1 1 300 psf.ra					;\
 	$(TOOLDIR)/index 5 300 tmp1.ra   						;\
-	$(TOOLDIR)/scale 0.004 tmp1.ra TI.ra                  	       			;\
-	$(TOOLDIR)/moba -L -m -i11 -f1 -C200 -p psf.ra k_space.ra TI.ra reco.ra		;\
+	$(TOOLDIR)/scale 0.004 tmp1.ra TI.ra            	       			;\
+	$(TOOLDIR)/ones 1 4 tmp2.ra   					                ;\
+	$(TOOLDIR)/scale 0.36 tmp2.ra t1relax.ra            	       			;\
+	$(TOOLDIR)/moba -L -m -i11 -f1 -C200 -T t1relax.ra -p psf.ra k_space.ra TI.ra reco.ra ;\
 	$(TOOLDIR)/slice 6 1 reco.ra R1.ra						;\
 	$(TOOLDIR)/invert R1.ra T1.ra							;\
 	$(TOOLDIR)/phantom -x32 -c circ.ra						;\
