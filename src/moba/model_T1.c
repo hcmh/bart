@@ -33,7 +33,8 @@
 #include "model_T1.h"
 
 
-struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, const struct noir_model_conf_s* conf, bool use_gpu, bool MOLLI)
+struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, 
+		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool use_gpu)
 {
 	struct noir_s nlinv = noir_create3(dims, mask, psf, conf);
 	struct T1_s ret;
@@ -54,8 +55,9 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 
 	struct nlop_s* T1 = NULL;
 	// chain T1 model
-	if (MOLLI)
-	{
+	if (MOLLI) {
+
+		//FIXME: Currently MOLLI model supports an acquisition of 5 heart beats
         	int parts = 5;
 		out_dims[TE_DIM] /= parts;
 		TI_dims[TE_DIM] /= parts;
@@ -64,12 +66,13 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 		complex float* TI2 = md_alloc(DIMS, TI_dims, CFL_SIZE);
 
 		md_copy(DIMS, TI_dims, TI1, TI, CFL_SIZE);
-		md_copy(DIMS, TI_dims, TI2, TI1, CFL_SIZE);
+		md_copy(DIMS, TI_dims, TI2, TI, CFL_SIZE);
 
-        	T1 = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI1, TI2, use_gpu);
+        	T1 = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI1, TI2, TI_t1relax, use_gpu);
 
         	md_free(TI1);
 		md_free(TI2);
+
 	} else {
 		
 		T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);

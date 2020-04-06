@@ -44,6 +44,7 @@ int main_moba(int argc, char* argv[])
 	unsigned int grid_size = 0;
 	const char* psf = NULL;
 	const char* trajectory = NULL;
+	const char* time_T1relax = NULL;
 	struct moba_conf conf = moba_defaults;
 	bool out_sens = false;
 	bool usegpu = false;
@@ -60,7 +61,6 @@ int main_moba(int argc, char* argv[])
 		OPT_UINT('C', &conf.inner_iter, "iter", "inner iterations"),
 		OPT_FLOAT('s', &conf.step, "step", "step size"),
 		OPT_FLOAT('B', &conf.lower_bound, "bound", "lower bound for relaxivity"),
-		OPT_SET('m', &conf.MOLLI, "use MOLLI model"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('N', &unused, "(normalize)"), // no-op
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
@@ -69,6 +69,9 @@ int main_moba(int argc, char* argv[])
 		OPT_SET('g', &usegpu, "use gpu"),
 		OPT_STRING('t', &trajectory, "Traj", ""),
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.25]"),
+		OPT_SET('m', &conf.MOLLI, "use MOLLI model"),
+		OPT_STRING('T', &time_T1relax, "T1 relax time for MOLLI", ""),
+
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -87,6 +90,15 @@ int main_moba(int argc, char* argv[])
 
 	assert(TI_dims[TE_DIM] == ksp_dims[TE_DIM]);
 	assert(1 == ksp_dims[MAPS_DIM]);
+
+	complex float* TI_t1relax = NULL;
+	long TI_t1relax_dims[DIMS];
+
+	if (conf.MOLLI) {
+		
+		assert(NULL != time_T1relax);
+		TI_t1relax = load_cfl(time_T1relax, DIMS, TI_t1relax_dims);
+	}
 
 	if (conf.sms) {
 
@@ -282,10 +294,16 @@ int main_moba(int argc, char* argv[])
 		complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
 		md_copy(DIMS, TI_dims, TI_gpu, TI, CFL_SIZE);
 
+		if (conf.MOLLI) {
+
+			complex float* TI_t1relax_gpu = md_alloc_gpu(DIMS, TI_t1relax_dims, CFL_SIZE);
+			md_copy(DIMS, TI_t1relax_dims, TI_t1relax_gpu, TI_t1relax, CFL_SIZE);
+		}
+
 		switch (mode) {
 
 		case MDB_T1:
-			T1_recon(&conf, grid_dims, img, sens, pattern, mask, TI_gpu, kspace_gpu, usegpu);
+			T1_recon(&conf, grid_dims, img, sens, pattern, mask, TI_gpu, TI_t1relax_gpu, kspace_gpu, usegpu);
 			break;
 		};
 
@@ -296,7 +314,7 @@ int main_moba(int argc, char* argv[])
 	switch (mode) {
 
 	case MDB_T1:
-		T1_recon(&conf, grid_dims, img, sens, pattern, mask, TI, k_grid_data, usegpu);
+		T1_recon(&conf, grid_dims, img, sens, pattern, mask, TI, TI_t1relax, k_grid_data, usegpu);
 		break;
 	};
 
@@ -309,6 +327,8 @@ int main_moba(int argc, char* argv[])
 	unmap_cfl(DIMS, img_dims, img);
 	unmap_cfl(DIMS, single_map_dims, single_map);
 	unmap_cfl(DIMS, TI_dims, TI);
+	if (conf.MOLLI)
+		unmap_cfl(DIMS, TI_t1relax_dims, TI_t1relax);
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);

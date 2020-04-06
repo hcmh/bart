@@ -51,7 +51,7 @@ struct moba_conf moba_defaults = {
 };
 
 
-void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* kspace_data, _Bool usegpu)
+void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* TI_t1relax, const complex float* kspace_data, bool usegpu)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -86,7 +86,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	mconf.b = 32.;
 	mconf.cnstcoil_flags = TE_FLAG;
 
-	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, usegpu, conf->MOLLI);
+	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, conf->MOLLI, TI_t1relax, usegpu);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
