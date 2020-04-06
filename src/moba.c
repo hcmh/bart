@@ -293,10 +293,12 @@ int main_moba(int argc, char* argv[])
 
 		complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
 		md_copy(DIMS, TI_dims, TI_gpu, TI, CFL_SIZE);
+			
+                complex float* TI_t1relax_gpu = NULL; 
 
 		if (conf.MOLLI) {
 
-			complex float* TI_t1relax_gpu = md_alloc_gpu(DIMS, TI_t1relax_dims, CFL_SIZE);
+			TI_t1relax_gpu = md_alloc_gpu(DIMS, TI_t1relax_dims, CFL_SIZE);
 			md_copy(DIMS, TI_t1relax_dims, TI_t1relax_gpu, TI_t1relax, CFL_SIZE);
 		}
 
