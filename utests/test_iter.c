@@ -121,7 +121,7 @@ static bool test_iter_irgnm_lsqr0(bool ref)
 	md_free(src2);
 	md_free(src3);
 
-	UT_ASSERT(err < 1.E-7);
+	UT_ASSERT(err < 1.E-10);
 }
 
 
