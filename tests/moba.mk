@@ -136,7 +136,7 @@ tests/test-moba-t1-MOLLI: phantom signal fft ones index scale moba slice invert 
 	$(TOOLDIR)/phantom -x32 -c circ.ra						;\
 	$(TOOLDIR)/fmac T1.ra circ.ra masked.ra						;\
 	$(TOOLDIR)/scale -- 1.12 circ.ra ref.ra						;\
-	$(TOOLDIR)/nrmse -t 0.00007 masked.ra ref.ra					;\
+	$(TOOLDIR)/nrmse -t 0.001 masked.ra ref.ra					;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
