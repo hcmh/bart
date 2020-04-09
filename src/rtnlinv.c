@@ -366,6 +366,8 @@ int main_rtnlinv(int argc, char* argv[])
 		estimate_pattern(DIMS, k_s->dims_full, COIL_FLAG, wgh, k);
 		pattern = compute_psf(DIMS, pat_s->dims_full, traj_s->dims_full, traj, traj_s->dims_full, NULL, wgh_dims, wgh, false, false);
 
+		md_free(wgh);
+
 #endif
 
 		fftuc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
