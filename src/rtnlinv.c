@@ -137,6 +137,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_INT('F', &reduced_frames, "Frames", "Reconstruct only 'noFrames' frames. (deprecated! Use 'resize')"),	
 		OPT_VEC3('x', &my_img_dims, "x:y:z", "Explicitly specify image dimensions"),
 		OPT_SET('A', &alt_scaling, "(Alternative scaling)"), // Used for SSA-FARY paper
+        OPT_SET('s', &conf.sms, "Simultaneous Multi-Slice reconstruction")
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -176,11 +177,10 @@ int main_rtnlinv(int argc, char* argv[])
 	}
 
 	// SMS
-	if (1 != k_s->dims_full[SLICE_DIM]) {
+	if (conf.sms == true) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", k_s->dims_full[SLICE_DIM]);
 		fftmod(DIMS, k_s->dims_full, SLICE_FLAG, k, k); // fftmod to get correct slice order in output
-		conf.sms = true;
 	}
 
 	complex float* pattern = NULL;
