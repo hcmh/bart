@@ -107,6 +107,7 @@ int main_rtnlinv(int argc, char* argv[])
 	unsigned int turns = 1;
 	int reduced_frames = 0;
 	bool usegpu = false;
+	bool alt_scaling = false;
 
 	long my_img_dims[3] = { 0, 0, 0 };
 
@@ -135,6 +136,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_FLOAT('T', &temp_damp, "temp_damp", "temporal damping [default: 0.9]"),
 		OPT_INT('F', &reduced_frames, "Frames", "Reconstruct only 'noFrames' frames. (deprecated! Use 'resize')"),	
 		OPT_VEC3('x', &my_img_dims, "x:y:z", "Explicitly specify image dimensions"),
+		OPT_SET('A', &alt_scaling, "(Alternative scaling)"), // Used for SSA-FARY paper
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -149,8 +151,14 @@ int main_rtnlinv(int argc, char* argv[])
 
 	// kspace dimensions and strides struct
 	struct ds_s* k_s = (struct ds_s*)malloc(sizeof(struct ds_s));
-
 	complex float* k = load_cfl(argv[1], DIMS, k_s->dims_full);
+
+	double scaling = 1.0;
+	if (!alt_scaling) {
+
+			scaling = 100. / md_znorm(DIMS, k_s->dims_full, k);
+			md_zsmul(DIMS, k_s->dims_full, k, k, scaling);
+	}
 
 	ds_init(k_s, CFL_SIZE);
 
@@ -362,7 +370,8 @@ int main_rtnlinv(int argc, char* argv[])
 
 		fftuc(DIMS, pat_s->dims_full, FFT_FLAGS, pattern, pattern);
 
-#if 0
+if (alt_scaling) {
+
 		if (frames > turns) {
 
 			// For turn-based reconstructions we use the conventional scaling
@@ -374,7 +383,8 @@ int main_rtnlinv(int argc, char* argv[])
 			// This scaling accounts for variable spokes per frame
 			scale_psf_k(pat_s, pattern, k_s, k, traj_s, traj);
 		}
-#endif
+
+}
 		debug_printf(DP_DEBUG3, "finished\n");
 	}
 
@@ -474,10 +484,13 @@ int main_rtnlinv(int argc, char* argv[])
 		}
 
 
-		double scaling = 100. / md_znorm(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame);
-// 		if (1 != kgrid_s->dims_singleFrame[SLICE_DIM]) // SMS
-// 			scaling *= sqrt(kgrid_s->dims_singleFrame[SLICE_DIM]);
-		md_zsmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, scaling);
+		if (alt_scaling) {
+
+			scaling = 100. / md_znorm(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame);
+			//if (1 != kgrid_s->dims_singleFrame[SLICE_DIM]) // SMS
+			//scaling *= sqrt(kgrid_s->dims_singleFrame[SLICE_DIM]);
+			md_zsmul(DIMS, kgrid_s->dims_singleFrame, kgrid_singleFrame, kgrid_singleFrame, scaling);
+		}
 
 #ifdef  USE_CUDA
 		if (usegpu) {
