@@ -1,15 +1,11 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2015-2016. Martin Uecker.
+ * Copyright 2015-2020. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors: 
- * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
-
-#include <stdbool.h>
-#include <complex.h>
-#include <stdlib.h>
 
 #include "num/init.h"
 
@@ -17,6 +13,7 @@
 #include "na/io.h"
 #include "na/math.h"
 
+#include "misc/lang.h"
 #include "misc/opts.h"
 #include "misc/misc.h"
 
@@ -44,24 +41,23 @@ int main_fft(int argc, char* argv[])
 
 	num_init();
 
-	na in = na_load(argv[2]);
-	na out = na_create(argv[3], na_type(in));
+	with (na in = na_load(argv[2]) ;; na_free(in))
+	with (na out = na_create(argv[3], na_type(in)) ;; na_free(out)) {
 
-	unsigned long flags = labs(atol(argv[1]));
+		unsigned long flags = labs(atol(argv[1]));
 
-	na_copy(out, in);
-	na_free(in);
+		na_copy(out, in);
 
-	__typeof__(na_fft)* ffts[2][2][2] = {
-		{ { na_fft, na_ifft },
-		  { na_fftu, na_ifftu }, },
-		{ { na_fftc, na_ifftc },
-		  { na_fftuc, na_ifftuc }, },
-	};
+		__typeof__(na_fft)* ffts[2][2][2] = {
+			{ { na_fft, na_ifft },
+			  { na_fftu, na_ifftu }, },
+			{ { na_fftc, na_ifftc },
+			  { na_fftuc, na_ifftuc }, },
+		};
 
-	ffts[center][unitary][inv](flags, out, out);
+		ffts[center][unitary][inv](flags, out, out);
+	}
 
-	na_free(out);
 	return 0;
 }
 
