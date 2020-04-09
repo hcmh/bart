@@ -140,7 +140,7 @@ tests/test-moba-t1-MOLLI: phantom signal fft ones index scale moba slice invert 
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-moba-t1-irgnm-admm: phantom signal fft ones index scale moba slice invert resize fmac nrmse
+tests/test-moba-t1-irgnm-admm: phantom signal fmac fft ones index scale moba looklocker nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
 	$(TOOLDIR)/phantom -x32 -c circ.ra 		                  		;\
 	$(TOOLDIR)/signal -I -F -r0.005 -n600 -1 1.12:1.12:1 -2 100:100:1 signal.ra     ;\
