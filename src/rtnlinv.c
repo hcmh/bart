@@ -5,9 +5,30 @@
  *
  * Authors:
  * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018 Christian Holme
- * 2018 Sebastian Rosenzweig
+ * 2018 Christian Holme, <christian.holme@med.uni-goettingen.de>
+ * 2018-2020 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  * 2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ * 
+ * Publications:
+ * 
+ * NLINV
+ * M. Uecker, T. Hohage, K. T. Block, and J. Frahm. “Image reconstruction
+ * by regularized nonlinear inversion-joint estimation of coil sensitivities and
+ * image content”. Magn. Reson. Med. 60 (2008), pp. 674–682 
+ * 
+ * Real-time NLINV
+ * M. Uecker, S. Zhang, D. Voit, A. Karaus, K.-D. Merboldt, and J. Frahm.
+ * “Real-time MRI at a resolution of 20 ms”. NMR Biomed. 23 (2010)
+ * 
+ * ENLIVE
+ * H. C. M. Holme, S. Rosenzweig S. Rosenzweig, F. Ong, R. N. Wilke, M. Lustig, and M. Uecker.
+ * “ENLIVE: An Efficient Nonlinear Method for Calibrationless and Robust Parallel
+ * Imaging”. Sci. Rep. 9 (2019), p. 3034
+ * 
+ * SMS-NLINV
+ * S. Rosenzweig S. Rosenzweig, H. C. M. Holme, R. N. Wilke, D. Voit, J. Frahm, and M. Uecker.
+ * “Simultaneous multi-slice MRI using cartesian and radial FLASH and regularized
+ * nonlinear inversion: SMS-NLINV”. Magn. Reson. Med. 79 (2018), pp. 2057–2066
  */
 
 #include <stdbool.h>
@@ -40,7 +61,7 @@
 
 static const char usage_str[] = "<kspace> <output> [<sensitivities>]";
 static const char help_str[] =
-		"Jointly estimate image and sensitivities with nonlinear\n"
+		"Jointly estimate a time-series of images and sensitivities with nonlinear\n"
 		"inversion using {iter} iteration steps. Optionally outputs\n"
 		"the sensitivities.";
 
@@ -113,7 +134,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.5]"),
 		OPT_FLOAT('T', &temp_damp, "temp_damp", "temporal damping [default: 0.9]"),
 		OPT_INT('F', &reduced_frames, "Frames", "Reconstruct only 'noFrames' frames. (deprecated! Use 'resize')"),	
-		OPT_VEC3('x', &my_img_dims, "x:y:z", "(img dims)"),
+		OPT_VEC3('x', &my_img_dims, "x:y:z", "Explicitly specify image dimensions"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -169,11 +190,9 @@ int main_rtnlinv(int argc, char* argv[])
 		conf.noncart = true;
 
 		complex float* tmp_psf = load_cfl(psf, DIMS, pat_s->dims_full);
-
 		ds_init(pat_s, CFL_SIZE);
 
 		pattern = anon_cfl("", DIMS, pat_s->dims_full);
-
 		md_copy(DIMS, pat_s->dims_full, pattern, tmp_psf, CFL_SIZE);
 
 		unmap_cfl(DIMS, pat_s->dims_full, tmp_psf);
@@ -229,9 +248,7 @@ int main_rtnlinv(int argc, char* argv[])
 	assert(1 == k_s->dims_full[MAPS_DIM]);
 
 	struct ds_s* img_s = (struct ds_s*)malloc(sizeof(struct ds_s));
-
 	md_select_dims(DIMS, ~COIL_FLAG, img_s->dims_full, sens_s->dims_full);
-
 	ds_init(img_s, CFL_SIZE);
 
 	if (!combine) {
@@ -243,16 +260,13 @@ int main_rtnlinv(int argc, char* argv[])
 	}
 
 	complex float* img_output = create_cfl(argv[2], DIMS, img_s->dims_output);
-
 	md_clear(DIMS, img_s->dims_output, img_output, CFL_SIZE);
 
 	complex float* img_singleFrame = md_alloc(DIMS, img_s->dims_singleFrame, CFL_SIZE);
 
 	struct ds_s* msk_s = (struct ds_s*) malloc(sizeof(struct ds_s));
 	md_select_dims(DIMS, FFT_FLAGS, msk_s->dims_full, img_s->dims_singleFrame);
-
 	ds_init(msk_s, CFL_SIZE);
-
 	complex float* mask = NULL;
 
 	// Full output sensitivities
@@ -300,6 +314,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 		pattern = anon_cfl("", DIMS, pat_s->dims_full);
 
+#if 0
 		// calculate pattern by nufft gridding:
 		// we generate an array of ones, and grid it in the same way we
 		// would grid real data. This pretty picture gets slightly more
@@ -307,8 +322,6 @@ int main_rtnlinv(int argc, char* argv[])
 		// Here we do not want ones in the zero-padded beginning.
 		// Therefore, we generate an array of ones ONLY where the
 		// original data is != 0.
-
-#if 0
 
 		long ones_dims[DIMS];
 		md_copy_dims(DIMS, ones_dims, traj_s->dims_full);
@@ -340,11 +353,9 @@ int main_rtnlinv(int argc, char* argv[])
 
 		long wgh_dims[DIMS];
 		md_select_dims(DIMS, ~COIL_FLAG, wgh_dims, k_s->dims_full);
-
 		complex float* wgh = md_alloc(DIMS, wgh_dims, CFL_SIZE);
 
 		estimate_pattern(DIMS, k_s->dims_full, COIL_FLAG, wgh, k);
-
 		pattern = compute_psf(DIMS, pat_s->dims_full, traj_s->dims_full, traj, traj_s->dims_full, NULL, wgh_dims, wgh, false, false);
 
 #endif
@@ -388,8 +399,6 @@ int main_rtnlinv(int argc, char* argv[])
 	long skip = md_calc_size(DIMS, img_s->dims_singleFrame);
 	long size = skip + md_calc_size(DIMS, sens_s->dims_singleFrame);
 
-
-
 	long ref_dim[1] = { size };
 	complex float* ref = md_alloc(1, ref_dim, CFL_SIZE);
 	md_clear(1, ref_dim, ref, CFL_SIZE);
@@ -419,7 +428,6 @@ int main_rtnlinv(int argc, char* argv[])
 		kgrid_singleFrame = md_alloc(DIMS, kgrid_s->dims_singleFrame, CFL_SIZE);
 
 		fftc = fft_measure_create(DIMS, kgrid_s->dims_singleFrame, FFT_FLAGS, true, false);
-
 		fftc_mod = md_alloc(DIMS, kgrid_s->dims_singleFrame, CFL_SIZE);
 
 		md_zfill(DIMS, kgrid_s->dims_singleFrame, fftc_mod, 1.);
@@ -444,7 +452,7 @@ int main_rtnlinv(int argc, char* argv[])
 		long pos[DIMS] = { 0 };
 		pos[TIME_DIM] = frame;
 		md_slice(DIMS, TIME_FLAG, pos, k_s->dims_full, k_singleFrame, k, CFL_SIZE);
-		pos[TIME_DIM] = frame%turns;
+		pos[TIME_DIM] = frame % turns;
 		md_slice(DIMS, TIME_FLAG, pos, pat_s->dims_full, pat_singleFrame, pattern, CFL_SIZE);
 
 		if (NULL != trajectory)  {
