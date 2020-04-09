@@ -56,7 +56,7 @@ tests/test-moba-t1-sms: phantom signal fft ones index scale moba looklocker fmac
 	touch $@
 
 
-tests/test-moba-t1-no-IR: phantom signal fft ones index scale moba looklocker fmac scale nrmse
+tests/test-moba-t1-no-IR: phantom signal fft ones index scale moba looklocker fmac nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
 	$(TOOLDIR)/phantom -x16 -c circ.ra 		                  		;\
 	$(TOOLDIR)/signal -F -r0.005 -n300 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
@@ -73,7 +73,7 @@ tests/test-moba-t1-no-IR: phantom signal fft ones index scale moba looklocker fm
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-moba-t1-nonCartesian: traj transpose phantom signal nufft fft ones index scale moba looklocker resize fmac scale nrmse
+tests/test-moba-t1-nonCartesian: traj transpose phantom signal nufft fft ones index scale moba looklocker resize fmac nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
 	$(TOOLDIR)/traj -x32 -y1 -r -D -G -s7 -t300 _traj.ra  		                ;\
 	$(TOOLDIR)/transpose 5 10 _traj.ra _traj2.ra    		                ;\
@@ -98,7 +98,7 @@ tests/test-moba-t1-nonCartesian: traj transpose phantom signal nufft fft ones in
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-moba-t1-nufft: traj transpose phantom signal nufft fft ones index scale moba looklocker resize fmac nrmse
+tests/test-moba-t1-nufft: traj transpose phantom signal nufft fft ones index scale moba fmac nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
 	$(TOOLDIR)/traj -x32 -y1 -r -D -G -s7 -t300 _traj.ra  		                ;\
 	$(TOOLDIR)/transpose 5 10 _traj.ra _traj2.ra    		                ;\
@@ -119,7 +119,7 @@ tests/test-moba-t1-nufft: traj transpose phantom signal nufft fft ones index sca
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-moba-t1-MOLLI: phantom signal fft ones index scale moba slice invert resize fmac nrmse
+tests/test-moba-t1-MOLLI: phantom signal fft ones index scale moba slice invert fmac nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
 	$(TOOLDIR)/phantom -x32 -c circ.ra 		                  		;\
 	$(TOOLDIR)/signal -M -I -r0.004 -n300 -1 1.12:1.12:1 -2 100:100:1 -t0.36 -b5 signal.ra ;\
