@@ -2155,7 +2155,6 @@ static bool check_start_plus(unsigned int N, const struct operator_s* op[N], com
 			md_free(ndst[N]);
 
 			auto tmp_chain_op = operator_chain_optimized_F(operator_chainN(op_chain_data->N - 1, op_chain_data->x + 1));
-			operator_free(tmp_chain_op);
 			operator_apply_unchecked(tmp_chain_op, dst[i], ndst[i]);
 			operator_free(tmp_chain_op);
 			md_free(ndst[i]);
