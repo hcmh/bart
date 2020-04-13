@@ -1786,12 +1786,9 @@ static void plus_apply(const operator_data_t* _data, unsigned int N, void* args[
 
 	auto iov = operator_codomain(data->b);
 	complex float* tmp = md_alloc_sameplace(iov->N, iov->dims, iov->size, src);
-#if 0
+
 	operator_apply_parallel_unchecked(2, MAKE_ARRAY(data->a, data->b), MAKE_ARRAY((complex float*)args[0], tmp), args[1]);
-#else
-	operator_apply_unchecked(data->a, (complex float*)dst, (complex float*)src);
-	operator_apply_unchecked(data->b, tmp, (complex float*)src);
-#endif
+
 	md_zadd2(iov->N, iov->dims, iov->strs, dst,iov->strs, dst, iov->strs, tmp);
 	md_free(tmp);
 }
