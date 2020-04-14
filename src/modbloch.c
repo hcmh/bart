@@ -335,13 +335,9 @@ int main_modbloch(int argc, char* argv[])
 	
 	
 	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);
-	double scaling_psf = 1.;
 
-	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
+	debug_printf(DP_INFO, "Data Scaling: %f\n", scaling);
 	md_zsmul(DIMS, grid_dims, k_grid_data, k_grid_data, scaling);
-
-	debug_printf(DP_INFO, "Scaling_psf: %f\n", scaling_psf);
-	md_zsmul(DIMS, pat_dims, pattern, pattern, scaling_psf);
 
 	if (-1. == restrict_fov) {
 
@@ -407,7 +403,7 @@ int main_modbloch(int argc, char* argv[])
 
 	pos[COEFF_DIM] = 2;
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
-	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, scaling_psf / scaling);
+	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / scaling);
 	
 	complex float* tmp_sens = md_alloc(DIMS, tmp_dims, CFL_SIZE);
 	
