@@ -173,7 +173,7 @@ static void collect_signal(struct sim_data* data, int N, int P, float* mxy, floa
 {
 	float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } };
 
-	ADCcorr(N, P, tmp, xp, data->pulse.phase);
+	ADCcorr(N, P, tmp, xp, -data->pulse.phase);
 
 	for (int i = 0; i < N; i++) {
 

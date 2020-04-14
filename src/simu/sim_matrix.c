@@ -255,7 +255,7 @@ static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa
 
 	float tmp[N];
 
-	ADCcorrection(N, tmp, xp, (data->tmp.rep_counter%2) ? M_PI : 0);
+	ADCcorrection(N, tmp, xp, (data->tmp.rep_counter%2) ? -M_PI : 0);
 
 	for (int i = 0; i < 3; i++) {
 
