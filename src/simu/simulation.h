@@ -81,7 +81,7 @@ struct bloch_s {
 
 
 
-extern void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N]);
+extern void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N], float angle);
 extern void relaxation2(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 2][N], float st, float end);
 extern void isochrom_distribution(struct sim_data* data, float* isochromats);
 extern void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 2][N]);

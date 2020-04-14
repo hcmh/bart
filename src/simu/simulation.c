@@ -159,10 +159,8 @@ void isochrom_distribution(struct sim_data* data, float* isochromats)
 }
 
 //If ADC gets phase, it has to be corrected manually
-void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N])
+void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N], float corr_angle)
 {
-	float corr_angle = M_PI; // for bSSFP
-
 	for (int i = 0; i < P + 2; i ++) {
 
 		out[i][0] = in[i][0] * cosf(corr_angle) - in[i][1] * sinf(corr_angle);
@@ -171,62 +169,33 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N])
 	}
 }
 
-// TODO: Fix correction for FLASH sequences, where phase is the same for all repetitions!
 static void collect_signal(struct sim_data* data, int N, int P, float* mxy, float* sa_r1, float* sa_r2, float* sa_m0, float xp[P + 2][N])
 {
-	if ((2 == data->seq.seq_type) || (5 == data->seq.seq_type)) {
+	float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } };
 
-		for (int i = 0; i < N; i++) {
+	ADCcorr(N, P, tmp, xp, data->pulse.phase);
 
-			mxy[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-				+ (i * data->seq.spin_num * data->seq.rep_num)
-				+ (data->tmp.rep_counter * data->seq.spin_num)
-				+ data->tmp.spin_counter] = xp[0][i];
+	for (int i = 0; i < N; i++) {
 
-			sa_r1[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-				+ (i * data->seq.spin_num * data->seq.rep_num)
-				+ (data->tmp.rep_counter * data->seq.spin_num)
-				+ data->tmp.spin_counter] = xp[1][i];
+		mxy[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
+			+ (i * data->seq.spin_num * data->seq.rep_num)
+			+ (data->tmp.rep_counter * data->seq.spin_num)
+			+ data->tmp.spin_counter] = tmp[0][i];
 
-			sa_r2[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-				+ (i * data->seq.spin_num * data->seq.rep_num)
-				+ (data->tmp.rep_counter * data->seq.spin_num)
-				+ data->tmp.spin_counter] = xp[2][i];
+		sa_r1[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
+			+ (i * data->seq.spin_num * data->seq.rep_num)
+			+ (data->tmp.rep_counter * data->seq.spin_num)
+			+ data->tmp.spin_counter] = tmp[1][i];
 
-			sa_m0[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-				+ (i * data->seq.spin_num * data->seq.rep_num)
-				+ (data->tmp.rep_counter * data->seq.spin_num)
-				+ data->tmp.spin_counter] = xp[3][i];
-		}
+		sa_r2[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
+			+ (i * data->seq.spin_num * data->seq.rep_num)
+			+  (data->tmp.rep_counter * data->seq.spin_num)
+			+ data->tmp.spin_counter] = tmp[2][i];
 
-	} else {
-
-		float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } };
-
-		ADCcorr(N, P, tmp, xp);
-
-		for (int i = 0; i < N; i++) {
-
-			mxy[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-				+ (i * data->seq.spin_num * data->seq.rep_num)
-				+ (data->tmp.rep_counter * data->seq.spin_num)
-				+ data->tmp.spin_counter] = (data->tmp.rep_counter % 2 == 1) ? tmp[0][i] : xp[0][i];
-
-			sa_r1[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-				+ (i * data->seq.spin_num * data->seq.rep_num)
-				+ (data->tmp.rep_counter * data->seq.spin_num)
-				+ data->tmp.spin_counter] = (data->tmp.rep_counter % 2 == 1) ? tmp[1][i] : xp[1][i];
-
-			sa_r2[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-				+ (i * data->seq.spin_num * data->seq.rep_num)
-				+  (data->tmp.rep_counter * data->seq.spin_num)
-				+ data->tmp.spin_counter] = (data->tmp.rep_counter % 2 == 1) ? tmp[2][i] : xp[2][i];
-
-			sa_m0[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-				+ (i * data->seq.spin_num * data->seq.rep_num)
-				+ (data->tmp.rep_counter * data->seq.spin_num)
-				+ data->tmp.spin_counter] = (data->tmp.rep_counter % 2 == 1) ? tmp[3][i] : xp[3][i];
-		}
+		sa_m0[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
+			+ (i * data->seq.spin_num * data->seq.rep_num)
+			+ (data->tmp.rep_counter * data->seq.spin_num)
+			+ data->tmp.spin_counter] = tmp[3][i];
 	}
 }
 

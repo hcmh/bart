@@ -238,10 +238,8 @@ static void prepare_matrix_to_tr( int N, float matrix[N][N], void* _data )
 	create_sim_matrix(N, matrix, (tmp_data.seq.tr-tmp_data.seq.te), &tmp_data);
 }
 
-static void ADCcorrection(int N, float out[N], float in[N])
+static void ADCcorrection(int N, float out[N], float in[N], float corr_angle)
 {
-	float corr_angle = M_PI; // for bSSFP
-
 	for (int i = 0; i < 3; i++) {	// 3 parameter: Sig, S_R1, S_R2
 		
 		out[3*i] = in[3*i] * cosf(corr_angle) - in[3*i+1] * sinf(corr_angle);
@@ -254,29 +252,17 @@ static void ADCcorrection(int N, float out[N], float in[N])
 static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa_r2, void* _data)
 {    
 	struct sim_data* data = _data;
-	
-	if (2 == data->seq.seq_type || 5 == data->seq.seq_type ) {
-	
-		for (int i = 0; i < 3; i++) {
 
-			mxy[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = xp[i];
-			sa_r1[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = xp[i+3];
-			sa_r2[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = xp[i+6];
-		}	
+	float tmp[N];
+
+	ADCcorrection(N, tmp, xp, (data->tmp.rep_counter%2) ? M_PI : 0);
+
+	for (int i = 0; i < 3; i++) {
+
+		mxy[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i];
+		sa_r1[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i+3];
+		sa_r2[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i+6];
 	}
-	else {
-		float tmp[N];
-	
-		ADCcorrection(N, tmp, xp);
-
-		for (int i = 0; i < 3; i++) {
-
-			mxy[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = (data->tmp.rep_counter % 2 == 1) ? tmp[i] : xp[i];
-			sa_r1[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = (data->tmp.rep_counter % 2 == 1) ? tmp[i+3] : xp[i+3];
-			sa_r2[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = (data->tmp.rep_counter % 2 == 1) ? tmp[i+6] : xp[i+6];
-		}
-	}
-    
 }
     
 // for seq = 0, 1, 2, 5
