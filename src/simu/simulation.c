@@ -165,7 +165,7 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N])
 
 	for (int i = 0; i < P + 2; i ++) {
 
-		out[i][0] = in[i][0] * cosf(corr_angle) + in[i][1] * sinf(corr_angle);
+		out[i][0] = in[i][0] * cosf(corr_angle) - in[i][1] * sinf(corr_angle);
 		out[i][1] = in[i][0] * sinf(corr_angle) + in[i][1] * cosf(corr_angle);
 		out[i][2] = in[i][2];
 	}

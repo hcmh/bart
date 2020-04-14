@@ -244,7 +244,7 @@ static void ADCcorrection(int N, float out[N], float in[N])
 
 	for (int i = 0; i < 3; i++) {	// 3 parameter: Sig, S_R1, S_R2
 		
-		out[3*i] = in[3*i] * cosf(corr_angle) + in[3*i+1] * sinf(corr_angle);
+		out[3*i] = in[3*i] * cosf(corr_angle) - in[3*i+1] * sinf(corr_angle);
 		out[3*i+1] = in[3*i] * sinf(corr_angle) + in[3*i+1] * cosf(corr_angle);
 		out[3*i+2] = in[3*i+2];
 	}
