@@ -416,7 +416,8 @@ void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*s
 
 				//Change phase for phase cycled bSSFP sequences
 				if ((3 == data->seq.seq_type) || (6 == data->seq.seq_type))
-					data->pulse.phase = M_PI * (float)(data->tmp.rep_counter % 2) + 360. * ((float)data->tmp.rep_counter / (float)data->seq.rep_num) / 180. * M_PI;
+					data->pulse.phase = (M_PI + 2 * M_PI / (float)data->seq.rep_num * (float)(data->tmp.rep_counter + data->tmp.run_counter * data->seq.rep_num) )
+										* (float)(data->tmp.rep_counter + data->tmp.run_counter * data->seq.rep_num);
 				else if ((0 == data->seq.seq_type) || (1 == data->seq.seq_type) || (4 == data->seq.seq_type))
 					data->pulse.phase = M_PI * (float)(data->tmp.rep_counter + data->tmp.run_counter * data->seq.rep_num);
 
