@@ -255,7 +255,10 @@ static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa
 
 	float tmp[N];
 
-	ADCcorrection(N, tmp, xp, (data->tmp.rep_counter%2) ? -M_PI : 0);
+	if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
+		ADCcorrection(N, tmp, xp, 0);	// no alternating pulse scheme for FLASH sequences
+	else
+		ADCcorrection(N, tmp, xp, (data->tmp.rep_counter%2) ? -M_PI : 0); // alternating pulse scheme for bSSFP sequences
 
 	for (int i = 0; i < 3; i++) {
 
