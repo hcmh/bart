@@ -1121,32 +1121,32 @@ __global__ void kern_im2col_valid(	cuFloatComplex* dst, const cuFloatComplex* sr
 {
 	long i = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (!(i < NC *OX *OY *OZ))
+	if (!(i < OX * OY * OZ * KX * KY * KZ))
 		return;
+
+	long kx = i % KX;
+	i = (i - kx) / KX;
+	long ky = i % KY;
+	i = (i - ky) / KY;
+	long kz = i % KZ;
+	i = (i - kz) / KZ;
 	
-	long c = i % NC;
-	i = (i - c) / NC;
 	long ox = i % OX;
 	i = (i - ox) / OX;
 	long oy = i % OY;
 	i = (i - oy) / OY;
 	long oz = i % OZ;
 
-	long o0 = c + (NC * KX * KY * KZ) * (ox + OX * oy + OX * OY *oz);
-	long i0 = c + NC * (ox + IX * (oy + IY * oz));
+	long o0 = NC * (kx + KX * (ky + KY * (kz + KZ * (ox + OX * (oy + OY * oz)))));
+	long i0 = NC * ((ox + kx) + IX * ((oy + ky) + IY * (oz + kz)));
 
-	for (long kx = 0; kx < KX; kx++)
-	for (long ky = 0; ky < KY; ky++)
-	for (long kz = 0; kz < KZ; kz++) {
-
-		dst[o0 + NC * (kx + KX * (ky + KY * kz))] = 
-			src[i0 + NC * (kx + IX * (ky + IY * kz))]; 
-	}
+	for (long c = 0; c < NC; c++)
+		dst[o0 + c] = src[i0 + c]; 
 }
 
 extern "C" void cuda_im2col(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5])
 {
-	long N = odims[0] * odims[1] * odims[2] * odims[3] * odims[4];
+	long N = kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4];
 
 	kern_im2col_valid<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
 								kdims[1],

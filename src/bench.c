@@ -31,9 +31,12 @@
 
 #define DIMS 8
 
-//#define BENCH_CONV
+#define BENCH_CONV
 #ifdef BENCH_CONV
 #include "num/convcorr.h"
+#ifdef USE_CUDA
+#include "num/gpukrnls.h"
+#endif
 #endif
 
 
@@ -656,6 +659,29 @@ BENCH_CONV_GPU(zconvcorr_bwd_in_direct_cf)
 BENCH_CONV_GPU(zconvcorr_bwd_in_im2col_cf_gpu)
 BENCH_CONV_GPU(zconvcorr_bwd_krn_direct_cf)
 BENCH_CONV_GPU(zconvcorr_bwd_krn_im2col_cf_gpu)
+
+static double bench_im2col_fwd_gpu(long scale)
+{
+	long odims[DIMS] = { 24, 1, 290, 290, 1, 10 * scale, 1, 1 };
+	long idims[DIMS] = { 1,  1, 300, 300, 1, 10 * scale, 1, 1 };
+	long kdims[DIMS] = { 24, 1, 11,  11,  1, 1,          1, 1 };
+
+	complex float* iptr = md_alloc_gpu(DIMS, idims, CFL_SIZE);
+	md_gaussian_rand(DIMS, idims, iptr);
+
+	long imat_size = kdims[1] * kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4];
+	complex float* imat_tmp = md_alloc_gpu(1, &imat_size, CFL_SIZE);
+
+	double tic = timestamp();
+	for(int i = 0; i < odims[5]; i++)
+		cuda_im2col(imat_tmp, iptr, odims, idims, kdims);
+	double toc = timestamp();
+
+	md_free(iptr);
+
+
+	return toc - tic;
+}
 #endif
 #endif
 
@@ -701,6 +727,7 @@ const struct benchmark_s {
 #ifdef USE_CUDA
 	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_direct_cf)
 	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_im2col_cf_gpu)
+	{ bench_im2col_fwd_gpu,		"im2col copy fwd gpu" },
 	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_in_direct_cf)
 	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_in_im2col_cf_gpu)
 	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_krn_direct_cf)
