@@ -1111,3 +1111,99 @@ extern "C" void cuda_zconvcorr_3D_CF_TI(_Complex float* im, const _Complex float
 								kdims[2], kdims[3], kdims[4], conv);
 	cudaDeviceSynchronize();
 }
+
+
+__global__ void kern_im2col_valid(	cuFloatComplex* dst, const cuFloatComplex* src,
+					long NC,
+					long OX, long OY, long OZ,
+					long IX, long IY, long IZ,
+					long KX, long KY, long KZ)
+{
+	long i = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (!(i < NC *OX *OY *OZ))
+		return;
+	
+	long c = i % NC;
+	i = (i - c) / NC;
+	long ox = i % OX;
+	i = (i - ox) / OX;
+	long oy = i % OY;
+	i = (i - oy) / OY;
+	long oz = i % OZ;
+
+	long o0 = c + (NC * KX * KY * KZ) * (ox + OX * oy + OX * OY *oz);
+	long i0 = c + NC * (ox + IX * (oy + IY * oz));
+
+	for (long kx = 0; kx < KX; kx++)
+	for (long ky = 0; ky < KY; ky++)
+	for (long kz = 0; kz < KZ; kz++) {
+
+		dst[o0 + NC * (kx + KX * (ky + KY * kz))] = 
+			src[i0 + NC * (kx + IX * (ky + IY * kz))]; 
+	}
+}
+
+extern "C" void cuda_im2col(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5])
+{
+	long N = odims[0] * odims[1] * odims[2] * odims[3] * odims[4];
+
+	kern_im2col_valid<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+								kdims[1],
+								odims[2], odims[3], odims[4],
+								idims[2], idims[3], idims[4],
+								kdims[2], kdims[3], kdims[4]);
+	cudaDeviceSynchronize();
+}
+
+
+__global__ void kern_im2col_transp(	cuFloatComplex* dst, const cuFloatComplex* src,
+					long NC,
+					long OX, long OY, long OZ,
+					long IX, long IY, long IZ,
+					long KX, long KY, long KZ)
+{
+	long i = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (!(i < NC * IX * IY * IZ))
+		return;
+	
+	long c = i % NC;
+	i = (i - c) / NC;
+	long ix = i % IX;
+	i = (i - ix) / IX;
+	long iy = i % IY;
+	i = (i - iy) / IY;
+	long iz = i % IZ;
+
+	cuFloatComplex result = make_cuFloatComplex(0., 0.);
+
+	for (long kx = 0; kx < KX; kx++)
+	for (long ky = 0; ky < KY; ky++)
+	for (long kz = 0; kz < KZ; kz++) {
+
+		long ox = ix - kx;
+		long oy = iy - ky;
+		long oz = iz - kz;
+
+		long index = c + (NC * KX * KY * KZ) * (ox + OX * oy + OX * OY *oz) + NC * (kx + KX * (ky + KY * kz));
+
+		if ((0 <= ox) && (0 <= oy) && (0 <= oz) && (OX > ox) && (OY > oy) && (OZ > oz))
+			result = cuCaddf(result, src[index]);
+	}
+	
+	i = blockIdx.x * blockDim.x + threadIdx.x;
+	dst[i] = cuCaddf(result, dst[i]);
+}
+
+extern "C" void cuda_im2col_transp(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5])
+{
+	long N = idims[0] * idims[1] * idims[2] * idims[3] * idims[4];
+
+	kern_im2col_transp<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+								kdims[1],
+								odims[2], odims[3], odims[4],
+								idims[2], idims[3], idims[4],
+								kdims[2], kdims[3], kdims[4]);
+	cudaDeviceSynchronize();
+}
