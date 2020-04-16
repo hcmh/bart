@@ -31,7 +31,10 @@
 
 #define DIMS 8
 
-
+//#define BENCH_CONV
+#ifdef BENCH_CONV
+#include "num/convcorr.h"
+#endif
 
 
 static double bench_generic_copy(long dims[DIMS])
@@ -576,6 +579,85 @@ static double bench_zsmul(long scale)
 }
 
 
+#ifdef BENCH_CONV
+#define BENCH_CONV_CPU_ENTRY(function) { bench_cpu_ ## function, "cpu: " # function},
+#define BENCH_CONV_CPU(function)\
+static double bench_cpu_ ## function(long scale)\
+{\
+	long odims[DIMS] = { 24, 1, 290, 290, 1, 10 * scale, 1, 1 };\
+	long idims[DIMS] = { 1,  1, 300, 300, 1, 10 * scale, 1, 1 };\
+	long kdims[DIMS] = { 24, 1, 11,  11,  1, 1,          1, 1 };\
+\
+	complex float* optr = md_alloc(DIMS, odims, CFL_SIZE);\
+	complex float* iptr = md_alloc(DIMS, idims, CFL_SIZE);\
+	complex float* kptr = md_alloc(DIMS, kdims, CFL_SIZE);\
+\
+	md_gaussian_rand(DIMS, idims, iptr);\
+	md_gaussian_rand(DIMS, kdims, kptr);\
+	md_gaussian_rand(DIMS, odims, optr);\
+\
+	double tic = timestamp();\
+	assert(function(DIMS,\
+					odims, MD_STRIDES(DIMS, odims, CFL_SIZE), optr,\
+					idims, MD_STRIDES(DIMS, idims, CFL_SIZE), iptr,\
+					kdims, MD_STRIDES(DIMS, kdims, CFL_SIZE), kptr,\
+					28, NULL, NULL, false));\
+	double toc = timestamp();\
+\
+	md_free(optr);\
+	md_free(iptr);\
+	md_free(kptr);\
+\
+	return toc - tic;\
+}
+
+BENCH_CONV_CPU(zconvcorr_fwd_direct_cf)
+BENCH_CONV_CPU(zconvcorr_fwd_im2col_cf_cpu)
+BENCH_CONV_CPU(zconvcorr_bwd_in_direct_cf)
+BENCH_CONV_CPU(zconvcorr_bwd_krn_direct_cf)
+BENCH_CONV_CPU(zconvcorr_bwd_krn_im2col_cf_cpu)
+
+#ifdef USE_CUDA
+
+#define BENCH_CONV_GPU_ENTRY(function) { bench_gpu_ ## function, "gpu: " # function},
+#define BENCH_CONV_GPU(function)\
+static double bench_gpu_ ## function(long scale)\
+{\
+	long odims[DIMS] = { 24, 1, 290, 290, 1, 10 * scale, 1, 1 };\
+	long idims[DIMS] = { 1,  1, 300, 300, 1, 10 * scale, 1, 1 };\
+	long kdims[DIMS] = { 24, 1, 11,  11,  1, 1,          1, 1 };\
+\
+	complex float* optr = md_alloc_gpu(DIMS, odims, CFL_SIZE);\
+	complex float* iptr = md_alloc_gpu(DIMS, idims, CFL_SIZE);\
+	complex float* kptr = md_alloc_gpu(DIMS, kdims, CFL_SIZE);\
+\
+	md_gaussian_rand(DIMS, idims, iptr);\
+	md_gaussian_rand(DIMS, kdims, kptr);\
+	md_gaussian_rand(DIMS, odims, optr);\
+\
+	double tic = timestamp();\
+	assert(function(DIMS,\
+					odims, MD_STRIDES(DIMS, odims, CFL_SIZE), optr,\
+					idims, MD_STRIDES(DIMS, idims, CFL_SIZE), iptr,\
+					kdims, MD_STRIDES(DIMS, kdims, CFL_SIZE), kptr,\
+					28, NULL, NULL, false));\
+	double toc = timestamp();\
+\
+	md_free(optr);\
+	md_free(iptr);\
+	md_free(kptr);\
+\
+	return toc - tic;\
+}
+
+BENCH_CONV_GPU(zconvcorr_fwd_direct_cf)
+BENCH_CONV_GPU(zconvcorr_fwd_im2col_cf_gpu)
+BENCH_CONV_GPU(zconvcorr_bwd_in_direct_cf)
+BENCH_CONV_GPU(zconvcorr_bwd_in_im2col_cf_gpu)
+BENCH_CONV_GPU(zconvcorr_bwd_krn_direct_cf)
+BENCH_CONV_GPU(zconvcorr_bwd_krn_im2col_cf_gpu)
+#endif
+#endif
 
 
 enum bench_indices { REPETITION_IND, SCALE_IND, THREADS_IND, TESTS_IND, BENCH_DIMS };
@@ -615,6 +697,21 @@ const struct benchmark_s {
 	const char* str;
 
 } benchmarks[] = {
+#ifdef BENCH_CONV	
+#ifdef USE_CUDA
+	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_direct_cf)
+	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_im2col_cf_gpu)
+	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_in_direct_cf)
+	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_in_im2col_cf_gpu)
+	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_krn_direct_cf)
+	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_krn_im2col_cf_gpu)
+#endif
+	BENCH_CONV_CPU_ENTRY(zconvcorr_fwd_direct_cf)
+	BENCH_CONV_CPU_ENTRY(zconvcorr_fwd_im2col_cf_cpu)
+	BENCH_CONV_CPU_ENTRY(zconvcorr_bwd_in_direct_cf)
+	BENCH_CONV_CPU_ENTRY(zconvcorr_bwd_krn_direct_cf)
+	BENCH_CONV_CPU_ENTRY(zconvcorr_bwd_krn_im2col_cf_cpu)
+#endif
 	{ bench_add,		"add (md_zaxpy)" },
 	{ bench_add2,		"add (md_zaxpy), contiguous" },
 	{ bench_addf,		"add (for loop)" },
