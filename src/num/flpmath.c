@@ -1445,9 +1445,9 @@ int calc_convcorr_geom_strs_dil(int N, unsigned long flags,
 
 			if (!test_mode) {
 
-				assert((1 == odims[i]) || (odims[i] == idims[i]) || (odims[i] == kdims[i]));
-				assert((1 == idims[i]) || (odims[i] == idims[i]) || (idims[i] == kdims[i]));
-				assert((1 == kdims[i]) || (kdims[i] == idims[i]) || (odims[i] == kdims[i]));
+				assert((1 == odims[i]) || (odims[i] == idims[i]) || (odims[i] == kdims[i]) || ((1 == kdims[i]) && (1 == idims[i])));
+				assert((1 == idims[i]) || (odims[i] == idims[i]) || (idims[i] == kdims[i]) || ((1 == kdims[i]) && (1 == odims[i])));
+				assert((1 == kdims[i]) || (kdims[i] == idims[i]) || (odims[i] == kdims[i]) || ((1 == odims[i]) && (1 == idims[i])));
 			}
 		}
 	}
