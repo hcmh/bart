@@ -773,5 +773,5 @@ static bool test_nlop_parallel_derivatives(void)
 	return result;
 }
 
-// FIXME U T _REGISTER_TEST(test_nlop_parallel_derivatives);
+UT_REGISTER_TEST(test_nlop_parallel_derivatives);
 
