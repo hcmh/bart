@@ -42,6 +42,7 @@ int main_traj(int argc, char* argv[])
 	int turns = 1;
 	float rot = 0.;
 	const char* pat_file = NULL;
+	bool force_grid = false;
 
 
 	struct traj_conf conf = traj_defaults;
@@ -87,6 +88,7 @@ int main_traj(int argc, char* argv[])
 		OPT_STRING('V', &custom_gdelays, "file", "custom_gdelays"),
 		OPT_STRING('p', &pat_file, "file", "Pattern"),
 		OPT_SET('T', &conf.sms_turns, "(Modified SMS Turn Scheme)"),
+		OPT_SET('f', &force_grid, "Force trajectory samples on Cartesian grid."),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -313,9 +315,9 @@ int main_traj(int argc, char* argv[])
 					d[i] = delay * read_dir[i];
 			}
 
-			samples[p * 3 + 0] = d[1] + read * read_dir[1];
-			samples[p * 3 + 1] = d[0] + read * read_dir[0];
-			samples[p * 3 + 2] = d[2] + read * read_dir[2];
+			samples[p * 3 + 0] = (force_grid) ? (int) (d[1] + read * read_dir[1]) : d[1] + read * read_dir[1];
+			samples[p * 3 + 1] = (force_grid) ? (int) (d[0] + read * read_dir[0]) : d[0] + read * read_dir[0];
+			samples[p * 3 + 2] = (force_grid) ? (int) (d[2] + read * read_dir[2]) : d[2] + read * read_dir[2];
 
 		} else {
 
