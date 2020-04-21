@@ -10,6 +10,7 @@
 
 struct traj_conf {
 
+	_Bool spiral;
 	_Bool radial;
 	_Bool golden;
 	_Bool aligned;

@@ -89,6 +89,7 @@ int main_traj(int argc, char* argv[])
 		OPT_STRING('p', &pat_file, "file", "Pattern"),
 		OPT_SET('T', &conf.sms_turns, "(Modified SMS Turn Scheme)"),
 		OPT_SET('f', &force_grid, "Force trajectory samples on Cartesian grid."),
+		OPT_SET('S', &conf.spiral, "Archimedean spiral readout"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -189,17 +190,21 @@ int main_traj(int argc, char* argv[])
 			error("Multiple partitions not sensible for 3D-Kooshball\n");
 	}
 
+	if (conf.radial && conf.spiral)
+		error("Choose either radial spokes or spirals\n");
+
 	if (conf.tiny_gold >= 1)
 		conf.golden = true;
 
 	if (conf.golden) {
 
-		conf.radial = true;
+		if (!conf.spiral)
+			conf.radial = true;
 
 		if (0 == conf.tiny_gold)
 			conf.tiny_gold = 1;
 
-	} else if (conf.full_circle || conf.radial) {
+	} else if ( (conf.full_circle && !conf.spiral) || conf.radial) {
 
 		conf.radial = true;
 
@@ -318,6 +323,28 @@ int main_traj(int argc, char* argv[])
 			samples[p * 3 + 0] = (force_grid) ? (int) (d[1] + read * read_dir[1]) : d[1] + read * read_dir[1];
 			samples[p * 3 + 1] = (force_grid) ? (int) (d[0] + read * read_dir[0]) : d[0] + read * read_dir[0];
 			samples[p * 3 + 2] = (force_grid) ? (int) (d[2] + read * read_dir[2]) : d[2] + read * read_dir[2];
+
+		} else if (conf.spiral) {
+
+			// supports Archimedean spirals
+
+			double read = (float)(i + D - X);
+
+			double steps = D;	// number of steps along whole spiral
+			double offset = 0.;
+			double density = 2.;
+			double cycles = X / (4 * M_PI * density); // whole k-space coverage: X/2 = density * cycles * 2 Pi
+
+			double incr = read / steps * cycles * 2 * M_PI;
+
+			double angle = 0.;
+
+			for (unsigned int d = 1; d < DIMS; d++)
+				angle += pos[d] * base_angle[d];
+
+			samples[p * 3 + 0] = (offset + density * incr) * cosf(incr + angle);
+			samples[p * 3 + 1] = (offset + density * incr) * sinf(incr + angle);
+			samples[p * 3 + 2] = 0;
 
 		} else {
 

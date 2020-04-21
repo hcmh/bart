@@ -23,6 +23,7 @@
 
 const struct traj_conf traj_defaults = {
 
+	.spiral = false,
 	.radial = false,
 	.golden = false,
 	.aligned = false,
