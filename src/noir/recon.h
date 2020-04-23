@@ -22,6 +22,7 @@ struct noir_conf_s {
 	_Bool pattern_for_each_coil;
 	_Bool sms;
 	unsigned int cnstcoil_flags;
+	_Bool img_space_coils;
 };
 
 extern const struct noir_conf_s noir_defaults;

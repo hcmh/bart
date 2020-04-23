@@ -101,6 +101,7 @@ int main_rtnlinv(int argc, char* argv[])
 	const char* psf = NULL;
 	const char* trajectory = NULL;
 	const char* init_file = NULL;
+	const char* init_file_im = NULL;
 	struct noir_conf_s conf = noir_defaults;
 	bool out_sens = false;
 	bool scale_im = false;
@@ -127,6 +128,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_STRING('p', &psf, "PSF", ""),
 		OPT_STRING('t', &trajectory, "Traj", ""),
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
+		OPT_STRING('C', &init_file_im, "file", "(File for initialization with image space sensitivities)"),
 		OPT_SET('g', &usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
@@ -288,6 +290,8 @@ int main_rtnlinv(int argc, char* argv[])
 	complex float* ksens_singleFrame = md_alloc(DIMS, sens_s->dims_singleFrame, CFL_SIZE);
 	md_clear(DIMS, sens_s->dims_singleFrame, ksens_singleFrame, CFL_SIZE);
 
+	long skip = md_calc_size(DIMS, img_s->dims_singleFrame);
+	long size = skip + md_calc_size(DIMS, sens_s->dims_singleFrame);
 
 	// initialization
 	if (NULL != init_file) {
@@ -300,6 +304,20 @@ int main_rtnlinv(int argc, char* argv[])
 
 		md_copy(DIMS, img_s->dims_singleFrame, img_singleFrame, init, CFL_SIZE);
 		md_clear(DIMS, sens_s->dims_singleFrame, ksens_singleFrame, CFL_SIZE);
+
+		unmap_cfl(DIMS, init_dims, init);
+
+	} else if (NULL != init_file_im) {
+		
+		long init_dims[DIMS];
+		complex float* init = load_cfl(init_file_im, DIMS, init_dims);
+
+		if (!md_check_bounds(DIMS, 0, img_s->dims_singleFrame, init_dims))
+			error("Image dimensions and init dimensions do not match!");
+
+		md_copy(DIMS, img_s->dims_singleFrame, img_singleFrame, init, CFL_SIZE);
+		md_copy(DIMS, sens_s->dims_singleFrame, ksens_singleFrame, init + skip, CFL_SIZE);
+		conf.img_space_coils = true;
 
 		unmap_cfl(DIMS, init_dims, init);
 
@@ -408,12 +426,16 @@ if (alt_scaling) {
 		mask = compute_mask(DIMS, msk_s->dims_full, restrict_dims);
 	}
 
-	long skip = md_calc_size(DIMS, img_s->dims_singleFrame);
-	long size = skip + md_calc_size(DIMS, sens_s->dims_singleFrame);
-
 	long ref_dim[1] = { size };
 	complex float* ref = md_alloc(1, ref_dim, CFL_SIZE);
 	md_clear(1, ref_dim, ref, CFL_SIZE);
+
+	if (NULL != init_file_im) { // Prepare refrence from init file
+		
+		md_zsmul(DIMS, img_s->dims_singleFrame, ref, img_singleFrame, temp_damp);
+		md_zsmul(DIMS, sens_s->dims_singleFrame, ref + skip, ksens_singleFrame, temp_damp);
+		
+	}
 
 	struct linop_s* nufft_ops[turns];
 	complex float* kgrid_singleFrame = NULL;
@@ -566,6 +588,10 @@ if (alt_scaling) {
 
 		if(out_sens)
 			md_copy_block(DIMS, pos2, sens_s->dims_full, sens, sens_s->dims_singleFrame, sens_singleFrame, CFL_SIZE);
+
+		if (NULL != init_file_im)
+			conf.img_space_coils = false;
+			
 	}
 
 	md_free(mask);
