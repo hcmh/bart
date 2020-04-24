@@ -40,7 +40,7 @@ int main_phantom(int argc, char* argv[])
 	enum ptype_e { SHEPPLOGAN, CIRC, TIME, HEART, SENS, GEOM, STAR, BART, TUBES } ptype = SHEPPLOGAN;
 
 	const char* traj = NULL;
-	bool basis = false;
+	int basis = -1;
 
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 	dims[0] = 128;
@@ -64,7 +64,7 @@ int main_phantom(int argc, char* argv[])
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_INT('g', &geo, "n=1,2", "select geometry for object phantom"),
 		OPT_SET('3', &d3, "3D"),
-		OPT_SET('b', &basis, "create basis for geometry"),
+		OPT_INT('b', &basis, "nb", " define number of basis functions for geometry"),
 	};
 
 	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -125,10 +125,11 @@ int main_phantom(int argc, char* argv[])
 	if (sens > 0)
 		dims[3] = sens;
 
-	if (basis) {
+	if (-1 != basis) {
 
 		assert(TUBES == ptype);
-		dims[COEFF_DIM] = 10; // Length of const struct ellipsis_s tube phantom. see src/shepplogan.c
+		assert(0 < basis && 11 >= basis);
+		dims[COEFF_DIM] = basis; // Length of const struct ellipsis_s tube phantom. see src/shepplogan.c
 	}
 
 

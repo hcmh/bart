@@ -599,7 +599,7 @@ void calc_phantom_tubes(const long dims[DIMS], complex float* out, bool kspace, 
 {
 	if (1 < dims[COEFF_DIM]) {
 
-		calc_phantom_arb(ARRAY_SIZE(phantom_tubes), phantom_tubes, dims, out, kspace, tstrs, traj);
+		calc_phantom_arb(dims[COEFF_DIM], phantom_tubes, dims, out, kspace, tstrs, traj);
 
 		compensate_bckgrd(dims, out, phantom_tubes[0].intensity);
 
