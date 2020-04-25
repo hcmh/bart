@@ -48,6 +48,7 @@ struct moba_conf moba_defaults = {
 	.noncartesian = false,
 	.sms = false,
 	.MOLLI = false,
+        .k_filter = false,
 };
 
 

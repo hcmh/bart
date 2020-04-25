@@ -14,6 +14,7 @@
 #include "num/flpmath.h"
 #include "num/fft.h"
 #include "num/init.h"
+#include "num/filter.h"
 
 #include "misc/mri.h"
 #include "misc/misc.h"
@@ -71,7 +72,7 @@ int main_moba(int argc, char* argv[])
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.25]"),
 		OPT_SET('m', &conf.MOLLI, "use MOLLI model"),
 		OPT_STRING('T', &time_T1relax, "T1 relax time for MOLLI", ""),
-
+		OPT_SET('k', &conf.k_filter, "k-space edge filter for non-Cartesian trajectories"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -109,8 +110,8 @@ int main_moba(int argc, char* argv[])
 	long grid_dims[DIMS];
 	md_copy_dims(DIMS, grid_dims, ksp_dims);
 
-	if (NULL != trajectory)
-	{
+	if (NULL != trajectory) {
+
 		sample_size = ksp_dims[1];
 		grid_size = sample_size * oversampling;
 		grid_dims[READ_DIM] = grid_size;
@@ -238,6 +239,38 @@ int main_moba(int argc, char* argv[])
 		unmap_cfl(DIMS, ksp_dims, kspace_data);
 	}
 
+	if (conf.k_filter) {
+
+		long map_dims[DIMS];
+		md_select_dims(DIMS, FFT_FLAGS, map_dims, pat_dims);
+
+		long map_strs[DIMS];
+		md_calc_strides(DIMS, map_strs, map_dims, CFL_SIZE);
+
+		long pat_strs[DIMS];
+		md_calc_strides(DIMS, pat_strs, pat_dims, CFL_SIZE);
+
+		complex float* filter = NULL;
+		filter = anon_cfl("", DIMS, map_dims);
+		float lambda = 2e-4;
+
+		klaplace(DIMS, map_dims, READ_FLAG|PHS1_FLAG, filter);
+		md_zreal(DIMS, map_dims, filter, filter);
+		md_zsqrt(DIMS, map_dims, filter, filter);
+
+		md_zsmul(DIMS, map_dims, filter, filter, -2.);
+		md_zsadd(DIMS, map_dims, filter, filter, 1.);
+		md_zatanr(DIMS, map_dims, filter, filter);
+
+		md_zsmul(DIMS, map_dims, filter, filter, -1. / M_PI);
+		md_zsadd(DIMS, map_dims, filter, filter, 0.5);
+		md_zsmul(DIMS, map_dims, filter, filter, lambda);
+
+		md_zadd2(DIMS, pat_dims, pat_strs, pattern, pat_strs, pattern, map_strs, filter);
+
+		unmap_cfl(DIMS, map_dims, filter);
+	}
+
 
 	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
@@ -282,7 +315,6 @@ int main_moba(int argc, char* argv[])
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
 	}
 
-// 	conf.alpha = 0.1;
 #ifdef  USE_CUDA
 	if (usegpu) {
 
