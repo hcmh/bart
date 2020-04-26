@@ -53,14 +53,20 @@ int main_fftrot(int argc, char* argv[])
 
 	assert(dim1 != dim2);
 
+	float theta = atof(argv[3]);
+
+	assert(fabsf(theta) <= 90.);
+
 	if (dim1 > dim2) {
 
 		int tmp = dim1;
 		dim1 = dim2;
 		dim2 = tmp;
+
+		theta *= -1.;
 	}
 
-	float theta = atof(argv[3]);
+	theta *= 2. * M_PI / 360.;
 
 	float alpha = -tanf(theta / 2.);
 	float beta = sinf(theta);
