@@ -1,13 +1,13 @@
-/* Copyright 2019. Uecker Lab. University Medical Center Göttingen.
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2019 Sebastian Rosenzweig
+ * 2018-2020 Sebastian Rosenzweig
  *
  * Sebastian Rosenzweig, Nick Scholand, H. Christian M. Holme, Martin Uecker.
  * Cardiac and Respiratory Self-Gating in Radial MRI using an Adapted Singular
- * Spectrum Analysis (SSA-FARY)
+ * Spectrum Analysis (SSA-FARY), IEEE Trans. Magn. Imag. (2020), in press.
  */
 
 #include <stdbool.h>
@@ -25,8 +25,6 @@
 #include "misc/mri.h"
 #include "misc/opts.h"
 #include "misc/debug.h"
-
-#include "noncart/traj.h"
 
 
 static const char usage_str[] = "<traj> <k> <k_cor>";
@@ -46,6 +44,8 @@ int main_rmfreq(int argc, char* argv[])
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
+
+	enum { LAST_DIM = DIMS - 1 };
 
 	// Read k-space
 	long k_dims[DIMS];
@@ -94,7 +94,7 @@ int main_rmfreq(int argc, char* argv[])
 	// Projection matrix
 	long n_dims[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, n_dims, k_dims);
-	n_dims[15] = 2 * n_harmonics;
+	n_dims[LAST_DIM] = 2 * n_harmonics;
 
 	complex float* n = md_alloc(DIMS, n_dims, CFL_SIZE);
 	complex float* n_singleton = md_alloc(DIMS, angles_dims, CFL_SIZE);
@@ -110,7 +110,7 @@ int main_rmfreq(int argc, char* argv[])
 		md_zsmul(DIMS, angles_dims, angles1, angles, (h + 1));
 		md_zexpj(DIMS, angles_dims, n_singleton, angles1);
 
-		pos[15] = count;
+		pos[LAST_DIM] = count;
 		md_copy_block(DIMS, pos, n_dims, n, angles_dims, n_singleton, CFL_SIZE);
 		count++;
 
@@ -118,7 +118,7 @@ int main_rmfreq(int argc, char* argv[])
 		md_zsmul(DIMS, angles_dims, angles1, neg_angles, (h + 1));
 		md_zexpj(DIMS, angles_dims, n_singleton, angles1);
 
-		pos[15] = count;
+		pos[LAST_DIM] = count;
 
 		md_copy_block(DIMS, pos, n_dims, n, angles_dims, n_singleton, CFL_SIZE);
 		count++;
@@ -138,7 +138,7 @@ int main_rmfreq(int argc, char* argv[])
 
 
 	long pinv_dims[DIMS];
-	md_transpose_dims(DIMS, 10, 15, pinv_dims, n_part_singleton_dims);
+	md_transpose_dims(DIMS, TIME_DIM, LAST_DIM, pinv_dims, n_part_singleton_dims);
 
 	complex float* pinv = md_alloc(DIMS, pinv_dims, CFL_SIZE);
 

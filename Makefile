@@ -214,6 +214,7 @@ MODULES_approx = -lrkhs -lnoncart
 MODULES_kmat = -lrkhs -lnoncart
 MODULES_dcnn = -lnn -llinops
 MODULES_ssa = -lcalib -lmanifold
+MODULES_bin = -lcalib
 MODULES_laplace = -lmanifold
 MODULES_kmeans = -lmanifold
 MODULES_tgv = -liter -llinops
@@ -224,6 +225,7 @@ MODULES_sim = -lsimu
 MODULES_rtnlinv = -lnoncart -lnoir -lnlops -liter -llinops
 MODULES_signal = -lsimu
 MODULES_pad = -lnum
+
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)

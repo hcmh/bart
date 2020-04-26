@@ -1,11 +1,12 @@
 /* Copyright 2013-2015 The Regents of the University of California.
- * Copyright 2016-2018. Martin Uecker.
+ * Copyright 2016-2020. Uecker Lab. University Medical Center Göttingen.
  * Copyright 2017. Intel Corporation.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2019-2020 Sebastian Rosenzweig
  * 2013      Frank Ong <frankong@berkeley.edu>
  * 2017      Michael J. Anderson <michael.j.anderson@intel.com>
  *
@@ -772,7 +773,6 @@ void md_copy2(unsigned int D, const long dim[D], const long ostr[D], void* optr,
 	}
 #endif
 #endif
-
 	const long (*nstr[2])[D] = { (const long (*)[D])ostr, (const long (*)[D])istr };
 
 	NESTED(void, nary_copy, (struct nary_opt_data_s* opt_data, void* ptr[]))

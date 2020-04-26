@@ -1,11 +1,12 @@
 /* Copyright 2015. The Regents of the University of California.
- * Copyright 2016-2019. Martin Uecker.
+ * Copyright 2016-2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2013 Dara Bahri <dbahri123@gmail.com>
+ * 2019-2020 Sebastian Rosenzweig
+ * 2012-2020 Martin Uecker
+ * 2013	     Dara Bahri
  *
  *
  * Simple linear algebra functions.
