@@ -36,6 +36,74 @@ static const char help_str[] =
 		"the sensitivities.";
 
 
+static void postprocess(const long dims[DIMS], bool normalize, bool combine, int nmaps,
+			const long sens_strs[DIMS], const complex float* sens,
+			const long img_strs[DIMS], const complex float* img,
+			const long msk_strs[DIMS], const complex float* mask,
+			const long img_output_strs[DIMS], complex float* img_output)
+{
+	long img_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
+
+	long ksp_dims[DIMS];
+	md_select_dims(DIMS, ~MAPS_FLAG, ksp_dims, dims);
+
+	long strs[DIMS];
+	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
+
+	long ksp_strs[DIMS];
+	md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
+
+	long img_output_dims[DIMS];
+	md_copy_dims(DIMS, img_output_dims, img_dims);
+
+	if (combine)
+		img_output_dims[MAPS_DIM] = 1;
+
+
+	// image output
+	if (normalize) {
+
+		complex float* buf = md_alloc(DIMS, dims, CFL_SIZE);
+		md_clear(DIMS, dims, buf, CFL_SIZE);
+
+		if (combine) {
+
+			md_zfmac2(DIMS, dims, ksp_strs, buf, img_strs, img, sens_strs, sens);
+			md_zrss(DIMS, ksp_dims, COIL_FLAG, img_output, buf);
+
+		} else {
+
+			md_zfmac2(DIMS, dims, strs, buf, img_strs, img, sens_strs, sens);
+			md_zrss(DIMS, dims, COIL_FLAG, img_output, buf);
+		}
+
+		md_zmul2(DIMS, img_output_dims, img_output_strs, img_output, img_output_strs, img_output, msk_strs, mask);
+
+		if ((1 == nmaps) || !combine) {
+
+			//restore phase
+			md_zphsr(DIMS, img_output_dims, buf, img);
+			md_zmul(DIMS, img_output_dims, img_output, img_output, buf);
+		}
+
+		md_free(buf);
+
+	} else {
+
+		if (combine) {
+
+			// just sum up the map images
+			md_zaxpy2(DIMS, img_dims, img_output_strs, img_output, 1., img_strs, img);
+
+		} else { /*!normalize && !combine */
+
+			md_copy(DIMS, img_output_dims, img_output, img, CFL_SIZE);
+		}
+	}
+}
+
+
 
 int main_nlinv(int argc, char* argv[])
 {
@@ -242,46 +310,11 @@ int main_nlinv(int argc, char* argv[])
 		noir_recon(&conf, dims, img, sens, ksens, ref, pattern, mask, kspace);
 
 
-	// image output
-	if (normalize) {
-
-		complex float* buf = md_alloc(DIMS, dims, CFL_SIZE);
-		md_clear(DIMS, dims, buf, CFL_SIZE);
-
-		if (combine) {
-
-			md_zfmac2(DIMS, dims, ksp_strs, buf, img_strs, img, sens_strs, sens);
-			md_zrss(DIMS, ksp_dims, COIL_FLAG, img_output, buf);
-
-		} else {
-
-			md_zfmac2(DIMS, dims, strs, buf, img_strs, img, sens_strs, sens);
-			md_zrss(DIMS, dims, COIL_FLAG, img_output, buf);
-		}
-
-		md_zmul2(DIMS, img_output_dims, img_output_strs, img_output, img_output_strs, img_output, msk_strs, mask);
-
-		if ((1 == nmaps) || !combine) {
-
-			// restore phase
-			md_zphsr(DIMS, img_output_dims, buf, img);
-			md_zmul(DIMS, img_output_dims, img_output, img_output, buf);
-		}
-
-		md_free(buf);
-
-	} else {
-
-		if (combine) {
-
-			// just sum up the map images
-			md_zaxpy2(DIMS, img_dims, img_output_strs, img_output, 1., img_strs, img);
-
-		} else { /*!normalize && !combine */
-
-			md_copy(DIMS, img_output_dims, img_output, img, CFL_SIZE);
-		}
-	}
+	postprocess(dims, normalize, combine, nmaps,
+			sens_strs, sens,
+			img_strs, img,
+			msk_strs, mask,
+			img_output_strs, img_output);
 
 	if (scale_im)
 		md_zsmul(DIMS, img_output_dims, img_output, img_output, 1. / scaling);
