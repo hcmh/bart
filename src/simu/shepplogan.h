@@ -43,6 +43,7 @@ extern const struct ellipsis_s phantom_geo3[7];
 extern const struct ellipsis_s phantom_geo4[1];
 
 extern const struct ellipsis_s phantom_tubes[11];
+extern const struct ellipsis_s phantom_tubes_rings[31];
 
 
 extern complex double xellipsis(const double center[2], const double axis[2], double angle, const double p[2]);

@@ -128,7 +128,11 @@ int main_phantom(int argc, char* argv[])
 	if (-1 != basis) {
 
 		assert(TUBES == ptype);
-		assert(0 < basis && 11 >= basis);
+		assert(0 < basis && 31 >= basis);
+
+		if (11 < basis)
+			debug_printf(DP_WARN, "Number of Basis Functions exceeds 11!\n\t\t-> dublicates tubes with increased radii!\n");
+
 		dims[COEFF_DIM] = basis; // Length of const struct ellipsis_s tube phantom. see src/shepplogan.c
 	}
 
