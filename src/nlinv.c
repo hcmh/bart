@@ -3,7 +3,7 @@
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors: 
+ * Authors:
  * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
@@ -60,10 +60,10 @@ int main_nlinv(int argc, char* argv[])
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
-		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconsctruction"),
+		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconstruction"),
 		OPT_CLEAR('U', &combine, "Do not combine ENLIVE maps in output"),
-		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
-		OPT_STRING('p', &psf, "PSF", ""),
+		OPT_FLOAT('f', &restrict_fov, "FOV", "restrict FOV"),
+		OPT_STRING('p', &psf, "file", "pattern / transfer function"),
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
 		OPT_SET('g', &usegpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
@@ -83,15 +83,14 @@ int main_nlinv(int argc, char* argv[])
 	num_init();
 
 	long ksp_dims[DIMS];
-	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
+	complex float* kspace = load_cfl(argv[1], DIMS, ksp_dims);
 
 	// FIXME: SMS should not be the default
 
 	if (1 != ksp_dims[SLICE_DIM]) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
-
-		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace_data, kspace_data); // fftmod to get correct slice order in output
+		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output
 		conf.sms = true;
 	}
 
@@ -195,13 +194,13 @@ int main_nlinv(int argc, char* argv[])
 
 		pattern = anon_cfl("", DIMS, pat_dims);
 
-		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace_data);
+		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace);
 	}
 
 #if 0
-	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace_data);
+	float scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace);
 #else
-	double scaling = 100. / md_znorm(DIMS, ksp_dims, kspace_data);
+	double scaling = 100. / md_znorm(DIMS, ksp_dims, kspace);
 
 	if (conf.sms)
 		scaling *= sqrt(ksp_dims[SLICE_DIM]);
@@ -209,7 +208,7 @@ int main_nlinv(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 
-	md_zsmul(DIMS, ksp_dims, kspace_data, kspace_data, scaling);
+	md_zsmul(DIMS, ksp_dims, kspace, kspace, scaling);
 
 	if (-1. == restrict_fov) {
 
@@ -232,7 +231,7 @@ int main_nlinv(int argc, char* argv[])
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, ksp_dims, CFL_SIZE);
 
-		md_copy(DIMS, ksp_dims, kspace_gpu, kspace_data, CFL_SIZE);
+		md_copy(DIMS, ksp_dims, kspace_gpu, kspace, CFL_SIZE);
 
 		noir_recon(&conf, dims, img, sens, ksens, ref, pattern, mask, kspace_gpu);
 
@@ -240,7 +239,7 @@ int main_nlinv(int argc, char* argv[])
 
 	} else
 #endif
-		noir_recon(&conf, dims, img, sens, ksens, ref, pattern, mask, kspace_data);
+		noir_recon(&conf, dims, img, sens, ksens, ref, pattern, mask, kspace);
 
 
 	// image output
@@ -294,10 +293,11 @@ int main_nlinv(int argc, char* argv[])
 	unmap_cfl(DIMS, sens_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_output_dims, img_output);
-	unmap_cfl(DIMS, ksp_dims, kspace_data);
+	unmap_cfl(DIMS, ksp_dims, kspace);
 
 	double recosecs = timestamp() - start_time;
-	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
+
+	debug_printf(DP_DEBUG2, "Total time: %.2f s\n", recosecs);
 
 	exit(0);
 }
