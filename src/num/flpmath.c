@@ -3959,6 +3959,44 @@ void md_smax(unsigned int D, const long dim[D], float* optr, const float* iptr, 
 }
 
 
+#if 0
+/**
+ * Elementwise minimum of input and scalar (with strides)
+ *
+ * optr = min(val, iptr)
+ */
+void md_zsmin2(unsigned int D, const long dim[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr, float val)
+{
+#if 0
+	make_z3op_scalar(md_zmin2, D, dim, ostr, optr, istr, iptr, val);
+#else
+	// FIXME: we should rather optimize md_zmul2 for this case
+
+	NESTED(void, nary_zsmin, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		data->ops->zsmin(data->size, val, ptr[0], ptr[1]);
+	};
+
+	optimized_twoop_oi(D, dim, ostr, optr, istr, iptr,
+		(size_t[2]){ CFL_SIZE, CFL_SIZE }, nary_zsmin);
+#endif
+}
+
+
+/**
+ * Elementwise minimum of input and scalar (without strides)
+ *
+ * optr = min(val, iptr)
+ */
+void md_zsmin(unsigned int D, const long dim[D], complex float* optr, const complex float* iptr, float val)
+{
+	long str[D];
+	md_calc_strides(D, str, dim, CFL_SIZE);
+
+	md_zsmin2(D, dim, str, optr, str, iptr, val);
+}
+#endif
+
 
 static void md_fdiff_core2(unsigned int D, const long dims[D], unsigned int d, bool dir, const long ostr[D], float* out, const long istr[D], const float* in)
 {

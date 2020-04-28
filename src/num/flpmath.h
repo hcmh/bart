@@ -315,6 +315,8 @@ extern void md_zfill(unsigned int D, const long dim[__VLA(D)], _Complex float* p
 
 extern void md_zsmax2(unsigned int D, const long dim[__VLA(D)], const long ostr[__VLA(D)], _Complex float* optr, const long istr[__VLA(D)], const _Complex float* iptr, float val);
 extern void md_zsmax(unsigned int D, const long dim[__VLA(D)], _Complex float* optr, const _Complex float* iptr, float val);
+extern void md_zsmin2(unsigned int D, const long dim[__VLA(D)], const long ostr[__VLA(D)], _Complex float* optr, const long istr[__VLA(D)], const _Complex float* iptr, float val);
+extern void md_zsmin(unsigned int D, const long dim[__VLA(D)], _Complex float* optr, const _Complex float* iptr, float val);
 
 extern void md_smin2(unsigned int D, const long dim[__VLA(D)], const long ostr[__VLA(D)], float* optr, const long istr[__VLA(D)], const float* iptr, float val);
 extern void md_smin(unsigned int D, const long dim[__VLA(D)], float* optr, const float* iptr, float val);
