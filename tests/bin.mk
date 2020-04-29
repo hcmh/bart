@@ -124,5 +124,5 @@ tests/test-bin-quadrature-offset: ones scale reshape transpose join bin nrmse
 	touch $@	
 
 
-TESTS += tests/test-bin-label tests/test-bin-reorder tests/test-bin-quadrature
+TESTS += tests/test-bin-label tests/test-bin-reorder tests/test-bin-quadrature tests/test-bin-quadrature-offset
 
