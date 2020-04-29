@@ -57,7 +57,6 @@
 #include "calib/estvar.h"
 #include "calib/calmat.h"
 
-#include "manifold/delay_embed.h"
 
 #include "ssa.h"
 
@@ -67,7 +66,6 @@
 
 static void ssa_backprojection( const long N,
 				const long M,
-				const long kernel_dims[3],
 				const long cal_dims[DIMS],
 				complex float* back,
 				const long A_dims[2],
@@ -75,8 +73,7 @@ static void ssa_backprojection( const long N,
 				const long U_dims[2],
 				const complex float* U,
 				const complex float* UH,
-				const int rank,
-				const long group)
+				const struct delay_conf conf)
 {
 	assert((N == U_dims[0]) && (N == U_dims[1]));
 
@@ -96,7 +93,7 @@ static void ssa_backprojection( const long N,
 
 	long kernelCoil_dims[4];
 
-	md_copy_dims(3, kernelCoil_dims, kernel_dims);
+	md_copy_dims(3, kernelCoil_dims, conf.kernel_dims);
 
 	kernelCoil_dims[3] = cal_dims[3];
 
@@ -104,16 +101,16 @@ static void ssa_backprojection( const long N,
 	for (int i = 0; i < M; i++) {
 		for (int j = 0; j < N; j++) {
 
-			if (rank < 0)
-				PC[i * N + j] *= (j >= abs(rank)) ? 1. : 0.;
+			if (conf.rank < 0)
+				PC[i * N + j] *= (j >= abs(conf.rank)) ? 1. : 0.;
 			else
-			if (rank > 0)
-				PC[i * N + j] *= (j >= rank) ? 0. : 1.;
+			if (conf.rank > 0)
+				PC[i * N + j] *= (j >= conf.rank) ? 0. : 1.;
 			else
-			if (group < 0)
-				PC[i * N + j] *= (check_selection(group, j)) ? 0. : 1.;
+			if (conf.group < 0)
+				PC[i * N + j] *= (check_selection(conf.group, j)) ? 0. : 1.;
 			else
-				PC[i * N + j] *= (check_selection(group, j)) ? 1. : 0.;
+				PC[i * N + j] *= (check_selection(conf.group, j)) ? 1. : 0.;
 		}
 	}
 
@@ -165,15 +162,13 @@ static void ssa_backprojection( const long N,
 }
 
 
-extern void ssa_fary(	const long kernel_dims[3],
-			const long cal_dims[DIMS],
+extern void ssa_fary(	const long cal_dims[DIMS],
 			const long A_dims[2],
 			const complex float* A,
 			complex float* U,
 			float* S_square,
 			complex float* back,
-			const int rank,
-			const long group)
+			const struct delay_conf conf)
 {
 	long N = A_dims[0];
 	long M = A_dims[1];
@@ -209,7 +204,7 @@ extern void ssa_fary(	const long kernel_dims[3],
 
 		debug_printf(DP_DEBUG3, "Backprojection...\n");
 
-		ssa_backprojection(N, M, kernel_dims, cal_dims, back, A_dims, A, U_dims, U, UH, rank, group);
+		ssa_backprojection(N, M, cal_dims, back, A_dims, A, U_dims, U, UH, conf);
 	}
 
 	md_free(UH);

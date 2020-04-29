@@ -23,8 +23,6 @@
 #include "calib/calmat.h"
 #include "calib/ssa.h"
 
-#include "manifold/delay_embed.h"
-
 
 static const char usage_str[] = "<src> <EOF> [<S>] [<backprojection>]";
 static const char help_str[] =
@@ -114,7 +112,7 @@ int main_ssa(int argc, char* argv[])
 
 	float* S_square = xmalloc(N * sizeof(float));
 
-	ssa_fary(conf.kernel_dims, cal_dims, A_dims, A, U, S_square, back, conf.rank, conf.group);
+	ssa_fary(cal_dims, A_dims, A, U, S_square, back, conf);
 
 	if (NULL != conf.name_S) {
 
