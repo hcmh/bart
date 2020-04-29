@@ -23,6 +23,8 @@
 #include "calib/calmat.h"
 #include "calib/ssa.h"
 
+#include "manifold/delay_embed.h"
+
 
 static const char usage_str[] = "<src> <EOF> [<S>] [<backprojection>]";
 static const char help_str[] =
@@ -31,59 +33,37 @@ static const char help_str[] =
 
 int main_ssa(int argc, char* argv[])
 {
-	int window = -1;
-	int normalize = 0;
-	int rm_mean = 1;
-	int rank = 0;
-	bool zeropad = true;
-	long kernel_dims[3] = { 1, 1, 1 };
-	char* name_S = NULL;
-	char* backproj = NULL;
-	long group = 0;
+	struct delay_conf conf = ssa_conf_default;
 
 	const struct opt_s opts[] = {
 
-		OPT_INT('w', &window, "window", "Window length"),
-		OPT_CLEAR('z', &zeropad, "Zeropadding [Default: True]"),
-		OPT_INT('m', &rm_mean, "0/1", "Remove mean [Default: True]"),
-		OPT_INT('n', &normalize, "0/1", "Normalize [Default: False]"),
-		OPT_INT('r', &rank, "rank", "Rank for backprojection. r < 0: Throw away first r components. r > 0: Use only first r components."),
-		OPT_LONG('g', &group, "bitmask", "Bitmask for Grouping (long value!)"),
+		OPT_INT('w', &conf.window, "window", "Window length"),
+		OPT_CLEAR('z', &conf.zeropad, "Zeropadding [Default: True]"),
+		OPT_INT('m', &conf.rm_mean, "0/1", "Remove mean [Default: True]"),
+		OPT_INT('n', &conf.normalize, "0/1", "Normalize [Default: False]"),
+		OPT_INT('r', &conf.rank, "rank", "Rank for backprojection. r < 0: Throw away first r components. r > 0: Use only first r components."),
+		OPT_LONG('g', &conf.group, "bitmask", "Bitmask for Grouping (long value!)"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
-	if (-1 == window)
+	if (-1 == conf.window)
 		error("Specify window length '-w'");
 
-	kernel_dims[0] = window;
+	conf.kernel_dims[0] = conf.window;
 
 	char* name_EOF = argv[2];
 
 	if (4 <= argc)
-		name_S = argv[3];
+		conf.name_S = argv[3];
 
 	if (5 == argc) {
 
-		backproj = argv[4];
+		check_bp(conf);
+		conf.backproj = argv[4];
 
-		if (zeropad) {
-
-			debug_printf(DP_INFO, "Zeropadding turned off automatically!\n");
-
-			zeropad = false;
-		}
-
-		if ((0 == rank) && (0 == group))
-			error("Specify rank or group for backprojection!");
-
-		if (0 == rank)
-			assert(0 != group);
-
-		if (0 == group)
-			assert(0 != rank);
 	}
 
 
@@ -94,43 +74,14 @@ int main_ssa(int argc, char* argv[])
 		error("Only first two dimensions must be filled!");
 
 
-	if (rm_mean || normalize) {
-
-		long in_strs[DIMS];
-		md_calc_strides(DIMS, in_strs, in_dims, CFL_SIZE);
-
-		long singleton_dims[DIMS];
-		long singleton_strs[DIMS];
-		md_select_dims(DIMS, ~READ_FLAG, singleton_dims, in_dims);
-		md_calc_strides(DIMS, singleton_strs, singleton_dims, CFL_SIZE);
-
-		if (rm_mean) {
-
-			complex float* mean = md_alloc(DIMS, singleton_dims, CFL_SIZE);
-
-			md_zavg(DIMS, in_dims, READ_FLAG, mean, in);
-			md_zsub2(DIMS, in_dims, in_strs, in, in_strs, in, singleton_strs, mean);
-
-			md_free(mean);
-		}
-
-		if (normalize) {
-
-			complex float* stdv = md_alloc(DIMS, singleton_dims, CFL_SIZE);
-
-			md_zstd(DIMS, in_dims, READ_FLAG, stdv, in);
-			md_zdiv2(DIMS, in_dims, in_strs, in, in_strs, in, singleton_strs, stdv);
-
-			md_free(stdv);
-		}
-	}
+	preproc_ac(in_dims, in, conf);
 
 
 	long cal0_dims[DIMS];
 	md_copy_dims(DIMS, cal0_dims, in_dims);
 
-	if (zeropad)
-		cal0_dims[0] = in_dims[0] - 1 + window;
+	if (conf.zeropad)
+		cal0_dims[0] = in_dims[0] - 1 + conf.window;
 
 
 	complex float* cal = md_alloc(DIMS, cal0_dims, CFL_SIZE);
@@ -141,10 +92,10 @@ int main_ssa(int argc, char* argv[])
 	md_transpose_dims(DIMS, 1, 3, cal_dims, cal0_dims);
 
 
-	debug_printf(DP_INFO, backproj ? "Performing SSA\n" : "Performing SSA-FARY\n");
+	debug_printf(DP_INFO, conf.backproj ? "Performing SSA\n" : "Performing SSA-FARY\n");
 
 	long A_dims[2];
-	complex float* A = calibration_matrix(A_dims, kernel_dims, cal_dims, cal);
+	complex float* A = calibration_matrix(A_dims, conf.kernel_dims, cal_dims, cal);
 
 	long N = A_dims[0];
 
@@ -153,22 +104,22 @@ int main_ssa(int argc, char* argv[])
 
 	complex float* back = NULL;
 
-	if (NULL != backproj) {
+	if (NULL != conf.backproj) {
 
 		long back_dims[DIMS];
 		md_transpose_dims(DIMS, 3, 1, back_dims, cal_dims);
 
-		back = create_cfl(backproj, DIMS, back_dims);
+		back = create_cfl(conf.backproj, DIMS, back_dims);
 	}
 
 	float* S_square = xmalloc(N * sizeof(float));
 
-	ssa_fary(kernel_dims, cal_dims, A_dims, A, U, S_square, back, rank, group);
+	ssa_fary(conf.kernel_dims, cal_dims, A_dims, A, U, S_square, back, conf.rank, conf.group);
 
-	if (NULL != name_S) {
+	if (NULL != conf.name_S) {
 
 		long S_dims[1] = { N };
-		complex float* S = create_cfl(name_S, 1, S_dims);
+		complex float* S = create_cfl(conf.name_S, 1, S_dims);
 
 		for (int i = 0; i < N; i++)
 			S[i] = sqrt(S_square[i]) + 0.i;
