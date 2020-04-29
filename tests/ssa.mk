@@ -76,4 +76,4 @@ tests/test-ssa-grouping: traj phantom resize squeeze ssa nrmse
 	touch $@
 
 
-TESTS += tests/test-ssa-pca tests/test-ssa tests/test-ssa-backprojection
+TESTS += tests/test-ssa-pca tests/test-ssa tests/test-ssa-backprojection tests/test-ssa-grouping
