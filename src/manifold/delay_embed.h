@@ -38,3 +38,6 @@ extern void check_bp(struct delay_conf conf);
 
 extern void preproc_ac(const long in_dims[DIMS], complex float* in, const struct delay_conf conf);
 
+extern void weight_delay(const long A_dims[2], complex float* A, const struct delay_conf conf);
+
+

@@ -28,7 +28,7 @@ const struct delay_conf ssa_conf_default = {
 	.normalize 	= 0,
 	.rm_mean	= 1,
 	.zeropad	= true,
-	.weight	   	= 0,
+	.weight	   	= -1,
 	.name_S		= NULL,
 	.backproj	= NULL,
 	.group 		= 0,
@@ -96,5 +96,33 @@ void preproc_ac(const long int in_dims[DIMS], complex float* in, const struct de
 	
 }
 
+
+void weight_delay(const long A_dims[2], complex float* A, const struct delay_conf conf)
+{
+		assert(0. < conf.weight);
+
+		complex float* W;
+		
+		long W_dims[2];
+		W_dims[0] = 1;
+		W_dims[1] = A_dims[1];
+		
+		long A_strs[2];
+		long W_strs[2];
+		md_calc_strides(2, A_strs, A_dims, CFL_SIZE);
+		md_calc_strides(2, W_strs, W_dims, CFL_SIZE);
+		
+		W = md_alloc(2, W_dims, CFL_SIZE);
+		
+		for (int i=0; i < A_dims[1]; i++) {
+			float s = (float) abs( (int)((i % conf.window) - (int)((conf.window - 1) / 2)) );
+			W[i] = expf(-conf.weight * s) + 0.i;
+		}
+		
+		md_zmul2(2, A_dims, A_strs, A, A_strs, A, W_strs, W);
+		
+		md_free(W);
+
+}
 	
 
