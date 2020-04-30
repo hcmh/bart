@@ -11,8 +11,6 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include "manifold/delay_embed.h"
-
 #include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/debug.h"
@@ -20,6 +18,7 @@
 #include "num/flpmath.h"
 #include "num/multind.h"
 
+#include "delay_embed.h"
 
 const struct delay_conf ssa_conf_default = {
 
@@ -35,7 +34,26 @@ const struct delay_conf ssa_conf_default = {
 	.rank 		= 0,
 	
 	.nlsa_rank	= 0,
+	.name_tbasis = NULL,
 };
+
+const struct delay_conf nlsa_conf_default = {
+
+	.kernel_dims = { 1, 1, 1},
+	.window		= -1,
+	.normalize 	= 0,
+	.rm_mean	= 1,
+	.zeropad	= true,
+	.weight	   	= -1,
+	.name_S		= NULL,
+	.backproj	= NULL,
+	.group 		= 0,
+	.rank 	= 0,
+	
+	.nlsa_rank	= 20,
+	.name_tbasis = NULL,
+};
+
 
 // Check if basis function are rejected or not
 bool check_selection(const long group, const int j)
@@ -46,6 +64,7 @@ bool check_selection(const long group, const int j)
 	return (labs(group) & (1 << j));
 }
 
+// Check if input-options for back-projection are valid
 void check_bp(struct delay_conf conf) {
 	
 		if (conf.zeropad) {
@@ -65,6 +84,8 @@ void check_bp(struct delay_conf conf) {
 			assert(0 != conf.rank);
 
 }
+
+// Preprocess AC region: remove mean or stdv
 void preproc_ac(const long int in_dims[DIMS], complex float* in, const struct delay_conf conf)
 {
 	long in_strs[DIMS];
@@ -96,7 +117,7 @@ void preproc_ac(const long int in_dims[DIMS], complex float* in, const struct de
 	
 }
 
-
+// Weighting within the window (soft time-delayed embedding)
 void weight_delay(const long A_dims[2], complex float* A, const struct delay_conf conf)
 {
 		assert(0. < conf.weight);
