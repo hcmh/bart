@@ -239,6 +239,7 @@ int main_moba(int argc, char* argv[])
 		unmap_cfl(DIMS, ksp_dims, kspace_data);
 	}
 
+
 	if (conf.k_filter) {
 
 		long map_dims[DIMS];
@@ -252,7 +253,7 @@ int main_moba(int argc, char* argv[])
 
 		complex float* filter = NULL;
 		filter = anon_cfl("", DIMS, map_dims);
-		float lambda = 2e-4;
+		float lambda = 2e-3;
 
 		klaplace(DIMS, map_dims, READ_FLAG|PHS1_FLAG, filter);
 		md_zreal(DIMS, map_dims, filter, filter);
