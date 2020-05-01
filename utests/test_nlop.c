@@ -28,6 +28,7 @@
 #include "nlops/cast.h"
 #include "nlops/chain.h"
 #include "nlops/nltest.h"
+#include "nlops/stack.h"
 
 #include "utest.h"
 
@@ -774,4 +775,38 @@ static bool test_nlop_parallel_derivatives(void)
 }
 
 UT_REGISTER_TEST(test_nlop_parallel_derivatives);
+
+
+
+static bool test_stack(void)
+{
+	enum { N = 3 };
+	long dims1[N] = { 3, 2, 7};
+	long dims2[N] = { 3, 5, 7};
+	long dims[N] = { 3, 7, 7};
+
+	complex float* in = md_alloc(N, dims, CFL_SIZE);
+	complex float* out = md_alloc(N, dims, CFL_SIZE);
+	md_gaussian_rand(N, dims, in);
+
+	float err = 0;
+	const struct nlop_s* nlop_test;
+
+	nlop_test = nlop_stack_create(N, dims, dims1, dims2, 1);
+	nlop_test = nlop_destack_F(nlop_test, 0, 1, 1);
+	nlop_apply(nlop_test, N, dims, out, N, dims, in);
+	err += md_zrmse(N, dims, in, out);
+	nlop_free(nlop_test);
+
+	nlop_test = nlop_stack_create(N, dims, dims1, dims2, 1);
+	nlop_test = nlop_permute_inputs_F(nlop_test, 2, MAKE_ARRAY(1, 0));
+	nlop_test = nlop_destack_F(nlop_test, 1, 0, 1);
+	nlop_apply(nlop_test, N, dims, out, N, dims, in);
+	err += md_zrmse(N, dims, in, out);
+	nlop_free(nlop_test);
+
+	UT_ASSERT(1.e-7 > err);
+}
+
+UT_REGISTER_TEST(test_stack);
 
