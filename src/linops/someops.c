@@ -456,6 +456,262 @@ struct linop_s* linop_expand_create(unsigned int N, const long out_dims[N], cons
 }
 
 
+struct padding_op_s {
+
+	INTERFACE(linop_data_t);
+
+	unsigned int N;
+	const long* strs_out;
+
+	const long* dims_for;
+	const long* strs_for;
+	long offset_out_for;
+	long offset_in_for;
+
+	const long* dims_mid;
+	const long* strs_mid;
+	long offset_out_mid;
+	long offset_in_mid;
+
+	const long* dims_after;
+	const long* strs_after;
+	long offset_out_after;
+	long offset_in_after;
+
+	const long* dims_in;
+	const long* dims_out;
+
+};
+
+static DEF_TYPEID(padding_op_s);
+
+
+static void padding_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(padding_op_s, _data);
+
+	unsigned int N = data->N;
+
+	md_clear(N, data->dims_out, dst, CFL_SIZE); //needed for PADDING_SAME
+
+	md_copy2(N, data->dims_for, data->strs_out, dst + data->offset_out_for , data->strs_for, src + data->offset_in_for, CFL_SIZE);
+	md_copy2(N, data->dims_mid, data->strs_out, dst + data->offset_out_mid , data->strs_mid, src + data->offset_in_mid, CFL_SIZE);
+	md_copy2(N, data->dims_after, data->strs_out, dst + data->offset_out_after , data->strs_after, src + data->offset_in_after, CFL_SIZE);
+}
+
+static void padding_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(padding_op_s, _data);
+
+	complex float* dst_tmp = md_alloc_sameplace(data->N, data->dims_in, CFL_SIZE, dst);
+	
+	// strided copies are more efficient than strided sum (gpu)
+	md_clear(data->N, data->dims_in, dst, CFL_SIZE);
+	md_copy2(data->N, data->dims_mid, data->strs_mid, dst + data->offset_in_mid, data->strs_out, src + data->offset_out_mid, CFL_SIZE);
+	
+	md_clear(data->N, data->dims_in, dst_tmp, CFL_SIZE);
+	md_copy2(data->N, data->dims_for, data->strs_for, dst_tmp + data->offset_in_for, data->strs_out, src + data->offset_out_for, CFL_SIZE);
+	md_zadd(data->N, data->dims_in, dst, dst, dst_tmp);
+
+	md_clear(data->N, data->dims_in, dst_tmp, CFL_SIZE);
+	md_copy2(data->N, data->dims_after, data->strs_after, dst_tmp + data->offset_in_after, data->strs_out, src + data->offset_out_after, CFL_SIZE);
+	md_zadd(data->N, data->dims_in, dst, dst, dst_tmp);
+
+	md_free(dst_tmp);
+}
+
+static void padding_free(const linop_data_t* _data)
+{
+	const auto data = CAST_DOWN(padding_op_s, _data);
+
+	xfree(data->strs_out);
+
+	xfree(data->dims_for);
+	xfree(data->strs_for);
+	xfree(data->dims_mid);
+	xfree(data->strs_mid);
+	xfree(data->dims_after);
+	xfree(data->strs_after);
+
+	xfree(data->dims_in);
+	xfree(data->dims_out);
+
+	xfree(data);
+}
+
+struct linop_s* linop_padding_create_onedim(unsigned int N, const long dims[N], enum PADDING pad_type, unsigned int pad_dim, long pad_for, long pad_after)
+{
+	PTR_ALLOC(struct padding_op_s, data);
+	SET_TYPEID(padding_op_s, data);
+
+	data->N = N;
+
+	assert(0 <= pad_for * pad_after); // same sign or zero
+
+	data->dims_for = *TYPE_ALLOC(long[N]);
+	data->dims_mid = *TYPE_ALLOC(long[N]);
+	data->dims_after = *TYPE_ALLOC(long[N]);
+
+	md_copy_dims(N, (long*)data->dims_for, dims);
+	md_copy_dims(N, (long*)data->dims_mid, dims);
+	md_copy_dims(N, (long*)data->dims_after, dims);
+
+	((long*)(data->dims_for))[pad_dim] = MAX(0l, pad_for);
+	((long*)(data->dims_mid))[pad_dim] = MIN(dims[pad_dim], dims[pad_dim] + pad_for + pad_after);
+	((long*)(data->dims_after))[pad_dim] = MAX(0l, pad_after);
+
+	data->dims_out = *TYPE_ALLOC(long[N]);
+	md_copy_dims(N, (long*)data->dims_out, dims);
+	((long*)data->dims_out)[pad_dim] += (pad_for + pad_after);
+
+	data->strs_out = *TYPE_ALLOC(long[N]);
+	md_calc_strides(N, (long*)data->strs_out, data->dims_out, CFL_SIZE);
+
+	long pos[N];
+	md_singleton_strides(N, pos);
+	data->offset_out_for = md_calc_offset(N, data->strs_out, pos) / CFL_SIZE;
+
+	pos[pad_dim] += MAX(0, pad_for);
+	data->offset_out_mid = md_calc_offset(N, data->strs_out, pos) / CFL_SIZE;
+
+	pos[pad_dim] += data->dims_mid[pad_dim];
+	data->offset_out_after = md_calc_offset(N, data->strs_out, pos) / CFL_SIZE;
+
+	data->strs_for = *TYPE_ALLOC(long[N]);
+	data->strs_mid = *TYPE_ALLOC(long[N]);
+	data->strs_after = *TYPE_ALLOC(long[N]);
+
+	md_singleton_strides(N, pos); //pos = {0, 0, ...}
+	long strs_in[N];
+	md_calc_strides(N, strs_in, dims, CFL_SIZE);
+
+	switch (pad_type) {
+
+		case PAD_VALID:
+			assert(0 >= pad_for);
+			assert(0 >= pad_after);
+
+			pos[pad_dim] -= pad_for;
+			data->offset_in_mid = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+
+			//no sum over dims_for, dims_after
+			break;
+
+		case PAD_SAME:
+			assert(0 <= pad_for);
+			assert(0 <= pad_after);
+
+			data->offset_in_mid = 0;
+			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+
+			((long*)(data->dims_for))[pad_dim] = 0;
+			((long*)(data->dims_after))[pad_dim] = 0;
+
+			//no sum over dims_for, dims_after
+			break;
+
+		case PAD_SYMMETRIC:
+			assert(0 <= pad_for);
+			assert(0 <= pad_after);
+
+			pos[pad_dim] = pad_for - 1;
+			data->offset_in_for = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+			md_calc_strides(N, (long*)data->strs_for, dims, CFL_SIZE);
+			((long*)data->strs_for)[pad_dim] = -data->strs_for[pad_dim];
+
+			data->offset_in_mid = 0;
+			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+
+			pos[pad_dim] = dims[pad_dim] - 1;
+			data->offset_in_after = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+			md_calc_strides(N, (long*)data->strs_after, dims, CFL_SIZE);
+			((long*)data->strs_after)[pad_dim] = -data->strs_after[pad_dim];
+			break;
+
+		case PAD_REFLECT:
+			assert(0 <= pad_for);
+			assert(0 <= pad_after);
+
+			pos[pad_dim] = pad_for;
+			data->offset_in_for = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+			md_calc_strides(N, (long*)data->strs_for, dims, CFL_SIZE);
+			((long*)data->strs_for)[pad_dim] = -data->strs_for[pad_dim];
+
+			data->offset_in_mid = 0;
+			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+
+			pos[pad_dim] = dims[pad_dim] - 2;
+			data->offset_in_after = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+			md_calc_strides(N, (long*)data->strs_after, dims, CFL_SIZE);
+			((long*)data->strs_after)[pad_dim] = -data->strs_after[pad_dim];
+			break;
+
+		case PAD_CYCLIC:
+			assert(0 <= pad_for);
+			assert(0 <= pad_after);
+
+			pos[pad_dim] = dims[pad_dim] - pad_for;
+			data->offset_in_for = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+			md_calc_strides(N, (long*)data->strs_for, dims, CFL_SIZE);
+
+			data->offset_in_mid = 0;
+			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+
+			pos[pad_dim] = 0;
+			data->offset_in_after = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+			md_calc_strides(N, (long*)data->strs_after, dims, CFL_SIZE);
+			break;
+
+		default:
+			assert(0);
+		break;
+	}
+
+	data->dims_in = *TYPE_ALLOC(long[N]);
+	md_copy_dims(N, (long*)data->dims_in, dims);
+
+	long dims_out[N];
+	md_copy_dims(N, dims_out, data->dims_out);
+
+	return linop_create(N, dims_out, N, dims, CAST_UP(PTR_PASS(data)), padding_forward, padding_adjoint, NULL, NULL, padding_free);
+}
+
+struct linop_s* linop_padding_create(unsigned int N, const long dims[N], enum PADDING pad_type, long pad_for[N], long pad_after[N])
+{
+	bool resc = (PAD_VALID == pad_type) || (PAD_SAME == pad_type);
+	bool res = (PAD_VALID == pad_type) || (PAD_SAME == pad_type);
+
+	long odims[N];
+
+	for(unsigned int i = 0; i < N; i++) {
+
+		resc = resc && (pad_for[i] == pad_after[i]);
+		res = res && (0 == pad_for[i]);
+		odims[i] = dims[i] + pad_for[i] + pad_after[i];
+	}
+
+	if (resc)
+		return linop_resize_generic_create(N, odims, dims, true);
+	if (res)
+		return linop_resize_generic_create(N, odims, dims, false);
+
+	struct linop_s* result = NULL;
+
+	for (unsigned int i = 0; i < N; i++)
+		if ((0 != pad_for[i]) || (0 != pad_after[i])) {
+
+			if (NULL != result)
+				result = linop_chain_FF(result, linop_padding_create_onedim(N, linop_codomain(result)->dims, pad_type, i, pad_for[i], pad_after[i]));
+			else
+				result = linop_padding_create_onedim(N, dims, pad_type, i, pad_for[i], pad_after[i]);
+		}
+
+	if (NULL == result)
+		result = linop_identity_create(N, dims);
+				
+	return result;
+}
 
 
 

@@ -37,6 +37,13 @@ extern struct linop_s* linop_fft_create_measure(int N, const long dims[__VLA(N)]
 
 extern struct linop_s* linop_cdf97_create(int N, const long dims[__VLA(N)], unsigned int flag);
 
+#ifndef __PADD_ENUMS
+#define __PADD_ENUMS
+enum PADDING {PAD_VALID, PAD_SAME, PAD_CYCLIC, PAD_SYMMETRIC, PAD_REFLECT, PAD_CAUSAL};
+#endif
+extern struct linop_s* linop_padding_create_onedim(unsigned int N, const long dims[N], enum PADDING pad_type, unsigned int pad_dim, long pad_for, long pad_after);
+extern struct linop_s* linop_padding_create(unsigned int N, const long dims[N], enum PADDING pad_type, long pad_for[N], long pad_after[N]);
+
 #ifndef __CONV_ENUMS
 #define __CONV_ENUMS
 enum conv_mode { CONV_SYMMETRIC, CONV_CAUSAL, CONV_ANTICAUSAL };
