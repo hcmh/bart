@@ -712,14 +712,14 @@ void md_copy2(unsigned int D, const long dim[D], const long ostr[D], void* optr,
 	md_copy_dims(D, tdims, dim);
 
 	long (*nstr2[2])[D] = { &tostr, &tistr };
-	int ND = optimize_dims(2, D, tdims, nstr2);
+	int ND = optimize_dims_gpu(2, D, tdims, nstr2);
 
 #if 1
-	//permute dims with 0 input strides to the end
+	//permute dims with 0 input strides or negative in /output strides to the end
 	//these might be permutet to the inner dimensions by optimize_dims and break the strided copy
 	unsigned int perm[ND];
 	for (int i = 0, j = 0; i < ND; i++)
-		if (0 >= (*nstr2[1])[i]) {
+		if ((0 >= (*nstr2[1])[i]) || (0 >= (*nstr2[0])[i])) {
 
 			perm[ND - 1 -j] = i;
 			j += 1;
