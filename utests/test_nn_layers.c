@@ -27,6 +27,7 @@
 #include "nlops/conv.h"
 #include "nlops/const.h"
 #include "nlops/cast.h"
+#include "nlops/chain.h"
 #include "nn/layers.h"
 #include "nn/activation.h"
 #include "nn/init.h"
@@ -71,8 +72,8 @@ static bool test_nlop_conv_compare(void)
 	md_gaussian_rand(N, dims_image, src1);
 	md_gaussian_rand(N, dims_kernel, src2);
 
-	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID, true);
-	const struct nlop_s* conv_fft = nlop_convcorr_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID, true);
+	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true, 'N');
+	const struct nlop_s* conv_fft = nlop_convcorr_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true);
 
 	const struct nlop_s* conv_geom_const = nlop_set_input_const_F(conv_geom, 1, N, dims_kernel, src2);
 	const struct nlop_s* conv_fft_const = nlop_set_input_const_F(conv_fft, 1, N, dims_kernel, src2);
@@ -106,8 +107,8 @@ static bool test_nlop_conv_derivative(void)
 	long dims_output[N] = { 4, 4, 2, 4, 1, 1};
 	unsigned long conv_flags = 9; //100100
 
-	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID, true);
-	const struct nlop_s* conv_fft = nlop_convcorr_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PADDING_VALID, true);
+	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true, 'N');
+	const struct nlop_s* conv_fft = nlop_convcorr_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true);
 
 	float err_adj_geom = nlop_test_adj_derivatives(conv_geom, false);
 	float err_der_geom = nlop_test_derivatives(conv_geom);
@@ -126,6 +127,144 @@ static bool test_nlop_conv_derivative(void)
 }
 
 UT_REGISTER_TEST(test_nlop_conv_derivative);
+
+
+
+static bool test_padding(void)
+{
+	enum { N = 2 };
+	long dims_in[N] = { 3, 2};
+	long dims_out[N] = {7, 4};
+
+	long pad[] = {2, 1};
+
+	complex float in[] = {	1, 2, 3,
+				4, 5, 6};
+
+	complex float exp_valid[] = {	1, 2, 3,
+					4, 5, 6};
+	complex float exp_same[] = {	0, 0, 0, 0, 0, 0, 0,
+                                 	0, 0, 1, 2, 3, 0, 0,
+                                 	0, 0, 4, 5, 6, 0, 0,
+                                 	0, 0, 0, 0, 0, 0, 0};
+	complex float exp_reflect[] = {	6, 5, 4, 5, 6, 5, 4,
+                                	3, 2, 1, 2, 3, 2, 1,
+                                	6, 5, 4, 5, 6, 5, 4,
+                                	3, 2, 1, 2, 3, 2, 1};
+	complex float exp_sym[] = {	2, 1, 1, 2, 3, 3, 2,
+                                  	2, 1, 1, 2, 3, 3, 2,
+                                  	5, 4, 4, 5, 6, 6, 5,
+                                  	5, 4, 4, 5, 6, 6, 5};
+	complex float exp_cyc[] = {	5, 6, 4, 5, 6, 4, 5,
+                                  	2, 3, 1, 2, 3, 1, 2,
+                                  	5, 6, 4, 5, 6, 4, 5,
+                                  	2, 3, 1, 2, 3, 1, 2};
+
+
+	complex float* out = md_alloc(2, dims_out, CFL_SIZE);
+
+	const struct linop_s* lin_pad;
+	float err = 0;
+
+	lin_pad = linop_padding_create(2, dims_in, PAD_SAME, pad, pad);
+	linop_forward_unchecked(lin_pad, out, in);
+	linop_free(lin_pad);
+	err += md_zrmse(2, dims_out, exp_same, out);
+
+	lin_pad = linop_padding_create(2, dims_in, PAD_REFLECT, pad, pad);
+	linop_forward_unchecked(lin_pad, out, in);
+	linop_free(lin_pad);
+	err += md_zrmse(2, dims_out, exp_reflect, out);
+
+	lin_pad = linop_padding_create(2, dims_in, PAD_SYMMETRIC, pad, pad);
+	linop_forward_unchecked(lin_pad, out, in);
+	linop_free(lin_pad);
+	err += md_zrmse(2, dims_out, exp_sym, out);
+
+	lin_pad = linop_padding_create(2, dims_in, PAD_CYCLIC, pad, pad);
+	linop_forward_unchecked(lin_pad, out, in);
+	linop_free(lin_pad);
+	err += md_zrmse(2, dims_out, exp_cyc, out);
+
+	long pad_down[] = {-2, -1};
+	lin_pad = linop_padding_create(2, dims_out, PAD_VALID, pad_down, pad_down);
+	linop_forward_unchecked(lin_pad, in, out);
+	linop_free(lin_pad);
+	err += md_zrmse(2, dims_in, in, exp_valid);
+
+	UT_ASSERT(1.e-7 > err);
+}
+
+UT_REGISTER_TEST(test_padding);
+
+
+static bool test_padding_adjoint(void)
+{
+	enum { N = 2 };
+	long dims_in[N] = { 3, 2};
+	long dims_out[N] = {7, 4};
+
+	long pad[] = {2, 1};
+
+	const struct linop_s* lin_pad;
+	float err = 0;
+
+	lin_pad = linop_padding_create(2, dims_in, PAD_SAME, pad, pad);
+	err += linop_test_adjoint(lin_pad);
+	#ifdef USE_CUDA
+	auto nlop = nlop_from_linop(lin_pad);
+	err += compare_gpu(nlop, nlop);
+	nlop_free(nlop);
+	#endif
+	linop_free(lin_pad);
+
+
+	lin_pad = linop_padding_create(2, dims_in, PAD_REFLECT, pad, pad);
+	#ifdef USE_CUDA
+	nlop = nlop_from_linop(lin_pad);
+	err += compare_gpu(nlop, nlop);
+	nlop_free(nlop);
+	#endif
+	linop_free(lin_pad);
+
+
+	lin_pad = linop_padding_create(2, dims_in, PAD_SYMMETRIC, pad, pad);
+	err += linop_test_adjoint(lin_pad);
+	#ifdef USE_CUDA
+	nlop = nlop_from_linop(lin_pad);
+	err += compare_gpu(nlop, nlop);
+	nlop_free(nlop);
+	#endif
+	linop_free(lin_pad);
+
+
+	lin_pad = linop_padding_create(2, dims_in, PAD_CYCLIC, pad, pad);
+	err += linop_test_adjoint(lin_pad);
+	#ifdef USE_CUDA
+	nlop = nlop_from_linop(lin_pad);
+	err += compare_gpu(nlop, nlop);
+	nlop_free(nlop);
+	#endif
+	linop_free(lin_pad);
+
+	long pad_down[] = {-2, -1};
+	lin_pad = linop_padding_create(2, dims_out, PAD_VALID, pad_down, pad_down);
+	err += linop_test_adjoint(lin_pad);
+	#ifdef USE_CUDA
+	nlop = nlop_from_linop(lin_pad);
+	err += compare_gpu(nlop, nlop);
+	nlop_free(nlop);
+	#endif
+	linop_free(lin_pad);
+
+	debug_printf(DP_DEBUG1, "err: %.8f\n", err);
+
+	UT_ASSERT(1.e-6 > err);
+}
+
+UT_REGISTER_TEST(test_padding_adjoint);
+
+
 
 static bool test_dense_der(void)
 {
@@ -162,7 +301,7 @@ static bool test_conv_der(void)
 	long kernel_size[] = {3, 3, 1};
 	long ones[] = {1, 1, 1};
 
-	network = append_convcorr_layer(network, 0, 4, kernel_size, true, PADDING_VALID, true, ones, ones);
+	network = append_convcorr_layer(network, 0, 4, kernel_size, true, PAD_VALID, true, ones, ones);
 
 	float err_adj = nlop_test_adj_derivatives(network, true);
 	float err_der = nlop_test_derivatives(network);
@@ -176,7 +315,40 @@ static bool test_conv_der(void)
 
 UT_REGISTER_TEST(test_conv_der);
 
-//test max pooling for pooling layers >2
+static bool test_conv_transp(void)
+{
+	unsigned int N = 5;
+	long indims[] = {5, 7, 6, 3, 5};
+	long outdims[] = {4, 5, 4, 3, 5};
+	long kernel_size[] = {3, 3, 1};
+	long kdims[] = {4, 5, 3, 3 ,1};
+
+	complex float* kernel = md_alloc(N, kdims, CFL_SIZE);
+	md_gaussian_rand(N, kdims, kernel);
+
+	auto forward = append_convcorr_layer(nlop_from_linop_F(linop_identity_create(N, indims)), 0, 4, kernel_size, true, PAD_VALID, true, NULL, NULL);
+	forward = nlop_set_input_const_F(forward, 1, N, kdims, kernel);
+	auto adjoint = append_transposed_convcorr_layer(nlop_from_linop_F(linop_identity_create(N, outdims)), 0, 5, kernel_size, true, true, PAD_VALID, true, NULL, NULL);
+	adjoint = nlop_set_input_const_F(adjoint, 1, N, kdims, kernel);
+
+	PTR_ALLOC(struct linop_s, c);
+	c->forward = forward->op;
+	c->adjoint = adjoint->op;
+	c->normal = NULL;
+	c->norm_inv = NULL;
+
+	float err = linop_test_adjoint(c);
+	XFREE(c);
+
+	nlop_free(forward);
+	nlop_free(adjoint);
+	UT_ASSERT(err < 1.e-5);
+}
+
+UT_REGISTER_TEST(test_conv_transp);
+
+
+
 static bool test_mpool_der(void)
 {
 	unsigned int N = 5;	
@@ -195,7 +367,7 @@ static bool test_mpool_der(void)
 	complex float* out = md_alloc(N, indims, CFL_SIZE);
 
 	const struct nlop_s* network = nlop_from_linop_F(linop_identity_create(N, indims));
-	network = append_maxpool_layer(network, 0, MAKE_ARRAY(3l, 1l, 1l), PADDING_VALID, true);
+	network = append_maxpool_layer(network, 0, MAKE_ARRAY(3l, 1l, 1l), PAD_VALID, true);
 	nlop_apply(network, 5, outdims, out, N, indims, in);
 	nlop_adjoint(network, N, indims, in, N, outdims, out);
 

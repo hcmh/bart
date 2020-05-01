@@ -43,7 +43,7 @@ static void perm_shift(int N, int from, int to, int perm[N])
 	}
 }
 
-const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, int filters, long const kernel_size[3], bool conv, enum CONV_PAD conv_pad, bool channel_first, const long strides[3], const long dilations[3])
+const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, int filters, long const kernel_size[3], bool conv, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3])
 {
 	const long ones[3] = {1, 1, 1};
 	if (NULL == strides)
@@ -87,7 +87,7 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 		assert(strides[i] == 1);
 	}
 
-	if (conv_pad == PADDING_VALID){
+	if (conv_pad == PAD_VALID){
 
 		for (int i = 0; i < 3; i++)
 			odims_xyz[i] = idims_xyz[i] - dilations[i] * (kernel_size[i] - 1);
@@ -141,14 +141,12 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 		kdims_working[5] = 1;
 	}
 
-	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working, conv_pad, conv);
+	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working, conv_pad, conv, 'N');
 
-	nlop_conv = nlop_reshape_out(nlop_conv, 0, 5, odims_layer);
-	nlop_conv = nlop_reshape_in(nlop_conv, 0, 5, idims_layer);
-	nlop_conv = nlop_reshape_in(nlop_conv, 1, 5, kdims_layer);
-	const struct nlop_s* tmp = nlop_chain2(network, o, nlop_conv, 0);
-	nlop_free(network);
-	nlop_free(nlop_conv);
+	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, 5, odims_layer);
+	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, 5, idims_layer);
+	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, 5, kdims_layer);
+	const struct nlop_s* tmp = nlop_chain2_FF(network, o, nlop_conv, 0);
 
 	int perm_in[NI + 1];
 	perm_shift(NI + 1, 0, NI, perm_in);
@@ -163,7 +161,128 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 	return result;
 }
 
-const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum CONV_PAD conv_pad, bool channel_first)
+const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* network, int o, int channels, long const kernel_size[3], bool conv, bool adjoint, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3])
+{
+	const long ones[3] = {1, 1, 1};
+	if (NULL == strides)
+		strides = ones;
+	if (NULL == dilations)
+		dilations = strides;
+
+	int NO = nlop_get_nr_out_args(network);
+	int NI = nlop_get_nr_in_args(network);
+
+	assert(o < NO);
+	assert((nlop_generic_codomain(network, o))->N == 5);
+
+	//note that idims, odims, kdims refer to the dimensions of the forward convolution, i.e. idims[i] = odims[i] + kdims[i] - 1
+
+	long idims_layer[5]; // channel, x, y, z, batch         or x, y, z, channel, batch
+	long odims_layer[5]; // filters, ox, oy, oz, batch         or ox, oy, oz, filters, batch
+	long kdims_layer[5]; // filters, channel, kx, ky, kz    or x, y, z channel, filters
+
+	long ostrs_layer[5];
+
+	md_copy_dims(5, odims_layer, nlop_generic_codomain(network, o)->dims);
+	md_copy_strides(5, ostrs_layer, nlop_generic_codomain(network, o)->strs);
+
+	long idims_xyz[3];
+	long odims_xyz[3];
+	long filters = 0;
+	long batch = odims_layer[4];
+
+	if (channel_first){
+
+		filters = odims_layer[0];
+		md_copy_dims(3, odims_xyz, odims_layer + 1);
+    	} else {
+
+		filters = odims_layer[3];
+		md_copy_dims(3, odims_xyz, odims_layer);
+    	}
+
+	for (int i = 0; i< 3; i++){
+
+		assert(dilations[i] == 1);//Not supported yet
+		assert(strides[i] == 1);
+	}
+
+	if (conv_pad == PAD_VALID){
+
+		for (int i = 0; i < 3; i++)
+			idims_xyz[i] = odims_xyz[i] + dilations[i] * (kernel_size[i] - 1);
+	} else
+		md_copy_dims(3, idims_xyz, odims_xyz);
+
+	long idims_working[6];
+	long odims_working[6];
+	long kdims_working[6];
+
+	if (channel_first){
+
+		idims_working[0] = 1;
+		idims_working[1] = channels;
+		md_copy_dims(3, idims_working + 2, idims_xyz);
+		idims_working[5] = batch;
+
+		idims_layer[0] = channels;
+		md_copy_dims(3, idims_layer + 1, idims_xyz);
+		idims_layer[4] = batch;
+
+
+		odims_working[0] = filters;
+		odims_working[1] = 1;
+		md_copy_dims(3, odims_working + 2, odims_xyz);
+		odims_working[5] = batch;
+
+		kdims_layer[0] = filters;
+		kdims_layer[1] = channels;
+		md_copy_dims(3, kdims_layer + 2, kernel_size);
+		md_copy_dims(5, kdims_working, kdims_layer);
+		kdims_working[5] = 1;
+	} else {
+
+		md_copy_dims(3, idims_working, idims_xyz);
+		idims_working[3] = channels;
+		idims_working[4] = 1;
+		idims_working[5] = batch;
+
+		md_copy_dims(3, idims_layer, idims_xyz);
+		idims_layer[3] = channels;
+		idims_layer[4] = batch;
+
+		md_copy_dims(3, odims_working, odims_xyz);
+		odims_working[3] = 1;
+		odims_working[4] = filters;
+		odims_working[5] = batch;
+
+		md_copy_dims(3, kdims_layer, kernel_size);
+		kdims_layer[3] = channels;
+		kdims_layer[4] = filters;
+		md_copy_dims(5, kdims_working, kdims_layer);
+		kdims_working[5] = 1;
+	}
+
+	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working, conv_pad, conv, adjoint ? 'C' : 'T');
+
+	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, 5, idims_layer);
+	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, 5, odims_layer);
+	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, 5, kdims_layer);
+
+	const struct nlop_s* tmp = nlop_chain2_FF(network, o, nlop_conv, 0);
+
+	int perm_in[NI + 1];
+	perm_shift(NI + 1, 0, NI, perm_in);
+	const struct nlop_s* result = nlop_permute_inputs_F(tmp, NI + 1, perm_in);
+
+	int perm_out[NO];
+	perm_shift(NO, 0, o, perm_out);
+	result = nlop_permute_outputs_F(result, NO, perm_out);
+
+	return result;
+}
+
+const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
 {
 	int NO = nlop_get_nr_out_args(network);
 	assert(o < NO);
@@ -192,13 +311,13 @@ const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, c
 
 		resize_needed = true;
 
-		if (conv_pad == PADDING_VALID){
+		if (conv_pad == PAD_VALID){
 
 			idims_working[i] -= (idims_working[i] % pool_size_working[i]);
 			continue;
 		}
 
-		if (conv_pad == PADDING_VALID){
+		if (conv_pad == PAD_VALID){
 
 			idims_working[i] += pool_size_working[i] - (idims_working[i] % pool_size_working[i]);
 			continue;
@@ -314,4 +433,21 @@ const struct nlop_s* append_flatten_layer(const struct nlop_s* network, int o)
 	long odims[] = {size, idims[N - 1]};
 
 	return nlop_reshape_out(network, o, 2, odims);
+}
+
+const struct nlop_s* append_padding_layer(const struct nlop_s* network, int o, long N, long pad_for[N], long pad_after[N], enum PADDING pad_type)
+{
+	int NO = nlop_get_nr_out_args(network);
+	assert(o < NO);
+
+	auto io = nlop_generic_codomain(network, o);
+	auto pad_op = nlop_from_linop_F(linop_padding_create(io->N, io->dims, pad_type, pad_for, pad_after));
+
+	network = nlop_chain2_FF(network, o, pad_op, 0);
+
+	int perm_out[NO];
+	perm_shift(NO, 0, o, perm_out);
+	network = nlop_permute_outputs_F(network, NO, perm_out);
+
+	return network;
 }

@@ -32,35 +32,6 @@
 #include "num/gpuops.h"
 #endif
 
-static const struct nlop_s* nlop_fftc_create(long N, const long dims[N], unsigned int flags, bool inv)
-{
-	auto lfft = (inv ? linop_ifftc_create : linop_fftc_create)(N, dims, flags);
-	auto nfft = nlop_from_linop(lfft);
-	linop_free(lfft);
-	return nfft;
-}
-
-struct nlop_s* nlop_conv_create(long N, unsigned int flags, const long odims[N], const long idims1[N], const long idims2[N])
-{
-	auto nl = nlop_tenmul_create(N, odims, idims1, idims2);
-
-	auto ffto = nlop_fftc_create(N, odims, flags, true);
-	auto nl2 = nlop_chain(nl, ffto);
-	nlop_free(ffto);
-	nlop_free(nl);
-
-	auto ffti1 = nlop_fftc_create(N, idims1, flags, false);
-	auto nl3 = nlop_chain2(ffti1, 0, nl2, 0);
-	nlop_free(ffti1);
-	nlop_free(nl2);
-
-	auto ffti2 = nlop_fftc_create(N, idims2, flags, false);
-	auto nl4 = nlop_chain2(ffti2, 0, nl3, 1);
-	nlop_free(ffti2);
-	nlop_free(nl3);
-
-	return nl4;
-}
 
 static struct nlop_s* nlop_resize_create(long N, const long out_dims[N], const long in_dims[N], bool center)//
 {
@@ -77,30 +48,23 @@ struct convcorr_geom_s {
 
 	long N;
 
-	const struct iovec_s* idom;
-	const struct iovec_s* kdom;
-	const struct iovec_s* codom;
+	const long* odims;
+	const long* idims1;
+	const long* idims2;
+
+	const long* mdims;
+	const long* ostrs;
+	const long* istrs1;
+	const long* istrs2;
 
 	unsigned int flags;
 
-	bool conv;
-
-	complex float* k;
-	complex float* i;
+	long shift;
+	complex float* src1;
+	complex float* src2;
 };
 
 DEF_TYPEID(convcorr_geom_s);
-
-
-static void convcorr_geom_initialize(struct convcorr_geom_s* data, const complex float* arg)
-{
-	if (NULL == data->k)
-		data->k = md_alloc_sameplace(data->N, data->kdom->dims, CFL_SIZE, arg);
-
-	if (NULL == data->i)
-		data->i = md_alloc_sameplace(data->N, data->idom->dims, CFL_SIZE, arg);
-}
-
 
 static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
@@ -116,23 +80,20 @@ static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* ar
 #ifdef USE_CUDA
 	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
 #endif
-	convcorr_geom_initialize(data, dst);
 
-	md_zconj2(data->N, data->idom->dims, MD_STRIDES(data->N, data->idom->dims, CFL_SIZE), data->i, data->idom->strs, src1);
-	md_zconj2(data->N, data->kdom->dims, MD_STRIDES(data->N, data->kdom->dims, CFL_SIZE), data->k, data->kdom->strs, src2);
+	if (NULL == data->src1)
+		data->src1 = md_alloc_sameplace(data->N, data->idims1, CFL_SIZE, dst);
+	if (NULL == data->src2)
+		data->src2 = md_alloc_sameplace(data->N, data->idims2, CFL_SIZE, dst);
 
-	long mdims[2 * data->N];
-	long ostrs2[2 * data->N];
-	long kstrs2[2 * data->N];
-	long istrs2[2 * data->N];
+	//conj to have benefits of fmac optimization in adjoints
+	md_zconj(data->N, data->idims1, data->src1, src1);
+	md_zconj(data->N, data->idims2, data->src2, src2);
 
-	const complex float *krn = src2;
-	krn += calc_convcorr_geom(data->N, data->flags, mdims, ostrs2, kstrs2, istrs2, data->codom->dims, data->codom->strs, data->kdom->dims, data->kdom->strs, data->idom->dims, data->idom->strs, data->conv) / CFL_SIZE;
+	md_clear(data->N, data->odims, dst, CFL_SIZE);
+	md_zfmac2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs1, src1, data->istrs2, src2 + data->shift);
 
-	md_clear(data->N, data->codom->dims, dst, CFL_SIZE);
-	md_zfmac2(2 * data->N, mdims, ostrs2, dst, istrs2, src1, kstrs2, krn);
-
-	PRINT_TIMER("convgeos");
+	PRINT_TIMER("frw convgeo");
 }
 
 
@@ -142,19 +103,10 @@ static void convcorr_geom_der2(const nlop_data_t* _data, complex float* dst, con
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
-	long mdims[2 * data->N];
-	long ostrs2[2 * data->N];
-	long kstrs2[2 * data->N];
-	long istrs2[2 * data->N];
+	md_clear(data->N, data->odims, dst, CFL_SIZE);
+	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs2, src + data->shift, data->istrs1, data->src1);
 
-	const complex float* krn = src;
-	const complex float* in = data->i;
-
-	krn += calc_convcorr_geom(data->N, data->flags, mdims, ostrs2, kstrs2, istrs2, data->codom->dims, data->codom->strs, data->kdom->dims, data->kdom->strs, data->idom->dims, MD_STRIDES(data->N, data->idom->dims, CFL_SIZE), data->conv) / CFL_SIZE;
-
-	md_ztenmulc2(2 * data->N, mdims, ostrs2, dst, kstrs2, krn, istrs2, in);
-
-	PRINT_TIMER("convgeo der2s");
+	PRINT_TIMER("der2 convgeo");
 }
 
 static void convcorr_geom_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -162,18 +114,11 @@ static void convcorr_geom_adj2(const nlop_data_t* _data, complex float* dst, con
 	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
-	long mdims[2 * data->N];
-	long ostrs2[2 * data->N];
-	long kstrs2[2 * data->N];
-	long istrs2[2 * data->N];
 
-	complex float *krn = dst;
-	krn += calc_convcorr_geom(data->N, data->flags, mdims, ostrs2, kstrs2, istrs2, data->codom->dims, data->codom->strs, data->kdom->dims, MD_STRIDES(data->N, data->kdom->dims,CFL_SIZE), data->idom->dims, data->idom->strs, data->conv) / CFL_SIZE;
+	md_clear(data->N, data->idims2, dst, CFL_SIZE);
+	md_zfmac2(2 * data->N, data->mdims, data->istrs2, dst + data->shift, data->ostrs, src, data->istrs1, data->src1);
 
-	md_clear(data->N, data->kdom->dims, dst, CFL_SIZE);
-	md_zfmac2(2 * data->N, mdims, kstrs2, krn, ostrs2, src, istrs2, data->i);
-
-	PRINT_TIMER("convgeo adj2s");
+	PRINT_TIMER("adj2 convgeo");
 }
 
 static void convcorr_geom_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -182,19 +127,10 @@ static void convcorr_geom_der1(const nlop_data_t* _data, complex float* dst, con
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
-	long mdims[2 * data->N];
-	long ostrs2[2 * data->N];
-	long kstrs2[2 * data->N];
-	long istrs2[2 * data->N];
+	md_clear(data->N, data->odims, dst, CFL_SIZE);
+	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs1, src, data->istrs2, data->src2 + data->shift);
 
-	const complex float* krn = data->k;
-	const complex float* in = src;
-
-	krn += calc_convcorr_geom(data->N, data->flags, mdims, ostrs2, kstrs2, istrs2, data->codom->dims, data->codom->strs,  data->kdom->dims, MD_STRIDES(data->N, data->kdom->dims, CFL_SIZE), data->idom->dims, data->idom->strs, data->conv) / CFL_SIZE;
-
-	md_ztenmulc2(2 * data->N, mdims, ostrs2, dst, istrs2, in, kstrs2, krn);
-
-	PRINT_TIMER("convgeo der1s");
+	PRINT_TIMER("der1 convgeo");
 }
 
 static void convcorr_geom_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -203,24 +139,10 @@ static void convcorr_geom_adj1(const nlop_data_t* _data, complex float* dst, con
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
-	long mdims[2 * data->N];
-	long ostrs2[2 * data->N];
-	long kstrs2[2 * data->N];
-	long istrs2[2 * data->N];
+	md_clear(data->N, data->idims1, dst, CFL_SIZE);
+	md_zfmac2(2 * data->N, data->mdims, data->istrs1, dst, data->ostrs, src, data->istrs2, data->src2 + data->shift);
 
-	const complex float* krn = data->k;
-
-	krn += calc_convcorr_geom(data->N, data->flags, mdims, ostrs2, kstrs2, istrs2,
-					data->codom->dims, data->codom->strs,
-					data->kdom->dims, MD_STRIDES(data->N, data->kdom->dims, CFL_SIZE),
-					data->idom->dims, data->idom->strs,
-					data->conv) / CFL_SIZE;
-
-	//tenmul is slow due two clear with strides
-	md_clear(data->N, data->idom->dims, dst, CFL_SIZE);
-	md_zfmac2(2 * data->N, mdims, istrs2, dst, ostrs2, src, kstrs2, krn);
-
-	PRINT_TIMER("convgeo adj1s");
+	PRINT_TIMER("adj1 convgeo");
 }
 
 
@@ -228,17 +150,22 @@ static void convcorr_geom_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
-	md_free(data->i);
-	md_free(data->k);
+	md_free(data->src1);
+	md_free(data->src2);
 
-	iovec_free(data->idom);
-	iovec_free(data->kdom);
-	iovec_free(data->codom);
+	xfree(data->odims);
+	xfree(data->idims1);
+	xfree(data->idims2);
+
+	xfree(data->mdims);
+	xfree(data->ostrs);
+	xfree(data->istrs1);
+	xfree(data->istrs2);
 
 	xfree(data);
 }
 
-static struct nlop_s* nlop_convcorr_geom_create2(long N, unsigned int flags, const long odims[N], const long ostr[N], const long idims[N], const long istr[N], const long kdims[N], const long kstr[N], bool conv)
+static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], bool conv, bool transp)
 {
 	for (int i = 0; i < N; i++)
 		if MD_IS_SET(flags, i)
@@ -247,84 +174,110 @@ static struct nlop_s* nlop_convcorr_geom_create2(long N, unsigned int flags, con
 	PTR_ALLOC(struct convcorr_geom_s, data);
 	SET_TYPEID(convcorr_geom_s, data);
 
-	data->conv = conv;
 	data->flags = flags;
 
 	// will be initialized later, to transparently support GPU
-	data->i = NULL;
-	data->k = NULL;
+	data->src1 = NULL;
+	data->src2 = NULL;
 
 	long nl_odims[1][N];
-	md_select_dims(N, md_nontriv_strides(N, ostr), nl_odims[0], odims);
-
-	long nl_ostr[1][N];
-	md_copy_strides(N, nl_ostr[0], ostr);
+	md_copy_dims(N, nl_odims[0], transp ? idims : odims);
 
 	long nl_idims[2][N];
-	md_select_dims(N, md_nontriv_strides(N, istr), nl_idims[0], idims);
-	md_select_dims(N, md_nontriv_strides(N, kstr), nl_idims[1], kdims);
-
-	long nl_istr[2][N];
-	md_copy_strides(N, nl_istr[0], istr);
-	md_copy_strides(N, nl_istr[1], kstr);
+	md_copy_dims(N, nl_idims[0], transp ? odims : idims);
+	md_copy_dims(N, nl_idims[1], kdims);
 
 	data->N = N;
-	data->idom = iovec_create2(N, nl_idims[0], istr, CFL_SIZE);
-	data->kdom = iovec_create2(N, nl_idims[1], kstr, CFL_SIZE);
-	data->codom = iovec_create2(N, nl_odims[0], ostr, CFL_SIZE);
 
-	return nlop_generic_create2(1, N, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
+	PTR_ALLOC(long[N], nodims);
+	PTR_ALLOC(long[N], nidims1);
+	PTR_ALLOC(long[N], nidims2);
+
+	PTR_ALLOC(long[2 * N], nmdims);
+	PTR_ALLOC(long[2 * N], nostrs);
+	PTR_ALLOC(long[2 * N], nistrs1);
+	PTR_ALLOC(long[2 * N], nistrs2);
+
+	md_copy_dims(N, *nodims, nl_odims[0]);
+	md_copy_dims(N, *nidims1, nl_idims[0]);
+	md_copy_dims(N, *nidims2, nl_idims[1]);
+
+	if (transp)
+		data->shift = calc_convcorr_geom(	N, flags,
+							*nmdims, *nistrs1, *nistrs2, *nostrs,
+							odims, MD_STRIDES(N, odims, CFL_SIZE),
+							kdims, MD_STRIDES(N, kdims, CFL_SIZE),
+							idims, MD_STRIDES(N, idims, CFL_SIZE),
+							conv) / CFL_SIZE;
+	else
+		data->shift = calc_convcorr_geom(	N, flags,
+							*nmdims, *nostrs, *nistrs2, *nistrs1,
+							odims, MD_STRIDES(N, odims, CFL_SIZE),
+							kdims, MD_STRIDES(N, kdims, CFL_SIZE),
+							idims, MD_STRIDES(N, idims, CFL_SIZE),
+							conv) / CFL_SIZE;
+
+	data->odims = *PTR_PASS(nodims);
+	data->idims1 = *PTR_PASS(nidims1);
+	data->idims2 = *PTR_PASS(nidims2);
+
+	data->mdims = *PTR_PASS(nmdims);
+	data->ostrs = *PTR_PASS(nostrs);
+	data->istrs1 = *PTR_PASS(nistrs1);
+	data->istrs2 = *PTR_PASS(nistrs2);
+
+
+	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
 				    (nlop_fun_t[2][1]){ { convcorr_geom_der1 }, { convcorr_geom_der2 } },
 				    (nlop_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del);
 }
 
-static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], bool conv)
-{
-	return nlop_convcorr_geom_create2(N, flags, odims, MD_STRIDES(N, odims, CFL_SIZE), idims, MD_STRIDES(N, idims, CFL_SIZE), kdims, MD_STRIDES(N, kdims, CFL_SIZE), conv);
-}
 
-struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad, bool conv)
+struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum PADDING conv_pad, bool conv, char transpc)
 {
 	struct nlop_s* result = NULL;
-	long idims2[N];
 
-	switch (conv_pad){
-		case PADDING_VALID:
+	assert(('N' == transpc) || ('T' == transpc) || ('C' == transpc));
 
-			result = nlop_convcorr_geom_valid_create(N, flags, odims, idims, kdims, conv);
-			break;
+	bool transp = ('N' != transpc);
+	
+	if (PAD_VALID == conv_pad) {
 
-	case PADDING_SAME:
+		result = nlop_convcorr_geom_valid_create(N, flags, odims, idims, kdims, conv, transp);
+	} else {
 
-		for (int i = 0; i < N; i++){
-			if (MD_IS_SET(flags, i))
-				idims2[i] = idims[i] + kdims[i] - 1;
-			else
-				idims2[i] = idims[i];
+		long pad[N];
+		long nidims[N];
+		for (int i = 0; i < N; i++) {
+
+			if(MD_IS_SET(flags, i)) {
+
+				assert(1 == kdims[i] % 2);
+				pad[i] = kdims[i] / 2;
+			} else {
+
+				pad[i] = 0;		
+			}
+			nidims[i] = idims[i] + 2 * pad[i];
 		}
 
-		struct nlop_s* nresize = nlop_resize_create(N, idims2, idims, true);
-		struct nlop_s* nconv_valid = nlop_convcorr_geom_valid_create(N, flags, odims, idims2, kdims, conv);
-		struct nlop_s* nchained = nlop_chain2(nresize, 0, nconv_valid, 0);
-		int perm[2]={1,0};
-		result = nlop_permute_inputs(nchained, 2, perm);
+		result = nlop_convcorr_geom_valid_create(N, flags, odims, nidims, kdims, conv, transp);
+		
+		struct linop_s* pad_op = linop_padding_create(N, idims, conv_pad, pad, pad);
 
-		nlop_free(nresize);
-		nlop_free(nconv_valid);
-		nlop_free(nchained);
+		if (transp) {
 
-		break;
+			result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_get_adjoint(pad_op)), 0);
+			linop_free(pad_op);
+		} else {
 
-	case PADDING_CYCLIC:
-
-		assert(false);//not implemented
-		break;
-
-	case PADDING_CAUSAL:
-
-		assert(false);//not implemented
-		break;
+			result = nlop_chain2_FF(nlop_from_linop_F(pad_op), 0, result, 0);
+			result = nlop_permute_inputs_F(result, 2, MAKE_ARRAY(1, 0));
+		}
 	}
+
+	if ('C' == transpc)
+		result = nlop_chain2_FF(nlop_from_linop_F(linop_zconj_create(N, kdims)), 0, result, 1);
 
 	return result;
 }
@@ -566,7 +519,7 @@ static struct nlop_s* nlop_conv_fft_cyclic_create(long N, unsigned int flags, co
 				   (nlop_fun_t[2][1]){ { conv_fft_adj1 }, { conv_fft_adj2 } }, NULL, NULL, conv_fft_del);
 }
 
-struct nlop_s* nlop_convcorr_fft_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum CONV_PAD conv_pad, bool conv)
+struct nlop_s* nlop_convcorr_fft_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum PADDING conv_pad, bool conv)
 {
 	long odims2[N];
 	long idims2[N];
@@ -595,12 +548,12 @@ struct nlop_s* nlop_convcorr_fft_create(long N, unsigned int flags, const long o
 
 	switch (conv_pad){
 
-		case PADDING_CYCLIC:
+		case PAD_CYCLIC:
 
 			result = nlop_conv_fft_cyclic_create(N, flags, odims, idims, kdims);
 			break;
 
-		case PADDING_SAME:
+		case PAD_SAME:
 
 			niresize = nlop_resize_create(N, idims2, idims, false);
 			nconv_cyclic = nlop_conv_fft_cyclic_create(N, flags, odims2, idims2, kdims);
@@ -620,7 +573,7 @@ struct nlop_s* nlop_convcorr_fft_create(long N, unsigned int flags, const long o
 			nlop_free(noresize);
 			break;
 
-		case PADDING_VALID:
+		case PAD_VALID:
 
 			for (int i = 0; i < N; i++)
 				if(MD_IS_SET(flags, i))
@@ -632,7 +585,17 @@ struct nlop_s* nlop_convcorr_fft_create(long N, unsigned int flags, const long o
 			nlop_free(noresize);
 			break;
 
-		case PADDING_CAUSAL:
+		case PAD_CAUSAL:
+
+			assert(0);//not implemented
+			break;
+
+		case PAD_SYMMETRIC:
+
+			assert(0);//not implemented
+			break;
+
+		case PAD_REFLECT:
 
 			assert(0);//not implemented
 			break;

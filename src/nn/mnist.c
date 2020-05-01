@@ -81,11 +81,11 @@ const struct nlop_s* get_nn_mnist(int N_batch)
 
 	bool conv = true;
 
-	network = append_convcorr_layer(network, 0, 32, kernel_size, conv, PADDING_VALID, true, NULL, NULL);
+	network = append_convcorr_layer(network, 0, 32, kernel_size, conv, PAD_VALID, true, NULL, NULL);
 	network = append_activation_bias(network, ACT_RELU, 0, MD_BIT(0));
-	network = append_convcorr_layer(network, 0, 64, kernel_size, conv, PADDING_VALID, true, NULL, NULL);
+	network = append_convcorr_layer(network, 0, 64, kernel_size, conv, PAD_VALID, true, NULL, NULL);
 	network = append_activation_bias(network, ACT_RELU, 0, MD_BIT(0));
-	network = append_maxpool_layer(network, 0, pool_size, PADDING_VALID, true);
+	network = append_maxpool_layer(network, 0, pool_size, PAD_VALID, true);
 
 	network = append_flatten_layer(network, 0);
 	network = append_dropout_layer(network, 0, 0.25);

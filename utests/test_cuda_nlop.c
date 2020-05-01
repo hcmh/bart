@@ -29,7 +29,7 @@
 static bool test_dense_layer_gpu(void)
 {
 	unsigned int N = 2;
-	long indims[] = {210, 18};
+	long indims[] = {5, 18};
 
 	auto op_cpu = append_dense_layer(nlop_from_linop_F(linop_identity_create(N, indims)), 0, 128);
 	auto op_gpu = append_dense_layer(nlop_from_linop_F(linop_identity_create(N, indims)), 0, 128);
@@ -41,7 +41,7 @@ static bool test_dense_layer_gpu(void)
 
 	debug_printf(DP_DEBUG1, "err: %f\n", err);
 
-	return(err < 2.e-5);
+	UT_ASSERT(err < 5.e-5);
 }
 
 UT_GPU_REGISTER_TEST(test_dense_layer_gpu);
@@ -52,8 +52,8 @@ static bool test_conv_layer_gpu_CF(void)
 	unsigned int N = 5;
 	long indims[] = {4, 7, 6, 2, 2};
 
-	auto op_cpu = append_convcorr_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(3l,3l,1l), false, PADDING_SAME, true, NULL, NULL);
-	auto op_gpu = append_convcorr_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(3l,3l,1l), false, PADDING_SAME, true, NULL, NULL);
+	auto op_cpu = append_convcorr_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 1, MAKE_ARRAY(5l,3l,1l), false, PAD_VALID, true, NULL, NULL);
+	auto op_gpu = append_convcorr_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 1, MAKE_ARRAY(5l,3l,1l), false, PAD_VALID, true, NULL, NULL);
 
 	float err = compare_gpu(op_cpu, op_gpu);
 
@@ -63,7 +63,7 @@ static bool test_conv_layer_gpu_CF(void)
 	nlop_free(op_cpu);
 	nlop_free(op_gpu);
 
-	return(err < 1.e-5);
+	UT_ASSERT(err < 2.e-5);
 }
 
 UT_GPU_REGISTER_TEST(test_conv_layer_gpu_CF);
@@ -73,8 +73,8 @@ static bool test_conv_layer_gpu(void)
 	unsigned int N = 5;
 	long indims[] = {4, 5, 1, 2, 2};
 
-	auto op_cpu = append_convcorr_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(3l,3l,1l), false, PADDING_SAME, false, NULL, NULL);
-	auto op_gpu = append_convcorr_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 4, MAKE_ARRAY(3l,3l,1l), false, PADDING_SAME, false, NULL, NULL);
+	auto op_cpu = append_convcorr_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 1, MAKE_ARRAY(3l,1l,1l), false, PAD_VALID, false, NULL, NULL);
+	auto op_gpu = append_convcorr_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, 1, MAKE_ARRAY(3l,1l,1l), false, PAD_VALID, false, NULL, NULL);
 
 	float err = compare_gpu(op_cpu, op_gpu);
 
@@ -83,7 +83,7 @@ static bool test_conv_layer_gpu(void)
 	nlop_free(op_cpu);
 	nlop_free(op_gpu);
 
-	return(err < 1.e-5);
+	UT_ASSERT(err < 1.e-5);
 }
 
 UT_GPU_REGISTER_TEST(test_conv_layer_gpu);
@@ -93,8 +93,27 @@ static bool test_maxpool_layer_gpu(void)
 	unsigned int N = 5;
 	long indims[] = {3, 4, 6, 1, 2};
 
-	auto op_cpu = append_maxpool_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, MAKE_ARRAY(2l,2l,1l), PADDING_VALID, true);
-	auto op_gpu = append_maxpool_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, MAKE_ARRAY(2l,2l,1l), PADDING_VALID, true);
+	auto op_cpu = append_maxpool_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, MAKE_ARRAY(2l,2l,1l), PAD_VALID, true);
+	auto op_gpu = append_maxpool_layer(nlop_from_linop(linop_identity_create(N, indims)), 0, MAKE_ARRAY(2l,2l,1l), PAD_VALID, true);
+
+	float err = compare_gpu(op_cpu, op_gpu);
+
+	nlop_free(op_cpu);
+	nlop_free(op_gpu);
+
+	UT_ASSERT(err < 1.e-5);
+}
+
+UT_GPU_REGISTER_TEST(test_maxpool_layer_gpu);
+
+static bool test_bias_op_gpu(void)
+{
+	unsigned int N = 5;
+	long indims[] = {3, 4, 6, 1, 2};
+	long bdims[] = {3, 1, 1, 1, 1};
+
+	auto op_cpu = nlop_bias_create(N, indims, bdims);
+	auto op_gpu = nlop_bias_create(N, indims, bdims);
 
 	float err = compare_gpu(op_cpu, op_gpu);
 
@@ -103,10 +122,31 @@ static bool test_maxpool_layer_gpu(void)
 	nlop_free(op_cpu);
 	nlop_free(op_gpu);
 
-	return(err < 1.e-5);
+	UT_ASSERT(err < 1.e-5);
 }
 
-UT_GPU_REGISTER_TEST(test_maxpool_layer_gpu);
+UT_GPU_REGISTER_TEST(test_bias_op_gpu);
+
+static bool test_linear_layer_gpu(void)
+{
+	unsigned int N = 5;
+	long indims[] = {3, 4, 6, 1, 2};
+
+	auto op_cpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), ACT_LIN, 0, MD_BIT(0));
+	auto op_gpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), ACT_LIN, 0, MD_BIT(0));
+
+
+	float err = compare_gpu(op_cpu, op_gpu);
+
+	debug_printf(DP_DEBUG1, "err: %f\n", err);
+
+	nlop_free(op_cpu);
+	nlop_free(op_gpu);
+
+	UT_ASSERT(err < 1.e-5);
+}
+
+UT_GPU_REGISTER_TEST(test_linear_layer_gpu);
 
 static bool test_relu_layer_gpu(void)
 {
@@ -123,7 +163,7 @@ static bool test_relu_layer_gpu(void)
 	nlop_free(op_cpu);
 	nlop_free(op_gpu);
 
-	return(err < 1.e-5);
+	UT_ASSERT(err < 1.e-5);
 }
 
 UT_GPU_REGISTER_TEST(test_relu_layer_gpu);
@@ -144,7 +184,7 @@ static bool test_softmax_layer_gpu(void)
 	nlop_free(op_cpu);
 	nlop_free(op_gpu);
 
-	return(err < 1.e-5);
+	UT_ASSERT(err < 1.e-5);
 }
 
 UT_GPU_REGISTER_TEST(test_softmax_layer_gpu);
@@ -166,7 +206,7 @@ static bool test_cce_layer_gpu(void)
 	nlop_free(op_cpu);
 	nlop_free(op_gpu);
 
-	return(err < 1.e-5);
+	UT_ASSERT(err < 1.e-5);
 }
 
 UT_GPU_REGISTER_TEST(test_cce_layer_gpu);
