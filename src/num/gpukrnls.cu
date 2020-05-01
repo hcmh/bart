@@ -944,7 +944,6 @@ extern "C" void cuda_zconvcorr_3D(_Complex float* dst, const _Complex float* src
 								odims[0], odims[1], odims[2],
 								idims[0], idims[1], idims[2],
 								kdims[0], kdims[1], kdims[2], conv);
-	cudaDeviceSynchronize();
 }
 
 __global__ void kern_zconvcorr_3D_CF(cuFloatComplex* dst, const cuFloatComplex* src, const cuFloatComplex* krn,
@@ -953,33 +952,33 @@ __global__ void kern_zconvcorr_3D_CF(cuFloatComplex* dst, const cuFloatComplex* 
 					long NI0, long NI1, long NI2,
 					long NK0, long NK1, long NK2, _Bool conv)
 {
-	long i = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (!(i < NOm * NO0 * NO1 * NO2))
 		return;
 
-	long om = i % NOm;
+	int om = i % NOm;
 	i = (i - om) /NOm;
-	long o0 = i % NO0;
+	int o0 = i % NO0;
 	i = (i - o0) /NO0;
-	long o1 = i % NO1;
+	int o1 = i % NO1;
 	i = (i - o1) / NO1;
-	long o2 = i % NO2;
+	int o2 = i % NO2;
 
 	cuFloatComplex result = make_cuFloatComplex(0., 0.);
-	long oind = om + NOm * o0 + NOm * NO0 * o1 + NOm * NO0 * NO1 * o2;
+	int oind = om + NOm * o0 + NOm * NO0 * o1 + NOm * NO0 * NO1 * o2;
 
-	for(long k2 = 0; k2 < NK2; k2++)
-	for(long k1 = 0; k1 < NK1; k1++)
-	for(long k0 = 0; k0 < NK0; k0++)
-	for(long km = 0; km < NKm; km++){
+	for(int k2 = 0; k2 < NK2; k2++)
+	for(int k1 = 0; k1 < NK1; k1++)
+	for(int k0 = 0; k0 < NK0; k0++)
+	for(int km = 0; km < NKm; km++){
 		
-		long kind = om + NOm * km; // matrix index
+		int kind = om + NOm * km; // matrix index
 		if (conv)
 			kind += (NOm * NKm) * ((NK0 - k0 - 1) + NK0 * (NK1 - k1 - 1) + NK0 * NK1 * (NK2 - k2 - 1));
 		else
 			kind += (NOm * NKm) * (k0 + NK0 * k1 + NK0 * NK1 * k2);
-		long iind = km + NKm * (o0 + k0) + NKm * NI0 * (o1 + k1) + NKm * NI0 * NI1 * (o2 + k2);
+		int iind = km + NKm * (o0 + k0) + NKm * NI0 * (o1 + k1) + NKm * NI0 * NI1 * (o2 + k2);
 
 		result = cuCaddf(result, cuCmulf(src[iind], krn[kind]));
 	}
@@ -996,7 +995,6 @@ extern "C" void cuda_zconvcorr_3D_CF(_Complex float* dst, const _Complex float* 
 								odims[2], odims[3], odims[4],
 								idims[2], idims[3], idims[4],
 								kdims[2], kdims[3], kdims[4], conv);
-	cudaDeviceSynchronize();
 }
 
 __global__ void kern_zconvcorr_3D_CF_TK(cuFloatComplex* krn, const cuFloatComplex* src, const cuFloatComplex* out,
@@ -1005,22 +1003,22 @@ __global__ void kern_zconvcorr_3D_CF_TK(cuFloatComplex* krn, const cuFloatComple
 					long NI0, long NI1, long NI2,
 					long NK0, long NK1, long NK2, _Bool conv)
 {
-	long i = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (!(i < NOm * NKm * NK0 * NK1 * NK2))
 		return;
 
-	long om = i % NOm;
+	int om = i % NOm;
 	i = (i - om) /NOm;
-	long km = i % NKm;
+	int km = i % NKm;
 	i = (i - km) /NKm;
-	long k0 = i % NK0;
+	int k0 = i % NK0;
 	i = (i - k0) /NK0;
-	long k1 = i % NK1;
+	int k1 = i % NK1;
 	i = (i - k1) /NK1;
-	long k2 = i % NK2;
+	int k2 = i % NK2;
 
-	long kind = om + NOm * km;
+	int kind = om + NOm * km;
 		if (conv)
 			kind += (NOm * NKm) * ((NK0 - k0 - 1) + NK0 * (NK1 - k1 - 1) + NK0 * NK1 * (NK2 - k2 - 1));
 		else
@@ -1028,12 +1026,12 @@ __global__ void kern_zconvcorr_3D_CF_TK(cuFloatComplex* krn, const cuFloatComple
 
 	cuFloatComplex result = make_cuFloatComplex(0., 0.);
 
-	for(long o2 = 0; o2 < NO2; o2++)
-	for(long o1 = 0; o1 < NO1; o1++)
-	for(long o0 = 0; o0 < NO0; o0++){
+	for(int o2 = 0; o2 < NO2; o2++)
+	for(int o1 = 0; o1 < NO1; o1++)
+	for(int o0 = 0; o0 < NO0; o0++){
 	
-		long oind = om + NOm * o0 + NOm * NO0 * o1 + NOm * NO0 * NO1 * o2;
-		long iind = km + NKm * (o0 + k0) + NKm * NI0 * (o1 + k1) + NKm * NI0 * NI1 * (o2 + k2);
+		int oind = om + NOm * o0 + NOm * NO0 * o1 + NOm * NO0 * NO1 * o2;
+		int iind = km + NKm * (o0 + k0) + NKm * NI0 * (o1 + k1) + NKm * NI0 * NI1 * (o2 + k2);
 		result = cuCaddf(result, cuCmulf(src[iind], out[oind]));
 	}
 
@@ -1050,7 +1048,6 @@ extern "C" void cuda_zconvcorr_3D_CF_TK(_Complex float* krn, const _Complex floa
 								odims[2], odims[3], odims[4],
 								idims[2], idims[3], idims[4],
 								kdims[2], kdims[3], kdims[4], conv);
-	cudaDeviceSynchronize();
 }
 
 
@@ -1060,34 +1057,34 @@ __global__ void kern_zconvcorr_3D_CF_TI(cuFloatComplex* im, const cuFloatComplex
 					long NI0, long NI1, long NI2,
 					long NK0, long NK1, long NK2, _Bool conv)
 {
-	long i = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (!(i < NKm * NI0 * NI1 * NI2))
 		return;
 
-	long km = i % NKm;
+	int km = i % NKm;
 	i = (i - km) / NKm;
-	long i0 = i % NI0;
+	int i0 = i % NI0;
 	i = (i - i0) / NI0;
-	long i1 = i % NI1;
+	int i1 = i % NI1;
 	i = (i - i1) / NI1;
-	long i2 = i % NI2;
+	int i2 = i % NI2;
 
-	long iind = km + NKm * i0 + NKm * NI0 * i1 + NKm * NI0 * NI1 * i2;
+	int iind = km + NKm * i0 + NKm * NI0 * i1 + NKm * NI0 * NI1 * i2;
 
 	cuFloatComplex result = make_cuFloatComplex(0., 0.);
 
-	for(long k2 = 0; k2 < NK2; k2++)
-	for(long k1 = 0; k1 < NK1; k1++)
-	for(long k0 = 0; k0 < NK0; k0++)
-	for(long om = 0; om < NOm; om++){
+	for(int k2 = 0; k2 < NK2; k2++)
+	for(int k1 = 0; k1 < NK1; k1++)
+	for(int k0 = 0; k0 < NK0; k0++)
+	for(int om = 0; om < NOm; om++){
 	
-		long o0 = i0 - k0;
-		long o1 = i1 - k1;
-		long o2 = i2 - k2;
+		int o0 = i0 - k0;
+		int o1 = i1 - k1;
+		int o2 = i2 - k2;
 		
-		long oind = om + NOm * o0 + NOm * NO0 * o1 + NOm * NO0 * NO1 * o2;
-		long kind = om + NOm * km; // matrix index
+		int oind = om + NOm * o0 + NOm * NO0 * o1 + NOm * NO0 * NO1 * o2;
+		int kind = om + NOm * km; // matrix index
 		if (conv)
 			kind += (NOm * NKm) * ((NK0 - k0 - 1) + NK0 * (NK1 - k1 - 1) + NK0 * NK1 * (NK2 - k2 - 1));
 		else
@@ -1109,7 +1106,6 @@ extern "C" void cuda_zconvcorr_3D_CF_TI(_Complex float* im, const _Complex float
 								odims[2], odims[3], odims[4],
 								idims[2], idims[3], idims[4],
 								kdims[2], kdims[3], kdims[4], conv);
-	cudaDeviceSynchronize();
 }
 
 
@@ -1119,28 +1115,28 @@ __global__ void kern_im2col_valid(	cuFloatComplex* dst, const cuFloatComplex* sr
 					long IX, long IY, long IZ,
 					long KX, long KY, long KZ)
 {
-	long i = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (!(i < OX * OY * OZ * KX * KY * KZ))
 		return;
 
-	long kx = i % KX;
+	int kx = i % KX;
 	i = (i - kx) / KX;
-	long ky = i % KY;
+	int ky = i % KY;
 	i = (i - ky) / KY;
-	long kz = i % KZ;
+	int kz = i % KZ;
 	i = (i - kz) / KZ;
 	
-	long ox = i % OX;
+	int ox = i % OX;
 	i = (i - ox) / OX;
-	long oy = i % OY;
+	int oy = i % OY;
 	i = (i - oy) / OY;
-	long oz = i % OZ;
+	int oz = i % OZ;
 
-	long o0 = NC * (kx + KX * (ky + KY * (kz + KZ * (ox + OX * (oy + OY * oz)))));
-	long i0 = NC * ((ox + kx) + IX * ((oy + ky) + IY * (oz + kz)));
+	int o0 = NC * (kx + KX * (ky + KY * (kz + KZ * (ox + OX * (oy + OY * oz)))));
+	int i0 = NC * ((ox + kx) + IX * ((oy + ky) + IY * (oz + kz)));
 
-	for (long c = 0; c < NC; c++)
+	for (int c = 0; c < NC; c++)
 		dst[o0 + c] = src[i0 + c]; 
 }
 
@@ -1153,7 +1149,6 @@ extern "C" void cuda_im2col(_Complex float* dst, const _Complex float* src, long
 								odims[2], odims[3], odims[4],
 								idims[2], idims[3], idims[4],
 								kdims[2], kdims[3], kdims[4]);
-	cudaDeviceSynchronize();
 }
 
 
@@ -1163,30 +1158,30 @@ __global__ void kern_im2col_transp(	cuFloatComplex* dst, const cuFloatComplex* s
 					long IX, long IY, long IZ,
 					long KX, long KY, long KZ)
 {
-	long i = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (!(i < NC * IX * IY * IZ))
 		return;
 	
-	long c = i % NC;
+	int c = i % NC;
 	i = (i - c) / NC;
-	long ix = i % IX;
+	int ix = i % IX;
 	i = (i - ix) / IX;
-	long iy = i % IY;
+	int iy = i % IY;
 	i = (i - iy) / IY;
-	long iz = i % IZ;
+	int iz = i % IZ;
 
 	cuFloatComplex result = make_cuFloatComplex(0., 0.);
 
-	for (long kx = 0; kx < KX; kx++)
-	for (long ky = 0; ky < KY; ky++)
-	for (long kz = 0; kz < KZ; kz++) {
+	for (int kx = 0; kx < KX; kx++)
+	for (int ky = 0; ky < KY; ky++)
+	for (int kz = 0; kz < KZ; kz++) {
 
-		long ox = ix - kx;
-		long oy = iy - ky;
-		long oz = iz - kz;
+		int ox = ix - kx;
+		int oy = iy - ky;
+		int oz = iz - kz;
 
-		long index = c + (NC * KX * KY * KZ) * (ox + OX * oy + OX * OY *oz) + NC * (kx + KX * (ky + KY * kz));
+		int index = c + (NC * KX * KY * KZ) * (ox + OX * oy + OX * OY *oz) + NC * (kx + KX * (ky + KY * kz));
 
 		if ((0 <= ox) && (0 <= oy) && (0 <= oz) && (OX > ox) && (OY > oy) && (OZ > oz))
 			result = cuCaddf(result, src[index]);
@@ -1205,5 +1200,4 @@ extern "C" void cuda_im2col_transp(_Complex float* dst, const _Complex float* sr
 								odims[2], odims[3], odims[4],
 								idims[2], idims[3], idims[4],
 								kdims[2], kdims[3], kdims[4]);
-	cudaDeviceSynchronize();
 }
