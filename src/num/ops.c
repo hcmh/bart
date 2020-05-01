@@ -1893,21 +1893,22 @@ static void chain_free(const operator_data_t* _data)
  */
 const struct operator_s* operator_chainN(unsigned int N, const struct operator_s* x[N])
 {
-
+	debug_printf(DP_DEBUG4, "operator chainN N=%d:\n", N);
 	for (unsigned int i = 0; i < N; i++) {
 
 		assert(2 == x[i]->N);
 		assert(MD_BIT(0) == x[i]->io_flags);
 
-		if ((signed)i < (signed)N - 2) {
+		if ((signed)i < (signed)N - 1) {
 
 			auto a = x[i];
 			auto b = x[i+1];
 
-			debug_printf(DP_DEBUG4, "operator chain:\n");
+			debug_printf(DP_DEBUG4, "\t[%d] in [%d]:\n\t", i, i + 1, N);
 			debug_print_dims(DP_DEBUG4, a->domain[0]->N, a->domain[0]->dims);
+			debug_printf(DP_DEBUG4, "\t");
 			debug_print_dims(DP_DEBUG4, b->domain[1]->N, b->domain[1]->dims);
-			debug_printf(DP_DEBUG4, "IO Flags: %d %d\n", a->io_flags, b->io_flags);
+			debug_printf(DP_DEBUG4, "\tIO Flags: %d %d\n", a->io_flags, b->io_flags);
 
 			assert(a->domain[0]->N == b->domain[1]->N);
 			assert(md_calc_size(a->domain[0]->N, a->domain[0]->dims) == md_calc_size(b->domain[1]->N, b->domain[1]->dims));
@@ -1944,6 +1945,14 @@ static const struct operator_chain_s* get_chain_data(const struct operator_s* ch
  */
 const struct operator_s* operator_chain(const struct operator_s* a, const struct operator_s* b)
 {
+	#if 0
+	if (NULL != get_plus_data(b)) {
+
+		auto bd = get_plus_data(b);
+		return operator_plus_create(operator_chain(a, bd->a), operator_chain(a, bd->b));
+	}
+	#endif
+
 	//Get array of operators in a
 	unsigned int Na = 1;
 	const struct operator_s** ops_a;
