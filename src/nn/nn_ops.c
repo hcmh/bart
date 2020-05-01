@@ -81,7 +81,7 @@ static void maxpool_der(const nlop_data_t* _data, complex float* dst, const comp
 	long tstrs0[2] = {CFL_SIZE, 0};
 
 	complex float* tmp = md_alloc_sameplace(2 * N,  data->pool_dims, CFL_SIZE, dst);
-	md_copy2(2 * N, data->pool_dims, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), dst, data->pool_strs, src, CFL_SIZE);
+	md_copy2(2 * N, data->pool_dims, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, data->pool_strs, src, CFL_SIZE);
 
 	md_ztenmul2(2, tdims, tstrs0, dst, tstrs, tmp, tstrs, data->pool);
 
