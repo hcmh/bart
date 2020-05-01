@@ -22,6 +22,7 @@
 
 #include "nlops/nlop.h"
 #include "nlops/cast.h"
+#include "nlops/stack.h"
 
 #include "linops/linop.h"
 
@@ -288,6 +289,44 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 	n->derivative = &(*PTR_PASS(der))[0][0];
 
 	return PTR_PASS(n);
+}
+
+struct nlop_s* nlop_destack(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+{
+	int II = nlop_get_nr_in_args(x);
+	int OO = nlop_get_nr_out_args(x);
+
+	assert(a < II);
+	assert(b < II);
+	assert( a!= b);
+
+	auto doma = nlop_generic_domain(x, a);
+	auto domb = nlop_generic_domain(x, b);
+	assert(doma->N == domb->N);
+
+	long N = doma->N;
+	long idims[N];
+	md_copy_dims(N, idims, doma->dims);
+	idims[stack_dim] += domb->dims[stack_dim];
+	auto nlop_destack = nlop_destack_create(N, doma->dims, domb->dims, idims, stack_dim);
+	auto combined = nlop_combine(x, nlop_destack);
+	auto result = nlop_link_F(combined, OO + 1, b);
+	result = nlop_link_F(result, OO, a < b ? a : a - 1);
+	nlop_free(nlop_destack);
+
+	int perm[II-1];
+	for (int i = 0; i < II - 1; i++)
+		perm[i] = (i <= MIN(a, b)) ? i : i - 1;
+	perm[MIN(a, b)] = II - 2;
+
+	return nlop_permute_inputs_F(result, II - 1, perm);
+}
+
+struct nlop_s* nlop_destack_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+{
+	auto result = nlop_destack(x, a, b, stack_dim);
+	nlop_free(x);
+	return result;
 }
 
 struct nlop_s* nlop_dup_F(const struct nlop_s* x, int a, int b)
