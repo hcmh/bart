@@ -12,6 +12,9 @@
 
 extern struct linop_s* linop_cdiag_create(unsigned int N, const long dims[__VLA(N)], unsigned int flags, const _Complex float* diag);
 extern struct linop_s* linop_rdiag_create(unsigned int N, const long dims[__VLA(N)], unsigned int flags, const _Complex float* diag);
+extern struct linop_s* linop_scale_create(unsigned int N, const long dims[N], const _Complex float scale);
+extern struct linop_s* linop_zconj_create(unsigned int N, const long dims[N]);
+extern struct linop_s* linop_zreal_create(unsigned int N, const long dims[N]);
 
 extern struct linop_s* linop_identity_create(unsigned int N, const long dims[__VLA(N)]);
 

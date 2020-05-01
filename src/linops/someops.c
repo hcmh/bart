@@ -171,6 +171,157 @@ struct linop_s* linop_rdiag_create(unsigned int N, const long dims[N], unsigned 
 
 
 
+struct scale_s {
+
+	INTERFACE(linop_data_t);
+
+	unsigned int N;
+	const long* dims;
+	const long* strs;
+	complex float scale;
+
+};
+
+static DEF_TYPEID(scale_s);
+
+static void scale_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(scale_s, _data);
+	const complex float scale = data->scale;
+	md_zsmul2(data->N, data->dims, data->strs, dst, data->strs, src, scale);
+}
+
+static void scale_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(scale_s, _data);
+	const complex float scale = data->scale;
+	md_zsmul2(data->N, data->dims, data->strs, dst, data->strs, src, conjf(scale));
+}
+
+static void scale_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	scale_apply(_data, dst, src);
+	scale_adjoint(_data, dst, dst);
+}
+
+static void scale_free(const linop_data_t* _data)
+{
+	const auto data = CAST_DOWN(scale_s, _data);
+	xfree(data->dims);
+	xfree(data->strs);
+	xfree(data);
+}
+
+/**
+ * Create a scaling linear operator: y = a x,
+ * where a is a complex float
+ *
+ * @param N number of dimensions
+ * @param dims dimensions
+ * @param scale scaling factor a
+ */
+
+struct linop_s* linop_scale_create(unsigned int N, const long dims[N], const complex float scale)
+{
+	PTR_ALLOC(struct scale_s, data);
+	SET_TYPEID(scale_s, data);
+
+	data->scale = scale;
+
+	data->N = N;
+	PTR_ALLOC(long[N], dims2);
+	PTR_ALLOC(long[N], strs);
+
+	md_copy_dims(N, *dims2, dims);
+	md_calc_strides(N, *strs, dims, CFL_SIZE);
+
+	data->dims = *PTR_PASS(dims2);
+	data->strs = *PTR_PASS(strs);
+
+	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), scale_apply, scale_adjoint, scale_normal, NULL, scale_free);
+}
+
+struct zconj_s {
+
+	INTERFACE(linop_data_t);
+
+	int N;
+	const long* dims;
+};
+
+DEF_TYPEID(zconj_s);
+
+static void zconj_fun(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(zconj_s, _data);
+	md_zconj(data->N, data->dims, dst, src);
+}
+
+static void zconj_del(const linop_data_t* _data)
+{
+	const auto data = CAST_DOWN(zconj_s, _data);
+	xfree(data->dims);
+	xfree(data);
+}
+
+
+struct linop_s* linop_zconj_create(unsigned int N, const long dims[N])
+{
+	PTR_ALLOC(struct zconj_s, data);
+	SET_TYPEID(zconj_s, data);
+
+	PTR_ALLOC(long[N], ndims);
+	md_copy_dims(N, *ndims, dims);
+
+	data->N = N;
+	data->dims = *PTR_PASS(ndims);
+
+	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), zconj_fun, zconj_fun, NULL, NULL, zconj_del);
+}
+
+struct zreal_s {
+
+	INTERFACE(linop_data_t);
+
+	unsigned int N;
+	const long* dims;
+};
+
+static DEF_TYPEID(zreal_s);
+
+static void zreal_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(zreal_s, _data);
+	md_zreal(data->N, data->dims, dst, src);
+}
+
+static void zreal_free(const linop_data_t* _data)
+{
+	const auto data = CAST_DOWN(zreal_s, _data);
+	xfree(data->dims);
+	xfree(data);
+}
+
+/**
+ * @param N number of dimensions
+ * @param dims dimensions
+ */
+
+struct linop_s* linop_zreal_create(unsigned int N, const long dims[N])
+{
+	PTR_ALLOC(struct zreal_s, data);
+	SET_TYPEID(zreal_s, data);
+
+	data->N = N;
+	PTR_ALLOC(long[N], dims2);
+	md_copy_dims(N, *dims2, dims);
+	data->dims = *PTR_PASS(dims2);
+
+	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), zreal_apply, zreal_apply, zreal_apply, NULL, zreal_free);
+}
+
+
+
 struct identity_data_s {
 
 	INTERFACE(linop_data_t);
