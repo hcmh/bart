@@ -33,35 +33,38 @@ struct mse_s {
 
 	INTERFACE(nlop_data_t);
 
-	unsigned long N;
+	long N;
+	const long* rdims;
+	float scaling;
 
-	complex float* tmp;
-
-	const struct iovec_s* maxdom;
-	const struct iovec_s* dom_pred;
-	const struct iovec_s* dom_true;
+	float* tmp;
 };
 
 DEF_TYPEID(mse_s);
 
 static void mse_fun(const nlop_data_t* _data, int D, complex float* args[D])
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(mse_s, _data);
 	assert(3 == D);
 
 	complex float* dst = args[0];
-	const complex float* src_pred = args[1];
-	const complex float* src_true = args[2];
+	const float* src1 = (float*)args[1];
+	const float* src2 = (float*)args[2];
 
 #ifdef USE_CUDA
-	assert((cuda_ondevice(dst) == cuda_ondevice(src_pred)) && (cuda_ondevice(src_pred) == cuda_ondevice(src_true)));
+	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
 #endif
 	if (NULL == data->tmp)
-		data->tmp = md_alloc_sameplace(data->maxdom->N, data->maxdom->dims, CFL_SIZE, dst);
+		data->tmp = md_alloc_sameplace(data->N, data->rdims, FL_SIZE, dst);
 
-	md_zsub2(data->N, data->maxdom->dims, data->maxdom->strs, data->tmp, data->dom_pred->strs, src_pred, data->dom_true->strs, src_true);
+	md_sub(data->N, data->rdims, data->tmp, src1, src2);
 
-	dst[0] = (complex float)(md_znorm(data->N, data->maxdom->dims, data->tmp) / (2. * (float)(md_calc_size(data->N, data->maxdom->dims))));
+	complex float result = md_scalar(data->N, data->rdims, data->tmp, data->tmp);
+	complex float scale = 1. / data->scaling; 
+	result = result * scale;
+	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
+	PRINT_TIMER("frw mse");
 }
 
 
@@ -70,8 +73,10 @@ static void mse_der1(const nlop_data_t* _data, complex float* dst, const complex
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
-	md_ztenmulc2(data->N, data->maxdom->dims, MD_SINGLETON_STRS(data->N), dst, data->dom_pred->strs, src, data->maxdom->strs, data->tmp);
-	dst[0] = dst[0] / (complex float)(md_calc_size(data->N, data->maxdom->dims));
+	complex float result = md_scalar(data->N, data->rdims, data->tmp, (float*)src);
+	complex float scale = 1. / data->scaling; 
+	result = result * scale * 2;
+	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
 }
 
 static void mse_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -79,26 +84,36 @@ static void mse_der2(const nlop_data_t* _data, complex float* dst, const complex
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
-	md_ztenmulc2(data->N, data->maxdom->dims, MD_SINGLETON_STRS(data->N), dst, data->dom_true->strs, src, data->maxdom->strs, data->tmp);
-	dst[0] = -dst[0] / (complex float)(md_calc_size(data->N, data->maxdom->dims));
+	complex float result = md_scalar(data->N, data->rdims, data->tmp, (float*)src);
+	complex float scale = 1. / data->scaling; 
+	result = -(result * scale) * 2;
+	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
 }
 
 static void mse_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
-	complex float tmp = src[0] / (complex float)(md_calc_size(data->N, data->maxdom->dims));
-	md_ztenmul2(data->N, data->maxdom->dims, data->dom_pred->strs, dst, MD_SINGLETON_STRS(data->N), &tmp, data->maxdom->strs, data->tmp);
+	float in;
+	md_copy(1, MAKE_ARRAY(1l), &in, src, FL_SIZE);
+	in *= 2. / data->scaling; 
+	md_smul(data->N, data->rdims, (float*)dst, data->tmp, in);
+	PRINT_TIMER("adj1 mse");
 }
 
 static void mse_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
-	complex float tmp = - src[0] / (complex float)(md_calc_size(data->N, data->maxdom->dims));
-	md_ztenmul2(data->N, data->maxdom->dims, data->dom_true->strs, dst, MD_SINGLETON_STRS(data->N), &tmp, data->maxdom->strs, data->tmp);
+	float in;
+	md_copy(1, MAKE_ARRAY(1l), &in, src, FL_SIZE);
+	in *= -2. / data->scaling; 
+	md_smul(data->N, data->rdims, (float*)dst, data->tmp, in);
+	PRINT_TIMER("adj2 mse");
 }
 
 static void mse_del(const nlop_data_t* _data)
@@ -106,53 +121,37 @@ static void mse_del(const nlop_data_t* _data)
 	const auto data = CAST_DOWN(mse_s, _data);
 
 	md_free(data->tmp);
-	iovec_free(data->maxdom);
-	iovec_free(data->dom_true);
-	iovec_free(data->dom_pred);
+	xfree(data->rdims);
 	xfree(data);
 }
 
-const struct nlop_s* nlop_mse_create2(int N, const long dims[N], const long istr1[N], const long istr2[N])
+const struct nlop_s* nlop_mse_create(int N, const long dims[N], unsigned long mean_dims)
 {
 	PTR_ALLOC(struct mse_s, data);
 	SET_TYPEID(mse_s, data);
+	
+	PTR_ALLOC(long[N + 1], rdims);
+	(*rdims[0] = 2);
+	md_copy_dims(N, *rdims + 1, dims);
 
-	long ndims1[N];
-	md_select_dims(N, md_nontriv_strides(N, istr1), ndims1, dims);
-	long ndims2[N];
-	md_select_dims(N, md_nontriv_strides(N, istr2), ndims2, dims);
-
-	data->N = N;
-
-	data->maxdom = iovec_create(N, dims, CFL_SIZE);
-	data->maxdom = iovec_create2(N, ndims1, istr1, CFL_SIZE);
-	data->maxdom = iovec_create2(N, ndims2, istr2, CFL_SIZE);
-
-	// will be initialized later, to transparently support GPU
+	data->N = N + 1;
+	data->rdims = *PTR_PASS(rdims);
 	data->tmp = NULL;
+
+	long tdims[N];
+	md_select_dims(N, mean_dims, tdims, dims);
+	data->scaling = (float)md_calc_size(N, tdims);
 
 	long nl_odims[1][1];
 	md_copy_dims(1, nl_odims[0], MD_SINGLETON_DIMS(1));
-	long nl_ostr[1][1];
-	md_copy_strides(1, nl_ostr[0], MD_SINGLETON_STRS(1));
-
 	long nl_idims[2][N];
-	md_copy_dims(N, nl_idims[0], ndims1);
-	md_copy_dims(N, nl_idims[1], ndims2);
-	long nl_istr[2][N];
-	md_copy_strides(N, nl_istr[0], istr1);
-	md_copy_strides(N, nl_istr[1], istr2);
+	md_copy_dims(N, nl_idims[0], data->rdims + 1);
+	md_copy_dims(N, nl_idims[1], data->rdims + 1);
 
-	return nlop_generic_create2(1, 1, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), mse_fun, (nlop_fun_t[2][1]){ { mse_der1 }, { mse_der2 } }, (nlop_fun_t[2][1]){ { mse_adj1 }, { mse_adj2 } }, NULL, NULL, mse_del);
+
+	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mse_fun, (nlop_fun_t[2][1]){ { mse_der1 }, { mse_der2 } }, (nlop_fun_t[2][1]){ { mse_adj1 }, { mse_adj2 } }, NULL, NULL, mse_del);
 }
 
-
-const struct nlop_s* nlop_mse_create(int N, const long idim1[N], const long idim2[N])
-{
-	long dims[N];
-	md_tenmul_dims(N, dims, idim1, idim1, idim2);
-	return nlop_mse_create2(N, dims, MD_STRIDES(N, idim1, CFL_SIZE), MD_STRIDES(N, idim2, CFL_SIZE));
-}
 
 struct cce_s {
 
@@ -176,6 +175,7 @@ static void cce_initialize(struct cce_s* data, const complex float* arg)
 
 static void cce_fun(const nlop_data_t* _data, int D, complex float* args[D])
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(cce_s, _data);
 	assert(3 == D);
 
@@ -195,6 +195,7 @@ static void cce_fun(const nlop_data_t* _data, int D, complex float* args[D])
 	long odims[1];
 	md_singleton_dims(1, odims);
 	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
+	PRINT_TIMER("loss cce");
 }
 
 
