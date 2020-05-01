@@ -540,14 +540,19 @@ const struct nlop_s* nlop_reshape_in(const struct nlop_s* op, int i, int NI, con
 	int II = nlop_get_nr_in_args(op);
 	int OO = nlop_get_nr_out_args(op);
 
+	int oNI = nlop_generic_domain(op, i)->N;
+	const long* oidims = nlop_generic_domain(op, i)->dims;
+
+	debug_printf(DP_DEBUG4, "nlop_reshape_in %d:\t", i);
+	debug_print_dims(DP_DEBUG4, oNI, oidims);
+	debug_printf(DP_DEBUG4, "to:\t\t\t");
+	debug_print_dims(DP_DEBUG4, NI, idims);
+
 	PTR_ALLOC(struct nlop_s, n);
 	n->op = operator_reshape(op->op, OO + i, NI, idims);
 
 	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[II][OO]);
 	n->derivative = &(*der)[0][0];
-
-	int oNI = nlop_generic_domain(op, i)->N;
-	const long* oidims = nlop_generic_domain(op, i)->dims;
 
 	//derivatives are not put into an operator-reshape-container but linked with an reshaping copy operator
 	//	-> operators can be compared in operator chain to only evaluate them once (for parallel application)
@@ -572,14 +577,19 @@ const struct nlop_s* nlop_reshape_out(const struct nlop_s* op, int o, int NO, co
 	int II = nlop_get_nr_in_args(op);
 	int OO = nlop_get_nr_out_args(op);
 
+	int oNO = nlop_generic_codomain(op, o)->N;
+	const long* oodims = nlop_generic_codomain(op, o)->dims;
+
+	debug_printf(DP_DEBUG4, "nlop_reshape_out %d:\t", o);
+	debug_print_dims(DP_DEBUG4, oNO, oodims);
+	debug_printf(DP_DEBUG4, "to:\t\t\t");
+	debug_print_dims(DP_DEBUG4, NO, odims);
+
 	PTR_ALLOC(struct nlop_s, n);
 	n->op = operator_reshape(op->op, o, NO, odims);
 
 	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[II][OO]);
 	n->derivative = &(*der)[0][0];
-
-	int oNO = nlop_generic_codomain(op, o)->N;
-	const long* oodims = nlop_generic_codomain(op, o)->dims;
 
 	//derivatives are not put into an operator-reshape-container but linked with an reshaping copy operator
 	//	-> operators can be compared in operator chain to only evaluate them once (for parallel application)
