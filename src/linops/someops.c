@@ -1595,6 +1595,76 @@ struct linop_s* linop_fft_create_measure(int N, const long dims[N], unsigned int
 	return linop_fft_create_priv(N, dims, flags, true, false, true);
 }
 
+struct fftmod_s {
+
+	INTERFACE(linop_data_t);
+
+	unsigned int N;
+	const long* dims;
+	const long* strs;
+	bool inv;
+	unsigned long flags;
+};
+
+static DEF_TYPEID(fftmod_s);
+
+static void fftmod_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(fftmod_s, _data);
+	(data->inv ? ifftmod2 : fftmod2)(data->N, data->dims, data->flags, data->strs, dst, data->strs, src);
+}
+
+static void fftmod_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(fftmod_s, _data);
+	(data->inv ? fftmod2 : ifftmod2)(data->N, data->dims, data->flags, data->strs, dst, data->strs, src);
+}
+
+static void fftmod_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	fftmod_apply(_data, dst, src);
+	fftmod_adjoint(_data, dst, dst);
+}
+
+static void fftmod_free(const linop_data_t* _data)
+{
+	const auto data = CAST_DOWN(fftmod_s, _data);
+	xfree(data->dims);
+	xfree(data->strs);
+	xfree(data);
+}
+
+/**
+ * Create a (i)fftmod linear operator
+ *
+ * @param N number of dimensions
+ * @param dims dimensions
+ * @param flags flags for chosing dims
+ * @param inv inverse or normal fftmod
+ */
+
+struct linop_s* linop_fftmod_create(unsigned int N, const long dims[N], const unsigned int flags, const bool inv)
+{
+	PTR_ALLOC(struct fftmod_s, data);
+	SET_TYPEID(fftmod_s, data);
+
+	data->flags=flags;
+	data->inv=inv;
+
+	data->N = N;
+	PTR_ALLOC(long[N], dims2);
+	PTR_ALLOC(long[N], strs);
+
+	md_copy_dims(N, *dims2, dims);
+	md_calc_strides(N, *strs, dims, CFL_SIZE);
+
+	data->dims = *PTR_PASS(dims2);
+	data->strs = *PTR_PASS(strs);
+
+	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), fftmod_apply, fftmod_adjoint, fftmod_normal, NULL, fftmod_free);
+}
+
+
 struct linop_cdf97_s {
 
 	INTERFACE(linop_data_t);
