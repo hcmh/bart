@@ -38,6 +38,8 @@ extern void cuda_zlog(long N, _Complex float* dst, const _Complex float* src);
 extern void cuda_zarg(long N, _Complex float* dst, const _Complex float* src);
 extern void cuda_zabs(long N, _Complex float* dst, const _Complex float* src);
 extern void cuda_zatanr(long N, _Complex float* dst, const _Complex float* src);
+extern void cuda_exp(long N, float* dst, const float* src);
+extern void cuda_log(long N, float* dst, const float* src);
 extern void cuda_zsoftthresh_half(long N, float lambda, _Complex float* d, const _Complex float* x);
 extern void cuda_zsoftthresh(long N, float lambda, _Complex float* d, const _Complex float* x);
 extern void cuda_softthresh_half(long N, float lambda, float* d, const float* x);
@@ -60,6 +62,8 @@ extern void cuda_zconvcorr_3D_CF_TK(_Complex float* krn, const _Complex float* s
 extern void cuda_zconvcorr_3D_CF_TI(_Complex float* im, const _Complex float* out, const _Complex float* krn, long odims[3], long idims[3], long kdims[3], _Bool conv);
 extern void cuda_im2col(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5]);
 extern void cuda_im2col_transp(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5]);
+extern void cuda_smul_ptr(long N, const float* alpha, float* dst, const float* src);
+extern void cuda_pdf_gauss(long N, float mu, float sig, float* dst, const float* src);
 
 #ifdef __cplusplus
 }

@@ -144,6 +144,20 @@ extern "C" void cuda_smul(long N, float alpha, float* dst, const float* src)
 	kern_smul<<<gridsize(N), blocksize(N)>>>(N, alpha, dst, src);
 }
 
+__global__ void kern_smul_ptr(int N, const float* alpha, float* dst, const float* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = alpha[0] * src[i];
+}
+
+extern "C" void cuda_smul_ptr(long N, const float* alpha, float* dst, const float* src)
+{
+	kern_smul_ptr<<<gridsize(N), blocksize(N)>>>(N, alpha, dst, src);
+}
+
 
 typedef void (*cuda_3op_f)(int N, float* dst, const float* src1, const float* src2);
 
@@ -587,6 +601,34 @@ __global__ void kern_zabs(int N, cuFloatComplex* dst, const cuFloatComplex* src)
 extern "C" void cuda_zabs(long N, _Complex float* dst, const _Complex float* src)
 {
 	kern_zabs<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
+}
+
+__global__ void kern_exp(int N, float* dst, const float* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = expf(src[i]);
+}
+
+extern "C" void cuda_exp(long N, float* dst, const float* src)
+{
+	kern_exp<<<gridsize(N), blocksize(N)>>>(N, dst, src);
+}
+
+__global__ void kern_log(int N, float* dst, const float* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = (0. == src[i]) ? 0. : logf(src[i]);
+}
+
+extern "C" void cuda_log(long N, float* dst, const float* src)
+{
+	kern_log<<<gridsize(N), blocksize(N)>>>(N, dst, src);
 }
 
 
@@ -1200,4 +1242,19 @@ extern "C" void cuda_im2col_transp(_Complex float* dst, const _Complex float* sr
 								odims[2], odims[3], odims[4],
 								idims[2], idims[3], idims[4],
 								kdims[2], kdims[3], kdims[4]);
+}
+
+
+__global__ void kern_pdf_gauss(int N, float mu, float sig, float* dst, const float* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = expf(- (src[i] - mu) * (src[i] - mu) / (2 * sig * sig)) / (sqrtf(2 * M_PI) * sig);
+}
+
+extern "C" void cuda_pdf_gauss(long N, float mu, float sig, float* dst, const float* src)
+{
+	kern_pdf_gauss<<<gridsize(N), blocksize(N)>>>(N, mu, sig, dst, src);
 }

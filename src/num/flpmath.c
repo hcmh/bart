@@ -1847,6 +1847,12 @@ void md_axpy2(unsigned int D, const long dims[D], const long ostr[D], float* opt
 		return;
 	}
 
+	if (-1. == val) {
+
+		md_sub2(D, dims, ostr, optr, ostr, optr, istr, iptr);
+		return;
+	}
+
 #ifdef USE_CUDA
 	if (cuda_ondevice(iptr)) {
 
@@ -2446,6 +2452,46 @@ void md_zexp(unsigned int D, const long dims[D], complex float* optr, const comp
 	make_z2op_simple(md_zexp2, D, dims, optr, iptr);
 }
 
+
+/**
+ * Real exponential (with strides)
+ *
+ * optr = exp(iptr)
+ */
+void md_exp2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr)
+{
+	MAKE_2OP(exp, D, dims, ostr, optr, istr, iptr);
+}
+
+/**
+ * Real exponential
+ *
+ * optr = exp(iptr)
+ */
+void md_exp(unsigned int D, const long dims[D], float* optr, const float* iptr)
+{
+	make_2op_simple(md_exp2, D, dims, optr, iptr);
+}
+
+/**
+ * Real log (with strides)
+ *
+ * optr = log(iptr)
+ */
+void md_log2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr)
+{
+	MAKE_2OP(log, D, dims, ostr, optr, istr, iptr);
+}
+
+/**
+ * Real log
+ *
+ * optr = log(iptr)
+ */
+void md_log(unsigned int D, const long dims[D], float* optr, const float* iptr)
+{
+	make_2op_simple(md_log2, D, dims, optr, iptr);
+}
 
 /**
  * Complex logarithm
@@ -4222,4 +4268,55 @@ void md_zcmpl2(unsigned int D, const long dims[D], const long ostr[D], complex f
 extern void md_zcmpl(unsigned int D, const long dims[D], complex float* dst, const float* src_real, const float* src_imag)
 {
 	md_zcmpl2(D, dims, MD_STRIDES(D, dims, CFL_SIZE), dst, MD_STRIDES(D, dims, FL_SIZE), src_real, MD_STRIDES(D, dims, FL_SIZE), src_imag);
+}
+
+
+
+/**
+ * Gaussian propability density
+ *
+ * optr = 1/sqrt(2pi) * sigma * exp(-(iptr-mu)^2/(2*sigma^2))
+ */
+void md_pdf_gauss2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, float mu, float sigma)
+{
+	NESTED(void, nary_pdf_gauss, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		data->ops->pdf_gauss(data->size, mu, sigma, ptr[0], ptr[1]);
+	};
+
+	optimized_twoop_oi(D, dims, ostr, optr, istr, iptr,
+		(size_t[2]){ FL_SIZE, FL_SIZE }, nary_pdf_gauss);
+}
+
+void md_pdf_gauss(unsigned int D, const long dims[D], float* optr, const float* iptr, float mu, float sigma)
+{
+	md_pdf_gauss2(D, dims, MD_STRIDES(D, dims, FL_SIZE), optr, MD_STRIDES(D, dims, FL_SIZE), iptr, mu, sigma);
+}
+
+
+/**
+ * Multiply scalar array with a scalar and save to output (with strides)
+ *
+ * optr = iptr * valptr[0]
+ */
+void md_smul_ptr2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, const float* valptr)
+{
+
+	NESTED(void, nary_smul_ptr, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		data->ops->smul_ptr(data->size, valptr, ptr[0], ptr[1]);
+	};
+
+	optimized_twoop_oi(D, dims, ostr, optr, istr, iptr,
+		(size_t[2]){ FL_SIZE, FL_SIZE }, nary_smul_ptr);
+}
+
+/**
+ * Multiply scalar array with a scalar and save to output (with strides)
+ *
+ * optr = iptr * valptr[0]
+ */
+void md_smul_ptr(unsigned int D, const long dims[D], float* optr, const float* iptr, const float* valptr)
+{
+	md_smul_ptr2(D, dims, MD_STRIDES(D, dims, FL_SIZE), optr, MD_STRIDES(D, dims, FL_SIZE), iptr, valptr);
 }

@@ -346,7 +346,17 @@ static void zlog(long N, complex float* dst, const complex float* src)
 		dst[i] = (src[i] == (complex float)0.) ? 0. : clogf(src[i]);
 }
 
+static void vec_exp(long N, float* dst, const float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = expf(src[i]);
+}
 
+static void vec_log(long N, float* dst, const float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = (src[i] == 0.) ? 0. : logf(src[i]);
+}
 
 static void zarg(long N, complex float* dst, const complex float* src)
 {
@@ -725,6 +735,17 @@ static void zconvcorr_3D_CF_TI(complex float* im, const complex float* out, cons
 	}
 }
 
+static void pdf_gauss(long N, float mu, float sig, float* dst, const float* src)
+{
+	for (int i = 0; i < N; i ++)
+		dst[i] = expf(- (src[i] - mu) * (src[i] - mu) / (2 * sig * sig)) / (sqrtf(2 * M_PI) * sig);
+}
+
+static void smul_ptr(long N, const float* alpha, float* dst, const float* src)
+{
+	for (int i = 0; i < N; i++)
+		dst[i] = alpha[0] * src[i];
+}
 
 /*
  * If you add functions here, please also add to gpuops.c/gpukrnls.cu
@@ -800,6 +821,13 @@ const struct vec_ops cpu_ops = {
 	.zconvcorr_3D_CF = zconvcorr_3D_CF,
 	.zconvcorr_3D_CF_TK = zconvcorr_3D_CF_TK,
 	.zconvcorr_3D_CF_TI = zconvcorr_3D_CF_TI,
+	
+	.exp = vec_exp,
+	.log = vec_log,
+
+	.pdf_gauss=pdf_gauss,
+
+	.smul_ptr = smul_ptr,
 };
 
 

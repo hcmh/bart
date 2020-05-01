@@ -392,6 +392,9 @@ const struct vec_ops gpu_ops = {
 	.zabs = cuda_zabs,
 	.zatanr = cuda_zatanr,
 
+	.exp = cuda_exp,
+	.log = cuda_log,
+
 	.zcmp = cuda_zcmp,
 	.zdiv_reg = cuda_zdiv_reg,
 	.zfftmod = cuda_zfftmod,
@@ -413,6 +416,10 @@ const struct vec_ops gpu_ops = {
 	.zconvcorr_3D_CF = cuda_zconvcorr_3D_CF,
 	.zconvcorr_3D_CF_TK = cuda_zconvcorr_3D_CF_TK,
 	.zconvcorr_3D_CF_TI = cuda_zconvcorr_3D_CF_TI,
+
+	.pdf_gauss = cuda_pdf_gauss,
+
+	.smul_ptr = cuda_smul_ptr,
 };
 
 
