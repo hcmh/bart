@@ -172,7 +172,7 @@ float nlop_test_derivatives(const struct nlop_s* op)
 			}
 
 			float tmp = nlop_test_derivative_priv(test_op, true);
-			debug_printf(DP_DEBUG1, "der error (in=%d, out=%d): %.8f\n", in, out, tmp);
+			debug_printf(DP_DEBUG2, "der error (in=%d, out=%d): %.8f\n", in, out, tmp);
 			err = (err > tmp ? err : tmp);
 			nlop_free(test_op);
 		}
@@ -198,8 +198,6 @@ float nlop_test_adj_derivatives(const struct nlop_s* op, _Bool real)
 
 		src[in] = md_alloc(nlop_generic_domain(op, in)->N, nlop_generic_domain(op, in)->dims, CFL_SIZE);
 		md_gaussian_rand(nlop_generic_domain(op, in)->N, nlop_generic_domain(op, in)->dims, src[in]);
-		if (real)
-			md_zreal(nlop_generic_domain(op, in)->N, nlop_generic_domain(op, in)->dims, src[in], src[in]);
 	}
 
 	for (int out = 0; out < nr_out_args; out ++){
@@ -236,7 +234,7 @@ float nlop_test_adj_derivatives(const struct nlop_s* op, _Bool real)
 			float tmp = (real ? linop_test_adjoint_real(nlop_get_derivative(test_op, 0, 0)) : linop_test_adjoint(nlop_get_derivative(test_op, 0, 0)));
 
 
-			debug_printf(DP_DEBUG1, "adj der error (in=%d, out=%d): %.8f\n", in, out, tmp);
+			debug_printf(DP_DEBUG2, "adj der error (in=%d, out=%d): %.8f\n", in, out, tmp);
 			err = (err > tmp ? err : tmp);
 			nlop_free(test_op);
 		}
@@ -281,19 +279,15 @@ float compare_gpu(const struct nlop_s* cpu_op, const struct nlop_s* gpu_op)
 		args_gpu[i] = md_alloc_gpu(nlop_generic_codomain(cpu_op, i)->N, nlop_generic_codomain(cpu_op, i)->dims, nlop_generic_codomain(cpu_op, i)->size);
 	}
 
-
-	debug_printf(DP_DEBUG1, "apply cpu\n");
 	nlop_generic_apply_unchecked(cpu_op, II + OO, (void**)args);
-	debug_printf(DP_DEBUG1, "cpu applied\napply gpu\n");
 	nlop_generic_apply_unchecked(gpu_op, II + OO, (void**)args_gpu);
-	debug_printf(DP_DEBUG1, "gpu applied\n");
 
 	float result = 0;
 
 	for (int i = 0; i < OO; i++){
 
 		md_copy(nlop_generic_codomain(cpu_op, i)->N, nlop_generic_codomain(cpu_op, i)->dims, args_tmp[i], args_gpu[i], nlop_generic_codomain(cpu_op, i)->size);
-		result += md_zrmse(nlop_generic_codomain(cpu_op, i)->N, nlop_generic_codomain(cpu_op, i)->dims, args[i], args_tmp[i]);
+		result += md_znrmse(nlop_generic_codomain(cpu_op, i)->N, nlop_generic_codomain(cpu_op, i)->dims, args[i], args_tmp[i]);
 	}
 
 	for(int i = 0; i < II + OO; i++){
@@ -301,6 +295,49 @@ float compare_gpu(const struct nlop_s* cpu_op, const struct nlop_s* gpu_op)
 		md_free(args[i]);
 		md_free(args_tmp[i]);
 		md_free(args_gpu[i]);
+	}
+
+	debug_printf(DP_DEBUG2, "operator error (cpu/gpu): %.8f\n", result);
+
+	for (int i = 0; i < II; i++){
+
+		for (int o = 0; o < OO; o++) {
+
+			auto der_cpu = nlop_get_derivative(cpu_op, o, i);
+			auto der_gpu = nlop_get_derivative(gpu_op, o, i);
+
+			complex float* in_cpu = md_alloc(linop_domain(der_cpu)->N, linop_domain(der_cpu)->dims, CFL_SIZE);
+			complex float* in_gpu = md_alloc_gpu(linop_domain(der_cpu)->N, linop_domain(der_cpu)->dims, CFL_SIZE);
+			complex float* in_tmp = md_alloc(linop_domain(der_cpu)->N, linop_domain(der_cpu)->dims, CFL_SIZE);
+			complex float* out_cpu = md_alloc(linop_codomain(der_cpu)->N, linop_codomain(der_cpu)->dims, CFL_SIZE);
+			complex float* out_gpu = md_alloc_gpu(linop_codomain(der_cpu)->N, linop_codomain(der_cpu)->dims, CFL_SIZE);
+			complex float* out_tmp = md_alloc(linop_codomain(der_cpu)->N, linop_codomain(der_cpu)->dims, CFL_SIZE);
+
+			md_gaussian_rand(linop_domain(der_cpu)->N, linop_domain(der_cpu)->dims, in_cpu);
+			md_copy(linop_domain(der_cpu)->N, linop_domain(der_cpu)->dims, in_gpu, in_cpu, CFL_SIZE);
+			linop_forward_unchecked(der_cpu, out_cpu, in_cpu);
+			linop_forward_unchecked(der_gpu, out_gpu, in_gpu);
+			md_copy(linop_codomain(der_cpu)->N, linop_codomain(der_cpu)->dims, out_tmp, out_gpu, CFL_SIZE);
+			result += md_znrmse(linop_codomain(der_cpu)->N, linop_codomain(der_cpu)->dims, out_tmp, out_cpu);
+
+			debug_printf(DP_DEBUG2, "der[o=%d, i =%d] error (cpu/gpu): %.8f\n", o, i, md_znrmse(linop_codomain(der_cpu)->N, linop_codomain(der_cpu)->dims, out_tmp, out_cpu));
+
+			md_gaussian_rand(linop_codomain(der_cpu)->N, linop_codomain(der_cpu)->dims, out_cpu);
+			md_copy(linop_codomain(der_cpu)->N, linop_codomain(der_cpu)->dims, out_gpu, out_cpu, CFL_SIZE);
+			linop_adjoint_unchecked(der_cpu, in_cpu, out_cpu);
+			linop_adjoint_unchecked(der_gpu, in_gpu, out_gpu);
+			md_copy(linop_domain(der_cpu)->N, linop_domain(der_cpu)->dims, in_tmp, in_gpu, CFL_SIZE);
+			result += md_znrmse(linop_domain(der_cpu)->N, linop_domain(der_cpu)->dims, in_tmp, in_cpu);
+
+			debug_printf(DP_DEBUG2, "adj[o=%d, i =%d] error (cpu/gpu): %.8f\n", o, i, md_znrmse(linop_domain(der_cpu)->N, linop_domain(der_cpu)->dims, in_tmp, in_cpu));
+
+			md_free(in_cpu);
+			md_free(in_gpu);
+			md_free(in_tmp);
+			md_free(out_cpu);
+			md_free(out_gpu);
+			md_free(out_tmp);
+		}
 	}
 
 	return result;
