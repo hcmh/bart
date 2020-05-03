@@ -475,58 +475,14 @@ int main_rtnlinv(int argc, char* argv[])
 		long img1_strs[DIMS];
 		md_calc_strides(DIMS, img1_strs, img1_dims, CFL_SIZE);
 
-		// image output
-		if (normalize) {
-
-			complex float* buf = md_calloc(DIMS, sens1_dims, CFL_SIZE);
-
-			long sens1_strs[DIMS];
-			md_calc_strides(DIMS, sens1_strs, sens1_dims, CFL_SIZE);
-
-			long kgrid1_strs[DIMS];
-			md_calc_strides(DIMS, kgrid1_strs, kgrid1_dims, CFL_SIZE);
-
-			long msk_strs[DIMS];
-			md_calc_strides(DIMS, msk_strs, msk_dims, CFL_SIZE);
+		long sens1_strs[DIMS];
+		md_calc_strides(DIMS, sens1_strs, sens1_dims, CFL_SIZE);
 
 
-
-			if (combine) {
-
-				md_zfmac2(DIMS, sens1_dims, kgrid1_strs, buf, img1_strs, img1, sens1_strs, sens1);
-				md_zrss(DIMS, kgrid1_dims, COIL_FLAG, img_output1, buf);
-
-			} else {
-
-				md_zfmac2(DIMS, sens1_dims, sens1_strs, buf, img1_strs, img1, sens1_strs, sens1);
-				md_zrss(DIMS, sens1_dims, COIL_FLAG, img_output1, buf);
-			}
-
-			md_zmul2(DIMS, img_output1_dims, img_output1_strs, img_output1, img_output1_strs, img_output1, msk_strs, mask);
-
-			if ((1 == nmaps) || !combine) {
-
-				// restore phase
-				md_zphsr(DIMS, img_output1_dims, buf, img1);
-				md_zmul(DIMS, img_output1_dims, img_output1, img_output1, buf);
-			}
-
-			md_free(buf);
-
-		} else {
-
-			if (combine) {
-
-				md_clear(DIMS, img1_dims, img_output1, CFL_SIZE); // FIXME
-
-				// just sum up the map images
-				md_zaxpy2(DIMS, img1_dims, img_output1_strs, img_output1, 1., img1_strs, img1);
-
-			} else { // !normalize && !combine
-
-				md_copy(DIMS, img_output1_dims, img_output1, img1, CFL_SIZE);
-			}
-		}
+		postprocess(sens1_dims, normalize,
+				sens1_strs, sens1,
+				img1_strs, img1,
+				img_output1_dims, img_output1_strs, img_output1);
 
 		if (scale_im)
 			md_zsmul(DIMS, img_output1_dims, img_output1, img_output1, 1. / scaling);
