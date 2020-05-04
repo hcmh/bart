@@ -328,10 +328,9 @@ int main_modbloch(int argc, char* argv[])
 		
 	}
 	
-	
-	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);
+	double scaling = 500.;
 
-	debug_printf(DP_INFO, "Data Scaling: %f\n", scaling);
+	debug_printf(DP_INFO, "Data Scaling: %f,\t Spokes: %ld\n", scaling, ksp_dims[PHS2_DIM]);
 	md_zsmul(DIMS, grid_dims, k_grid_data, k_grid_data, scaling);
 
 	if (-1. == restrict_fov) {
