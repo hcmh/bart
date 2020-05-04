@@ -1,16 +1,3 @@
-/* Copyright 2016-2017. Martin Uecker.
- * All rights reserved. Use of this source code is governed by
- * a BSD-style license which can be found in the LICENSE file.
- *
- * Authors: 
- * 2011-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018-2019 Nick Scholand <nick.scholand@med.uni-goettingen.de>
- *
- *
- * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction by regularized
- * nonlinear inversion – Joint estimation of coil sensitivities and image content.
- * Magn Reson Med 2008; 60:674-682.
- */
 
 #include <complex.h>
 #include <stdbool.h>
