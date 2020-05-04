@@ -283,7 +283,7 @@ static bool test_dense_der(void)
 	nlop_free(network);
 
 	debug_printf(DP_DEBUG1, "dense errors der, adj: %.8f, %.8f\n", err_der, err_adj);
-	_Bool test = (err_adj < 1.E-5) && (err_der < 1.E-1);
+	_Bool test = (err_adj < 3.E-5) && (err_der < 1.E-1);
 	UT_ASSERT(test);
 }
 
