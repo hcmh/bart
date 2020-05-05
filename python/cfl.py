@@ -8,14 +8,15 @@
 
 
 import numpy as np
+import mmap
+import os
 
 def readcfl(name):
     # get dims from .hdr
-    h = open(name + ".hdr", "r")
-    h.readline() # skip
-    l = h.readline()
-    h.close()
-    dims = [int(i) for i in l.split( )]
+    with open(name + ".hdr", "rt") as h:
+        h.readline() # skip
+        l = h.readline()
+    dims = [int(i) for i in l.split()]
 
     # remove singleton dimensions from the end
     n = np.prod(dims)
@@ -23,19 +24,21 @@ def readcfl(name):
     dims = dims[:np.searchsorted(dims_prod, n)+1]
 
     # load data and reshape into dims
-    d = open(name + ".cfl", "r")
-    a = np.fromfile(d, dtype=np.complex64, count=n);
-    d.close()
+    with open(name + ".cfl", "rb") as d:
+        a = np.fromfile(d, dtype=np.complex64, count=n);
     return a.reshape(dims, order='F') # column-major
 
-	
+
 def writecfl(name, array):
-    h = open(name + ".hdr", "w")
-    h.write('# Dimensions\n')
-    for i in (array.shape):
-            h.write("%d " % i)
-    h.write('\n')
-    h.close()
-    d = open(name + ".cfl", "w")
-    array.T.astype(np.complex64).tofile(d) # tranpose for column-major order
-    d.close()
+    with open(name + ".hdr", "wt") as h:
+        h.write('# Dimensions\n')
+        for i in (array.shape):
+                h.write("%d " % i)
+        h.write('\n')
+
+    size = np.prod(array.shape) * np.dtype(np.complex64).itemsize
+
+    with open(name + ".cfl", "a+b") as d:
+        os.truncate(d.fileno(), size)
+        with mmap.mmap(d.fileno(), size, flags=mmap.MAP_SHARED, prot=mmap.PROT_WRITE) as mm:
+            mm.write(array.astype(np.complex64).tobytes(order='F'))
