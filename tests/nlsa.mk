@@ -1,12 +1,12 @@
 
 
-tests/test-nlsa: traj phantom resize squeeze nlsa cabs nrmse
+tests/test-nlsa: traj phantom resize squeeze nlsa cabs nrmse ssa
 	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
 		$(TOOLDIR)/traj -x128 -y50 -G -D t.ra						;\
 		$(TOOLDIR)/phantom -t t.ra -s8 k.ra 						;\
 		$(TOOLDIR)/resize -c 1 1 k.ra k1.ra 						;\
 		$(TOOLDIR)/squeeze k1.ra kx.ra 							;\
-		$(TOOLDIR)/nlsa -w10 -m0 -n0 kx.ra eof.ra 					;\
+		$(TOOLDIR)/ssa -w10 -m0 -n0 kx.ra eof.ra 					;\
 		$(TOOLDIR)/nlsa -L50 -w10 -m0 -n0 kx.ra nlsa.ra 				;\
 		$(TOOLDIR)/cabs nlsa.ra nlsaabs.ra						;\
 		$(TOOLDIR)/cabs eof.ra eofabs.ra 						;\
