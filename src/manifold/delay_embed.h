@@ -25,6 +25,7 @@ struct delay_conf {
 	int rank;	 	 // rank for backprojection
 
 	// NLSA
+	_Bool nlsa;	     // is nlsa
 	long nlsa_rank;	 // smoothness of manifold
 	char* name_tbasis; // output name of temporal basis for NLSA
 
