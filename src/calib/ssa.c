@@ -78,9 +78,139 @@
 #include "ssa.h"
 
 
+static void backprojection( const long N, 
+				const long M, 
+				const long cal_dims[DIMS], 
+				complex float* back, 
+				const long A_dims[2], 
+				const complex float* B, // ssa: B := A; nlsa: B := zs
+				const long T_dims[2], 
+				const complex float* T, 
+				const complex float* C, // ssa: C := UH; nlsa: C := vH
+				struct delay_conf conf)
+{
+
+	long l = conf.nlsa ? conf.nlsa_rank : N;
+	long PC_xdims[3] = { 1, l, M };
+	long T_xdims[3]  = { N, l, 1 };
+	long A_xdims[3]  = { N, 1, M };
+
+	assert(T_dims[0]  == N && T_dims[1]  == l);
+
+	long kernelCoil_dims[4];
+
+	md_copy_dims(3, kernelCoil_dims, conf.kernel_dims);
+
+	kernelCoil_dims[3] = cal_dims[3];
+
+	// calculate principle components
+	long PC_dims[2] = { l, M };
+	complex float* PC = md_alloc(2, PC_dims, CFL_SIZE);
+
+	if (conf.nlsa == false) { // ssa
+
+		// PC = UH @ A (= C @ B)
+		/* Consider:
+		* AAH = U @ S_square @ UH
+		* A = U @ S @ VH --> PC = S @ VH = UH @ A
+		*/
+
+		md_ztenmul(3, A_xdims, PC, T_xdims, C, PC_xdims, B);
 
 
+		for (int i = 0; i < M; i++) {
+			for (int j = 0; j < N; j++) {
 
+				if (conf.rank < 0)
+					PC[i * N + j] *= (j >= abs(conf.rank)) ? 1. : 0.;
+				else
+				if (conf.rank > 0)
+					PC[i * N + j] *= (j >= conf.rank) ? 0. : 1.;
+				else
+				if (conf.group < 0)
+					PC[i * N + j] *= (check_selection(conf.group, j)) ? 0. : 1.;
+				else
+					PC[i * N + j] *= (check_selection(conf.group, j)) ? 1. : 0.;
+			}
+		}
+
+	} else { // nlsa
+
+		// PC = zs @ vH (= B @ C)
+		long zs_dims[2] = { l, 1 };
+
+		complex float* zs_red = md_alloc(2, zs_dims, CFL_SIZE);
+
+		for (int j = 0; j < l; j++) { // throw away coefficients
+			if (conf.rank < 0)
+				zs_red[j] = (j >= abs(conf.rank)) ? B[j] : 0.;
+			else 
+			if (conf.rank > 0)
+				zs_red[j] = (j >= conf.rank) ? 0. : B[j];
+			else
+			if (conf.group < 0)
+				zs_red[j] = (check_selection(conf.group,j)) ? 0. : B[j];
+			else
+				zs_red[j] = (check_selection(conf.group,j)) ? B[j] : 0.;
+		}
+		
+		long PC_strs[2];
+		md_calc_strides(2, PC_strs, PC_dims, CFL_SIZE);
+
+		long zs_strs[2];
+		md_calc_strides(2, zs_strs, zs_dims, CFL_SIZE);
+
+		md_zmul2(2, PC_dims, PC_strs, PC, zs_strs, zs_red, PC_strs, C);
+
+		md_free(zs_red);
+	} 
+
+	// A_LR = T @ PC
+	complex float* A_backproj = md_alloc(2, A_dims, CFL_SIZE);
+
+	md_ztenmul(3, A_xdims, A_backproj, T_xdims, T, PC_xdims, PC);
+
+	// Reorder & Anti-diagonal summation
+	long kern_dims[4];
+	md_set_dims(DIMS, kern_dims, 1);
+	md_min_dims(4, ~0u, kern_dims, kernelCoil_dims, cal_dims);
+
+	long cal_strs[DIMS];
+	md_calc_strides(DIMS, cal_strs, cal_dims, CFL_SIZE);
+
+	long A1_dims[2] = { N, M };
+
+	casorati_matrixH(4, kern_dims, cal_dims, cal_strs, back, A1_dims, A_backproj);
+
+	// Missing normalization for summed anti-diagonals
+	long b = MIN(kern_dims[0], cal_dims[0] - kern_dims[0] + 1); // Minimum of window length and maximum lag
+
+	long norm_dims[DIMS];
+	md_singleton_dims(DIMS, norm_dims);
+
+	norm_dims[0] = cal_dims[0];
+
+	complex float* norm = md_alloc(DIMS, norm_dims, CFL_SIZE);
+
+	md_zfill(DIMS, norm_dims, norm, 1./b);
+
+	for (unsigned int i = 0; i < b; i++) {
+
+		norm[i] = 1. / (i + 1);
+		norm[cal_dims[0] -1 - i] = 1. / (i + 1);
+	}
+
+	long norm_strs[DIMS];
+	md_calc_strides(DIMS, norm_strs, norm_dims, CFL_SIZE);
+
+	md_zmul2(DIMS, cal_dims, cal_strs, back, cal_strs, back, norm_strs, norm);
+
+	md_free(A_backproj);
+	md_free(norm);
+	md_free(PC);
+}
+
+#if 0 // legacy
 static void ssa_backprojection( const long N,
 				const long M,
 				const long cal_dims[DIMS],
@@ -177,6 +307,7 @@ static void ssa_backprojection( const long N,
 	md_free(A_backproj);
 	md_free(PC);
 }
+#endif
 
 
 extern void ssa_fary(	const long cal_dims[DIMS],
@@ -221,7 +352,7 @@ extern void ssa_fary(	const long cal_dims[DIMS],
 
 		debug_printf(DP_DEBUG3, "Backprojection...\n");
 
-		ssa_backprojection(N, M, cal_dims, back, A_dims, A, U_dims, U, UH, conf);
+		backprojection(N, M, cal_dims, back, A_dims, A, U_dims, U, UH, conf);
 	}
 
 	md_free(UH);
@@ -231,119 +362,12 @@ extern void ssa_fary(	const long cal_dims[DIMS],
 }
 
 
-static void nlsa_backprojection( const long N, 
-				const long M, 
-				const long cal_dims[DIMS], 
-				complex float* back, 
-				const long vH_dims[2], 
-				const complex float* vH, 
-				const long zs_dims[2], 
-				const complex float* zs, 
-				const long T_dims[2], 
-				const complex float* T, 
-				struct delay_conf nlsa_conf)
-{
-
-	long l = nlsa_conf.nlsa_rank;
-	assert(vH_dims[0] == l && vH_dims[1] == M);
-	assert(zs_dims[0] == 1 && zs_dims[1] == l);
-	assert(T_dims[0]  == N  && T_dims[1]  == l);
-
-
-	long kernelCoil_dims[4];
-
-	md_copy_dims(3, kernelCoil_dims, nlsa_conf.kernel_dims);
-
-	kernelCoil_dims[3] = cal_dims[3];
-
-
-	// T_zs = T @ zs
-	long T_strs[2];
-	md_calc_strides(2, T_strs, T_dims, CFL_SIZE);
-
-	long zs_strs[2];
-	md_calc_strides(2, zs_strs, zs_dims, CFL_SIZE);
-
-	complex float* T_zs = md_alloc(2, T_dims, CFL_SIZE);
-
-	md_zmul2(2, T_dims, T_strs, T_zs, T_strs, T, zs_strs, zs);
-
-
-	// Throw away unwanted basis functions
-	for (int i = 0; i < N; i++) {
-		for (int j = 0; j < l; j++) {
-
-			if (nlsa_conf.rank < 0)
-				T_zs[j * N + i] *= (j >= abs(nlsa_conf.rank)) ? 1. : 0.;
-			else 
-			if (nlsa_conf.rank > 0)
-				T_zs[j * N + i] *= (j >= nlsa_conf.rank) ? 0. : 1;
-			else
-			if (nlsa_conf.group < 0)
-				T_zs[j * N + i] *= (check_selection(nlsa_conf.group,j)) ? 0. : 1.;
-			else
-				T_zs[j * N + i]  *= (check_selection(nlsa_conf.group,j)) ? 1. : 0.;
-		}
-	}
-
-
-	// A_LR = T_zs @ vH
-	long A_dims[2] = { N, M };
-	long vH_xdims[3] = { 1, l, M };
-	long T_xdims[3]  = { N, l, 1 };
-	long A_xdims[3] = { N, 1, M };
-
-	complex float* A_backproj = md_alloc(3, A_dims, CFL_SIZE);
-
-	md_ztenmul(3, A_xdims, A_backproj, T_xdims, T_zs, vH_xdims, vH);
-
-	// Reorder & Anti-diagonal summation
-	long kern_dims[4];
-	md_set_dims(DIMS, kern_dims, 1);
-	md_min_dims(4, ~0u, kern_dims, kernelCoil_dims, cal_dims);
-
-	long cal_strs[DIMS];
-	md_calc_strides(DIMS, cal_strs, cal_dims, CFL_SIZE);
-
-	long A1_dims[3] = { N, M };
-
-	casorati_matrixH(4, kern_dims, cal_dims, cal_strs, back, A1_dims, A_backproj);
-
-	// Missing normalization for summed anti-diagonals
-	long b = MIN(kern_dims[0], cal_dims[0] - kern_dims[0] + 1); // Minimum of window length and maximum lag
-
-	long norm_dims[DIMS];
-	md_singleton_dims(DIMS, norm_dims);
-
-	norm_dims[0] = cal_dims[0];
-
-	complex float* norm = md_alloc(DIMS, norm_dims, CFL_SIZE);
-
-	md_zfill(DIMS, norm_dims, norm, 1./b);
-
-	for (unsigned int i = 0; i < b; i++) {
-
-		norm[i] = 1. / (i + 1);
-		norm[cal_dims[0] -1 - i] = 1. / (i + 1);
-	}
-
-	long norm_strs[DIMS];
-	md_calc_strides(DIMS, norm_strs, norm_dims, CFL_SIZE);
-
-	md_zmul2(DIMS, cal_dims, cal_strs, back, cal_strs, back, norm_strs, norm);
-
-	md_free(A_backproj);
-	md_free(norm);
-	md_free(T_zs);
-
-}
-
 extern void nlsa_fary(	const long cal_dims[DIMS], 
 			const long A_dims[2],
 			const complex float* A,
 			complex float* back,
 			const struct delay_conf nlsa_conf, 
-			struct laplace_conf conf)
+			struct laplace_conf laplace_conf)
 {
 
 	long N = A_dims[0]; // time
@@ -352,7 +376,7 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 	long L_dims[2] = { N, N };
 	complex float* L = md_alloc(2, L_dims, CFL_SIZE);
 
-	calc_laplace(&conf, L_dims, L, A_dims, A);
+	calc_laplace(&laplace_conf, L_dims, L, A_dims, A);
 
 	long U_dims[2] = { N, N };
 	long U_strs[2];
@@ -449,7 +473,7 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 
 		debug_printf(DP_DEBUG3, "Backprojection...\n");
 
-		nlsa_backprojection(N, M, cal_dims, back, vH_dims, vH, zs_dims, zs, T_dims, T, nlsa_conf);
+		backprojection(N, M, cal_dims, back, A_dims, zs, T_dims, T, vH, nlsa_conf);
 	}
 
 	md_free(Ur);
