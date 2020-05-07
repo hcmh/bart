@@ -146,9 +146,6 @@ int main_modbloch(int argc, char* argv[])
 		out_sens = true;
 	
 	assert(fit_para.rfduration <= fit_para.prep_pulse_length);
-
-// 	if (usegpu)
-// 		cuda_use_global_memory();
 	
 	num_init();
 	
@@ -383,6 +380,8 @@ int main_modbloch(int argc, char* argv[])
 
 #ifdef  USE_CUDA
 	if (usegpu) {
+
+		cuda_use_global_memory();
 
 		complex float* kspace_gpu = md_alloc_gpu(DIMS, grid_dims, CFL_SIZE);
 		md_copy(DIMS, grid_dims, kspace_gpu, k_grid_data, CFL_SIZE);
