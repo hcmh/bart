@@ -490,7 +490,7 @@ void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, f
 
 		iter_op_call(der, q, x);
 
-		vops->axpy(M, r, +1., q);
+		vops->xpay(M, +1., r, q);
 
 		iter_op_p_call(lsqr, alpha, x, r);
 
