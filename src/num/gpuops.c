@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <complex.h>
+#include <limits.h>
 
 #include <cuda_runtime_api.h>
 #include <cuda.h>
@@ -308,6 +309,7 @@ static void cuda_float_free(float* x)
 
 static double cuda_sdot(long size, const float* src1, const float* src2)
 {
+	assert(size <= INT_MAX);
 	assert(cuda_ondevice(src1));
 	assert(cuda_ondevice(src2));
 //	printf("SDOT %x %x %ld\n", src1, src2, size);
@@ -332,18 +334,21 @@ static double cuda_norm(long size, const float* src1)
 
 static double cuda_asum(long size, const float* src)
 {
+	assert(size <= INT_MAX);
 	return cublasSasum(size, src, 1);
 }
 
 static void cuda_saxpy(long size, float* y, float alpha, const float* src)
 {
 //	printf("SAXPY %x %x %ld\n", y, src, size);
-        cublasSaxpy(size, alpha, src, 1, y, 1);
+	assert(size <= INT_MAX);
+    cublasSaxpy(size, alpha, src, 1, y, 1);
 }
 
 static void cuda_swap(long size, float* a, float* b)
 {
-        cublasSswap(size, a, 1, b, 1);
+	assert(size <= INT_MAX);
+    cublasSswap(size, a, 1, b, 1);
 }
 
 const struct vec_ops gpu_ops = {
