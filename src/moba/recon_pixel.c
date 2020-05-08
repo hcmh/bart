@@ -44,6 +44,7 @@ void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 	long coil_dims[DIMS];
 	long data_dims[DIMS];
 	long img1_dims[DIMS];
+	long all_dims[DIMS];
 
 	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
 
@@ -51,8 +52,9 @@ void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG, data_dims, dims);
 	md_select_dims(DIMS, fft_flags|TIME2_FLAG, img1_dims, dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TE_FLAG|TIME2_FLAG, all_dims, dims);
 
-	imgs_dims[COEFF_DIM] = 3;
+	imgs_dims[COEFF_DIM] = all_dims[COEFF_DIM] = 3;
 
 	long size = md_calc_size(DIMS, imgs_dims);
 	long data_size = md_calc_size(DIMS, data_dims);
@@ -69,7 +71,7 @@ void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 	struct modBloch_s nl;
 	
 	// Add option for multiple different models
-	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, img1_dims, data_dims, imgs_dims, NULL, fit_para, usegpu);
+	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, all_dims, img1_dims, data_dims, imgs_dims, NULL, fit_para, usegpu);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(Bloch, 0)->dims); 			//input-dims of Bloch operator
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(Bloch, 0)->dims);
 

@@ -39,25 +39,24 @@ struct blochFun_s {
 
 	int N;
 
+	const long* dims;
 	const long* map_dims;
 	const long* in_dims;
 	const long* out_dims;
 	const long* input_dims;
 	
+	const long* strs;
 	const long* map_strs;
 	const long* in_strs;
 	const long* out_strs;
 	const long* input_strs;
 	
-	complex float* tmp_map;
-	
 	float scale[3];
 	
 	//derivatives
 	complex float* Sig;
-	complex float* dR1;
-	complex float* dR2;
-	complex float* dM0;
+
+	complex float* derivatives;
 	
 	complex float* input_b1;
 	complex float* input_sliceprofile;
@@ -146,6 +145,9 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	complex float* m0scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, m0scale, m0scale_tmp, CFL_SIZE);
 
+	md_free(r1scale_tmp);
+	md_free(r2scale_tmp);
+	md_free(m0scale_tmp);
 
 	//Allocate Output CPU memory
 	complex float* sig_cpu = md_alloc(data->N, data->out_dims, CFL_SIZE);
@@ -331,24 +333,42 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 					i++;
 				}
 			}
-			
-	debug_printf(DP_DEBUG3, "Copy data\n");
-	
-	md_copy(data->N, data->out_dims, data->dR1, dr1_cpu, CFL_SIZE);
-	md_copy(data->N, data->out_dims, data->dR2, dr2_cpu, CFL_SIZE);
-	md_copy(data->N, data->out_dims, data->dM0, dm0_cpu, CFL_SIZE);
-	md_copy(data->N, data->out_dims, dst, sig_cpu, CFL_SIZE); 
-	
-	md_free(r1scale_tmp);
-	md_free(r2scale_tmp);
-	md_free(m0scale_tmp);
-	md_free(dr1_cpu);
-	md_free(dr2_cpu);
-	md_free(dm0_cpu);
-	md_free(sig_cpu);
+
 	md_free(r1scale);
 	md_free(r2scale);
 	md_free(m0scale);
+			
+	debug_printf(DP_DEBUG3, "Copy data\n");
+
+	//-------------------------------------------------------------------
+	// Collect data of Signal
+	//-------------------------------------------------------------------
+
+	md_copy(data->N, data->out_dims, dst, sig_cpu, CFL_SIZE);
+
+	md_free(sig_cpu);
+	
+	//-------------------------------------------------------------------
+	// Collect data of derivatives in single arrray (on CPU!)
+	//-------------------------------------------------------------------
+
+	md_clear(data->N, data->dims, data->derivatives, CFL_SIZE);
+
+	md_set_dims(data->N, pos, 0);
+
+	pos[COEFF_DIM] = 0; // R1
+	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dr1_cpu, CFL_SIZE);
+
+	pos[COEFF_DIM] = 1; // R2
+	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dr2_cpu, CFL_SIZE);
+
+	pos[COEFF_DIM] = 2; // M0
+	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dm0_cpu, CFL_SIZE);
+
+
+	md_free(dr1_cpu);
+	md_free(dr2_cpu);
+	md_free(dm0_cpu);
 
 	if (NULL != data->input_sliceprofile)
 		md_free(sliceprofile_cpu);
@@ -367,63 +387,32 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 static void Bloch_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 
+	// START_TIMER;
+	debug_printf(DP_DEBUG2, "Start Derivative\n");
+
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
 
-	long pos[data->N];
-	md_set_dims(data->N, pos, 0);
-	
-	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
+	md_clear(data->N, data->out_dims, dst, CFL_SIZE);
 
-	pos[COEFF_DIM] = 0;
-	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
+	md_ztenmul(data->N, data->out_dims, dst, data->dims, data->derivatives, data->in_dims, src);
 
-	// dst = dR1 * R1'
-	md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->dR1);
-
-	pos[COEFF_DIM] = 1;
-	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-
-	// dst = dst + dR2 * R2'
-	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->dR2);
-
-	pos[COEFF_DIM] = 2;
-	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-
-	// dst = dst + dM0 * M0'
-	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->dM0);
-
+	// PRINT_TIMER("BLOCH: Time of Derivative\n");
 }
 
 
 
 static void Bloch_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	// START_TIMER;
+	debug_printf(DP_DEBUG2, "Start Adjoint\n");
+
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
 
-	long pos[data->N];
-	md_set_dims(data->N, pos, 0);
+	md_clear(data->N, data->in_dims, dst, CFL_SIZE);
 
+	md_zfmacc2(data->N, data->dims, data->in_strs, dst, data->out_strs, src, data->strs, data->derivatives);
 
-	pos[COEFF_DIM] = 0;	//R1
-	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
-	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->dR1);
-
-	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-
-
-	pos[COEFF_DIM] = 1;	//R2
-	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
-	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->dR2);
-
-	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-
-
-	pos[COEFF_DIM] = 2;	//M0
-	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
-	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->dM0);
-
-	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-	
+	// PRINT_TIMER("BLOCH: Time of Adjoint\n");
 }
 
 
@@ -432,21 +421,20 @@ static void Bloch_del(const nlop_data_t* _data)
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
 	
 	md_free(data->Sig);
-	md_free(data->dR1);
-	md_free(data->dR2);
-	md_free(data->dM0);
-	
-	md_free(data->tmp_map);
+
+	md_free(data->derivatives);
 	
 	md_free(data->input_b1);
 	md_free(data->input_sliceprofile);
 	md_free(data->input_fa_profile);
 
+	xfree(data->dims);
 	xfree(data->map_dims);
 	xfree(data->in_dims);
 	xfree(data->out_dims);
 	xfree(data->input_dims);
 	
+	xfree(data->strs);
 	xfree(data->map_strs);
 	xfree(data->in_strs);
 	xfree(data->out_strs);
@@ -456,7 +444,7 @@ static void Bloch_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const struct modBlochFit* fit_para, bool use_gpu)
+struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const struct modBlochFit* fit_para, bool use_gpu)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
@@ -468,6 +456,14 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	PTR_ALLOC(struct blochFun_s, data);
 	SET_TYPEID(blochFun_s, data);
 
+	PTR_ALLOC(long[N], alldims);
+	md_copy_dims(N, *alldims, dims);
+	data->dims = *PTR_PASS(alldims);
+
+	PTR_ALLOC(long[N], allstr);
+	md_calc_strides(N, *allstr, dims, CFL_SIZE);
+	data->strs = *PTR_PASS(allstr);
+
 	PTR_ALLOC(long[N], ndims);
 	md_copy_dims(N, *ndims, map_dims);
 	data->map_dims = *PTR_PASS(ndims);
@@ -475,7 +471,6 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	PTR_ALLOC(long[N], nmstr);
 	md_calc_strides(N, *nmstr, map_dims, CFL_SIZE);
 	data->map_strs = *PTR_PASS(nmstr);
-
 
 	PTR_ALLOC(long[N], nodims);
 	md_copy_dims(N, *nodims, out_dims);
@@ -499,11 +494,8 @@ struct nlop_s* nlop_Bloch_create(int N, const long map_dims[N], const long out_d
 	data->scale[1] = fit_para->scale[1];
 	data->scale[2] = fit_para->scale[2];
 	data->Sig = my_alloc(N, out_dims, CFL_SIZE);
-	data->dR1 = my_alloc(N, out_dims, CFL_SIZE);
-	data->dR2 = my_alloc(N, out_dims, CFL_SIZE);
-	data->dM0 = my_alloc(N, out_dims, CFL_SIZE);
 	
-	data->tmp_map = my_alloc(N, map_dims, CFL_SIZE);
+	data->derivatives = my_alloc(N, dims, CFL_SIZE);
 	
 	
 	if (NULL != fit_para->input_b1) {
