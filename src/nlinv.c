@@ -113,6 +113,7 @@ static void postprocess(const long dims[DIMS], bool normalize,
 		if (combine) {
 
 			// just sum up the map images
+			md_clear(DIMS, img_output_dims, img_output, CFL_SIZE);
 			md_zaxpy2(DIMS, img_dims, img_output_strs, img_output, 1., img_strs, img);
 
 		} else { /*!normalize && !combine */

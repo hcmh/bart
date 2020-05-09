@@ -67,7 +67,8 @@ tests/test-nlinv-noncart: traj scale phantom nufft resize nlinv fmac nrmse
 	$(TOOLDIR)/resize -c 0 128 1 128 c.ra c2.ra			;\
 	$(TOOLDIR)/fmac r.ra c2.ra x.ra					;\
 	$(TOOLDIR)/nufft traj2.ra x.ra k2.ra				;\
-	$(TOOLDIR)/nrmse -t 0.05 ksp.ra k2.ra				;\
+	$(TOOLDIR)/scale 2. k2.ra k3.ra					;\
+	$(TOOLDIR)/nrmse -t 0.05 ksp.ra k3.ra				;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
