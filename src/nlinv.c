@@ -27,6 +27,7 @@
 #include "misc/debug.h"
 
 #include "noir/recon.h"
+#include "noir/misc.h"
 
 
 
@@ -37,91 +38,6 @@ static const char help_str[] =
 		"Jointly estimate image and sensitivities with nonlinear\n"
 		"inversion using {iter} iteration steps. Optionally outputs\n"
 		"the sensitivities.";
-
-
-static void postprocess(const long dims[DIMS], bool normalize,
-			const long sens_strs[DIMS], const complex float* sens,
-			const long img_strs[DIMS], const complex float* img,
-			const long img_output_dims[DIMS], const long img_output_strs[DIMS], complex float* img_output)
-{
-	if (md_calc_size(3, img_output_dims) != md_calc_size(3, dims)) {
-
-		long img_output2_dims[DIMS];
-		md_copy_dims(DIMS, img_output2_dims, img_output_dims);
-		md_copy_dims(3, img_output2_dims, dims);
-
-		long img_output2_strs[DIMS];
-		md_calc_strides(DIMS, img_output2_strs, img_output2_dims, CFL_SIZE);
-
-		complex float* tmp = md_alloc(DIMS, img_output2_dims, CFL_SIZE);
-
-		postprocess(dims, normalize, sens_strs, sens, img_strs, img, img_output2_dims, img_output2_strs, tmp);
-
-		md_resize_center(DIMS, img_output_dims, img_output, img_output2_dims, tmp, CFL_SIZE);
-
-		md_free(tmp);
-		return;
-	}
-
-	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
-
-	long ksp_dims[DIMS];
-	md_select_dims(DIMS, ~MAPS_FLAG, ksp_dims, dims);
-
-	long strs[DIMS];
-	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
-
-	long ksp_strs[DIMS];
-	md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
-
-
-	int nmaps = dims[MAPS_DIM];
-	bool combine = (1 == img_output_dims[MAPS_DIM]);
-
-
-	// image output
-	if (normalize) {
-
-		complex float* buf = md_alloc(DIMS, dims, CFL_SIZE);
-		md_clear(DIMS, dims, buf, CFL_SIZE);
-
-		if (combine) {
-
-			md_zfmac2(DIMS, dims, ksp_strs, buf, img_strs, img, sens_strs, sens);
-			md_zrss(DIMS, ksp_dims, COIL_FLAG, img_output, buf);
-
-		} else {
-
-			md_zfmac2(DIMS, dims, strs, buf, img_strs, img, sens_strs, sens);
-			md_zrss(DIMS, dims, COIL_FLAG, img_output, buf);
-		}
-
-//		md_zmul2(DIMS, img_output_dims, img_output_strs, img_output, img_output_strs, img_output, msk_strs, mask);
-
-		if ((1 == nmaps) || !combine) {
-
-			//restore phase
-			md_zphsr(DIMS, img_output_dims, buf, img);
-			md_zmul(DIMS, img_output_dims, img_output, img_output, buf);
-		}
-
-		md_free(buf);
-
-	} else {
-
-		if (combine) {
-
-			// just sum up the map images
-			md_clear(DIMS, img_output_dims, img_output, CFL_SIZE);
-			md_zaxpy2(DIMS, img_dims, img_output_strs, img_output, 1., img_strs, img);
-
-		} else { /*!normalize && !combine */
-
-			md_copy(DIMS, img_output_dims, img_output, img, CFL_SIZE);
-		}
-	}
-}
 
 
 
