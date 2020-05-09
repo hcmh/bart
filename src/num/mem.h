@@ -8,5 +8,6 @@ extern _Bool mem_device_accessible(const void* ptr);
 extern void mem_device_free(void* ptr, void (*device_free)(const void* x));
 extern void* mem_device_malloc(int device, long size, void* (*device_alloc)(size_t));
 
+extern void print_mem(void);
 
 

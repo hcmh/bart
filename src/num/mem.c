@@ -35,6 +35,7 @@ struct mem_s {
 
 	const void* ptr;
 	size_t len;
+	size_t len_used;
 	bool device;
 	bool free;
 	int device_id;
@@ -44,6 +45,24 @@ struct mem_s {
 
 static struct mem_s* mem_list = NULL;
 
+long unused_memory = 0;
+long used_memory = 0;
+static void add_unused(long val)
+{
+	#pragma omp critical
+	unused_memory += val;
+}
+
+static void add_used(long val)
+{
+	#pragma omp critical
+	used_memory += val;
+}
+
+void print_mem(void)
+{
+	debug_printf(DP_WARN, "%ld allocated on gpu (%ld used / %ld unused)\n", unused_memory + used_memory, used_memory, unused_memory);
+}
 
 static bool inside_p(const struct mem_s* rptr, const void* ptr)
 {
@@ -82,7 +101,7 @@ static struct mem_s* search(const void* ptr, bool remove)
 
 static bool free_check_p(const struct mem_s* rptr, size_t size, int dev, int tid)
 {
-	return (rptr->free && (rptr->device_id == dev) && (rptr->len >= size)
+	return (rptr->free && (rptr->device_id == dev) && (rptr->len >= size) && (rptr->len <= 4 * size)
 			&& ((-1 == tid) || (rptr->thread_id == tid)));
 }
 
@@ -127,6 +146,7 @@ static void insert(const void* ptr, size_t len, bool device, int dev)
 	PTR_ALLOC(struct mem_s, nptr);
 	nptr->ptr = ptr;
 	nptr->len = len;
+	nptr->len_used = len;
 	nptr->device = device;
 	nptr->device_id = dev;
 #ifdef _OPENMP
@@ -213,6 +233,9 @@ void mem_device_free(void* ptr, void (*device_free)(const void* ptr))
 
 		assert(!nptr->free);
 		nptr->free = true;
+		add_unused(nptr->len_used);
+		add_used(-nptr->len_used);
+		nptr->len_used = 0;
 
 	} else {
 
@@ -224,6 +247,8 @@ void mem_device_free(void* ptr, void (*device_free)(const void* ptr))
 
 void* mem_device_malloc(int device, long size, void* (*device_alloc)(size_t))
 {
+	add_used(size);
+
 	if (memcache) {
 
 		struct mem_s* nptr = find_free(size, device);
@@ -237,6 +262,8 @@ void* mem_device_malloc(int device, long size, void* (*device_alloc)(size_t))
 #else
 			nptr->thread_id = -1;
 #endif
+			add_unused(-size);
+			nptr->len_used = size;
 
 			return (void*)(nptr->ptr);
 		}
