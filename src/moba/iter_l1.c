@@ -89,13 +89,14 @@ static void normal_fista(iter_op_data* _data, float* dst, const float* src)
 	long parameters = data->dims[COEFF_DIM];
 	long coils = data->dims[COIL_DIM];
 	long SMS = data->dims[SLICE_DIM];
+	long mphases = data->dims[TIME2_DIM];
 
 	if (1 == data->conf->opt_reg) {
 
-		md_axpy(1, MD_DIMS(data->size_x * coils * SMS / (coils * SMS + parameters * SMS)),
-	                                        dst + res * res * 2 * parameters * SMS,
+		md_axpy(1, MD_DIMS(data->size_x * coils / (coils + parameters)),
+	                                        dst + res * res * 2 * parameters * SMS * mphases,
 						data->alpha,
-	                                        src + res * res * 2 * parameters * SMS);
+	                                        src + res * res * 2 * parameters * SMS * mphases);
 	} else {
 
 		md_axpy(1, MD_DIMS(data->size_x), dst, data->alpha, src);
@@ -110,17 +111,21 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 	long res = data->dims[0];
 	long parameters = data->dims[COEFF_DIM];
 	long SMS = data->dims[SLICE_DIM];
+	long mphases = data->dims[TIME2_DIM];
 
 	long dims1[DIMS];
 
 	md_select_dims(DIMS, FFT_FLAGS, dims1, data->dims);
 	dims1[COEFF_DIM] = data->conf->constrained_maps;
 
-	for (int i = 0; i < SMS; i++) {
+	for (int j = 0; j < mphases; j++)
+		for (int i = 0; i < SMS; i++) {
 
-	        md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - data->conf->constrained_maps) * res * res + i * res * res * parameters,
-			(const _Complex float*)src + (parameters - data->conf->constrained_maps) * res * res + i * res * res * parameters, data->conf->lower_bound);
-
+	        	md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - data->conf->constrained_maps) * res * res 
+			+ i * res * res * parameters + j * res * res * parameters * SMS,
+			(const _Complex float*)src + (parameters - data->conf->constrained_maps) * res * res 
+			+ i * res * res * parameters + j * res * res * parameters * SMS, 
+			data->conf->lower_bound);
         }
 }
 
@@ -271,7 +276,7 @@ static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf*
 	debug_print_dims(DP_INFO, DIMS, img_dims);
 
 	auto prox1 = create_prox(img_dims);
-	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | SLICE_FLAG));
+	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | SLICE_FLAG | TIME2_FLAG));
 
 	struct T1inv_s idata = {
 
