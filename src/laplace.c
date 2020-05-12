@@ -41,11 +41,14 @@ int main_laplace(int argc, char* argv[])
 		OPT_FLOAT('s', &conf.sigma, "sigma", "Standard deviation"),
 		OPT_SET('g', &conf.gen_out, "Output inv(D) @ W"),
 		OPT_SET('T', &conf.temporal_nn, "Temporal nearest neighbours"),
+		OPT_SET('k', &conf.kernel, "kernel approach"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
+
+	assert(!(conf.kernel && conf.temporal_nn));
 
 
 	long src_dims[DIMS];
