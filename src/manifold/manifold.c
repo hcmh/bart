@@ -9,6 +9,7 @@
 
 #include <complex.h>
 #include <math.h>
+// #include <stdio.h>
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -28,7 +29,7 @@ const struct laplace_conf laplace_conf_default = {
 	.nn 			= -1,
 	.temporal_nn 	= false,
 	.kernel     	= false,
-	.kernel_lambda 	= 0.3,
+	.kernel_lambda 	= 0.08,
 	.gen_out		= false,
 	.median 		= -1,
 
@@ -60,9 +61,7 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 		complex float* src_sq = md_alloc(3, src2_dims, CFL_SIZE);
 		md_zmulc(3, src2_dims, src_sq, src, src);
 		
-		long src_sum_dims[3] = { [0 ... 2] = 1};
-		src_sum_dims[0] = src_dims[0];
-		src_sum_dims[1] = 1;
+		long src_sum_dims[3] = { src_dims[0], 1, 1 };
 		
 		// src_sum = sum(src_sq, axis=1)	
 		complex float* src_sum = md_alloc(3, src_sum_dims, CFL_SIZE);
@@ -137,25 +136,18 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 {
 
 	if (conf->kernel) { // kernel approach
-#if 0		
-		
-		long N = src_dims[0]; // number of samples
+	
+		long N = src_dims[0]; // number of observations (samples)
+		long M = src_dims[1]; // number of variables (coordinates)
 		complex float* kernel = md_alloc(2, L_dims, CFL_SIZE);
+
 		gauss_kernel(L_dims, kernel, src_dims, src, conf, true);
-		
-		long cov_dims[3];
-		cov_dims[0] = N;
-		cov_dims[1] = 1;
-		cov_dims[2] = N;
-		
+			
 		complex float* kernel_cpy = md_alloc(2, L_dims, CFL_SIZE); // copy of gaussian kernel
 		md_copy(2, L_dims, kernel_cpy, kernel, CFL_SIZE);
 
 		// V, S, VH = svd(kernel)
-		long V_dims[3] = { [0 ... 2] = 1 };
-		V_dims[0] = N;
-		V_dims[1] = N;
-		
+		long V_dims[3] = { N, N, 1 };
 		long V_strs[3];
 		md_calc_strides(3, V_strs, V_dims, CFL_SIZE);
 		
@@ -174,26 +166,18 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		float gamma = 100.;
 		float eta = 2.;
 	
-		long S_dims[1];
-		S_dims[0] = N;
+		long S_dims[1] = { N };
 		
 		long D_dims[3];
 		md_select_dims(3, 1, D_dims, V_dims);
+				
+		long S_strs[3] = { 0, CFL_SIZE, 0 };
 		
-		long VH_dims[3] = { [0 ... 2] = 1 };
-		VH_dims[1] = N;
-		VH_dims[2] = N;
-		
-		long S_strs[3] = { 0 };
-		S_strs[1] = CFL_SIZE;
-		
-		long src2_dims[3] = { [0 ... 2] = 1 };
-		src2_dims[0] = src_dims[0];
-		src2_dims[2] = src_dims[1];
-		
-		long src3_dims[3] = { [0 ... 2] = 1 };
-		src3_dims[1] = src_dims[0];
-		src3_dims[2] = src_dims[1];
+		long VH_dims[3]   = { 1, N, N };
+		long src2_dims[3] = { N, 1, M };
+		long src3_dims[3] = { 1, N, M };
+		long cov_dims[3]  = { N, 1, N };
+
 		
 		complex float* D = md_alloc(3, D_dims, CFL_SIZE);
 		complex float* S_inv = md_alloc(1, S_dims, CFL_SIZE);	
@@ -216,12 +200,17 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			// D = sum(W, axis=-1)
 			md_zsum(3, V_dims, 2, D, L);
 
-			// L = -D + L (negative Laplacian)
+			// L = -D + L
+			// note: in L we have the negative Laplacian! 
 			#pragma omp parallel for
 			for (int l = 0; l < V_dims[0]; l++)
 				L[l * V_dims[0] + l] -= D[l];
+
+			// char str[12];
+			// sprintf(str, "%02d", i+1);
+			// dump_cfl(str, 2, L_dims, L);
 			
-			// W = eye + kernel_lambda * W
+			// W = eye + kernel_lambda * L
 			md_zsmul(3, V_dims, W, L, conf->kernel_lambda);
 			
 			#pragma omp parallel for
@@ -229,11 +218,19 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 				W[l * V_dims[0] + l] += 1;
 
 			// W1 = inv(W)
+			/* intuition: the gradient of the full problem is ~ + XL
+			 * --> we can get an approximate update X' = X + XL
+			 * but: our Laplacian L is the negative of the actual laplacian
+			 * hence our gradient goes away from the solution
+			 * --> X' + X'L = X
+			 * --> X' = X * inv(1+L) = X * inv(W) = X * W1
+			 * TODO: why don't we define the Laplacian correctly in the first place?
+			 */
 			mat_inverse(N, (complex float (*)[N])W1, (complex float (*)[N])W);
 		
 			// src2 = src @ W1
 			md_ztenmul(3, src2_dims, src2, V_dims, W1, src3_dims, src); // update the old signal 'src'
-			
+
 			if (conf->median > 0)
 				md_zsmul(3, src2_dims, src2, src2, 1. / sqrtf(conf->median));
 			
@@ -243,7 +240,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 			// SVD
 			md_copy(3, cov_dims, kernel_cpy, kernel, CFL_SIZE);
-			lapack_svd_double_real(N, N, (complex float (*)[N])V, (complex float (*)[N])VH, Sf, (complex float (*)[N])kernel_cpy); // NOTE: Lapack destroys kernel_cpy!
+			lapack_svd(N, N, (complex float (*)[N])V, (complex float (*)[N])VH, Sf, (complex float (*)[N])kernel_cpy); // NOTE: Lapack destroys kernel_cpy!
 			/* TODO: There seem to be numerical instabilities compared to the matlab code. 
 			 * Matlab uses complex doubles and - if the imaginary part is zero - doubles 
 			 * for all operations. This should be tested here!*/
@@ -266,8 +263,6 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		md_free(kernel);
 		md_free(VH_tmp);
 		xfree(Sf);
-#endif	
-
 	} else { 
 	
 		if (conf->temporal_nn) { // Laplace for temporal nearest neigbours
