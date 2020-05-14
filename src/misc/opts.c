@@ -28,7 +28,7 @@
 
 enum OPT_ARG_TYPE { OPT_SPECIAL, OPT_SET, OPT_CLEAR, OPT_INT, OPT_UINT, OPT_LONG, OPT_FLOAT, OPT_CFLOAT, OPT_STRING };
 
-static const char* opt_arg_types[] = { " ...", "", "", " d", " d", " d", " f", " <string>" };
+static const char* opt_arg_types[] = { " ...", "", "", " d", " d", " d", " f", " cf", " <string>" };
 
 static enum OPT_ARG_TYPE opt_arg_type(opt_conv_f fun)
 {
