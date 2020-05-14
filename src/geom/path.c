@@ -99,6 +99,7 @@ static int path2splines(int N, double p[N][2][4], const char* str)
 
 		case 'v':
 			x = 0.;
+			/* fall through */
 		case 'V':
 
 			if (1 != sscanf(str + pos, "%f%n", &y, &off))
@@ -108,6 +109,7 @@ static int path2splines(int N, double p[N][2][4], const char* str)
 	
 		case 'h':
 			y = 0.;
+			/* fall through */
 		case 'H':
 
 			if (1 != sscanf(str + pos, "%f%n", &x, &off))
@@ -158,7 +160,7 @@ static int path2splines(int N, double p[N][2][4], const char* str)
 		case 'c':
 			if (6 != sscanf(str + pos, "%f,%f %f,%f %f,%f%n", &x1, &y1, &x2, &y2, &x, &y, &off))
 				goto err;
-
+			/* fall through */
 		spline:
 			pos += off;
 

@@ -16,6 +16,10 @@
 #include "num/init.h"
 #include "num/filter.h"
 
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
+
 #include "misc/mri.h"
 #include "misc/misc.h"
 #include "misc/mmio.h"

@@ -27,7 +27,10 @@
 
 #include "noncart/nufft.h"
 
+#ifdef USE_CUDA
 #include "num/gpuops.h"
+#endif
+
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/fft.h"
