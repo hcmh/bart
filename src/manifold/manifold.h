@@ -17,7 +17,7 @@ struct laplace_conf {
 	_Bool temporal_nn; 	// Laplacian for temporal nearest neigbours
 	_Bool kernel;		// kernel approach
 	float kernel_lambda;// kernel lambda weighting
-	_Bool gen_out;	 	// output D^-1 @ W (for caclualtion of generalized Laplacian EV's v: Lv = Dv)
+	_Bool norm;	 		// output D^-1 @ L (output normalized Laplacian, where L = D - W)
 	float median; 		// median normalization for kernel approach
 
 };

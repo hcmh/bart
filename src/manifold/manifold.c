@@ -30,7 +30,7 @@ const struct laplace_conf laplace_conf_default = {
 	.temporal_nn 	= false,
 	.kernel     	= false,
 	.kernel_lambda 	= 0.08,
-	.gen_out		= false,
+	.norm			= false,
 	.median 		= -1,
 
 };
@@ -48,6 +48,20 @@ static void calc_sigma(const long L_dims[2], const complex float* dist, struct l
 
 	md_free(dist_tmp);
 
+}
+
+// symmetrize matrix
+static void symmetrize(const long A_dims[2], complex float* A)
+{
+		for (int i = 0; i < A_dims[0];  i++) {
+			for (int j = i; j < A_dims[0]; j++) {
+
+				if (A[i * A_dims[0] + j] == 0)
+					A[i * A_dims[0] + j] = A[j * A_dims[0] + i];
+				else
+					A[j * A_dims[0] + i] = A[i * A_dims[0] + j];
+			}
+		}
 }
 
 // kernel_ij = exp(- (1/sigma^2) *  |src[i,:] - src[j,:]|^2 )
@@ -135,8 +149,25 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float* L, const long src_dims[2], const complex float* src)
 {
 
-	if (conf->kernel) { // kernel approach
-	
+	long D_dims[2] = { L_dims[0], 1 };
+	complex float* D = md_alloc(2, D_dims, CFL_SIZE); // degree matrix
+
+	complex float* W = md_alloc(2, L_dims, CFL_SIZE); // adjacency matrix
+
+
+	char type;
+
+	if (conf->kernel) 
+		type = 'K';
+	else if (conf->temporal_nn)
+		type = 'N';
+	else
+		type = 'C';
+
+	switch (type) {
+
+	case 'K': { // kernel approach
+
 		long N = src_dims[0]; // number of observations (samples)
 		long M = src_dims[1]; // number of variables (coordinates)
 		complex float* kernel = md_alloc(2, L_dims, CFL_SIZE);
@@ -179,9 +210,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		long cov_dims[3]  = { N, 1, N };
 
 		
-		complex float* D = md_alloc(3, D_dims, CFL_SIZE);
 		complex float* S_inv = md_alloc(1, S_dims, CFL_SIZE);	
-		complex float* W = md_alloc(3, cov_dims, CFL_SIZE);
 		complex float* W1 = md_alloc(3, cov_dims, CFL_SIZE);
 		complex float* src2 = md_alloc(3, src2_dims, CFL_SIZE);
 			
@@ -252,9 +281,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			debug_printf(DP_INFO, "Gamma: %f\n", gamma);
 		}
 		
-		md_free(D);
 		md_free(S_inv);
-		md_free(W);
 		md_free(W1);
 		md_free(src2);
 		md_free(V);
@@ -263,174 +290,177 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		md_free(kernel);
 		md_free(VH_tmp);
 		xfree(Sf);
-	} else { 
-	
-		if (conf->temporal_nn) { // Laplace for temporal nearest neigbours
 
-			md_clear(2, L_dims, L, CFL_SIZE);
+		break;
+	}
 
-			assert(src_dims[1] == 1);
+	case 'N': { // temporal nearest neighbour
+		
+		md_clear(2, L_dims, W, CFL_SIZE);
 
-			int idx_past;
-			int idx;
-			int idx_future;
+		assert(src_dims[1] == 1);
 
-			for (int l = 0; l < src_dims[0]; l++) {
+		int idx_past;
+		int idx;
+		int idx_future;
 
-				if (creal(src[l]) > L_dims[0])
-					error("Lable index larger than Laplacian size!");
+		for (int l = 0; l < src_dims[0]; l++) {
 
-				idx = creal(src[l]);
+			if (creal(src[l]) > L_dims[0])
+				error("Lable index larger than Laplacian size!");
 
-				if (l > 0)
-					idx_past = creal(src[l - 1]);
-				else
-					idx_past = idx;			
+			idx = creal(src[l]);
 
-				if (l < src_dims[0] - 1)
-					idx_future = creal(src[l + 1]);
-				else
-					idx_future = idx;
+			if (l > 0)
+				idx_past = creal(src[l - 1]);
+			else
+				idx_past = idx;			
+
+			if (l < src_dims[0] - 1)
+				idx_future = creal(src[l + 1]);
+			else
+				idx_future = idx;
 
 
-				if (idx_past != idx)
-					L[idx * L_dims[0] + idx_past] += 1 + 0.i;
+			if (idx_past != idx)
+				W[idx * L_dims[0] + idx_past] = 1 + 0.i;
 
-				if (idx_future != idx)
-					L[idx * L_dims[0] + idx_future] += 1 + 0.i;
+			if (idx_future != idx)
+				W[idx * L_dims[0] + idx_future] = 1 + 0.i;
+		}
+
+		symmetrize(L_dims, W);
+
+		md_zsum(2, L_dims, PHS1_FLAG, D, W); // D
+
+		//L = D - W
+		md_zsmul(2, L_dims, L, W, -1.); // -W
+
+		#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)
+			L[i * L_dims[0] + i] += D[i];
+
+		break;
+	}
+
+	case 'C': { // conventional
+		//TODO: Test if gauss_kernel() function is faster than this implementation
+			
+		// L[i,j,:] = src[i,:] - src[j,:]
+		assert(L_dims[0] == src_dims[0]);
+
+		complex float* dist = md_alloc(2, L_dims, CFL_SIZE);
+		md_clear(2, L_dims, dist, CFL_SIZE);
+
+		long src_strs[2];
+		md_calc_strides(2, src_strs, src_dims, CFL_SIZE);
+
+		long src_singleton_dims[2];
+		src_singleton_dims[0] = 1;
+		src_singleton_dims[1] = src_dims[1];
+
+		long src_singleton_strs[2];
+		md_calc_strides(2, src_singleton_strs, src_singleton_dims, CFL_SIZE);
+
+		long src_singleton1_strs[2];
+		src_singleton1_strs[0] = 0;
+		src_singleton1_strs[1] = src_strs[1];
+
+		// dist[i,j] = ||src[i,:] - src[j,:]||^2
+		#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++) {
+			for (int j = 0; j < i; j++) {
+
+				complex float* src_singleton = md_alloc(2, src_singleton_dims, CFL_SIZE);
+
+				md_zsub2(2, src_singleton_dims, src_singleton_strs, src_singleton, src_singleton1_strs, &src[i], src_singleton1_strs, &src[j]);
+
+				dist[i * L_dims[0] + j] = md_zscalar(2, src_singleton_dims, src_singleton, src_singleton) ;
+				dist[j * L_dims[0] + i] = dist[i * L_dims[0] + j]; // exploit symmetry
+
+				md_free(src_singleton);
 			}
+		}
+
+		if (conf->sigma == -1)
+			calc_sigma(L_dims, dist, conf);
+
+		// W = exp(- dist^2 / sigma^2)
+		md_zsmul(2, L_dims, W, dist, -1. /  pow(conf->sigma,2));
+		md_zexp(2, L_dims, W, W);
+
+		// Keep only nn-th nearest neighbours
+		if (conf->nn != -1) {
+
+			complex float* dist_dump = md_alloc(2, L_dims, CFL_SIZE);
+
+			md_copy(2, L_dims, dist_dump, dist, CFL_SIZE);
+
+			float thresh;
+
+			for (int i = 0; i < L_dims[0];  i++) {
+
+				thresh = quickselect_complex(&dist_dump[i * L_dims[0]], L_dims[0], L_dims[0] - conf->nn); // Get nn-th smallest distance. (Destroys dist_dump-array!)
+
+				for (int j = 0; j < L_dims[0]; j++)
+					W[i * L_dims[0] + j] *= (cabs(dist[i * L_dims[0] + j]) > thresh) ? 0 : 1;
+			}
+
+			md_free(dist_dump);
 
 			// Symmetrize
-			for (int i = 0; i < L_dims[0];  i++) {
-				for (int j = i; j < L_dims[0]; j++) {
+			symmetrize(L_dims, W);
 
-					if (L[i * L_dims[0] + j] == 0)
-						L[i * L_dims[0] + j] = L[j * L_dims[0] + i];
-					else
-						L[j * L_dims[0] + i] = L[i * L_dims[0] + j];
-				}
-			}
-
-		} else { // Conventional Laplace calculation
-			
-			//TODO: Test if gauss_kernel() function is faster than this implementation
-			
-			// L[i,j,:] = src[i,:] - src[j,:]
-			assert(L_dims[0] == src_dims[0]);
-
-			complex float* dist = md_alloc(2, L_dims, CFL_SIZE);
-
-			long src_strs[2];
-			md_calc_strides(2, src_strs, src_dims, CFL_SIZE);
-
-			long src_singleton_dims[2];
-			src_singleton_dims[0] = 1;
-			src_singleton_dims[1] = src_dims[1];
-
-			long src_singleton_strs[2];
-			md_calc_strides(2, src_singleton_strs, src_singleton_dims, CFL_SIZE);
-
-			long src_singleton1_strs[2];
-			src_singleton1_strs[0] = 0;
-			src_singleton1_strs[1] = src_strs[1];
-
-			// dist[i,j] = ||src[i,:] - src[j,:]||^2
-			#pragma omp parallel for
-			for (int i = 0; i < L_dims[0]; i++) {
-
-				for (int j = 0; j <= i; j++) {
-
-					complex float* src_singleton = md_alloc(2, src_singleton_dims, CFL_SIZE);
-
-					md_zsub2(2, src_singleton_dims, src_singleton_strs, src_singleton, src_singleton1_strs, &src[i], src_singleton1_strs, &src[j]);
-
-					dist[i * L_dims[0] + j] = md_zscalar(2, src_singleton_dims, src_singleton, src_singleton) ;
-					dist[j * L_dims[0] + i] = dist[i * L_dims[0] + j]; // exploit symmetry
-
-					md_free(src_singleton);
-				}
-			}
-
-			if (conf->sigma == -1)
-				calc_sigma(L_dims, dist, conf);
-
-			// W = exp(- dist^2 / sigma^2)
-			md_zsmul(2, L_dims, L, dist, -1. /  pow(conf->sigma,2));
-			md_zexp(2, L_dims, L, L);
-
-			// Keep only nn-th nearest neighbours
-			if (conf->nn != -1) {
-
-				complex float* dist_dump = md_alloc(2, L_dims, CFL_SIZE);
-
-				md_copy(2, L_dims, dist_dump, dist, CFL_SIZE);
-
-				float thresh;
-
-				for (int i = 0; i < L_dims[0];  i++) {
-
-					thresh = quickselect_complex(&dist_dump[i * L_dims[0]], L_dims[0], L_dims[0] - conf->nn); // Get nn-th smallest distance. (Destroys dist_dump-array!)
-
-					for (int j = 0; j < L_dims[0]; j++)
-						L[i * L_dims[0] + j] *= (cabs(dist[i * L_dims[0] + j]) > thresh) ? 0 : 1;
-				}
-
-				md_free(dist_dump);
-
-				// Symmetrize
-				for (int i = 0; i < L_dims[0];  i++) {
-
-					for (int j = i; j < L_dims[0]; j++) {
-
-						if (L[i * L_dims[0] + j] == 0)
-							L[i * L_dims[0] + j] = L[j * L_dims[0] + i];
-						else
-							L[j * L_dims[0] + i] = L[i * L_dims[0] + j];
-					}
-				}
-			}
-
-			md_free(dist);
 		}
+
+		md_free(dist);
+
+		// enforce zero on diagonal
+		#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)		
+			W[L_dims[0] * i + i ] = 0.;
+		
 
 		// D[i,0] = sum(W[i,:])
 		long D_dims[2];
 		md_select_dims(2, READ_FLAG, D_dims, L_dims);
 
-		complex float* D = md_alloc(2, D_dims, CFL_SIZE);
+		md_zsum(2, L_dims, PHS1_FLAG, D, W); // D is diagonal
 
-		md_zsum(2, L_dims, PHS1_FLAG, D, L); // D is diagonal
+		//L = D - W
+		md_zsmul(2, L_dims, L, W, -1.); // -W
 
-		if (conf->gen_out) {
+		#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)
+			L[i * L_dims[0] + i] += D[i];
 
-			// L := D^{-1} @ W
+		break;
+	}
 
-			#pragma omp parallel for
-			for (int i = 0; i < L_dims[0]; i++)
-				D[i] = 1. / D[i];
+	} // end switch
 
-			complex float* tmp = md_alloc(2, L_dims, CFL_SIZE);
 
-			md_copy(2, L_dims, tmp, L, CFL_SIZE);
+	if (conf->norm) {
 
-			md_ztenmul(2, L_dims, L, L_dims, tmp, D_dims, D);
+		// L := D^{-1} @ L
 
-			md_free(tmp);
+		#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)
+			D[i] = 1. / D[i];
 
-		} else {
+		complex float* tmp = md_alloc(2, L_dims, CFL_SIZE);
 
-			//L = D - W
+		md_copy(2, L_dims, tmp, L, CFL_SIZE);
 
-			md_zsmul(2, L_dims, L, L, -1.); // -W
+		md_ztenmul(2, L_dims, L, L_dims, tmp, D_dims, D);
 
-			#pragma omp parallel for
-			for (int i = 0; i < L_dims[0]; i++)
-				L[i * L_dims[0] + i] += D[i];
-		}
+		md_free(tmp);
 
-		md_free(D);
-}
+	}
 
+	md_free(D);
+	md_free(W);
+	
 }
 
 void kmeans(long centroids_dims[2], complex float* centroids, long src_dims[2], complex float* src, complex float* lables, const float eps, long update_max)
