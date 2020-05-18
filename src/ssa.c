@@ -59,7 +59,7 @@ int main_ssa(int argc, char* argv[])
 
 	if (5 == argc) {
 
-		check_bp(conf);
+		check_bp(&conf);
 		conf.backproj = argv[4];
 
 	}

@@ -106,7 +106,7 @@ int main_nlsa(int argc, char* argv[])
 
 	if (5 == argc) { 
 
-		check_bp(nlsa_conf);
+		check_bp(&nlsa_conf);
 		nlsa_conf.backproj = argv[4];
 
 	}

@@ -36,7 +36,7 @@ extern const struct delay_conf nlsa_conf_default;
 
 extern bool check_selection(const long group, const int j);
 
-extern void check_bp(struct delay_conf conf);
+extern void check_bp(struct delay_conf* conf);
 
 extern void preproc_ac(const long in_dims[DIMS], complex float* in, const struct delay_conf conf);
 

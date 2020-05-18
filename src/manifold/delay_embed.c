@@ -67,23 +67,23 @@ bool check_selection(const long group, const int j)
 }
 
 // Check if input-options for back-projection are valid
-void check_bp(struct delay_conf conf) {
+void check_bp(struct delay_conf* conf) {
 	
-		if (conf.zeropad) {
+		if (conf->zeropad) {
 
 			debug_printf(DP_INFO, "Zeropadding turned off automatically!\n");
-			conf.zeropad = false;
+			conf->zeropad = false;
 			
 		}
 
-		if ((0 == conf.rank) && (0 == conf.group))
+		if ((0 == conf->rank) && (0 == conf->group))
 			error("Specify rank or group for backprojection!");
 
-		if (0 == conf.rank)
-			assert(0 != conf.group);
+		if (0 == conf->rank)
+			assert(0 != conf->group);
 
-		if (0 == conf.group)
-			assert(0 != conf.rank);
+		if (0 == conf->group)
+			assert(0 != conf->rank);
 
 }
 
