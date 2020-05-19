@@ -29,8 +29,8 @@ struct iter6_adadelta_conf {
 	float rho;
 };
 
-const struct iter6_sgd_conf iter6_sgd_conf_defaults;
-const struct iter6_adadelta_conf iter6_adadelta_conf_defaults;
+extern const struct iter6_sgd_conf iter6_sgd_conf_defaults;
+extern const struct iter6_adadelta_conf iter6_adadelta_conf_defaults;
 
 struct iter3_conf_s;
 struct iter_nlop_s;
