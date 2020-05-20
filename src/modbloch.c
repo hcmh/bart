@@ -324,8 +324,35 @@ int main_modbloch(int argc, char* argv[])
 		md_copy(DIMS, input_vfa_dims, fit_para.input_fa_profile, input_vfa, CFL_SIZE);
 		
 	}
+
+	// Scale DATA on largest sample of first spoke
+
+	assert(NULL != trajectory);
+
+	long ksp_strs[DIMS];
+	md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
+
+	long sample_pos[DIMS] = { 0. };
+
+	float max = 0.;
+
+	for (int i = 0; i < ksp_dims[PHS1_DIM]; i++) {
+
+		sample_pos[PHS1_DIM] = i;
+
+		long ind = md_calc_offset(DIMS, ksp_strs, sample_pos) / CFL_SIZE;
+
+		debug_printf(DP_DEBUG3, "Spoke Data[%d]: %f\n", i, cabsf(kspace_data[ind]));
+
+		max = (cabsf(kspace_data[ind]) > max) ? cabsf(kspace_data[ind]) : max;
+	}
 	
-	double scaling = 500.;
+	assert(0. < max);
+
+	debug_printf(DP_DEBUG3, "Max Sample %f\n", max);
+
+	// double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);
+	double scaling = 250. / max;
 
 	debug_printf(DP_INFO, "Data Scaling: %f,\t Spokes: %ld\n", scaling, ksp_dims[PHS2_DIM]);
 	md_zsmul(DIMS, grid_dims, k_grid_data, k_grid_data, scaling);
