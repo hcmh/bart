@@ -364,6 +364,10 @@ void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*s
 
 				run_sim_block(&prep_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 			}
+			else if (5 == data->seq.seq_type)
+				relaxation2(data, h, tol, N, P, xp, 0., data->seq.prep_pulse_length);
+
+
 
 			/*--------------------------------------------------------------
 			* --------------  Loop over Pulse Blocks  ----------------------

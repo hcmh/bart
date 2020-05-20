@@ -217,6 +217,21 @@ static void apply_signal_preparation(int N, float m[N], void* _data )// provides
 }
 
 
+static void apply_relaxation(int N, float m[N], void* _data )// provides alpha/2. preparation only
+{
+	struct sim_data* simdata = _data;
+	struct sim_data tmp_data = *simdata;
+
+	tmp_data.pulse.pulse_applied = false;
+
+	float matrix[N][N];
+
+	create_sim_matrix(N, matrix, tmp_data.seq.prep_pulse_length, &tmp_data);
+
+	apply_sim_matrix(N, m, matrix);
+}
+
+
 static void prepare_matrix_to_te( int N, float matrix[N][N], void* _data )
 {
 	struct sim_data* simdata = _data;
@@ -314,6 +329,10 @@ void matrix_bloch_simulation( void* _data, float (*mxy_sig)[3], float (*sa_r1_si
 		//for bSSFP based sequences: alpha/2 and tr/2 preparation
 		if (data->seq.seq_type == 0 || data->seq.seq_type == 1)
 			apply_signal_preparation(N, xp, data);
+		// IR FLASH (Look-Locker model) assumes perfect inversion followed by a relaxation block
+		// The latter is set to have the preparation pulse length
+		else if (5 == data->seq.seq_type)
+			apply_relaxation(N, xp, data);
 
 		// Create matrices which describe signal development	
 		float matrix_to_te[N][N];
@@ -322,6 +341,7 @@ void matrix_bloch_simulation( void* _data, float (*mxy_sig)[3], float (*sa_r1_si
 		float matrix_to_te_PI[N][N];
 		data->pulse.phase = M_PI;
 		prepare_matrix_to_te( N, matrix_to_te_PI, data);
+		data->pulse.phase = 0.;
 
 
 		float matrix_to_tr[N][N];
@@ -338,7 +358,7 @@ void matrix_bloch_simulation( void* _data, float (*mxy_sig)[3], float (*sa_r1_si
 
 			apply_sim_matrix( N, xp, matrix_to_tr );
 
-			xyspoiling(N, xp, data);
+			xyspoiling(N, xp, data);	// Turned on for FLASH based sequences
 
 			data->tmp.rep_counter++;
 		}
