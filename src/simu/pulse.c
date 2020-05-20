@@ -69,7 +69,7 @@ float pulse_sinc(const struct simdata_pulse* pulse, float t)
 
 void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle /*[°]*/, float phase, float nl, float nr, float alpha)
 {
-	// For windowed sinc-pluses only
+	// windowed sinc-pulses only
 	pulse->rf_start = rf_start;
 	pulse->rf_end = rf_end;
 	pulse->pulse_length = rf_end - rf_start;
@@ -82,7 +82,7 @@ void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, flo
 	pulse->alpha = alpha;
 	pulse->A = 1.;
 
-	// Determine scaling factor to Ensure pi/2 = PulseIntegral -> 90 degree roatation
+	// Determine scaling factor to Ensure pi/2 = PulseIntegral -> 90 degree rotation
 	float integral = pulse_integral(pulse); 
 
 	float scaling = M_PI / 2. / integral;

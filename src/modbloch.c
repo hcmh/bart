@@ -29,6 +29,8 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
+#include "simu/pulse.h"
+
 #include "moba/recon_T1.h"
 #include "moba/recon_Bloch.h"
 #include "moba/model_Bloch.h"
@@ -293,7 +295,91 @@ int main_modbloch(int argc, char* argv[])
 		md_copy(DIMS, input_b1_dims, fit_para.input_b1, input_b1, CFL_SIZE);
 	}
 
+	// Determine Pulse Shape
+
+	struct simdata_pulse pulse = simdata_pulse_defaults;
+
+	float pulse_length = 0.0009;
+
+	pulse_create(&pulse, 0., pulse_length, fit_para.fa, 0., 2., 2., 0.46);
+
+	float samples = 1000.;
+	float dt =  pulse_length / samples;
+
+	long pulse_dims[DIMS];
+	md_set_dims(DIMS, pulse_dims, 1);
+
+	pulse_dims[READ_DIM] = samples;
+
+	complex float* envelope = md_alloc(DIMS, pulse_dims, CFL_SIZE);
+
+	for (int i = 0; i < samples; i++)
+		envelope[i] = pulse_sinc(&pulse, pulse.rf_start + i * dt );
+
+	// Zeropad for increased frequency sampling rate
+
+	long pad_dims[DIMS];
+	md_copy_dims(DIMS, pad_dims, pulse_dims);
+
+	pad_dims[READ_DIM] = 4 * pulse_dims[READ_DIM];
+
+	complex float* padded = md_alloc(DIMS, pad_dims, CFL_SIZE);
+
+	md_resize_center(DIMS, pad_dims, padded, pulse_dims, envelope, CFL_SIZE);
+
+	// Determine Slice Profile
+
+	complex float* slice_profile = md_alloc(DIMS, pad_dims, CFL_SIZE);
+
+	fftc(DIMS, pad_dims, READ_FLAG, slice_profile, padded);
 	
+	// Find maximum in Slice Profile amplitude to scale it to 1
+
+	float amp_max = 0.;
+
+	for (int i = 0; i < pad_dims[READ_DIM]; i++)
+		amp_max = (cabsf(slice_profile[i]) > amp_max) ? cabsf(slice_profile[i]) : amp_max;
+
+	assert(0. < amp_max);
+	debug_printf(DP_DEBUG3, "Max Amplitude of Slice Profile %f\n", amp_max);
+
+	md_zsmul(DIMS, pad_dims, slice_profile, slice_profile, 1./amp_max);
+
+	// Threshold to find slice frequency limits
+
+	float limit = 0.01;
+
+	int count = 0;
+
+	for (long i = 0; i < pad_dims[READ_DIM]; i++) {
+
+		if (cabsf(slice_profile[i]) > limit)
+			count++;
+		else
+			slice_profile[i] = 0.;
+	}
+
+	assert(0. < count);
+
+	// Separate counted elements
+
+	long count_dims[DIMS];
+	md_set_dims(DIMS, count_dims, 1);
+
+	count_dims[READ_DIM] = count;
+
+	complex float* slice_count = md_alloc(DIMS, count_dims, CFL_SIZE);
+
+	#pragma omp parallel for
+	for (long i = 0; i < count_dims[READ_DIM]; i++)
+		slice_count[i] = slice_profile[(pad_dims[READ_DIM]-count)/2 + i + count%2]; //count%2 compensates for integer division error for odd `count`
+
+	dump_cfl("_slice_profile", DIMS, count_dims, slice_count);
+
+	md_free(envelope);
+	md_free(padded);
+	md_free(slice_profile);
+	md_free(slice_count);
 	
 	complex float* input_sliceprofile = NULL;
 	long input_sp_dims[DIMS];
@@ -355,7 +441,10 @@ int main_modbloch(int argc, char* argv[])
 	double scaling = 250. / max;
 
 	debug_printf(DP_INFO, "Data Scaling: %f,\t Spokes: %ld\n", scaling, ksp_dims[PHS2_DIM]);
+
 	md_zsmul(DIMS, grid_dims, k_grid_data, k_grid_data, scaling);
+
+	// Restrict FoV
 
 	if (-1. == restrict_fov) {
 
@@ -373,18 +462,21 @@ int main_modbloch(int argc, char* argv[])
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 	}
 
-	//Assign initial guesses to maps
+	//Assign initial guesses to parameter maps
+
 	long tmp_dims[DIMS];
 	md_select_dims(DIMS, ~COEFF_FLAG, tmp_dims, img_dims);
 	long tmp_strs[DIMS];
 	md_calc_strides(DIMS, tmp_strs, tmp_dims, CFL_SIZE);
 	
-	//Values for Initialization of maps
 	complex float initval[3] = {0.8, 10., 4.} ;//	R1, R2, M0 
 	
+	// Determine DERIVATIVE scaling by simulating the applied sequence
+
 	auto_scale(&fit_para, fit_para.scale, grid_dims, k_grid_data);
 	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2]);
 
+	// Scale initialized maps by derivative scaling
 
 	long pos[DIMS];
 	md_set_dims(DIMS, pos, 0);
@@ -405,6 +497,8 @@ int main_modbloch(int argc, char* argv[])
 	
 	}
 
+	// START RECONSTRUCTION
+
 #ifdef  USE_CUDA
 	if (usegpu) {
 
@@ -420,6 +514,7 @@ int main_modbloch(int argc, char* argv[])
 #endif
 		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, k_grid_data, usegpu);
 
+	// Rescale resulting PARAMETER maps
 
 	pos[COEFF_DIM] = 2;
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
@@ -434,8 +529,7 @@ int main_modbloch(int argc, char* argv[])
 	
 	md_free(tmp_sens);
 	
-	//Convert R1 and R2 to T1 and T2 image
-	for (int i = 0; i < img_dims[COEFF_DIM]; i++) {
+	for (int i = 0; i < img_dims[COEFF_DIM]; i++) {	// Convert R1 and R2 to T1 and T2
 		
 		pos[COEFF_DIM] = i;
 		
@@ -447,9 +541,9 @@ int main_modbloch(int argc, char* argv[])
 			md_zdiv(DIMS, tmp_dims, tmp_img, ones_tmp, tmp_img);
 		
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE);
-			
-
 	}
+
+	// CLEAN UP
 
 	md_free(tmp_img);
 	md_free(ones_tmp);

@@ -349,7 +349,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	md_free(sig_cpu);
 	
 	//-------------------------------------------------------------------
-	// Collect data of derivatives in single arrray (on CPU!)
+	// Collect data of derivatives in single arrray
 	//-------------------------------------------------------------------
 
 	md_clear(data->N, data->dims, data->derivatives, CFL_SIZE);
