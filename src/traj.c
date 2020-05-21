@@ -1,10 +1,10 @@
 /* Copyright 2014-2015. The Regents of the University of California.
- * Copyright 2015-2017. Martin Uecker.
+ * Copyright 2015-2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  * 2019 Aurélien Trotier <a.trotier@gmail.com>
  * 2019 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
@@ -232,9 +232,8 @@ int main_traj(int argc, char* argv[])
 	long pos[DIMS] = { 0 };
 
 	do {
-
 		int i = pos[PHS1_DIM];
-		int j = pos[PHS2_DIM];
+		int j = pos[PHS2_DIM] * conf.accel;
 		int e = pos[TE_DIM];
 		int m = pos[SLICE_DIM];
 
