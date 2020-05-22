@@ -68,7 +68,7 @@ int main_nlsa(int argc, char* argv[])
 {
 
 	struct laplace_conf conf = laplace_conf_default;
-	conf.norm = true;
+	conf.dmap = true;
 
 	struct delay_conf nlsa_conf = nlsa_conf_default;
 
