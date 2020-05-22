@@ -22,14 +22,14 @@
 
 #include "linops/linop.h"
 
+#include "simu/slice_profile.h"
+
 #include "misc/mri.h"
 #include "misc/misc.h"
 #include "misc/mmio.h"
 #include "misc/utils.h"
 #include "misc/opts.h"
 #include "misc/debug.h"
-
-#include "simu/pulse.h"
 
 #include "moba/recon_T1.h"
 #include "moba/recon_Bloch.h"
@@ -113,10 +113,10 @@ int main_modbloch(int argc, char* argv[])
 	struct modBlochFit fit_para = modBlochFit_defaults;
 
 	bool out_sens = false;
+	bool inputSP = false;
 	bool usegpu = false;
 
 	const char* inputB1 = NULL;
-	const char* inputSP = NULL;
 	const char* inputVFA = NULL;
 	
 	const struct opt_s opts[] = {
@@ -131,10 +131,10 @@ int main_modbloch(int argc, char* argv[])
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	't',	&trajectory,	"Traj", ""),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
-		OPT_STRING(	'S',	&inputSP, 		"", "Input Slice Profile image"),
 		OPT_STRING(	'F',	&inputVFA, 		"", "Input for variable flipangle profile"),
 		OPT_INT(	'n', 	&fit_para.not_wav_maps, 	"", "# Removed Maps from Wav.Denoisng"),
 		OPT_SET(	'O', 	&fit_para.full_ode_sim	,  "Apply full ODE simulation"),
+		OPT_SET(	'S', 	&inputSP	,  "Add Slice Profile"),
 		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'w', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
@@ -295,105 +295,23 @@ int main_modbloch(int argc, char* argv[])
 		md_copy(DIMS, input_b1_dims, fit_para.input_b1, input_b1, CFL_SIZE);
 	}
 
-	// Determine Pulse Shape
+	complex float* sliceprofile = NULL;
+	long slcprfl_dims[DIMS];
 
-	struct simdata_pulse pulse = simdata_pulse_defaults;
+	if (inputSP) {
 
-	float pulse_length = 0.0009;
+		md_set_dims(DIMS, slcprfl_dims, 1);
+		slcprfl_dims[READ_DIM] = 10;
 
-	pulse_create(&pulse, 0., pulse_length, fit_para.fa, 0., 2., 2., 0.46);
+		sliceprofile = md_alloc(DIMS, slcprfl_dims, CFL_SIZE);
 
-	float samples = 1000.;
-	float dt =  pulse_length / samples;
+		estimate_slice_profile(DIMS, slcprfl_dims, sliceprofile);
 
-	long pulse_dims[DIMS];
-	md_set_dims(DIMS, pulse_dims, 1);
+		fit_para.sliceprofile_spins = slcprfl_dims[READ_DIM];
 
-	pulse_dims[READ_DIM] = samples;
+		fit_para.input_sliceprofile = md_alloc(DIMS, slcprfl_dims, CFL_SIZE);
 
-	complex float* envelope = md_alloc(DIMS, pulse_dims, CFL_SIZE);
-
-	for (int i = 0; i < samples; i++)
-		envelope[i] = pulse_sinc(&pulse, pulse.rf_start + i * dt );
-
-	// Zeropad for increased frequency sampling rate
-
-	long pad_dims[DIMS];
-	md_copy_dims(DIMS, pad_dims, pulse_dims);
-
-	pad_dims[READ_DIM] = 4 * pulse_dims[READ_DIM];
-
-	complex float* padded = md_alloc(DIMS, pad_dims, CFL_SIZE);
-
-	md_resize_center(DIMS, pad_dims, padded, pulse_dims, envelope, CFL_SIZE);
-
-	// Determine Slice Profile
-
-	complex float* slice_profile = md_alloc(DIMS, pad_dims, CFL_SIZE);
-
-	fftc(DIMS, pad_dims, READ_FLAG, slice_profile, padded);
-	
-	// Find maximum in Slice Profile amplitude to scale it to 1
-
-	float amp_max = 0.;
-
-	for (int i = 0; i < pad_dims[READ_DIM]; i++)
-		amp_max = (cabsf(slice_profile[i]) > amp_max) ? cabsf(slice_profile[i]) : amp_max;
-
-	assert(0. < amp_max);
-	debug_printf(DP_DEBUG3, "Max Amplitude of Slice Profile %f\n", amp_max);
-
-	md_zsmul(DIMS, pad_dims, slice_profile, slice_profile, 1./amp_max);
-
-	// Threshold to find slice frequency limits
-
-	float limit = 0.01;
-
-	int count = 0;
-
-	for (long i = 0; i < pad_dims[READ_DIM]; i++) {
-
-		if (cabsf(slice_profile[i]) > limit)
-			count++;
-		else
-			slice_profile[i] = 0.;
-	}
-
-	assert(0. < count);
-
-	// Separate counted elements
-
-	long count_dims[DIMS];
-	md_set_dims(DIMS, count_dims, 1);
-
-	count_dims[READ_DIM] = count;
-
-	complex float* slice_count = md_alloc(DIMS, count_dims, CFL_SIZE);
-
-	#pragma omp parallel for
-	for (long i = 0; i < count_dims[READ_DIM]; i++)
-		slice_count[i] = slice_profile[(pad_dims[READ_DIM]-count)/2 + i + count%2]; //count%2 compensates for integer division error for odd `count`
-
-	dump_cfl("_slice_profile", DIMS, count_dims, slice_count);
-
-	md_free(envelope);
-	md_free(padded);
-	md_free(slice_profile);
-	md_free(slice_count);
-	
-	complex float* input_sliceprofile = NULL;
-	long input_sp_dims[DIMS];
-	
-	if (NULL != inputSP) {
-		
-		input_sliceprofile = load_cfl(inputSP, DIMS, input_sp_dims);
-		
-		fit_para.sliceprofile_spins = input_sp_dims[READ_DIM];
-		debug_printf(DP_DEBUG3, "Number of slice profile estimates: %d\n", fit_para.sliceprofile_spins);
-		
-		fit_para.input_sliceprofile = md_alloc(DIMS, input_sp_dims, CFL_SIZE);
-		md_copy(DIMS, input_sp_dims, fit_para.input_sliceprofile, input_sliceprofile, CFL_SIZE);
-		
+		md_copy(DIMS, slcprfl_dims, fit_para.input_sliceprofile, sliceprofile, CFL_SIZE);
 	}
 	
 	complex float* input_vfa = NULL;
@@ -558,8 +476,8 @@ int main_modbloch(int argc, char* argv[])
 	if(NULL != input_b1)
 		unmap_cfl(DIMS, input_b1_dims, input_b1);
 	
-	if(NULL != input_sliceprofile)
-		unmap_cfl(DIMS, input_sp_dims, input_sliceprofile);
+	if(NULL != sliceprofile)
+		unmap_cfl(DIMS, slcprfl_dims, sliceprofile);
 	
 	if(NULL != input_vfa)
 		unmap_cfl(DIMS, input_vfa_dims, input_vfa);
