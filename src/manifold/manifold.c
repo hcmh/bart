@@ -120,7 +120,15 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 		md_zreal(3, cov_dims, cov, cov);
 		md_zadd(3, cov_dims, kernel, kernel, cov);
 		md_zabs(3, cov_dims, kernel, kernel);
-		
+
+		complex float* dist = NULL;
+		if (conf->nn != -1) {
+			
+			// store distance array
+			dist = md_alloc(2, kernel_dims, CFL_SIZE);
+			md_copy(2, kernel_dims, dist, kernel, CFL_SIZE);
+		}
+			
 		if (conf->sigma == -1)
 			calc_sigma(kernel_dims, kernel, conf);
 		
@@ -134,7 +142,31 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 		
 		md_zsmul(3, cov_dims, kernel, kernel, - 1./pow(conf->sigma,2));
 		md_zexp(3, cov_dims, kernel, kernel);
-		
+
+		// keep only nn nearest neighbors
+		if (conf->nn != -1) {
+
+			complex float* buf = md_alloc(2, kernel_dims, CFL_SIZE);
+			md_copy(2, kernel_dims, buf, dist, CFL_SIZE);
+
+			float thresh;
+
+			for (int i = 0; i < kernel_dims[0];  i++) {
+
+				thresh = quickselect_complex(&buf[i * kernel_dims[0]], kernel_dims[0], kernel_dims[0] - conf->nn); // Get nn-th smallest distance. (Destroys dist_dump-array!)
+
+				for (int j = 0; j < kernel_dims[0]; j++)
+					kernel[i * kernel_dims[0] + j] *= (cabs(dist[i * kernel_dims[0] + j]) > thresh) ? 0 : 1;
+			}
+
+			// Symmetrize
+			symmetrize(kernel_dims, kernel);
+
+			md_free(dist);
+			md_free(buf);
+		}
+
+
 		assert(kernel_dims[0] == cov_dims[0]);
 		assert(kernel_dims[1] == cov_dims[2]);
 		
@@ -344,82 +376,8 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 	}
 
 	case 'C': { // conventional
-		//TODO: Test if gauss_kernel() function is faster than this implementation
-			
-		// L[i,j,:] = src[i,:] - src[j,:]
-		assert(L_dims[0] == src_dims[0]);
 
-		complex float* dist = md_alloc(2, L_dims, CFL_SIZE);
-		md_clear(2, L_dims, dist, CFL_SIZE);
-
-		long src_strs[2];
-		md_calc_strides(2, src_strs, src_dims, CFL_SIZE);
-
-		long src_singleton_dims[2];
-		src_singleton_dims[0] = 1;
-		src_singleton_dims[1] = src_dims[1];
-
-		long src_singleton_strs[2];
-		md_calc_strides(2, src_singleton_strs, src_singleton_dims, CFL_SIZE);
-
-		long src_singleton1_strs[2];
-		src_singleton1_strs[0] = 0;
-		src_singleton1_strs[1] = src_strs[1];
-
-		// dist[i,j] = ||src[i,:] - src[j,:]||^2
-		#pragma omp parallel for
-		for (int i = 0; i < L_dims[0]; i++) {
-			for (int j = 0; j < i; j++) {
-
-				complex float* src_singleton = md_alloc(2, src_singleton_dims, CFL_SIZE);
-
-				md_zsub2(2, src_singleton_dims, src_singleton_strs, src_singleton, src_singleton1_strs, &src[i], src_singleton1_strs, &src[j]);
-
-				dist[i * L_dims[0] + j] = md_zscalar(2, src_singleton_dims, src_singleton, src_singleton) ;
-				dist[j * L_dims[0] + i] = dist[i * L_dims[0] + j]; // exploit symmetry
-
-				md_free(src_singleton);
-			}
-		}
-
-		if (conf->sigma == -1)
-			calc_sigma(L_dims, dist, conf);
-
-		// W = exp(- dist^2 / sigma^2)
-		md_zsmul(2, L_dims, W, dist, -1. /  pow(conf->sigma,2));
-		md_zexp(2, L_dims, W, W);
-
-		// Keep only nn-th nearest neighbours
-		if (conf->nn != -1) {
-
-			complex float* dist_dump = md_alloc(2, L_dims, CFL_SIZE);
-
-			md_copy(2, L_dims, dist_dump, dist, CFL_SIZE);
-
-			float thresh;
-
-			for (int i = 0; i < L_dims[0];  i++) {
-
-				thresh = quickselect_complex(&dist_dump[i * L_dims[0]], L_dims[0], L_dims[0] - conf->nn); // Get nn-th smallest distance. (Destroys dist_dump-array!)
-
-				for (int j = 0; j < L_dims[0]; j++)
-					W[i * L_dims[0] + j] *= (cabs(dist[i * L_dims[0] + j]) > thresh) ? 0 : 1;
-			}
-
-			md_free(dist_dump);
-
-			// Symmetrize
-			symmetrize(L_dims, W);
-
-		}
-
-		md_free(dist);
-
-		// enforce zero on diagonal
-		#pragma omp parallel for
-		for (int i = 0; i < L_dims[0]; i++)		
-			W[L_dims[0] * i + i ] = 0.;
-		
+		gauss_kernel(L_dims, W, src_dims, src, conf, false);
 
 		// D[i,0] = sum(W[i,:])
 		long D_dims[2];
