@@ -31,6 +31,8 @@ const struct laplace_conf laplace_conf_default = {
 	.kernel     	= false,
 	.kernel_lambda 	= 0.08,
 	.norm			= false,
+	.anisotrop		= false,
+	.dmap			= false,
 	.median 		= -1,
 
 };
@@ -48,6 +50,33 @@ static void calc_sigma(const long L_dims[2], const complex float* dist, struct l
 
 	md_free(dist_tmp);
 
+}
+
+// account for anisotropic sampling
+static void anisotropy_cor(const long W_dims[2], complex float* W)
+{
+	// Coifman, R. et al. "Geometric diffusions as a tool for harmonic
+	// analysis and structure definition of data: Diffusion maps".
+	// PNAS. 102 (21): 7426–7431. (2005)
+
+	long Q_dims[2] = { W_dims[0], 1 };
+	complex float* Q = md_alloc(2, Q_dims, CFL_SIZE);
+	complex float* buf = md_alloc(2, W_dims, CFL_SIZE);
+	
+	// Q_i = sum_j W_ij
+	md_zsum(2, W_dims, PHS1_FLAG, Q, W); 
+	
+	// W_ij = W_ij/(Q_i^\alpha * Q_j^\alpha)
+	// to account for anisotropy: alpha = 1
+
+	#pragma omp parallel for
+	for (int i = 0; i < Q_dims[0]; i++)
+		Q[i] = 1./Q[i];
+	
+	md_ztenmul(2, W_dims, buf, W_dims, W, Q_dims, Q);
+
+	long Q2_dims[2] = { 1, W_dims[0] };
+	md_ztenmul(2, W_dims, W, Q2_dims, Q, W_dims, buf);
 }
 
 // symmetrize matrix
@@ -184,7 +213,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 	long D_dims[2] = { L_dims[0], 1 };
 	complex float* D = md_alloc(2, D_dims, CFL_SIZE); // degree matrix
 
-	complex float* W = md_alloc(2, L_dims, CFL_SIZE); // adjacency matrix
+	complex float* W = md_alloc(2, L_dims, CFL_SIZE); // weight matrix
 
 
 	char type;
@@ -197,6 +226,13 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		type = 'C';
 
 	switch (type) {
+
+	case 'C': { // conventional
+
+		gauss_kernel(L_dims, W, src_dims, src, conf, false);
+
+		break;
+	}
 
 	case 'K': { // kernel approach
 
@@ -363,58 +399,50 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 		symmetrize(L_dims, W);
 
-		md_zsum(2, L_dims, PHS1_FLAG, D, W); // D
-
-		//L = D - W
-		md_zsmul(2, L_dims, L, W, -1.); // -W
-
-		#pragma omp parallel for
-		for (int i = 0; i < L_dims[0]; i++)
-			L[i * L_dims[0] + i] += D[i];
-
-		break;
-	}
-
-	case 'C': { // conventional
-
-		gauss_kernel(L_dims, W, src_dims, src, conf, false);
-
-		// D[i,0] = sum(W[i,:])
-		long D_dims[2];
-		md_select_dims(2, READ_FLAG, D_dims, L_dims);
-
-		md_zsum(2, L_dims, PHS1_FLAG, D, W); // D is diagonal
-
-		//L = D - W
-		md_zsmul(2, L_dims, L, W, -1.); // -W
-
-		#pragma omp parallel for
-		for (int i = 0; i < L_dims[0]; i++)
-			L[i * L_dims[0] + i] += D[i];
-
 		break;
 	}
 
 	} // end switch
 
+	if (conf->anisotrop)
+		anisotropy_cor(L_dims, W);
 
-	if (conf->norm) {
+	// D
+	md_zsum(2, L_dims, PHS1_FLAG, D, W);
+
+	if (conf->dmap) {
+
+		// "L" := D^{-1} @ W  (=: P transition probability matrix)
+		#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)
+			D[i] = 1. / D[i];	
+
+		md_ztenmul(2, L_dims, L, L_dims, W, D_dims, D);					
+
+	} else {
+	
+		//L = D - W		
+		md_zsmul(2, L_dims, L, W, -1.);
+
+		#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)
+			L[i * L_dims[0] + i] += D[i];
+	}
+
+	if (conf->norm){
 
 		// L := D^{-1} @ L
-
 		#pragma omp parallel for
 		for (int i = 0; i < L_dims[0]; i++)
 			D[i] = 1. / D[i];
 
-		complex float* tmp = md_alloc(2, L_dims, CFL_SIZE);
+		complex float* buf = md_alloc(2, L_dims, CFL_SIZE);
 
-		md_copy(2, L_dims, tmp, L, CFL_SIZE);
+		md_copy(2, L_dims, buf, L, CFL_SIZE);
+		md_ztenmul(2, L_dims, L, L_dims, buf, D_dims, D);
 
-		md_ztenmul(2, L_dims, L, L_dims, tmp, D_dims, D);
-
-		md_free(tmp);
-
-	}
+		md_free(buf);	
+	} 
 
 	md_free(D);
 	md_free(W);
