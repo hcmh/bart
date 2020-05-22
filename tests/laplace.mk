@@ -28,7 +28,7 @@ tests/test-laplace-norm: ones zeros join laplace flip scale delta saxpy nrmse
 		$(TOOLDIR)/bart scale -- -1 T.ra  T1.ra ;\
 		$(TOOLDIR)/bart delta 2 3 60 delta.ra ;\
 		$(TOOLDIR)/bart saxpy 30 delta.ra T1.ra  T2.ra ;\
-		$(TOOLDIR)/bart scale 0.034482 T2.ra T3.ra ;\
+		$(TOOLDIR)/bart scale 0.0333 T2.ra T3.ra ;\
 		$(TOOLDIR)/bart nrmse -t 0.002 T3.ra  Lg.ra ;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
