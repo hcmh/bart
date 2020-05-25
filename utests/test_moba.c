@@ -209,6 +209,7 @@ static bool test_nlop_Blochfun(void)
 	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long out_dims[N] = { 16, 16, 1, 1, 1, 500, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        long all_dims[N] = { 16, 16, 1, 1, 1, 500, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long input_dims[N];
 	
 	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
@@ -220,7 +221,7 @@ static bool test_nlop_Blochfun(void)
 	
 	md_zfill(N, in_dims, src, 1.0);
 
-	struct nlop_s* op_Bloch = nlop_Bloch_create(N, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
+	struct nlop_s* op_Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
 
 	nlop_apply(op_Bloch, N, out_dims, dst, N, in_dims, src);
 	
