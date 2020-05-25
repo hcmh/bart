@@ -82,6 +82,8 @@ extern const struct linop_s* linop_clone(const struct linop_s* x);
 extern const struct linop_s* linop_get_adjoint(const struct linop_s* x);
 
 extern struct linop_s* linop_loop(unsigned int D, const long dims[D], struct linop_s* op);
+extern struct linop_s* linop_copy_wrapper(unsigned int D, const long istrs[D], const long ostrs[D], struct linop_s* op);
+
 
 
 
