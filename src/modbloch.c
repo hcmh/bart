@@ -185,6 +185,7 @@ int main_modbloch(int argc, char* argv[])
 	debug_print_dims(DP_DEBUG1, DIMS, grid_dims);
 	
 	// Create image output
+
 	long img_dims[DIMS];
 	
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|SLICE_FLAG, img_dims, grid_dims);
@@ -198,16 +199,17 @@ int main_modbloch(int argc, char* argv[])
 	md_zfill(DIMS, img_dims, img, 1.0);
 	
 	//Create coil output
+
 	long coil_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, coil_dims, grid_dims);
 	
 	
 	// Create sensitivity output
+
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, coil_dims);
 	md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 
 	
-	// Restrict field of view
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, grid_dims);
 	long msk_strs[DIMS];
@@ -216,12 +218,13 @@ int main_modbloch(int argc, char* argv[])
 	
 	complex float* k_grid_data = NULL;
 	k_grid_data = anon_cfl("", DIMS, grid_dims);
-	
-	// Load psf if given
+
 	complex float* pattern = NULL;
 	long pat_dims[DIMS];
 
 	if (NULL != psf) {
+
+		// Load PSF
 
 		pattern = load_cfl(psf, DIMS, pat_dims);
 
@@ -238,6 +241,8 @@ int main_modbloch(int argc, char* argv[])
 		md_copy(DIMS, grid_dims, k_grid_data, kspace_data, CFL_SIZE);
 
 	} else if (NULL != trajectory) {
+
+		// Load Trajectory and Grid k-space data using the nuFFT
 
 		struct nufft_conf_s nufft_conf = nufft_conf_defaults;
 		nufft_conf.toeplitz = false;
@@ -258,6 +263,7 @@ int main_modbloch(int argc, char* argv[])
 		md_zfill(DIMS, ones_dims, ones, 1.0);
 
 		// Gridding sampling pattern
+
 		md_select_dims(DIMS, FFT_FLAGS|TE_FLAG|SLICE_FLAG|TIME2_FLAG, pat_dims, grid_dims);
 		pattern = anon_cfl("", DIMS, pat_dims);
 
@@ -266,6 +272,7 @@ int main_modbloch(int argc, char* argv[])
 		fftuc(DIMS, pat_dims, FFT_FLAGS, pattern, pattern);
 
 		// Gridding raw data
+
 		nufft_op_k = nufft_create(DIMS, ksp_dims, grid_dims, traj_dims, traj, NULL, nufft_conf);
 		linop_adjoint(nufft_op_k, DIMS, grid_dims, k_grid_data, DIMS, ksp_dims, kspace_data);
 		fftuc(DIMS, grid_dims, FFT_FLAGS, k_grid_data, k_grid_data);
@@ -283,17 +290,38 @@ int main_modbloch(int argc, char* argv[])
 		md_copy(DIMS, grid_dims, k_grid_data, kspace_data, CFL_SIZE);
 	}
 	
+	// Load passed B1
+
 	complex float* input_b1 = NULL;
 	
 	long input_b1_dims[DIMS];
 	
 	if (NULL != inputB1) {
-		
+
 		input_b1 = load_cfl(inputB1, DIMS, input_b1_dims);
-		
+
 		fit_para.input_b1 = md_alloc(DIMS, input_b1_dims, CFL_SIZE);
 		md_copy(DIMS, input_b1_dims, fit_para.input_b1, input_b1, CFL_SIZE);
 	}
+
+	// Load passed variable flip angle file
+
+	complex float* input_vfa = NULL;
+
+	long input_vfa_dims[DIMS];
+
+	if (NULL != inputVFA) {
+
+		input_vfa = load_cfl(inputVFA, DIMS, input_vfa_dims);
+
+		fit_para.num_vfa = input_vfa_dims[READ_DIM];
+		debug_printf(DP_DEBUG3, "Number of variable flip angles: %d\n", fit_para.num_vfa);
+
+		fit_para.input_fa_profile = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
+		md_copy(DIMS, input_vfa_dims, fit_para.input_fa_profile, input_vfa, CFL_SIZE);
+	}
+
+	// Determine Slice Profile
 
 	complex float* sliceprofile = NULL;
 	long slcprfl_dims[DIMS];
@@ -312,21 +340,6 @@ int main_modbloch(int argc, char* argv[])
 		fit_para.input_sliceprofile = md_alloc(DIMS, slcprfl_dims, CFL_SIZE);
 
 		md_copy(DIMS, slcprfl_dims, fit_para.input_sliceprofile, sliceprofile, CFL_SIZE);
-	}
-	
-	complex float* input_vfa = NULL;
-	long input_vfa_dims[DIMS];
-	
-	if (NULL != inputVFA) {
-		
-		input_vfa = load_cfl(inputVFA, DIMS, input_vfa_dims);
-		
-		fit_para.num_vfa = input_vfa_dims[READ_DIM];
-		debug_printf(DP_DEBUG3, "Number of variable flip angles: %d\n", fit_para.num_vfa);
-		
-		fit_para.input_fa_profile = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
-		md_copy(DIMS, input_vfa_dims, fit_para.input_fa_profile, input_vfa, CFL_SIZE);
-		
 	}
 
 	// Scale DATA on largest sample of first spoke
@@ -355,8 +368,10 @@ int main_modbloch(int argc, char* argv[])
 
 	debug_printf(DP_DEBUG3, "Max Sample %f\n", max);
 
-	// double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);
 	double scaling = 250. / max;
+
+	if (NULL == trajectory)	// Special case for Cartesian fully-samples pixelwise phantom data
+		scaling = 500;
 
 	debug_printf(DP_INFO, "Data Scaling: %f,\t Spokes: %ld\n", scaling, ksp_dims[PHS2_DIM]);
 

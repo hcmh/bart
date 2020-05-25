@@ -214,9 +214,10 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 		zend = 1;
 
 // 	debug_printf(DP_DEBUG3, "x:(%d,%d),\ty:(%d,%d),\tz:(%d,%d),\n", xstart, xend, ystart, yend, zstart, zend);
-// 	debug_printf(DP_DEBUG3, "seq: %d,\trfDuration: %f,\tTR:%f,\tTE:%f,\trep:%d,\tav:%d\n",
-// 								data->fitParameter.sequence, data->fitParameter.rfduration, data->fitParameter.tr, 
-// 								data->fitParameter.te, data->out_dims[TE_DIM], data->fitParameter.averaged_spokes);
+	debug_printf(DP_DEBUG2, "seq: %d,\trfDuration: %f,\tTR:%f,\tTE:%f,\trep:%d,\tav:%d,\tFA:%f\n",
+								data->fitParameter.sequence, data->fitParameter.rfduration, data->fitParameter.tr, 
+								data->fitParameter.te, data->out_dims[TE_DIM], data->fitParameter.averaged_spokes,
+								data->fitParameter.fa);
 
 	int rm_first_echo = data->fitParameter.rm_no_echo;
 // 	debug_printf(DP_DEBUG1, "Removed first %d echoes from signal.\n", rm_first_echo);
@@ -244,9 +245,13 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				//Get effective flipangle from B1 map -> this do not include inversion efficiency
 				float b1 = 1.;
 				
-				if (NULL != data->input_b1) 
-					b1 = cabsf(b1_cpu[spa_ind]); 
+				if (NULL != data->input_b1) {
 
+					b1 = cabsf(b1_cpu[spa_ind]);
+
+					if(safe_isnanf(b1))
+						b1 = 0.;
+				}
 
 				struct sim_data sim_data;
 				
@@ -388,7 +393,7 @@ static void Bloch_der(const nlop_data_t* _data, complex float* dst, const comple
 {
 
 	// START_TIMER;
-	debug_printf(DP_DEBUG2, "Start Derivative\n");
+	debug_printf(DP_DEBUG3, "Start Derivative\n");
 
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
 
@@ -404,7 +409,7 @@ static void Bloch_der(const nlop_data_t* _data, complex float* dst, const comple
 static void Bloch_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	// START_TIMER;
-	debug_printf(DP_DEBUG2, "Start Adjoint\n");
+	debug_printf(DP_DEBUG3, "Start Adjoint\n");
 
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
 
