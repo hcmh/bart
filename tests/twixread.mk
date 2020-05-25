@@ -21,8 +21,8 @@ tests/test-twixread-multiraid: twixread ${TWIXFILE4}
 
 tests/test-twixread-multiinversion: twixread ${TWIXFILE5}
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
-	$(TOOLDIR)/twixread -A ${TWIXFILE5} ksp.ra					;\
-	echo "c81649f680b6f2e0224edab5962fc114 *ksp.ra" | md5sum -c			;\
+	$(TOOLDIR)/twixread -x512 -r15 -c16 -n100 -i30 ${TWIXFILE5} ksp.ra					;\
+	echo "41507b81f2861e872dae5465f22fbbbe *ksp.ra" | md5sum -c			;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
@@ -42,5 +42,5 @@ tests/test-umgread: umgread ${TWIXFILE3}
 
 
 
-TESTS_AGUE += tests/test-twixread tests/test-twixread-multiraid tests/test-twixread-mpi tests/test-umgread
+TESTS_AGUE += tests/test-twixread tests/test-twixread-multiraid tests/test-twixread-mpi tests/test-umgread tests/test-twixread-multiinversion
 
