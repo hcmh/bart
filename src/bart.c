@@ -79,7 +79,7 @@ static void usage(void)
 		if (0 == i % 6)
 			printf("\n");
 
-		printf("%-12s", dispatch_table[i].name);
+		printf("%-13s", dispatch_table[i].name);
 	}
 
 	printf("\n");
