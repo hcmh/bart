@@ -1,15 +1,68 @@
 #!/bin/bash
 set -euo pipefail
 set -B
-#set +e
+
+title=$(cat <<- EOF
+	dir2makefile v0.1 (of the Berkeley Advanced Reconstruction Toolbox)
+EOF
+)
+
+helpstr=$(cat <<- EOF
+This script takes a directory of bart .cfl and .hdr files,
+extracts the commands used to create them, and creates a Makefile
+which reproduces them.
+If there is second argument, the output will be written to that file.
+Otherwise, a file called Makefile is created in the input directory.
+The entire directory can then be reproced by running
+\tmake -B *.hdr
+or, in parallel, with
+\tmake -Bj *.hdr
+(here, -B instructs make to unconditionally recreate targets).
+A script can be created using
+\tmake -Bn *.hdr | grep -v "make:"
+
+-h help
+EOF
+)
+
+usage="Usage: $(basename $0)) [-h] <INDIR> [Makefile_output]"
+
+echo "$title"
+
+while getopts "h" opt; do
+        case $opt in
+	h)
+		echo "$usage"
+		echo
+		echo -e "$helpstr"
+		exit 0
+	;;
+        \?)
+		echo "$usage" >&2
+		exit 1
+        ;;
+        esac
+done
+
+shift $((OPTIND - 1))
+
+
+if [[ $# -lt 1 || $# -gt 2 ]] ; then
+
+        echo "$usage" >&2
+        exit 1
+fi
+
+
 
 INDIR="$1"
 
-if [ $# -gt 2 ]; then
+if [ $# -ge 2 ]; then
 	OUTF="$2"
 else
 	OUTF="${INDIR}/Makefile"
 fi
+
 
 DEBUG=false
 if [[ -v DEBUG_LEVEL ]] ; then
@@ -99,7 +152,7 @@ for hdr in ${!CMDLfs[@]}; do
 		fi
 	done
 	$DEBUG && echo -e "INs:\t" ${INs[@]}
-	$DEBUG && echo -eecho -e "OUTs:\t" ${OUTs[@]}
+	$DEBUG && echo -e "OUTs:\t" ${OUTs[@]}
 
 
 	if [[ ${#OUTs[@]} -gt 0 ]] ; then
@@ -112,7 +165,7 @@ for hdr in ${!CMDLfs[@]}; do
 			printf " ${IN}.cfl ${IN}.hdr" >> $OUTF
 		done
 		printf "\n" >> $OUTF
-		printf "\tbart %s\n" "${cmdl}" >> $OUTF
+		printf "\tbart %s\n\n" "${cmdl}" >> $OUTF
 	else
 		printf "${hdr} has no output. No rule created\n" >&2
 		printf "FIXME: This should create a .PHONY target!\n" >&2
@@ -120,3 +173,5 @@ for hdr in ${!CMDLfs[@]}; do
 
 	$DEBUG && echo "---------------------------------"
 done
+
+echo "Done."
