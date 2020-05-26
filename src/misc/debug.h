@@ -67,7 +67,7 @@ extern void vendor_log(int level,
 #ifndef TIMER
 #define TIMER
 #define START_TIMER static double time = 0.; static long count = 0.; time -= timestamp();
-#define PRINT_TIMER(name) { time += timestamp(); count += 1; debug_printf(DP_DEBUG4, "%d %s\tapplied in %3.4f seconds\n", count, name, time); }
+#define PRINT_TIMER(name) { time += timestamp(); count += 1; debug_printf(DP_DEBUG4, "%d\t%s\tapplied in \t%3.6f\t seconds\n", count, name, time); }
 #endif
 
 
