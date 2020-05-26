@@ -32,6 +32,7 @@
 #include "nn/activation.h"
 #include "nn/init.h"
 #include "nn/mnist.h"
+#include "nn/rbf.h"
 #include "utest.h"
 
 // for convolution: output_dim == input_dim - (kernel_dim - 1)
@@ -422,3 +423,27 @@ static bool test_relu_der(void)
 }
 
 UT_REGISTER_TEST(test_relu_der);
+
+static bool test_nlop_rbf(void)
+{
+ 	enum { N = 3 };
+ 	long dims[N] = { 4, 3, 5};
+	
+	auto op = nlop_activation_rbf_create(dims, 1., -1.);
+	auto op_gpu = nlop_activation_rbf_create(dims, 1., -1.);
+
+	float err_adj = nlop_test_adj_derivatives(op, true);
+	float err_der = nlop_test_derivatives(op);
+	
+	#ifdef USE_CUDA
+	float err = compare_gpu(op, op_gpu);
+	#else
+	float err = 0.;
+	UNUSED(op_gpu);
+	#endif
+
+	debug_printf(DP_DEBUG1, "rbf errors der, adj, gpu: %.8f, %.8f, %.8f\n", err_der, err_adj, err);
+	UT_ASSERT((err_der < 1.E-2) && (err_adj < 1.E-6)  && (err < 1.E-5));
+}
+
+UT_REGISTER_TEST(test_nlop_rbf);
