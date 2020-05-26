@@ -39,6 +39,7 @@
 #include "num/optimize.h"
 #include "num/blas.h"
 #include "num/convcorr.h"
+#include "num/strided_vecops.h"
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -528,6 +529,8 @@ static void make_z2opf_from_real(size_t offset, unsigned int D, const long dims[
  */
 void md_zmul2(unsigned int D, const long dim[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
+	if (simple_zmul(D, dim, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
 	MAKE_Z3OP(zmul, D, dim, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
@@ -552,6 +555,8 @@ void md_zmul(unsigned int D, const long dim[D], complex float* optr, const compl
  */
 void md_mul2(unsigned int D, const long dim[D], const long ostr[D], float* optr, const long istr1[D], const float* iptr1, const long istr2[D], const float* iptr2)
 {
+	if (simple_mul(D, dim, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
 	MAKE_3OP(mul, D, dim, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
@@ -1560,7 +1565,7 @@ void md_zfmac2(unsigned int D, const long dims[D], const long ostr[D], complex f
 	if (simple_zconvcorr(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
 		return;
 
-	if (simple_inner_matmul_zfmac(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+	if (simple_zfmac(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
 		return;
 
 	MAKE_Z3OP(zfmac, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
@@ -1611,6 +1616,8 @@ void md_zfmacD(unsigned int D, const long dims[D], complex double* optr, const c
  */
 void md_fmac2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr1[D], const float* iptr1, const long istr2[D], const float* iptr2)
 {
+	if (simple_fmac(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
 	MAKE_3OP(fmac, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
