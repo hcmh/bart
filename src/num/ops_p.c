@@ -24,7 +24,10 @@ struct operator_s {
 
 	operator_data_t* data;
 	void (*apply)(const operator_data_t* data, unsigned int N, void* args[N]);
+	void (*apply_opts)(const operator_data_t* _data, unsigned int N, void* args[N], operator_run_opt_flags_t run_opts[N][N]);
 	void (*del)(const operator_data_t* data);
+
+	operator_io_prop_flags_t (*get_io_prop_flags)(const operator_data_t* _data, unsigned int i, unsigned int j);
 
 	struct shared_obj_s sptr;
 };
@@ -156,6 +159,7 @@ const struct operator_p_s* operator_p_create2(unsigned int ON, const long out_di
 	o->domain = *PTR_PASS(dom);
 	o->data = CAST_UP(PTR_PASS(op));
 	o->apply = op_p_apply;
+	o->apply_opts = NULL;
 	o->del = op_p_del;
 
 	shared_obj_init(&o->sptr, operator_del);
@@ -259,7 +263,7 @@ void operator_p_apply_unchecked(const struct operator_p_s* _op, float mu, comple
 	auto op = operator_p_upcast(_op);
 
 	assert(3 == op->N);
-	op->apply(op->data, 3, (void*[3]){ &mu, (void*)dst, (void*)src });
+	operator_generic_apply_unchecked(op , 3, (void*[3]){ &mu, (void*)dst, (void*)src });
 }
 
 
