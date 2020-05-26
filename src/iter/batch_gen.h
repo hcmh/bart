@@ -1,0 +1,2 @@
+extern const struct nlop_s* batch_gen_linear_create(long D, long N, const long* dims[D], const _Complex float* data[__VLA(D)], long Nt, long Nc);
+extern const struct nlop_s* batch_gen_rand_create(long D, long N, const long* dims[D], const _Complex float* data[__VLA(D)], long Nt, long Nc);
