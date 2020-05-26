@@ -37,7 +37,7 @@ struct iter5_altmin_s {
 DEF_TYPEID(iter5_altmin_s);
 
 
-static void altmin_nlop(iter_op_data* _o, int N, float* args[N])
+static void altmin_nlop(iter_op_data* _o, int N, float* args[N], operator_run_opt_flags_t run_opts[N][N])
 {
 	const auto data = CAST_DOWN(iter5_altmin_s, _o);
 

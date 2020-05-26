@@ -31,8 +31,11 @@ struct vec_iter_s;
 #define ITER_OP_DATA_S
 typedef struct iter_op_data_s { TYPEID* TYPEID; } iter_op_data;
 #endif
+
+#include "num/ops_opts.h"
+
 typedef void (*iter_op_fun_t)(iter_op_data* data, float* dst, const float* src);
-typedef void (*iter_nlop_fun_t)(iter_op_data* data, int N, float* args[N]);
+typedef void (*iter_nlop_fun_t)(iter_op_data* data, int N, float* args[N], operator_run_opt_flags_t run_opts[N][N]);
 typedef void (*iter_op_p_fun_t)(iter_op_data* data, float rho, float* dst, const float* src);
 typedef void (*iter_op_arr_fun_t)(iter_op_data* data, int NO, unsigned long oflags, float* dst[NO], int NI, unsigned long iflags, const float* src[NI]);
 
@@ -67,7 +70,12 @@ inline void iter_op_call(struct iter_op_s op, float* dst, const float* src)
 
 inline void iter_nlop_call(struct iter_nlop_s op, int N, float* args[N])
 {
-	op.fun(op.data, N, args);
+	op.fun(op.data, N, args, NULL);
+}
+
+inline void iter_nlop_call_with_opts(struct iter_nlop_s op, int N, float* args[N], operator_run_opt_flags_t run_opts[N][N])
+{
+	op.fun(op.data, N, args, run_opts);
 }
 
 inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src)

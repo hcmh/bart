@@ -108,13 +108,13 @@ struct iter6_nlop_s {
 
 DEF_TYPEID(iter6_nlop_s);
 
-static void iter6_nlop(iter_op_data* _o, int N, float* args[N])
+static void iter6_nlop(iter_op_data* _o, int N, float* args[N], operator_run_opt_flags_t run_opts[N][N])
 {
 	const auto data = CAST_DOWN(iter6_nlop_s, _o);
 
 	assert((unsigned int)N == operator_nr_args(data->nlop->op));
 
-	nlop_generic_apply_unchecked(data->nlop, N, (void*)args);
+	nlop_generic_apply_extopts_unchecked(data->nlop, N, (void*)args, run_opts);
 }
 
 struct iter6_op_arr_s {

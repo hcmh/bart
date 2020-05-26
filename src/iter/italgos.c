@@ -727,7 +727,33 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	vops->del(u_new);
 }
 
+/**
+ * Compute the sum of the selected outputs, selected outputs must be scalars
+ * 
+ * @param NO number of outputs of nlop
+ * @param NI number of inputs of nlop
+ * @param nlop nlop to apply
+ * @param args out- and inputs of operator
+ * @param out_optimize_flag sums outputs over selected outputs, selected outputs must be scalars
+ * @param vops vector operators
+ * @param run_opts
+ **/
+static float compute_objective_with_opts(long NO, long NI, struct iter_nlop_s nlop, float* args[NO + NI], unsigned long out_optimize_flag, const struct vec_iter_s* vops, operator_run_opt_flags_t run_opts[NO + NI][NO + NI])
+{
+	float result = 0;
+	iter_nlop_call_with_opts(nlop, NO + NI, args, run_opts); 	// r = F x
+	
+	for (int o = 0; o < NO; o++) {
+		if (MD_IS_SET(out_optimize_flag, o)) {
 
+			float tmp;
+			vops->copy(1, &tmp, args[o]);
+			result += tmp;
+		}
+	}
+
+	return result;
+}
 
 /**
  * Compute the sum of the selected outputs, selected outputs must be scalars
@@ -861,6 +887,20 @@ static void print_timer(int N_done, int N_total, double starttime, char* pre_str
 			post_string);
 }
 
+static void select_derivatives(long NO, unsigned long out_der_flags, long NI, unsigned long in_der_flags, operator_run_opt_flags_t run_opts[NO + NI][NO + NI])
+{
+	for (int i = 0; i < NO + NI; i++)
+		for (int j = 0; j < NO + NI; j++) {
+
+			run_opts[i][j] = 0;
+			
+			if ((i < NO) && !(j < NO) && (!MD_IS_SET(out_der_flags, i) || !MD_IS_SET(in_der_flags, j - NO)))
+				run_opts[i][j] = MD_SET(run_opts[i][j], OP_APP_NO_DER);
+
+			if (!(i < NO) && (j < NO) && (!MD_IS_SET(in_der_flags, i - NO) || !MD_IS_SET(out_der_flags, j)))
+				run_opts[i][j] = MD_SET(run_opts[i][j], OP_APP_NO_DER);
+		}
+}
 
 /**
  * Prototype for sgd-like algorithm
@@ -1091,6 +1131,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			out_optimize_flag = MD_SET(out_optimize_flag, o);
 	}
 
+	operator_run_opt_flags_t run_opts[NO + NI][NO + NI];
 
 	double starttime = timestamp();
 
@@ -1099,7 +1140,8 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 		if (0 != N_batch_gen)				
 			iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
 
-		float r_old = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops);
+		select_derivatives(NO, 0, NI, 0, run_opts);
+		float r_old = compute_objective_with_opts(NO, NI, nlop, args, out_optimize_flag, vops, run_opts);
 
 		float r_i = r_old;
 			
@@ -1121,7 +1163,8 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
 			vops->axpbz(isize[i], z[i], 1 + betai, x[i], -betai, x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
 			args[NO + i] = z[i];
-			float r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops);
+			select_derivatives(NO, out_optimize_flag, NI, MD_BIT(i), run_opts);
+			float r_z = compute_objective_with_opts(NO, NI, nlop, args, out_optimize_flag, vops, run_opts);
 			vops->del(z[i]);
 			getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
 				
@@ -1147,7 +1190,8 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 				
 				//compute new residual
 				args[NO + i] = x_new[i];
-				float r_new = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops);
+				select_derivatives(NO, 0, NI, 0, run_opts);
+				float r_new = compute_objective_with_opts(NO, NI, nlop, args, out_optimize_flag, vops, run_opts);
 
 				//compute Lipschitz condition at z	
 				float r_lip_z = r_z;
