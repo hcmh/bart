@@ -21,12 +21,19 @@
 #include "misc/debug.h"
 
 #include "nlop.h"
+#include <assert.h>
 
 
 #ifndef CFL_SIZE
 #define CFL_SIZE sizeof(complex float)
 #endif
 
+//only these operator properties are passed to linops
+static operator_io_prop_flags_t nlops_props_understood =  MD_BIT(OP_PROP_ATOMIC)
+							| MD_BIT(OP_PROP_R_LIN) 
+							| MD_BIT(OP_PROP_C_LIN)
+							| MD_BIT(OP_PROP_HOLOMORPHIC) 
+							| MD_BIT(OP_PROP_INPLACE);
 
 struct nlop_op_data_s {
 
@@ -39,6 +46,13 @@ struct nlop_op_data_s {
 
 	nlop_fun_t forward1;
 	nlop_gen_fun_t forward;
+
+	nlop_gen_fun_opts_t forward_opts;
+
+	unsigned int II;
+	unsigned int OO;
+
+	operator_io_prop_flags_t* io_props;
 };
 
 static DEF_TYPEID(nlop_op_data_s);
@@ -74,19 +88,53 @@ static void sptr_linop_del(const struct shared_ptr_s* sptr)
 	data->del(data->data);
 }
 
-static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)])
+static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)], operator_run_opt_flags_t run_opts[N][N])
 {
 	auto data = CAST_DOWN(nlop_op_data_s, _data);
+
+	assert(N == data->II + data->OO);
 
 	if (NULL != data->forward1) {
 
 		assert(2 == N);
 		data->forward1(data->data, args[0], args[1]);
+		return;
+	}
 
-	} else {
+	if (NULL != data->forward) {
 
 		data->forward(data->data, N, *(complex float* (*)[N])args);
+		return;
 	}
+
+	if (NULL != data->forward_opts) {
+
+		data->forward_opts(data->data, N, *(complex float* (*)[N])args, run_opts);
+		return;
+	}
+}
+
+static operator_io_prop_flags_t nlop_get_io_props(const operator_data_t* _data, unsigned int i, unsigned int j)
+{
+	auto data = CAST_DOWN(nlop_op_data_s, _data);
+
+	if ((i < data->OO) && (j < data->OO))
+		return MD_BIT(OP_PROP_ATOMIC);
+	
+	if ((i > data->OO) && (j > data->OO))
+		return MD_BIT(OP_PROP_ATOMIC);
+
+	if (NULL == data->io_props)
+		return 0;
+
+	operator_io_prop_flags_t (*nlop_prop_flags)[data->II][data->OO] = (void*)data->io_props;
+
+	if (i > data->OO)
+		return (*nlop_prop_flags)[i - data->OO][j];
+	else
+		return (*nlop_prop_flags)[j - data->OO][i];
+
+	assert(0);
 }
 
 static void op_del(const operator_data_t* _data)
@@ -134,6 +182,95 @@ static void lop_del(const linop_data_t* _data)
 	xfree(data);
 }
 
+struct nlop_s* nlop_generic_extopts_create2(	int OO, int ON, const long odims[OO][ON], const long ostr[OO][ON], int II, int IN, const long idims[II][IN], const long istr[II][IN],
+						nlop_data_t* data, nlop_gen_fun_opts_t forward, nlop_fun_t deriv[II][OO], nlop_fun_t adjoint[II][OO], nlop_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO],
+						nlop_del_fun_t del, operator_io_prop_flags_t io_props[II][OO])
+{
+	PTR_ALLOC(struct nlop_s, n);
+
+	PTR_ALLOC(struct nlop_op_data_s, d);
+	SET_TYPEID(nlop_op_data_s, d);
+
+	d->data = data;
+	d->II = II;
+	d->OO = OO;
+	d->forward1 = NULL;
+	d->forward = NULL;
+	d->forward_opts = forward;
+
+	
+
+	operator_io_prop_flags_t (*tmp_io_props)[II][OO] = TYPE_ALLOC(operator_io_prop_flags_t[II][OO]);
+	d->io_props = &(*tmp_io_props)[0][0];
+	for (int i = 0; i < II; i++)
+		for (int o = 0; o < OO; o++) {
+
+			(*tmp_io_props)[i][o] = io_props[i][o];
+			(*tmp_io_props)[i][o] = MD_SET((*tmp_io_props)[i][o], OP_PROP_ATOMIC);
+			if  (MD_IS_SET((*tmp_io_props)[i][o], OP_PROP_C_LIN))
+				(*tmp_io_props)[i][o] = MD_SET((*tmp_io_props)[i][o], OP_PROP_R_LIN);
+
+			if (0 != ((*tmp_io_props)[i][o] & (~nlops_props_understood)))
+				error("Property passed to nlop which is not understood\n");
+		}
+			
+
+
+	d->del = del;
+
+	shared_ptr_init(&d->sptr, sptr_op_del);
+
+//	n->op = operator_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(PTR_PASS(d)), op_fun, op_del);
+
+	unsigned int D[OO + II];
+	for (int i = 0; i < OO + II; i++)
+		D[i] = (i < OO) ? ON : IN;
+
+	const long* dims[OO + II];
+
+	for (int i = 0; i < OO + II; i++)
+		dims[i] = (i < OO) ? odims[i] : idims[i - OO];
+
+	const long* strs[OO + II];
+
+	for (int i = 0; i < OO + II; i++)
+		strs[i] = (i < OO) ? ostr[i] : istr[i - OO];
+
+
+	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[II][OO]);
+
+	n->derivative = &(*der)[0][0];
+
+	for (int i = 0; i < II; i++) {
+		for (int o = 0; o < OO; o++) {
+
+			PTR_ALLOC(struct nlop_linop_data_s, d2);
+			SET_TYPEID(nlop_linop_data_s, d2);
+
+			d2->data = data;
+			d2->del = del;
+			d2->deriv = deriv[i][o];
+			d2->adjoint = adjoint[i][o];
+			d2->normal = (NULL != normal) ? normal[i][o] : NULL;
+			d2->norm_inv = (NULL != norm_inv) ? norm_inv[i][o] : NULL;
+
+			shared_ptr_copy(&d2->sptr, &d->sptr);
+			d2->sptr.del = sptr_linop_del;
+
+			operator_io_prop_flags_t der_flags = MD_BIT(OP_PROP_ATOMIC);
+			if  (MD_IS_SET(io_props[i][o], OP_PROP_HOLOMORPHIC))
+				der_flags = MD_SET(der_flags, OP_PROP_C_LIN);
+
+			(*der)[i][o] = linop_extopts_create2(ON, odims[o], ostr[o], IN, idims[i], istr[i],
+						     CAST_UP(PTR_PASS(d2)), lop_der, lop_adj,  (NULL != normal) ? lop_nrm : NULL, (NULL != norm_inv) ? lop_nrm_inv : NULL, lop_del, der_flags);
+		}
+	}
+
+	n->op = operator_generic_extopts_create2(OO + II, (1u << OO) - 1u, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, nlop_get_io_props);
+
+
+	return PTR_PASS(n);
+}
 
 struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], const long ostr[OO][ON], int II, int IN, const long idims[II][IN], const long istr[II][IN],
 	nlop_data_t* data, nlop_gen_fun_t forward, nlop_fun_t deriv[II][OO], nlop_fun_t adjoint[II][OO], nlop_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del)
@@ -144,8 +281,12 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 	SET_TYPEID(nlop_op_data_s, d);
 
 	d->data = data;
+	d->II = II;
+	d->OO = OO;
 	d->forward1 = NULL;
 	d->forward = forward;
+	d->forward_opts = NULL;
+	d->io_props = NULL;
 	d->del = del;
 
 	shared_ptr_init(&d->sptr, sptr_op_del);
@@ -189,12 +330,12 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 			shared_ptr_copy(&d2->sptr, &d->sptr);
 			d2->sptr.del = sptr_linop_del;
 
-			(*der)[i][o] = linop_create2(ON, odims[o], ostr[o], IN, idims[i], istr[i],
-						     CAST_UP(PTR_PASS(d2)), lop_der, lop_adj,  (NULL != normal) ? lop_nrm : NULL, (NULL != norm_inv) ? lop_nrm_inv : NULL, lop_del);
+			(*der)[i][o] = linop_extopts_create2(ON, odims[o], ostr[o], IN, idims[i], istr[i],
+						     CAST_UP(PTR_PASS(d2)), lop_der, lop_adj,  (NULL != normal) ? lop_nrm : NULL, (NULL != norm_inv) ? lop_nrm_inv : NULL, lop_del, 0);
 		}
 	}
 
-	n->op = operator_generic_create2(OO + II, (1u << OO) - 1u, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del);
+	n->op = operator_generic_extopts_create2(OO + II, (1u << OO) - 1u, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, nlop_get_io_props);
 
 
 	return PTR_PASS(n);
@@ -211,6 +352,20 @@ struct nlop_s* nlop_generic_create(int OO, int ON, const long odims[OO][ON], int
 		md_calc_strides(ON, ostrs[o], odims[o], CFL_SIZE);
 
 	return nlop_generic_create2(OO, ON, odims, ostrs, II, IN, idims, istrs, data, forward, deriv, adjoint, normal, norm_inv, del);
+}
+
+struct nlop_s* nlop_generic_extopts_create(	int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
+						nlop_data_t* data, nlop_gen_fun_opts_t forward, nlop_fun_t deriv[II][OO], nlop_fun_t adjoint[II][OO], nlop_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
+						operator_io_prop_flags_t io_prop[II][OO])
+{
+	long istrs[II][IN];
+	for (int i = 0; i < II; i++)
+		md_calc_strides(IN, istrs[i], idims[i], CFL_SIZE);
+	long ostrs[OO][ON];
+	for (int o = 0; o < OO; o++)
+		md_calc_strides(ON, ostrs[o], odims[o], CFL_SIZE);
+
+	return nlop_generic_extopts_create2(OO, ON, odims, ostrs, II, IN, idims, istrs, data, forward, deriv, adjoint, normal, norm_inv, del, io_prop);
 }
 
 struct nlop_s* nlop_create2(unsigned int ON, const long odims[__VLA(ON)], const long ostrs[__VLA(ON)],
@@ -329,6 +484,32 @@ void nlop_adjoint(const struct nlop_s* op, int ON, const long odims[ON], complex
 void nlop_generic_apply_unchecked(const struct nlop_s* op, int N, void* args[N])
 {
 	operator_generic_apply_unchecked(op->op, N, args);
+}
+
+void nlop_generic_apply_extopts_unchecked(const struct nlop_s* op, int N, void* args[N], operator_run_opt_flags_t run_opts[N][N])
+{
+	 operator_generic_apply_extopts_unchecked(op->op, N, args, run_opts);
+}
+
+void nlop_generic_apply_select_derivative_unchecked(const struct nlop_s* op, int N, void* args[N], unsigned long out_der_flag, unsigned long in_der_flag)
+{
+	unsigned int II = nlop_get_nr_in_args(op);
+	unsigned int OO = nlop_get_nr_out_args(op);
+	operator_run_opt_flags_t run_opts[N][N];
+
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++) {
+
+			run_opts[i][j] = 0;
+			
+			if ((i < OO) && !(j < OO) && (!MD_IS_SET(out_der_flag, i) || !MD_IS_SET(out_der_flag, j - OO)))				
+				run_opts[i][j] = MD_SET(run_opts[i][j], OP_APP_NO_DER);
+
+			if (!(i < OO) && (j < OO) && (!MD_IS_SET(out_der_flag, i - OO) || !MD_IS_SET(out_der_flag, j)))				
+				run_opts[i][j] = MD_SET(run_opts[i][j], OP_APP_NO_DER);
+		}
+
+	nlop_generic_apply_extopts_unchecked(op, N, args, run_opts);
 }
 
 const struct linop_s* nlop_get_derivative(const struct nlop_s* op, int o, int i)
