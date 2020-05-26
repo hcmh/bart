@@ -169,7 +169,7 @@ TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten ssa bin c
 TMRI=homodyne poisson twixread fakeksp umgread looklocker paradiseread phasediff dixon genLLbasis
 TIO=toimg dcmread dcmtag
 TSIM=phantom phantom_json traj upat bloch sim tbasis signal
-TNN=mnist
+TNN=mnist nnvn
 
 
 
