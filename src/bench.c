@@ -36,6 +36,10 @@
 #include "num/convcorr.h"
 #ifdef USE_CUDA
 #include "num/gpukrnls.h"
+#include "num/gpuops.h"
+#ifdef USE_CUDNN
+#include "num/cudnn_wrapper.h"
+#endif
 #endif
 #endif
 
@@ -638,12 +642,14 @@ static double bench_gpu_ ## function(long scale)\
 	md_gaussian_rand(DIMS, kdims, kptr);\
 	md_gaussian_rand(DIMS, odims, optr);\
 \
+	cuda_sync_device();\
 	double tic = timestamp();\
 	assert(function(DIMS,\
 					odims, MD_STRIDES(DIMS, odims, CFL_SIZE), optr,\
 					idims, MD_STRIDES(DIMS, idims, CFL_SIZE), iptr,\
 					kdims, MD_STRIDES(DIMS, kdims, CFL_SIZE), kptr,\
 					28, NULL, NULL, false));\
+	cuda_sync_device();\
 	double toc = timestamp();\
 \
 	md_free(optr);\
@@ -660,6 +666,13 @@ BENCH_CONV_GPU(zconvcorr_bwd_in_im2col_cf_gpu)
 BENCH_CONV_GPU(zconvcorr_bwd_krn_direct_cf)
 BENCH_CONV_GPU(zconvcorr_bwd_krn_im2col_cf_gpu)
 
+#ifdef USE_CUDNN
+BENCH_CONV_GPU(zconvcorr_fwd_cudnn_3d_cf)
+BENCH_CONV_GPU(zconvcorr_fwd_cudnn_2d_cf)
+BENCH_CONV_GPU(zconvcorr_bwd_krn_cudnn_2d_cf)
+BENCH_CONV_GPU(zconvcorr_bwd_in_cudnn_2d_cf)
+#endif
+
 static double bench_im2col_fwd_gpu(long scale)
 {
 	long odims[DIMS] = { 24, 1, 290, 290, 1, 10 * scale, 1, 1 };
@@ -672,9 +685,11 @@ static double bench_im2col_fwd_gpu(long scale)
 	long imat_size = kdims[1] * kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4];
 	complex float* imat_tmp = md_alloc_gpu(1, &imat_size, CFL_SIZE);
 
+	cuda_sync_device();
 	double tic = timestamp();
 	for(int i = 0; i < odims[5]; i++)
 		cuda_im2col(imat_tmp, iptr, odims, idims, kdims);
+	cuda_sync_device();
 	double toc = timestamp();
 
 	md_free(iptr);
@@ -725,6 +740,12 @@ const struct benchmark_s {
 } benchmarks[] = {
 #ifdef BENCH_CONV	
 #ifdef USE_CUDA
+#ifdef USE_CUDNN
+	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_cudnn_3d_cf)
+	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_cudnn_2d_cf)
+	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_krn_cudnn_2d_cf)
+	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_in_cudnn_2d_cf)
+#endif
 	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_direct_cf)
 	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_im2col_cf_gpu)
 	{ bench_im2col_fwd_gpu,		"im2col copy fwd gpu" },

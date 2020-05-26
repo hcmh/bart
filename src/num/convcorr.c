@@ -1347,7 +1347,6 @@ bool test_zconvcorr_bwd_krn(	int N, long odims[N], long ostrs[N], long idims[N],
 
 			md_copy(N, kdims, kptr, kptr_gpu, CFL_SIZE);
 			md_clear(N, kdims, kptr_gpu, CFL_SIZE);
-
 			float err = md_znrmse(N, kdims, kptr_ref, kptr);
 			debug_printf(DP_DEBUG1, "error zconvcorr_bwd_krn gpu algo %d: %.8f\n", i, err);
 			counter_gpu += 1;
