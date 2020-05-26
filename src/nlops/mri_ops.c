@@ -18,6 +18,7 @@
 #include "nlops/someops.h"
 
 #include "mri_ops.h"
+#include "num/ops_opts.h"
 
 /**
  * If possible we use the same fft operator for all blocks.
@@ -212,12 +213,24 @@ struct gradient_step_s {
 
 DEF_TYPEID(gradient_step_s);
 
-static void gradient_step_initialize(struct gradient_step_s* data, const complex float* arg)
+static void gradient_step_initialize(struct gradient_step_s* data, const complex float* arg, bool der)
 {
-	if (NULL == data->coil)
+	if ((der) && (NULL == data->coil))
 		data->coil = md_alloc_sameplace(data->N, data->kdims, CFL_SIZE, arg);
-	if (NULL == data->mask)
+	if ((der) && (NULL == data->mask))
 		data->mask = md_alloc_sameplace(data->N, data->mdims, CFL_SIZE, arg);
+
+	if (!der && (NULL != data->coil)) {
+
+		md_free(data->coil);
+		data->coil = NULL;
+	}
+
+	if (!der && (NULL != data->mask)) {
+
+		md_free(data->mask);
+		data->mask = NULL;
+	}
 
 	if (NULL == data->fftmod) {
 
@@ -230,7 +243,7 @@ static void gradient_step_initialize(struct gradient_step_s* data, const complex
 	}
 }
 
-static void gradient_step_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
+static void gradient_step_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg], operator_run_opt_flags_t run_flags[Narg][Narg])
 {
 	const auto d = CAST_DOWN(gradient_step_s, _data);
 	assert(5 == Narg);
@@ -241,10 +254,15 @@ static void gradient_step_fun(const nlop_data_t* _data, int Narg, complex float*
 	const complex float* coil = args[3];
 	const complex float* mask = args[4];
 
-	gradient_step_initialize(d, dst);
+	bool der = !(MD_IS_SET(run_flags[0][1], OP_APP_NO_DER));
 
-	md_copy(d->N, d->mdims, d->mask, mask, CFL_SIZE);
-	md_copy(d->N, d->kdims, d->coil, coil, CFL_SIZE);
+	gradient_step_initialize(d, dst, der);
+
+	if (der) {
+
+		md_copy(d->N, d->mdims, d->mask, mask, CFL_SIZE);
+		md_copy(d->N, d->kdims, d->coil, coil, CFL_SIZE);
+	}
 	
 	complex float* coil_image = md_alloc_sameplace(d->N, d->kdims, CFL_SIZE, dst);
 	complex float* coil_image2 = md_alloc_sameplace(d->N, d->kdims, CFL_SIZE, dst);
@@ -372,12 +390,13 @@ static struct nlop_s* nlop_gradient_step_create_general(int N, unsigned int flag
 	md_copy_dims(N, nl_idims[3], mdims);
 	md_singleton_dims(N, nl_idims[4]);
 
+	operator_io_prop_flags_t io_props[4][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}, {0}, {0}};
 
-	return nlop_generic_create(	1, N, nl_odims, 4, N, nl_idims, CAST_UP(PTR_PASS(data)),
-					gradient_step_fun,
-					(nlop_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
-					(nlop_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
-					NULL, NULL, gradient_step_del);
+	return nlop_generic_extopts_create(	1, N, nl_odims, 4, N, nl_idims, CAST_UP(PTR_PASS(data)),
+						gradient_step_fun,
+						(nlop_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
+						(nlop_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
+						NULL, NULL, gradient_step_del, io_props);
 }
 
 /**

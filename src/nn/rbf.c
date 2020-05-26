@@ -38,7 +38,7 @@ struct rbf_s {
 
 DEF_TYPEID(rbf_s);
 
-static void rbf_initialize(struct rbf_s* data, const complex float* arg)
+static void rbf_initialize(struct rbf_s* data, const complex float* arg, bool der1)
 {
 	if (NULL == data->w)
 		data->w = md_alloc_sameplace(data->N, data->wdom->dims, FL_SIZE, arg);
@@ -46,15 +46,21 @@ static void rbf_initialize(struct rbf_s* data, const complex float* arg)
 	if (NULL == data->z)
 		data->z = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, arg);
 
-	if (NULL == data->dz)
+	if (der1 &&(NULL == data->dz))
 		data->dz = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, arg);
+
+	if (der1)
+		md_clear(data->N, data->zdom->dims, data->dz, FL_SIZE);
 	
-	md_clear(data->N, data->zdom->dims, data->dz, FL_SIZE);
+	if (!der1 &&(NULL != data->dz)){
+		md_free(data->dz);
+		data->dz = NULL;
+	}
 }
 
 #define STRIDED_MUL
 
-static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
+static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N], operator_run_opt_flags_t run_flags[N][N])
 {
 	//dst_ik = sum_j w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
 	//data->dz_ik = sum_j (mu_j - z_ik)/sigma^2 * w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
@@ -68,7 +74,10 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	const complex float* zsrc = args[1];
 	const complex float* wsrc = args[2];
 
-	rbf_initialize(data, zdst);
+	bool der1 = !(MD_IS_SET(run_flags[0][1], OP_APP_NO_DER));
+	bool der2 = !(MD_IS_SET(run_flags[0][2], OP_APP_NO_DER));
+
+	rbf_initialize(data, zdst, der1);
 	
 	long Nw = data->dom->dims[2];
 	float mumin = data->Imin;
@@ -99,30 +108,31 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 		const float* wtmp = data->w + md_calc_offset(data->N, data->wdom->strs, wpos) / FL_SIZE;
 
 	#ifndef STRIDED_MUL
-		md_copy2(2, data->dom->dims, data->zdom->strs, tmp2, data->wdom->strs, wtmp, FL_SIZE); // tmp3 = w_ik
+md_copy2(2, data->dom->dims, data->zdom->strs, tmp2, data->wdom->strs, wtmp, FL_SIZE); // tmp3 = w_ik
 		md_fmac(2, data->zdom->dims, real_dst, tmp1, tmp2); //real_dst = sum_j w_ij 1/sqrt(2pi simga^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 	#else
 		md_mul2(2, data->dom->dims, data->zdom->strs, tmp1, data->wdom->strs, wtmp, data->zdom->strs, tmp1);
 		md_add(2, data->zdom->dims, real_dst, real_dst, tmp1);
 	#endif
 
-		
+		if (der1) {
 	#ifndef STRIDED_MUL
-		md_smul(2, data->zdom->dims, tmp1, tmp1, -(mumin + j * dmu)); //tmp1 = - sum_j w_ij 1/sqrt(2pi simga^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
-		md_fmac(2, data->zdom->dims, data->dz, tmp1, tmp2); //data->dz = - sum_j w_ij 1/sqrt(2pi simga^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+			md_smul(2, data->zdom->dims, tmp1, tmp1, -(mumin + j * dmu)); //tmp1 = - sum_j w_ij 1/sqrt(2pi simga^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+			md_fmac(2, data->zdom->dims, data->dz, tmp1, tmp2); //data->dz = - sum_j w_ij 1/sqrt(2pi simga^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 	#else
-		float scale = -(mumin + j * dmu);
-		md_copy(1, MAKE_ARRAY(1l), tmp2, &scale, FL_SIZE);
-		md_fmac2(2, data->zdom->dims, data->zdom->strs, data->dz, data->zdom->strs, tmp1, MAKE_ARRAY(0l, 0l), tmp2);
+			float scale = -(mumin + j * dmu);
+			md_copy(1, MAKE_ARRAY(1l), tmp2, &scale, FL_SIZE);
+			md_fmac2(2, data->zdom->dims, data->zdom->strs, data->dz, data->zdom->strs, tmp1, MAKE_ARRAY(0l, 0l), tmp2);
 	#endif
-		
+		}
 	}
 
-	
+	if (der1) {
 
-	md_fmac(3, data->zdom->dims, data->dz, real_dst, data->z); //data->dz = sum_j w_ij 1/sqrt(2pi simga^2) * (z_ik - mu_j) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
-	md_smul(3, data->zdom->dims, data->dz, data->dz, (- sqrtf(2. * M_PI) / data->sigma)); // zdst_ik = -1/sigma^2 sum_k (z_ik-mu_j) * w_ij * exp[-(z_ik-mu_j)²/(2*sigma²)] 
-		
+		md_fmac(3, data->zdom->dims, data->dz, real_dst, data->z); //data->dz = sum_j w_ij 1/sqrt(2pi simga^2) * (z_ik - mu_j) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+		md_smul(3, data->zdom->dims, data->dz, data->dz, (- sqrtf(2. * M_PI) / data->sigma)); // zdst_ik = -1/sigma^2 sum_k (z_ik-mu_j) * w_ij * exp[-(z_ik-mu_j)²/(2*sigma²)] 
+	}
+	
 	md_smul(3, data->zdom->dims, real_dst, real_dst, (sqrtf(2. * M_PI) * data->sigma)); // zdst_ik = -1/sigma^2 sum_k (z_ik-mu_j) * w_ij * exp[-(z_ik-mu_j)²/(2*sigma²)] 
 
 	md_zcmpl_real(data->zdom->N, data->zdom->dims,zdst, real_dst);
@@ -333,6 +343,8 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 	md_copy_dims(2, nl_idims[0], zdims);
 	md_copy_dims(2, nl_idims[1], wdims);
 
-	auto result = nlop_generic_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del);
+	operator_io_prop_flags_t io_props[2][1] = {{0},{0}};
+
+	auto result = nlop_generic_extopts_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, io_props);
 	return result;
 }
