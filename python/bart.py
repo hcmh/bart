@@ -12,7 +12,7 @@ import cfl
 import os
 from wslsupport import PathCorrection
 
-def bart(nargout, cmd, *args):
+def bart(nargout, cmd, *args, stdout="", stderr=""):
 
     if type(nargout) != int or nargout < 0:
         print("Usage: bart(<nargout>, <command>, <arguements...>)")
@@ -61,7 +61,12 @@ def bart(nargout, cmd, *args):
             ERR = os.system('bash.exe --login -c ' + bart_path + '"/bart ' + cmd.replace(os.path.sep, '/') + ' ' + in_str.replace(os.path.sep, '/') + ' ' + out_str.replace(os.path.sep, '/') + '"')
             #TODO: Test with cygwin, this is just translation from matlab code
     else:
-        ERR = os.system(bart_path + '/bart ' + cmd + ' ' + in_str + ' ' + out_str)
+        log_string = ""
+        if stdout != "":
+            log_string = ">"+stdout
+        if stderr != "":
+            log_string = log_string + " 2>"+stderr
+        ERR = os.system(bart_path + '/bart ' + cmd + ' ' + in_str + ' ' + out_str + ' ' + log_string)
 
     for elm in infiles:
         if os.path.isfile(elm + '.cfl'):
