@@ -66,6 +66,11 @@ extern void cuda_im2col(_Complex float* dst, const _Complex float* src, long odi
 extern void cuda_im2col_transp(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5]);
 extern void cuda_smul_ptr(long N, const float* alpha, float* dst, const float* src);
 extern void cuda_pdf_gauss(long N, float mu, float sig, float* dst, const float* src);
+extern void cuda_real(long N, float* dst, const _Complex float* src);
+extern void cuda_imag(long N, float* dst, const _Complex float* src);
+extern void cuda_zcmpl_real(long N, _Complex float* dst, const float* src);
+extern void cuda_zcmpl_imag(long N, _Complex float* dst, const float* src);
+extern void cuda_zcmpl(long N, _Complex float* dst, const float* real_src, const float* imag_src);
 
 #ifdef __cplusplus
 }

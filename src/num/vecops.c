@@ -759,6 +759,38 @@ static void smul_ptr(long N, const float* alpha, float* dst, const float* src)
 		dst[i] = alpha[0] * src[i];
 }
 
+
+
+static void vec_real(long N, float* dst, const _Complex float* src)
+{
+	for (int i = 0; i < N; i ++)
+		dst[i] = crealf(src[i]);
+}
+
+static  void vec_imag(long N, float* dst, const _Complex float* src)
+{
+	for (int i = 0; i < N; i ++)
+		dst[i] = cimagf(src[i]);
+}
+
+static void vec_zcmpl_real(long N, _Complex float* dst, const float* src)
+{
+	for (int i = 0; i < N; i ++)
+		dst[i] = src[i];
+}
+
+static void vec_zcmpl_imag(long N, _Complex float* dst, const float* src)
+{
+	for (int i = 0; i < N; i ++)
+		dst[i] = src[i] * I;
+}
+
+static void vec_zcmpl(long N, _Complex float* dst, const float* real_src, const float* imag_src)
+{
+	for (int i = 0; i < N; i ++)
+		dst[i] = real_src[i] + imag_src[i] * I;
+}
+
 /*
  * If you add functions here, please also add to gpuops.c/gpukrnls.cu
  */
@@ -842,6 +874,12 @@ const struct vec_ops cpu_ops = {
 	.pdf_gauss=pdf_gauss,
 
 	.smul_ptr = smul_ptr,
+
+	.real = vec_real,
+	.imag = vec_imag,
+	.zcmpl_real = vec_zcmpl_real,
+	.zcmpl_imag = vec_zcmpl_imag,
+	.zcmpl = vec_zcmpl,
 };
 
 

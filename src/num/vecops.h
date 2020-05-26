@@ -91,6 +91,12 @@ struct vec_ops {
 	void (*pdf_gauss)(long N, float mu, float sig, float* dst, const float* src);
 
 	void (*smul_ptr)(long N, const float* alpha, float* dst, const float* src);
+
+	void (*real)(long N, float* dst, const _Complex float* src);
+	void (*imag)(long N, float* dst, const _Complex float* src);
+	void (*zcmpl_real)(long N, _Complex float* dst, const float* src);
+	void (*zcmpl_imag)(long N, _Complex float* dst, const float* src);
+	void (*zcmpl)(long N, _Complex float* dst, const float* real_src, const float* imag_src);
 };
 
 

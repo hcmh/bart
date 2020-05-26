@@ -1283,3 +1283,74 @@ extern "C" void cuda_pdf_gauss(long N, float mu, float sig, float* dst, const fl
 {
 	kern_pdf_gauss<<<gridsize(N), blocksize(N)>>>(N, mu, sig, dst, src);
 }
+
+
+__global__ void kern_real(int N, float* dst, const cuFloatComplex* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = cuCrealf(src[i]);
+}
+
+extern "C" void cuda_real(long N, float* dst, const _Complex float* src)
+{
+	kern_real<<<gridsize(N), blocksize(N)>>>(N, dst, (cuFloatComplex*)src);
+}
+
+__global__ void kern_imag(int N, float* dst, const cuFloatComplex* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = cuCimagf(src[i]);
+}
+
+extern "C" void cuda_imag(long N, float* dst, const _Complex float* src)
+{
+	kern_imag<<<gridsize(N), blocksize(N)>>>(N, dst, (cuFloatComplex*)src);
+}
+
+__global__ void kern_zcmpl_real(int N, cuFloatComplex* dst, const float* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = make_cuFloatComplex(src[i], 0);
+}
+
+extern "C" void cuda_zcmpl_real(long N, _Complex float* dst, const float* src)
+{
+	kern_zcmpl_real<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, src);
+}
+
+__global__ void kern_zcmpl_imag(int N, cuFloatComplex* dst, const float* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = make_cuFloatComplex(0., src[i]);
+}
+
+extern "C" void cuda_zcmpl_imag(long N, _Complex float* dst, const float* src)
+{
+	kern_zcmpl_imag<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, src);
+}
+
+__global__ void kern_zcmpl(int N, cuFloatComplex* dst, const float* real_src, const float* imag_src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = make_cuFloatComplex(real_src[i], imag_src[i]);
+}
+
+extern "C" void cuda_zcmpl(long N, _Complex float* dst, const float* real_src, const float* imag_src)
+{
+	kern_zcmpl<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, real_src, imag_src);
+}
