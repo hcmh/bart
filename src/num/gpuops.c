@@ -38,6 +38,8 @@
 
 #define MiBYTE (1024*1024)
 
+#define ASYNC_API_CALLS
+
 
 static void cuda_error(int line, cudaError_t code)
 {
@@ -150,7 +152,11 @@ void cuda_memcache_off(void)
 void cuda_clear(long size, void* dst)
 {
 //	printf("CLEAR %x %ld\n", dst, size);
+#ifdef ASYNC_API_CALLS
+	CUDA_ERROR(cudaMemsetAsync(dst, 0, size, cudaStreamLegacy));
+#else
 	CUDA_ERROR(cudaMemset(dst, 0, size));
+#endif
 }
 
 static void cuda_float_clear(long size, float* dst)
@@ -161,13 +167,21 @@ static void cuda_float_clear(long size, float* dst)
 void cuda_memcpy(long size, void* dst, const void* src)
 {
 //	printf("COPY %x %x %ld\n", dst, src, size);
+#ifdef ASYNC_API_CALLS
+	CUDA_ERROR(cudaMemcpyAsync(dst, src, size, cudaMemcpyDefault, cudaStreamLegacy));
+#else
 	CUDA_ERROR(cudaMemcpy(dst, src, size, cudaMemcpyDefault));
+#endif
 }
 
 
 void cuda_memcpy_strided(const long dims[2], long ostr, void* dst, long istr, const void* src)
 {
+#ifdef ASYNC_API_CALLS
+	CUDA_ERROR(cudaMemcpy2DAsync(dst, ostr, src, istr, dims[0], dims[1], cudaMemcpyDefault, cudaStreamLegacy));
+#else
 	CUDA_ERROR(cudaMemcpy2D(dst, ostr, src, istr, dims[0], dims[1], cudaMemcpyDefault));
+#endif
 }
 
 static void cuda_float_copy(long size, float* dst, const float* src)
@@ -349,6 +363,36 @@ static void cuda_swap(long size, float* a, float* b)
 {
 	assert(size <= INT_MAX / 2);
     cublasSswap(size, a, 1, b, 1);
+}
+
+void cuda_sync_device(void)
+{
+	CUDA_ERROR(cudaDeviceSynchronize());
+}
+
+// syncs all streams by explicite call in legacy default stream but does not block the CPU
+void cuda_sync_streams(void)
+{
+	cuda_block_streams();
+}
+
+int cuda_get_current_device(void)
+{
+	int device = -1;
+	CUDA_ERROR(cudaGetDevice(&device));
+	return device;
+}
+
+void cuda_prefetch(void* ptr, long size)
+{
+	if (cuda_global_memory) {
+
+		int device = cuda_get_current_device();
+		int move;
+		CUDA_ERROR(cudaDeviceGetAttribute(&move, cudaDevAttrConcurrentManagedAccess, device)); 
+		if (0 != move)
+			CUDA_ERROR(cudaMemPrefetchAsync(ptr, size, device, 0));
+	}
 }
 
 const struct vec_ops gpu_ops = {

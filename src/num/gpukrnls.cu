@@ -1368,3 +1368,12 @@ extern "C" void cuda_zcmpl(long N, _Complex float* dst, const float* real_src, c
 {
 	kern_zcmpl<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, real_src, imag_src);
 }
+__global__ void block_stream(int N)
+{
+	(void)N;
+}
+
+extern "C" void cuda_block_streams(void)
+{
+	block_stream<<<1, 1, 0, cudaStreamLegacy>>>(1);
+}

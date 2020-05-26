@@ -27,6 +27,11 @@ extern void cuda_memcache_off(void);
 extern void cuda_memcache_clear(void);
 extern void cuda_use_global_memory(void);
 extern void print_cuda_meminfo(void);
+extern void cuda_sync_device(void);
+extern void cuda_sync_streams(void);
+
+extern int cuda_get_current_device(void);
+extern void cuda_prefetch(void* ptr, long size);
 
 #ifdef __cplusplus
 }
