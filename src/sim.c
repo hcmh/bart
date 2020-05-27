@@ -148,7 +148,11 @@ int main_sim(int argc, char* argv[])
 	// Pass pre defined data
 	dims[TE_DIM] = sim_data.seq.rep_num;
 
-	sim_data.seq.prep_pulse_length = sim_data.pulse.rf_end;
+	// TODO: Fix pass preperation time to sim tool
+	if (5 == sim_data.seq.seq_type)
+		sim_data.seq.prep_pulse_length = 0.00001;	// match analytical Look-Locker model
+	else
+		sim_data.seq.prep_pulse_length = sim_data.pulse.rf_end;
 
 
 	// Prepare analytical case
