@@ -289,3 +289,117 @@ const struct nlop_s* nlop_cce_create(int N, const long dims[N])
 
 	return nlop_generic_create2(1, 1, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), cce_fun, (nlop_fun_t[2][1]){ { cce_der1 }, { cce_der2 } }, (nlop_fun_t[2][1]){ { cce_adj1 }, { cce_adj2 } }, NULL, NULL, cce_del);
 }
+
+
+
+struct frequency_compensation_s {
+
+	INTERFACE(nlop_data_t);
+
+	unsigned long N;
+	unsigned long batch_flag;
+	complex float* in;
+	complex float* sum;
+	const struct iovec_s* dom;
+	const struct iovec_s* sum_dom;
+};
+
+DEF_TYPEID(frequency_compensation_s);
+
+static void frequency_compensation_initialize(struct frequency_compensation_s* data, const complex float* arg)
+{
+	if (NULL == data->in)
+		data->in = md_alloc_sameplace(data->dom->N, data->dom->dims, CFL_SIZE, arg);
+	if (NULL == data->sum)
+		data->sum = md_alloc_sameplace(data->dom->N, data->sum_dom->dims, CFL_SIZE, arg);
+}
+
+static void frequency_compensation_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	START_TIMER;
+	const auto data = CAST_DOWN(frequency_compensation_s, _data);
+
+#ifdef USE_CUDA
+	assert(cuda_ondevice(dst) == cuda_ondevice(src));
+#endif
+	frequency_compensation_initialize(data, dst);
+
+	md_copy(data->N, data->dom->dims, data->in, src, data->dom->size);
+	md_zsum(data->N, data->dom->dims, data->batch_flag, data->sum, src);
+	md_zsmul(data->N, data->sum_dom->dims, data->sum, data->sum, 1. / md_calc_size(data->N, data->sum_dom->dims));
+	md_zdiv2(data->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->sum_dom->strs, data->sum);
+
+	PRINT_TIMER("loss frequency_compensation");
+}
+
+
+static void frequency_compensation_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	UNUSED(dst);
+	UNUSED(src);
+	UNUSED(_data);
+	error("loss frequency compensation derivative not implemented");
+}
+
+static void frequency_compensation_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	UNUSED(dst);
+	UNUSED(src);
+	UNUSED(_data);
+	error("loss frequency compensation derivative not implemented");
+}
+
+static void frequency_compensation_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(frequency_compensation_s, _data);
+
+	md_free(data->in);
+	md_free(data->sum);
+    	iovec_free(data->dom);
+	iovec_free(data->sum_dom);
+
+	xfree(data);
+}
+
+// dst_ij = src_ij / sum_j src_ij, where j corresponds to dimensions selected with batch_flag
+static const struct nlop_s* nlop_frequency_compensation_create(int N, const long dims[N], unsigned long batch_flag)
+{
+
+	PTR_ALLOC(struct frequency_compensation_s, data);
+	SET_TYPEID(frequency_compensation_s, data);
+
+	long sum_dims[N];
+	md_select_dims(N, batch_flag, sum_dims, dims);
+
+	data->N = N;
+ 	data->dom = iovec_create(N, dims, CFL_SIZE);
+	data->sum_dom = iovec_create(N, sum_dims, CFL_SIZE);
+
+	// will be initialized later, to transparently support GPU
+	data->sum = NULL;
+    	data->in = NULL;
+	
+	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), frequency_compensation_fun, frequency_compensation_der, frequency_compensation_adj, NULL, NULL, frequency_compensation_del);
+}
+
+/**
+ * Weighted categorical crossentropy
+ *
+ * loss = - sum_i,j w_j t_ij * log(p_ij(x))
+ * where:	i - batch index
+ *		j - label index
+ *		t_ij = target prediction, i.e. 0 or 1 and sum_j t_ij = 1
+ *		p_ij(x) = propability predicted by the network, i.e. p_i(x) in [0, 1] and sum_j p_ij(x) = 1 (softmax activation)
+ *		w_j = 1 / sum_i t_ij
+ *
+ * @param N
+ * @param dims
+ * @param batch_flag selected dims correspond to i, unselected to j
+ **/
+const struct nlop_s* nlop_weighted_cce_create(int N, const long dims[N], unsigned long batch_flag)
+{
+	//FIXME: more flexible batchflags (scaling in cce and interface change for batch_flag needed)
+	assert(MD_BIT(N-1) == batch_flag);
+
+	return nlop_chain2_FF(nlop_frequency_compensation_create(N, dims, batch_flag), 0, nlop_cce_create(N, dims), 1);
+}
