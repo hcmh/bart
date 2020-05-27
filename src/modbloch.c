@@ -344,8 +344,6 @@ int main_modbloch(int argc, char* argv[])
 
 	// Scale DATA on largest sample of first spoke
 
-	assert(NULL != trajectory);
-
 	long ksp_strs[DIMS];
 	md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
 
