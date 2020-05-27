@@ -309,7 +309,7 @@ static void cuda_float_free(float* x)
 
 static double cuda_sdot(long size, const float* src1, const float* src2)
 {
-	assert(size <= INT_MAX);
+assert(size <= INT_MAX/2);
 	assert(cuda_ondevice(src1));
 	assert(cuda_ondevice(src2));
 //	printf("SDOT %x %x %ld\n", src1, src2, size);
@@ -334,20 +334,20 @@ static double cuda_norm(long size, const float* src1)
 
 static double cuda_asum(long size, const float* src)
 {
-	assert(size <= INT_MAX);
+	assert(size <= INT_MAX/2);
 	return cublasSasum(size, src, 1);
 }
 
 static void cuda_saxpy(long size, float* y, float alpha, const float* src)
 {
 //	printf("SAXPY %x %x %ld\n", y, src, size);
-	assert(size <= INT_MAX);
+	assert(size <= INT_MAX/2);
     cublasSaxpy(size, alpha, src, 1, y, 1);
 }
 
 static void cuda_swap(long size, float* a, float* b)
 {
-	assert(size <= INT_MAX);
+	assert(size <= INT_MAX/2);
     cublasSswap(size, a, 1, b, 1);
 }
 
