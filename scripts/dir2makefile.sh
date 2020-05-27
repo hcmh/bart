@@ -132,7 +132,7 @@ for hdr in ${!CMDLs[@]}; do
 
 done
 
-
+printf "all:\n\n" >> $OUTF
 
 for hdr in ${!CMDLfs[@]}; do
 
@@ -155,21 +155,17 @@ for hdr in ${!CMDLfs[@]}; do
 	$DEBUG && echo -e "OUTs:\t" ${OUTs[@]}
 
 
-	if [[ ${#OUTs[@]} -gt 0 ]] ; then
-
-		for OUT in ${OUTs[@]} ; do
-			printf "${OUT}.cfl ${OUT}.hdr " >> $OUTF
-		done
-		printf "&:" >> $OUTF
-		for IN in ${INs[@]} ; do
-			printf " ${IN}.cfl ${IN}.hdr" >> $OUTF
-		done
-		printf "\n" >> $OUTF
-		printf "\tbart %s\n\n" "${cmdl}" >> $OUTF
-	else
-		printf "${hdr} has no output. No rule created\n" >&2
-		printf "FIXME: This should create a .PHONY target!\n" >&2
-	fi
+	for OUT in ${OUTs[@]} ; do
+		# add .hdr to target all:
+		sed -i "1 s/$/ ${OUT}.hdr/" $OUTF
+		printf "${OUT}.cfl ${OUT}.hdr " >> $OUTF
+	done
+	printf "&:" >> $OUTF
+	for IN in ${INs[@]} ; do
+		printf " ${IN}.cfl ${IN}.hdr" >> $OUTF
+	done
+	printf "\n" >> $OUTF
+	printf "\tbart %s\n\n" "${cmdl}" >> $OUTF
 
 	$DEBUG && echo "---------------------------------"
 done
