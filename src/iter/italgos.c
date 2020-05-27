@@ -490,7 +490,7 @@ void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, f
 
 		iter_op_call(der, q, x);
 
-		vops->xpay(M, +1., r, q);	// xpay prefered, axpy limited to INT_MAX/2 elements
+		vops->xpay(M, +1., r, q);	// FIXME: own GPU kernel for vops->axpy to replace xpay for large problems (>INT_MAX/2)
 
 		iter_op_p_call(lsqr, alpha, x, r);
 
