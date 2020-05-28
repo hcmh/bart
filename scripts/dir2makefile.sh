@@ -14,12 +14,12 @@ which reproduces them.
 If there is second argument, the output will be written to that file.
 Otherwise, a file called Makefile is created in the input directory.
 The entire directory can then be reproced by running
-\tmake -B *.hdr
+\tmake -B
 or, in parallel, with
-\tmake -Bj *.hdr
+\tmake -Bj
 (here, -B instructs make to unconditionally recreate targets).
 A script can be created using
-\tmake -Bn *.hdr | grep -v "make:"
+\tmake -Bn | grep -v "make:"
 
 -h help
 EOF
@@ -52,7 +52,6 @@ if [[ $# -lt 1 || $# -gt 2 ]] ; then
         echo "$usage" >&2
         exit 1
 fi
-
 
 
 INDIR="$1"
@@ -162,18 +161,25 @@ for hdr in ${!CMDLfs[@]}; do
 	$DEBUG && echo -e "INs:\t" ${INs[@]}
 	$DEBUG && echo -e "OUTs:\t" ${OUTs[@]}
 
+	# add .hdr to target all:
+	sed -i "1 s/$/ ${OUTs[0]}.hdr/" $OUTF
 
-	for OUT in ${OUTs[@]} ; do
-		# add .hdr to target all:
-		sed -i "1 s/$/ ${OUT}.hdr/" $OUTF
-		printf "${OUT}.cfl ${OUT}.hdr " >> $OUTF
-	done
-	printf "&:" >> $OUTF
+	printf "${OUTs[0]}.cfl:" >> $OUTF
 	for IN in ${INs[@]} ; do
 		printf " ${IN}.cfl ${IN}.hdr" >> $OUTF
 	done
 	printf "\n" >> $OUTF
-	printf "\tbart %s\n\n" "${cmdl}" >> $OUTF
+	printf "\t\${BART} %s\n" "${cmdl}" >> $OUTF
+
+	printf "${OUTs[0]}.hdr: ${OUTs[0]}.cfl\n" >> $OUTF
+	for OUT in ${OUTs[@]:1} ; do
+		# add .hdr to target all:
+		sed -i "1 s/$/ ${OUT}.hdr/" $OUTF
+
+		printf "${OUT}.cfl: ${OUTs[0]}.cfl\n" >> $OUTF
+		printf "${OUT}.hdr: ${OUTs[0]}.cfl\n" >> $OUTF
+	done
+	printf "\n" >> $OUTF
 
 	$DEBUG && echo "---------------------------------"
 done
