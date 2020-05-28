@@ -76,11 +76,13 @@ truncate -s0 $OUTF
 
 declare -A IOs
 declare -A CMDLs
+declare -A VERs
 
 for hdr in ${INDIR}/*.hdr ; do
 
 	CMDLs["$hdr"]=$(sed '4q;d' "$hdr")
 	IOs["$hdr"]=$(sed '6q;d' "$hdr")
+	VERs["$hdr"]=$(sed '8q;d' "$hdr")
 done
 
 
@@ -133,6 +135,12 @@ for hdr in ${!CMDLs[@]}; do
 done
 
 printf "all:\n\n" >> $OUTF
+
+printf "BART?=bart\n">>$OUTF
+# get a version from the first header
+# Whatever that means for an associative array
+VERsU=("${VERs[@]}")
+printf "#Originally created using: ${VERsU[0]}\n\n" >> $OUTF
 
 for hdr in ${!CMDLfs[@]}; do
 
