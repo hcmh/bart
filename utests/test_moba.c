@@ -36,6 +36,7 @@
 #include "moba/T1MOLLI.h"
 #include "moba/T1relax_so.h"
 #include "moba/T1srelax.h"
+#include "moba/IR_SS_fun.h"
 
 #include "utest.h"
 
@@ -742,3 +743,60 @@ static bool test_nlop_T1_MOLLI_relax_der_adj(void)
 
 UT_REGISTER_TEST(test_nlop_T1_MOLLI_relax_der_adj);
 
+static bool test_nlop_IR_SS_fun(void) 
+{
+	enum { N = 16 };
+	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long TI_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
+	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
+
+	complex float TI[4] = { 0., 1., 2., 3. };
+
+	md_zfill(N, in_dims, src, 1.0);
+
+	struct nlop_s* IR_SS = nlop_IR_SS_create(N, map_dims, out_dims, in_dims, TI_dims, TI, false);
+
+	nlop_apply(IR_SS, N, out_dims, dst, N, in_dims, src);
+	
+	float err = linop_test_adjoint(nlop_get_derivative(IR_SS, 0, 0));
+
+	nlop_free(IR_SS);
+
+	md_free(src);
+	md_free(dst);
+
+	UT_ASSERT(err < 1.E-3);
+}
+
+UT_REGISTER_TEST(test_nlop_IR_SS_fun);
+
+static bool test_nlop_IR_SS_fun_der_adj(void)
+{
+        enum { N = 16 };
+	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+ 	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long TI_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        
+        complex float TI[4] = { 0., 1., 2., 3. };
+
+	struct nlop_s* IR_SS = nlop_IR_SS_create(N, map_dims, out_dims, in_dims, TI_dims, TI, false);
+
+	struct nlop_s* flat = nlop_flatten(IR_SS);
+
+	random_application(flat);
+
+	double err = linop_test_adjoint(nlop_get_derivative(flat, 0, 0));
+
+	nlop_free(flat);
+	nlop_free(IR_SS);
+        
+
+	UT_ASSERT((!safe_isnanf(err)) && (err < 7.E-2));
+}
+
+UT_REGISTER_TEST(test_nlop_IR_SS_fun_der_adj);
