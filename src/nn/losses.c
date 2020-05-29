@@ -369,11 +369,12 @@ static const struct nlop_s* nlop_frequency_compensation_create(int N, const long
 	SET_TYPEID(frequency_compensation_s, data);
 
 	long sum_dims[N];
-	md_select_dims(N, batch_flag, sum_dims, dims);
+	md_select_dims(N, ~batch_flag, sum_dims, dims);
 
 	data->N = N;
  	data->dom = iovec_create(N, dims, CFL_SIZE);
 	data->sum_dom = iovec_create(N, sum_dims, CFL_SIZE);
+	data->batch_flag = batch_flag;
 
 	// will be initialized later, to transparently support GPU
 	data->sum = NULL;
