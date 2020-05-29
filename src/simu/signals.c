@@ -114,25 +114,33 @@ const struct signal_model signal_looklocker_defaults = {
 	.tr = 0.0041,
 	.fa = 8. * M_PI / 180.,
 	.ir = true,
+	.ir_ss = false,
 };
 
 static float signal_looklocker(const struct signal_model* data, int ind, float* m_start)
 {
-	float fa = data->fa;
-	float t1 = data->t1;
-	float m0 = data->m0;
-	float tr = data->tr;
-	bool  ir = data->ir;
+	float fa   = data->fa;
+	float t1   = data->t1;
+	float m0   = data->m0;
+	float tr   = data->tr;
+	bool  ir   = data->ir;
+	bool ir_ss = data->ir_ss;
 
 	float s0 = 0.; 
-	
-	if (NULL == m_start)
-		s0 = ir ? (-1) * m0 : m0;
-	else
-		s0 = *m_start;
-	
+
 	float r1s = 1. / t1 - logf(cosf(fa)) / tr;
 	float mss = m0 / (t1 * r1s);
+	
+	if (NULL == m_start) {
+
+		if (ir_ss)
+			s0 = -1. * mss;		
+		else
+			s0 = ir ? (-1. * m0) : m0;			
+	} else {
+
+		s0 = *m_start;
+	}
 
 	return mss - (mss - s0) * expf(-ind * tr * r1s);
 }
@@ -158,10 +166,10 @@ extern void MOLLI_model(const struct signal_model* data, int N, int Hbeats, floa
 	float r1   = 1.0 / data->t1;
 	int cycle  = 0;
 
-	for (int ind = 0; ind < N; ind++)
-	{
-		if((0 < ind) && (0 == ind % (N / Hbeats)))
-		{
+	for (int ind = 0; ind < N; ind++) {
+
+		if((0 < ind) && (0 == ind % (N / Hbeats))) {
+
 			temp = m0 + (out[ind-1] - m0) * expf(-1.0 * time_T1relax * r1);
 			cycle++;
 		}

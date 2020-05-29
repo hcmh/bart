@@ -37,6 +37,7 @@ int main_signal(int argc, char* argv[])
 	enum seq_type seq = FLASH;
 
 	bool IR = false;
+	bool IR_SS = false;
 	float FA = -1.;
 	float TR = -1.;
 	float TE = -1.;
@@ -53,6 +54,7 @@ int main_signal(int argc, char* argv[])
 		OPT_SELECT('T', enum seq_type, &seq, TSE, "TSE"),
 		OPT_SELECT('M', enum seq_type, &seq, MOLLI, "MOLLI"),
 		OPT_SET('I', &IR, "inversion recovery"),
+		OPT_SET('s', &IR_SS, "inversion recovery starting from steady state"),
 		OPT_FLVEC3('1', &T1, "min:max:N", "range of T1s"),
 		OPT_FLVEC3('2', &T2, "min:max:N", "range of T2s"),
 		OPT_FLOAT('r', &TR, "TR", "repetition time"),
@@ -87,6 +89,9 @@ int main_signal(int argc, char* argv[])
 		parm.tr = TR;
 
         parm.ir = IR;
+	parm.ir_ss = IR_SS;
+
+	assert(!(parm.ir && parm.ir_ss));
 
 	// if (-1 != TE)
 	// 	parm.te = TE;

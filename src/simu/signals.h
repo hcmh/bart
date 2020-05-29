@@ -17,6 +17,7 @@ struct signal_model {
 	float fa;
 	float beta;
 	bool ir;
+	bool ir_ss;
 };
 
 
