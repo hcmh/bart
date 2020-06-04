@@ -105,7 +105,9 @@ static bool test_op_p_stack2(void)
 
 	for (int k = 0; k < (phases - 1); k++) {
 
-		b = operator_p_stack(3, 3, b, stack);
+		auto tmp = operator_p_stack(3, 3, b, stack);
+                operator_p_free(b);
+                b = tmp;
 	}
 
 	operator_p_free(a);
