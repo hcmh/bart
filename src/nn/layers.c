@@ -43,6 +43,19 @@ static void perm_shift(int N, int from, int to, int perm[N])
 	}
 }
 
+/**
+ * Append convolution/correlation layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param filters number of output channels
+ * @param kernel_size {kx, ky, kz} size of convolution kernel
+ * @param conv convolution if true, correlation else
+ * @param conv_pad padding for the convolution
+ * @param channel_first data layout is {c, x, y, z}/{filter, channel, kx, ky, kz} if true, {x, y, z, c} {kx, ky, kz, channel, filter} else
+ * @param strides (not supported, must be NULL)
+ * @param dilations (not supported, must be NULL)
+ */
 const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, int filters, long const kernel_size[3], bool conv, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3])
 {
 	const long ones[3] = {1, 1, 1};
@@ -161,6 +174,20 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 	return result;
 }
 
+/**
+ * Append transposed convolution/correlation layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param filters number of output channels
+ * @param kernel_size {kx, ky, kz} size of convolution kernel
+ * @param conv convolution if true, correlation else
+ * @param adjoint if true, the operator is a adjoint convolution, else it's a transposed one
+ * @param conv_pad padding for the convolution
+ * @param channel_first data layout is {c, x, y, z}/{filter, channel, kx, ky, kz} if true, {x, y, z, c} {kx, ky, kz, channel, filter} else
+ * @param strides (not supported, must be NULL)
+ * @param dilations (not supported, must be NULL)
+ */
 const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* network, int o, int channels, long const kernel_size[3], bool conv, bool adjoint, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3])
 {
 	const long ones[3] = {1, 1, 1};
@@ -282,10 +309,23 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 	return result;
 }
 
+/**
+ * Append maxpooling layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param pool_size {px, py, pz} size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c}else
+ */
 const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
 {
+	//Fixme: we should adapt to tf convention (include strides)
+
 	int NO = nlop_get_nr_out_args(network);
 	assert(o < NO);
+
+	assert((PAD_VALID == conv_pad) || (PAD_SAME == conv_pad));
 
 	assert((nlop_generic_codomain(network, o))->N == 5);
 
@@ -317,7 +357,7 @@ const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, c
 			continue;
 		}
 
-		if (conv_pad == PAD_VALID){
+		if (conv_pad == PAD_SAME){
 
 			idims_working[i] += pool_size_working[i] - (idims_working[i] % pool_size_working[i]);
 			continue;
@@ -349,6 +389,13 @@ const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, c
 }
 
 
+/**
+ * Append dense layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param neurons number of output neurons
+ */
 const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int out_neurons)
 {
 
@@ -394,6 +441,14 @@ const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int
 	return result;
 }
 
+
+/**
+ * Append dropout layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param p procentage of outputs dropt out
+ */
 const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, float p)
 {
 	int NO = nlop_get_nr_out_args(network);
@@ -418,6 +473,13 @@ const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, f
 	return result;
 }
 
+/**
+ * Append flatten layer
+ * flattens all dimensions except the last one (batch dim)
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ */
 const struct nlop_s* append_flatten_layer(const struct nlop_s* network, int o)
 {
 	int NO = nlop_get_nr_out_args(network);
@@ -435,12 +497,24 @@ const struct nlop_s* append_flatten_layer(const struct nlop_s* network, int o)
 	return nlop_reshape_out(network, o, 2, odims);
 }
 
+/**
+ * Append flatten layer
+ * flattens all dimensions except the last one (batch dim)
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param N number of dimensions
+ * @param padd_for 
+ * @param padd_after
+ * @param pad_type 
+ */
 const struct nlop_s* append_padding_layer(const struct nlop_s* network, int o, long N, long pad_for[N], long pad_after[N], enum PADDING pad_type)
 {
 	int NO = nlop_get_nr_out_args(network);
 	assert(o < NO);
 
 	auto io = nlop_generic_codomain(network, o);
+	assert(io->N == N);
 	auto pad_op = nlop_from_linop_F(linop_padding_create(io->N, io->dims, pad_type, pad_for, pad_after));
 
 	network = nlop_chain2_FF(network, o, pad_op, 0);

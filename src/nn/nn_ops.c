@@ -195,7 +195,7 @@ static void dropout_fun(const struct nlop_data_s* _data, complex float* dst, con
 
 	if (network_status == STAT_TEST){
 
-		md_zsmul2(data->N, data->codom->dims, data->codom->strs, dst, data->dom->strs, src, (complex float)data->p);
+		md_zsmul2(data->N, data->codom->dims, data->codom->strs, dst, data->dom->strs, src, (complex float)(1 - data->p));
 		PRINT_TIMER("douts");
 		return;
 	}
