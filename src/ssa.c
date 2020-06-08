@@ -415,6 +415,7 @@ int main_ssa(int argc, char* argv[])
 
 			complex float* mean = md_alloc(DIMS, singleton_dims, CFL_SIZE);
 
+			md_zavg(DIMS, in_dims, READ_FLAG, mean, in);
 			md_zsub2(DIMS, in_dims, in_strs, in, in_strs, in, singleton_strs, mean);
 
 			md_free(mean);
