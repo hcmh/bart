@@ -79,7 +79,7 @@ static void clear(long N, float* vec)
 		vec[i] = 0.;
 }
 
-static void sadd(long N, float* vec, float src)
+static void sadd_update(long N, float* vec, float src)
 {
 	for (long i = 0; i < N; i++)
 		vec[i] += src;
@@ -198,6 +198,18 @@ static void add(long N, float* dst, const float* src1, const float* src2)
 #endif
 	for (long i = 0; i < N; i++)
 		dst[i] = src1[i] + src2[i];
+}
+
+static void sadd(long N, float val, float* dst, const float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = src[i] + val;
+}
+
+static void zsadd(long N, complex float val, complex float* dst, const complex float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = src[i] + val;
 }
 
 static void sub(long N, float* dst, const float* src1, const float* src2)
@@ -765,6 +777,7 @@ const struct vec_ops cpu_ops = {
 	.div = vec_div,
 	.fmac = fmac,
 	.fmac2 = fmac2,
+	.sadd = sadd,
 
 	.smul = smul,
 
@@ -786,6 +799,7 @@ const struct vec_ops cpu_ops = {
 
 	.zsmax = zsmax,
 	.zsmul = zsmul,
+	.zsadd = zsadd,
 
 	.zpow = zpow,
 	.zphsr = zphsr,
@@ -886,7 +900,7 @@ const struct vec_iter_s cpu_iter_ops = {
 	.fmac = fmac,
 	.sqrt = vec_sqrt,
 	.sdiv = sdiv,
-	.sadd = sadd,
+	.sadd = sadd_update,
 	.div = vec_div,
 	.smax = smax,
 	.smin = smin,

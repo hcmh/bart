@@ -177,6 +177,34 @@ extern "C" void cuda_add(long N, float* dst, const float* src1, const float* src
 	cuda_3op(kern_add, N, dst, src1, src2);
 }
 
+__global__ void kern_sadd(long N, float val, float* dst, const float* src1)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (long i = start; i < N; i += stride)
+		dst[i] = src1[i] + val;
+}
+
+extern "C" void cuda_sadd(long N, float val, float* dst, const float* src1)
+{
+	kern_sadd<<<gridsize(N), blocksize(N)>>>(N, val, dst, src1);
+}
+
+__global__ void kern_zsadd(long N, cuFloatComplex val, cuFloatComplex* dst, const cuFloatComplex* src1)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (long i = start; i < N; i += stride)
+		dst[i] = cuCaddf(src1[i], val);
+}
+
+extern "C" void cuda_zsadd(long N, _Complex float val, _Complex float* dst, const _Complex float* src1)
+{
+	kern_zsadd<<<gridsize(N), blocksize(N)>>>(N, make_cuFloatComplex(__real(val), __imag(val)), (cuFloatComplex*)dst, (const cuFloatComplex*)src1);
+}
+
 __global__ void kern_sub(long N, float* dst, const float* src1, const float* src2)
 {
 	int start = threadIdx.x + blockDim.x * blockIdx.x;

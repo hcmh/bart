@@ -16,6 +16,8 @@ extern void cuda_smul(long N, float alpha, float* dst, const float* src);
 extern void cuda_mul(long N, float* dst, const float* src1, const float* src2);
 extern void cuda_div(long N, float* dst, const float* src1, const float* src2);
 extern void cuda_add(long N, float* dst, const float* src1, const float* src2);
+extern void cuda_sadd(long N, float val, float* dst, const float* src1);
+extern void cuda_zsadd(long N, _Complex float val, _Complex float* dst, const _Complex float* src1);
 extern void cuda_sub(long N, float* dst, const float* src1, const float* src2);
 extern void cuda_fmac(long N, float* dst, const float* src1, const float* src2);
 extern void cuda_fmac2(long N, double* dst, const float* src1, const float* src2);

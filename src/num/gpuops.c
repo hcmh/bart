@@ -51,19 +51,19 @@ static void cuda_error(int line, cudaError_t code)
 // Print free and used memory on GPU.
 void print_cuda_meminfo(void)
 {
-    size_t byte_tot;
-    size_t byte_free;
-    cudaError_t cuda_status = cudaMemGetInfo(&byte_free, &byte_tot);
+	size_t byte_tot;
+	size_t byte_free;
+	cudaError_t cuda_status = cudaMemGetInfo(&byte_free, &byte_tot);
 
-    if (cuda_status != cudaSuccess)
-	    error("ERROR: cudaMemGetInfo failed. %s\n", cudaGetErrorString(cuda_status));
+	if (cuda_status != cudaSuccess)
+		error("ERROR: cudaMemGetInfo failed. %s\n", cudaGetErrorString(cuda_status));
 
 
-    double dbyte_tot = (double)byte_tot;
-    double dbyte_free = (double)byte_free;
-    double dbyte_used = dbyte_tot - dbyte_free;
+	double dbyte_tot = (double)byte_tot;
+	double dbyte_free = (double)byte_free;
+	double dbyte_used = dbyte_tot - dbyte_free;
 
-    debug_printf(DP_INFO , "GPU memory usage: used = %.4f MiB, free = %.4f MiB, total = %.4f MiB\n", dbyte_used/MiBYTE, dbyte_free/MiBYTE, dbyte_tot/MiBYTE);
+	debug_printf(DP_INFO , "GPU memory usage: used = %.4f MiB, free = %.4f MiB, total = %.4f MiB\n", dbyte_used/MiBYTE, dbyte_free/MiBYTE, dbyte_tot/MiBYTE);
 }
 
 int cuda_devices(void)
@@ -368,6 +368,7 @@ const struct vec_ops gpu_ops = {
 	.fmac2 = cuda_fmac2,
 
 	.smul = cuda_smul,
+	.sadd = cuda_sadd,
 
 	.axpy = cuda_saxpy,
 
@@ -377,6 +378,7 @@ const struct vec_ops gpu_ops = {
 	.le = cuda_le,
 
 	.zsmul = cuda_zsmul,
+	.zsadd = cuda_zsadd,
 	.zsmax = cuda_zsmax,
 
 	.zmul = cuda_zmul,

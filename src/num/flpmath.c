@@ -1982,7 +1982,19 @@ void md_zadd(unsigned int D, const long dims[D], complex float* optr, const comp
  */
 void md_zsadd2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr, complex float val)
 {
+#if 0
 	make_z3op_scalar(md_zadd2, D, dims, ostr, optr, istr, iptr, val);
+#else
+	// FIXME: we should rather optimize md_zadd2 for this case
+
+	NESTED(void, nary_zsadd, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		data->ops->zsadd(data->size, val, ptr[0], ptr[1]);
+	};
+
+	optimized_twoop_oi(D, dims, ostr, optr, istr, iptr,
+		(size_t[2]){ CFL_SIZE, CFL_SIZE }, nary_zsadd);
+#endif	
 }
 
 
@@ -2032,7 +2044,7 @@ void md_zsub(unsigned int D, const long dims[D], complex float* optr, const comp
  * optr = iptr1 + iptr2
  */
 void md_add2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr1[D], const float* iptr1, const long istr2[D], const float* iptr2)
-{
+{		
 	MAKE_3OP(add, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
@@ -2057,7 +2069,19 @@ void md_add(unsigned int D, const long dims[D], float* optr, const float* iptr1,
  */
 void md_sadd2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, float val)
 {
+#if 0
 	make_3op_scalar(md_add2, D, dims, ostr, optr, istr, iptr, val);
+#else
+	// FIXME: we should rather optimize md_zadd2 for this case
+
+	NESTED(void, nary_sadd, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		data->ops->sadd(data->size, val, ptr[0], ptr[1]);
+	};
+
+	optimized_twoop_oi(D, dims, ostr, optr, istr, iptr,
+		(size_t[2]){ FL_SIZE, FL_SIZE }, nary_sadd);
+#endif		
 }
 
 
