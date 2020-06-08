@@ -493,19 +493,19 @@ void nlop_generic_apply_extopts_unchecked(const struct nlop_s* op, int N, void* 
 
 void nlop_generic_apply_select_derivative_unchecked(const struct nlop_s* op, int N, void* args[N], unsigned long out_der_flag, unsigned long in_der_flag)
 {
-	unsigned int II = nlop_get_nr_in_args(op);
+	//unsigned int II = nlop_get_nr_in_args(op);
 	unsigned int OO = nlop_get_nr_out_args(op);
 	operator_run_opt_flags_t run_opts[N][N];
 
-	for (int i = 0; i < N; i++)
-		for (int j = 0; j < N; j++) {
+	for (unsigned int i = 0; i < (unsigned int)N; i++)
+		for (unsigned int j = 0; j < (unsigned int)N; j++) {
 
 			run_opts[i][j] = 0;
 			
-			if ((i < OO) && !(j < OO) && (!MD_IS_SET(out_der_flag, i) || !MD_IS_SET(out_der_flag, j - OO)))				
+			if ((i < OO) && !(j < OO) && (!MD_IS_SET(out_der_flag, i) || !MD_IS_SET(in_der_flag, j - OO)))				
 				run_opts[i][j] = MD_SET(run_opts[i][j], OP_APP_NO_DER);
 
-			if (!(i < OO) && (j < OO) && (!MD_IS_SET(out_der_flag, i - OO) || !MD_IS_SET(out_der_flag, j)))				
+			if (!(i < OO) && (j < OO) && (!MD_IS_SET(in_der_flag, i - OO) || !MD_IS_SET(out_der_flag, j)))				
 				run_opts[i][j] = MD_SET(run_opts[i][j], OP_APP_NO_DER);
 		}
 
