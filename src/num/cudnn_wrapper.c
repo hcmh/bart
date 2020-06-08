@@ -6,6 +6,7 @@
 #include "num/flpmath.h"
 #include "num/gpuops.h"
 #include <cudnn.h>
+#include <limits.h>
 
 #include "misc/debug.h"
 #include "misc/misc.h"
@@ -464,6 +465,68 @@ bool zconvcorr_bwd_krn_cudnn_2d_cf(	int N,
 	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
 
 	return true;
+}
+
+
+
+
+
+
+
+/**
+ * cudnnTensorTransform for zsmul
+ *
+ * @param dims dimension
+ * @param ostr 
+ * @param optr
+ * @param istr
+ * @param iptr
+ * @param istr1 
+ * @param iptr1 
+ **/
+void cudnn_zsmul_tensor_transform(unsigned int N, const long dims[N], const long ostr[N], float* optr, const long istr[N], const float* iptr, float val)
+{
+        long size = 4;
+
+	assert(8 >= N);
+	for (int i = 0; i < N; i ++) {
+
+		assert(0 == ostr[i] % size);
+		assert(0 == istr[i] % size);
+		assert(0 < ostr[i]);
+		assert(0 < istr[i]);
+		assert(INT_MAX / 2 > dims[i]);
+	}
+
+	int NN = MAX(N, 4);
+	int cudnn_dims[NN];
+	int cudnn_ostr[NN];
+	int cudnn_istr[NN];
+	for (int i = 0; i < N; i++) {
+
+		cudnn_dims[i] = dims[N - 1 -i];
+		cudnn_ostr[i] = ostr[N - 1 -i] / size;
+		cudnn_istr[i] = istr[N - 1 -i] / size;
+	}
+	for (int i = N; i < NN; i++) {
+
+		cudnn_dims[i] = 1;
+		cudnn_ostr[i] = 1;
+		cudnn_istr[i] = 1;
+	}
+
+	cudnnTensorDescriptor_t idesc;
+	cudnnTensorDescriptor_t odesc;
+	CUDNN_ERROR(cudnnCreateTensorDescriptor(&idesc));
+	CUDNN_ERROR(cudnnCreateTensorDescriptor(&odesc));
+	CUDNN_ERROR(cudnnSetTensorNdDescriptor(idesc, CUDNN_DATA_FLOAT, NN, cudnn_dims, cudnn_istr));
+	CUDNN_ERROR(cudnnSetTensorNdDescriptor(odesc, CUDNN_DATA_FLOAT, NN, cudnn_dims, cudnn_ostr));
+
+	float zero;
+	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &val, idesc, iptr, &zero, odesc, optr));
+
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(idesc));
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(odesc));
 }
 
 #endif //USE_CUDNN

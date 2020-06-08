@@ -22,4 +22,6 @@ _Bool zconvcorr_bwd_krn_cudnn_2d_cf(	int N,
 					long kdims[N], long kstrs[N], _Complex float* krn,
 					unsigned long flags, const long dilation[N], const long strides[N], _Bool conv);
 
+
+extern void cudnn_zsmul_tensor_transform(unsigned int N, const long dims[N], const long ostr[N], float* optr, const long istr[N], const float* iptr, float val);
 #endif
