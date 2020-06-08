@@ -411,29 +411,28 @@ static void make_z3op_scalar(md_z3op_t fun, unsigned int D, const long dims[D], 
 static void make_3op_scalar(md_3op_t fun, unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, float val)
 {
 	size_t size = FL_SIZE;
+	unsigned long max_fill = 128 * 1024 * 1024;
 	unsigned long flags = 0;
 
-	if ((4096 >= size * dims[0]) && (FL_SIZE == ostr[0]) && (FL_SIZE == istr[0]))
-		flags = MD_SET(flags, 0);
+	long str[D];
+	md_calc_strides(D, str, dims, size);
 
-	for (unsigned int i = 1; i < D; i++) {
+	for (int i = 0; i < D; i++) {
 
-		if (!MD_IS_SET(flags, i - 1))
-			continue;
-		if ((4096 >= size * dims[i]) && (dims[i - 1] * ostr[i - 1] == ostr[i]) && (ostr[i] == istr[i]))
-			flags = MD_SET(flags, i);
+		if ((max_fill < md_calc_size(i + 1, dims)) || (ostr[i] != str[i]) || (istr[i] != str[i]))
+			break;
+		flags = MD_SET(flags, i);
 	}
 
 	long tdims[D];
-	long strs1[D];
 
 	md_select_dims(D, flags, tdims, dims);
-	md_calc_strides(D, strs1, tdims, FL_SIZE);
+	md_calc_strides(D, str, tdims, size);
 
 	float* valp = md_alloc_sameplace(D, tdims, FL_SIZE, optr);
-	md_fill(D, tdims, valp, &val, FL_SIZE);
+	md_fill(D, tdims, valp, &val, size);
 
-	fun(D, dims, ostr, optr, istr, iptr, strs1, valp);
+	fun(D, dims, ostr, optr, istr, iptr, str, valp);
 
 	md_free(valp);
 }
