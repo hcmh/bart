@@ -579,6 +579,7 @@ DEF_TYPEID(softmax_s);
 
 static void softmax_apply(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	//S_i = exp(x_i)/sum_k(exp(x_k)) = S_i = exp(x_i - m)/sum_k(exp(x_k - m))
 	struct softmax_s* d = CAST_DOWN(softmax_s, _data);
 
@@ -605,6 +606,7 @@ static void softmax_apply(const nlop_data_t* _data, complex float* dst, const co
 	md_free(tmp_exp);
 
 	md_copy(d->N, d->dom->dims, dst, d->tmp, CFL_SIZE);
+	PRINT_TIMER("frw softmax")
 }
 
 static void softmax_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
