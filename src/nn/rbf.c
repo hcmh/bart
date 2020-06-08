@@ -75,7 +75,7 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N], ope
 	const complex float* wsrc = args[2];
 
 	bool der1 = !(MD_IS_SET(run_flags[0][1], OP_APP_NO_DER));
-	bool der2 = !(MD_IS_SET(run_flags[0][2], OP_APP_NO_DER));
+	//bool der2 = !(MD_IS_SET(run_flags[0][2], OP_APP_NO_DER));
 
 	rbf_initialize(data, zdst, der1);
 	
