@@ -12,7 +12,6 @@
 #include <complex.h>
 #include <stdbool.h>
 
-#include "cublas_v2.h"
 #include "misc/misc.h"
 
 #ifdef USE_MACPORTS
@@ -265,7 +264,7 @@ void blas2_cdotu(complex float* result, long N, long incx, const complex float* 
 		cublasCdotu(get_handle(), N, (const cuComplex*)x, incx, (const cuComplex*)y, incy, (cuComplex*)result);
 	} else
 #endif
-	*result = cblas_cdotu(N, x, incx, y, incy);
+	cblas_cdotu_sub(N, x, incx, y, incy, (void*)result);
 }
 
 void blas2_sgemm(char transa, char transb, long M, long N, long K, const float* alpha, long lda, const float* A, long ldb, const float* B, const float* beta, long ldc, float* C)
