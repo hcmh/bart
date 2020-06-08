@@ -480,8 +480,8 @@ static long check_dgmm(unsigned long N, long ndims[N], long nostrs[N], long nist
 	md_permute_dims(N, perm, nistrs2, tistrs2);
 
 	bool dgmm = true;
-	dgmm = dgmm && (size == nostrs[0]) && (0 == nostrs[0] % size) && (size * ndims[0] <= nostrs[1] % size);
-	dgmm = dgmm && (size == nistrs1[0]) && (0 == nistrs1[0] % size) && (size * ndims[0] <= nistrs1[1] % size);
+	dgmm = dgmm && (size == nostrs[0]) && (0 == nostrs[1] % size) && (size * ndims[0] <= nostrs[1]);
+	dgmm = dgmm && (size == nistrs1[0]) && (0 == nistrs1[1] % size) && (size * ndims[0] <= nistrs1[1]);
 	dgmm = dgmm && (0 == nistrs2[0] % size) && (0 == nistrs2[1] % size);
 	dgmm = dgmm && (0 == nistrs2[0] * nistrs2[1]);
 	dgmm = dgmm && ((0 < nistrs2[0]) || (0 < nistrs2[1]));
