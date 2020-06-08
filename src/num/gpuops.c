@@ -25,6 +25,7 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cublas.h>
+#include <cuda_profiler_api.h>
 
 #include "num/vecops.h"
 #include "num/gpuops.h"
@@ -368,6 +369,16 @@ static void cuda_swap(long size, float* a, float* b)
 void cuda_sync_device(void)
 {
 	CUDA_ERROR(cudaDeviceSynchronize());
+}
+
+void cuda_start_profiling(void)
+{
+	CUDA_ERROR(cudaProfilerStart());
+}
+
+void cuda_stop_profiling(void)
+{
+	CUDA_ERROR(cudaProfilerStop());
 }
 
 // syncs all streams by explicite call in legacy default stream but does not block the CPU

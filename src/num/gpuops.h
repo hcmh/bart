@@ -30,6 +30,9 @@ extern void print_cuda_meminfo(void);
 extern void cuda_sync_device(void);
 extern void cuda_sync_streams(void);
 
+extern void cuda_start_profiling(void);
+extern void cuda_stop_profiling(void);
+
 extern int cuda_get_current_device(void);
 extern void cuda_prefetch(void* ptr, long size);
 
