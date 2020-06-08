@@ -72,6 +72,8 @@ static void shared_apply(const operator_data_t* _data, unsigned int N, void* arg
 {
 	auto data = CAST_DOWN(shared_data_s, _data);
 
+	UNUSED(flags);
+
 	assert(2 == N);
 	debug_trace("ENTER %p\n", data->u.apply);
 	data->u.apply(data->data, args[0], args[1]);
@@ -105,6 +107,8 @@ static operator_io_prop_flags_t linop_get_io_props(const operator_data_t* _data,
 		return data->out_props;
 	if (1 == i)
 		return data->in_props;
+	assert(0);
+	return 0;
 }
 
 /**
