@@ -44,6 +44,7 @@ static void altmin_nlop(iter_op_data* _o, int N, float* args[N], operator_run_op
 	assert((unsigned int)N == operator_nr_args(data->nlop->op));
 
 	nlop_generic_apply_unchecked(data->nlop, N, (void*)args);
+	UNUSED(run_opts);
 }
 
 static void altmin_normal(iter_op_data* _o, float* dst, const float* src)
