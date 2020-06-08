@@ -3,3 +3,5 @@ extern _Bool simple_fmac(unsigned int N, const long dims[__VLA(N)], const long o
 
 extern _Bool simple_zmul(unsigned int N, const long dims[__VLA(N)], const long ostrs[__VLA(N)], _Complex float* out, const long istrs1[__VLA(N)], const _Complex float* in1, const long istrs2[__VLA(N)], const _Complex float* in2);
 extern _Bool simple_mul(unsigned int N, const long dims[__VLA(N)], const long ostrs[__VLA(N)], float* out, const long istrs1[__VLA(N)], const float* in1, const long istrs2[__VLA(N)], const float* in2);
+
+extern _Bool simple_smul(unsigned int N, const long dims[__VLA(N)], const long ostrs[__VLA(N)], float* out, const long istrs[__VLA(N)], const float* in, float val);

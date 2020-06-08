@@ -35,8 +35,10 @@
 #include "strided_vecops.h"
 
 typedef long (*md_check_3op_t)(unsigned long N, long ndims[N], long nostrs[N], long nistrs1[N], long nistrs2[N], const long dims[N], const long ostrs[N], const long istrs1[N], const long istrs2[N], long size);
+typedef long (*md_check_2op_t)(unsigned long N, long ndims[N], long nostrs[N], long nistrs[N], const long dims[N], const long ostrs[N], const long istrs[N], long size);
 
 typedef void (*md_3op_t)(unsigned int D, const long dims[D], const long ostrs[D], float* optr, const long istrs1[D], const float* iptr1, const long istrs2[D], const float* iptr2);
+typedef void (*md_s2op_t)(unsigned int D, const long dims[D], const long ostrs[D], float* optr, const long istrs[D], const float* iptr, float val);
 typedef void (*md_z3op_t)(unsigned int D, const long dims[D], const long ostrs[D], complex float* optr, const long istrs1[D], const complex float* iptr1, const long istrs2[D], const complex float* iptr2);
 
 struct simple_z3op_check {
@@ -57,7 +59,18 @@ struct simple_3op_check {
 	_Bool in_place;
 };
 
-#if 0
+struct simple_s2op_check {
+
+	md_check_2op_t check_fun;
+	md_s2op_t strided_kernel;
+	_Bool on_gpu;
+	_Bool on_cpu;
+	_Bool in_place;
+};
+
+
+
+
 /**
  * Optimized two-op wrapper. Use when input is constant -- copy from flpmath.c
  *
@@ -79,7 +92,6 @@ static void optimized_twoop_oi(unsigned int D, const long dim[D], const long ost
 
 	optimized_nop(2, io, D, dim, nstr, nptr, sizes, too);
 }
-#endif
 
 /**
  * Optimized threeop wrapper. Use when inputs are constants -- copy from flpmath.c
@@ -634,7 +646,70 @@ static bool simple_3op(int N_checks, struct simple_3op_check strided_calls[N_che
 	optimized_threeop_oii(	N - N_in, ndims + N_in,
 				nostrs + N_in, (void*)out, nistrs1 + N_in, (void*)tin1, nistrs2 + N_in, (void*)tin2,
 				(size_t[3]){ osize, isize1, isize2 }, nary_inner_z3op);
+	return true;
+}
 
+static bool simple_s2op(int N_checks, struct simple_s2op_check strided_calls[N_checks], unsigned int N, const long dims[N], const long ostrs[N], float* out, const long istrs[N], const float* in, float val)
+{
+	long size = 4;
+
+	long ndims[N];
+	long nostrs[N];
+	long nistrs[N];
+
+	long N_in = -1;
+	md_s2op_t strided_kernel = NULL;
+
+	for (int i = 0; i < N_checks; i++) {
+
+		bool applicable = true;
+		strided_kernel = strided_calls[i].strided_kernel;
+
+	#ifdef USE_CUDA
+		if (cuda_ondevice(out))
+			applicable &= strided_calls[i].on_gpu;
+		else
+	#endif
+			applicable &= strided_calls[i].on_cpu;
+		if (!applicable)
+			continue;
+
+		N_in = strided_calls[i].check_fun(N, ndims, nostrs, nistrs, dims, ostrs, istrs, size);
+		if (-1 != N_in)
+			break;
+	}
+
+	if (-1 == N_in)
+		return false;
+
+	size_t osize = 0;
+	size_t isize = 0;
+
+	for (int i = 0; i < N_in; i++) {
+
+		osize = MAX(osize, (size_t)(nostrs[i] * ndims[i]));
+		isize = MAX(osize, (size_t)(nistrs[i] * ndims[i]));
+	}
+
+	//clang
+	long* ndims_ptr = &ndims[0];
+	long* nostrs_ptr = &nostrs[0];
+	long* nistrs1_ptr = &nistrs[0];
+
+
+	NESTED(void, nary_inner_z3op, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		for (long i = 0; i < data->size; i++)
+			strided_kernel(	N_in, ndims_ptr,
+					nostrs_ptr, (float*)(ptr[0] + i * osize),
+					nistrs1_ptr, (const float*)(ptr[1] + i * isize),
+					val);
+	};
+
+	optimized_twoop_oi(	N - N_in, ndims + N_in,
+				nostrs + N_in, (void*)out, nistrs + N_in, (void*)in,
+				(size_t[3]){ osize, isize }, nary_inner_z3op);
+	
 	return true;
 }
 
@@ -683,4 +758,114 @@ bool simple_mul(unsigned int N, const long dims[N], const long ostrs[N], float* 
 
 	return simple_3op(	sizeof(strided_calls) / sizeof(strided_calls[0]), strided_calls,
 				N, dims, ostrs, out, istrs1, in1, istrs2, in2);
+}
+
+
+
+
+
+/**
+ * Output: 2 if mat-vec-mul, -1, else
+ *
+ * if succesful, the out strides have the form:
+ * nostrs: (x, 0| y1, ...| 0, 0, ...)
+ * the in strides have the form
+ * nistrs1: (x, x| y2, ...| 0, 0, ...)
+ * nistrs2: (0, x| y3, ...| 0, 0, ...)
+ */
+static long check_cudnn_tensor_transform(unsigned long N, long ndims[N], long nostrs[N], long nistrs[N], const long dims[N], const long ostrs[N], const long istrs[N], long size)
+{
+	md_singleton_dims(N, ndims);
+	md_singleton_strides(N, nostrs);
+	md_singleton_strides(N, nistrs);
+
+	long tdims[N];
+	long tostrs[N];
+	long tistrs[N];
+
+	md_copy_dims(N, tdims, dims);
+	md_copy_strides(N, tostrs, ostrs);
+	md_copy_strides(N, tistrs, istrs);
+
+	long (*strs[2])[N] = { &tostrs, &tistrs};
+
+	N = simplify_dims(2, N, tdims, strs);
+
+	if (2 > N)
+		return -1;
+
+	unsigned int NN = 0;
+	bool tensortransform = true;
+
+	unsigned long max_istr = 0;
+	unsigned long max_istr_dim = 0;
+	unsigned long max_ostr = 0;
+	unsigned long max_ostr_dim = 0;
+
+	for (unsigned int i = 0; i < MIN(8, N); i++) {
+
+		if ((0 >= tistrs[i]) || (0 >= tostrs[i]))
+			tensortransform = false;
+
+		for (int j = 0; j < i; j++) {
+
+			if ((tistrs[i] > tistrs[j]) && (!((tistrs[i] >= tdims[j] * tistrs[j]))))
+				tensortransform = false;
+			if ((tostrs[i] > tostrs[j]) && (!((tostrs[i] >= tdims[j] * tostrs[j]))))
+				tensortransform = false;
+			
+			tensortransform = tensortransform && (tistrs[i] != tistrs[j]);
+			tensortransform = tensortransform && (tostrs[i] != tostrs[j]);
+		}
+
+		max_istr_dim = tistrs[i] < max_istr ? max_istr_dim : i;
+		max_ostr_dim = tostrs[i] < max_ostr ? max_ostr_dim : i;
+		max_ostr = MAX(max_ostr, tostrs[i]);
+		max_istr = MAX(max_istr, tistrs[i]);
+
+		if (tensortransform)
+			NN = i + 1;
+	}
+
+	debug_printf(DP_INFO, "%ld, %lu, %ld, %ld", md_calc_size(NN, dims) , size , tdims[max_istr_dim] , max_istr);
+
+	if (md_calc_size(NN, tdims) * size != tdims[max_istr_dim] * max_istr)
+		return -1;
+	if (md_calc_size(NN, tdims) * size != tdims[max_ostr_dim] * max_ostr)
+		return -1;
+
+	md_copy_dims(N, ndims, tdims);
+	md_copy_strides(N, nostrs, tostrs);
+	md_copy_strides(N, nistrs, tistrs);
+
+	return NN;
+}
+
+#include "num/cudnn_wrapper.h"
+
+bool simple_smul(unsigned int N, const long dims[N], const long ostrs[N], float* out, const long istrs[N], const float* in, float val)
+{
+	size_t size = 4;
+
+#ifndef USE_CUDNN
+
+	UNUSED(N);
+	UNUSED(dims);
+	UNUSED(ostrs);
+	UNUSED(out);
+	UNUSED(istrs);
+	UNUSED(in);
+	UNUSED(val);
+	
+	return false;
+	
+#else
+
+	struct simple_s2op_check strided_calls[] = {	
+							{check_cudnn_tensor_transform,   cudnn_zsmul_tensor_transform, true, false, false},
+							};
+
+	return simple_s2op(	sizeof(strided_calls) / sizeof(strided_calls[0]), strided_calls,
+				N, dims, ostrs, out, istrs, in, val);
+#endif
 }
