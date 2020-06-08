@@ -1,3 +1,4 @@
+#ifdef USE_CUDNN
 #include <complex.h>
 #include <stdbool.h>
 #include "cudnn.h"
@@ -465,3 +466,4 @@ bool zconvcorr_bwd_krn_cudnn_2d_cf(	int N,
 	return true;
 }
 
+#endif //USE_CUDNN
