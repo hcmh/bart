@@ -21,6 +21,21 @@
 
 #include "iter6.h"
 
+#ifndef STRUCT_TMP_COPY
+#define STRUCT_TMP_COPY(x) ({ __typeof(x) __foo = (x); __typeof(__foo)* __foo2 = alloca(sizeof(__foo)); *__foo2 = __foo; __foo2; })
+#endif
+#define NLOP2ITNLOP(nlop) (struct iter_nlop_s){ (NULL == nlop) ? NULL : iter6_nlop, CAST_UP(STRUCT_TMP_COPY(((struct iter6_nlop_s){ { &TYPEID(iter6_nlop_s) }, nlop }))) }
+#define NLOP2IT_ADJ_ARR(nlop) ({\
+	long NO = nlop_get_nr_out_args(nlop);\
+	long NI = nlop_get_nr_in_args(nlop);\
+	const struct operator_s** adj_ops = (const struct operator_s**) alloca(sizeof(struct operator_s*) * NI * NO);\
+	for (int o = 0; o < NO; o++)\
+		for (int i = 0; i < NI; i++)\
+			adj_ops[i * NO + o] = nlop_get_derivative(nlop, o, i)->adjoint;\
+	struct iter6_op_arr_s adj_ops_data = { { &TYPEID(iter6_op_arr_s) }, NI, NO, adj_ops};\
+	(struct iter_op_arr_s){iter6_op_arr_fun_deradj, CAST_UP(STRUCT_TMP_COPY(adj_ops_data))} ;})
+
+
 DEF_TYPEID(iter6_sgd_conf);
 DEF_TYPEID(iter6_adadelta_conf);
 
@@ -131,14 +146,6 @@ static void iter6_op_arr_fun_update(iter_op_data* _o, int NO, unsigned long ofla
 			operator_apply_unchecked(data->ops[i * NI + i], (_Complex float*)dst[i], (_Complex float*)src[i]);
 }
 
-static void get_adjs(long NO, long NI, const struct operator_s* ops[NI][NO], const struct nlop_s* nlop)
-{
-	for (int o = 0; o < NO; o++)
-		for (int i = 0; i < NI; i++)
-			ops[i][o] = nlop_get_derivative(nlop, o, i)->adjoint;
-}
-
-
 void iter6_adadelta(iter6_conf* _conf,
 			const struct nlop_s* nlop,
 			long NI, enum IN_TYPE in_type[NI], float* dst[NI],
@@ -147,15 +154,8 @@ void iter6_adadelta(iter6_conf* _conf,
 {
 	auto conf = CAST_DOWN(iter6_adadelta_conf, _conf);
 
-	struct iter6_nlop_s nlop_data = { { &TYPEID(iter6_nlop_s) }, nlop};
-	struct iter_nlop_s nlop_iter = {iter6_nlop, CAST_UP(&nlop_data) };
-
-	//array of adjoint operators
-	//note that NO and NI are exchanged as the number of inputs of the adjoints is the number of outputs of the nlop
-	const struct operator_s* adj_ops[NI][NO];
-	get_adjs(NO, NI, adj_ops, nlop);
-	struct iter6_op_arr_s adj_ops_data = { { &TYPEID(iter6_op_arr_s) }, NI, NO, &(adj_ops[0][0])};
-	struct iter_op_arr_s adj_op_arr ={iter6_op_arr_fun_deradj, CAST_UP(&adj_ops_data)};
+	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
+	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
 
 	long isize[NI];
 	long osize[NO];

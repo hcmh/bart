@@ -34,6 +34,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -726,14 +727,98 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	vops->del(u_new);
 }
 
-static void print_progress(int NO, enum OUT_TYPE out_type[NO], float** args, int epoch, int i_batch, int I_batch, double starttime, const struct vec_iter_s* vops)
+
+
+/**
+ * Compute the sum of the selected outputs, selected outputs must be scalars
+ * 
+ * @param NO number of outputs of nlop
+ * @param NI number of inputs of nlop
+ * @param nlop nlop to apply
+ * @param args out- and inputs of operator
+ * @param out_optimize_flag sums outputs over selected outputs, selected outputs must be scalars
+ * @param vops vector operators
+ **/
+static float compute_objective(long NO, long NI, struct iter_nlop_s nlop, float* args[NO + NI], unsigned long out_optimize_flag, const struct vec_iter_s* vops)
 {
-	float sum_err = 0.;
+	float result = 0;
+	iter_nlop_call(nlop, NO + NI, args); 	// r = F x
+	
+	for (int o = 0; o < NO; o++) {
+		if (MD_IS_SET(out_optimize_flag, o)) {
+
+			float tmp;
+			vops->copy(1, &tmp, args[o]);
+			result += tmp;
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Compute the gradient with respect to the inputs selected by in_optimize_flag.
+ * The result is the sum of the gradients with respect to the outputs selected by out_optimize_flag
+ * 
+ * @param NI number of inputs of nlop
+ * @param in_optimize_flag compute gradients with respect to selected inputs
+ * @param isize sizes of input tensors
+ * @param grad output of the function, grad[i] must be allocated for selected inputs
+ * @param NO number of outputs of nlop
+ * @param out_optimize_flag sums gradients over selected outputs, selected outputs must be scalars
+ * @param adj array of adjoint operators
+ * @param vops vector operators 
+ **/
+static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], float* grad[NI], int NO, unsigned long out_optimize_flag, struct iter_op_arr_s adj, const struct vec_iter_s* vops)
+{
+	float* one = vops->allocate(2);
+	_Complex float one_var = 1.;
+	vops->copy(2, one, (float*)&one_var);
+	const float* one_arr[] = {one};
+
+	float* tmp_grad[NI];
+
+	for (int i = 0; i < NI; i++)
+		if ((1 < NO) && MD_IS_SET(in_optimize_flag, i)) 	
+			tmp_grad[i] = vops->allocate(isize[i]);
+
+	for (int o = 0, count = 0; o < NO; o++) {
+
+		if (!MD_IS_SET(out_optimize_flag, o))
+			continue;
+
+		iter_op_arr_call(adj, NI, in_optimize_flag, (0 == count) ? grad : tmp_grad, 1, MD_BIT(o), one_arr);
+
+		for (int i = 0; i < NI; i++)
+			if ((0 < count) && MD_IS_SET(in_optimize_flag, i))
+				vops->add(isize[i], grad[i], grad[i], tmp_grad[i]);
+		count += 1;
+	}
+
+	for (int i = 0; i < NI; i++)
+		if ((1 < NO) && MD_IS_SET(in_optimize_flag, i))
+			vops->del(tmp_grad[i]);
+	
+	vops->del(one);
+}
+
+/**
+ * Print progressbar of the form
+ * [pre_string] [=====    ] time: h:mm:ss/h:mm:ss[post_string]
+ * 
+ * @param N_done batch index
+ * @param N_total batch size 
+ * @param starttime start time of epoch
+ * @param pre_string
+ * @param post_string
+ **/
+static void print_timer_bar(int N_done, int N_total, double starttime, char* pre_string, char* post_string)
+{
 	int length = 10;
-	char progress[length+1];
+	char progress[length + 1];
 
 	for (int i = 0; i < length; i++)
-		if ((float)i <= (float)(i_batch * length) / (float)(I_batch))
+		if ((float)i <= (float)(N_done * length) / (float)(N_total))
                     progress[i] = '=';
                 else
                     progress[i] = ' ';
@@ -741,84 +826,64 @@ static void print_progress(int NO, enum OUT_TYPE out_type[NO], float** args, int
 	progress[length] = '\0';
 
 	double time = timestamp() - starttime;
-	double est_time = time + (double)(I_batch - i_batch -1) * time / (double)(i_batch + 1);
+	double est_time = time + (double)(N_total - N_done) * time / (double)(N_done);
 
-	debug_printf(DP_INFO, "\33[2K\r#%d -> %d [%s] time: %d:%02d:%02d/%d:%02d:%02d", epoch, i_batch + 1, progress,
-				(int)time / 3600, ((int)time %3600)/60, ((int)time % 3600) % 60,
-				(int)est_time / 3600, ((int)est_time %3600)/60, ((int)est_time % 3600) % 60
+	debug_printf(	DP_INFO,
+			"\33[2K\r%s[%s] time: %d:%02d:%02d/%d:%02d:%02d%s",
+			pre_string, progress,
+			(int)time / 3600, ((int)time %3600)/60, ((int)time % 3600) % 60,
+			(int)est_time / 3600, ((int)est_time %3600)/60, ((int)est_time % 3600) % 60,
+			post_string);
 
-	);
-
-	for (int o = 0; o < NO; o++){
-
-		if (out_type[o] == OUT_OPTIMIZE){
-			float tmp[1];
-			vops->copy(1, tmp, args[o]);
-#if 0
-			debug_printf(DP_INFO, "err[%d]=%.2f", o, tmp[0]);
-#endif
-			sum_err += tmp[0];
-		}
-	}
-
-	debug_printf(DP_INFO, " loss: %.2f", sum_err);
-	if (I_batch - 1 == i_batch)
+	if (N_done == N_total)
 		debug_printf(DP_INFO, "\n");
-	debug_printf(DP_DEBUG1, "\n");
 }
 
-
-static void getgrad(int NI, float* grad[NI], long i_size[NI], enum IN_TYPE in_type[NI], int NO, enum OUT_TYPE out_type[NO], struct iter_op_arr_s adj, const struct vec_iter_s* vops)
+/**
+ * Print timer of the form
+ * [pre_string]h:mm:ss/h:mm:ss[post_string]
+ * 
+ * @param N_done batch index
+ * @param N_total batch size 
+ * @param starttime start time of epoch
+ * @param pre_string
+ * @param post_string
+ **/
+static void print_timer(int N_done, int N_total, double starttime, char* pre_string, char* post_string)
 {
-	float* one = vops->allocate(2);
-	_Complex float one_var = 1.;
-	vops->copy(2, one, (float*)&one_var);
-	const float* one_arr[] = {one};
-
-	long in_optimize_flag = 0;
-
-	float* tmp_grad[NI];
-
-	for (int i = 0; i < NI; i++)
-		if (in_type[i] == IN_OPTIMIZE) {
-
-			in_optimize_flag = MD_SET(in_optimize_flag, i);
-
-			if (NULL == grad[i])
-				grad[i] = vops->allocate(i_size[i]);
-
-			if (1 < NO)
-				tmp_grad[i] = vops->allocate(i_size[i]);
-		}
-
-	int count = 0;
-
-	for (int o = 0; o < NO; o++) {
-
-		if (out_type[o] == OUT_OPTIMIZE) {
-
-			if (0 == count) {
-
-				iter_op_arr_call(adj, NI, in_optimize_flag, grad, 1, MD_BIT(o), one_arr);
-				count += 1;
-			} else {
-
-				iter_op_arr_call(adj, NI, in_optimize_flag, tmp_grad, 1, MD_BIT(o), one_arr);
-				for (int i = 0; i < NI; i++)
-					if (in_type[i] == IN_OPTIMIZE)
-						vops->axpy(i_size[i], grad[i], 1., tmp_grad[i]);
-			}
-		}
-	}
-
-	for (int i = 0; i < NI; i++)
-		if (in_type[i] == IN_OPTIMIZE)
-			if (1 < NO)
-				vops->del(tmp_grad[i]);
-	vops->del(one);
+	double time = timestamp() - starttime;
+	double time_per_epoch = time / N_done;
+	double time_estimated = time_per_epoch * N_total;
+	debug_printf(	DP_INFO, "%s%d:%02d:%02d/%d:%02d:%02d%s\n",
+			pre_string,
+			(int)time / 3600, ((int)time %3600)/60, ((int)time % 3600) % 60,
+			(int)time_estimated / 3600, ((int)time_estimated %3600)/60, ((int)time_estimated % 3600) % 60,
+			post_string);
 }
 
-void sgd(unsigned int epochs,
+
+/**
+ * Prototype for sgd-like algorithm
+ * The gradient is computed and the operator "update" computes the update, this operator can remember information such as momentum
+ *
+ * @param epochs number of epochs to train (one epoch corresponds to seeing each dataset once)
+ * @param NI number of input tensors
+ * @param isize size of input tensors (flattened as real)
+ * @param in_type type of inputs (static, batchgen, to optimize)
+ * @param x inputs of operator (weights, train data, reference data)
+ * @param NO number of output tensors (i.e. objectives)
+ * @param osize size of output tensors (flattened as real)
+ * @param out_type type of output (i.e. should be minimized)
+ * @param N_batch batch size
+ * @param N_total total size of datasets
+ * @param vops 
+ * @param nlop nlop for minimization
+ * @param adj array of adjoints of nlop
+ * @param update diagonal array of operator computing the update based on the gradient
+ * @param callback UNUSED
+ * @param monitor UNUSED
+ */
+void sgd(	unsigned int epochs,
 		long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
 		long NO, long osize[NO], enum OUT_TYPE out_type[NI],
 		int N_batch, int N_total,
@@ -832,62 +897,69 @@ void sgd(unsigned int epochs,
 	double starttime = timestamp();
 
 	float* grad[NI];
+	float* dxs[NI];
 	float* args[NO + NI];
+
+	unsigned long in_optimize_flag = 0;
+	unsigned long out_optimize_flag = 0;
 
 	for (int i = 0; i< NI; i++){
 
-		grad[i] = NULL;
 		args[NO + i] = x[i];
+		if (IN_OPTIMIZE == in_type[i]) {
+
+			grad[i] = vops->allocate(isize[i]);
+			dxs[i] = vops->allocate(isize[i]);
+			in_optimize_flag = MD_SET(in_optimize_flag, i);
+		} else {
+
+			grad[i] = NULL;
+			dxs[i] = NULL;
+		}
 	}
 
 	for (int o = 0; o < NO; o++){
+
 		args[o] = vops->allocate(osize[o]);
+		if (OUT_OPTIMIZE == out_type[o])
+			out_optimize_flag = MD_SET(out_optimize_flag, o);	
 	}
 
 	for (unsigned int epoch = 0; epoch < epochs; epoch++) {
 		for (int i_batch = 0; i_batch < N_total / N_batch; i_batch++) {
 
-			iter_nlop_call(nlop, NO + NI, args); 	// r = F x
-			getgrad(NI, grad, isize, in_type, NO, out_type, adj, vops);
+			float r0 = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops); // update graph and compute loss
+			getgrad(NI, in_optimize_flag, isize, grad, NO, out_optimize_flag, adj, vops);
+			iter_op_arr_call(update, NI, in_optimize_flag, dxs, NI, in_optimize_flag, (const float**)grad);
 
-			float* dxs[NI];
-			unsigned long in_opt_flag = 0;
+			for (int i = 0; i < NI; i++) {
 
-			for (int i = 0; i < NI; i++)
-				if (in_type[i] == IN_OPTIMIZE){
-
-					dxs[i] = vops->allocate(isize[i]);
-					in_opt_flag = MD_SET(in_opt_flag, i);
-				}
-
-			iter_op_arr_call(update, NI, in_opt_flag, dxs, NI, in_opt_flag, (const float**)grad);
-
-			for (int i = 0; i < NI; i++)
-				if (in_type[i] == IN_OPTIMIZE){
-
+				if (in_type[i] == IN_OPTIMIZE)
 					vops->add(isize[i], args[NO + i], args[NO + i], dxs[i]);
-					vops->del(dxs[i]);
-				}
 
-			//perform projection:
-			//iter_op_arr_call(update, NI, in_opt_flag, args + NO, NI, in_opt_flag, args + NO);
-
-			for (int i = 0; i < NI; i++)
 				if (in_type[i] == IN_BATCH)
 					args[NO + i] += isize[i];
+			}
 
-			print_progress(NO, out_type, args, epoch, i_batch, N_total/N_batch, starttime, vops);
+			char pre_string[50];
+			char post_string[20];
+			sprintf (pre_string, "#%d->%d ", epoch, i_batch + 1);
+			sprintf (post_string, " loss: %.8f", r0);
+			print_timer_bar(i_batch + 1, N_total / N_batch, starttime, pre_string, post_string);
 		}
-
 
 		for (int i = 0; i < NI; i++)
 			if (in_type[i] == IN_BATCH)
 				args[NO + i] -= isize[i] * (N_total / N_batch);
 	}
 
-	for (int i = 0; i< NI; i++)
+	for (int i = 0; i< NI; i++) {
+
 		if(NULL != grad[i])
 			vops->del(grad[i]);
+		if(NULL != dxs[i])
+			vops->del(dxs[i]);
+	}
 
 	for (int o = 0; o < NO; o++)
 		if(NULL != args[o])
