@@ -455,7 +455,8 @@ void blas_cdgmm(long M, long N, _Bool left_mul, const complex float* A, long lda
 				(const cuComplex*)A, lda,
 				(const cuComplex*)x, incx,
 				(cuComplex*)C, ldc);
-	} else
+		return;
+	}
 #endif
 	UNUSED(M);
 	UNUSED(N);
@@ -477,7 +478,8 @@ void blas_sdgmm(long M, long N, _Bool left_mul, const float* A, long lda, const 
 
 		cublasSdgmm(	get_handle(), left_mul ? CUBLAS_SIDE_LEFT : CUBLAS_SIDE_RIGHT,
 				M, N, A, lda, x, incx, C, ldc);
-	} else
+		return;
+	}
 #endif
 	UNUSED(M);
 	UNUSED(N);
@@ -504,7 +506,8 @@ void blas_cmatcopy(char trans, long M, long N, complex float alpha, const comple
 
 		cublasCgeam(	get_handle(), cublas_trans(trans), cublas_trans('N'),
 				M, N, (const cuComplex*)&alpha, (const cuComplex*)A, lda, (const cuComplex*)&zero, (const cuComplex*)B, ldb, (cuComplex*)B, ldb);
-	} else
+		return;
+	}
 #endif
 	UNUSED(trans);
 	UNUSED(M);
@@ -533,7 +536,8 @@ void blas2_cmatcopy(char trans, long M, long N, const complex float* alpha, cons
 				M, N, (const cuComplex*)alpha, (const cuComplex*)A, lda, (const cuComplex*)zero, (const cuComplex*)B, ldb, (cuComplex*)B, ldb);
 
 		cuda_free(zero);
-	} else
+		return;
+	}
 #endif
 	UNUSED(trans);
 	UNUSED(M);
@@ -559,7 +563,8 @@ void blas_smatcopy(char trans, long M, long N, float alpha, const float* A, long
 
 		cublasSgeam(	get_handle(), cublas_trans(trans), cublas_trans('N'),
 				M, N, &alpha, A, lda, &zero, B, ldb, B, ldb);
-	} else
+		return;
+	}
 #endif
 	UNUSED(trans);
 	UNUSED(M);
@@ -588,7 +593,8 @@ void blas2_smatcopy(char trans, long M, long N, const float* alpha, const float*
 				M, N, alpha, A, lda, zero, B, ldb, B, ldb);
 
 		cuda_free(zero);
-	} else
+		return;
+	}
 #endif
 	UNUSED(trans);
 	UNUSED(M);
