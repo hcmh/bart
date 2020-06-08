@@ -1351,7 +1351,7 @@ static void dup_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_o
 	unsigned int io_flags = 0;
 	for (unsigned int s = 0, t = 0; s < N + 1; s++) {
 
-		if (s == data->b)
+		if ((int)s == data->b)
 			continue;
 		io_flags |= ((data->x->io_flags >> s) & 1) << t;
 		t++;
@@ -1499,7 +1499,7 @@ static void link_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_
 	unsigned int io_flags = 0u;
 	for (unsigned int s = 0, t = 0; s < N + 2; s++) {
 
-		if ((s == data->a) || (s == data->b))
+		if (((int)s == data->a) || ((int)s == data->b))
 			continue;
 		io_flags |= ((data->x->io_flags >> s) & 1) << t;
 		t++;
@@ -1510,12 +1510,12 @@ static void link_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_
 
 	for (int o = 0, op = 0; o < NO; o++) {
 
-		if (o == out_ind)
+		if (o == (int)out_ind)
 			continue;
 		
 		for (int i = 0, ip = 0; i < NI; i++) {
 
-			if (i == in_ind)
+			if (i == (int)in_ind)
 				continue;
 			
 			if (operator_get_oi_run_opt(NO - 1, NI - 1, io_flags, in_run_opts, op, ip, OP_APP_NO_DER))
@@ -1531,7 +1531,7 @@ static void link_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_
 
 	for (int i = 0, ip = 0; i < NI; i++) {
 
-		if (i == in_ind)
+		if (i == (int)in_ind)
 			continue;
 
 		operator_set_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, out_ind, i, OP_APP_NO_DER);
@@ -1550,7 +1550,7 @@ static void link_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_
 
 	for (int o = 0, op = 0; o < NO; o++) {
 
-		if (o == out_ind)
+		if (o == (int)out_ind)
 			continue;
 		//nio_run_opts[o][in_ind] = MD_BIT(OP_APP_NO_ADJ) | MD_BIT(OP_APP_NO_DER);;
 		operator_set_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, o, in_ind, OP_APP_NO_DER);
@@ -1698,8 +1698,8 @@ static void permute_fun(const operator_data_t* _data, unsigned int N, void* args
 	void* ptr[N];
 
 	operator_run_opt_flags_t nrun_opts[N][N];
-	for (int i = 0; i < N; i++)
-		for (int j = 0; j < N; j++)
+	for (int i = 0; i < (int)N; i++)
+		for (int j = 0; j < (int)N; j++)
 			nrun_opts[data->perm[i]][data->perm[j]] = run_opts[i][j];
 
 	for (int i = 0; i < (int)N; i++)
