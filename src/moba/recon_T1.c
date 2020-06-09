@@ -49,6 +49,7 @@ struct moba_conf moba_defaults = {
 	.sms = false,
 	.MOLLI = false,
         .k_filter = false,
+	.IR_SS = false,
 };
 
 
@@ -57,16 +58,13 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
 	long data_dims[DIMS];
-	long img1_dims[DIMS];
 
 	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
 
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG, data_dims, dims);
-	md_select_dims(DIMS, fft_flags|TIME2_FLAG, img1_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|MAPS_FLAG|TIME2_FLAG, data_dims, dims);
 
-	imgs_dims[COEFF_DIM] = 3;
 
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);
@@ -79,6 +77,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	md_copy(DIMS, imgs_dims, x, img, CFL_SIZE);
 	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
 
+
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = false;
 	mconf.noncart = conf->noncartesian;
@@ -87,7 +86,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	mconf.b = 32.;
 	mconf.cnstcoil_flags = TE_FLAG;
 
-	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, conf->MOLLI, TI_t1relax, usegpu);
+	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, conf->MOLLI, TI_t1relax, conf->IR_SS, usegpu);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
@@ -129,7 +128,6 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	}
 
 	nlop_free(nl.nlop);
-
 
 	md_free(x);
 }

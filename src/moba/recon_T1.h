@@ -19,6 +19,7 @@ struct moba_conf {
         bool sms;
 	bool MOLLI;
 	bool k_filter;
+	bool IR_SS;
 };
 
 

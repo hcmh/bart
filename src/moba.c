@@ -56,6 +56,7 @@ int main_moba(int argc, char* argv[])
 	bool unused = false;
 	enum mdb_t { MDB_T1 } mode = { MDB_T1 };
 
+
 	const struct opt_s opts[] = {
 
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
@@ -77,6 +78,7 @@ int main_moba(int argc, char* argv[])
 		OPT_SET('m', &conf.MOLLI, "use MOLLI model"),
 		OPT_STRING('T', &time_T1relax, "T1 relax time for MOLLI", ""),
 		OPT_SET('k', &conf.k_filter, "k-space edge filter for non-Cartesian trajectories"),
+		OPT_SET('S', &conf.IR_SS, "use the IR steady-state model"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -86,6 +88,7 @@ int main_moba(int argc, char* argv[])
 
 
 	num_init();
+	
 
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
@@ -131,7 +134,7 @@ int main_moba(int argc, char* argv[])
 	long img_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|COEFF_FLAG|SLICE_FLAG|TIME2_FLAG, img_dims, grid_dims);
 
-	img_dims[COEFF_DIM] = 3;
+	img_dims[COEFF_DIM] = conf.IR_SS ? 2 : 3;
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
@@ -153,6 +156,11 @@ int main_moba(int argc, char* argv[])
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, grid_dims);
+
+	long dims[DIMS];
+	md_copy_dims(DIMS, dims, grid_dims);
+
+	dims[COEFF_DIM] = img_dims[COEFF_DIM];
 
 	long msk_strs[DIMS];
 	md_calc_strides(DIMS, msk_strs, msk_dims, CFL_SIZE);
@@ -292,6 +300,7 @@ int main_moba(int argc, char* argv[])
 	debug_printf(DP_INFO, "Scaling_psf: %f\n", scaling_psf);
 	md_zsmul(DIMS, pat_dims, pattern, pattern, scaling_psf);
 
+
 	if (-1. == restrict_fov) {
 
 		mask = md_alloc(DIMS, msk_dims, CFL_SIZE);
@@ -314,7 +323,7 @@ int main_moba(int argc, char* argv[])
 		for (int i = 0; i < (int)DIMS; i++)
 			pos[i] = 0;
 
-		pos[COEFF_DIM] = 2;
+		pos[COEFF_DIM] = conf.IR_SS ? 1 : 2;
 		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, conf.sms ? 2.0 : 1.5);
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
@@ -342,7 +351,7 @@ int main_moba(int argc, char* argv[])
 		switch (mode) {
 
 		case MDB_T1:
-			T1_recon(&conf, grid_dims, img, sens, pattern, mask, TI_gpu, TI_t1relax_gpu, kspace_gpu, usegpu);
+			T1_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, TI_t1relax_gpu, kspace_gpu, usegpu);
 			break;
 		};
 
@@ -353,9 +362,10 @@ int main_moba(int argc, char* argv[])
 	switch (mode) {
 
 	case MDB_T1:
-		T1_recon(&conf, grid_dims, img, sens, pattern, mask, TI, TI_t1relax, k_grid_data, usegpu);
+		T1_recon(&conf, dims, img, sens, pattern, mask, TI, TI_t1relax, k_grid_data, usegpu);
 		break;
 	};
+
 
 	md_free(norm);
 	md_free(mask);

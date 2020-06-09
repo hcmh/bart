@@ -28,15 +28,19 @@
 #include "noir/model.h"
 
 #include "moba/T1fun.h"
+#include "moba/IR_SS_fun.h"
 #include "moba/T1MOLLI.h"
 
 #include "model_T1.h"
 
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, 
-		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool use_gpu)
+		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, bool use_gpu)
 {
-	struct noir_s nlinv = noir_create3(dims, mask, psf, conf);
+	long data_dims[DIMS];
+	md_select_dims(DIMS, ~COEFF_FLAG, data_dims, dims);
+
+	struct noir_s nlinv = noir_create3(data_dims, mask, psf, conf);
 	struct T1_s ret;
 
 	long map_dims[DIMS];
@@ -49,11 +53,12 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG|TIME2_FLAG, in_dims, dims);
 	md_select_dims(DIMS, TE_FLAG|TIME2_FLAG, TI_dims, dims);
 
-	in_dims[COEFF_DIM] = 3;
 
 #if 1
 
 	struct nlop_s* T1 = NULL;
+
+        assert(!(MOLLI && IR_SS));
 	// chain T1 model
 	if (MOLLI) {
 
@@ -73,10 +78,14 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
         	md_free(TI1);
 		md_free(TI2);
 
+	} else if (IR_SS) {
+		
+		T1 = nlop_IR_SS_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+
 	} else {
 		
-		T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
-	}
+                T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+        }
 
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T1, 0)->dims);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(T1, 0)->dims);
