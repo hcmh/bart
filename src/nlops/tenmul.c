@@ -37,6 +37,9 @@ struct tenmul_s {
 	const long* istr1;
 	const long* istr2;
 
+	bool der1_used;
+	bool der2_used;
+
 	complex float* x1;
 	complex float* x2;
 };
@@ -72,6 +75,14 @@ static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N], 
 	const auto data = CAST_DOWN(tenmul_s, _data);
 	assert(3 == N);
 
+	//if ((NULL != data->x2) && !data->der1_used)
+	//	debug_printf(DP_INFO, "der 1 unused\n");
+	//if ((NULL != data->x1) && !data->der2_used)
+	//	debug_printf(DP_INFO, "der 2 unused\n");
+	
+	data->der1_used = false;
+	data->der2_used = false;
+
 	complex float* dst = args[0];
 	const complex float* src1 = args[1];
 	const complex float* src2 = args[2];
@@ -97,6 +108,9 @@ static void tenmul_der2(const nlop_data_t* _data, complex float* dst, const comp
 {
 	START_TIMER
 	const auto data = CAST_DOWN(tenmul_s, _data);
+	
+	data->der2_used = true;
+
 	if (NULL == data->x1)
 		error("Tenmul %x derivative not available\n", data);
 
@@ -108,6 +122,8 @@ static void tenmul_adj2(const nlop_data_t* _data, complex float* dst, const comp
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
+
+	data->der2_used = true;
 
 	if (NULL == data->x1)
 		error("Tenmul %x derivative not available\n", data);
@@ -121,6 +137,9 @@ static void tenmul_der1(const nlop_data_t* _data, complex float* dst, const comp
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
+
+	data->der1_used = true;
+
 	if (NULL == data->x2)
 		error("Tenmul %x derivative not available\n", data);
 
@@ -132,6 +151,8 @@ static void tenmul_adj1(const nlop_data_t* _data, complex float* dst, const comp
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
+
+	data->der1_used = true;
 
 	if (NULL == data->x2)
 		error("Tenmul %x derivative not available\n", data);
@@ -223,4 +244,18 @@ struct nlop_s* nlop_tenmul_create(int N, const long odim[N], const long idim1[N]
 	return nlop_tenmul_create2(N, dims, MD_STRIDES(N, odim, CFL_SIZE),
 					MD_STRIDES(N, idim1, CFL_SIZE),
 					MD_STRIDES(N, idim2, CFL_SIZE));
+}
+
+
+bool nlop_tenmul_der_available(const struct nlop_s* op, int index)
+{
+	auto data = CAST_MAYBE(tenmul_s, nlop_get_data((struct nlop_s*)op));
+	assert(NULL != data);
+	
+	if (0 == index)
+		return (NULL != data->x2);
+	if (1 == index)
+		return (NULL != data->x1);
+	assert(0);
+	return false;
 }
