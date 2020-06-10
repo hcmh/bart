@@ -3,13 +3,11 @@
 #ifndef __OPERATOR_OPTS_H
 #define __OPERATOR_OPTS_H
 enum OPERATOR_RUN_OPT_FLAGS_INDEX {	OP_APP_NO_DER, 	// nlops do not need to store information for derivative
-					OP_APP_DEST_INPUT	//operator is allowd to destroy input (in place is allowd)
 					};
 enum OPERATOR_IO_PROP_FLAGS_INDEX {	OP_PROP_ATOMIC, // in/out puts belong to the same operator on the lowest level
 					OP_PROP_R_LIN,	// operator is linear over the real numbers
 					OP_PROP_C_LIN,	// operator is linear over the complex numbers
-					OP_PROP_HOLOMORPHIC,	// function is holomorphic, i.e. the derivative is c linear
-					OP_PROP_INPLACE //operator allows in place opeeration, note, it still needs to be checked that the output fits in the input
+					OP_PROP_HOLOMORPHIC	// function is holomorphic, i.e. the derivative is c linear
 					};
 
 typedef uint32_t operator_run_opt_flags_t;

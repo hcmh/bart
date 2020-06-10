@@ -32,8 +32,7 @@
 static operator_io_prop_flags_t nlops_props_understood =  MD_BIT(OP_PROP_ATOMIC)
 							| MD_BIT(OP_PROP_R_LIN) 
 							| MD_BIT(OP_PROP_C_LIN)
-							| MD_BIT(OP_PROP_HOLOMORPHIC) 
-							| MD_BIT(OP_PROP_INPLACE);
+							| MD_BIT(OP_PROP_HOLOMORPHIC);
 
 struct nlop_op_data_s {
 

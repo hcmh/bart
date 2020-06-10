@@ -29,8 +29,7 @@
 //only these operator properties are passed to linops
 static operator_io_prop_flags_t linop_props_understood =  MD_BIT(OP_PROP_ATOMIC)
 							| MD_BIT(OP_PROP_R_LIN) 
-							| MD_BIT(OP_PROP_C_LIN) 
-							| MD_BIT(OP_PROP_INPLACE);
+							| MD_BIT(OP_PROP_C_LIN);
 
 
 
