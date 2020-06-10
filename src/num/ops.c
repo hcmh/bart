@@ -418,17 +418,17 @@ static DEF_TYPEID(identity_s);
 
 static void identity_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-        const auto d = CAST_DOWN(identity_s, _data);
+	const auto d = CAST_DOWN(identity_s, _data);
 	assert(2 == N);
-        md_copy2(d->domain->N, d->domain->dims, d->codomain->strs, args[0], d->domain->strs, args[1], d->domain->size);
+	md_copy2(d->domain->N, d->domain->dims, d->codomain->strs, args[0], d->domain->strs, args[1], d->domain->size);
 }
 
 
 static void identity_free(const operator_data_t* _data)
 {
-        const auto d = CAST_DOWN(identity_s, _data);
-        iovec_free(d->domain);
-        iovec_free(d->codomain);
+	const auto d = CAST_DOWN(identity_s, _data);
+	iovec_free(d->domain);
+	iovec_free(d->codomain);
 	xfree(d);
 }
 
@@ -439,10 +439,10 @@ const struct operator_s* operator_identity_create2(unsigned int N, const long di
 	PTR_ALLOC(struct identity_s, data);
 	SET_TYPEID(identity_s, data);
 
-        data->domain = iovec_create2(N, dims, istrs, CFL_SIZE);
-        data->codomain = iovec_create2(N, dims, ostrs, CFL_SIZE);
+	data->domain = iovec_create2(N, dims, istrs, CFL_SIZE);
+	data->codomain = iovec_create2(N, dims, ostrs, CFL_SIZE);
 
-        return operator_create2(N, dims, ostrs, N, dims, istrs, CAST_UP(PTR_PASS(data)), identity_apply, identity_free);
+	return operator_create2(N, dims, ostrs, N, dims, istrs, CAST_UP(PTR_PASS(data)), identity_apply, identity_free);
 }
 
 /**
@@ -454,7 +454,7 @@ const struct operator_s* operator_identity_create(unsigned int N, const long dim
 {
 	long strs[N];
 	md_calc_strides(N, strs, dims, CFL_SIZE);
-        return operator_identity_create2(N, dims, strs, strs);
+	return operator_identity_create2(N, dims, strs, strs);
 }
 
 struct reshape_s {
@@ -468,16 +468,16 @@ static DEF_TYPEID(reshape_s);
 
 static void reshape_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-        const auto d = CAST_DOWN(reshape_s, _data);
+	const auto d = CAST_DOWN(reshape_s, _data);
 	assert(2 == N);
-        md_copy(d->domain->N, d->domain->dims, args[0], args[1], d->domain->size);
+	md_copy(d->domain->N, d->domain->dims, args[0], args[1], d->domain->size);
 }
 
 
 static void reshape_free(const operator_data_t* _data)
 {
-        const auto d = CAST_DOWN(reshape_s, _data);
-        iovec_free(d->domain);
+	const auto d = CAST_DOWN(reshape_s, _data);
+	iovec_free(d->domain);
 	xfree(d);
 }
 
@@ -488,9 +488,9 @@ const struct operator_s* operator_reshape_create(unsigned int A, const long out_
 	SET_TYPEID(reshape_s, data);
 
 	assert(md_calc_size(A, out_dims) == md_calc_size(B, in_dims));
-        data->domain = iovec_create(B, in_dims, CFL_SIZE);
+	data->domain = iovec_create(B, in_dims, CFL_SIZE);
 
-        return operator_create(A, out_dims, B, in_dims, CAST_UP(PTR_PASS(data)), reshape_apply, reshape_free);
+	return operator_create(A, out_dims, B, in_dims, CAST_UP(PTR_PASS(data)), reshape_apply, reshape_free);
 }
 
 static bool check_simple_copy(const struct operator_s* op)
@@ -511,15 +511,21 @@ static DEF_TYPEID(reshape_container_s );
 
 static void reshape_container_apply(const operator_data_t* _data, unsigned int N, void* args[N], operator_run_opt_flags_t run_opts[N][N])
 {
-        const auto d = CAST_DOWN(reshape_container_s, _data);
-        operator_generic_apply_extopts_unchecked(d->x, N, args, run_opts);
+	const auto d = CAST_DOWN(reshape_container_s, _data);
+	operator_generic_apply_extopts_unchecked(d->x, N, args, run_opts);
 }
 
 static void reshape_container_free(const operator_data_t* _data)
 {
-        const auto d = CAST_DOWN(reshape_container_s, _data);
-        operator_free(d->x);
+	const auto d = CAST_DOWN(reshape_container_s, _data);
+	operator_free(d->x);
 	xfree(d);
+}
+
+static operator_io_prop_flags_t operator_get_io_prop_reshape(const operator_data_t* _data, unsigned int i, unsigned int j)
+{
+	const auto d = CAST_DOWN(reshape_container_s, _data);
+	return d->x->get_io_prop_flags(d->x->data, i, j);
 }
 
 const struct operator_s* operator_reshape(const struct operator_s* op, unsigned int i, long N, const long dims[N])
@@ -551,7 +557,7 @@ const struct operator_s* operator_reshape(const struct operator_s* op, unsigned 
 	op_dims[i] = dims;
 	op_strs[i] = strs;
 
-        return operator_generic_extopts_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), reshape_container_apply, reshape_container_free, operator_get_io_prop_trivial);
+	return operator_generic_extopts_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), reshape_container_apply, reshape_container_free, operator_get_io_prop_reshape);
 }
 
 
@@ -567,15 +573,15 @@ static DEF_TYPEID(zero_s);
 
 static void zero_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-        auto d = CAST_DOWN(zero_s, _data);
+	auto d = CAST_DOWN(zero_s, _data);
 	assert(1 == N);
-        md_clear2(d->codomain->N, d->codomain->dims, d->codomain->strs, args[0], d->codomain->size);
+	md_clear2(d->codomain->N, d->codomain->dims, d->codomain->strs, args[0], d->codomain->size);
 }
 
 static void zero_free(const operator_data_t* _data)
 {
-        auto d = CAST_DOWN(zero_s, _data);
-        iovec_free(d->codomain);
+	auto d = CAST_DOWN(zero_s, _data);
+	iovec_free(d->codomain);
 	xfree(d);
 }
 
@@ -585,16 +591,16 @@ const struct operator_s* operator_zero_create2(unsigned int N, const long dims[N
 	PTR_ALLOC(struct zero_s, data);
 	SET_TYPEID(zero_s, data);
 
-        data->codomain = iovec_create2(N, dims, strs, CFL_SIZE);
+	data->codomain = iovec_create2(N, dims, strs, CFL_SIZE);
 
-        return operator_generic_create2(1, 1u, (unsigned int[1]){ N },
+	return operator_generic_create2(1, 1u, (unsigned int[1]){ N },
 			(const long*[1]){ dims },
 			(const long*[2]){ strs }, CAST_UP(PTR_PASS(data)), zero_apply, zero_free);
 }
 
 const struct operator_s* operator_zero_create(unsigned int N, const long dims[N])
 {
-        return operator_zero_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
+	return operator_zero_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
 }
 
 
@@ -615,7 +621,7 @@ static void null_apply(const operator_data_t* _data, unsigned int N, void* args[
 
 static void null_free(const operator_data_t* _data)
 {
-        xfree(CAST_DOWN(null_s, _data));
+	xfree(CAST_DOWN(null_s, _data));
 }
 
 const struct operator_s* operator_null_create2(unsigned int N, const long dims[N], const long strs[N])
@@ -623,14 +629,14 @@ const struct operator_s* operator_null_create2(unsigned int N, const long dims[N
 	PTR_ALLOC(struct null_s, data);
 	SET_TYPEID(null_s, data);
 
-        return operator_generic_create2(1, 0u, (unsigned int[1]){ N },
+	return operator_generic_create2(1, 0u, (unsigned int[1]){ N },
 			(const long*[1]){ dims },
 			(const long*[2]){ strs }, CAST_UP(PTR_PASS(data)), null_apply, null_free);
 }
 
 const struct operator_s* operator_null_create(unsigned int N, const long dims[N])
 {
-        return operator_null_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
+	return operator_null_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
 }
 
 void operator_generic_apply_extopts_unchecked(const struct operator_s* op, unsigned int N, void* args[N], operator_run_opt_flags_t run_opts[N][N])
@@ -900,11 +906,11 @@ static void op_loop_fun(const operator_data_t* _data, unsigned int N, void* args
 
 	if (data->gpu) {
 #if defined(USE_CUDA) && defined(_OPENMP)
-                int nr_cuda_devices = cuda_devices();
-                omp_set_num_threads(nr_cuda_devices * 2);
-//              fft_set_num_threads(1);
+		int nr_cuda_devices = cuda_devices();
+		omp_set_num_threads(nr_cuda_devices * 2);
+//		fft_set_num_threads(1);
 #else
-                error("Both OpenMP and CUDA are necessary for op_loop_fun. At least one was not found.\n");
+		error("Both OpenMP and CUDA are necessary for op_loop_fun. At least one was not found.\n");
 #endif
 	}
 
@@ -1153,10 +1159,10 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 
 	debug_printf(DP_DEBUG1, "GPU start.\n");
 
-        int nr_cuda_devices = MIN(cuda_devices(), MAX_CUDA_DEVICES);
-        int gpun = omp_get_thread_num() % nr_cuda_devices;
+	int nr_cuda_devices = MIN(cuda_devices(), MAX_CUDA_DEVICES);
+	int gpun = omp_get_thread_num() % nr_cuda_devices;
 
-        cuda_init(gpun);
+	cuda_init(gpun);
 
 	for (unsigned int i = 0; i < N; i++) {
 
@@ -1251,6 +1257,31 @@ struct operator_combi_s {
 
 static DEF_TYPEID(operator_combi_s);
 
+static operator_io_prop_flags_t operator_get_io_prop_combi(const operator_data_t* _data, unsigned int i, unsigned int j)
+{
+	auto data = CAST_DOWN(operator_combi_s, _data);
+	operator_io_prop_flags_t result = 0;
+	result = MD_SET(result, OP_PROP_INDEPENDENT);
+	
+	int ip = i;
+	int jp = j;
+
+	for (int ii = 0; ii < data->N; ii++) {
+
+		if (   ((0 <= ip) && (operator_nr_args(data->x[ii]) > ip))
+		    && ((0 <= jp) && (operator_nr_args(data->x[ii]) > jp)) ) {
+
+			result = result & operator_get_prop_flags(data->x[ii], ip, jp);
+			result = result & operator_get_prop_flags(data->x[ii], jp, ip);
+		}
+		ip -= operator_nr_args(data->x[ii]);
+		jp -= operator_nr_args(data->x[ii]);
+
+	}
+		
+	return result;
+}
+
 
 static void combi_apply(const operator_data_t* _data, unsigned int N, void* args[N], operator_run_opt_flags_t run_opts[N][N])
 {
@@ -1343,7 +1374,7 @@ const struct operator_s* operator_combi_create(int N, const struct operator_s* x
 		}
 	}
 
-	return operator_generic_extopts_create2(A, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), combi_apply, combi_free, operator_get_io_prop_trivial);
+	return operator_generic_extopts_create2(A, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), combi_apply, combi_free, operator_get_io_prop_combi);
 }
 
 
@@ -1359,6 +1390,29 @@ struct operator_dup_s {
 };
 
 static DEF_TYPEID(operator_dup_s);
+
+static operator_io_prop_flags_t operator_get_io_prop_dup(const operator_data_t* _data, unsigned int i, unsigned int j)
+{
+	auto data = CAST_DOWN(operator_dup_s, _data);
+
+	if (i == j)
+		return 0;
+
+	operator_io_prop_flags_t result = 0;
+	result = MD_SET(result, OP_PROP_INDEPENDENT);
+
+	unsigned int ip = (i >= data->b) ? i + 1 : i;
+	unsigned int jp = (j >= data->b) ? j + 1 : j;
+
+	result = result & data->x->get_io_prop_flags(data->x->data, ip, jp);
+
+	if (ip == data->a)
+		result = result & data->x->get_io_prop_flags(data->x->data, data->b, jp);
+	if (jp == data->a)
+		result = result & data->x->get_io_prop_flags(data->x->data, ip, data->b);
+		
+	return result;
+}
 
 static void dup_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_opts[N + 1][N + 1], operator_run_opt_flags_t in_run_opts[N][N], const struct operator_dup_s* data)
 {
@@ -1487,7 +1541,7 @@ const struct operator_s* operator_dup_create(const struct operator_s* op, unsign
 	data->b = b;
 	data->x = operator_ref(op);
 
-	return operator_generic_extopts_create2(N - 1, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), dup_apply, dup_del, operator_get_io_prop_trivial);
+	return operator_generic_extopts_create2(N - 1, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), dup_apply, dup_del, operator_get_io_prop_dup);
 }
 
 
@@ -1504,6 +1558,30 @@ struct operator_link_s {
 };
 
 static DEF_TYPEID(operator_link_s);
+
+static operator_io_prop_flags_t operator_get_io_prop_link(const operator_data_t* _data, unsigned int i, unsigned int j)
+{	
+	const auto d = CAST_DOWN(operator_link_s, _data);
+
+	if ((d->a <= i) || (d->b <= i)) i++;
+	if ((d->a <= i) && (d->b <= i)) i++;
+	if ((d->a <= j) || (d->b <= j)) j++;
+	if ((d->a <= j) && (d->b <= j)) j++;
+
+	operator_io_prop_flags_t result = MD_BIT(OP_PROP_INDEPENDENT) & d->x->get_io_prop_flags(d->x->data, i, j);
+
+	if (   	 MD_IS_SET(d->x->io_flags, i)
+	    && !(MD_IS_SET(d->x->get_io_prop_flags(d->x->data, i, d->a), OP_PROP_INDEPENDENT))
+	    && !(MD_IS_SET(d->x->get_io_prop_flags(d->x->data, j, d->b), OP_PROP_INDEPENDENT)) )
+		result = MD_CLEAR(result, OP_PROP_INDEPENDENT);
+
+	if (     MD_IS_SET(d->x->io_flags, j)
+	    && !(MD_IS_SET(d->x->get_io_prop_flags(d->x->data, i, d->b), OP_PROP_INDEPENDENT))
+	    && !(MD_IS_SET(d->x->get_io_prop_flags(d->x->data, j, d->a), OP_PROP_INDEPENDENT)) )
+		result = MD_CLEAR(result, OP_PROP_INDEPENDENT);
+
+	return result;
+}
 
 static void link_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_opts[N + 2][N + 2], operator_run_opt_flags_t in_run_opts[N][N], const struct operator_link_s* data)
 {	
@@ -1655,7 +1733,7 @@ const struct operator_s* operator_link_create(const struct operator_s* op, unsig
 	data->b = o;
 	data->x = operator_ref(op);
 
-	return operator_generic_extopts_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del, operator_get_io_prop_trivial);
+	return operator_generic_extopts_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del, operator_get_io_prop_link);
 }
 
 
