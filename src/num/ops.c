@@ -1378,8 +1378,8 @@ static void dup_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_o
 				ip++;
 			}
 
-			if (operator_get_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, o, io_index_b, OP_APP_NO_DER))
-				operator_set_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, o, io_index_a, OP_APP_NO_DER);
+			if (operator_get_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, o, io_index_a, OP_APP_NO_DER))
+				operator_set_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, o, io_index_b, OP_APP_NO_DER);
 		}
 	}
 }
@@ -1490,9 +1490,7 @@ struct operator_link_s {
 static DEF_TYPEID(operator_link_s);
 
 static void link_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_opts[N + 2][N + 2], operator_run_opt_flags_t in_run_opts[N][N], const struct operator_link_s* data)
-{
-	operator_init_run_opts(N + 2, out_run_opts);
-	
+{	
 	int NO = operator_nr_out_args(data->x);
 	int NI = operator_nr_in_args(data->x);
 
@@ -1508,63 +1506,32 @@ static void link_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_
 	unsigned int out_ind = operator_index_to_io_index(data->x->io_flags, data->b, true);
 	unsigned int in_ind = operator_index_to_io_index(data->x->io_flags, data->a, false);
 
-	for (int o = 0, op = 0; o < NO; o++) {
+	operator_init_run_opts(N + 2, out_run_opts);
 
-		if (o == (int)out_ind)
-			continue;
-		
-		for (int i = 0, ip = 0; i < NI; i++) {
+	for (int ip = 0; ip < NI; ip++)
+		for (int op = 0; op < NO; op++)
+			operator_set_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, op, ip, OP_APP_NO_DER);
 
-			if (i == (int)in_ind)
-				continue;
-			
-			if (operator_get_oi_run_opt(NO - 1, NI - 1, io_flags, in_run_opts, op, ip, OP_APP_NO_DER))
-				operator_set_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, o, i, OP_APP_NO_DER);
+	/*
+	* Select needed derivatives (loop over i, j)
+	* dg_o/dx_i = df_op/dx_ip + df_op/dx_in * df_out/dx_ip
+	*/
+	for (int o = 0, op = -1; o < NO - 1; o++) {
 
-			//nio_run_opts[o][i] = io_run_opts[op][ip];
-			ip++;
+		op += (o == (int)out_ind) ? 2 : 1;
+
+		for (int i = 0, ip = -1; i < NI - 1; i++) {
+
+			ip += (i == (int)in_ind) ? 2 : 1;
+
+			if (!operator_get_oi_run_opt(NO - 1, NI - 1, io_flags, in_run_opts, o, i, OP_APP_NO_DER)) {
+
+				operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, op, ip, OP_APP_NO_DER);
+				operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, op, in_ind, OP_APP_NO_DER);
+				operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, out_ind, ip, OP_APP_NO_DER);
+			}
 		}
-		op++;
 	}
-
-	//nio_run_opts[out_ind][in_ind] = 0;
-
-	for (int i = 0, ip = 0; i < NI; i++) {
-
-		if (i == (int)in_ind)
-			continue;
-
-		operator_set_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, out_ind, i, OP_APP_NO_DER);
-		//nio_run_opts[out_ind][i] = MD_BIT(OP_APP_NO_ADJ) | MD_BIT(OP_APP_NO_DER);
-
-		for (int o = 0; o < NO - 1; o++) {
-
-			if (!operator_get_oi_run_opt(NO - 1, NI - 1, io_flags, in_run_opts, o, ip, OP_APP_NO_DER))
-				operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, out_ind, i, OP_APP_NO_DER);
-
-			//nio_run_opts[out_ind][i] &= io_run_opts[o][ip];
-		}
-
-		ip++;
-	}
-
-	for (int o = 0, op = 0; o < NO; o++) {
-
-		if (o == (int)out_ind)
-			continue;
-		//nio_run_opts[o][in_ind] = MD_BIT(OP_APP_NO_ADJ) | MD_BIT(OP_APP_NO_DER);;
-		operator_set_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, o, in_ind, OP_APP_NO_DER);
-
-		for (int i = 0; i < NI - 1; i++) {
-
-			if (!operator_get_oi_run_opt(NO - 1, NI - 1, io_flags, in_run_opts, op, i, OP_APP_NO_DER))
-				operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, o, in_ind, OP_APP_NO_DER);
-			//nio_run_opts[o][in_ind] &= io_run_opts[op][i];
-		}
-
-		op++;
-	}
-
 }
 
 static void link_apply(const operator_data_t* _data, unsigned int N, void* args[N], operator_run_opt_flags_t run_opts[N][N])
