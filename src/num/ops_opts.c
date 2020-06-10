@@ -2,6 +2,8 @@
 #include <stdio.h>
 
 #include "num/multind.h"
+#include "misc/debug.h"
+#include "misc/misc.h"
 
 #include "ops_opts.h"
 
@@ -11,15 +13,15 @@
 
 void print_operator_run_flags(int N, operator_run_opt_flags_t run_opts[N][N])
 {
-	printf("%d x %d runopts = \n", N, N);
+	debug_printf(DP_INFO, "%d x %d runopts = \n", N, N);
 	for (int i = 0; i < N; i++) {
 
-		printf("[");
+		debug_printf(DP_INFO, "[");
 
 		for (int j = 0; j < N; j++)
-			printf("%lu ", (unsigned long)run_opts[i][j]);
+			debug_printf(DP_INFO, "%lu ", (unsigned long)run_opts[i][j]);
 
-		printf("]\n");
+		debug_printf(DP_INFO, "]\n");
 	}
 }
 void print_operator_io_run_flags(int NO, int NI, unsigned int io_flags, operator_run_opt_flags_t run_opts[NO + NI][NO + NI])
@@ -32,15 +34,15 @@ void print_operator_io_run_flags(int NO, int NI, unsigned int io_flags, operator
 	operator_run_opts_to_io_run_opts(NO, NI, io_flags, io_run_opts, run_opts);
 
 
-	printf("NO=%d x NI=%d io runopts = \n", NO, NI);
+	debug_printf(DP_INFO, "NO=%d x NI=%d io runopts = \n", NO, NI);
 	for (int o = 0; o < NO; o++) {
 
-		printf("[");
+		debug_printf(DP_INFO, "[");
 
 		for (int i = 0; i < NI; i++)
-			printf("%lu ", (unsigned long)io_run_opts[o][i]);
+			debug_printf(DP_INFO, "%lu ", (unsigned long)io_run_opts[o][i]);
 
-		printf("]\n");
+		debug_printf(DP_INFO, "]\n");
 	}
 }
 
