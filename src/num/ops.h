@@ -118,7 +118,8 @@ extern const struct iovec_s* operator_domain(const struct operator_s* op);
 extern const struct iovec_s* operator_codomain(const struct operator_s* op);
 
 extern operator_data_t* operator_get_data(const struct operator_s* op);
-
+extern operator_io_prop_flags_t operator_get_prop_flags(const struct operator_s* op, unsigned int i, unsigned int j);
+extern operator_io_prop_flags_t operator_get_prop_flags_oi(const struct operator_s* op, unsigned int o, unsigned int i);
 
 extern const struct operator_s* operator_copy_wrapper(unsigned int N, const long* strs[N], const struct operator_s* op);
 

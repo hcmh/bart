@@ -240,6 +240,22 @@ operator_data_t* operator_get_data(const struct operator_s* x)
 	return x->data;
 }
 
+operator_io_prop_flags_t operator_get_prop_flags(const struct operator_s* op, unsigned int i, unsigned int j)
+{
+	assert(i < op->N);
+	assert(j < op->N);
+	return op->get_io_prop_flags(op->data, i, j);
+}
+
+operator_io_prop_flags_t operator_get_prop_flags_oi(const struct operator_s* op, unsigned int o, unsigned int i)
+{
+	
+	o = operator_io_index_to_index(op->io_flags, o, true);
+	i = operator_io_index_to_index(op->io_flags, i, false);
+
+	return operator_get_prop_flags(op, o, i);
+}
+
 
 
 /**
