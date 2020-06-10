@@ -39,9 +39,7 @@ struct shared_data_s {
 
 	linop_data_t* data;
 
-	operator_io_prop_flags_t in_props;
 	operator_io_prop_flags_t cross_props;
-	operator_io_prop_flags_t out_props;
 
 	del_fun_t del;
 
@@ -102,11 +100,6 @@ static operator_io_prop_flags_t linop_get_io_props(const operator_data_t* _data,
 	auto data = CAST_DOWN(shared_data_s, _data);
 	if (i != j)
 		return data->cross_props;
-	if (0 == i)
-		return data->out_props;
-	if (1 == i)
-		return data->in_props;
-	assert(0);
 	return 0;
 }
 
@@ -128,6 +121,12 @@ struct linop_s* linop_extopts_create2(unsigned int ON, const long odims[ON], con
 		SET_TYPEID(shared_data_s, shared_data[i]);
 	}
 
+	linop_io_props = MD_SET(linop_io_props, OP_PROP_ATOMIC);
+	linop_io_props = MD_SET(linop_io_props, OP_PROP_R_LIN);
+
+	if (0 != (linop_io_props & (~linop_props_understood)))
+		error("Property passed to linop which is not understood\n");
+
 	for (unsigned int i = 0; i < 4; i++) {
 
 		shared_data[i]->data = data;
@@ -137,6 +136,8 @@ struct linop_s* linop_extopts_create2(unsigned int ON, const long odims[ON], con
 			shared_ptr_init(&shared_data[i]->sptr, sptr_del);
 		else
 			shared_ptr_copy(&shared_data[i]->sptr, &shared_data[0]->sptr);
+
+		shared_data[i]->cross_props = linop_io_props;
 	}
 
 	shared_data[0]->u.apply = forward;
@@ -146,13 +147,6 @@ struct linop_s* linop_extopts_create2(unsigned int ON, const long odims[ON], con
 
 	assert((NULL != forward));
 	assert((NULL != adjoint));
-
-	
-	linop_io_props = MD_SET(linop_io_props, OP_PROP_ATOMIC);
-	linop_io_props = MD_SET(linop_io_props, OP_PROP_R_LIN);
-
-	if (0 != (linop_io_props & (~linop_props_understood)))
-		error("Property passed to linop which is not understood\n");
 
 	lo->forward = operator_extopts_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, linop_get_io_props);
 	lo->adjoint = operator_extopts_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, linop_get_io_props);
