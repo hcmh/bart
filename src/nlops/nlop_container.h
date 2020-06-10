@@ -1,0 +1,1 @@
+const struct nlop_s* nlop_container(const struct nlop_s* op);
