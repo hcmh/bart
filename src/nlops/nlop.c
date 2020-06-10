@@ -121,7 +121,7 @@ static operator_io_prop_flags_t nlop_get_io_props(const operator_data_t* _data, 
 	if ((i < data->OO) && (j < data->OO))
 		return MD_BIT(OP_PROP_ATOMIC);
 	
-	if ((i > data->OO) && (j > data->OO))
+	if ((i >= data->OO) && (j >= data->OO))
 		return MD_BIT(OP_PROP_ATOMIC);
 
 	if (NULL == data->io_props)
@@ -129,7 +129,7 @@ static operator_io_prop_flags_t nlop_get_io_props(const operator_data_t* _data, 
 
 	operator_io_prop_flags_t (*nlop_prop_flags)[data->II][data->OO] = (void*)data->io_props;
 
-	if (i > data->OO)
+	if (i >= data->OO)
 		return (*nlop_prop_flags)[i - data->OO][j];
 	else
 		return (*nlop_prop_flags)[j - data->OO][i];
@@ -488,7 +488,7 @@ void nlop_generic_apply_unchecked(const struct nlop_s* op, int N, void* args[N])
 
 void nlop_generic_apply_extopts_unchecked(const struct nlop_s* op, int N, void* args[N], operator_run_opt_flags_t run_opts[N][N])
 {
-	 operator_generic_apply_extopts_unchecked(op->op, N, args, run_opts);
+	operator_generic_apply_extopts_unchecked(op->op, N, args, run_opts);
 }
 
 void nlop_generic_apply_select_derivative_unchecked(const struct nlop_s* op, int N, void* args[N], unsigned long out_der_flag, unsigned long in_der_flag)
