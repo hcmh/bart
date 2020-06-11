@@ -189,7 +189,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 		debug_print_dims(DP_INFO, 3, my_img_dims);
 
-
+		md_zsmul(DIMS, trj_dims, traj, traj, 2.);
 
 		if (0 == my_img_dims[0] + my_img_dims[1] + my_img_dims[2])
 			estimate_fast_sq_im_dims(3, sens_dims, trj_dims, traj);
