@@ -400,7 +400,7 @@ int main_modbloch(int argc, char* argv[])
 	long tmp_strs[DIMS];
 	md_calc_strides(DIMS, tmp_strs, tmp_dims, CFL_SIZE);
 	
-	complex float initval[3] = {0.8, 10., 4.} ;//	R1, R2, M0 
+	complex float initval[3] = {0.8, 4., 10.};//	R1, M0, R2
 	
 	// Determine DERIVATIVE scaling by simulating the applied sequence
 
@@ -447,7 +447,7 @@ int main_modbloch(int argc, char* argv[])
 
 	// Rescale resulting PARAMETER maps
 
-	pos[COEFF_DIM] = 2;
+	pos[COEFF_DIM] = 1;
 	md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 	md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / scaling);
 	
@@ -468,7 +468,7 @@ int main_modbloch(int argc, char* argv[])
 		
 		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, fit_para.scale[i]);
 		
-		if (2 != i)
+		if (1 != i)
 			md_zdiv(DIMS, tmp_dims, tmp_img, ones_tmp, tmp_img);
 		
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE);

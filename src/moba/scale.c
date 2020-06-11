@@ -218,16 +218,16 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[3], const long k
 	double mean_sig = md_znorm(DIMS, ksp_dims, kspace_data);
 
 	double mean_m0 = md_znorm(DIMS, dims, sens_m0);
-	scale[2] = 1.;
+	scale[1] = 1.;
 	
 	double mean_r1 = md_znorm(DIMS, dims, sens_r1);
 	scale[0] = mean_m0 / mean_r1;
 	
 	double mean_r2 = md_znorm(DIMS, dims, sens_r2);
-	scale[1] = mean_m0 / mean_r2;
+	scale[2] = mean_m0 / mean_r2;
 
 	if (2 == fit_para->sequence || 5 == fit_para->sequence)
-		scale[1] = 0.0001;
+		scale[2] = 0.0001;
 
 	debug_printf(DP_DEBUG1,"means:\t%f,\t%f,\t%f,\t%f\n", mean_sig, mean_r1, mean_r2, mean_m0);
 

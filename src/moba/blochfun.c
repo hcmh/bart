@@ -122,7 +122,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 	// Copy necessary files from GPU to CPU
 	// R1 
-	pos[COEFF_DIM] = 0;	
+	pos[COEFF_DIM] = 0;
 	const complex float* R1 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 	md_zsmul2(data->N, data->map_dims, data->map_strs, r1scale_tmp, data->map_strs, R1, data->scale[0]);
 
@@ -130,17 +130,17 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	md_copy(data->N, data->map_dims, r1scale, r1scale_tmp, CFL_SIZE);
 	
 	// R2 
-	pos[COEFF_DIM] = 1;	 
+	pos[COEFF_DIM] = 2;
 	const complex float* R2 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, r2scale_tmp, data->map_strs, R2, data->scale[1]);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, r2scale_tmp, data->map_strs, R2, data->scale[2]);
 
 	complex float* r2scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, r2scale, r2scale_tmp, CFL_SIZE);
 	
 	// M0 
-	pos[COEFF_DIM] = 2;	 
+	pos[COEFF_DIM] = 1;
 	const complex float* M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, m0scale_tmp, data->map_strs, M0, data->scale[2]);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, m0scale_tmp, data->map_strs, M0, data->scale[1]);
 
 	complex float* m0scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, m0scale, m0scale_tmp, CFL_SIZE);
@@ -331,8 +331,8 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 					//Scaling: dB/dRi = dB/dRis * dRis/dRi
 					//Write to possible GPU memory
 					dr1_cpu[position] = data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
-					dr2_cpu[position] = data->scale[1] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
-					dm0_cpu[position] = data->scale[2] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
+					dr2_cpu[position] = data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
+					dm0_cpu[position] = data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
 					sig_cpu[position] = mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I;
 
 					i++;
@@ -364,10 +364,10 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	pos[COEFF_DIM] = 0; // R1
 	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dr1_cpu, CFL_SIZE);
 
-	pos[COEFF_DIM] = 1; // R2
+	pos[COEFF_DIM] = 2; // R2
 	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dr2_cpu, CFL_SIZE);
 
-	pos[COEFF_DIM] = 2; // M0
+	pos[COEFF_DIM] = 1; // M0
 	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dm0_cpu, CFL_SIZE);
 
 
