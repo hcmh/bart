@@ -343,8 +343,8 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 	md_copy_dims(2, nl_idims[0], zdims);
 	md_copy_dims(2, nl_idims[1], wdims);
 
-	operator_io_prop_flags_t io_props[2][1] = {{0},{0}};
+	operator_prop_flags_t props[2][1] = {{0},{0}};
 
-	auto result = nlop_generic_extopts_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, io_props);
+	auto result = nlop_generic_extopts_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, props);
 	return result;
 }

@@ -236,3 +236,121 @@ bool operator_get_ii_run_opt(int NO, int NI, unsigned int io_flags, operator_run
 	return operator_get_run_opt(NO + NI, run_opts, iind1, iind2, option);
 }
 
+
+static void opprops_init(struct opprop_s* n, unsigned int N, unsigned int io_flags, operator_prop_flags_t flags[N][N])
+{
+	n->N = N;
+
+	if (NULL != flags) {
+
+		PTR_ALLOC(operator_prop_flags_t[N*N], nflags);
+		memcpy(*nflags, &flags[0][0], N * N * sizeof(operator_prop_flags_t));
+		n->flags = *PTR_PASS(nflags);
+	} else {
+
+		n->flags = NULL;
+	}
+
+	n->io_flags = io_flags;
+	n->NO = 0;
+	n->NI = 0;
+	for (unsigned int i = 0; i < N; i++)
+		if (MD_IS_SET(io_flags, i))
+			n->NO++;
+		else
+			n->NI++;
+}
+
+
+const struct opprop_s* opprop_create(unsigned int N, unsigned int io_flags, operator_prop_flags_t flags[N][N])
+{
+	PTR_ALLOC(struct opprop_s, n);
+	opprops_init(n, N, io_flags, flags);
+	return PTR_PASS(n);
+}
+
+const struct opprop_s* opprop_io_create(unsigned int NO, unsigned int NI, unsigned int io_flags, operator_prop_flags_t flags[NO][NI])
+{
+	PTR_ALLOC(struct opprop_s, n);
+
+	unsigned int N = NO + NI;
+	operator_prop_flags_t nflags[N][N];
+	for (unsigned int i = 0; i < N; i++)
+		for (unsigned int j = 0; j < N; j++)
+			nflags[i][j] = 0;
+
+	for (unsigned int i = 0; i < NI; i++)
+		for (unsigned int o = 0; o < NO; o++) {
+
+			unsigned int ip = operator_io_index_to_index(io_flags, i, false);
+			unsigned int op = operator_io_index_to_index(io_flags, o, true);
+			nflags[op][ip] = flags[o][i];
+			nflags[ip][op] = flags[o][i];
+		}
+
+	opprops_init(n, N, io_flags, nflags);
+	return PTR_PASS(n);
+}
+
+
+void opprop_free(const struct opprop_s* x)
+{
+	if (NULL != x) {
+
+		if (NULL != x->flags)
+			xfree(x->flags);
+		xfree(x);
+	}	
+}
+
+operator_prop_flags_t opprop_get(const struct opprop_s* x, unsigned int i, unsigned int j)
+{
+	if (NULL == x)
+		return 0;
+	assert(i < x->N);
+	assert(j < x->N);
+
+	if (NULL == x->flags)
+		return 0;
+
+	return x->flags[x->N * i + j];
+}
+
+operator_prop_flags_t opprop_io_get(const struct opprop_s* x, unsigned int o, unsigned int i)
+{
+	if (NULL == x)
+		return 0;
+
+	assert(o < x->NO);
+	assert(i < x->NI);
+
+	unsigned int ip = operator_io_index_to_index(x->io_flags, i, false);
+	unsigned int op = operator_io_index_to_index(x->io_flags, o, true);
+
+	return opprop_get(x, op, ip);
+}
+
+bool opprop_isset(const struct opprop_s* x, unsigned int i, unsigned int j, enum OPERATOR_IO_PROP_FLAGS_INDEX prop)
+{
+	return MD_IS_SET(opprop_get(x, i, j), prop);
+}
+
+bool opprop_io_isset(const struct opprop_s* x, unsigned int o, unsigned int i, enum OPERATOR_IO_PROP_FLAGS_INDEX prop)
+{
+	return MD_IS_SET(opprop_io_get(x, o, i), prop);
+}
+
+void opprop_io_print(int debug_level, const struct opprop_s* x)
+{
+	debug_printf(debug_level, "%d x %d operator properties= \n", x->NO, x->NI);
+	for (int o = 0; o < x->NO; o++) {
+
+		debug_printf(debug_level, "[");
+
+		for (int i = 0; i < x->NI; i++)
+			debug_printf(debug_level, "%lu ", (unsigned long)opprop_io_get(x, o, i));
+
+		debug_printf(debug_level, "]\n");
+	}
+}
+

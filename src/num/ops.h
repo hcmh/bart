@@ -16,9 +16,6 @@
 typedef struct operator_data_s { TYPEID* TYPEID; } operator_data_t;
 typedef uint64_t operator_io_flags_t;
 
-typedef operator_io_prop_flags_t (*operator_get_io_prop_flags_t)(const operator_data_t* _data, unsigned int i, unsigned int j);
-
-
 typedef void (*operator_fun_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)]);
 typedef void (*operator_fun_opts_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)], operator_run_opt_flags_t run_opts[N][N]);
 typedef void (*operator_del_t)(const operator_data_t* _data);
@@ -40,7 +37,7 @@ extern const struct operator_s* operator_create2(unsigned int ON, const long out
 
 extern const struct operator_s* operator_extopts_create2(unsigned int ON, const long out_dims[__VLA(ON)], const long out_strs[__VLA(ON)],
 		unsigned int IN, const long in_dims[__VLA(IN)], const long in_strs[__VLA(IN)],
-		operator_data_t* data, operator_fun_opts_t apply, operator_del_t del, operator_get_io_prop_flags_t get_io_prop_flags);
+		operator_data_t* data, operator_fun_opts_t apply, operator_del_t de, operator_prop_flags_t prop_flags[2][2]);
 
 
 extern const struct operator_s* operator_generic_create(unsigned int N, operator_io_flags_t io_flags,
@@ -53,7 +50,7 @@ extern const struct operator_s* operator_generic_create2(unsigned int N, operato
 
 extern const struct operator_s* operator_generic_extopts_create2(unsigned int N, unsigned int io_flags,
 			const unsigned int D[__VLA(N)], const long* dims[__VLA(N)], const long* strs[__VLA(N)],
-			operator_data_t* data, operator_fun_opts_t apply, operator_del_t del, operator_get_io_prop_flags_t get_io_prop_flags);
+			operator_data_t* data, operator_fun_opts_t apply, operator_del_t del, operator_prop_flags_t prop_flags[N][N]);
 
 
 
@@ -118,8 +115,10 @@ extern const struct iovec_s* operator_domain(const struct operator_s* op);
 extern const struct iovec_s* operator_codomain(const struct operator_s* op);
 
 extern operator_data_t* operator_get_data(const struct operator_s* op);
-extern operator_io_prop_flags_t operator_get_prop_flags(const struct operator_s* op, unsigned int i, unsigned int j);
-extern operator_io_prop_flags_t operator_get_prop_flags_oi(const struct operator_s* op, unsigned int o, unsigned int i);
+extern operator_prop_flags_t operator_get_prop_flags(const struct operator_s* op, unsigned int i, unsigned int j);
+extern operator_prop_flags_t operator_get_prop_flags_oi(const struct operator_s* op, unsigned int o, unsigned int i);
+extern _Bool operator_prop_isset(const struct operator_s* op, unsigned int i, unsigned int j, enum OPERATOR_IO_PROP_FLAGS_INDEX prop);
+extern _Bool operator_prop_isset_oi(const struct operator_s* op, unsigned int o, unsigned int i, enum OPERATOR_IO_PROP_FLAGS_INDEX prop);
 
 extern const struct operator_s* operator_copy_wrapper(unsigned int N, const long* strs[N], const struct operator_s* op);
 

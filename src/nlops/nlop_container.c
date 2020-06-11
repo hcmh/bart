@@ -53,12 +53,6 @@ static void nlop_container_free(const operator_data_t* _data)
 	xfree(d);
 }
 
-static operator_io_prop_flags_t operator_get_io_prop_nlop_container(const operator_data_t* _data, unsigned int i, unsigned int j)
-{
-	auto data = CAST_DOWN(nlop_container_s, _data);
-	return operator_get_prop_flags(data->x, i, j);
-}
-
 const struct nlop_s* nlop_container(const struct nlop_s* op)
 {
 	PTR_ALLOC(struct nlop_s, n);
@@ -94,7 +88,12 @@ const struct nlop_s* nlop_container(const struct nlop_s* op)
 		op_strs[j] = iov->strs;
 	}
 
-	n->op = operator_generic_extopts_create2(A, operator_ioflags(op->op), D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), nlop_container_apply, nlop_container_free, operator_get_io_prop_nlop_container);
+	operator_prop_flags_t props[II][OO];
+	for (unsigned int i = 0; i < II; i++)
+		for (unsigned int o = 0; o < OO; o++)
+			props[i][o] = operator_get_prop_flags_oi(op->op, o, i);
+
+	n->op = operator_generic_extopts_create2(A, operator_ioflags(op->op), D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), nlop_container_apply, nlop_container_free, props);
 
 	return PTR_PASS(n);
 }

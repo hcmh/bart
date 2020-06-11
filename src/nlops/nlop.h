@@ -39,10 +39,10 @@ struct nlop_s {
 
 extern struct nlop_s* nlop_generic_extopts_create(	int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
 							nlop_data_t* data, nlop_gen_fun_opts_t forward, nlop_fun_t deriv[II][OO], nlop_fun_t adjoint[II][OO], nlop_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
-							operator_io_prop_flags_t io_props[II][OO]);
+							operator_prop_flags_t props[II][OO]);
 extern struct nlop_s* nlop_generic_extopts_create2(	int OO, int NO, const long odims[OO][NO], const long ostr[OO][NO], int II, int IN, const long idims[II][IN], const long istr[II][IN],
 							nlop_data_t* data, nlop_gen_fun_opts_t forward, nlop_fun_t deriv[II][OO], nlop_fun_t adjoint[II][OO], nlop_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
-							operator_io_prop_flags_t io_props[II][OO]);
+							operator_prop_flags_t props[II][OO]);
 
 extern struct nlop_s* nlop_generic_create(	int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
 						nlop_data_t* data, nlop_gen_fun_t forward, nlop_fun_t deriv[II][OO], nlop_fun_t adjoint[II][OO], nlop_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del);

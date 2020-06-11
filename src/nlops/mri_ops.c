@@ -390,13 +390,13 @@ static struct nlop_s* nlop_gradient_step_create_general(int N, unsigned int flag
 	md_copy_dims(N, nl_idims[3], mdims);
 	md_singleton_dims(N, nl_idims[4]);
 
-	operator_io_prop_flags_t io_props[4][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}, {0}, {0}};
+	operator_prop_flags_t props[4][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}, {0}, {0}};
 
 	return nlop_generic_extopts_create(	1, N, nl_odims, 4, N, nl_idims, CAST_UP(PTR_PASS(data)),
 						gradient_step_fun,
 						(nlop_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
 						(nlop_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
-						NULL, NULL, gradient_step_del, io_props);
+						NULL, NULL, gradient_step_del, props);
 }
 
 /**

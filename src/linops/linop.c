@@ -27,9 +27,9 @@
 #include "linop.h"
 
 //only these operator properties are passed to linops
-static operator_io_prop_flags_t linop_props_understood =  MD_BIT(OP_PROP_ATOMIC)
-							| MD_BIT(OP_PROP_R_LIN) 
-							| MD_BIT(OP_PROP_C_LIN);
+static operator_prop_flags_t linop_props_understood =  MD_BIT(OP_PROP_ATOMIC)
+						     | MD_BIT(OP_PROP_R_LIN) 
+						     | MD_BIT(OP_PROP_C_LIN);
 
 
 
@@ -38,8 +38,6 @@ struct shared_data_s {
 	INTERFACE(operator_data_t);
 
 	linop_data_t* data;
-
-	operator_io_prop_flags_t cross_props;
 
 	del_fun_t del;
 
@@ -95,13 +93,6 @@ static void sptr_del(const struct shared_ptr_s* p)
 }
 
 
-static operator_io_prop_flags_t linop_get_io_props(const operator_data_t* _data, unsigned int i, unsigned int j)
-{
-	auto data = CAST_DOWN(shared_data_s, _data);
-	if (i != j)
-		return data->cross_props;
-	return 0;
-}
 
 /**
  * Create a linear operator (with strides)
@@ -109,7 +100,7 @@ static operator_io_prop_flags_t linop_get_io_props(const operator_data_t* _data,
 struct linop_s* linop_extopts_create2(unsigned int ON, const long odims[ON], const long ostrs[ON],
 				unsigned int IN, const long idims[IN], const long istrs[IN],
 				linop_data_t* data, lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal,
-				lop_p_fun_t norm_inv, del_fun_t del, operator_io_prop_flags_t linop_io_props)
+				lop_p_fun_t norm_inv, del_fun_t del, operator_prop_flags_t linop_props)
 {
 	PTR_ALLOC(struct linop_s, lo);
 
@@ -121,10 +112,10 @@ struct linop_s* linop_extopts_create2(unsigned int ON, const long odims[ON], con
 		SET_TYPEID(shared_data_s, shared_data[i]);
 	}
 
-	linop_io_props = MD_SET(linop_io_props, OP_PROP_ATOMIC);
-	linop_io_props = MD_SET(linop_io_props, OP_PROP_R_LIN);
+	linop_props = MD_SET(linop_props, OP_PROP_ATOMIC);
+	linop_props = MD_SET(linop_props, OP_PROP_R_LIN);
 
-	if (0 != (linop_io_props & (~linop_props_understood)))
+	if (0 != (linop_props & (~linop_props_understood)))
 		error("Property passed to linop which is not understood\n");
 
 	for (unsigned int i = 0; i < 4; i++) {
@@ -136,8 +127,6 @@ struct linop_s* linop_extopts_create2(unsigned int ON, const long odims[ON], con
 			shared_ptr_init(&shared_data[i]->sptr, sptr_del);
 		else
 			shared_ptr_copy(&shared_data[i]->sptr, &shared_data[0]->sptr);
-
-		shared_data[i]->cross_props = linop_io_props;
 	}
 
 	shared_data[0]->u.apply = forward;
@@ -148,12 +137,14 @@ struct linop_s* linop_extopts_create2(unsigned int ON, const long odims[ON], con
 	assert((NULL != forward));
 	assert((NULL != adjoint));
 
-	lo->forward = operator_extopts_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, linop_get_io_props);
-	lo->adjoint = operator_extopts_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, linop_get_io_props);
+	operator_prop_flags_t lin_props[2][2] ={{0, linop_props}, {linop_props, 0}};
+
+	lo->forward = operator_extopts_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, lin_props);
+	lo->adjoint = operator_extopts_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, lin_props);
 
 	if (NULL != normal) {
 
-		lo->normal = operator_extopts_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, linop_get_io_props);
+		lo->normal = operator_extopts_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, lin_props);
 
 	} else {
 
@@ -207,7 +198,7 @@ struct linop_s* linop_create2(unsigned int ON, const long odims[ON], const long 
  * @param 
  */
 struct linop_s* linop_extopts_create(	unsigned int ON, const long odims[ON], unsigned int IN, const long idims[IN], linop_data_t* data,
-					lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal, lop_p_fun_t norm_inv, del_fun_t del, operator_io_prop_flags_t linop_flags)
+					lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal, lop_p_fun_t norm_inv, del_fun_t del, operator_prop_flags_t linop_flags)
 {
 	long ostrs[ON];
 	long istrs[IN];

@@ -261,11 +261,11 @@ static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags
 	data->istrs1 = *PTR_PASS(nistrs1);
 	data->istrs2 = *PTR_PASS(nistrs2);
 
-	operator_io_prop_flags_t io_props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
+	operator_prop_flags_t props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
 
 	return nlop_generic_extopts_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
 				    (nlop_fun_t[2][1]){ { convcorr_geom_der1 }, { convcorr_geom_der2 } },
-				    (nlop_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, io_props);
+				    (nlop_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, props);
 }
 
 

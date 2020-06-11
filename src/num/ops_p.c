@@ -27,7 +27,7 @@ struct operator_s {
 	void (*apply_opts)(const operator_data_t* _data, unsigned int N, void* args[N], operator_run_opt_flags_t run_opts[N][N]);
 	void (*del)(const operator_data_t* data);
 
-	operator_io_prop_flags_t (*get_io_prop_flags)(const operator_data_t* _data, unsigned int i, unsigned int j);
+	const struct opprop_s* props;
 
 	struct shared_obj_s sptr;
 };
@@ -128,15 +128,8 @@ static void operator_del(const struct shared_obj_s* sptr)
 		iovec_free(x->domain[i]);
 
 	xfree(x->domain);
+	opprop_free(x->props);
 	xfree(x);
-}
-
-static operator_io_prop_flags_t operator_get_io_prop_trivial(const operator_data_t* _data, unsigned int i, unsigned int j)
-{
-	UNUSED(_data);
-	UNUSED(i);
-	UNUSED(j);
-	return 0;
 }
 
 
@@ -167,7 +160,7 @@ const struct operator_p_s* operator_p_create2(unsigned int ON, const long out_di
 	o->data = CAST_UP(PTR_PASS(op));
 	o->apply = op_p_apply;
 	o->apply_opts = NULL;
-	o->get_io_prop_flags = operator_get_io_prop_trivial;
+	o->props = NULL;
 	o->del = op_p_del;
 
 	shared_obj_init(&o->sptr, operator_del);

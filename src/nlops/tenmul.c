@@ -229,10 +229,10 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 	md_copy_strides(N, nl_istr[0], istr1);
 	md_copy_strides(N, nl_istr[1], istr2);
 
-	operator_io_prop_flags_t io_props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
+	operator_prop_flags_t props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
 
 	return nlop_generic_extopts_create2(1, N, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-		tenmul_fun, (nlop_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, io_props);
+		tenmul_fun, (nlop_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, props);
 }
 
 

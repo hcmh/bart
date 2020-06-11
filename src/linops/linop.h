@@ -35,7 +35,7 @@ struct linop_s {
 
 
 extern struct linop_s* linop_extopts_create(unsigned int ON, const long odims[__VLA(ON)], unsigned int IN, const long idims[__VLA(IN)], linop_data_t* data,
-				lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal, lop_p_fun_t norm_inv, del_fun_t, operator_io_prop_flags_t linop_flags);
+				lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal, lop_p_fun_t norm_inv, del_fun_t, operator_prop_flags_t linop_flags);
 
 extern struct linop_s* linop_create(unsigned int ON, const long odims[__VLA(ON)], unsigned int IN, const long idims[__VLA(IN)], linop_data_t* data,
 				lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal, lop_p_fun_t norm_inv, del_fun_t);
@@ -43,7 +43,7 @@ extern struct linop_s* linop_create(unsigned int ON, const long odims[__VLA(ON)]
 extern struct linop_s* linop_extopts_create2(unsigned int ON, const long odims[__VLA(ON)], const long ostrs[__VLA(ON)],
 				unsigned int IN, const long idims[__VLA(IN)], const long istrs[__VLA(IN)],
 				linop_data_t* data, lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal,
-				lop_p_fun_t norm_inv, del_fun_t del, operator_io_prop_flags_t linop_flags);
+				lop_p_fun_t norm_inv, del_fun_t del, operator_prop_flags_t linop_flags);
 
 extern struct linop_s* linop_create2(unsigned int ON, const long odims[__VLA(ON)], const long ostr[__VLA(ON)],
 				unsigned int IN, const long idims[__VLA(IN)], const long istrs[__VLA(IN)], linop_data_t* data,
