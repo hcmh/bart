@@ -238,49 +238,46 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 		long N = src_dims[0]; // number of observations (samples)
 		long M = src_dims[1]; // number of variables (coordinates)
-		complex float* kernel = md_alloc(2, L_dims, CFL_SIZE);
 
-		gauss_kernel(L_dims, kernel, src_dims, src, conf, true);
-			
-		complex float* kernel_cpy = md_alloc(2, L_dims, CFL_SIZE); // copy of gaussian kernel
-		md_copy(2, L_dims, kernel_cpy, kernel, CFL_SIZE);
-
-		// V, S, VH = svd(kernel)
 		long V_dims[3] = { N, N, 1 };
 		long V_strs[3];
 		md_calc_strides(3, V_strs, V_dims, CFL_SIZE);
-		
-		complex float* V = md_alloc(3, V_dims, CFL_SIZE);
-		complex float* VH = md_alloc(3, V_dims, CFL_SIZE);
-		float* Sf = xmalloc(N * sizeof(float));
-		
-		lapack_svd(N, N, (complex float (*)[N])V, (complex float (*)[N])VH, Sf, (complex float (*)[N])kernel_cpy); // NOTE: Lapack destroys kernel_cpy!
 
-		complex float* VH_tmp = md_alloc(3, V_dims, CFL_SIZE);
-		md_zconj(3, V_dims, VH_tmp, V);
-		md_transpose(3, 0, 1, V_dims, VH, V_dims, VH_tmp, CFL_SIZE);
-		
-		// iterations
-		int iter_max = 30;
-		float gamma = 100.;
-		float eta = 2.;
-	
 		long S_dims[1] = { N };
 		
 		long D_dims[3];
 		md_select_dims(3, 1, D_dims, V_dims);
-				
+
 		long S_strs[3] = { 0, CFL_SIZE, 0 };
 		
 		long VH_dims[3]   = { 1, N, N };
 		long src2_dims[3] = { N, 1, M };
 		long src3_dims[3] = { 1, N, M };
 		long cov_dims[3]  = { N, 1, N };
+				
+		complex float* V = md_alloc(3, V_dims, CFL_SIZE);
+		complex float* VH = md_alloc(3, V_dims, CFL_SIZE);
+		float* Sf = xmalloc(N * sizeof(float));
 
-		
 		complex float* S_inv = md_alloc(1, S_dims, CFL_SIZE);	
 		complex float* W1 = md_alloc(3, cov_dims, CFL_SIZE);
 		complex float* src2 = md_alloc(3, src2_dims, CFL_SIZE);
+
+		complex float* kernel = md_alloc(2, L_dims, CFL_SIZE);
+		complex float* kernel_cpy = md_alloc(2, L_dims, CFL_SIZE); // copy of gaussian kernel
+
+		
+
+		gauss_kernel(L_dims, kernel, src_dims, src, conf, true);
+		md_copy(2, L_dims, kernel_cpy, kernel, CFL_SIZE);
+
+		// V, S, VH = svd(kernel)		
+		lapack_svd(N, N, (complex float (*)[N])V, (complex float (*)[N])VH, Sf, (complex float (*)[N])kernel_cpy); // NOTE: Lapack destroys kernel_cpy!
+
+		// iterations
+		int iter_max = 30;
+		float gamma = 100.;
+		float eta = 2.;
 			
 		for (int i = 0; i < iter_max; i++) {
 			
@@ -303,10 +300,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			for (int l = 0; l < V_dims[0]; l++)
 				L[l * V_dims[0] + l] -= D[l];
 
-			// char str[12];
-			// sprintf(str, "%02d", i+1);
-			// dump_cfl(str, 2, L_dims, L);
-			
+	
 			// W = eye + kernel_lambda * L
 			md_zsmul(3, V_dims, W, L, conf->kernel_lambda);
 			
@@ -342,11 +336,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			 * Matlab uses complex doubles and - if the imaginary part is zero - doubles 
 			 * for all operations. This should be tested here!*/
 
-			md_zconj(3, V_dims, VH_tmp, V);
-			md_transpose(3, 0, 1, V_dims, VH, V_dims, VH_tmp, CFL_SIZE);
-		
 			gamma /= eta;
-			debug_printf(DP_INFO, "Gamma: %f\n", gamma);
 		}
 		
 		md_free(S_inv);
@@ -356,7 +346,6 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		md_free(VH);
 		md_free(kernel_cpy);
 		md_free(kernel);
-		md_free(VH_tmp);
 		xfree(Sf);
 
 		break;
