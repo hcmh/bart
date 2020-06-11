@@ -1035,8 +1035,7 @@ static bool test_nlop_select_derivatives_link(void)
 	assert(false == nlop_tenmul_der_available(tenmul2, 0));
 	assert(true == nlop_tenmul_der_available(tenmul2, 1));
 
-#if 0
-	// does not work (problem in operator_link)
+#if 1
 	nlop_generic_apply_select_derivative_unchecked(op, 4, args, 1l, 1l);
 
 	assert(false == nlop_tenmul_der_available(tenmul1, 0));
