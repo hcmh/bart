@@ -365,38 +365,9 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 	case 'N': { // temporal nearest neighbour
 		
 		md_clear(2, L_dims, W, CFL_SIZE);
-
-		assert(src_dims[1] == 1);
-
-		int idx_past;
-		int idx;
-		int idx_future;
-
-		for (int l = 0; l < src_dims[0]; l++) {
-
-			if (creal(src[l]) > L_dims[0])
-				error("Lable index larger than Laplacian size!");
-
-			idx = creal(src[l]);
-
-			if (l > 0)
-				idx_past = creal(src[l - 1]);
-			else
-				idx_past = idx;			
-
-			if (l < src_dims[0] - 1)
-				idx_future = creal(src[l + 1]);
-			else
-				idx_future = idx;
-
-
-			if (idx_past != idx)
-				W[idx * L_dims[0] + idx_past] = 1 + 0.i;
-
-			if (idx_future != idx)
-				W[idx * L_dims[0] + idx_future] = 1 + 0.i;
-		}
-
+		long strs[2]  = {(L_dims[0] + 1) * CFL_SIZE, 0};
+		md_zfill2(2, L_dims, strs, W + 1, 1.); // fill off-diagonal with ones
+	
 		symmetrize(L_dims, W);
 
 		break;
