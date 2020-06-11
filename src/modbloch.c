@@ -342,34 +342,52 @@ int main_modbloch(int argc, char* argv[])
 		md_copy(DIMS, slcprfl_dims, fit_para.input_sliceprofile, sliceprofile, CFL_SIZE);
 	}
 
-	// Scale DATA on largest sample of first spoke
+	// Scale DATA
+
+#if 0	// First spoke based scaling of data
+
+	// FIXME: Spoke based scaling has no improvement compared to full-data one yet
 
 	long ksp_strs[DIMS];
 	md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
 
 	long sample_pos[DIMS] = { 0. };
 
-	float max = 0.;
+	float max_sum = 0.;
 
-	for (int i = 0; i < ksp_dims[PHS1_DIM]; i++) {
+	for (int j = 0; j < ksp_dims[COIL_DIM]; j++) {
 
-		sample_pos[PHS1_DIM] = i;
+		sample_pos[COIL_DIM] = j;
 
-		long ind = md_calc_offset(DIMS, ksp_strs, sample_pos) / CFL_SIZE;
+		float max = 0.;
 
-		debug_printf(DP_DEBUG3, "Spoke Data[%d]: %f\n", i, cabsf(kspace_data[ind]));
+		for (int i = 0; i < ksp_dims[PHS1_DIM]; i++) {
 
-		max = (cabsf(kspace_data[ind]) > max) ? cabsf(kspace_data[ind]) : max;
+			sample_pos[PHS1_DIM] = i;
+
+			long ind = md_calc_offset(DIMS, ksp_strs, sample_pos) / CFL_SIZE;
+
+			debug_printf(DP_DEBUG3, "Spoke Data[%d]: %f\n", i, cabsf(kspace_data[ind]));
+
+			max = (cabsf(kspace_data[ind]) > max) ? cabsf(kspace_data[ind]) : max;
+		}
+
+		assert(0. < max);
+
+		max_sum += max;
 	}
-	
-	assert(0. < max);
 
-	debug_printf(DP_DEBUG3, "Max Sample %f\n", max);
+	debug_printf(DP_DEBUG1, "Max Sample %f\n", (max_sum / (float)ksp_dims[COIL_DIM]));
 
-	double scaling = 250. / max;
+	double scaling = 250. / (max_sum / (float)ksp_dims[COIL_DIM]);
 
 	if (NULL == trajectory)	// Special case for Cartesian fully-samples pixelwise phantom data
 		scaling = 500;
+
+#else	// full data based scaling of data
+	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data) * ksp_dims[2];
+	// double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
+#endif
 
 	debug_printf(DP_INFO, "Data Scaling: %f,\t Spokes: %ld\n", scaling, ksp_dims[PHS2_DIM]);
 
