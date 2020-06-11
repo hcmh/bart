@@ -1621,8 +1621,10 @@ static void link_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_
 			if (!operator_get_oi_run_opt(NO - 1, NI - 1, io_flags, in_run_opts, o, i, OP_APP_NO_DER)) {
 
 				operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, op, ip, OP_APP_NO_DER);
-				operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, op, in_ind, OP_APP_NO_DER);
-				operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, out_ind, ip, OP_APP_NO_DER);
+				if (!(MD_IS_SET(operator_get_prop_flags_oi(data->x, out_ind, ip), OP_PROP_INDEPENDENT)))
+					operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, op, in_ind, OP_APP_NO_DER);
+				if (!(MD_IS_SET(operator_get_prop_flags_oi(data->x, op, in_ind), OP_PROP_INDEPENDENT)))
+					operator_unset_oi_run_opt(NO, NI, data->x->io_flags, out_run_opts, out_ind, ip, OP_APP_NO_DER);
 			}
 		}
 	}
