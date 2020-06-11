@@ -224,8 +224,15 @@ int main_rtnlinv(int argc, char* argv[])
 	long img_output_dims[DIMS];
 	md_copy_dims(DIMS, img_output_dims, img_dims);
 
+	if (conf.noncart) {
+
+		for (int i = 0; i < 3; i++)
+			if (1 != img_output_dims[i])
+				img_output_dims[i] /= 2;
+	}
+
 	long img_output1_dims[DIMS];
-	md_copy_dims(DIMS, img_output1_dims, img1_dims);
+	md_select_dims(DIMS, ~TIME_FLAG, img_output1_dims, img_output_dims);
 
 	if (!combine) {
 
