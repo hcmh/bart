@@ -267,13 +267,15 @@ int main_modbloch(int argc, char* argv[])
 		md_select_dims(DIMS, FFT_FLAGS|TE_FLAG|SLICE_FLAG|TIME2_FLAG, pat_dims, grid_dims);
 		pattern = anon_cfl("", DIMS, pat_dims);
 
-		nufft_op_p = nufft_create(DIMS, ones_dims, pat_dims, traj_dims, traj, NULL, nufft_conf);
+		complex float* weights = NULL;
+
+		nufft_op_p = nufft_create(DIMS, ones_dims, pat_dims, traj_dims, traj, weights, nufft_conf);
 		linop_adjoint(nufft_op_p, DIMS, pat_dims, pattern, DIMS, ones_dims, ones);
 		fftuc(DIMS, pat_dims, FFT_FLAGS, pattern, pattern);
 
 		// Gridding raw data
 
-		nufft_op_k = nufft_create(DIMS, ksp_dims, grid_dims, traj_dims, traj, NULL, nufft_conf);
+		nufft_op_k = nufft_create(DIMS, ksp_dims, grid_dims, traj_dims, traj, weights, nufft_conf);
 		linop_adjoint(nufft_op_k, DIMS, grid_dims, k_grid_data, DIMS, ksp_dims, kspace_data);
 		fftuc(DIMS, grid_dims, FFT_FLAGS, k_grid_data, k_grid_data);
 
