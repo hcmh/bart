@@ -102,9 +102,12 @@ void blas_zfmac_cgemv(unsigned int N, const long dims[N], const long ostr[N], co
 	long incx = istr2[1] / size;
 	long incy = ostr[0] / size;
 
+	long m = (size == istr1[0]) ? dims[0] : dims[1];
+	long n = (size == istr1[0]) ? dims[1] : dims[0];
+
 	lda = MAX(1, lda);
 
-	blas_cgemv(trans, dims[0], dims[1], 1., lda, iptr1, incx, iptr2, 1., incy, optr);
+	blas_cgemv(trans, m, n, 1., lda, iptr1, incx, iptr2, 1., incy, optr);
 }
 
 /**
@@ -284,7 +287,10 @@ void blas_fmac_sgemv(unsigned int N, const long dims[N], const long ostr[N], flo
 
 	lda = MAX(1, lda);
 
-	blas_sgemv(trans, dims[0], dims[1], 1., lda, iptr1, incx, iptr2, 1., incy, optr);
+	long m = (size == istr1[0]) ? dims[0] : dims[1];
+	long n = (size == istr1[0]) ? dims[1] : dims[0];
+
+	blas_sgemv(trans, m, n, 1., lda, iptr1, incx, iptr2, 1., incy, optr);
 }
 
 /**
