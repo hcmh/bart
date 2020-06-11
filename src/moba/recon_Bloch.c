@@ -87,7 +87,7 @@ void bloch_recon(const struct moba_conf* conf, const struct modBlochFit* fit_par
 	debug_printf(DP_INFO, "irgnm_conf_dims:\n\t");
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = 0.9, .lower_bound = 10E-9, .constrained_maps = 3, .not_wav_maps = fit_para->not_wav_maps };
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = 0.9, .lower_bound = 10E-4, .constrained_maps = 3, .not_wav_maps = fit_para->not_wav_maps };
 
         conf2.algo = 3;
 
