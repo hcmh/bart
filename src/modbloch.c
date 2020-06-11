@@ -147,7 +147,7 @@ int main_modbloch(int argc, char* argv[])
 	if (4 == argc)
 		out_sens = true;
 	
-	assert(fit_para.rfduration <= fit_para.prep_pulse_length);
+	// assert(fit_para.rfduration <= fit_para.prep_pulse_length);
 	
 	num_init();
 	

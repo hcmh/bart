@@ -165,6 +165,7 @@ static void xyspoiling(int N, float out[N], void* _data)
 		}
 }
 
+// TODO: Fix for gradients after hyperbolic inversion pulse
 static void apply_inversion(int N, float m[N], float pulse_length, void* _data )
 {
 	struct sim_data* simdata = _data;
@@ -208,6 +209,10 @@ static void apply_signal_preparation(int N, float m[N], void* _data )// provides
 	tmp_data.pulse.flipangle = simdata->pulse.flipangle/2.;
 	tmp_data.pulse.phase = M_PI;
 	tmp_data.seq.tr = simdata->seq.prep_pulse_length;
+
+	// Special case for simulation of finit RF-pulse effect on T2 for IR bSSFP
+	if (tmp_data.pulse.pulse_length > simdata->seq.prep_pulse_length)
+		tmp_data.pulse.pulse_length = simdata->seq.prep_pulse_length;
 
 	float matrix[N][N];
 
