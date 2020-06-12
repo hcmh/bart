@@ -528,16 +528,12 @@ void blas_zmul_cgeru(unsigned int N, const long dims[N], const long ostr[N], com
 void blas_zmul_cscal(unsigned int N, const long dims[N], const long ostr[N], complex float* optr, const long istr1[N], const complex float* iptr1, const long istr2[N], const complex float* iptr2)
 {
 	long size = 8;
-	if (optr != iptr1) {
+	assert((ostr[0] == istr1[0]) && (0 == ostr[0] % size) && (0 == istr2[0]));
+	assert(1 == N);
 
-		md_clear2(N, dims, ostr, optr, size);
-		blas_zfmac_caxpy(N, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
-	} else {
-		assert((ostr[0] == istr1[0]) && (0 == ostr[0] % size) && (0 == istr2[0]));
-		assert(1 == N);
-		blas2_cscal(dims[0], iptr2, istr1[0] / size, optr);
-	}
-
+	if (optr != iptr1)
+		md_copy2(N, dims, ostr, optr, istr1, iptr1, size);
+	blas2_cscal(dims[0], iptr2, istr1[0] / size, optr);
 }
 
 
@@ -678,14 +674,10 @@ void blas_mul_sger(unsigned int N, const long dims[N], const long ostr[N], float
 void blas_mul_sscal(unsigned int N, const long dims[N], const long ostr[N], float* optr, const long istr1[N], const float* iptr1, const long istr2[N], const float* iptr2)
 {
 	long size = 4;
-	if (optr != iptr1) {
+	assert((ostr[0] == istr1[0]) && (0 == ostr[0] % size) && (0 == istr2[0]));
+	assert(1 == N);
 
-		md_clear2(N, dims, ostr, optr, size);
-		blas_fmac_saxpy(N, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
-	} else {
-		assert((ostr[0] == istr1[0]) && (0 == ostr[0] % size) && (0 == istr2[0]));
-		assert(1 == N);
-		blas2_sscal(dims[0], iptr2, istr1[0] / size, optr);
-	}
-
+	if (optr != iptr1)
+		md_copy2(N, dims, ostr, optr, istr1, iptr1, size);
+	blas2_sscal(dims[0], iptr2, istr1[0] / size, optr);
 }
