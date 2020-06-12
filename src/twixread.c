@@ -233,8 +233,8 @@ static int siemens_adc_read(bool vd, int fd, bool linectr, bool partctr, const l
 		struct mdh2 mdh;
 		memcpy(&mdh, vd ? (scan_hdr + 40) : (chan_hdr + 20), sizeof(mdh));
 
-		if ((mdh.evalinfo[0] & (1 << 5))
-			 || (dims[READ_DIM] != mdh.samples)) {
+		if (((mdh.evalinfo[0] & (1 << 5))
+			 || (dims[READ_DIM] != mdh.samples)) && 0) { //FIXME: 0 == mdh.samples for old multi.-inv. bSSFP data
 
 //			debug_printf(DP_WARN, "SYNC\n");
 
@@ -335,6 +335,7 @@ int main_twixread(int argc, char* argv[argc])
 	bool partctr = false;
 	bool mpi = false;
 	bool out_pmu = false;
+	bool mibSSFP = false;
 
 	long dims[DIMS];
 	md_singleton_dims(DIMS, dims);
@@ -358,6 +359,7 @@ int main_twixread(int argc, char* argv[argc])
 		OPT_SET('L', &linectr, "use linectr offset"),
 		OPT_SET('P', &partctr, "use partctr offset"),
 		OPT_SET('M', &mpi, "MPI mode"),
+		OPT_SET('B', &mibSSFP, "old Multi.-Inv. bSSFP"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -568,7 +570,7 @@ int main_twixread(int argc, char* argv[argc])
 
 			pos[LEVEL_DIM] = multi_inv;
 
-			if ((0 == pos[TIME_DIM]) && (0 == pos[PHS1_DIM]))
+			if (((mibSSFP ? radial_lines : 0) == pos[TIME_DIM]) && (0 == pos[PHS1_DIM]))
 				multi_inv++;
 		}
 
