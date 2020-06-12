@@ -310,6 +310,10 @@ extern float md_znrmse(unsigned int D, const long dim[__VLA(D)], const _Complex 
 extern float md_znorme(unsigned int D, const long dim[__VLA(D)], const _Complex float* in1, const _Complex float* in2);
 extern float md_zrnorme(unsigned int D, const long dim[__VLA(D)], const _Complex float* ref, const _Complex float* in);
 
+extern float md_rms(unsigned int D, const long dim[__VLA(D)], const float* in);
+extern float md_rmse(unsigned int D, const long dim[__VLA(D)], const float* in1, const float* in2);
+extern float md_nrmse(unsigned int D, const long dim[__VLA(D)], const float* ref, const float* in);
+
 extern void md_zdouble2float(unsigned int D, const long dims[__VLA(D)], _Complex float* dst, const _Complex double* src);
 extern void md_zfloat2double(unsigned int D, const long dims[__VLA(D)], _Complex double* dst, const _Complex float* src);
 extern void md_float2double(unsigned int D, const long dims[__VLA(D)], double* dst, const float* src);

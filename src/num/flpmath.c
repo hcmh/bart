@@ -2744,6 +2744,46 @@ float md_znrmse(unsigned int D, const long dim[D], const complex float* ref, con
 	return md_zrmse(D, dim, ref, in) / md_zrms(D, dim, ref);
 }
 
+/**
+ * Calculate root-mean-square of real array
+ *
+ * return sqrt(in * in / length(in))
+ */
+float md_rms(unsigned int D, const long dim[D], const float* in)
+{
+	return md_norm(D, dim, in) / sqrtl(md_calc_size(D, dim));
+}
+
+/**
+ * Calculate root-mean-square error between two real arrays
+ *
+ * return sqrt((in1 - in2)^2 / length(in))
+ */
+float md_rmse(unsigned int D, const long dim[D], const float* in1, const float* in2)
+{
+	float* err = md_alloc_sameplace(D, dim, FL_SIZE, in1);
+
+	md_sub(D, dim, err, in1, in2);
+
+	float val = md_rms(D, dim, err);
+
+	md_free(err);
+
+	return val;
+}
+
+
+
+/**
+ * Calculate normalized root-mean-square error between two real arrays
+ *
+ * return RMSE(ref,in) / RMS(ref)
+ */
+float md_nrmse(unsigned int D, const long dim[D], const float* ref, const float* in)
+{
+	return md_rmse(D, dim, ref, in) / md_rms(D, dim, ref);
+}
+
 
 
 /**
