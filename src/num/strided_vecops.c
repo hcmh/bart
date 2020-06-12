@@ -34,6 +34,18 @@
 
 #include "strided_vecops.h"
 
+static bool use_optimization = true;
+
+void activate_strided_vecops(void)
+{
+	use_optimization = true;
+}
+
+void deactivate_strided_vecops(void)
+{
+	use_optimization = false;
+}
+
 typedef long (*md_check_3op_t)(unsigned long N, long ndims[N], long nostrs[N], long nistrs1[N], long nistrs2[N], const long dims[N], const long ostrs[N], const long istrs1[N], const long istrs2[N], long size);
 typedef long (*md_check_2op_t)(unsigned long N, long ndims[N], long nostrs[N], long nistrs[N], const long dims[N], const long ostrs[N], const long istrs[N], long size);
 
@@ -494,6 +506,9 @@ static long check_dgmm(unsigned long N, long ndims[N], long nostrs[N], long nist
 
 static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_checks], unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
 {
+	if (!use_optimization)
+		return false;
+	
 	long size = 8;
 
 	long ndims[N];
@@ -573,6 +588,9 @@ static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_c
 
 static bool simple_3op(int N_checks, struct simple_3op_check strided_calls[N_checks], unsigned int N, const long dims[N], const long ostrs[N], float* out, const long istrs1[N], const float* in1, const long istrs2[N], const float* in2)
 {
+	if (!use_optimization)
+		return false;
+	
 	long size = 4;
 
 	long ndims[N];
@@ -651,6 +669,9 @@ static bool simple_3op(int N_checks, struct simple_3op_check strided_calls[N_che
 
 static bool simple_s2op(int N_checks, struct simple_s2op_check strided_calls[N_checks], unsigned int N, const long dims[N], const long ostrs[N], float* out, const long istrs[N], const float* in, float val)
 {
+	if (!use_optimization)
+		return false;
+
 	long size = 4;
 
 	long ndims[N];
