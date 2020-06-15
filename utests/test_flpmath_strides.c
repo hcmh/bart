@@ -184,7 +184,7 @@ static bool test_optimized_md_zmul2_flags(unsigned long out_flag, unsigned long 
 	md_zmul2(D, dims, ostr, optr1, istr1, iptr1, istr2, iptr2);
 	activate_strided_vecops();
 	bool result = (optimization_expected == simple_zmul(D, dims, ostr, optr2, istr1, iptr1, istr2, iptr2));
-	debug_printf(DP_INFO, "%d %.10f\n", optimization_expected, md_znrmse(D, odims, optr1, optr2));
+
 	result &= (!optimization_expected) || (err_val > md_znrmse(D, odims, optr1, optr2));
 	md_free(optr1);
 	md_free(optr2);
@@ -241,7 +241,7 @@ static bool test_optimized_md_mul2_flags(unsigned long out_flag, unsigned long i
 	md_mul2(D, dims, ostr, optr1, istr1, iptr1, istr2, iptr2);
 	activate_strided_vecops();
 	bool result = (optimization_expected == simple_mul(D, dims, ostr, optr2, istr1, iptr1, istr2, iptr2));
-	debug_printf(DP_INFO, "%d %.10f %.10f\n", optimization_expected, md_nrmse(D, odims, optr1, optr2), md_rms(D, odims, optr1));
+
 	result &= (!optimization_expected) || (err_val > md_nrmse(D, odims, optr1, optr2));
 	md_free(optr1);
 	md_free(optr2);
