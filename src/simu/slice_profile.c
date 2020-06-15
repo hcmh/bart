@@ -38,7 +38,7 @@ void estimate_slice_profile(unsigned int N, const long dims[N], complex float* o
 	for (int i = 0; i < samples; i++)
 		envelope[i] = pulse_sinc(&pulse, pulse.rf_start + i * dt );
 
-	dump_cfl("_pulse", DIMS, pulse_dims, envelope);
+	// dump_cfl("_pulse", DIMS, pulse_dims, envelope);
 
 	// Zeropad for increased frequency sampling rate
 
@@ -98,7 +98,7 @@ void estimate_slice_profile(unsigned int N, const long dims[N], complex float* o
 	for (long i = 0; i < count_dims[READ_DIM]; i++)
 		slice_count[i] = slice_profile[(pad_dims[READ_DIM]-count)/2 + i + count%2]; //count%2 compensates for integer division error for odd `count`
 
-	dump_cfl("_slice_profile", DIMS, count_dims, slice_count);
+	// dump_cfl("_slice_profile", DIMS, count_dims, slice_count);
 
 	// Linear interpolation of final slice profile samples
 
@@ -129,7 +129,7 @@ void estimate_slice_profile(unsigned int N, const long dims[N], complex float* o
 		debug_printf(DP_DEBUG1, "SLICE SAMPLES: i: %d,\t (i * steps): %f,\t ppos: %d,\t pdiv: %f,\t npos: %d,\tslice sample: %f\n", i, (i * steps), ppos, pdiv, npos, cabsf(slc_samples[i]));
 	}
 
-	dump_cfl("_slice_samples", DIMS, slc_sample_dims, slc_samples);
+	// dump_cfl("_slice_samples", DIMS, slc_sample_dims, slc_samples);
 
 	// Copy desired amount of Slice Profile Samples
 
@@ -137,7 +137,7 @@ void estimate_slice_profile(unsigned int N, const long dims[N], complex float* o
 	for (int i = 0; i < dims[READ_DIM]; i++)
 		out[i] = slc_samples[i];
 
-	dump_cfl("_final_slice_samples", DIMS, dims, out);
+	// dump_cfl("_final_slice_samples", DIMS, dims, out);
 
 	md_free(envelope);
 	md_free(padded);
