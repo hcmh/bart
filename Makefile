@@ -197,7 +197,7 @@ MODULES_rof = -liter -llinops
 MODULES_tgv = -liter -llinops
 MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu -lgeom
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -liter -lmanifold -lmoba -lgeom -lnlops 
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -liter -lmanifold -lmoba -lgeom -lnlops
 MODULES_sake = -lsake
 MODULES_traj = -lnoncart
 MODULES_wave = -liter -lwavelet -llinops -llowrank
@@ -567,9 +567,10 @@ MODULES_test_iter += -liter -lnlops -llinops
 MODULES_test_prox += -liter -llinops
 
 # lib nn
-UTARGETS += test_nn_layers #test_nn
+UTARGETS += test_nn_layers test_nn_batchnorm #test_nn
 #MODULES_test_nn += -lnn -lnlops -llinops
 MODULES_test_nn_layers += -lnn -lnlops -llinops
+MODULES_test_nn_batchnorm += -lnn -lnlops -llinops
 
 UTARGETS_GPU += test_cuda_nlop
 MODULES_test_cuda_nlop += -lnn -lnlops -llinops -lnum
