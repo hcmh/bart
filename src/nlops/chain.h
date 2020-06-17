@@ -17,3 +17,7 @@ extern struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b);
 extern struct nlop_s* nlop_dup_F(const struct nlop_s* x, int a, int b);
 extern struct nlop_s* nlop_destack(const struct nlop_s* x, int a, int b, unsigned long stack_dim);
 extern struct nlop_s* nlop_destack_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim);
+extern struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, unsigned long stack_dim);
+extern struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim);
+extern struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, unsigned long stack_dim);
+extern struct nlop_s* nlop_stack_outputs_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim);
