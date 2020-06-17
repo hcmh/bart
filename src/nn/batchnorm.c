@@ -151,3 +151,161 @@ const struct nlop_s* nlop_stats_create(int N, const long dims[N], unsigned long 
 	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)),
 		stats_fun, (nlop_fun_t[1][2]){ { stats_der_mean, stats_der_var } }, (nlop_fun_t[1][2]){ { stats_adj_mean, stats_adj_var } }, NULL, NULL, stats_del);
 }
+
+struct normalize_s {
+
+	INTERFACE(nlop_data_t);
+
+	const struct iovec_s* dom;
+	const struct iovec_s* statdom;
+
+	complex float* tmp; // (src - mu)
+	complex float* scale; // sqrt(var + epsilon)
+
+	float epsilon;
+};
+
+DEF_TYPEID(normalize_s);
+
+
+static void normalize_fun(const nlop_data_t* _data, int N, complex float* args[N])
+{
+	const auto data = CAST_DOWN(normalize_s, _data);
+
+	assert(4 == N);
+
+	complex float* dst = args[0];
+	complex float* src = args[1];
+	complex float* mean = args[2];
+	complex float* var = args[3];
+
+	if (NULL == data->tmp)
+		data->tmp = md_alloc_sameplace(data->dom->N, data->dom->dims, data->dom->size, dst);
+	if (NULL == data->scale)
+		data->scale = md_alloc_sameplace(data->statdom->N, data->statdom->dims, data->statdom->size, dst);
+
+	md_zsadd(data->statdom->N, data->statdom->dims, data->scale, var, data->epsilon);
+	md_zreal(data->statdom->N, data->statdom->dims, data->scale, data->scale); //assert that sigma is real
+	md_zsqrt(data->statdom->N, data->statdom->dims, data->scale, data->scale);
+
+	md_zsub2(data->dom->N, data->dom->dims, data->dom->strs, data->tmp, data->dom->strs, src, data->statdom->strs, mean);
+	md_zdiv2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, data->tmp, data->statdom->strs, data->scale);
+}
+
+static void normalize_deradj_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(normalize_s, _data);
+	md_zdiv2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->statdom->strs, data->scale);
+}
+
+static void normalize_der_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(normalize_s, _data);
+	md_zdiv2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->statdom->strs, src, data->statdom->strs, data->scale);
+	md_zsmul(data->dom->N, data->dom->dims, dst, dst, -1.);
+}
+
+static void normalize_adj_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(normalize_s, _data);
+	md_clear(data->statdom->N, data->statdom->dims, dst, data->statdom->size);
+	md_zadd2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->statdom->strs, dst, data->dom->strs, src);
+	md_zdiv(data->statdom->N, data->statdom->dims, dst, dst, data->scale);
+	md_zsmul(data->statdom->N, data->statdom->dims, dst, dst, -1.);
+}
+
+static void normalize_der_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(normalize_s, _data);
+
+	complex float* tmp = md_alloc_sameplace(data->statdom->N, data->statdom->dims, data->statdom->size, dst);
+
+	md_zreal(data->statdom->N, data->statdom->dims, tmp, src);
+
+	md_zdiv(data->statdom->N, data->statdom->dims, tmp, tmp, data->scale);
+	md_zdiv(data->statdom->N, data->statdom->dims, tmp, tmp, data->scale);
+	md_zdiv(data->statdom->N, data->statdom->dims, tmp, tmp, data->scale);
+	md_zsmul(data->statdom->N, data->statdom->dims, tmp, tmp, -.5);
+
+	md_zmul2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->statdom->strs, tmp, data->dom->strs, data->tmp);
+
+
+
+	md_free(tmp);
+}
+
+static void normalize_adj_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(normalize_s, _data);
+
+	complex float* tmp = md_alloc_sameplace(data->statdom->N, data->statdom->dims, data->statdom->size, dst);
+
+	md_clear(data->statdom->N, data->statdom->dims, dst, data->statdom->size);
+
+	md_zfmacc2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->dom->strs, src, data->dom->strs, data->tmp);
+
+	md_zdiv(data->statdom->N, data->statdom->dims, dst, dst, data->scale);
+	md_zdiv(data->statdom->N, data->statdom->dims, dst, dst, data->scale);
+	md_zdiv(data->statdom->N, data->statdom->dims, dst, dst, data->scale);
+	md_zsmul(data->statdom->N, data->statdom->dims, dst, dst, -.5);
+	md_zreal(data->statdom->N, data->statdom->dims, dst, dst);
+
+	md_free(tmp);
+}
+
+static void normalize_del(const struct nlop_data_s* _data)
+{
+	const auto data = CAST_DOWN(normalize_s, _data);
+
+	md_free(data->scale);
+	md_free(data->tmp);
+
+	iovec_free(data->dom);
+	iovec_free(data->statdom);
+
+	xfree(data);
+}
+
+/**
+ * Nlop to compute mean and variance of input
+ *
+ * @param dims dims of input tensor
+ * @param flags dims to compute mean/var over, i.e. dimensions that do not stay
+ * @param epsilon to update the floating mean and varinace
+ *
+ * In 0:	Input
+ * In 1:	Mean mu
+ * In 2: 	Variance sigma^2
+
+ * Out 0:	Normalized input (x - mu) / sqrt(sigma^2 + epsilon)
+ *
+ **/
+const struct nlop_s* nlop_normalize_create(int N, const long dims[N], unsigned long flags, float epsilon)
+{
+	PTR_ALLOC(struct normalize_s, data);
+	SET_TYPEID(normalize_s, data);
+
+
+	long statdims[N];
+	md_select_dims(N, ~flags, statdims, dims);
+
+	data->dom = iovec_create(N, dims, CFL_SIZE);
+	data->statdom = iovec_create(N, statdims, CFL_SIZE);
+	data->epsilon = epsilon;
+	data->scale = NULL;
+	data->tmp = NULL;
+
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], dims);
+
+	long nl_idims[3][N];
+	md_copy_dims(N, nl_idims[0], dims);
+	md_copy_dims(N, nl_idims[1], statdims);
+	md_copy_dims(N, nl_idims[2], statdims);
+
+
+	return nlop_generic_create(1, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), normalize_fun,
+					(nlop_fun_t[3][1]){ { normalize_deradj_src}, { normalize_der_mean }, { normalize_der_var } },
+					(nlop_fun_t[3][1]){ { normalize_deradj_src}, { normalize_adj_mean }, { normalize_adj_var } },
+					NULL, NULL, normalize_del);
+}
