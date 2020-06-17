@@ -441,3 +441,214 @@ const struct nlop_s* nlop_scale_and_shift_create(int N, const long dims[N], unsi
 					(nlop_fun_t[3][1]){ { rescale_adj_src}, { rescale_adj_beta }, { rescale_adj_gamma } },
 					NULL, NULL, rescale_del);
 }
+struct batchnorm_stats_s {
+
+	INTERFACE(nlop_data_t);
+
+	const struct iovec_s* dom;
+	const struct iovec_s* codom;
+
+	const struct nlop_s* stats_op;
+	float momentum;
+	float n;
+};
+
+DEF_TYPEID(batchnorm_stats_s);
+
+
+static void batchnorm_fun(const nlop_data_t* _data, int N, complex float* args[N])
+{
+	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
+
+	complex float* mean = args[0];
+	complex float* var = args[1];
+	complex float* floating_mean_out = args[2];
+	complex float* floating_var_out = args[3];
+
+	complex float* src = args[4];
+	complex float* floating_mean_in = args[4];
+	complex float* floating_var_in = args[5];
+
+	if (network_status == STAT_TEST){
+
+		md_copy(data->codom->N, data->codom->dims, floating_mean_out, floating_mean_in, data->codom->size);
+		md_copy(data->codom->N, data->codom->dims, floating_var_out, floating_var_in, data->codom->size);
+		md_copy(data->codom->N, data->codom->dims, mean, floating_mean_in, data->codom->size);
+		md_copy(data->codom->N, data->codom->dims, var, floating_var_in, data->codom->size);
+
+		return;
+	}
+
+	if (network_status == STAT_TRAIN){
+
+		nlop_generic_apply_unchecked(data->stats_op, 3, MAKE_ARRAY((void*)mean, (void*)var, (void*)src));
+		md_zsmul(data->codom->N, data->codom->dims, floating_mean_out, mean, (1. - data->momentum) );
+		md_zsmul(data->codom->N, data->codom->dims, floating_var_out, var, (1. - data->momentum) * data->n / (data->n - 1.) ); // population variance (unbiased)
+
+		md_zaxpy(data->codom->N, data->codom->dims, floating_mean_out, data->momentum, floating_mean_in);
+		md_zaxpy(data->codom->N, data->codom->dims, floating_var_out, data->momentum, floating_var_in);
+
+		return;
+	}
+
+	assert(0);
+}
+
+static void batchnorm_der_mean_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
+
+	if (network_status == STAT_TEST){
+
+		md_clear(data->codom->N, data->codom->dims, dst, data->codom->size);
+		return;
+	}
+
+	if (network_status == STAT_TRAIN){
+
+		linop_forward(	nlop_get_derivative(data->stats_op, 0, 0),
+				data->codom->N, data->codom->dims, dst,
+				data->dom->N, data->dom->dims, src);
+
+		return;
+	}
+
+	assert(0);
+}
+
+static void batchnorm_adj_mean_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
+
+	if (network_status == STAT_TEST){
+
+		md_clear(data->dom->N, data->dom->dims, dst, data->dom->size);
+		return;
+	}
+
+	if (network_status == STAT_TRAIN){
+
+		linop_adjoint(	nlop_get_derivative(data->stats_op, 0, 0),
+				data->dom->N, data->dom->dims, dst,
+				data->codom->N, data->codom->dims, src);
+
+		return;
+	}
+
+	assert(0);
+}
+
+static void batchnorm_der_var_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
+
+	if (network_status == STAT_TEST){
+
+		md_clear(data->codom->N, data->codom->dims, dst, data->codom->size);
+		return;
+	}
+
+	if (network_status == STAT_TRAIN){
+
+		linop_forward(	nlop_get_derivative(data->stats_op, 1, 0),
+				data->codom->N, data->codom->dims, dst,
+				data->dom->N, data->dom->dims, src);
+
+		return;
+	}
+
+	assert(0);
+}
+
+static void batchnorm_adj_var_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
+
+	if (network_status == STAT_TEST){
+
+		md_clear(data->dom->N, data->dom->dims, dst, data->dom->size);
+		return;
+	}
+
+	if (network_status == STAT_TRAIN){
+
+		linop_adjoint(	nlop_get_derivative(data->stats_op, 1, 0),
+				data->dom->N, data->dom->dims, dst,
+				data->codom->N, data->codom->dims, src);
+
+		return;
+	}
+
+	assert(0);
+}
+
+static void batchnorm_not_implemented(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	error("Derivative of batch normalization is not implemented!\n");
+}
+
+
+static void batchnorm_stats_del(const struct nlop_data_s* _data)
+{
+	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
+
+	nlop_free(data->stats_op);
+
+	iovec_free(data->dom);
+	iovec_free(data->codom);
+
+	xfree(data);
+}
+
+/**
+ * Nlop to compute mean and variance of input
+ *
+ * @param dims dims of input tensor
+ * @param flags dims to compute mean/var over, i.e. dimensions that do not stay
+ * @param momentum to update the floating mean and varinace
+ *
+ * In 0:	Input
+ * In 1:	Floating Mean
+ * In 2: 	Floating Variance
+
+ * Out 0:	Mean (Train: \mu = \sum_{i=1}^N x_i/N, Inference: Floating Mean)
+ * Out 1: 	Variance (Train: \var = \sum_{i=1}^N |(x_i-\mu)|^2/N, Inference: Floating Variance)
+ * Out 2:	Updated floating mean (Train only)
+ * Out 3: 	Updated floating varinace (Train only)
+ *
+ **/
+const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[N], unsigned long flags, float momentum)
+{
+	PTR_ALLOC(struct batchnorm_stats_s, data);
+	SET_TYPEID(batchnorm_stats_s, data);
+
+
+	long codims[N];
+	md_select_dims(N, ~flags, codims, dims);
+
+	data->dom = iovec_create(N, dims, CFL_SIZE);
+	data->codom = iovec_create(N, codims, CFL_SIZE);
+	data->n = md_calc_size(N, dims) / md_calc_size(N, codims);
+	data->stats_op = nlop_stats_create(N, dims, flags);
+
+	long nl_odims[4][N];
+	md_copy_dims(N, nl_odims[0], codims);
+	md_copy_dims(N, nl_odims[1], codims);
+	md_copy_dims(N, nl_odims[2], codims);
+	md_copy_dims(N, nl_odims[3], codims);
+
+	long nl_idims[3][N];
+	md_copy_dims(N, nl_idims[0], dims);
+	md_copy_dims(N, nl_idims[1], codims);
+	md_copy_dims(N, nl_idims[2], codims);
+
+
+	return nlop_generic_create(4, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), batchnorm_fun,
+					(nlop_fun_t[3][4]){	{ stats_der_mean, stats_der_var, batchnorm_not_implemented, batchnorm_not_implemented},
+								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
+								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
+					(nlop_fun_t[3][4]){ 	{ stats_adj_mean, stats_adj_var, batchnorm_not_implemented, batchnorm_not_implemented},
+								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
+								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
+								 NULL, NULL, batchnorm_stats_del);
+}
