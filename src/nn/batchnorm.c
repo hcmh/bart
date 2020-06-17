@@ -309,3 +309,135 @@ const struct nlop_s* nlop_normalize_create(int N, const long dims[N], unsigned l
 					(nlop_fun_t[3][1]){ { normalize_deradj_src}, { normalize_adj_mean }, { normalize_adj_var } },
 					NULL, NULL, normalize_del);
 }
+
+struct rescale_s {
+
+	INTERFACE(nlop_data_t);
+
+	const struct iovec_s* dom;
+	const struct iovec_s* statdom;
+
+	complex float* scale;
+	complex float* in;
+
+};
+
+DEF_TYPEID(rescale_s);
+
+
+static void rescale_fun(const nlop_data_t* _data, int N, complex float* args[N])
+{
+	const auto data = CAST_DOWN(rescale_s, _data);
+
+	assert(4 == N);
+
+	complex float* dst = args[0];
+	complex float* src = args[1];
+	complex float* beta = args[2];
+	complex float* gamma = args[3];
+
+	if (NULL == data->scale)
+		data->scale = md_alloc_sameplace(data->statdom->N, data->statdom->dims, data->statdom->size, dst);
+	if (NULL == data->in)
+		data->in = md_alloc_sameplace(data->dom->N, data->dom->dims, data->dom->size, dst);
+
+	md_copy(data->statdom->N, data->statdom->dims, data->scale, gamma, data->statdom->size);
+	md_copy(data->dom->N, data->dom->dims, data->in, src, data->dom->size);
+
+	md_zmul2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->statdom->strs, gamma);
+	md_zadd2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, dst, data->statdom->strs, beta);
+}
+
+static void rescale_der_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(rescale_s, _data);
+	md_zmul2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->statdom->strs, data->scale);
+}
+
+static void rescale_adj_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(rescale_s, _data);
+	md_zmulc2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->statdom->strs, data->scale);
+}
+
+static void rescale_der_gamma(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(rescale_s, _data);
+	md_zmul2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, data->in, data->statdom->strs, src);
+}
+
+static void rescale_adj_gamma(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(rescale_s, _data);
+	md_ztenmulc2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->dom->strs, src, data->dom->strs, data->in);
+}
+
+static void rescale_der_beta(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(rescale_s, _data);
+	md_copy2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->statdom->strs, src, data->dom->size);
+}
+
+static void rescale_adj_beta(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(rescale_s, _data);
+	md_clear(data->statdom->N, data->statdom->dims, dst, data->dom->size);
+	md_zadd2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->statdom->strs, dst, data->dom->strs, src);
+}
+
+static void rescale_del(const struct nlop_data_s* _data)
+{
+	const auto data = CAST_DOWN(rescale_s, _data);
+
+	md_free(data->scale);
+	md_free(data->in);
+
+	iovec_free(data->dom);
+	iovec_free(data->statdom);
+
+	xfree(data);
+}
+
+/**
+ * Nlop to compute mean and variance of input
+ *
+ * @param dims dims of input tensor
+ * @param flags dims to compute mean/var over, i.e. dimensions that do not stay
+ * @param epsilon to update the floating mean and varinace
+ *
+ * In 0:	Input
+ * In 1:	Beta (new mean)
+ * In 2: 	Gamma
+
+ * Out 0:	Recaled input
+ *
+ **/
+const struct nlop_s* nlop_scale_and_shift_create(int N, const long dims[N], unsigned long flags)
+{
+	PTR_ALLOC(struct rescale_s, data);
+	SET_TYPEID(rescale_s, data);
+
+
+	long statdims[N];
+	md_select_dims(N, ~flags, statdims, dims);
+
+	data->dom = iovec_create(N, dims, CFL_SIZE);
+	data->statdom = iovec_create(N, statdims, CFL_SIZE);
+
+	data->scale = NULL;
+	data->in = NULL;
+
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], dims);
+
+	long nl_idims[3][N];
+	md_copy_dims(N, nl_idims[0], dims);
+	md_copy_dims(N, nl_idims[1], statdims);
+	md_copy_dims(N, nl_idims[2], statdims);
+
+
+	return nlop_generic_create(1, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), rescale_fun,
+					(nlop_fun_t[3][1]){ { rescale_der_src}, { rescale_der_beta }, { rescale_der_gamma } },
+					(nlop_fun_t[3][1]){ { rescale_adj_src}, { rescale_adj_beta }, { rescale_adj_gamma } },
+					NULL, NULL, rescale_del);
+}
