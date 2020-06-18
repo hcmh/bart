@@ -166,7 +166,7 @@ tests/test-moba-t1-irgnm-admm: phantom signal fmac fft ones index scale moba loo
 	$(TOOLDIR)/ones 6 16 16 1 1 1 600 psf.ra					;\
 	$(TOOLDIR)/index 5 600 tmp1.ra   						;\
 	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                  	       			;\
-	$(TOOLDIR)/moba -L -l3 -i11 -f1 -p psf.ra k_space.ra TI.ra reco.ra	        ;\
+	$(TOOLDIR)/moba -L -rW:3:0:0.1 -i11 -f1 -p psf.ra k_space.ra TI.ra reco.ra      ;\
 	$(TOOLDIR)/looklocker -t0.1 -D0. reco.ra T1.ra					;\
 	$(TOOLDIR)/fmac T1.ra circ.ra masked.ra						;\
 	$(TOOLDIR)/scale -- 1.12 circ.ra ref.ra						;\
