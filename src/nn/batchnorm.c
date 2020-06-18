@@ -660,18 +660,18 @@ const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[
  * @param epsilon small factor for numerical stability
  *
  * In 0:	Input			dims: {n1, n2, ..., nN}
- * In 1:	Floating Mean/Var	dims: {n1, 1,  ..., nN | 2 (mean/var), 1}
+ * In 1:	Floating Mean/Var	dims: {n1, 1,  ..., nN | 2 (mean/var)}
  *
  * Out 0:	Normalized Input	dims: {n1, n2, ..., nN}
- * Out 1:	Mean/Var		dims: {n1, 1,  ..., nN | 2 (mean/var), 1}
+ * Out 1:	Mean/Var		dims: {n1, 1,  ..., nN | 2 (mean/var)}
  **/
 const struct nlop_s* nlop_batchnorm_create(int N, const long dims[N], unsigned long flags, float epsilon)
 {
 	auto nlop_stats = nlop_batchnorm_floatingstats_create(N, dims, flags);
 
-	long stat_dims[N + 2];
-	md_singleton_dims(N + 2, stat_dims);
+	long stat_dims[N + 1];
 	md_select_dims(N, ~flags, stat_dims, dims);
+	stat_dims[N] = 2;
 
 	auto nlop_norm = nlop_normalize_create(N, dims, flags, epsilon);
 	auto nlop_id = nlop_from_linop_F(linop_identity_create(N, stat_dims));
