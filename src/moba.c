@@ -30,6 +30,10 @@
 #include "noncart/nufft.h"
 #include "linops/linop.h"
 
+#include "iter/iter2.h"
+#include "moba/optreg_moba.h"
+#include "grecon/italgo.h"
+
 #include "moba/recon_T1.h"
 
 
@@ -56,11 +60,15 @@ int main_moba(int argc, char* argv[])
 	bool unused = false;
 	enum mdb_t { MDB_T1 } mode = { MDB_T1 };
 
+	opt_reg_init_moba(&conf.ropts);
+
 
 	const struct opt_s opts[] = {
 
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
 		OPT_UINT('l', &conf.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
+		{ 'r', true, opt_reg_moba, &conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
+                OPT_FLOAT('u', &conf.rho, "rho", "ADMM rho"),
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
 		OPT_FLOAT('j', &conf.alpha_min, "", "Minimum regu. parameter"),
@@ -89,6 +97,11 @@ int main_moba(int argc, char* argv[])
 
 	num_init();
 	
+	conf.algo = ALGO_FISTA;
+
+	if (conf.ropts.r > 0)
+		conf.algo = ALGO_ADMM;
+		
 
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);

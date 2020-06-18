@@ -50,6 +50,7 @@ struct moba_conf moba_defaults = {
 	.MOLLI = false,
         .k_filter = false,
 	.IR_SS = false,
+        .rho = 0.01,
 };
 
 
@@ -98,7 +99,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 1, .not_wav_maps = 0, .flags = FFT_FLAGS };
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 1, .not_wav_maps = 0, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo, .rho = conf->rho, .ropts = &conf->ropts };
 
 	if (conf->MOLLI)
 		conf2.constrained_maps = 2;

@@ -3,6 +3,7 @@
 #define RECON_T1_H
 
 #include "misc/mri.h"
+#include "optreg_moba.h"
 
 struct moba_conf {
 
@@ -20,6 +21,9 @@ struct moba_conf {
 	bool MOLLI;
 	bool k_filter;
 	bool IR_SS;
+	int algo;
+        float rho;
+	struct opt_reg_s ropts;
 };
 
 

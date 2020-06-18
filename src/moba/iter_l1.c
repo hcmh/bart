@@ -37,6 +37,10 @@
 #include "iter/thresh.h"
 #include "iter/lsqr.h"
 #include "iter/prox.h"
+#include "iter/admm.h"
+
+#include "optreg_moba.h"
+#include "grecon/italgo.h"
 
 #include "linops/linop.h"
 #include "linops/someops.h"
@@ -73,8 +77,7 @@ DEF_TYPEID(T1inv_s);
 
 
 
-
-static void normal_fista(iter_op_data* _data, float* dst, const float* src)
+static void normal(iter_op_data* _data, float* dst, const float* src)
 {
 	auto data = CAST_DOWN(T1inv_s, _data);
 
@@ -125,7 +128,6 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 }
 
 
-
 static void combined_prox(iter_op_data* _data, float rho, float* dst, const float* src)
 {
 	struct T1inv_s* data = CAST_DOWN(T1inv_s, _data);
@@ -158,7 +160,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
     
 	void* x = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
 	md_gaussian_rand(1, MD_DIMS(data->size_x / 2), x);
-	double maxeigen = power(20, data->size_x, select_vecops(src), (struct iter_op_s){ normal_fista, CAST_UP(data) }, x);
+	double maxeigen = power(20, data->size_x, select_vecops(src), (struct iter_op_s){ normal, CAST_UP(data) }, x);
 	md_free(x);
 
 	double step = data->conf->step / maxeigen;
@@ -186,7 +188,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 		data->size_x,
 		select_vecops(src),
 		continuation,
-		(struct iter_op_s){ normal_fista, CAST_UP(data) },
+		(struct iter_op_s){ normal, CAST_UP(data) },
 		(struct iter_op_p_s){ combined_prox, CAST_UP(data) },
 		dst, tmp, NULL);
 
@@ -198,7 +200,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 }
 
 
-static const struct operator_p_s* create_prox(const long img_dims[DIMS])
+static const struct operator_p_s* create_prox(const long img_dims[DIMS], unsigned int jflag, float lambda)
 {
 	bool randshift = true;
 	long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
@@ -213,7 +215,112 @@ static const struct operator_p_s* create_prox(const long img_dims[DIMS])
 		}
 	}
 
-	return prox_wavelet_thresh_create(DIMS, img_dims, wflags, COEFF_FLAG, minsize, 1., randshift);
+	return prox_wavelet_thresh_create(DIMS, img_dims, wflags, jflag, minsize, lambda, randshift);
+}
+
+static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const float* src)
+{
+	auto data = CAST_DOWN(T1inv_s, _data);
+
+	data->alpha = alpha;	// update alpha for normal operator
+
+	wavthresh_rand_state_set(data->prox1, 1);
+    
+	int maxiter = MIN(data->conf->c2->cgiter, 10 * powf(2, data->outer_iter));
+    
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
+
+	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
+
+	NESTED(void, continuation, (struct ist_data* itrdata))
+	{
+		itrdata->scale = data->alpha;
+	};
+
+	unsigned int llr_blk = 8;
+	unsigned int shift_mode = 1;
+
+	// initialize prox functions
+
+	const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
+	const struct linop_s* trafos[NUM_REGS] = { NULL };
+
+	data->conf->ropts->lambda = data->alpha;
+
+	debug_printf(DP_INFO, "##reg. alpha = %f\n", data->conf->ropts->lambda);
+
+	opt_reg_configure_moba(DIMS, data->dims, data->conf->ropts, thresh_ops, trafos, llr_blk, shift_mode, NULL, NULL, data->conf->usegpu);
+
+	struct iter_admm_conf conf1 = iter_admm_defaults;
+
+	conf1.maxiter = maxiter;
+	conf1.rho = data->conf->rho;
+	conf1.cg_eps = 0.01;
+
+	struct iter_admm_conf *conf = &conf1;
+	unsigned int D = data->conf->ropts->r;;
+
+	const struct operator_s* normaleq_op = NULL;
+        
+        UNUSED(normaleq_op);
+
+	struct admm_plan_s admm_plan = {
+
+		.maxiter = conf->maxiter,
+		.maxitercg = conf->maxitercg,
+		.cg_eps = conf->cg_eps,
+		.rho = conf->rho,
+		.num_funs = D,
+		.do_warmstart = conf->do_warmstart,
+		.dynamic_rho = conf->dynamic_rho,
+		.dynamic_tau = conf->dynamic_tau,
+		.relative_norm = conf->relative_norm,
+		.hogwild = conf->hogwild,
+		.ABSTOL = conf->ABSTOL,
+		.RELTOL = conf->RELTOL,
+		.alpha = conf->alpha * conf->INTERFACE.alpha,
+		.tau = conf->tau,
+		.tau_max = conf->tau_max,
+		.mu = conf->mu,
+		.fast = conf->fast,
+		.biases = NULL,
+	};
+
+	struct admm_op a_ops[D ?:1];
+	struct iter_op_p_s a_prox_ops[D ?:1];
+
+
+	for (unsigned int i = 0; i < D; i++) {
+
+		a_ops[i].forward = OPERATOR2ITOP(trafos[i]->forward),
+		a_ops[i].normal = OPERATOR2ITOP(trafos[i]->normal);
+		a_ops[i].adjoint = OPERATOR2ITOP(trafos[i]->adjoint);
+
+		a_prox_ops[i] = OPERATOR_P2ITOP(thresh_ops[i]);
+	}
+
+	admm_plan.ops = a_ops;
+	admm_plan.prox_ops = a_prox_ops;
+
+
+	long z_dims[D ?: 1];
+
+	for (unsigned int i = 0; i < D; i++)
+		z_dims[i] = 2 * md_calc_size(linop_codomain(trafos[i])->N, linop_codomain(trafos[i])->dims);
+
+
+	admm(&admm_plan, admm_plan.num_funs, 
+		z_dims, data->size_x, (float*)dst, tmp, 
+		select_vecops(src), 
+		(struct iter_op_s){ normal, CAST_UP(data) }, NULL);
+
+
+	opt_reg_free_moba(data->conf->ropts, thresh_ops, trafos);
+
+
+	md_free(tmp);
+
+	data->outer_iter++;
 }
 
 
@@ -233,7 +340,21 @@ DEF_TYPEID(T1inv2_s);
 static void T1inv_apply(const operator_data_t* _data, float alpha, complex float* dst, const complex float* src)
 {
 	const auto data = &CAST_DOWN(T1inv2_s, _data)->data;
-	inverse_fista(CAST_UP(data), alpha, (float*)dst, (const float*)src);
+	
+
+	switch (data->conf->algo) {
+		
+	case ALGO_FISTA:
+		inverse_fista(CAST_UP(data), alpha, (float*)dst, (const float*)src);
+		break;
+
+	case ALGO_ADMM:
+		inverse_admm(CAST_UP(data), alpha, (float*)dst, (const float*)src);
+		break;
+	
+	default:
+		break;
+	}
 }
 
 static void T1inv_del(const operator_data_t* _data)
@@ -270,7 +391,7 @@ static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf*
 	img_dims[COEFF_DIM] = img_dims[COEFF_DIM] - conf->not_wav_maps;	// Just penalize T1 map
 	debug_print_dims(DP_INFO, DIMS, img_dims);
 
-	auto prox1 = create_prox(img_dims);
+	auto prox1 = create_prox(img_dims, COEFF_FLAG, 1.0);
 	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | SLICE_FLAG | TIME2_FLAG));
 
 	struct T1inv_s idata = {
@@ -283,40 +404,6 @@ static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf*
 
 	return operator_p_create(dm->N, dm->dims, cd->N, cd->dims, CAST_UP(PTR_PASS(data)), T1inv_apply, T1inv_del);
 }
-
-static const struct operator_p_s* T1inv_p_lsqr_create(const struct mdb_irgnm_l1_conf* conf, const long dims[DIMS], struct nlop_s* nlop, const float* dst, unsigned int flags)
-{
-	long* ndims = *TYPE_ALLOC(long[DIMS]);
-	md_copy_dims(DIMS, ndims, dims);
-
-	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims); 
-
-	img_dims[COEFF_DIM] = img_dims[COEFF_DIM] + dims[COIL_DIM]; //FIXME
-
-	debug_print_dims(DP_INFO, DIMS, img_dims);
-
-	unsigned int num_funs = 1;
-
-	struct iter_admm_conf admmconf = iter_admm_defaults;
-
-	admmconf.cg_eps = 0.01;
-
-	admmconf.maxiter = 80;
-
-	float lambda = 0.0001;
-
-	// Total-variation penalty
-	auto grad_op = linop_grad_create(DIMS, img_dims, DIMS, flags);
-	const struct linop_s* trafos[1] = { grad_op };
-
-	auto thresh_prox = prox_thresh_create(DIMS + 1, linop_codomain(trafos[0])->dims, lambda, MD_BIT(DIMS));
-	const struct operator_p_s* prox_ops[1] = { thresh_prox };
-
-	return lsqr2_create(&lsqr_defaults, iter2_admm, CAST_UP(&admmconf), (float*)dst, &nlop->derivative[0][0], 
-				NULL, num_funs, prox_ops, trafos, NULL);
-}
-
 
 
 struct iterT1_nlop_s {
@@ -343,16 +430,42 @@ void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
 	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
 
 	const struct operator_p_s* inv_op = NULL;
-	
-	if (3 == conf->opt_reg) // FIXME
-		inv_op = T1inv_p_lsqr_create(conf, dims, nlop, dst, conf->flags);
-	else
-		inv_op = T1inv_p_create(conf, dims, nlop);
 
-	iter4_irgnm2(CAST_UP(conf->c2), nlop, 
-		N, dst, NULL, M, src, inv_op,
+
+#if 0	
+	// initialize prox functions
+
+        const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
+	const struct linop_s* trafos[NUM_REGS] = { NULL };
+
+	unsigned int llr_blk = 8;
+	unsigned int shift_mode = 1;
+
+	opt_reg_configure_moba(DIMS, dims, conf->ropts, thresh_ops, trafos, llr_blk, shift_mode, NULL, NULL, conf->usegpu);
+
+	struct iter_admm_conf conf1 = iter_admm_defaults;
+
+	int outer_iter = 4;
+	conf1.maxiter = MIN(conf->c2->cgiter, 10 * powf(2, outer_iter));
+	conf1.rho = conf->rho;
+	conf1.cg_eps = 0.005;
+		
+	inv_op = lsqr2_create(&lsqr_defaults, iter2_admm, CAST_UP(&conf1), dst, &nlop->derivative[0][0],
+                         NULL, conf->ropts->r, thresh_ops, trafos, NULL);
+#endif
+
+	inv_op = T1inv_p_create(conf, dims, nlop);
+	       
+
+
+	iter4_irgnm2(CAST_UP(conf->c2), nlop, N, dst, NULL, M, src, inv_op,
 		(struct iter_op_s){ NULL, NULL });
 
 	operator_p_free(inv_op);
+
+#if 0
+         opt_reg_free_moba(conf->ropts, thresh_ops, trafos);
+#endif
+
 }
 
