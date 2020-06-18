@@ -147,6 +147,7 @@ extern const struct operator_s* operator_extract_create(const struct operator_s*
 extern const struct operator_s* operator_extract_create2(const struct operator_s* op, int a, int Da, const long dimsa[Da], const long strsa[Da], const long pos[Da]);
 extern const struct operator_s* operator_permute(const struct operator_s* op, int N, const int perm[N]);
 extern const struct operator_s* operator_reshape(const struct operator_s* op, unsigned int i, long N, const long dims[__VLA(N)]);
+extern const struct operator_s* operator_set_properties(const struct operator_s* op, unsigned int N, operator_prop_flags_t prop_flags[N][N]);
 
 
 extern _Bool operator_zero_or_null_p(const struct operator_s* op);
