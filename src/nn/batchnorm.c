@@ -14,8 +14,12 @@
 #include "num/gpuops.h"
 #endif
 
+#include "linops/someops.h"
+
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
+#include "nlops/cast.h"
+
 #include "nn/layers.h"
 
 #include "batchnorm.h"
@@ -644,4 +648,50 @@ const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[
 								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
 								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
 								 NULL, NULL, batchnorm_stats_del);
+}
+
+
+
+/**
+ * Nlop to batch normalize input
+ *
+ * @param dims dims of input tensor
+ * @param flags dims to compute mean/var over, i.e. dimensions that do not stay
+ * @param epsilon small factor for numerical stability
+ *
+ * In 0:	Input			dims: {n1, n2, ..., nN}
+ * In 1:	Floating Mean/Var	dims: {n1, 1,  ..., nN | 2 (mean/var), 1}
+ *
+ * Out 0:	Normalized Input	dims: {n1, n2, ..., nN}
+ * Out 1:	Mean/Var		dims: {n1, 1,  ..., nN | 2 (mean/var), 1}
+ **/
+const struct nlop_s* nlop_batchnorm_create(int N, const long dims[N], unsigned long flags, float epsilon)
+{
+	auto nlop_stats = nlop_batchnorm_floatingstats_create(N, dims, flags);
+
+	long stat_dims[N + 2];
+	md_singleton_dims(N + 2, stat_dims);
+	md_select_dims(N, ~flags, stat_dims, dims);
+
+	auto nlop_norm = nlop_normalize_create(N, dims, flags, epsilon);
+	auto nlop_id = nlop_from_linop_F(linop_identity_create(N, stat_dims));
+	auto nlop_result = nlop_combine_FF(nlop_norm, nlop_id); //in: input, mean, var, mean; out: out, mean
+	nlop_result = nlop_dup_F(nlop_result, 1, 3); //in: input, mean, var; out: out, mean
+
+	nlop_result = nlop_combine_FF(nlop_result, nlop_batchnorm_floatingstats_create(N, dims, flags)); //in: input, mean, var, input, fmean, fvar; out: out, mean, mean, var, uvar
+	nlop_result = nlop_link_F(nlop_result, 2, 1); //in: input, var, input, fmean, fvar; out: out, mean, var, uvar
+	nlop_result = nlop_dup_F(nlop_result, 0, 2); //in: input, var, fmean, fvar; out: out, mean, var, uvar
+	nlop_result = nlop_link_F(nlop_result, 2, 1); //in: input, fmean, fvar; out: out, mean, uvar
+
+	nlop_result  = nlop_reshape_in_F(nlop_result , 1, N + 2, stat_dims);
+	nlop_result  = nlop_reshape_in_F(nlop_result , 2, N + 2, stat_dims);
+	nlop_result  = nlop_reshape_out_F(nlop_result , 1, N + 2, stat_dims);
+	nlop_result  = nlop_reshape_out_F(nlop_result , 2, N + 2, stat_dims);
+
+	nlop_stats = nlop_stack_inputs_F(nlop_stats, 1, 2, N); //in: input, fmean/fvar; out: out, mean, uvar
+	nlop_stats = nlop_stack_outputs_F(nlop_stats, 1, 2, N); //in: input, fmean/fvar; out: out, mean/uvar
+
+	auto result = nlop_chain2_FF(nlop_stats, 0, nlop_norm, 1);
+	result = nlop_link_F(result, 1, 1);
+	return nlop_dup_F(result, 0, 1);
 }
