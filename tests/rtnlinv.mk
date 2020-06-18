@@ -33,5 +33,6 @@ tests/test-rtnlinv-precomp: traj scale phantom ones repmat fft nufft rtnlinv fma
 	touch $@
 
 
-TESTS += tests/test-rtnlinv tests/test-rtnlinv-precomp
+#TESTS += tests/test-rtnlinv tests/test-rtnlinv-precomp
+TESTS += tests/test-rtnlinv-precomp
 
