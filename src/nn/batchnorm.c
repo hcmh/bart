@@ -15,6 +15,7 @@
 #endif
 
 #include "nlops/nlop.h"
+#include "nlops/chain.h"
 #include "nn/layers.h"
 
 #include "batchnorm.h"
@@ -449,7 +450,6 @@ struct batchnorm_stats_s {
 	const struct iovec_s* codom;
 
 	const struct nlop_s* stats_op;
-	float momentum;
 	float n;
 };
 
@@ -460,19 +460,18 @@ static void batchnorm_fun(const nlop_data_t* _data, int N, complex float* args[N
 {
 	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
 
+	assert(6 == N);
+
 	complex float* mean = args[0];
 	complex float* var = args[1];
-	complex float* floating_mean_out = args[2];
-	complex float* floating_var_out = args[3];
+	complex float* unbiased_var_out = args[2];
 
-	complex float* src = args[4];
+	complex float* src = args[3];
 	complex float* floating_mean_in = args[4];
 	complex float* floating_var_in = args[5];
 
 	if (network_status == STAT_TEST){
 
-		md_copy(data->codom->N, data->codom->dims, floating_mean_out, floating_mean_in, data->codom->size);
-		md_copy(data->codom->N, data->codom->dims, floating_var_out, floating_var_in, data->codom->size);
 		md_copy(data->codom->N, data->codom->dims, mean, floating_mean_in, data->codom->size);
 		md_copy(data->codom->N, data->codom->dims, var, floating_var_in, data->codom->size);
 
@@ -482,11 +481,7 @@ static void batchnorm_fun(const nlop_data_t* _data, int N, complex float* args[N
 	if (network_status == STAT_TRAIN){
 
 		nlop_generic_apply_unchecked(data->stats_op, 3, MAKE_ARRAY((void*)mean, (void*)var, (void*)src));
-		md_zsmul(data->codom->N, data->codom->dims, floating_mean_out, mean, (1. - data->momentum) );
-		md_zsmul(data->codom->N, data->codom->dims, floating_var_out, var, (1. - data->momentum) * data->n / (data->n - 1.) ); // population variance (unbiased)
-
-		md_zaxpy(data->codom->N, data->codom->dims, floating_mean_out, data->momentum, floating_mean_in);
-		md_zaxpy(data->codom->N, data->codom->dims, floating_var_out, data->momentum, floating_var_in);
+		md_zsmul(data->codom->N, data->codom->dims, unbiased_var_out, var, data->n / (data->n - 1.) );
 
 		return;
 	}
@@ -605,19 +600,17 @@ static void batchnorm_stats_del(const struct nlop_data_s* _data)
  *
  * @param dims dims of input tensor
  * @param flags dims to compute mean/var over, i.e. dimensions that do not stay
- * @param momentum to update the floating mean and varinace
  *
  * In 0:	Input
  * In 1:	Floating Mean
  * In 2: 	Floating Variance
 
  * Out 0:	Mean (Train: \mu = \sum_{i=1}^N x_i/N, Inference: Floating Mean)
- * Out 1: 	Variance (Train: \var = \sum_{i=1}^N |(x_i-\mu)|^2/N, Inference: Floating Variance)
- * Out 2:	Updated floating mean (Train only)
- * Out 3: 	Updated floating varinace (Train only)
+ * Out 1: 	Variance (Train: variance of minibatch \var = \sum_{i=1}^N |(x_i-\mu)|^2/N, Inference: Floating Variance)
+ * Out 3: 	Unbiased sample variance for upadting floating variance (Train only)
  *
  **/
-const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[N], unsigned long flags, float momentum)
+const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[N], unsigned long flags)
 {
 	PTR_ALLOC(struct batchnorm_stats_s, data);
 	SET_TYPEID(batchnorm_stats_s, data);
@@ -644,11 +637,11 @@ const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[
 
 
 	return nlop_generic_create(4, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), batchnorm_fun,
-					(nlop_fun_t[3][4]){	{ stats_der_mean, stats_der_var, batchnorm_not_implemented, batchnorm_not_implemented},
-								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
-								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
-					(nlop_fun_t[3][4]){ 	{ stats_adj_mean, stats_adj_var, batchnorm_not_implemented, batchnorm_not_implemented},
-								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
-								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
+					(nlop_fun_t[3][3]){	{ stats_der_mean, stats_der_var, batchnorm_not_implemented},
+								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
+								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
+					(nlop_fun_t[3][3]){ 	{ stats_adj_mean, stats_adj_var, batchnorm_not_implemented},
+								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
+								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
 								 NULL, NULL, batchnorm_stats_del);
 }
