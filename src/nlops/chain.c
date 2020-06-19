@@ -101,7 +101,24 @@ struct nlop_s* nlop_chain2_FF(const struct nlop_s* a, int o, const struct nlop_s
 	return result;
 }
 
+/*
+ * Chains two non-linear operators
+ * permutes inputs to have order: inputs a, inputs b  
+ */
+struct nlop_s* nlop_chain2_swap_FF(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
+{
+	auto result = nlop_chain2(a, o, b, i);
+	int permute_array[nlop_get_nr_in_args(result)];
+	for (int i = 0; i < nlop_get_nr_in_args(result); i++)
+		permute_array[(nlop_get_nr_in_args(a) + i) % nlop_get_nr_in_args(result)] = i;
 
+	result = nlop_permute_inputs_F(result, nlop_get_nr_in_args(result), permute_array);
+
+	nlop_free(a);
+	nlop_free(b);
+
+	return result;
+}
 
 /*
  * CAVE: if we pass the same operator twice, it might not
