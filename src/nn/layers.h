@@ -17,4 +17,6 @@ extern const struct nlop_s* append_padding_layer(const struct nlop_s* network, i
 extern const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, float p);
 extern const struct nlop_s* append_flatten_layer(const struct nlop_s* network, int o);
 
+extern const struct nlop_s* append_batchnorm_layer(const struct nlop_s* network, int o, unsigned long norm_flags);
+
 #endif
