@@ -246,7 +246,7 @@ operator_prop_flags_t operator_get_prop_flags_oi(const struct operator_s* op, un
 
 bool operator_prop_isset(const struct operator_s* op, unsigned int i, unsigned int j, enum OPERATOR_IO_PROP_FLAGS_INDEX prop)
 {
-	opprop_isset(op->props, i, j, prop);
+	return opprop_isset(op->props, i, j, prop);
 }
 
 bool operator_prop_isset_oi(const struct operator_s* op, unsigned int o, unsigned int i, enum OPERATOR_IO_PROP_FLAGS_INDEX prop)
@@ -1374,8 +1374,8 @@ const struct operator_s* operator_combi_create(int N, const struct operator_s* x
 	}
 
 	operator_prop_flags_t props[A][A];
-	for (unsigned int i = 0; i < A; i++)
-		for (unsigned int j = 0; j < A; j++)
+	for (int i = 0; i < A; i++)
+		for (int j = 0; j < A; j++)
 			props[i][j] = MD_BIT(OP_PROP_INDEPENDENT);
 
 
@@ -1857,8 +1857,8 @@ const struct operator_s* operator_permute(const struct operator_s* op, int N, co
 	data->perm = nperm;
 
 	operator_prop_flags_t props[N][N];
-	for (unsigned int i = 0; i < N; i++)
-		for (unsigned int j = 0; j < N; j++)
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++)
 			props[i][j] = operator_get_prop_flags(op, perm[i], perm[j]);
 
 	return operator_generic_extopts_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del, props);
