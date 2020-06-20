@@ -64,6 +64,7 @@ static void stats_fun(const nlop_data_t* _data, int N, complex float* args[N])
 
 	md_ztenmulc(data->dom->N, data->codom->dims, var, data->dom->dims, data->x, data->dom->dims, data->x);
 	md_zsmul(data->codom->N, data->codom->dims, var, var, 1. / data->n);
+	PRINT_TIMER("frw stats");
 }
 
 static void stats_der_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
@@ -583,6 +584,9 @@ static void batchnorm_adj_var_src(const struct nlop_data_s* _data, complex float
 
 static void batchnorm_not_implemented(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
 {
+	UNUSED(_data);
+	UNUSED(dst);
+	UNUSED(src);
 	error("Derivative of batch normalization is not implemented!\n");
 }
 
@@ -628,11 +632,10 @@ const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[
 	data->n = md_calc_size(N, dims) / md_calc_size(N, codims);
 	data->stats_op = nlop_stats_create(N, dims, flags);
 
-	long nl_odims[4][N];
+	long nl_odims[3][N];
 	md_copy_dims(N, nl_odims[0], codims);
 	md_copy_dims(N, nl_odims[1], codims);
 	md_copy_dims(N, nl_odims[2], codims);
-	md_copy_dims(N, nl_odims[3], codims);
 
 	long nl_idims[3][N];
 	md_copy_dims(N, nl_idims[0], dims);
@@ -640,11 +643,11 @@ const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[
 	md_copy_dims(N, nl_idims[2], codims);
 
 
-	return nlop_generic_create(4, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), batchnorm_fun,
-					(nlop_fun_t[3][3]){	{ stats_der_mean, stats_der_var, batchnorm_not_implemented},
+	return nlop_generic_create(3, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), batchnorm_fun,
+					(nlop_fun_t[3][3]){	{ batchnorm_der_mean_src, batchnorm_der_var_src, batchnorm_not_implemented},
 								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
 								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
-					(nlop_fun_t[3][3]){ 	{ stats_adj_mean, stats_adj_var, batchnorm_not_implemented},
+					(nlop_fun_t[3][3]){ 	{ batchnorm_adj_mean_src, batchnorm_adj_var_src, batchnorm_not_implemented},
 								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
 								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
 								 NULL, NULL, batchnorm_stats_del);
@@ -667,11 +670,10 @@ const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[
  **/
 const struct nlop_s* nlop_batchnorm_create(int N, const long dims[N], unsigned long flags, float epsilon)
 {
-	auto nlop_stats = nlop_batchnorm_floatingstats_create(N, dims, flags);
 
 	long stat_dims[N + 1];
 	md_select_dims(N, ~flags, stat_dims, dims);
-	stat_dims[N] = 2;
+	stat_dims[N] = 1;
 
 	auto nlop_norm = nlop_normalize_create(N, dims, flags, epsilon);
 	auto nlop_id = nlop_from_linop_F(linop_identity_create(N, stat_dims));
@@ -683,15 +685,13 @@ const struct nlop_s* nlop_batchnorm_create(int N, const long dims[N], unsigned l
 	nlop_result = nlop_dup_F(nlop_result, 0, 2); //in: input, var, fmean, fvar; out: out, mean, var, uvar
 	nlop_result = nlop_link_F(nlop_result, 2, 1); //in: input, fmean, fvar; out: out, mean, uvar
 
-	nlop_result  = nlop_reshape_in_F(nlop_result , 1, N + 2, stat_dims);
-	nlop_result  = nlop_reshape_in_F(nlop_result , 2, N + 2, stat_dims);
-	nlop_result  = nlop_reshape_out_F(nlop_result , 1, N + 2, stat_dims);
-	nlop_result  = nlop_reshape_out_F(nlop_result , 2, N + 2, stat_dims);
+	auto nlop_result_nc = nlop_reshape_in_F(nlop_result , 1, N + 1, stat_dims);
+	nlop_result_nc  = nlop_reshape_in_F(nlop_result_nc , 2, N + 1, stat_dims);
+	nlop_result_nc  = nlop_reshape_out_F(nlop_result_nc , 1, N + 1, stat_dims);
+	nlop_result_nc  = nlop_reshape_out_F(nlop_result_nc , 2, N + 1, stat_dims);
 
-	nlop_stats = nlop_stack_inputs_F(nlop_stats, 1, 2, N); //in: input, fmean/fvar; out: out, mean, uvar
-	nlop_stats = nlop_stack_outputs_F(nlop_stats, 1, 2, N); //in: input, fmean/fvar; out: out, mean/uvar
+	nlop_result_nc = nlop_stack_inputs_F(nlop_result_nc, 1, 2, N); //in: input, fmean/fvar; out: out, mean, uvar
+	nlop_result_nc = nlop_stack_outputs_F(nlop_result_nc, 1, 2, N); //in: input, fmean/fvar; out: out, mean/uvar
 
-	auto result = nlop_chain2_FF(nlop_stats, 0, nlop_norm, 1);
-	result = nlop_link_F(result, 1, 1);
-	return nlop_dup_F(result, 0, 1);
+	return nlop_result_nc;
 }
