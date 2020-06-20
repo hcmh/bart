@@ -18,6 +18,7 @@
 #include "nlops/chain.h"
 #include "nlops/tenmul.h"
 #include "nlops/conv.h"
+#include "nlops/nlop_props.h"
 
 #include "nn_ops.h"
 #include "layers.h"
@@ -155,6 +156,7 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 	}
 
 	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working, conv_pad, conv, 'N');
+	nlop_conv = nlop_set_nn_in_type_F(nlop_conv, 1, channel_first ? OP_PROP_NN_IN_WEIGHT_CONV_CF : OP_PROP_NN_IN_WEIGHT_CONV_CL);
 
 	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, 5, odims_layer);
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, 5, idims_layer);
@@ -289,6 +291,7 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 	}
 
 	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working, conv_pad, conv, adjoint ? 'C' : 'T');
+	nlop_conv = nlop_set_nn_in_type_F(nlop_conv, 1, channel_first ? OP_PROP_NN_IN_WEIGHT_CONV_CF : OP_PROP_NN_IN_WEIGHT_CONV_CL);
 
 	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, 5, idims_layer);
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, 5, odims_layer);
@@ -416,6 +419,8 @@ const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int
 	long wdims_working[] = {out_neurons, in_neurons, 1}; // out neurons, in neurons
 
 	const struct nlop_s* matmul = nlop_tenmul_create(3, odims_working, idims_working, wdims_working);
+
+	matmul = nlop_set_nn_in_type_F(matmul, 1, OP_PROP_NN_IN_WEIGHT_DENSE);
 	matmul = nlop_reshape_out_F(matmul, 0, 2, odims_layer);
 	matmul = nlop_reshape_in_F(matmul, 0, 2, idims_layer);
 	matmul = nlop_reshape_in_F(matmul, 1, 2, wdims_layer);
