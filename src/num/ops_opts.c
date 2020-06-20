@@ -307,8 +307,8 @@ operator_prop_flags_t opprop_get(const struct opprop_s* x, unsigned int i, unsig
 {
 	if (NULL == x)
 		return 0;
-	assert(i < x->N);
-	assert(j < x->N);
+	assert((int)i < x->N);
+	assert((int)j < x->N);
 
 	if (NULL == x->flags)
 		return 0;
@@ -321,8 +321,8 @@ operator_prop_flags_t opprop_io_get(const struct opprop_s* x, unsigned int o, un
 	if (NULL == x)
 		return 0;
 
-	assert(o < x->NO);
-	assert(i < x->NI);
+	assert((int)o < x->NO);
+	assert((int)i < x->NI);
 
 	unsigned int ip = operator_io_index_to_index(x->io_flags, i, false);
 	unsigned int op = operator_io_index_to_index(x->io_flags, o, true);
