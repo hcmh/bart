@@ -25,6 +25,7 @@
 
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
+#include "nlops/nlop_props.h"
 
 #include "activation.h"
 
@@ -281,8 +282,10 @@ const struct nlop_s* nlop_bias_create(unsigned int N, const long dims[N], const 
 
 
 
-	return nlop_generic_create2(1, N, nl_odims, nl_ostrs, 2, N, nl_idims, nl_istrs, CAST_UP(PTR_PASS(data)),
+	auto result = nlop_generic_create2(1, N, nl_odims, nl_ostrs, 2, N, nl_idims, nl_istrs, CAST_UP(PTR_PASS(data)),
 				    bias_op_apply, (nlop_fun_t[2][1]){ { bias_op_deriv1}, {bias_op_deriv2} }, (nlop_fun_t[2][1]){ {bias_op_adj1}, {bias_op_adj2} }, NULL, NULL, bias_op_free);
+
+	return nlop_set_nn_in_type_F(result, 1, OP_PROP_NN_IN_WEIGHT_BIAS);
 }
 
 
