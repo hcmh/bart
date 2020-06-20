@@ -1,5 +1,5 @@
 /* Copyright 2014. The Regents of the University of California.
- * All rights reserved. Use of this source code is governed by 
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
@@ -11,8 +11,11 @@
 
 #include "misc/cppwrap.h"
 
+#ifndef IOVEC_H
+#define IOVEC_H
+
 struct iovec_s {
-	
+
 	unsigned int N;
 	const long* dims;
 	const long* strs;
@@ -32,5 +35,6 @@ extern void iovec_destroy(const struct iovec_s* x);
 
 extern void debug_print_iovec(int level, const struct iovec_s* vec);
 
-#include "misc/cppwrap.h"
+#endif
 
+#include "misc/cppwrap.h"
