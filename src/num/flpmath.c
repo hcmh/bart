@@ -411,13 +411,13 @@ static void make_z3op_scalar(md_z3op_t fun, unsigned int D, const long dims[D], 
 static void make_3op_scalar(md_3op_t fun, unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, float val)
 {
 	size_t size = FL_SIZE;
-	unsigned long max_fill = 128 * 1024 * 1024;
+	long max_fill = 128 * 1024 * 1024;
 	unsigned long flags = 0;
 
 	long str[D];
 	md_calc_strides(D, str, dims, size);
 
-	for (int i = 0; i < D; i++) {
+	for (unsigned int i = 0; i < D; i++) {
 
 		if ((max_fill < md_calc_size(i + 1, dims)) || (ostr[i] != str[i]) || (istr[i] != str[i]))
 			break;
