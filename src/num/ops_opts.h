@@ -8,7 +8,13 @@ enum OPERATOR_IO_PROP_FLAGS_INDEX {	OP_PROP_ATOMIC, // in/out puts belong to the
 					OP_PROP_R_LIN,	// operator is linear over the real numbers
 					OP_PROP_C_LIN,	// operator is linear over the complex numbers
 					OP_PROP_HOLOMORPHIC,	// function is holomorphic, i.e. the derivative is c linear
-					OP_PROP_INDEPENDENT // in/out are (mathematically) independent, i.e. derivatives vanish
+					OP_PROP_INDEPENDENT, 	// in/out are (mathematically) independent, i.e. derivatives vanish
+					OP_PROP_NN_IN_WEIGHT_NOT_DEFINED,
+					OP_PROP_NN_IN_WEIGHT_CONV_CF,
+					OP_PROP_NN_IN_WEIGHT_CONV_CL,
+					OP_PROP_NN_IN_WEIGHT_DENSE,
+					OP_PROP_NN_IN_WEIGHT_BIAS,
+					OP_PROP_NN_BATCH_NORM
 					};
 
 typedef uint32_t operator_run_opt_flags_t;
