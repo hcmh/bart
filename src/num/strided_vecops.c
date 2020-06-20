@@ -794,6 +794,7 @@ bool simple_mul(unsigned int N, const long dims[N], const long ostrs[N], float* 
  * nistrs1: (x, x| y2, ...| 0, 0, ...)
  * nistrs2: (0, x| y3, ...| 0, 0, ...)
  */
+ #ifdef USE_CUDNN
 static long check_cudnn_tensor_transform(unsigned long N, long ndims[N], long nostrs[N], long nistrs[N], const long dims[N], const long ostrs[N], const long istrs[N], long size)
 {
 	md_singleton_dims(N, ndims);
@@ -818,17 +819,17 @@ static long check_cudnn_tensor_transform(unsigned long N, long ndims[N], long no
 	unsigned int NN = 0;
 	bool tensortransform = true;
 
-	unsigned long max_istr = 0;
-	unsigned long max_istr_dim = 0;
-	unsigned long max_ostr = 0;
-	unsigned long max_ostr_dim = 0;
+	long max_istr = 0;
+	long max_istr_dim = 0;
+	long max_ostr = 0;
+	long max_ostr_dim = 0;
 
-	for (unsigned int i = 0; i < MIN(8, N); i++) {
+	for (unsigned int i = 0; i < MIN(8ul, N); i++) {
 
 		if ((0 >= tistrs[i]) || (0 >= tostrs[i]))
 			tensortransform = false;
 
-		for (int j = 0; j < i; j++) {
+		for (unsigned int j = 0; j < i; j++) {
 
 			if ((tistrs[i] > tistrs[j]) && (!((tistrs[i] >= tdims[j] * tistrs[j]))))
 				tensortransform = false;
@@ -861,12 +862,12 @@ static long check_cudnn_tensor_transform(unsigned long N, long ndims[N], long no
 
 	return NN;
 }
+#endif
 
 #include "num/cudnn_wrapper.h"
 
 bool simple_smul(unsigned int N, const long dims[N], const long ostrs[N], float* out, const long istrs[N], const float* in, float val)
 {
-	size_t size = 4;
 
 #ifndef USE_CUDNN
 
