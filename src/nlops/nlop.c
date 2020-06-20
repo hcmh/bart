@@ -175,11 +175,11 @@ struct nlop_s* nlop_generic_extopts_create2(	int OO, int ON, const long odims[OO
 	
 
 	operator_prop_flags_t tmp_props[II + OO][II + OO];
-	for (unsigned int i = 0; i < II + OO; i++)
-		for (unsigned int j = 0; j < II + OO; j++)
+	for (int i = 0; i < II + OO; i++)
+		for (int j = 0; j < II + OO; j++)
 			tmp_props[i][j] = 0;
-	for (unsigned int i = 0; i < II; i++)
-		for (unsigned int o = 0; o < OO; o++) {
+	for (int i = 0; i < II; i++)
+		for (int o = 0; o < OO; o++) {
 
 			props[i][o] = MD_SET(props[i][o], OP_PROP_ATOMIC);
 			
@@ -309,8 +309,8 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 	}
 
 	operator_prop_flags_t tmp_props[II + OO][II + OO];
-	for (unsigned int i = 0; i < II + OO; i++)
-		for (unsigned int j = 0; j < II + OO; j++)
+	for (int i = 0; i < II + OO; i++)
+		for (int j = 0; j < II + OO; j++)
 			tmp_props[i][j] = MD_BIT(OP_PROP_ATOMIC);
 
 	n->op = operator_generic_extopts_create2(OO + II, (1u << OO) - 1u, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, tmp_props);

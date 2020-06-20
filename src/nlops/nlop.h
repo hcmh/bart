@@ -9,8 +9,11 @@
 
 #include <stdbool.h>
 
+#include "num/iovec.h"
 #include "linops/linop.h"
 
+#ifndef NLOP_H
+#define NLOP_H
 
 typedef struct nlop_data_s { TYPEID* TYPEID; } nlop_data_t;
 
@@ -100,3 +103,5 @@ extern const struct nlop_s* nlop_reshape_in_F(const struct nlop_s* op, int i, in
 
 extern const struct nlop_s* nlop_append_singleton_dim_in_F(const struct nlop_s* op, int i);
 extern const struct nlop_s* nlop_append_singleton_dim_out_F(const struct nlop_s* op, int o);
+
+#endif
