@@ -101,7 +101,7 @@ void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 0.001, .constrained_maps = 3, .not_wav_maps = fit_para->not_wav_maps};
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 0.001, .constrained_maps = 5, .not_wav_maps = fit_para->not_wav_maps};
 
 
 	mdb_irgnm_l1(&conf2,

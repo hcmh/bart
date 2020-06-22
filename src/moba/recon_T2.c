@@ -91,7 +91,7 @@ void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	debug_printf(DP_INFO, "imgs_dims:\n\t");
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 0.3, .constrained_maps = 1, .not_wav_maps = 0 };
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 0.3, .constrained_maps = 4, .not_wav_maps = 0 };
 
 	mdb_irgnm_l1(&conf2,
 			irgnm_conf_dims,

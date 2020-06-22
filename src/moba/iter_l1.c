@@ -114,16 +114,29 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 	long dims1[DIMS];
 
 	md_select_dims(DIMS, FFT_FLAGS, dims1, data->dims);
-	dims1[COEFF_DIM] = data->conf->constrained_maps;
 
 	for (int j = 0; j < mphases; j++)
 		for (int i = 0; i < SMS; i++) {
 
-	        	md_zsmax(DIMS, dims1, (_Complex float*)dst + (parameters - data->conf->constrained_maps) * res * res 
-			+ i * res * res * parameters + j * res * res * parameters * SMS,
-			(const _Complex float*)src + (parameters - data->conf->constrained_maps) * res * res 
-			+ i * res * res * parameters + j * res * res * parameters * SMS, 
-			data->conf->lower_bound);
+			int map = 0;
+			int constrain_flags = data->conf->constrained_maps;
+
+			while (constrain_flags) {
+
+				if (constrain_flags & 1) {
+
+					debug_printf(DP_DEBUG3, "Cosen constrained maps: %d\n", map);
+
+					md_zsmax(DIMS, dims1, (_Complex float*)dst + map * res * res
+					+ i * res * res * parameters + j * res * res * parameters * SMS,
+					(const _Complex float*)src + map * res * res
+					+ i * res * res * parameters + j * res * res * parameters * SMS,
+					data->conf->lower_bound);
+				}
+
+				constrain_flags >>= 1;
+				map++;
+			}
         }
 }
 
