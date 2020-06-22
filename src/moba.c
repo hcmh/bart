@@ -87,6 +87,7 @@ int main_moba(int argc, char* argv[])
 		OPT_STRING('T', &time_T1relax, "T1 relax time for MOLLI", ""),
 		OPT_SET('k', &conf.k_filter, "k-space edge filter for non-Cartesian trajectories"),
 		OPT_SET('S', &conf.IR_SS, "use the IR steady-state model"),
+		OPT_SET('P', &conf.IR_phy, "use the (M0, R1, alpha) model"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -331,6 +332,8 @@ int main_moba(int argc, char* argv[])
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
 		// Choose a different initial guess for R1*
+		float init_param = conf.IR_phy ? 0 : (conf.sms ? 2.0 : 1.5);
+		
 		long pos[DIMS];
 
 		for (int i = 0; i < (int)DIMS; i++)
@@ -338,7 +341,7 @@ int main_moba(int argc, char* argv[])
 
 		pos[COEFF_DIM] = conf.IR_SS ? 1 : 2;
 		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
-		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, conf.sms ? 2.0 : 1.5);
+		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
 	}
 

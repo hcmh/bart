@@ -21,6 +21,7 @@ struct moba_conf {
 	bool MOLLI;
 	bool k_filter;
 	bool IR_SS;
+	bool IR_phy;
 	int algo;
         float rho;
 	struct opt_reg_s ropts;

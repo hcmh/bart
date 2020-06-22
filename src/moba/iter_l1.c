@@ -157,7 +157,6 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 	data->alpha = alpha;	// update alpha for normal operator
 
-    
 	void* x = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
 	md_gaussian_rand(1, MD_DIMS(data->size_x / 2), x);
 	double maxeigen = power(20, data->size_x, select_vecops(src), (struct iter_op_s){ normal, CAST_UP(data) }, x);
@@ -223,8 +222,6 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 	auto data = CAST_DOWN(T1inv_s, _data);
 
 	data->alpha = alpha;	// update alpha for normal operator
-
-	wavthresh_rand_state_set(data->prox1, 1);
     
 	int maxiter = MIN(data->conf->c2->cgiter, 10 * powf(2, data->outer_iter));
     
@@ -393,6 +390,20 @@ static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf*
 
 	auto prox1 = create_prox(img_dims, COEFF_FLAG, 1.0);
 	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | SLICE_FLAG | TIME2_FLAG));
+
+	if (1 == conf->not_wav_maps) {
+
+		long map_dims[DIMS];
+		md_copy_dims(DIMS, map_dims, img_dims);
+		map_dims[COEFF_DIM] = 1L;
+
+		auto prox3 = create_prox(map_dims, 0, 0.05);
+		auto prox4 = operator_p_stack(COEFF_DIM, COEFF_DIM, prox1, prox3);
+		prox2 = op_p_auto_normalize(prox4, ~(COEFF_FLAG | SLICE_FLAG | TIME2_FLAG));
+
+		operator_p_free(prox3);
+		operator_p_free(prox4);
+	}
 
 	struct T1inv_s idata = {
 

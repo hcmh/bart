@@ -50,6 +50,8 @@ struct moba_conf moba_defaults = {
 	.MOLLI = false,
         .k_filter = false,
 	.IR_SS = false,
+	.IR_phy = false,
+	.algo = 3,
         .rho = 0.01,
 };
 
@@ -87,7 +89,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	mconf.b = 32.;
 	mconf.cnstcoil_flags = TE_FLAG;
 
-	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, conf->MOLLI, TI_t1relax, conf->IR_SS, usegpu);
+	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, conf->MOLLI, TI_t1relax, conf->IR_SS, conf->IR_phy, usegpu);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
@@ -99,9 +101,9 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 1, .not_wav_maps = 0, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo, .rho = conf->rho, .ropts = &conf->ropts };
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 1, .not_wav_maps = conf->IR_phy ? 1 : 0, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo, .rho = conf->rho, .ropts = &conf->ropts };
 
-	if (conf->MOLLI)
+	if (conf->MOLLI || conf->IR_phy)
 		conf2.constrained_maps = 2;
 
 	long irgnm_conf_dims[DIMS];

@@ -30,12 +30,13 @@
 #include "moba/T1fun.h"
 #include "moba/IR_SS_fun.h"
 #include "moba/T1MOLLI.h"
+#include "moba/T1_alpha.h"
 
 #include "model_T1.h"
 
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, 
-		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, bool use_gpu)
+		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, bool IR_phy, bool use_gpu)
 {
 	long data_dims[DIMS];
 	md_select_dims(DIMS, ~COEFF_FLAG, data_dims, dims);
@@ -82,9 +83,12 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 		
 		T1 = nlop_IR_SS_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
 
-	} else {
+	} else if (IR_phy) {
 		
-                T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+                T1 = nlop_T1_alpha_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+	} else {
+
+		T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
         }
 
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(T1, 0)->dims);
