@@ -265,14 +265,8 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 		complex float* kernel = md_alloc(2, L_dims, CFL_SIZE);
 		complex float* kernel_cpy = md_alloc(2, L_dims, CFL_SIZE); // copy of gaussian kernel
-
 		
-
-		gauss_kernel(L_dims, kernel, src_dims, src, conf, true);
-		md_copy(2, L_dims, kernel_cpy, kernel, CFL_SIZE);
-
-		// V, S, VH = svd(kernel)		
-		lapack_svd(N, N, (complex float (*)[N])V, (complex float (*)[N])VH, Sf, (complex float (*)[N])kernel_cpy); // NOTE: Lapack destroys kernel_cpy!
+		md_copy(2, src_dims, src2, src, CFL_SIZE);
 
 		// iterations
 		int iter_max = 30;
@@ -280,6 +274,14 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		float eta = 2.;
 			
 		for (int i = 0; i < iter_max; i++) {
+
+			// calc Gaussian kernel
+			gauss_kernel(L_dims, kernel, src_dims, src2, conf, (i == 0) ? true : false);
+
+			// SVD
+			md_copy(3, cov_dims, kernel_cpy, kernel, CFL_SIZE);
+			lapack_svd(N, N, (complex float (*)[N])V, (complex float (*)[N])VH, Sf, (complex float (*)[N])kernel_cpy); // NOTE: Lapack destroys kernel_cpy!
+
 			
 			// W = V @ (S + eye * gamma)^(-0.5) @ VH
 			for (int j = 0; j < N; j++)
@@ -290,7 +292,15 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 			// L = kernel * W
 			md_zmul(3, V_dims, L, kernel, W);
-			
+
+
+			if (i == iter_max - 1) {
+
+				md_copy(3, V_dims, W, L, CFL_SIZE); // we use W for further processing
+				break;
+			}
+				
+
 			// D = sum(W, axis=-1)
 			md_zsum(3, V_dims, 2, D, L);
 
@@ -324,17 +334,6 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 			if (conf->median > 0)
 				md_zsmul(3, src2_dims, src2, src2, 1. / sqrtf(conf->median));
-			
-
-			// calc Gaussian kernel
-			gauss_kernel(L_dims, kernel, src_dims, src2, conf, false);
-
-			// SVD
-			md_copy(3, cov_dims, kernel_cpy, kernel, CFL_SIZE);
-			lapack_svd(N, N, (complex float (*)[N])V, (complex float (*)[N])VH, Sf, (complex float (*)[N])kernel_cpy); // NOTE: Lapack destroys kernel_cpy!
-			/* TODO: There seem to be numerical instabilities compared to the matlab code. 
-			 * Matlab uses complex doubles and - if the imaginary part is zero - doubles 
-			 * for all operations. This should be tested here!*/
 
 			gamma /= eta;
 		}
