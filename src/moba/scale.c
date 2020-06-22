@@ -191,10 +191,10 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[3], const long k
 // 			debug_printf(DP_DEBUG3,"%f,\t%f,\t%f,\t%f,\t%d,\t%f,\t%f,\n", data.seq.tr, data.seq.te, data.voxel.r1, data.voxel.r2, 	data.tmp.rep_counter, data.pulse.rf_end, data.pulse.flipangle );
 			
 			
-			float mxy_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-			float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-			float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-			float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			complex float mxy_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			complex float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			complex float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			complex float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 			
 			
 			if (fit_para->full_ode_sim || NULL != fit_para->input_fa_profile)	//variable flipangles are only included into ode simulation yet

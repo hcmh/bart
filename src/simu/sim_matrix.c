@@ -289,7 +289,7 @@ static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa
 }
     
 // for seq = 0, 1, 2, 5
-void matrix_bloch_simulation( void* _data, float (*mxy_sig)[3], float (*sa_r1_sig)[3], float (*sa_r2_sig)[3], float (*sa_m0_sig)[3])
+void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex float (*sa_r1_sig)[3], complex float (*sa_r2_sig)[3], complex float (*sa_m0_sig)[3])
 {
 	struct sim_data* data = _data;
 	
@@ -395,9 +395,9 @@ void matrix_bloch_simulation( void* _data, float (*mxy_sig)[3], float (*sa_r1_si
 			
 			if (av_num == data->seq.num_average_rep - 1) {
 
-				mxy_sig[save_repe][dim] = sum_mxy_tmp * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
-				sa_r1_sig[save_repe][dim] = sum_sa_r1 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
-				sa_r2_sig[save_repe][dim] = sum_sa_r2 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
+				mxy_sig[save_repe][dim] = sum_mxy_tmp * data->voxel.m0 / (complex float)( data->seq.spin_num * data->seq.num_average_rep );
+				sa_r1_sig[save_repe][dim] = sum_sa_r1 * data->voxel.m0 / (complex float)( data->seq.spin_num * data->seq.num_average_rep );
+				sa_r2_sig[save_repe][dim] = sum_sa_r2 * data->voxel.m0 / (complex float)( data->seq.spin_num * data->seq.num_average_rep );
 				sa_m0_sig[save_repe][dim] = sum_mxy_tmp / (float)( data->seq.spin_num * data->seq.num_average_rep );
 
 				sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = 0.;

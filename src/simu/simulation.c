@@ -267,7 +267,7 @@ static void xyspoiling(int N, int P, float xp[P + 2][N], struct sim_data* simdat
 }
 
 
-void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*sa_r1_sig)[3], float (*sa_r2_sig)[3], float (*sa_m0_sig)[3])
+void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], complex float (*sa_r1_sig)[3], complex float (*sa_r2_sig)[3], complex float (*sa_m0_sig)[3])
 {
 	float tol = 10E-6;
 
@@ -472,10 +472,10 @@ void ode_bloch_simulation3(struct sim_data* data, float (*mxy_sig)[3], float (*s
 
 void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, bool ode)
 {
-	float mxy_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
-	float sa_r1_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
-	float sa_r2_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
-	float sa_m0_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	complex float mxy_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	complex float sa_r1_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	complex float sa_r2_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	complex float sa_m0_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
 
 	if (ode)
 		ode_bloch_simulation3(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);		// ODE simulation
