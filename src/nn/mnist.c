@@ -160,9 +160,9 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 
 	iter6_adadelta(CAST_UP(&_conf),
 			nlop_train,
-			NI, in_type, src,
+			NI, in_type, NULL, src,
 			NO, out_type,
-			N_batch, N_total);
+			N_batch, N_total / N_batch, NULL);
 
 	nlop_free(nlop_train);
 }

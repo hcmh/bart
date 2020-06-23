@@ -72,7 +72,7 @@ struct iter_nlop_s;
 struct nlop_s;
 struct operator_p_s;
 
-typedef void iter6_f(iter6_conf* _conf, const struct nlop_s* nlop, long NI, enum IN_TYPE in_type[NI], float* dst[NI], long NO, enum OUT_TYPE out_type[NO], int N_batch, int N_total);
+typedef void iter6_f(iter6_conf* _conf, const struct nlop_s* nlop, long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI], long NO, enum OUT_TYPE out_type[NO], int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen);
 
 iter6_f iter6_adadelta;
 

@@ -178,13 +178,16 @@ static void iter6_op_arr_fun_diag(iter_op_data* _o, int NO, unsigned long oflags
 			operator_apply_unchecked(data->ops[i * NI + i], (_Complex float*)dst[i], (_Complex float*)src[i]);
 }
 
-void iter6_adadelta(iter6_conf* _conf,
+void iter6_adadelta(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
-			long NI, enum IN_TYPE in_type[NI], float* dst[NI],
+			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
 			long NO, enum OUT_TYPE out_type[NO],
-			int N_batch, int N_total)
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen)
 {
 	auto conf = CAST_DOWN(iter6_adadelta_conf, _conf);
+
+	assert(NULL == nlop_batch_gen);
+	assert(NULL == prox_ops);
 
 	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
 	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
@@ -221,7 +224,7 @@ void iter6_adadelta(iter6_conf* _conf,
 	sgd(conf->epochs, conf->batchnorm_mom,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
-		N_batch, N_total,
+		batchsize, batchsize * numbatches,
 		select_vecops(dst[0]),
 		nlop_iter, adj_op_arr,
 		upd_op_arr,
