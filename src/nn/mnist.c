@@ -79,7 +79,7 @@ const struct nlop_s* get_nn_mnist(int N_batch)
 	long kernel_size[] = {3, 3, 1};
     	long pool_size[] = {2, 2, 1};
 
-	bool conv = true;
+	bool conv = false;
 
 	network = append_convcorr_layer(network, 0, 32, kernel_size, conv, PAD_VALID, true, NULL, NULL);
 	network = append_activation_bias(network, ACT_RELU, 0, MD_BIT(0));
