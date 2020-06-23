@@ -42,6 +42,7 @@ int main_laplace(int argc, char* argv[])
 		OPT_SET('N', &conf.norm, "Normalized Laplacian"),
 		OPT_SET('T', &conf.temporal_nn, "Temporal nearest neighbours"),
 		OPT_SET('k', &conf.kernel, "kernel approach"),
+		OPT_FLOAT('K', &conf.kernel_lambda, "lambda", "[Kernel] Lambda"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
