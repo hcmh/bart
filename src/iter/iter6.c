@@ -121,7 +121,7 @@ static void iter6_op_arr_fun_deradj(iter_op_data* _o, int NO, unsigned long ofla
 	for (int o = 0; o < NO; o++)
 		if (MD_IS_SET(oflags, o)) {
 
-			op_arr[NO_t] = data->ops[o * NI + i_index];
+			op_arr[NO_t] = data->ops[o * data->NI + i_index];
 			dst_t[NO_t] = dst[o];
 			NO_t += 1;
 		}
