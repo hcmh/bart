@@ -40,6 +40,8 @@ int main_laplace(int argc, char* argv[])
 		OPT_INT('n', &conf.nn, "nn", "Number of nearest neighbours"),
 		OPT_FLOAT('s', &conf.sigma, "sigma", "Standard deviation"),
 		OPT_SET('N', &conf.norm, "Normalized Laplacian"),
+		OPT_SET('P', &conf.dmap, "Transition Probability Matrix (diffusion map)"),
+		OPT_SET('a', &conf.anisotrop, "Anisotropy correction"),
 		OPT_SET('T', &conf.temporal_nn, "Temporal nearest neighbours"),
 		OPT_SET('k', &conf.kernel, "kernel approach"),
 		OPT_FLOAT('K', &conf.kernel_lambda, "lambda", "[Kernel] Lambda"),
