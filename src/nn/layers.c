@@ -20,7 +20,7 @@
 #include "nlops/conv.h"
 #include "nlops/nlop_props.h"
 
-#include "nn/batchnorm.c"
+#include "nn/batchnorm.h"
 #include "nn_ops.h"
 #include "layers.h"
 
@@ -546,9 +546,9 @@ const struct nlop_s* append_batchnorm_layer(const struct nlop_s* network, int o,
 	result = nlop_permute_inputs_F(result, NI + 1, perm_in);
 
 	int perm_out[NO + 1];
-	perm_shift(NO + 1, 0, o, perm_out);
+	perm_shift(NO + 1, 1, NO, perm_out);
 	result = nlop_permute_outputs_F(result, NO + 1, perm_out);
-	perm_shift(NO + 1, 0, NO, perm_out);
+	perm_shift(NO + 1, 0, o, perm_out);
 	result = nlop_permute_outputs_F(result, NO + 1, perm_out);
 
 	return nlop_set_batchnorm_F(result, NO, NI);
