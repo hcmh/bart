@@ -66,7 +66,9 @@ const struct iter6_adadelta_conf iter6_adadelta_conf_defaults = {
 	.clip_norm = 0.0,
 	.clip_val = 0.0,
 
-	.rho = 0.95
+	.rho = 0.95,
+
+	.batchnorm_mom = 0.95
 };
 
 
@@ -216,7 +218,7 @@ void iter6_adadelta(iter6_conf* _conf,
 		osize[o] = 2 * md_calc_size(nlop_generic_codomain(nlop, o)->N, nlop_generic_codomain(nlop, o)->dims);
 
 
-	sgd(conf->epochs,
+	sgd(conf->epochs, conf->batchnorm_mom,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
 		N_batch, N_total,
@@ -265,7 +267,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 
 		alpha[i] = (NULL == conf->alpha_arr) ? conf->alpha : conf->alpha_arr[i];
 		beta[i] = (NULL == conf->beta_arr) ? conf->beta : conf->beta_arr[i];
-		convex[i] = (NULL == conf->convex_arr) ? conf->convex : conf->convex_arr[i]; 
+		convex[i] = (NULL == conf->convex_arr) ? conf->convex : conf->convex_arr[i];
 	}
 
 	//gpu ref (dst[i] can be null if batch_gen)
@@ -299,7 +301,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 
 				long dims[nlop_generic_domain(nlop, i)->N];
 				char filename[strlen(conf->save_path) + strlen(conf->save_name[i]) + 50];
-					
+
 				sprintf(filename, "%s/%s-%d", conf->save_path, conf->save_name[i], epoch_start);
 				complex float* file = load_cfl(filename, nlop_generic_domain(nlop, i)->N, dims);
 				md_copy(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, (complex float*)dst[i], file, CFL_SIZE);						unmap_cfl(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, file);
@@ -364,7 +366,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 			prox_iter,
 			nlop_batch_gen_iter,
 			(struct iter_op_s){ NULL, NULL }, NULL);
-		
+
 		epoch_start = epoch_end;
 		epoch_end = MIN(conf->epochs, epoch_start + conf->save_modulo);
 	}
@@ -374,7 +376,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 
 			char filename[strlen(conf->save_path) + strlen(conf->save_name[i]) + 50];
 			sprintf(filename, "%s/%s-%d", conf->save_path, conf->save_name[i], epoch_end);
-					
+
 			complex float* file = create_cfl(filename, nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims);
 			md_copy(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, file, (complex float*)dst[i], CFL_SIZE);
 			unmap_cfl(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, file);

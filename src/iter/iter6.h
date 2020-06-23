@@ -31,6 +31,8 @@ struct iter6_adadelta_conf {
 	float clip_val;
 
 	float rho;
+
+	float batchnorm_mom;
 };
 
 struct iter6_iPALM_conf {

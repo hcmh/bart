@@ -9,8 +9,8 @@
 
 #include "misc/cppwrap.h"
 
-enum IN_TYPE {IN_STATIC, IN_BATCH, IN_OPTIMIZE, IN_BATCH_GENERATOR};
-enum OUT_TYPE {OUT_STATIC, OUT_OPTIMIZE};
+enum IN_TYPE {IN_STATIC, IN_BATCH, IN_OPTIMIZE, IN_BATCH_GENERATOR, IN_BATCHNORM};
+enum OUT_TYPE {OUT_STATIC, OUT_OPTIMIZE, OUT_BATCHNORM};
 #ifndef NUM_INTERNAL
 // #warning "Use of private interfaces"
 #endif
@@ -116,7 +116,7 @@ void landweber_sym(unsigned int maxiter, float epsilon, float alpha,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
-typedef void iter6_algo_f(unsigned int epochs,
+typedef void iter6_algo_f(unsigned int epochs, float batchnorm_momentum,
              long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
              long NO, long osize[NO], enum OUT_TYPE out_type[NI],
              int N_batch, int N_total,

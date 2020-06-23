@@ -729,7 +729,7 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 
 /**
  * Compute the sum of the selected outputs, selected outputs must be scalars
- * 
+ *
  * @param NO number of outputs of nlop
  * @param NI number of inputs of nlop
  * @param nlop nlop to apply
@@ -742,7 +742,7 @@ static float compute_objective_with_opts(long NO, long NI, struct iter_nlop_s nl
 {
 	float result = 0;
 	iter_nlop_call_with_opts(nlop, NO + NI, args, run_opts); 	// r = F x
-	
+
 	for (int o = 0; o < NO; o++) {
 		if (MD_IS_SET(out_optimize_flag, o)) {
 
@@ -757,7 +757,7 @@ static float compute_objective_with_opts(long NO, long NI, struct iter_nlop_s nl
 
 /**
  * Compute the sum of the selected outputs, selected outputs must be scalars
- * 
+ *
  * @param NO number of outputs of nlop
  * @param NI number of inputs of nlop
  * @param nlop nlop to apply
@@ -769,7 +769,7 @@ static float compute_objective(long NO, long NI, struct iter_nlop_s nlop, float*
 {
 	float result = 0;
 	iter_nlop_call(nlop, NO + NI, args); 	// r = F x
-	
+
 	for (int o = 0; o < NO; o++) {
 		if (MD_IS_SET(out_optimize_flag, o)) {
 
@@ -785,7 +785,7 @@ static float compute_objective(long NO, long NI, struct iter_nlop_s nlop, float*
 /**
  * Compute the gradient with respect to the inputs selected by in_optimize_flag.
  * The result is the sum of the gradients with respect to the outputs selected by out_optimize_flag
- * 
+ *
  * @param NI number of inputs of nlop
  * @param in_optimize_flag compute gradients with respect to selected inputs
  * @param isize sizes of input tensors
@@ -793,7 +793,7 @@ static float compute_objective(long NO, long NI, struct iter_nlop_s nlop, float*
  * @param NO number of outputs of nlop
  * @param out_optimize_flag sums gradients over selected outputs, selected outputs must be scalars
  * @param adj array of adjoint operators
- * @param vops vector operators 
+ * @param vops vector operators
  **/
 static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], float* grad[NI], int NO, unsigned long out_optimize_flag, struct iter_op_arr_s adj, const struct vec_iter_s* vops)
 {
@@ -805,7 +805,7 @@ static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], floa
 	float* tmp_grad[NI];
 
 	for (int i = 0; i < NI; i++)
-		if ((1 < NO) && MD_IS_SET(in_optimize_flag, i)) 	
+		if ((1 < NO) && MD_IS_SET(in_optimize_flag, i))
 			tmp_grad[i] = vops->allocate(isize[i]);
 
 	for (int o = 0, count = 0; o < NO; o++) {
@@ -824,16 +824,16 @@ static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], floa
 	for (int i = 0; i < NI; i++)
 		if ((1 < NO) && MD_IS_SET(in_optimize_flag, i))
 			vops->del(tmp_grad[i]);
-	
+
 	vops->del(one);
 }
 
 /**
  * Print progressbar of the form
  * [pre_string] [=====    ] time: h:mm:ss/h:mm:ss[post_string]
- * 
+ *
  * @param N_done batch index
- * @param N_total batch size 
+ * @param N_total batch size
  * @param starttime start time of epoch
  * @param pre_string
  * @param post_string
@@ -868,9 +868,9 @@ static void print_timer_bar(int N_done, int N_total, double starttime, char* pre
 /**
  * Print timer of the form
  * [pre_string]h:mm:ss/h:mm:ss[post_string]
- * 
+ *
  * @param N_done batch index
- * @param N_total batch size 
+ * @param N_total batch size
  * @param starttime start time of epoch
  * @param pre_string
  * @param post_string
@@ -893,7 +893,7 @@ static void select_derivatives(long NO, unsigned long out_der_flags, long NI, un
 		for (int j = 0; j < NO + NI; j++) {
 
 			run_opts[i][j] = 0;
-			
+
 			if ((i < NO) && !(j < NO) && (!MD_IS_SET(out_der_flags, i) || !MD_IS_SET(in_der_flags, j - NO)))
 				run_opts[i][j] = MD_SET(run_opts[i][j], OP_APP_NO_DER);
 
@@ -916,14 +916,14 @@ static void select_derivatives(long NO, unsigned long out_der_flags, long NI, un
  * @param out_type type of output (i.e. should be minimized)
  * @param N_batch batch size
  * @param N_total total size of datasets
- * @param vops 
+ * @param vops
  * @param nlop nlop for minimization
  * @param adj array of adjoints of nlop
  * @param update diagonal array of operator computing the update based on the gradient
  * @param callback UNUSED
  * @param monitor UNUSED
  */
-void sgd(	unsigned int epochs,
+void sgd(	unsigned int epochs, float batchnorm_momentum,
 		long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
 		long NO, long osize[NO], enum OUT_TYPE out_type[NI],
 		int N_batch, int N_total,
@@ -962,7 +962,7 @@ void sgd(	unsigned int epochs,
 
 		args[o] = vops->allocate(osize[o]);
 		if (OUT_OPTIMIZE == out_type[o])
-			out_optimize_flag = MD_SET(out_optimize_flag, o);	
+			out_optimize_flag = MD_SET(out_optimize_flag, o);
 	}
 
 	for (unsigned int epoch = 0; epoch < epochs; epoch++) {
@@ -972,6 +972,8 @@ void sgd(	unsigned int epochs,
 			getgrad(NI, in_optimize_flag, isize, grad, NO, out_optimize_flag, adj, vops);
 			iter_op_arr_call(update, NI, in_optimize_flag, dxs, NI, in_optimize_flag, (const float**)grad);
 
+			int batchnorm_counter = 0;
+
 			for (int i = 0; i < NI; i++) {
 
 				if (in_type[i] == IN_OPTIMIZE)
@@ -979,6 +981,28 @@ void sgd(	unsigned int epochs,
 
 				if (in_type[i] == IN_BATCH)
 					args[NO + i] += isize[i];
+
+				if (in_type[i] == IN_BATCHNORM) {
+
+					int o = 0;
+					int j = batchnorm_counter;
+
+					while ((OUT_BATCHNORM != out_type[o]) || (j > 0)) {
+
+						if (OUT_BATCHNORM == out_type[o])
+							j--;
+						o++;
+					}
+
+					if ((0 < epoch) || (0 < i_batch)) {
+
+						vops->smul(isize[i], batchnorm_momentum, x[i], x[i]);
+						vops->axpy(isize[i], x[i],  1. - batchnorm_momentum, args[o]);
+					} else {
+
+						vops->copy(isize[i], x[i], args[o]);
+					}
+				}
 			}
 
 			char pre_string[50];
@@ -1010,9 +1034,9 @@ void sgd(	unsigned int epochs,
  * iPALM: Inertial Proximal Alternating Linearized Minimization.
  * Solves min_{x_0, ..., x_N} H({x_0, ..., x_N}) + sum_i f_i(x_i)
  * https://doi.org/10.1137/16M1064064
- * 
+ *
  * kth iteration step for input i:
- * 
+ *
  * y_i^k := x_i^k + alpha_i^k (x_i^k - x_i^{k-1})
  * z_i^k := x_i^k + beta_i^k (x_i^k - x_i^{k-1})
  * x_i^{k+1} = prox^{f_i}_{tau_i} (y_i^k - 1/tau_i grad_{x_i} H(x_0^{k+1}, ... z_i^k, x_{i+1}^k, ...))
@@ -1048,7 +1072,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 		int epoch_start, int epoch_end,
         	const struct vec_iter_s* vops,
 		float alpha[NI], float beta[NI], bool convex[NI], bool trivial_stepsize,
-		float L[NI], float Lmin, float Lmax, float Lshrink, float Lincrease, 
+		float L[NI], float Lmin, float Lmax, float Lshrink, float Lincrease,
         	struct iter_nlop_s nlop,
 		struct iter_op_arr_s adj,
 		struct iter_op_p_s prox[NI],
@@ -1060,7 +1084,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 
 	float* x_batch_gen[NI]; //arrays which are filled by batch generator
 	long N_batch_gen = 0;
-	
+
 	float* args[NO + NI];
 
 	float* x_new[NI];
@@ -1074,7 +1098,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 	for (int i = 0; i< NI; i++){
 
 		x_batch_gen[i] = NULL;
-		
+
 		x_new[i] = NULL;
 		y[i] = NULL;
 		z[i] = NULL;
@@ -1084,15 +1108,15 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 		switch(in_type[i]){
 
 			case IN_STATIC:
-				
+
 				break;
 			case IN_BATCH:
-				
+
 				error("flag IN_BATCH not supported\n");
 				break;
 
 			case IN_OPTIMIZE:
-				
+
 				if (0 == epoch_start) {
 
 					if (NULL != prox[i].fun) {
@@ -1103,9 +1127,9 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 
 						vops->copy(isize[i], x_old[i], x[i]);
 					}
-				} 
+				}
 				break;
-			
+
 			case IN_BATCH_GENERATOR:
 
 				if (NULL != x[i])
@@ -1136,15 +1160,15 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 	double starttime = timestamp();
 
 	for (int epoch = epoch_start; epoch < epoch_end; epoch++) {
-		
-		if (0 != N_batch_gen)				
+
+		if (0 != N_batch_gen)
 			iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
 
 		select_derivatives(NO, 0, NI, 0, run_opts);
 		float r_old = compute_objective_with_opts(NO, NI, nlop, args, out_optimize_flag, vops, run_opts);
 
 		float r_i = r_old;
-			
+
 		for (int i = 0; i < NI; i++) {
 
 			if (IN_OPTIMIZE != in_type[i])
@@ -1167,15 +1191,15 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			float r_z = compute_objective_with_opts(NO, NI, nlop, args, out_optimize_flag, vops, run_opts);
 			vops->del(z[i]);
 			getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
-				
+
 			//backtracking
 			bool lipshitz_condition = false;
 			while (!lipshitz_condition) {
-					
+
 				float tau = convex[i] ? (1. + 2. * betai) / (2. - 2. * alphai) * L[i] : (1. + 2. * betai) / (1. - 2. * alphai) * L[i];
 				if (trivial_stepsize || (-1. == beta[i]) || (-1. == alpha[i]))
 					tau = L[i];
-				
+
 				if((0 > betai) || ( 0 > alphai) || ( 0 > tau))
 					error("invalid parameters alpha[%d]=%f, beta[%d]=%f, tau=%f\n", i, alphai, i, betai, tau);
 
@@ -1187,19 +1211,19 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 					iter_op_p_call(prox[i], tau, x_new[i], tmp[i]); // if prox is a projection, we apply it, else it is just a copy (mu = 0)
 				else
 					vops->copy(isize[i],  x_new[i], tmp[i]);
-				
+
 				//compute new residual
 				args[NO + i] = x_new[i];
 				select_derivatives(NO, 0, NI, 0, run_opts);
 				float r_new = compute_objective_with_opts(NO, NI, nlop, args, out_optimize_flag, vops, run_opts);
 
-				//compute Lipschitz condition at z	
+				//compute Lipschitz condition at z
 				float r_lip_z = r_z;
 				vops->sub(isize[i], tmp[i], x_new[i], y[i]); // tmp = x^(n+1) - y^n
 				r_lip_z += vops->dot(isize[i], grad[i], tmp[i]);
 				r_lip_z += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
 
-				//compute Lipschitz condition at x	
+				//compute Lipschitz condition at x
 				float r_lip_x = r_i;
 				vops->sub(isize[i], tmp[i], x_new[i], x[i]); // tmp = x^(n+1) - x^n
 				r_lip_x += vops->dot(isize[i], grad[i], tmp[i]);
@@ -1210,7 +1234,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 					lipshitz_condition = true;
 					if (L[i] > Lmin)
 						L[i] /= Lshrink;
-					
+
 					vops->copy(isize[i], x_old[i], x[i]);
 					vops->copy(isize[i], x[i], x_new[i]);
 
@@ -1224,7 +1248,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			args[NO + i] = x[i];
 
 			vops->del(grad[i]);
-			vops->del(tmp[i]); 
+			vops->del(tmp[i]);
 			vops->del(y[i]);
 			vops->del(x_new[i]);
 
@@ -1248,13 +1272,13 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 	}
 
 
-	for (int i = 0; i< NI; i++) 
+	for (int i = 0; i< NI; i++)
 		if(IN_BATCH_GENERATOR == in_type[i]) {
 
 			vops->del(x[i]);
 			x[i] = NULL;
 		}
-	
+
 
 	for (int o = 0; o < NO; o++)
 		if(NULL != args[o])
