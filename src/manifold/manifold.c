@@ -34,6 +34,7 @@ const struct laplace_conf laplace_conf_default = {
 	.anisotrop		= false,
 	.dmap			= false,
 	.median 		= -1,
+	.iter_max		= 50,
 
 };
 
@@ -269,7 +270,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		md_copy(2, src_dims, src2, src, CFL_SIZE);
 
 		// iterations
-		int iter_max = 30;
+		int iter_max = conf->iter_max;
 		float gamma = 100.;
 		float eta = 2.;
 			
