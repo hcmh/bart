@@ -59,7 +59,6 @@ static void stats_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	md_zsum(data->dom->N, data->dom->dims, data->flags, mean, src);
 	md_zsmul(data->dom->N, data->codom->dims, mean, mean, 1. / data->n);
 
-	data->x = md_alloc_sameplace(data->dom->N, data->dom->dims, data->dom->size, src);
 	md_zsub2(data->dom->N, data->dom->dims, data->dom->strs, data->x, data->dom->strs, src, data->codom->strs, mean);
 
 	md_ztenmulc(data->dom->N, data->codom->dims, var, data->dom->dims, data->x, data->dom->dims, data->x);
@@ -103,6 +102,7 @@ static void stats_adj_var(const struct nlop_data_s* _data, complex float* dst, c
 	md_zreal(data->codom->N, data->codom->dims, tmp, src);
 	md_ztenmul2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->codom->strs, tmp, data->dom->strs, data->x);
 	md_zsmul(data->dom->N, data->dom->dims, dst, dst, (2. / data->n));
+	md_free(tmp);
 }
 
 
