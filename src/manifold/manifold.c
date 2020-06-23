@@ -196,6 +196,8 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 			md_free(buf);
 		}
 
+		if (conf->anisotrop)
+			anisotropy_cor(kernel_dims, kernel);
 
 		assert(kernel_dims[0] == cov_dims[0]);
 		assert(kernel_dims[1] == cov_dims[2]);
@@ -363,9 +365,6 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 	}
 
 	} // end switch
-
-	if (conf->anisotrop)
-		anisotropy_cor(L_dims, W);
 
 	// D
 	md_zsum(2, L_dims, PHS1_FLAG, D, W);
