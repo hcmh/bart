@@ -8,3 +8,6 @@ init_f init_auto;
 struct nlop_s;
 _Complex float* init_auto_nlop_props(const struct nlop_s* op, unsigned int weight_index, _Complex float* src);
 void init_nlop_weights(const struct nlop_s* op, unsigned long weight_flags, _Complex float* src);
+
+#include "num/ops_opts.h"
+enum OPERATOR_IO_PROP_FLAGS_INDEX nlop_get_input_weight_type(operator_prop_flags_t flags);

@@ -95,7 +95,7 @@ enum OPERATOR_IO_PROP_FLAGS_INDEX weight_types[] = {
 	};
 
 
-static enum OPERATOR_IO_PROP_FLAGS_INDEX nlop_get_input_weight_type(operator_prop_flags_t flags)
+enum OPERATOR_IO_PROP_FLAGS_INDEX nlop_get_input_weight_type(operator_prop_flags_t flags)
 {
 	enum OPERATOR_IO_PROP_FLAGS_INDEX result = OP_PROP_NN_IN_WEIGHT_NOT_DEFINED;
 
