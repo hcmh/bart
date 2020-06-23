@@ -204,3 +204,16 @@ struct nlop_s* nlop_del_out(const struct nlop_s* a, int o)
 
 	return result;
 }
+
+/**
+ * Returns a new operator without the output o
+ * @param a operator
+ * @param o index of output to be deleted
+ */
+struct nlop_s* nlop_del_out_F(const struct nlop_s* a, int o)
+{
+	auto result = nlop_del_out(a, o);
+	nlop_free(a);
+
+	return result;
+}
