@@ -103,7 +103,7 @@ struct nlop_s* nlop_chain2_FF(const struct nlop_s* a, int o, const struct nlop_s
 
 /*
  * Chains two non-linear operators
- * permutes inputs to have order: inputs a, inputs b  
+ * permutes inputs to have order: inputs a, inputs b
  */
 struct nlop_s* nlop_chain2_swap_FF(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
 {
@@ -387,8 +387,8 @@ struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, unsigned
 
 	int perm[OO - 1];
 	for (int o = 0; o < OO - 1 ; o++)
-		perm[o] = (o <= MIN(a, b)) ? o : o - 1;
-	perm[MIN(a, b)] = OO - 2;
+		perm[o] = (o <= MIN(a, b)) ? o + 1 : o;
+	perm[MIN(a, b)] = 0;
 
 	return nlop_permute_outputs_F(result, OO - 1, perm);
 }
