@@ -59,10 +59,6 @@ const struct nlop_s* append_activation(const struct nlop_s* network, enum ACTIVA
 	int perm_out[NO];
 	perm_shift(NO, 0, index, perm_out);
 
-	const struct nlop_s* tmp1;
-	const struct nlop_s* tmp2;
-	const struct nlop_s* tmp3;
-
 	switch (activation){
 
 		case ACT_LIN:
@@ -71,35 +67,20 @@ const struct nlop_s* append_activation(const struct nlop_s* network, enum ACTIVA
 
 		case ACT_RELU:
 
-			tmp1 = nlop_relu_create(N, dims);
-			tmp2 = network;
-			tmp3 = nlop_chain2(tmp2, 0, tmp1, 0);
-			nlop_free(tmp1);
-			nlop_free(tmp2);
-			network = nlop_permute_outputs(tmp3, NO, perm_out);
-			nlop_free(tmp3);
+			network = nlop_chain2_FF(network, 0, nlop_relu_create(N, dims), 0);
+			network = nlop_permute_outputs_F(network, NO, perm_out);
 			break;
 
 		case ACT_SOFTMAX:
 
-			tmp1 = nlop_softmax_create(N, dims, MD_BIT(N - 1));
-			tmp2 = network;
-			tmp3 = nlop_chain2(tmp2, 0, tmp1, 0);
-			nlop_free(tmp1);
-			nlop_free(tmp2);
-			network = nlop_permute_outputs(tmp3, NO, perm_out);
-			nlop_free(tmp3);
+			network = nlop_chain2_FF(network, 0, nlop_softmax_create(N, dims, MD_BIT(N - 1)), 0);
+			network = nlop_permute_outputs_F(network, NO, perm_out);
 			break;
 
 		case ACT_SIGMOID:
 
-			tmp1 = nlop_sigmoid_create(N, dims);
-			tmp2 = network;
-			tmp3 = nlop_chain2(tmp2, 0, tmp1, 0);
-			nlop_free(tmp1);
-			nlop_free(tmp2);
-			network = nlop_permute_outputs(tmp3, NO, perm_out);
-			nlop_free(tmp3);
+			network = nlop_chain2_FF(network, 0, nlop_sigmoid_create(N, dims), 0);
+			network = nlop_permute_outputs_F(network, NO, perm_out);
 			break;
 	}
 
@@ -113,8 +94,7 @@ const struct nlop_s* append_activation_bias(const struct nlop_s* network, enum A
 	long NI = nlop_get_nr_in_args(network);
 	long NO = nlop_get_nr_out_args(network);
 
-	const struct nlop_s* tmp1;
-	const struct nlop_s* tmp2;
+	const struct nlop_s* nlop_act;
 
 	long N = nlop_generic_codomain(network, 0)->N;
 	long dims[N];
@@ -126,43 +106,39 @@ const struct nlop_s* append_activation_bias(const struct nlop_s* network, enum A
 
 		case ACT_LIN:
 
-			tmp1 = nlop_bias_create(N, dims, bdims);
+			nlop_act = nlop_bias_create(N, dims, bdims);
 			break;
 
 		case ACT_RELU:
 
-			tmp1 = nlop_relu_bias_create(N, dims, bdims);
+			nlop_act = nlop_relu_bias_create(N, dims, bdims);
 			break;
 
 		case ACT_SOFTMAX:
 
-			tmp1 = nlop_softmax_bias_create(N, dims, MD_BIT(N-1), bdims);
+			nlop_act = nlop_softmax_bias_create(N, dims, MD_BIT(N-1), bdims);
 			break;
 
 		case ACT_SIGMOID:
 
-			tmp1 = nlop_sigmoid_bias_create(N, dims, bdims);
+			nlop_act = nlop_sigmoid_bias_create(N, dims, bdims);
 			break;
 
 		default:
 
-			tmp1 = NULL;
+			nlop_act = NULL;
 			assert(0);
 	}
 
-	tmp2 = nlop_chain2(network, index, tmp1, 0);
-	nlop_free(network);
-	nlop_free(tmp1);
+	network = nlop_chain2_FF(network, index, nlop_act, 0);
 
 	int perm_in[NI + 1];
 	perm_shift(NI + 1, 0, NI, perm_in);
-	struct nlop_s* tmp_in = nlop_permute_inputs(tmp2, NI + 1, perm_in);
-	nlop_free(tmp2);
+	network = nlop_permute_inputs_F(network, NI + 1, perm_in);
 
 	int perm_out[NO];
 	perm_shift(NO, 0, index, perm_out);
-	tmp2 = nlop_permute_outputs(tmp_in, NO, perm_out);
-	nlop_free(tmp_in);
+	network = nlop_permute_outputs_F(network, NO, perm_out);
 
 	long bdims_layer[N];
 	int j = 0;
@@ -173,9 +149,9 @@ const struct nlop_s* append_activation_bias(const struct nlop_s* network, enum A
 			j += 1;
 		}
 
-	const struct nlop_s* result = nlop_reshape_in(tmp2, NI, j, bdims_layer);
+	network = nlop_reshape_in_F(network, NI, j, bdims_layer);
 
-	return result;
+	return network;
 }
 
 struct bias_op_s {
@@ -299,7 +275,6 @@ struct relu_s {
 	INTERFACE(nlop_data_t);
 
 	complex float* tmp;
-	float* zero;
 
 	const struct iovec_s* tmpdom;
 	const struct iovec_s* dom;
@@ -567,12 +542,7 @@ const struct nlop_s* nlop_relu_bias_create(unsigned int N, const long dims[N], c
 #else
 const struct nlop_s* nlop_relu_bias_create(unsigned int N, const long dims[N], const long bdims[N])
 {
-	const struct nlop_s* act = nlop_relu_create(N, dims);
-	const struct nlop_s* bias = nlop_bias_create(N, dims, bdims);
-	const struct nlop_s*  result = nlop_chain2(bias, 0, act, 0);
-	nlop_free(bias);
-	nlop_free(act);
-	return result;
+	return nlop_chain2_FF(nlop_bias_create(N, dims, bdims), 0, nlop_relu_create(N, dims), 0);
 }
 #endif
 
