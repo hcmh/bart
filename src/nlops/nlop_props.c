@@ -97,6 +97,8 @@ const struct nlop_s* nlop_set_nn_in_type_F(const struct nlop_s* op, unsigned int
 
 	n->op = operator_set_properties(op->op, N, new_props);
 
+	nlop_free(op);
+
 	return PTR_PASS(n);
 }
 
@@ -142,6 +144,8 @@ const struct nlop_s* nlop_set_batchnorm_F(const struct nlop_s* op, unsigned int 
 	new_props[o][o] = MD_SET(new_props[o][o], OP_PROP_NN_BATCH_NORM);
 
 	n->op = operator_set_properties(op->op, N, new_props);
+
+	nlop_free(op);
 
 	return PTR_PASS(n);
 }
