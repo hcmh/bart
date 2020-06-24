@@ -450,10 +450,10 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 			if (av_num == (data->seq.num_average_rep - 1)) {
 
-					mxy_sig[save_repe][dim] = sum_mxy_tmp * data->voxel.m0 / (float)(data->seq.spin_num * data->seq.num_average_rep);
-					sa_r1_sig[save_repe][dim] = sum_sa_r1 * data->voxel.m0 / (float)(data->seq.spin_num * data->seq.num_average_rep);
-					sa_r2_sig[save_repe][dim] = sum_sa_r2 * data->voxel.m0 / (float)(data->seq.spin_num * data->seq.num_average_rep);
-					sa_m0_sig[save_repe][dim] = sum_mxy_tmp / (float)(data->seq.spin_num * data->seq.num_average_rep);
+					mxy_sig[save_repe][dim] = sum_mxy_tmp * data->voxel.m0;
+					sa_r1_sig[save_repe][dim] = sum_sa_r1 * data->voxel.m0;
+					sa_r2_sig[save_repe][dim] = sum_sa_r2 * data->voxel.m0;
+					sa_m0_sig[save_repe][dim] = sum_mxy_tmp;
 
 					sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = 0.;
 					save_repe++;
