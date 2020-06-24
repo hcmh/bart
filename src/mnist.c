@@ -47,6 +47,7 @@ int main_mnist(int argc, char* argv[])
 
 	long N_batch = 0;
 	long epochs = 1;
+	bool adam = false;
 
 
 
@@ -55,6 +56,7 @@ int main_mnist(int argc, char* argv[])
 		OPT_SET('i', &initialize, "initialize weights"),
 		OPT_SET('t', &train, "train the network"),
 		OPT_LONG('e', &epochs, "", "number of epochs for training"),
+		OPT_SET('d', &adam, "use adam instead of adadelta"),
 		OPT_SET('p', &predict, "predict digits"),
 		OPT_SET('a', &accuracy, "print accuracy"),
 		OPT_SET('n', &use_bn, "use batch normalization"),
@@ -112,7 +114,7 @@ int main_mnist(int argc, char* argv[])
 		md_copy(2, dims_out, out_gpu, out, CFL_SIZE);
 
 		printf("Train\n");
-		train_nn_mnist(network_type, N_batch, dims_in[2], weights_gpu, in_gpu, out_gpu, epochs);
+		train_nn_mnist(network_type, N_batch, dims_in[2], weights_gpu, in_gpu, out_gpu, epochs, adam);
 
 		md_copy(1, dims_weights, weights, weights_gpu, CFL_SIZE);
 
@@ -128,7 +130,7 @@ int main_mnist(int argc, char* argv[])
 		if (train){
 
 			printf("Train\n");
-			train_nn_mnist(network_type, N_batch, dims_in[2], weights, in, out, epochs);
+			train_nn_mnist(network_type, N_batch, dims_in[2], weights, in, out, epochs, adam);
 		}
 	}
 

@@ -159,7 +159,7 @@ void init_nn_mnist(enum MNIST_NETWORK_TYPE type, complex float* weights)
 	nlop_free(network);
 }
 
-void train_nn_mnist(enum MNIST_NETWORK_TYPE type, int N_batch, int N_total, complex float* weights, const complex float* in, const complex float* out, long epochs)
+void train_nn_mnist(enum MNIST_NETWORK_TYPE type, int N_batch, int N_total, complex float* weights, const complex float* in, const complex float* out, long epochs, bool adam)
 {
 	network_status = STAT_TRAIN;
 
@@ -197,14 +197,28 @@ void train_nn_mnist(enum MNIST_NETWORK_TYPE type, int N_batch, int N_total, comp
 	in_type[0] = IN_BATCH;
 	in_type[1] = IN_BATCH;
 
-	struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
-	_conf.epochs = epochs;
+	if (adam) {
 
-	iter6_adadelta(CAST_UP(&_conf),
+		struct iter6_adam_conf _conf = iter6_adam_conf_defaults;
+		_conf.epochs = epochs;
+		_conf.learning_rate = 0.0001;
+
+		iter6_adam(CAST_UP(&_conf),
 			nlop_train,
 			NI, in_type, NULL, src,
 			NO, out_type,
 			N_batch, N_total / N_batch, NULL);
+	} else {
+
+		struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
+		_conf.epochs = epochs;
+
+		iter6_adadelta(CAST_UP(&_conf),
+			nlop_train,
+			NI, in_type, NULL, src,
+			NO, out_type,
+			N_batch, N_total / N_batch, NULL);
+	}
 
 	nlop_free(nlop_train);
 }
