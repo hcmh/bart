@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <math.h>
 
 #include "num/ops.h"
 #include "num/multind.h"
@@ -103,6 +104,93 @@ const struct operator_s* operator_adadelta_update_create(unsigned int N, const l
 	data->epsilon = epsilon;
 
         return operator_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), adadelta_update_apply, adadelta_update_free);
+}
+
+struct adam_update_s {
+
+	INTERFACE(operator_data_t);
+
+	const struct iovec_s* dom;
+	float* first_mom;
+	float* second_mom;
+
+	float beta1;
+	float beta2;
+	float lr;
+	float epsilon;
+
+	int t;
+};
+
+static DEF_TYPEID(adam_update_s);
+
+static void adam_update_apply(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+	struct adam_update_s* d = CAST_DOWN(adam_update_s, _data);
+	assert(2 == N);
+
+	if ((NULL == d->first_mom) || (NULL == d->second_mom)){
+
+		d->first_mom = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, args[0]);
+		d->second_mom = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, args[0]);
+		md_clear(d->dom->N, d->dom->dims, d->first_mom, d->dom->size);
+		md_clear(d->dom->N, d->dom->dims, d->second_mom, d->dom->size);
+	}
+
+	float* dst = (float*)args[0];
+	float* src = (float*)args[1];
+
+	//Accumulate first momentum
+	md_smul(d->dom->N, d->dom->dims, d->first_mom, d->first_mom, d->beta1);
+	md_axpy(d->dom->N, d->dom->dims, d->first_mom, 1 - d->beta1, src);
+
+	//Accumulate second momentum
+	md_smul(d->dom->N, d->dom->dims, d->second_mom, d->second_mom, d->beta2);
+	md_mul(d->dom->N, d->dom->dims, dst, src, src);
+	md_axpy(d->dom->N, d->dom->dims, d->second_mom, 1 - d->beta2, dst);
+
+	//Compute unbiased scales
+	float scale = d->lr * sqrtf(1. - powf(d->beta2, (float)d->t + 1.)) / (1. - powf(d->beta2, (float)d->t + 1.));
+	float epsilon = d->epsilon * sqrtf(1. - powf(d->beta2, (float)d->t + 1.));
+	//printf("\n%f %f %f %f\n", scale, epsilon, md_scalar(d->dom->N, d->dom->dims, d->first_mom, d->first_mom), md_scalar(d->dom->N, d->dom->dims, d->second_mom, d->second_mom));
+	d->t++;
+
+	//Compute update
+	md_sqrt(d->dom->N, d->dom->dims, dst, d->second_mom);
+	md_sadd(d->dom->N, d->dom->dims, dst, dst, epsilon);
+	md_div(d->dom->N, d->dom->dims, dst, d->first_mom, dst);
+	md_smul(d->dom->N, d->dom->dims, dst, dst, -scale);
+}
+
+
+static void adam_update_free(const operator_data_t* _data)
+{
+        const auto d = CAST_DOWN(adam_update_s, _data);
+        iovec_free(d->dom);
+	md_free(d->first_mom);
+	md_free(d->second_mom);
+	xfree(d);
+}
+
+const struct operator_s* operator_adam_update_create(unsigned int N, const long dims[N], float lr, float beta1, float beta2, float epsilon)
+{
+	PTR_ALLOC(struct adam_update_s, data);
+	SET_TYPEID(adam_update_s, data);
+
+	long rdims[N + 1];
+	rdims[0] = 2;
+	md_copy_dims(N, rdims + 1, dims);
+
+        data->dom = iovec_create(N + 1, rdims, FL_SIZE);
+	data->first_mom = NULL;
+	data->second_mom = NULL;
+	data->lr = lr;
+	data->epsilon = epsilon;
+	data->beta1 = beta1;
+	data->beta2 = beta2;
+	data->t = 0;
+
+        return operator_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), adam_update_apply, adam_update_free);
 }
 
 
