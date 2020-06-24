@@ -136,12 +136,6 @@ int main_rtnlinv(int argc, char* argv[])
 	long ksp_dims[DIMS];
 	complex float* kspace = load_cfl(argv[1], DIMS, ksp_dims);
 
-	if ((-1. == scaling) && (!alt_scaling))
-		scaling = 100. / md_znorm(DIMS, ksp_dims, kspace);
-
-	if (-1. != scaling)
-		md_zsmul(DIMS, ksp_dims, kspace, kspace, scaling);
-
 	long frames = ksp_dims[TIME_DIM];
 
 	long ksp1_dims[DIMS];
@@ -337,6 +331,15 @@ int main_rtnlinv(int argc, char* argv[])
 				// This scaling accounts for variable spokes per frame
 				scale_psf_k(pat_dims, pattern, ksp_dims, kspace, trj_dims, traj);
 			}
+		} else {
+
+			float psf_sc = 1.;
+
+			for (int i = 0; i < 3; i++)
+				if (1 != pat_dims[i])
+					psf_sc *= 2.;
+
+			md_zsmul(DIMS, pat_dims, pattern, pattern, psf_sc);
 		}
 
 		debug_printf(DP_DEBUG3, "finished\n");
@@ -451,12 +454,10 @@ int main_rtnlinv(int argc, char* argv[])
 		}
 
 
-		if (alt_scaling) {
-
+		if ((-1. == scaling) || alt_scaling)
 			scaling = 100. / md_znorm(DIMS, kgrid1_dims, kgrid1);
 
-			md_zsmul(DIMS, kgrid1_dims, kgrid1, kgrid1, scaling);
-		}
+		md_zsmul(DIMS, kgrid1_dims, kgrid1, kgrid1, scaling);
 
 #ifdef USE_CUDA
 		if (usegpu) {
