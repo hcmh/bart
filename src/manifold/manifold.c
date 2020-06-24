@@ -38,6 +38,49 @@ const struct laplace_conf laplace_conf_default = {
 
 };
 
+// Calculate kernel-based weighting matrix
+// W = kernel * (kernel + gamma * I)^{-0.5}
+static void calc_kernel_W(	const long N, 
+							const complex float* kernel, 
+							complex float* kernel_cpy, 
+							complex float* W, 
+							complex float* buf, 
+							complex float* V, 
+							complex float* VH, 
+							const float gamma) 
+{
+
+	long V_dims[3]      = { N, N, 1 };
+	long VH_dims[3]     = { 1, N, N };
+	long cov_dims[3]    = { N, 1, N };
+
+	long V_strs[3];
+	md_calc_strides(3, V_strs, V_dims, CFL_SIZE);
+
+	long S_dims[1] = { N };
+	long S_strs[3] = { 0, CFL_SIZE, 0 };
+	complex float* S_inv = md_alloc(1, S_dims, CFL_SIZE);	
+
+	float* Sf = xmalloc(N * sizeof(float));
+
+	// SVD
+	md_copy(3, cov_dims, kernel_cpy, kernel, CFL_SIZE);
+	lapack_svd(N, N, (complex float (*)[N])V, (complex float (*)[N])VH, Sf, (complex float (*)[N])kernel_cpy); // NOTE: Lapack destroys kernel_cpy!
+
+	// W = V @ (S + eye * gamma)^(-0.5) @ VH
+	for (int j = 0; j < N; j++)
+		S_inv[j] = pow((Sf[j] + gamma), -0.5) + 0 * 1.i;
+	
+	md_zmul2(3, V_dims, V_strs, W, V_strs, V, S_strs, S_inv);
+	md_ztenmul(3, cov_dims, buf, V_dims, W, VH_dims, VH);
+
+	// W_final = kernel * W
+	md_zmul(3, V_dims, W, kernel, buf);
+
+	md_free(S_inv);
+	xfree(Sf);
+}
+
 // Set sigma to maximum distance
 static void calc_sigma(const long L_dims[2], const complex float* dist, struct laplace_conf* conf)
 {
@@ -246,24 +289,18 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		long V_strs[3];
 		md_calc_strides(3, V_strs, V_dims, CFL_SIZE);
 
-		long S_dims[1] = { N };
-		
+
 		long D_dims[3];
 		md_select_dims(3, 1, D_dims, V_dims);
 
-		long S_strs[3] = { 0, CFL_SIZE, 0 };
-		
-		long VH_dims[3]   = { 1, N, N };
 		long src2_dims[3] = { N, 1, M };
 		long src3_dims[3] = { 1, N, M };
-		long cov_dims[3]  = { N, 1, N };
 				
 		complex float* V = md_alloc(3, V_dims, CFL_SIZE);
 		complex float* VH = md_alloc(3, V_dims, CFL_SIZE);
-		float* Sf = xmalloc(N * sizeof(float));
 
-		complex float* S_inv = md_alloc(1, S_dims, CFL_SIZE);	
-		complex float* W1 = md_alloc(3, cov_dims, CFL_SIZE);
+		complex float* W1 = md_alloc(2, L_dims, CFL_SIZE);
+
 		complex float* src2 = md_alloc(3, src2_dims, CFL_SIZE);
 
 		complex float* kernel = md_alloc(2, L_dims, CFL_SIZE);
@@ -283,37 +320,18 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			// calc Gaussian kernel
 			gauss_kernel(L_dims, kernel, src_dims, src2, conf, (i == 0) ? true : false);
 
-			// SVD
-			md_copy(3, cov_dims, kernel_cpy, kernel, CFL_SIZE);
-			lapack_svd(N, N, (complex float (*)[N])V, (complex float (*)[N])VH, Sf, (complex float (*)[N])kernel_cpy); // NOTE: Lapack destroys kernel_cpy!
+			calc_kernel_W(N, kernel, kernel_cpy, W, L, V, VH, gamma);
 
-			
-			// W = V @ (S + eye * gamma)^(-0.5) @ VH
-			for (int j = 0; j < N; j++)
-				S_inv[j] = pow((Sf[j] + gamma), -0.5) + 0 * 1.i;
-			
-			md_zmul2(3, V_dims, V_strs, W1, V_strs, V, S_strs, S_inv);
-			md_ztenmul(3, cov_dims, W, V_dims, W1, VH_dims, VH);
-
-			// L = kernel * W
-			md_zmul(3, V_dims, L, kernel, W);
-
-
-			if (i == iter_max - 1) {
-
-				md_copy(3, V_dims, W, L, CFL_SIZE); // we use W for further processing
+			if (i == iter_max - 1)
 				break;
-			}
-				
 
 			// D = sum(W, axis=-1)
-			md_zsum(3, V_dims, 2, D, L);
+			md_zsum(3, V_dims, 2, D, W);
 
-			// L = -D + L
-			// note: in L we have the negative Laplacian! 
+			// L = -(D - W) negative Laplacian!
 			#pragma omp parallel for
 			for (int l = 0; l < V_dims[0]; l++)
-				L[l * V_dims[0] + l] -= D[l];
+				L[l * V_dims[0] + l] = W[l * V_dims[0] + l] - D[l];
 
 	
 			// W = eye + kernel_lambda * L
@@ -343,14 +361,12 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			gamma /= eta;
 		}
 		
-		md_free(S_inv);
 		md_free(W1);
 		md_free(src2);
 		md_free(V);
 		md_free(VH);
 		md_free(kernel_cpy);
 		md_free(kernel);
-		xfree(Sf);
 
 		break;
 	}
