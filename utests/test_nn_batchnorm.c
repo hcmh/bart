@@ -20,9 +20,12 @@
 
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
+#include "nlops/const.h"
 #include "nlops/nltest.h"
+#include "nlops/nlop_props.h"
 
 #include "nn/batchnorm.h"
+#include "nn/layers.h"
 
 
 #include "utest.h"
@@ -187,3 +190,36 @@ static bool test_nlop_shift_and_scale(void)
 }
 
 UT_REGISTER_TEST(test_nlop_shift_and_scale);
+
+
+static bool test_nlop_bn(void)
+{
+	network_status = STAT_TRAIN;
+	//network_status = STAT_TEST;
+	enum { N = 2 };
+	long idims[N] = { 10, 3 };
+
+	auto nlop = nlop_batchnorm_create(N, idims, MD_BIT(0), 0);
+	const long* statdims = nlop_generic_codomain(nlop, 1)->dims;
+	complex float* tmp = md_alloc(N + 1, statdims, CFL_SIZE);
+
+	nlop = nlop_set_input_const_F(nlop, 1, N + 1, statdims, tmp);
+	nlop = nlop_del_out(nlop, 1);
+	nlop = nlop_set_batchnorm_F(nlop, 0, 0);
+
+	float err_adj = nlop_test_adj_derivatives(nlop, true);
+	float err_der = nlop_test_derivatives(nlop);
+
+	debug_printf(DP_DEBUG1, "Error: der: %.8f, adj: %.8f\n", err_der, err_adj);
+
+	md_free(tmp);
+
+	nlop_free(nlop);
+
+
+	UT_ASSERT((err_der < 5.e-3) && (err_adj < 1.e-6));
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_bn);
