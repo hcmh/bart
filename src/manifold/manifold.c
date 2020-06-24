@@ -277,6 +277,8 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		float eta = 2.;
 			
 		for (int i = 0; i < iter_max; i++) {
+			debug_printf(DP_DEBUG3, "...kernel iteration %d/%d \n", i + 1, iter_max);
+
 
 			// calc Gaussian kernel
 			gauss_kernel(L_dims, kernel, src_dims, src2, conf, (i == 0) ? true : false);

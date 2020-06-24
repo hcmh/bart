@@ -376,7 +376,9 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 	long L_dims[2] = { N, N };
 	complex float* L = md_alloc(2, L_dims, CFL_SIZE);
 
+	debug_printf(DP_DEBUG3, "Calc Laplacian...");
 	calc_laplace(&laplace_conf, L_dims, L, A_dims, A);
+	debug_printf(DP_DEBUG3, "...done\n");
 
 	long U_dims[2] = { N, N };
 	long U_strs[2];
