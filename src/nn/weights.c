@@ -52,17 +52,13 @@ const struct nlop_s* deflatten_weights_create(const struct nlop_s* network, unsi
 		pos += md_calc_size(nlop_generic_domain(network, j)->N, nlop_generic_domain(network, j)->dims);
 
 		if(result == NULL)
-			result = nlop_from_linop(lin_tmp);
+			result = nlop_from_linop_F(lin_tmp);
 		else {
 
-			const struct nlop_s* tmp = nlop_combine(result, nlop_from_linop(lin_tmp));
-			nlop_free(result);
-
-			result = nlop_dup(tmp, 0, 1);
-			nlop_free(tmp);
+			result = nlop_combine_FF(result, nlop_from_linop(lin_tmp));
+			result = nlop_dup_F(result, 0, 1);
         	}
 
-		linop_free(lin_tmp);
 		j += 1;
 
 	}
@@ -77,15 +73,14 @@ const struct nlop_s* deflatten_weights(const struct nlop_s* network, unsigned in
 
 	int o = nlop_get_nr_out_args(network);
 	int count = nlop_get_nr_out_args(deflatten);
+	nlop_free(deflatten);
 
 	for(int i = 0, j = 0; i < count; i++){
 
 		while(MD_IS_SET(flag, j))
             	j += 1;
 
-		struct nlop_s* tmp = nlop_link(result, o, j);
-		nlop_free(result);
-		result = tmp;
+		result = nlop_link_F(result, o, j);
 
 		flag /= 2;
 	}
