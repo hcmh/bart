@@ -6,6 +6,9 @@
 #ifdef USE_CUDA
 #include "num/gpuops.h"
 #include "num/gpukrnls.h"
+#ifdef USE_CUDNN
+#include "num/cudnn_wrapper.h"
+#endif
 #endif
 #include "num/multind.h"
 #include "num/optimize.h"
@@ -52,21 +55,36 @@ zconvcorr_fwd_algo_f* algos_fwd_cpu[] = {	zconvcorr_fwd_im2col_cf_cpu,
 
 zconvcorr_bwd_krn_algo_f* algos_bwd_krn_cpu[] = {	zconvcorr_bwd_krn_im2col_cf_cpu,
 							zconvcorr_bwd_krn_direct_cf};
-					
-zconvcorr_bwd_in_algo_f* algos_bwd_in_cpu[] = {	zconvcorr_bwd_in_direct_cf};
+
+zconvcorr_bwd_in_algo_f* algos_bwd_in_cpu[] = {	zconvcorr_bwd_in_im2col_cf_cpu,
+						zconvcorr_bwd_in_direct_cf};
 
 #ifdef USE_CUDA
-zconvcorr_bwd_krn_algo_f* algos_bwd_krn_gpu[] = {	zconvcorr_bwd_krn_im2col_cf_gpu,
-							zconvcorr_bwd_krn_direct_cf};
+zconvcorr_bwd_krn_algo_f* algos_bwd_krn_gpu[] = {
+						#ifdef USE_CUDNN
+							zconvcorr_bwd_krn_cudnn_2d_cf,
+						#endif
+							zconvcorr_bwd_krn_im2col_cf_gpu,
+							zconvcorr_bwd_krn_direct_cf
+							};
 
-zconvcorr_fwd_algo_f* algos_fwd_gpu[] = {	zconvcorr_fwd_im2col_cf_gpu,
+zconvcorr_fwd_algo_f* algos_fwd_gpu[] = {
+					#ifdef USE_CUDNN
+						zconvcorr_fwd_cudnn_2d_cf,
+						zconvcorr_fwd_cudnn_3d_cf,
+					#endif
+						zconvcorr_fwd_im2col_cf_gpu,
 						zconvcorr_fwd_direct_cf};
 
-zconvcorr_bwd_in_algo_f* algos_bwd_in_gpu[] = {	zconvcorr_bwd_in_im2col_cf_gpu,
+zconvcorr_bwd_in_algo_f* algos_bwd_in_gpu[] = {
+					#ifdef USE_CUDNN
+						zconvcorr_bwd_in_cudnn_2d_cf,
+					#endif
+						zconvcorr_bwd_in_im2col_cf_gpu,
 						zconvcorr_bwd_in_direct_cf};
 #endif
 
-			
+
 
 
 //detect if strides describe convolution
@@ -190,7 +208,7 @@ static bool detect_convcorr(int N, long nodims[N], long nidims[N], long nkdims[N
 		if (result)
 			return result;
 	}
-	
+
 	return false;
 }
 
@@ -284,8 +302,8 @@ static bool simple_zconvcorr_fwd(	unsigned int N, const long dims[N],
 						dilation, strides, conv, false) / size;
 #ifdef USE_CUDA
 
-	if(cuda_ondevice(out)) 
-		for(int i = 0; (unsigned long)i < sizeof(algos_fwd_gpu) / sizeof(algos_fwd_gpu[0]); i++) 
+	if(cuda_ondevice(out))
+		for(int i = 0; (unsigned long)i < sizeof(algos_fwd_gpu) / sizeof(algos_fwd_gpu[0]); i++)
 			if (algos_fwd_gpu[i](	N,
 						odims, MD_STRIDES(N, odims, size), out,
 						idims, MD_STRIDES(N, idims, size), in,
@@ -293,15 +311,15 @@ static bool simple_zconvcorr_fwd(	unsigned int N, const long dims[N],
 						flags, NULL, NULL, conv))
 				return true;
 #endif
-	
-	for(int i = 0; (unsigned long)i < sizeof(algos_fwd_cpu) / sizeof(algos_fwd_cpu[0]); i++) 
+
+	for(int i = 0; (unsigned long)i < sizeof(algos_fwd_cpu) / sizeof(algos_fwd_cpu[0]); i++)
 		if (algos_fwd_cpu[i](	N,
 					odims, MD_STRIDES(N, odims, size), out,
 					idims, MD_STRIDES(N, idims, size), in,
 					kdims, MD_STRIDES(N, kdims, size), krn,
 					flags, NULL, NULL, conv))
 			return true;
-	
+
 	return false;
 }
 
@@ -367,8 +385,8 @@ static bool simple_zconvcorr_bwd_in(	unsigned int N, const long dims[N],
 
 #ifdef USE_CUDA
 
-	if(cuda_ondevice(out)) 
-		for(int i = 0; (unsigned long)i < sizeof(algos_bwd_in_gpu) / sizeof(algos_bwd_in_gpu[0]); i++) 
+	if(cuda_ondevice(out))
+		for(int i = 0; (unsigned long)i < sizeof(algos_bwd_in_gpu) / sizeof(algos_bwd_in_gpu[0]); i++)
 			if (algos_bwd_in_gpu[i](	N,
 						odims, MD_STRIDES(N, odims, size), out,
 						idims, MD_STRIDES(N, idims, size), in,
@@ -376,15 +394,15 @@ static bool simple_zconvcorr_bwd_in(	unsigned int N, const long dims[N],
 						flags, NULL, NULL, conv))
 				return true;
 #endif
-	
-	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_in_cpu) / sizeof(algos_bwd_in_cpu[0]); i++) 
+
+	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_in_cpu) / sizeof(algos_bwd_in_cpu[0]); i++)
 		if (algos_bwd_in_cpu[i](	N,
 					odims, MD_STRIDES(N, odims, size), out,
 					idims, MD_STRIDES(N, idims, size), in,
 					kdims, MD_STRIDES(N, kdims, size), krn,
 					flags, NULL, NULL, conv))
 			return true;
-	
+
 	return false;
 }
 
@@ -450,8 +468,8 @@ static bool simple_zconvcorr_bwd_krn(	unsigned int N, const long dims[N],
 
 #ifdef USE_CUDA
 
-	if(cuda_ondevice(out)) 
-		for(int i = 0; (unsigned long)i < sizeof(algos_bwd_krn_gpu) / sizeof(algos_bwd_krn_gpu[0]); i++) 
+	if(cuda_ondevice(out))
+		for(int i = 0; (unsigned long)i < sizeof(algos_bwd_krn_gpu) / sizeof(algos_bwd_krn_gpu[0]); i++)
 			if (algos_bwd_krn_gpu[i](	N,
 						odims, MD_STRIDES(N, odims, size), out,
 						idims, MD_STRIDES(N, idims, size), in,
@@ -459,15 +477,15 @@ static bool simple_zconvcorr_bwd_krn(	unsigned int N, const long dims[N],
 						flags, NULL, NULL, conv))
 				return true;
 #endif
-	
-	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_krn_cpu) / sizeof(algos_bwd_krn_cpu[0]); i++) 
+
+	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_krn_cpu) / sizeof(algos_bwd_krn_cpu[0]); i++)
 		if (algos_bwd_krn_cpu[i](	N,
 					odims, MD_STRIDES(N, odims, size), out,
 					idims, MD_STRIDES(N, idims, size), in,
 					kdims, MD_STRIDES(N, kdims, size), krn,
 					flags, NULL, NULL, conv))
 			return true;
-	
+
 	return false;
 }
 
@@ -493,11 +511,11 @@ static bool check_trivial_cf_3d(int N, long odims[N], long ostrs[N], long idims[
 		return false;
 	if (5 > md_calc_blockdim(N, kdims, kstrs, size))
 		return false;
-	
+
 	//Check matmul dims
 	if ((28 == flags) && ((1 != idims[0]) || (1 != odims[1])))
 		return false;
-	
+
 	return true;
 
 }
@@ -678,7 +696,7 @@ bool zconvcorr_fwd_im2col_cf_cpu(int N,
 
 	long* idims_matP = idims_mat; // clang
 	long* istrs_matP = istrs_mat;
-	
+
 	long mdims[N - 5];
 	md_tenmul_dims(N - 5, mdims, odims + 5, idims + 5, kdims + 5);
 
@@ -703,7 +721,7 @@ bool zconvcorr_fwd_im2col_cf_cpu(int N,
 	optimized_threeop_oii(N - 5, mdims, ostrs + 5, (void*)out, istrs + 5, (void*)in, kstrs + 5, (void*)krn,
 				(size_t[3]){ size * osize, size * isize, size * ksize},
 				nary_zconvcorr3D_I2C_CF);
-	
+
 	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
 
 	return true;
@@ -753,7 +771,7 @@ bool zconvcorr_bwd_krn_im2col_cf_cpu(int N,
 
 	long* idims_matP = idims_mat; // clang
 	long* istrs_matP = istrs_mat;
-	
+
 	long mdims[N - 5];
 	md_tenmul_dims(N - 5, mdims, odims + 5, idims + 5, kdims + 5);
 
@@ -778,6 +796,82 @@ bool zconvcorr_bwd_krn_im2col_cf_cpu(int N,
 	optimized_threeop_oii(N - 5, mdims, kstrs + 5, (void*)krn, istrs + 5, (void*)in, ostrs + 5, (void*)out,
 				(size_t[3]){ size * ksize, size * isize, size * osize},
 				nary_zconvcorr_im2col);
+
+	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
+
+	return true;
+}
+
+bool zconvcorr_bwd_in_im2col_cf_cpu(int N,
+				long odims[N], long ostrs[N], const complex float* out,
+				long idims[N], long istrs[N], complex float* in,
+				long kdims[N], long kstrs[N], const complex float* krn,
+				unsigned long flags, const long dilation[N], const long strides[N], bool conv)
+{
+#ifdef USE_CUDA
+	if (cuda_ondevice(out))
+		return false;
+#endif
+	size_t size = CFL_SIZE;
+
+	if (!check_trivial_cf_3d(N, odims, ostrs, idims, istrs, kdims, kstrs, flags, dilation, strides, size))
+		return false;
+	if (conv)
+		return false;
+
+
+	long dims_mat[8]; // (1 | nr_in_channel, kx, ky, kz | outx, outy, outz)
+	md_copy_dims(5, dims_mat, kdims);
+	md_copy_dims(3, dims_mat + 5, odims + 2);
+
+	long kdims_mat[8]; // (nr_filter | nr_in_channel, kx, ky, kz | 1, 1, 1 )
+	md_select_dims(8, MD_BIT(5) - 1, kdims_mat, dims_mat);
+	long idims_mat[N + 3]; // (1 | nr_in_channel, kx, ky, kz | outx, outy, outz | ... )
+	md_select_dims(8, ~1ul , idims_mat, dims_mat);
+	md_copy_dims(N - 5, idims_mat + 8, idims + 5);
+	long odims_mat[8]; // (nr_filter | 1, 1, 1, 1 | outx, outy, outz)
+	md_select_dims(8, MD_BIT(0) | MD_BIT(5) | MD_BIT(6) | MD_BIT(7), odims_mat, dims_mat);
+
+	long istrs_mat[8];
+	md_copy_strides(5, istrs_mat, MD_STRIDES(5, idims, size));
+	md_copy_strides(3, istrs_mat + 5, MD_STRIDES(5, idims, size) + 2);
+
+	long osize = odims[0] * odims[1] * odims[2] * odims[3] * odims[4];
+	long ksize = kdims[0] * kdims[1] * kdims[2] * kdims[3] * kdims[4];
+	long isize = idims[0] * idims[1] * idims[2] * idims[3] * idims[4];
+
+	long M1 = dims_mat[0];
+	long K1 = dims_mat[1] * dims_mat[2] * dims_mat[3] * dims_mat[4];
+	long N1 = dims_mat[5] * dims_mat[6] * dims_mat[7];
+
+	long* idims_matP = idims_mat; // clang
+	long* istrs_matP = istrs_mat;
+
+	long mdims[N - 5];
+	md_tenmul_dims(N - 5, mdims, odims + 5, idims + 5, kdims + 5);
+
+	NESTED(void, nary_zconvcorr3D_I2C_CF, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		for (long i = 0; i < data->size; i++){
+
+			complex float* imat_tmp = md_alloc_sameplace(8, idims_matP, size, in);
+			md_clear(8, idims_matP, imat_tmp, size);
+
+			blas_matrix_zfmac(	K1, N1, M1,
+						imat_tmp,
+						(complex float*)ptr[2] + i * ksize, 'T',
+						(complex float*)ptr[1] + i * osize, 'N'
+						);
+
+			md_zadd2(8, idims_matP, istrs_matP, (complex float*)ptr[0] + i * isize, istrs_matP, (const complex float*)ptr[0] + i * isize, MD_STRIDES(8, idims_matP, size), imat_tmp);
+
+			md_free(imat_tmp);
+		}
+	};
+
+	optimized_threeop_oii(N - 5, mdims, istrs + 5, (void*)in, ostrs + 5, (void*)out, kstrs + 5, (void*)krn,
+				(size_t[3]){ size * osize, size * isize, size * ksize},
+				nary_zconvcorr3D_I2C_CF);
 
 	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
 
@@ -987,7 +1081,7 @@ bool test_zconvcorr_fwd(	int N, long odims[N], long ostrs[N], long idims[N], lon
 
 	md_gaussian_rand(N, idims, iptr);
 	md_gaussian_rand(N, kdims, kptr);
-	
+
 	md_clear(N, odims, optr, CFL_SIZE);
 	md_clear(N, odims, optr_ref, CFL_SIZE);
 
@@ -1016,15 +1110,15 @@ bool test_zconvcorr_fwd(	int N, long odims[N], long ostrs[N], long idims[N], lon
 
 	long counter_cpu = 0;
 	long counter_gpu = 0;
-	
-	for(int i = 0; (unsigned long)i < sizeof(algos_fwd_cpu) / sizeof(algos_fwd_cpu[0]); i++) 
+
+	for(int i = 0; (unsigned long)i < sizeof(algos_fwd_cpu) / sizeof(algos_fwd_cpu[0]); i++)
 		if (algos_fwd_cpu[i](N, odims, ostrs, optr, idims, istrs, iptr, kdims, kstrs, kptr, flags, strides, dilation, conv)) {
-			
+
 			float err = md_znrmse(N, odims, optr_ref, optr);
 			debug_printf(DP_DEBUG1, "error zconvcorr_fwd cpu algo %d: %.8f\n", i, err);
 			md_clear(N, odims, optr, CFL_SIZE);
 			counter_cpu += 1;
-			
+
 			result = result && (max_nrmse > err);
 		}
 
@@ -1037,13 +1131,13 @@ bool test_zconvcorr_fwd(	int N, long odims[N], long ostrs[N], long idims[N], lon
 	md_copy(N, idims, iptr_gpu, iptr, CFL_SIZE);
 	md_copy(N, kdims, kptr_gpu, kptr, CFL_SIZE);
 	md_clear(N, odims, optr_gpu, CFL_SIZE);
-	
-	for(int i = 0; (unsigned long)i < sizeof(algos_fwd_gpu) / sizeof(algos_fwd_gpu[0]); i++) 
+
+	for(int i = 0; (unsigned long)i < sizeof(algos_fwd_gpu) / sizeof(algos_fwd_gpu[0]); i++)
 		if (algos_fwd_gpu[i](N, odims, ostrs, optr_gpu, idims, istrs, iptr_gpu, kdims, kstrs, kptr_gpu, flags, strides, dilation, conv)) {
 
 			md_copy(N, odims, optr, optr_gpu, CFL_SIZE);
 			md_clear(N, odims, optr_gpu, CFL_SIZE);
-			
+
 			float err = md_znrmse(N, odims, optr_ref, optr);
 			debug_printf(DP_DEBUG1, "error zconvcorr_fwd gpu algo %d: %.8f\n", i, err);
 			counter_gpu += 1;
@@ -1091,7 +1185,7 @@ bool test_zconvcorr_bwd_in(	int N, long odims[N], long ostrs[N], long idims[N], 
 
 	md_gaussian_rand(N, odims, optr);
 	md_gaussian_rand(N, kdims, kptr);
-	
+
 	md_clear(N, idims, iptr, CFL_SIZE);
 	md_clear(N, idims, iptr_ref, CFL_SIZE);
 
@@ -1105,8 +1199,8 @@ bool test_zconvcorr_bwd_in(	int N, long odims[N], long ostrs[N], long idims[N], 
 						kdims, kstrs,
 						idims, istrs,
 						dilation, strides, conv, false);
-	
-	
+
+
 
 #if 1
 	//force standard zfmac algorithm
@@ -1122,15 +1216,15 @@ bool test_zconvcorr_bwd_in(	int N, long odims[N], long ostrs[N], long idims[N], 
 
 	long counter_cpu = 0;
 	long counter_gpu = 0;
-	
-	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_in_cpu) / sizeof(algos_bwd_in_cpu[0]); i++) 
+
+	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_in_cpu) / sizeof(algos_bwd_in_cpu[0]); i++)
 		if (algos_bwd_in_cpu[i](N, odims, ostrs, optr, idims, istrs, iptr, kdims, kstrs, kptr, flags, strides, dilation, conv)) {
-			
+
 			float err = md_znrmse(N, idims, iptr_ref, iptr);
 			debug_printf(DP_DEBUG1, "error zconvcorr_bwd_in cpu algo %d: %.8f\n", i, err);
 			md_clear(N, idims, iptr, CFL_SIZE);
 			counter_cpu += 1;
-			
+
 			result = result && (max_nrmse > err);
 		}
 
@@ -1143,13 +1237,13 @@ bool test_zconvcorr_bwd_in(	int N, long odims[N], long ostrs[N], long idims[N], 
 	md_copy(N, odims, optr_gpu, optr, CFL_SIZE);
 	md_copy(N, kdims, kptr_gpu, kptr, CFL_SIZE);
 	md_clear(N, idims, iptr_gpu, CFL_SIZE);
-	
-	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_in_gpu) / sizeof(algos_bwd_in_gpu[0]); i++) 
+
+	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_in_gpu) / sizeof(algos_bwd_in_gpu[0]); i++)
 		if (algos_bwd_in_gpu[i](N, odims, ostrs, optr_gpu, idims, istrs, iptr_gpu, kdims, kstrs, kptr_gpu, flags, strides, dilation, conv)) {
 
 			md_copy(N, idims, iptr, iptr_gpu, CFL_SIZE);
 			md_clear(N, idims, iptr_gpu, CFL_SIZE);
-			
+
 			float err = md_znrmse(N, idims, iptr_ref, iptr);
 			debug_printf(DP_DEBUG1, "error zconvcorr_bwd_in gpu algo %d: %.8f\n", i, err);
 			counter_gpu += 1;
@@ -1197,7 +1291,7 @@ bool test_zconvcorr_bwd_krn(	int N, long odims[N], long ostrs[N], long idims[N],
 
 	md_gaussian_rand(N, odims, optr);
 	md_gaussian_rand(N, idims, iptr);
-	
+
 	md_clear(N, kdims, kptr, CFL_SIZE);
 	md_clear(N, kdims, kptr_ref, CFL_SIZE);
 
@@ -1211,7 +1305,7 @@ bool test_zconvcorr_bwd_krn(	int N, long odims[N], long ostrs[N], long idims[N],
 						kdims, kstrs,
 						idims, istrs,
 						dilation, strides, conv, false);
-	
+
 #if 1
 	//force standard zfmac algorithm
 	NESTED(void, nary_z3op, (struct nary_opt_data_s* data, void* ptr[]))
@@ -1226,15 +1320,15 @@ bool test_zconvcorr_bwd_krn(	int N, long odims[N], long ostrs[N], long idims[N],
 
 	long counter_cpu = 0;
 	long counter_gpu = 0;
-	
-	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_krn_cpu) / sizeof(algos_bwd_krn_cpu[0]); i++) 
+
+	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_krn_cpu) / sizeof(algos_bwd_krn_cpu[0]); i++)
 		if (algos_bwd_krn_cpu[i](N, odims, ostrs, optr, idims, istrs, iptr, kdims, kstrs, kptr, flags, strides, dilation, conv)) {
-			
+
 			float err = md_znrmse(N, kdims, kptr_ref, kptr);
 			debug_printf(DP_DEBUG1, "error zconvcorr_bwd_krn cpu algo %d: %.8f\n", i, err);
 			md_clear(N, kdims, kptr, CFL_SIZE);
 			counter_cpu += 1;
-			
+
 			result = result && (max_nrmse > err);
 		}
 
@@ -1247,13 +1341,13 @@ bool test_zconvcorr_bwd_krn(	int N, long odims[N], long ostrs[N], long idims[N],
 	md_copy(N, odims, optr_gpu, optr, CFL_SIZE);
 	md_copy(N, idims, iptr_gpu, iptr, CFL_SIZE);
 	md_clear(N, kdims, kptr_gpu, CFL_SIZE);
-	
-	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_krn_gpu) / sizeof(algos_bwd_krn_gpu[0]); i++) 
+
+	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_krn_gpu) / sizeof(algos_bwd_krn_gpu[0]); i++)
 		if (algos_bwd_krn_gpu[i](N, odims, ostrs, optr_gpu, idims, istrs, iptr_gpu, kdims, kstrs, kptr_gpu, flags, strides, dilation, conv)) {
 
 			md_copy(N, kdims, kptr, kptr_gpu, CFL_SIZE);
 			md_clear(N, kdims, kptr_gpu, CFL_SIZE);
-			
+
 			float err = md_znrmse(N, kdims, kptr_ref, kptr);
 			debug_printf(DP_DEBUG1, "error zconvcorr_bwd_krn gpu algo %d: %.8f\n", i, err);
 			counter_gpu += 1;
@@ -1287,15 +1381,3 @@ bool test_zconvcorr_bwd_krn(	int N, long odims[N], long ostrs[N], long idims[N],
 
 	return result;
 }
-
-
-
-	
-	
-
-
-	
-
-	
-
-

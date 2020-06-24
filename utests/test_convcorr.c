@@ -37,7 +37,7 @@ static bool test_convcorr_bwd_in_cf(void)
 					idims, MD_STRIDES(N, idims, CFL_SIZE),
 					kdims, MD_STRIDES(N, kdims, CFL_SIZE),
 					28, NULL, NULL, false,
-					1.e-6, 1, 2);
+					1.e-6, 2, 2);
 
 	UT_ASSERT(test);
 }
@@ -60,5 +60,3 @@ static bool test_convcorr_bwd_krn_cf(void)
 	UT_ASSERT(test);
 }
 UT_REGISTER_TEST(test_convcorr_bwd_krn_cf);
-
-

@@ -24,6 +24,7 @@ zconvcorr_bwd_in_algo_f zconvcorr_bwd_in_direct_cf;
 zconvcorr_bwd_krn_algo_f zconvcorr_bwd_krn_direct_cf;
 
 zconvcorr_fwd_algo_f zconvcorr_fwd_im2col_cf_cpu;
+zconvcorr_bwd_in_algo_f zconvcorr_bwd_in_im2col_cf_cpu;
 zconvcorr_bwd_krn_algo_f zconvcorr_bwd_krn_im2col_cf_cpu;
 
 zconvcorr_fwd_algo_f zconvcorr_fwd_im2col_cf_gpu;
