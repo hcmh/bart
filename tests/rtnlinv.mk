@@ -35,7 +35,18 @@ tests/test-rtnlinv-precomp: traj scale phantom ones repmat fft nufft rtnlinv fma
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-rtnlinv-nlinv-noncart: traj scale phantom rtnlinv nlinv nrmse
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
+	$(TOOLDIR)/traj -r -x128 -y21 traj.ra				;\
+	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra					;\
+	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra				;\
+	$(TOOLDIR)/nlinv -w1. -N -i9 -t traj2.ra ksp.ra r1.ra c1.ra		;\
+	$(TOOLDIR)/rtnlinv -w1. -N -i9 -t traj2.ra ksp.ra r2.ra c2.ra		;\
+	$(TOOLDIR)/nrmse -t 0.00001 r2.ra r1.ra					;\
+	$(TOOLDIR)/nrmse -t 0.00001 c2.ra c1.ra					;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
 
-TESTS += tests/test-rtnlinv tests/test-rtnlinv-precomp
+TESTS += tests/test-rtnlinv tests/test-rtnlinv-precomp tests/test-rtnlinv-nlinv-noncart
 #TESTS += tests/test-rtnlinv-precomp
 
