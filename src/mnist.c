@@ -43,9 +43,12 @@ int main_mnist(int argc, char* argv[])
 	bool predict = false;
 	bool accuracy = false;
 	bool use_gpu = false;
+	bool use_bn = false;
 
 	long N_batch = 0;
 	long epochs = 1;
+
+
 
 	const struct opt_s opts[] = {
 
@@ -54,13 +57,19 @@ int main_mnist(int argc, char* argv[])
 		OPT_LONG('e', &epochs, "", "number of epochs for training"),
 		OPT_SET('p', &predict, "predict digits"),
 		OPT_SET('a', &accuracy, "print accuracy"),
+		OPT_SET('n', &use_bn, "use batch normalization"),
 		OPT_LONG('b', &N_batch, "", "batch size for training/prediction"),
 		OPT_SET('g', &use_gpu, "run on gpu")
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
-	long dims_weights[] = {nn_mnist_get_num_weights()};
+	enum MNIST_NETWORK_TYPE network_type = MNIST_NETWORK_DEFAULT;
+	if (use_bn)
+		network_type = MNIST_NETWORK_BATCHNORM;
+
+
+	long dims_weights[] = {nn_mnist_get_num_weights(network_type)};
 
 	complex float* weights;
 	complex float* in;
@@ -70,11 +79,13 @@ int main_mnist(int argc, char* argv[])
 
 		printf("Init weights\n");
 		weights = create_cfl(argv[2], 1, dims_weights);
-		init_nn_mnist(weights);
+		init_nn_mnist(network_type, weights);
 		unmap_cfl(1, dims_weights, weights);
 	}
 
 	weights = load_shared_cfl(argv[2], 1, dims_weights);
+	if (dims_weights[0] != nn_mnist_get_num_weights(network_type))
+		error("Dimensions of weights do not fit to the network!\n");
 
 	long dims_in[3];
 	long dims_out[2];
@@ -101,7 +112,7 @@ int main_mnist(int argc, char* argv[])
 		md_copy(2, dims_out, out_gpu, out, CFL_SIZE);
 
 		printf("Train\n");
-		train_nn_mnist(N_batch, dims_in[2], weights_gpu, in_gpu, out_gpu, epochs);
+		train_nn_mnist(network_type, N_batch, dims_in[2], weights_gpu, in_gpu, out_gpu, epochs);
 
 		md_copy(1, dims_weights, weights, weights_gpu, CFL_SIZE);
 
@@ -117,7 +128,7 @@ int main_mnist(int argc, char* argv[])
 		if (train){
 
 			printf("Train\n");
-			train_nn_mnist(N_batch, dims_in[2], weights, in, out, epochs);
+			train_nn_mnist(network_type, N_batch, dims_in[2], weights, in, out, epochs);
 		}
 	}
 
@@ -125,12 +136,12 @@ int main_mnist(int argc, char* argv[])
 	if (predict){
 
 		printf("Predict first %ld numbers:\n", N_batch);
-		predict_nn_mnist(N_batch, prediction, weights, in);
+		predict_nn_mnist(network_type, N_batch, N_batch, prediction, weights, in);
 		print_long(N_batch, prediction);
 	}
 
 	if (accuracy)
-        	printf("Accuracy = %f\n", accuracy_nn_mnist(N_batch, weights, in, out));
+        	printf("Accuracy = %f\n", accuracy_nn_mnist(network_type, dims_in[2] , N_batch, weights, in, out));
 
 
 	unmap_cfl(2, dims_out, out);
