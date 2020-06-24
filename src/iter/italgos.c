@@ -1002,6 +1002,8 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 
 						vops->copy(isize[i], x[i], args[o]);
 					}
+
+					batchnorm_counter++;
 				}
 			}
 
