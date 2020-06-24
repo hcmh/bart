@@ -366,15 +366,25 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 	} // end switch
 
+	// Adjacency matrix (weight matrix) W must have zeros on main diagonal
+	/* This is not necessary when using the definition L = D - W, 
+	but it is important for P = D^{-1} @ W */
+	#pragma omp parallel for
+	for (int i = 0; i < L_dims[0]; i++)
+			W[i + L_dims[0] * i] = 0;
+
 	// D
 	md_zsum(2, L_dims, PHS1_FLAG, D, W);
 
 	if (conf->dmap) {
 
+
 		// "L" := D^{-1} @ W  (=: P transition probability matrix)
 		#pragma omp parallel for
-		for (int i = 0; i < L_dims[0]; i++)
+		for (int i = 0; i < L_dims[0]; i++) {
+		
 			D[i] = 1. / D[i];	
+		}
 
 		md_ztenmul(2, L_dims, L, L_dims, W, D_dims, D);					
 
