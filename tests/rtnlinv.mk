@@ -47,6 +47,18 @@ tests/test-rtnlinv-nlinv-noncart: traj scale phantom rtnlinv nlinv nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-TESTS += tests/test-rtnlinv tests/test-rtnlinv-precomp tests/test-rtnlinv-nlinv-noncart
+tests/test-rtnlinv-nlinv-pseudocart: scale phantom ones rtnlinv nlinv nrmse
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
+	$(TOOLDIR)/phantom -s8 -k -x 128  ksp.ra				;\
+	$(TOOLDIR)/ones 2 128 128 psf.ra				;\
+	$(TOOLDIR)/nlinv -w1. -N -i9 -f1. -n ksp.ra r1.ra c1.ra		;\
+	$(TOOLDIR)/rtnlinv -w1. -N -i9 -f1. -p psf.ra ksp.ra r2.ra c2.ra		;\
+	$(TOOLDIR)/nrmse -t 0.00001 r2.ra r1.ra					;\
+	$(TOOLDIR)/nrmse -t 0.00001 c2.ra c1.ra					;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+
+TESTS += tests/test-rtnlinv tests/test-rtnlinv-precomp tests/test-rtnlinv-nlinv-noncart tests/test-rtnlinv-nlinv-pseudocart
 #TESTS += tests/test-rtnlinv-precomp
 
