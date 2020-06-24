@@ -132,8 +132,8 @@ static bool test_linear_layer_gpu(void)
 	unsigned int N = 5;
 	long indims[] = {3, 4, 6, 1, 2};
 
-	auto op_cpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), ACT_LIN, 0, MD_BIT(0));
-	auto op_gpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), ACT_LIN, 0, MD_BIT(0));
+	auto op_cpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), 0, ACT_LIN, MD_BIT(0));
+	auto op_gpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), 0, ACT_LIN, MD_BIT(0));
 
 
 	float err = compare_gpu(op_cpu, op_gpu);
@@ -153,8 +153,8 @@ static bool test_relu_layer_gpu(void)
 	unsigned int N = 5;
 	long indims[] = {3, 4, 6, 1, 2};
 
-	auto op_cpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), ACT_RELU, 0, MD_BIT(0));
-	auto op_gpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), ACT_RELU, 0, MD_BIT(0));
+	auto op_cpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), 0, ACT_RELU, MD_BIT(0));
+	auto op_gpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), 0, ACT_RELU, MD_BIT(0));
 
 	float err = compare_gpu(op_cpu, op_gpu);
 
@@ -174,8 +174,8 @@ static bool test_softmax_layer_gpu(void)
 	unsigned int N = 2;
 	long indims[] = {7,20};
 
-	auto op_cpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), ACT_SOFTMAX, 0, MD_BIT(0));
-	auto op_gpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), ACT_SOFTMAX, 0, MD_BIT(0));
+	auto op_cpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), 0, ACT_SOFTMAX, MD_BIT(0));
+	auto op_gpu = append_activation_bias(nlop_from_linop(linop_identity_create(N, indims)), 0, ACT_SOFTMAX, MD_BIT(0));
 
 	float err = compare_gpu(op_cpu, op_gpu);
 

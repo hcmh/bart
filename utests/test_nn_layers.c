@@ -352,15 +352,15 @@ UT_REGISTER_TEST(test_conv_transp);
 
 static bool test_mpool_der(void)
 {
-	unsigned int N = 5;	
-	long indims[] = {2, 6, 1, 1, 2}; //channel, x, y, z, batch 
-	long outdims[] = {2, 2, 1, 1, 2}; //channel, x, y, z, batch 
+	unsigned int N = 5;
+	long indims[] = {2, 6, 1, 1, 2}; //channel, x, y, z, batch
+	long outdims[] = {2, 2, 1, 1, 2}; //channel, x, y, z, batch
 
 	//digits reference, e.g. 1204.: batch(1), channel(2), count(04)
 	complex float in[] = {	1101., 1202., 1103., 1204., 1105., 1206., 1107., 1208., 1109., 1210., 1111., 1212.,
 				2103., 2204., 2101., 2202., 2107., 2208., 2105., 2206., 2109., 2210., 2111., 2212. };
-	
-	complex float adj_exp[] = {	0., 0., 0., 0., 1105., 1206., 0., 0., 0., 0., 1111., 1212., 
+
+	complex float adj_exp[] = {	0., 0., 0., 0., 1105., 1206., 0., 0., 0., 0., 1111., 1212.,
 					0., 0., 0., 0., 2107., 2208., 0., 0., 0., 0., 2111., 2212. };
 
 	complex float out_exp[] = {	1105., 1206., 1111., 1212.,
@@ -410,7 +410,7 @@ static bool test_relu_der(void)
 	const struct nlop_s* network = nlop_from_linop(id);
 	linop_free(id);
 
-	network = append_activation(network, ACT_RELU, 0);
+	network = append_activation(network, 0, ACT_RELU);
 
 	float err_adj = nlop_test_adj_derivatives(network, true);
 	float err_der = nlop_test_derivatives(network);
@@ -428,13 +428,13 @@ static bool test_nlop_rbf(void)
 {
  	enum { N = 3 };
  	long dims[N] = { 4, 3, 5};
-	
+
 	auto op = nlop_activation_rbf_create(dims, 1., -1.);
 	auto op_gpu = nlop_activation_rbf_create(dims, 1., -1.);
 
 	float err_adj = nlop_test_adj_derivatives(op, true);
 	float err_der = nlop_test_derivatives(op);
-	
+
 	#ifdef USE_CUDA
 	float err = compare_gpu(op, op_gpu);
 	#else

@@ -49,15 +49,23 @@ static void perm_shift(int N, int from, int to, int perm[N])
 	}
 }
 
-const struct nlop_s* append_activation(const struct nlop_s* network, enum ACTIVATION activation, long index)
+/**
+ * Append activation to nlop, free input and return nlop with appended activation
+ *
+ * @param network operator to append the activation (this operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param activation type of activation
+ */
+const struct nlop_s* append_activation(const struct nlop_s* network, int o, enum ACTIVATION activation)
 {
-	long N = nlop_generic_codomain(network, 0)->N;
+	long N = nlop_generic_codomain(network, o)->N;
 	long dims[N];
-	md_copy_dims(N, dims, nlop_generic_codomain(network, 0)->dims);
+	md_copy_dims(N, dims, nlop_generic_codomain(network, o)->dims);
 
 	long NO = nlop_get_nr_out_args(network);
+	assert(o < NO);
 	int perm_out[NO];
-	perm_shift(NO, 0, index, perm_out);
+	perm_shift(NO, 0, o, perm_out);
 
 	switch (activation){
 
@@ -67,19 +75,19 @@ const struct nlop_s* append_activation(const struct nlop_s* network, enum ACTIVA
 
 		case ACT_RELU:
 
-			network = nlop_chain2_FF(network, 0, nlop_relu_create(N, dims), 0);
+			network = nlop_chain2_FF(network, o, nlop_relu_create(N, dims), 0);
 			network = nlop_permute_outputs_F(network, NO, perm_out);
 			break;
 
 		case ACT_SOFTMAX:
 
-			network = nlop_chain2_FF(network, 0, nlop_softmax_create(N, dims, MD_BIT(N - 1)), 0);
+			network = nlop_chain2_FF(network, o, nlop_softmax_create(N, dims, MD_BIT(N - 1)), 0);
 			network = nlop_permute_outputs_F(network, NO, perm_out);
 			break;
 
 		case ACT_SIGMOID:
 
-			network = nlop_chain2_FF(network, 0, nlop_sigmoid_create(N, dims), 0);
+			network = nlop_chain2_FF(network, o, nlop_sigmoid_create(N, dims), 0);
 			network = nlop_permute_outputs_F(network, NO, perm_out);
 			break;
 	}
@@ -88,17 +96,25 @@ const struct nlop_s* append_activation(const struct nlop_s* network, enum ACTIVA
 }
 
 
-
-const struct nlop_s* append_activation_bias(const struct nlop_s* network, enum ACTIVATION activation, long index, unsigned long bflags)
+/**
+ * Append activation and bias to nlop, free input and return nlop with appended activation
+ *
+ * @param network operator to append the activation (this operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param activation type of activation
+ * @param bflags select the dims of the bias, i.e. the dims which are not shared
+ */
+const struct nlop_s* append_activation_bias(const struct nlop_s* network, int o, enum ACTIVATION activation, unsigned long bflags)
 {
 	long NI = nlop_get_nr_in_args(network);
 	long NO = nlop_get_nr_out_args(network);
+	assert(o < NO);
 
 	const struct nlop_s* nlop_act;
 
-	long N = nlop_generic_codomain(network, 0)->N;
+	long N = nlop_generic_codomain(network, o)->N;
 	long dims[N];
-	md_copy_dims(N, dims, nlop_generic_codomain(network, 0)->dims);
+	md_copy_dims(N, dims, nlop_generic_codomain(network, o)->dims);
 	long bdims[N];
 	md_select_dims(N, bflags, bdims, dims);
 
@@ -130,14 +146,14 @@ const struct nlop_s* append_activation_bias(const struct nlop_s* network, enum A
 			assert(0);
 	}
 
-	network = nlop_chain2_FF(network, index, nlop_act, 0);
+	network = nlop_chain2_FF(network, o, nlop_act, 0);
 
 	int perm_in[NI + 1];
 	perm_shift(NI + 1, 0, NI, perm_in);
 	network = nlop_permute_inputs_F(network, NI + 1, perm_in);
 
 	int perm_out[NO];
-	perm_shift(NO, 0, index, perm_out);
+	perm_shift(NO, 0, o, perm_out);
 	network = nlop_permute_outputs_F(network, NO, perm_out);
 
 	long bdims_layer[N];

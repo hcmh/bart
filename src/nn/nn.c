@@ -77,7 +77,7 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
         	long dilation[] = {1, 1, 1};
 
         	nl = append_convcorr_layer(nl, 0, filters, kernel_size, true, PAD_SAME, false, strides, dilation);
-		nl = append_activation_bias(nl, (l < layers - 1) ? ACT_RELU : ACT_LIN, 0, MD_BIT(3));
+		nl = append_activation_bias(nl, 0, (l < layers - 1) ? ACT_RELU : ACT_LIN, MD_BIT(3));
 
 		long bdims[] = {filters};
         	nl = nlop_set_input_const_F(nl, 1, 5, krn_dims, krn + l * md_calc_size(5, krn_dims));

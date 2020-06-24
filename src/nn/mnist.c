@@ -82,18 +82,18 @@ const struct nlop_s* get_nn_mnist(int N_batch)
 	bool conv = false;
 
 	network = append_convcorr_layer(network, 0, 32, kernel_size, conv, PAD_VALID, true, NULL, NULL);
-	network = append_activation_bias(network, ACT_RELU, 0, MD_BIT(0));
+	network = append_activation_bias(network, 0, ACT_RELU, MD_BIT(0));
 	network = append_convcorr_layer(network, 0, 64, kernel_size, conv, PAD_VALID, true, NULL, NULL);
-	network = append_activation_bias(network, ACT_RELU, 0, MD_BIT(0));
+	network = append_activation_bias(network, 0, ACT_RELU, MD_BIT(0));
 	network = append_maxpool_layer(network, 0, pool_size, PAD_VALID, true);
 
 	network = append_flatten_layer(network, 0);
 	network = append_dropout_layer(network, 0, 0.25);
 	network = append_dense_layer(network, 0, 128);
-	network = append_activation_bias(network, ACT_RELU, 0, MD_BIT(0));
+	network = append_activation_bias(network, 0, ACT_RELU, MD_BIT(0));
 	network = append_dropout_layer(network, 0, 0.5);
 	network = append_dense_layer(network, 0, 10);
-	network = append_activation_bias(network, ACT_SOFTMAX, 0, MD_BIT(0));
+	network = append_activation_bias(network, 0, ACT_SOFTMAX, MD_BIT(0));
 
 	return network;
 }
