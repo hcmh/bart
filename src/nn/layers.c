@@ -159,19 +159,17 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, 5, odims_layer);
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, 5, idims_layer);
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, 5, kdims_layer);
-	const struct nlop_s* tmp = nlop_chain2_FF(network, o, nlop_conv, 0);
+	network = nlop_chain2_FF(network, o, nlop_conv, 0);
 
 	int perm_in[NI + 1];
 	perm_shift(NI + 1, 0, NI, perm_in);
-	struct nlop_s* tmp_in = nlop_permute_inputs(tmp, NI + 1, perm_in);
-	//nlop_free(tmp);
+	network = nlop_permute_inputs_F(network, NI + 1, perm_in);
 
 	int perm_out[NO];
 	perm_shift(NO, 0, o, perm_out);
-	const struct nlop_s* result = nlop_permute_outputs(tmp_in, NO, perm_out);
-	//nlop_free(tmp_in);
+	network = nlop_permute_outputs_F(network, NO, perm_out);
 
-	return result;
+	return network;
 }
 
 /**
@@ -376,9 +374,7 @@ const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, c
 		pool_op = nlop_chain_FF(nlop_res, pool_op);
     	}
 
-	struct nlop_s* tmp = nlop_chain2(network, o, pool_op, 0);
-	nlop_free(network);
-	nlop_free(pool_op);
+	struct nlop_s* tmp = nlop_chain2_FF(network, o, pool_op, 0);
 
 	int perm_out[NO];
 	perm_shift(NO, 0, o, perm_out);
@@ -420,13 +416,11 @@ const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int
 	long wdims_working[] = {out_neurons, in_neurons, 1}; // out neurons, in neurons
 
 	const struct nlop_s* matmul = nlop_tenmul_create(3, odims_working, idims_working, wdims_working);
-	matmul = nlop_reshape_out(matmul, 0, 2, odims_layer);
-	matmul = nlop_reshape_in(matmul, 0, 2, idims_layer);
-	matmul = nlop_reshape_in(matmul, 1, 2, wdims_layer);
+	matmul = nlop_reshape_out_F(matmul, 0, 2, odims_layer);
+	matmul = nlop_reshape_in_F(matmul, 0, 2, idims_layer);
+	matmul = nlop_reshape_in_F(matmul, 1, 2, wdims_layer);
 
-	const struct nlop_s* tmp = nlop_chain2(network, o, matmul, 0);
-	nlop_free(network);
-	nlop_free(matmul);
+	const struct nlop_s* tmp = nlop_chain2_FF(network, o, matmul, 0);
 
 	int perm_in[NI + 1];
 	perm_shift(NI + 1, 0, NI, perm_in);
@@ -461,9 +455,7 @@ const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, f
 	md_copy_dims(N, idims, nlop_generic_codomain(network, o)->dims);
 
 	const struct nlop_s* dropout_op = nlop_dropout_create(N, idims, p, 0);
-	const struct nlop_s* tmp = nlop_chain2(network, o, dropout_op, 0);
-	nlop_free(network);
-	nlop_free(dropout_op);
+	const struct nlop_s* tmp = nlop_chain2_FF(network, o, dropout_op, 0);
 
 	int perm_out[NO];
 	perm_shift(NO, 0, o, perm_out);
@@ -494,19 +486,18 @@ const struct nlop_s* append_flatten_layer(const struct nlop_s* network, int o)
 	long size = md_calc_size(N - 1, idims);
 	long odims[] = {size, idims[N - 1]};
 
-	return nlop_reshape_out(network, o, 2, odims);
+	return nlop_reshape_out_F(network, o, 2, odims);
 }
 
 /**
- * Append flatten layer
- * flattens all dimensions except the last one (batch dim)
+ * Append padding layer
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
  * @param N number of dimensions
- * @param padd_for 
+ * @param padd_for
  * @param padd_after
- * @param pad_type 
+ * @param pad_type
  */
 const struct nlop_s* append_padding_layer(const struct nlop_s* network, int o, long N, long pad_for[N], long pad_after[N], enum PADDING pad_type)
 {
