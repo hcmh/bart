@@ -26,7 +26,7 @@ tests/test-sim-analy-irbssfp: sim nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
 	$(TOOLDIR)/sim -P 1:1:0.0045:0.00225:0.001:45:1000 -1 3:3:1 -2 1:1:1 analytical.ra	;\
 	$(TOOLDIR)/sim -P 0:1:0.0045:0.00225:0.00001:45:1000 -1 3:3:1 -2 1:1:1 simu.ra		;\
-	$(TOOLDIR)/nrmse -t 0.008 analytical.ra simu.ra			    		;\
+	$(TOOLDIR)/nrmse -t 0.01 analytical.ra simu.ra			    		;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
