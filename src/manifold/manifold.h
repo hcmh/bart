@@ -16,6 +16,7 @@ struct laplace_conf {
 	float sigma;	 	// standard deviation
 	_Bool temporal_nn; 	// Laplacian for temporal nearest neigbours
 	_Bool kernel;		// kernel approach
+	_Bool kernel_CG;	// CG kernel approach
 	float kernel_lambda;// kernel lambda weighting
 	_Bool norm;	 		// output D^-1 @ L (output normalized Laplacian, where L = D - W)
 	_Bool anisotrop;	// anisotropic sampling

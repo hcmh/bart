@@ -44,6 +44,7 @@ int main_laplace(int argc, char* argv[])
 		OPT_SET('a', &conf.anisotrop, "Anisotropy correction"),
 		OPT_SET('T', &conf.temporal_nn, "Temporal nearest neighbours"),
 		OPT_SET('k', &conf.kernel, "kernel approach"),
+		OPT_SET('C', &conf.kernel_CG, "CG kernel approach"),
 		OPT_FLOAT('K', &conf.kernel_lambda, "lambda", "[Kernel] Lambda"),
 		OPT_INT('I', &conf.iter_max, "iter", "[Kernel] Number of iterations"),
 	};

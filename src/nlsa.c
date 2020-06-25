@@ -85,6 +85,7 @@ int main_nlsa(int argc, char* argv[])
 		OPT_INT('N', &conf.nn, "nn", "Number of nearest neighbours"),
 		OPT_FLOAT('S', &conf.sigma, "sigma", "Standard deviation"),
 		OPT_SET('K', &conf.kernel, "Kernel approach"),
+		OPT_SET('C', &conf.kernel_CG, "CG kernel approach"),
 		OPT_INT('i', &conf.iter_max, "iter", "[Kernel] Number of kernel iterations"),
 		OPT_FLOAT('s', &nlsa_conf.weight, "exp", "Soft delay-embedding"),
 
