@@ -387,7 +387,7 @@ int main_modbloch(int argc, char* argv[])
 		scaling = 500;
 
 #else	// full data based scaling of data
-	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data) * ksp_dims[2];
+	double scaling = 10000. / md_znorm(DIMS, grid_dims, k_grid_data) * ksp_dims[2];
 	// double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
 #endif
 
