@@ -484,11 +484,11 @@ static bool test_T1_MOLLI_relax(void)
         float scaling_R1s = 1.0;
         float regularization = 1e-6;    
         
-        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1);
-        struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI_2);
-        struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1_2);
-        struct nlop_s* T1_2 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI_2);
-        struct nlop_s* T1s_3 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1_2);
+        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1, false);
+        struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI_2, false);
+        struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1_2, false);
+        struct nlop_s* T1_2 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI_2, false);
+        struct nlop_s* T1s_3 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1_2, false);
         
         // first chain: T1(T1s)
         struct nlop_s* T1c_combine = nlop_combine(T1_1, T1s_1);
@@ -705,7 +705,7 @@ static bool test_nlop_T1_MOLLI_relax_der_adj(void)
         md_copy(N, TI_dims, TI1, TI_1, CFL_SIZE);
         md_copy(N, TI2_dims, TI2, TI_2, CFL_SIZE);
 
-        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1);
+        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1, false);
         struct nlop_s* T1_2 = nlop_T1relax_create(N, map_dims, out2_dims, TI2_dims, TI2);
 
         struct nlop_s* T1_3 = nlop_T1relax_create(N, map_dims, out2_dims, TI2_dims, TI2);
