@@ -405,7 +405,6 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		for (int i = 0; i < iter_max; i++) {
 			debug_printf(DP_DEBUG3, "...kernel iteration %d/%d \n", i + 1, iter_max);
 
-
 			// calc Gaussian kernel
 			gauss_kernel(L_dims, kernel, src_dims, src2, conf, (i == 0) ? true : false);
 
@@ -417,12 +416,17 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			// D = sum(W, axis=-1)
 			md_zsum(3, V_dims, 2, D, W);
 
-			// L = -(D - W) negative Laplacian!
+			// L = D - W
 			#pragma omp parallel for
 			for (int l = 0; l < V_dims[0]; l++)
-				L[l * V_dims[0] + l] = W[l * V_dims[0] + l] - D[l];
+				L[l * V_dims[0] + l] = D[l] - W[l * V_dims[0] + l];
 
-	
+			/* Update src2(=x) according to
+			 *  argmin ||x - y||^2 + lambda * ||Ux||^2
+			 *  x = (1 + lambda UU^H)^{-1} y
+			 *  with UU^H the decomposition of the actual Laplacian
+			*/
+
 			// W = eye + kernel_lambda * L
 			md_zsmul(3, V_dims, W, L, conf->kernel_lambda);
 			
@@ -431,14 +435,6 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 				W[l * V_dims[0] + l] += 1;
 
 			// W1 = inv(W)
-			/* intuition: the gradient of the full problem is ~ + XL
-			 * --> we can get an approximate update X' = X + XL
-			 * but: our Laplacian L is the negative of the actual laplacian
-			 * hence our gradient goes away from the solution
-			 * --> X' + X'L = X
-			 * --> X' = X * inv(1+L) = X * inv(W) = X * W1
-			 * TODO: why don't we define the Laplacian correctly in the first place?
-			 */
 			mat_inverse(N, (complex float (*)[N])W1, (complex float (*)[N])W);
 		
 			// src2 = src @ W1
