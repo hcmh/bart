@@ -19,7 +19,8 @@
 
 
 static bool test_ode_bloch_simulation(void)
-{   
+{
+#if 1
 	float e = 1.E-3;
 	float tol = 1.E-4;
 	float t1 = 1.5;
@@ -49,20 +50,20 @@ static bool test_ode_bloch_simulation(void)
 	sim_data.grad = simdata_grad_defaults;
 	sim_data.tmp = simdata_tmp_defaults;
 	
-	float mxy_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float sa_r1_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float sa_r2_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float sa_m0_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float mxy_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r1_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r2_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_m0_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	
 	ode_bloch_simulation3(&sim_data, mxy_ref_sig, sa_r1_ref_sig, sa_r2_ref_sig, sa_m0_ref_sig);
 
 	//-------------------------------------------------------
 	//------------------- T1 Test ---------------------------
 	//-------------------------------------------------------
-	float mxy_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float sa_r1_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float sa_r2_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float sa_m0_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float mxy_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r1_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r2_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_m0_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	
 	struct sim_data data_r1 = sim_data;
 	data_r1.voxel.r1 += e; //e in [ms] 
@@ -126,8 +127,8 @@ static bool test_ode_bloch_simulation(void)
 				return false;
 			}
 		}
-
-	return true;
+#endif
+	return 1;
 }
 
 UT_REGISTER_TEST(test_ode_bloch_simulation);
@@ -168,7 +169,6 @@ UT_REGISTER_TEST(test_sinc_function);
 static bool test_RF_pulse(void)
 {
 #if 1
-	
 	
 	long dim[DIMS] = { [0 ... DIMS - 1] = 1 };
 
@@ -260,6 +260,7 @@ UT_REGISTER_TEST(test_RF_pulse);
 static bool test_simulation(void)
 {
 #if 1
+
 	float angle = 45.;
 	float repetition = 100;
 	float aver_num = 1;
@@ -292,10 +293,10 @@ static bool test_simulation(void)
 	sim_data.grad = simdata_grad_defaults;
 	sim_data.tmp = simdata_tmp_defaults;
 	
-	float mxy_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float mxy_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	
 	ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
 	
@@ -354,8 +355,7 @@ UT_REGISTER_TEST(test_simulation);
 static bool test_RF_pulse_matexp(void)
 {
 #if 1
-	
-	
+
 	long dim[DIMS] = { [0 ... DIMS - 1] = 1 };
 	dim[0] = 10;
 	dim[1] = 10;
@@ -489,17 +489,17 @@ static bool test_matrix_exp_simulation(void)
 	
 	struct sim_data sim_ode = sim_data;
 	
-	float mxySig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
-	float saR1Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
-	float saR2Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
-	float saDensSig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float mxySig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saR1Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saR2Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saDensSig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
 	
 	ode_bloch_simulation3(&sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode);
 	
-	float mxySig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float saR1Sig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float saR2Sig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-	float saDensSig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float mxySig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float saR1Sig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float saR2Sig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float saDensSig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	
 	matrix_bloch_simulation(&sim_data, mxySig_matexp, saR1Sig_matexp, saR2Sig_matexp, saDensSig_matexp);
 
