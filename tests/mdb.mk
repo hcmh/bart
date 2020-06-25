@@ -11,7 +11,7 @@ tests/test-mdb-bloch: phantom sim fmac fft ones modbloch slice scale nrmse
 	$(TOOLDIR)/fmac t1map.ra basis_geom.ra masked_t1.ra				;\
 	$(TOOLDIR)/scale -- 1.12 basis_geom.ra ref_t1.ra				;\
 	$(TOOLDIR)/nrmse -t 0.007 masked_t1.ra ref_t1.ra				;\
-	$(TOOLDIR)/slice 6 1 reco.ra t2map.ra				;\
+	$(TOOLDIR)/slice 6 2 reco.ra t2map.ra				;\
 	$(TOOLDIR)/fmac t2map.ra basis_geom.ra masked_t2.ra				;\
 	$(TOOLDIR)/scale -- 0.1 basis_geom.ra ref_t2.ra				;\
 	$(TOOLDIR)/nrmse -t 0.005 masked_t2.ra ref_t2.ra				;\
@@ -36,7 +36,7 @@ tests/test-mdb-bloch-psf: traj repmat phantom sim fmac ones nufft fft modbloch s
 	$(TOOLDIR)/fmac t1map.ra ref_geom.ra masked_t1.ra				;\
 	$(TOOLDIR)/scale -- 1.12 ref_geom.ra ref_t1.ra				;\
 	$(TOOLDIR)/nrmse -t 0.007 masked_t1.ra ref_t1.ra				;\
-	$(TOOLDIR)/slice 6 1 reco.ra t2map.ra				;\
+	$(TOOLDIR)/slice 6 2 reco.ra t2map.ra				;\
 	$(TOOLDIR)/fmac t2map.ra ref_geom.ra masked_t2.ra				;\
 	$(TOOLDIR)/scale -- 0.1 ref_geom.ra ref_t2.ra				;\
 	$(TOOLDIR)/nrmse -t 0.005 masked_t2.ra ref_t2.ra				;\
@@ -56,7 +56,7 @@ tests/test-mdb-bloch-traj: traj repmat phantom sim fmac modbloch slice scale nrm
 	$(TOOLDIR)/fmac t1map.ra ref_geom.ra masked_t1.ra				;\
 	$(TOOLDIR)/scale -- 1.12 ref_geom.ra ref_t1.ra				;\
 	$(TOOLDIR)/nrmse -t 0.007 masked_t1.ra ref_t1.ra				;\
-	$(TOOLDIR)/slice 6 1 reco.ra t2map.ra				;\
+	$(TOOLDIR)/slice 6 2 reco.ra t2map.ra				;\
 	$(TOOLDIR)/fmac t2map.ra ref_geom.ra masked_t2.ra				;\
 	$(TOOLDIR)/scale -- 0.1 ref_geom.ra ref_t2.ra				;\
 	$(TOOLDIR)/nrmse -t 0.005 masked_t2.ra ref_t2.ra				;\
