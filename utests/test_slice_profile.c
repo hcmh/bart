@@ -31,10 +31,10 @@ static bool test_slice_profile(void)
 	estimate_slice_profile(DIMS, slcprfl_dims, sliceprofile);
 
 	float reference[number_isochromats] = {	0.023543, 0.083183,
-											0.192155, 0.348666,
-											0.532440, 0.710757,
-											0.852502, 0.942181,
-											0.984873, 0.998577	};
+						0.192155, 0.348666,
+						0.532440, 0.710757,
+						0.852502, 0.942181,
+						0.984873, 0.998577	};
 
 	float err = 0.00001;
 
