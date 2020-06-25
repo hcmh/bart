@@ -344,10 +344,10 @@ int main_bloch(int argc, char* argv[argc])
 			sim_data.grad = simdata_grad_defaults;
 			sim_data.tmp = simdata_tmp_defaults;
 			
-			float mxy_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-			float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-			float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-			float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			complex float mxy_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			complex float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			complex float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			complex float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 			
 			complex float signal[sim_data.seq.rep_num / sim_data.seq.num_average_rep];	
 			
