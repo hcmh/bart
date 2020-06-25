@@ -80,9 +80,12 @@ static void zT1srelax_fun(const nlop_data_t* _data, int N, complex float* args[N
         md_copy(data->N, data->map_dims, data->R1, src3, CFL_SIZE);
         md_copy(data->N, data->map_dims, data->R1s, src4, CFL_SIZE);
         
-        md_zsmul(data->N, data->map_dims, data->tmp, data->R1s, -1.0*data->scaling_R1s);
-        
-        md_zmul2(data->N, data->out_dims, data->out_strs, data->xn, data->map_strs, data->tmp, data->TI_strs, data->TI);
+//         md_zsmul(data->N, data->map_dims, data->tmp, data->R1s, -1.0*data->scaling_R1s);        
+//         md_zmul2(data->N, data->out_dims, data->out_strs, data->xn, data->map_strs, data->tmp, data->TI_strs, data->TI);
+	
+	for(int k = 0; k < (data->TI_dims[5]); k++)
+		md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->xn + data->out_strs[5] * k, data->map_strs, (void*)data->R1s, -1.*data->TI[k]);
+	
         md_zexp(data->N, data->out_dims, data->xn, data->xn);
                
         //M0 * R1/R1s - M_start
@@ -133,7 +136,17 @@ static void zT1srelax_fun(const nlop_data_t* _data, int N, complex float* args[N
         md_zmul2(data->N, data->out_dims, data->out_strs, data->dR1s, data->map_strs, data->tmp, data->out_strs, data->dR1s);
       
         // t*s*exp(-scaling_R1s*t*R1s)
-        md_zmul2(data->N, data->out_dims, data->out_strs, data->xn_tmp, data->out_strs, data->xn, data->TI_strs, data->TI);
+//         md_zmul2(data->N, data->out_dims, data->out_strs, data->xn_tmp, data->out_strs, data->xn, data->TI_strs, data->TI);
+	long img_dims[data->N];
+	md_select_dims(data->N, FFT_FLAGS, img_dims, data->map_dims);
+	
+	// t * exp(-t*R1s) * (1 + R1/R1s)
+	for (int s = 0; s < data->out_dims[13]; s++)
+		for(int k = 0; k < data->TI_dims[5]; k++)
+			//debug_printf(DP_DEBUG2, "\tTI: %f\n", creal(data->TI[k]));
+			md_zsmul(data->N, img_dims, (void*)data->xn_tmp + data->out_strs[5] * k + data->out_strs[13] * s,
+				 (void*)data->xn + data->out_strs[5] * k + data->out_strs[13] * s, data->TI[k]);
+	
         md_zsmul(data->N, data->out_dims, data->xn_tmp, data->xn_tmp, data->scaling_R1s);
         
         // M0*R1/(scaling_R1s*R1s) - M_start
@@ -146,8 +159,7 @@ static void zT1srelax_fun(const nlop_data_t* _data, int N, complex float* args[N
         
         md_zadd(data->N, data->out_dims, data->dR1s, data->dR1s, data->xn_tmp);
 
-        
-        
+         
         md_copy_block(data->N, pos, data->map_dims, data->dM_start_1, data->out_dims, data->xn, CFL_SIZE); 
         md_copy_block(data->N, pos, data->map_dims, data->dM0_1, data->out_dims, data->dM0, CFL_SIZE); 
         md_copy_block(data->N, pos, data->map_dims, data->dR1_1, data->out_dims, data->dR1, CFL_SIZE);
@@ -309,8 +321,16 @@ static void zT1srelax_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_T1srelax_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI)
+struct nlop_s* nlop_T1srelax_create(int N, const long map_dims[N], const long out_dims[N], const long TI_dims[N], const complex float* TI, bool use_gpu)
 {
+	
+#ifdef USE_CUDA
+	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
+#else
+	assert(!use_gpu);
+	md_alloc_fun_t my_alloc = md_alloc;
+#endif
+	
 	PTR_ALLOC(struct zT1srelax_s, data);
 	SET_TYPEID(zT1srelax_s, data);
 
@@ -329,23 +349,23 @@ struct nlop_s* nlop_T1srelax_create(int N, const long map_dims[N], const long ou
 	data->N = N;
 	
 	
-        data->M_start = md_alloc(N, map_dims, CFL_SIZE);
-        data->M0 = md_alloc(N, map_dims, CFL_SIZE);
-        data->R1 = md_alloc(N, map_dims, CFL_SIZE);
-        data->R1s = md_alloc(N, map_dims, CFL_SIZE);
-        data->tmp = md_alloc(N, map_dims, CFL_SIZE);
+	data->M_start = my_alloc(N, map_dims, CFL_SIZE);
+	data->M0 = my_alloc(N, map_dims, CFL_SIZE);
+	data->R1 = my_alloc(N, map_dims, CFL_SIZE);
+	data->R1s = my_alloc(N, map_dims, CFL_SIZE);
+	data->tmp = my_alloc(N, map_dims, CFL_SIZE);
         
-        data->dR1 = md_alloc(N, out_dims, CFL_SIZE);
-        data->dM0 = md_alloc(N, out_dims, CFL_SIZE);
-        data->dR1s = md_alloc(N, out_dims, CFL_SIZE);
-        data->xn = md_alloc(N, out_dims, CFL_SIZE);
-        data->xn_tmp = md_alloc(N, out_dims, CFL_SIZE);
+	data->dR1 = my_alloc(N, out_dims, CFL_SIZE);
+	data->dM0 = my_alloc(N, out_dims, CFL_SIZE);
+	data->dR1s = my_alloc(N, out_dims, CFL_SIZE);
+	data->xn = my_alloc(N, out_dims, CFL_SIZE);
+	data->xn_tmp = my_alloc(N, out_dims, CFL_SIZE);
         
             
-        data->dM_start_1 = md_alloc(N, map_dims, CFL_SIZE);
-        data->dM0_1 = md_alloc(N, map_dims, CFL_SIZE);
-        data->dR1_1 = md_alloc(N, map_dims, CFL_SIZE);
-        data->dR1s_1 = md_alloc(N, map_dims, CFL_SIZE);
+	data->dM_start_1 = my_alloc(N, map_dims, CFL_SIZE);
+	data->dM0_1 = my_alloc(N, map_dims, CFL_SIZE);
+	data->dR1_1 = my_alloc(N, map_dims, CFL_SIZE);
+	data->dR1s_1 = my_alloc(N, map_dims, CFL_SIZE);
         
         PTR_ALLOC(long[N], nostr);
 	md_calc_strides(N, *nostr, map_dims, CFL_SIZE);

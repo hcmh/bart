@@ -23,6 +23,7 @@
 #include "T1MOLLI.h"
 #include "T1relax_so.h"
 #include "T1srelax.h"
+#include "T1_alpha2.h"
 
 //#define general
 //#define mphase
@@ -31,35 +32,34 @@ struct nlop_s* nlop_T1MOLLI_create(int N, const long map_dims[N], const long out
                 const complex float* TI1, const complex float* TI2, const complex float* TI_t1relax, bool use_gpu) 
 {
 
-#ifdef USE_CUDA
-        md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
-#else
-        assert(!use_gpu);
-        md_alloc_fun_t my_alloc = md_alloc;
-#endif
-
         long scale_dims[N];
         long TI_T1_dims[N];
 
         md_singleton_dims(N, scale_dims);
         md_singleton_dims(N, TI_T1_dims);
 
-        complex float* scale = my_alloc(N, scale_dims, CFL_SIZE);
+        complex float* scale = md_alloc(N, scale_dims, CFL_SIZE);
 
         long out2_dims[N];
         md_copy_dims(N, out2_dims, out_dims);
         out2_dims[TE_DIM] = 1L;
 
-
-        struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1);
-        struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, &TI_t1relax[0]);
-        struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2);
-        struct nlop_s* T1_2 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, &TI_t1relax[1]);
-        struct nlop_s* T1s_3 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2);
-        struct nlop_s* T1_3 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, &TI_t1relax[2]);
-        struct nlop_s* T1s_4 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2);
-        struct nlop_s* T1_4 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, &TI_t1relax[3]);
-        struct nlop_s* T1s_5 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2);
+#if 0
+        struct nlop_s* T1s_1 = nlop_T1_alpha2_create(N, map_dims, out_dims, TI_dims, TI1, use_gpu);
+        struct nlop_s* T1s_2 = nlop_T1_alpha2_create(N, map_dims, out_dims, TI_dims, TI2, use_gpu);
+        struct nlop_s* T1s_3 = nlop_T1_alpha2_create(N, map_dims, out_dims, TI_dims, TI2, use_gpu);
+        struct nlop_s* T1s_4 = nlop_T1_alpha2_create(N, map_dims, out_dims, TI_dims, TI2, use_gpu);
+        struct nlop_s* T1s_5 = nlop_T1_alpha2_create(N, map_dims, out_dims, TI_dims, TI2, use_gpu);
+#endif
+	struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI1, use_gpu);
+        struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, &TI_t1relax[0], use_gpu);
+	struct nlop_s* T1s_2 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2, use_gpu);
+        struct nlop_s* T1_2 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, &TI_t1relax[1], use_gpu);
+	struct nlop_s* T1s_3 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2, use_gpu);
+        struct nlop_s* T1_3 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, &TI_t1relax[2], use_gpu);
+	struct nlop_s* T1s_4 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2, use_gpu);
+        struct nlop_s* T1_4 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI_T1_dims, &TI_t1relax[3], use_gpu);
+	struct nlop_s* T1s_5 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI2, use_gpu);
         
         // first chain: T1(T1s)
         struct nlop_s* T1c_combine = nlop_combine(T1_1, T1s_1);
