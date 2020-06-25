@@ -543,6 +543,10 @@ MODULES_test_biot_savart += -lsimu
 MODULES_test_ode_simu += -lsimu
 MODULES_test_signals += -lsimu
 
+# lib slice profile
+UTARGETS +=test_slice_profile
+MODULES_test_slice_profile += -lsimu
+
 # lib geom
 UTARGETS += test_geom
 MODULES_test_geom += -lgeom
