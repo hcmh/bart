@@ -39,7 +39,7 @@ const struct laplace_conf laplace_conf_default = {
 	.temporal_nn 	= false,
 	.kernel     	= false,
 	.kernel_CG		= false,
-	.kernel_lambda 	= 0.08,
+	.kernel_lambda 	= 0.3,
 	.norm			= false,
 	.anisotrop		= false,
 	.dmap			= false,
@@ -318,7 +318,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 		for (int i = 0; i < conf->iter_max; i++) {
 			debug_printf(DP_DEBUG3, "...kernel iteration %d/%d \n", i + 1, conf->iter_max);
-
+			
 			gauss_kernel(L_dims, kernel, src_dims, src2, conf, (i == 0) ? true : false);
 
 			calc_kernel_W(N, kernel, kernel_cpy, W, L, V, VH, gamma);
@@ -370,6 +370,8 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 	}
 
 	case 'K': { // kernel approach
+		// This is a reimplementation of the MATLAB code https://github.com/ahaseebahmed/SpiralSToRM/blob/master/
+		// Note: we don't use double precicion!
 
 		long N = src_dims[0]; // number of observations (samples)
 		long M = src_dims[1]; // number of variables (coordinates)
