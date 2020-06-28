@@ -400,6 +400,11 @@ static void zcos(long N, complex float* dst, const complex float* src)
 		dst[i] = ccosf(src[i]);
 }
 
+static void zacos(long N, complex float* dst, const complex float* src)
+{
+	for (long i = 0; i < N; i++)
+		dst[i] = acosf(crealf(src[i])) + 0.I;
+}
 
 static void zmax(long N, complex float* dst, const complex float* src1, const complex float* src2)
 {

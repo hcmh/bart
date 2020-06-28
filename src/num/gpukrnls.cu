@@ -671,6 +671,20 @@ extern "C" void cuda_zatanr(long N, _Complex float* dst, const _Complex float* s
 	kern_zatanr<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
 }
 
+__global__ void kern_zacos(long N, cuFloatComplex* dst, const cuFloatComplex* src)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (long i = start; i < N; i += stride)
+		dst[i] = make_cuFloatComplex(acosf(cuCrealf(src[i])), 0.);
+}
+
+extern "C" void cuda_zacos(long N, _Complex float* dst, const _Complex float* src)
+{
+	kern_zacos<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
+}
+
 
 
 /**
