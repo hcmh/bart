@@ -7,8 +7,11 @@
 
 #include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/filter.h"
 
 #include "nlops/nlop.h"
+#include "linops/linop.h"
+#include "linops/someops.h"
 
 #include "T1_alpha.h"
 
@@ -48,10 +51,47 @@ struct T1_alpha_s {
 
 	complex float* TI;
 
+	complex float* weights;
+
+	const struct linop_s* linop_alpha;
+
 	float scaling_alpha;
 };
 
 DEF_TYPEID(T1_alpha_s);
+
+static void moba_calc_weights(const long dims[3], complex float* dst)
+{
+	unsigned int flags = 0;
+
+	for (int i = 0; i < 3; i++)
+		if (1 != dims[i])
+			flags = MD_SET(flags, i);
+
+	
+	klaplace(3, dims, flags, dst);
+	md_zsmul(3, dims, dst, dst, 440.);
+	md_zsadd(3, dims, dst, dst, 1.);
+	md_zspow(3, dims, dst, dst, -10.);
+}
+
+const struct linop_s* T1_get_alpha_trafo(struct nlop_s* op)
+{
+	const nlop_data_t* _data = nlop_get_data(op);
+	struct T1_alpha_s* data = CAST_DOWN(T1_alpha_s, _data);
+	return data->linop_alpha;
+}
+
+void T1_forw_alpha(const struct linop_s* op, complex float* dst, const complex float* src)
+{
+	linop_forward_unchecked(op, dst, src);
+}
+
+void T1_back_alpha(const struct linop_s* op, complex float* dst, const complex float* src)
+{
+	linop_adjoint_unchecked(op, dst, src);
+}
+
 
 // Calculate Model: M0 * (R1/(R1 + alpha) - (1 + R1/(R1 + alpha)) * exp(-t.*(R1 + alpha)))
 static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -76,8 +116,11 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	pos[COEFF_DIM] = 2;
 	md_copy_block(data->N, pos, data->map_dims, data->alpha, data->in_dims, src, CFL_SIZE);
 
+	T1_forw_alpha(data->linop_alpha, data->tmp_map, data->alpha);
+
 	// R1s = R1 + alpha * scaling_alpha
-	md_zsmul(data->N, data->map_dims, data->tmp_R1s, data->alpha, data->scaling_alpha);
+	
+	md_zsmul(data->N, data->map_dims, data->tmp_R1s, data->tmp_map, data->scaling_alpha);
 	md_zadd(data->N, data->map_dims, data->tmp_R1s, data->R1, data->tmp_R1s);
 
 	// exp(-t.* (R1 + alpha * scaling_alpha)):
@@ -160,6 +203,7 @@ static void T1_der(const nlop_data_t* _data, complex float* dst, const complex f
 	pos[COEFF_DIM] = 2;
 	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
 	//const complex float* tmp_alpha = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
+	T1_forw_alpha(data->linop_alpha, data->tmp_map, data->tmp_map);
 
 	// dst = dst + dalpha * alpha'
 	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dalpha);
@@ -194,7 +238,8 @@ static void T1_adj(const nlop_data_t* _data, complex float* dst, const complex f
 	// sum (conj(alpha') * src, t)
 	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
 	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->tmp_dalpha);
-	//md_zreal(data->N, data->map_dims, data->tmp_map, data->tmp_map);
+//	md_zreal(data->N, data->map_dims, data->tmp_map, data->tmp_map);
+	T1_back_alpha(data->linop_alpha, data->tmp_map, data->tmp_map);
 
 	// dst[2] = sum (conj(alpha') * src, t)
 	pos[COEFF_DIM] = 2;
@@ -219,6 +264,7 @@ static void T1_del(const nlop_data_t* _data)
 	md_free(data->tmp_dM0);
 	md_free(data->tmp_dR1);
 	md_free(data->tmp_dalpha);
+	md_free(data->weights);
 
 	xfree(data->map_dims);
 	xfree(data->TI_dims);
@@ -229,6 +275,8 @@ static void T1_del(const nlop_data_t* _data)
 	xfree(data->TI_strs);
 	xfree(data->in_strs);
 	xfree(data->out_strs);
+
+	linop_free(data->linop_alpha);
 
 	xfree(data);
 }
@@ -297,6 +345,24 @@ struct nlop_s* nlop_T1_alpha_create(int N, const long map_dims[N], const long ou
 	data->TI = md_alloc(N, TI_dims, CFL_SIZE);
 #endif
 	md_copy(N, TI_dims, data->TI, TI, CFL_SIZE);
+
+#if 1
+	// weight on alpha
+	long w_dims[N];
+	md_select_dims(N, FFT_FLAGS, w_dims, map_dims);
+
+	data->weights = md_alloc(N, w_dims, CFL_SIZE);
+	moba_calc_weights(w_dims, data->weights);
+
+	const struct linop_s* linop_wghts = linop_cdiag_create(N, map_dims, FFT_FLAGS, data->weights);
+	const struct linop_s* linop_ifftc = linop_ifftc_create(N, map_dims, FFT_FLAGS);
+
+	data->linop_alpha = linop_chain(linop_wghts, linop_ifftc);
+
+	linop_free(linop_wghts);
+	linop_free(linop_ifftc);
+#endif
+
 
 	data->scaling_alpha = 0.2;
 

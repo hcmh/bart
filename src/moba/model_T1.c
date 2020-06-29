@@ -36,7 +36,7 @@
 
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, 
-		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, bool IR_phy, bool use_gpu)
+		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, float IR_phy, bool use_gpu)
 {
 	long data_dims[DIMS];
 	md_select_dims(DIMS, ~COEFF_FLAG, data_dims, dims);
@@ -83,9 +83,10 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 		
 		T1 = nlop_IR_SS_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
 
-	} else if (IR_phy) {
+	} else if (0. != IR_phy) {
 		
                 T1 = nlop_T1_alpha_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+		
 	} else {
 
 		T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
@@ -112,6 +113,10 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 #endif
 	ret.nlop = nlop_flatten(nlinv.nlop);
 	ret.linop = nlinv.linop;
+	
+	if (0. != IR_phy)
+		ret.linop_alpha = T1_get_alpha_trafo(T1);
+
 	nlop_free(nlinv.nlop);
 
 	return ret;

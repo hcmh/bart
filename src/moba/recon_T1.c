@@ -30,6 +30,7 @@
 
 #include "moba/model_T1.h"
 #include "moba/iter_l1.h"
+#include "moba/T1_alpha.h"
 
 #include "recon_T1.h"
 
@@ -50,7 +51,7 @@ struct moba_conf moba_defaults = {
 	.MOLLI = false,
         .k_filter = false,
 	.IR_SS = false,
-	.IR_phy = false,
+	.IR_phy = 0.,
 	.algo = 3,
         .rho = 0.01,
 };
@@ -101,9 +102,9 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 4, .not_wav_maps = conf->IR_phy ? 1 : 0, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo, .rho = conf->rho, .ropts = &conf->ropts };
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 4, .not_wav_maps = (0. == conf->IR_phy) ? 0 : 1, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo, .rho = conf->rho, .ropts = &conf->ropts };
 
-	if (conf->MOLLI || conf->IR_phy)
+	if (conf->MOLLI || (0. != conf->IR_phy))
 		conf2.constrained_maps = 2;
 
 	long irgnm_conf_dims[DIMS];
@@ -123,12 +124,43 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
 
+	long map_dims[DIMS];
+	
+	md_copy_dims(DIMS, map_dims, imgs_dims);
+	map_dims[COEFF_DIM] = 1L;
+
+	long map_size = md_calc_size(DIMS, map_dims);
+
 	if (NULL != sens) {
 
 		noir_forw_coils(nl.linop, x + skip, x + skip);
 		md_copy(DIMS, coil_dims, sens, x + skip, CFL_SIZE);
 		fftmod(DIMS, coil_dims, fft_flags, sens, sens);
 	}
+
+	// (M0, R1, alpha) model
+	if (0. != conf->IR_phy) {
+
+		long pos[DIMS];
+
+		for (int i = 0; i < (int)DIMS; i++)
+		pos[i] = 0;
+
+		// output the alpha map (in degree)
+		pos[COEFF_DIM] = 2;
+		md_copy_block(DIMS, pos, map_dims, x, imgs_dims, img, CFL_SIZE);
+		T1_forw_alpha(nl.linop_alpha, x, x);
+		md_zreal(DIMS, map_dims, x, x);
+		md_zsmul(DIMS, map_dims, x, x, -conf->IR_phy * 1e-6 * 0.2);
+		md_zexp(DIMS, map_dims, x, x);
+		md_smin(1, MD_DIMS(2 * map_size), (float*)x, (float*)x, 1.);
+		md_zacos(DIMS, map_dims, x, x);
+	        md_zsmul(DIMS, map_dims, x, x, 180. / M_PI);
+		md_copy_block(DIMS, pos, imgs_dims, img, map_dims, x, CFL_SIZE);
+
+		linop_free(nl.linop_alpha);
+	}
+
 
 	nlop_free(nl.nlop);
 

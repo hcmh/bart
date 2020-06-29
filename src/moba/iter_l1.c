@@ -410,7 +410,8 @@ static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf*
 		md_copy_dims(DIMS, map_dims, img_dims);
 		map_dims[COEFF_DIM] = 1L;
 
-		auto prox3 = create_prox(map_dims, 0, 0.05);
+		// auto prox3 = create_prox(map_dims, 0, 0.05);
+		auto prox3 = prox_zero_create(DIMS, map_dims);
 		auto prox4 = operator_p_stack(COEFF_DIM, COEFF_DIM, prox1, prox3);
 		prox2 = op_p_auto_normalize(prox4, ~(COEFF_FLAG | SLICE_FLAG | TIME2_FLAG));
 
