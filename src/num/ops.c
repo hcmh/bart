@@ -47,7 +47,7 @@
 struct operator_s {
 
 	unsigned int N;
-	unsigned int io_flags;
+	operator_io_flags_t io_flags;
 	const struct iovec_s** domain;
 
 	operator_data_t* data;
@@ -77,7 +77,7 @@ static void operator_del(const struct shared_obj_s* sptr)
 /**
  * Create an operator (with strides)
  */
-const struct operator_s* operator_generic_create2(unsigned int N, unsigned int io_flags,
+const struct operator_s* operator_generic_create2(unsigned int N, operator_io_flags_t io_flags,
 			const unsigned int D[N], const long* dims[N], const long* strs[N],
 			operator_data_t* data, operator_fun_t apply, operator_del_t del)
 {
@@ -104,11 +104,12 @@ const struct operator_s* operator_generic_create2(unsigned int N, unsigned int i
 /**
  * Create an operator (without strides)
  */
-const struct operator_s* operator_generic_create(unsigned int N, unsigned int io_flags,
+const struct operator_s* operator_generic_create(unsigned int N, operator_io_flags_t io_flags,
 			const unsigned int D[N], const long* dims[N],
 			operator_data_t* data, operator_fun_t apply, operator_del_t del)
 {
 	const long* strs[N];
+	assert(N <= 8 * sizeof(operator_io_flags_t));
 
 	for (unsigned int i = 0; i < N; i++)
 		strs[i] = MD_STRIDES(D[i], dims[i], CFL_SIZE);
@@ -1204,7 +1205,7 @@ const struct operator_s* operator_combi_create(int N, const struct operator_s* x
 	for (int i = 0; i < N; i++)
 		A += operator_nr_args(x[i]);
 
-	unsigned int io_flags = 0;;
+	operator_io_flags_t io_flags = 0;;
 	unsigned int D[A];
 	const long* dims[A];
 	const long* strs[A];
@@ -1291,7 +1292,7 @@ const struct operator_s* operator_dup_create(const struct operator_s* op, unsign
 	assert(b < N);
 	assert(a != b);
 
-	unsigned int io_flags = 0u;
+	operator_io_flags_t io_flags = 0u;
 	unsigned int D[N - 1];
 	const long* dims[N - 1];
 	const long* strs[N - 1];
@@ -1412,7 +1413,7 @@ const struct operator_s* operator_link_create(const struct operator_s* op, unsig
 	assert( (op->io_flags & MD_BIT(o)));
 	assert(~(op->io_flags & MD_BIT(i)));
 
-	unsigned int io_flags = 0u;
+	operator_io_flags_t io_flags = 0u;
 	unsigned int D[N - 2];
 	const long* dims[N - 2];
 	const long* strs[N - 2];
@@ -1503,7 +1504,7 @@ const struct operator_s* operator_permute(const struct operator_s* op, int N, co
 	assert(N == (int)operator_nr_args(op));
 
 	unsigned long flags = 0;
-	unsigned long io_flags = 0;
+	operator_io_flags_t io_flags = 0;
 	unsigned int D[N];
 	const long* dims[N];
 	const long* strs[N];
@@ -1837,7 +1838,7 @@ const struct operator_s* operator_plus_create(const struct operator_s* a, const 
 	c->a = operator_ref(a);
 	c->b = operator_ref(b);
 
-	unsigned int io_flags = MD_BIT(0);
+	operator_io_flags_t io_flags = MD_BIT(0);
 	unsigned int D[] = { codoma->N, doma->N };
 	const long* dims[] = { codoma->dims, doma->dims };
 	const long* strs[] = { codoma->strs, doma->strs };
