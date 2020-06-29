@@ -851,6 +851,8 @@ const struct vec_ops cpu_ops = {
 	.zsin = zsin,
 	.zcos = zcos,
 
+	.zacos = zacos,
+
 	.zcmp = zcmp,
 	.zdiv_reg = zdiv_reg,
 	.zfftmod = zfftmod,
@@ -872,7 +874,7 @@ const struct vec_ops cpu_ops = {
 	.zconvcorr_3D_CF = zconvcorr_3D_CF,
 	.zconvcorr_3D_CF_TK = zconvcorr_3D_CF_TK,
 	.zconvcorr_3D_CF_TI = zconvcorr_3D_CF_TI,
-	
+
 	.exp = vec_exp,
 	.log = vec_log,
 
