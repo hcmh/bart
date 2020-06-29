@@ -83,3 +83,6 @@ extern const struct nlop_s* nlop_reshape_out(const struct nlop_s* op, int o, int
 extern const struct nlop_s* nlop_reshape_in(const struct nlop_s* op, int i, int NI, const long idims[NI]);
 extern const struct nlop_s* nlop_reshape_out_F(const struct nlop_s* op, int o, int NO, const long odims[NO]);
 extern const struct nlop_s* nlop_reshape_in_F(const struct nlop_s* op, int i, int NI, const long idims[NI]);
+
+extern const struct nlop_s* nlop_append_singleton_dim_in_F(const struct nlop_s* op, int i);
+extern const struct nlop_s* nlop_append_singleton_dim_out_F(const struct nlop_s* op, int o);
