@@ -23,6 +23,7 @@ struct delay_conf {
 	char* backproj;  // output name backprojection
 	long group;		 // bitmask for grouping
 	int rank;	 	 // rank for backprojection
+	bool EOF_info;	 // in-phase information
 
 	// NLSA
 	_Bool nlsa;	     // is nlsa

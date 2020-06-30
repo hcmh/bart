@@ -32,6 +32,7 @@ const struct delay_conf ssa_conf_default = {
 	.backproj	= NULL,
 	.group 		= 0,
 	.rank 		= 0,
+	.EOF_info 	= 0,
 	
 	.nlsa		= false,
 	.nlsa_rank	= 0,
@@ -49,7 +50,8 @@ const struct delay_conf nlsa_conf_default = {
 	.name_S		= NULL,
 	.backproj	= NULL,
 	.group 		= 0,
-	.rank 	= 0,
+	.rank 		= 0,
+	.EOF_info 	= 0,
 	
 	.nlsa		= true,
 	.nlsa_rank	= 20,
@@ -69,7 +71,7 @@ bool check_selection(const long group, const int j)
 // Check if input-options for back-projection are valid
 void check_bp(struct delay_conf* conf) {
 	
-		if (conf->zeropad) {
+		if (conf->zeropad && !conf->EOF_info) {
 
 			debug_printf(DP_INFO, "Zeropadding turned off automatically!\n");
 			conf->zeropad = false;

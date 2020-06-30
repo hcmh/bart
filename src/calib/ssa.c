@@ -77,6 +77,41 @@
 
 #include "ssa.h"
 
+// Check symmetry of the W-sized filters
+static bool PC_symmetric(const long PC_line_dims[2], complex float* PC_line, int W) {
+
+	int channels = (int)(PC_line_dims[1] / (1. * W));
+	long W_dims[1] = { W };
+	long w_dims[1] = { (int)(W / 2)};
+	long pos[1] = { 0 };
+
+	complex float* PC_channel = md_alloc(1, W_dims, CFL_SIZE); 
+	complex float* PC_channel_h1 = md_alloc(1, w_dims, CFL_SIZE);
+	complex float* PC_channel_h2 = md_alloc(1, w_dims, CFL_SIZE); 
+
+	long sign = 0;
+
+	for (int i = 0; i < channels; i++) { // Loop over all W-sized filters
+
+		pos[0] = i * W;
+
+		md_copy_block(1, pos, W_dims, PC_channel, &PC_line_dims[1], PC_line, CFL_SIZE);
+		md_copy(1, w_dims, PC_channel_h2, PC_channel + 0, CFL_SIZE); // copy left half
+		md_flip(1, w_dims, 1, PC_channel_h1, PC_channel_h2, CFL_SIZE);
+
+		md_copy(1, w_dims, PC_channel_h2, PC_channel + w_dims[0], CFL_SIZE); // copy right half
+		sign += copysign(1, md_zscalar(1, w_dims, PC_channel_h1, PC_channel_h2));
+
+	}
+
+	md_free(PC_channel);
+	md_free(PC_channel_h1);
+	md_free(PC_channel_h2);
+
+	return (sign > 0) ? true : false; // positive sign means symmetric filter
+
+}
+
 
 static void backprojection( const long N, 
 				const long M, 
@@ -117,6 +152,30 @@ static void backprojection( const long N,
 
 		md_ztenmul(3, A_xdims, PC, T_xdims, C, PC_xdims, B);
 
+		if (conf.EOF_info) {
+
+			long PC_line_dims[2] = { 1, M };
+			complex float* PC_line = md_alloc(2, PC_line_dims, CFL_SIZE);
+			long pos[2] = { 0 };
+
+			int print_max = (l > 20) ? 20 : l;
+
+			debug_printf(DP_INFO, "In phase EOFs:\n");
+
+			for (int i = 0; i < print_max; i++) {
+
+				pos[0] = i;
+				md_copy_block(2, pos, PC_line_dims, PC_line, PC_dims, PC, CFL_SIZE); 
+
+				bool sym = PC_symmetric(PC_line_dims, PC_line, conf.window);
+
+				if (sym)
+					debug_printf(DP_INFO, "%d \t", i);
+			}
+			debug_printf(DP_INFO, "\n");
+
+			md_free(PC_line);
+		}
 
 		for (int i = 0; i < M; i++) {
 			for (int j = 0; j < N; j++) {
