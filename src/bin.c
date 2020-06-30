@@ -136,6 +136,7 @@ int main_bin(int argc, char* argv[])
 {
 
 	bool reorder = false;
+	bool amplitude = false;
 	struct bin_conf_s conf = bin_defaults;
 
 
@@ -151,6 +152,8 @@ int main_bin(int argc, char* argv[])
 		OPT_UINT('A', &conf.mavg_window_card, "window", "(Quadrature Binning: Cardiac moving average window)"),
 		OPT_FLVEC2('O', &conf.offset_angle, "[r:c]deg", "Quadrature Binning: Angle offset for resp and card."),
 		OPT_STRING('x', &conf.card_out, "file", "(Output filtered cardiac EOFs)"), // To reproduce SSA-FARY paper
+		OPT_SET('M', &conf.amplitude, "Amplitude binning"),
+
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -165,6 +168,13 @@ int main_bin(int argc, char* argv[])
 	complex float* src = load_cfl(argv[2], DIMS, src_dims);
 
 	enum { BIN_QUADRATURE, BIN_LABEL, BIN_REORDER } bin_type;
+
+	if (amplitude) {
+		
+		assert(conf.cluster_dim != -1);
+
+	}
+
 
 	// Identify binning type
 	if ((conf.n_resp > 0) || (conf.n_card > 0)) {
