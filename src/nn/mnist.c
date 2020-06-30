@@ -17,6 +17,7 @@
 #include "iter/iter4.h"
 #include "iter/iter6.h"
 #include "iter/italgos.h"
+#include "iter/batch_gen.h"
 
 #include "linops/linop.h"
 #include "linops/someops.h"
@@ -203,11 +204,18 @@ void train_nn_mnist(enum MNIST_NETWORK_TYPE type, int N_batch, int N_total, comp
 		_conf.epochs = epochs;
 		_conf.learning_rate = 0.0001;
 
+		//(poor) example for using batch generator
+		const complex float* train_data[] = { (complex float*)src[1] };
+		const long* train_dims[] = { nlop_generic_domain(nlop_train, 1)->dims };
+		auto batch_generator = batch_gen_linear_create(1, 5, train_dims, train_data, N_total, 0);
+		src[1] = NULL;
+		in_type[1] = IN_BATCH_GENERATOR;
+
 		iter6_adam(CAST_UP(&_conf),
 			nlop_train,
 			NI, in_type, NULL, src,
 			NO, out_type,
-			N_batch, N_total / N_batch, NULL);
+			N_batch, N_total / N_batch, batch_generator);
 	} else {
 
 		struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
