@@ -4,6 +4,7 @@
  * 
  * Authors:
  * 2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2020 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
  */
 
 #include <stdlib.h>
@@ -87,7 +88,7 @@ int main_looklocker(int argc, char* argv[argc])
 			float FA = 0.;
 
 			if (0. != T1)
-				FA = 180. / M_PI * acos(exp(TR * (1. / T1 - cabs(R1s))));
+				FA = 180. / M_PI * acos(exp(TR * MIN(0., (1. / T1 - cabs(R1s)))));
 
 			MD_ACCESS(DIMS, ostrs, (pos[COEFF_DIM] = 1, pos), out_data) = FA;
 		}
