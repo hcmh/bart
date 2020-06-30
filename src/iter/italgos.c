@@ -930,6 +930,8 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
         	const struct vec_iter_s* vops,
         	struct iter_nlop_s nlop, struct iter_op_arr_s adj,
 		struct iter_op_arr_s update,
+		struct iter_op_p_s prox[NI],
+		struct iter_nlop_s nlop_batch_gen,
         	struct iter_op_s callback, struct iter_monitor_s* monitor)
 {
 	UNUSED(monitor);
@@ -940,22 +942,61 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 	float* dxs[NI];
 	float* args[NO + NI];
 
+	float* x_batch_gen[NI]; //arrays which are filled by batch generator
+	long N_batch_gen = 0;
+
 	unsigned long in_optimize_flag = 0;
 	unsigned long out_optimize_flag = 0;
 
 	for (int i = 0; i< NI; i++){
 
-		args[NO + i] = x[i];
-		if (IN_OPTIMIZE == in_type[i]) {
+		switch(in_type[i]){
 
-			grad[i] = vops->allocate(isize[i]);
-			dxs[i] = vops->allocate(isize[i]);
-			in_optimize_flag = MD_SET(in_optimize_flag, i);
-		} else {
+			case IN_STATIC:
 
-			grad[i] = NULL;
-			dxs[i] = NULL;
+				grad[i] = NULL;
+				dxs[i] = NULL;
+				break;
+			case IN_BATCH:
+
+				grad[i] = NULL;
+				dxs[i] = NULL;
+				break;
+
+			case IN_OPTIMIZE:
+
+				grad[i] = vops->allocate(isize[i]);
+				dxs[i] = vops->allocate(isize[i]);
+				in_optimize_flag = MD_SET(in_optimize_flag, i);
+				if (NULL != prox[i].fun)
+					iter_op_p_call(prox[i], 0, x[i], x[i]); //project to constraint
+				break;
+
+			case IN_BATCH_GENERATOR:
+
+				grad[i] = NULL;
+				dxs[i] = NULL;
+
+				if (NULL != x[i])
+					error("NULL != x[%d] for batch generator\n", i);
+				x[i] = vops->allocate(isize[i]);
+				x_batch_gen[N_batch_gen] = x[i];
+				N_batch_gen += 1;
+				break;
+
+			case IN_BATCHNORM:
+
+				grad[i] = NULL;
+				dxs[i] = NULL;
+				break;
+
+			default:
+
+				error("unknown flag\n");
+				break;
 		}
+
+		args[NO + i] = x[i];
 	}
 
 	for (int o = 0; o < NO; o++){
@@ -968,6 +1009,9 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 	for (unsigned int epoch = 0; epoch < epochs; epoch++) {
 		for (int i_batch = 0; i_batch < N_total / N_batch; i_batch++) {
 
+			if (0 != N_batch_gen)
+				iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
+
 			float r0 = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops); // update graph and compute loss
 			getgrad(NI, in_optimize_flag, isize, grad, NO, out_optimize_flag, adj, vops);
 			iter_op_arr_call(update, NI, in_optimize_flag, dxs, NI, in_optimize_flag, (const float**)grad);
@@ -976,8 +1020,13 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 
 			for (int i = 0; i < NI; i++) {
 
-				if (in_type[i] == IN_OPTIMIZE)
+				if (in_type[i] == IN_OPTIMIZE) {
+
 					vops->add(isize[i], args[NO + i], args[NO + i], dxs[i]);
+
+					if (NULL != prox[i].fun)
+						iter_op_p_call(prox[i], 0, args[NO + i], args[NO + i]); //we only support projections (mu = 0)
+				}
 
 				if (in_type[i] == IN_BATCH)
 					args[NO + i] += isize[i];
@@ -1025,6 +1074,12 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 			vops->del(grad[i]);
 		if(NULL != dxs[i])
 			vops->del(dxs[i]);
+
+		if(IN_BATCH_GENERATOR == in_type[i]) {
+
+			vops->del(x[i]);
+			x[i] = NULL;
+		}
 	}
 
 	for (int o = 0; o < NO; o++)
@@ -1210,7 +1265,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 				vops->axpbz(isize[i], tmp[i], 1, y[i], -1./tau, grad[i]); //tmp2 = x^n + alpha*(x^n - x^n-1) - 1/tau grad
 
 				if (NULL != prox[i].fun)
-					iter_op_p_call(prox[i], tau, x_new[i], tmp[i]); // if prox is a projection, we apply it, else it is just a copy (mu = 0)
+					iter_op_p_call(prox[i], tau, x_new[i], tmp[i]);
 				else
 					vops->copy(isize[i],  x_new[i], tmp[i]);
 

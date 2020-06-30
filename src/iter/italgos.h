@@ -117,15 +117,17 @@ void landweber_sym(unsigned int maxiter, float epsilon, float alpha,
 	struct iter_monitor_s* monitor);
 
 typedef void iter6_algo_f(unsigned int epochs, float batchnorm_momentum,
-             long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
-             long NO, long osize[NO], enum OUT_TYPE out_type[NI],
-             int N_batch, int N_total,
-             const struct vec_iter_s* vops,
-             struct iter_nlop_s nlop,
-             struct iter_op_arr_s adj,
-	     struct iter_op_arr_s update,
-             struct iter_op_s callback,
-             struct iter_monitor_s* monitor);
+        long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
+        long NO, long osize[NO], enum OUT_TYPE out_type[NI],
+        int N_batch, int N_total,
+        const struct vec_iter_s* vops,
+        struct iter_nlop_s nlop,
+        struct iter_op_arr_s adj,
+	struct iter_op_arr_s update,
+	struct iter_op_p_s prox[NI],
+	struct iter_nlop_s nlop_batch_gen,
+        struct iter_op_s callback,
+        struct iter_monitor_s* monitor);
 
 iter6_algo_f sgd;
 
@@ -228,7 +230,7 @@ void iPALM(	long NI, long isize[__VLA(NI)], enum IN_TYPE in_type[__VLA(NI)], flo
 		int epoch_start, int epoch_end,
         	const struct vec_iter_s* vops,
 		float alpha[__VLA(NI)], float beta[__VLA(NI)], _Bool convex[__VLA(NI)], _Bool trivial_stepsize,
-		float L[__VLA(NI)], float Lmin, float Lmax, float Lshrink, float Lincrease, 
+		float L[__VLA(NI)], float Lmin, float Lmax, float Lshrink, float Lincrease,
         	struct iter_nlop_s nlop,
 		struct iter_op_arr_s adj,
 		struct iter_op_p_s prox[__VLA(NI)],

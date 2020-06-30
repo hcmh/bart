@@ -206,11 +206,16 @@ void iter6_adadelta(	iter6_conf* _conf,
 {
 	auto conf = CAST_DOWN(iter6_adadelta_conf, _conf);
 
-	assert(NULL == nlop_batch_gen);
-	assert(NULL == prox_ops);
+	//assert(NULL == nlop_batch_gen);
+	//assert(NULL == prox_ops);
 
 	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
 	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
+	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
+
+	struct iter_op_p_s prox_iter[NI];
+	for (unsigned int i = 0; i < NI; i++)
+		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
 
 	long isize[NI];
 	long osize[NO];
@@ -248,6 +253,8 @@ void iter6_adadelta(	iter6_conf* _conf,
 		select_vecops(dst[0]),
 		nlop_iter, adj_op_arr,
 		upd_op_arr,
+		prox_iter,
+		nlop_batch_gen_iter,
 		(struct iter_op_s){ NULL, NULL }, NULL);
 
 	for (int i = 0; i < NI; i++)
@@ -262,11 +269,16 @@ void iter6_adam(	iter6_conf* _conf,
 {
 	auto conf = CAST_DOWN(iter6_adam_conf, _conf);
 
-	assert(NULL == nlop_batch_gen);
-	assert(NULL == prox_ops);
+	//assert(NULL == nlop_batch_gen);
+	//assert(NULL == prox_ops);
 
 	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
 	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
+	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
+
+	struct iter_op_p_s prox_iter[NI];
+	for (unsigned int i = 0; i < NI; i++)
+		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
 
 	long isize[NI];
 	long osize[NO];
@@ -304,6 +316,8 @@ void iter6_adam(	iter6_conf* _conf,
 		select_vecops(dst[0]),
 		nlop_iter, adj_op_arr,
 		upd_op_arr,
+		prox_iter,
+		nlop_batch_gen_iter,
 		(struct iter_op_s){ NULL, NULL }, NULL);
 
 	for (int i = 0; i < NI; i++)
