@@ -165,7 +165,7 @@ const struct linop_s* linop_fmac_create(unsigned int N, const long dims[N],
 	data->tensor = tensor;
 #ifdef USE_CUDA
 	data->gpu_tensor = NULL;
-	if (cuda_on_device(data->tensor))
+	if (cuda_ondevice(data->tensor))
 		data->gpu_tensor = data->tensor;
 #endif
 
