@@ -48,7 +48,7 @@ extern const struct operator_s* operator_generic_create2(unsigned int N, operato
 			const unsigned int D[__VLA(N)], const long* out_dims[__VLA(N)], const long* out_strs[__VLA(N)],
 			operator_data_t* data, operator_fun_t apply, operator_del_t del);
 
-extern const struct operator_s* operator_generic_extopts_create2(unsigned int N, unsigned int io_flags,
+extern const struct operator_s* operator_generic_extopts_create2(unsigned int N, operator_io_flags_t io_flags,
 			const unsigned int D[__VLA(N)], const long* dims[__VLA(N)], const long* strs[__VLA(N)],
 			operator_data_t* data, operator_fun_opts_t apply, operator_del_t del, operator_prop_flags_t prop_flags[N][N]);
 

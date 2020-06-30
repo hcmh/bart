@@ -79,7 +79,7 @@ static void operator_del(const struct shared_obj_s* sptr)
 /**
  * Create an operator (with strides)
  */
-const struct operator_s* operator_generic_extopts_create2(unsigned int N, unsigned int io_flags,
+const struct operator_s* operator_generic_extopts_create2(unsigned int N, operator_io_flags_t io_flags,
 			const unsigned int D[N], const long* dims[N], const long* strs[N],
 			operator_data_t* data, operator_fun_opts_t apply_with_opts, operator_del_t del, operator_prop_flags_t prop_flags[N][N])
 {
@@ -1412,7 +1412,7 @@ static void dup_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_o
 {
 	operator_init_run_opts(N + 1, out_run_opts);
 
-	unsigned int io_flags = 0;
+	operator_io_flags_t io_flags = 0;
 	for (unsigned int s = 0, t = 0; s < N + 1; s++) {
 
 		if ((int)s == data->b)
@@ -1583,7 +1583,7 @@ static void link_get_pass_opts(unsigned int N, operator_run_opt_flags_t out_run_
 	int NO = operator_nr_out_args(data->x);
 	int NI = operator_nr_in_args(data->x);
 
-	unsigned int io_flags = 0u;
+	operator_io_flags_t io_flags = 0u;
 	for (unsigned int s = 0, t = 0; s < N + 2; s++) {
 
 		if (((int)s == data->a) || ((int)s == data->b))
