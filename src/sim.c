@@ -122,7 +122,7 @@ int main_sim(int argc, char* argv[])
 		OPT_SET('o', &ode, "ODE based simulation [Default: OBS]"),
 		OPT_FLVEC3('1', &T1, "min:max:N", "range of T1s"),
 		OPT_FLVEC3('2', &T2, "min:max:N", "range of T2s"),
-		{ 'P', true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr> (-Ph for help)" },
+		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr> (-Ph for help)" },
 	};
 
 

@@ -67,7 +67,7 @@ int main_moba(int argc, char* argv[])
 
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
 		OPT_UINT('l', &conf.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
-		{ 'r', true, opt_reg_moba, &conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
+		{ 'r', NULL, true, opt_reg_moba, &conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
                 OPT_FLOAT('u', &conf.rho, "rho", "ADMM rho"),
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),

@@ -139,7 +139,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'w', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
 		OPT_SET(	'g', 	&usegpu			,  "use gpu"),
-		{ 'P', true, opt_seq, &fit_para, "\tA:B:C:D:E:F:G\tSequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep> (-Ph for help)" },
+		{ 'P', NULL, true, opt_seq, &fit_para, "\tA:B:C:D:E:F:G\tSequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep> (-Ph for help)" },
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
