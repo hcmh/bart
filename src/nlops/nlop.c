@@ -30,7 +30,7 @@
 
 //only these operator properties are passed to linops
 static operator_prop_flags_t nlops_props_understood =  MD_BIT(OP_PROP_ATOMIC)
-						     | MD_BIT(OP_PROP_R_LIN) 
+						     | MD_BIT(OP_PROP_R_LIN)
 						     | MD_BIT(OP_PROP_C_LIN)
 						     | MD_BIT(OP_PROP_HOLOMORPHIC);
 
@@ -172,7 +172,7 @@ struct nlop_s* nlop_generic_extopts_create2(	int OO, int ON, const long odims[OO
 	d->forward = NULL;
 	d->forward_opts = forward;
 
-	
+
 
 	operator_prop_flags_t tmp_props[II + OO][II + OO];
 	for (int i = 0; i < II + OO; i++)
@@ -182,12 +182,12 @@ struct nlop_s* nlop_generic_extopts_create2(	int OO, int ON, const long odims[OO
 		for (int o = 0; o < OO; o++) {
 
 			props[i][o] = MD_SET(props[i][o], OP_PROP_ATOMIC);
-			
+
 			if (0 != (tmp_props[i][o] & (~nlops_props_understood)))
 				error("Property passed to nlop which is not understood\n");
 
-			tmp_props[o][i+OO] = props[i][o]; 
-			tmp_props[i+OO][o] = props[i][o]; 
+			tmp_props[o][i+OO] = props[i][o];
+			tmp_props[i+OO][o] = props[i][o];
 		}
 
 	d->del = del;
@@ -240,7 +240,7 @@ struct nlop_s* nlop_generic_extopts_create2(	int OO, int ON, const long odims[OO
 		}
 	}
 
-	n->op = operator_generic_extopts_create2(OO + II, (1u << OO) - 1u, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, tmp_props);
+	n->op = operator_generic_extopts_create2(OO + II, (1lu << OO) - 1lu, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, tmp_props);
 
 
 	return PTR_PASS(n);
@@ -313,7 +313,7 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 		for (int j = 0; j < II + OO; j++)
 			tmp_props[i][j] = MD_BIT(OP_PROP_ATOMIC);
 
-	n->op = operator_generic_extopts_create2(OO + II, (1u << OO) - 1u, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, tmp_props);
+	n->op = operator_generic_extopts_create2(OO + II, (1lu << OO) - 1lu, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, tmp_props);
 
 
 	return PTR_PASS(n);
@@ -479,11 +479,11 @@ void nlop_generic_apply_select_derivative_unchecked(const struct nlop_s* op, int
 		for (unsigned int j = 0; j < (unsigned int)N; j++) {
 
 			run_opts[i][j] = 0;
-			
-			if ((i < OO) && !(j < OO) && (!MD_IS_SET(out_der_flag, i) || !MD_IS_SET(in_der_flag, j - OO)))				
+
+			if ((i < OO) && !(j < OO) && (!MD_IS_SET(out_der_flag, i) || !MD_IS_SET(in_der_flag, j - OO)))
 				run_opts[i][j] = MD_SET(run_opts[i][j], OP_APP_NO_DER);
 
-			if (!(i < OO) && (j < OO) && (!MD_IS_SET(in_der_flag, i - OO) || !MD_IS_SET(out_der_flag, j)))				
+			if (!(i < OO) && (j < OO) && (!MD_IS_SET(in_der_flag, i - OO) || !MD_IS_SET(out_der_flag, j)))
 				run_opts[i][j] = MD_SET(run_opts[i][j], OP_APP_NO_DER);
 		}
 
@@ -791,7 +791,7 @@ const struct nlop_s* nlop_append_singleton_dim_in_F(const struct nlop_s* op, int
 	md_copy_dims(N, dims, nlop_generic_domain(op, i)->dims);
 	dims[N] = 1;
 
-	return nlop_reshape_in_F(op, i, N,dims);
+	return nlop_reshape_in_F(op, i, N + 1,dims);
 }
 
 const struct nlop_s* nlop_append_singleton_dim_out_F(const struct nlop_s* op, int o)
@@ -801,7 +801,7 @@ const struct nlop_s* nlop_append_singleton_dim_out_F(const struct nlop_s* op, in
 	md_copy_dims(N, dims, nlop_generic_codomain(op, o)->dims);
 	dims[N] = 1;
 
-	return nlop_reshape_out_F(op, o, N,dims);
+	return nlop_reshape_out_F(op, o, N + 1, dims);
 }
 
 void nlop_debug(enum debug_levels dl, const struct nlop_s* x)
