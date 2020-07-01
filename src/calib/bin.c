@@ -305,11 +305,11 @@ extern int bin_quadrature(const long bins_dims[DIMS], float* bins,
 		md_copy_block(DIMS, pos, card_state_dims, card_state, card_state_singleton_dims, card_state_singleton, CFL_SIZE);
 	}
 
-	if (conf.mavg_window > 0) {
-
+	if (conf.mavg_window > 0)
 		moving_average(resp_state_dims, resp_state, conf.mavg_window);
+	else if (conf.mavg_window > 0 || conf.mavg_window_card > 0) 
 		moving_average(card_state_dims, card_state, (conf.mavg_window_card > 0) ? conf.mavg_window_card : conf.mavg_window);
-	}
+	
 
 	if (NULL != conf.card_out)
 		dump_cfl(conf.card_out, DIMS, card_state_dims, card_state);
