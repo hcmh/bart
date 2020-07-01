@@ -245,12 +245,19 @@ void iter6_adadelta(	iter6_conf* _conf,
 	for (int o = 0; o < NO; o++)
 		osize[o] = 2 * md_calc_size(nlop_generic_codomain(nlop, o)->N, nlop_generic_codomain(nlop, o)->dims);
 
+	//gpu ref (dst[i] can be null if batch_gen)
+	float* gpu_ref = NULL;
+	for (int i = 0; i < NI; i++)
+		if (IN_OPTIMIZE == in_type[i])
+			gpu_ref = dst[i];
+	assert(NULL != gpu_ref);
+
 
 	sgd(conf->epochs, conf->batchnorm_mom,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
 		batchsize, batchsize * numbatches,
-		select_vecops(dst[0]),
+		select_vecops(gpu_ref),
 		nlop_iter, adj_op_arr,
 		upd_op_arr,
 		prox_iter,
@@ -308,12 +315,19 @@ void iter6_adam(	iter6_conf* _conf,
 	for (int o = 0; o < NO; o++)
 		osize[o] = 2 * md_calc_size(nlop_generic_codomain(nlop, o)->N, nlop_generic_codomain(nlop, o)->dims);
 
+	//gpu ref (dst[i] can be null if batch_gen)
+	float* gpu_ref = NULL;
+	for (int i = 0; i < NI; i++)
+		if (IN_OPTIMIZE == in_type[i])
+			gpu_ref = dst[i];
+	assert(NULL != gpu_ref);
+
 
 	sgd(conf->epochs, conf->batchnorm_mom,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
 		batchsize, batchsize * numbatches,
-		select_vecops(dst[0]),
+		select_vecops(gpu_ref),
 		nlop_iter, adj_op_arr,
 		upd_op_arr,
 		prox_iter,
