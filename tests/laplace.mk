@@ -67,14 +67,14 @@ tests/test-laplace-temporal: ones scale join laplace nrmse
 		$(TOOLDIR)/scale 2 o.ra o_2.ra			;\
 		$(TOOLDIR)/scale 3 o.ra o_3.ra			;\
 		$(TOOLDIR)/scale 4 o.ra o_4.ra			;\
-		$(TOOLDIR)/join 0 o_0.ra o_1.ra o_2.ra o_3.ra o_4.ra lab.ra	;\
-		$(TOOLDIR)/laplace -T lab.ra L.ra			;\
+		$(TOOLDIR)/join 0 o_0.ra o_1.ra o_2.ra o_3.ra o_4.ra lab.ra		;\
+		$(TOOLDIR)/laplace -T lab.ra L.ra	;\
 		$(TOOLDIR)/scale -- -1 o_1.ra o_m1.ra			;\
-		$(TOOLDIR)/join 1 o_1.ra o_m1.ra o_0.ra o_0.ra o_0.ra l0.ra	;\
+		$(TOOLDIR)/join 1 o_1.ra o_m1.ra o_0.ra o_0.ra o_0.ra l0.ra		;\
 		$(TOOLDIR)/join 1 o_m1.ra o_2.ra o_m1.ra o_0.ra o_0.ra l1.ra	;\
 		$(TOOLDIR)/join 1 o_0.ra o_m1.ra o_2.ra o_m1.ra o_0.ra l2.ra	;\
 		$(TOOLDIR)/join 1 o_0.ra o_0.ra o_m1.ra o_2.ra o_m1.ra l3.ra	;\
-		$(TOOLDIR)/join 1 o_0.ra o_0.ra o_0.ra o_m1.ra o_1.ra l4.ra	;\
+		$(TOOLDIR)/join 1 o_0.ra o_0.ra o_0.ra o_m1.ra o_1.ra l4.ra		;\
 		$(TOOLDIR)/join 0 l0.ra l1.ra l2.ra l3.ra l4.ra l.ra		;\
 		$(TOOLDIR)/nrmse -t 0.000001 l.ra L.ra			;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)

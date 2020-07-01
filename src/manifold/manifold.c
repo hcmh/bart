@@ -460,10 +460,11 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 	case 'N': { // temporal nearest neighbour
 		
+
 		md_clear(2, L_dims, W, CFL_SIZE);
-		long strs[2]  = {(L_dims[0] + 1) * CFL_SIZE, 0};
-		md_zfill2(2, L_dims, strs, W + 1, 1.); // fill off-diagonal with ones
-	
+		long strs[2]  = {0, (L_dims[0] + 1) * CFL_SIZE};
+		md_zfill2(2, L_dims, strs, W + L_dims[0], 1.); // fill off-diagonal with ones
+
 		symmetrize(L_dims, W);
 
 		break;
