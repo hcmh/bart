@@ -6,7 +6,7 @@ tests/test-laplace: ones zeros join laplace flip scale delta saxpy nrmse
 		$(TOOLDIR)/ones 2 10 10 o.ra				;\
 		$(TOOLDIR)/zeros 2 10 10 z.ra				;\
 		$(TOOLDIR)/join 0  o.ra z.ra o.ra z.ra o.ra z.ra j.ra	;\
-		$(TOOLDIR)/laplace -n1 -s1 j.ra L.ra			;\
+		$(TOOLDIR)/laplace -N1 -s1 j.ra L.ra			;\
 		$(TOOLDIR)/flip 1 j.ra jf.ra				;\
 		$(TOOLDIR)/join 1 j.ra jf.ra j.ra jf.ra j.ra jf.ra T.ra	;\
 		$(TOOLDIR)/scale -- -1 T.ra T1.ra			;\
@@ -22,7 +22,7 @@ tests/test-laplace-norm: ones zeros join laplace flip scale delta saxpy nrmse
 		$(TOOLDIR)/ones 2 10 10 o.ra				;\
 		$(TOOLDIR)/zeros 2 10 10 z.ra				;\
 		$(TOOLDIR)/join 0  o.ra z.ra o.ra z.ra o.ra z.ra j.ra	;\
-		$(TOOLDIR)/laplace -n1 -s1 -N j.ra Lg.ra			;\
+		$(TOOLDIR)/laplace -N1 -s1 -n j.ra Lg.ra			;\
 		$(TOOLDIR)/flip 1 j.ra jf.ra				;\
 		$(TOOLDIR)/join 1 j.ra jf.ra j.ra jf.ra j.ra jf.ra T.ra	;\
 		$(TOOLDIR)/bart scale -- -1 T.ra  T1.ra ;\
@@ -41,7 +41,7 @@ tests/test-laplace-nn: phantom ones transpose flip join reshape laplace scale nr
 		$(TOOLDIR)/join 10 k0.ra k0.ra k1.ra k0.ra k2.ra k1.ra k2.ra k.ra	;\
 		$(TOOLDIR)/reshape 3 1 25 k.ra krs1.ra					;\
 		$(TOOLDIR)/transpose 0 10 krs1.ra ac.ra					;\
-		$(TOOLDIR)/laplace -n2 ac.ra L.ra					;\
+		$(TOOLDIR)/laplace -N2 ac.ra L.ra					;\
 		$(TOOLDIR)/ones 2 1 1 o1.ra						;\
 		$(TOOLDIR)/scale -- -1 o1.ra om1.ra					;\
 		$(TOOLDIR)/scale 2 o1.ra o2.ra						;\

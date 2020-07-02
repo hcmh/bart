@@ -37,16 +37,16 @@ int main_laplace(int argc, char* argv[])
 
 	const struct opt_s opts[] = {
 
-		OPT_INT('n', &conf.nn, "nn", "Number of nearest neighbours"),
+		OPT_INT('N', &conf.nn, "nn", "Number of nearest neighbours"),
 		OPT_FLOAT('s', &conf.sigma, "sigma", "Standard deviation"),
-		OPT_SET('N', &conf.norm, "Normalized Laplacian"),
+		OPT_SET('n', &conf.norm, "Normalized Laplacian"),
 		OPT_SET('P', &conf.dmap, "Transition Probability Matrix (diffusion map)"),
 		OPT_SET('a', &conf.anisotrop, "Anisotropy correction"),
 		OPT_SET('T', &conf.temporal_nn, "Temporal nearest neighbours"),
 		OPT_SET('k', &conf.kernel, "kernel approach"),
 		OPT_SET('C', &conf.kernel_CG, "CG kernel approach"),
 		OPT_FLOAT('K', &conf.kernel_lambda, "lambda", "[Kernel] Lambda"),
-		OPT_INT('I', &conf.iter_max, "iter", "[Kernel] Number of iterations"),
+		OPT_INT('i', &conf.iter_max, "iter", "[Kernel] Number of iterations"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
