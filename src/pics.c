@@ -178,7 +178,7 @@ int main_pics(int argc, char* argv[])
 		OPT_STRING('B', &basis_file, "file", "temporal (or other) basis"),
 		OPT_FLOAT('P', &bpsense_eps, "eps", "Basis Pursuit formulation, || y- Ax ||_2 <= eps"),
 		OPT_SELECT('a', enum algo_t, &algo, ALGO_PRIDU, "select Primal Dual"),
-		OPT_SET('M', &sms, "Simultaneous Multi-Slice reconstruction"),
+		OPTL_SET('M', "sms", &sms, "Simultaneous Multi-Slice reconstruction"),
 		OPT_SET('U', &nuconf.lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_STRING('Q', &Q_file, "file", "Q. Laplace L = QQH."),
 	};

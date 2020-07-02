@@ -78,7 +78,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
-		OPT_SET('n', &conf.noncart, "(non-Cartesian)"),
+		OPTL_SET('n', "noncart", &conf.noncart, "(non-Cartesian)"),
 		OPT_FLOAT('w', &scaling, "val", "inverse scaling of the data"),
 	};
 

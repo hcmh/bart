@@ -94,6 +94,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 	long my_img_dims[3] = { 0, 0, 0 };
 
+	conf.noncart = true;
 
 
 	const struct opt_s opts[] = {
@@ -119,7 +120,8 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_FLOAT('w', &scaling, "scaling", "inverse scaling of the data"),
 		OPT_VEC3('x', &my_img_dims, "x:y:z", "Explicitly specify image dimensions"),
 		OPT_SET('A', &alt_scaling, "(Alternative scaling)"), // Used for SSA-FARY paper
- 		OPT_SET('s', &conf.sms, "Simultaneous Multi-Slice reconstruction")
+ 		OPT_SET('s', &conf.sms, "Simultaneous Multi-Slice reconstruction"),
+		OPTL_CLEAR(0, "cart", &conf.noncart, "(force cartesian)"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -164,16 +166,12 @@ int main_rtnlinv(int argc, char* argv[])
 
 	if (NULL != psf) {
 
-		conf.noncart = true;
-
 		pattern = load_cfl(psf, DIMS, pat_dims);
 
 		turns = pat_dims[TIME_DIM];
 
 	} else
 	if (NULL != trajectory) {
-
-		conf.noncart = true;
 
 		traj = load_cfl(trajectory, DIMS, trj_dims);
 
@@ -201,7 +199,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 
 
-	if (-1 == restrict_fov)
+	if ((-1 == restrict_fov) && conf.noncart)
 		restrict_fov = 0.5;
 
 
