@@ -395,7 +395,7 @@ extern void ssa_fary(	const long cal_dims[DIMS],
 	long AAH2_dims[3] = { N, 1, N };
 
 	md_ztenmul(3, AAH2_dims, AAH, A2_dims, A, AH2_dims, AH);
-
+	md_zsmul(2, AAH_dims, AAH, AAH, 100. / md_znorm(2, AAH_dims, AAH));
 
 	// AAH = U @ S @ UH
 	long U_dims[2] = { N, N };
