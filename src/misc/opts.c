@@ -228,7 +228,7 @@ void cmdline(int* argcp, char* argv[], int min_args, int max_args, const char* u
 
 
 	char optstr[2 * n + 2];
-	ya_getopt_reset(); // reset getopt variables to process multiple argc/argv pairs
+	getopt_reset(); // reset getopt variables to process multiple argc/argv pairs
 
 	check_options(n, wopts);
 
@@ -249,8 +249,7 @@ void cmdline(int* argcp, char* argv[], int min_args, int max_args, const char* u
 
 	int c;
 	int longindex = -1;
-	while (-1 != (c = ya_getopt_long(argc, argv, optstr, longopts, &longindex))) {
-	//while (-1 != (c = ya_getopt(argc, argv, optstr))) {
+	while (-1 != (c = getopt_long(argc, argv, optstr, longopts, &longindex))) {
 #if 0
 		if ('h' == c) {
 
