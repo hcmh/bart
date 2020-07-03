@@ -44,6 +44,7 @@ static void help_seq(void)
 		"Drf:\t Duration of RF pulse [s]\n"
 		"FA:\t Flip angle of rf pulses [deg]\n"
 		"#tr:\t Number of repetitions\n"
+		"dw:\t off-resonance\n"
 	);
 }
 
@@ -69,7 +70,7 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 
 	case 'P': {
 		
-		int ret = sscanf(optarg, "%7[^:]", rt);
+		int ret = sscanf(optarg, "%8[^:]", rt);
 		assert(1 == ret);
 
 		if (strcmp(rt, "h") == 0) {
@@ -82,15 +83,16 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 			// Collect simulation data
 			struct sim_data* sim_data = ptr;
 
-			ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d",	
+			ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d:%f",
 									&sim_data->seq.analytical,
 									&sim_data->seq.seq_type, 
 									&sim_data->seq.tr, 
 									&sim_data->seq.te, 
 									&sim_data->pulse.rf_end, 
 									&sim_data->pulse.flipangle,
-									&sim_data->seq.rep_num);
-			assert(7 == ret);
+									&sim_data->seq.rep_num,
+									&sim_data->voxel.w);
+			assert(8 == ret);
 		}
 		break;
 	}
@@ -122,7 +124,7 @@ int main_sim(int argc, char* argv[])
 		OPT_SET('o', &ode, "ODE based simulation [Default: OBS]"),
 		OPT_FLVEC3('1', &T1, "min:max:N", "range of T1s"),
 		OPT_FLVEC3('2', &T2, "min:max:N", "range of T2s"),
-		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr> (-Ph for help)" },
+		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw> (-Ph for help)" },
 	};
 
 
