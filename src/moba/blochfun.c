@@ -51,7 +51,7 @@ struct blochFun_s {
 	const long* out_strs;
 	const long* input_strs;
 	
-	float scale[3];
+	float scale[4];
 	
 	//derivatives
 	complex float* Sig;
@@ -333,7 +333,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 					dr1_cpu[position] = data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
 					dr2_cpu[position] = data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
 					dm0_cpu[position] = data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
-					sig_cpu[position] = mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I;
+					sig_cpu[position] = data->scale[3] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
 
 					i++;
 				}
@@ -495,9 +495,11 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 
 
 	data->N = N;
-	data->scale[0] = fit_para->scale[0];
-	data->scale[1] = fit_para->scale[1];
-	data->scale[2] = fit_para->scale[2];
+	data->scale[0] = fit_para->scale[0];	// dR1 scaling
+	data->scale[1] = fit_para->scale[1];	// dM0 scaling
+	data->scale[2] = fit_para->scale[2];	// dR2 scaling
+	data->scale[3] = fit_para->scale[3];	// signal scaling
+
 	data->Sig = my_alloc(N, out_dims, CFL_SIZE);
 	
 	data->derivatives = my_alloc(N, dims, CFL_SIZE);

@@ -57,7 +57,7 @@ const struct modBlochFit modBlochFit_defaults = {
 	.runs = 1,
 	.inversion_pulse_length = 0.01,
 	
-	.scale = {1., 1., 1.},
+	.scale = {1., 1., 1., 1.},
 	.fov_reduction_factor = 1.,
 	.rm_no_echo = 0.,
 	.full_ode_sim = false,

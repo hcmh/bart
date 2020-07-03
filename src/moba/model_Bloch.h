@@ -34,7 +34,7 @@ struct modBlochFit {
 	float prep_pulse_length;
 	
 	/*Reconstruction Parameter*/
-	float scale[3];
+	float scale[4];
 	float fov_reduction_factor;
 	int rm_no_echo;
 	bool full_ode_sim;
