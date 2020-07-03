@@ -462,8 +462,9 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		
 
 		md_clear(2, L_dims, W, CFL_SIZE);
-		long strs[2]  = {0, (L_dims[0] + 1) * CFL_SIZE};
-		md_zfill2(2, L_dims, strs, W + L_dims[0], 1.); // fill off-diagonal with ones
+		long L_sdiag_dims[1] = { L_dims[0] - 1 };
+		long L_sdiag_strs[1] = {(L_dims[0] + 1) * CFL_SIZE};
+		md_zfill2(1, L_sdiag_dims, L_sdiag_strs, W + 1, 1.); // fill off-diagonal with ones
 
 		symmetrize(L_dims, W);
 
