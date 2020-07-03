@@ -51,18 +51,42 @@ static void stats_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	complex float* src = args[2];
 
 	if (NULL == data->x)
-		data->x = md_alloc_sameplace(data->dom->N, data->dom->dims, CFL_SIZE, args);
+		data->x = md_alloc_sameplace(data->dom->N, data->dom->dims, CFL_SIZE, args[0]);
 #ifdef USE_CUDA
 	assert((cuda_ondevice(mean) == cuda_ondevice(src)) && (cuda_ondevice(var) == cuda_ondevice(src)));
 #endif
 
-	md_zsum(data->dom->N, data->dom->dims, data->flags, mean, src);
-	md_zsmul(data->dom->N, data->codom->dims, mean, mean, 1. / data->n);
+#ifdef USE_CUDA
+	if (cuda_ondevice(src)) {
 
-	md_zsub2(data->dom->N, data->dom->dims, data->dom->strs, data->x, data->dom->strs, src, data->codom->strs, mean);
+		long tdims[data->dom->N];
+		md_select_dims(data->dom->N, data->flags, tdims, data->dom->dims);
+		complex float* ones = md_alloc_sameplace(data->dom->N, tdims, CFL_SIZE, src);
+		
+		md_zfill(data->dom->N, tdims, ones, 1.);
+		md_ztenmul(data->dom->N, data->codom->dims, mean, data->dom->dims, src, tdims, ones);
+		md_zsmul(data->dom->N, data->codom->dims, mean, mean, 1. / data->n);
 
-	md_ztenmulc(data->dom->N, data->codom->dims, var, data->dom->dims, data->x, data->dom->dims, data->x);
-	md_zsmul(data->codom->N, data->codom->dims, var, var, 1. / data->n);
+		complex float* tmp = md_alloc_sameplace(data->dom->N, data->dom->dims, CFL_SIZE, src);
+		md_copy2(data->dom->N, data->dom->dims, data->dom->strs, tmp, data->codom->strs, mean, CFL_SIZE);
+		md_zsub(data->dom->N, data->dom->dims, data->x, src, tmp);
+
+		md_zmulc(data->dom->N, data->dom->dims, tmp, data->x, data->x);
+		md_ztenmul(data->dom->N, data->codom->dims, var, data->dom->dims, tmp, tdims, ones);
+		md_zsmul(data->codom->N, data->codom->dims, var, var, 1. / data->n);
+
+		md_free(tmp);
+		md_free(ones);
+	} else
+#endif
+	{
+		md_zsum(data->dom->N, data->dom->dims, data->flags, mean, src);
+		md_zsmul(data->dom->N, data->codom->dims, mean, mean, 1. / data->n);
+		md_zsub2(data->dom->N, data->dom->dims, data->dom->strs, data->x, data->dom->strs, src, data->codom->strs, mean);
+		md_ztenmulc(data->dom->N, data->codom->dims, var, data->dom->dims, data->x, data->dom->dims, data->x);
+		md_zsmul(data->codom->N, data->codom->dims, var, var, 1. / data->n);
+	}
+
 	PRINT_TIMER("frw stats");
 }
 
@@ -107,7 +131,7 @@ static void stats_adj_var(const struct nlop_data_s* _data, complex float* dst, c
 
 	complex float* tmp = md_alloc_sameplace(data->codom->N, data->codom->dims, data->codom->size, src);
 	md_zreal(data->codom->N, data->codom->dims, tmp, src);
-	md_ztenmul2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->codom->strs, tmp, data->dom->strs, data->x);
+	md_zmul2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->codom->strs, tmp, data->dom->strs, data->x);
 	md_zsmul(data->dom->N, data->dom->dims, dst, dst, (2. / data->n));
 	md_free(tmp);
 	PRINT_TIMER("adj stats var");
@@ -173,6 +197,8 @@ struct normalize_s {
 	const struct iovec_s* dom;
 	const struct iovec_s* statdom;
 
+	unsigned long flags;
+
 	complex float* tmp; // (src - mu)
 	complex float* scale; // sqrt(var + epsilon)
 
@@ -201,10 +227,28 @@ static void normalize_fun(const nlop_data_t* _data, int N, complex float* args[N
 
 	md_zsadd(data->statdom->N, data->statdom->dims, data->scale, var, data->epsilon);
 	md_zreal(data->statdom->N, data->statdom->dims, data->scale, data->scale); //assert that sigma is real
-	md_zsqrt(data->statdom->N, data->statdom->dims, data->scale, data->scale);
+	//md_zsqrt(data->statdom->N, data->statdom->dims, data->scale, data->scale);
+	md_sqrt(data->statdom->N + 1, MD_REAL_DIMS(data->statdom->N, data->statdom->dims), (float*)data->scale, (float*)data->scale);
 
-	md_zsub2(data->dom->N, data->dom->dims, data->dom->strs, data->tmp, data->dom->strs, src, data->statdom->strs, mean);
-	md_zdiv2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, data->tmp, data->statdom->strs, data->scale);
+#ifdef USE_CUDA //FIXME: Optimize zsub2, zdiv2 for these strides
+	if (cuda_ondevice(src)) {
+
+		complex float* tmp = md_alloc_sameplace(data->dom->N, data->dom->dims, CFL_SIZE, src);
+
+		md_copy2(data->dom->N, data->dom->dims, data->dom->strs, tmp, data->statdom->strs, mean, CFL_SIZE);
+		md_zsub(data->dom->N, data->dom->dims, data->tmp, src, tmp);
+
+		md_copy2(data->dom->N, data->dom->dims, data->dom->strs, tmp, data->statdom->strs, data->scale, CFL_SIZE);
+		md_zdiv(data->dom->N, data->dom->dims, dst, data->tmp, tmp);
+
+		md_free(tmp);
+	} else
+#endif
+	{
+		md_zsub2(data->dom->N, data->dom->dims, data->dom->strs, data->tmp, data->dom->strs, src, data->statdom->strs, mean);
+		md_zdiv2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, data->tmp, data->statdom->strs, data->scale);
+	}
+
 	PRINT_TIMER("frw normalize");
 }
 
@@ -212,7 +256,20 @@ static void normalize_deradj_src(const struct nlop_data_s* _data, complex float*
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
-	md_zdiv2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->statdom->strs, data->scale);
+
+#ifdef USE_CUDA //FIXME: Optimize zsub2, zdiv2 for these strides
+	if (cuda_ondevice(src)) {
+
+		complex float* tmp = md_alloc_sameplace(data->dom->N, data->dom->dims, CFL_SIZE, src);
+
+		md_copy2(data->dom->N, data->dom->dims, data->dom->strs, tmp, data->statdom->strs, data->scale, CFL_SIZE);
+		md_zdiv(data->dom->N, data->dom->dims, dst, src, tmp);
+
+		md_free(tmp);
+	} else
+#endif
+		md_zdiv2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->statdom->strs, data->scale);
+
 	PRINT_TIMER("der/adj normalize src");
 }
 
@@ -229,8 +286,25 @@ static void normalize_adj_mean(const struct nlop_data_s* _data, complex float* d
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
-	md_clear(data->statdom->N, data->statdom->dims, dst, data->statdom->size);
-	md_zadd2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->statdom->strs, dst, data->dom->strs, src);
+
+#ifdef USE_CUDA //FIXME: Optimize zsub2, zdiv2 for these strides
+	if (cuda_ondevice(src)) {
+
+		long tdims[data->dom->N];
+		md_select_dims(data->dom->N, data->flags, tdims, data->dom->dims);
+
+		complex float* tmp = md_alloc_sameplace(data->dom->N, tdims, CFL_SIZE, src);
+		md_zfill(data->dom->N, tdims, tmp, 1.);
+		md_ztenmul(data->dom->N, data->statdom->dims, dst, data->dom->dims, src, tdims, tmp);
+
+		md_free(tmp);
+	} else
+#endif
+	{
+		md_clear(data->statdom->N, data->statdom->dims, dst, data->statdom->size);
+		md_zadd2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->statdom->strs, dst, data->dom->strs, src);
+	}
+
 	md_zdiv(data->statdom->N, data->statdom->dims, dst, dst, data->scale);
 	md_zsmul(data->statdom->N, data->statdom->dims, dst, dst, -1.);
 	PRINT_TIMER("adj normalize mean");
@@ -271,7 +345,22 @@ static void normalize_adj_var(const struct nlop_data_s* _data, complex float* ds
 #else
 	complex float* tmp = md_alloc_sameplace(data->dom->N, data->dom->dims, data->dom->size, dst);
 	md_zmulc(data->dom->N, data->dom->dims, tmp, src, data->tmp);
-	md_zadd2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->statdom->strs, dst, data->dom->strs, tmp);
+
+#ifdef USE_CUDA //FIXME: optimize zadd2 for accumulation in first or second dim
+	if (cuda_ondevice(src)) {
+
+		long tdims[data->dom->N];
+		md_select_dims(data->dom->N, data->flags, tdims, data->dom->dims);
+
+		complex float* ones = md_alloc_sameplace(data->dom->N, tdims, CFL_SIZE, src);
+		md_zfill(data->dom->N, tdims, ones, 1.);
+		md_ztenmul(data->dom->N, data->statdom->dims, dst, data->dom->dims, tmp, tdims, ones);
+
+		md_free(ones);
+	} else
+#endif
+		md_zadd2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->statdom->strs, dst, data->dom->strs, tmp);
+
 	md_free(tmp);
 #endif
 
@@ -325,6 +414,7 @@ const struct nlop_s* nlop_normalize_create(int N, const long dims[N], unsigned l
 	data->epsilon = epsilon;
 	data->scale = NULL;
 	data->tmp = NULL;
+	data->flags = flags;
 
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], dims);
