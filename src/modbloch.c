@@ -129,12 +129,12 @@ int main_modbloch(int argc, char* argv[])
 		OPT_INT(	'd', 	&debug_level, 		"", "Debug level"),
 		OPT_FLOAT(	'f', 	&restrict_fov, 		"", "FoV scaling factor"),
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
-		OPT_STRING(	't',	&trajectory,	"Traj", ""),
+		OPT_STRING(	't',	&trajectory,		"", "Input Trajectory"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_STRING(	'F',	&inputVFA, 		"", "Input for variable flipangle profile"),
-		OPT_INT(	'n', 	&fit_para.not_wav_maps, 	"", "# Removed Maps from Wav.Denoisng"),
+		OPT_INT(	'n', 	&fit_para.not_wav_maps, "", "# Removed Maps from Wav.Denoisng"),
 		OPT_SET(	'O', 	&fit_para.full_ode_sim	,  "Apply full ODE simulation"),
-		OPT_SET(	'S', 	&inputSP	,  "Add Slice Profile"),
+		OPT_SET(	'S', 	&inputSP		,  "Add Slice Profile"),
 		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'w', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
@@ -389,7 +389,6 @@ int main_modbloch(int argc, char* argv[])
 
 #else	// full data based scaling of data
 	double scaling = 10000. / md_znorm(DIMS, grid_dims, k_grid_data) * ksp_dims[2];
-	// double scaling = 5000. / md_znorm(DIMS, ksp_dims, kspace_data);
 #endif
 
 	debug_printf(DP_INFO, "Data Scaling: %f,\t Spokes: %ld\n", scaling, ksp_dims[PHS2_DIM]);
@@ -423,10 +422,11 @@ int main_modbloch(int argc, char* argv[])
 	
 	complex float initval[3] = {0.8, 4., 10.};//	R1, M0, R2
 	
-	// Determine DERIVATIVE scaling by simulating the applied sequence
+	// Determine DERIVATIVE and SIGNAL scaling by simulating the applied sequence
 
 	auto_scale(&fit_para, fit_para.scale, grid_dims, k_grid_data);
-	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2]);
+
+	debug_printf(DP_INFO,"Scaling:\t%f,\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2], fit_para.scale[3]);
 
 	// Scale initialized maps by derivative scaling
 
@@ -502,7 +502,6 @@ int main_modbloch(int argc, char* argv[])
 
 	md_free(tmp_img);
 	md_free(ones_tmp);
-	
 	md_free(mask);
 
 	unmap_cfl(DIMS, coil_dims, sens);
@@ -510,15 +509,16 @@ int main_modbloch(int argc, char* argv[])
 	unmap_cfl(DIMS, img_dims, img);
 	unmap_cfl(DIMS, ksp_dims, kspace_data);
 	unmap_cfl(DIMS, grid_dims, k_grid_data);
+
 	if(NULL != input_b1)
 		unmap_cfl(DIMS, input_b1_dims, input_b1);
-	
+
 	if(NULL != sliceprofile)
 		unmap_cfl(DIMS, slcprfl_dims, sliceprofile);
-	
+
 	if(NULL != input_vfa)
 		unmap_cfl(DIMS, input_vfa_dims, input_vfa);
-	
+
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
 	exit(0);
