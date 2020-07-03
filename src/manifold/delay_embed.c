@@ -33,6 +33,8 @@ const struct delay_conf ssa_conf_default = {
 	.group 		= 0,
 	.rank 		= 0,
 	.EOF_info 	= 0,
+
+	.temporal_nn		= 0,
 	
 	.nlsa		= false,
 	.nlsa_rank	= 0,
@@ -52,6 +54,8 @@ const struct delay_conf nlsa_conf_default = {
 	.group 		= 0,
 	.rank 		= 0,
 	.EOF_info 	= 0,
+
+	.temporal_nn		= 0,
 	
 	.nlsa		= true,
 	.nlsa_rank	= 20,

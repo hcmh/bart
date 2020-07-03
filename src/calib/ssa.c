@@ -439,6 +439,22 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 	calc_laplace(&laplace_conf, L_dims, L, A_dims, A);
 	debug_printf(DP_DEBUG3, "...done\n");
 
+	if (nlsa_conf.temporal_nn) {
+	
+		complex float* L_nn = md_alloc(2, L_dims, CFL_SIZE);
+		struct laplace_conf laplace_nn_conf = laplace_conf;
+		laplace_nn_conf.temporal_nn = 1;
+		laplace_nn_conf.kernel = 0;
+		laplace_nn_conf.kernel_CG = 0;
+
+		calc_laplace(&laplace_nn_conf, L_dims, L_nn, A_dims, A);
+
+		float lambda_nn = 1.;
+		md_zsmul(2, L_dims, L_nn, L_nn, lambda_nn);
+		md_zadd(2, L_dims, L, L, L_nn);
+	}
+
+
 	long U_dims[2] = { N, N };
 	long U_strs[2];
 	md_calc_strides(2, U_strs, U_dims, CFL_SIZE);

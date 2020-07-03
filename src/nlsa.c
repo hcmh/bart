@@ -88,7 +88,7 @@ int main_nlsa(int argc, char* argv[])
 		OPT_SET('C', &conf.kernel_CG, "CG kernel approach"),
 		OPT_INT('i', &conf.iter_max, "iter", "[Kernel] Number of kernel iterations"),
 		OPT_FLOAT('e', &nlsa_conf.weight, "exp", "Soft delay-embedding"),
-
+		OPT_SET('T', &nlsa_conf.temporal_nn, "Temporal nearest neighbour"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);

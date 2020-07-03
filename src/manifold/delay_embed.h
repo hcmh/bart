@@ -25,6 +25,8 @@ struct delay_conf {
 	int rank;	 	 // rank for backprojection
 	bool EOF_info;	 // in-phase information
 
+	bool temporal_nn; 		 // temporal nearest neighbors
+
 	// NLSA
 	_Bool nlsa;	     // is nlsa
 	long nlsa_rank;	 // smoothness of manifold
