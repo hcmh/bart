@@ -142,15 +142,15 @@ static void adam_update_apply(const operator_data_t* _data, unsigned int N, void
 
 	//Accumulate first momentum
 	md_smul(d->dom->N, d->dom->dims, d->first_mom, d->first_mom, d->beta1);
-	md_axpy(d->dom->N, d->dom->dims, d->first_mom, 1 - d->beta1, src);
+	md_axpy(d->dom->N, d->dom->dims, d->first_mom, 1. - d->beta1, src);
 
 	//Accumulate second momentum
 	md_smul(d->dom->N, d->dom->dims, d->second_mom, d->second_mom, d->beta2);
 	md_mul(d->dom->N, d->dom->dims, dst, src, src);
-	md_axpy(d->dom->N, d->dom->dims, d->second_mom, 1 - d->beta2, dst);
+	md_axpy(d->dom->N, d->dom->dims, d->second_mom, 1. - d->beta2, dst);
 
 	//Compute unbiased scales
-	float scale = d->lr * sqrtf(1. - powf(d->beta2, (float)d->t + 1.)) / (1. - powf(d->beta2, (float)d->t + 1.));
+	float scale = d->lr * sqrtf(1. - powf(d->beta2, (float)d->t + 1.)) / (1. - powf(d->beta1, (float)d->t + 1.));
 	float epsilon = d->epsilon * sqrtf(1. - powf(d->beta2, (float)d->t + 1.));
 	//printf("\n%f %f %f %f\n", scale, epsilon, md_scalar(d->dom->N, d->dom->dims, d->first_mom, d->first_mom), md_scalar(d->dom->N, d->dom->dims, d->second_mom, d->second_mom));
 	d->t++;
