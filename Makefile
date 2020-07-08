@@ -698,9 +698,10 @@ MODULES_test_nlop += -lnlops -lnoncart -llinops -liter
 MODULES_test_nlop_jacobian += -lnlops -llinops
 
 # lib noncart
-UTARGETS += test_nufft test_fib
+UTARGETS += test_nufft test_fib test_angle_calc
 MODULES_test_nufft += -lnoncart -llinops
 MODULES_test_fib += -lnoncart
+MODULES_test_angle_calc += -lnoncart -llinops
 
 # lib num
 UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_conv test_ode test_nlmeans test_rand
