@@ -27,6 +27,8 @@ struct delay_conf {
 
 	bool temporal_nn; 		 // temporal nearest neighbors
 
+	float lambda_nn; // lambda_nn
+	
 	// NLSA
 	_Bool nlsa;	     // is nlsa
 	long nlsa_rank;	 // smoothness of manifold
