@@ -195,10 +195,14 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 {
 	UNUSED(Q);
 	UNUSED(Q_dims);
+	UNUSED(llr_blk);
+	UNUSED(use_gpu);
 	
 	float lambda = ropts->lambda;
 	bool randshift = shift_mode == 1;
+#if 0
 	bool overlapping_blocks = shift_mode == 2;
+#endif
 
 	if (-1. == lambda)
 		lambda = 0.;
@@ -232,7 +236,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 	map2_no_time2_dims[COEFF_DIM] = map2_no_time2_dims[COEFF_DIM] - 1L;
 
 
-        long phases = x_dims[TIME2_DIM];
+    	long phases = x_dims[TIME2_DIM];
 
 	// if no penalities specified but regularization
 	// parameter is given, add a l2 penalty
@@ -250,8 +254,10 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 
 
 	int nr_penalties = ropts->r;
+#if 0
 	long blkdims[MAX_LEV][DIMS];
 	int levels;
+#endif
 
 
 	for (int nr = 0; nr < nr_penalties; nr++) {
@@ -356,11 +362,10 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 			linop_free(grad);
 
 			break;
-#if 0	
 		case LLR:
 
 			debug_printf(DP_INFO, "lowrank regularization: %f\n", regs[nr].lambda);
-
+#if 0	
 			if (use_gpu)
 				error("GPU operation is not currently implemented for lowrank regularization.\n");
 
@@ -412,9 +417,8 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 			operator_p_free(zero_prox);
 			operator_p_free(stack);
 			linop_free(id);
-
-			break;
 #endif
+			break;
 		case POS:
 			debug_printf(DP_INFO, "non-negative constraint\n");
 

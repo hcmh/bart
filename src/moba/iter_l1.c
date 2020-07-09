@@ -247,6 +247,8 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 		itrdata->scale = data->alpha;
 	};
 
+	UNUSED(continuation);
+
 	unsigned int llr_blk = 8;
 	unsigned int shift_mode = 1;
 
