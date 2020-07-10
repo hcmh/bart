@@ -7,6 +7,8 @@
  */
 
 #include <complex.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "linops/linop.h"
 #include "linops/someops.h"
@@ -181,7 +183,7 @@ static void smo_abs_adj(const nlop_data_t* _data, complex float* dst, const comp
 
 	md_zreal(data->N, data->dims, dst, src);
 	md_zmul(data->N, data->dims, dst, dst, data->tmp);
-	
+
 	PRINT_TIMER("adj smoabs");
 }
 
@@ -213,4 +215,116 @@ const struct nlop_s* nlop_smo_abs_create(int N, const long dims[N], float epsilo
 	data->tmp = NULL;
 
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), smo_abs_fun, smo_abs_der, smo_abs_adj, NULL, NULL, smo_abs_del);
+}
+
+
+struct dump_s {
+
+	INTERFACE(nlop_data_t);
+
+	unsigned long N;
+	const long* dims;
+
+	const char* filename;
+	long counter;
+
+	bool frw;
+	bool der;
+	bool adj;
+};
+
+DEF_TYPEID(dump_s);
+
+static void dump_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(dump_s, _data);
+
+	md_copy(data->N, data->dims, dst, src, CFL_SIZE);
+
+	if (data->frw) {
+
+		debug_printf(DP_INFO, "Hallo\n");
+
+		char filename[strlen(data->filename) + 10];
+		sprintf(filename, "%s_%ld_frw", data->filename, data->counter);
+		dump_cfl(filename, data->N, data->dims, src);
+		data->counter++;
+
+		debug_printf(DP_INFO, "Hallo\n");
+	}
+}
+
+static void dump_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(dump_s, _data);
+
+	md_copy(data->N, data->dims, dst, src, CFL_SIZE);
+
+	debug_printf(DP_INFO, "Hallo1\n");
+
+	if (data->der) {
+
+		char filename[strlen(data->filename) + 10];
+		sprintf(filename, "%s_%ld_der", data->filename, data->counter);
+		dump_cfl(filename, data->N, data->dims, src);
+		data->counter++;
+	}
+}
+
+static void dump_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(dump_s, _data);
+
+	md_copy(data->N, data->dims, dst, src, CFL_SIZE);
+
+	debug_printf(DP_INFO, "Hallo2\n");
+
+	if (data->adj) {
+
+		char filename[strlen(data->filename) + 10];
+		sprintf(filename, "%s_%ld_adj", data->filename, data->counter);
+		dump_cfl(filename, data->N, data->dims, src);
+		data->counter++;
+	}
+}
+
+static void dump_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(dump_s, _data);
+
+	xfree(data->dims);
+	xfree(data);
+}
+
+/**
+ * Operator dumping its input to a filename_%d_frw/der/adj.cfl file
+ * @param N
+ * @param dims
+ * @param filename
+ * @param frw - store frw input
+ * @param der - store der input
+ * @param adj - store adj input
+ */
+
+const struct nlop_s* nlop_dump_create(int N, const long dims[N], const char* filename, bool frw, bool der, bool adj)
+{
+	PTR_ALLOC(struct dump_s, data);
+	SET_TYPEID(dump_s, data);
+
+	data->N = N;
+	PTR_ALLOC(long[N], ndims);
+	md_copy_dims(N, *ndims, dims);
+	data->dims = *PTR_PASS(ndims);
+
+	PTR_ALLOC(char[strlen(filename) + 1], nfilename);
+	strcpy(*nfilename, filename);
+	data->filename = *PTR_PASS(nfilename);
+
+	data->frw = frw;
+	data->der = der;
+	data->adj = adj;
+
+	data->counter = 0;
+
+	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), dump_fun, dump_der, dump_adj, NULL, NULL, dump_del);
 }
