@@ -20,7 +20,9 @@ struct const_s {
 
 	int N;
 	const long* dims;
-	complex float* xn;
+	const complex float* xn;
+
+	bool copied;
 };
 
 DEF_TYPEID(const_s);
@@ -37,7 +39,8 @@ static void const_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(const_s, _data);
 
-	md_free(data->xn);
+	if (data->copied)
+		md_free(data->xn);
 	xfree(data->dims);
 	xfree(data);
 }
@@ -48,9 +51,10 @@ static void const_del(const nlop_data_t* _data)
  * @param N #dimensions
  * @param dims dimensions
  * @param strs in-strides
+ * @param copy decide if const in is copied in operator
  * @param in reference to constant input array
  */
-struct nlop_s* nlop_const_create2(int N, const long dims[N], const long strs[N], const complex float* in)
+struct nlop_s* nlop_const_create2(int N, const long dims[N], const long strs[N], bool copy, const complex float* in)
 {
 	PTR_ALLOC(struct const_s, data);
 	SET_TYPEID(const_s, data);
@@ -60,9 +64,18 @@ struct nlop_s* nlop_const_create2(int N, const long dims[N], const long strs[N],
 
 	data->N = N;
 	data->dims = *PTR_PASS(ndims);
-	data->xn = md_alloc(N, dims, CFL_SIZE);
 
-	md_copy2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), data->xn, strs, in, CFL_SIZE);
+	data->copied = copy;
+	if (copy) {
+
+		complex float* tmp = md_alloc(N, dims, CFL_SIZE);
+		md_copy2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), tmp, strs, in, CFL_SIZE);
+		data->xn = tmp;
+	} else {
+
+		data->xn = in;
+	}
+
 
 	long ostrs[N];
 	md_calc_strides(N, ostrs, dims, CFL_SIZE);
@@ -77,11 +90,12 @@ struct nlop_s* nlop_const_create2(int N, const long dims[N], const long strs[N],
  * Create operator with constant output (zero inputs, one output)
  * @param N #dimensions
  * @param dims dimensions
+ * @param copy decide if const in is copied in operator
  * @param in reference to constant input array
  */
-struct nlop_s* nlop_const_create(int N, const long dims[N], const complex float* in)
+struct nlop_s* nlop_const_create(int N, const long dims[N], bool copy, const complex float* in)
 {
-	return nlop_const_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), in);
+	return nlop_const_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), copy, in);
 }
 
 
@@ -92,14 +106,15 @@ struct nlop_s* nlop_const_create(int N, const long dims[N], const complex float*
  * @param N #dimensions of input array
  * @param dims dimensions of input array
  * @param strs strides of input array
+ * @param copy decide if const in is copied in operator
  * @param in pointer to input array
  */
-struct nlop_s* nlop_set_input_const2(const struct nlop_s* a, int i, int N, const long dims[N], const long strs[N], const complex float* in)
+struct nlop_s* nlop_set_input_const2(const struct nlop_s* a, int i, int N, const long dims[N], const long strs[N], bool copy, const complex float* in)
 {
 	int ai = nlop_get_nr_in_args(a);
 	assert(i < ai);
 
-	struct nlop_s* nlop_const = nlop_const_create2(N, dims, strs, in);
+	struct nlop_s* nlop_const = nlop_const_create2(N, dims, strs, copy, in);
 	struct nlop_s* result = nlop_chain2(nlop_const, 0,  a,  i);
 	nlop_free(nlop_const);
 
@@ -112,11 +127,12 @@ struct nlop_s* nlop_set_input_const2(const struct nlop_s* a, int i, int N, const
  * @param i index which should be set constant
  * @param N #dimensions of input array
  * @param dims dimensions of input array
+ * @param copy decide if const in is copied in operator
  * @param in pointer to input array
  */
-struct nlop_s* nlop_set_input_const(const struct nlop_s* a, int i, int N, const long dims[N], const complex float* in)
+struct nlop_s* nlop_set_input_const(const struct nlop_s* a, int i, int N, const long dims[N], bool copy, const complex float* in)
 {
-	return nlop_set_input_const2(a, i, N, dims, MD_STRIDES(N, dims, CFL_SIZE), in);
+	return nlop_set_input_const2(a, i, N, dims, MD_STRIDES(N, dims, CFL_SIZE), copy, in);
 }
 
 /**
@@ -126,11 +142,12 @@ struct nlop_s* nlop_set_input_const(const struct nlop_s* a, int i, int N, const 
  * @param N #dimensions of input array
  * @param dims dimensions of input array
  * @param strs strides of input array
+ * @param copy decide if const in is copied in operator
  * @param in pointer to input array
  */
-struct nlop_s* nlop_set_input_const_F2(const struct nlop_s* a, int i, int N, const long dims[N], const long strs[N], const complex float* in)
+struct nlop_s* nlop_set_input_const_F2(const struct nlop_s* a, int i, int N, const long dims[N], const long strs[N], bool copy, const complex float* in)
 {
-	struct nlop_s* result = nlop_set_input_const2(a, i, N, dims, strs, in);
+	struct nlop_s* result = nlop_set_input_const2(a, i, N, dims, strs, copy, in);
 	nlop_free(a);
 	return result;
 }
@@ -141,11 +158,12 @@ struct nlop_s* nlop_set_input_const_F2(const struct nlop_s* a, int i, int N, con
  * @param i index which should be set constant
  * @param N #dimensions of input array
  * @param dims dimensions of input array
+ * @param copy decide if const in is copied in operator
  * @param in pointer to input array
  */
-struct nlop_s* nlop_set_input_const_F(const struct nlop_s* a, int i, int N, const long dims[N], const complex float* in)
+struct nlop_s* nlop_set_input_const_F(const struct nlop_s* a, int i, int N, const long dims[N], bool copy, const complex float* in)
 {
-    struct nlop_s* result = nlop_set_input_const(a, i, N, dims, in);
+    struct nlop_s* result = nlop_set_input_const(a, i, N, dims, copy, in);
     nlop_free(a);
 	return result;
 }

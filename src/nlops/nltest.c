@@ -158,9 +158,9 @@ float nlop_test_derivatives(const struct nlop_s* op)
 			for (int in_del = 0; in_del < nr_in_args; in_del++){
 
 				if(in_del < in)
-					test_op = nlop_set_input_const_F(test_op, 0, nlop_generic_domain(op, in_del)->N, nlop_generic_domain(op, in_del)->dims, src[in_del]);
+					test_op = nlop_set_input_const_F(test_op, 0, nlop_generic_domain(op, in_del)->N, nlop_generic_domain(op, in_del)->dims, true, src[in_del]);
 				if(in_del > in)
-					test_op = nlop_set_input_const_F(test_op, 1, nlop_generic_domain(op, in_del)->N, nlop_generic_domain(op, in_del)->dims, src[in_del]);
+					test_op = nlop_set_input_const_F(test_op, 1, nlop_generic_domain(op, in_del)->N, nlop_generic_domain(op, in_del)->dims, true, src[in_del]);
 			}
 
 			for (int out_del = 0; out_del < nr_out_args; out_del ++){
@@ -212,9 +212,9 @@ float nlop_test_adj_derivatives(const struct nlop_s* op, _Bool real)
 			for (int in_del = 0; in_del < nr_in_args; in_del++){
 
 				if(in_del < in)
-					test_op = nlop_set_input_const_F(test_op, 0, nlop_generic_domain(op, in_del)->N, nlop_generic_domain(op, in_del)->dims, src[in_del]);
+					test_op = nlop_set_input_const_F(test_op, 0, nlop_generic_domain(op, in_del)->N, nlop_generic_domain(op, in_del)->dims, true, src[in_del]);
 				if(in_del > in)
-					test_op = nlop_set_input_const_F(test_op, 1, nlop_generic_domain(op, in_del)->N, nlop_generic_domain(op, in_del)->dims, src[in_del]);
+					test_op = nlop_set_input_const_F(test_op, 1, nlop_generic_domain(op, in_del)->N, nlop_generic_domain(op, in_del)->dims, true, src[in_del]);
 			}
 
 			for (int out_del = 0; out_del < nr_out_args; out_del ++){

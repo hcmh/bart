@@ -80,8 +80,8 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
 		nl = append_activation_bias(nl, 0, (l < layers - 1) ? ACT_RELU : ACT_LIN, MD_BIT(3));
 
 		long bdims[] = {filters};
-        	nl = nlop_set_input_const_F(nl, 1, 5, krn_dims, krn + l * md_calc_size(5, krn_dims));
-        	nl = nlop_set_input_const_F(nl, 1, 1, bdims, bias + l * filters);
+        	nl = nlop_set_input_const_F(nl, 1, 5, krn_dims, true, krn + l * md_calc_size(5, krn_dims));
+        	nl = nlop_set_input_const_F(nl, 1, 1, bdims, true, bias + l * filters);
 	}
 
 	nlop_free(nresh);

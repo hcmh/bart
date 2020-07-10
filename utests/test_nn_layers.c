@@ -76,8 +76,8 @@ static bool test_nlop_conv_compare(void)
 	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true, 'N');
 	const struct nlop_s* conv_fft = nlop_convcorr_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true);
 
-	const struct nlop_s* conv_geom_const = nlop_set_input_const_F(conv_geom, 1, N, dims_kernel, src2);
-	const struct nlop_s* conv_fft_const = nlop_set_input_const_F(conv_fft, 1, N, dims_kernel, src2);
+	const struct nlop_s* conv_geom_const = nlop_set_input_const_F(conv_geom, 1, N, dims_kernel, true, src2);
+	const struct nlop_s* conv_fft_const = nlop_set_input_const_F(conv_fft, 1, N, dims_kernel, true, src2);
 
 	nlop_apply(conv_geom_const, N, dims_output, dst_geom, N, dims_image, src1);
 	nlop_apply(conv_fft_const, N, dims_output, dst_fft, N, dims_image, src1);
@@ -328,9 +328,9 @@ static bool test_conv_transp(void)
 	md_gaussian_rand(N, kdims, kernel);
 
 	auto forward = append_convcorr_layer(nlop_from_linop_F(linop_identity_create(N, indims)), 0, 4, kernel_size, true, PAD_VALID, true, NULL, NULL);
-	forward = nlop_set_input_const_F(forward, 1, N, kdims, kernel);
+	forward = nlop_set_input_const_F(forward, 1, N, kdims, true, kernel);
 	auto adjoint = append_transposed_convcorr_layer(nlop_from_linop_F(linop_identity_create(N, outdims)), 0, 5, kernel_size, true, true, PAD_VALID, true, NULL, NULL);
-	adjoint = nlop_set_input_const_F(adjoint, 1, N, kdims, kernel);
+	adjoint = nlop_set_input_const_F(adjoint, 1, N, kdims, true, kernel);
 
 	PTR_ALLOC(struct linop_s, c);
 	c->forward = forward->op;

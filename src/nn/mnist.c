@@ -173,7 +173,7 @@ void predict_nn_mnist(int N_batch, long prediction[N_batch], const complex float
 
 	const struct nlop_s* network = get_nn_mnist(N_batch);
 	network = deflatten_weightsF(network, 1);
-	network = nlop_set_input_const_F(network, 1, 1, nlop_generic_domain(network, 1)->dims, weights);
+	network = nlop_set_input_const_F(network, 1, 1, nlop_generic_domain(network, 1)->dims, true, weights);
 
 	long indims[] = {1, 28, 28, 1, N_batch};
 	long outdims[] = {10, N_batch};
