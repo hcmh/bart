@@ -243,14 +243,10 @@ static void dump_fun(const nlop_data_t* _data, complex float* dst, const complex
 
 	if (data->frw) {
 
-		debug_printf(DP_INFO, "Hallo\n");
-
 		char filename[strlen(data->filename) + 10];
 		sprintf(filename, "%s_%ld_frw", data->filename, data->counter);
 		dump_cfl(filename, data->N, data->dims, src);
 		data->counter++;
-
-		debug_printf(DP_INFO, "Hallo\n");
 	}
 }
 
@@ -259,8 +255,6 @@ static void dump_der(const nlop_data_t* _data, complex float* dst, const complex
 	const auto data = CAST_DOWN(dump_s, _data);
 
 	md_copy(data->N, data->dims, dst, src, CFL_SIZE);
-
-	debug_printf(DP_INFO, "Hallo1\n");
 
 	if (data->der) {
 
@@ -276,8 +270,6 @@ static void dump_adj(const nlop_data_t* _data, complex float* dst, const complex
 	const auto data = CAST_DOWN(dump_s, _data);
 
 	md_copy(data->N, data->dims, dst, src, CFL_SIZE);
-
-	debug_printf(DP_INFO, "Hallo2\n");
 
 	if (data->adj) {
 
