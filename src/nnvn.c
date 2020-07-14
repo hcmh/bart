@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <complex.h>
 
+#include "misc/misc.h"
+#include "misc/types.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/init.h"
@@ -34,7 +36,7 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "<kspace> <sens> <mask> <weights conv> <weights rbf> <weights lambda> <out> <out ref> <out zerofilled>";
+static const char usage_str[] = "<kspace> <sens> <mask> <weights conv> <weights rbf> <weights lambda> <out/ref> <kspace_valid> <sens_valid> <mask_valid> <ref_valid>";
 static const char help_str[] = "Trains and appplies the Variational Network.";
 
 int main_nnvn(int argc, char* argv[])
@@ -49,6 +51,10 @@ int main_nnvn(int argc, char* argv[])
 	bool normalize = false;
 	bool oversampling_phase = false;
 	bool random_order = false;
+
+	char* history_filename = NULL;
+
+	long udims[5] = {1, 1, 1, 1, 1};
 
 	long Nb = 10;
 
@@ -73,24 +79,28 @@ int main_nnvn(int argc, char* argv[])
 
 		OPT_SET('a', &apply, "apply variational network"),
 
-		OPT_LONG('X', &(vn_config.Ux), "guessed from kspace", "Nx of the target image"),
-		OPT_LONG('Y', &(vn_config.Uy), "guessed from kspace", "Ny of the target image"),
-		OPT_LONG('Z', &(vn_config.Uz), "guessed from kspace", "Nz of the target image"),
-		OPT_SET('p', &oversampling_phase, "guess phase encoding oversampling, i.e. set mask to one where kspace = 0"),	
+		OPT_LONG('X', (udims), "guessed from kspace", "Nx of the target image"),
+		OPT_LONG('Y', (udims + 1), "guessed from kspace", "Ny of the target image"),
+		OPT_LONG('Z', (udims + 2), "guessed from kspace", "Nz of the target image"),
+		OPT_SET('p', &oversampling_phase, "guess phase encoding oversampling, i.e. set mask to one where kspace = 0"),
 
-		OPT_SET('n', &normalize, "normalize "),
+		OPT_SET('n', &normalize, "normalize"),
 		OPT_SET('g', &use_gpu, "run on gpu"),
-		
-		OPT_STRING('H', (const char**)(&(train_conf.save_path)), "", "folder for training history"),
+
+		OPT_STRING('H', (const char**)(&(history_filename)), "", "file for dumping train history"),
 	};
-	
-	cmdline(&argc, argv, 9, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	cmdline(&argc, argv, 7, 11, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	if ((8 != argc) && (12 != argc))
+		error("wrong number of arguments\n");
 
 	//we only give K as commandline
 	vn_config.Ky = vn_config.Kx;
 	train_conf.beta = train_conf.alpha;
 	train_conf.trivial_stepsize = true;
 
+	if (train && apply)
+		error("Train and apply would overwrite the reference!\n");
 
 #ifdef USE_CUDA
 	if (use_gpu) {
@@ -106,51 +116,52 @@ int main_nnvn(int argc, char* argv[])
 	char* filename_kspace = argv[1];
 	char* filename_coil = argv[2];
 	char* filename_mask = argv[3];
-	
+
 	char* filename_conv_w = argv[4];
 	char* filename_rbf_w = argv[5];
 	char* filename_lambda = argv[6];
 
 	char* filename_out = argv[7];
 
-	char* filename_ref = argv[8];
-	char* filename_u0 = argv[9];
-
 
 	if (initialize) {
 
-		long dims_conv_w[5] = {vn_config.Nf, vn_config.Kx, vn_config.Ky, vn_config.Kz, vn_config.Nl};
-		long dims_rbf_w[3] = {vn_config.Nf, vn_config.Nw, vn_config.Nl};
-		long dims_lambda[2] = {1, vn_config.Nl};
-
-		vn_config.conv_w = create_cfl(filename_conv_w, 5, dims_conv_w);
-		vn_config.rbf_w = create_cfl(filename_rbf_w, 3, dims_rbf_w);
-		vn_config.lambda_w = create_cfl(filename_lambda, 2, dims_lambda);
-
-		initialize_varnet(&vn_config);		
+		initialize_varnet(&vn_config);
+		save_varnet(&vn_config, filename_conv_w , filename_rbf_w, filename_lambda);
 	} else {
 
 		long dims_conv_w[5];
 		long dims_rbf_w[3];
 		long dims_lambda_w[2];
 
-		vn_config.conv_w = load_shared_cfl(filename_conv_w, 5, dims_conv_w);
-		vn_config.rbf_w = load_shared_cfl(filename_rbf_w, 3, dims_rbf_w);
-		vn_config.lambda_w = load_shared_cfl(filename_lambda, 2, dims_lambda_w);
+		complex float* tmp_conv_w = load_cfl(filename_conv_w, 5, dims_conv_w);
+		complex float* tmp_rbf_w = load_cfl(filename_rbf_w, 3, dims_rbf_w);
+		complex float* tmp_lambda_w = load_cfl(filename_lambda, 2, dims_lambda_w);
+
+		vn_config.conv_w = md_alloc(5, dims_conv_w, CFL_SIZE);
+		vn_config.rbf_w = md_alloc(3, dims_rbf_w, CFL_SIZE);
+		vn_config.lambda_w = md_alloc(2, dims_lambda_w, CFL_SIZE);
+
+		md_copy(5, dims_conv_w, vn_config.conv_w, tmp_conv_w, CFL_SIZE);
+		md_copy(3, dims_rbf_w, vn_config.rbf_w, tmp_rbf_w, CFL_SIZE);
+		md_copy(2, dims_lambda_w, vn_config.lambda_w, tmp_lambda_w, CFL_SIZE);
+
+		unmap_cfl(5, dims_conv_w, tmp_conv_w);
+		unmap_cfl(3, dims_rbf_w, tmp_rbf_w);
+		unmap_cfl(2, dims_lambda_w, tmp_lambda_w);
 
 		vn_config.Nf = dims_conv_w[0];
 		vn_config.Kx = dims_conv_w[1];
 		vn_config.Ky = dims_conv_w[2];
 		vn_config.Kz = dims_conv_w[3];
 		vn_config.Nl = dims_conv_w[4];
-
 		vn_config.Nw = dims_rbf_w[1];
 
 		assert((vn_config.Nf == dims_rbf_w[0]) && (vn_config.Nl == dims_rbf_w[2]));
 		assert((1 == dims_lambda_w[0]) && (vn_config.Nl == dims_lambda_w[1]));
 	}
 
-	
+	vn_move_gpucpu(&vn_config, use_gpu);
 
 	long kdims[5]; 		//[Nkx, Nky, Nkz, Nc, Nt]
 	long dims_coil[5]; 	//[Nkx, Nky, Nkz, Nc, Nt]
@@ -167,81 +178,81 @@ int main_nnvn(int argc, char* argv[])
 	assert(1 == mdims[3]);
 	assert((1 == mdims[4]) || (kdims[4] == mdims[4]));
 
-	if (0 == vn_config.Ux)
-		vn_config.Ux = kdims[0];
-	if (0 == vn_config.Uy)
-		vn_config.Uy = kdims[1];
-	if (0 == vn_config.Uz)
-		vn_config.Uz = kdims[2];
-
-	long udims[5] = {vn_config.Ux, vn_config.Uy, vn_config.Uz, 1, kdims[4]};
+	//sets mask to one where k-space is zero, only works for fully-sampled kspace
+	//where zeros correspond to phase oversampling
 	if (oversampling_phase)
 		unmask_zeros(mdims, file_mask, kdims, file_kspace);
 
-	// compute zerofilled solution for scaling
-	complex float* file_u0 = create_cfl(filename_u0, 5, udims);
-	compute_zero_filled(udims, file_u0, kdims, file_kspace, file_coil, mdims, file_mask);
-	
-	//scale data
-	complex float* scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
-	if (normalize) {
 
-		compute_scale(udims, scaling, file_u0);
-		normalize_max(kdims, scaling, file_kspace, file_kspace);
-	} else {
-		for (int i = 0; i < kdims[4]; i++)
-			scaling[i] = 1.;
-	}
+	if (train){
 
-	unmap_cfl(5, udims, file_u0);
+		complex float* file_ref = load_cfl(filename_out, 5, udims);
 
-	
+		if (normalize) {
 
-	//Compute reference
-	complex float* file_ref = create_cfl(filename_ref, 5, udims);
-	compute_reference(udims, file_ref, kdims, file_kspace, file_coil);
+			complex float* scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
+			complex float* u0 = md_alloc(5, udims, CFL_SIZE);
+			compute_zero_filled(udims, u0, kdims, file_kspace, file_coil, mdims, file_mask);
+			compute_scale(udims, scaling, u0);
+			md_free(u0);
 
-	if(use_gpu)
-		vn_move_gpu(&vn_config);
-	
-	if (train){	
+			normalize_max(udims, scaling, file_ref, file_ref);
+			normalize_max(kdims, scaling, file_kspace, file_kspace);
+
+			md_free(scaling);
+		}
 
 		debug_printf(DP_INFO, "Train Variational Network with\n[Nkx, Nky, Nkz, Nc, Nt] = ");
 		debug_print_dims(DP_INFO, 5, kdims);
 		debug_printf(DP_INFO, "[Ux, Uy, Uz, 1,  Nt] = ");
 		debug_print_dims(DP_INFO, 5, udims);
-		train_nn_varnet(&vn_config, CAST_UP(&train_conf), udims, file_ref, kdims, file_kspace, file_coil, mdims, file_mask, Nb, random_order);
+
+		train_nn_varnet(&vn_config, CAST_UP(&train_conf), udims, file_ref, kdims, file_kspace, file_coil, mdims, file_mask, Nb, random_order, history_filename, (12 == argc) ? argv + 8: NULL);
+		unmap_cfl(5, udims, file_ref);
+		save_varnet(&vn_config, filename_conv_w , filename_rbf_w, filename_lambda);
 	}
-	
-	renormalize_max(udims, scaling, file_ref, file_ref);
-	unmap_cfl(5, udims, file_ref);
+
+
 
 	if (apply) {
 
+		udims[0] = (1 == udims[0]) ? kdims[0] : udims[0];
+		udims[1] = (1 == udims[1]) ? kdims[1] : udims[1];
+		udims[2] = (1 == udims[2]) ? kdims[2] : udims[2];
+		udims[4] = (1 == udims[4]) ? kdims[4] : udims[4];
+
+		complex float* scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
+		if (normalize) {
+
+			complex float* u0 = md_alloc(5, udims, CFL_SIZE);
+			compute_zero_filled(udims, u0, kdims, file_kspace, file_coil, mdims, file_mask);
+			compute_scale(udims, scaling, u0);
+			normalize_max(kdims, scaling, file_kspace, file_kspace);
+			md_free(u0);
+		} else {
+			for (int i = 0; i < kdims[4]; i++)
+				scaling[i] = 1.;
+		}
+
 		complex float* file_out = create_cfl(filename_out, 5, udims);
 
-		debug_printf(DP_INFO, "Run Variational Network with\n[Nx, Ny, Nz, Nc, Nt] = ");
+		debug_printf(DP_INFO, "Run Variational Network with (Nb = %d)\n[Nx, Ny, Nz, Nc, Nt] = ", Nb);
 		debug_print_dims(DP_INFO, 5, kdims);
 		debug_printf(DP_INFO, "[Ux, Uy, Uz, 1, Nt] = ");
 		debug_print_dims(DP_INFO, 5, udims);
-	
+
 		apply_variational_network_batchwise(&vn_config, udims, file_out, kdims, file_kspace, file_coil, mdims, file_mask, Nb);
 		renormalize_max(udims, scaling, file_out, file_out);
+
+		md_free(scaling);
 
 		unmap_cfl(5, udims, file_out);
 	}
 
-	if(use_gpu)
-		vn_move_cpu(&vn_config);
-
-	unmap_cfl(5, MAKE_ARRAY(vn_config.Nf, vn_config.Kx, vn_config.Ky, vn_config.Kz, vn_config.Nl), vn_config.conv_w);
-	unmap_cfl(3, MAKE_ARRAY(vn_config.Nf, vn_config.Nw, vn_config.Nl), vn_config.rbf_w);
-	unmap_cfl(2, MAKE_ARRAY(1l, vn_config.Nl), vn_config.lambda_w);
-
-	md_free(scaling);
-
 	unmap_cfl(5, mdims, file_mask);
-	
+	unmap_cfl(5, kdims, file_kspace);
+	unmap_cfl(5, kdims, file_coil);
+
 
 	exit(0);
 }

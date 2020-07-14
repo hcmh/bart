@@ -1,6 +1,7 @@
 #include <assert.h>
 
 #include "misc/misc.h"
+#include "misc/mmio.h"
 #include "misc/debug.h"
 
 #include "num/multind.h"
@@ -25,6 +26,7 @@
 
 #include "nlops/nlop.h"
 #include "nlops/cast.h"
+#include "nlops/const.h"
 #include "nlops/chain.h"
 #include "nlops/tenmul.h"
 #include "nlops/someops.h"
@@ -91,7 +93,7 @@ const struct vn_s vn_default = {
 	.rbf_w_cpu = NULL,
 	.lambda_w_cpu = NULL,
 
-	.lambda_init = 1.,
+	.lambda_init = .2,
 	.init_scale_mu = 0.04,
 
 	.share_mask = true,
@@ -112,19 +114,22 @@ const struct vn_s vn_default = {
  *
  * Ru:	 	udims:	(Ux, Uy, Uz, 1, Nb)
  */
-static const struct nlop_s* nlop_ru_create(struct vn_s* vn, long Nb)
+static const struct nlop_s* nlop_ru_create(struct vn_s* vn, const long udims[5])
 {
-
-	long udims[] = {vn->Ux, vn->Uy, vn->Uz, 1, Nb};
 	//Padding
 	long pad_up[5] = {0, vn->Px, vn->Py, vn->Pz, 0};
 	long pad_down[5] = {0, -vn->Px, -vn->Py, -vn->Pz, 0};
 	long ker_size[3] = {vn->Kx, vn->Ky, vn->Kz};
 
+	long Ux = udims[0];
+	long Uy = udims[1];
+	long Uz = udims[2];
+	long Nb = udims[4];
+
 	//working dims
-	long udimsw[5] = {1, vn->Ux, vn->Uy, vn->Uz, Nb};
-	long zdimsw[5] = {vn->Nf, vn->Ux + 2 * vn->Px, vn->Uy + 2 * vn->Py, vn->Uz + 2 * vn->Pz, Nb};
-	long rbfdims[3] = {vn->Nf, (vn->Ux + 2 * vn->Px) * (vn->Uy + 2 * vn->Py) * (vn->Uz + 2 * vn->Pz) * Nb, vn->Nw};
+	long udimsw[5] = {1, Ux, Uy, Uz, Nb};
+	long zdimsw[5] = {vn->Nf, Ux + 2 * vn->Px, Uy + 2 * vn->Py, Uz + 2 * vn->Pz, Nb};
+	long rbfdims[3] = {vn->Nf, (Ux + 2 * vn->Px) * (Uy + 2 * vn->Py) * (Uz + 2 * vn->Pz) * Nb, vn->Nw};
 
 	//operator dims
 	long kerdims[5] = {vn->Nf, vn->Kx, vn->Ky, vn->Kz, 1};
@@ -167,6 +172,7 @@ static const struct nlop_s* nlop_ru_create(struct vn_s* vn, long Nb)
  *
  * @param vn structure describing the variational network
  * @param dims (Nx, Ny, Nz, Nc, Nb)
+ * @param udims (Ux, Uy, Uz, 1, Nb)
  *
  * Input tensors:
  * u:		udims: 	(Ux, Uy, Uz, 1,  Nb)
@@ -178,10 +184,8 @@ static const struct nlop_s* nlop_ru_create(struct vn_s* vn, long Nb)
  * Output tensors:
  * Du:		udims: 	(Ux, Uy, Uz, 1,  Nb)
  */
-static const struct nlop_s* nlop_du_create(struct vn_s* vn, const long dims[5])
+static const struct nlop_s* nlop_du_create(struct vn_s* vn, const long dims[5], const long udims[5])
 {
-	long udims[5] = {vn->Ux, vn->Uy, vn->Uz, 1, dims[4]};
-
 	const struct nlop_s* result = nlop_gradient_step_scaled_create(dims, vn->share_mask);
 
 	if (!md_check_equal_dims(5, udims, nlop_generic_codomain(result, 0)->dims, ~0))
@@ -218,13 +222,11 @@ static const struct nlop_s* nlop_du_create(struct vn_s* vn, const long dims[5])
  * Output tensors:
  * u(t+1):	udims:	(Ux, Uy, Uz, 1, Nb)
  */
-static const struct nlop_s* get_vn_cell(struct vn_s* vn, const long dims[5])
+static const struct nlop_s* get_vn_cell(struct vn_s* vn, const long dims[5], const long udims[5])
 {
-	long udims[5] = {vn->Ux, vn->Uy, vn->Uz, 1, dims[4]};
+	const struct nlop_s* ru = nlop_ru_create(vn, udims); //in: u(t), conv_w, rbf_w
 
-	const struct nlop_s* ru = nlop_ru_create(vn, dims[4]); //in: u(t), conv_w, rbf_w
-
-	const struct nlop_s* du = nlop_du_create(vn, dims); //in: u(t), kspace, coil, mask, lambda
+	const struct nlop_s* du = nlop_du_create(vn, dims, udims); //in: u(t), kspace, coil, mask, lambda
 	du = nlop_reshape_in_F(du, 4, 2, MD_SINGLETON_DIMS(2)); // in: u(t), kspace, coil, mask, lambda
 
 	const struct nlop_s* result = nlop_combine_FF(du, ru); // in: u(t), kspace, coil, mask, lambda, u(t), conv_w, rbf_w; out: du, ru
@@ -264,13 +266,13 @@ static const struct nlop_s* get_vn_cell(struct vn_s* vn, const long dims[5])
  * Output tensors:
  * u(l):	udims:	(Ux, Uy, Uz, 1,  Ub)
  */
-static const struct nlop_s* get_variational_network(struct vn_s* vn, const long dims[5])
+static const struct nlop_s* get_variational_network(struct vn_s* vn, const long dims[5], const long udims[5])
 {
-	const struct nlop_s* result = get_vn_cell(vn, dims);
+	const struct nlop_s* result = get_vn_cell(vn, dims, udims);
 
 	for (int l = 1; l < vn->Nl; l++) {
 
-		const struct nlop_s* tmp = get_vn_cell(vn, dims);
+		const struct nlop_s* tmp = get_vn_cell(vn, dims, udims);
 
 		result = nlop_chain2_FF(result, 0, tmp, 0); //in: kspace, coil, mask, conv_w[l], rbf_w[l], lambda[l], u(0), kspace, coil, mask, conv_w[0:l-1], rbf_w[0:l-1], lambda[0:l-1]
 
@@ -299,7 +301,7 @@ static const struct nlop_s* get_variational_network(struct vn_s* vn, const long 
 	reset_fft_op();
 
 	debug_printf(DP_DEBUG3, "VN created: ");
-	nlop_debug(DP_DEBUG3, result);
+	nlop_debug(DP_INFO, result);
 
 	return result;
 }
@@ -324,9 +326,8 @@ void apply_variational_network( struct vn_s* vn,
 {
 
 	vn->share_mask = mdims[4] == 1;
-	assert((udims[0] == vn->Ux) && (udims[1] == vn->Uy) && (udims[2] == vn->Uz));
 
-	auto network = get_variational_network(vn, kdims);
+	auto network = get_variational_network(vn, kdims, udims);
 
 	complex float* out_tmp = md_alloc_sameplace(5, udims, CFL_SIZE, vn->conv_w);
 	complex float* kspace_tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, vn->conv_w);
@@ -338,7 +339,8 @@ void apply_variational_network( struct vn_s* vn,
 	md_copy(5, mdims, mask_tmp, mask, CFL_SIZE);
 
 	void* refs[] = {(void*)out_tmp, (void*)kspace_tmp, (void*)coil_tmp, (void*)mask_tmp, (void*)vn->conv_w, (void*)vn->rbf_w, (void*)vn->lambda_w};
-	nlop_generic_apply_unchecked(network, 7, refs);
+
+	nlop_generic_apply_select_derivative_unchecked(network, 7, refs, 0, 0);
 
 	md_copy(5, udims, out, out_tmp, CFL_SIZE);
 
@@ -371,7 +373,7 @@ void apply_variational_network_batchwise(	struct vn_s* vn,
 	long Nt = kdims[4];
 	if (Nt <= Nb) {
 
-			apply_variational_network(vn, udims, out, kdims, kspace,coil, mdims, mask);
+			apply_variational_network(vn, udims, out, kdims, kspace, coil, mdims, mask);
 	} else {
 
 		long kdims1[5];
@@ -425,7 +427,7 @@ void train_nn_varnet(	struct vn_s* vn, iter6_conf* train_conf,
 			const long udims[5], const _Complex float* ref,
 			const long kdims[5], const _Complex float* kspace, const _Complex float* coil,
 			const long mdims[5], const _Complex float* mask,
-			long Nb, bool random_order)
+			long Nb, bool random_order, const char* history_filename, const char** valid_files)
 {
 	long Nt = kdims[4]; // number datasets
 
@@ -438,10 +440,9 @@ void train_nn_varnet(	struct vn_s* vn, iter6_conf* train_conf,
 	nkdims[4] = Nb;
 	nudims[4] = Nb;
 
-	assert((udims[0] == vn->Ux) && (udims[1] == vn->Uy) && (udims[2] == vn->Uz));
 	vn->share_mask = mdims[4] == 1;
 
-	auto network = get_variational_network(vn, nkdims);
+	auto network = get_variational_network(vn, nkdims, nudims);
 
 	//append loss = 1/(2N) sum_i^N || |x_i| - |y_i| ||^2 with |x_i| = sqrt(Re[x_i]^2 + Im[x_i]^2 + epsilon)
 	const struct nlop_s* loss = nlop_mse_create(5, nudims, MD_BIT(4));
@@ -490,82 +491,90 @@ void train_nn_varnet(	struct vn_s* vn, iter6_conf* train_conf,
 
 	char* names[] = {NULL, NULL, NULL, NULL, "conv_w", "rbf_w", "lambda_w"};
 	iPALM_conf->save_name = names;
-	iter6_iPALM(train_conf, network, 7, in_type, data, projections, 1, MAKE_ARRAY((enum OUT_TYPE)OUT_OPTIMIZE), 0, 1, batch_generator, NULL);
+
+	const struct nlop_s* valid_loss = NULL;
+	if (NULL != valid_files) {
+
+		long kdims[5];
+		long cdims[5];
+		long udims[5];
+		long mdims[5];
+
+		complex float* val_kspace = load_cfl(valid_files[0], 5, kdims);
+		complex float* val_coil = load_cfl(valid_files[1], 5, cdims);
+		complex float* val_mask = load_cfl(valid_files[2], 5, mdims);
+		complex float* val_ref = load_cfl(valid_files[3], 5, udims);
+
+		complex float* scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
+		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
+		compute_zero_filled(udims, u0, kdims, val_kspace, val_coil, mdims, val_mask);
+		compute_scale(udims, scaling, u0);
+		md_free(u0);
+
+		normalize_max(udims, scaling, val_ref, val_ref);
+		normalize_max(kdims, scaling, val_kspace, val_kspace);
+
+		valid_loss = get_variational_network(vn, kdims, udims);
+
+		const struct nlop_s* loss = nlop_mse_create(5, udims, MD_BIT(4));
+		loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
+		loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
+
+		valid_loss = nlop_chain2_FF(valid_loss, 0, loss, 0);
+
+		valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, udims, true, val_ref);
+		valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, kdims, true, val_kspace);
+		valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, cdims, true, val_coil);
+		valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, mdims, true, val_mask);
+
+		unmap_cfl(5, udims, val_ref);
+		unmap_cfl(5, kdims, val_kspace);
+		unmap_cfl(5, cdims, val_coil);
+		unmap_cfl(5, mdims, val_mask);
+	}
+
+	//auto monitor = create_iter6_monitor_progressbar(Nt / Nb, true);
+	auto conf = CAST_DOWN(iter6_iPALM_conf, train_conf);
+	auto monitor = create_iter6_monitor_progressbar_validloss(conf->epochs, Nt / Nb, false, 7, in_type, valid_loss, true);
+	iter6_iPALM(train_conf, network, 7, in_type, data, projections, 1, MAKE_ARRAY((enum OUT_TYPE)OUT_OPTIMIZE), 0, Nt / Nb, batch_generator, monitor);
+	if (NULL != history_filename)
+		iter6_monitor_dump_record(monitor, history_filename);
 
 	nlop_free(network);
 	nlop_free(batch_generator);
 }
 
 /**
- * Move vn weights to gpu
+ * Move vn weights to gpu / cpu
  */
-void vn_move_gpu(struct vn_s* vn) {
+void vn_move_gpucpu(struct vn_s* vn, bool gpu) {
 	#ifdef USE_CUDA
 
 	if ((NULL == vn->conv_w) || (NULL == vn->rbf_w) || (NULL == vn->lambda_w))
 		error("vn uninitialized\n");
 
-	if (cuda_ondevice(vn->conv_w) || cuda_ondevice(vn->rbf_w) || cuda_ondevice(vn->lambda_w)) {
-
-		debug_printf(DP_WARN, "vn already on gpu");
-		return;
-	}
-
-
 	long conv_size = vn->Nl * vn->Kx * vn->Ky * vn->Kz * vn->Nf;
 	long rbf_size = vn->Nl * vn->Nf * vn->Nw;
 	long lambda_size = vn->Nl;
 
-	complex float* conv_w = md_alloc_gpu(1, &conv_size, CFL_SIZE);
-	complex float* rbf_w = md_alloc_gpu(1, &rbf_size, CFL_SIZE);
-	complex float* lambda_w = md_alloc_gpu(1, &lambda_size, CFL_SIZE);
+	complex float* conv_w = (gpu ? md_alloc_gpu: md_alloc)(1, &conv_size, CFL_SIZE);
+	complex float* rbf_w = (gpu ? md_alloc_gpu: md_alloc)(1, &rbf_size, CFL_SIZE);
+	complex float* lambda_w = (gpu ? md_alloc_gpu: md_alloc)(1, &lambda_size, CFL_SIZE);
 
 	md_copy(1, &conv_size, conv_w, vn->conv_w, CFL_SIZE);
-	vn->conv_w_cpu = vn->conv_w;
-	vn->conv_w = conv_w;
 	md_copy(1, &rbf_size, rbf_w, vn->rbf_w, CFL_SIZE);
-	vn->rbf_w_cpu = vn->rbf_w;
-	vn->rbf_w = rbf_w;
 	md_copy(1, &lambda_size, lambda_w, vn->lambda_w, CFL_SIZE);
-	vn->lambda_w_cpu = vn->lambda_w;
+
+	md_free(vn->conv_w);
+	vn->conv_w = conv_w;
+	md_free(vn->rbf_w);
+	vn->rbf_w = rbf_w;
+	md_free(vn->lambda_w);
 	vn->lambda_w = lambda_w;
 	#else
 	UNUSED(vn);
-	error("compiled without cuda support\n");
-	#endif
-}
-
-/**
- * Move vn weights to cpu
- */
-void vn_move_cpu(struct vn_s* vn) {
-
-	#ifdef USE_CUDA
-
-	if (!(cuda_ondevice(vn->conv_w) || cuda_ondevice(vn->rbf_w) || cuda_ondevice(vn->lambda_w))) {
-
-		debug_printf(DP_WARN, "vn already on cpu");
-		return;
-	}
-
-	long conv_size = vn->Nl * vn->Kx * vn->Ky * vn->Kz * vn->Nf;
-	long rbf_size = vn->Nl * vn->Nf * vn->Nw;
-	long lambda_size = vn->Nl;
-
-	md_copy(1, &conv_size, vn->conv_w_cpu, vn->conv_w, CFL_SIZE);
-	md_free(vn->conv_w);
-	vn->conv_w = vn->conv_w_cpu;
-
-	md_copy(1, &rbf_size, vn->rbf_w_cpu, vn->rbf_w, CFL_SIZE);
-	md_free(vn->rbf_w);
-	vn->rbf_w = vn->rbf_w_cpu;
-
-	md_copy(1, &lambda_size, vn->lambda_w_cpu, vn->lambda_w, CFL_SIZE);
-	md_free(vn->lambda_w);
-	vn->lambda_w = vn->lambda_w_cpu;
-	#else
-	UNUSED(vn);
-	error("compiled without cuda support\n");
+	if (gpu)
+		error("compiled without cuda support\n");
 	#endif
 }
 
@@ -600,6 +609,17 @@ void initialize_varnet(struct vn_s* vn)
 	md_zsmul(5, kdims, vn->conv_w, vn->conv_w, 1. / sqrtf((float)vn->Kx * vn->Ky * vn->Kz));
 }
 
+void save_varnet(struct vn_s* vn, const char* filename_conv_w, const char* filename_rbf_w, const char* filename_lambda)
+{
+	long dims_conv_w[5] = {vn->Nf, vn->Kx, vn->Ky, vn->Kz, vn->Nl};
+	long dims_rbf_w[3] = {vn->Nf, vn->Nw, vn->Nl};
+	long dims_lambda_w[2] = {1, vn->Nl};
+
+	dump_cfl(filename_conv_w, 5, dims_conv_w, vn->conv_w);
+	dump_cfl(filename_rbf_w, 3, dims_rbf_w, vn->rbf_w);
+	dump_cfl(filename_lambda, 2, dims_lambda_w, vn->lambda_w);
+}
+
 /**
  * Compute zero filled reconstruction
  */
@@ -613,20 +633,6 @@ void compute_zero_filled(const long udims[5], complex float * out, const long kd
 	md_resize_center(5, udims, out, nlop_generic_codomain(mri_adjoint, 0)->dims, tmp, CFL_SIZE);
 	nlop_free(mri_adjoint);
 	md_free(tmp);
-}
-
-/**
- * Compute reference reconstruction
- */
-void compute_reference(const long udims[5], complex float * ref, const long kdims[5], const complex float* kspace, const complex float* coil)
-{
-	long mdims[5];
-	md_select_dims(5, 7ul, mdims, kdims);
-	complex float* mask = md_alloc_sameplace(5, mdims, CFL_SIZE, ref);
-	md_zfill(5, mdims, mask, 1.);
-
-	compute_zero_filled(udims, ref, kdims, kspace, coil, mdims, mask);
-	md_free(mask);
 }
 
 /**

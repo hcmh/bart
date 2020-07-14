@@ -14,10 +14,6 @@ struct vn_s {
 	long Py;
 	long Pz;
 
-	long Ux;
-	long Uy;
-	long Uz;
-
 	long Nw;
 	float Imax;
 	float Imin;
@@ -55,7 +51,7 @@ extern void train_nn_varnet(	struct vn_s* vn, iter6_conf* train_conf,
 				const long udims[5], const _Complex float* ref,
 				const long kdims[5], const _Complex float* kspace, const _Complex float* coil,
 				const long mdims[5], const _Complex float* mask,
-				long Nb, _Bool random_order);
+				long Nb, _Bool random_order, const char* history_filename, const char** valid_files);
 
 extern void initialize_varnet(struct vn_s* vn);
 
@@ -65,5 +61,5 @@ extern void renormalize_max(const long dims[5], const _Complex float* scaling, _
 
 extern void unmask_zeros(long mdims[5], _Complex float* mask, long kdims[5], const _Complex float* kspace);
 
-extern void vn_move_gpu(struct vn_s* vn);
-extern void vn_move_cpu(struct vn_s* vn);
+extern void vn_move_gpucpu(struct vn_s* vn, _Bool gpu);
+extern void save_varnet(struct vn_s* vn, const char* filename_conv_w, const char* filename_rbf_w, const char* filename_lambda);
