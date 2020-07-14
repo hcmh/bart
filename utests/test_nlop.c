@@ -29,6 +29,7 @@
 #include "nlops/chain.h"
 #include "nlops/nltest.h"
 #include "nlops/stack.h"
+#include "nlops/const.h"
 #include "nlops/mri_ops.h"
 
 #include "utest.h"
@@ -890,6 +891,44 @@ static bool test_mriop_vn(void)
 	debug_printf(DP_DEBUG1, "mri op errors:: %.8f, %.8f, %.8f, %.8f, %.8f\n", err_frw, err_der_image, err_der_scale, err_adj_image, err_adj_scale);
 	UT_ASSERT((err_frw + err_der_image + err_der_scale + err_adj_image + err_adj_scale < 2.E-5));
 }
+
+static bool test_mriop_normalinv(void)
+{
+	enum { N = 5 };
+	long dims[N] = { 8, 8, 2, 1, 2};
+
+	auto nlop_inv = mri_normal_inversion_create_general(N, dims, 23, 23, 23, 23, 7, -1.); // in: x0, coil, mask, lambda; out:
+
+	complex float* ones = md_alloc(N, dims, CFL_SIZE);
+	md_zfill(N, dims, ones, 1.);
+
+	nlop_inv = nlop_set_input_const_F(nlop_inv, 1, N, dims, ones);
+	nlop_inv = nlop_set_input_const_F(nlop_inv, 1, N, dims, ones);
+
+	complex float* lambda = md_alloc(1, MAKE_ARRAY(1l), CFL_SIZE);
+	md_zfill(1, MAKE_ARRAY(1l), lambda, 3.);
+
+	complex float* in = md_alloc(N, dims, CFL_SIZE);
+	complex float* out = md_alloc(N, dims, CFL_SIZE);
+
+	md_gaussian_rand(N, dims, in);
+
+	nlop_generic_apply_unchecked(nlop_inv, 3, MAKE_ARRAY(out, in, lambda));
+	md_zdiv(N, dims, out, out, in);
+	print_complex(10, out);
+
+	linop_forward_unchecked(nlop_get_derivative(nlop_inv, 0, 0), out, in);
+	md_zdiv(N, dims, out, out, in);
+	print_complex(10, out);
+
+	linop_forward_unchecked(nlop_get_derivative(nlop_inv, 0, 1), out, ones);
+	md_zdiv(N, dims, out, out, in);
+	print_complex(10, out);
+
+	UT_ASSERT(false);
+}
+
+UT_REGISTER_TEST(test_mriop_normalinv);
 
 
 static bool test_nlop_select_derivatives(void)

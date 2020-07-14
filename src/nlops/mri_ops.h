@@ -7,3 +7,7 @@ extern const struct nlop_s* nlop_mri_adjoint_create(const long dims[5], _Bool sh
 extern const struct nlop_s* nlop_gradient_step_unscaled_create(const long dims[5], _Bool share_mask);
 extern const struct nlop_s* nlop_gradient_step_scaled_create(const long dims[5], _Bool share_mask);
 extern const struct nlop_s* nlop_gradient_step_scaled_modular_create(const long dims[5], _Bool share_mask);
+
+extern const struct nlop_s* mri_normal_inversion_create_general(int N, long dims[__VLA(N)],
+								unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
+								float lambda);

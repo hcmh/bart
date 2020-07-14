@@ -169,7 +169,7 @@ TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten ssa bin c
 TMRI=homodyne poisson twixread fakeksp umgread looklocker paradiseread phasediff dixon genLLbasis
 TIO=toimg dcmread dcmtag
 TSIM=phantom phantom_json traj upat bloch sim tbasis signal
-TNN=mnist nnvn
+TNN=mnist nnvn nnmodl
 
 
 
@@ -534,7 +534,7 @@ MODULES_test_moba += -lmoba -lnoir -lnlops -llinops -lsimu
 
 # lib nlop
 UTARGETS += test_nlop
-MODULES_test_nlop += -lnlops -llinops
+MODULES_test_nlop += -lnlops -llinops -liter
 
 # lib noncart
 UTARGETS += test_nufft
