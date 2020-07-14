@@ -59,6 +59,20 @@ complex float* init_glorot_uniform_conv(long N, const long* kernel_dims, complex
 	return src + size;
 }
 
+complex float* init_glorot_uniform_conv_complex(long N, const long* kernel_dims, complex float* src, _Bool c1)
+{
+	long size = md_calc_size(N, kernel_dims);
+	md_uniform_rand(1, &size, src);
+	md_zsadd(1, &size, src, src, (complex float)(-0.5));
+	complex float* tmp = md_alloc_sameplace(1, &size, CFL_SIZE, src);
+	md_uniform_rand(1, &size, tmp);
+	md_zsadd(1, &size, tmp, tmp, (complex float)(-0.5));
+	md_zaxpy(1, &size, src, 1.I, tmp);
+	md_free(tmp);
+	md_zsmul(1, &size, src, src, (complex float)(2 * get_conv_init_scaling(kernel_dims, c1)));
+	return src + size;
+}
+
 complex float* init_bias(long N, const long* bias_dims, complex float* src, _Bool c1)
 {
 	UNUSED(c1);

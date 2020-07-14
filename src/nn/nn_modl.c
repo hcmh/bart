@@ -616,17 +616,17 @@ void init_nn_modl(struct modl_s* modl)
 	wi = 1;
 	complex float* tmp = *weights[wi];
 	for (int i = 0; i < dims[wi][Ns[wi] - 1]; i++)
-		tmp = init_glorot_uniform_conv(Ns[wi] - 1, dims[wi], tmp, true);
+		tmp = init_glorot_uniform_conv_complex(Ns[wi] - 1, dims[wi], tmp, true);
 
 	wi = 2;
 	tmp = *weights[wi];
 	for (int i = 0; i < dims[wi][Ns[wi] - 1] * dims[wi][Ns[wi] - 2]; i++)
-		tmp = init_glorot_uniform_conv(Ns[wi] - 2, dims[wi], tmp, true);
+		tmp = init_glorot_uniform_conv_complex(Ns[wi] - 2, dims[wi], tmp, true);
 
 	wi = 3;
 	tmp = *weights[wi];
 	for (int i = 0; i < dims[wi][Ns[wi] - 1]; i++)
-		tmp = init_glorot_uniform_conv(Ns[wi] - 1, dims[wi], tmp, true);
+		tmp = init_glorot_uniform_conv_complex(Ns[wi] - 1, dims[wi], tmp, true);
 
 	//init bias with 0
 	for (wi = 4; wi < 7; wi++)
