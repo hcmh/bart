@@ -13,6 +13,7 @@
 #include "nlops/nlop.h"
 
 #include "monitor_iter6.h"
+#include "nn/layers.h"
 #include "num/flpmath.h"
 #include "num/multind.h"
 
@@ -98,7 +99,7 @@ static float compute_validation_objective(const struct nlop_s* nlop, long NI, en
 	long NW = 1;
 
 	for (int i = 0; i < NI; i++)
-		if ((IN_OPTIMIZE == in_type[i]) || (IN_BATCH == in_type[i])) {
+		if ((IN_OPTIMIZE == in_type[i]) || (IN_BATCHNORM == in_type[i])) {
 
 			args[NW] = (const _Complex float*)x[i];
 			NW++;
@@ -108,8 +109,12 @@ static float compute_validation_objective(const struct nlop_s* nlop, long NI, en
 
 	operator_run_opt_flags_t run_opts[NW][NW];
 	select_derivatives(1, 0, NW - 1, 0, run_opts);
+
+	enum NETWORK_STATUS stat_tmp = network_status;
+	network_status = STAT_TEST;
 	nlop_generic_apply_extopts_unchecked(nlop, NW, (void**)args, run_opts);
 	//nlop_generic_apply_unchecked(nlop, NW, (void**)args);
+	network_status = stat_tmp;
 
 	float result = 0;
 
