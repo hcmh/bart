@@ -48,7 +48,7 @@ Nl - number of layers
 
 dims = (Nx, Ny, Nz, Nc, Nb)
 
-Input tensors:	
+Input tensors:
 
 u0:		udims = (Nx, Ny, Nz, Nb)
 kspace:		kdims = (Nx, Ny, Nz, Nc, Nb)
@@ -115,7 +115,7 @@ const struct vn_s vn_default = {
 static const struct nlop_s* nlop_ru_create(struct vn_s* vn, long Nb)
 {
 
-	long udims[] = {vn->Ux, vn->Uy, vn->Uz, 1, Nb}; 
+	long udims[] = {vn->Ux, vn->Uy, vn->Uz, 1, Nb};
 	//Padding
 	long pad_up[5] = {0, vn->Px, vn->Py, vn->Pz, 0};
 	long pad_down[5] = {0, -vn->Px, -vn->Py, -vn->Pz, 0};
@@ -125,7 +125,7 @@ static const struct nlop_s* nlop_ru_create(struct vn_s* vn, long Nb)
 	long udimsw[5] = {1, vn->Ux, vn->Uy, vn->Uz, Nb};
 	long zdimsw[5] = {vn->Nf, vn->Ux + 2 * vn->Px, vn->Uy + 2 * vn->Py, vn->Uz + 2 * vn->Pz, Nb};
 	long rbfdims[3] = {vn->Nf, (vn->Ux + 2 * vn->Px) * (vn->Uy + 2 * vn->Py) * (vn->Uz + 2 * vn->Pz) * Nb, vn->Nw};
-	
+
 	//operator dims
 	long kerdims[5] = {vn->Nf, vn->Kx, vn->Ky, vn->Kz, 1};
 	long wdims[3] = {vn->Nf, vn->Nw, 1};
@@ -139,7 +139,7 @@ static const struct nlop_s* nlop_ru_create(struct vn_s* vn, long Nb)
 	rbf = nlop_reshape_in_F(rbf, 0, 5, zdimsw);
 	rbf = nlop_reshape_out_F(rbf, 0, 5, zdimsw);
 	result = nlop_chain2_FF(result, 0, rbf, 0); //in: rbf_w, in, conv_w
-	
+
 	result = append_transposed_convcorr_layer(result, 0, 1, ker_size, false, true, PAD_SAME, true, NULL, NULL); //in: rbf_w, u, conv_w, conv_w
 	//result = nlop_chain2_FF(result, 0, padd, 0); //in: rbf_w, u, conv_w, conv_w
 	result = append_padding_layer(result, 0, 5, pad_down, pad_down, PAD_VALID);
@@ -223,7 +223,7 @@ static const struct nlop_s* get_vn_cell(struct vn_s* vn, const long dims[5])
 	long udims[5] = {vn->Ux, vn->Uy, vn->Uz, 1, dims[4]};
 
 	const struct nlop_s* ru = nlop_ru_create(vn, dims[4]); //in: u(t), conv_w, rbf_w
-	
+
 	const struct nlop_s* du = nlop_du_create(vn, dims); //in: u(t), kspace, coil, mask, lambda
 	du = nlop_reshape_in_F(du, 4, 2, MD_SINGLETON_DIMS(2)); // in: u(t), kspace, coil, mask, lambda
 
@@ -426,16 +426,16 @@ void train_nn_varnet(	struct vn_s* vn, iter6_conf* train_conf,
 			const long kdims[5], const _Complex float* kspace, const _Complex float* coil,
 			const long mdims[5], const _Complex float* mask,
 			long Nb, bool random_order)
-{		
+{
 	long Nt = kdims[4]; // number datasets
-	
+
 	long nkdims[5];
 	long nudims[5];
 
 	md_copy_dims(5, nkdims, kdims);
 	md_copy_dims(5, nudims, udims);
-	
-	nkdims[4] = Nb;	
+
+	nkdims[4] = Nb;
 	nudims[4] = Nb;
 
 	assert((udims[0] == vn->Ux) && (udims[1] == vn->Uy) && (udims[2] == vn->Uz));
@@ -452,7 +452,7 @@ void train_nn_varnet(	struct vn_s* vn, iter6_conf* train_conf,
 
 	debug_printf(DP_DEBUG3, "train op created: ");
 	nlop_debug(DP_DEBUG3, network);
-	
+
 	//create batch generator
 	const complex float* train_data[] = {ref, kspace, coil, mask};
 	const long* train_dims[] = {	nlop_generic_domain(network, 0)->dims,
@@ -487,11 +487,10 @@ void train_nn_varnet(	struct vn_s* vn, iter6_conf* train_conf,
 	in_type[4] = IN_OPTIMIZE;
 	in_type[5] = IN_OPTIMIZE;
 	in_type[6] = IN_OPTIMIZE;
-		
+
 	char* names[] = {NULL, NULL, NULL, NULL, "conv_w", "rbf_w", "lambda_w"};
 	iPALM_conf->save_name = names;
-	
-	iter6_iPALM(train_conf, network, 7, in_type, data, 1, MAKE_ARRAY((enum OUT_TYPE)OUT_OPTIMIZE), projections, batch_generator);
+	iter6_iPALM(train_conf, network, 7, in_type, data, projections, 1, MAKE_ARRAY((enum OUT_TYPE)OUT_OPTIMIZE), 0, 1, batch_generator, NULL);
 
 	nlop_free(network);
 	nlop_free(batch_generator);
@@ -511,7 +510,7 @@ void vn_move_gpu(struct vn_s* vn) {
 		debug_printf(DP_WARN, "vn already on gpu");
 		return;
 	}
-	
+
 
 	long conv_size = vn->Nl * vn->Kx * vn->Ky * vn->Kz * vn->Nf;
 	long rbf_size = vn->Nl * vn->Nf * vn->Nw;
@@ -523,7 +522,7 @@ void vn_move_gpu(struct vn_s* vn) {
 
 	md_copy(1, &conv_size, conv_w, vn->conv_w, CFL_SIZE);
 	vn->conv_w_cpu = vn->conv_w;
-	vn->conv_w = conv_w;	
+	vn->conv_w = conv_w;
 	md_copy(1, &rbf_size, rbf_w, vn->rbf_w, CFL_SIZE);
 	vn->rbf_w_cpu = vn->rbf_w;
 	vn->rbf_w = rbf_w;
@@ -571,7 +570,7 @@ void vn_move_cpu(struct vn_s* vn) {
 }
 
 void initialize_varnet(struct vn_s* vn)
-{	
+{
 	long conv_size = vn->Nl * vn->Kx * vn->Ky * vn->Kz * vn->Nf;
 	long rbf_size = vn->Nl * vn->Nf * vn->Nw;
 	long lambda_size = vn->Nl;
@@ -584,7 +583,7 @@ void initialize_varnet(struct vn_s* vn)
 		vn->lambda_w = md_alloc(1, &lambda_size, CFL_SIZE);
 
 	md_zfill(1, &lambda_size, vn->lambda_w, vn->lambda_init);
- 
+
 	complex float mu[vn->Nw];
 	for (int i = 0; i < vn->Nw; i++)
 		mu[i] = vn->init_scale_mu * (vn->Imin + (i)*(vn->Imax - vn->Imin) / ((float)vn->Nw - 1.));
@@ -625,7 +624,7 @@ void compute_reference(const long udims[5], complex float * ref, const long kdim
 	md_select_dims(5, 7ul, mdims, kdims);
 	complex float* mask = md_alloc_sameplace(5, mdims, CFL_SIZE, ref);
 	md_zfill(5, mdims, mask, 1.);
-	
+
 	compute_zero_filled(udims, ref, kdims, kspace, coil, mdims, mask);
 	md_free(mask);
 }
@@ -675,14 +674,14 @@ void renormalize_max(const long dims[5], const complex float* scaling, complex f
  */
 
 void unmask_zeros(long mdims[5], complex float* mask, long kdims[5], const complex float* kspace)
-{	
+{
 	if (1 != mdims[4])
 		error("not supported for batchwise mask");
 
 	complex float* tmp = md_alloc(5, kdims, CFL_SIZE);
 	md_clear(5, kdims, tmp, CFL_SIZE);
 	md_zcmp(5, kdims, tmp, tmp, kspace);
-	
+
 	complex float* tmp_mask = md_alloc(5, mdims, CFL_SIZE);
 	md_clear(5, mdims, tmp_mask, CFL_SIZE);
 	md_zadd2(5, kdims, MD_STRIDES(5, mdims, CFL_SIZE), tmp_mask, MD_STRIDES(5, mdims, CFL_SIZE), tmp_mask, MD_STRIDES(5, kdims, CFL_SIZE), tmp);
@@ -693,5 +692,5 @@ void unmask_zeros(long mdims[5], complex float* mask, long kdims[5], const compl
 	md_zadd(5, mdims, tmp_mask, tmp_mask, mask);
 	md_zsgreatequal(5, mdims, mask, tmp_mask, 1.);
 	md_free(tmp_mask);
-	
+
 }

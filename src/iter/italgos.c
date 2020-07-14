@@ -41,6 +41,7 @@
 
 #include "iter/vec.h"
 #include "iter/monitor.h"
+#include "iter/monitor_iter6.h"
 
 #include "italgos.h"
 
@@ -932,7 +933,7 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 		struct iter_op_arr_s update,
 		struct iter_op_p_s prox[NI],
 		struct iter_nlop_s nlop_batch_gen,
-        	struct iter_op_s callback, struct iter_monitor_s* monitor)
+        	struct iter_op_s callback, struct iter6_monitor_s* monitor)
 {
 	UNUSED(monitor);
 	UNUSED(callback);
@@ -1055,12 +1056,15 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 					batchnorm_counter++;
 				}
 			}
-
+#if 1
+			iter6_monitor(monitor, epoch, i_batch + 1, r0, NI, (const float**)x, NULL);
+#else
 			char pre_string[50];
 			char post_string[20];
 			sprintf (pre_string, "#%d->%d ", epoch, i_batch + 1);
 			sprintf (post_string, " loss: %.8f", r0);
 			print_timer_bar(i_batch + 1, N_total / N_batch, starttime, pre_string, post_string);
+#endif
 		}
 
 		for (int i = 0; i < NI; i++)
@@ -1106,6 +1110,7 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
  * @param NO number of output tensors (i.e. objectives)
  * @param osize size of output tensors (flattened as real)
  * @param out_type type of output (i.e. should be minimized)
+ * @param N_batch number of batches per epoch
  * @param epoch_start warm start possible if epoch start > 0, note that epoch corresponds to an update due to one batch
  * @param epoch_end
  * @param vops
@@ -1126,7 +1131,7 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
  */
 void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], float* x_old[NI],
 		long NO, long osize[NO], enum OUT_TYPE out_type[NO],
-		int epoch_start, int epoch_end,
+		int N_batch, int epoch_start, int epoch_end,
         	const struct vec_iter_s* vops,
 		float alpha[NI], float beta[NI], bool convex[NI], bool trivial_stepsize,
 		float L[NI], float Lmin, float Lmax, float Lshrink, float Lincrease,
@@ -1134,9 +1139,8 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 		struct iter_op_arr_s adj,
 		struct iter_op_p_s prox[NI],
 		struct iter_nlop_s nlop_batch_gen,
-        	struct iter_op_s callback, struct iter_monitor_s* monitor)
+        	struct iter_op_s callback, struct iter6_monitor_s* monitor)
 {
-	UNUSED(monitor);
 	UNUSED(callback);
 
 	float* x_batch_gen[NI]; //arrays which are filled by batch generator
@@ -1216,7 +1220,8 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 
 	double starttime = timestamp();
 
-	for (int epoch = epoch_start; epoch < epoch_end; epoch++) {
+	for (int epoch = epoch_start; epoch < epoch_end; epoch++)
+		for (int batch = 0; batch < N_batch; batch++) {
 
 		if (0 != N_batch_gen)
 			iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
@@ -1238,8 +1243,8 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			x_new[i] = vops->allocate(isize[i]);
 
 			//determine current parameters
-			float betai = (-1. == beta[i]) ? (float)(epoch) / (float)(epoch + 3.) : beta[i];
-			float alphai = (-1. == alpha[i]) ? (float)(epoch) / (float)(epoch + 3.) : alpha[i];
+			float betai = (-1. == beta[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : beta[i];
+			float alphai = (-1. == alpha[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : alpha[i];
 
 			//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
 			vops->axpbz(isize[i], z[i], 1 + betai, x[i], -betai, x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
@@ -1316,16 +1321,14 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			x_new[i] = NULL;
 		}
 
-		char pre_string[100];
 		char post_string[200];
-		sprintf (pre_string, "#%d/%d loss: %f->%f time:", epoch + 1, epoch_end - epoch_start, r_old, r_i);
-		sprintf (post_string, "");
+		sprintf (post_string, " ");
 
 		for (int i = 0; i < NI; i++)
 			if (IN_OPTIMIZE == in_type[i])
 				sprintf(post_string + strlen(post_string), "L[%d]=%f ", i, L[i]);
 
-		print_timer(epoch - epoch_start + 1, epoch_end - epoch_start, starttime, pre_string, post_string);
+		iter6_monitor(monitor, epoch, batch + 1, r_i, NI, (const float**)x, post_string);
 	}
 
 

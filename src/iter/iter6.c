@@ -99,8 +99,8 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 	.L = 1000.,
 	.Lmin = 1.e-4,
 	.Lmax = 1.e12,
-	.Lshrink = 2.,
-	.Lincrease = 9.,
+	.Lshrink = 1.2,
+	.Lincrease = 2.,
 
 	.alpha = -1.,
 	.beta = -1.,
@@ -202,7 +202,7 @@ void iter6_adadelta(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
 			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
 			long NO, enum OUT_TYPE out_type[NO],
-			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen)
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
 {
 	auto conf = CAST_DOWN(iter6_adadelta_conf, _conf);
 
@@ -262,7 +262,7 @@ void iter6_adadelta(	iter6_conf* _conf,
 		upd_op_arr,
 		prox_iter,
 		nlop_batch_gen_iter,
-		(struct iter_op_s){ NULL, NULL }, NULL);
+		(struct iter_op_s){ NULL, NULL }, monitor);
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
@@ -272,7 +272,7 @@ void iter6_adam(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
 			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
 			long NO, enum OUT_TYPE out_type[NO],
-			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen)
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
 {
 	auto conf = CAST_DOWN(iter6_adam_conf, _conf);
 
@@ -332,20 +332,20 @@ void iter6_adam(	iter6_conf* _conf,
 		upd_op_arr,
 		prox_iter,
 		nlop_batch_gen_iter,
-		(struct iter_op_s){ NULL, NULL }, NULL);
+		(struct iter_op_s){ NULL, NULL }, monitor);
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
 }
 
-
 void iter6_iPALM(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
-			long NI, enum IN_TYPE in_type[NI], float* dst[NI],
-			long NO, enum OUT_TYPE out_type[NO],
-			const struct operator_p_s* prox_ops[NI],
-			const struct nlop_s* nlop_batch_gen)
+			long NI, enum IN_TYPE in_type[__VLA(NI)], float* dst[__VLA(NI)], const struct operator_p_s* prox_ops[__VLA(NI)],
+			long NO, enum OUT_TYPE out_type[__VLA(NO)],
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
 {
+	UNUSED(batchsize);
+
 	auto conf = CAST_DOWN(iter6_iPALM_conf, _conf);
 
 	//Compute sizes
@@ -465,14 +465,14 @@ void iter6_iPALM(	iter6_conf* _conf,
 
 		iPALM(	NI, isize, in_type, dst, x_old,
 			NO, osize, out_type,
-			epoch_start, epoch_end,
+			numbatches, epoch_start, epoch_end,
         		select_vecops(gpu_ref),
 			alpha, beta, convex, conf->trivial_stepsize,
 			lipshitz_constants, conf->Lmin, conf->Lmax, conf->Lshrink, conf->Lincrease,
         		nlop_iter, adj_op_arr,
 			prox_iter,
 			nlop_batch_gen_iter,
-			(struct iter_op_s){ NULL, NULL }, NULL);
+			(struct iter_op_s){ NULL, NULL }, monitor);
 
 		epoch_start = epoch_end;
 		epoch_end = MIN(conf->epochs, epoch_start + conf->save_modulo);

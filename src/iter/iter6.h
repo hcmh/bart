@@ -2,6 +2,7 @@
 #define ITER6_H
 
 #include "italgos.h"
+#include "iter/monitor_iter6.h"
 
 
 typedef struct iter6_conf_s { TYPEID* TYPEID; } iter6_conf;
@@ -90,7 +91,8 @@ struct iter_nlop_s;
 struct nlop_s;
 struct operator_p_s;
 
-typedef void iter6_f(iter6_conf* _conf, const struct nlop_s* nlop, long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI], long NO, enum OUT_TYPE out_type[NO], int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen);
+struct iter6_monitor_s;
+typedef void iter6_f(iter6_conf* _conf, const struct nlop_s* nlop, long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI], long NO, enum OUT_TYPE out_type[NO], int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor);
 
 iter6_f iter6_adadelta;
 iter6_f iter6_adam;
@@ -98,9 +100,8 @@ iter6_f iter6_adam;
 
 void iter6_iPALM(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
-			long NI, enum IN_TYPE in_type[__VLA(NI)], float* dst[__VLA(NI)],
+			long NI, enum IN_TYPE in_type[__VLA(NI)], float* dst[__VLA(NI)], const struct operator_p_s* prox_ops[__VLA(NI)],
 			long NO, enum OUT_TYPE out_type[__VLA(NO)],
-			const struct operator_p_s* prox_ops[__VLA(NI)],
-			const struct nlop_s* nlop_batch_gen);
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor);
 
 #endif

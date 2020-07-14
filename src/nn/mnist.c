@@ -16,6 +16,7 @@
 #include "iter/iter3.h"
 #include "iter/iter4.h"
 #include "iter/iter6.h"
+#include "iter/monitor_iter6.h"
 #include "iter/italgos.h"
 #include "iter/batch_gen.h"
 
@@ -211,21 +212,23 @@ void train_nn_mnist(enum MNIST_NETWORK_TYPE type, int N_batch, int N_total, comp
 		src[1] = NULL;
 		in_type[1] = IN_BATCH_GENERATOR;
 
+		auto monitor = create_iter6_monitor_progressbar(N_total / N_batch, true);
 		iter6_adam(CAST_UP(&_conf),
 			nlop_train,
 			NI, in_type, NULL, src,
 			NO, out_type,
-			N_batch, N_total / N_batch, batch_generator);
+			N_batch, N_total / N_batch, batch_generator, monitor);
 	} else {
 
 		struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
 		_conf.epochs = epochs;
 
+		auto monitor = create_iter6_monitor_progressbar(N_total / N_batch, true);
 		iter6_adadelta(CAST_UP(&_conf),
 			nlop_train,
 			NI, in_type, NULL, src,
 			NO, out_type,
-			N_batch, N_total / N_batch, NULL);
+			N_batch, N_total / N_batch, NULL, monitor);
 	}
 
 	nlop_free(nlop_train);
