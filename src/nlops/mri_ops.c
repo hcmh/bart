@@ -487,6 +487,16 @@ static void mri_normal_inversion_deradj(const nlop_data_t* _data, complex float*
 		0, NULL, NULL, NULL, NULL,
 		2 * md_calc_size(d->N, d->idims), (float*)dst, (float*)src,
 		NULL);
+
+	complex float* tmp = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
+	operator_apply(d->normal_op, d->N, d->idims, tmp, d->N, d->idims, dst);
+	md_zaxpy(d->N, d->idims, tmp, d->conf->alpha, dst);
+	float err = md_zrmse(d->N, d->idims, src, tmp);
+	float scale = md_zrms(d->N, d->idims, tmp);
+	if (1.e-6 < err / MAX(scale, 1.))
+		debug_printf(DP_WARN, "MRI normal inversion did not converge (error: %e, scale: %e)\n", err, scale);
+	md_free(tmp);
+
 	PRINT_TIMER("frw/der/adj mri normal inversion");
 }
 
@@ -501,6 +511,15 @@ static void mri_normal_inversion_der_lambda(const nlop_data_t* _data, complex fl
 		0, NULL, NULL, NULL, NULL,
 		2 * md_calc_size(d->N, d->idims), (float*)dst, (float*)d->out,
 		NULL);
+
+	complex float* tmp = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
+	operator_apply(d->normal_op, d->N, d->idims, tmp, d->N, d->idims, dst);
+	md_zaxpy(d->N, d->idims, tmp, d->conf->alpha, dst);
+	float err = md_zrmse(d->N, d->idims, d->out, dst);
+	float scale = md_zrms(d->N, d->idims, d->out);
+	if (1.e-6 < err / MAX(scale, 1.))
+		debug_printf(DP_WARN, "MRI normal inversion der lambda did not converge (error: %e, scale: %e)\n", err, scale);
+	md_free(tmp);
 
 	md_zmul2(d->N, d->idims, MD_STRIDES(d->N, d->idims, CFL_SIZE), dst, MD_STRIDES(d->N, d->idims, CFL_SIZE), dst, MD_SINGLETON_STRS(d->N), src);
 	md_zsmul(d->N, d->idims, dst, dst, -1);
@@ -520,6 +539,15 @@ static void mri_normal_inversion_adj_lambda(const nlop_data_t* _data, complex fl
 		0, NULL, NULL, NULL, NULL,
 		2 * md_calc_size(d->N, d->idims), (float*)tmp, (float*)d->out,
 		NULL);
+
+	complex float* tmp2 = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
+	operator_apply(d->normal_op, d->N, d->idims, tmp2, d->N, d->idims, tmp);
+	md_zaxpy(d->N, d->idims, tmp2, d->conf->alpha, tmp);
+	float err = md_zrmse(d->N, d->idims, d->out, tmp2);
+	float scale = md_zrms(d->N, d->idims, d->out);
+	if (1.e-6 < err / MAX(scale, 1.))
+		debug_printf(DP_WARN, "MRI normal inversion adj lambda did not converge (error: %e, scale: %e)\n", err, scale);
+	md_free(tmp2);
 
 	md_zconj(d->N, d->idims, tmp, tmp);
 	md_ztenmul(d->N, MD_SINGLETON_DIMS(d->N), dst, d->idims, src, d->idims, tmp);
