@@ -1050,7 +1050,7 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 						vops->axpy(isize[i], x[i],  1. - batchnorm_momentum, args[o]);
 					} else {
 
-						vops->copy(isize[i], x[i], args[o]);
+						vops->smul(isize[i], 1. - batchnorm_momentum, x[i], args[o]);
 					}
 
 					batchnorm_counter++;
