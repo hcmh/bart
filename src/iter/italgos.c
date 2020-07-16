@@ -1044,14 +1044,9 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 						o++;
 					}
 
-					if ((0 < epoch) || (0 < i_batch)) {
+					vops->smul(isize[i], batchnorm_momentum, x[i], x[i]);
+					vops->axpy(isize[i], x[i],  1. - batchnorm_momentum, args[o]);
 
-						vops->smul(isize[i], batchnorm_momentum, x[i], x[i]);
-						vops->axpy(isize[i], x[i],  1. - batchnorm_momentum, args[o]);
-					} else {
-
-						vops->smul(isize[i], 1. - batchnorm_momentum, x[i], args[o]);
-					}
 
 					batchnorm_counter++;
 				}
