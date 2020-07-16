@@ -101,8 +101,6 @@ const struct modl_s modl_default = {
 	.shared_weights = true,
 	.shared_lambda = true,
 	.share_mask = false,
-
-	.random_order = false,
 };
 
 static const struct nlop_s* nlop_dw_first_layer(const struct modl_s* config, long udims[5])
@@ -361,7 +359,7 @@ void train_nn_modl(	struct modl_s* modl, iter6_conf* train_conf,
 					nlop_generic_domain(nlop_train, 2)->dims,
 					nlop_generic_domain(nlop_train, 3)->dims};
 
-	auto batch_generator = (modl->random_order ? batch_gen_rand_create : batch_gen_linear_create)(4, 5, train_dims, train_data, N_datasets, 0);
+	auto batch_generator = (random_order ? batch_gen_rand_create : batch_gen_linear_create)(4, 5, train_dims, train_data, N_datasets, 0);
 
 	//setup for iter algorithm
 	float* data[15];
