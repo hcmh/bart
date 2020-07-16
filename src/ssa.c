@@ -42,6 +42,7 @@ int main_ssa(int argc, char* argv[])
 		OPT_INT('r', &conf.rank, "rank", "Rank for backprojection. r < 0: Throw away first r components. r > 0: Use only first r components."),
 		OPT_LONG('g', &conf.group, "bitmask", "Bitmask for Grouping (long value!)"),
 		OPT_SET('i', &conf.EOF_info, "EOF info"),
+		OPT_FLOAT('e', &conf.weight, "exp", "Soft delay-embedding"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -95,6 +96,9 @@ int main_ssa(int argc, char* argv[])
 
 	long A_dims[2];
 	complex float* A = calibration_matrix(A_dims, conf.kernel_dims, cal_dims, cal);
+
+	if (conf.weight > -1)		
+		weight_delay(A_dims, A, conf);
 
 	long N = A_dims[0];
 
