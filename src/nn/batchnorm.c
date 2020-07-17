@@ -62,7 +62,7 @@ static void stats_fun(const nlop_data_t* _data, int N, complex float* args[N])
 		long tdims[data->dom->N];
 		md_select_dims(data->dom->N, data->flags, tdims, data->dom->dims);
 		complex float* ones = md_alloc_sameplace(data->dom->N, tdims, CFL_SIZE, src);
-		
+
 		md_zfill(data->dom->N, tdims, ones, 1.);
 		md_ztenmul(data->dom->N, data->codom->dims, mean, data->dom->dims, src, tdims, ones);
 		md_zsmul(data->dom->N, data->codom->dims, mean, mean, 1. / data->n);
@@ -86,6 +86,8 @@ static void stats_fun(const nlop_data_t* _data, int N, complex float* args[N])
 		md_ztenmulc(data->dom->N, data->codom->dims, var, data->dom->dims, data->x, data->dom->dims, data->x);
 		md_zsmul(data->codom->N, data->codom->dims, var, var, 1. / data->n);
 	}
+
+	md_zreal(data->codom->N, data->codom->dims, var, var);
 
 	PRINT_TIMER("frw stats");
 }
