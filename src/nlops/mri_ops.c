@@ -515,7 +515,7 @@ static void mri_normal_inversion_der_lambda(const nlop_data_t* _data, complex fl
 	complex float* tmp = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
 	operator_apply(d->normal_op, d->N, d->idims, tmp, d->N, d->idims, dst);
 	md_zaxpy(d->N, d->idims, tmp, d->conf->alpha, dst);
-	float err = md_zrmse(d->N, d->idims, d->out, dst);
+	float err = md_zrmse(d->N, d->idims, d->out, tmp);
 	float scale = md_zrms(d->N, d->idims, d->out);
 	if (1.e-6 < err / MAX(scale, 1.))
 		debug_printf(DP_WARN, "MRI normal inversion der lambda did not converge (error: %e, scale: %e)\n", err, scale);
