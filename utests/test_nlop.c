@@ -902,8 +902,8 @@ static bool test_mriop_normalinv(void)
 	complex float* ones = md_alloc(N, dims, CFL_SIZE);
 	md_zfill(N, dims, ones, 1.);
 
-	nlop_inv = nlop_set_input_const_F(nlop_inv, 1, N, dims, ones);
-	nlop_inv = nlop_set_input_const_F(nlop_inv, 1, N, dims, ones);
+	nlop_inv = nlop_set_input_const_F(nlop_inv, 1, N, dims, true, ones);
+	nlop_inv = nlop_set_input_const_F(nlop_inv, 1, N, dims, true, ones);
 
 	complex float* lambda = md_alloc(1, MAKE_ARRAY(1l), CFL_SIZE);
 	md_zfill(1, MAKE_ARRAY(1l), lambda, 3.);
@@ -916,16 +916,20 @@ static bool test_mriop_normalinv(void)
 	nlop_generic_apply_unchecked(nlop_inv, 3, MAKE_ARRAY(out, in, lambda));
 	md_zdiv(N, dims, out, out, in);
 	print_complex(10, out);
+	md_zsmul(N, dims, out, out, 4);
+	float err = md_znrmse(N, dims, ones, out);
 
 	linop_forward_unchecked(nlop_get_derivative(nlop_inv, 0, 0), out, in);
 	md_zdiv(N, dims, out, out, in);
-	print_complex(10, out);
+	md_zsmul(N, dims, out, out, 4);
+	err += md_znrmse(N, dims, ones, out);
 
 	linop_forward_unchecked(nlop_get_derivative(nlop_inv, 0, 1), out, ones);
 	md_zdiv(N, dims, out, out, in);
-	print_complex(10, out);
+	md_zsmul(N, dims, out, out, -16);
+	err += md_znrmse(N, dims, ones, out);
 
-	UT_ASSERT(false);
+	UT_ASSERT(1.e-5 > err);
 }
 
 UT_REGISTER_TEST(test_mriop_normalinv);
