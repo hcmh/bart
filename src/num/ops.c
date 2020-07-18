@@ -2278,7 +2278,13 @@ const struct operator_s* operator_chain(const struct operator_s* a, const struct
 	if (NULL != get_plus_data(b)) {
 
 		auto bd = get_plus_data(b);
-		return operator_plus_create(operator_chain(a, bd->a), operator_chain(a, bd->b));
+		auto tmpa = operator_chain(a, bd->a);
+		auto tmpb = operator_chain(a, bd->b);
+		
+		auto result = operator_plus_create(tmpa, tmpb);
+		operator_free(tmpa);
+		operator_free(tmpb);
+		return result;
 	}
 	#endif
 
