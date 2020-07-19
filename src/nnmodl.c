@@ -62,6 +62,7 @@ int main_nnmodl(int argc, char* argv[])
 		OPT_LONG('F', &(modl.Nf), "guessed", "number of convolution filters"),
 		OPT_LONG('K', &(modl.Kx), "guessed", "filtersize"),
 
+		OPT_SET('p', &(modl.nullspace), "use nullspace projection"),
 
 		OPT_SET('t', &train, "train modl"),
 		OPT_INT('E', &(train_conf.epochs), "1000", "number of training epochs"),

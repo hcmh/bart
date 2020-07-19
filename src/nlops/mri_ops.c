@@ -735,3 +735,224 @@ const struct nlop_s* mri_normal_inversion_create_general(	int N, long dims[N],
 		return nlop_reshape_in_F(result, 3, 1, MD_SINGLETON_DIMS(1));
 	}
 }
+
+
+
+static void mri_reg_proj_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	START_TIMER;
+	const auto d = CAST_DOWN(mri_normal_inversion_s, _data);
+
+	assert(NULL != d->normal_op);
+
+	complex float* tmp = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
+
+	operator_apply(d->normal_op, d->N, d->idims, tmp, d->N, d->idims, src);
+	mri_normal_inversion_deradj(_data, dst, tmp);
+
+	md_free(tmp);
+
+	PRINT_TIMER("der mri regularized projection");
+}
+
+static void mri_reg_proj_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	START_TIMER;
+	const auto d = CAST_DOWN(mri_normal_inversion_s, _data);
+	assert(NULL != d->normal_op);
+
+	complex float* tmp = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
+
+	mri_normal_inversion_deradj(_data, tmp, src);
+	operator_apply(d->normal_op, d->N, d->idims, dst, d->N, d->idims, tmp);
+
+	md_free(tmp);
+
+	PRINT_TIMER("der mri regularized projection");
+}
+
+
+
+static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
+{
+	const auto d = CAST_DOWN(mri_normal_inversion_s, _data);
+	assert(5 == Narg);
+
+	complex float* dst = args[0];
+	const complex float* image = args[1];
+	const complex float* coil = args[2];
+	const complex float* mask = args[3];
+	const complex float* lptr = args[4];
+
+	complex float lambda;
+	md_copy(1, MAKE_ARRAY(1l), &lambda, lptr, CFL_SIZE);
+
+	if ((0 != cimagf(lambda)) || (0 > crealf(lambda)))
+		error("CG erro: Lambda=%f+%fi is not non-negative real number!\n", crealf(lambda), cimagf(lambda));
+	d->conf->alpha = crealf(lambda);
+
+	if (NULL == d->coil)
+		d->coil = md_alloc_sameplace(d->N, d->cdims, CFL_SIZE, coil);
+	md_copy(d->N, d->cdims, d->coil, coil, CFL_SIZE);
+
+	if (NULL != d->normal_op)
+		operator_free(d->normal_op);
+	d->normal_op = NULL;
+
+	auto linop_frw = linop_fmac_create(d->N, d->dims, ~d->ciflags, ~d->iflags, ~d->cflags, d->coil);
+	auto linop_mask = linop_cdiag_create(d->N, d->cidims, d->mflags, mask);
+
+	// normal operator is constructed manually to apply linop_mask only once mask^H(mask(x)) = mask(x)
+	d->normal_op = operator_chainN(5, (const struct operator_s **)MAKE_ARRAY(linop_frw->forward, d->linop_fft->forward, linop_mask->forward, d->linop_fft->adjoint, linop_frw->adjoint));
+	linop_free(linop_frw);
+	linop_free(linop_mask);
+
+	mri_reg_proj_der(_data, dst, image);
+
+	if (!d->fixed_lambda) {
+
+		if(NULL == d->out)
+			d->out = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
+		md_copy(d->N, d->idims, d->out, dst, CFL_SIZE);
+	}
+}
+
+
+/**
+ * Create an opertor projecting the in put to the orthogonal complement of the kernel the mri forward operator, i.e.
+ *
+ * out = (A^HA +l1)^-1A^HA in
+ * A = Mask FFT Coils
+ *
+ * @param N # of dims (default: 5)
+ * @param dims dimensions
+ * @param iflags select dimensions of input vector (default: 23)
+ * @param cflags select dimensions of coil vector (default: 31)
+ * @param mflags select dimensions of mask vector (default: 7 / 23)
+ * @param ciflags select dimensions of coilimage vector (default: 31)
+ * @param fftflags select dimensions of coilimage vector (default: 7)
+ * @param lambda regularization parameter if lambda == -1, additional nlop input is used
+ *
+ * Input tensors:
+ * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
+ * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
+ * mask:	mdims:	(Nx, Ny, Nz, 1,  1 / Nb)
+ * {lambda:	ldims:	(1)	}
+ *
+ * Output tensors:
+ * output:		idims: 	(Nx, Ny, Nz, 1,  Nb)
+ */
+
+const struct nlop_s* mri_reg_projection_kerT_create_general(	int N, long dims[N],
+								unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
+								float lambda)
+{
+	PTR_ALLOC(struct mri_normal_inversion_s, data);
+	SET_TYPEID(mri_normal_inversion_s, data);
+
+	PTR_ALLOC(long[N], ndims);
+	PTR_ALLOC(long[N], idims);
+	PTR_ALLOC(long[N], cdims);
+	PTR_ALLOC(long[N], mdims);
+	PTR_ALLOC(long[N], cidims);
+
+	md_copy_dims(N, *ndims, dims);
+	md_select_dims(N, iflags, *idims, dims);
+	md_select_dims(N, cflags, *cdims, dims);
+	md_select_dims(N, mflags, *mdims, dims);
+	md_select_dims(N, ciflags, *cidims, dims);
+
+	data->N = N;
+	data->dims = *PTR_PASS(ndims);
+	data->idims = *PTR_PASS(idims);
+	data->mdims = *PTR_PASS(mdims);
+	data->cdims = *PTR_PASS(cdims);
+	data->cidims = *PTR_PASS(cidims);
+
+	// will be initialized later, to transparently support GPU
+	data->out= NULL;
+	data->coil = NULL;
+
+	data->fixed_lambda = (-1. != lambda);
+
+	data->normal_op = NULL;
+	data->linop_fft = linop_fftc_create(N, data->cidims, fftflags); // stored to not recompute fftmod etc
+
+	PTR_ALLOC(struct iter_conjgrad_conf, conf);
+	struct iter_conjgrad_conf def = iter_conjgrad_defaults;
+	memcpy(conf, &def, sizeof(struct iter_conjgrad_conf));
+	conf->l2lambda = 1.;
+	conf->maxiter = 100;
+
+	data->conf = CAST_UP(PTR_PASS(conf));
+	data->conf->alpha = lambda;
+
+	data->iflags = iflags;
+	data->mflags = mflags;
+	data->cflags = cflags;
+	data->ciflags = ciflags;
+	data->fftflags = fftflags;
+
+	data->algo = iter2_conjgrad;
+
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], data->idims);
+
+	long nl_idims[4][N];
+	md_copy_dims(N, nl_idims[0], data->idims);
+	md_copy_dims(N, nl_idims[1], data->cdims);
+	md_copy_dims(N, nl_idims[2], data->mdims);
+	md_singleton_dims(N, nl_idims[3]);
+
+	auto result = nlop_generic_create(	1, N, nl_odims, 4, N, nl_idims, CAST_UP(PTR_PASS(data)),
+						mri_reg_proj_fun,
+						(nlop_fun_t[4][1]){ { mri_reg_proj_der }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_der_lambda } },
+						(nlop_fun_t[4][1]){ { mri_reg_proj_adj }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_adj_lambda } },
+						NULL, NULL, mri_normal_inversion_del);
+
+
+	if (-1. != lambda) {
+		complex float lambdac = lambda;
+		return nlop_set_input_const_F(result, 3, N, MD_SINGLETON_DIMS(N), true, &lambdac);
+	} else {
+		return nlop_reshape_in_F(result, 3, 1, MD_SINGLETON_DIMS(1));
+	}
+}
+
+/**
+ * Create an opertor projecting the input to the kernel of the mri forward operator, i.e.
+ *
+ * out = (id - (A^HA +l1)^-1A^HA) in
+ * A = Mask FFT Coils
+ *
+ * @param N # of dims (default: 5)
+ * @param dims dimensions
+ * @param iflags select dimensions of input vector (default: 23)
+ * @param cflags select dimensions of coil vector (default: 31)
+ * @param mflags select dimensions of mask vector (default: 7 / 23)
+ * @param ciflags select dimensions of coilimage vector (default: 31)
+ * @param fftflags select dimensions of coilimage vector (default: 7)
+ * @param lambda regularization parameter if lambda == -1, additional nlop input is used
+ *
+ * Input tensors:
+ * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
+ * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
+ * mask:	mdims:	(Nx, Ny, Nz, 1,  1 / Nb)
+ * {lambda:	ldims:	(1)	}
+ *
+ * Output tensors:
+ * output:		idims: 	(Nx, Ny, Nz, 1,  Nb)
+ */
+
+const struct nlop_s* mri_reg_projection_ker_create_general(	int N, long dims[N],
+								unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
+								float lambda)
+{
+	auto result = mri_reg_projection_kerT_create_general(N, dims, iflags, cflags, mflags, ciflags, fftflags, lambda);
+	long idims[N];
+	md_select_dims(N, iflags, idims, dims);
+	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(N, idims, 1., -1.), 1);
+	result = nlop_dup(result, 0, 1);
+
+	return result;
+}

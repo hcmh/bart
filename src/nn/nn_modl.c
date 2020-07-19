@@ -101,6 +101,8 @@ const struct modl_s modl_default = {
 	.shared_weights = true,
 	.shared_lambda = true,
 	.share_mask = false,
+
+	.nullspace = false,
 };
 
 static const struct nlop_s* nlop_dw_first_layer(const struct modl_s* config, long udims[5])
@@ -226,14 +228,42 @@ static const struct nlop_s* nlop_modl_cell_create(const struct modl_s* config, l
 	return result;
 }
 
+static const struct nlop_s* nlop_nullspace_modl_cell_create(const struct modl_s* config, long dims[5], long udims[5])
+{
+	auto result = mri_reg_projection_ker_create_general(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, -1.); // in: DW(xn), coil, mask, lambda; out: PDW(xn)
+	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
+	
+	result = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, result, 0);
+	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0); // in: DW(xn), coil, mask, lambda; out: PDW(xn)
+	
+	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0); // in: x0, DW(xn), coil, mask, lambda; out: PDW(xn) + x0
+
+	auto nlop_dw = nlop_dw_create(config, udims);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: DW(xn), bn0_out, bni_out, bnn_out
+
+	result = nlop_chain2_FF(nlop_dw, 0, result, 1); //in: x0, coil, mask, lambda, xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: x(n+1), bn0_out, bni_out, bnn_out
+	
+	result = nlop_dup_F(result, 3, 15); //in: x0, coil, mask, lambda, xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
+	result = nlop_permute_inputs_F(result, 15, MAKE_ARRAY(4, 0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)); //in: xn, x0, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
+
+	//ad dimension for stacking
+	for (int i = 4; i < 15; i++)
+		result = nlop_append_singleton_dim_in_F(result, i);
+	for (int o = 1; o < 4; o++)
+		result = nlop_append_singleton_dim_out_F(result, o);
+
+	debug_printf(DP_DEBUG3, "MoDL null space cell created\n");
+
+	return result;
+}
+
 
 static const struct nlop_s* nlop_modl_network_create(const struct modl_s* config, long dims[5], long udims[5])
 {
-	auto result = nlop_modl_cell_create(config, dims, udims);  //in: xn, x0, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
+	auto result = (config->nullspace ? nlop_nullspace_modl_cell_create : nlop_modl_cell_create)(config, dims, udims);  //in: xn, x0, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
 
 	for (int i = 1; i < config->Nt; i++) {
 
-		auto nlop_append = nlop_modl_cell_create(config, dims, udims); //in: xn, x0, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
+		auto nlop_append = (config->nullspace ? nlop_nullspace_modl_cell_create : nlop_modl_cell_create)(config, dims, udims); //in: xn, x0, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
 
 		result = nlop_chain2_FF(result, 0, nlop_append, 0);
 		//in: x0, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, xn, x0, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+2), bn0_out, bni_out, bnn_out, bn0_out, bni_out, bnn_out
@@ -289,16 +319,37 @@ static const struct nlop_s* nlop_modl_network_create(const struct modl_s* config
 	result = nlop_dup_F(result, 0, 1);
 	//in: x0, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn, bn0_out, bni_out, bnn_out
 
-	auto nlop_zf = nlop_mri_adjoint_create(dims, config->share_mask);
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+	auto nlop_zf = nlop_mri_adjoint_create(dims, config->share_mask);
+		nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0); // in: kspace, coil, mask; out: Atb
 
-	result = nlop_chain2_swap_FF(nlop_zf, 0, result, 0);
-	//in: kspace, coil, mask, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn, bn0_out, bni_out, bnn_out
+	if  (config->nullspace) {
 
-	result = nlop_dup_F(result, 1, 3);
-	result = nlop_dup_F(result, 2, 3);
-	//in: kspace, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn, bn0_out, bni_out, bnn_out
+		auto nlop_norm_inv = mri_normal_inversion_create_general(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, -1.); // in: Atb, coil, mask, lambda; out: A^+b
+		nlop_norm_inv = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_norm_inv, 0);
+		nlop_norm_inv = nlop_chain2_FF(nlop_norm_inv, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+
+		nlop_zf = nlop_chain2_swap_FF(nlop_zf, 0,nlop_norm_inv, 0); // in: kspace, coil, mask, coil, mask, lambda; out: A^+b
+		nlop_zf = nlop_dup_F(nlop_zf, 1, 3);
+		nlop_zf = nlop_dup_F(nlop_zf, 2, 3);// in: kspace, coil, mask, lambda; out: A^+b
+
+		result = nlop_chain2_swap_FF(nlop_zf, 0, result, 0);
+		//in: kspace, coil, mask, lambda, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn, bn0_out, bni_out, bnn_out
+
+		result = nlop_dup_F(result, 1, 4);
+		result = nlop_dup_F(result, 2, 4);
+		result = nlop_append_singleton_dim_in_F(result, 3);
+		result = nlop_dup_F(result, 3, 4);
+		//in: kspace, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn, bn0_out, bni_out, bnn_out
+	} else {
+
+		result = nlop_chain2_swap_FF(nlop_zf, 0, result, 0);
+		//in: kspace, coil, mask, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn, bn0_out, bni_out, bnn_out
+
+		result = nlop_dup_F(result, 1, 3);
+		result = nlop_dup_F(result, 2, 3);
+		//in: kspace, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn, bn0_out, bni_out, bnn_out
+	}
 
 	result = nlop_permute_inputs_F(result, 14, MAKE_ARRAY(0, 1, 2, 3, 4, 7, 10, 6, 9, 13, 12, 5, 8, 11));
 	//in: kspace, coil, mask, lambda, conv0, convi, convn, bias0, biasi, biasn, gamman, bn0_in, bni_in, bnn_in; out: xn, bn0_out, bni_out, bnn_out

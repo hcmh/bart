@@ -34,6 +34,8 @@ struct modl_s {
 	_Bool shared_weights;
 	_Bool shared_lambda;
 	_Bool share_mask;
+
+	_Bool nullspace;
 };
 
 const struct modl_s modl_default;
