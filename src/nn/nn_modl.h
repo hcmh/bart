@@ -30,6 +30,8 @@ struct modl_s {
 	_Complex float* bn_n;
 
 	float lambda_init;
+	float lambda_min;
+	float lambda_max;
 
 	_Bool shared_weights;
 	_Bool shared_lambda;

@@ -78,6 +78,8 @@ int main_nnmodl(int argc, char* argv[])
 		OPT_LONG('Y', (udims + 1), "guessed from kspace", "Ny of the target image"),
 		OPT_LONG('Z', (udims + 2), "guessed from kspace", "Nz of the target image"),
 
+		OPT_FLOAT('l', &modl.lambda_min, "0", "minimal lambda allowed"),
+
 		OPT_STRING('H', (const char**)(&(history_filename)), "", "file for dumping train history"),
 	};
 

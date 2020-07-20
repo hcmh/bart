@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <float.h>
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -101,6 +102,9 @@ const struct modl_s modl_default = {
 	.shared_weights = true,
 	.shared_lambda = true,
 	.share_mask = false,
+
+	.lambda_min = 0.,
+	.lambda_max = FLT_MAX,
 
 	.nullspace = false,
 };
@@ -232,16 +236,16 @@ static const struct nlop_s* nlop_nullspace_modl_cell_create(const struct modl_s*
 {
 	auto result = mri_reg_projection_ker_create_general(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, -1.); // in: DW(xn), coil, mask, lambda; out: PDW(xn)
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	
+
 	result = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, result, 0);
 	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0); // in: DW(xn), coil, mask, lambda; out: PDW(xn)
-	
+
 	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0); // in: x0, DW(xn), coil, mask, lambda; out: PDW(xn) + x0
 
 	auto nlop_dw = nlop_dw_create(config, udims);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: DW(xn), bn0_out, bni_out, bnn_out
 
 	result = nlop_chain2_FF(nlop_dw, 0, result, 1); //in: x0, coil, mask, lambda, xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: x(n+1), bn0_out, bni_out, bnn_out
-	
+
 	result = nlop_dup_F(result, 3, 15); //in: x0, coil, mask, lambda, xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
 	result = nlop_permute_inputs_F(result, 15, MAKE_ARRAY(4, 0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)); //in: xn, x0, coil, mask, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
 
@@ -448,7 +452,7 @@ void train_nn_modl(	struct modl_s* modl, iter6_conf* train_conf,
 		in_type[i] = IN_BATCHNORM;
 	}
 
-	projections[6] = operator_project_pos_real_create(nlop_generic_domain(nlop_train, 4)->N, nlop_generic_domain(nlop_train, 4)->dims);
+	projections[6] = operator_project_real_interval_create(nlop_generic_domain(nlop_train, 4)->N, nlop_generic_domain(nlop_train, 4)->dims, modl->lambda_min, modl->lambda_max);
 
 	enum OUT_TYPE out_type[4] = {OUT_OPTIMIZE, OUT_BATCHNORM, OUT_BATCHNORM, OUT_BATCHNORM};
 
