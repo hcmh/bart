@@ -45,7 +45,7 @@
 static void cuda_error(int line, cudaError_t code)
 {
 	const char *err_str = cudaGetErrorString(code);
-	error("cuda error: %d %s \n", line, err_str);
+	error("cuda error (line: %d) %d: %s \n", line, code, err_str);
 }
 
 
@@ -400,7 +400,7 @@ void cuda_prefetch(void* ptr, long size)
 
 		int device = cuda_get_current_device();
 		int move;
-		CUDA_ERROR(cudaDeviceGetAttribute(&move, cudaDevAttrConcurrentManagedAccess, device)); 
+		CUDA_ERROR(cudaDeviceGetAttribute(&move, cudaDevAttrConcurrentManagedAccess, device));
 		if (0 != move)
 			CUDA_ERROR(cudaMemPrefetchAsync(ptr, size, device, 0));
 	}
