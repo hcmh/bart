@@ -79,6 +79,7 @@ int main_nnmodl(int argc, char* argv[])
 		OPT_LONG('Z', (udims + 2), "guessed from kspace", "Nz of the target image"),
 
 		OPT_FLOAT('l', &modl.lambda_min, "0", "minimal lambda allowed"),
+		OPT_FLOAT('f', &modl.lambda_fixed, "-1.", "Fix lambda in numerical blocks, -1. corresponds to trainable parameter"),
 
 		OPT_STRING('H', (const char**)(&(history_filename)), "", "file for dumping train history"),
 	};

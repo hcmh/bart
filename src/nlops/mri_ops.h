@@ -11,10 +11,16 @@ extern const struct nlop_s* nlop_gradient_step_scaled_modular_create(const long 
 extern const struct nlop_s* mri_normal_inversion_create_general(int N, long dims[__VLA(N)],
 								unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
 								float lambda);
+extern const struct nlop_s* mri_normal_inversion_create_general_with_lambda(int N, long dims[__VLA(N)],
+								unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
+								float lambda);
 
 extern const struct nlop_s* mri_reg_projection_kerT_create_general(	int N, long dims[__VLA(N)],
 									unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
 									float lambda);
 extern const struct nlop_s* mri_reg_projection_ker_create_general(	int N, long dims[__VLA(N)],
+									unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
+									float lambda);
+extern const struct nlop_s* mri_reg_projection_ker_create_general_with_lambda(	int N, long dims[__VLA(N)],
 									unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
 									float lambda);

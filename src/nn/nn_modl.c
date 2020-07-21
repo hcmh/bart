@@ -106,6 +106,8 @@ const struct modl_s modl_default = {
 	.lambda_min = 0.,
 	.lambda_max = FLT_MAX,
 
+	.lambda_fixed = -1.,
+
 	.nullspace = false,
 };
 
@@ -209,7 +211,7 @@ static const struct nlop_s* nlop_dw_create(const struct modl_s* config, long udi
 
 static const struct nlop_s* nlop_modl_cell_create(const struct modl_s* config, long dims[5], long udims[5])
 {
-	auto nlop_dc = mri_normal_inversion_create_general(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, -1.); // in: x0+zn, coil, mask, lambda; out: x(n+1)
+	auto nlop_dc = mri_normal_inversion_create_general_with_lambda(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, config->lambda_fixed); // in: x0+zn, coil, mask, lambda; out: x(n+1)
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
 	nlop_dc = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_dc, 0);
 	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
@@ -234,7 +236,7 @@ static const struct nlop_s* nlop_modl_cell_create(const struct modl_s* config, l
 
 static const struct nlop_s* nlop_nullspace_modl_cell_create(const struct modl_s* config, long dims[5], long udims[5])
 {
-	auto result = mri_reg_projection_ker_create_general(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, -1.); // in: DW(xn), coil, mask, lambda; out: PDW(xn)
+	auto result = mri_reg_projection_ker_create_general_with_lambda(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, config->lambda_fixed); // in: DW(xn), coil, mask, lambda; out: PDW(xn)
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
 
 	result = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, result, 0);
@@ -329,7 +331,7 @@ static const struct nlop_s* nlop_modl_network_create(const struct modl_s* config
 
 	if  (config->nullspace) {
 
-		auto nlop_norm_inv = mri_normal_inversion_create_general(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, -1.); // in: Atb, coil, mask, lambda; out: A^+b
+		auto nlop_norm_inv = mri_normal_inversion_create_general_with_lambda(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, config->lambda_fixed); // in: Atb, coil, mask, lambda; out: A^+b
 		nlop_norm_inv = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_norm_inv, 0);
 		nlop_norm_inv = nlop_chain2_FF(nlop_norm_inv, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
 

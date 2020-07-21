@@ -736,6 +736,17 @@ const struct nlop_s* mri_normal_inversion_create_general(	int N, long dims[N],
 	}
 }
 
+//As above but with an input for lambda even if lambda is fixed
+const struct nlop_s* mri_normal_inversion_create_general_with_lambda(	int N, long dims[N],
+									unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
+									float lambda)
+{
+	auto result = mri_normal_inversion_create_general(N, dims, iflags, cflags, mflags, ciflags, fftflags, lambda);
+	if (-1. != lambda)
+		result = nlop_combine_FF(result, nlop_del_out_create(1, MD_SINGLETON_DIMS(1)));
+	return result;
+}
+
 
 
 static void mri_reg_proj_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -954,5 +965,25 @@ const struct nlop_s* mri_reg_projection_ker_create_general(	int N, long dims[N],
 	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(N, idims, 1., -1.), 1);
 	result = nlop_dup(result, 0, 1);
 
+	return result;
+}
+
+/**
+ * Create an opertor projecting the input to the kernel of the mri forward operator, i.e.
+ *
+ * out = (id - (A^HA +l1)^-1A^HA) in
+ * A = Mask FFT Coils
+ *
+ * If lambda is fixed, this operator has still an input for lambda, which is ignored
+ *
+ **/
+
+const struct nlop_s* mri_reg_projection_ker_create_general_with_lambda(	int N, long dims[N],
+									unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
+									float lambda)
+{
+	auto result = mri_reg_projection_ker_create_general(N, dims, iflags, cflags, mflags, ciflags, fftflags, lambda);
+	if (-1. != lambda)
+		result = nlop_combine_FF(result, nlop_del_out_create(1, MD_SINGLETON_DIMS(1)));
 	return result;
 }

@@ -33,6 +33,8 @@ struct modl_s {
 	float lambda_min;
 	float lambda_max;
 
+	float lambda_fixed;
+
 	_Bool shared_weights;
 	_Bool shared_lambda;
 	_Bool share_mask;
