@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <complex.h>
+#include <string.h>
 
 #include "iter/italgos.h"
 #include "misc/debug.h"
@@ -43,10 +44,14 @@ struct monitor6_s {
 	int numepochs;
 	int numbatches;
 	complex float* record;
+	long recorddim;
 
 	int NI;
 	enum IN_TYPE* in_type;
 	const struct nlop_s* nlop_val_loss;
+
+	int num_val_monitors;
+	const struct iter6_monitor_value_s* val_monitors;
 };
 
 static DEF_TYPEID(monitor6_s);
@@ -123,6 +128,41 @@ static float compute_validation_objective(const struct nlop_s* nlop, long NI, en
 	return result;
 }
 
+static void compute_val_monitors(char* val_monitor_string, struct monitor6_s* monitor, long epoch, long batch, long NI, float* x)
+{
+	assert(monitor->recorddim == 2 + 2 * monitor->num_val_monitors);
+	for (int i = 0; i < monitor->num_val_monitors; i++) {
+
+		complex float val = 0;
+		bool compute_val = ((monitor->val_monitors[i].eval_each_batch || batch == monitor->numbatches));
+		if (compute_val) {
+
+			val = monitor->val_monitors[i].fun(NI, x);
+
+			if (NULL != monitor->val_monitors[i].print_name) {
+
+				char tmp[100];
+				sprintf(tmp, (0 == cimagf(val) ? " %s: %f;" : " %s: %f+%fi;"), monitor->val_monitors[i].print_name, creal(val), cimag(val));
+				int length = strlen(tmp);
+
+				sprintf(val_monitor_string, "%s", tmp);
+				val_monitor_string += length;
+			}
+		}
+
+		if (NULL != monitor->record) {
+
+			long dims[3] = {monitor->numepochs, monitor->numbatches, 2 + 2 * monitor->num_val_monitors};
+			long pos[3] = {epoch, batch - 1, 2 + 2 * i};
+
+			MD_ACCESS(3, MD_STRIDES(3, dims, sizeof(complex float)), pos, monitor->record) = (complex float)compute_val;
+
+			pos[2] += 1;
+			MD_ACCESS(3, MD_STRIDES(3, dims, sizeof(complex float)), pos, monitor->record) = (complex float)val;
+		}
+	}
+}
+
 
 static void monitor6_default_fun(struct iter6_monitor_s* _monitor, long epoch, long batch, float objective, long NI, const float* x[NI], char* post_string)
 {
@@ -168,40 +208,47 @@ static void monitor6_default_fun(struct iter6_monitor_s* _monitor, long epoch, l
 	char null_char = '\0';
 	post_string = (NULL == post_string) ? &null_char : post_string;
 
+	char str_val_monitor[100 * monitor->num_val_monitors + 1];
+	str_val_monitor[0] = '\0';
+	compute_val_monitors(str_val_monitor, monitor, epoch, batch, NI, x);
+
 	if (print_overwrite) {
 
 		debug_printf	(DP_INFO,
-				"\33[2K\r#%d->%d/%d;%s%s%s%s%s",
+				"\33[2K\r#%d->%d/%d;%s%s%s%s%s%s",
 				epoch, batch, monitor->numbatches,
 				str_progress,
 				str_time,
 				str_loss,
 				str_valloss,
+				str_val_monitor,
 				post_string);
 		if (batch == monitor->numbatches)
 			debug_printf(DP_INFO, "\n");
 	} else {
 
 		debug_printf	(DP_INFO,
-				"#%d->%d/%d;%s%s%s%s%s\n",
+				"#%d->%d/%d;%s%s%s%s%s%s\n",
 				epoch, batch, monitor->numbatches,
 				str_progress,
 				str_time,
 				str_loss,
 				str_valloss,
+				str_val_monitor,
 				post_string);
 	}
 
 	if (NULL != monitor->record) {
 
-		long dims[3] = {monitor->numepochs, monitor->numbatches, 3};
+		long dims[3] = {monitor->numepochs, monitor->numbatches, monitor->recorddim};
 		long pos[3] = {epoch, batch-1, 0};
 
 		MD_ACCESS(3, MD_STRIDES(3, dims, sizeof(complex float)), pos, monitor->record) = time;
 		pos[2] = 1;
 		MD_ACCESS(3, MD_STRIDES(3, dims, sizeof(complex float)), pos, monitor->record) = objective;
 		pos[2] = 2;
-		MD_ACCESS(3, MD_STRIDES(3, dims, sizeof(complex float)), pos, monitor->record) = print_val ? valloss : 0.;
+		if (3 == monitor->recorddim)
+			MD_ACCESS(3, MD_STRIDES(3, dims, sizeof(complex float)), pos, monitor->record) = print_val ? valloss : 0.;
 	}
 
 	if (batch == monitor->numbatches)
@@ -226,6 +273,7 @@ struct iter6_monitor_s* create_iter6_monitor_progressbar(int numbatches, bool av
 	monitor->start_time = timestamp();
 
 	monitor->average_obj = 0.;
+	monitor->recorddim = 3;
 
 	monitor->numepochs = 0;
 	monitor->numbatches = numbatches;
@@ -261,10 +309,49 @@ struct iter6_monitor_s* create_iter6_monitor_progressbar_validloss(int numepochs
 	monitor->numbatches = numbatches;
 	long rdims[3] = {numepochs, numbatches, 3};
 	monitor->record = md_alloc(3, rdims, CFL_SIZE);
+	monitor->recorddim = 3;
 
 	monitor->NI = NI;
 	monitor->in_type = in_type;
 	monitor->nlop_val_loss = valid_loss;
+
+
+
+	return CAST_UP(PTR_PASS(monitor));
+}
+
+struct iter6_monitor_s* create_iter6_monitor_progressbar_value_monitors(int numepochs, int numbatches, bool average_obj, int num_val_monitors, struct iter6_monitor_value_s val_monitors[num_val_monitors])
+{
+
+	PTR_ALLOC(struct monitor6_s, monitor);
+	SET_TYPEID(monitor6_s, monitor);
+
+	monitor->INTERFACE.fun = monitor6_default_fun;
+
+	monitor->print_time = true;
+	monitor->print_progress = true;
+	monitor->print_overwrite = true;
+	monitor->print_average_obj = average_obj;
+
+	monitor->valloss_for_each_batch = false;
+
+	monitor->start_time = timestamp();
+
+	monitor->average_obj = 0.;
+
+	monitor->numepochs = numepochs;
+	monitor->numbatches = numbatches;
+	long rdims[3] = {numepochs, numbatches, 2 + 2 * num_val_monitors};
+	monitor->record = md_alloc(3, rdims, CFL_SIZE);
+
+	monitor->recorddim = 2 + 2 * num_val_monitors;
+
+	monitor->NI = 0;
+	monitor->in_type = NULL;
+	monitor->nlop_val_loss = NULL;
+
+	monitor->num_val_monitors = num_val_monitors;
+	monitor->val_monitors = val_monitors;
 
 
 
@@ -276,7 +363,7 @@ void iter6_monitor_dump_record(struct iter6_monitor_s* _monitor, const char* fil
 {
 	auto monitor = CAST_DOWN(monitor6_s, _monitor);
 
-	long rdims[3] = {monitor->numepochs, monitor->numbatches, 3};
+	long rdims[3] = {monitor->numepochs, monitor->numbatches, monitor->recorddim};
 	if (NULL != monitor->record)
 		dump_cfl(filename, 3, rdims, monitor->record);
 	else

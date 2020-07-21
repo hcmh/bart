@@ -361,6 +361,39 @@ static const struct nlop_s* nlop_modl_network_create(const struct modl_s* config
 	return result;
 }
 
+static const struct nlop_s* nlop_val = NULL;
+
+static complex float compute_validation_objective(long NI, const float* x[NI])
+{
+	if (NULL == nlop_val)
+		return 0.;
+	assert(NULL != x);
+
+	void* args[NI + 1];
+	for (int i = 0; i < NI; i++)
+		args[i + 1] = (void*)x[i];
+
+	args[0] = md_alloc_sameplace(1, MAKE_ARRAY(1l), sizeof(_Complex float), args[1]);
+
+	enum NETWORK_STATUS stat_tmp = network_status;
+	network_status = STAT_TEST;
+	nlop_generic_apply_select_derivative_unchecked(nlop_val, NI + 1, args, 0, 0);
+	network_status = stat_tmp;
+
+	float result = 0;
+
+	md_copy(1, MAKE_ARRAY(1l), &result, args[0], sizeof(float));
+	md_free(args[0]);
+
+	return (complex float)result;
+}
+
+static complex float get_lambda(long NI, const float* x[NI])
+{
+	complex float result = 0;
+	md_copy(1, MD_SINGLETON_DIMS(1), &result, x[4], CFL_SIZE);
+	return result;
+}
 
 
 /**
@@ -493,9 +526,18 @@ void train_nn_modl(	struct modl_s* modl, iter6_conf* train_conf,
 		valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, cdims, true, val_coil);
 		valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, mdims, true, val_mask);
 
+		auto nlop_del = nlop_del_out_create(5, udims);
+		nlop_del = nlop_combine_FF(nlop_del, nlop_del_out_create(5, kdims));
+		nlop_del = nlop_combine_FF(nlop_del, nlop_del_out_create(5, cdims));
+		nlop_del = nlop_combine_FF(nlop_del, nlop_del_out_create(5, mdims));
+
 		valid_loss = nlop_del_out_F(valid_loss, 1);
 		valid_loss = nlop_del_out_F(valid_loss, 1);
 		valid_loss = nlop_del_out_F(valid_loss, 1);
+
+		valid_loss = nlop_combine_FF(nlop_del, valid_loss);
+
+		nlop_val = valid_loss;
 
 		unmap_cfl(5, udims, val_ref);
 		unmap_cfl(5, kdims, val_kspace);
@@ -503,8 +545,13 @@ void train_nn_modl(	struct modl_s* modl, iter6_conf* train_conf,
 		unmap_cfl(5, mdims, val_mask);
 	}
 
+	struct iter6_monitor_value_s val_monitors[2];
+	val_monitors[0] = (struct iter6_monitor_value_s){&compute_validation_objective, &"val loss"[0], false};
+	val_monitors[1] = (struct iter6_monitor_value_s){&get_lambda, &"lambda"[0], true};
+
 	auto conf = CAST_DOWN(iter6_adam_conf, train_conf);
-	auto monitor = create_iter6_monitor_progressbar_validloss(conf->epochs, N_datasets / modl->Nb, false, 15, in_type, valid_loss, false);
+	//auto monitor = create_iter6_monitor_progressbar_validloss(conf->epochs, N_datasets / modl->Nb, false, 15, in_type, valid_loss, false);
+	auto monitor = create_iter6_monitor_progressbar_value_monitors(conf->epochs, N_datasets / modl->Nb, false, 2, val_monitors);
 	iter6_adam(train_conf, nlop_train, 15, in_type, projections, data, 4, out_type, modl->Nb, N_datasets / modl->Nb, batch_generator, monitor);
 	if (NULL != history_filename)
 		iter6_monitor_dump_record(monitor, history_filename);
