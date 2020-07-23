@@ -32,9 +32,16 @@
 
 #define CUFFT_MEMCACHE
 
+//#define CUFFT_MULTIGPU
+
 struct fft_cuda_plan_s {
 
+#ifdef CUFFT_MULTIGPU
+	cufftHandle cufft[MAX_CUDA_DEVICES];
+#else
 	cufftHandle cufft;
+#endif
+
 #ifdef CUFFT_MEMCACHE
 	size_t workspace_size;
 	void* workspace;
@@ -233,7 +240,27 @@ static struct fft_cuda_plan_s* fft_cuda_plan0(unsigned int D, const long dimensi
 	}
 
 #else
+
+#ifdef CUFFT_MULTIGPU
+	int old_device = cuda_get_device();
 	int err;
+	for (int device = 0; device < n_reserved_gpus; ++device) {
+		#pragma omp critical
+		{
+			cuda_set_device(gpu_map[device]);
+			err = cufftPlanMany(&(plan->cufft[gpu_map[device]]), k,
+						cudims, cuiemb, istride, idist,
+							cuoemb, ostride, odist, CUFFT_C2C, cubs);
+		}
+
+		if (CUFFT_SUCCESS != err) {
+
+			debug_printf(DP_WARN, "CUFFT Plan error: %d, %s\n", err, cufft_error_string(err));
+			goto errout;
+		}
+	}
+	cuda_set_device(old_device);
+#else
 	#pragma omp critical
 	err = cufftPlanMany(&plan->cufft, k,
 				cudims, cuiemb, istride, idist,
@@ -244,7 +271,10 @@ static struct fft_cuda_plan_s* fft_cuda_plan0(unsigned int D, const long dimensi
 		debug_printf(DP_WARN, "CUFFT Plan error: %d, %s\n", err, cufft_error_string(err));
 		goto errout;
 	}
-#endif
+#endif // ifdef CUFFT_MULTIGPU
+
+
+#endif // ifdef CUFFT_MEMCACHE
 
 	return PTR_PASS(plan);
 
@@ -301,8 +331,12 @@ void fft_cuda_free_plan(struct fft_cuda_plan_s* cuplan)
 {
 	if (NULL != cuplan->chain)
 		fft_cuda_free_plan(cuplan->chain);
-
+#ifdef CUFFT_MULTIGPU
+	//cufftDestroy(cuplan->cufft);
+	// TODO: figure out how we can properly destroy cufft handles
+#else
 	cufftDestroy(cuplan->cufft);
+#endif // ifdef CUFFT_MULTIGPU
 #ifdef CUFFT_MEMCACHE
 	md_free(cuplan->workspace);
 #endif
@@ -324,11 +358,18 @@ void fft_cuda_exec(struct fft_cuda_plan_s* cuplan, complex float* dst, const com
 			cuplan->workspace = md_alloc_gpu(1, MAKE_ARRAY(1l), cuplan->workspace_size);
 			cufftSetWorkArea(cuplan->cufft, cuplan->workspace);
 		#endif
-
+#ifdef CUFFT_MULTIGPU
+		if (CUFFT_SUCCESS != (err = cufftExecC2C(cuplan->cufft[cuda_get_device()],
+							(cufftComplex*)src + i * cuplan->idist,
+							(cufftComplex*)dst + i * cuplan->odist,
+							(!cuplan->backwards) ? CUFFT_FORWARD : CUFFT_INVERSE)))
+#else
 		if (CUFFT_SUCCESS != (err = cufftExecC2C(cuplan->cufft,
 							(cufftComplex*)src + i * cuplan->idist,
 							(cufftComplex*)dst + i * cuplan->odist,
 							(!cuplan->backwards) ? CUFFT_FORWARD : CUFFT_INVERSE)))
+#endif //ifdef CUFFT_MULTIGPU
+
 			error("CUFFT: %d, %s\n", err, cufft_error_string(err));
 
 		#ifdef CUFFT_MEMCACHE
