@@ -55,6 +55,7 @@ struct iovec {
 	long os; 
 };
 
+static char* cufft_error_string(int err);
 
 
 // detect if flags has blocks of 1's seperated by 0's
@@ -227,6 +228,7 @@ static struct fft_cuda_plan_s* fft_cuda_plan0(unsigned int D, const long dimensi
 	if ((CUFFT_SUCCESS != err1) || (CUFFT_SUCCESS != err2) || (CUFFT_SUCCESS != err3)) {
 
 		debug_printf(DP_WARN, "CUFFT Plan error: %d %d %d\n", err1, err2, err3);
+		debug_printf(DP_WARN, "CUFFT Plan error strings: %s %s %s\n", cufft_error_string(err1), cufft_error_string(err2), cufft_error_string(err3));
 		goto errout;
 	}
 
@@ -239,7 +241,7 @@ static struct fft_cuda_plan_s* fft_cuda_plan0(unsigned int D, const long dimensi
 
 	if (CUFFT_SUCCESS != err) {
 
-		debug_printf(DP_WARN, "CUFFT Plan error: %d\n", err);
+		debug_printf(DP_WARN, "CUFFT Plan error: %d, %s\n", err, cufft_error_string(err));
 		goto errout;
 	}
 #endif
@@ -327,7 +329,7 @@ void fft_cuda_exec(struct fft_cuda_plan_s* cuplan, complex float* dst, const com
 							(cufftComplex*)src + i * cuplan->idist,
 							(cufftComplex*)dst + i * cuplan->odist,
 							(!cuplan->backwards) ? CUFFT_FORWARD : CUFFT_INVERSE)))
-			error("CUFFT: %d\n", err);
+			error("CUFFT: %d, %s\n", err, cufft_error_string(err));
 
 		#ifdef CUFFT_MEMCACHE
 			md_free(cuplan->workspace);
@@ -338,5 +340,31 @@ void fft_cuda_exec(struct fft_cuda_plan_s* cuplan, complex float* dst, const com
 	if (NULL != cuplan->chain)
 		fft_cuda_exec(cuplan->chain, dst, dst);
 }
+
+
+static char* cufft_error_string(int err)
+{
+	switch (err) {
+		case  0: return "CUFFT_SUCCESS"; break;
+		case  1: return "CUFFT_INVALID_PLAN"; break;
+		case  2: return "CUFFT_ALLOC_FAILED"; break;
+		case  3: return "CUFFT_INVALID_TYPE"; break;
+		case  4: return "CUFFT_INVALID_VALUE"; break;
+		case  5: return "CUFFT_INTERNAL_ERROR"; break;
+		case  6: return "CUFFT_EXEC_FAILED"; break;
+		case  7: return "CUFFT_SETUP_FAILED"; break;
+		case  8: return "CUFFT_INVALID_SIZE"; break;
+		case  9: return "CUFFT_UNALIGNED_DATA"; break;
+		case 10: return "CUFFT_INCOMPLETE_PARAMETER_LIST"; break;
+		case 11: return "CUFFT_INVALID_DEVICE"; break;
+		case 12: return "CUFFT_PARSE_ERROR"; break;
+		case 13: return "CUFFT_NO_WORKSPACE"; break;
+		case 14: return "CUFFT_NOT_IMPLEMENTED"; break;
+		case 15: return "CUFFT_LICENSE_ERROR"; break;
+		case 16: return "CUFFT_NOT_SUPPORTED"; break;
+		default: return "Not a valid error string!\n"; break;
+	}
+}
+
 #endif
 
