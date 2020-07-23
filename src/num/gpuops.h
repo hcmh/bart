@@ -31,7 +31,7 @@ extern int cuda_init_memopt(void);
 extern void cuda_p2p_table(int n, _Bool table[n][n]);
 extern void cuda_p2p(int a, int b);
 extern void cuda_exit(void);
-extern int cuda_devices(void);
+extern int num_cuda_devices(void);
 extern int cuda_get_device(void);
 extern void cuda_memcache_off(void);
 extern void cuda_memcache_clear(void);

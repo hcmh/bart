@@ -73,7 +73,7 @@ void print_cuda_meminfo(void)
 	debug_printf(DP_INFO , "GPU memory usage: used = %.4f MiB, free = %.4f MiB, total = %.4f MiB\n", dbyte_used/MiBYTE, dbyte_free/MiBYTE, dbyte_tot/MiBYTE);
 }
 
-int cuda_devices(void)
+int num_cuda_devices(void)
 {
 	int count;
 	CUDA_ERROR(cudaGetDeviceCount(&count));
@@ -90,7 +90,7 @@ int cuda_get_device(void)
 }
 
 
-int cuda_reserved_devices(void)
+static int num_cuda_reserved_devices(void)
 {
 	return bitcount(reserved_gpus);
 }
@@ -98,7 +98,7 @@ int cuda_reserved_devices(void)
 
 void cuda_p2p_table(int n, bool table[n][n])
 {
-	assert(n == cuda_devices());
+	assert(n == num_cuda_devices());
 
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
@@ -134,7 +134,7 @@ static void cuda_set_reserved_gpus()
 void cuda_init()
 {
 
-	int num_devices = cuda_devices();
+	int num_devices = num_cuda_devices();
 	for (int device = 0; device < num_devices; ++device)
 		if (cuda_try_init(device)) {
 
@@ -198,7 +198,7 @@ void cuda_deinit(int device)
 void cuda_init_multigpu(unsigned int requested_gpus)
 {
 
-	int num_devices = cuda_devices();
+	int num_devices = num_cuda_devices();
 	for (int device = 0; device < num_devices; ++device) {
 
 		if (MD_IS_SET(requested_gpus, device))
@@ -215,7 +215,7 @@ void cuda_init_multigpu(unsigned int requested_gpus)
 
 int cuda_init_memopt(void)
 {
-	int num_devices = cuda_devices();
+	int num_devices = num_cuda_devices();
 	int device;
 	int max_device = -1;
 
