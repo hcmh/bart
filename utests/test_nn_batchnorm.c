@@ -203,7 +203,7 @@ static bool test_nlop_bn(void)
 	const long* statdims = nlop_generic_codomain(nlop, 1)->dims;
 	complex float* tmp = md_alloc(N + 1, statdims, CFL_SIZE);
 
-	nlop = nlop_set_input_const_F(nlop, 1, N + 1, statdims, tmp);
+	nlop = nlop_set_input_const_F(nlop, 1, N + 1, statdims, true, tmp);
 	nlop = nlop_del_out(nlop, 1);
 	nlop = nlop_set_batchnorm_F(nlop, 0, 0);
 
