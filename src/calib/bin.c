@@ -100,16 +100,32 @@ static void det_bins_amp(const long state_dims[DIMS], const complex float* state
 static bool check_valid_time(const long singleton_dims[DIMS], complex float* singleton, const long labels_dims[DIMS], const complex float* labels, const long labels_idx[2])
 {
 	// Indices at half of total time
-	int idx_0 = floor(singleton_dims[TIME_DIM] / 2.);
-	int idx_1 = idx_0 + 1;
+	bool valid_index = false;
+	int idx_shift = 0;
 
+	int idx_0 = 0;
+	int idx_1 = 0;
 	long pos[DIMS] = { 0 };
 
-	pos[TIME2_DIM] = labels_idx[0];
-	md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
+	float a_0 = 0.;
+	float a_1 = 0.;
 
-	float a_0 = crealf(singleton[idx_0]);
-	float a_1 = crealf(singleton[idx_1]);
+	// prevent ambiguity
+	while (!valid_index) {
+		idx_0 = floor(singleton_dims[TIME_DIM] / 2.) + idx_shift;
+		idx_1 = idx_0 + 1;
+
+		pos[TIME2_DIM] = labels_idx[0];
+		md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
+
+		a_0 = crealf(singleton[idx_0]);
+		a_1 = crealf(singleton[idx_1]);
+
+		if (a_0 != a_1)
+			valid_index = true;
+		else
+			idx_shift += 1;
+	}
 
 	pos[TIME2_DIM] = labels_idx[1];
 	md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
