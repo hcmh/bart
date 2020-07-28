@@ -34,6 +34,12 @@
 
 //#define CUFFT_MULTIGPU
 
+#ifdef CUFFT_MULTIGPU
+// for now, CUFFT_MULTIGPU does not support CUFFT_MEMCACHE
+#undef CUFFT_MEMCACHE
+#endif
+
+
 struct fft_cuda_plan_s {
 
 #ifdef CUFFT_MULTIGPU
