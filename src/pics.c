@@ -23,6 +23,10 @@
 #include "num/ops_p.h"
 #include "num/ops.h"
 
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
+
 #include "iter/misc.h"
 #include "iter/monitor.h"
 
@@ -285,14 +289,17 @@ int main_pics(int argc, char* argv[])
 
 	assert(1 == ksp_dims[MAPS_DIM]);
 
+	if (conf.gpu) {
 
-	if (conf.gpu)
+		cuda_use_global_memory();
 		if (0u == requested_gpus)
 			num_init_gpu_memopt();
 		else
 			num_init_multigpu(requested_gpus);
-	else
+	} else {
+
 		num_init();
+	}
 
 	// print options
 
