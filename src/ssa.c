@@ -61,9 +61,11 @@ int main_ssa(int argc, char* argv[])
 
 	if (5 == argc) {
 
+		if (conf.EOF_info)
+			conf.rank = 1;
+
 		check_bp(&conf);
 		conf.backproj = argv[4];
-
 	}
 
 

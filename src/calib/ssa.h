@@ -22,4 +22,10 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 			const struct laplace_conf conf);
 
 
+extern int detect_freq_EOF(const long dims[2], 
+			complex float* EOF, 
+			const float dt, 
+			const float f,
+			const float f_interval,
+			const long max);
 

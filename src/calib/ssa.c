@@ -77,6 +77,87 @@
 
 #include "ssa.h"
 
+// Detect cardiac and respiratory EOFs
+extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const float dt, const float f, const float f_interval, const long max)
+{
+	long EOF_strs[2];
+	md_calc_strides(2, EOF_strs, EOF_dims, CFL_SIZE);
+
+	long T_center = (long)(EOF_dims[0] / 2); // [px]
+	float df = 1. / (EOF_dims[0] * dt); // [Hz]
+
+	long F = (long)(f / df); // [px]
+	long F_interval = (long)(f_interval / df); // [px]
+
+	long interval_low = F - (long)(F_interval / 2);
+	long interval_up = F + (long)(F_interval / 2);
+	
+	// Create mask to select frequency-region of interest
+	long mask_dims[2] = { EOF_dims[0], 1 };
+	long mask_strs[2];
+	md_calc_strides(2, mask_strs, mask_dims, CFL_SIZE);
+
+	complex float* mask = md_alloc(2, mask_dims, CFL_SIZE);
+	md_clear(2, mask_dims, mask, CFL_SIZE);
+
+	for (int i = interval_low; i < interval_up; i++) {
+		
+		mask[T_center + i] = 1. + 0i;
+		mask[T_center - i] = 1. + 0i;
+	}
+
+	// Apply mask to select roi and calculate energy
+	complex float* EOF_masked = md_alloc(2, EOF_dims, CFL_SIZE);
+	md_zmul2(2, EOF_dims, EOF_strs, EOF_masked, EOF_strs, EOF_fft, mask_strs, mask);
+
+	long EOF_rss_dims[2] = { 1, EOF_dims[1] };
+	complex float* EOF_rss = md_alloc(2, EOF_rss_dims, CFL_SIZE);
+	md_zrss(2, EOF_dims, MD_BIT(0), EOF_rss, EOF_masked);
+
+	// Apply reverse mask (to exclude the roi) and calculate energy
+	md_zfill(2, mask_dims, mask, 1.);
+
+	for (int i = interval_low; i < interval_up; i++) {
+		
+		mask[T_center + i] = 0. + 0i;
+		mask[T_center - i] = 0. + 0i;
+	}
+
+	md_zmul2(2, EOF_dims, EOF_strs, EOF_masked, EOF_strs, EOF_fft, mask_strs, mask);
+
+	complex float* EOF_rss_ex = md_alloc(2, EOF_rss_dims, CFL_SIZE);
+	md_zrss(2, EOF_dims, MD_BIT(0), EOF_rss_ex, EOF_masked);
+
+	// dump_cfl("EOF_rss", 2, EOF_rss_dims, EOF_rss);
+	// dump_cfl("EOF_rss_ex", 2, EOF_rss_dims, EOF_rss_ex);
+
+	// Calculate fraction
+	md_zdiv(2, EOF_rss_dims, EOF_rss, EOF_rss, EOF_rss_ex);
+
+	long flags = 0;
+	long count = 0;
+	float thresh = 1;
+	int MAX = 30; // prevent bitmask overflow
+
+	for (int i = 0; i < MAX; i++) {
+
+		if (creal(EOF_rss[i]) > thresh) {
+
+			flags = MD_SET(flags, i);
+			count++;
+		}
+
+		if (count == max) // both EOFs of the pair detected
+			break;
+	}
+
+	return flags;
+
+	md_free(mask);
+	md_free(EOF_masked);
+	md_free(EOF_rss);
+}
+
 // Check symmetry of the W-sized filters
 static bool PC_symmetric(const long PC_line_dims[2], complex float* PC_line, int W) {
 
@@ -170,7 +251,7 @@ static void backprojection( const long N,
 				bool sym = PC_symmetric(PC_line_dims, PC_line, conf.window);
 
 				if (sym)
-					debug_printf(DP_INFO, "%d \t", i);
+					debug_printf(DP_INFO, "%d ", i);
 			}
 			debug_printf(DP_INFO, "\n");
 
