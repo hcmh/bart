@@ -21,3 +21,7 @@ extern struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, un
 extern struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim);
 extern struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, unsigned long stack_dim);
 extern struct nlop_s* nlop_stack_outputs_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim);
+extern struct nlop_s* nlop_shift_input(const struct nlop_s* x, int new_index, unsigned int old_index);
+extern struct nlop_s* nlop_shift_input_F(const struct nlop_s* x, int new_index, unsigned int old_index);
+extern struct nlop_s* nlop_shift_output(const struct nlop_s* x, int new_index, unsigned int old_index);
+extern struct nlop_s* nlop_shift_output_F(const struct nlop_s* x, int new_index, unsigned int old_index);

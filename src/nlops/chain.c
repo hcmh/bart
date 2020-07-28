@@ -473,3 +473,60 @@ struct nlop_s* nlop_permute_outputs_F(const struct nlop_s* x, int O2, const int 
 	nlop_free(x);
 	return result;
 }
+
+struct nlop_s* nlop_shift_input(const struct nlop_s* x, int new_index, unsigned int old_index)
+{
+	int II = nlop_get_nr_in_args(x);
+	assert(old_index < II);
+	assert(new_index < II);
+
+	int perm[II];
+	for (int i = 0, ip = 0; i < II; i++, ip++) {
+
+		perm[i] = ip;
+		if (i == old_index) ip++;
+		if (i == new_index) ip--;
+		if (new_index > old_index)
+			perm[i] = ip;
+	}
+
+	perm[new_index] = old_index;
+
+	return nlop_permute_inputs(x, II, perm);
+}
+
+struct nlop_s* nlop_shift_input_F(const struct nlop_s* x, int new_index, unsigned int old_index)
+{
+	auto result = nlop_shift_input(x, new_index, old_index);
+	nlop_free(x);
+	return result;
+}
+
+struct nlop_s* nlop_shift_output(const struct nlop_s* x, int new_index, unsigned int old_index)
+{
+	int OO = nlop_get_nr_out_args(x);
+	assert(old_index < OO);
+	assert(new_index < OO);
+
+	int perm[OO];
+
+	for (int i = 0, ip = 0; i < OO; i++, ip++) {
+
+		perm[i] = ip;
+		if (i == old_index) ip++;
+		if (i == new_index) ip--;
+		if (new_index > old_index)
+			perm[i] = ip;
+	}
+
+	perm[new_index] = old_index;
+
+	return nlop_permute_outputs(x, OO, perm);
+}
+
+struct nlop_s* nlop_shift_output_F(const struct nlop_s* x, int new_index, unsigned int old_index)
+{
+	auto result = nlop_shift_output(x, new_index, old_index);
+	nlop_free(x);
+	return result;
+}
