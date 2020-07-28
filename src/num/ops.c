@@ -1043,7 +1043,7 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 
 	assert(N == operator_nr_args(op));
 
-	debug_printf(DP_DEBUG1, "GPU start.\n");
+	debug_printf(DP_DEBUG1, "GPU start thread %d.\n", omp_get_thread_num());
 
 	int gpun = gpu_map[omp_get_thread_num() % n_reserved_gpus];
 
@@ -1067,7 +1067,9 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 	}
 
 	omp_set_lock(&gpulock[gpun]);
+	debug_printf(DP_DEBUG2, "\tlock acquired by       thread %d, using gpu %d\n", omp_get_thread_num(), gpun );
 	operator_generic_apply_unchecked(op, N, gpu_ptr);
+	debug_printf(DP_DEBUG2, "\tlock to be released by thread %d, using gpu %d\n", omp_get_thread_num(), gpun);
 	omp_unset_lock(&gpulock[gpun]);
 
 	for (unsigned int i = 0; i < N; i++) {
@@ -1083,7 +1085,7 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 		md_free(gpu_ptr[i]);
 	}
 
-	debug_printf(DP_DEBUG1, "GPU end.\n");
+	debug_printf(DP_DEBUG1, "GPU end thread %d.\n", omp_get_thread_num());
 
 #else
 	UNUSED(_data); UNUSED(N); UNUSED(args);
