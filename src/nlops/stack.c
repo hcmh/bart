@@ -109,6 +109,8 @@ static void stack_del(const nlop_data_t* _data)
 
 struct nlop_s* nlop_stack_create(int N, const long odims[N], const long idims1[N], const long idims2[N], unsigned long stack_dim)
 {
+	assert(stack_dim < N);
+	assert(0 <= stack_dim);
 
 	PTR_ALLOC(struct stack_s, data);
 	SET_TYPEID(stack_s, data);
@@ -167,6 +169,9 @@ struct nlop_s* nlop_stack_create(int N, const long odims[N], const long idims1[N
 
 struct nlop_s* nlop_destack_create(int N, const long odims1[N], const long odims2[N], const long idims[N], unsigned long stack_dim)
 {
+	assert(stack_dim < N);
+	assert(0 <= stack_dim);
+
 	for (unsigned int i = 0; i < (unsigned)N; i++)
 	{
 		if (i == stack_dim)
