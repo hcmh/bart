@@ -91,7 +91,7 @@ static const struct nlop_s* nlop_unet_network_create(const struct nullspace_s* c
 static const struct nlop_s* nlop_nullspace_network_create(const struct nullspace_s* config, long dims[5], long udims[5])
 {
 	if (!config->nullspace)
-		nlop_unet_network_create(config, dims, udims);
+		return nlop_unet_network_create(config, dims, udims);
 
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
 	auto nlop_zf = nlop_mri_adjoint_create(dims, config->share_mask);
