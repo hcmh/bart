@@ -987,3 +987,39 @@ const struct nlop_s* mri_reg_projection_ker_create_general_with_lambda(	int N, l
 		result = nlop_combine_FF(result, nlop_del_out_create(1, MD_SINGLETON_DIMS(1)));
 	return result;
 }
+
+const struct nlop_s* mri_Tikhonov_regularized_pseudo_inv(int N, long dims[N], float lambda, bool share_mask, bool rescale, bool lambda_input)
+{
+	long idims[N];
+	md_select_dims(N, 23ul, idims, dims);
+
+	auto nlop_zf = nlop_mri_adjoint_create(dims, share_mask);// in: kspace, coil, mask; out: Atb
+
+	const struct nlop_s* nlop_norm_inv = NULL;
+	if (lambda_input)
+		nlop_norm_inv = mri_normal_inversion_create_general_with_lambda(5, dims, 23, 31, share_mask ? 7 : 23, 31, 7, lambda); // in: Atb, coil, mask, lambda; out: A^+b
+	else
+		nlop_norm_inv = mri_normal_inversion_create_general(5, dims, 23, 31, share_mask ? 7 : 23, 31, 7, lambda); // in: Atb, coil, mask, [lambda]; out: A^+b
+
+	auto nlop_pseudo_inv = nlop_chain2_swap_FF(nlop_zf, 0, nlop_norm_inv, 0); // in: kspace, coil, mask, coil, mask, lambda; out: A^+b
+	nlop_pseudo_inv = nlop_dup_F(nlop_pseudo_inv, 1, 3);
+	nlop_pseudo_inv = nlop_dup_F(nlop_pseudo_inv, 2, 3);// in: kspace, coil, mask, lambda; out: A^+b
+
+	if (rescale) {
+
+		if (-1. != lambda) {
+
+			nlop_pseudo_inv = nlop_chain2_FF(nlop_pseudo_inv, 0, nlop_from_linop_F(linop_scale_create(N, idims, 1 + lambda)), 0);
+		} else {
+
+			const struct nlop_s* scale = nlop_chain2_FF(nlop_tenmul_create(N, idims, idims, MD_SINGLETON_DIMS(N)), 0, nlop_zaxpbz_create(N, idims, 1., 1.), 1);
+			scale = nlop_dup_F(scale, 0, 1);
+			scale = nlop_reshape_in_F(scale, 1, 1, MD_SINGLETON_DIMS(1));
+
+			nlop_pseudo_inv = nlop_chain2_swap_FF(nlop_pseudo_inv, 0, scale, 0);
+			nlop_pseudo_inv = nlop_dup_F(nlop_pseudo_inv, 3, 4);
+		}
+	}
+
+	return nlop_pseudo_inv;
+}

@@ -24,3 +24,5 @@ extern const struct nlop_s* mri_reg_projection_ker_create_general(	int N, long d
 extern const struct nlop_s* mri_reg_projection_ker_create_general_with_lambda(	int N, long dims[__VLA(N)],
 									unsigned long iflags, unsigned long cflags, unsigned long mflags, unsigned long ciflags, unsigned long fftflags,
 									float lambda);
+
+extern const struct nlop_s* mri_Tikhonov_regularized_pseudo_inv(int N, long dims[N], float lambda, _Bool share_mask, _Bool rescale, _Bool lambda_input);
