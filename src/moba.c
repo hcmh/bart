@@ -35,6 +35,7 @@
 #include "grecon/italgo.h"
 
 #include "moba/recon_T1.h"
+#include "moba/recon_T2.h"
 
 
 
@@ -58,7 +59,7 @@ int main_moba(int argc, char* argv[])
 	bool out_sens = false;
 	bool use_gpu = false;
 	bool unused = false;
-	enum mdb_t { MDB_T1 } mode = { MDB_T1 };
+	enum mdb_t { MDB_T1, MDB_T2 } mode = { MDB_T1 };
 
 	opt_reg_init_moba(&conf.ropts);
 
@@ -66,6 +67,7 @@ int main_moba(int argc, char* argv[])
 	const struct opt_s opts[] = {
 
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
+		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "T2 mapping using model-based Fast Spin Echo"),
 		OPT_UINT('l', &conf.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
 		{ 'r', NULL, true, opt_reg_moba, &conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
                 OPT_FLOAT('u', &conf.rho, "rho", "ADMM rho"),
@@ -148,7 +150,7 @@ int main_moba(int argc, char* argv[])
 	long img_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|COEFF_FLAG|SLICE_FLAG|TIME2_FLAG, img_dims, grid_dims);
 
-	img_dims[COEFF_DIM] = conf.IR_SS ? 2 : 3;
+	img_dims[COEFF_DIM] = (conf.IR_SS || (MDB_T2 == mode)) ? 2 : 3;
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
@@ -290,7 +292,7 @@ int main_moba(int argc, char* argv[])
 		md_zatanr(DIMS, map_dims, filter, filter);
 
 		md_zsmul(DIMS, map_dims, filter, filter, -1. / M_PI);
-		md_zsadd(DIMS, map_dims, filter, filter, 0.5);
+		md_zsadd(DIMS, map_dims, filter, filter, 1.0);
 		md_zsmul(DIMS, map_dims, filter, filter, lambda);
 
 		md_zadd2(DIMS, pat_dims, pat_strs, pattern, pat_strs, pattern, map_strs, filter);
@@ -327,19 +329,17 @@ int main_moba(int argc, char* argv[])
 		restrict_dims[1] = restrict_fov;
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
-		//md_zsmul2(DIMS, img_dims, img_strs, img, msk_strs, mask ,1.0);
-
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
 		// Choose a different initial guess for R1*
-		float init_param = (0. != conf.IR_phy) ? 2. : (conf.sms ? 2. : 1.5);
+		float init_param = (0. != conf.IR_phy) ? 3. : (conf.sms ? 2. : 1.5);
 		
 		long pos[DIMS];
 
 		for (int i = 0; i < (int)DIMS; i++)
 			pos[i] = 0;
 
-		pos[COEFF_DIM] = (conf.IR_SS || (0. != conf.IR_phy)) ? 1 : 2;
+		pos[COEFF_DIM] = (conf.IR_SS || (0. != conf.IR_phy) || (MDB_T2 == mode)) ? 1 : 2;
 		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
@@ -369,6 +369,10 @@ int main_moba(int argc, char* argv[])
 		case MDB_T1:
 			T1_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, TI_t1relax_gpu, kspace_gpu, use_gpu);
 			break;
+
+		case MDB_T2:
+			T2_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu, use_gpu);
+			break;
 		};
 
 		md_free(kspace_gpu);
@@ -379,6 +383,10 @@ int main_moba(int argc, char* argv[])
 
 	case MDB_T1:
 		T1_recon(&conf, dims, img, sens, pattern, mask, TI, TI_t1relax, k_grid_data, use_gpu);
+		break;
+
+	case MDB_T2:
+		T2_recon(&conf, dims, img, sens, pattern, mask, TI, k_grid_data, use_gpu);
 		break;
 	};
 

@@ -34,10 +34,11 @@
 #include "moba/iter_l1.h"
 
 #include "recon_T2.h"
+#include "recon_T1.h"
 
 
 
-void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* kspace_data, _Bool usegpu)
+void T2_recon(const struct moba_conf* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* kspace_data, _Bool usegpu)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -65,11 +66,12 @@ void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	md_copy(DIMS, coil_dims, x + skip, sens, CFL_SIZE);
 
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
-	mconf.rvc = conf->rvc;
-	mconf.noncart = !conf->noncart;
+	mconf.rvc = false;
+	mconf.noncart = conf->noncartesian;
 	mconf.fft_flags = fft_flags;
 	mconf.a = 880.;
 	mconf.b = 32.;
+	mconf.cnstcoil_flags = TE_FLAG;
 
 	//struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
 	struct T2_s nl = T2_create(dims, mask, TI, pattern, &mconf, usegpu);
@@ -80,8 +82,11 @@ void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.alpha_min = conf->alpha_min;
-	irgnm_conf.cgtol = 0.1f;
+	irgnm_conf.cgtol = conf->tolerance;
+	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
+
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 0., .constrained_maps = 2, .not_wav_maps = 0, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo};
 
 	long irgnm_conf_dims[DIMS];
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, irgnm_conf_dims, imgs_dims);
@@ -90,8 +95,6 @@ void T2_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex flo
 
 	debug_printf(DP_INFO, "imgs_dims:\n\t");
 	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
-
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 0.3, .constrained_maps = 4, .not_wav_maps = 0 };
 
 	mdb_irgnm_l1(&conf2,
 			irgnm_conf_dims,
