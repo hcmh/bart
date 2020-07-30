@@ -174,9 +174,29 @@ tests/test-moba-t1-irgnm-admm: phantom signal fmac fft ones index scale moba loo
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-moba-t2: phantom signal fmac fft ones index scale moba slice invert nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
+	$(TOOLDIR)/phantom -x16 -c circ.ra 		                  		;\
+	$(TOOLDIR)/signal -T -e0.01 -n16 -1 1.25:1.25:1 -2 0.09:0.09:1 signal.ra  	;\
+	$(TOOLDIR)/fmac circ.ra signal.ra image.ra					;\
+	$(TOOLDIR)/fft 3 image.ra k_space.ra						;\
+	$(TOOLDIR)/ones 6 16 16 1 1 1 16 psf.ra						;\
+	$(TOOLDIR)/index 5 16 tmp1.ra   						;\
+	$(TOOLDIR)/scale 0.01 tmp1.ra TE.ra                  	       			;\
+	$(TOOLDIR)/moba -F -g -i10 -f1 -C200 -d4 -p psf.ra k_space.ra TE.ra reco.ra	;\
+	$(TOOLDIR)/slice 6 1 reco.ra R2.ra						;\
+	$(TOOLDIR)/invert R2.ra T2.ra							;\
+	$(TOOLDIR)/phantom -x16 -c circ.ra						;\
+	$(TOOLDIR)/fmac T2.ra circ.ra masked.ra						;\
+	$(TOOLDIR)/scale -- 0.9 circ.ra ref.ra						;\
+	$(TOOLDIR)/nrmse -t 0.0008 masked.ra ref.ra					;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
 TESTS += tests/test-moba-t1 tests/test-moba-t1-sms tests/test-moba-t1-no-IR
 TESTS += tests/test-moba-t1-magn tests/test-moba-t1-nonCartesian tests/test-moba-t1-nufft
 TESTS += tests/test-moba-t1-MOLLI
 TESTS += tests/test-moba-t1-IR_SS
 TESTS += tests/test-moba-t1-irgnm-admm
+TESTS += tests/test-moba-t2
 
