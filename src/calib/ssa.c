@@ -150,12 +150,12 @@ extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const
 		if (count == max) // both EOFs of the pair detected
 			break;
 	}
-
-	return flags;
-
+	
 	md_free(mask);
 	md_free(EOF_masked);
 	md_free(EOF_rss);
+
+	return flags;
 }
 
 // Check symmetry of the W-sized filters
