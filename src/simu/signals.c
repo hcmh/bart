@@ -24,11 +24,11 @@ const struct signal_model signal_TSE_defaults = {
 
 static float signal_TSE(const struct signal_model* data, int ind)
 {
-	float t2 = data->t2;
+	float r2 = 1. / data->t2;
 	float m0 = data->m0;
 	float te = data->te;
 
-	return m0 * expf(-ind * te * t2);
+	return m0 * expf(-ind * te * r2);
 }
 
 void TSE_model(const struct signal_model* data, int N, complex float out[N])
