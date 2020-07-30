@@ -568,6 +568,9 @@ MODULES_test_nn_layers += -lnn -lnlops -llinops
 UTARGETS_GPU += test_cuda_nlop
 MODULES_test_cuda_nlop += -lnn -lnlops -llinops -lnum
 
+# lib calib
+UTARGETS += test_eof
+MODULES_test_eof += -lcalib -lnum -lmanifold -liter -llinops
 
 # sort BTARGETS after everything is included
 BTARGETS:=$(sort $(BTARGETS))
