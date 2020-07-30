@@ -16,6 +16,7 @@ struct nullspace_s {
 
 	struct unet_s* unet;
 
+	_Bool rescale;
 	_Bool nullspace;
 };
 

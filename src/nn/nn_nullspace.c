@@ -56,6 +56,7 @@ const struct nullspace_s nullspace_default = {
 
 	.nullspace = true,
 	.share_mask = true,
+	.rescale = false,
 
 	.unet = NULL,
 };
@@ -94,16 +95,9 @@ static const struct nlop_s* nlop_nullspace_network_create(const struct nullspace
 		return nlop_unet_network_create(config, dims, udims);
 
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	auto nlop_zf = nlop_mri_adjoint_create(dims, config->share_mask);
-	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0); // in: kspace, coil, mask; out: Atb
 
-	auto nlop_norm_inv = mri_normal_inversion_create_general_with_lambda(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, config->lambda_fixed); // in: Atb, coil, mask, lambda; out: A^+b
-	nlop_norm_inv = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_norm_inv, 0);
-	nlop_norm_inv = nlop_chain2_FF(nlop_norm_inv, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
-
-	auto nlop_pseudo_inv = nlop_chain2_swap_FF(nlop_zf, 0, nlop_norm_inv, 0); // in: kspace, coil, mask, coil, mask, lambda; out: A^+b
-	nlop_pseudo_inv = nlop_dup_F(nlop_pseudo_inv, 1, 3);
-	nlop_pseudo_inv = nlop_dup_F(nlop_pseudo_inv, 2, 3);// in: kspace, coil, mask, lambda; out: A^+b
+	auto nlop_pseudo_inv = mri_Tikhonov_regularized_pseudo_inv(5, dims, config->lambda_fixed, config->share_mask, config->rescale, true);
+	nlop_pseudo_inv = nlop_chain2_FF(nlop_pseudo_inv, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
 
 	auto nlop_proj = mri_reg_projection_ker_create_general_with_lambda(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, config->lambda_fixed); // in: DU(u0), coil, mask, lambda; out: PDU(u0)
 	nlop_proj = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_proj, 0);

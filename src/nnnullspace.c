@@ -80,6 +80,7 @@ int main_nnnullspace(int argc, char* argv[])
 		OPT_FLOAT('l', &nullspace.lambda_fixed, "-1.", "Fix lambda in numerical blocks, -1. corresponds to trainable parameter"),
 
 		OPT_CLEAR('u', &nullspace.nullspace, "Dont't performe nullspace projection"),
+		OPT_SET('s', &nullspace.rescale, "Invert scaling of Tikhonov regularization"),
 
 		OPT_LONG('D', &unet.number_levels, "4", "Depth of U-Net, i.e. number of levels"),
 		OPT_FLOAT('d', &unet.reduce_factor, "2.", "Reduction of resolution for lower level"),
