@@ -25,14 +25,14 @@ struct delay_conf {
 	int rank;	 	 // rank for backprojection
 	bool EOF_info;	 // in-phase information
 
-	bool temporal_nn; 		 // temporal nearest neighbors
-
-	float lambda_nn; // lambda_nn
+	bool temporal_nn; 	 // temporal nearest neighbors
+	float lambda_nn; 	// lambda_nn
 	
 	// NLSA
-	_Bool nlsa;	     // is nlsa
-	long nlsa_rank;	 // smoothness of manifold
-	char* name_tbasis; // output name of temporal basis for NLSA
+	_Bool nlsa;	     	// is nlsa
+	long nlsa_rank;	 	// smoothness of manifold
+	char* name_tbasis;  // output name of temporal basis for NLSA
+	_Bool L_out;		// output Laplacian
 
 };
 

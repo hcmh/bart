@@ -86,9 +86,13 @@ int main_nlsa(int argc, char* argv[])
 		OPT_FLOAT('s', &conf.sigma, "sigma", "Standard deviation"),
 		OPT_SET('k', &conf.kernel, "Kernel approach"),
 		OPT_SET('C', &conf.kernel_CG, "CG kernel approach"),
+		OPT_FLOAT('c', &conf.cg_lambda, "cg", "(CG lambda)"),
+		OPT_FLOAT('l', &conf.lambda, "lambda", "(CG lambda)"),
 		OPT_INT('i', &conf.iter_max, "iter", "[Kernel] Number of kernel iterations"),
 		OPT_FLOAT('e', &nlsa_conf.weight, "exp", "Soft delay-embedding"),
 		OPT_SET('T', &nlsa_conf.temporal_nn, "Temporal nearest neighbour"),
+		OPT_SET('o', &nlsa_conf.L_out, "(Output Laplacian as __L.cfl)"),
+
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);

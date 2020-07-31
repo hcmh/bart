@@ -545,6 +545,10 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 
 	float* S_square = xmalloc(N * sizeof(float));	
 
+	if (nlsa_conf.L_out)
+		dump_cfl("__L", 2, U_dims, L );
+
+
 	// L = U @ S_square @ UH
 	debug_printf(DP_DEBUG3, "SVD of Laplacian %dx%d matrix...", N, N);
 
