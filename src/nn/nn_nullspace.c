@@ -319,6 +319,8 @@ void apply_nn_nullspace(	struct nullspace_s* nullspace,
 
 	complex float* args[num_in_args + num_in_unet + num_out_args];
 
+	nlop_free(nlop_nullspace_network_create(nullspace, kdims, idims));
+
 	args[0] = md_alloc_sameplace(5, idims, CFL_SIZE, nullspace->lambda);
 	args[1] = md_alloc_sameplace(5, kdims, CFL_SIZE, nullspace->lambda);
 	args[2] = md_alloc_sameplace(5, cdims, CFL_SIZE, nullspace->lambda);
@@ -353,7 +355,7 @@ void apply_nn_nullspace(	struct nullspace_s* nullspace,
 		enum NETWORK_STATUS tmp = network_status;
 		network_status = STAT_TEST;
 
-		nlop_generic_apply_unchecked(nlop_nullspace, 15, (void**)args);
+		nlop_generic_apply_unchecked(nlop_nullspace, num_in_args + num_in_unet + num_out_args, (void**)args);
 
 		network_status = tmp;
 
@@ -421,9 +423,12 @@ extern void nn_nullspace_store_weights(struct nullspace_s* nullspace, const char
 
 extern void nn_nullspace_load_weights(struct nullspace_s* nullspace, const char* name)
 {
-	long size = nn_unet_get_weights_size(nullspace->unet) + 1;
+	long size = 0;
 
 	complex float* file = load_cfl(name, 1, &size);
+
+	if (NULL == nullspace->lambda)
+		nullspace->lambda = md_alloc(1, MD_SINGLETON_DIMS(1), CFL_SIZE);
 
 	md_copy(1, MD_SINGLETON_DIMS(1), nullspace->lambda, file, CFL_SIZE);
 	nn_unet_load_weights(nullspace->unet, size - 1, file + 1);

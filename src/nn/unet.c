@@ -398,6 +398,8 @@ const struct nlop_s* nn_unet_create(struct unet_s* unet, long dims[5])
 	debug_printf(DP_DEBUG1, "U-Net created: ");
 	nlop_debug(DP_DEBUG1, result);
 
+	nn_unet_get_weights_size(unet);
+
 	return result;
 }
 
