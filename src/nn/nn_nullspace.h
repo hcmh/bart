@@ -11,6 +11,7 @@ struct nullspace_s {
 	float lambda_min;
 	float lambda_max;
 	float lambda_fixed;
+	float multi_lambda;
 
 	_Bool share_mask;
 

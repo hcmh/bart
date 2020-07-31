@@ -81,6 +81,7 @@ int main_nnnullspace(int argc, char* argv[])
 
 		OPT_CLEAR('u', &nullspace.nullspace, "Dont't performe nullspace projection"),
 		OPT_SET('s', &nullspace.rescale, "Invert scaling of Tikhonov regularization"),
+		OPT_FLOAT('m', &nullspace.multi_lambda, "1.", "Additional input of psudoinverse with second lambda_2 = par * lambda"),
 
 		OPT_LONG('D', &unet.number_levels, "4", "Depth of U-Net, i.e. number of levels"),
 		OPT_FLOAT('d', &unet.reduce_factor, "2.", "Reduction of resolution for lower level"),
