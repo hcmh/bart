@@ -88,6 +88,7 @@ int main_nnnullspace(int argc, char* argv[])
 		OPT_LONG('F', &unet.channels, "24", "Number of filters/channels of the highest level in unet"),
 		OPT_FLOAT('f', &unet.channel_factor, "1.", "Number of filters/channels of the highest level in unet"),
 		OPT_LONG('b', &unet.number_layers_per_level, "3", "(Half-) Number of convolution blocks per lervel"),
+		OPT_CLEAR('T', &unet.use_transposed_convolution, "Dont't use transposed convolution"),
 
 
 		OPT_STRING('H', (const char**)(&(history_filename)), "", "file for dumping train history"),
