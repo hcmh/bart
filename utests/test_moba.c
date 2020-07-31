@@ -38,6 +38,7 @@
 #include "moba/T1srelax.h"
 #include "moba/IR_SS_fun.h"
 #include "moba/T1_alpha.h"
+#include "moba/T2fun.h"
 
 #include "utest.h"
 
@@ -803,28 +804,29 @@ static bool test_nlop_IR_SS_fun_der_adj(void)
 UT_REGISTER_TEST(test_nlop_IR_SS_fun_der_adj);
 
 
-static bool test_nlop_T1_alpha_fun(void) 
+
+static bool test_nlop_T2fun(void)
 {
-	enum { N = 16 };
-	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-	long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-	long TI_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	enum { N = 7 };
+	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1};
+	long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1};
+	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 2};
+	long TE_dims[N] = { 1, 1, 1, 1, 1, 4, 1};
 
 	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
 	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
 
-	complex float TI[4] = { 0., 1., 2., 3. };
+	complex float TE[4] = { 0.0, 0.1, 0.2, 0.3 };
 
 	md_zfill(N, in_dims, src, 1.0);
 
-	struct nlop_s* T1_alpha = nlop_T1_alpha_create(N, map_dims, out_dims, in_dims, TI_dims, TI, false);
+	struct nlop_s* T2 = nlop_T2_create(N, map_dims, out_dims, in_dims, TE_dims, TE, false);
 
-	nlop_apply(T1_alpha, N, out_dims, dst, N, in_dims, src);
-	
-	float err = linop_test_adjoint(nlop_get_derivative(T1_alpha, 0, 0));
+	nlop_apply(T2, N, out_dims, dst, N, in_dims, src);
 
-	nlop_free(T1_alpha);
+	float err = linop_test_adjoint(nlop_get_derivative(T2, 0, 0));
+
+	nlop_free(T2);
 
 	md_free(src);
 	md_free(dst);
@@ -832,4 +834,4 @@ static bool test_nlop_T1_alpha_fun(void)
 	UT_ASSERT(err < 1.E-3);
 }
 
-UT_REGISTER_TEST(test_nlop_T1_alpha_fun);
+UT_REGISTER_TEST(test_nlop_T2fun);
