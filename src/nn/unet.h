@@ -33,6 +33,8 @@ struct unet_s {
 	enum UNET_DOWNSAMPLING_METHODE ds_methode;
 	enum UNET_UPSAMPLING_COMBINE upsampling_combine;
 
+	_Bool reinsert_input;
+
 	const struct nlop_s** deflatten_conv;
 	const struct nlop_s** deflatten_bias;
 	const struct nlop_s** deflatten_bn;

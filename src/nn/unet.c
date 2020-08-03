@@ -48,6 +48,8 @@ const struct unet_s unet_default_reco = {
 	.use_bias = true,
 	.use_transposed_convolution = true,
 
+	.reinsert_input = false,
+
 	.activation = ACT_RELU,
 	.activation_output = ACT_LIN,
 	.activation_last_layer = ACT_LIN,
@@ -160,13 +162,26 @@ static const struct nlop_s* create_unet_level(struct unet_s* unet, long level, l
 	int index_bias[2 * unet->number_layers_per_level];
 	int index_bn_in[2 * unet->number_layers_per_level];
 	int index_bn_out[2 * unet->number_layers_per_level];
+	int index_input[2 * unet->number_layers_per_level];
 
 	int index_counter_conv = 0;
 	int index_counter_bias = 0;
 	int index_counter_bn_in = 0;
 	int index_counter_bn_out = 0;
+	int index_counter_input = 0;
 
 	for (int i = 0; i < unet->number_layers_per_level; i++) {
+
+		if (unet->reinsert_input && 0 != i) {
+
+			long stacked_dims[5];
+			md_copy_dims(5, stacked_dims, nlop_generic_codomain(result, 0)->dims);
+			stacked_dims[0] = dims[0] + nlop_generic_codomain(result, 0)->dims[0];
+
+			auto stack_op = nlop_stack_create(5, stacked_dims, dims, nlop_generic_codomain(result, 0)->dims, 0);
+			result = nlop_chain2_swap_FF(result, 0, stack_op, 1);
+			index_input[index_counter_input++] = nlop_get_nr_in_args(result) - 1;
+		}
 
 		result = append_convcorr_layer(result, 0, channels, unet->convolution_kernel, false, unet->padding, true, NULL, NULL);
 		index_conv[index_counter_conv++] = nlop_get_nr_in_args(result) - 1;
@@ -240,6 +255,17 @@ static const struct nlop_s* create_unet_level(struct unet_s* unet, long level, l
 
 	for (int i = 0; i < unet->number_layers_per_level; i++) {
 
+		if (unet->reinsert_input) {
+
+			long stacked_dims[5];
+			md_copy_dims(5, stacked_dims, dims);
+			stacked_dims[0] = dims[0] + nlop_generic_codomain(result, 0)->dims[0];
+
+			auto stack_op = nlop_stack_create(5, stacked_dims, dims, nlop_generic_codomain(result, 0)->dims, 0);
+			result = nlop_chain2_swap_FF(result, 0, stack_op, 1);
+			index_input[index_counter_input++] = nlop_get_nr_in_args(result) - 1;
+		}
+
 		if (i + 1 == unet->number_layers_per_level)
 			channels = (1 == level) ? unet->number_output_channels : dims[0];
 
@@ -287,6 +313,10 @@ static const struct nlop_s* create_unet_level(struct unet_s* unet, long level, l
 	perm_in[0] = 0;
 	int in_offset = 1;
 
+	for (int i = 0; i < index_counter_input; i++)
+		perm_in[i + in_offset] = index_input[i];
+	in_offset += index_counter_input;
+
 	for (int i = 0; i < index_counter_conv; i++)
 		perm_in[i + in_offset] = index_conv[i];
 	in_offset += index_counter_conv;
@@ -304,6 +334,8 @@ static const struct nlop_s* create_unet_level(struct unet_s* unet, long level, l
 
 	result = nlop_permute_inputs_F(result, nlop_get_nr_in_args(result), perm_in);
 
+	for (int i = 0; i < index_counter_input; i++)
+		result = nlop_dup_F(result, 0, 1);
 
 	int perm_out[nlop_get_nr_out_args(result)];
 	perm_out[0] = 0;

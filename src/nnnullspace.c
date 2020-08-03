@@ -94,6 +94,7 @@ int main_nnnullspace(int argc, char* argv[])
 		OPT_LONG('b', &unet.number_layers_per_level, "3", "(Half-) Number of convolution blocks per lervel"),
 		OPT_CLEAR('T', &unet.use_transposed_convolution, "Dont't use transposed convolution"),
 		OPT_SET('M', &max_pooling, "Use Max-Pooling instead of FFT for downsampling"),
+		OPT_SET('I', &unet.reinsert_input, "reinsert input of level before each convolution"),
 
 
 		OPT_STRING('H', (const char**)(&(history_filename)), "", "file for dumping train history"),
