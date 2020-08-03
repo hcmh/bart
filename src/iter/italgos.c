@@ -1133,6 +1133,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
         	struct iter_nlop_s nlop,
 		struct iter_op_arr_s adj,
 		struct iter_op_p_s prox[NI],
+		float batchnorm_momentum,
 		struct iter_nlop_s nlop_batch_gen,
         	struct iter_op_s callback, struct iter6_monitor_s* monitor)
 {
@@ -1193,6 +1194,10 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 				x[i] = vops->allocate(isize[i]);
 				x_batch_gen[N_batch_gen] = x[i];
 				N_batch_gen += 1;
+				break;
+
+			case IN_BATCHNORM:
+
 				break;
 
 			default:
@@ -1314,7 +1319,32 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			y[i] = NULL;
 			z[i] = NULL;
 			x_new[i] = NULL;
+
+			int batchnorm_counter = 0;
+			for (int i = 0; i < NI; i++) {
+
+				if (in_type[i] == IN_BATCHNORM) {
+
+						int o = 0;
+						int j = batchnorm_counter;
+
+						while ((OUT_BATCHNORM != out_type[o]) || (j > 0)) {
+
+						if (OUT_BATCHNORM == out_type[o])
+							j--;
+						o++;
+						}
+
+						vops->smul(isize[i], batchnorm_momentum, x[i], x[i]);
+						vops->axpy(isize[i], x[i],  1. - batchnorm_momentum, args[o]);
+
+
+						batchnorm_counter++;
+					}
+				}
 		}
+
+
 
 		char post_string[200];
 		sprintf (post_string, " ");

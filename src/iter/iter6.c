@@ -96,6 +96,8 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 
 	.INTERFACE.TYPEID = &TYPEID2(iter6_iPALM_conf),
 
+	.batchnorm_momentum = 0.95,
+
 	.L = 1000.,
 	.Lmin = 1.e-4,
 	.Lmax = 1.e12,
@@ -472,6 +474,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 			lipshitz_constants, conf->Lmin, conf->Lmax, conf->Lshrink, conf->Lincrease,
         		nlop_iter, adj_op_arr,
 			prox_iter,
+			conf->batchnorm_momentum,
 			nlop_batch_gen_iter,
 			(struct iter_op_s){ NULL, NULL }, monitor);
 
@@ -493,4 +496,33 @@ void iter6_iPALM(	iter6_conf* _conf,
 		if(IN_OPTIMIZE == in_type[i])
 			md_free(x_old[i]);
 	}
+}
+
+
+void iter6_by_conf(	iter6_conf* _conf,
+			const struct nlop_s* nlop,
+			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
+			long NO, enum OUT_TYPE out_type[NO],
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
+{
+
+	struct iter6_adadelta_conf* conf_adadelta = CAST_MAYBE(iter6_adadelta_conf, _conf);
+	if (NULL != conf_adadelta) {
+		iter6_adadelta(_conf, nlop, NI, in_type, prox_ops, dst, NO, out_type, batchsize, numbatches, nlop_batch_gen, monitor);
+		return;
+	}
+
+	struct iter6_adam_conf* conf_adam = CAST_MAYBE(iter6_adam_conf, _conf);
+	if (NULL != conf_adam) {
+		iter6_adam(_conf, nlop, NI, in_type, prox_ops, dst, NO, out_type, batchsize, numbatches, nlop_batch_gen, monitor);
+		return;
+	}
+
+	struct iter6_iPALM_conf* conf_iPALM = CAST_MAYBE(iter6_iPALM_conf, _conf);
+	if (NULL != conf_iPALM) {
+		iter6_iPALM(_conf, nlop, NI, in_type, prox_ops, dst, NO, out_type, batchsize, numbatches, nlop_batch_gen, monitor);
+		return;
+	}
+
+	error("iter6-algorithm not detected!\n");
 }

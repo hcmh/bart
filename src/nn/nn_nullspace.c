@@ -6,6 +6,7 @@
 #include "misc/debug.h"
 #include "misc/mmio.h"
 
+#include "misc/types.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
@@ -339,10 +340,15 @@ void train_nn_nullspace(	struct nullspace_s* nullspace, iter6_conf* train_conf,
 	val_monitors[0] = (struct iter6_monitor_value_s){&compute_validation_objective, &"val loss"[0], false};
 	val_monitors[1] = (struct iter6_monitor_value_s){&get_lambda, &"lambda"[0], true};
 
-	auto conf = CAST_DOWN(iter6_adam_conf, train_conf);
+	long epochs = 0;
+	if (NULL != CAST_MAYBE(iter6_adam_conf, train_conf))
+		epochs = CAST_MAYBE(iter6_adam_conf, train_conf)->epochs;
+	if (NULL != CAST_MAYBE(iter6_iPALM_conf, train_conf))
+		epochs = CAST_MAYBE(iter6_iPALM_conf, train_conf)->epochs;
+
 	//auto monitor = create_iter6_monitor_progressbar_validloss(conf->epochs, N_datasets / nullspace->Nb, false, 15, in_type, valid_loss, false);
-	auto monitor = create_iter6_monitor_progressbar_value_monitors(conf->epochs, N_datasets / nullspace->Nb, false, 2, val_monitors);
-	iter6_adam(train_conf, nlop_train, num_in_args + num_in_unet, in_type, projections, data, num_out_args + num_out_unet, out_type, nullspace->Nb, N_datasets / nullspace->Nb, batch_generator, monitor);
+	auto monitor = create_iter6_monitor_progressbar_value_monitors(epochs, N_datasets / nullspace->Nb, false, 2, val_monitors);
+	iter6_by_conf(train_conf, nlop_train, num_in_args + num_in_unet, in_type, projections, data, num_out_args + num_out_unet, out_type, nullspace->Nb, N_datasets / nullspace->Nb, batch_generator, monitor);
 	if (NULL != history_filename)
 		iter6_monitor_dump_record(monitor, history_filename);
 	network_status = STAT_TEST;

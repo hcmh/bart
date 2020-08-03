@@ -235,6 +235,7 @@ void iPALM(	long NI, long isize[__VLA(NI)], enum IN_TYPE in_type[__VLA(NI)], flo
         	struct iter_nlop_s nlop,
 		struct iter_op_arr_s adj,
 		struct iter_op_p_s prox[__VLA(NI)],
+		float batchnorm_momentum,
 		struct iter_nlop_s nlop_batch_gen,
         	struct iter_op_s callback, struct iter6_monitor_s* monitor);
 

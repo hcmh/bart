@@ -63,6 +63,8 @@ struct iter6_iPALM_conf {
 	float Lshrink;
 	float Lincrease;
 
+	float batchnorm_momentum;
+
 	float alpha;
 	float beta;
 	_Bool convex;
@@ -103,5 +105,8 @@ void iter6_iPALM(	iter6_conf* _conf,
 			long NI, enum IN_TYPE in_type[__VLA(NI)], const struct operator_p_s* prox_ops[__VLA(NI)], float* dst[__VLA(NI)],
 			long NO, enum OUT_TYPE out_type[__VLA(NO)],
 			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor);
+
+
+iter6_f iter6_by_conf;
 
 #endif

@@ -45,7 +45,7 @@ int main_nnnullspace(int argc, char* argv[])
 	struct nullspace_s nullspace = nullspace_default;
 	nullspace.unet = &unet;
 
-	struct iter6_adam_conf train_conf = iter6_adam_conf_defaults;
+	struct iter6_adam_conf train_conf_adam = iter6_adam_conf_defaults;
 
 	bool train = false;
 	bool apply = false;
@@ -53,6 +53,8 @@ int main_nnnullspace(int argc, char* argv[])
 	bool initialize = false;
 	bool normalize = false;
 	bool max_pooling = false;
+
+	bool use_iPALM = false;
 
 	bool random_order = false;
 	char* history_filename = NULL;
@@ -64,10 +66,11 @@ int main_nnnullspace(int argc, char* argv[])
 		OPT_SET('i', &initialize, "initialize weights"),
 
 		OPT_SET('t', &train, "train modl"),
-		OPT_INT('E', &(train_conf.epochs), "1000", "number of training epochs"),
+		OPT_SET('A', &use_iPALM, "Use the iPALM algorithm to train the nullspace network"),
+		OPT_INT('E', &(train_conf_adam.epochs), "1000", "number of training epochs"),
 		OPT_LONG('B', &(nullspace.Nb), "10", "batch size"),
 		OPT_SET('r', &(random_order), "randomize batches"),
-		OPT_FLOAT('R', &train_conf.learning_rate, "0.001", "learning Rate"),
+		OPT_FLOAT('R', &train_conf_adam.learning_rate, "0.001", "learning Rate"),
 
 		OPT_SET('a', &apply, "apply modl"),
 
@@ -97,6 +100,10 @@ int main_nnnullspace(int argc, char* argv[])
 	};
 
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	struct iter6_iPALM_conf train_conf_iPALM = iter6_iPALM_conf_defaults;
+	train_conf_iPALM.L = 1. / train_conf_adam.learning_rate;
+	train_conf_iPALM.epochs = train_conf_adam.epochs;
 
 	if (train && apply)
 		error("Train and apply would overwrite the reference!\n");
@@ -166,7 +173,7 @@ int main_nnnullspace(int argc, char* argv[])
 			md_free(scaling);
 		}
 
-		train_nn_nullspace(&nullspace, CAST_UP(&train_conf), udims, file_ref, kdims, file_kspace, cdims, file_coil, mdims, file_mask, random_order, history_filename, (10 == argc) ? argv + 6: NULL);
+		train_nn_nullspace(&nullspace, use_iPALM ? CAST_UP(&train_conf_iPALM) : CAST_UP(&train_conf_adam), udims, file_ref, kdims, file_kspace, cdims, file_coil, mdims, file_mask, random_order, history_filename, (10 == argc) ? argv + 6: NULL);
 		nn_nullspace_store_weights(&nullspace, filename_weights);
 		unmap_cfl(5, udims, file_ref);
 	}
