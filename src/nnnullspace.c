@@ -52,6 +52,7 @@ int main_nnnullspace(int argc, char* argv[])
 	bool use_gpu = false;
 	bool initialize = false;
 	bool normalize = false;
+	bool max_pooling = false;
 
 	bool random_order = false;
 	char* history_filename = NULL;
@@ -89,6 +90,7 @@ int main_nnnullspace(int argc, char* argv[])
 		OPT_FLOAT('f', &unet.channel_factor, "1.", "Number of filters/channels of the highest level in unet"),
 		OPT_LONG('b', &unet.number_layers_per_level, "3", "(Half-) Number of convolution blocks per lervel"),
 		OPT_CLEAR('T', &unet.use_transposed_convolution, "Dont't use transposed convolution"),
+		OPT_SET('M', &max_pooling, "Use Max-Pooling instead of FFT for downsampling"),
 
 
 		OPT_STRING('H', (const char**)(&(history_filename)), "", "file for dumping train history"),
@@ -98,6 +100,9 @@ int main_nnnullspace(int argc, char* argv[])
 
 	if (train && apply)
 		error("Train and apply would overwrite the reference!\n");
+
+	if (max_pooling)
+		unet.ds_methode = UNET_DS_MPOOL;
 
 
 #ifdef USE_CUDA

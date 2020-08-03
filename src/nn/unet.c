@@ -7,6 +7,7 @@
 #include "misc/debug.h"
 #include "misc/misc.h"
 
+#include "nn/nn_ops.h"
 #include "num/fft.h"
 #include "num/flpmath.h"
 #include "num/multind.h"
@@ -81,6 +82,31 @@ static void unet_updownsample_fft_create(const struct nlop_s* result[2], struct 
 	result[0] = nlop_from_linop_F(linop_result);
 }
 
+static void unet_updownsample_mpool_create(const struct nlop_s* result[2], struct unet_s* unet, long level, long down_dims[5], const long dims[5])
+{
+	UNUSED(level);
+
+	long pool_size[5];
+	long resize_dims[5];
+	unsigned long reduce_dim_flag = 14ul;
+
+	for (int i = 0; i < 5; i++) {
+
+		down_dims[i] = MD_IS_SET(reduce_dim_flag , i) ? MAX(1, round(dims[i] / unet->reduce_factor)) : dims[i];
+		pool_size[i] = MD_IS_SET(reduce_dim_flag , i) ? MAX(2, round(unet->reduce_factor)) : 1;
+		resize_dims[i] = MD_IS_SET(reduce_dim_flag , i) ? down_dims [i] * pool_size[i] : dims[i];
+	}
+
+	auto down_sample = nlop_maxpool_create(5, resize_dims, pool_size);
+	if (!md_check_equal_dims(5, resize_dims, dims, ~0u))
+		down_sample = nlop_chain_FF(nlop_from_linop_F(linop_resize_center_create(5, resize_dims, dims)), down_sample);
+
+	auto up_sample = nlop_from_linop_F(linop_get_adjoint(nlop_get_derivative(down_sample, 0, 0)));
+
+	result[0] = down_sample;
+	result[1] = up_sample;
+}
+
 static void unet_updownsample_create(const struct nlop_s* result[2], struct unet_s* unet, long level, long down_dims[5], const long dims[5])
 {
 	UNUSED(level);
@@ -89,6 +115,9 @@ static void unet_updownsample_create(const struct nlop_s* result[2], struct unet
 
 	case UNET_DS_FFT:
 		unet_updownsample_fft_create(result, unet, level, down_dims, dims);
+		return ;
+	case UNET_DS_MPOOL:
+		unet_updownsample_mpool_create(result, unet, level, down_dims, dims);
 		return ;
 	}
 }

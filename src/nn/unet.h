@@ -2,7 +2,7 @@
 #include "linops/someops.h"
 #include "nn/activation.h"
 
-enum UNET_DOWNSAMPLING_METHODE {UNET_DS_FFT};
+enum UNET_DOWNSAMPLING_METHODE {UNET_DS_FFT, UNET_DS_MPOOL};
 enum UNET_UPSAMPLING_COMBINE {UNET_COMBINE_SUM, UNET_COMBINE_CONV};
 
 struct unet_s {
