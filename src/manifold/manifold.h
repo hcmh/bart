@@ -18,6 +18,7 @@ struct laplace_conf {
 	_Bool kernel;		// kernel approach
 	_Bool kernel_CG;	// CG kernel approach
 	float kernel_lambda;// kernel lambda weighting
+	float kernel_gamma; // kernel gamma for inversion
 	_Bool norm;	 		// output D^-1 @ L (output normalized Laplacian, where L = D - W)
 	_Bool anisotrop;	// anisotropic sampling
 	_Bool dmap;			// diffusion map (output transition probability matrix P = D^{-1}W)

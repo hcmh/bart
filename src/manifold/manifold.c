@@ -40,6 +40,7 @@ const struct laplace_conf laplace_conf_default = {
 	.kernel     	= false,
 	.kernel_CG		= false,
 	.kernel_lambda 	= 0.3,
+	.kernel_gamma	= 0.7,
 	.norm			= false,
 	.anisotrop		= false,
 	.dmap			= false,
@@ -311,8 +312,8 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		struct iter_conjgrad_conf cgconf = iter_conjgrad_defaults;
 		const struct linop_s* matrix_op;
 
-		float gamma = 100.;
-		float eta = 2.;
+		float gamma = conf->kernel_gamma;
+		float eta = 2;
 
 		debug_printf(DP_DEBUG3, "CG \n");
 
