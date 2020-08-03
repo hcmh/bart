@@ -340,8 +340,8 @@ void iter6_adam(	iter6_conf* _conf,
 
 void iter6_iPALM(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
-			long NI, enum IN_TYPE in_type[__VLA(NI)], float* dst[__VLA(NI)], const struct operator_p_s* prox_ops[__VLA(NI)],
-			long NO, enum OUT_TYPE out_type[__VLA(NO)],
+			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
+			long NO, enum OUT_TYPE out_type[NO],
 			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
 {
 	UNUSED(batchsize);
@@ -411,7 +411,8 @@ void iter6_iPALM(	iter6_conf* _conf,
 
 				sprintf(filename, "%s/%s-%d", conf->save_path, conf->save_name[i], epoch_start);
 				complex float* file = load_cfl(filename, nlop_generic_domain(nlop, i)->N, dims);
-				md_copy(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, (complex float*)dst[i], file, CFL_SIZE);						unmap_cfl(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, file);
+				md_copy(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, (complex float*)dst[i], file, CFL_SIZE);
+				unmap_cfl(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, file);
 
 				sprintf(filename, "%s/%s-%d", conf->save_path, conf->save_name[i], epoch_start - 1);
 				file = load_cfl(filename, nlop_generic_domain(nlop, i)->N, dims);

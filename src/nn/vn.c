@@ -536,7 +536,7 @@ void train_nn_varnet(	struct vn_s* vn, iter6_conf* train_conf,
 	//auto monitor = create_iter6_monitor_progressbar(Nt / Nb, true);
 	auto conf = CAST_DOWN(iter6_iPALM_conf, train_conf);
 	auto monitor = create_iter6_monitor_progressbar_validloss(conf->epochs, Nt / Nb, false, 7, in_type, valid_loss, true);
-	iter6_iPALM(train_conf, network, 7, in_type, data, projections, 1, MAKE_ARRAY((enum OUT_TYPE)OUT_OPTIMIZE), 0, Nt / Nb, batch_generator, monitor);
+	iter6_iPALM(train_conf, network, 7, in_type, projections, data, 1, MAKE_ARRAY((enum OUT_TYPE)OUT_OPTIMIZE), 0, Nt / Nb, batch_generator, monitor);
 	if (NULL != history_filename)
 		iter6_monitor_dump_record(monitor, history_filename);
 
