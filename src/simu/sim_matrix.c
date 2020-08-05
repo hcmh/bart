@@ -205,6 +205,7 @@ static void apply_signal_preparation(int N, float m[N], void* _data )// provides
 	struct sim_data* simdata = _data;
 	struct sim_data tmp_data = *simdata;
 
+#if 1
 	tmp_data.pulse.pulse_applied = true;
 	tmp_data.pulse.flipangle = simdata->pulse.flipangle/2.;
 	tmp_data.pulse.phase = M_PI;
@@ -219,6 +220,28 @@ static void apply_signal_preparation(int N, float m[N], void* _data )// provides
 	create_sim_matrix(N, matrix, tmp_data.seq.tr, &tmp_data);
 
 	apply_sim_matrix(N, m, matrix);
+
+#else	// For case of multiple alpha half pulses at the beginning of the measurement
+
+	for (int i = 0; i < 1; i++) {
+
+		tmp_data.pulse.pulse_applied = true;
+		tmp_data.pulse.flipangle = simdata->pulse.flipangle/2.;
+		tmp_data.pulse.phase = (i%2 == 0) ? M_PI : 0;
+		tmp_data.seq.tr = simdata->seq.prep_pulse_length;
+
+		// Special case for simulation of finit RF-pulse effect on T2 for IR bSSFP
+		if (tmp_data.pulse.pulse_length > simdata->seq.prep_pulse_length)
+			tmp_data.pulse.pulse_length = simdata->seq.prep_pulse_length;
+
+		float matrix[N][N];
+
+		create_sim_matrix(N, matrix, tmp_data.seq.tr, &tmp_data);
+
+		apply_sim_matrix(N, m, matrix);
+
+	}
+#endif
 }
 
 
@@ -352,6 +375,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		//for bSSFP based sequences: alpha/2 and tr/2 preparation
 		if (data->seq.seq_type == 0 || data->seq.seq_type == 1)
 			apply_signal_preparation(N, xp, data);
+
 		// IR FLASH (Look-Locker model) assumes perfect inversion followed by a relaxation block
 		// The latter is set to have the preparation pulse length
 		else if (5 == data->seq.seq_type)
@@ -365,7 +389,6 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		data->pulse.phase = M_PI;
 		prepare_matrix_to_te( N, matrix_to_te_PI, data);
 		data->pulse.phase = 0.;
-
 
 		float matrix_to_tr[N][N];
 		prepare_matrix_to_tr( N, matrix_to_tr, data);
