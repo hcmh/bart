@@ -236,6 +236,20 @@ static void apply_relaxation(int N, float m[N], void* _data )// provides alpha/2
 	apply_sim_matrix(N, m, matrix);
 }
 
+static void apply_inv_relaxation(int N, float m[N], void* _data )// provides alpha/2. preparation only
+{
+	struct sim_data* simdata = _data;
+	struct sim_data tmp_data = *simdata;
+
+	tmp_data.pulse.pulse_applied = false;
+
+	float matrix[N][N];
+
+	create_sim_matrix(N, matrix, tmp_data.seq.inversion_pulse_length, &tmp_data);
+
+	apply_sim_matrix(N, m, matrix);
+}
+
 
 static void prepare_matrix_to_te( int N, float matrix[N][N], void* _data )
 {
@@ -328,8 +342,12 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		data->tmp.rep_counter = 0;
 		data->pulse.phase = 0;
 
-		if (data->seq.seq_type == 1 || data->seq.seq_type == 5)
-			apply_inversion(N, xp, data->seq.inversion_pulse_length, data);
+		if (data->seq.seq_type == 1 || data->seq.seq_type == 5) {
+
+		// 	apply_inversion(N, xp, data->seq.inversion_pulse_length, data);
+			xp[2] = -1;
+			apply_inv_relaxation(N, xp, data);
+		}
 
 		//for bSSFP based sequences: alpha/2 and tr/2 preparation
 		if (data->seq.seq_type == 0 || data->seq.seq_type == 1)
