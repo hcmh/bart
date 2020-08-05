@@ -34,6 +34,7 @@ struct unet_s {
 	enum UNET_UPSAMPLING_COMBINE upsampling_combine;
 
 	_Bool reinsert_input;
+	_Bool residual;
 
 	const struct nlop_s** deflatten_conv;
 	const struct nlop_s** deflatten_bias;

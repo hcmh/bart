@@ -49,6 +49,7 @@ const struct unet_s unet_default_reco = {
 	.use_transposed_convolution = true,
 
 	.reinsert_input = false,
+	.residual = false,
 
 	.activation = ACT_RELU,
 	.activation_output = ACT_LIN,
@@ -170,6 +171,8 @@ static const struct nlop_s* create_unet_level(struct unet_s* unet, long level, l
 	int index_counter_bn_out = 0;
 	int index_counter_input = 0;
 
+	assert(!(unet->residual && unet->reinsert_input));
+
 	for (int i = 0; i < unet->number_layers_per_level; i++) {
 
 		if (unet->reinsert_input && 0 != i) {
@@ -185,6 +188,13 @@ static const struct nlop_s* create_unet_level(struct unet_s* unet, long level, l
 
 		result = append_convcorr_layer(result, 0, channels, unet->convolution_kernel, false, unet->padding, true, NULL, NULL);
 		index_conv[index_counter_conv++] = nlop_get_nr_in_args(result) - 1;
+
+		if (unet->residual) {
+
+			auto iov = nlop_generic_codomain(result, 0);
+			result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(iov->N, iov->dims, 1., 1.), 1);
+			index_input[index_counter_input++] = nlop_get_nr_in_args(result) - 1;
+		}
 
 		if (unet->use_batchnormalization) {
 
@@ -286,6 +296,13 @@ static const struct nlop_s* create_unet_level(struct unet_s* unet, long level, l
 			index_conv[index_counter_conv++] = nlop_get_nr_in_args(result) - 1;
 		}
 
+		if ((unet->residual) && (i < unet->number_layers_per_level - 1)) {
+
+			auto iov = nlop_generic_codomain(result, 0);
+			result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(iov->N, iov->dims, 1., 1.), 1);
+			index_input[index_counter_input++] = nlop_get_nr_in_args(result) - 1;
+		}
+
 		if ((unet->use_batchnormalization) && (((level > 1) && (UNET_COMBINE_CONV == unet->upsampling_combine)) || (i + 1 != unet->number_layers_per_level))) {
 
 			result = append_batchnorm_layer(result, 0, ~MD_BIT(0));
@@ -334,8 +351,20 @@ static const struct nlop_s* create_unet_level(struct unet_s* unet, long level, l
 
 	result = nlop_permute_inputs_F(result, nlop_get_nr_in_args(result), perm_in);
 
-	for (int i = 0; i < index_counter_input; i++)
-		result = nlop_dup_F(result, 0, 1);
+	if (unet->reinsert_input) {
+
+		for (int i = 0; i < index_counter_input; i++)
+			result = nlop_dup_F(result, 0, 1);
+	}
+
+	if (unet->residual) {
+
+		for (int i = 0; i < index_counter_input - 1; i++)
+			result = nlop_dup_F(result, 1, 2);
+
+		result = nlop_chain2_FF(nlop_from_linop_F(linop_resize_create(nlop_generic_domain(result, 0)->N, nlop_generic_domain(result, 1)->dims, nlop_generic_domain(result, 0)->dims)), 0, result, 1);
+		result = nlop_dup_F(result, 0, nlop_get_nr_in_args(result) - 1);
+	}
 
 	int perm_out[nlop_get_nr_out_args(result)];
 	perm_out[0] = 0;
