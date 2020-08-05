@@ -105,7 +105,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 4, .not_wav_maps = (0. == conf->IR_phy) ? 0 : 1, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo, .rho = conf->rho, .ropts = &conf->ropts };
+	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 4, .not_wav_maps = (0. == conf->IR_phy) ? 0 : 1, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo, .rho = conf->rho, .ropts = &conf->ropts, .wav_reg = 1 };
 
 	if (conf->MOLLI || (0. != conf->IR_phy))
 		conf2.constrained_maps = 2;

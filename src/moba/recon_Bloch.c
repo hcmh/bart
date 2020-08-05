@@ -92,9 +92,10 @@ void bloch_recon(const struct moba_conf* conf, const struct modBlochFit* fit_par
 										.step = 0.9,
 										.lower_bound = 10E-4,
 										.constrained_maps = 5,
-										.not_wav_maps = fit_para->not_wav_maps };
+										.not_wav_maps = fit_para->not_wav_maps,
+										.wav_reg = 0.1 };
 
-    conf2.algo = 3;
+    	conf2.algo = 3;
 
 	mdb_irgnm_l1(&conf2,
 			irgnm_conf_dims,
