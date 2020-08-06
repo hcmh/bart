@@ -58,12 +58,14 @@ int main_nnnullspace(int argc, char* argv[])
 
 	bool random_order = false;
 	char* history_filename = NULL;
+	char* load_weights_filename = NULL;
 
 	long udims[5] = {1, 1, 1, 1, 1};
 
 	const struct opt_s opts[] = {
 
 		OPT_SET('i', &initialize, "initialize weights"),
+		OPT_STRING('L', (const char**)(&(load_weights_filename)), "file", "load weights from pre trained network"),
 
 		OPT_SET('t', &train, "train modl"),
 		OPT_SET('A', &use_iPALM, "Use the iPALM algorithm to train the nullspace network"),
@@ -154,10 +156,18 @@ int main_nnnullspace(int argc, char* argv[])
 
 		complex float* file_ref = load_cfl(filename_out, 5, udims);
 
-		if (initialize)
+		if (initialize) {
+
 			init_nn_nullspace(&nullspace, udims);
-		else
-			nn_nullspace_load_weights(&nullspace, filename_weights);
+			if (NULL != load_weights_filename)
+				error("You can either initialize weights (-i) or load (-L) weights but not both!");
+		} else {
+
+			if (NULL == load_weights_filename)
+				error("Either initialize weights (-i) or load them (-L)!");
+			nn_nullspace_load_weights(&nullspace, load_weights_filename);
+		}
+
 
 		nn_nullspace_move_gpucpu(&nullspace, use_gpu);
 
