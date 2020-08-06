@@ -1,0 +1,1 @@
+const struct nlop_s* nlop_self_attention_create(int N, const long qdims[__VLA(N)], const long kdims[__VLA(N)], const long vdims[__VLA(N)], long heads);
