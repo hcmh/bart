@@ -17,6 +17,7 @@
 #include "misc/misc.h"
 #include "misc/debug.h"
 #include "misc/opts.h"
+#include "misc/io.h"
 
 #include "num/multind.h"
 #include "num/init.h"
@@ -50,6 +51,19 @@ int main_laplace(int argc, char* argv[])
 
 	long src_dims[DIMS];
 	complex float* src = load_cfl(argv[1], DIMS, src_dims);
+
+	if (0 == strcmp(argv[1], argv[2])) {
+
+		debug_printf(DP_WARN, "laplace should not be called with identical input and output!\n");
+
+		complex float* src2 = src;
+		src = anon_cfl("", DIMS, src_dims);
+
+		md_copy(DIMS, src_dims, src, src2, CFL_SIZE);
+
+		unmap_cfl(DIMS, src_dims, src2);
+		io_unregister(argv[1]);
+	}
 
 	long L_dims[2];
 

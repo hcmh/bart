@@ -18,6 +18,8 @@
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
+#include "misc/debug.h"
+#include "misc/io.h"
 
 
 #ifndef DIMS
@@ -48,6 +50,23 @@ int main_circshift(int argc, char* argv[])
 	center[dim] = shift;
 
 	complex float* idata = load_cfl(argv[3], N, dims);
+
+
+	if (0 == strcmp(argv[3], argv[4])) {
+
+		debug_printf(DP_WARN, "circshift should not be called with identical input and output!\n");
+
+		complex float* idata2 = idata;
+		idata = anon_cfl("", N, dims);
+
+		md_copy(N, dims, idata, idata2, sizeof(complex float));
+
+		unmap_cfl(N, dims, idata2);
+		io_unregister(argv[3]);
+	}
+
+
+
 	complex float* odata = create_cfl(argv[4], N, dims);
 
 	md_circ_shift(N, dims, center, odata, idata, sizeof(complex float));

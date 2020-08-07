@@ -19,6 +19,7 @@
 #include "misc/misc.h"
 #include "misc/opts.h"
 #include "misc/debug.h"
+#include "misc/io.h"
 
 
 
@@ -75,6 +76,19 @@ int main_filter(int argc, char* argv[])
 	long in_dims[DIMS];
 	
 	complex float* in_data = load_cfl(argv[1], DIMS, in_dims);
+
+	if (0 == strcmp(argv[1], argv[2])) {
+
+		debug_printf(DP_WARN, "filter should not be called with identical input and output!\n");
+
+		complex float* in_data2 = in_data;
+		in_data = anon_cfl("", DIMS, in_dims);
+
+		md_copy(DIMS, in_dims, in_data, in_data2, CFL_SIZE);
+
+		unmap_cfl(DIMS, in_dims, in_data2);
+		io_unregister(argv[1]);
+	}
 
 	assert(dim >= 0);
 	assert(dim < DIMS);

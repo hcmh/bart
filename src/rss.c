@@ -19,6 +19,8 @@
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
+#include "misc/debug.h"
+#include "misc/io.h"
 
 #ifndef DIMS
 #define DIMS 16
@@ -38,6 +40,19 @@ int main_rss(int argc, char* argv[argc])
 
 	long dims[DIMS];
 	complex float* data = load_cfl(argv[2], DIMS, dims);
+
+	if (0 == strcmp(argv[2], argv[3])) {
+
+		debug_printf(DP_WARN, "rss should not be called with identical input and output!\n");
+
+		complex float* data2 = data;
+		data = anon_cfl("", DIMS, dims);
+
+		md_copy(DIMS, dims, data, data2, CFL_SIZE);
+
+		unmap_cfl(DIMS, dims, data2);
+		io_unregister(argv[2]);
+	}
 
 	int flags = atoi(argv[1]);
 

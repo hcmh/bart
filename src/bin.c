@@ -164,6 +164,9 @@ int main_bin(int argc, char* argv[])
 	long src_dims[DIMS];
 	complex float* src = load_cfl(argv[2], DIMS, src_dims);
 
+	if (0 == strcmp(argv[2], argv[3]))
+		error("bin cannot be called with identical input and output!\n");
+
 	enum { BIN_QUADRATURE, BIN_LABEL, BIN_REORDER } bin_type;
 
 	// Identify binning type

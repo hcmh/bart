@@ -17,6 +17,8 @@
 #include "misc/mmio.h"
 #include "misc/misc.h"
 #include "misc/opts.h"
+#include "misc/debug.h"
+#include "misc/io.h"
 
 #ifndef DIMS
 #define DIMS 16
@@ -41,6 +43,19 @@ int main_var(int argc, char* argv[])
 	long odims[DIMS];
 
 	complex float* in = load_cfl(argv[2], DIMS, idims);
+
+	if (0 == strcmp(argv[2], argv[3])) {
+
+		debug_printf(DP_WARN, "var should not be called with identical input and output!\n");
+
+		complex float* in2 = in;
+		in = anon_cfl("", DIMS, idims);
+
+		md_copy(DIMS, idims, in, in2, sizeof(complex float));
+
+		unmap_cfl(DIMS, idims, in2);
+		io_unregister(argv[2]);
+	}
 
 	md_select_dims(DIMS, ~flags, odims, idims);
 
