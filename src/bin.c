@@ -340,6 +340,8 @@ int main_bin(int argc, char* argv[])
 
 		md_free(singleton);
 
+		unmap_cfl(DIMS, dst_dims, dst);
+
 		break;
 
 	} // end switch case
