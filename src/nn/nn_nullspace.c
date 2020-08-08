@@ -190,27 +190,25 @@ static const struct nlop_s* nlop_regularizer_network_create(const struct nullspa
 		result = nlop_dup_F(result, 0, 4);
 		result = nlop_shift_input_F(result, 4, 0);
 	} else {
-
 		result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_scale_create(5, udims, config->lambda_fixed)), 0);
 	}
 
-	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_resize_create(5, udims_r, udims)), 0);
+	auto nlop_dc = mri_normal_inversion_create_general_with_lambda(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, config->lambda_fixed); // in: x0+zn, coil, mask, lambda; out: x(n+1)
+	nlop_dc = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_dc, 0);
+	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(5, udims, 1., 1.), 0, nlop_dc, 0);// in: x0, zn, coil, mask, lambda; out: x(n+1)
 
 	auto nlop_zf = nlop_mri_adjoint_create(dims, config->share_mask);
-	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(5, udims_r, 1., 1.), 0);
-	result = nlop_chain2_swap_FF(nlop_zf, 0, result, 0);
-	result = nlop_dup_F(result, 0, 3);
-	result = nlop_dup_F(result, 1, 3);
-	result = nlop_dup_F(result, 2, 3);
+	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+	nlop_dc = nlop_chain2_swap_FF(nlop_zf, 0, nlop_dc, 0); // in: kspace, coil, mask , zn, coil, mask, lambda; out: x(n+1)
+	nlop_dc = nlop_dup_F(nlop_dc, 1, 4);
+	nlop_dc = nlop_dup_F(nlop_dc, 2, 4); // in: kspace, coil, mask , zn, lambda;
 
-	auto nlop_dc = mri_normal_inversion_create_general_with_lambda(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, config->lambda_fixed);
-	result = nlop_chain2_FF(result, 0, nlop_dc, 0);
+	result = nlop_chain2_FF(result, 0, nlop_dc, 3);
 	result = nlop_dup_F(result, 0, 4);
 	result = nlop_dup_F(result, 1, 4);
 	result = nlop_dup_F(result, 2, 4);
-	result = nlop_shift_input_F(result, 3, 2);
-
-	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_resize_create(5, udims, udims_r)), 0);
+	result = nlop_dup_F(result, 3, 4);
 
 	return result;
 }
