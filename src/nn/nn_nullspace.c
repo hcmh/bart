@@ -65,8 +65,46 @@ const struct nullspace_s nullspace_default = {
 	.unet = NULL,
 };
 
+static const struct nlop_s* nlop_unet_network_multi_lambda_create(const struct nullspace_s* config, long dims[5], long udims[5])
+{
+	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
+
+	auto nlop_pseudo_inv = mri_Tikhonov_regularized_pseudo_inv(5, dims, config->lambda_fixed, config->share_mask, config->rescale, true);
+	nlop_pseudo_inv = nlop_chain2_FF(nlop_pseudo_inv, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+
+	auto nlop_pseudo_inv2 = mri_Tikhonov_regularized_pseudo_inv(5, dims, (-1. == config->lambda_fixed) ? -1. : config->multi_lambda * config->lambda_fixed, config->share_mask, config->rescale, true);
+	nlop_pseudo_inv2 = nlop_chain2_FF(nlop_pseudo_inv2, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+	if (-1. == config->lambda_fixed)
+		nlop_pseudo_inv2 = nlop_chain2_FF(nlop_from_linop_F(linop_scale_create(1, MD_SINGLETON_DIMS(1), config->multi_lambda)), 0, nlop_pseudo_inv2, 3);
+
+	long udims_unet[5] = {1, udims[0], udims[1], udims[2], udims[4]};
+	long udims_unet_multi[5] = {2, udims[0], udims[1], udims[2], udims[4]};
+
+	auto nlop_unet = nn_unet_create(config->unet, udims_unet_multi);
+	nlop_unet = nlop_chain2_swap_FF(nlop_stack_create(5, udims_unet_multi, udims_unet, udims_unet, 0), 0, nlop_unet, 0);
+	nlop_unet = nlop_reshape_in_F(nlop_unet, 0, 5, udims);
+	nlop_unet = nlop_reshape_in_F(nlop_unet, 1, 5, udims);
+	nlop_unet = nlop_reshape_out_F(nlop_unet, 0, 5, udims);// in: u0, u1, [ unet_weights ]; out: Unet(u0), [Unet_Batchnorm]
+
+	nlop_unet = nlop_chain2_FF(nlop_unet, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0);
+	nlop_unet = nlop_dup_F(nlop_unet, 0, 1); // in: u0, u1, [ unet_weights ]; out: u0 + Unet(u0), [Unet_Batchnorm]
+
+	auto nlop_result = nlop_chain2_swap_FF(nlop_pseudo_inv, 0, nlop_unet, 0); // in: kspace, coil, mask, lambda, u1, [ unet_weights ]; out: u0 + P Unet(u0), [Unet_Batchnorm]
+
+	nlop_result = nlop_chain2_swap_FF(nlop_pseudo_inv2, 0, nlop_result, 4); // in: kspace, coil, mask, lambda, kspace, coil, mask, lambda, [ unet_weights ]; out: u0 + P Unet(u0), [Unet_Batchnorm]
+	nlop_result = nlop_dup_F(nlop_result, 0, 4);
+	nlop_result = nlop_dup_F(nlop_result, 1, 4);
+	nlop_result = nlop_dup_F(nlop_result, 2, 4);
+	nlop_result = nlop_dup_F(nlop_result, 3, 4);
+
+	return nlop_result;
+}
+
 static const struct nlop_s* nlop_unet_network_create(const struct nullspace_s* config, long dims[5], long udims[5])
 {
+	if (1. != config->multi_lambda)
+		return nlop_unet_network_multi_lambda_create(config, dims, udims);
+
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
 	auto nlop_zf = nlop_mri_adjoint_create(dims, config->share_mask);
 	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0); // in: kspace, coil, mask; out: Atb
