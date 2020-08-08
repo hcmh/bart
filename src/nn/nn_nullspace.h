@@ -19,6 +19,7 @@ struct nullspace_s {
 
 	_Bool rescale;
 	_Bool nullspace;
+	_Bool regularizer;
 };
 
 const struct nullspace_s nullspace_default;

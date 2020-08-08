@@ -59,6 +59,7 @@ const struct nullspace_s nullspace_default = {
 	.multi_lambda = 1.,
 
 	.nullspace = true,
+	.regularizer = false,
 	.share_mask = true,
 	.rescale = false,
 
@@ -178,9 +179,48 @@ static const struct nlop_s* nlop_nullspace_network_multi_lambda_create(const str
 	return nlop_result;
 }
 
+static const struct nlop_s* nlop_regularizer_network_create(const struct nullspace_s* config, long dims[5], long udims[5])
+{
+	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
+	auto result = nlop_unet_network_create(config, dims, udims);
+	if (-1. == config->lambda_fixed) {
+	
+		result = nlop_chain2_FF(result, 0, nlop_tenmul_create(5, udims, udims, MD_SINGLETON_DIMS(5)), 0);
+		result = nlop_reshape_in_F(result, 0, 1, MD_SINGLETON_DIMS(1));
+		result = nlop_dup_F(result, 0, 4);
+		result = nlop_shift_input_F(result, 4, 0);
+	} else {
+
+		result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_scale_create(5, udims, config->lambda_fixed)), 0);
+	}
+
+	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_resize_create(5, udims_r, udims)), 0);
+
+	auto nlop_zf = nlop_mri_adjoint_create(dims, config->share_mask);
+	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(5, udims_r, 1., 1.), 0);
+	result = nlop_chain2_swap_FF(nlop_zf, 0, result, 0);
+	result = nlop_dup_F(result, 0, 3);
+	result = nlop_dup_F(result, 1, 3);
+	result = nlop_dup_F(result, 2, 3);
+
+	auto nlop_dc = mri_normal_inversion_create_general_with_lambda(5, dims, 23, 31, config->share_mask ? 7 : 23, 31, 7, config->lambda_fixed);
+	result = nlop_chain2_FF(result, 0, nlop_dc, 0);
+	result = nlop_dup_F(result, 0, 4);
+	result = nlop_dup_F(result, 1, 4);
+	result = nlop_dup_F(result, 2, 4);
+	result = nlop_shift_input_F(result, 3, 2);
+
+	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_resize_create(5, udims, udims_r)), 0);
+
+	return result;
+}
+
 
 static const struct nlop_s* nlop_nullspace_network_create(const struct nullspace_s* config, long dims[5], long udims[5])
 {
+	if (config->regularizer)
+		return nlop_regularizer_network_create(config, dims, udims);
+
 	if (!config->nullspace)
 		return nlop_unet_network_create(config, dims, udims);
 

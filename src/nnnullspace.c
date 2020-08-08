@@ -86,6 +86,7 @@ int main_nnnullspace(int argc, char* argv[])
 		OPT_FLOAT('l', &nullspace.lambda_fixed, "-1.", "Fix lambda in numerical blocks, -1. corresponds to trainable parameter"),
 
 		OPT_CLEAR('u', &nullspace.nullspace, "Dont't performe nullspace projection"),
+		OPT_SET('q', &nullspace.regularizer, "Train regularizer (MoDL - like)"),
 		OPT_SET('s', &nullspace.rescale, "Invert scaling of Tikhonov regularization"),
 		OPT_FLOAT('m', &nullspace.multi_lambda, "1.", "Additional input of psudoinverse with second lambda_2 = par * lambda"),
 
