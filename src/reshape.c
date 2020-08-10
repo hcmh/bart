@@ -16,8 +16,6 @@
 #include "misc/mmio.h"
 #include "misc/misc.h"
 #include "misc/opts.h"
-#include "misc/debug.h"
-#include "misc/io.h"
 
 #define DIMS 16
 
@@ -44,19 +42,6 @@ int main_reshape(int argc, char* argv[])
 	long out_dims[DIMS];
 
 	complex float* in_data = load_cfl(argv[n + 2], DIMS, in_dims);
-
-	if (0 == strcmp(argv[n + 2], argv[n + 3])) {
-
-		debug_printf(DP_WARN, "reshape should not be called with identical input and output!\n");
-
-		complex float* in_data2 = in_data;
-		in_data = anon_cfl("", DIMS, in_dims);
-
-		md_copy(DIMS, in_dims, in_data, in_data2, CFL_SIZE);
-
-		unmap_cfl(DIMS, in_dims, in_data2);
-		io_unregister(argv[n + 2]);
-	}
 
 	md_copy_dims(DIMS, out_dims, in_dims);
 	

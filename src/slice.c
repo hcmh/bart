@@ -20,12 +20,7 @@
 
 #include "misc/misc.h"
 #include "misc/opts.h"
-#include "misc/debug.h"
-#include "misc/io.h"
 
-#ifndef CFL_SIZE
-#define CFL_SIZE sizeof(complex float)
-#endif
 
 
 static const char usage_str[] = "dim1 pos1 ... dimn posn <input> <output>";
@@ -44,19 +39,6 @@ int main_slice(int argc, char* argv[])
 	assert((count > 0) && (count % 2 == 0));
 
 	na in = na_load(argv[argc - 2]);
-
-	if (0 == strcmp(argv[argc - 2], argv[argc - 1])) {
-
-		debug_printf(DP_WARN, "slice should not be called with identical input and output!\n");
-
-		na in2 = in;
-		in = na_clone(in2);
-
-		na_copy(in, in2);
-
-		na_free(in2);
-		io_unregister(argv[argc - 2]);
-	}
 
 	long pos2[na_rank(in)];
 

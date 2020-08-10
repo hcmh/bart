@@ -18,8 +18,6 @@
 #include "misc/mmio.h"
 #include "misc/mri.h"
 #include "misc/misc.h"
-#include "misc/debug.h"
-#include "misc/io.h"
 
 
 static const char usage_str[] = "dim1 dim2 <input> <output>";
@@ -41,19 +39,6 @@ int main_transpose(int argc, char* argv[])
 	assert((0 <= dim2) && (dim2 < N));
 
 	complex float* idata = load_cfl(argv[3], N, idims);
-
-	if (0 == strcmp(argv[3], argv[4])) {
-
-		debug_printf(DP_WARN, "transpose should not be called with identical input and output!\n");
-
-		complex float* idata2 = idata;
-		idata = anon_cfl("", DIMS, idims);
-
-		md_copy(DIMS, idims, idata, idata2, sizeof(complex float));
-
-		unmap_cfl(DIMS, idims, idata2);
-		io_unregister(argv[3]);
-	}
 
 	long odims[N];
 	md_transpose_dims(N, dim1, dim2, odims, idims);

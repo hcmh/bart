@@ -16,7 +16,6 @@
 #include "misc/debug.h"
 #include "misc/opts.h"
 #include "misc/mmio.h"
-#include "misc/io.h"
 
 #include "nn/nn.h"
 
@@ -53,21 +52,7 @@ int main_dcnn(int argc, char* argv[])
 
 	unsigned int N = DIMS;
 	long dims[N];
-	complex float* in = load_cfl(argv[1], N, dims);
-
-	if (0 == strcmp(argv[1], argv[4])) {
-
-		debug_printf(DP_WARN, "dcnn should not be called with identical input and output!\n");
-
-		complex float* in2 = in;
-		in = anon_cfl("", N, dims);
-
-		md_copy(N, dims, in, in2, CFL_SIZE);
-
-		unmap_cfl(N, dims, in2);
-		io_unregister(argv[1]);
-	}
-
+	const complex float* in = load_cfl(argv[1], N, dims);
 
 	long krn_dims[N];
 	const complex float* krn = load_cfl(argv[2], N, krn_dims);

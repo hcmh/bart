@@ -17,8 +17,6 @@
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
-#include "misc/debug.h"
-#include "misc/io.h"
 
 #ifndef DIMS
 #define DIMS 16
@@ -38,19 +36,6 @@ int main_flatten(int argc, char* argv[])
 	long idims[DIMS];
 
 	complex float* idata = load_cfl(argv[1], DIMS, idims);
-
-	if (0 == strcmp(argv[1], argv[2])) {
-
-		debug_printf(DP_WARN, "flatten should not be called with identical input and output!\n");
-
-		complex float* idata2 = idata;
-		idata = anon_cfl("", DIMS, idims);
-
-		md_copy(DIMS, idims, idata, idata2, CFL_SIZE);
-
-		unmap_cfl(DIMS, idims, idata2);
-		io_unregister(argv[1]);
-	}
 
 	long odims[DIMS] = MD_INIT_ARRAY(DIMS, 1);
 	odims[0] = md_calc_size(DIMS, idims);

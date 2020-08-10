@@ -17,8 +17,6 @@
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
-#include "misc/debug.h"
-#include "misc/io.h"
 
 #ifndef DIMS
 #define DIMS 16
@@ -40,19 +38,6 @@ int main_crop(int argc, char* argv[])
 	long out_dims[N];
 	
 	complex float* in_data = load_cfl(argv[3], N, in_dims);
-
-	if (0 == strcmp(argv[3], argv[4])) {
-
-		debug_printf(DP_WARN, "crop should not be called with identical input and output!\n");
-
-		complex float* data2 = in_data;
-		in_data = anon_cfl("", N, in_dims);
-
-		md_copy(N, in_dims, in_data, data2, sizeof(complex float));
-
-		unmap_cfl(N, in_dims, data2);
-		io_unregister(argv[3]);
-	}
 
 	int dim = atoi(argv[1]);
 	int count = atoi(argv[2]);

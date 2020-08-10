@@ -15,7 +15,6 @@
 #include "misc/misc.h"
 #include "misc/debug.h"
 #include "misc/opts.h"
-#include "misc/io.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -59,20 +58,6 @@ int main_ccapply(int argc, char* argv[])
 	complex float* in_data = load_cfl(argv[1], DIMS, in_dims);
 	complex float* cc_data = load_cfl(argv[2], DIMS, cc_dims);
 
-	if (0 == strcmp(argv[1], argv[3])) {
-
-		debug_printf(DP_WARN, "ccapply should not be called with identical input and output!\n");
-
-		complex float* in_data2 = in_data;
-		in_data = anon_cfl("", DIMS, in_dims);
-
-		md_copy(DIMS, in_dims, in_data, in_data2, CFL_SIZE);
-
-		unmap_cfl(DIMS, in_dims, in_data2);
-		io_unregister(argv[1]);
-	}
-
-
 	assert(1 == in_dims[MAPS_DIM]);
 	const long channels = cc_dims[COIL_DIM];
 
@@ -85,7 +70,7 @@ int main_ccapply(int argc, char* argv[])
 
 	md_select_dims(DIMS, ~COIL_FLAG, out_dims, in_dims);
 	out_dims[COIL_DIM] = forward ? P : channels;
-
+	
 	complex float* out_data = create_cfl(argv[3], DIMS, out_dims);
 
 	// transpose for the matrix multiplication
