@@ -1,3 +1,10 @@
+/* Copyright 2020. Martin Uecker.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * 2019-2020 Martin Uecker
+ */
+
 
 #include <complex.h>
 #include <assert.h>

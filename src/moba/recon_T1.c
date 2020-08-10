@@ -63,7 +63,10 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	long coil_dims[DIMS];
 	long data_dims[DIMS];
 
-	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
+	unsigned int fft_flags = FFT_FLAGS;
+
+	if (conf->sms)
+		fft_flags |= SLICE_FLAG;
 
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
@@ -108,7 +111,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		conf2.constrained_maps = 2;
 
 	long irgnm_conf_dims[DIMS];
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
 
 	irgnm_conf_dims[COIL_DIM] = coil_dims[COIL_DIM];
 

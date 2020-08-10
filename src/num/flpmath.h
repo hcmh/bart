@@ -365,7 +365,6 @@ extern void md_pdf_gauss(unsigned int D, const long dims[__VLA(D)], float* optr,
 extern void md_smul_ptr2(unsigned int D, const long dims[__VLA(D)], const long ostr[__VLA(D)], float* optr, const long istr[__VLA(D)], const float* iptr, const float* valptr);
 extern void md_smul_ptr(unsigned int D, const long dims[__VLA(D)], float* optr, const float* iptr, const float* valptr);
 
-
 #include "misc/cppwrap.h"
 
 #endif

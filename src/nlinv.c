@@ -1,10 +1,29 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2015-2020. Martin Uecker.
+ * Copyright 2015-2020. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
  * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ *
+ * Publications:
+ *
+ * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction
+ * by regularized nonlinear inversion-joint estimation of coil
+ * sensitivities and image content. Magn Reson Med 2008; 60:674-682.
+ *
+ * Uecker M, Zhang S, Frahm J. Nonlinear Inverse Reconstruction for
+ * Real-time MRI of the Human Heart Using Undersampled Radial FLASH.
+ * Magn Reson Med 2010; 63:1456-1462.
+ *
+ * Holme HCM, Rosenzweig S, Ong F, Wilke RN, Lustig M, Uecker M.
+ * ENLIVE: An Efficient Nonlinear Method for Calibrationless and
+ * Robust Parallel Imaging. Sci Rep 2019; 9:3034.
+ *
+ * Rosenzweig S, Holme HMC, Wilke RN, Voit D, Frahm J, Uecker M.
+ * Simultaneous multi-slice MRI using cartesian and radial FLASH and
+ * regularized nonlinear inversion: SMS-NLINV.
+ * Magn Reson Med 2018; 79:2057--2066.
  */
 
 #include <stdbool.h>
@@ -74,7 +93,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_STRING('I', &init_file, "file", "File for initialization"),
 		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
-		OPT_UINT('s', &conf.cnstcoil_flags, "flags", "dimensions with constant sensitivities"),
+		OPT_UINT('s', &conf.cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
@@ -331,6 +350,7 @@ int main_nlinv(int argc, char* argv[])
 	} else
 #endif
 		noir_recon(&conf, dims, img, sens, ksens, ref, psf, mask, kgrid);
+
 
 
 

@@ -798,7 +798,6 @@ void md_zdiv_reg(unsigned int D, const long dims[D], complex float* optr, const 
 }
 
 
-
 /**
  * Divide the first scalar array by the second scalar array and save to output (with strides)
  *
@@ -2487,6 +2486,7 @@ void md_exp2(unsigned int D, const long dims[D], const long ostr[D], float* optr
 	MAKE_2OP(exp, D, dims, ostr, optr, istr, iptr);
 }
 
+
 /**
  * Real exponential
  *
@@ -2560,6 +2560,7 @@ void md_zarg(unsigned int D, const long dims[D], complex float* optr, const comp
 }
 
 
+
 /**
  * Complex sinus
  *
@@ -2602,6 +2603,7 @@ void md_zcos(unsigned int D, const long dims[D], complex float* optr, const comp
 {
 	make_z2op_simple(md_zcos2, D, dims, optr, iptr);
 }
+
 
 
 
@@ -4351,6 +4353,7 @@ void md_zcmpl_imag(unsigned int D, const long dims[D], complex float* dst, const
 {
 	md_zcmpl_imag2(D, dims, MD_STRIDES(D, dims, CFL_SIZE), dst, MD_STRIDES(D, dims, FL_SIZE), src);
 }
+
 
 void md_zcmpl2(unsigned int D, const long dims[D], const long ostr[D], complex float* dst, const long istr1[D], const float* src_real, const long istr2[D], const float* src_imag)
 {

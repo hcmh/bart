@@ -1,9 +1,9 @@
-/* Copyright 2019. Martin Uecker.
+/* Copyright 2019-2020. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2017-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2017-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 #include <complex.h>
@@ -161,9 +161,9 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_admm, CAST_UP(&conf),
 				NULL, &zexp->derivative[0][0], NULL,
-				regu ? 1 : 0, 
-				regu ? prox_ops : NULL, 
-				regu ? trafos : NULL, 
+				regu ? 1 : 0,
+				regu ? prox_ops : NULL,
+				regu ? trafos : NULL,
 				NULL);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;

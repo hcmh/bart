@@ -131,7 +131,7 @@ static void cuda_set_reserved_gpus()
 }
 
 
-void cuda_init()
+void cuda_init(void)
 {
 
 	int num_devices = num_cuda_devices();
@@ -481,7 +481,7 @@ static void cuda_saxpy(long size, float* y, float alpha, const float* src)
 static void cuda_swap(long size, float* a, float* b)
 {
 	assert(size <= INT_MAX / 2);
-    cublasSswap(size, a, 1, b, 1);
+	cublasSswap(size, a, 1, b, 1);
 }
 
 const struct vec_ops gpu_ops = {

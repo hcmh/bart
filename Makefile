@@ -163,7 +163,7 @@ TBASE=show slice crop resize join transpose squeeze flatten zeros ones flip circ
 TFLP=scale invert conj fmac saxpy sdot spow cpyphs creal carg normalize cdf97 pattern nrmse mip avg cabs zexp
 TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavelet window var std fftrot
 TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobaT2star modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv
-TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten ssa bin cordelay laplace kmeans rmfreq
+TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans
 TMRI=homodyne poisson twixread fakeksp umgread looklocker paradiseread phasediff dixon genLLbasis
 TIO=toimg dcmread dcmtag
 TSIM=phantom phantom_json traj upat bloch sim tbasis signal
@@ -179,6 +179,7 @@ MODULES_pocsense = -lsense -liter -llinops -lwavelet
 MODULES_nlinv = -lnoir -liter -lnlops -llinops -lnoncart
 MODULES_moba = -lmoba -lnoir -liter -lnlops -llinops -lwavelet -lnoncart
 MODULES_mobaT2star = -lmoba -lnoir -liter -lnlops -llinops -lwavelet -lsimu -lnoncart -llowrank
+MODULES_rtnlinv = -lnoir -liter -lnlops -llinops -lnoncart
 MODULES_bpsense = -lsense -lnoncart -liter -llinops -lwavelet
 MODULES_itsense = -liter -llinops
 MODULES_ecalib = -lcalib
@@ -205,7 +206,7 @@ MODULES_lrmatrix = -llowrank -liter -llinops
 MODULES_estdims = -lnoncart -llinops
 MODULES_ismrmrd = -lismrm
 MODULES_wavelet = -llinops -lwavelet
-MODULES_wshfl = -llinops -lwavelet -liter -llowrank
+MODULES_wshfl = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart
 MODULES_hornschunck = -liter -llinops
 MODULES_ncsense = -liter -llinops -lnoncart -lsense
 MODULES_kernel = -lrkhs -lnoncart
@@ -280,7 +281,7 @@ endif
 
 ifeq ($(MAKESTAGE),1)
 .PHONY: doc/commands.txt $(TARGETS)
-default all clean allclean distclean doc/commands.txt doxygen test utest utest_gpu gputest testague testslow $(TARGETS):
+default all clean allclean distclean doc/commands.txt doxygen test utest utest_gpu gputest pythontest testague testslow $(TARGETS):
 	make MAKESTAGE=2 $(MAKECMDGOALS)
 
 tests/test-%: force
@@ -490,7 +491,7 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 
 endef
 
-ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box rkhs na nn geom manifold
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom rkhs na nn manifold
 $(eval $(foreach t,$(ALIBS),$(eval $(call alib,$(t)))))
 
 

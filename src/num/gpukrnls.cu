@@ -1368,3 +1368,4 @@ extern "C" void cuda_zcmpl(long N, _Complex float* dst, const float* real_src, c
 {
 	kern_zcmpl<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, real_src, imag_src);
 }
+

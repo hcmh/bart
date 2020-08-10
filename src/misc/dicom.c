@@ -58,7 +58,7 @@
 #define DTAG_IMAGE_PIXEL_HIGH_BIT	0x0102
 #define DTAG_IMAGE_PIXEL_REP		0x0103	// 0 unsigned 2 two's complement
 
-#define MONOCHROME2			"MONOCHROME2"
+#define MONOCHROME2			"MONOCHROME2 "
 
 #define DGRP_PIXEL			0x7FE0
 #define DTAG_PIXEL_DATA			0x0010
@@ -121,7 +121,7 @@ struct element dicom_elements_default[] = {
 	[ITAG_IMAGE_INSTANCE_NUM] = { { DGRP_IMAGE2, DTAG_IMAGE_INSTANCE_NUM }, "IS", 0, NULL },
 	[ITAG_COMMENT] = { { DGRP_IMAGE2, DTAG_COMMENT }, "LT", 22, "NOT FOR DIAGNOSTIC USE\0\0" },
 	[ITAG_IMAGE_SAMPLES_PER_PIXEL] = { { DGRP_IMAGE, DTAG_IMAGE_SAMPLES_PER_PIXEL }, "US", 2, &(uint16_t){ 1 } }, 		// gray scale
-	[ITAG_IMAGE_PHOTOM_INTER] = { { DGRP_IMAGE, DTAG_IMAGE_PHOTOM_INTER }, "CS", sizeof(MONOCHROME2), MONOCHROME2 },	// 0 is black
+	[ITAG_IMAGE_PHOTOM_INTER] = { { DGRP_IMAGE, DTAG_IMAGE_PHOTOM_INTER }, "CS", sizeof(MONOCHROME2) - 1, MONOCHROME2 },	// 0 is black
 	[ITAG_IMAGE_ROWS] = { { DGRP_IMAGE, DTAG_IMAGE_ROWS }, "US", 2, NULL },
 	[ITAG_IMAGE_COLS] = { { DGRP_IMAGE, DTAG_IMAGE_COLS }, "US", 2, NULL },
 	[ITAG_IMAGE_BITS_ALLOC] = { { DGRP_IMAGE, DTAG_IMAGE_BITS_ALLOC }, "US", 2, &(uint16_t){ 16 } },			//
@@ -394,6 +394,7 @@ void dicom_generate_uid(char buf[64])
 #endif
 }
 
+#ifdef HAVE_UUID
 static int dicom_len(const char* x)
 {
 	int len = strlen(x);
@@ -407,6 +408,7 @@ static int dicom_len(const char* x)
 
 	return len;
 }
+#endif
 
 
 int dicom_write(const char* name, const char study_uid[64], const char series_uid[64], unsigned int cols, unsigned int rows, long inum, const unsigned char* img)
@@ -430,6 +432,7 @@ int dicom_write(const char* name, const char study_uid[64], const char series_ui
 
 	dicom_elements[ITAG_IMAGE_ROWS].data = &(uint16_t){ rows };
 	dicom_elements[ITAG_IMAGE_COLS].data = &(uint16_t){ cols };
+
 #ifdef HAVE_UUID
 	dicom_elements[ITAG_STUDY_INSTANCE_UID].data = study_uid;
 	dicom_elements[ITAG_STUDY_INSTANCE_UID].len = dicom_len(study_uid);
@@ -440,12 +443,19 @@ int dicom_write(const char* name, const char study_uid[64], const char series_ui
 	(void)study_uid;
 	(void)series_uid;
 #endif
-	char inst_num[12] = { 0 }; // max number of bytes for InstanceNumber tag
-	sprintf(inst_num, "+%04ld", inum);
+
+	assert(inum >= 0L);
+
+	char inst_num[13]; // max number of bytes for InstanceNumber tag
+	int ilen = snprintf(inst_num, 13, "%04ld", inum);
+
+	assert(ilen < 13);
+
+	if (1 == ilen % 2)
+		inst_num[ilen++] = ' ';
 
 	dicom_elements[ITAG_IMAGE_INSTANCE_NUM].data = inst_num;
-	dicom_elements[ITAG_IMAGE_INSTANCE_NUM].len = dicom_len(inst_num);
-
+	dicom_elements[ITAG_IMAGE_INSTANCE_NUM].len = ilen;
 
 	dicom_elements[ITAG_PIXEL_DATA].data = img;
 	dicom_elements[ITAG_PIXEL_DATA].len = 2 * rows * cols;

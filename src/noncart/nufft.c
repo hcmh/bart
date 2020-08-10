@@ -95,6 +95,7 @@ static complex float* compute_linphases(int N, long lph_dims[N + 1], unsigned lo
 
 	complex float* linphase = md_alloc(ND, lph_dims, CFL_SIZE);
 
+	#pragma omp parallel for shared(linphase)
 	for(int i = 0; i < s; i++) {
 
 		float shifts2[ND];
@@ -746,6 +747,7 @@ struct linop_s* nufft_create2(unsigned int N,
 			auto nu2 = linop_loop(N, loop_dims, nu1);
 
 			linop_free(nu);
+			linop_free(nu1);
 
 			return nu2;
 		}

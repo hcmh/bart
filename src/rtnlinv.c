@@ -1,34 +1,35 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2015-2020. Martin Uecker.
+ * Copyright 2015-2020. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
  * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2018 Christian Holme, <christian.holme@med.uni-goettingen.de>
+ * 2018-2020 Christian Holme, <christian.holme@med.uni-goettingen.de>
  * 2018-2020 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  * 2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
- * 
+ *
  * Publications:
- * 
- * NLINV
- * M. Uecker, T. Hohage, K. T. Block, and J. Frahm. “Image reconstruction
- * by regularized nonlinear inversion-joint estimation of coil sensitivities and
- * image content”. Magn. Reson. Med. 60 (2008), pp. 674–682 
- * 
- * Real-time NLINV
- * M. Uecker, S. Zhang, D. Voit, A. Karaus, K.-D. Merboldt, and J. Frahm.
- * “Real-time MRI at a resolution of 20 ms”. NMR Biomed. 23 (2010)
- * 
- * ENLIVE
- * H. C. M. Holme, S. Rosenzweig S. Rosenzweig, F. Ong, R. N. Wilke, M. Lustig, and M. Uecker.
- * “ENLIVE: An Efficient Nonlinear Method for Calibrationless and Robust Parallel
- * Imaging”. Sci. Rep. 9 (2019), p. 3034
- * 
- * SMS-NLINV
- * S. Rosenzweig S. Rosenzweig, H. C. M. Holme, R. N. Wilke, D. Voit, J. Frahm, and M. Uecker.
- * “Simultaneous multi-slice MRI using cartesian and radial FLASH and regularized
- * nonlinear inversion: SMS-NLINV”. Magn. Reson. Med. 79 (2018), pp. 2057–2066
+ *
+ * Uecker M, Hohage T, Block KT, Frahm J. Image reconstruction
+ * by regularized nonlinear inversion-joint estimation of coil
+ * sensitivities and image content. Magn Reson Med 2008; 60:674-682.
+ *
+ * Uecker M, Zhang S, Frahm J. Nonlinear Inverse Reconstruction for
+ * Real-time MRI of the Human Heart Using Undersampled Radial FLASH.
+ * Magn Reson Med 2010; 63:1456-1462.
+ *
+ * Uecker M, Zhang S, Voit D, Karaus A, Merboldt KD, Frahm J.
+ * Real-time MRI at a resolution of 20 ms. NMR Biomed 2010; 23:986-994.
+ *
+ * Holme HCM, Rosenzweig S, Ong F, Wilke RN, Lustig M, Uecker M.
+ * ENLIVE: An Efficient Nonlinear Method for Calibrationless and
+ * Robust Parallel Imaging. Sci Rep 2019; 9:3034.
+ *
+ * Rosenzweig S, Holme HMC, Wilke RN, Voit D, Frahm J, Uecker M.
+ * Simultaneous multi-slice MRI using cartesian and radial FLASH and
+ * regularized nonlinear inversion: SMS-NLINV.
+ * Magn Reson Med 2018; 79:2057--2066.
  */
 
 #include <stdbool.h>
@@ -91,8 +92,6 @@ int main_rtnlinv(int argc, char* argv[])
 	bool use_gpu = false;
 	float scaling = -1.;
 	bool alt_scaling = false;
-	int reduced_frames = 0;
-
 
 	long my_img_dims[3] = { 0, 0, 0 };
 
@@ -168,12 +167,16 @@ int main_rtnlinv(int argc, char* argv[])
 
 	if (NULL != psf) {
 
+		conf.noncart = true;
+
 		pattern = load_cfl(psf, DIMS, pat_dims);
 
 		turns = pat_dims[TIME_DIM];
 
 	} else
 	if (NULL != trajectory) {
+
+		conf.noncart = true;
 
 		traj = load_cfl(trajectory, DIMS, trj_dims);
 

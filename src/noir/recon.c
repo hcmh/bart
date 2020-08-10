@@ -145,6 +145,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 			md_copy(1, d1, xref, ref, CFL_SIZE);
 		}
 	}
+
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
 	irgnm_conf.iter = conf->iter;

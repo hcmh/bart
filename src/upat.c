@@ -30,6 +30,9 @@ static const char help_str[] = "Create a sampling pattern.\n";
 int main_upat(int argc, char* argv[])
 {
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
+        dims[PHS1_DIM] = 128;
+	dims[PHS2_DIM] = 128;
+
 	unsigned int undy = 1;
 	unsigned int undz = 2;
 	unsigned int center = 0;
@@ -55,8 +58,8 @@ int main_upat(int argc, char* argv[])
 	for (long y = 0; y < Y; y++)
 		for (long z = 0; z < Z; z++)
 			pat[z * Y + y] = (   ((y % undy == 0) && (z % undz == 0))
-					  || (labs(2 * y - Y) < 2 * center)
-					  || (labs(2 * z - Z) < 2 * center))  ? 1.  : 0.;
+					  || (   (labs(2 * y - Y) < 2 * center)
+					      && (labs(2 * z - Z) < 2 * center)))  ? 1.  : 0.;
 
 	unmap_cfl(DIMS, dims, pat);
 	return 0;

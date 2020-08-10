@@ -580,7 +580,7 @@ int main_pics(int argc, char* argv[])
 	const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_configure(DIMS, img1_dims, &ropts, thresh_ops, trafos, llr_blk, shift_mode, Q_dims, Q, conf.gpu);
+	opt_reg_configure2(DIMS, img1_dims, &ropts, thresh_ops, trafos, llr_blk, shift_mode, Q_dims, Q, conf.gpu);
 
 	if (conf.bpsense)
 		opt_bpursuit_configure(&ropts, thresh_ops, trafos, forward_op, kspace, bpsense_eps);
