@@ -183,7 +183,7 @@ tests/test-moba-t2: phantom signal fmac fft ones index scale moba slice invert n
 	$(TOOLDIR)/ones 6 16 16 1 1 1 16 psf.ra						;\
 	$(TOOLDIR)/index 5 16 tmp1.ra   						;\
 	$(TOOLDIR)/scale 0.01 tmp1.ra TE.ra                  	       			;\
-	$(TOOLDIR)/moba -F -g -i10 -f1 -C200 -d4 -p psf.ra k_space.ra TE.ra reco.ra	;\
+	$(TOOLDIR)/moba -F -i10 -f1 -C200 -d4 -p psf.ra k_space.ra TE.ra reco.ra	;\
 	$(TOOLDIR)/slice 6 1 reco.ra R2.ra						;\
 	$(TOOLDIR)/invert R2.ra T2.ra							;\
 	$(TOOLDIR)/phantom -x16 -c circ.ra						;\
