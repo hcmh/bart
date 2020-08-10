@@ -290,8 +290,9 @@ int main_pics(int argc, char* argv[])
 	assert(1 == ksp_dims[MAPS_DIM]);
 
 	if (conf.gpu) {
-
+#ifdef USE_CUDA
 		cuda_use_global_memory();
+#endif
 		if (0u == requested_gpus)
 			num_init_gpu_memopt();
 		else
