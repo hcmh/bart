@@ -103,18 +103,7 @@ int main_whiten(int argc, char* argv[])
 
 	complex float* idata = load_cfl(argv[1], DIMS, dims);
 
-	if (0 == strcmp(argv[1], argv[3])) {
-
-		debug_printf(DP_WARN, "whiten should not be called with identical input and output!\n");
-
-		complex float* idata2 = idata;
-		idata = anon_cfl("", DIMS, dims);
-
-		md_copy(DIMS, dims, idata, idata2, sizeof(complex float));
-
-		unmap_cfl(DIMS, dims, idata2);
-		io_unregister(argv[1]);
-	}
+	copy_if_equal_in_out(argv[3], argv[1], DIMS, dims, idata, "whiten");
 
 	complex float* ndata = load_cfl(argv[2], DIMS, noise_dims);
 	complex float* odata = create_cfl(argv[3], DIMS, dims);

@@ -42,18 +42,7 @@ int main_transpose(int argc, char* argv[])
 
 	complex float* idata = load_cfl(argv[3], N, idims);
 
-	if (0 == strcmp(argv[3], argv[4])) {
-
-		debug_printf(DP_WARN, "transpose should not be called with identical input and output!\n");
-
-		complex float* idata2 = idata;
-		idata = anon_cfl("", DIMS, idims);
-
-		md_copy(DIMS, idims, idata, idata2, sizeof(complex float));
-
-		unmap_cfl(DIMS, idims, idata2);
-		io_unregister(argv[3]);
-	}
+	copy_if_equal_in_out(argv[4], argv[3], DIMS, idims, idata, "transpose");
 
 	long odims[N];
 	md_transpose_dims(N, dim1, dim2, odims, idims);

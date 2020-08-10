@@ -49,18 +49,7 @@ int main_pattern(int argc, char* argv[])
 
 	complex float* kspace = load_cfl(argv[1], N, in_dims);
 
-	if (0 == strcmp(argv[1], argv[2])) {
-
-		debug_printf(DP_WARN, "pattern should not be called with identical input and output!\n");
-
-		complex float* kspace2 = kspace;
-		kspace = anon_cfl("", DIMS, in_dims);
-
-		md_copy(DIMS, in_dims, kspace, kspace2, sizeof(complex float));
-
-		unmap_cfl(DIMS, in_dims, kspace2);
-		io_unregister(argv[1]);
-	}
+	copy_if_equal_in_out(argv[2], argv[1], DIMS, in_dims, kspace, "pattern");
 
 	md_select_dims(N, ~flags, out_dims, in_dims);
 	
