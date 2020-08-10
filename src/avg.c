@@ -47,7 +47,18 @@ int main_avg(int argc, char* argv[argc])
 	long idims[N];
 	complex float* data = load_cfl(argv[2], N, idims);
 
-	copy_if_equal_in_out(argv[3], argv[2], DIMS, idims, data, "avg");
+	if (0 == strcmp(argv[2], argv[3])) {
+
+		debug_printf(DP_WARN, "avg should not be called with identical input and output!\n");
+
+		complex float* data2 = data;
+		data = anon_cfl("", N, idims);
+
+		md_copy(N, idims, data, data2, CFL_SIZE);
+
+		unmap_cfl(N, idims, data2);
+		io_unregister(argv[2]);
+	}
 
 	long odims[N];
 	md_select_dims(N, ~flags, odims, idims);

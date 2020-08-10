@@ -59,7 +59,18 @@ int main_ccapply(int argc, char* argv[])
 	complex float* in_data = load_cfl(argv[1], DIMS, in_dims);
 	complex float* cc_data = load_cfl(argv[2], DIMS, cc_dims);
 
-	copy_if_equal_in_out(argv[2], argv[1], DIMS, in_dims, in_data, "ccapply");
+	if (0 == strcmp(argv[1], argv[3])) {
+
+		debug_printf(DP_WARN, "ccapply should not be called with identical input and output!\n");
+
+		complex float* in_data2 = in_data;
+		in_data = anon_cfl("", DIMS, in_dims);
+
+		md_copy(DIMS, in_dims, in_data, in_data2, CFL_SIZE);
+
+		unmap_cfl(DIMS, in_dims, in_data2);
+		io_unregister(argv[1]);
+	}
 
 
 	assert(1 == in_dims[MAPS_DIM]);

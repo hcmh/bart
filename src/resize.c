@@ -60,7 +60,18 @@ int main_resize(int argc, char* argv[])
 	void* in_data = load_cfl(argv[argc - 2], N, in_dims);
 	md_copy_dims(N, out_dims, in_dims);
 
-	copy_if_equal_in_out(argv[argc - 1], argv[argc - 2], DIMS, in_dims, in_data, "resize");
+	if (0 == strcmp(argv[argc - 2], argv[argc - 1])) {
+
+		debug_printf(DP_WARN, "resize should not be called with identical input and output!\n");
+
+		complex float* in_data2 = in_data;
+		in_data = anon_cfl("", DIMS, in_dims);
+
+		md_copy(DIMS, in_dims, in_data, in_data2, CFL_SIZE);
+
+		unmap_cfl(DIMS, in_dims, in_data2);
+		io_unregister(argv[argc - 2]);
+	}
 	
 	for (int i = 0; i < count; i += 2) {
 

@@ -40,7 +40,18 @@ int main_squeeze(int argc, char* argv[])
 
 	complex float* idata = load_cfl(argv[1], DIMS, idims);
 
-	copy_if_equal_in_out(argv[2], argv[1], DIMS, idims, idata, "squeeze");
+	if (0 == strcmp(argv[1], argv[2])) {
+
+		debug_printf(DP_WARN, "squeeze should not be called with identical input and output!\n");
+
+		complex float* idata2 = idata;
+		idata = anon_cfl("", DIMS, idims);
+
+		md_copy(DIMS, idims, idata, idata2, CFL_SIZE);
+
+		unmap_cfl(DIMS, idims, idata2);
+		io_unregister(argv[1]);
+	}
 
 
 	unsigned int j = 0;

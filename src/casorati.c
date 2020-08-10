@@ -49,7 +49,18 @@ int main_casorati(int argc, char* argv[])
 
 	complex float* idata = load_cfl(argv[argc - 2], DIMS, idims);
 
-	copy_if_equal_in_out(argv[argc - 1], argv[argc - 2], DIMS, idims, idata, "casorati");
+	if (0 == strcmp(argv[argc - 2], argv[argc - 1])) {
+
+		debug_printf(DP_WARN, "casorati should not be called with identical input and output!\n");
+
+		complex float* idata2 = idata;
+		idata = anon_cfl("", DIMS, idims);
+
+		md_copy(DIMS, idims, idata, idata2, CFL_SIZE);
+
+		unmap_cfl(DIMS, idims, idata2);
+		io_unregister(argv[argc - 2]);
+	}
 
 	md_copy_dims(DIMS, kdims, idims);
 

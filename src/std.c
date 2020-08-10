@@ -44,7 +44,18 @@ int main_std(int argc, char* argv[])
 
 	complex float* in = load_cfl(argv[2], DIMS, idims);
 
-	copy_if_equal_in_out(argv[3], argv[2], DIMS, idims, in, "std");
+	if (0 == strcmp(argv[2], argv[3])) {
+
+		debug_printf(DP_WARN, "std should not be called with identical input and output!\n");
+
+		complex float* in2 = in;
+		in = anon_cfl("", DIMS, idims);
+
+		md_copy(DIMS, idims, in, in2, CFL_SIZE);
+
+		unmap_cfl(DIMS, idims, in2);
+		io_unregister(argv[2]);
+	}
 
 	md_select_dims(DIMS, ~flags, odims, idims);
 

@@ -41,7 +41,18 @@ int main_crop(int argc, char* argv[])
 	
 	complex float* in_data = load_cfl(argv[3], N, in_dims);
 
-	copy_if_equal_in_out(argv[4], argv[3], DIMS, in_dims, in_data, "crop");
+	if (0 == strcmp(argv[3], argv[4])) {
+
+		debug_printf(DP_WARN, "crop should not be called with identical input and output!\n");
+
+		complex float* data2 = in_data;
+		in_data = anon_cfl("", N, in_dims);
+
+		md_copy(N, in_dims, in_data, data2, sizeof(complex float));
+
+		unmap_cfl(N, in_dims, data2);
+		io_unregister(argv[3]);
+	}
 
 	int dim = atoi(argv[1]);
 	int count = atoi(argv[2]);

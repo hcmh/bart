@@ -45,7 +45,18 @@ int main_fftshift(int argc, char* argv[])
 
 	complex float* idata = load_cfl(argv[2], N, dims);
 
-	copy_if_equal_in_out(argv[3], argv[2], DIMS, dims, idata, "fftshift");
+	if (0 == strcmp(argv[2], argv[3])) {
+
+		debug_printf(DP_WARN, "fftshift should not be called with identical input and output!\n");
+
+		complex float* idata2 = idata;
+		idata = anon_cfl("", N, dims);
+
+		md_copy(N, dims, idata, idata2, sizeof(complex float));
+
+		unmap_cfl(N, dims, idata2);
+		io_unregister(argv[2]);
+	}
 
 	complex float* odata = create_cfl(argv[3], N, dims);
 
