@@ -250,3 +250,47 @@ const struct operator_s* operator_clip_create(unsigned int N, const long dims[N]
 
 	return operator_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), clip_apply, clip_free);
 }
+
+struct sgd_update_s {
+
+	INTERFACE(operator_data_t);
+
+	const struct iovec_s* dom;
+	float lr;
+};
+
+static DEF_TYPEID(sgd_update_s);
+
+static void sgd_update_apply(const operator_data_t* _data, unsigned int N, void* args[N])
+{
+	struct sgd_update_s* d = CAST_DOWN(sgd_update_s, _data);
+	assert(2 == N);
+
+	float* dst = (float*)args[0];
+	float* src = (float*)args[1];
+
+	md_smul(d->dom->N, d->dom->dims, dst, src, -d->lr);
+}
+
+
+static void sgd_update_free(const operator_data_t* _data)
+{
+	const auto d = CAST_DOWN(sgd_update_s, _data);
+	iovec_free(d->dom);
+	xfree(d);
+}
+
+const struct operator_s* operator_sgd_update_create(unsigned int N, const long dims[N], float lr)
+{
+	PTR_ALLOC(struct sgd_update_s, data);
+	SET_TYPEID(sgd_update_s, data);
+
+	long rdims[N + 1];
+	rdims[0] = 2;
+	md_copy_dims(N, rdims + 1, dims);
+
+	data->dom = iovec_create(N + 1, rdims, FL_SIZE);
+	data->lr = lr;
+
+	return operator_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), sgd_update_apply, sgd_update_free);
+}
