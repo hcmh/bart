@@ -66,7 +66,7 @@ static void hotenc_to_index(int N_batch, long prediction[N_batch], int N_hotenc,
     	}
 }
 
-const struct nlop_s* get_nn_mnist(int N_batch)
+const struct nlop_s* get_nn_mnist(int N_batch, enum NETWORK_STATUS status)
 {
 	unsigned int N = 5;
 	long indims[] = {1, 28, 28, 1, N_batch};
@@ -88,10 +88,10 @@ const struct nlop_s* get_nn_mnist(int N_batch)
 	network = append_maxpool_layer(network, 0, pool_size, PAD_VALID, true);
 
 	network = append_flatten_layer(network, 0);
-	network = append_dropout_layer(network, 0, 0.25);
+	network = append_dropout_layer(network, 0, 0.25, status);
 	network = append_dense_layer(network, 0, 128);
 	network = append_activation_bias(network, 0, ACT_RELU, MD_BIT(0));
-	network = append_dropout_layer(network, 0, 0.5);
+	network = append_dropout_layer(network, 0, 0.5, status);
 	network = append_dense_layer(network, 0, 10);
 	network = append_activation_bias(network, 0, ACT_SOFTMAX, MD_BIT(0));
 
@@ -100,7 +100,7 @@ const struct nlop_s* get_nn_mnist(int N_batch)
 
 int nn_mnist_get_num_weights(void)
 {
-	const struct nlop_s* network = get_nn_mnist(1);
+	const struct nlop_s* network = get_nn_mnist(1, STAT_TRAIN);
 	network = deflatten_weightsF(network, 1);
 
 	int result = (nlop_generic_domain(network, 1)->dims)[0];
@@ -111,7 +111,7 @@ int nn_mnist_get_num_weights(void)
 
 void init_nn_mnist(complex float* weights)
 {
-	const struct nlop_s* network = get_nn_mnist(1);
+	const struct nlop_s* network = get_nn_mnist(1, STAT_TRAIN);
 
 	for (int i = 0; i < nlop_get_nr_in_args(network); i++){
 
@@ -125,9 +125,8 @@ void init_nn_mnist(complex float* weights)
 
 void train_nn_mnist(int N_batch, int N_total, complex float* weights, const complex float* in, const complex float* out, long epochs)
 {
-	network_status = STAT_TRAIN;
 
-	const struct nlop_s* network = get_nn_mnist(N_batch);
+	const struct nlop_s* network = get_nn_mnist(N_batch, STAT_TRAIN);
 	const struct nlop_s* loss = nlop_cce_create(nlop_generic_codomain(network, 0)->N, nlop_generic_codomain(network, 0)->dims);
 
 	const struct nlop_s* nlop_train = nlop_chain2_FF(network, 0, loss, 0);
@@ -169,9 +168,7 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 
 void predict_nn_mnist(int N_batch, long prediction[N_batch], const complex float* weights, const complex float* in)
 {
-	network_status = STAT_TEST;
-
-	const struct nlop_s* network = get_nn_mnist(N_batch);
+	const struct nlop_s* network = get_nn_mnist(N_batch, STAT_TEST);
 	network = deflatten_weightsF(network, 1);
 	network = nlop_set_input_const_F(network, 1, 1, nlop_generic_domain(network, 1)->dims, true, weights);
 

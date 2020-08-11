@@ -4,7 +4,6 @@
 #include "nlops/conv.h"
 
 enum NETWORK_STATUS {STAT_TRAIN, STAT_TEST};
-extern enum NETWORK_STATUS network_status;
 
 extern const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int out_neurons);
 
@@ -14,7 +13,7 @@ extern const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, i
 
 extern const struct nlop_s* append_padding_layer(const struct nlop_s* network, int o, long N, long pad_for[__VLA(N)], long pad_after[__VLA(N)], enum PADDING pad_type);
 
-extern const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, float p);
+extern const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, float p, enum NETWORK_STATUS status);
 extern const struct nlop_s* append_flatten_layer(const struct nlop_s* network, int o);
 
 #endif

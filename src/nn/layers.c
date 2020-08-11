@@ -22,8 +22,6 @@
 #include "nn_ops.h"
 #include "layers.h"
 
-enum NETWORK_STATUS network_status = STAT_TRAIN;
-
 static void perm_shift(int N, int from, int to, int perm[N])
 {
 	for (int j = 0; j < N; j ++){
@@ -443,7 +441,7 @@ const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int
  * @param o output index of network, the layer is appended
  * @param p procentage of outputs dropt out
  */
-const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, float p)
+const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, float p, enum NETWORK_STATUS status)
 {
 	int NO = nlop_get_nr_out_args(network);
 	//int NI = nlop_get_nr_in_args(network);
@@ -454,7 +452,12 @@ const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, f
 	long idims[N];
 	md_copy_dims(N, idims, nlop_generic_codomain(network, o)->dims);
 
-	const struct nlop_s* dropout_op = nlop_dropout_create(N, idims, p, 0);
+	const struct nlop_s* dropout_op = NULL;
+	if (status == STAT_TRAIN)
+		dropout_op = nlop_dropout_create(N, idims, p, 0);
+	else
+		dropout_op = nlop_from_linop_F(linop_scale_create(N, idims, 1. - p));
+
 	const struct nlop_s* tmp = nlop_chain2_FF(network, o, dropout_op, 0);
 
 	int perm_out[NO];

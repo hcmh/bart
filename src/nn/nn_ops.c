@@ -21,7 +21,10 @@
 #include "num/gpuops.h"
 #endif
 
+#include "linops/someops.h"
+
 #include "nlops/nlop.h"
+#include "nlops/cast.h"
 #include "nn/layers.h"
 
 #include "nn_ops.h"
@@ -43,7 +46,7 @@ static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const comp
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(maxpool_s, _data);
-	
+
 	unsigned long N = data->N;
 
 #ifdef USE_CUDA
@@ -135,7 +138,7 @@ const struct nlop_s* nlop_maxpool_create(int N, const long dims[N], const long p
 	long pool_dims_tmp[2 * N];
 	long pool_strs_tmp[2 * N];
 	long compare_strs_tmp[2 * N];
-	
+
     	for (int i = 0; i< N; i++){
 
 		pool_dims_tmp[i] = dims[i] / pool_size[i];
@@ -193,23 +196,10 @@ static void dropout_fun(const struct nlop_data_s* _data, complex float* dst, con
 	if (NULL == data->tmp)
 	data->tmp = md_alloc_sameplace(data->N, data->tmpdom->dims, CFL_SIZE, dst);
 
-	if (network_status == STAT_TEST){
+	md_rand_one(data->N, data->tmpdom->dims, data->tmp, (1. - data->p));
 
-		md_zsmul2(data->N, data->codom->dims, data->codom->strs, dst, data->dom->strs, src, (complex float)(1 - data->p));
-		PRINT_TIMER("douts");
-		return;
-	}
-
-	if (network_status == STAT_TRAIN){
-
-		md_rand_one(data->N, data->tmpdom->dims, data->tmp, (1. - data->p));
-
-		md_ztenmul2(data->N, data->codom->dims, data->codom->strs, dst, data->tmpdom->strs, data->tmp, data->dom->strs, src);
-		PRINT_TIMER("douts");
-		return;
-	}
-
-    	assert(0);
+	md_ztenmul2(data->N, data->codom->dims, data->codom->strs, dst, data->tmpdom->strs, data->tmp, data->dom->strs, src);
+	PRINT_TIMER("douts");
 }
 
 static void dropout_der(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
@@ -217,17 +207,7 @@ static void dropout_der(const struct nlop_data_s* _data, complex float* dst, con
 	const auto data = CAST_DOWN(dropout_s, _data);
 	assert(NULL != data->tmp);
 
-	if (network_status == STAT_TEST){
-
-		md_zsmul2(data->N, data->codom->dims, data->codom->strs, dst, data->dom->strs, src, (complex float)data->p);
-		return;
-	}
-
-	if (network_status == STAT_TRAIN){
-
-		md_ztenmul2(data->N, data->codom->dims, data->codom->strs, dst, data->tmpdom->strs, data->tmp, data->dom->strs, src);
-		return;
-	}
+	md_ztenmul2(data->N, data->codom->dims, data->codom->strs, dst, data->tmpdom->strs, data->tmp, data->dom->strs, src);
 }
 
 static void dropout_adj(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
@@ -236,19 +216,8 @@ static void dropout_adj(const struct nlop_data_s* _data, complex float* dst, con
 	const auto data = CAST_DOWN(dropout_s, _data);
 	assert(NULL != data->tmp);
 
-	if (network_status == STAT_TEST){
-
-		md_zsmul2(data->N, data->dom->dims, data->dom->strs, dst, data->codom->strs, src, (complex float)data->p);
-		PRINT_TIMER("dout adjs");
-		return;
-	}
-
-	if (network_status == STAT_TRAIN){
-
-		md_ztenmul2(data->N, data->dom->dims, data->dom->strs, dst, data->tmpdom->strs, data->tmp, data->codom->strs, src);
-		PRINT_TIMER("dout adjs");
-		return;
-	}
+	md_ztenmul2(data->N, data->dom->dims, data->dom->strs, dst, data->tmpdom->strs, data->tmp, data->codom->strs, src);
+	PRINT_TIMER("dout adjs");
 }
 
 
