@@ -196,7 +196,7 @@ MODULES_rof = -liter -llinops
 MODULES_tgv = -liter -llinops
 MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu -lgeom
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -liter -lmanifold -lmoba -lgeom -lnlops 
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -liter -lmanifold -lmoba -lgeom -lnlops
 MODULES_sake = -lsake
 MODULES_traj = -lnoncart
 MODULES_wave = -liter -lwavelet -llinops -llowrank
@@ -531,9 +531,9 @@ UTARGETS += test_nufft
 MODULES_test_nufft += -lnoncart -llinops
 
 # lib num
-UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2
+UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2 test_flpmath_strides
 UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test_ops_p test_specfun test_convcorr
-UTARGETS_GPU += test_cudafft
+UTARGETS_GPU += test_cudafft test_cuda_flpmath_strides
 
 # lib simu
 UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_ode_simu test_signals
