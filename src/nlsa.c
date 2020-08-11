@@ -86,7 +86,7 @@ int main_nlsa(int argc, char* argv[])
 		OPT_FLOAT('s', &conf.sigma, "sigma", "Standard deviation"),
 		OPT_SET('k', &conf.kernel, "Kernel approach"),
 		OPT_SET('C', &conf.kernel_CG, "CG kernel approach"),
-		OPT_FLOAT('G', &conf.kernel_gamma, "gamma", "(Kernel gamma)"),
+		OPT_FLOAT('G', &conf.kernel_gamma, "gamma", "(Kernel gamma minimum)"),
 		OPT_FLOAT('l', &conf.kernel_lambda, "lambda", "(Kernel lambda)"),	
 		OPT_INT('i', &conf.iter_max, "iter", "[Kernel] Number of kernel iterations"),
 		OPT_FLOAT('e', &nlsa_conf.weight, "exp", "Soft delay-embedding"),

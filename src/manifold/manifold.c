@@ -40,7 +40,7 @@ const struct laplace_conf laplace_conf_default = {
 	.kernel     	= false,
 	.kernel_CG		= false,
 	.kernel_lambda 	= 0.3,
-	.kernel_gamma	= 0.7,
+	.kernel_gamma	= 0.00001,
 	.norm			= false,
 	.anisotrop		= false,
 	.dmap			= false,
@@ -357,7 +357,8 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			if (conf->median > 0)
 				md_zsmul(2, src_dims, src2, src2, 1. / sqrtf(conf->median));
 
-			gamma /= eta;
+			if (gamma > 0.0001)
+				gamma /= eta;
 
 		}
 	
@@ -445,8 +446,10 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 			if (conf->median > 0)
 				md_zsmul(3, src2_dims, src2, src2, 1. / sqrtf(conf->median));
-
-			gamma /= eta;
+		
+			if (gamma > conf->kernel_gamma)
+				gamma /= eta;
+				
 		}
 		
 		md_free(W1);
