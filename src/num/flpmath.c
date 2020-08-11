@@ -1397,7 +1397,7 @@ int calc_convcorr_geom_strs_dil(int N, unsigned long flags,
 				       const long odims[N], const long ostrs[N], const long kdims[N], const long kstrs[N], const long idims[N], const long istrs[N],
 				       const long dilation[N], const long strides[N], bool conv, bool test_mode)
  {
-	
+
  	int shift = 0;
 
 	md_copy_strides(N, ostrs2, ostrs);
@@ -1922,7 +1922,7 @@ static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], 
 			//transpose data -> sum over inner dimensions
 			//cuda_zsum accumulates the sum in the first element
 			//copy the first elements to output
-			
+
 			long tdimst[2] = {tdims[1], tdims[0]};
 
 			complex float *tmp = md_alloc_gpu(2, tdims, CFL_SIZE);
@@ -1993,7 +1993,7 @@ void md_zsadd2(unsigned int D, const long dims[D], const long ostr[D], complex f
 
 	optimized_twoop_oi(D, dims, ostr, optr, istr, iptr,
 		(size_t[2]){ CFL_SIZE, CFL_SIZE }, nary_zsadd);
-#endif	
+#endif
 }
 
 
@@ -2080,7 +2080,7 @@ void md_sadd2(unsigned int D, const long dims[D], const long ostr[D], float* opt
 
 	optimized_twoop_oi(D, dims, ostr, optr, istr, iptr,
 		(size_t[2]){ FL_SIZE, FL_SIZE }, nary_sadd);
-#endif		
+#endif
 }
 
 
@@ -2738,6 +2738,46 @@ float md_zrmse(unsigned int D, const long dim[D], const complex float* in1, cons
 float md_znrmse(unsigned int D, const long dim[D], const complex float* ref, const complex float* in)
 {
 	return md_zrmse(D, dim, ref, in) / md_zrms(D, dim, ref);
+}
+
+/**
+ * Calculate root-mean-square of real array
+ *
+ * return sqrt(in * in / length(in))
+ */
+float md_rms(unsigned int D, const long dim[D], const float* in)
+{
+	return md_norm(D, dim, in) / sqrtl(md_calc_size(D, dim));
+}
+
+/**
+ * Calculate root-mean-square error between two real arrays
+ *
+ * return sqrt((in1 - in2)^2 / length(in))
+ */
+float md_rmse(unsigned int D, const long dim[D], const float* in1, const float* in2)
+{
+	float* err = md_alloc_sameplace(D, dim, FL_SIZE, in1);
+
+	md_sub(D, dim, err, in1, in2);
+
+	float val = md_rms(D, dim, err);
+
+	md_free(err);
+
+	return val;
+}
+
+
+
+/**
+ * Calculate normalized root-mean-square error between two real arrays
+ *
+ * return RMSE(ref,in) / RMS(ref)
+ */
+float md_nrmse(unsigned int D, const long dim[D], const float* ref, const float* in)
+{
+	return md_rmse(D, dim, ref, in) / md_rms(D, dim, ref);
 }
 
 
@@ -4312,7 +4352,7 @@ void md_zcmpl_real2(unsigned int D, const long dims[D], const long ostrs[D], com
 {
 #ifdef USE_CUDA
 	if (cuda_ondevice(dst) != cuda_ondevice(src)) {
-	
+
 		md_clear2(D, dims, ostrs, (float*)dst + 0, CFL_SIZE);
 		md_copy2(D, dims, ostrs, (float*)dst + 0, istrs, src, FL_SIZE);
 		return;
@@ -4334,8 +4374,8 @@ void md_zcmpl_real(unsigned int D, const long dims[D], complex float* dst, const
 void md_zcmpl_imag2(unsigned int D, const long dims[D], const long ostrs[D], complex float* dst, const long istrs[D], const float* src)
 {
 #ifdef USE_CUDA
-	if (cuda_ondevice(dst) != cuda_ondevice(src)) {	
-		
+	if (cuda_ondevice(dst) != cuda_ondevice(src)) {
+
 		md_clear2(D, dims, ostrs, (float*)dst + 0, CFL_SIZE);
 		md_copy2(D, dims, ostrs, (float*)dst + 1, istrs, src, FL_SIZE);
 		return;
@@ -4358,8 +4398,8 @@ void md_zcmpl_imag(unsigned int D, const long dims[D], complex float* dst, const
 void md_zcmpl2(unsigned int D, const long dims[D], const long ostr[D], complex float* dst, const long istr1[D], const float* src_real, const long istr2[D], const float* src_imag)
 {
 #ifdef USE_CUDA
-	if ((cuda_ondevice(dst) != cuda_ondevice(src_real)) || (cuda_ondevice(dst) != cuda_ondevice(src_imag))) {		
-		
+	if ((cuda_ondevice(dst) != cuda_ondevice(src_real)) || (cuda_ondevice(dst) != cuda_ondevice(src_imag))) {
+
 		md_copy2(D, dims, ostr, (float*)dst + 0, istr1, src_real, FL_SIZE);
 		md_copy2(D, dims, ostr, (float*)dst + 1, istr2, src_imag, FL_SIZE);
 		return;
