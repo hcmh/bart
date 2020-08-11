@@ -49,12 +49,12 @@ static void hotenc_to_index(int N_batch, long prediction[N_batch], int N_hotenc,
 		prediction[i_batch] = 0;
 		for (int i = 1; i < N_hotenc; i++){
 
-        		long pos[] = {i, i_batch};
-            		long pos_max[] = {prediction[i_batch], i_batch};
+			long pos[] = {i, i_batch};
+	    		long pos_max[] = {prediction[i_batch], i_batch};
 
-        		if ((float)MD_ACCESS(2, strs, pos, in) > (float)MD_ACCESS(2, strs, pos_max, in))
-                		prediction[i_batch] = i;
-        	}
+			if ((float)MD_ACCESS(2, strs, pos, in) > (float)MD_ACCESS(2, strs, pos_max, in))
+				prediction[i_batch] = i;
+		}
     	}
 }
 
@@ -109,7 +109,7 @@ void init_nn_mnist(complex float* weights)
 
 		const struct iovec_s* tmp = nlop_generic_domain(network, i);
 		if (i != 0)
-            		weights = init_auto(tmp->N, tmp->dims, weights, true);
+	    		weights = init_auto(tmp->N, tmp->dims, weights, true);
 	}
 
 	nlop_free(network);
@@ -146,6 +146,8 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 	in_type[0] = IN_BATCH;
 	in_type[1] = IN_BATCH;
 
+#if 1
+
 	struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
 	_conf.epochs = epochs;
 
@@ -169,6 +171,19 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 			NO, out_type,
 			N_batch, N_total / N_batch, batch_generator, NULL);
 
+
+#endif
+#else
+	//example for adam
+	struct iter6_adam_conf _conf = iter6_adam_conf_defaults;
+	_conf.learning_rate = 0.0001;
+	_conf.epochs = epochs;
+
+	iter6_adam(CAST_UP(&_conf),
+			nlop_train,
+			NI, in_type, NULL, src,
+			NO, out_type,
+			N_batch, N_total / N_batch, NULL, NULL);
 
 #endif
 
@@ -204,7 +219,7 @@ float accuracy_nn_mnist(int N_batch, const complex float* weights, const complex
 
 	long num_correct = 0;
     	for (int i = 0; i < N_batch; i++)
-        	num_correct += (long)(prediction[i] == label[i]);
+		num_correct += (long)(prediction[i] == label[i]);
 
     	return (float)num_correct / (float)N_batch;
 }

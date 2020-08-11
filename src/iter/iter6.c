@@ -39,6 +39,7 @@
 
 DEF_TYPEID(iter6_sgd_conf);
 DEF_TYPEID(iter6_adadelta_conf);
+DEF_TYPEID(iter6_adam_conf);
 
 
 const struct iter6_sgd_conf iter6_sgd_conf_defaults = {
@@ -66,6 +67,22 @@ const struct iter6_adadelta_conf iter6_adadelta_conf_defaults = {
 	.clip_val = 0.0,
 
 	.rho = 0.95
+};
+
+const struct iter6_adam_conf iter6_adam_conf_defaults = {
+
+	.INTERFACE.TYPEID = &TYPEID2(iter6_adam_conf),
+
+	.epochs = 1,
+	.learning_rate = .001,
+
+	.clip_norm = 0.0,
+	.clip_val = 0.0,
+
+	.epsilon = 1.e-7,
+
+	.beta1 = 0.9,
+	.beta2 = 0.999,
 };
 
 
@@ -173,6 +190,76 @@ void iter6_adadelta(	iter6_conf* _conf,
 		for (int j = 0; j < NI; j++)
 			upd_ops[i][j] = NULL;
 		upd_ops[i][i] = operator_adadelta_update_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->learning_rate, conf->rho, 1.e-7);
+		if ((0.0 != conf->clip_norm) || (0.0 != conf->clip_val)) {
+
+			const struct operator_s* tmp1 = operator_clip_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->clip_norm, conf->clip_val);
+			const struct operator_s* tmp2 = upd_ops[i][i];
+			upd_ops[i][i] = operator_chain(tmp1, tmp2);
+			operator_free(tmp1);
+			operator_free(tmp2);
+		}
+	}
+	struct iter6_op_arr_s upd_ops_data = { { &TYPEID(iter6_op_arr_s) }, NI, NI, &(upd_ops[0][0])};
+	struct iter_op_arr_s upd_op_arr ={iter6_op_arr_fun_diag, CAST_UP(&upd_ops_data)};
+
+
+	for (int i = 0; i < NI; i++)
+		isize[i] = 2 * md_calc_size(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims);
+	for (int o = 0; o < NO; o++)
+		osize[o] = 2 * md_calc_size(nlop_generic_codomain(nlop, o)->N, nlop_generic_codomain(nlop, o)->dims);
+
+	//gpu ref (dst[i] can be null if batch_gen)
+	float* gpu_ref = NULL;
+	for (int i = 0; i < NI; i++)
+		if (IN_OPTIMIZE == in_type[i])
+			gpu_ref = dst[i];
+	assert(NULL != gpu_ref);
+
+
+	sgd(conf->epochs,
+		NI, isize, in_type, dst,
+		NO, osize, out_type,
+		batchsize, batchsize * numbatches,
+		select_vecops(gpu_ref),
+		nlop_iter, adj_op_arr,
+		upd_op_arr,
+		prox_iter,
+		nlop_batch_gen_iter,
+		(struct iter_op_s){ NULL, NULL }, monitor);
+
+	for (int i = 0; i < NI; i++)
+		operator_free(upd_ops[i][i]);
+}
+
+void iter6_adam(	iter6_conf* _conf,
+			const struct nlop_s* nlop,
+			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
+			long NO, enum OUT_TYPE out_type[NO],
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
+{
+	auto conf = CAST_DOWN(iter6_adam_conf, _conf);
+
+	//assert(NULL == nlop_batch_gen);
+	//assert(NULL == prox_ops);
+
+	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
+	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
+	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
+
+	struct iter_op_p_s prox_iter[NI];
+	for (unsigned int i = 0; i < NI; i++)
+		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
+
+	long isize[NI];
+	long osize[NO];
+
+	//array of update operators
+	const struct operator_s* upd_ops[NI][NI];
+	for (int i = 0; i < NI; i++) {
+
+		for (int j = 0; j < NI; j++)
+			upd_ops[i][j] = NULL;
+		upd_ops[i][i] = operator_adam_update_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->learning_rate, conf->beta1, conf->beta2, conf->epsilon);
 		if ((0.0 != conf->clip_norm) || (0.0 != conf->clip_val)) {
 
 			const struct operator_s* tmp1 = operator_clip_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->clip_norm, conf->clip_val);
