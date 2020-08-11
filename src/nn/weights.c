@@ -26,7 +26,7 @@
 
 
 
-const struct nlop_s* deflatten_weights_create(const struct nlop_s* network, unsigned int flag)
+const struct nlop_s* deflatten_weights_create(const struct nlop_s* network, unsigned long flag)
 {
 	int count = 0;
 	long size_in = 0;
@@ -70,7 +70,7 @@ const struct nlop_s* deflatten_weights_create(const struct nlop_s* network, unsi
 	return result;
 }
 
-const struct nlop_s* deflatten_weights(const struct nlop_s* network, unsigned int flag)
+const struct nlop_s* deflatten_weights(const struct nlop_s* network, unsigned long flag)
 {
 	const struct nlop_s* deflatten = deflatten_weights_create(network, flag);
 	const struct nlop_s* result = nlop_combine(network, deflatten);
@@ -93,7 +93,7 @@ const struct nlop_s* deflatten_weights(const struct nlop_s* network, unsigned in
 	return result;
 }
 
-const struct nlop_s* deflatten_weightsF(const struct nlop_s* network, unsigned int flag)
+const struct nlop_s* deflatten_weightsF(const struct nlop_s* network, unsigned long flag)
 {
 	const struct nlop_s* result = deflatten_weights(network, flag);
 	nlop_free(network);
