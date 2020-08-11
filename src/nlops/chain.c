@@ -103,7 +103,7 @@ struct nlop_s* nlop_chain2_FF(const struct nlop_s* a, int o, const struct nlop_s
 
 /*
  * Chains two non-linear operators
- * permutes inputs to have order: inputs a, inputs b  
+ * permutes inputs to have order: inputs a, inputs b
  */
 struct nlop_s* nlop_chain2_swap_FF(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
 {
@@ -308,7 +308,7 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 	return PTR_PASS(n);
 }
 
-struct nlop_s* nlop_destack(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
 {
 	int II = nlop_get_nr_in_args(x);
 	int OO = nlop_get_nr_out_args(x);
@@ -339,9 +339,63 @@ struct nlop_s* nlop_destack(const struct nlop_s* x, int a, int b, unsigned long 
 	return nlop_permute_inputs_F(result, II - 1, perm);
 }
 
+struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+{
+	auto result = nlop_stack_inputs(x, a, b, stack_dim);
+	nlop_free(x);
+	return result;
+}
+
+//renamed for consistency, deprecated
+struct nlop_s* nlop_destack(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+{
+	return nlop_stack_inputs(x, a, b, stack_dim);
+}
+
+//renamed for consistency, deprecated
 struct nlop_s* nlop_destack_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
 {
-	auto result = nlop_destack(x, a, b, stack_dim);
+	return nlop_stack_inputs_F(x, a, b, stack_dim);
+}
+
+
+
+
+struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+{
+	//int II = nlop_get_nr_in_args(x);
+	int OO = nlop_get_nr_out_args(x);
+
+	assert(a < OO);
+	assert(b < OO);
+	assert(a != b);
+
+	auto codoma = nlop_generic_codomain(x, a);
+	auto codomb = nlop_generic_codomain(x, b);
+	assert(codoma->N == codomb->N);
+
+	long N = codoma->N;
+	long odims[N];
+	md_copy_dims(N, odims, codoma->dims);
+	odims[stack_dim] += codomb->dims[stack_dim];
+	auto nlop_stack = nlop_stack_create(N, odims, codoma->dims, codomb->dims, stack_dim);
+	auto combined = nlop_combine(nlop_stack, x);
+	nlop_free(nlop_stack);
+
+	auto result = nlop_link_F(combined, b + 1, 1);
+	result = nlop_link_F(result, a < b ? a + 1 : a, 0);
+
+	int perm[OO - 1];
+	for (int o = 0; o < OO - 1 ; o++)
+		perm[o] = (o <= MIN(a, b)) ? o + 1 : o;
+	perm[MIN(a, b)] = 0;
+
+	return nlop_permute_outputs_F(result, OO - 1, perm);
+}
+
+struct nlop_s* nlop_stack_outputs_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+{
+	auto result = nlop_stack_outputs(x, a, b, stack_dim);
 	nlop_free(x);
 	return result;
 }
@@ -416,6 +470,63 @@ struct nlop_s* nlop_permute_outputs(const struct nlop_s* x, int O2, const int pe
 struct nlop_s* nlop_permute_outputs_F(const struct nlop_s* x, int O2, const int perm[O2])
 {
 	auto result = nlop_permute_outputs(x, O2, perm);
+	nlop_free(x);
+	return result;
+}
+
+struct nlop_s* nlop_shift_input(const struct nlop_s* x, int new_index, int old_index)
+{
+	int II = nlop_get_nr_in_args(x);
+	assert(old_index < II);
+	assert(new_index < II);
+
+	int perm[II];
+	for (int i = 0, ip = 0; i < II; i++, ip++) {
+
+		perm[i] = ip;
+		if (i == old_index) ip++;
+		if (i == new_index) ip--;
+		if (new_index > old_index)
+			perm[i] = ip;
+	}
+
+	perm[new_index] = old_index;
+
+	return nlop_permute_inputs(x, II, perm);
+}
+
+struct nlop_s* nlop_shift_input_F(const struct nlop_s* x, int new_index, int old_index)
+{
+	auto result = nlop_shift_input(x, new_index, old_index);
+	nlop_free(x);
+	return result;
+}
+
+struct nlop_s* nlop_shift_output(const struct nlop_s* x, int new_index, int old_index)
+{
+	int OO = nlop_get_nr_out_args(x);
+	assert(old_index < OO);
+	assert(new_index < OO);
+
+	int perm[OO];
+
+	for (int i = 0, ip = 0; i < OO; i++, ip++) {
+
+		perm[i] = ip;
+		if (i == old_index) ip++;
+		if (i == new_index) ip--;
+		if (new_index > old_index)
+			perm[i] = ip;
+	}
+
+	perm[new_index] = old_index;
+
+	return nlop_permute_outputs(x, OO, perm);
+}
+
+struct nlop_s* nlop_shift_output_F(const struct nlop_s* x, int new_index, int old_index)
+{
+	auto result = nlop_shift_output(x, new_index, old_index);
 	nlop_free(x);
 	return result;
 }
