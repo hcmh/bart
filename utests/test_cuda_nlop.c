@@ -28,6 +28,9 @@
 
 static bool test_dense_layer_gpu(void)
 {
+#ifndef USE_CUDA
+	return true;
+#else
 	unsigned int N = 2;
 	long indims[] = {5, 18};
 
@@ -42,6 +45,7 @@ static bool test_dense_layer_gpu(void)
 	debug_printf(DP_DEBUG1, "err: %f\n", err);
 
 	UT_ASSERT(err < 5.e-5);
+#endif
 }
 
 UT_GPU_REGISTER_TEST(test_dense_layer_gpu);
@@ -49,6 +53,9 @@ UT_GPU_REGISTER_TEST(test_dense_layer_gpu);
 
 static bool test_conv_layer_gpu_CF(void)
 {
+#ifndef USE_CUDA
+	return true;
+#else
 	unsigned int N = 5;
 	long indims[] = {4, 7, 6, 2, 2};
 
@@ -64,12 +71,16 @@ static bool test_conv_layer_gpu_CF(void)
 	nlop_free(op_gpu);
 
 	UT_ASSERT(err < 2.e-5);
+#endif
 }
 
 UT_GPU_REGISTER_TEST(test_conv_layer_gpu_CF);
 
 static bool test_conv_layer_gpu(void)
 {
+#ifndef USE_CUDA
+	return true;
+#else
 	unsigned int N = 5;
 	long indims[] = {4, 5, 1, 2, 2};
 
@@ -84,12 +95,16 @@ static bool test_conv_layer_gpu(void)
 	nlop_free(op_gpu);
 
 	UT_ASSERT(err < 1.e-5);
+#endif
 }
 
 UT_GPU_REGISTER_TEST(test_conv_layer_gpu);
 
 static bool test_maxpool_layer_gpu(void)
 {
+#ifndef USE_CUDA
+	return true;
+#else
 	unsigned int N = 5;
 	long indims[] = {3, 4, 6, 1, 2};
 
@@ -102,12 +117,16 @@ static bool test_maxpool_layer_gpu(void)
 	nlop_free(op_gpu);
 
 	UT_ASSERT(err < 1.e-5);
+#endif
 }
 
 UT_GPU_REGISTER_TEST(test_maxpool_layer_gpu);
 
 static bool test_bias_op_gpu(void)
 {
+#ifndef USE_CUDA
+	return true;
+#else
 	unsigned int N = 5;
 	long indims[] = {3, 4, 6, 1, 2};
 	long bdims[] = {3, 1, 1, 1, 1};
@@ -123,12 +142,16 @@ static bool test_bias_op_gpu(void)
 	nlop_free(op_gpu);
 
 	UT_ASSERT(err < 1.e-5);
+#endif
 }
 
 UT_GPU_REGISTER_TEST(test_bias_op_gpu);
 
 static bool test_linear_layer_gpu(void)
 {
+#ifndef USE_CUDA
+	return true;
+#else
 	unsigned int N = 5;
 	long indims[] = {3, 4, 6, 1, 2};
 
@@ -144,12 +167,16 @@ static bool test_linear_layer_gpu(void)
 	nlop_free(op_gpu);
 
 	UT_ASSERT(err < 1.e-5);
+#endif
 }
 
 UT_GPU_REGISTER_TEST(test_linear_layer_gpu);
 
 static bool test_relu_layer_gpu(void)
 {
+#ifndef USE_CUDA
+	return true;
+#else
 	unsigned int N = 5;
 	long indims[] = {3, 4, 6, 1, 2};
 
@@ -164,6 +191,7 @@ static bool test_relu_layer_gpu(void)
 	nlop_free(op_gpu);
 
 	UT_ASSERT(err < 1.e-5);
+#endif
 }
 
 UT_GPU_REGISTER_TEST(test_relu_layer_gpu);
@@ -171,6 +199,9 @@ UT_GPU_REGISTER_TEST(test_relu_layer_gpu);
 
 static bool test_softmax_layer_gpu(void)
 {
+#ifndef USE_CUDA
+	return true;
+#else
 	unsigned int N = 2;
 	long indims[] = {7,20};
 
@@ -185,6 +216,7 @@ static bool test_softmax_layer_gpu(void)
 	nlop_free(op_gpu);
 
 	UT_ASSERT(err < 1.e-5);
+#endif
 }
 
 UT_GPU_REGISTER_TEST(test_softmax_layer_gpu);
@@ -192,6 +224,9 @@ UT_GPU_REGISTER_TEST(test_softmax_layer_gpu);
 
 static bool test_cce_layer_gpu(void)
 {
+#ifndef USE_CUDA
+	return true;
+#else
 	unsigned int N = 2;
 	long dims[] = {10, 128};
 
@@ -207,6 +242,7 @@ static bool test_cce_layer_gpu(void)
 	nlop_free(op_gpu);
 
 	UT_ASSERT(err < 1.e-5);
+#endif
 }
 
 UT_GPU_REGISTER_TEST(test_cce_layer_gpu);
