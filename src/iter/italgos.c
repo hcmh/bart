@@ -731,7 +731,7 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 
 /**
  * Compute the sum of the selected outputs, selected outputs must be scalars
- * 
+ *
  * @param NO number of outputs of nlop
  * @param NI number of inputs of nlop
  * @param nlop nlop to apply
@@ -743,7 +743,7 @@ static float compute_objective(long NO, long NI, struct iter_nlop_s nlop, float*
 {
 	float result = 0;
 	iter_nlop_call(nlop, NO + NI, args); 	// r = F x
-	
+
 	for (int o = 0; o < NO; o++) {
 		if (MD_IS_SET(out_optimize_flag, o)) {
 
@@ -759,7 +759,7 @@ static float compute_objective(long NO, long NI, struct iter_nlop_s nlop, float*
 /**
  * Compute the gradient with respect to the inputs selected by in_optimize_flag.
  * The result is the sum of the gradients with respect to the outputs selected by out_optimize_flag
- * 
+ *
  * @param NI number of inputs of nlop
  * @param in_optimize_flag compute gradients with respect to selected inputs
  * @param isize sizes of input tensors
@@ -767,7 +767,7 @@ static float compute_objective(long NO, long NI, struct iter_nlop_s nlop, float*
  * @param NO number of outputs of nlop
  * @param out_optimize_flag sums gradients over selected outputs, selected outputs must be scalars
  * @param adj array of adjoint operators
- * @param vops vector operators 
+ * @param vops vector operators
  **/
 static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], float* grad[NI], int NO, unsigned long out_optimize_flag, struct iter_op_arr_s adj, const struct vec_iter_s* vops)
 {
@@ -779,7 +779,7 @@ static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], floa
 	float* tmp_grad[NI];
 
 	for (int i = 0; i < NI; i++)
-		if ((1 < NO) && MD_IS_SET(in_optimize_flag, i)) 	
+		if ((1 < NO) && MD_IS_SET(in_optimize_flag, i))
 			tmp_grad[i] = vops->allocate(isize[i]);
 
 	for (int o = 0, count = 0; o < NO; o++) {
@@ -798,16 +798,16 @@ static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], floa
 	for (int i = 0; i < NI; i++)
 		if ((1 < NO) && MD_IS_SET(in_optimize_flag, i))
 			vops->del(tmp_grad[i]);
-	
+
 	vops->del(one);
 }
 
 /**
  * Print progressbar of the form
  * [pre_string] [=====    ] time: h:mm:ss/h:mm:ss[post_string]
- * 
+ *
  * @param N_done batch index
- * @param N_total batch size 
+ * @param N_total batch size
  * @param starttime start time of epoch
  * @param pre_string
  * @param post_string
@@ -819,9 +819,9 @@ static void print_timer_bar(int N_done, int N_total, double starttime, char* pre
 
 	for (int i = 0; i < length; i++)
 		if ((float)i <= (float)(N_done * length) / (float)(N_total))
-                    progress[i] = '=';
-                else
-                    progress[i] = ' ';
+			progress[i] = '=';
+		else
+			progress[i] = ' ';
 
 	progress[length] = '\0';
 
@@ -839,27 +839,7 @@ static void print_timer_bar(int N_done, int N_total, double starttime, char* pre
 		debug_printf(DP_INFO, "\n");
 }
 
-/**
- * Print timer of the form
- * [pre_string]h:mm:ss/h:mm:ss[post_string]
- * 
- * @param N_done batch index
- * @param N_total batch size 
- * @param starttime start time of epoch
- * @param pre_string
- * @param post_string
- **/
-static void print_timer(int N_done, int N_total, double starttime, char* pre_string, char* post_string)
-{
-	double time = timestamp() - starttime;
-	double time_per_epoch = time / N_done;
-	double time_estimated = time_per_epoch * N_total;
-	debug_printf(	DP_INFO, "%s%d:%02d:%02d/%d:%02d:%02d%s\n",
-			pre_string,
-			(int)time / 3600, ((int)time %3600)/60, ((int)time % 3600) % 60,
-			(int)time_estimated / 3600, ((int)time_estimated %3600)/60, ((int)time_estimated % 3600) % 60,
-			post_string);
-}
+
 
 
 /**
@@ -876,9 +856,11 @@ static void print_timer(int N_done, int N_total, double starttime, char* pre_str
  * @param out_type type of output (i.e. should be minimized)
  * @param N_batch batch size
  * @param N_total total size of datasets
- * @param vops 
+ * @param vops
  * @param nlop nlop for minimization
  * @param adj array of adjoints of nlop
+ * @param prox prox operators applied after each update on the current weights
+ * @param nlop_batch_gen nlop for generating a new batch for each update
  * @param update diagonal array of operator computing the update based on the gradient
  * @param callback UNUSED
  * @param monitor UNUSED
@@ -887,10 +869,12 @@ void sgd(	unsigned int epochs,
 		long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
 		long NO, long osize[NO], enum OUT_TYPE out_type[NI],
 		int N_batch, int N_total,
-        	const struct vec_iter_s* vops,
-        	struct iter_nlop_s nlop, struct iter_op_arr_s adj,
+		const struct vec_iter_s* vops,
+		struct iter_nlop_s nlop, struct iter_op_arr_s adj,
 		struct iter_op_arr_s update,
-        	struct iter_op_s callback, struct iter_monitor_s* monitor)
+		struct iter_op_p_s prox[NI],
+		struct iter_nlop_s nlop_batch_gen,
+		struct iter_op_s callback, struct iter6_monitor_s* monitor)
 {
 	UNUSED(monitor);
 	UNUSED(callback);
@@ -900,33 +884,69 @@ void sgd(	unsigned int epochs,
 	float* dxs[NI];
 	float* args[NO + NI];
 
+	float* x_batch_gen[NI]; //arrays which are filled by batch generator
+	long N_batch_gen = 0;
+
 	unsigned long in_optimize_flag = 0;
 	unsigned long out_optimize_flag = 0;
 
 	for (int i = 0; i< NI; i++){
 
-		args[NO + i] = x[i];
-		if (IN_OPTIMIZE == in_type[i]) {
+		switch(in_type[i]){
 
-			grad[i] = vops->allocate(isize[i]);
-			dxs[i] = vops->allocate(isize[i]);
-			in_optimize_flag = MD_SET(in_optimize_flag, i);
-		} else {
+			case IN_STATIC:
 
-			grad[i] = NULL;
-			dxs[i] = NULL;
+				grad[i] = NULL;
+				dxs[i] = NULL;
+				break;
+			case IN_BATCH:
+
+				grad[i] = NULL;
+				dxs[i] = NULL;
+				break;
+
+			case IN_OPTIMIZE:
+
+				grad[i] = vops->allocate(isize[i]);
+				dxs[i] = vops->allocate(isize[i]);
+				in_optimize_flag = MD_SET(in_optimize_flag, i);
+				if (NULL != prox[i].fun)
+					iter_op_p_call(prox[i], 0, x[i], x[i]); //project to constraint
+				break;
+
+			case IN_BATCH_GENERATOR:
+
+				grad[i] = NULL;
+				dxs[i] = NULL;
+
+				if (NULL != x[i])
+					error("NULL != x[%d] for batch generator\n", i);
+				x[i] = vops->allocate(isize[i]);
+				x_batch_gen[N_batch_gen] = x[i];
+				N_batch_gen += 1;
+				break;
+
+			default:
+
+				error("unknown flag\n");
+				break;
 		}
+
+		args[NO + i] = x[i];
 	}
 
 	for (int o = 0; o < NO; o++){
 
 		args[o] = vops->allocate(osize[o]);
 		if (OUT_OPTIMIZE == out_type[o])
-			out_optimize_flag = MD_SET(out_optimize_flag, o);	
+			out_optimize_flag = MD_SET(out_optimize_flag, o);
 	}
 
 	for (unsigned int epoch = 0; epoch < epochs; epoch++) {
 		for (int i_batch = 0; i_batch < N_total / N_batch; i_batch++) {
+
+			if (0 != N_batch_gen)
+				iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
 
 			float r0 = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops); // update graph and compute loss
 			getgrad(NI, in_optimize_flag, isize, grad, NO, out_optimize_flag, adj, vops);
@@ -934,8 +954,13 @@ void sgd(	unsigned int epochs,
 
 			for (int i = 0; i < NI; i++) {
 
-				if (in_type[i] == IN_OPTIMIZE)
+				if (in_type[i] == IN_OPTIMIZE) {
+
 					vops->add(isize[i], args[NO + i], args[NO + i], dxs[i]);
+
+					if (NULL != prox[i].fun)
+						iter_op_p_call(prox[i], 0, args[NO + i], args[NO + i]); //we only support projections (mu = 0)
+				}
 
 				if (in_type[i] == IN_BATCH)
 					args[NO + i] += isize[i];
@@ -959,6 +984,12 @@ void sgd(	unsigned int epochs,
 			vops->del(grad[i]);
 		if(NULL != dxs[i])
 			vops->del(dxs[i]);
+
+		if(IN_BATCH_GENERATOR == in_type[i]) {
+
+			vops->del(x[i]);
+			x[i] = NULL;
+		}
 	}
 
 	for (int o = 0; o < NO; o++)

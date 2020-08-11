@@ -1,12 +1,3 @@
-
-/* Copyright 2017-2018. Martin Uecker.
- * All rights reserved. Use of this source code is governed by
- * a BSD-style license which can be found in the LICENSE file.
- *
- * Authors:
- * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- */
-
 #include <assert.h>
 #include <complex.h>
 #include <stdbool.h>
@@ -26,6 +17,7 @@
 #include "iter/iter4.h"
 #include "iter/iter6.h"
 #include "iter/italgos.h"
+#include "iter/batch_gen.h"
 
 #include "linops/linop.h"
 #include "linops/someops.h"
@@ -157,11 +149,28 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 	struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
 	_conf.epochs = epochs;
 
+#if 1
 	iter6_adadelta(CAST_UP(&_conf),
 			nlop_train,
-			NI, in_type, src,
+			NI, in_type, NULL, src,
 			NO, out_type,
-			N_batch, N_total);
+			N_batch, N_total / N_batch, NULL, NULL);
+#else
+	//try batch generator for mnist
+	const complex float* train_data[] = { (complex float*)src[1] };
+	const long* train_dims[] = { nlop_generic_domain(nlop_train, 1)->dims };
+	auto batch_generator = batch_gen_linear_create(1, 5, train_dims, train_data, N_total, 0);
+	src[1] = NULL;
+	in_type[1] = IN_BATCH_GENERATOR;
+
+	iter6_adadelta(CAST_UP(&_conf),
+			nlop_train,
+			NI, in_type, NULL, src,
+			NO, out_type,
+			N_batch, N_total / N_batch, batch_generator, NULL);
+
+
+#endif
 
 	nlop_free(nlop_train);
 }

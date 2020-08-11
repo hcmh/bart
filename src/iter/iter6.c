@@ -17,6 +17,7 @@
 
 #include "iter/italgos.h"
 #include "iter/vec.h"
+#include "iter/iter2.h"
 #include "iter/iter6_ops.h"
 
 #include "iter6.h"
@@ -133,7 +134,7 @@ static void iter6_op_arr_fun_deradj(iter_op_data* _o, int NO, unsigned long ofla
 #endif
 }
 
-static void iter6_op_arr_fun_update(iter_op_data* _o, int NO, unsigned long oflags, float* dst[NO], int NI, unsigned long iflags, const float* src[NI])
+static void iter6_op_arr_fun_diag(iter_op_data* _o, int NO, unsigned long oflags, float* dst[NO], int NI, unsigned long iflags, const float* src[NI])
 {
 	const struct iter6_op_arr_s* data = CAST_DOWN(iter6_op_arr_s, _o);
 
@@ -146,16 +147,21 @@ static void iter6_op_arr_fun_update(iter_op_data* _o, int NO, unsigned long ofla
 			operator_apply_unchecked(data->ops[i * NI + i], (_Complex float*)dst[i], (_Complex float*)src[i]);
 }
 
-void iter6_adadelta(iter6_conf* _conf,
+void iter6_adadelta(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
-			long NI, enum IN_TYPE in_type[NI], float* dst[NI],
+			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
 			long NO, enum OUT_TYPE out_type[NO],
-			int N_batch, int N_total)
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
 {
 	auto conf = CAST_DOWN(iter6_adadelta_conf, _conf);
 
 	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
 	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
+	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
+
+	struct iter_op_p_s prox_iter[NI];
+	for (unsigned int i = 0; i < NI; i++)
+		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
 
 	long isize[NI];
 	long osize[NO];
@@ -177,7 +183,7 @@ void iter6_adadelta(iter6_conf* _conf,
 		}
 	}
 	struct iter6_op_arr_s upd_ops_data = { { &TYPEID(iter6_op_arr_s) }, NI, NI, &(upd_ops[0][0])};
-	struct iter_op_arr_s upd_op_arr ={iter6_op_arr_fun_update, CAST_UP(&upd_ops_data)};
+	struct iter_op_arr_s upd_op_arr ={iter6_op_arr_fun_diag, CAST_UP(&upd_ops_data)};
 
 
 	for (int i = 0; i < NI; i++)
@@ -185,15 +191,24 @@ void iter6_adadelta(iter6_conf* _conf,
 	for (int o = 0; o < NO; o++)
 		osize[o] = 2 * md_calc_size(nlop_generic_codomain(nlop, o)->N, nlop_generic_codomain(nlop, o)->dims);
 
+	//gpu ref (dst[i] can be null if batch_gen)
+	float* gpu_ref = NULL;
+	for (int i = 0; i < NI; i++)
+		if (IN_OPTIMIZE == in_type[i])
+			gpu_ref = dst[i];
+	assert(NULL != gpu_ref);
+
 
 	sgd(conf->epochs,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
-		N_batch, N_total,
-		select_vecops(dst[0]),
+		batchsize, batchsize * numbatches,
+		select_vecops(gpu_ref),
 		nlop_iter, adj_op_arr,
 		upd_op_arr,
-		(struct iter_op_s){ NULL, NULL }, NULL);
+		prox_iter,
+		nlop_batch_gen_iter,
+		(struct iter_op_s){ NULL, NULL }, monitor);
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
