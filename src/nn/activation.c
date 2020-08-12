@@ -229,8 +229,25 @@ static void bias_op_adj2(const nlop_data_t* _data, complex float* dst, const com
 {
 	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
-	md_clear(d->N, d->bdims, dst, CFL_SIZE);
-	md_zsum(d->N, d->dims, ~md_nontriv_dims(d->N, d->bdims), dst, src);
+
+#ifdef USE_CUDA //FIXME: optimize zadd2 for accumulation in first or second dim
+	if (cuda_ondevice(src)) {
+
+		long tdims[d->N];
+		md_select_dims(d->N, ~md_nontriv_dims(d->N, d->bdims), tdims, d->dims);
+
+		complex float* ones = md_alloc_sameplace(d->N, tdims, CFL_SIZE, src);
+		md_zfill(d->N, tdims, ones, 1.);
+		md_ztenmul(d->N, d->bdims, dst, d->dims, src, tdims, ones);
+
+		md_free(ones);
+	} else
+#endif
+	{
+		md_clear(d->N, d->bdims, dst, CFL_SIZE);
+		md_zsum(d->N, d->dims, ~md_nontriv_dims(d->N, d->bdims), dst, src);
+	}
+
 	PRINT_TIMER("bias adj2");
 }
 
@@ -579,6 +596,7 @@ DEF_TYPEID(softmax_s);
 
 static void softmax_apply(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	//S_i = exp(x_i)/sum_k(exp(x_k)) = S_i = exp(x_i - m)/sum_k(exp(x_k - m))
 	struct softmax_s* d = CAST_DOWN(softmax_s, _data);
 
@@ -605,6 +623,7 @@ static void softmax_apply(const nlop_data_t* _data, complex float* dst, const co
 	md_free(tmp_exp);
 
 	md_copy(d->N, d->dom->dims, dst, d->tmp, CFL_SIZE);
+	PRINT_TIMER("frw softmax")
 }
 
 static void softmax_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
