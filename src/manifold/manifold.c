@@ -39,8 +39,8 @@ const struct laplace_conf laplace_conf_default = {
 	.temporal_nn 	= false,
 	.kernel     	= false,
 	.kernel_CG		= false,
-	.kernel_lambda 	= 0.3,
-	.kernel_gamma	= 0.00001,
+	.kernel_lambda 	= 0.1,
+	.kernel_gamma	= 0.001,
 	.norm			= false,
 	.anisotrop		= false,
 	.dmap			= false,
@@ -294,83 +294,6 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		break;
 	}
 	
-	case 'G': { // kernel CG approach
-
-		long N = src_dims[0]; // number of observations (samples)
-
-		complex float* src2 = md_alloc(2, src_dims, CFL_SIZE);
-		md_copy(2, src_dims, src2, src, CFL_SIZE);
-
-		complex float* kernel = md_alloc(2, L_dims, CFL_SIZE);
-		complex float* kernel_cpy = md_alloc(2, L_dims, CFL_SIZE);
-		complex float* V = md_alloc(2, L_dims, CFL_SIZE);
-		complex float* VH = md_alloc(2, L_dims, CFL_SIZE);
-		
-		// Least-Squares
-		bool gpu = 0;
-		float cg_lambda = 0.001;
-		struct iter_conjgrad_conf cgconf = iter_conjgrad_defaults;
-		const struct linop_s* matrix_op;
-
-		float gamma = conf->kernel_gamma;
-		float eta = 2;
-
-		debug_printf(DP_DEBUG3, "CG \n");
-
-		for (int i = 0; i < conf->iter_max; i++) {
-			debug_printf(DP_DEBUG3, "...kernel iteration %d/%d \n", i + 1, conf->iter_max);
-			
-			gauss_kernel(L_dims, kernel, src_dims, src2, conf, (i == 0) ? true : false);
-
-			calc_kernel_W(N, kernel, kernel_cpy, W, L, V, VH, gamma);
-
-			if (i == conf->iter_max - 1)
-				break;
-
-			// D = sum(W, axis=1)
-			md_zsum(2, L_dims, PHS1_FLAG, D, W);
-
-			// L := diag(1) + lambda * (D - W)
-			#pragma omp parallel for
-			for (int l = 0; l < L_dims[0]; l++)
-				L[l * L_dims[0] + l] = 1 + conf->kernel_lambda * ( D[l] - W[l * L_dims[0] + l] );
-
-			/* src =  L @ src2    // y = F @ x
-			 * ---------------
-			 * L 	= [ A  A  1 ] // F
-			 * src2 = [ 1  A  B ] // x
-			 * src  = [ A  1  B ] // y
-			 */
-
-			long L_xdims[3] = { L_dims[0], L_dims[1], 1 };
-			long src2_xdims[3] = { 1, src_dims[0], src_dims[1]};
-			long src_xdims[3] = { src_dims[0], 1, src_dims[1] };
-
-			long dims[3];
-			md_max_dims(3, ~0lu, dims, L_xdims, src_xdims);
-
-			matrix_op = linop_fmac_create(3, dims, MD_BIT(1), MD_BIT(0), MD_BIT(2), L);
-		
-			lsqr(3, &(struct lsqr_conf){ cg_lambda, gpu }, iter_conjgrad, CAST_UP(&cgconf),
-			   	matrix_op, NULL, src2_xdims, src2, src_xdims, src, NULL);
-
-			if (conf->median > 0)
-				md_zsmul(2, src_dims, src2, src2, 1. / sqrtf(conf->median));
-
-			if (gamma > 0.0001)
-				gamma /= eta;
-
-		}
-	
-		md_free(src2);
-		md_free(kernel);
-		md_free(kernel_cpy);
-		md_free(V);
-		md_free(VH);
-		
-		break;
-	}
-
 	case 'K': { // kernel approach
 		// This is a reimplementation of the MATLAB code https://github.com/ahaseebahmed/SpiralSToRM/blob/master/
 		// Note: we don't use double precicion!
@@ -474,6 +397,90 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 		break;
 	}
+
+	case 'G': { // kernel CG approach
+
+		error("CG approach requires revision");
+		/* The CG implementation works, but it is not clear if the SToRM theory 
+		 * allows for the CG
+		 */
+
+#if 0
+		
+		long N = src_dims[0]; // number of observations (samples)
+
+		complex float* src2 = md_alloc(2, src_dims, CFL_SIZE);
+		md_copy(2, src_dims, src2, src, CFL_SIZE);
+
+		complex float* kernel = md_alloc(2, L_dims, CFL_SIZE);
+		complex float* kernel_cpy = md_alloc(2, L_dims, CFL_SIZE);
+		complex float* V = md_alloc(2, L_dims, CFL_SIZE);
+		complex float* VH = md_alloc(2, L_dims, CFL_SIZE);
+		
+		// Least-Squares
+		bool gpu = 0;
+		float cg_lambda = 0.001;
+		struct iter_conjgrad_conf cgconf = iter_conjgrad_defaults;
+		const struct linop_s* matrix_op;
+
+		float gamma = conf->kernel_gamma;
+		float eta = 2;
+
+		debug_printf(DP_DEBUG3, "CG \n");
+
+		for (int i = 0; i < conf->iter_max; i++) {
+			debug_printf(DP_DEBUG3, "...kernel iteration %d/%d \n", i + 1, conf->iter_max);
+			
+			gauss_kernel(L_dims, kernel, src_dims, src2, conf, (i == 0) ? true : false);
+
+			calc_kernel_W(N, kernel, kernel_cpy, W, L, V, VH, gamma);
+
+			if (i == conf->iter_max - 1)
+				break;
+
+			// D = sum(W, axis=1)
+			md_zsum(2, L_dims, PHS1_FLAG, D, W);
+
+			// L := diag(1) + lambda * (D - W)
+			#pragma omp parallel for
+			for (int l = 0; l < L_dims[0]; l++)
+				L[l * L_dims[0] + l] = 1 + conf->kernel_lambda * ( D[l] - W[l * L_dims[0] + l] );
+
+			/* src =  L @ src2    // y = F @ x
+			 * ---------------
+			 * L 	= [ A  A  1 ] // F
+			 * src2 = [ 1  A  B ] // x
+			 * src  = [ A  1  B ] // y
+			 */
+
+			long L_xdims[3] = { L_dims[0], L_dims[1], 1 };
+			long src2_xdims[3] = { 1, src_dims[0], src_dims[1]};
+			long src_xdims[3] = { src_dims[0], 1, src_dims[1] };
+
+			long dims[3];
+			md_max_dims(3, ~0lu, dims, L_xdims, src_xdims);
+
+			matrix_op = linop_fmac_create(3, dims, MD_BIT(1), MD_BIT(0), MD_BIT(2), L);
+		
+			lsqr(3, &(struct lsqr_conf){ cg_lambda, gpu }, iter_conjgrad, CAST_UP(&cgconf),
+			   	matrix_op, NULL, src2_xdims, src2, src_xdims, src, NULL);
+
+			if (conf->median > 0)
+				md_zsmul(2, src_dims, src2, src2, 1. / sqrtf(conf->median));
+
+			if (gamma > 0.0001)
+				gamma /= eta;
+
+		}
+	
+		md_free(src2);
+		md_free(kernel);
+		md_free(kernel_cpy);
+		md_free(V);
+		md_free(VH);
+#endif		
+		break;
+	}	
 
 	} // end switch
 
