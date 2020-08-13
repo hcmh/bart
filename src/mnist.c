@@ -75,6 +75,8 @@ int main_mnist(int argc, char* argv[])
 	}
 
 	weights = load_shared_cfl(argv[2], 1, dims_weights);
+	if (dims_weights[0] != nn_mnist_get_num_weights())
+		error("Dimensions of weights do not fit to the network!\n");
 
 	long dims_in[3];
 	long dims_out[2];
@@ -87,51 +89,51 @@ int main_mnist(int argc, char* argv[])
 	if (N_batch == 0)
 		N_batch = 128;
 
-	if (use_gpu && train){
+	complex float* in_gpu  = NULL;
+	complex float* weights_gpu = NULL;
+	complex float* out_gpu = NULL;
 
 #ifdef  USE_CUDA
+	if (use_gpu) {
 
-		complex float* in_gpu = md_alloc_gpu(3, dims_in, CFL_SIZE);
+		in_gpu = md_alloc_gpu(3, dims_in, CFL_SIZE);
 		md_copy(3, dims_in, in_gpu, in, CFL_SIZE);
 
-		complex float* weights_gpu = md_alloc_gpu(1, dims_weights, CFL_SIZE);
+		weights_gpu = md_alloc_gpu(1, dims_weights, CFL_SIZE);
 		md_copy(1, dims_weights, weights_gpu, weights, CFL_SIZE);
 
-		complex float* out_gpu = md_alloc_gpu(2, dims_out, CFL_SIZE);
+		out_gpu = md_alloc_gpu(2, dims_out, CFL_SIZE);
 		md_copy(2, dims_out, out_gpu, out, CFL_SIZE);
-
-		printf("Train\n");
-		train_nn_mnist(N_batch, dims_in[2], weights_gpu, in_gpu, out_gpu, epochs);
-
-		md_copy(1, dims_weights, weights, weights_gpu, CFL_SIZE);
-
-		md_free(in_gpu);
-		md_free(out_gpu);
-		md_free(weights_gpu);
+	}
 #else
-		error("BART compiled without GPU support.\n");
+	if(use_gpu)
+		error("Compiled without gpu support!\n");
 #endif
 
-	} else {
 
-		if (train){
 
-			printf("Train\n");
-			train_nn_mnist(N_batch, dims_in[2], weights, in, out, epochs);
-		}
+	if (train){
+		printf("Train\n");
+		train_nn_mnist(N_batch, dims_in[2], (NULL == weights_gpu) ? weights : weights_gpu, (NULL == in_gpu) ? in : in_gpu, (NULL == out_gpu) ? out : out_gpu, epochs);
+		if (use_gpu)
+			md_copy(1, dims_weights, weights, weights_gpu, CFL_SIZE);
 	}
+
 
 	long prediction[N_batch];
 	if (predict){
 
 		printf("Predict first %ld numbers:\n", N_batch);
-		predict_nn_mnist(N_batch, prediction, weights, in);
+		predict_nn_mnist(N_batch, N_batch, prediction, weights, in);
 		print_long(N_batch, prediction);
 	}
 
 	if (accuracy)
-        	printf("Accuracy = %f\n", accuracy_nn_mnist(N_batch, weights, in, out));
+        	printf("Accuracy = %f\n", accuracy_nn_mnist(dims_in[2], N_batch,  (NULL == weights_gpu) ? weights : weights_gpu, (NULL == in_gpu) ? in : in_gpu, out));
 
+	md_free(out_gpu);
+	md_free(in_gpu);
+	md_free(weights_gpu);
 
 	unmap_cfl(2, dims_out, out);
 	unmap_cfl(3, dims_in, in);

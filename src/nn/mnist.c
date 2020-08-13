@@ -190,36 +190,51 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 	nlop_free(nlop_train);
 }
 
-void predict_nn_mnist(int N_batch, long prediction[N_batch], const complex float* weights, const complex float* in)
+void predict_nn_mnist(int N_total, int N_batch, long prediction[N_total], const complex float* weights, const complex float* in)
 {
-	const struct nlop_s* network = get_nn_mnist(N_batch, STAT_TEST);
-	network = deflatten_weightsF(network, 1);
-	network = nlop_set_input_const_F(network, 1, 1, nlop_generic_domain(network, 1)->dims, true, weights);
+	while (N_total > 0) {
 
-	long indims[] = {1, 28, 28, 1, N_batch};
-	long outdims[] = {10, N_batch};
+		N_batch = MIN(N_total, N_batch);
 
-	complex float* tmp = md_alloc_sameplace(2, outdims, CFL_SIZE, weights);
+		const struct nlop_s* network = get_nn_mnist(N_batch, STAT_TEST);
+		while(1 < nlop_get_nr_out_args(network))
+			network = nlop_del_out_F(network, 1);
+		network = deflatten_weightsF(network, 1);
+		network = nlop_set_input_const_F(network, 1, 1, nlop_generic_domain(network, 1)->dims, true, weights);
 
-	nlop_apply(network, 2, outdims, tmp, 5, indims, in);
-	nlop_free(network);
+		long indims[] = {1, 28, 28, 1, N_batch};
+		long outdims[] = {10, N_batch};
 
-	hotenc_to_index(N_batch, prediction, 10, tmp);
+		complex float* tmp = md_alloc_sameplace(2, outdims, CFL_SIZE, weights);
 
-	md_free(tmp);
+		nlop_apply(network, 2, outdims, tmp, 5, indims, in);
+		nlop_free(network);
+
+		complex float* tmp_cpu = md_alloc(2, outdims, CFL_SIZE);
+		md_copy(2, outdims, tmp_cpu, tmp, CFL_SIZE);
+
+		hotenc_to_index(N_batch, prediction, 10, tmp_cpu);
+
+		md_free(tmp);
+		md_free(tmp_cpu);
+
+		prediction += N_batch;
+		in += md_calc_size(5, indims);
+		N_total -= N_batch;
+	}
 }
 
-float accuracy_nn_mnist(int N_batch, const complex float* weights, const complex float* in, const complex float* out)
+float accuracy_nn_mnist(int N_total, int N_batch, const complex float* weights, const complex float* in, const complex float* out)
 {
-	long prediction[N_batch];
-	predict_nn_mnist(N_batch, prediction, weights, in);
+	long prediction[N_total];
+	predict_nn_mnist(N_total, N_batch, prediction, weights, in);
 
-	long label[N_batch];
-	hotenc_to_index(N_batch, label, 10, out);
+	long label[N_total];
+	hotenc_to_index(N_total, label, 10, out);
 
 	long num_correct = 0;
-    	for (int i = 0; i < N_batch; i++)
+    	for (int i = 0; i < N_total; i++)
 		num_correct += (long)(prediction[i] == label[i]);
 
-    	return (float)num_correct / (float)N_batch;
+    	return (float)num_correct / (float)N_total;
 }
