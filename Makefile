@@ -554,7 +554,7 @@ MODULES_test_geom += -lgeom
 # lib iter
 UTARGETS += test_iter test_prox
 MODULES_test_iter += -liter -lnlops -llinops
-MODULES_test_prox += -liter -llinops
+MODULES_test_prox += -liter -lnlops -llinops
 
 # lib nn
 UTARGETS += test_nn_layers test_nn
