@@ -18,11 +18,13 @@
 #include "iter/iter6.h"
 #include "iter/italgos.h"
 #include "iter/batch_gen.h"
+#include "iter/monitor_iter6.h"
 
 #include "linops/linop.h"
 #include "linops/someops.h"
 
 #include "nlops/nlop.h"
+#include "nlops/const.h"
 #include "nlops/cast.h"
 #include "nlops/chain.h"
 #include "nlops/const.h"
@@ -152,11 +154,29 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 	_conf.epochs = epochs;
 
 #if 1
+	auto nlop_validation = get_nn_mnist(N_batch, STAT_TEST);
+	nlop_validation = nlop_chain2_FF(nlop_validation, 0, nlop_cce_create(nlop_generic_codomain(nlop_validation, 0)->N, nlop_generic_codomain(nlop_validation, 0)->dims), 0);
+	auto iov0 = nlop_generic_domain(nlop_validation, 0);
+	auto iov1 = nlop_generic_domain(nlop_validation, 1);
+	auto del0 = nlop_del_out_create(iov0->N, iov0->dims);
+	auto del1 = nlop_del_out_create(iov1->N, iov1->dims);
+	nlop_validation = nlop_set_input_const_F(nlop_validation, 0, iov0->N, iov0->dims, true, (complex float*)src[0]);
+	nlop_validation = nlop_set_input_const_F(nlop_validation, 0, iov1->N, iov1->dims, true, (complex float*)src[1]);
+	nlop_validation = nlop_combine_FF(del1, nlop_validation);
+	nlop_validation = nlop_combine_FF(del0, nlop_validation);
+
+	auto monitor_validation_loss = monitor_iter6_nlop_create(nlop_validation, false, "val loss");
+	nlop_free(nlop_validation);
+	auto monitor =  create_monitor_iter6_progressbar_with_val_monitor(1, &monitor_validation_loss);
+
 	iter6_adadelta(CAST_UP(&_conf),
 			nlop_train,
 			NI, in_type, NULL, src,
 			NO, out_type,
-			N_batch, N_total / N_batch, NULL, NULL);
+			N_batch, N_total / N_batch, NULL, monitor);
+
+	//monitor_iter6_dump_record(monitor, "history");
+	monitor_iter6_free(monitor);
 #else
 	//try batch generator for mnist
 	const complex float* train_data[] = { (complex float*)src[1] };
