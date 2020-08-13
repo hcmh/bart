@@ -19,6 +19,7 @@
 #include "iter/vec.h"
 #include "iter/iter2.h"
 #include "iter/iter6_ops.h"
+#include "iter/monitor_iter6.h"
 
 #include "iter6.h"
 
@@ -168,7 +169,7 @@ void iter6_adadelta(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
 			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
 			long NO, enum OUT_TYPE out_type[NO],
-			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor)
 {
 	auto conf = CAST_DOWN(iter6_adadelta_conf, _conf);
 
@@ -215,6 +216,9 @@ void iter6_adadelta(	iter6_conf* _conf,
 			gpu_ref = dst[i];
 	assert(NULL != gpu_ref);
 
+	bool free_monitor = (NULL == monitor);
+	if (free_monitor)
+		monitor = create_monitor_iter6_progressbar_trivial();
 
 	sgd(conf->epochs,
 		NI, isize, in_type, dst,
@@ -229,13 +233,16 @@ void iter6_adadelta(	iter6_conf* _conf,
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
+
+	if (free_monitor)
+		monitor_iter6_free(monitor);
 }
 
 void iter6_adam(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
 			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
 			long NO, enum OUT_TYPE out_type[NO],
-			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor)
 {
 	auto conf = CAST_DOWN(iter6_adam_conf, _conf);
 
@@ -285,6 +292,9 @@ void iter6_adam(	iter6_conf* _conf,
 			gpu_ref = dst[i];
 	assert(NULL != gpu_ref);
 
+	bool free_monitor = (NULL == monitor);
+	if (free_monitor)
+		monitor = create_monitor_iter6_progressbar_trivial();
 
 	sgd(conf->epochs,
 		NI, isize, in_type, dst,
@@ -299,13 +309,16 @@ void iter6_adam(	iter6_conf* _conf,
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
+
+	if (free_monitor)
+		monitor_iter6_free(monitor);
 }
 
 void iter6_sgd(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
 			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
 			long NO, enum OUT_TYPE out_type[NO],
-			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct iter6_monitor_s* monitor)
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor)
 {
 	auto conf = CAST_DOWN(iter6_sgd_conf, _conf);
 
@@ -355,6 +368,9 @@ void iter6_sgd(	iter6_conf* _conf,
 			gpu_ref = dst[i];
 	assert(NULL != gpu_ref);
 
+	bool free_monitor = (NULL == monitor);
+	if (free_monitor)
+		monitor = create_monitor_iter6_progressbar_trivial();
 
 	sgd(conf->epochs,
 		NI, isize, in_type, dst,
@@ -369,4 +385,7 @@ void iter6_sgd(	iter6_conf* _conf,
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
+
+	if (free_monitor)
+		monitor_iter6_free(monitor);
 }

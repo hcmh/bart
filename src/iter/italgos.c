@@ -41,6 +41,7 @@
 
 #include "iter/vec.h"
 #include "iter/monitor.h"
+#include "iter/monitor_iter6.h"
 
 #include "italgos.h"
 
@@ -802,45 +803,6 @@ static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], floa
 	vops->del(one);
 }
 
-/**
- * Print progressbar of the form
- * [pre_string] [=====    ] time: h:mm:ss/h:mm:ss[post_string]
- *
- * @param N_done batch index
- * @param N_total batch size
- * @param starttime start time of epoch
- * @param pre_string
- * @param post_string
- **/
-static void print_timer_bar(int N_done, int N_total, double starttime, char* pre_string, char* post_string)
-{
-	int length = 10;
-	char progress[length + 1];
-
-	for (int i = 0; i < length; i++)
-		if ((float)i <= (float)(N_done * length) / (float)(N_total))
-			progress[i] = '=';
-		else
-			progress[i] = ' ';
-
-	progress[length] = '\0';
-
-	double time = timestamp() - starttime;
-	double est_time = time + (double)(N_total - N_done) * time / (double)(N_done);
-
-	debug_printf(	DP_INFO,
-			"\33[2K\r%s[%s] time: %d:%02d:%02d/%d:%02d:%02d%s",
-			pre_string, progress,
-			(int)time / 3600, ((int)time %3600)/60, ((int)time % 3600) % 60,
-			(int)est_time / 3600, ((int)est_time %3600)/60, ((int)est_time % 3600) % 60,
-			post_string);
-
-	if (N_done == N_total)
-		debug_printf(DP_INFO, "\n");
-}
-
-
-
 
 /**
  * Prototype for sgd-like algorithm
@@ -874,11 +836,9 @@ void sgd(	unsigned int epochs,
 		struct iter_op_arr_s update,
 		struct iter_op_p_s prox[NI],
 		struct iter_nlop_s nlop_batch_gen,
-		struct iter_op_s callback, struct iter6_monitor_s* monitor)
+		struct iter_op_s callback, struct monitor_iter6_s* monitor)
 {
-	UNUSED(monitor);
 	UNUSED(callback);
-	double starttime = timestamp();
 
 	float* grad[NI];
 	float* dxs[NI];
@@ -966,11 +926,7 @@ void sgd(	unsigned int epochs,
 					args[NO + i] += isize[i];
 			}
 
-			char pre_string[50];
-			char post_string[20];
-			sprintf (pre_string, "#%d->%d ", epoch, i_batch + 1);
-			sprintf (post_string, " loss: %.8f", r0);
-			print_timer_bar(i_batch + 1, N_total / N_batch, starttime, pre_string, post_string);
+			monitor_iter6(monitor, epoch, i_batch, N_total / N_batch, r0, NI, (const float**)x, NULL);
 		}
 
 		for (int i = 0; i < NI; i++)

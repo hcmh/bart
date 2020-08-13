@@ -83,7 +83,7 @@ inline void iter_op_arr_call(struct iter_op_arr_s op, int NO, unsigned long ofla
 
 
 struct iter_monitor_s;
-struct iter6_monitor_s;
+struct monitor_iter6_s;
 float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 	long N,
 	const struct vec_iter_s* vops,
@@ -119,7 +119,7 @@ typedef void iter6_algo_f(unsigned int epochs,
 	struct iter_op_p_s prox[NI],
 	struct iter_nlop_s nlop_batch_gen,
 	struct iter_op_s callback,
-	struct iter6_monitor_s* monitor);
+	struct monitor_iter6_s* monitor);
 
 iter6_algo_f sgd;
 
