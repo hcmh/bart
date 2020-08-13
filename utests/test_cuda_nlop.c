@@ -20,6 +20,7 @@
 #include "nlops/const.h"
 #include "nlops/cast.h"
 #include "nn/layers.h"
+#include "nn/batchnorm.h"
 #include "nn/losses.h"
 #include "nn/activation.h"
 #include "nn/init.h"
@@ -246,3 +247,53 @@ static bool test_cce_layer_gpu(void)
 }
 
 UT_GPU_REGISTER_TEST(test_cce_layer_gpu);
+
+static bool test_stats_operator_gpu(void)
+{
+#ifndef USE_CUDA
+	return true;
+#else
+	enum { N = 2 };
+	long idims[N] = { 10, 3 };
+
+	auto op_cpu = nlop_stats_create(N, idims, MD_BIT(0));
+	auto op_gpu = nlop_stats_create(N, idims, MD_BIT(0));
+
+
+	float err = compare_gpu(op_cpu, op_gpu);
+
+	debug_printf(DP_DEBUG1, "err: %f\n", err);
+
+	nlop_free(op_cpu);
+	nlop_free(op_gpu);
+
+	UT_ASSERT(err < 1.e-5);
+#endif
+}
+
+UT_GPU_REGISTER_TEST(test_stats_operator_gpu);
+
+static bool test_normalize_operator_gpu(void)
+{
+#ifndef USE_CUDA
+	return true;
+#else
+	enum { N = 2 };
+	long idims[N] = { 10, 3 };
+
+	auto op_cpu = nlop_normalize_create(N, idims, MD_BIT(0), 1.e-7);
+	auto op_gpu = nlop_normalize_create(N, idims, MD_BIT(0), 1.e-7);
+
+
+	float err = compare_gpu(op_cpu, op_gpu);
+
+	debug_printf(DP_DEBUG1, "err: %f\n", err);
+
+	nlop_free(op_cpu);
+	nlop_free(op_gpu);
+
+	UT_ASSERT(err < 1.e-5);
+#endif
+}
+
+UT_GPU_REGISTER_TEST(test_normalize_operator_gpu);
