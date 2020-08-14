@@ -20,11 +20,6 @@
 #include "num/multind.h"
 
 
-void monitor_iter6(struct monitor_iter6_s* monitor, long epoch, long batch, long num_batches, float objective, long NI, const float* x[NI], char* post_string)
-{
-	if ((NULL != monitor) && (NULL != monitor->fun))
-		monitor->fun(monitor, epoch, batch, num_batches, objective, NI, x, post_string);
-}
 
 
 struct monitor_iter6_default_s {

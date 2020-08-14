@@ -6,17 +6,7 @@
 struct monitor_iter6_s;
 struct typeid_s;
 struct nlop_s;
-#include "iter/italgos.h"
-
-typedef void (*monitor_iter6_fun_t)(struct monitor_iter6_s* data, long epoch, long batch, long numbatches, float objective, long NI, const float* x[NI], char* post_string);
-typedef void (*monitor_iter6_free_t)(const struct monitor_iter6_s* data);
-
-struct monitor_iter6_s {
-
-	const struct typeid_s* TYPEID;
-	monitor_iter6_fun_t fun;
-	monitor_iter6_free_t free;
-};
+#include "iter/monitor.h"
 
 extern void monitor_iter6_free(const struct monitor_iter6_s* monitor);
 
@@ -39,7 +29,6 @@ struct monitor_value_s monitor_iter6_nlop_create(const struct nlop_s* nlop, _Boo
 
 typedef struct monitor_iter6_s monitor_iter6_t;
 
-void monitor_iter6(struct monitor_iter6_s* monitor, long epoch, long batch, long numbatches, float objective, long NI, const float* x[NI], char* post_string);
 
 extern struct monitor_iter6_s* create_monitor_iter6_progressbar_trivial(void);
 extern struct monitor_iter6_s* create_monitor_iter6_progressbar_record(void);
