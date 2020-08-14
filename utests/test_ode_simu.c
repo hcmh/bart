@@ -474,6 +474,8 @@ static bool test_matrix_exp_simulation(void)
 	sim_data.seq.rep_num = repetition;
 	sim_data.seq.spin_num = 1;
 	sim_data.seq.num_average_rep = aver_num;
+	sim_data.seq.inversion_pulse_length = 0.01;
+	sim_data.seq.prep_pulse_length = 0.001;
 	
 	sim_data.voxel = simdata_voxel_defaults;
 	sim_data.voxel.r1 = 1 / t1n;

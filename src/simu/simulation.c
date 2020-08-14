@@ -323,9 +323,9 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 				struct sim_data inv_data = *data;
 
-				if (0 != inv_data.pulse.rf_end) //Hard Pulses
+				if (0 != inv_data.pulse.rf_end) // for non-hard pulses
 					inv_data.pulse.rf_end = data->seq.inversion_pulse_length;
-
+#if 0
 				inv_data.pulse.flipangle = 180.;
 				inv_data.seq.te = data->pulse.rf_end;
 				inv_data.seq.tr = data->pulse.rf_end;
@@ -335,6 +335,10 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 				run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 
 				xyspoiling(N, P, xp, &inv_data);
+#else	// Apply perfect inversion
+				xp[0][2] = -1;
+				relaxation2(&inv_data, h, tol, N, P, xp, 0., inv_data.pulse.rf_end);
+#endif
 			}
 
 			/*--------------------------------------------------------------
