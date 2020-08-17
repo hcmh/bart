@@ -40,6 +40,7 @@
 #include "num/flpmath.h"
 #include "num/fft.h"
 #include "num/init.h"
+#include "num/ops.h"
 
 #include "misc/mri.h"
 #include "misc/misc.h"
@@ -528,19 +529,28 @@ int main_rtnlinv(int argc, char* argv[])
 		md_free(fftc_mod);
 
 		unmap_cfl(DIMS, trj_dims, traj);
+
+		operator_free(fftc);
+		for (unsigned int i = 0; i < turns; ++i) {
+
+			linop_free(nufft_ops[i]);
+		}
+
+		md_free(pattern);
+	} else {
+
+		unmap_cfl(DIMS, pat_dims, pattern);
 	}
 
 	unmap_cfl(DIMS, sens_dims, sens);
-	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_output_dims, img_output);
 	unmap_cfl(DIMS, ksp_dims, kspace);
 
 
 	double recosecs = timestamp() - start_time;
-
 	debug_printf(DP_DEBUG2, "Total time: %.2f s\n", recosecs);
 
-	exit(0);
+	return 0;
 }
 
 
