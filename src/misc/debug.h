@@ -14,6 +14,7 @@
 #include "misc/cppwrap.h"
 
 extern void dump_cfl(const char* name, int D, const long dimensions[__VLA(D)], const _Complex float* x);
+extern void dump_multi_cfl(const char* name, int N, unsigned int D[__VLA(N)], const long* dimensions[__VLA(N)], const _Complex float* x[__VLA(N)]);
 extern double timestamp(void);
 
 extern int debug_level;
@@ -75,4 +76,3 @@ extern void vendor_log(int level,
 
 
 #endif // __DEBUG_H
-

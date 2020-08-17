@@ -1,5 +1,5 @@
 /* Copyright 2013-2015. The Regents of the University of California.
- * All rights reserved. Use of this source code is governed by 
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  */
 
@@ -18,6 +18,10 @@ extern _Complex float* create_cfl(const char* name, unsigned int D, const long d
 extern _Complex float* load_cfl(const char* name, unsigned int D, long dimensions[__VLA(D)]);
 extern _Complex float* load_shared_cfl(const char* name, unsigned int D, long dimensions[__VLA(D)]);
 
+extern void create_multi_cfl(const char* name, unsigned int N, unsigned int D[__VLA(N)], const long* dimensions[__VLA(N)], _Complex float* args[__VLA(N)]);
+extern unsigned int load_multi_cfl(const char* name, unsigned int N_max, unsigned int D_max, unsigned int D[__VLA(N_max)], long dimensions[__VLA(N_max)][D_max], _Complex float* args[__VLA(N_max)]);
+extern void unmap_multi_cfl(unsigned int N, unsigned int D[__VLA(N)], const long* dimensions[__VLA(N)], _Complex float* args[__VLA(N)]);
+
 extern float* create_coo(const char* name, unsigned int D, const long dimensions[__VLA(D)]);
 extern float* load_coo(const char* name, unsigned int D, long dimensions[__VLA(D)]);
 extern _Complex float* create_zcoo(const char* name, unsigned int D, const long dimensions[__VLA(D)]);
@@ -26,5 +30,3 @@ extern _Complex float* create_zra(const char* name, unsigned int D, const long d
 extern _Complex float* load_zra(const char* name, unsigned int D, long dims[__VLA(D)]);
 
 #include "misc/cppwrap.h"
-
-
