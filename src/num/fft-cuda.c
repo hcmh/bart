@@ -247,9 +247,9 @@ static struct fft_cuda_plan_s* fft_cuda_plan0(unsigned int D, const long dimensi
 
 #else
 
+	int err;
 #ifdef CUFFT_MULTIGPU
 	int old_device = cuda_get_device();
-	int err;
 	for (int device = 0; device < n_reserved_gpus; ++device) {
 		#pragma omp critical
 		{
