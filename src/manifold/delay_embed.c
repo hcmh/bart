@@ -61,7 +61,7 @@ const struct delay_conf nlsa_conf_default = {
 	.lambda_nn	 = 1,
 	
 	.nlsa		= true,
-	.nlsa_rank	= 20,
+	.nlsa_rank	= 0,
 	.name_tbasis = NULL,
 	.L_out		= 0,
 };

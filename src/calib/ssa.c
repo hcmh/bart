@@ -583,7 +583,7 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 	long UA_xstrs[3];
 	md_calc_strides(3, UA_xstrs, UA_xdims, CFL_SIZE);
 
-	if (l >= M)
+	if (l > M)
 		error("Choose smaller nlsa_rank!");
 
 	complex float* UA = md_alloc(2, UA_dims, CFL_SIZE);

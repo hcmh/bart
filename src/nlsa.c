@@ -116,9 +116,6 @@ int main_nlsa(int argc, char* argv[])
 
 	}
 	
-	if (nlsa_conf.rank != 0 && abs(nlsa_conf.rank) > nlsa_conf.nlsa_rank)
-		error("Chose rank <= nlsa_rank!");
-
 
 	long in_dims[DIMS];
 	complex float* in = load_cfl(argv[1], DIMS, in_dims);
@@ -149,6 +146,13 @@ int main_nlsa(int argc, char* argv[])
 
 	long A_dims[2];
 	complex float* A = calibration_matrix(A_dims, nlsa_conf.kernel_dims, cal_dims, cal);
+
+	if (nlsa_conf.nlsa_rank == 0)
+		nlsa_conf.nlsa_rank = A_dims[1];
+
+	
+	if (nlsa_conf.rank != 0 && abs(nlsa_conf.rank) > nlsa_conf.nlsa_rank)
+		error("Choose rank for backprojection <= nlsa_rank!");
 
 	if (nlsa_conf.weight > -1)		
 		weight_delay(A_dims, A, nlsa_conf);
