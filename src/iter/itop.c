@@ -96,8 +96,8 @@ static void itop_del(const operator_data_t* _data)
 
 		xfree(data->prox_linops);
 	}
-	
-	xfree(data);		
+
+	xfree(data);
 }
 
 
@@ -172,6 +172,8 @@ const struct operator_s* itop_create(	italgo_fun2_t italgo, iter_conf* iconf,
 					const struct linop_s* prox_linops[num_funs],
 					struct iter_monitor_s* monitor)
 {
-	return operator_p_bind(itop_p_create(italgo, iconf, init, op, num_funs, prox_funs, prox_linops, monitor), 1.);
+	auto tmp = itop_p_create(italgo, iconf, init, op, num_funs, prox_funs, prox_linops, monitor);
+	auto result = operator_p_bind(tmp, 1.);
+	operator_p_free(tmp);
+	return result;
 }
-
