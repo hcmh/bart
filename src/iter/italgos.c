@@ -41,6 +41,7 @@
 
 #include "iter/vec.h"
 #include "iter/monitor.h"
+#include "iter/iter_dump.h"
 
 #include "italgos.h"
 
@@ -835,7 +836,7 @@ void sgd(	unsigned int epochs,
 		struct iter_op_arr_s update,
 		struct iter_op_p_s prox[NI],
 		struct iter_nlop_s nlop_batch_gen,
-		struct iter_op_s callback, struct monitor_iter6_s* monitor)
+		struct iter_op_s callback, struct monitor_iter6_s* monitor, const struct iter_dump_s* dump)
 {
 	UNUSED(callback);
 
@@ -902,6 +903,9 @@ void sgd(	unsigned int epochs,
 	}
 
 	for (unsigned int epoch = 0; epoch < epochs; epoch++) {
+
+		iter_dump_multi(dump, epoch, NI, (const float**)x);
+
 		for (int i_batch = 0; i_batch < N_total / N_batch; i_batch++) {
 
 			if (0 != N_batch_gen)
@@ -1000,7 +1004,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 		struct iter_op_arr_s adj,
 		struct iter_op_p_s prox[NI],
 		struct iter_nlop_s nlop_batch_gen,
-		struct iter_op_s callback, struct monitor_iter6_s* monitor)
+		struct iter_op_s callback, struct monitor_iter6_s* monitor, const struct iter_dump_s* dump)
 {
 	UNUSED(callback);
 
@@ -1078,7 +1082,10 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			out_optimize_flag = MD_SET(out_optimize_flag, o);
 	}
 
-	for (int epoch = epoch_start; epoch < epoch_end; epoch++)
+	for (int epoch = epoch_start; epoch < epoch_end; epoch++) {
+
+		iter_dump_multi(dump, epoch, NI, (const float**)x);
+
 		for (int batch = 0; batch < N_batch; batch++) {
 
 		if (0 != N_batch_gen)
@@ -1187,6 +1194,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 				sprintf(post_string + strlen(post_string), "L[%d]=%.3e ", i, L[i]);
 
 		monitor_iter6(monitor, epoch, batch, N_batch, r_i, NI, (const float**)x, post_string);
+	}
 	}
 
 

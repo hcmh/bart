@@ -19,6 +19,7 @@ enum OUT_TYPE {OUT_STATIC, OUT_OPTIMIZE};
 #include "misc/nested.h"
 
 struct vec_iter_s;
+struct iter_dump_s;
 
 #ifndef MD_IS_SET
 #define MD_BIT(x) (1ul << (x))
@@ -119,7 +120,8 @@ typedef void iter6_algo_f(unsigned int epochs,
 	struct iter_op_p_s prox[NI],
 	struct iter_nlop_s nlop_batch_gen,
 	struct iter_op_s callback,
-	struct monitor_iter6_s* monitor);
+	struct monitor_iter6_s* monitor,
+	const struct iter_dump_s* dump);
 
 iter6_algo_f sgd;
 
@@ -227,7 +229,7 @@ void iPALM(	long NI, long isize[__VLA(NI)], enum IN_TYPE in_type[__VLA(NI)], flo
 		struct iter_op_arr_s adj,
 		struct iter_op_p_s prox[__VLA(NI)],
 		struct iter_nlop_s nlop_batch_gen,
-		struct iter_op_s callback, struct monitor_iter6_s* monitor);
+		struct iter_op_s callback, struct monitor_iter6_s* monitor, const struct iter_dump_s* dump);
 #include "misc/cppwrap.h"
 
 #endif // __ITALGOS_H

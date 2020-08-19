@@ -20,6 +20,7 @@
 #include "iter/iter2.h"
 #include "iter/iter6_ops.h"
 #include "iter/monitor_iter6.h"
+#include "iter/iter_dump.h"
 
 #include "iter6.h"
 
@@ -56,6 +57,10 @@ const struct iter6_sgd_conf iter6_sgd_conf_defaults = {
 
 	.INTERFACE.history_filename = NULL,
 
+	.INTERFACE.dump = NULL,
+	.INTERFACE.dump_filename = NULL,
+	.INTERFACE.dump_mod = -1,
+
 	.momentum = 0.
 };
 
@@ -72,6 +77,10 @@ const struct iter6_adadelta_conf iter6_adadelta_conf_defaults = {
 
 	.INTERFACE.history_filename = NULL,
 
+	.INTERFACE.dump = NULL,
+	.INTERFACE.dump_filename = NULL,
+	.INTERFACE.dump_mod = -1,
+
 	.rho = 0.95
 };
 
@@ -86,6 +95,10 @@ const struct iter6_adam_conf iter6_adam_conf_defaults = {
 	.INTERFACE.clip_val = 0.0,
 
 	.INTERFACE.history_filename = NULL,
+
+	.INTERFACE.dump = NULL,
+	.INTERFACE.dump_filename = NULL,
+	.INTERFACE.dump_mod = -1,
 
 	.epsilon = 1.e-7,
 
@@ -105,6 +118,10 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 	.INTERFACE.clip_val = 0.0,
 
 	.INTERFACE.history_filename = NULL,
+
+	.INTERFACE.dump = NULL,
+	.INTERFACE.dump_filename = NULL,
+	.INTERFACE.dump_mod = -1,
 
 	.Lmin = 1.e-10,
 	.Lmax = 1.e10,
@@ -202,6 +219,24 @@ static void iter6_op_arr_fun_diag(iter_op_data* _o, int NO, unsigned long oflags
 			operator_apply_unchecked(data->ops[i * NI + i], (_Complex float*)dst[i], (_Complex float*)src[i]);
 }
 
+static const struct iter_dump_s* iter6_dump_default_create(const char* base_filename, long save_mod, const struct nlop_s* nlop, long NI, enum IN_TYPE in_type[NI])
+{
+
+	unsigned long save_flag = 0;
+	unsigned int D[NI];
+	const long* dims[NI];
+
+	for (int i = 0; i < NI; i++) {
+
+		D[i] = nlop_generic_domain(nlop, i)->N;
+		dims[i] = nlop_generic_domain(nlop, i)->dims;
+		if (IN_OPTIMIZE == in_type[i])
+			save_flag = MD_SET(save_flag, i);
+	}
+
+	return iter_dump_multi_default_create(base_filename, save_mod, NI, save_flag, D, dims);
+}
+
 void iter6_adadelta(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
 			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
@@ -257,6 +292,10 @@ void iter6_adadelta(	iter6_conf* _conf,
 	if (free_monitor)
 		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
 
+	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
+	if (free_dump)
+		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
+
 	sgd(conf->INTERFACE.epochs,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
@@ -266,7 +305,7 @@ void iter6_adadelta(	iter6_conf* _conf,
 		upd_op_arr,
 		prox_iter,
 		nlop_batch_gen_iter,
-		(struct iter_op_s){ NULL, NULL }, monitor);
+		(struct iter_op_s){ NULL, NULL }, monitor, conf->INTERFACE.dump);
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
@@ -276,6 +315,11 @@ void iter6_adadelta(	iter6_conf* _conf,
 
 	if (free_monitor)
 		monitor_iter6_free(monitor);
+
+	if (free_dump) {
+		iter_dump_free(conf->INTERFACE.dump);
+		conf->INTERFACE.dump = NULL;
+	}
 }
 
 void iter6_adam(	iter6_conf* _conf,
@@ -336,6 +380,10 @@ void iter6_adam(	iter6_conf* _conf,
 	if (free_monitor)
 		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
 
+	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
+	if (free_dump)
+		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
+
 	sgd(conf->INTERFACE.epochs,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
@@ -345,7 +393,7 @@ void iter6_adam(	iter6_conf* _conf,
 		upd_op_arr,
 		prox_iter,
 		nlop_batch_gen_iter,
-		(struct iter_op_s){ NULL, NULL }, monitor);
+		(struct iter_op_s){ NULL, NULL }, monitor, conf->INTERFACE.dump);
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
@@ -355,6 +403,11 @@ void iter6_adam(	iter6_conf* _conf,
 
 	if (free_monitor)
 		monitor_iter6_free(monitor);
+
+	if (free_dump) {
+		iter_dump_free(conf->INTERFACE.dump);
+		conf->INTERFACE.dump = NULL;
+	}
 }
 
 void iter6_sgd(	iter6_conf* _conf,
@@ -415,6 +468,10 @@ void iter6_sgd(	iter6_conf* _conf,
 	if (free_monitor)
 		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
 
+	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
+	if (free_dump)
+		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
+
 	sgd(conf->INTERFACE.epochs,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
@@ -424,7 +481,7 @@ void iter6_sgd(	iter6_conf* _conf,
 		upd_op_arr,
 		prox_iter,
 		nlop_batch_gen_iter,
-		(struct iter_op_s){ NULL, NULL }, monitor);
+		(struct iter_op_s){ NULL, NULL }, monitor, conf->INTERFACE.dump);
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
@@ -434,6 +491,11 @@ void iter6_sgd(	iter6_conf* _conf,
 
 	if (free_monitor)
 		monitor_iter6_free(monitor);
+
+	if (free_dump) {
+		iter_dump_free(conf->INTERFACE.dump);
+		conf->INTERFACE.dump = NULL;
+	}
 }
 
 void iter6_iPALM(	iter6_conf* _conf,
@@ -498,6 +560,10 @@ void iter6_iPALM(	iter6_conf* _conf,
 	if (free_monitor)
 		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
 
+	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
+	if (free_dump)
+		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
+
 	iPALM(	NI, isize, in_type, dst, x_old,
 		NO, osize, out_type,
 		numbatches, 0, conf->INTERFACE.epochs,
@@ -507,7 +573,7 @@ void iter6_iPALM(	iter6_conf* _conf,
        		nlop_iter, adj_op_arr,
 		prox_iter,
 		nlop_batch_gen_iter,
-		(struct iter_op_s){ NULL, NULL }, monitor);
+		(struct iter_op_s){ NULL, NULL }, monitor, conf->INTERFACE.dump);
 
 	if (NULL != conf->INTERFACE.history_filename)
 		monitor_iter6_dump_record(monitor, conf->INTERFACE.history_filename);
@@ -519,4 +585,8 @@ void iter6_iPALM(	iter6_conf* _conf,
 		if(IN_OPTIMIZE == in_type[i])
 			md_free(x_old[i]);
 
+	if (free_dump) {
+		iter_dump_free(conf->INTERFACE.dump);
+		conf->INTERFACE.dump = NULL;
+	}
 }

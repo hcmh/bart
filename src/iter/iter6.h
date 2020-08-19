@@ -1,7 +1,9 @@
 #ifndef ITER6_H
 #define ITER6_H
 #include "italgos.h"
+#include "iter/iter_dump.h"
 
+struct iter_dump_s;
 typedef struct iter6_conf_s {
 	TYPEID* TYPEID;
 
@@ -13,6 +15,11 @@ typedef struct iter6_conf_s {
 	float clip_val;
 
 	const char* history_filename;
+
+	const struct iter_dump_s* dump;
+	const char* dump_filename;
+	long dump_mod;
+
 } iter6_conf;
 
 struct iter_op_s;
