@@ -12,6 +12,7 @@ typedef struct iter6_conf_s {
 	float clip_norm;
 	float clip_val;
 
+	const char* history_filename;
 } iter6_conf;
 
 struct iter_op_s;

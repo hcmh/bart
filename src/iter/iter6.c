@@ -54,6 +54,8 @@ const struct iter6_sgd_conf iter6_sgd_conf_defaults = {
 	.INTERFACE.clip_norm = 0.,
 	.INTERFACE.clip_val = 0.,
 
+	.INTERFACE.history_filename = NULL,
+
 	.momentum = 0.
 };
 
@@ -68,6 +70,8 @@ const struct iter6_adadelta_conf iter6_adadelta_conf_defaults = {
 	.INTERFACE.clip_norm = 0.0,
 	.INTERFACE.clip_val = 0.0,
 
+	.INTERFACE.history_filename = NULL,
+
 	.rho = 0.95
 };
 
@@ -80,6 +84,8 @@ const struct iter6_adam_conf iter6_adam_conf_defaults = {
 
 	.INTERFACE.clip_norm = 0.0,
 	.INTERFACE.clip_val = 0.0,
+
+	.INTERFACE.history_filename = NULL,
 
 	.epsilon = 1.e-7,
 
@@ -97,6 +103,8 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 
 	.INTERFACE.clip_norm = 0.0,
 	.INTERFACE.clip_val = 0.0,
+
+	.INTERFACE.history_filename = NULL,
 
 	.Lmin = 1.e-10,
 	.Lmax = 1.e10,
@@ -247,7 +255,7 @@ void iter6_adadelta(	iter6_conf* _conf,
 
 	bool free_monitor = (NULL == monitor);
 	if (free_monitor)
-		monitor = create_monitor_iter6_progressbar_trivial();
+		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
 
 	sgd(conf->INTERFACE.epochs,
 		NI, isize, in_type, dst,
@@ -262,6 +270,9 @@ void iter6_adadelta(	iter6_conf* _conf,
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
+
+	if (NULL != conf->INTERFACE.history_filename)
+		monitor_iter6_dump_record(monitor, conf->INTERFACE.history_filename);
 
 	if (free_monitor)
 		monitor_iter6_free(monitor);
@@ -323,7 +334,7 @@ void iter6_adam(	iter6_conf* _conf,
 
 	bool free_monitor = (NULL == monitor);
 	if (free_monitor)
-		monitor = create_monitor_iter6_progressbar_trivial();
+		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
 
 	sgd(conf->INTERFACE.epochs,
 		NI, isize, in_type, dst,
@@ -338,6 +349,9 @@ void iter6_adam(	iter6_conf* _conf,
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
+
+	if (NULL != conf->INTERFACE.history_filename)
+		monitor_iter6_dump_record(monitor, conf->INTERFACE.history_filename);
 
 	if (free_monitor)
 		monitor_iter6_free(monitor);
@@ -399,7 +413,7 @@ void iter6_sgd(	iter6_conf* _conf,
 
 	bool free_monitor = (NULL == monitor);
 	if (free_monitor)
-		monitor = create_monitor_iter6_progressbar_trivial();
+		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
 
 	sgd(conf->INTERFACE.epochs,
 		NI, isize, in_type, dst,
@@ -414,6 +428,9 @@ void iter6_sgd(	iter6_conf* _conf,
 
 	for (int i = 0; i < NI; i++)
 		operator_free(upd_ops[i][i]);
+
+	if (NULL != conf->INTERFACE.history_filename)
+		monitor_iter6_dump_record(monitor, conf->INTERFACE.history_filename);
 
 	if (free_monitor)
 		monitor_iter6_free(monitor);
@@ -477,6 +494,10 @@ void iter6_iPALM(	iter6_conf* _conf,
 	for (int i = 0; i < NI; i++)
 		lipshitz_constants[i] = 1. / conf->INTERFACE.learning_rate;
 
+	bool free_monitor = (NULL == monitor);
+	if (free_monitor)
+		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
+
 	iPALM(	NI, isize, in_type, dst, x_old,
 		NO, osize, out_type,
 		numbatches, 0, conf->INTERFACE.epochs,
@@ -487,6 +508,12 @@ void iter6_iPALM(	iter6_conf* _conf,
 		prox_iter,
 		nlop_batch_gen_iter,
 		(struct iter_op_s){ NULL, NULL }, monitor);
+
+	if (NULL != conf->INTERFACE.history_filename)
+		monitor_iter6_dump_record(monitor, conf->INTERFACE.history_filename);
+
+	if (free_monitor)
+		monitor_iter6_free(monitor);
 
 	for (int i = 0; i < NI; i++)
 		if(IN_OPTIMIZE == in_type[i])
