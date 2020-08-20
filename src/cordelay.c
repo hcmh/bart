@@ -14,7 +14,7 @@
 #include "num/init.h"
 #include "num/fft.h"
 #include "num/flpmath.h"
-
+#include "num/qform.h"
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
@@ -136,7 +136,7 @@ int main_cordelay(int argc, char* argv[])
 
 		// Calculate shifts 'dk'
 		for (long i = 0; i < N; i++) 
-			dk[i] = gdelays[0] * pow(cosf(angles[i]),2) + gdelays[1] * pow(sinf(angles[i]),2) + 2 *  gdelays[2] * sinf(angles[i]) * cosf(angles[i]);
+			dk[i] = quadratic_form(gdelays, angles[i]);
 
 
 		// Create phase-ramps
