@@ -17,6 +17,7 @@ struct ring_conf {
 	unsigned int no_intersec_sp;
 	float crop_factor;
 	bool b0;
+	bool is_DC;
 };
 
 extern struct ring_conf ring_defaults;

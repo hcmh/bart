@@ -113,7 +113,7 @@ int main_estdelay(int argc, char* argv[])
 	if (do_ring) {
 
 		assert(0 == tdims[1] % 2);
-		assert(is_DC);
+		conf.is_DC = is_DC;
 	}
 
 

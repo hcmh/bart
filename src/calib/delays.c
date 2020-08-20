@@ -318,6 +318,7 @@ struct ring_conf ring_defaults = {
 	.no_intersec_sp = 1,
 	.crop_factor = 0.6,
 	.b0 = false,
+	.is_DC = true,
 };
 
 void ring(const struct ring_conf* conf, float S[3], int N, const float angles[N], const long dims[DIMS], const complex float* in)
@@ -375,6 +376,9 @@ void ring(const struct ring_conf* conf, float S[3], int N, const float angles[N]
 
 	long pos[DIMS] = { 0 };
 	pos[PHS1_DIM] = pad_dims[PHS1_DIM] / 2 - (c_region / 2);
+	
+	if (!conf->is_DC)
+		pos[PHS1_DIM] -= (int)(conf->pad_factor / 2); // Ensure DC-component to be central pixel in 'kc'
 
 	md_copy_block(DIMS, pos, kc_dims, kc, pad_dims, pad, CFL_SIZE);
 
