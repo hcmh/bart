@@ -213,6 +213,22 @@ bool mem_ondevice(const void* ptr)
 	return r;
 }
 
+bool mem_ondevice_num(const void* ptr, const int device)
+{
+	if (NULL == ptr)
+		return false;
+
+	struct mem_s* p = search(ptr, false);
+	bool r = ((NULL != p) && p->device);
+	if (r) {
+		bool same_dev = (p->device_id == device);
+		if (!same_dev)
+			error("CUDA Error: operating on wrong device!\n");
+	}
+
+	return r;
+}
+
 bool mem_device_accessible(const void* ptr)
 {
 	struct mem_s* p = search(ptr, false);	

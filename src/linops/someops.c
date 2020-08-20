@@ -42,7 +42,11 @@ struct cdiag_s {
 	const long* dstrs;
 	const complex float* diag;
 #ifdef USE_CUDA
+#ifdef MULTIGPU
+	const complex float* gpu_diag[MAX_CUDA_DEVICES];
+#else
 	const complex float* gpu_diag;
+#endif
 #endif
 	bool rmul;
 };
@@ -56,11 +60,17 @@ static void cdiag_apply(const linop_data_t* _data, complex float* dst, const com
 	const complex float* diag = data->diag;
 #ifdef USE_CUDA
 	if (cuda_ondevice(src)) {
+#ifdef MULTIGPU
+		if (NULL == data->gpu_diag[cuda_get_device()])
+			((struct cdiag_s*)data)->gpu_diag[cuda_get_device()] = md_gpu_move(data->N, data->ddims, data->diag, CFL_SIZE);
 
+		diag = data->gpu_diag[cuda_get_device()];
+#else
 		if (NULL == data->gpu_diag)
 			((struct cdiag_s*)data)->gpu_diag = md_gpu_move(data->N, data->ddims, data->diag, CFL_SIZE);
 
 		diag = data->gpu_diag;
+#endif
 	}
 #endif
 	(data->rmul ? md_zrmul2 : md_zmul2)(data->N, data->dims, data->strs, dst, data->strs, src, data->dstrs, diag);
@@ -73,11 +83,17 @@ static void cdiag_adjoint(const linop_data_t* _data, complex float* dst, const c
 	const complex float* diag = data->diag;
 #ifdef USE_CUDA
 	if (cuda_ondevice(src)) {
+#ifdef MULTIGPU
+		if (NULL == data->gpu_diag[cuda_get_device()])
+			((struct cdiag_s*)data)->gpu_diag[cuda_get_device()] = md_gpu_move(data->N, data->ddims, data->diag, CFL_SIZE);
 
+		diag = data->gpu_diag[cuda_get_device()];
+#else
 		if (NULL == data->gpu_diag)
 			((struct cdiag_s*)data)->gpu_diag = md_gpu_move(data->N, data->ddims, data->diag, CFL_SIZE);
 
 		diag = data->gpu_diag;
+#endif
 	}
 #endif
 	(data->rmul ? md_zrmul2 : md_zmulc2)(data->N, data->dims, data->strs, dst, data->strs, src, data->dstrs, diag);
@@ -95,7 +111,12 @@ static void cdiag_free(const linop_data_t* _data)
 
 	md_free(data->diag);
 #ifdef USE_CUDA
+#ifdef MULTIGPU
+	for (int i = 0; i < MAX_CUDA_DEVICES; i++)
+		md_free(data->gpu_diag[i]);
+#else
 	md_free(data->gpu_diag);
+#endif
 #endif
 	xfree(data->ddims);
 	xfree(data->dims);
@@ -134,7 +155,12 @@ static struct linop_s* linop_gdiag_create(unsigned int N, const long dims[N], un
 	data->diag = tmp;
 
 #ifdef USE_CUDA
+#ifdef MULTIGPU
+	for (int i = 0; i < MAX_CUDA_DEVICES; ++i)
+		data->gpu_diag[i] = NULL;
+#else
 	data->gpu_diag = NULL;
+#endif
 #endif
 
 	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), cdiag_apply, cdiag_adjoint, cdiag_normal, NULL, cdiag_free);

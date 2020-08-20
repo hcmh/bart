@@ -123,24 +123,13 @@ void cuda_p2p(int a, int b)
 
 
 
-static void cuda_set_reserved_gpus()
-{
-	// TODO: find a function which actually enforces this for the process.
-	// This is not it:
-	//CUDA_ERROR(cudaSetValidDevices(gpu_map, n_reserved_gpus));
-}
-
-
 void cuda_init(void)
 {
 
 	int num_devices = num_cuda_devices();
 	for (int device = 0; device < num_devices; ++device)
-		if (cuda_try_init(device)) {
-
-			cuda_set_reserved_gpus();
+		if (cuda_try_init(device))
 			return;
-		}
 
 	error("Could not allocate any GPU device\n");
 }
@@ -159,6 +148,11 @@ bool cuda_try_init(int device)
 			gpu_map[n_reserved_gpus++] = device;
 			reserved_gpus = MD_SET(reserved_gpus, device);
 			return true;
+
+		} else {
+
+			// clear last error
+			cudaGetLastError();
 		}
 	}
 
@@ -185,7 +179,7 @@ static void remove_from_gpu_map(int device)
 
 }
 
-void cuda_deinit(int device)
+static void cuda_deinit(int device)
 {
 	cuda_set_device(device);
 	CUDA_ERROR(cudaDeviceReset());
@@ -209,8 +203,6 @@ void cuda_init_multigpu(unsigned int requested_gpus)
 		error("No GPUs could be allocated!\n");
 	else if (reserved_gpus != requested_gpus)
 		debug_printf(DP_WARN, "Not all requested gpus could be allocated, continuing with fewer\n");
-
-	cuda_set_reserved_gpus();
 }
 
 int cuda_init_memopt(void)
@@ -258,8 +250,6 @@ int cuda_init_memopt(void)
 		cuda_try_init(0);
 	}
 
-	cuda_set_reserved_gpus();
-
 	return max_device;
 }
 
@@ -273,7 +263,7 @@ void cuda_set_device(int device)
 
 
 
-bool cuda_memcache = false; // Memcache needs to be rewritte to work with multiple GPUs
+bool cuda_memcache = true;
 
 void cuda_memcache_off(void)
 {
@@ -283,6 +273,7 @@ void cuda_memcache_off(void)
 void cuda_clear(long size, void* dst)
 {
 //	printf("CLEAR %x %ld\n", dst, size);
+	assert(cuda_ondevice_num(dst, cuda_get_device()));
 	CUDA_ERROR(cudaMemset(dst, 0, size));
 }
 
@@ -294,12 +285,20 @@ static void cuda_float_clear(long size, float* dst)
 void cuda_memcpy(long size, void* dst, const void* src)
 {
 //	printf("COPY %x %x %ld\n", dst, src, size);
+	if (cuda_ondevice(dst))
+		assert(cuda_ondevice_num(dst, cuda_get_device()));
+	if (cuda_ondevice(src))
+		assert(cuda_ondevice_num(src, cuda_get_device()));
 	CUDA_ERROR(cudaMemcpy(dst, src, size, cudaMemcpyDefault));
 }
 
 
 void cuda_memcpy_strided(const long dims[2], long ostr, void* dst, long istr, const void* src)
 {
+	if (cuda_ondevice(dst))
+		assert(cuda_ondevice_num(dst, cuda_get_device()));
+	if (cuda_ondevice(src))
+		assert(cuda_ondevice_num(src, cuda_get_device()));
 	CUDA_ERROR(cudaMemcpy2D(dst, ostr, src, istr, dims[0], dims[1], cudaMemcpyDefault));
 }
 
@@ -311,6 +310,7 @@ static void cuda_float_copy(long size, float* dst, const float* src)
 
 static void cuda_free_wrapper(const void* ptr)
 {
+	assert(cuda_ondevice_num(ptr, cuda_get_device()));
 	CUDA_ERROR(cudaFree((void*)ptr));
 }
 
@@ -319,13 +319,16 @@ void cuda_memcache_clear(void)
 	if (!cuda_memcache)
 		return;
 
-	memcache_clear(cuda_get_device(), cuda_free_wrapper);
+	for (int d = 0; d < n_reserved_gpus; d++)
+		memcache_clear(gpu_map[d], cuda_free_wrapper);
 }
 
 void cuda_exit(void)
 {
 	cuda_memcache_clear();
-	CUDA_ERROR(cudaDeviceReset());
+	for (int d = 0; d < n_reserved_gpus; d++)
+		cuda_deinit(gpu_map[d]);
+
 }
 
 #if 0
@@ -356,6 +359,12 @@ bool cuda_ondevice(const void* ptr)
 	return mem_ondevice(ptr);
 }
 
+
+bool cuda_ondevice_num(const void* ptr, const int device)
+{
+	return mem_ondevice_num(ptr, device);
+}
+
 bool cuda_accessible(const void* ptr)
 {
 #if 1
@@ -374,6 +383,7 @@ bool cuda_accessible(const void* ptr)
 
 void cuda_free(void* ptr)
 {
+	assert(cuda_ondevice_num(ptr, cuda_get_device()));
 	mem_device_free(ptr, cuda_free_wrapper);
 }
 
@@ -443,12 +453,11 @@ static void cuda_float_free(float* x)
 static double cuda_sdot(long size, const float* src1, const float* src2)
 {
 	assert(size <= INT_MAX / 2);
-	assert(cuda_ondevice(src1));
-	assert(cuda_ondevice(src2));
+	assert(cuda_ondevice_num(src1, cuda_get_device()));
+	assert(cuda_ondevice_num(src2, cuda_get_device()));
 //	printf("SDOT %x %x %ld\n", src1, src2, size);
 	return cublasSdot(size, src1, 1, src2, 1);
 }
-
 
 static double cuda_norm(long size, const float* src1)
 {
@@ -458,6 +467,7 @@ static double cuda_norm(long size, const float* src1)
 	// git rev: ab28a9a953a80d243511640b23501f964a585349
 //	printf("cublas: %f\n", cublasSnrm2(size, src1, 1));
 //	printf("GPU norm (sdot: %f)\n", sqrt(cuda_sdot(size, src1, src1)));
+	assert(cuda_ondevice_num(src1, cuda_get_device()));
 	return sqrt(cuda_sdot(size, src1, src1));
 #else
 	return cublasSnrm2(size, src1, 1);
@@ -467,19 +477,24 @@ static double cuda_norm(long size, const float* src1)
 
 static double cuda_asum(long size, const float* src)
 {
+	assert(cuda_ondevice_num(src, cuda_get_device()));
 	assert(size <= INT_MAX / 2);
 	return cublasSasum(size, src, 1);
 }
 
 static void cuda_saxpy(long size, float* y, float alpha, const float* src)
 {
+	assert(cuda_ondevice_num(src, cuda_get_device()));
+	assert(cuda_ondevice_num(y, cuda_get_device()));
 //	printf("SAXPY %x %x %ld\n", y, src, size);
 	assert(size <= INT_MAX / 2);
-    cublasSaxpy(size, alpha, src, 1, y, 1);
+	cublasSaxpy(size, alpha, src, 1, y, 1);
 }
 
 static void cuda_swap(long size, float* a, float* b)
 {
+	assert(cuda_ondevice_num(a, cuda_get_device()));
+	assert(cuda_ondevice_num(b, cuda_get_device()));
 	assert(size <= INT_MAX / 2);
 	cublasSswap(size, a, 1, b, 1);
 }

@@ -1,5 +1,6 @@
 
 #include "noncart/grid.h"
+#include "num/gpuops.h"
 
 
 /**
@@ -25,9 +26,15 @@ struct nufft_data {
 	const complex float* weights;	///< Weights, ex, density compensation
 	const complex float* basis;
 #ifdef USE_CUDA
+#ifdef MULTIGPU
+	const complex float* linphase_gpu[MAX_CUDA_DEVICES];
+	const complex float* psf_gpu[MAX_CUDA_DEVICES];
+	complex float* grid_gpu[MAX_CUDA_DEVICES];
+#else
 	const complex float* linphase_gpu;
 	const complex float* psf_gpu;
 	complex float* grid_gpu;
+#endif
 #endif
 	complex float* grid;		///< Oversampling grid
 

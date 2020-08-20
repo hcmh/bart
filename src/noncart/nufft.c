@@ -614,8 +614,16 @@ static struct linop_s* nufft_create3(unsigned int N,
 	data->linphase = linphase;
 	data->psf = NULL;
 #ifdef USE_CUDA
+#ifdef MULTIGPU
+	for (int i = 0; i < MAX_CUDA_DEVICES; i++) {
+
+		data->linphase_gpu[i] = NULL;
+		data->psf_gpu[i] = NULL;
+	}
+#else
 	data->linphase_gpu = NULL;
 	data->psf_gpu = NULL;
+#endif
 #endif
 	if (conf.toeplitz) {
 
@@ -818,8 +826,16 @@ static void nufft_free_data(const linop_data_t* _data)
 	md_free(data->basis);
 
 #ifdef USE_CUDA
+#ifdef MULTIGPU
+	for (int i = 0; i < MAX_CUDA_DEVICES; i++) {
+
+		md_free(data->linphase_gpu[i]);
+		md_free(data->psf_gpu[i]);
+	}
+#else
 	md_free(data->linphase_gpu);
 	md_free(data->psf_gpu);
+#endif
 #endif
 	linop_free(data->fft_op);
 
@@ -938,13 +954,19 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 static void gpu_alloc(const struct nufft_data* data)
 {
 	unsigned int ND = data->N + 1;
+#ifdef MULTIGPU
+	if (NULL == data->linphase_gpu[cuda_get_device()])
+		((struct nufft_data*)data)->linphase_gpu[cuda_get_device()] = md_gpu_move(ND, data->lph_dims, data->linphase, CFL_SIZE);
 
+	if (NULL == data->psf_gpu[cuda_get_device()])
+		((struct nufft_data*)data)->psf_gpu[cuda_get_device()] = md_gpu_move(ND, data->psf_dims, data->psf, CFL_SIZE);
+#else
 	if (NULL == data->linphase_gpu)
 		((struct nufft_data*)data)->linphase_gpu = md_gpu_move(ND, data->lph_dims, data->linphase, CFL_SIZE);
 
 	if (NULL == data->psf_gpu)
 		((struct nufft_data*)data)->psf_gpu = md_gpu_move(ND, data->psf_dims, data->psf, CFL_SIZE);
-
+#endif
 }
 #endif
 
@@ -960,9 +982,13 @@ static void toeplitz_mult(const struct nufft_data* data, complex float* dst, con
 	if (cuda_ondevice(src)) {
 
 		gpu_alloc(data);
-
+#ifdef MULTIGPU
+		linphase = data->linphase_gpu[cuda_get_device()];
+		psf= data->psf_gpu[cuda_get_device()];
+#else
 		linphase = data->linphase_gpu;
 		psf = data->psf_gpu;
+#endif
 	}
 #endif
 	complex float* grid = md_alloc_sameplace(ND, data->cml_dims, CFL_SIZE, dst);
@@ -996,9 +1022,13 @@ static void toeplitz_mult_lowmem(const struct nufft_data* data, int i, complex f
 	if (cuda_ondevice(src)) {
 
 		gpu_alloc(data);
-
+#ifdef MULTIGPU
+		linphase = data->linphase_gpu[cuda_get_device()];
+		psf= data->psf_gpu[cuda_get_device()];
+#else
 		linphase = data->linphase_gpu;
 		psf = data->psf_gpu;
+#endif
 	}
 #endif
 	const complex float* clinphase = linphase + i * md_calc_size(data->N, data->lph_dims);

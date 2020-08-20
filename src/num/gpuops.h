@@ -9,12 +9,15 @@
 extern "C" {
 #endif
 
+#define MULTIGPU
+
 #define MAX_CUDA_DEVICES 16
 extern int n_reserved_gpus;
 extern int gpu_map[MAX_CUDA_DEVICES];
 
 extern const struct vec_ops gpu_ops;
 extern _Bool cuda_ondevice(const void* ptr);
+extern _Bool cuda_ondevice_num(const void* ptr, const int device);
 extern _Bool cuda_accessible(const void* ptr);
 extern void cuda_clear(long size, void* ptr);
 extern void cuda_memcpy(long size, void* dst, const void* src);
@@ -22,8 +25,8 @@ extern void cuda_hostfree(void*);
 extern void* cuda_hostalloc(long N);
 extern void* cuda_malloc(long N);
 extern void cuda_memcpy_strided(const long dims[2], long ostr, void* dst, long istr, const void* src);
-extern void cuda_free(void*);
-extern void cuda_init();
+extern void cuda_free(void* ptr);
+extern void cuda_init(void);
 extern bool cuda_try_init(int device);
 extern void cuda_set_device(int device);
 extern void cuda_init_multigpu(unsigned int requested_gpus);

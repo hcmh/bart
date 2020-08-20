@@ -79,7 +79,11 @@ struct maps_data {
 
 	/*const*/ complex float* sens;
 #ifdef USE_CUDA
+#ifdef MULTIGPU
+	const complex float* gpu_sens[MAX_CUDA_DEVICES];
+#else
 	const complex float* gpu_sens;
+#endif
 #endif
 	complex float* norm;
 };
@@ -92,11 +96,17 @@ static const complex float* get_sens(const struct maps_data* data, bool gpu)
 	const complex float* sens = data->sens;
 
 	if (gpu) {
+#ifdef MULTIGPU
+		if (NULL == data->gpu_sens[cuda_get_device()])
+			((struct maps_data*)data)->gpu_sens[cuda_get_device()] = md_gpu_move(DIMS, data->mps_dims, data->sens, CFL_SIZE);
 
+		sens = data->gpu_sens[cuda_get_device()];
+#else
 		if (NULL == data->gpu_sens)
 			((struct maps_data*)data)->gpu_sens = md_gpu_move(DIMS, data->mps_dims, data->sens, CFL_SIZE);
 
 		sens = data->gpu_sens;
+#endif
 	}
 
 	return sens;
@@ -176,8 +186,13 @@ static void maps_free_data(const linop_data_t* _data)
 		md_free(data->norm);
 	
 #ifdef USE_CUDA
+#ifdef MULTIGPU
+	for (int i = 0; i < MAX_CUDA_DEVICES; ++i)
+		md_free(data->gpu_sens[i]);
+#else
 	if (NULL != data->gpu_sens)
 		md_free(data->gpu_sens);
+#endif
 #endif
 	xfree(data);
 }
@@ -207,7 +222,12 @@ static struct maps_data* maps_create_data(const long max_dims[DIMS],
 	md_copy(DIMS, data->mps_dims, nsens, sens, CFL_SIZE);
 	data->sens = nsens;
 #ifdef USE_CUDA
+#ifdef MULTIGPU
+	for (int i = 0; i < MAX_CUDA_DEVICES; i++)
+		data->gpu_sens[i] = NULL;
+#else
 	data->gpu_sens = NULL;
+#endif
 #endif
 
 	data->norm = NULL;

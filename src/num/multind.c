@@ -1949,7 +1949,7 @@ void* md_gpu_move(unsigned int D, const long dims[D], const void* ptr, size_t si
 void* md_alloc_sameplace(unsigned int D, const long dimensions[D], size_t size, const void* ptr)
 {
 #ifdef USE_CUDA
-	return (cuda_ondevice(ptr) ? md_alloc_gpu : md_alloc)(D, dimensions, size);
+	return (cuda_ondevice_num(ptr, cuda_get_device()) ? md_alloc_gpu : md_alloc)(D, dimensions, size);
 #else
 	assert(0 != ptr);
 	return md_alloc(D, dimensions, size);
