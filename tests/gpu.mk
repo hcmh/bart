@@ -64,9 +64,19 @@ tests/test-mdb-gpu-bloch-traj: traj repmat phantom sim fmac modbloch nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+# test using as many of the first 16 GPUs as possible
+tests/test-pics-multigpu: pics repmat nrmse $(TESTS_OUT)/shepplogan_coil_ksp.ra $(TESTS_OUT)/coils.ra
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
+	$(TOOLDIR)/repmat 5 32 $(TESTS_OUT)/shepplogan_coil_ksp.ra kspaces.ra		;\
+	$(TOOLDIR)/pics -g -G65535 -r0.01 -L32 kspaces.ra $(TESTS_OUT)/coils.ra reco1.ra		;\
+	$(TOOLDIR)/pics -g         -r0.01 -L32 kspaces.ra $(TESTS_OUT)/coils.ra reco2.ra		;\
+	$(TOOLDIR)/nrmse -t 0.00001 reco1.ra reco2.ra					;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
 
 
 
 TESTS_GPU += tests/test-pics-gpu tests/test-pics-gpu-noncart
 TESTS_GPU += tests/test-pics-gpu-weights tests/test-pics-gpu-noncart-weights
 TESTS_GPU += tests/test-mdb-gpu-bloch-traj
+TESTS_GPU += tests/test-pics-multigpu
