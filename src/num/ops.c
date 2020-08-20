@@ -355,17 +355,17 @@ static DEF_TYPEID(identity_s);
 
 static void identity_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-        const auto d = CAST_DOWN(identity_s, _data);
+	const auto d = CAST_DOWN(identity_s, _data);
 	assert(2 == N);
-        md_copy2(d->domain->N, d->domain->dims, d->codomain->strs, args[0], d->domain->strs, args[1], d->domain->size);
+	md_copy2(d->domain->N, d->domain->dims, d->codomain->strs, args[0], d->domain->strs, args[1], d->domain->size);
 }
 
 
 static void identity_free(const operator_data_t* _data)
 {
-        const auto d = CAST_DOWN(identity_s, _data);
-        iovec_free(d->domain);
-        iovec_free(d->codomain);
+	const auto d = CAST_DOWN(identity_s, _data);
+	iovec_free(d->domain);
+	iovec_free(d->codomain);
 	xfree(d);
 }
 
@@ -376,10 +376,10 @@ const struct operator_s* operator_identity_create2(unsigned int N, const long di
 	PTR_ALLOC(struct identity_s, data);
 	SET_TYPEID(identity_s, data);
 
-        data->domain = iovec_create2(N, dims, istrs, CFL_SIZE);
-        data->codomain = iovec_create2(N, dims, ostrs, CFL_SIZE);
+	data->domain = iovec_create2(N, dims, istrs, CFL_SIZE);
+	data->codomain = iovec_create2(N, dims, ostrs, CFL_SIZE);
 
-        return operator_create2(N, dims, ostrs, N, dims, istrs, CAST_UP(PTR_PASS(data)), identity_apply, identity_free);
+	return operator_create2(N, dims, ostrs, N, dims, istrs, CAST_UP(PTR_PASS(data)), identity_apply, identity_free);
 }
 
 /**
@@ -391,7 +391,7 @@ const struct operator_s* operator_identity_create(unsigned int N, const long dim
 {
 	long strs[N];
 	md_calc_strides(N, strs, dims, CFL_SIZE);
-        return operator_identity_create2(N, dims, strs, strs);
+	return operator_identity_create2(N, dims, strs, strs);
 }
 
 struct reshape_s {
@@ -405,16 +405,16 @@ static DEF_TYPEID(reshape_s);
 
 static void reshape_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-        const auto d = CAST_DOWN(reshape_s, _data);
+	const auto d = CAST_DOWN(reshape_s, _data);
 	assert(2 == N);
-        md_copy(d->domain->N, d->domain->dims, args[0], args[1], d->domain->size);
+	md_copy(d->domain->N, d->domain->dims, args[0], args[1], d->domain->size);
 }
 
 
 static void reshape_free(const operator_data_t* _data)
 {
-        const auto d = CAST_DOWN(reshape_s, _data);
-        iovec_free(d->domain);
+	const auto d = CAST_DOWN(reshape_s, _data);
+	iovec_free(d->domain);
 	xfree(d);
 }
 
@@ -425,9 +425,9 @@ const struct operator_s* operator_reshape_create(unsigned int A, const long out_
 	SET_TYPEID(reshape_s, data);
 
 	assert(md_calc_size(A, out_dims) == md_calc_size(B, in_dims));
-        data->domain = iovec_create(B, in_dims, CFL_SIZE);
+	data->domain = iovec_create(B, in_dims, CFL_SIZE);
 
-        return operator_create(A, out_dims, B, in_dims, CAST_UP(PTR_PASS(data)), reshape_apply, reshape_free);
+	return operator_create(A, out_dims, B, in_dims, CAST_UP(PTR_PASS(data)), reshape_apply, reshape_free);
 }
 
 static bool check_simple_copy(const struct operator_s* op)
@@ -448,14 +448,14 @@ static DEF_TYPEID(reshape_container_s );
 
 static void reshape_container_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-        const auto d = CAST_DOWN(reshape_container_s, _data);
-        operator_generic_apply_unchecked(d->x, N, args);
+	const auto d = CAST_DOWN(reshape_container_s, _data);
+	operator_generic_apply_unchecked(d->x, N, args);
 }
 
 static void reshape_container_free(const operator_data_t* _data)
 {
-        const auto d = CAST_DOWN(reshape_container_s, _data);
-        operator_free(d->x);
+	const auto d = CAST_DOWN(reshape_container_s, _data);
+	operator_free(d->x);
 	xfree(d);
 }
 
@@ -488,7 +488,7 @@ const struct operator_s* operator_reshape(const struct operator_s* op, unsigned 
 	op_dims[i] = dims;
 	op_strs[i] = strs;
 
-        return operator_generic_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), reshape_container_apply, reshape_container_free);
+	return operator_generic_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), reshape_container_apply, reshape_container_free);
 }
 
 
@@ -504,15 +504,15 @@ static DEF_TYPEID(zero_s);
 
 static void zero_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-        auto d = CAST_DOWN(zero_s, _data);
+	auto d = CAST_DOWN(zero_s, _data);
 	assert(1 == N);
-        md_clear2(d->codomain->N, d->codomain->dims, d->codomain->strs, args[0], d->codomain->size);
+	md_clear2(d->codomain->N, d->codomain->dims, d->codomain->strs, args[0], d->codomain->size);
 }
 
 static void zero_free(const operator_data_t* _data)
 {
-        auto d = CAST_DOWN(zero_s, _data);
-        iovec_free(d->codomain);
+	auto d = CAST_DOWN(zero_s, _data);
+	iovec_free(d->codomain);
 	xfree(d);
 }
 
@@ -522,16 +522,16 @@ const struct operator_s* operator_zero_create2(unsigned int N, const long dims[N
 	PTR_ALLOC(struct zero_s, data);
 	SET_TYPEID(zero_s, data);
 
-        data->codomain = iovec_create2(N, dims, strs, CFL_SIZE);
+	data->codomain = iovec_create2(N, dims, strs, CFL_SIZE);
 
-        return operator_generic_create2(1, 1u, (unsigned int[1]){ N },
+	return operator_generic_create2(1, 1u, (unsigned int[1]){ N },
 			(const long*[1]){ dims },
 			(const long*[2]){ strs }, CAST_UP(PTR_PASS(data)), zero_apply, zero_free);
 }
 
 const struct operator_s* operator_zero_create(unsigned int N, const long dims[N])
 {
-        return operator_zero_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
+	return operator_zero_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
 }
 
 
@@ -552,7 +552,7 @@ static void null_apply(const operator_data_t* _data, unsigned int N, void* args[
 
 static void null_free(const operator_data_t* _data)
 {
-        xfree(CAST_DOWN(null_s, _data));
+	xfree(CAST_DOWN(null_s, _data));
 }
 
 const struct operator_s* operator_null_create2(unsigned int N, const long dims[N], const long strs[N])
@@ -560,14 +560,14 @@ const struct operator_s* operator_null_create2(unsigned int N, const long dims[N
 	PTR_ALLOC(struct null_s, data);
 	SET_TYPEID(null_s, data);
 
-        return operator_generic_create2(1, 0u, (unsigned int[1]){ N },
+	return operator_generic_create2(1, 0u, (unsigned int[1]){ N },
 			(const long*[1]){ dims },
 			(const long*[2]){ strs }, CAST_UP(PTR_PASS(data)), null_apply, null_free);
 }
 
 const struct operator_s* operator_null_create(unsigned int N, const long dims[N])
 {
-        return operator_null_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
+	return operator_null_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
 }
 
 void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int N, void* args[N])
@@ -794,9 +794,9 @@ static void op_loop_fun(const operator_data_t* _data, unsigned int N, void* args
 	if (data->gpu) {
 #if defined(USE_CUDA) && defined(_OPENMP)
 		omp_set_num_threads(n_reserved_gpus * 2);
-//              fft_set_num_threads(1);
+//		fft_set_num_threads(1);
 #else
-                error("Both OpenMP and CUDA are necessary for op_loop_fun. At least one was not found.\n");
+		error("Both OpenMP and CUDA are necessary for op_loop_fun. At least one was not found.\n");
 #endif
 	}
 
@@ -1336,7 +1336,7 @@ const struct operator_s* operator_dup_create(const struct operator_s* op, unsign
 
 
 
-// FIXME: we should reimplement link in terms of dup and bind (caveat: gpu)
+// FIXME: we should reimplement link in terms of dup and bind (caveat: gpu; io_flags)
 struct operator_link_s {
 
 	INTERFACE(operator_data_t);
