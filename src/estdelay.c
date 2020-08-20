@@ -59,7 +59,6 @@ int main_estdelay(int argc, char* argv[])
 	bool do_b0 = false;
 	bool do_ac_adaptive = false;
 	unsigned int pad_factor = 100;
-	bool is_DC = true;
 
 	const struct opt_s opts[] = {
 
@@ -103,18 +102,47 @@ int main_estdelay(int argc, char* argv[])
 
 
 
-	// Check if DC component is sampled
+	// Check compatibility of trajectory
+	// we support symmetric trajectories and trajectories with sampled DC component as central sample
+	bool is_valid = true;
+	bool is_DC = true;
+
 	md_slice(DIMS, MD_BIT(1), (long[DIMS]){ [1] = tdims[1] / 2 }, tdims, traj1, traj, CFL_SIZE);
-	for (int i = 0; i < N; i++)
+	for (int i = 0; i < N; i++) {
+		
 		if (0. != cabsf(traj1[3 * i]))
 			is_DC = false;
-			
-
-	if (do_ring) {
-
-		assert(0 == tdims[1] % 2);
-		conf.is_DC = is_DC;
+		if (0. != cabsf(traj1[3 * i  + 1]))
+			is_DC = false;
+		if (0. != cabsf(traj1[3 * i  + 2]))
+			is_DC = false;				
 	}
+			
+	if (!is_DC) {
+
+		// check for symmetry
+		complex float* traj2 = md_alloc(DIMS, tdims1, CFL_SIZE);
+		md_slice(DIMS, MD_BIT(1), (long[DIMS]){ [1] = tdims[1] / 2 }, tdims, traj1, traj, CFL_SIZE);
+		md_slice(DIMS, MD_BIT(1), (long[DIMS]){ [1] = tdims[1] / 2 -1 }, tdims, traj2, traj, CFL_SIZE);
+
+		for (int i = 0; i < N; i++) {
+
+			if (crealf(traj1[3 * i] != -crealf(traj2[3 * i])))
+				is_valid = false;
+			if (crealf(traj1[3 * i + 1] != -crealf(traj2[3 * i + 1])))
+				is_valid = false;	
+			if (crealf(traj1[3 * i + 2] != -crealf(traj2[3 * i + 2])))
+				is_valid = false;								
+		}
+
+		md_free(traj2);
+	}
+
+	if (!is_valid)
+		error("Incompatible trajectory!");
+
+	if (do_ring)
+		conf.is_DC = is_DC;
 
 
 	md_free(traj1);
@@ -148,7 +176,7 @@ int main_estdelay(int argc, char* argv[])
 
 		if (is_DC && (0 == tdims[1] % 2)) {	
 			// Account for asymmetry in DC-sampled trajectory by
-			// symmetrization through croppying
+			// symmetrization through cropping
 
 			long dims_sym[DIMS];
 			md_copy_dims(DIMS, dims_sym, dims);
