@@ -59,6 +59,7 @@ int main_estdelay(int argc, char* argv[])
 	bool do_b0 = false;
 	bool do_ac_adaptive = false;
 	unsigned int pad_factor = 100;
+	bool is_DC = true;
 
 	const struct opt_s opts[] = {
 
@@ -101,15 +102,18 @@ int main_estdelay(int argc, char* argv[])
 		angles[i] = M_PI + atan2f(crealf(traj1[3 * i + 0]), crealf(traj1[3 * i + 1]));
 
 
+
+	// Check if DC component is sampled
+	md_slice(DIMS, MD_BIT(1), (long[DIMS]){ [1] = tdims[1] / 2 }, tdims, traj1, traj, CFL_SIZE);
+	for (int i = 0; i < N; i++)
+		if (0. != cabsf(traj1[3 * i]))
+			is_DC = false;
+			
+
 	if (do_ring) {
 
 		assert(0 == tdims[1] % 2);
-
-		md_slice(DIMS, MD_BIT(1), (long[DIMS]){ [1] = tdims[1] / 2 }, tdims, traj1, traj, CFL_SIZE);
-
-		for (int i = 0; i < N; i++)
-			if (0. != cabsf(traj1[3 * i]))
-				error("Nominal trajectory must be centered for RING.\n");
+		assert(is_DC);
 	}
 
 
@@ -141,7 +145,25 @@ int main_estdelay(int argc, char* argv[])
 		// Block and Uecker, ISMRM 19:2816 (2001)
 
 		float delays[N];
-		radial_self_delays(N, delays, angles, dims, in);
+
+		if (is_DC && (0 == tdims[1] % 2)) {	
+			// Account for asymmetry in DC-sampled trajectory by
+			// symmetrization through croppying
+
+			long dims_sym[DIMS];
+			md_copy_dims(DIMS, dims_sym, dims);
+			dims_sym[PHS1_DIM] -= 1;
+			
+			long pos[DIMS] = { 0 };
+			pos[PHS1_DIM] = 1;
+
+			complex float* in_sym = md_alloc(DIMS, dims_sym, CFL_SIZE);
+			md_copy_block(DIMS, pos, dims_sym, in_sym, dims, in, CFL_SIZE);
+		
+			radial_self_delays(N, delays, angles, dims_sym, in_sym);
+
+		} else
+			radial_self_delays(N, delays, angles, dims, in);
 
 		/* We allow an arbitrary quadratic form to account for
 		 * non-physical coordinate systems.
