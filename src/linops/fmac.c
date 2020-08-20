@@ -79,7 +79,7 @@ static void fmac_free_data(const linop_data_t* _data)
         auto data = CAST_DOWN(fmac_data, _data);
 
 #ifdef USE_CUDA
-	if (NULL != data->gpu_tensor)
+	if (NULL != data->gpu_tensor && data->tensor != data->gpu_tensor)
 		md_free((void*)data->gpu_tensor);
 #endif
 
@@ -133,7 +133,7 @@ static void fmac_normal(const linop_data_t* _data, complex float* dst, const com
 	md_free(tmp);
 }
 
-const struct linop_s* linop_fmac_create(unsigned int N, const long dims[N], 
+const struct linop_s* linop_fmac_create(unsigned int N, const long dims[N],
 		unsigned int oflags, unsigned int iflags, unsigned int tflags, const complex float* tensor)
 {
 	PTR_ALLOC(struct fmac_data, data);
@@ -165,6 +165,8 @@ const struct linop_s* linop_fmac_create(unsigned int N, const long dims[N],
 	data->tensor = tensor;
 #ifdef USE_CUDA
 	data->gpu_tensor = NULL;
+	if (cuda_ondevice(data->tensor))
+		data->gpu_tensor = data->tensor;
 #endif
 
 	long odims[N];
@@ -177,5 +179,3 @@ const struct linop_s* linop_fmac_create(unsigned int N, const long dims[N],
 			CAST_UP(PTR_PASS(data)), fmac_apply, fmac_adjoint, fmac_normal,
 			NULL, fmac_free_data);
 }
-
-
