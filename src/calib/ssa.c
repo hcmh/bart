@@ -77,7 +77,7 @@
 
 #include "ssa.h"
 
-// Detect cardiac and respiratory EOFs
+//  Spectral EOF analysis
 extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const float dt, const float f, const float f_interval, const long max)
 {
 	long EOF_strs[2];
@@ -91,6 +91,9 @@ extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const
 
 	long interval_low = F - (long)(F_interval / 2);
 	long interval_up = F + (long)(F_interval / 2);
+
+	if (f_interval == -1)
+		interval_up = T_center;
 	
 	// Create mask to select frequency-region of interest
 	long mask_dims[2] = { EOF_dims[0], 1 };
@@ -105,6 +108,8 @@ extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const
 		mask[T_center + i] = 1. + 0i;
 		mask[T_center - i] = 1. + 0i;
 	}
+	if (f_interval == -1)
+		mask[0] = 1. + 0i;
 
 	// Apply mask to select roi and calculate energy
 	complex float* EOF_masked = md_alloc(2, EOF_dims, CFL_SIZE);
@@ -122,6 +127,8 @@ extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const
 		mask[T_center + i] = 0. + 0i;
 		mask[T_center - i] = 0. + 0i;
 	}
+	if (f_interval == -1)
+		mask[0] = 0. + 0i;
 
 	md_zmul2(2, EOF_dims, EOF_strs, EOF_masked, EOF_strs, EOF_fft, mask_strs, mask);
 

@@ -65,7 +65,6 @@ int main_eof(int argc, char* argv[])
     assert(!md_check_dimensions(DIMS, in_dims, (MD_BIT(0)|MD_BIT(1))));
     assert(dt > 0);
     assert(f > 0);
-    assert(f_interval > 0);
     
     
     long EOF_dims[2] = { in_dims[0], in_dims[1] };
