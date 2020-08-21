@@ -183,8 +183,7 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 		angle_e = angle_s / E;
 		angle_t = golden_angle;
 
-	} else
-	if (conf.golden) {
+	} else if (conf.golden) {
 
 		angle_s = golden_angle;
 		angle_m = 0;
