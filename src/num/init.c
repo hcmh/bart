@@ -151,6 +151,16 @@ void num_init_gpu_memopt(void)
 #endif
 }
 
+void num_deinit_gpu(void)
+{
+
+#ifdef USE_CUDA
+	cuda_exit();
+#else
+	error("BART compiled without GPU support.\n");
+#endif
+}
+
 
 void num_set_num_threads(int n)
 {
