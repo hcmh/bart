@@ -325,8 +325,11 @@ void cuda_memcache_clear(void)
 	if (!cuda_memcache)
 		return;
 
-	for (int d = 0; d < n_reserved_gpus; d++)
+	for (int d = 0; d < n_reserved_gpus; d++) {
+
+		cuda_set_device(gpu_map[d]);
 		memcache_clear(gpu_map[d], cuda_free_wrapper);
+	}
 }
 
 void cuda_exit(void)
