@@ -37,6 +37,7 @@
 #include "nn/layers.h"
 #include "nn/losses.h"
 #include "nn/rbf.h"
+#include "nn/misc_nn.h"
 
 #include "nn_vn.h"
 
@@ -340,14 +341,14 @@ void apply_variational_network( struct vn_s* vn,
 		complex float* scaling_cpu = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
 		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
 		compute_zero_filled(udims, u0, kdims, kspace, coil, pdims, pattern);
-		compute_scale(udims, scaling_cpu, u0);
+		compute_scale_max_abs(udims, scaling_cpu, u0);
 		md_free(u0);
 
 		scaling = md_alloc_sameplace(1, MAKE_ARRAY(kdims[4]), CFL_SIZE, vn->conv_w);
 		md_copy(1, MAKE_ARRAY(kdims[4]), scaling, scaling_cpu, CFL_SIZE);
 		md_free(scaling_cpu);
 
-		normalize_max(kdims, scaling, kspace_tmp, kspace_tmp);
+		normalize_by_scale(kdims, scaling, kspace_tmp, kspace_tmp);
 	}
 
 	void* refs[] = {(void*)out_tmp, (void*)kspace_tmp, (void*)coil_tmp, (void*)pattern_tmp, (void*)vn->conv_w, (void*)vn->rbf_w, (void*)vn->lambda_w};
@@ -355,7 +356,7 @@ void apply_variational_network( struct vn_s* vn,
 
 	if (normalize) {
 
-		renormalize_max(udims, scaling, out_tmp, out_tmp);
+		renormalize_by_scale(udims, scaling, out_tmp, out_tmp);
 		md_free(scaling);
 	}
 
@@ -434,11 +435,11 @@ static const struct nlop_s* create_vn_val_loss(struct vn_s* vn, bool normalize, 
 		complex float* scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
 		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
 		compute_zero_filled(udims, u0, kdims, val_kspace, val_coil, pdims, val_pattern);
-		compute_scale(udims, scaling, u0);
+		compute_scale_max_abs(udims, scaling, u0);
 		md_free(u0);
 
-		normalize_max(udims, scaling, val_ref, val_ref);
-		normalize_max(kdims, scaling, val_kspace, val_kspace);
+		normalize_by_scale(udims, scaling, val_ref, val_ref);
+		normalize_by_scale(kdims, scaling, val_kspace, val_kspace);
 		md_free(scaling);
 	}
 
@@ -497,11 +498,11 @@ void train_nn_varnet(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 		scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
 		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
 		compute_zero_filled(udims, u0, kdims, kspace, coil, pdims, pattern);
-		compute_scale(udims, scaling, u0);
+		compute_scale_max_abs(udims, scaling, u0);
 		md_free(u0);
 
-		normalize_max(kdims, scaling, kspace, kspace);
-		normalize_max(udims, scaling, ref, ref);
+		normalize_by_scale(kdims, scaling, kspace, kspace);
+		normalize_by_scale(udims, scaling, ref, ref);
 	}
 
 	long Nt = kdims[4]; // number datasets
@@ -584,8 +585,8 @@ void train_nn_varnet(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 
 	if (normalize) {
 
-		renormalize_max(kdims, scaling, kspace, kspace);
-		renormalize_max(udims, scaling, ref, ref);
+		renormalize_by_scale(kdims, scaling, kspace, kspace);
+		renormalize_by_scale(udims, scaling, ref, ref);
 		md_free(scaling);
 	}
 }
@@ -712,63 +713,4 @@ void load_varnet(struct vn_s* vn, const char* filename)
 	const long* dims_unmap[3] = {&dims[0][0], &dims[1][0], &dims[2][0]};
 
 	unmap_multi_cfl(3, D, dims_unmap , args);
-}
-
-/**
- * Compute zero filled reconstruction
- */
-void compute_zero_filled(const long udims[5], complex float * out, const long kdims[5], const complex float* kspace, const complex float* coil, const long pdims[5], const complex float* pattern)
-{
-	auto mri_adjoint = nlop_mri_adjoint_create(5, kdims, pdims[4] == 1);
-
-	complex float* tmp = md_alloc_sameplace(5, nlop_generic_codomain(mri_adjoint, 0)->dims, CFL_SIZE, out);
-	nlop_generic_apply_unchecked(mri_adjoint, 4, MAKE_ARRAY((void*)tmp, (void*)kspace, (void*)coil, (void*)pattern));
-
-	md_resize_center(5, udims, out, nlop_generic_codomain(mri_adjoint, 0)->dims, tmp, CFL_SIZE);
-	nlop_free(mri_adjoint);
-	md_free(tmp);
-}
-
-/**
- * Compute maximum of u0 per batch
- */
-void compute_scale(const long dims[5], complex float* scaling, const complex float * u0)
-{
-	long udimsw[5]; // (Nx, Ny, Nz, 1, Nb)
-	long sdimsw[5]; // (1,  1,  1,  1, Nb)
-	md_select_dims(5, ~MD_BIT(3), udimsw, dims);
-	md_select_dims(5, MD_BIT(4), sdimsw, dims);
-
-	complex float* u0_abs = md_alloc_sameplace(5, udimsw, CFL_SIZE, u0);
-	md_zabs(5, udimsw, u0_abs, u0);
-
-	md_clear(5, sdimsw, scaling, CFL_SIZE);
-	md_zmax2(5, udimsw, MD_STRIDES(5, sdimsw, CFL_SIZE), scaling, MD_STRIDES(5, sdimsw, CFL_SIZE), scaling, MD_STRIDES(5, udimsw, CFL_SIZE), u0_abs);
-
-	md_free(u0_abs);
-}
-
-
-/**
- * Batchwise divide by scaling
- */
-void normalize_max(const long dims[5], const complex float* scaling, complex float* out, const complex float* in)
-{
-	long sdimsw[5]; // (1,  1,  1,  1, Nb)
-	md_select_dims(5, MD_BIT(4), sdimsw, dims);
-	complex float* scaling_inv = md_alloc_sameplace(5, sdimsw, CFL_SIZE, scaling);
-	md_zfill(5, sdimsw, scaling_inv, 1.);
-	md_zdiv(5, sdimsw, scaling_inv, scaling_inv, scaling);
-	md_zmul2(5, dims, MD_STRIDES(5, dims, CFL_SIZE), out, MD_STRIDES(5, dims, CFL_SIZE), in, MD_STRIDES(5, sdimsw, CFL_SIZE), scaling_inv);
-	md_free(scaling_inv);
-}
-
-/**
- * Batchwise multiply by scaling
- */
-void renormalize_max(const long dims[5], const complex float* scaling, complex float* out, const complex float* in)
-{
-	long sdimsw[5]; // (1,  1,  1,  1, Nb)
-	md_select_dims(5, MD_BIT(4), sdimsw, dims);
-	md_zmul2(5, dims, MD_STRIDES(5, dims, CFL_SIZE), out, MD_STRIDES(5, dims, CFL_SIZE), in, MD_STRIDES(5, sdimsw, CFL_SIZE), scaling);
 }

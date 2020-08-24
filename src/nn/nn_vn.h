@@ -23,9 +23,6 @@ struct vn_s {
 
 const struct vn_s vn_default;
 
-extern void compute_zero_filled(	const long udims[5], _Complex float * out,
-					const long kdims[5], const _Complex float* kspace, const _Complex float* coil, const long pdims[5], const _Complex float* pattern);
-
 extern void apply_variational_network(	struct vn_s* vn,
  					const long udims[5], _Complex float* out,
 					const long kdims[5], const _Complex float* kspace, const _Complex float* coil, const long pdims[5], const _Complex float* pattern,
@@ -45,7 +42,3 @@ extern void initialize_varnet(struct vn_s* vn);
 extern void save_varnet(struct vn_s* vn, const char* filename);
 extern void load_varnet(struct vn_s* vn, const char* filename);
 extern void vn_move_gpucpu(struct vn_s* vn, _Bool gpu);
-
-extern void compute_scale(const long dims[5], _Complex float* scaling, const _Complex float * u0);
-extern void normalize_max(const long dims[5], const _Complex float* scaling, _Complex float* out, const _Complex float* in);
-extern void renormalize_max(const long dims[5], const _Complex float* scaling, _Complex float* out, const _Complex float* in);
