@@ -2,6 +2,7 @@
 
 
 extern void memcache_off(void);
+extern bool memcache_is_empty(void);
 extern void memcache_clear(int device, void (*device_free)(const void* x));
 extern _Bool mem_ondevice(const void* ptr);
 extern _Bool mem_ondevice_num(const void* ptr, const int device);

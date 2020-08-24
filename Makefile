@@ -533,7 +533,7 @@ MODULES_test_nufft += -lnoncart -llinops
 # lib num
 UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2 test_flpmath_strides
 UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test_ops_p test_specfun test_convcorr
-UTARGETS_GPU += test_cudafft test_cuda_flpmath_strides
+UTARGETS_GPU += test_cudafft test_cuda_flpmath_strides test_cuda_memcache_clear
 
 # lib simu
 UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_ode_simu test_signals

@@ -45,6 +45,14 @@ struct mem_s {
 
 static struct mem_s* mem_list = NULL;
 
+bool memcache_is_empty(void)
+{
+	if (!memcache)
+		return true;
+
+	return NULL == mem_list;
+}
+
 long unused_memory = 0;
 long used_memory = 0;
 static void add_unused(long val)
