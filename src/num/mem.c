@@ -101,7 +101,7 @@ static struct mem_s* search(const void* ptr, bool remove)
 
 static bool free_check_p(const struct mem_s* rptr, size_t size, int dev, int tid)
 {
-	return (rptr->free && (rptr->device_id == dev) && (rptr->len >= size) && (rptr->len <= 4 * size)
+	return (rptr->free && (rptr->device_id == dev) && (rptr->len >= size) && (( 0 == size) || (rptr->len <= 4 * size))
 			&& ((-1 == tid) || (rptr->thread_id == tid)));
 }
 

@@ -316,7 +316,6 @@ static void cuda_float_copy(long size, float* dst, const float* src)
 
 static void cuda_free_wrapper(const void* ptr)
 {
-	assert(cuda_ondevice_num(ptr, cuda_get_device()));
 	CUDA_ERROR(cudaFree((void*)ptr));
 }
 
