@@ -10,5 +10,6 @@ extern void mem_device_free(void* ptr, void (*device_free)(const void* x));
 extern void* mem_device_malloc(int device, long size, void* (*device_alloc)(size_t));
 
 extern void print_mem(void);
+extern void print_memcache(void);
 
 

@@ -64,6 +64,27 @@ void print_mem(void)
 	debug_printf(DP_WARN, "%ld allocated on gpu (%ld used / %ld unused)\n", unused_memory + used_memory, used_memory, unused_memory);
 }
 
+void print_memcache(void)
+{
+	print_mem();
+	struct mem_s* rptr = NULL;
+	struct mem_s** nptr = &mem_list;
+
+	while (true) {
+
+		rptr = *nptr;
+
+		if (NULL == rptr)
+			break;
+
+		debug_printf(DP_WARN, "ptr: %p, len: %zd, device? %d, free? %d, device_id: %d, thread_id: %d\n", rptr->ptr, rptr->len, rptr->device, rptr->free, rptr->device_id, rptr->thread_id);
+
+		nptr = &(rptr->next);
+	}
+
+
+}
+
 static bool inside_p(const struct mem_s* rptr, const void* ptr)
 {
 	return (ptr >= rptr->ptr) && (ptr < rptr->ptr + rptr->len);
