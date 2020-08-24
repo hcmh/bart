@@ -29,6 +29,7 @@
 #include "nlops/chain.h"
 #include "nlops/nltest.h"
 #include "nlops/stack.h"
+#include "nlops/const.h"
 #include "nlops/mri_ops.h"
 
 #include "utest.h"
@@ -48,11 +49,14 @@ static bool test_nlop_cast_pos(void)
 	struct linop_s* l = linop_identity_create(N, dims);
 	struct nlop_s* d = nlop_from_linop(l);
 
-	if (l == linop_from_nlop(d)) // maybe just require != NULL ?
+	auto tmp = linop_from_nlop(d);
+
+	if (l == tmp) // maybe just require != NULL ?
 		ok = false;
 
 	linop_free(l);
 	nlop_free(d);
+	linop_free(tmp);
 
 	return ok;
 }
@@ -769,6 +773,8 @@ static bool test_nlop_parallel_derivatives(void)
 	result = result && (12 == counter);
 
 	nlop_free(bridge);
+	nlop_free(tmp);
+	nlop_free(tenmul_chain);
 	linop_free(countop1);
 	linop_free(chain);
 
@@ -806,87 +812,10 @@ static bool test_stack(void)
 	err += md_zrmse(N, dims, in, out);
 	nlop_free(nlop_test);
 
+	md_free(in);
+	md_free(out);
+
 	UT_ASSERT(1.e-7 > err);
 }
 
 UT_REGISTER_TEST(test_stack);
-
-
-static bool test_mriop_vn(void)
-{
- 	enum { N = 5 };
- 	long kdims[N] = { 8, 8, 1, 2, 2};
-	
-	long idims[N];
-	long mdims[N];
-	long sdims[1] = {1};
-
-	md_select_dims(N, 23, idims, kdims);
-	md_select_dims(N, 7, mdims, kdims);
-
-	complex float* kptr = md_alloc(N, kdims, CFL_SIZE);
-	complex float* cptr = md_alloc(N, kdims, CFL_SIZE);
-	complex float* iptr = md_alloc(N, idims, CFL_SIZE);
-	complex float* iptr1 = md_alloc(N, idims, CFL_SIZE);
-	complex float* iptr2 = md_alloc(N, idims, CFL_SIZE);
-	complex float* mptr = md_alloc(N, mdims, CFL_SIZE);
-	complex float* sptr = md_alloc(1, sdims, CFL_SIZE);
-	complex float* sptr1 = md_alloc(1, sdims, CFL_SIZE);
-	complex float* sptr2 = md_alloc(1, sdims, CFL_SIZE);
-	complex float* optr1 = md_alloc(N, idims, CFL_SIZE);
-	complex float* optr2 = md_alloc(N, idims, CFL_SIZE);
-	complex float* optr = md_alloc(N, idims, CFL_SIZE);
-
-	//md_gaussian_rand(N, kdims, kptr);
-	md_gaussian_rand(N, kdims, cptr);
-	md_gaussian_rand(N, idims, iptr1);
-	md_gaussian_rand(N, idims, iptr);
-
-	md_gaussian_rand(N, idims, optr);
-
-	md_rand_one(N, mdims, mptr, 0.5);
-	
-	md_gaussian_rand(1, sdims, sptr1);
-	md_zreal(1, sdims, sptr1, sptr1);
-	
-	md_gaussian_rand(1, sdims, sptr);
-	md_zreal(1, sdims, sptr, sptr);
-
-	md_copy(N, idims, iptr2, iptr1, CFL_SIZE);
-	md_copy(1, sdims, sptr2, sptr1, CFL_SIZE);
-
-	md_zreal(1, sdims, sptr, sptr);
-	
-	auto op1 = nlop_gradient_step_scaled_modular_create(kdims, true);
-	auto op2 = nlop_gradient_step_scaled_create(kdims, true);
-
-	nlop_generic_apply_unchecked(op1, 6, MAKE_ARRAY((void*)optr1, (void*)iptr, (void*)kptr, (void*)cptr, (void*)mptr, (void*)sptr));
-	nlop_generic_apply_unchecked(op2, 6, MAKE_ARRAY((void*)optr2, (void*)iptr, (void*)kptr, (void*)cptr, (void*)mptr, (void*)sptr));
-	float err_frw = md_znrmse(N, idims, optr2, optr1);
-
-	linop_forward_unchecked(nlop_get_derivative(op1, 0, 0), optr1, iptr1);
-	linop_forward_unchecked(nlop_get_derivative(op2, 0, 0), optr2, iptr2);
-
-	float err_der_image = md_znrmse(N, idims, optr2, optr1);
-
-	linop_forward_unchecked(nlop_get_derivative(op1, 0, 4), optr1, sptr1);
-	linop_forward_unchecked(nlop_get_derivative(op2, 0, 4), optr2, sptr2);
-
-	float err_der_scale = md_znrmse(N, idims, optr2, optr1);
-
-	linop_adjoint_unchecked(nlop_get_derivative(op1, 0, 0), iptr1, optr);
-	linop_adjoint_unchecked(nlop_get_derivative(op2, 0, 0), iptr2, optr);
-
-	float err_adj_image = md_znrmse(N, idims, iptr2, iptr1);
-
-	linop_adjoint_unchecked(nlop_get_derivative(op1, 0, 4), sptr1, optr);
-	linop_adjoint_unchecked(nlop_get_derivative(op2, 0, 4), sptr2, optr);
-
-	md_zreal(1, sdims, sptr2, sptr2);
-	md_zreal(1, sdims, sptr1, sptr1);
-
-	float err_adj_scale = md_znrmse(1, sdims, sptr2, sptr1);
-
-	debug_printf(DP_DEBUG1, "mri op errors:: %.8f, %.8f, %.8f, %.8f, %.8f\n", err_frw, err_der_image, err_der_scale, err_adj_image, err_adj_scale);
-	UT_ASSERT((err_frw + err_der_image + err_der_scale + err_adj_image + err_adj_scale < 2.E-5));
-}
