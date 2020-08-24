@@ -19,6 +19,7 @@
 #include "nlops/tenmul.h"
 #include "nlops/conv.h"
 
+#include "nn/batchnorm.h"
 #include "nn_ops.h"
 #include "layers.h"
 
@@ -722,4 +723,35 @@ const struct nlop_s* append_padding_layer(const struct nlop_s* network, int o, l
 	network = nlop_permute_outputs_F(network, NO, perm_out);
 
 	return network;
+}
+
+/**
+ * Append batch normalization
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param norm_flags select dimension over which we normalize
+ */
+const struct nlop_s* append_batchnorm_layer(const struct nlop_s* network, int o, unsigned long norm_flags, enum NETWORK_STATUS status)
+{
+	int NO = nlop_get_nr_out_args(network);
+	int NI = nlop_get_nr_in_args(network);
+
+	assert(o < NO);
+
+	auto batchnorm = nlop_batchnorm_create(nlop_generic_codomain(network, o)->N, nlop_generic_codomain(network, o)->dims, norm_flags, 1.e-3, status);
+
+	auto result = nlop_chain2_FF(network, o, batchnorm , 0);
+
+	int perm_in[NI + 1];
+	perm_shift(NI + 1, 0, NI, perm_in);
+	result = nlop_permute_inputs_F(result, NI + 1, perm_in);
+
+	int perm_out[NO + 1];
+	perm_shift(NO + 1, 1, NO, perm_out);
+	result = nlop_permute_outputs_F(result, NO + 1, perm_out);
+	perm_shift(NO + 1, 0, o, perm_out);
+	result = nlop_permute_outputs_F(result, NO + 1, perm_out);
+
+	return result;
 }
