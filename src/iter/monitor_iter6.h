@@ -34,6 +34,8 @@ extern struct monitor_iter6_s* create_monitor_iter6_progressbar_trivial(void);
 extern struct monitor_iter6_s* create_monitor_iter6_progressbar_record(void);
 extern struct monitor_iter6_s* create_monitor_iter6_progressbar_with_val_monitor(int num_val_monitors, struct monitor_value_s* val_monitors);
 
+typedef _Complex float (*monitor_iter6_value_by_function_t)(long NI, const float* args[NI]);
+struct monitor_value_s monitor_iter6_function_create(monitor_iter6_value_by_function_t fun, _Bool eval_each_batch, const char* print_name);
 
 extern void monitor_iter6_dump_record(struct monitor_iter6_s* _monitor, const char* filename);
 

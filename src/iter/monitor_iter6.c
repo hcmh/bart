@@ -423,3 +423,84 @@ struct monitor_value_s monitor_iter6_nlop_create(const struct nlop_s* nlop, _Boo
 
         return result;
 }
+
+struct monitor_iter6_function_s {
+
+	INTERFACE(monitor_iter6_value_data_t);
+
+	monitor_iter6_value_by_function_t fun;
+	_Bool eval_each_batch;
+	const char* name;
+	complex float last_result;
+};
+
+static DEF_TYPEID(monitor_iter6_function_s);
+
+static complex float monitor_iter6_function_fun(const monitor_iter6_value_data_t* data, long NI, const float* args[NI])
+{
+        const auto d = CAST_DOWN(monitor_iter6_function_s, data);
+
+	d->last_result = d->fun(NI, args);
+
+	return d->last_result;
+}
+
+static bool monitor_iter6_function_eval(const monitor_iter6_value_data_t* _data, long epoch, long batch, long num_batches)
+{
+	const auto d = CAST_DOWN(monitor_iter6_function_s, _data);
+	UNUSED(epoch);
+	return d->eval_each_batch || (num_batches == batch + 1);
+}
+
+static void monitor_iter6_function_print(const monitor_iter6_value_data_t* _data, int N, char log_str[N])
+{
+	const auto d = CAST_DOWN(monitor_iter6_function_s, _data);
+	if (NULL == d->name) {
+
+		log_str[0] = '\0';
+		return;
+	}
+
+	if (0. == cimagf(d->last_result))
+		sprintf(log_str, " %s: %.3e;", d->name, crealf(d->last_result));
+	else
+		sprintf(log_str, " %s: %.3e + %.3ei;", d->name, crealf(d->last_result), cimagf(d->last_result));
+}
+
+static void monitor_iter6_function_free(const monitor_iter6_value_data_t* _data)
+{
+	const auto d = CAST_DOWN(monitor_iter6_function_s, _data);
+	xfree(d->name);
+	xfree(d);
+}
+
+
+struct monitor_value_s monitor_iter6_function_create(monitor_iter6_value_by_function_t fun, _Bool eval_each_batch, const char* print_name)
+{
+	PTR_ALLOC(struct monitor_iter6_function_s, data);
+	SET_TYPEID(monitor_iter6_function_s, data);
+
+	data->fun = fun;
+	data->eval_each_batch = eval_each_batch;
+
+	if ((NULL != print_name) && (0 < strlen(print_name))) {
+
+		PTR_ALLOC(char[strlen(print_name) + 1], tmp_name);
+		strcpy(*tmp_name, print_name);
+		data->name=*PTR_PASS(tmp_name);
+	} else {
+
+		data->name = NULL;
+	}
+
+	struct monitor_value_s result = {
+
+		.data = CAST_UP(PTR_PASS(data)),
+		.fun = monitor_iter6_function_fun,
+		.eval = monitor_iter6_function_eval,
+		.print = monitor_iter6_function_print,
+		.free = monitor_iter6_function_free
+	};
+
+        return result;
+}
