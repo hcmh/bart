@@ -14,6 +14,8 @@ typedef struct iter6_conf_s {
 	float clip_norm;
 	float clip_val;
 
+	float batchnorm_momentum;
+
 	const char* history_filename;
 
 	const struct iter_dump_s* dump;

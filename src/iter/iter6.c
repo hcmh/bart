@@ -61,6 +61,8 @@ const struct iter6_sgd_conf iter6_sgd_conf_defaults = {
 	.INTERFACE.dump_filename = NULL,
 	.INTERFACE.dump_mod = -1,
 
+	.INTERFACE.batchnorm_momentum = .95,
+
 	.momentum = 0.
 };
 
@@ -81,6 +83,8 @@ const struct iter6_adadelta_conf iter6_adadelta_conf_defaults = {
 	.INTERFACE.dump_filename = NULL,
 	.INTERFACE.dump_mod = -1,
 
+	.INTERFACE.batchnorm_momentum = .95,
+
 	.rho = 0.95
 };
 
@@ -99,6 +103,8 @@ const struct iter6_adam_conf iter6_adam_conf_defaults = {
 	.INTERFACE.dump = NULL,
 	.INTERFACE.dump_filename = NULL,
 	.INTERFACE.dump_mod = -1,
+
+	.INTERFACE.batchnorm_momentum = .95,
 
 	.epsilon = 1.e-7,
 
@@ -122,6 +128,8 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 	.INTERFACE.dump = NULL,
 	.INTERFACE.dump_filename = NULL,
 	.INTERFACE.dump_mod = -1,
+
+	.INTERFACE.batchnorm_momentum = .95,
 
 	.Lmin = 1.e-10,
 	.Lmax = 1.e10,
@@ -296,7 +304,7 @@ void iter6_adadelta(	iter6_conf* _conf,
 	if (free_dump)
 		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
 
-	sgd(conf->INTERFACE.epochs,
+	sgd(conf->INTERFACE.epochs, conf->INTERFACE.batchnorm_momentum,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
 		batchsize, batchsize * numbatches,
@@ -384,7 +392,7 @@ void iter6_adam(	iter6_conf* _conf,
 	if (free_dump)
 		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
 
-	sgd(conf->INTERFACE.epochs,
+	sgd(conf->INTERFACE.epochs, conf->INTERFACE.batchnorm_momentum,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
 		batchsize, batchsize * numbatches,
@@ -472,7 +480,7 @@ void iter6_sgd(	iter6_conf* _conf,
 	if (free_dump)
 		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
 
-	sgd(conf->INTERFACE.epochs,
+	sgd(conf->INTERFACE.epochs, conf->INTERFACE.batchnorm_momentum,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
 		batchsize, batchsize * numbatches,
@@ -572,6 +580,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 		lipshitz_constants, conf->Lmin, conf->Lmax, conf->Lshrink, conf->Lincrease,
        		nlop_iter, adj_op_arr,
 		prox_iter,
+		conf->INTERFACE.batchnorm_momentum,
 		nlop_batch_gen_iter,
 		(struct iter_op_s){ NULL, NULL }, monitor, conf->INTERFACE.dump);
 

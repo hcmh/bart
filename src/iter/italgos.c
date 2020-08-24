@@ -827,7 +827,7 @@ static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], floa
  * @param callback UNUSED
  * @param monitor UNUSED
  */
-void sgd(	unsigned int epochs,
+void sgd(	unsigned int epochs, float batchnorm_momentum,
 		long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
 		long NO, long osize[NO], enum OUT_TYPE out_type[NI],
 		int N_batch, int N_total,
@@ -886,6 +886,12 @@ void sgd(	unsigned int epochs,
 				N_batch_gen += 1;
 				break;
 
+			case IN_BATCHNORM:
+
+				grad[i] = NULL;
+				dxs[i] = NULL;
+				break;
+
 			default:
 
 				error("unknown flag\n");
@@ -915,6 +921,8 @@ void sgd(	unsigned int epochs,
 			getgrad(NI, in_optimize_flag, isize, grad, NO, out_optimize_flag, adj, vops);
 			iter_op_arr_call(update, NI, in_optimize_flag, dxs, NI, in_optimize_flag, (const float**)grad);
 
+			int batchnorm_counter = 0;
+
 			for (int i = 0; i < NI; i++) {
 
 				if (in_type[i] == IN_OPTIMIZE) {
@@ -927,6 +935,25 @@ void sgd(	unsigned int epochs,
 
 				if (in_type[i] == IN_BATCH)
 					args[NO + i] += isize[i];
+
+				if (in_type[i] == IN_BATCHNORM) {
+
+					int o = 0;
+					int j = batchnorm_counter;
+
+					while ((OUT_BATCHNORM != out_type[o]) || (j > 0)) {
+
+						if (OUT_BATCHNORM == out_type[o])
+							j--;
+						o++;
+					}
+
+					vops->smul(isize[i], batchnorm_momentum, x[i], x[i]);
+					vops->axpy(isize[i], x[i],  1. - batchnorm_momentum, args[o]);
+
+
+					batchnorm_counter++;
+				}
 			}
 
 			monitor_iter6(monitor, epoch, i_batch, N_total / N_batch, r0, NI, (const float**)x, NULL);
@@ -1003,6 +1030,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 		struct iter_nlop_s nlop,
 		struct iter_op_arr_s adj,
 		struct iter_op_p_s prox[NI],
+		float batchnorm_momentum,
 		struct iter_nlop_s nlop_batch_gen,
 		struct iter_op_s callback, struct monitor_iter6_s* monitor, const struct iter_dump_s* dump)
 {
@@ -1065,6 +1093,9 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 				N_batch_gen += 1;
 				break;
 
+			case IN_BATCHNORM:
+
+				break;
 
 			default:
 
@@ -1182,6 +1213,28 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			z[i] = NULL;
 			x_new[i] = NULL;
 
+			int batchnorm_counter = 0;
+			for (int i = 0; i < NI; i++) {
+
+				if (in_type[i] == IN_BATCHNORM) {
+
+						int o = 0;
+						int j = batchnorm_counter;
+
+						while ((OUT_BATCHNORM != out_type[o]) || (j > 0)) {
+
+						if (OUT_BATCHNORM == out_type[o])
+							j--;
+						o++;
+						}
+
+						vops->smul(isize[i], batchnorm_momentum, x[i], x[i]);
+						vops->axpy(isize[i], x[i],  1. - batchnorm_momentum, args[o]);
+
+
+						batchnorm_counter++;
+					}
+				}
 		}
 
 
