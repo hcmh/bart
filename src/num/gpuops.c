@@ -145,8 +145,14 @@ bool cuda_try_init(int device)
 
 		if (cudaSuccess == errval) {
 
-			gpu_map[n_reserved_gpus++] = device;
-			reserved_gpus = MD_SET(reserved_gpus, device);
+			// nly add to gpu_map if not already present.
+			// This allows multiple calls to initialize cuda
+			// to succeed without problems.
+			if (!MD_IS_SET(reserved_gpus, device)) {
+
+				gpu_map[n_reserved_gpus++] = device;
+				reserved_gpus = MD_SET(reserved_gpus, device);
+			}
 			return true;
 
 		} else {
