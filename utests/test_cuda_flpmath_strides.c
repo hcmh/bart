@@ -4,6 +4,7 @@
 #include "num/multind.h"
 #include "num/strided_vecops.h"
 #include "num/rand.h"
+#include "num/init.h"
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -24,6 +25,7 @@ static bool test_optimized_md_zfmac2_flags(unsigned long out_flag, unsigned long
 	UNUSED(err_val);
 	return true;
 #else
+	num_init_gpu();
 	enum {D = 5};
 	long dims[D] = {3, 5, 2, 4, 4};
 
@@ -101,6 +103,7 @@ static bool test_optimized_md_fmac2_flags(unsigned long out_flag, unsigned long 
 	UNUSED(err_val);
 	return true;
 #else
+	num_init_gpu();
 	enum {D = 5};
 	long dims[D] = {3, 5, 2, 4, 4};
 
@@ -179,6 +182,7 @@ static bool test_optimized_md_zmul2_flags(unsigned long out_flag, unsigned long 
 	UNUSED(err_val);
 	return true;
 #else
+	num_init_gpu();
 	enum {D = 5};
 	long dims[D] = {3, 5, 2, 4, 4};
 
@@ -243,6 +247,7 @@ static bool test_optimized_md_mul2_flags(unsigned long out_flag, unsigned long i
 	UNUSED(err_val);
 	return true;
 #else
+	num_init_gpu();
 	enum {D = 5};
 	long dims[D] = {3, 5, 2, 4, 4};
 

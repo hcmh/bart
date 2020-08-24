@@ -15,6 +15,7 @@
 #include "num/vecops.h"
 #include "num/blas.h"
 #include "num/rand.h"
+#include "num/init.h"
 
 #include "misc/nested.h"
 #include "misc/misc.h"
@@ -1123,7 +1124,7 @@ bool test_zconvcorr_fwd(	int N, long odims[N], long ostrs[N], long idims[N], lon
 		}
 
 #ifdef USE_CUDA
-
+	num_init_gpu();
 	complex float* optr_gpu = md_alloc_gpu(N, odims, CFL_SIZE);
 	complex float* iptr_gpu = md_alloc_gpu(N, idims, CFL_SIZE);
 	complex float* kptr_gpu = md_alloc_gpu(N, kdims, CFL_SIZE);
@@ -1229,7 +1230,7 @@ bool test_zconvcorr_bwd_in(	int N, long odims[N], long ostrs[N], long idims[N], 
 		}
 
 #ifdef USE_CUDA
-
+	num_init_gpu();
 	complex float* optr_gpu = md_alloc_gpu(N, odims, CFL_SIZE);
 	complex float* iptr_gpu = md_alloc_gpu(N, idims, CFL_SIZE);
 	complex float* kptr_gpu = md_alloc_gpu(N, kdims, CFL_SIZE);
@@ -1333,7 +1334,7 @@ bool test_zconvcorr_bwd_krn(	int N, long odims[N], long ostrs[N], long idims[N],
 		}
 
 #ifdef USE_CUDA
-
+	num_init_gpu();
 	complex float* optr_gpu = md_alloc_gpu(N, odims, CFL_SIZE);
 	complex float* iptr_gpu = md_alloc_gpu(N, idims, CFL_SIZE);
 	complex float* kptr_gpu = md_alloc_gpu(N, kdims, CFL_SIZE);

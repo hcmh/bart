@@ -12,6 +12,7 @@
 #include "misc/debug.h"
 #include "misc/misc.h"
 
+#include "num/init.h"
 #include "num/rand.h"
 #include "num/iovec.h"
 #include "num/multind.h"
@@ -254,6 +255,7 @@ float nlop_test_adj_derivatives(const struct nlop_s* op, _Bool real)
 float compare_gpu(const struct nlop_s* cpu_op, const struct nlop_s* gpu_op)
 {
 #ifdef  USE_CUDA
+	num_init_gpu();
 	int II = nlop_get_nr_in_args(cpu_op);
 	int OO = nlop_get_nr_out_args(cpu_op);
 
