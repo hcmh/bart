@@ -819,3 +819,148 @@ static bool test_stack(void)
 }
 
 UT_REGISTER_TEST(test_stack);
+
+static bool test_mriop_normalinv_config(bool batch_independent, bool share_pattern)
+{
+	// Here we test the basic case of a fully sampled k-space
+	// => The normal operator is the identity
+	// => out = in / (1+lambda)
+	enum { N = 5 };
+	long dims[N] = { 8, 8, 2, 1, 3};
+
+	long pdims[N];
+	long idims[N];
+
+	md_select_dims(N, share_pattern ? 7 : 23, pdims, dims);
+	md_select_dims(N, 23, idims, dims);
+
+	auto nlop_inv = mri_normal_inversion_create(N, dims, share_pattern, -1., batch_independent, 0., NULL); // in: x0, coil, pattern, lambda; out:
+
+	complex float* pattern = md_alloc(N, pdims, CFL_SIZE);
+	md_zfill(N, pdims, pattern, 1.);
+
+	complex float* coils = md_alloc(N, dims, CFL_SIZE);
+	md_gaussian_rand(N, dims, coils);
+
+	complex float* coils_scale = md_alloc(N, idims, CFL_SIZE);
+	md_ztenmulc(5, idims, coils_scale, dims, coils, dims, coils);
+	md_sqrt(N + 1, MD_REAL_DIMS(N, idims), (float*)coils_scale, (float*)coils_scale);
+	md_zdiv2(5, dims, MD_STRIDES(N, dims, CFL_SIZE), coils, MD_STRIDES(N, dims, CFL_SIZE), coils, MD_STRIDES(N, idims, CFL_SIZE), coils_scale);
+	md_free(coils_scale);
+
+	nlop_inv = nlop_set_input_const_F(nlop_inv, 1, N, dims, true, coils);
+	nlop_inv = nlop_set_input_const_F(nlop_inv, 1, N, pdims, true, pattern);
+
+	md_free(coils);
+	md_free(pattern);
+
+	complex float* lambda = md_alloc(1, MAKE_ARRAY(1l), CFL_SIZE);
+	md_zfill(1, MAKE_ARRAY(1l), lambda, 3.);
+
+	complex float* in = md_alloc(N, idims, CFL_SIZE);
+	complex float* out = md_alloc(N, idims, CFL_SIZE);
+
+	md_gaussian_rand(N, idims, in);
+
+	nlop_generic_apply_unchecked(nlop_inv, 3, MAKE_ARRAY((void*)out, (void*)in, (void*)lambda));
+	md_zdiv(N, idims, out, out, in);
+	md_zsmul(N, idims, out, out, 4);
+
+	complex float* ones = md_alloc(N, idims, CFL_SIZE);
+	md_zfill(N, idims, ones, 1.);
+
+	float err = md_znrmse(N, idims, ones, out);
+
+	linop_forward_unchecked(nlop_get_derivative(nlop_inv, 0, 0), out, in);
+	md_zdiv(N, idims, out, out, in);
+	md_zsmul(N, idims, out, out, 4);
+	err += md_znrmse(N, idims, ones, out);
+
+	linop_forward_unchecked(nlop_get_derivative(nlop_inv, 0, 1), out, ones);
+	md_zdiv(N, idims, out, out, in);
+	md_zsmul(N, idims, out, out, -16);
+	err += md_znrmse(N, idims, ones, out);
+
+	md_free(ones);
+	md_free(in);
+	md_free(out);
+	nlop_free(nlop_inv);
+	md_free(lambda);
+
+	UT_ASSERT(1.e-5 > err);
+}
+
+static bool test_mriop_normalinv(void)
+{
+	return test_mriop_normalinv_config(true, true)
+	    && test_mriop_normalinv_config(true, false)
+	    && test_mriop_normalinv_config(false, true)
+	    && test_mriop_normalinv_config(false, false);
+}
+
+UT_REGISTER_TEST(test_mriop_normalinv);
+
+static bool test_mriop_pinv_config(bool batch_independent, bool share_pattern)
+{
+	// Here we test the basic case of a fully sampled k-space
+	// => The normal operator is the identity
+	// => out = in / (1+lambda)
+	enum { N = 5 };
+	long kdims[N] = { 8, 8, 1, 12, 3};
+	long pdims[N];
+	long idims[N];
+	md_select_dims(N, share_pattern ? 7 : 23, pdims, kdims);
+	md_select_dims(N, 23, idims, kdims);
+
+	complex float* pattern = md_alloc(N, pdims, CFL_SIZE);
+	long pdims_tmp[N];
+	long pstrs_tmp[N];
+	md_copy_dims(N, pdims_tmp, pdims);
+	md_calc_strides(N, pstrs_tmp, pdims, CFL_SIZE);
+	pstrs_tmp[0] *= 4;
+	pdims_tmp[0] /= 4;
+	md_clear(N, pdims, pattern, CFL_SIZE);
+	md_zfill2(N, pdims_tmp, pstrs_tmp, pattern, 1.);
+
+	complex float* coils = md_alloc(N, kdims, CFL_SIZE);
+	md_gaussian_rand(N, kdims, coils);
+	complex float* coils_scale = md_alloc(N, idims, CFL_SIZE);
+	md_ztenmulc(5, idims, coils_scale, kdims, coils, kdims, coils);
+	md_sqrt(N + 1, MD_REAL_DIMS(N, idims), (float*)coils_scale, (float*)coils_scale);
+	md_zdiv2(5, kdims, MD_STRIDES(N, kdims, CFL_SIZE), coils, MD_STRIDES(N, kdims, CFL_SIZE), coils, MD_STRIDES(N, idims, CFL_SIZE), coils_scale);
+	md_free(coils_scale);
+
+	complex float* image = md_alloc(N, idims, CFL_SIZE);
+	md_gaussian_rand(N, idims, image);
+
+	complex float* kspace = md_alloc(N, kdims, CFL_SIZE);
+	auto frw = nlop_mri_forward_create(N, kdims, share_pattern);
+	nlop_generic_apply_unchecked(frw, 4, MAKE_ARRAY((void*)kspace, (void*)image, (void*)coils, (void*)pattern));
+	nlop_free(frw);
+
+	complex float* image_out = md_alloc(N, idims, CFL_SIZE);
+	auto nlop_pinv = mri_reg_pinv(N, kdims, share_pattern, 0., batch_independent, 0., NULL, false); // in: kspace, coil, pattern; out: image
+
+	nlop_generic_apply_unchecked(nlop_pinv, 4, MAKE_ARRAY((void*)image_out, (void*)kspace, (void*)coils, (void*)pattern));
+	nlop_free(nlop_pinv);
+
+	float err = md_znrmse(N, idims, image, image_out);
+
+	md_free(image);
+	md_free(image_out);
+	md_free(kspace);
+	md_free(coils);
+	md_free(pattern);
+
+	UT_ASSERT(1.e-6 > err);
+}
+
+static bool test_mriop_pinv(void)
+{
+	return test_mriop_pinv_config(true, true)
+	    && test_mriop_pinv_config(true, false)
+	    && test_mriop_pinv_config(false, true)
+	    && test_mriop_pinv_config(false, false);
+}
+
+UT_REGISTER_TEST(test_mriop_pinv);
