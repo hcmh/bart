@@ -632,7 +632,7 @@ const struct nlop_s* nlop_append_singleton_dim_in_F(const struct nlop_s* op, int
 	md_copy_dims(N, dims, nlop_generic_domain(op, i)->dims);
 	dims[N] = 1;
 
-	return nlop_reshape_in_F(op, i, N,dims);
+	return nlop_reshape_in_F(op, i, N + 1, dims);
 }
 
 const struct nlop_s* nlop_append_singleton_dim_out_F(const struct nlop_s* op, int o)
@@ -642,7 +642,7 @@ const struct nlop_s* nlop_append_singleton_dim_out_F(const struct nlop_s* op, in
 	md_copy_dims(N, dims, nlop_generic_codomain(op, o)->dims);
 	dims[N] = 1;
 
-	return nlop_reshape_out_F(op, o, N,dims);
+	return nlop_reshape_out_F(op, o, N + 1, dims);
 }
 
 void nlop_debug(enum debug_levels dl, const struct nlop_s* x)
