@@ -21,6 +21,7 @@
 #include "linops/someops.h"
 
 #include "nlops/nlop.h"
+#include "nlops/cast.h"
 #include "nlops/chain.h"
 #include "nlops/const.h"
 #include "nlops/nltest.h"
@@ -28,6 +29,7 @@
 #include "nn/activation.h"
 #include "nn/batchnorm.h"
 #include "nn/layers.h"
+#include "nn/nn_ops.h"
 
 #include "utest.h"
 
@@ -359,6 +361,50 @@ static bool test_nlop_bn(void)
 	UT_ASSERT((err_der < 5.e-3) && (err_adj < 1.e-6));
 }
 
-
-
 UT_REGISTER_TEST(test_nlop_bn);
+
+static bool test_zmax(void)
+{
+	unsigned int N = 3;	
+
+	long indims[] = {2, 2, 1};
+	long outdims[] = {2, 2, 4};
+
+	complex float stacked[] = {	1., 2., 3., 3.,
+					2., 2., 4., 2.,
+					2., 1., 4., 3.,
+					1., 1., 1., 1.};
+	complex float zmax[] = {2., 2., 4., 3.};
+
+	const struct nlop_s* zmax_op = nlop_zmax_create(N, outdims, 4);
+	complex float* output_zmax = md_alloc(N, indims, CFL_SIZE);
+	nlop_generic_apply_unchecked(zmax_op, 2, (void*[]){output_zmax, stacked}); //output, in, mask
+	nlop_free(zmax_op);
+
+	UT_ASSERT( 0.01 >  md_zrmse(N, indims, output_zmax, zmax)); 
+}
+
+UT_REGISTER_TEST(test_zmax);
+
+static bool test_pool(void)
+{
+	unsigned int N = 3;	
+	long idims[] = {2, 2, 1};
+	long pool_size[] = {2, 1, 1};
+	long odims[] = {1, 2, 1};
+	complex float in[] = {4., 3., 2., 1.};
+	complex float pool_exp[] = {4., 2.};
+	complex float pool_adj[] = {4., 0., 2., 0.};
+
+	const struct linop_s* pool_op = linop_pool_create(N, idims, pool_size);
+	complex float* output_pool = md_alloc(N, odims, CFL_SIZE);
+	complex float* adj = md_alloc(N, idims, CFL_SIZE);
+
+	nlop_generic_apply_unchecked(nlop_from_linop(pool_op), 2, (void*[]){output_pool, in});
+	linop_adjoint(pool_op, N, idims, adj, N, odims, output_pool);
+	linop_free(pool_op);
+
+	UT_ASSERT( 0.01 >  md_zrmse(N, odims, output_pool, pool_exp) + md_zrmse(N, idims, adj, pool_adj)); //
+}
+
+UT_REGISTER_TEST(test_pool);

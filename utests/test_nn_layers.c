@@ -447,3 +447,66 @@ static bool test_nlop_rbf(void)
 }
 
 UT_REGISTER_TEST(test_nlop_rbf);
+
+static bool test_avgpool(void)
+{
+	unsigned int N = 5;	
+	long indims[] = {2, 6, 1, 1, 2}; 	//channel, x, y, z, batch 
+	long avg_dims[] = {2, 2, 1, 1, 2}; 	//channel, x, y, z, batch 
+	long pool_size[] = {3, 1, 1};
+
+	complex float in[] = {	1102., 1201., 1104., 1203., 1106., 1205., 1207., 1408., 1209., 1410., 1211., 1412.,
+				2303., 2204., 2302., 2203., 2307., 2208., 2204., 2406., 2209., 2410., 2211., 2411. };
+
+	// adjoint consists of average divided by amount of averaged numbers
+	complex float adj_exp[] = {	368., 401., 368., 401., 368., 401., 403., 470., 403., 470., 403., 470., 
+					768., 735., 768., 735., 768., 735., 736., 803., 736., 803., 736., 803. };
+
+	complex float avg_exp[] = {	1104., 1203., 1209., 1410.,
+					2304., 2205., 2208., 2409.};
+
+	complex float* avg = md_alloc(N, indims, CFL_SIZE);
+	complex float* adj = md_alloc(N, indims, CFL_SIZE);
+
+	const struct nlop_s* network = nlop_from_linop_F(linop_identity_create(N, indims));
+
+	network = append_avgpool_layer(network, 0, pool_size, PAD_VALID, true);
+	nlop_apply(network, N, avg_dims, avg, N, indims, in); 		// check output of average pooling layer
+	nlop_adjoint(network, N, indims, adj, N, avg_dims, avg);	// check adjoint of average pooling layer
+
+	nlop_free(network);
+
+	UT_ASSERT(1.e-8 >  md_zrmse(N, avg_dims, avg, avg_exp) + md_zrmse(N, indims, adj, adj_exp) );
+}
+
+UT_REGISTER_TEST(test_avgpool);
+
+static bool test_upsampl(void)
+{
+	unsigned int N = 5;	
+	long idims[] = {2, 2, 1, 1, 2}; 	//channel, x, y, z, batch 
+	long odims[] = {2, 6, 1, 1, 2}; 	//channel, x, y, z, batch 
+
+	complex float in[] = {	1101., 1203., 1104., 1206.,
+				2100., 2202., 2103., 2205.};
+
+	complex float upsampl_exp[] = {	367., 401., 367., 401., 367., 401., 368., 402., 368., 402., 368., 402.,
+					700., 734., 700., 734., 700., 734., 701., 735., 701., 735., 701., 735. };
+	// adjoint consists of average divided by amount of averaged numbers
+	complex float upsampl_adj_exp[] = {	367., 401., 368., 402.,
+					 	700., 734., 701., 735.};
+
+	complex float* upsampl = md_alloc(N, odims, CFL_SIZE);
+	complex float* upsampl_adj = md_alloc(N, idims, CFL_SIZE);
+
+	const struct nlop_s* network = nlop_from_linop_F(linop_identity_create(N, idims));
+	network = append_upsampl_layer(network, 0, MAKE_ARRAY(3l, 1l, 1l), true);
+	nlop_apply(network, N, odims, upsampl, N, idims, in);
+	nlop_adjoint(network, N, idims, upsampl_adj, N, odims, upsampl);
+
+	nlop_free(network);
+
+	UT_ASSERT(1.e-8 >  md_zrmse(N, odims, upsampl, upsampl_exp)+ md_zrmse(N, idims, upsampl_adj, upsampl_adj_exp));
+}
+
+UT_REGISTER_TEST(test_upsampl);
