@@ -504,6 +504,9 @@ int main_modbloch(int argc, char* argv[])
 	md_free(ones_tmp);
 	md_free(mask);
 
+	if (inputSP)
+		md_free(sliceprofile);
+
 	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_dims, img);
@@ -512,9 +515,6 @@ int main_modbloch(int argc, char* argv[])
 
 	if(NULL != input_b1)
 		unmap_cfl(DIMS, input_b1_dims, input_b1);
-
-	if(NULL != sliceprofile)
-		unmap_cfl(DIMS, slcprfl_dims, sliceprofile);
 
 	if(NULL != input_vfa)
 		unmap_cfl(DIMS, input_vfa_dims, input_vfa);
