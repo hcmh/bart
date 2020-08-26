@@ -156,6 +156,7 @@ int main_sim(int argc, char* argv[])
 	else
 		sim_data.seq.prep_pulse_length = sim_data.pulse.rf_end;
 
+	sim_data.seq.inversion_pulse_length = 0.00001;
 
 	// Prepare analytical case
 	struct signal_model parm;
