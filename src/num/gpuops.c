@@ -39,6 +39,8 @@
 
 #define MiBYTE (1024*1024)
 
+#define ASYNC_API_CALLS
+
 extern unsigned int reserved_gpus;
 unsigned int reserved_gpus = 0U;
 
@@ -280,7 +282,11 @@ void cuda_clear(long size, void* dst)
 {
 //	printf("CLEAR %x %ld\n", dst, size);
 	assert(cuda_ondevice_num(dst, cuda_get_device()));
+#ifdef ASYNC_API_CALLS
+	CUDA_ERROR(cudaMemsetAsync(dst, 0, size, cudaStreamLegacy));
+#else
 	CUDA_ERROR(cudaMemset(dst, 0, size));
+#endif
 }
 
 static void cuda_float_clear(long size, float* dst)
@@ -295,7 +301,11 @@ void cuda_memcpy(long size, void* dst, const void* src)
 		assert(cuda_ondevice_num(dst, cuda_get_device()));
 	if (cuda_ondevice(src))
 		assert(cuda_ondevice_num(src, cuda_get_device()));
+#ifdef ASYNC_API_CALLS
+	CUDA_ERROR(cudaMemcpyAsync(dst, src, size, cudaMemcpyDefault, cudaStreamLegacy));
+#else
 	CUDA_ERROR(cudaMemcpy(dst, src, size, cudaMemcpyDefault));
+#endif
 }
 
 
@@ -305,7 +315,11 @@ void cuda_memcpy_strided(const long dims[2], long ostr, void* dst, long istr, co
 		assert(cuda_ondevice_num(dst, cuda_get_device()));
 	if (cuda_ondevice(src))
 		assert(cuda_ondevice_num(src, cuda_get_device()));
+#ifdef ASYNC_API_CALLS
+	CUDA_ERROR(cudaMemcpy2DAsync(dst, ostr, src, istr, dims[0], dims[1], cudaMemcpyDefault, cudaStreamLegacy));
+#else
 	CUDA_ERROR(cudaMemcpy2D(dst, ostr, src, istr, dims[0], dims[1], cudaMemcpyDefault));
+#endif
 }
 
 static void cuda_float_copy(long size, float* dst, const float* src)
