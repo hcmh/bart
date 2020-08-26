@@ -122,7 +122,7 @@ int main_nn_segm(int argc, char* argv[])
 		num_init_gpu_device(1);
 
 
-#ifdef  USE_CUDA
+#if 0
 
 		complex float* in_gpu = md_alloc_gpu(3, dims_in, CFL_SIZE);
 		md_copy(3, dims_in, in_gpu, in, CFL_SIZE);
