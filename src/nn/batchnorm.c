@@ -19,6 +19,7 @@
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 #include "nlops/cast.h"
+#include "nlops/const.h"
 
 #include "nn/layers.h"
 
@@ -564,160 +565,181 @@ const struct nlop_s* nlop_scale_and_shift_create(int N, const long dims[N], unsi
 					(nlop_fun_t[3][1]){ { rescale_adj_src}, { rescale_adj_beta }, { rescale_adj_gamma } },
 					NULL, NULL, rescale_del);
 }
-struct batchnorm_stats_s {
+
+
+struct bn_s {
 
 	INTERFACE(nlop_data_t);
 
-	enum NETWORK_STATUS network_status;
-
+	unsigned long flags;
 	const struct iovec_s* dom;
-	const struct iovec_s* codom;
+	const struct iovec_s* stat_dom;
 
-	const struct nlop_s* stats_op;
-	float n;
+	float mean_size;
+
+	complex float* out;
+	complex float* scale; // 1 / sqrt(simga_b^2 +epsilon)
+	complex float* ones;
+
+	complex float epsilon;
 };
 
-DEF_TYPEID(batchnorm_stats_s);
+DEF_TYPEID(bn_s);
 
 
-static void batchnorm_fun(const nlop_data_t* _data, int N, complex float* args[N])
+static void bn_fun(const nlop_data_t* _data, int D, complex float* args[D])
 {
-	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
+	START_TIMER;
+	const auto data = CAST_DOWN(bn_s, _data);
 
-	assert(6 == N);
-
-	complex float* mean = args[0];
-	complex float* var = args[1];
-	complex float* unbiased_var_out = args[2];
+	complex float* out = args[0];
+	complex float* mean = args[1];
+	complex float* var = args[2];
 
 	complex float* src = args[3];
-	complex float* floating_mean_in = args[4];
-	complex float* floating_var_in = args[5];
+	assert(4 == D);
 
-	if (data->network_status == STAT_TEST){
+	unsigned int N = data->dom->N;
 
-		md_copy(data->codom->N, data->codom->dims, mean, floating_mean_in, data->codom->size);
-		md_copy(data->codom->N, data->codom->dims, var, floating_var_in, data->codom->size);
+	long nstat_dims[N]; //dims that not stay
+	long nstat_strs[N];
+	md_select_dims(N, data->flags, nstat_dims, data->dom->dims);
+	md_calc_strides(N, nstat_strs, nstat_dims, CFL_SIZE);
 
-		return;
+	if (NULL == data->out)
+		data->out = md_alloc_sameplace(N, data->dom->dims, CFL_SIZE, args[0]);
+	if (NULL == data->scale)
+		data->scale = md_alloc_sameplace(N, data->stat_dom->dims, CFL_SIZE, args[0]);
+	if (NULL == data->ones) {
+
+		data->ones = md_alloc_sameplace(N, nstat_dims, CFL_SIZE, args[0]);
+		md_zfill(N, nstat_dims, data->ones, 1.);
 	}
 
-	if (data->network_status == STAT_TRAIN){
+	//compute mean
+	md_ztenmul(N, data->stat_dom->dims, mean, data->dom->dims, src, nstat_dims, data->ones);
+	md_zsmul(N, data->stat_dom->dims, mean, mean, 1. / data->mean_size);
 
-		nlop_generic_apply_unchecked(data->stats_op, 3, MAKE_ARRAY((void*)mean, (void*)var, (void*)src));
-		md_zsmul(data->codom->N, data->codom->dims, unbiased_var_out, var, data->n / (data->n - 1.) );
+	//compute var
+	md_copy2(N, data->dom->dims, data->dom->strs, data->out, data->stat_dom->strs, mean, CFL_SIZE);
+	md_zsub(N, data->dom->dims, data->out, src, data->out);
 
-		return;
-	}
+	md_zmulc(N, data->dom->dims, out, data->out, data->out);
+	md_ztenmul(N, data->stat_dom->dims, var, data->dom->dims, out, nstat_dims, data->ones);
+	md_zsmul(N, data->stat_dom->dims, var, var, 1. / data->mean_size);
+	md_zreal(N, data->stat_dom->dims, var, var);
 
-	assert(0);
+	//compute scale (1/sqrt(var + epsilon))
+	md_zsadd(N, data->stat_dom->dims, data->scale, var, data->epsilon);
+	md_sqrt(N + 1, MD_REAL_DIMS(N, data->stat_dom->dims), (float*)data->scale, (float*)data->scale);
+
+	complex float* ones_tmp = md_alloc_sameplace(N, data->stat_dom->dims, CFL_SIZE, data->scale);
+	md_zfill(N, data->stat_dom->dims, ones_tmp, 1.);
+	md_zdiv(N, data->stat_dom->dims, data->scale, ones_tmp, data->scale);
+	md_free(ones_tmp);
+
+	md_zmul2(N, data->dom->dims, data->dom->strs, out, data->dom->strs, data->out, data->stat_dom->strs, data->scale);
+	md_copy(N, data->dom->dims, data->out, out, CFL_SIZE);
+
+	//output unbiased variance
+	md_zsmul(N, data->stat_dom->dims, var, var, data->mean_size / (data->mean_size - 1));
+
+	md_free(data->ones);
+	data->ones = NULL;
+
+	PRINT_TIMER("frw stats");
 }
 
-static void batchnorm_der_mean_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
-{
-	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
-
-	if (data->network_status == STAT_TEST){
-
-		md_clear(data->codom->N, data->codom->dims, dst, data->codom->size);
-		return;
-	}
-
-	if (data->network_status == STAT_TRAIN){
-
-		linop_forward(	nlop_get_derivative(data->stats_op, 0, 0),
-				data->codom->N, data->codom->dims, dst,
-				data->dom->N, data->dom->dims, src);
-
-		return;
-	}
-
-	assert(0);
-}
-
-static void batchnorm_adj_mean_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
-{
-	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
-
-	if (data->network_status == STAT_TEST){
-
-		md_clear(data->dom->N, data->dom->dims, dst, data->dom->size);
-		return;
-	}
-
-	if (data->network_status == STAT_TRAIN){
-
-		linop_adjoint(	nlop_get_derivative(data->stats_op, 0, 0),
-				data->dom->N, data->dom->dims, dst,
-				data->codom->N, data->codom->dims, src);
-
-		return;
-	}
-
-	assert(0);
-}
-
-static void batchnorm_der_var_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
-{
-	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
-
-	if (data->network_status == STAT_TEST){
-
-		md_clear(data->codom->N, data->codom->dims, dst, data->codom->size);
-		return;
-	}
-
-	if (data->network_status == STAT_TRAIN){
-
-		linop_forward(	nlop_get_derivative(data->stats_op, 1, 0),
-				data->codom->N, data->codom->dims, dst,
-				data->dom->N, data->dom->dims, src);
-
-		return;
-	}
-
-	assert(0);
-}
-
-static void batchnorm_adj_var_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
-{
-	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
-
-	if (data->network_status == STAT_TEST){
-
-		md_clear(data->dom->N, data->dom->dims, dst, data->dom->size);
-		return;
-	}
-
-	if (data->network_status == STAT_TRAIN){
-
-		linop_adjoint(	nlop_get_derivative(data->stats_op, 1, 0),
-				data->dom->N, data->dom->dims, dst,
-				data->codom->N, data->codom->dims, src);
-
-		return;
-	}
-
-	assert(0);
-}
-
-static void batchnorm_not_implemented(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void bn_der_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
 {
 	UNUSED(_data);
 	UNUSED(dst);
 	UNUSED(src);
-	error("Derivative of batch normalization is not implemented!\n");
+	error("der bn mean not implemented");
+}
+
+static void bn_adj_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	UNUSED(_data);
+	UNUSED(dst);
+	UNUSED(src);
+	error("adj bn mean not implemented");
+}
+
+static void bn_der_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	UNUSED(_data);
+	UNUSED(dst);
+	UNUSED(src);
+	error("der bn var not implemented");
+}
+
+static void bn_adj_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	UNUSED(_data);
+	UNUSED(dst);
+	UNUSED(src);
+	error("adj bn var not implemented");
+}
+
+static void bn_deradj_in(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+{
+	START_TIMER;
+	const auto data = CAST_DOWN(bn_s, _data);
+
+	unsigned int N = data->dom->N;
+
+	long nstat_dims[N]; //dims that not stay
+	long nstat_strs[N];
+	md_select_dims(N, data->flags, nstat_dims, data->dom->dims);
+	md_calc_strides(N, nstat_strs, nstat_dims, CFL_SIZE);
+
+	if (NULL == data->ones) {
+
+		data->ones = md_alloc_sameplace(N, nstat_dims, CFL_SIZE, dst);
+		md_zfill(N, nstat_dims, data->ones, 1.);
+	}
+
+	md_zmul2(N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->stat_dom->strs, data->scale);
+
+	complex float* stat_tmp = md_alloc_sameplace(N, data->stat_dom->dims, CFL_SIZE, dst);
+	complex float* tmp = md_alloc_sameplace(N, data->dom->dims, CFL_SIZE, dst);
+
+
+	//derivative through sigma_b
+	md_zmulc(N, data->dom->dims, tmp, dst, data->out);
+	md_ztenmul(N, data->stat_dom->dims, stat_tmp, data->dom->dims, tmp, nstat_dims, data->ones);
+	md_zreal(N, data->stat_dom->dims, stat_tmp, stat_tmp);
+	md_zsmul(N, data->stat_dom->dims, stat_tmp, stat_tmp, 1. / data->mean_size);
+
+	md_zmul2(N, data->dom->dims, data->dom->strs, tmp, data->dom->strs, data->out, data->stat_dom->strs, stat_tmp);
+	md_zsub(N, data->dom->dims, dst, dst, tmp);
+
+	//derivative through mu_b
+	md_ztenmul(N, data->stat_dom->dims, stat_tmp, data->dom->dims, src, nstat_dims, data->ones);
+	md_zsmul(N, data->stat_dom->dims, stat_tmp, stat_tmp, -1. / data->mean_size);
+	md_zmul(N, data->stat_dom->dims, stat_tmp, stat_tmp, data->scale);
+	md_zfmac2(N, data->dom->dims, data->dom->strs, dst, data->stat_dom->strs, stat_tmp, nstat_strs, data->ones);
+
+	md_free(tmp);
+	md_free(stat_tmp);
+
+	md_free(data->ones);
+	data->ones = NULL;
+
+	PRINT_TIMER("der/adj bn in ");
 }
 
 
-static void batchnorm_stats_del(const struct nlop_data_s* _data)
+static void bn_del(const struct nlop_data_s* _data)
 {
-	const auto data = CAST_DOWN(batchnorm_stats_s, _data);
-
-	nlop_free(data->stats_op);
+	const auto data = CAST_DOWN(bn_s, _data);
+	md_free(data->out);
+	md_free(data->scale);
+	md_free(data->ones);
 
 	iovec_free(data->dom);
-	iovec_free(data->codom);
+	iovec_free(data->stat_dom);
 
 	xfree(data);
 }
@@ -725,55 +747,51 @@ static void batchnorm_stats_del(const struct nlop_data_s* _data)
 /**
  * Nlop to compute mean and variance of input
  *
+ * @param N number of dimension
  * @param dims dims of input tensor
  * @param flags dims to compute mean/var over, i.e. dimensions that do not stay
+ * @param epsilon small number to stabilise division
  *
  * In 0:	Input
- * In 1:	Floating Mean
- * In 2: 	Floating Variance
-
- * Out 0:	Mean (Train: \mu = \sum_{i=1}^N x_i/N, Inference: Floating Mean)
- * Out 1: 	Variance (Train: variance of minibatch \var = \sum_{i=1}^N |(x_i-\mu)|^2/N, Inference: Floating Variance)
- * Out 3: 	Unbiased sample variance for upadting floating variance (Train only)
+ * Out 0:	Normalized out
+ * Out 1:	Mean \mu = \sum_{i=1}^N x_i/N
+ * Out 2: 	Variance \var = \sum_{i=1}^N |(x_i-\mu)|^2/N
  *
+ * Note the difference of the definition compared to md_zvar which has factor 1/(N-1)
  **/
-const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[N], unsigned long flags, enum NETWORK_STATUS status)
+static const struct nlop_s* nlop_bn_create(int N, const long dims[N], unsigned long flags, float epsilon)
 {
-	PTR_ALLOC(struct batchnorm_stats_s, data);
-	SET_TYPEID(batchnorm_stats_s, data);
+	PTR_ALLOC(struct bn_s, data);
+	SET_TYPEID(bn_s, data);
 
-
-	long codims[N];
-	md_select_dims(N, ~flags, codims, dims);
-
+	// will be initialized later, to transparently support GPU
+	data->flags = flags;
 	data->dom = iovec_create(N, dims, CFL_SIZE);
-	data->codom = iovec_create(N, codims, CFL_SIZE);
-	data->n = md_calc_size(N, dims) / md_calc_size(N, codims);
-	data->stats_op = nlop_stats_create(N, dims, flags);
+	long stat_dims[N];
+	md_select_dims(N, ~flags, stat_dims, dims);
+	data->stat_dom = iovec_create(N, stat_dims, CFL_SIZE);
 
-	data->network_status = status;
+	data->mean_size = md_calc_size(N, dims) / md_calc_size(N, stat_dims);
+	data->epsilon = epsilon;
+
+	data->out = NULL;
+	data->scale = NULL;
+	data->ones = NULL;
 
 	long nl_odims[3][N];
-	md_copy_dims(N, nl_odims[0], codims);
-	md_copy_dims(N, nl_odims[1], codims);
-	md_copy_dims(N, nl_odims[2], codims);
+	md_copy_dims(N, nl_odims[0], dims);
+	md_copy_dims(N, nl_odims[1], stat_dims);
+	md_copy_dims(N, nl_odims[2], stat_dims);
 
-	long nl_idims[3][N];
+	long nl_idims[1][N];
 	md_copy_dims(N, nl_idims[0], dims);
-	md_copy_dims(N, nl_idims[1], codims);
-	md_copy_dims(N, nl_idims[2], codims);
 
 
-	return nlop_generic_create(3, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), batchnorm_fun,
-					(nlop_fun_t[3][3]){	{ batchnorm_der_mean_src, batchnorm_der_var_src, batchnorm_not_implemented},
-								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
-								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
-					(nlop_fun_t[3][3]){ 	{ batchnorm_adj_mean_src, batchnorm_adj_var_src, batchnorm_not_implemented},
-								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented},
-								{ batchnorm_not_implemented, batchnorm_not_implemented, batchnorm_not_implemented} },
-								 NULL, NULL, batchnorm_stats_del);
+	return nlop_generic_create(3, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), bn_fun,
+					(nlop_fun_t[1][3]){ { bn_deradj_in, bn_der_mean, bn_der_var } },
+					(nlop_fun_t[1][3]){ { bn_deradj_in, bn_adj_mean, bn_adj_var } },
+					 NULL, NULL, bn_del);
 }
-
 
 
 /**
@@ -791,28 +809,36 @@ const struct nlop_s* nlop_batchnorm_floatingstats_create(int N, const long dims[
  **/
 const struct nlop_s* nlop_batchnorm_create(int N, const long dims[N], unsigned long flags, float epsilon, enum NETWORK_STATUS status)
 {
-
-	long stat_dims[N + 1];
+	long stat_dims[N];
 	md_select_dims(N, ~flags, stat_dims, dims);
-	stat_dims[N] = 1;
 
-	auto nlop_norm = nlop_normalize_create(N, dims, flags, epsilon);
-	auto nlop_id = nlop_from_linop_F(linop_identity_create(N, stat_dims));
-	auto nlop_result = nlop_combine_FF(nlop_norm, nlop_id); //in: input, mean, var, mean; out: out, mean
-	nlop_result = nlop_dup_F(nlop_result, 1, 3); //in: input, mean, var; out: out, mean
+	const struct nlop_s* result = NULL;
+	const struct iovec_s* iov = NULL;
 
-	nlop_result = nlop_combine_FF(nlop_result, nlop_batchnorm_floatingstats_create(N, dims, flags, status)); //in: input, mean, var, input, fmean, fvar; out: out, mean, mean, var, uvar
-	nlop_result = nlop_link_F(nlop_result, 2, 1); //in: input, var, input, fmean, fvar; out: out, mean, var, uvar
-	nlop_result = nlop_dup_F(nlop_result, 0, 2); //in: input, var, fmean, fvar; out: out, mean, var, uvar
-	nlop_result = nlop_link_F(nlop_result, 2, 1); //in: input, fmean, fvar; out: out, mean, uvar
+	switch (status) {
 
-	auto nlop_result_nc = nlop_reshape_in_F(nlop_result , 1, N + 1, stat_dims);
-	nlop_result_nc  = nlop_reshape_in_F(nlop_result_nc , 2, N + 1, stat_dims);
-	nlop_result_nc  = nlop_reshape_out_F(nlop_result_nc , 1, N + 1, stat_dims);
-	nlop_result_nc  = nlop_reshape_out_F(nlop_result_nc , 2, N + 1, stat_dims);
+		case STAT_TRAIN:
 
-	nlop_result_nc = nlop_stack_inputs_F(nlop_result_nc, 1, 2, N); //in: input, fmean/fvar; out: out, mean, uvar
-	nlop_result_nc = nlop_stack_outputs_F(nlop_result_nc, 1, 2, N); //in: input, fmean/fvar; out: out, mean/uvar
+			result = nlop_bn_create(N, dims, flags, epsilon);
+			result = nlop_append_singleton_dim_out_F(result, 1);
+			result = nlop_append_singleton_dim_out_F(result, 2);
+			result = nlop_stack_outputs_F(result, 1, 2, N);
+			iov = nlop_generic_codomain(result, 1);
+			result = nlop_combine_FF(result, nlop_del_out_create(iov->N, iov->dims));
+			return result;
 
-	return nlop_result_nc;
+		case STAT_TEST:
+
+			result = nlop_normalize_create(N, dims, flags, epsilon);
+			result = nlop_append_singleton_dim_in_F(result, 1);
+			result = nlop_append_singleton_dim_in_F(result, 2);
+			result = nlop_stack_inputs_F(result, 1, 2, N);
+			iov = nlop_generic_domain(result, 1);
+			result = nlop_combine_FF(result, nlop_from_linop_F(linop_identity_create(iov->N, iov->dims)));
+			result = nlop_dup_F(result, 1, 2);
+			return result;
+	}
+
+	assert(0);
+	return NULL;
 }
