@@ -48,7 +48,7 @@
 #include "nn_segm.h"
 
 /**
- * Hot encode batch 
+ * Hot encode batch
  * (largest value as index for prediction)
  *
  * @param N_batch batch size
@@ -85,7 +85,7 @@ static void hotenc_to_index(int N_batch, long prediction[(IMG_DIM * IMG_DIM * N_
 			segm[i_batch] = prediction[i_batch];
 		unmap_cfl(1, img_dims, segm);
 	}
-	
+
 }
 
 /**
@@ -107,7 +107,7 @@ const struct nlop_s* get_nn_segm(int N_batch)
 	long pool_size[] = {2, 2, 1};
 	UNUSED(pool_size);
 
-	//debug_print_dims(DP_INFO, 5, nlop_generic_codomain(network, 0)->dims);	
+	//debug_print_dims(DP_INFO, 5, nlop_generic_codomain(network, 0)->dims);
 	//printf("in_args: %d \n", nlop_get_nr_in_args(network));
 	//printf("out_args: %d \n", nlop_get_nr_out_args(combined));
 	//nlop_debug(DP_INFO, conv_01);
@@ -148,10 +148,10 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_05 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(conv_04, 0)->dims));
 
-	const struct nlop_s* combined_05 = nlop_combine_FF(conv_05, copy_05); // in: id_c5, cv_c5, tr_c5, cy_05; out: out_c5, out_cy5 
-	combined_05 = nlop_dup_F(combined_05, 0,  3); // in: id_c5, cv_c5, tr_c5; out: out_c5, out_cy5 
+	const struct nlop_s* combined_05 = nlop_combine_FF(conv_05, copy_05); // in: id_c5, cv_c5, tr_c5, cy_05; out: out_c5, out_cy5
+	combined_05 = nlop_dup_F(combined_05, 0,  3); // in: id_c5, cv_c5, tr_c5; out: out_c5, out_cy5
 	combined_05 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_04, 0)->dims, 1.0, 1.0), combined_05);
-	combined_05 = nlop_link_F(combined_05, 1, 0); // in: out_cy5, id_c5, cv_c5, tr_c5; out: out_c5+out_cy5, out_cy5 
+	combined_05 = nlop_link_F(combined_05, 1, 0); // in: out_cy5, id_c5, cv_c5, tr_c5; out: out_c5+out_cy5, out_cy5
 	combined_05 = nlop_link_F(combined_05, 1, 0); // in: id_c5, cv_c5, tr_c5; out: out_c5+out_cy5
 	conv_04 = nlop_chain2_swap_FF(conv_04, 0, combined_05, 0); // in: id_c4, cv_c4, cv_c5, tr_c5; out: out_c5+out_cy5
 
@@ -161,10 +161,10 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_04 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(conv_03, 0)->dims));
 
-	const struct nlop_s* combined_04 = nlop_combine_FF(conv_04, copy_04); // in: id_c4, cv_c4, cv_c5, tr_c5, tr_c4, cy_4; out: out_c4, out_cy4 
-	combined_04 = nlop_dup_F(combined_04, 0,  5); // in: id_c4, cv_c4, cv_c5, tr_c5, tr_c4; out: out_c4, out_cy4 
+	const struct nlop_s* combined_04 = nlop_combine_FF(conv_04, copy_04); // in: id_c4, cv_c4, cv_c5, tr_c5, tr_c4, cy_4; out: out_c4, out_cy4
+	combined_04 = nlop_dup_F(combined_04, 0,  5); // in: id_c4, cv_c4, cv_c5, tr_c5, tr_c4; out: out_c4, out_cy4
 	combined_04 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_03, 0)->dims, 1.0, 1.0), combined_04);
-	combined_04 = nlop_link_F(combined_04, 1, 0); // in: out_c4, id_c4, cv_c4, cv_c5, tr_c5, tr_c4; out: out_c4+out_cy4, out_cy4 
+	combined_04 = nlop_link_F(combined_04, 1, 0); // in: out_c4, id_c4, cv_c4, cv_c5, tr_c5, tr_c4; out: out_c4+out_cy4, out_cy4
 	combined_04 = nlop_link_F(combined_04, 1, 0); // in: id_c4, C4; out: out_c4+out_cy4
 	conv_03 = nlop_chain2_swap_FF(conv_03, 0, combined_04, 0); // in: id_c3, cv_c3, C4; out: out_c4+out_cy4
 
@@ -174,10 +174,10 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_03 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(conv_02, 0)->dims));
 
-	const struct nlop_s* combined_03 = nlop_combine_FF(conv_03, copy_03); // in: id_c3, cv_c3, C4, tr_c3, cy_03; out: out_c3, out_cy3 
-	combined_03 = nlop_dup_F(combined_03, 0,  7); // in: id_c3, cv_c3, C4, tr_c3; out: out1, out2 
+	const struct nlop_s* combined_03 = nlop_combine_FF(conv_03, copy_03); // in: id_c3, cv_c3, C4, tr_c3, cy_03; out: out_c3, out_cy3
+	combined_03 = nlop_dup_F(combined_03, 0,  7); // in: id_c3, cv_c3, C4, tr_c3; out: out1, out2
 	combined_03 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_02, 0)->dims, 1.0, 1.0), combined_03);
-	combined_03 = nlop_link_F(combined_03, 1, 0); // in: out_c3, id_c3, cv_c3, C4, tr_c3; out: out_c3+out_cy3, out_cy3 
+	combined_03 = nlop_link_F(combined_03, 1, 0); // in: out_c3, id_c3, cv_c3, C4, tr_c3; out: out_c3+out_cy3, out_cy3
 	combined_03 = nlop_link_F(combined_03, 1, 0); // in: id_c3, C3; out: out_c3+out_cy3
 	conv_02 = nlop_chain2_swap_FF(conv_02, 0, combined_03, 0); // in: id_c2, cv_c2, C3; out: out_c3+out_cy3
 
@@ -187,10 +187,10 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_02 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(conv_01, 0)->dims));
 
-	const struct nlop_s* combined_02 = nlop_combine_FF(conv_02, copy_02); // in: id_c2, cv_c2, C3, tr_c2, cy_02; out: out_c2, out_cy2 
-	combined_02 = nlop_dup_F(combined_02, 0,  9); // in: id_c2, cv_c2, C3, tr_c2; out: out_c2, out_cy2 
-	combined_02 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_01, 0)->dims, 1.0, 1.0), combined_02); 
-	combined_02 = nlop_link_F(combined_02, 1, 0); // in: out_c2, id_c2, cv_c2, C3, tr_c2; out: out_c2+out_cr2, out_cy2 
+	const struct nlop_s* combined_02 = nlop_combine_FF(conv_02, copy_02); // in: id_c2, cv_c2, C3, tr_c2, cy_02; out: out_c2, out_cy2
+	combined_02 = nlop_dup_F(combined_02, 0,  9); // in: id_c2, cv_c2, C3, tr_c2; out: out_c2, out_cy2
+	combined_02 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_01, 0)->dims, 1.0, 1.0), combined_02);
+	combined_02 = nlop_link_F(combined_02, 1, 0); // in: out_c2, id_c2, cv_c2, C3, tr_c2; out: out_c2+out_cr2, out_cy2
 	combined_02 = nlop_link_F(combined_02, 1, 0); // in: id_c2, C2; out: out_c2+out_cy2
 	conv_01 = nlop_chain2_swap_FF(conv_01, 0, combined_02, 0); // in: id_c1, cv_c1, C2; out: out_c2+out_cy2
 
@@ -200,11 +200,11 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_01 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(network, 0)->dims)); // create identity network
 
-	const struct nlop_s* combined_01 = nlop_combine_FF(conv_01, copy_01); // in: id_c1, conv_c1, C2, trans_c1, id_cr1; out: out_c1, out_cr1 
-	combined_01 = nlop_dup_F(combined_01, 0,  11); // in: id_c1, conv_c1, C2, trans_c1; out: out_c1, out_cr1 
-	combined_01 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(network, 0)->dims, 1.0, 1.0), combined_01); // in: out_c1, out_cr1, ...; out: out_c1+out_cr1, out_c1, out_cr1 
+	const struct nlop_s* combined_01 = nlop_combine_FF(conv_01, copy_01); // in: id_c1, conv_c1, C2, trans_c1, id_cr1; out: out_c1, out_cr1
+	combined_01 = nlop_dup_F(combined_01, 0,  11); // in: id_c1, conv_c1, C2, trans_c1; out: out_c1, out_cr1
+	combined_01 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(network, 0)->dims, 1.0, 1.0), combined_01); // in: out_c1, out_cr1, ...; out: out_c1+out_cr1, out_c1, out_cr1
 
-	combined_01 = nlop_link_F(combined_01, 1, 0); // in: out_cr1, id_c1, ...; out: out_c1+out_cr1, out_cr1 
+	combined_01 = nlop_link_F(combined_01, 1, 0); // in: out_cr1, id_c1, ...; out: out_c1+out_cr1, out_cr1
 	combined_01 = nlop_link_F(combined_01, 1, 0); // in: id_c1, conv_c1, C2, trans_c1; out: out_c1+out_cr1
 	network = nlop_chain2_swap_FF(network, 0, combined_01, 0); // in: img, conv1, act1, conv2, act2, conv_c1, C2, trans_c1; out: out
 #else
@@ -243,10 +243,10 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_05 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(conv_04, 0)->dims));
 
-	const struct nlop_s* combined_05 = nlop_combine_FF(conv_05, copy_05); // in: id_c5, cv_c5, tr_c5, cy_05; out: out_c5, out_cy5 
-	combined_05 = nlop_dup_F(combined_05, 0,  3); // in: id_c5, cv_c5, tr_c5; out: out_c5, out_cy5 
+	const struct nlop_s* combined_05 = nlop_combine_FF(conv_05, copy_05); // in: id_c5, cv_c5, tr_c5, cy_05; out: out_c5, out_cy5
+	combined_05 = nlop_dup_F(combined_05, 0,  3); // in: id_c5, cv_c5, tr_c5; out: out_c5, out_cy5
 	combined_05 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_04, 0)->dims, 1.0, 1.0), combined_05);
-	combined_05 = nlop_link_F(combined_05, 1, 0); // in: out_cy5, id_c5, cv_c5, tr_c5; out: out_c5+out_cy5, out_cy5 
+	combined_05 = nlop_link_F(combined_05, 1, 0); // in: out_cy5, id_c5, cv_c5, tr_c5; out: out_c5+out_cy5, out_cy5
 	combined_05 = nlop_link_F(combined_05, 1, 0); // in: id_c5, cv_c5, tr_c5; out: out_c5+out_cy5
 	conv_04 = nlop_chain2_swap_FF(conv_04, 0, combined_05, 0); // in: id_c4, cv_c4, cv_c5, tr_c5; out: out_c5+out_cy5
 
@@ -256,10 +256,10 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_04 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(conv_03, 0)->dims));
 
-	const struct nlop_s* combined_04 = nlop_combine_FF(conv_04, copy_04); // in: id_c4, cv_c4, cv_c5, tr_c5, tr_c4, cy_4; out: out_c4, out_cy4 
-	combined_04 = nlop_dup_F(combined_04, 0,  5); // in: id_c4, cv_c4, cv_c5, tr_c5, tr_c4; out: out_c4, out_cy4 
+	const struct nlop_s* combined_04 = nlop_combine_FF(conv_04, copy_04); // in: id_c4, cv_c4, cv_c5, tr_c5, tr_c4, cy_4; out: out_c4, out_cy4
+	combined_04 = nlop_dup_F(combined_04, 0,  5); // in: id_c4, cv_c4, cv_c5, tr_c5, tr_c4; out: out_c4, out_cy4
 	combined_04 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_03, 0)->dims, 1.0, 1.0), combined_04);
-	combined_04 = nlop_link_F(combined_04, 1, 0); // in: out_c4, id_c4, cv_c4, cv_c5, tr_c5, tr_c4; out: out_c4+out_cy4, out_cy4 
+	combined_04 = nlop_link_F(combined_04, 1, 0); // in: out_c4, id_c4, cv_c4, cv_c5, tr_c5, tr_c4; out: out_c4+out_cy4, out_cy4
 	combined_04 = nlop_link_F(combined_04, 1, 0); // in: id_c4, C4; out: out_c4+out_cy4
 	conv_03 = nlop_chain2_swap_FF(conv_03, 0, combined_04, 0); // in: id_c3, cv_c3, C4; out: out_c4+out_cy4
 
@@ -269,10 +269,10 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_03 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(conv_02, 0)->dims));
 
-	const struct nlop_s* combined_03 = nlop_combine_FF(conv_03, copy_03); // in: id_c3, cv_c3, C4, tr_c3, cy_03; out: out_c3, out_cy3 
-	combined_03 = nlop_dup_F(combined_03, 0,  7); // in: id_c3, cv_c3, C4, tr_c3; out: out1, out2 
+	const struct nlop_s* combined_03 = nlop_combine_FF(conv_03, copy_03); // in: id_c3, cv_c3, C4, tr_c3, cy_03; out: out_c3, out_cy3
+	combined_03 = nlop_dup_F(combined_03, 0,  7); // in: id_c3, cv_c3, C4, tr_c3; out: out1, out2
 	combined_03 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_02, 0)->dims, 1.0, 1.0), combined_03);
-	combined_03 = nlop_link_F(combined_03, 1, 0); // in: out_c3, id_c3, cv_c3, C4, tr_c3; out: out_c3+out_cy3, out_cy3 
+	combined_03 = nlop_link_F(combined_03, 1, 0); // in: out_c3, id_c3, cv_c3, C4, tr_c3; out: out_c3+out_cy3, out_cy3
 	combined_03 = nlop_link_F(combined_03, 1, 0); // in: id_c3, C3; out: out_c3+out_cy3
 	conv_02 = nlop_chain2_swap_FF(conv_02, 0, combined_03, 0); // in: id_c2, cv_c2, C3; out: out_c3+out_cy3
 
@@ -282,10 +282,10 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_02 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(conv_01, 0)->dims));
 
-	const struct nlop_s* combined_02 = nlop_combine_FF(conv_02, copy_02); // in: id_c2, cv_c2, C3, tr_c2, cy_02; out: out_c2, out_cy2 
-	combined_02 = nlop_dup_F(combined_02, 0,  9); // in: id_c2, cv_c2, C3, tr_c2; out: out_c2, out_cy2 
-	combined_02 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_01, 0)->dims, 1.0, 1.0), combined_02); 
-	combined_02 = nlop_link_F(combined_02, 1, 0); // in: out_c2, id_c2, cv_c2, C3, tr_c2; out: out_c2+out_cr2, out_cy2 
+	const struct nlop_s* combined_02 = nlop_combine_FF(conv_02, copy_02); // in: id_c2, cv_c2, C3, tr_c2, cy_02; out: out_c2, out_cy2
+	combined_02 = nlop_dup_F(combined_02, 0,  9); // in: id_c2, cv_c2, C3, tr_c2; out: out_c2, out_cy2
+	combined_02 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(conv_01, 0)->dims, 1.0, 1.0), combined_02);
+	combined_02 = nlop_link_F(combined_02, 1, 0); // in: out_c2, id_c2, cv_c2, C3, tr_c2; out: out_c2+out_cr2, out_cy2
 	combined_02 = nlop_link_F(combined_02, 1, 0); // in: id_c2, C2; out: out_c2+out_cy2
 	conv_01 = nlop_chain2_swap_FF(conv_01, 0, combined_02, 0); // in: id_c1, cv_c1, C2; out: out_c2+out_cy2
 
@@ -295,11 +295,11 @@ const struct nlop_s* get_nn_segm(int N_batch)
 
 	const struct nlop_s* copy_01 = nlop_from_linop_F(linop_identity_create(N, nlop_generic_codomain(network, 0)->dims)); // create identity network
 
-	const struct nlop_s* combined_01 = nlop_combine_FF(conv_01, copy_01); // in: id_c1, conv_c1, C2, trans_c1, id_cr1; out: out_c1, out_cr1 
-	combined_01 = nlop_dup_F(combined_01, 0,  11); // in: id_c1, conv_c1, C2, trans_c1; out: out_c1, out_cr1 
-	combined_01 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(network, 0)->dims, 1.0, 1.0), combined_01); // in: out_c1, out_cr1, ...; out: out_c1+out_cr1, out_c1, out_cr1 
+	const struct nlop_s* combined_01 = nlop_combine_FF(conv_01, copy_01); // in: id_c1, conv_c1, C2, trans_c1, id_cr1; out: out_c1, out_cr1
+	combined_01 = nlop_dup_F(combined_01, 0,  11); // in: id_c1, conv_c1, C2, trans_c1; out: out_c1, out_cr1
+	combined_01 = nlop_combine_FF(nlop_zaxpbz_create(5, nlop_generic_codomain(network, 0)->dims, 1.0, 1.0), combined_01); // in: out_c1, out_cr1, ...; out: out_c1+out_cr1, out_c1, out_cr1
 
-	combined_01 = nlop_link_F(combined_01, 1, 0); // in: out_cr1, id_c1, ...; out: out_c1+out_cr1, out_cr1 
+	combined_01 = nlop_link_F(combined_01, 1, 0); // in: out_cr1, id_c1, ...; out: out_c1+out_cr1, out_cr1
 	combined_01 = nlop_link_F(combined_01, 1, 0); // in: id_c1, conv_c1, C2, trans_c1; out: out_c1+out_cr1
 	network = nlop_chain2_swap_FF(network, 0, combined_01, 0); // in: img, conv1, act1, conv2, act2, conv_c1, C2, trans_c1; out: out
 #endif
@@ -309,7 +309,7 @@ const struct nlop_s* get_nn_segm(int N_batch)
 	network = append_activation_bias(network, 0, ACT_RELU, MD_BIT(0));
 
 	// reshape dimensions to {label, x * y * z * batch_size}
-	long odims[] = {nlop_generic_codomain(network, 0)->dims[0], 
+	long odims[] = {nlop_generic_codomain(network, 0)->dims[0],
 			md_calc_size(nlop_generic_codomain(network, 0)->N, nlop_generic_codomain(network, 0)->dims)/nlop_generic_codomain(network, 0)->dims[0]};
 	network = nlop_reshape_out_F(network, 0, 2, odims);
 
@@ -336,7 +336,7 @@ int nn_segm_get_num_weights(void)
 
 /**
  * Initialise neural network
- * 
+ *
  * @param weights newly initialised weights
  */
 void init_nn_segm(complex float* weights)
@@ -355,7 +355,7 @@ void init_nn_segm(complex float* weights)
 
 /**
  * Train neural network
- * 
+ *
  * @param N_batch batch size for one training step
  * @param N_total total number of images
  * @param N_total_val total number of validation images
@@ -413,7 +413,7 @@ void train_nn_segm(int N_batch, int N_total, int N_total_val, complex float* wei
 	//struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
 	//struct iter6_sgd_conf _conf = iter6_sgd_conf_defaults;
 	struct iter6_adam_conf _conf = iter6_adam_conf_defaults;
-	_conf.epochs = epochs;
+	_conf.INTERFACE.epochs = epochs;
 	iter6_adam(CAST_UP(&_conf),
 			nlop_train,
 			NI, in_type, NULL, src,
@@ -426,7 +426,7 @@ void train_nn_segm(int N_batch, int N_total, int N_total_val, complex float* wei
 }
 
 /**
- * Creates predictions based on largest probability of encoded indices. 
+ * Creates predictions based on largest probability of encoded indices.
  *
  * @param N_batch batch size
  * @param prediction[(IMG_DIM * IMG_DIM * N_batch)] create prediction for each pixel
@@ -477,10 +477,10 @@ void predict_nn_segm(int N_total, int N_batch, long prediction[IMG_DIM * IMG_DIM
 
 /**
  * Calculate accuracy of trained network
- * 
+ *
  * @param N_batch batch size
  * @param weights trained weights
- * 
+ *
  * @return Intersection-over-Union, ratio of Area of Overlap to Area of Union, averaged over all labels
  */
 float accuracy_nn_segm(int N_total, int N_batch, const complex float* weights, const complex float* in, const complex float* out)
@@ -511,7 +511,7 @@ float accuracy_nn_segm(int N_total, int N_batch, const complex float* weights, c
 		totalNumber[(int)prediction[i]] +=1;
 		totalNumber[(int)label[i]] +=1;
 	}
-	
+
 	for (int i = 0; i < MASK_DIM; i++){
 		dice_coefficient += (float)AoO[i] * 2 / ((float) totalNumber[i] * MASK_DIM);
 		printf("Dice coefficient of mask %d = %.6f\n", i,((float)AoO[i] * 2 / (float) totalNumber[i]));

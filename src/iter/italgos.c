@@ -951,3 +951,254 @@ void sgd(	unsigned int epochs,
 		if(NULL != args[o])
 			vops->del(args[o]);
 }
+
+/**
+ * iPALM: Inertial Proximal Alternating Linearized Minimization.
+ * Solves min_{x_0, ..., x_N} H({x_0, ..., x_N}) + sum_i f_i(x_i)
+ * https://doi.org/10.1137/16M1064064
+ *
+ * kth iteration step for input i:
+ *
+ * y_i^k := x_i^k + alpha_i^k (x_i^k - x_i^{k-1})
+ * z_i^k := x_i^k + beta_i^k (x_i^k - x_i^{k-1})
+ * x_i^{k+1} = prox^{f_i}_{tau_i} (y_i^k - 1/tau_i grad_{x_i} H(x_0^{k+1}, ... z_i^k, x_{i+1}^k, ...))
+ *
+ * @param NI number of input tensors
+ * @param isize size of input tensors (flattened as real)
+ * @param in_type type of inputs (static, batchgen, to optimize)
+ * @param x inputs of operator (weights, train data, reference data)>
+ * @param x_old weights of the last iteration (is initialized if epoch_start == 0)
+ * @param NO number of output tensors (i.e. objectives)
+ * @param osize size of output tensors (flattened as real)
+ * @param out_type type of output (i.e. should be minimized)
+ * @param N_batch number of batches per epoch
+ * @param epoch_start warm start possible if epoch start > 0, note that epoch corresponds to an update due to one batch
+ * @param epoch_end
+ * @param vops
+ * @param alpha parameter per input
+ * @param beta parameter per input
+ * @param convex parameter per input, determines stepsize
+ * @param L Lipshitz constants
+ * @param Lmin minimal Lipshitz constant for backtracking
+ * @param Lmax maximal Lipshitz constant for backtracking
+ * @param Lshrink L->L / L_shrinc if Lipshitz condition is satisfied
+ * @param Lincrease L->L * Lincrease if Lipshitz condition is not satisfied
+ * @param nlop nlop for minimization
+ * @param adj array of adjoints of nlop
+ * @param prox proximal operators of f, if (NULL == prox[i].fun) f = 0 is assumed
+ * @param nlop_batch_gen operator copying current batch in inputs x[i] with type batch generator
+ * @param callback UNUSED
+ * @param monitor UNUSED
+ */
+void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], float* x_old[NI],
+		long NO, long osize[NO], enum OUT_TYPE out_type[NO],
+		int N_batch, int epoch_start, int epoch_end,
+		const struct vec_iter_s* vops,
+		float alpha[NI], float beta[NI], bool convex[NI], bool trivial_stepsize,
+		float L[NI], float Lmin, float Lmax, float Lshrink, float Lincrease,
+		struct iter_nlop_s nlop,
+		struct iter_op_arr_s adj,
+		struct iter_op_p_s prox[NI],
+		struct iter_nlop_s nlop_batch_gen,
+		struct iter_op_s callback, struct monitor_iter6_s* monitor)
+{
+	UNUSED(callback);
+
+	float* x_batch_gen[NI]; //arrays which are filled by batch generator
+	long N_batch_gen = 0;
+
+	float* args[NO + NI];
+
+	float* x_new[NI];
+	float* y[NI];
+	float* z[NI];
+	float* tmp[NI];
+	float* grad[NI];
+
+	unsigned long out_optimize_flag = 0;
+
+	for (int i = 0; i< NI; i++){
+
+		x_batch_gen[i] = NULL;
+
+		x_new[i] = NULL;
+		y[i] = NULL;
+		z[i] = NULL;
+		tmp[i] = NULL;
+		grad[i] = NULL;
+
+		switch(in_type[i]){
+
+			case IN_STATIC:
+
+				break;
+			case IN_BATCH:
+
+				error("flag IN_BATCH not supported\n");
+				break;
+
+			case IN_OPTIMIZE:
+
+				if (0 == epoch_start) {
+
+					if (NULL != prox[i].fun) {
+
+						iter_op_p_call(prox[i], 0., x_old[i], x[i]); // if prox is a projection, we apply it, else it is just a copy (mu = 0)
+						vops->copy(isize[i], x[i], x_old[i]);
+					} else {
+
+						vops->copy(isize[i], x_old[i], x[i]);
+					}
+				}
+				break;
+
+			case IN_BATCH_GENERATOR:
+
+				if (NULL != x[i])
+					error("NULL != x[%d] for batch generator\n", i);
+				x[i] = vops->allocate(isize[i]);
+				x_batch_gen[N_batch_gen] = x[i];
+				N_batch_gen += 1;
+				break;
+
+
+			default:
+
+				error("unknown flag\n");
+				break;
+		}
+
+		args[NO + i] = x[i];
+	}
+
+	for (int o = 0; o < NO; o++) {
+
+		args[o] = vops->allocate(osize[o]);
+		if (OUT_OPTIMIZE == out_type[o])
+			out_optimize_flag = MD_SET(out_optimize_flag, o);
+	}
+
+	for (int epoch = epoch_start; epoch < epoch_end; epoch++)
+		for (int batch = 0; batch < N_batch; batch++) {
+
+		if (0 != N_batch_gen)
+			iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
+
+		float r_old = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops);
+
+		float r_i = r_old;
+
+		for (int i = 0; i < NI; i++) {
+
+			if (IN_OPTIMIZE != in_type[i])
+				continue;
+
+			grad[i] = vops->allocate(isize[i]);
+			tmp[i] = vops->allocate(isize[i]);
+			y[i] = vops->allocate(isize[i]);
+			z[i] = vops->allocate(isize[i]);
+			x_new[i] = vops->allocate(isize[i]);
+
+			//determine current parameters
+			float betai = (-1. == beta[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : beta[i];
+			float alphai = (-1. == alpha[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : alpha[i];
+
+			//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
+			vops->axpbz(isize[i], z[i], 1 + betai, x[i], -betai, x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
+			args[NO + i] = z[i];
+			float r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops);
+			vops->del(z[i]);
+			getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
+
+			//backtracking
+			bool lipshitz_condition = false;
+			while (!lipshitz_condition) {
+
+				float tau = convex[i] ? (1. + 2. * betai) / (2. - 2. * alphai) * L[i] : (1. + 2. * betai) / (1. - 2. * alphai) * L[i];
+				if (trivial_stepsize || (-1. == beta[i]) || (-1. == alpha[i]))
+					tau = L[i];
+
+				if((0 > betai) || ( 0 > alphai) || ( 0 > tau))
+					error("invalid parameters alpha[%d]=%f, beta[%d]=%f, tau=%f\n", i, alphai, i, betai, tau);
+
+				//compute new weights
+				vops->axpbz(isize[i], y[i], 1 + alphai, x[i], -alphai, x_old[i]);
+				vops->axpbz(isize[i], tmp[i], 1, y[i], -1./tau, grad[i]); //tmp2 = x^n + alpha*(x^n - x^n-1) - 1/tau grad
+
+				if (NULL != prox[i].fun)
+					iter_op_p_call(prox[i], tau, x_new[i], tmp[i]);
+				else
+					vops->copy(isize[i],  x_new[i], tmp[i]);
+
+				//compute new residual
+				args[NO + i] = x_new[i];
+				float r_new = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops);
+
+				//compute Lipschitz condition at z
+				float r_lip_z = r_z;
+				vops->sub(isize[i], tmp[i], x_new[i], y[i]); // tmp = x^(n+1) - y^n
+				r_lip_z += vops->dot(isize[i], grad[i], tmp[i]);
+				r_lip_z += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
+
+				//compute Lipschitz condition at x
+				float r_lip_x = r_i;
+				vops->sub(isize[i], tmp[i], x_new[i], x[i]); // tmp = x^(n+1) - x^n
+				r_lip_x += vops->dot(isize[i], grad[i], tmp[i]);
+				r_lip_x += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
+
+				if ((r_lip_z >= r_new) || (L[i] >= Lmax)) {
+
+					lipshitz_condition = true;
+					if (L[i] > Lmin)
+						L[i] /= Lshrink;
+
+					vops->copy(isize[i], x_old[i], x[i]);
+					vops->copy(isize[i], x[i], x_new[i]);
+
+					r_i = r_new; //reuse the new residual within one batch (no update of training data)
+
+				} else
+					L[i] *= Lincrease;
+
+			}
+
+			args[NO + i] = x[i];
+
+			vops->del(grad[i]);
+			vops->del(tmp[i]);
+			vops->del(y[i]);
+			vops->del(x_new[i]);
+
+			grad[i] = NULL;
+			tmp[i] = NULL;
+			y[i] = NULL;
+			z[i] = NULL;
+			x_new[i] = NULL;
+
+		}
+
+
+
+		char post_string[20 * NI];
+		sprintf (post_string, " ");
+
+		for (int i = 0; i < NI; i++)
+			if (IN_OPTIMIZE == in_type[i])
+				sprintf(post_string + strlen(post_string), "L[%d]=%.3e ", i, L[i]);
+
+		monitor_iter6(monitor, epoch, batch, N_batch, r_i, NI, (const float**)x, post_string);
+	}
+
+
+	for (int i = 0; i< NI; i++)
+		if(IN_BATCH_GENERATOR == in_type[i]) {
+
+			vops->del(x[i]);
+			x[i] = NULL;
+		}
+
+
+	for (int o = 0; o < NO; o++)
+		if(NULL != args[o])
+			vops->del(args[o]);
+}

@@ -151,7 +151,7 @@ void train_nn_mnist(int N_batch, int N_total, complex float* weights, const comp
 #if 1
 
 	struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
-	_conf.epochs = epochs;
+	_conf.INTERFACE.epochs = epochs;
 
 #if 1
 	auto nlop_validation = get_nn_mnist(N_batch, STAT_TEST);

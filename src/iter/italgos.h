@@ -217,6 +217,17 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	float* x,
 	struct iter_monitor_s* monitor);
 
+void iPALM(	long NI, long isize[__VLA(NI)], enum IN_TYPE in_type[__VLA(NI)], float* x[__VLA(NI)], float* x_old[__VLA(NI)],
+		long NO, long osize[__VLA(NO)], enum OUT_TYPE out_type[__VLA(NO)],
+		int numbatches, int epoch_start, int epoch_end,
+		const struct vec_iter_s* vops,
+		float alpha[__VLA(NI)], float beta[__VLA(NI)], _Bool convex[__VLA(NI)], _Bool trivial_stepsize,
+		float L[__VLA(NI)], float Lmin, float Lmax, float Lshrink, float Lincrease,
+		struct iter_nlop_s nlop,
+		struct iter_op_arr_s adj,
+		struct iter_op_p_s prox[__VLA(NI)],
+		struct iter_nlop_s nlop_batch_gen,
+		struct iter_op_s callback, struct monitor_iter6_s* monitor);
 #include "misc/cppwrap.h"
 
 #endif // __ITALGOS_H

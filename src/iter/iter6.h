@@ -2,18 +2,23 @@
 #define ITER6_H
 #include "italgos.h"
 
-typedef struct iter6_conf_s { TYPEID* TYPEID; } iter6_conf;
+typedef struct iter6_conf_s {
+	TYPEID* TYPEID;
+
+	int epochs;
+
+	float learning_rate;
+
+	float clip_norm;
+	float clip_val;
+
+} iter6_conf;
+
 struct iter_op_s;
 
 struct iter6_sgd_conf {
 
 	INTERFACE(iter6_conf);
-
-	int epochs;
-	float learning_rate;
-
-	float clip_norm;
-	float clip_val;
 
 	float momentum;
 };
@@ -22,12 +27,6 @@ struct iter6_adadelta_conf {
 
 	INTERFACE(iter6_conf);
 
-	int epochs;
-	float learning_rate;
-
-	float clip_norm;
-	float clip_val;
-
 	float rho;
 };
 
@@ -35,20 +34,35 @@ struct iter6_adam_conf {
 
 	INTERFACE(iter6_conf);
 
-	int epochs;
-	float learning_rate;
-
-	float clip_norm;
-	float clip_val;
-
 	float epsilon;
 	float beta1;
 	float beta2;
 };
 
+struct iter6_iPALM_conf {
+
+	INTERFACE(iter6_conf);
+
+	float Lmin;
+	float Lmax;
+	float Lshrink;
+	float Lincrease;
+
+	float alpha;
+	float beta;
+	_Bool convex;
+
+	_Bool trivial_stepsize;
+
+	float* alpha_arr;
+	float* beta_arr;
+	_Bool* convex_arr;
+};
+
 extern const struct iter6_sgd_conf iter6_sgd_conf_defaults;
 extern const struct iter6_adadelta_conf iter6_adadelta_conf_defaults;
 extern const struct iter6_adam_conf iter6_adam_conf_defaults;
+extern const struct iter6_iPALM_conf iter6_iPALM_conf_defaults;
 
 struct iter3_conf_s;
 struct iter_nlop_s;
@@ -58,5 +72,7 @@ typedef void iter6_f(iter6_conf* _conf, const struct nlop_s* nlop, long NI, enum
 iter6_f iter6_adadelta;
 iter6_f iter6_adam;
 iter6_f iter6_sgd;
+
+iter6_f iter6_iPALM;
 
 #endif
