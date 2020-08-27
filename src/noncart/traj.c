@@ -362,11 +362,16 @@ double seq_rotation_angle(long spoke, long echo, long repetition, long inversion
 							// to calculate the correct angle
 			break;
 
-		// Radial | Multiple inversion recovery |
+		// Radial | Multiple inversion recovery | Golen-angle partitions
 		case PEMODE_RAD_MINV_GA:
 			conf.golden = true;
 			conf.golden_partition = true;
 			conf.aligned = false;
+			break;
+
+		// Radial | Multiple inversion recovery | Aligned partitions
+		case PEMODE_RAD_MINV_GAAL:
+			conf.golden = true;
 			break;
 
 		// Radial | Multi-Echo Multi-Spoke Hybrid
@@ -442,6 +447,11 @@ double seq_rotation_angle(long spoke, long echo, long repetition, long inversion
 
 		// Radial | Multiple inversion recovery |
 		case PEMODE_RAD_MINV_GA:
+			tframe = ( repetition + inversion_repetition * (num_repetitions+1) );
+			break;
+
+		// Radial | Multiple inversion recovery | Aligned partitions
+		case PEMODE_RAD_MINV_GAAL:
 			tframe = ( repetition + inversion_repetition * (num_repetitions+1) );
 			break;
 
