@@ -86,6 +86,9 @@ int num_cuda_devices(void)
 
 int cuda_get_device(void)
 {
+	if (0 == n_reserved_gpus)
+		return -1;
+
 	int device;
 	CUDA_ERROR(cudaGetDevice(&device));
 	return device;
