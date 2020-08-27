@@ -97,7 +97,8 @@ int cuda_get_device(void)
 
 static int num_cuda_reserved_devices(void)
 {
-	return bitcount(reserved_gpus);
+	assert(bitcount(reserved_gpus) == n_reserved_gpus);
+	return n_reserved_gpus;
 }
 
 
