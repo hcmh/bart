@@ -2251,6 +2251,9 @@ static bool check_mututal_start(unsigned int N, const struct operator_s* op[N], 
 
 		operator_apply_parallel_unchecked(nN, nop, ndst, tmp);
 
+		for (unsigned int i = 0; i < nN; i++)
+			operator_free(nop[i]);
+
 		md_free(tmp);
 	}
 
