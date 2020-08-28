@@ -91,6 +91,7 @@ static bool test_nlop_conv_compare(void)
 	md_free(src2);
 	md_free(dst_fft);
 	md_free(dst_geom);
+	md_free(nul);
 
 	debug_printf(DP_DEBUG1, "Mean Error fft vs geom conv: %.8f\n",err);
 	UT_ASSERT(err < 1.E-5);
@@ -192,6 +193,8 @@ static bool test_padding(void)
 	linop_forward_unchecked(lin_pad, in, out);
 	linop_free(lin_pad);
 	err += md_zrmse(2, dims_in, in, exp_valid);
+
+	md_free(out);
 
 	UT_ASSERT(1.e-7 > err);
 }
@@ -341,6 +344,8 @@ static bool test_conv_transp(void)
 	float err = linop_test_adjoint(c);
 	XFREE(c);
 
+	md_free(kernel);
+
 	nlop_free(forward);
 	nlop_free(adjoint);
 	UT_ASSERT(err < 1.e-5);
@@ -374,7 +379,10 @@ static bool test_mpool_der(void)
 
 	nlop_free(network);
 
-	UT_ASSERT(1.e-8 > md_zrmse(N, outdims, out, out_exp) + md_zrmse(N, indims, in, adj_exp));
+	bool err =  md_zrmse(N, outdims, out, out_exp) + md_zrmse(N, indims, in, adj_exp);
+	md_free(out);
+
+	UT_ASSERT(1.e-8 > err);
 }
 
 UT_REGISTER_TEST(test_mpool_der);
@@ -442,6 +450,9 @@ static bool test_nlop_rbf(void)
 	UNUSED(op_gpu);
 	#endif
 
+	nlop_free(op);
+	nlop_free(op_gpu);
+
 	debug_printf(DP_DEBUG1, "rbf errors der, adj, gpu: %.8f, %.8f, %.8f\n", err_der, err_adj, err);
 	UT_ASSERT((err_der < 1.E-2) && (err_adj < 1.E-6)  && (err < 1.E-5));
 }
@@ -450,16 +461,16 @@ UT_REGISTER_TEST(test_nlop_rbf);
 
 static bool test_avgpool(void)
 {
-	unsigned int N = 5;	
-	long indims[] = {2, 6, 1, 1, 2}; 	//channel, x, y, z, batch 
-	long avg_dims[] = {2, 2, 1, 1, 2}; 	//channel, x, y, z, batch 
+	unsigned int N = 5;
+	long indims[] = {2, 6, 1, 1, 2}; 	//channel, x, y, z, batch
+	long avg_dims[] = {2, 2, 1, 1, 2}; 	//channel, x, y, z, batch
 	long pool_size[] = {3, 1, 1};
 
 	complex float in[] = {	1102., 1201., 1104., 1203., 1106., 1205., 1207., 1408., 1209., 1410., 1211., 1412.,
 				2303., 2204., 2302., 2203., 2307., 2208., 2204., 2406., 2209., 2410., 2211., 2411. };
 
 	// adjoint consists of average divided by amount of averaged numbers
-	complex float adj_exp[] = {	368., 401., 368., 401., 368., 401., 403., 470., 403., 470., 403., 470., 
+	complex float adj_exp[] = {	368., 401., 368., 401., 368., 401., 403., 470., 403., 470., 403., 470.,
 					768., 735., 768., 735., 768., 735., 736., 803., 736., 803., 736., 803. };
 
 	complex float avg_exp[] = {	1104., 1203., 1209., 1410.,
@@ -476,16 +487,21 @@ static bool test_avgpool(void)
 
 	nlop_free(network);
 
-	UT_ASSERT(1.e-8 >  md_zrmse(N, avg_dims, avg, avg_exp) + md_zrmse(N, indims, adj, adj_exp) );
+	float err = md_zrmse(N, avg_dims, avg, avg_exp) + md_zrmse(N, indims, adj, adj_exp);
+
+	md_free(avg);
+	md_free(adj);
+
+	UT_ASSERT(1.e-8 > err);
 }
 
 UT_REGISTER_TEST(test_avgpool);
 
 static bool test_upsampl(void)
 {
-	unsigned int N = 5;	
-	long idims[] = {2, 2, 1, 1, 2}; 	//channel, x, y, z, batch 
-	long odims[] = {2, 6, 1, 1, 2}; 	//channel, x, y, z, batch 
+	unsigned int N = 5;
+	long idims[] = {2, 2, 1, 1, 2}; 	//channel, x, y, z, batch
+	long odims[] = {2, 6, 1, 1, 2}; 	//channel, x, y, z, batch
 
 	complex float in[] = {	1101., 1203., 1104., 1206.,
 				2100., 2202., 2103., 2205.};
@@ -506,7 +522,12 @@ static bool test_upsampl(void)
 
 	nlop_free(network);
 
-	UT_ASSERT(1.e-8 >  md_zrmse(N, odims, upsampl, upsampl_exp)+ md_zrmse(N, idims, upsampl_adj, upsampl_adj_exp));
+	float err = md_zrmse(N, odims, upsampl, upsampl_exp)+ md_zrmse(N, idims, upsampl_adj, upsampl_adj_exp);
+
+	md_free(upsampl);
+	md_free(upsampl_adj);
+
+	UT_ASSERT(1.e-8 > err);
 }
 
 UT_REGISTER_TEST(test_upsampl);

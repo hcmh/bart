@@ -265,6 +265,7 @@ static bool test_nlop_normalize(void)
 
 	md_free(mean);
 	md_free(var);
+	md_free(var2);
 	md_free(src);
 	md_free(dst);
 
@@ -346,7 +347,7 @@ static bool test_nlop_bn(void)
 	complex float* tmp = md_alloc(N + 1, statdims, CFL_SIZE);
 
 	nlop = nlop_set_input_const_F(nlop, 1, N + 1, statdims, true, tmp);
-	nlop = nlop_del_out(nlop, 1);
+	nlop = nlop_del_out_F(nlop, 1);
 
 	float err_adj = nlop_test_adj_derivatives(nlop, true);
 	float err_der = nlop_test_derivatives(nlop);
@@ -365,7 +366,7 @@ UT_REGISTER_TEST(test_nlop_bn);
 
 static bool test_zmax(void)
 {
-	unsigned int N = 3;	
+	unsigned int N = 3;
 
 	long indims[] = {2, 2, 1};
 	long outdims[] = {2, 2, 4};
@@ -381,14 +382,17 @@ static bool test_zmax(void)
 	nlop_generic_apply_unchecked(zmax_op, 2, (void*[]){output_zmax, stacked}); //output, in, mask
 	nlop_free(zmax_op);
 
-	UT_ASSERT( 0.01 >  md_zrmse(N, indims, output_zmax, zmax)); 
+	float err =  md_zrmse(N, indims, output_zmax, zmax);
+	md_free(output_zmax);
+
+	UT_ASSERT(0.01 > err);
 }
 
 UT_REGISTER_TEST(test_zmax);
 
 static bool test_pool(void)
 {
-	unsigned int N = 3;	
+	unsigned int N = 3;
 	long idims[] = {2, 2, 1};
 	long pool_size[] = {2, 1, 1};
 	long odims[] = {1, 2, 1};
@@ -400,11 +404,15 @@ static bool test_pool(void)
 	complex float* output_pool = md_alloc(N, odims, CFL_SIZE);
 	complex float* adj = md_alloc(N, idims, CFL_SIZE);
 
-	nlop_generic_apply_unchecked(nlop_from_linop(pool_op), 2, (void*[]){output_pool, in});
+	linop_forward(pool_op, N, odims, output_pool, N, idims, in);
 	linop_adjoint(pool_op, N, idims, adj, N, odims, output_pool);
 	linop_free(pool_op);
 
-	UT_ASSERT( 0.01 >  md_zrmse(N, odims, output_pool, pool_exp) + md_zrmse(N, idims, adj, pool_adj)); //
+	float err = md_zrmse(N, odims, output_pool, pool_exp) + md_zrmse(N, idims, adj, pool_adj);
+	md_free(adj);
+	md_free(output_pool);
+
+	UT_ASSERT( 0.01 > err); //
 }
 
 UT_REGISTER_TEST(test_pool);
