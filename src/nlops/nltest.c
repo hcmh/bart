@@ -43,6 +43,8 @@ static bool linear_derivative(const struct nlop_s* op)
 	complex float* y1 = md_alloc(N_cod, dims_cod, CFL_SIZE);
 	complex float* y2 = md_alloc(N_cod, dims_cod, CFL_SIZE);
 
+	bool result = true;
+
 	for (int i = 0; i < 5; i++) {
 
 		md_gaussian_rand(N_dom, dims_dom, x);
@@ -56,10 +58,16 @@ static bool linear_derivative(const struct nlop_s* op)
 		float scale = (md_znorm(N_cod, dims_cod, y1) + md_znorm(N_cod, dims_cod, y2)) / 2.;
 		md_zsub(N_cod, dims_cod, y1, y1, y2);
 		debug_printf(DP_DEBUG1, "%.8f, %.8f\n", scale, md_znorm(N_cod, dims_cod, y1) / (1. < scale ? scale : 1.));
-		if (1.e-6 < md_znorm(N_cod, dims_cod, y1) / (1. < scale ? scale : 1.)) return false;
+		if (1.e-6 < md_znorm(N_cod, dims_cod, y1) / (1. < scale ? scale : 1.))
+			result = false;
 	}
 
-	return true;
+	md_free(y1);
+	md_free(y2);
+	md_free(x);
+	md_free(x0);
+
+	return result;
 }
 
 static float nlop_test_derivative_priv(const struct nlop_s* op, bool lin)
@@ -167,9 +175,9 @@ float nlop_test_derivatives(const struct nlop_s* op)
 			for (int out_del = 0; out_del < nr_out_args; out_del ++){
 
 				if(out_del < out)
-					test_op = nlop_del_out(test_op, 0);
+					test_op = nlop_del_out_F(test_op, 0);
 				if(out_del > out)
-					test_op = nlop_del_out(test_op, 1);
+					test_op = nlop_del_out_F(test_op, 1);
 			}
 
 			float tmp = nlop_test_derivative_priv(test_op, true);
@@ -221,10 +229,10 @@ float nlop_test_adj_derivatives(const struct nlop_s* op, _Bool real)
 			for (int out_del = 0; out_del < nr_out_args; out_del ++){
 
 				if(out_del < out)
-					test_op = nlop_del_out(test_op, 0);
+					test_op = nlop_del_out_F(test_op, 0);
 
 				if(out_del > out)
-					test_op = nlop_del_out(test_op, 1);
+					test_op = nlop_del_out_F(test_op, 1);
 			}
 
 

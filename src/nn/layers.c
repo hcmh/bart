@@ -517,7 +517,7 @@ const struct nlop_s* append_avgpool_layer(const struct nlop_s* network, int o, c
 	}
 
 	const struct linop_s* lin_pool_op = linop_avgpool_create(5, idims_working, pool_size_working);
-	struct nlop_s* pool_op = nlop_from_linop(lin_pool_op);
+	struct nlop_s* pool_op = nlop_from_linop_F(lin_pool_op);
 
 	if (resize_needed){
 
@@ -570,21 +570,19 @@ const struct nlop_s* append_upsampl_layer(const struct nlop_s* network, int o, c
 	for (int i = 0; i< 3; i++)
 		idims_working[i+1] = idims_layer[i+1] * pool_size[i];
 
-	const struct linop_s* lin_upsampl_op = linop_get_adjoint(linop_avgpool_create(5, idims_working, pool_size_working));	
+	auto pool = linop_avgpool_create(5, idims_working, pool_size_working);
+	const struct linop_s* lin_upsampl_op = linop_get_adjoint(pool);
+	linop_free(pool);
 
 	assert(o < NO);
 
 	assert((nlop_generic_codomain(network, o))->N == 5);
-	struct nlop_s* upsampl_op = nlop_from_linop(lin_upsampl_op);
-	struct nlop_s* tmp = nlop_chain2(network, o, upsampl_op, 0);
-
-	nlop_free(network);
-	nlop_free(upsampl_op);
+	struct nlop_s* upsampl_op = nlop_from_linop_F(lin_upsampl_op);
+	struct nlop_s* tmp = nlop_chain2_FF(network, o, upsampl_op, 0);
 
 	int perm_out[NO];
 	perm_shift(NO, 0, o, perm_out);
-	struct nlop_s* result = nlop_permute_outputs(tmp, NO, perm_out);
-	nlop_free(tmp);
+	struct nlop_s* result = nlop_permute_outputs_F(tmp, NO, perm_out);
 
 	return result;
 }

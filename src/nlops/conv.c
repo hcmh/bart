@@ -240,7 +240,7 @@ struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long 
 	assert(('N' == transpc) || ('T' == transpc) || ('C' == transpc));
 
 	bool transp = ('N' != transpc);
-	
+
 	if (PAD_VALID == conv_pad) {
 
 		result = nlop_convcorr_geom_valid_create(N, flags, odims, idims, kdims, conv, transp);
@@ -256,13 +256,13 @@ struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long 
 				pad[i] = kdims[i] / 2;
 			} else {
 
-				pad[i] = 0;		
+				pad[i] = 0;
 			}
 			nidims[i] = idims[i] + 2 * pad[i];
 		}
 
 		result = nlop_convcorr_geom_valid_create(N, flags, odims, nidims, kdims, conv, transp);
-		
+
 		struct linop_s* pad_op = linop_padding_create(N, idims, conv_pad, pad, pad);
 
 		if (transp) {
@@ -373,13 +373,11 @@ static void conv_fft_adj2(const nlop_data_t* _data, complex float* dst, const co
 {
 	const auto data = CAST_DOWN(conv_fft_s, _data);
 
-	complex float* kernel_tmp = NULL;
-	complex float* output_tmp = NULL;
+	complex float* output_tmp = md_alloc_sameplace(data->N, data->odims, CFL_SIZE, data->kernel);
+	complex float* kernel_tmp = md_alloc_sameplace(data->N, data->kdims2, CFL_SIZE, data->kernel);
 
-	output_tmp = md_alloc_sameplace(data->N, data->odims, CFL_SIZE, data->kernel);
 	ifft(data->N, data->odims, data->flags,output_tmp, src);
 
-	kernel_tmp = md_alloc_sameplace(data->N, data->kdims2, CFL_SIZE, data->kernel);
 	md_ztenmulc(data->N, data->kdims2, kernel_tmp, data->odims, output_tmp, data->idims, data->image);
 	md_free(output_tmp);
 
@@ -387,6 +385,8 @@ static void conv_fft_adj2(const nlop_data_t* _data, complex float* dst, const co
 	fft(data->N, data->kdims2, data->flags, kernel_tmp, kernel_tmp);
 	md_resize_center(data->N, data->kdims, dst, data->kdims2, kernel_tmp, CFL_SIZE);
 	md_zsmul(data->N, data->kdims, dst, dst, conjf(data->scaling));
+
+	md_free(kernel_tmp);
 }
 
 static void conv_fft_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -581,8 +581,7 @@ struct nlop_s* nlop_convcorr_fft_create(long N, unsigned int flags, const long o
 
 			nconv_cyclic = nlop_conv_fft_cyclic_create(N, flags, odims2, idims, kdims);
 			noresize = nlop_resize_create(N, odims, odims2, true);
-			result = nlop_chain2(nconv_cyclic,0,noresize,0);
-			nlop_free(noresize);
+			result = nlop_chain2_FF(nconv_cyclic,0,noresize,0);
 			break;
 
 		case PAD_CAUSAL:
