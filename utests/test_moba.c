@@ -140,8 +140,6 @@ static bool test_T1relax(void)
 
 
 	md_zsub(N, map_dims, tmp, src1, src2);
-        md_zsub(N, map_dims, tmp, src1, src2);        
-	md_zsub(N, map_dims, tmp, src1, src2);
 	md_zmul2(N, out_dims, out_strs, dst1, map_strs, tmp, out_strs, dst1);
 	md_zadd2(N, out_dims, out_strs, dst1, map_strs, src2, out_strs, dst1);
 
@@ -302,8 +300,6 @@ static bool test_T1relax_link1(void)
 	md_zexp(N, out_dims, dst1, dst1);
 
 	md_zsub(N, map_dims, tmp, src1, src2);
-        md_zsub(N, map_dims, tmp, src1, src2);        
-	md_zsub(N, map_dims, tmp, src1, src2);
 	md_zmul2(N, out_dims, out_strs, dst1, map_strs, tmp, out_strs, dst1);
 	md_zadd2(N, out_dims, out_strs, dst1, map_strs, src2, out_strs, dst1);
 
@@ -319,8 +315,6 @@ static bool test_T1relax_link1(void)
 	md_zmul2(N, out_dims, out_strs, dst1, map_strs, tmp, TI_strs, TI1);
 	md_zexp(N, out_dims, dst1, dst1);
 
-	md_zsub(N, map_dims, tmp, dst4, src2);
-        md_zsub(N, map_dims, tmp, dst4, src2);        
 	md_zsub(N, map_dims, tmp, dst4, src2);
 	md_zmul2(N, out_dims, out_strs, dst1, map_strs, tmp, out_strs, dst1);
 	md_zadd2(N, out_dims, out_strs, dst1, map_strs, src2, out_strs, dst1);
@@ -485,8 +479,6 @@ static bool test_T1_MOLLI_relax(void)
 
 	float scaling_R1s = 1.0;
 	float regularization = 1e-6;
-        float regularization = 1e-6;    
-	float regularization = 1e-6;
 
 	struct nlop_s* T1s_1 = nlop_T1srelax_create(N, map_dims, out_dims, TI_dims, TI_1, false);
 	struct nlop_s* T1_1 = nlop_T1relax_so_create(N, map_dims, out2_dims, TI2_dims, TI_2, false);
@@ -561,8 +553,6 @@ static bool test_T1_MOLLI_relax(void)
 
 
 	// Analytical model
-        // Analytical model    
-	// Analytical model
 	// T1* relaxation
 	md_zsmul(N, map_dims, tmp, src4, -1.0 *scaling_R1s);
 	md_zmul2(N, out_dims, out_strs, dst1, map_strs, tmp, TI_strs, TI);
@@ -619,8 +609,6 @@ static bool test_T1_MOLLI_relax(void)
 	md_zmul2(N, out2_dims, out2_strs, dst5, map_strs, tmp, TI2_strs, TI2);
 	md_zexp(N, out2_dims, dst5, dst5);
 
-	md_zsub(N, map_dims, tmp, dst4, src2);
-        md_zsub(N, map_dims, tmp, dst4, src2);        
 	md_zsub(N, map_dims, tmp, dst4, src2);
 	md_zmul2(N, out2_dims, out2_strs, dst5, map_strs, tmp, out2_strs, dst5);
 	md_zadd2(N, out2_dims, out2_strs, dst5, map_strs, src2, out2_strs, dst5);
@@ -784,11 +772,11 @@ UT_REGISTER_TEST(test_nlop_IR_SS_fun_der_adj);
 
 static bool test_nlop_T2fun(void)
 {
-	enum { N = 7 };
-	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1};
-	long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1};
-	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 2};
-	long TE_dims[N] = { 1, 1, 1, 1, 1, 4, 1};
+	enum { N = 16 };
+	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+	long out_dims[N] = { 16, 16, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+	long TE_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
 	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
