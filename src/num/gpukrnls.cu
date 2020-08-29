@@ -1190,11 +1190,11 @@ extern "C" void cuda_zconvcorr_3D_CF_TI(_Complex float* im, const _Complex float
 }
 
 
-__global__ void kern_im2col_valid(	cuFloatComplex* dst, const cuFloatComplex* src,
-					long NC,
-					long OX, long OY, long OZ,
-					long IX, long IY, long IZ,
-					long KX, long KY, long KZ)
+__global__ void kern_im2col_valid_loop_in(	cuFloatComplex* dst, const cuFloatComplex* src,
+						long NC,
+						long OX, long OY, long OZ,
+						long IX, long IY, long IZ,
+						long KX, long KY, long KZ)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -1227,15 +1227,58 @@ __global__ void kern_im2col_valid(	cuFloatComplex* dst, const cuFloatComplex* sr
 	}
 }
 
+__global__ void kern_im2col_valid_loop_out(	cuFloatComplex* dst, const cuFloatComplex* src,
+						long NC,
+						long OX, long OY, long OZ,
+						long IX, long IY, long IZ,
+						long KX, long KY, long KZ)
+{
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (!(i < OX * OY * OZ * KX * KY * KZ))
+		return;
+
+	int kx = i % KX;
+	i = (i - kx) / KX;
+	int ky = i % KY;
+	i = (i - ky) / KY;
+	int kz = i % KZ;
+	i = (i - kz) / KZ;
+	
+	int ox = i % OX;
+	i = (i - ox) / OX;
+	int oy = i % OY;
+	i = (i - oy) / OY;
+	int oz = i % OZ;
+
+	int o0 = NC * (kx + KX * (ky + KY * (kz + KZ * (ox + OX * (oy + OY * oz)))));
+	int i0 = NC * ((ox + kx) + IX * ((oy + ky) + IY * (oz + kz)));
+
+	for (int c = 0; c < NC; c++)
+		dst[o0 + c] = src[i0 + c]; 
+}
+
 extern "C" void cuda_im2col(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5])
 {
-	long N = idims[1] * idims[2] * idims[3] * idims[4];
+	if (9 < kdims[2] * kdims[3] * kdims[4]) {
 
-	kern_im2col_valid<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
-								kdims[1],
-								odims[2], odims[3], odims[4],
-								idims[2], idims[3], idims[4],
-								kdims[2], kdims[3], kdims[4]);
+		long N = kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4];
+
+		kern_im2col_valid_loop_out<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+										kdims[1],
+										odims[2], odims[3], odims[4],
+										idims[2], idims[3], idims[4],
+										kdims[2], kdims[3], kdims[4]);
+	} else {
+	
+		long N = idims[1] * idims[2] * idims[3] * idims[4];
+
+		kern_im2col_valid_loop_in<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+										kdims[1],
+										odims[2], odims[3], odims[4],
+										idims[2], idims[3], idims[4],
+										kdims[2], kdims[3], kdims[4]);
+	}
 }
 
 
