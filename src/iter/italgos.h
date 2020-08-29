@@ -33,7 +33,7 @@ struct iter_dump_s;
 typedef struct iter_op_data_s { TYPEID* TYPEID; } iter_op_data;
 #endif
 typedef void (*iter_op_fun_t)(iter_op_data* data, float* dst, const float* src);
-typedef void (*iter_nlop_fun_t)(iter_op_data* data, int N, float* args[N]);
+typedef void (*iter_nlop_fun_t)(iter_op_data* data, int N, float* args[N], unsigned long der_out, unsigned long der_in);
 typedef void (*iter_op_p_fun_t)(iter_op_data* data, float rho, float* dst, const float* src);
 typedef void (*iter_op_arr_fun_t)(iter_op_data* data, int NO, unsigned long oflags, float* dst[NO], int NI, unsigned long iflags, const float* src[NI]);
 
@@ -68,7 +68,12 @@ inline void iter_op_call(struct iter_op_s op, float* dst, const float* src)
 
 inline void iter_nlop_call(struct iter_nlop_s op, int N, float* args[N])
 {
-	op.fun(op.data, N, args);
+	op.fun(op.data, N, args, ~0ul, ~0ul);
+}
+
+inline void iter_nlop_call_select_der(struct iter_nlop_s op, int N, float* args[N], unsigned long der_out, unsigned long der_in)
+{
+	op.fun(op.data, N, args, der_out, der_in);
 }
 
 inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src)

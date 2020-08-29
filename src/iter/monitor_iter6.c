@@ -356,7 +356,7 @@ static complex float monitor_iter6_nlop_fun(const monitor_iter6_value_data_t* da
 	for (int i = 0; i < NI; i++)
 		tmp_args[1 + i] = (void*)args[i];
 
-	nlop_generic_apply_unchecked(d->nlop, NI + 1, tmp_args);
+	nlop_generic_apply_select_derivative_unchecked(d->nlop, NI + 1, tmp_args, 0, 0);
 
 	md_copy(1, MD_SINGLETON_DIMS(1), &(d->last_result), tmp_args[0], CFL_SIZE);
 	md_free(tmp_args[0]);

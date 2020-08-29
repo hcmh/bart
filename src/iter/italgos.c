@@ -738,12 +738,13 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
  * @param nlop nlop to apply
  * @param args out- and inputs of operator
  * @param out_optimize_flag sums outputs over selected outputs, selected outputs must be scalars
+ * @param der_in_flag only information to compute derivatives with respect to selected inputs are stores
  * @param vops vector operators
  **/
-static float compute_objective(long NO, long NI, struct iter_nlop_s nlop, float* args[NO + NI], unsigned long out_optimize_flag, const struct vec_iter_s* vops)
+static float compute_objective(long NO, long NI, struct iter_nlop_s nlop, float* args[NO + NI], unsigned long out_optimize_flag, unsigned long der_in_flag, const struct vec_iter_s* vops)
 {
 	float result = 0;
-	iter_nlop_call(nlop, NO + NI, args); 	// r = F x
+	iter_nlop_call_select_der(nlop, NO + NI, args, out_optimize_flag, der_in_flag); 	// r = F x
 
 	for (int o = 0; o < NO; o++) {
 		if (MD_IS_SET(out_optimize_flag, o)) {
@@ -917,7 +918,7 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 			if (0 != N_batch_gen)
 				iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
 
-			float r0 = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops); // update graph and compute loss
+			float r0 = compute_objective(NO, NI, nlop, args, out_optimize_flag, in_optimize_flag, vops); // update graph and compute loss
 			getgrad(NI, in_optimize_flag, isize, grad, NO, out_optimize_flag, adj, vops);
 			iter_op_arr_call(update, NI, in_optimize_flag, dxs, NI, in_optimize_flag, (const float**)grad);
 
@@ -1122,7 +1123,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 		if (0 != N_batch_gen)
 			iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
 
-		float r_old = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops);
+		float r_old = compute_objective(NO, NI, nlop, args, out_optimize_flag, 0, vops);
 
 		float r_i = r_old;
 
@@ -1144,7 +1145,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
 			vops->axpbz(isize[i], z[i], 1 + betai, x[i], -betai, x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
 			args[NO + i] = z[i];
-			float r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops);
+			float r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, MD_BIT(i), vops);
 			vops->del(z[i]);
 			getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
 
@@ -1170,7 +1171,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 
 				//compute new residual
 				args[NO + i] = x_new[i];
-				float r_new = compute_objective(NO, NI, nlop, args, out_optimize_flag, vops);
+				float r_new = compute_objective(NO, NI, nlop, args, out_optimize_flag, 0, vops);
 
 				//compute Lipschitz condition at z
 				float r_lip_z = r_z;
