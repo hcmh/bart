@@ -16,6 +16,7 @@
 #include "num/flpmath.h"
 
 #include "nlops/nlop.h"
+#include "num/ops.h"
 
 #ifdef USE_CUDA
 #include "num/gpuops.h"
@@ -43,17 +44,29 @@ struct tenmul_s {
 DEF_TYPEID(tenmul_s);
 
 
-static void tenmul_initialize(struct tenmul_s* data, const complex float* arg)
+static void tenmul_initialize(struct tenmul_s* data, const complex float* arg, bool der1, bool der2)
 {
-	if (NULL == data->x1)
+	if (der2 && (NULL == data->x1))
 		data->x1 = md_alloc_sameplace(data->N, data->dims1, CFL_SIZE, arg);
 
-	if (NULL == data->x2)
+	if (!der2 && (NULL != data->x1)) {
+
+		md_free(data->x1);
+		data->x1 = NULL;
+	}
+
+	if (der1 && (NULL == data->x2))
 		data->x2 = md_alloc_sameplace(data->N, data->dims2, CFL_SIZE, arg);
+
+	if (!der1 && (NULL != data->x2)) {
+
+		md_free(data->x2);
+		data->x2 = NULL;
+	}
 }
 
 
-static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N])
+static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
@@ -66,20 +79,30 @@ static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N])
 #ifdef USE_CUDA
 	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
 #endif
-	tenmul_initialize(data, dst);
+	bool der1 = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
+	bool der2 = !op_options_is_set_io(opts, 0, 1, OP_APP_NO_DER);
 
-	md_zconj2(data->N, data->dims1, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1, data->istr1, src1);
-	md_zconj2(data->N, data->dims2, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2, data->istr2, src2);
+	tenmul_initialize(data, dst, der1, der2);
+
+	if (der2)
+		md_zconj2(data->N, data->dims1, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1, data->istr1, src1);
+	if (der1)
+		md_zconj2(data->N, data->dims2, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2, data->istr2, src2);
 
 	md_ztenmul2(data->N, data->dims, data->ostr, dst, data->istr1, src1, data->istr2, src2);
-	PRINT_TIMER("tenmuls");
+	PRINT_TIMER("frw tenmul");
 }
 
 static void tenmul_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
+	if (NULL == data->x1)
+		error("Tenmul %x derivative not available\n", data);
+
 	md_ztenmulc2(data->N, data->dims, data->ostr, dst, data->istr2, src, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1);
+	PRINT_TIMER("der1 tenmul");
 }
 
 static void tenmul_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -87,15 +110,24 @@ static void tenmul_adj2(const nlop_data_t* _data, complex float* dst, const comp
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
+	if (NULL == data->x1)
+		error("Tenmul %x derivative not available\n", data);
+
+
 	md_ztenmul2(data->N, data->dims, data->istr2, dst, data->ostr, src, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1);
-	PRINT_TIMER("tenmul adj2");
+	PRINT_TIMER("adj2 tenmul");
 }
 
 static void tenmul_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
+	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
+	if (NULL == data->x2)
+		error("Tenmul %x derivative not available\n", data);
+
 	md_ztenmulc2(data->N, data->dims, data->ostr, dst, data->istr1, src, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2);
+	PRINT_TIMER("der1 tenmul");
 }
 
 static void tenmul_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -103,8 +135,11 @@ static void tenmul_adj1(const nlop_data_t* _data, complex float* dst, const comp
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
+	if (NULL == data->x2)
+		error("Tenmul %x derivative not available\n", data);
+
 	md_ztenmul2(data->N, data->dims, data->istr1, dst, data->ostr, src, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2);
-	PRINT_TIMER("tenmul adj1");
+	PRINT_TIMER("adj1 tenmul");
 }
 
 
@@ -175,8 +210,10 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 	md_copy_strides(N, nl_istr[0], istr1);
 	md_copy_strides(N, nl_istr[1], istr2);
 
-	return nlop_generic_create2(1, N, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-		tenmul_fun, (nlop_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del);
+	operator_property_flags_t props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
+
+	return nlop_generic_with_props_create2(1, N, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
+		tenmul_fun, (nlop_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, props);
 }
 
 

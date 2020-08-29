@@ -66,7 +66,28 @@ struct convcorr_geom_s {
 
 DEF_TYPEID(convcorr_geom_s);
 
-static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* args[N])
+static void convcorr_initialize(struct convcorr_geom_s* data, const complex float* arg, bool der1, bool der2)
+{
+	if (der2 && (NULL == data->src1))
+		data->src1 = md_alloc_sameplace(data->N, data->idims1, CFL_SIZE, arg);
+
+	if (!der2 && (NULL != data->src1)) {
+
+		md_free(data->src1);
+		data->src1 = NULL;
+	}
+
+	if (der1 && (NULL == data->src2))
+		data->src2 = md_alloc_sameplace(data->N, data->idims2, CFL_SIZE, arg);
+
+	if (!der1 && (NULL != data->src2)) {
+
+		md_free(data->src2);
+		data->src2 = NULL;
+	}
+}
+
+static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
 {
 	START_TIMER;
 
@@ -81,14 +102,16 @@ static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* ar
 	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
 #endif
 
-	if (NULL == data->src1)
-		data->src1 = md_alloc_sameplace(data->N, data->idims1, CFL_SIZE, dst);
-	if (NULL == data->src2)
-		data->src2 = md_alloc_sameplace(data->N, data->idims2, CFL_SIZE, dst);
+	bool der1 = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
+	bool der2 = !op_options_is_set_io(opts, 0, 1, OP_APP_NO_DER);
+
+	convcorr_initialize(data, dst, der1, der2);
 
 	//conj to have benefits of fmac optimization in adjoints
-	md_zconj(data->N, data->idims1, data->src1, src1);
-	md_zconj(data->N, data->idims2, data->src2, src2);
+	if(der2)
+		md_zconj(data->N, data->idims1, data->src1, src1);
+	if(der1)
+		md_zconj(data->N, data->idims2, data->src2, src2);
 
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
 	md_zfmac2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs1, src1, data->istrs2, src2 + data->shift);
@@ -103,6 +126,9 @@ static void convcorr_geom_der2(const nlop_data_t* _data, complex float* dst, con
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
+	if (NULL == data->src1)
+		error("Convcorr %x derivative not available\n", data);
+
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
 	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs2, src + data->shift, data->istrs1, data->src1);
 
@@ -114,6 +140,9 @@ static void convcorr_geom_adj2(const nlop_data_t* _data, complex float* dst, con
 	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
+
+	if (NULL == data->src1)
+		error("Convcorr %x derivative not available\n", data);
 
 	md_clear(data->N, data->idims2, dst, CFL_SIZE);
 	md_zfmac2(2 * data->N, data->mdims, data->istrs2, dst + data->shift, data->ostrs, src, data->istrs1, data->src1);
@@ -127,6 +156,9 @@ static void convcorr_geom_der1(const nlop_data_t* _data, complex float* dst, con
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
+	if (NULL == data->src2)
+		error("Convcorr %x derivative not available\n", data);
+
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
 	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs1, src, data->istrs2, data->src2 + data->shift);
 
@@ -138,6 +170,9 @@ static void convcorr_geom_adj1(const nlop_data_t* _data, complex float* dst, con
 	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
+
+	if (NULL == data->src2)
+		error("Convcorr %x derivative not available\n", data);
 
 	md_clear(data->N, data->idims1, dst, CFL_SIZE);
 	md_zfmac2(2 * data->N, data->mdims, data->istrs1, dst, data->ostrs, src, data->istrs2, data->src2 + data->shift);
@@ -226,10 +261,11 @@ static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags
 	data->istrs1 = *PTR_PASS(nistrs1);
 	data->istrs2 = *PTR_PASS(nistrs2);
 
+	operator_property_flags_t props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
 
-	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
+	return nlop_generic_with_props_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
 				    (nlop_fun_t[2][1]){ { convcorr_geom_der1 }, { convcorr_geom_der2 } },
-				    (nlop_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del);
+				    (nlop_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, props);
 }
 
 
