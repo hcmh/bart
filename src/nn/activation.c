@@ -316,9 +316,13 @@ struct relu_s {
 
 DEF_TYPEID(relu_s);
 
-static void relu_apply(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
 {
 	START_TIMER;
+
+	assert(2 == N);
+	complex float* dst = args[0];
+	complex float* src = args[1];
 
 	struct relu_s* d = CAST_DOWN(relu_s, _data);
 
@@ -327,6 +331,12 @@ static void relu_apply(const nlop_data_t* _data, complex float* dst, const compl
 
 	md_smax2(d->dom->N, d->dom->dims, d->codom->strs, (float*)dst, d->codom->strs, (float*)src, 0.);
 	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+
+	if (op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER)) {
+
+		md_free(d->tmp);
+		d->tmp = NULL;
+	}
 
 	PRINT_TIMER("relus");
 }
@@ -388,7 +398,20 @@ const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const
 	data->dom = iovec_create2(N + 1, r_dims, r_istrs, FL_SIZE);
 	data->codom = iovec_create2(N + 1, r_dims, r_ostrs, FL_SIZE);
 
-	return nlop_create2(N, dims, ostrs, N, dims, istrs, CAST_UP(PTR_PASS(data)), relu_apply, relu_deriv, relu_adj, NULL, NULL, relu_free);
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], dims);
+	long nl_idims[1][N];
+	md_copy_dims(N, nl_idims[0], dims);
+
+	long nl_ostr[1][N];
+	md_copy_strides(N, nl_ostr[0], ostrs);
+	long nl_istr[1][N];
+	md_copy_strides(N, nl_istr[0], istrs);
+
+	operator_property_flags_t props[1][1] = {{0}};
+
+	return nlop_generic_with_props_create2(	1, N, nl_odims, nl_ostr, 1, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
+						relu_apply, (nlop_fun_t[1][1]){ { relu_deriv } }, (nlop_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, props);
 }
 
 const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])

@@ -210,8 +210,13 @@ struct normalize_s {
 
 DEF_TYPEID(normalize_s);
 
+static void normalize_clear_der_var(struct normalize_s* data)
+{
+	md_free(data->tmp);
+	data->tmp = NULL;
+}
 
-static void normalize_fun(const nlop_data_t* _data, int N, complex float* args[N])
+static void normalize_fun(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
@@ -251,6 +256,9 @@ static void normalize_fun(const nlop_data_t* _data, int N, complex float* args[N
 		md_zsub2(data->dom->N, data->dom->dims, data->dom->strs, data->tmp, data->dom->strs, src, data->statdom->strs, mean);
 		md_zdiv2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, data->tmp, data->statdom->strs, data->scale);
 	}
+
+	if (op_options_is_set_io(opts, 0, 2, OP_APP_NO_DER))
+		normalize_clear_der_var(data);
 
 	PRINT_TIMER("frw normalize");
 }
@@ -318,6 +326,8 @@ static void normalize_der_var(const struct nlop_data_s* _data, complex float* ds
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
 
+	assert(NULL != data->tmp);
+
 	complex float* tmp = md_alloc_sameplace(data->statdom->N, data->statdom->dims, data->statdom->size, dst);
 
 	md_zreal(data->statdom->N, data->statdom->dims, tmp, src);
@@ -339,6 +349,8 @@ static void normalize_adj_var(const struct nlop_data_s* _data, complex float* ds
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
+
+	assert(NULL != data->tmp);
 
 	md_clear(data->statdom->N, data->statdom->dims, dst, data->statdom->size);
 
@@ -427,11 +439,12 @@ const struct nlop_s* nlop_normalize_create(int N, const long dims[N], unsigned l
 	md_copy_dims(N, nl_idims[1], statdims);
 	md_copy_dims(N, nl_idims[2], statdims);
 
+	operator_property_flags_t props[3][1] = { {0} ,{0}, {0}};
 
-	return nlop_generic_create(1, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), normalize_fun,
-					(nlop_fun_t[3][1]){ { normalize_deradj_src}, { normalize_der_mean }, { normalize_der_var } },
-					(nlop_fun_t[3][1]){ { normalize_deradj_src}, { normalize_adj_mean }, { normalize_adj_var } },
-					NULL, NULL, normalize_del);
+	return nlop_generic_with_props_create(	1, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), normalize_fun,
+						(nlop_fun_t[3][1]){ { normalize_deradj_src}, { normalize_der_mean }, { normalize_der_var } },
+						(nlop_fun_t[3][1]){ { normalize_deradj_src}, { normalize_adj_mean }, { normalize_adj_var } },
+						NULL, NULL, normalize_del, props);
 }
 
 struct rescale_s {
@@ -586,8 +599,15 @@ struct bn_s {
 
 DEF_TYPEID(bn_s);
 
+static void bn_clear_der(struct bn_s* data)
+{
+	md_free(data->out);
+	md_free(data->scale);
+	data->out = NULL;
+	data->scale = NULL;
+}
 
-static void bn_fun(const nlop_data_t* _data, int D, complex float* args[D])
+static void bn_fun(const nlop_data_t* _data, int D, complex float* args[D], const struct op_options_s* opts)
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(bn_s, _data);
@@ -598,6 +618,8 @@ static void bn_fun(const nlop_data_t* _data, int D, complex float* args[D])
 
 	complex float* src = args[3];
 	assert(4 == D);
+
+	bool der = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
 
 	unsigned int N = data->dom->N;
 
@@ -647,6 +669,9 @@ static void bn_fun(const nlop_data_t* _data, int D, complex float* args[D])
 	md_free(data->ones);
 	data->ones = NULL;
 
+	if (!der)
+		bn_clear_der(data);
+
 	PRINT_TIMER("frw stats");
 }
 
@@ -686,6 +711,8 @@ static void bn_deradj_in(const struct nlop_data_s* _data, complex float* dst, co
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(bn_s, _data);
+
+	assert(NULL != data->out);
 
 	unsigned int N = data->dom->N;
 
@@ -786,11 +813,13 @@ static const struct nlop_s* nlop_bn_create(int N, const long dims[N], unsigned l
 	long nl_idims[1][N];
 	md_copy_dims(N, nl_idims[0], dims);
 
+	operator_property_flags_t props[1][3] = { { 0, 0, 0 } };
 
-	return nlop_generic_create(3, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), bn_fun,
-					(nlop_fun_t[1][3]){ { bn_deradj_in, bn_der_mean, bn_der_var } },
-					(nlop_fun_t[1][3]){ { bn_deradj_in, bn_adj_mean, bn_adj_var } },
-					 NULL, NULL, bn_del);
+
+	return nlop_generic_with_props_create(3, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), bn_fun,
+						(nlop_fun_t[1][3]){ { bn_deradj_in, bn_der_mean, bn_der_var } },
+						(nlop_fun_t[1][3]){ { bn_deradj_in, bn_adj_mean, bn_adj_var } },
+						 NULL, NULL, bn_del, props);
 }
 
 
