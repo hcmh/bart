@@ -24,7 +24,10 @@ struct operator_s {
 
 	operator_data_t* data;
 	void (*apply)(const operator_data_t* data, unsigned int N, void* args[N]);
+	void (*apply_opts)(const operator_data_t* _data, unsigned int N, void* args[N], const struct op_options_s* opts);
 	void (*del)(const operator_data_t* data);
+
+	const struct op_property_s* props;
 
 	struct shared_obj_s sptr;
 };
@@ -125,9 +128,9 @@ static void operator_del(const struct shared_obj_s* sptr)
 		iovec_free(x->domain[i]);
 
 	xfree(x->domain);
+	op_property_free(x->props);
 	xfree(x);
 }
-
 
 
 /**
@@ -156,6 +159,8 @@ const struct operator_p_s* operator_p_create2(unsigned int ON, const long out_di
 	o->domain = *PTR_PASS(dom);
 	o->data = CAST_UP(PTR_PASS(op));
 	o->apply = op_p_apply;
+	o->apply_opts = NULL;
+	o->props = op_property_create(3, MD_BIT(1), NULL);
 	o->del = op_p_del;
 
 	shared_obj_init(&o->sptr, operator_del);
@@ -259,7 +264,7 @@ void operator_p_apply_unchecked(const struct operator_p_s* _op, float mu, comple
 	auto op = operator_p_upcast(_op);
 
 	assert(3 == op->N);
-	op->apply(op->data, 3, (void*[3]){ &mu, (void*)dst, (void*)src });
+	operator_generic_apply_unchecked(op , 3, (void*[3]){ &mu, (void*)dst, (void*)src });
 }
 
 
@@ -268,10 +273,7 @@ const struct operator_s* operator_p_bind(const struct operator_p_s* op, float al
 	float* nalpha = xmalloc(sizeof(float));
 	*nalpha = alpha;
 
-	auto binded_op = operator_bind2(operator_p_upcast(op), 0, 1, (long[]){ 1 }, (long[]){ 0 }, nalpha);
-	auto result = operator_attach(binded_op, nalpha, xfree);
-	operator_free(binded_op);
-	return result;
+	return operator_attach(operator_bind2(operator_p_upcast(op), 0, 1, (long[]){ 1 }, (long[]){ 0 }, nalpha), nalpha, xfree);
 }
 
 
