@@ -88,6 +88,7 @@ int main_nnmodl(int argc, char* argv[])
 
 		OPTL_UINT(0, "conjgrad_iterations", &(def_conf.maxiter), "iter", "number of iterations in data-consistency layer (def: 50)"),
 		OPTL_FLOAT(0, "conjgrad_convergence_warning", &(modl.convergence_warn_limit), "limit", "warn if inversion error is larger than this limit (def: 0. = no warnings)"),
+		OPTL_CLEAR(0, "conjgrad_combined_inversion", &(modl.batch_independent), "construct one linear for all batches which is inverted"),
 
 		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
 		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
