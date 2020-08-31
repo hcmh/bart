@@ -120,9 +120,11 @@ int main_phasediff(int argc, char* argv[argc])
 	long o_trans_strs[DIMS];
 	md_calc_strides(DIMS, o_trans_strs, o_trans_dims, CFL_SIZE);
 
+	long o1_trans_dims[DIMS];
+	md_copy_dims(DIMS, o1_trans_dims, o_trans_dims);
+	o1_trans_dims[CSHIFT_DIM] = 1;
+
 	complex float* o_trans_data = md_alloc(DIMS, o_trans_dims, CFL_SIZE);
-
-
 
 	long *venc_pos = calloc(DIMS, sizeof(long));
 	long *velo_pos = calloc(DIMS, sizeof(long));
@@ -138,23 +140,21 @@ int main_phasediff(int argc, char* argv[argc])
 
 				venc_pos[AVG_DIM] = i+1;
 				const complex float* RC1 = (void*)rc_trans_data + md_calc_offset(DIMS, c_trans_strs, venc_pos);
-
 				
 				velo_pos[AVG_DIM] = i;
 				complex float* PC1 = (void*)o_trans_data + md_calc_offset(DIMS, o_trans_strs, velo_pos);
 
 				complex float* tmp = md_alloc(DIMS, c1_trans_dims, CFL_SIZE);
 				md_zmulc(DIMS, c1_trans_dims, tmp, RC0, RC1);
-
 				md_zsum(DIMS, c1_trans_dims, COIL_FLAG, PC1, tmp);
-
 				md_free(tmp);
 
-				complex float* deno = md_alloc(DIMS, r1_trans_dims, CFL_SIZE);
-				md_zabs(DIMS, r1_trans_dims, deno, PC1);
-				md_zsqrt(DIMS, r1_trans_dims, deno, deno);
+				complex float* deno = md_alloc(DIMS, o1_trans_dims, CFL_SIZE);
+				
+				md_zabs(DIMS, o1_trans_dims, deno, PC1);
+				md_zsqrt(DIMS, o1_trans_dims, deno, deno);
 
-				md_zdiv(DIMS, r1_trans_dims, PC1, PC1, deno);
+				md_zdiv(DIMS, o1_trans_dims, PC1, PC1, deno);
 
 				md_free(deno);
 			}
