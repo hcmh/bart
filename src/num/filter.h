@@ -18,6 +18,8 @@ extern void md_moving_avgz2(int D, int M, const long dim[D], const long ostr[D],
 extern void md_moving_avgz(int D, int M, const long dim[D], complex float* optr, const complex float* iptr);
 
 extern void linear_phase(unsigned int N, const long dims[__VLA(N)], const float pos[__VLA(N)], _Complex float* out);
+extern  void quadratic_phase(unsigned int N, const long dims[N], const float mom[N][N], complex float* out);
+
 extern void centered_gradient(unsigned int N, const long dims[__VLA(N)], const _Complex float grad[__VLA(N)], _Complex float* out);
 extern void klaplace(unsigned int N, const long dims[__VLA(N)], unsigned int flags, _Complex float* out);
 void klaplace_scaled(unsigned int N, const long dims[N], unsigned int flags, const float sc[N], complex float* out);

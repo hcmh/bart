@@ -1,10 +1,10 @@
 /* Copyright 2015-2017. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+ * Copyright 2016-2020. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2017 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2017 Jon Tamir <jtamir@eecs.berkeley.edu>
  */
 
@@ -256,6 +256,39 @@ void linear_phase(unsigned int N, const long dims[N], const float pos[N], comple
 		grad[n] = 2. * M_PI * (float)(pos[n]) / ((float)dims[n]);
 
 	centered_gradient(N, dims, grad, out);
+	md_zexpj(N, dims, out, out);
+}
+
+
+void quadratic_phase(unsigned int N, const long dims[N], const float mom0[N][N], complex float* out)
+{
+	float cnt = 0.;
+	float lin[N];
+	float mom[N][N];
+
+	for (int i = 0; i < (int)N; i++)
+		for (int j = 0; j < (int)N; j++)
+			mom[i][j] = 2. * M_PI * mom0[i][j] / (dims[i] * dims[j]);
+
+
+	for (int i = 0; i < (int)N; i++) {
+
+		lin[i] = 0.;
+
+		for (int j = 0; j < (int)N; j++) {
+
+			cnt += mom[i][j] * dims[i] * dims[j] / 4.;
+
+			lin[i] -= (mom[i][j] + mom[j][i]) * dims[i] / 2.;
+		}
+	}
+
+	// m_ij (2 * pi - di) * (2 * pj - dj) / 4. =
+	// Q + m_ij pi * pj
+	// L - m_ij di pj / 2 - m_ij dj pi / 2
+	// C + m_ij di dj / 4
+
+	md_zquadratic(N, dims, out, cnt, lin, mom);
 	md_zexpj(N, dims, out, out);
 }
 

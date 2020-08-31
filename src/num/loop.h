@@ -15,6 +15,8 @@ extern void md_zsample(unsigned int N, const long dims[__VLA(N)], complex float*
 extern void md_parallel_zsample(unsigned int N, const long dims[__VLA(N)], complex float* z, void* data, sample_fun_t fun);
 
 extern void md_zgradient(unsigned int N, const long dims[__VLA(N)], complex float* out, const complex float grad[__VLA(N)]);
+extern void md_zquadratic(unsigned int N, const long dims[N], complex float* out, float cnt, const float lin[N], const float mom[N][N]);
+
 
 typedef complex float (*map_fun_data_t)(void* _data, complex float arg);
 typedef complex float (*map_fun_t)(complex float arg);

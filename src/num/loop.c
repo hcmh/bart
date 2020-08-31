@@ -131,4 +131,27 @@ void md_zgradient(unsigned int N, const long dims[N], complex float* out, const 
 
 
 
+void md_zquadratic(unsigned int N, const long dims[N], complex float* out, float cnt, const float lin[N], const float mom[N][N])
+{
+	NESTED(complex float, kern, (void* data, const long pos[]))
+	{
+		(void)data;
+
+		complex float val = cnt;
+
+		for (int i = 0; i < (int)N; i++) {
+
+			val += lin[i] * pos[i];
+
+			for (int j = 0; j < (int)N; j++)
+				val += mom[i][j] * pos[i] * pos[j];
+		}
+
+		return val;
+	};
+
+	md_zsample(N, dims, out, NULL, kern);
+}
+
+
 
