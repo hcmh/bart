@@ -58,7 +58,7 @@ tests/test-sim-ode-bssfp: sim nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
 	$(TOOLDIR)/sim -P 0:0:0.0045:0.00225:0.001:45:1000:0 -1 3:3:1 -2 1:1:1 simu_obs.ra		;\
 	$(TOOLDIR)/sim -o -P 0:0:0.0045:0.00225:0.001:45:1000:0 -1 3:3:1 -2 1:1:1 simu_ode.ra	;\
-	$(TOOLDIR)/nrmse -t 0.005 simu_obs.ra simu_ode.ra			    	;\
+	$(TOOLDIR)/nrmse -t 0.0075 simu_obs.ra simu_ode.ra			    	;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
@@ -66,7 +66,7 @@ tests/test-sim-ode-irbssfp: sim nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
 	$(TOOLDIR)/sim -P 0:1:0.0045:0.00225:0.001:45:1000:0 -1 3:3:1 -2 1:1:1 simu_obs.ra		;\
 	$(TOOLDIR)/sim -o -P 0:1:0.0045:0.00225:0.001:45:1000:0 -1 3:3:1 -2 1:1:1 simu_ode.ra	;\
-	$(TOOLDIR)/nrmse -t 0.003 simu_obs.ra simu_ode.ra			    	;\
+	$(TOOLDIR)/nrmse -t 0.005 simu_obs.ra simu_ode.ra			    	;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
