@@ -10,7 +10,7 @@
 
 static bool cdbl_eq(complex double a, complex double b)
 {
-	return (1.E-14 > cabsf(a - b));
+	return (1.E-14 > cabs(a - b));
 }
 
 

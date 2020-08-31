@@ -34,7 +34,7 @@ static const char* help_str = "";
 
 int main_power(int argc, char* argv[])
 {
-	const struct opt_s opts[1];
+	const struct opt_s opts[1] = { 0 };
 
 	cmdline(&argc, argv, 5, 6, usage_str, help_str, 0, opts);
 

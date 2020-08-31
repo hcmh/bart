@@ -23,8 +23,7 @@ struct mdb_irgnm_l1_conf {
 
 	int algo;
         float rho;
-	struct opt_reg_s *ropts;
-
+	struct opt_reg_s* ropts;
 };
 
 void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,

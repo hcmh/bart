@@ -18,6 +18,9 @@
 #include "utest.h"
 
 
+// FIXME: coding style, missing copyright header, etc.
+
+
 static bool test_ode_bloch_simulation(void)
 {
 #if 1
@@ -76,7 +79,7 @@ static bool test_ode_bloch_simulation(void)
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++) 
 		for (int j = 0; j < 3; j++) {
 		
-			err = fabsf( e * sa_r1_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]) );
+			err = cabsf( e * sa_r1_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]) );
 			
 			if (err > tol) {
 				
@@ -98,7 +101,7 @@ static bool test_ode_bloch_simulation(void)
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
 		for (int j = 0; j < 3; j++) {
 		
-			err = fabsf( e * sa_r2_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]) );
+			err = cabsf( e * sa_r2_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]) );
 			
 			if (err > tol) {
 				
@@ -119,7 +122,7 @@ static bool test_ode_bloch_simulation(void)
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
 		for (int j = 0; j < 3; j++) {
 		
-			err = fabsf( e * sa_m0_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]) );
+			err = cabsf( e * sa_m0_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]) );
 			
 			if (err > tol) {
 				
@@ -511,19 +514,19 @@ static bool test_matrix_exp_simulation(void)
 	for (int rep = 0; rep < repetition; rep++)
 		for ( int dim = 0; dim < 3; dim++) {
 			
-			err = fabsf( mxySig_matexp[rep][dim] - mxySig_ode[rep][dim] );
+			err = cabsf( mxySig_matexp[rep][dim] - mxySig_ode[rep][dim] );
 			if ( err > tol )
 				return 0;
 			
-			err = fabsf( saR1Sig_matexp[rep][dim] - saR1Sig_ode[rep][dim] );
+			err = cabsf( saR1Sig_matexp[rep][dim] - saR1Sig_ode[rep][dim] );
 			if ( err > tol )
 				return 0;
 			
-			err = fabsf( saR2Sig_matexp[rep][dim] - saR2Sig_ode[rep][dim] );
+			err = cabsf( saR2Sig_matexp[rep][dim] - saR2Sig_ode[rep][dim] );
 			if ( err > tol )
 				return 0;
 			
-			err = fabsf( saDensSig_matexp[rep][dim] - saDensSig_ode[rep][dim] );
+			err = cabsf( saDensSig_matexp[rep][dim] - saDensSig_ode[rep][dim] );
 			if ( err > tol )
 				return 0;
 		}

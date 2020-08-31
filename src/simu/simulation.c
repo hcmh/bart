@@ -72,7 +72,7 @@ const struct simdata_grad simdata_grad_defaults = {
 
 
 
-
+#if 0
 static void bloch_pdy2(void* _data, float* out, float t, const float* in)
 {
 	struct bloch_s* data = _data;
@@ -88,7 +88,7 @@ static void bloch_pdp2(void* _data, float* out, float t, const float* in)
 
 	bloch_pdp((float(*)[3])out, in, data->r1, data->r2 , data->gb_eff);
 }
-
+#endif
 
 static void bloch_pdy3(void* _data, float* out, float t, const float* in)
 {
@@ -253,6 +253,7 @@ void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2
 	relaxation2(data, h, tol, N, P, xp, data->seq.te, data->seq.tr);
 }
 
+#if 0
 //Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
 static void xyspoiling(int N, int P, float xp[P + 2][N], struct sim_data* simdata)
 {
@@ -265,6 +266,7 @@ static void xyspoiling(int N, int P, float xp[P + 2][N], struct sim_data* simdat
 		}
 	}
 }
+#endif
 
 
 void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], complex float (*sa_r1_sig)[3], complex float (*sa_r2_sig)[3], complex float (*sa_m0_sig)[3])

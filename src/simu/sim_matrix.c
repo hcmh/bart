@@ -165,6 +165,7 @@ static void xyspoiling(int N, float out[N], void* _data)
 		}
 }
 
+#if 0
 // TODO: Fix for gradients after hyperbolic inversion pulse
 static void apply_inversion(int N, float m[N], float pulse_length, void* _data )
 {
@@ -183,8 +184,10 @@ static void apply_inversion(int N, float m[N], float pulse_length, void* _data )
 	
 	xyspoiling(N, m, &tmp_data);
 }
+#endif
 
 
+#if 0
 static void spoiler_relaxation(int N, float m[N], float spoiler_length, struct sim_data* simdata)
 {
 	struct sim_data tmp_data = *simdata;
@@ -198,6 +201,7 @@ static void spoiler_relaxation(int N, float m[N], float spoiler_length, struct s
 	
 	xyspoiling(N, m, &tmp_data);
 }
+#endif
 
 
 static void apply_signal_preparation(int N, float m[N], void* _data )// provides alpha/2. preparation only
