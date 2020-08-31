@@ -21,7 +21,7 @@ struct vn_s {
 	_Bool share_pattern;
 };
 
-const struct vn_s vn_default;
+extern const struct vn_s vn_default;
 
 extern void apply_variational_network(	struct vn_s* vn,
  					const long udims[5], _Complex float* out,

@@ -44,7 +44,7 @@ struct modl_s {
 	_Bool nullspace;
 };
 
-const struct modl_s modl_default;
+extern const struct modl_s modl_default;
 
 extern void init_nn_modl(struct modl_s* modl);
 extern void apply_nn_modl(	struct modl_s* modl,
