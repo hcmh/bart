@@ -165,8 +165,11 @@ static void smo_abs_fun(const nlop_data_t* _data, complex float* dst, const comp
 }
 
 
-static void smo_abs_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void smo_abs_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct smo_abs_s* data = CAST_DOWN(smo_abs_s, _data);
 	assert(NULL != data->tmp);
 
@@ -174,8 +177,11 @@ static void smo_abs_der(const nlop_data_t* _data, complex float* dst, const comp
 	md_zreal(data->N, data->dims, dst, dst);
 }
 
-static void smo_abs_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void smo_abs_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 
 	const struct smo_abs_s* data = CAST_DOWN(smo_abs_s, _data);
@@ -250,8 +256,11 @@ static void dump_fun(const nlop_data_t* _data, complex float* dst, const complex
 	}
 }
 
-static void dump_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void dump_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(dump_s, _data);
 
 	md_copy(data->N, data->dims, dst, src, CFL_SIZE);
@@ -265,8 +274,11 @@ static void dump_der(const nlop_data_t* _data, complex float* dst, const complex
 	}
 }
 
-static void dump_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void dump_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(dump_s, _data);
 
 	md_copy(data->N, data->dims, dst, src, CFL_SIZE);

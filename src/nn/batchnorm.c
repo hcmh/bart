@@ -93,8 +93,10 @@ static void stats_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	PRINT_TIMER("frw stats");
 }
 
-static void stats_der_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void stats_der_mean(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	START_TIMER;
 	const auto data = CAST_DOWN(stats_s, _data);
 
@@ -103,8 +105,10 @@ static void stats_der_mean(const struct nlop_data_s* _data, complex float* dst, 
 	PRINT_TIMER("der stats mean ");
 }
 
-static void stats_adj_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void stats_adj_mean(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	START_TIMER;
 	const auto data = CAST_DOWN(stats_s, _data);
 
@@ -116,8 +120,10 @@ static void stats_adj_mean(const struct nlop_data_s* _data, complex float* dst, 
 	PRINT_TIMER("adj stats mean ");
 }
 
-static void stats_der_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void stats_der_var(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	START_TIMER;
 	const auto data = CAST_DOWN(stats_s, _data);
 
@@ -127,8 +133,10 @@ static void stats_der_var(const struct nlop_data_s* _data, complex float* dst, c
 	PRINT_TIMER("der stats var");
 }
 
-static void stats_adj_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void stats_adj_var(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	START_TIMER;
 	const auto data = CAST_DOWN(stats_s, _data);
 
@@ -190,7 +198,7 @@ const struct nlop_s* nlop_stats_create(int N, const long dims[N], unsigned long 
 
 
 	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)),
-		stats_fun, (nlop_fun_t[1][2]){ { stats_der_mean, stats_der_var } }, (nlop_fun_t[1][2]){ { stats_adj_mean, stats_adj_var } }, NULL, NULL, stats_del);
+		stats_fun, (nlop_der_fun_t[1][2]){ { stats_der_mean, stats_der_var } }, (nlop_der_fun_t[1][2]){ { stats_adj_mean, stats_adj_var } }, NULL, NULL, stats_del);
 }
 
 struct normalize_s {
@@ -263,8 +271,11 @@ static void normalize_fun(const nlop_data_t* _data, int N, complex float* args[N
 	PRINT_TIMER("frw normalize");
 }
 
-static void normalize_deradj_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void normalize_deradj_src(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
 
@@ -284,8 +295,11 @@ static void normalize_deradj_src(const struct nlop_data_s* _data, complex float*
 	PRINT_TIMER("der/adj normalize src");
 }
 
-static void normalize_der_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void normalize_der_mean(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
 	md_zdiv2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->statdom->strs, src, data->statdom->strs, data->scale);
@@ -293,8 +307,11 @@ static void normalize_der_mean(const struct nlop_data_s* _data, complex float* d
 	PRINT_TIMER("der normalize mean");
 }
 
-static void normalize_adj_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void normalize_adj_mean(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
 
@@ -321,8 +338,11 @@ static void normalize_adj_mean(const struct nlop_data_s* _data, complex float* d
 	PRINT_TIMER("adj normalize mean");
 }
 
-static void normalize_der_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void normalize_der_var(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
 
@@ -345,8 +365,11 @@ static void normalize_der_var(const struct nlop_data_s* _data, complex float* ds
 	PRINT_TIMER("der normalize var");
 }
 
-static void normalize_adj_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void normalize_adj_var(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const auto data = CAST_DOWN(normalize_s, _data);
 
@@ -442,8 +465,8 @@ const struct nlop_s* nlop_normalize_create(int N, const long dims[N], unsigned l
 	operator_property_flags_t props[3][1] = { {0} ,{0}, {0}};
 
 	return nlop_generic_with_props_create(	1, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), normalize_fun,
-						(nlop_fun_t[3][1]){ { normalize_deradj_src}, { normalize_der_mean }, { normalize_der_var } },
-						(nlop_fun_t[3][1]){ { normalize_deradj_src}, { normalize_adj_mean }, { normalize_adj_var } },
+						(nlop_der_fun_t[3][1]){ { normalize_deradj_src}, { normalize_der_mean }, { normalize_der_var } },
+						(nlop_der_fun_t[3][1]){ { normalize_deradj_src}, { normalize_adj_mean }, { normalize_adj_var } },
 						NULL, NULL, normalize_del, props);
 }
 
@@ -485,38 +508,56 @@ static void rescale_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	md_zadd2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, dst, data->statdom->strs, beta);
 }
 
-static void rescale_der_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void rescale_der_src(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(rescale_s, _data);
 	md_zmul2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->statdom->strs, data->scale);
 }
 
-static void rescale_adj_src(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void rescale_adj_src(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(rescale_s, _data);
 	md_zmulc2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->statdom->strs, data->scale);
 }
 
-static void rescale_der_gamma(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void rescale_der_gamma(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(rescale_s, _data);
 	md_zmul2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, data->in, data->statdom->strs, src);
 }
 
-static void rescale_adj_gamma(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void rescale_adj_gamma(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(rescale_s, _data);
 	md_ztenmulc2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->dom->strs, src, data->dom->strs, data->in);
 }
 
-static void rescale_der_beta(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void rescale_der_beta(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(rescale_s, _data);
 	md_copy2(data->dom->N, data->dom->dims, data->dom->strs, dst, data->statdom->strs, src, data->dom->size);
 }
 
-static void rescale_adj_beta(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void rescale_adj_beta(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(rescale_s, _data);
 	md_clear(data->statdom->N, data->statdom->dims, dst, data->dom->size);
 	md_zadd2(data->dom->N, data->dom->dims, data->statdom->strs, dst, data->statdom->strs, dst, data->dom->strs, src);
@@ -574,8 +615,8 @@ const struct nlop_s* nlop_scale_and_shift_create(int N, const long dims[N], unsi
 
 
 	return nlop_generic_create(1, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), rescale_fun,
-					(nlop_fun_t[3][1]){ { rescale_der_src}, { rescale_der_beta }, { rescale_der_gamma } },
-					(nlop_fun_t[3][1]){ { rescale_adj_src}, { rescale_adj_beta }, { rescale_adj_gamma } },
+					(nlop_der_fun_t[3][1]){ { rescale_der_src}, { rescale_der_beta }, { rescale_der_gamma } },
+					(nlop_der_fun_t[3][1]){ { rescale_adj_src}, { rescale_adj_beta }, { rescale_adj_gamma } },
 					NULL, NULL, rescale_del);
 }
 
@@ -675,40 +716,50 @@ static void bn_fun(const nlop_data_t* _data, int D, complex float* args[D], cons
 	PRINT_TIMER("frw stats");
 }
 
-static void bn_der_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void bn_der_mean(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	UNUSED(_data);
 	UNUSED(dst);
 	UNUSED(src);
 	error("der bn mean not implemented");
 }
 
-static void bn_adj_mean(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void bn_adj_mean(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	UNUSED(_data);
 	UNUSED(dst);
 	UNUSED(src);
 	error("adj bn mean not implemented");
 }
 
-static void bn_der_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void bn_der_var(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	UNUSED(_data);
 	UNUSED(dst);
 	UNUSED(src);
 	error("der bn var not implemented");
 }
 
-static void bn_adj_var(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void bn_adj_var(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	UNUSED(_data);
 	UNUSED(dst);
 	UNUSED(src);
 	error("adj bn var not implemented");
 }
 
-static void bn_deradj_in(const struct nlop_data_s* _data, complex float* dst, const complex float* src)
+static void bn_deradj_in(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	START_TIMER;
 	const auto data = CAST_DOWN(bn_s, _data);
 
@@ -817,8 +868,8 @@ static const struct nlop_s* nlop_bn_create(int N, const long dims[N], unsigned l
 
 
 	return nlop_generic_with_props_create(3, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), bn_fun,
-						(nlop_fun_t[1][3]){ { bn_deradj_in, bn_der_mean, bn_der_var } },
-						(nlop_fun_t[1][3]){ { bn_deradj_in, bn_adj_mean, bn_adj_var } },
+						(nlop_der_fun_t[1][3]){ { bn_deradj_in, bn_der_mean, bn_der_var } },
+						(nlop_der_fun_t[1][3]){ { bn_deradj_in, bn_adj_mean, bn_adj_var } },
 						 NULL, NULL, bn_del, props);
 }
 

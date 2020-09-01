@@ -141,8 +141,11 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N], con
 	PRINT_TIMER("frw rbf");
 }
 
-static void rbf_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void rbf_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 
 	//dst_ik = sum_j src_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
 	START_TIMER;
@@ -190,8 +193,11 @@ static void rbf_der2(const nlop_data_t* _data, complex float* dst, const complex
 
 }
 
-static void rbf_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void rbf_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	//dst_ij = sum_k src_ik * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
 	START_TIMER;
 	const auto data = CAST_DOWN(rbf_s, _data);
@@ -239,8 +245,11 @@ static void rbf_adj2(const nlop_data_t* _data, complex float* dst, const complex
 	PRINT_TIMER("adj2 rbf");
 }
 
-static void rbf_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void rbf_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(rbf_s, _data);
 
 	complex float* tmp = md_alloc_sameplace(data->N, data->zdom->dims, CFL_SIZE, dst);
@@ -251,8 +260,11 @@ static void rbf_der1(const nlop_data_t* _data, complex float* dst, const complex
 	md_free(tmp);
 }
 
-static void rbf_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void rbf_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const auto data = CAST_DOWN(rbf_s, _data);
 
@@ -345,6 +357,6 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 
 	operator_property_flags_t props[2][1] = {{0},{0}};
 
-	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, props);
+	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, props);
 	return result;
 }

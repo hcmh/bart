@@ -38,7 +38,7 @@ struct meco_s {
 	const long* der_dims;
 	const long* map_dims;
 	const long* TE_dims;
-	
+
 	const long* y_strs;
 	const long* x_strs;
 	const long* der_strs;
@@ -99,12 +99,12 @@ static void meco_calc_weights(const long dims[3], complex float* dst, int weight
 			flags = MD_SET(flags, i);
 
 	switch (weight_type) {
-		case 0: 
+		case 0:
 			md_clear(3, dims, dst, CFL_SIZE);
 			md_zsadd(3, dims, dst, dst, 1.);
 			break;
-		
-		case 1: 
+
+		case 1:
 			klaplace(3, dims, flags, dst);
 			md_zsmul(3, dims, dst, dst, 44.);
 			md_zsadd(3, dims, dst, dst, 1.);
@@ -217,7 +217,7 @@ static void meco_fun_wfr2s(const nlop_data_t* _data, complex float* dst, const c
 
 	complex float* tmp_map = md_alloc_sameplace(data->N, data->map_dims, CFL_SIZE, dst);
 	complex float* tmp_map1 = md_alloc_sameplace(data->N, data->map_dims, CFL_SIZE, dst);
-	complex float* tmp_exp = md_alloc_sameplace(data->N, data->y_dims, CFL_SIZE, dst);    
+	complex float* tmp_exp = md_alloc_sameplace(data->N, data->y_dims, CFL_SIZE, dst);
 
 	// =============================== //
 	//  forward operator
@@ -241,7 +241,7 @@ static void meco_fun_wfr2s(const nlop_data_t* _data, complex float* dst, const c
 	pos[COEFF_DIM] = PIND_R2S;
 	const complex float* R2s = (const void*)src + md_calc_offset(data->N, data->x_strs, pos);
 	md_zsmul2(data->N, data->map_dims, data->map_strs, tmp_map, data->map_strs, R2s, -1.*data->scaling[PIND_R2S]);
-	
+
 	pos[COEFF_DIM] = PIND_FB0;
 	const complex float* fB0 = (const void*)src + md_calc_offset(data->N, data->x_strs, pos);
 	meco_forw_fB0(data->linop_fB0, tmp_map1, fB0);
@@ -432,7 +432,7 @@ static void meco_fun_r2s(const nlop_data_t* _data, complex float* dst, const com
 	pos[COEFF_DIM] = PIND_R2S;
 	const complex float* R2s = (const void*)src + md_calc_offset(data->N, data->x_strs, pos);
 	md_zsmul2(data->N, data->map_dims, data->map_strs, tmp_map, data->map_strs, R2s, -1.*data->scaling[PIND_R2S]);
-	
+
 	pos[COEFF_DIM] = PIND_FB0;
 	const complex float* fB0 = (const void*)src + md_calc_offset(data->N, data->x_strs, pos);
 	meco_forw_fB0(data->linop_fB0, tmp_map1, fB0);
@@ -478,8 +478,11 @@ static void meco_fun_r2s(const nlop_data_t* _data, complex float* dst, const com
 }
 
 
-static void meco_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void meco_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	struct meco_s* data = CAST_DOWN(meco_s, _data);
 	long* pos = calloc(data->N, sizeof(long));
 
@@ -488,7 +491,7 @@ static void meco_der(const nlop_data_t* _data, complex float* dst, const complex
 	md_clear(data->N, data->y_dims, dst, CFL_SIZE);
 
 	for (long pind = 0; pind < data->x_dims[COEFF_DIM]; pind++) {
-		
+
 		pos[COEFF_DIM] = pind;
 
 		const complex float* tmp_map = (const void*)src + md_calc_offset(data->N, data->x_strs, pos);
@@ -507,15 +510,18 @@ static void meco_der(const nlop_data_t* _data, complex float* dst, const complex
 	xfree(pos);
 }
 
-static void meco_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void meco_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	struct meco_s* data = CAST_DOWN(meco_s, _data);
 	long* pos = calloc(data->N, sizeof(long));
 
 	md_clear(data->N, data->x_dims, dst, CFL_SIZE);
 
 	for (long pind = 0; pind < data->x_dims[COEFF_DIM]; pind++) {
-		
+
 		pos[COEFF_DIM] = pind;
 
 		complex float* tmp_map = (void*)dst + md_calc_offset(data->N, data->x_strs, pos);
@@ -594,7 +600,7 @@ struct nlop_s* nlop_meco_create(const int N, const long y_dims[N], const long x_
 	assert(!use_gpu);
 	md_alloc_fun_t my_alloc = md_alloc;
 #endif
-	
+
 	PTR_ALLOC(struct meco_s, data);
 	SET_TYPEID(meco_s, data);
 
@@ -629,7 +635,7 @@ struct nlop_s* nlop_meco_create(const int N, const long y_dims[N], const long x_
 	long scaling_dims[N];
 	md_select_dims(N, COEFF_FLAG, scaling_dims, x_dims);
 
-	
+
 	PTR_ALLOC(long[N], nystr);
 	md_calc_strides(N, *nystr, y_dims, CFL_SIZE);
 	data->y_strs = *PTR_PASS(nystr);
@@ -649,10 +655,10 @@ struct nlop_s* nlop_meco_create(const int N, const long y_dims[N], const long x_
 	PTR_ALLOC(long[N], ntestr);
 	md_calc_strides(N, *ntestr, TE_dims, CFL_SIZE);
 	data->TE_strs = *PTR_PASS(ntestr);
-	
+
 	data->N = N;
 	data->der_x = my_alloc(N, data->der_dims, CFL_SIZE);
-	
+
 	// echo times
 	data->TE = md_alloc(N, TE_dims, CFL_SIZE);
 	md_copy(N, TE_dims, data->TE, TE, CFL_SIZE);
@@ -689,16 +695,16 @@ struct nlop_s* nlop_meco_create(const int N, const long y_dims[N], const long x_
 	nlop_fun_t meco_fun = meco_fun_wf;
 	switch (sel_model) {
 		case WF: break;
-		case WFR2S: 
+		case WFR2S:
 			meco_fun    = meco_fun_wfr2s;
 			// scaling[2]  = 0.75 + 0.0 * I; // R2*
 			break;
-		case WF2R2S: 
+		case WF2R2S:
 			meco_fun    = meco_fun_wf2r2s;
 			// scaling[1]  = 0.75 + 0.0 * I; // R2*_W
 			// scaling[3]  = 0.75 + 0.0 * I; // R2*_F
 			break;
-		case R2S: 
+		case R2S:
 			meco_fun    = meco_fun_r2s;
 			// scaling[1]  = 0.75 + 0.0 * I; // R2*
 			break;
@@ -710,4 +716,3 @@ struct nlop_s* nlop_meco_create(const int N, const long y_dims[N], const long x_
 
 	return nlop_create(N, y_dims, N, x_dims, CAST_UP(PTR_PASS(data)), meco_fun, meco_der, meco_adj, NULL, NULL, meco_del);
 }
-

@@ -61,57 +61,69 @@ static void mse_fun(const nlop_data_t* _data, int D, complex float* args[D])
 	md_sub(data->N, data->rdims, data->tmp, src1, src2);
 
 	complex float result = md_scalar(data->N, data->rdims, data->tmp, data->tmp);
-	complex float scale = 1. / data->scaling; 
+	complex float scale = 1. / data->scaling;
 	result = result * scale;
 	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
 	PRINT_TIMER("frw mse");
 }
 
 
-static void mse_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void mse_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
 	complex float result = md_scalar(data->N, data->rdims, data->tmp, (float*)src);
-	complex float scale = 1. / data->scaling; 
+	complex float scale = 1. / data->scaling;
 	result = result * scale * 2;
 	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
 }
 
-static void mse_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void mse_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
 	complex float result = md_scalar(data->N, data->rdims, data->tmp, (float*)src);
-	complex float scale = 1. / data->scaling; 
+	complex float scale = 1. / data->scaling;
 	result = -(result * scale) * 2;
 	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
 }
 
-static void mse_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void mse_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
 	float in;
 	md_copy(1, MAKE_ARRAY(1l), &in, src, FL_SIZE);
-	in *= 2. / data->scaling; 
+	in *= 2. / data->scaling;
 	md_smul(data->N, data->rdims, (float*)dst, data->tmp, in);
 	PRINT_TIMER("adj1 mse");
 }
 
-static void mse_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void mse_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
 	float in;
 	md_copy(1, MAKE_ARRAY(1l), &in, src, FL_SIZE);
-	in *= -2. / data->scaling; 
+	in *= -2. / data->scaling;
 	md_smul(data->N, data->rdims, (float*)dst, data->tmp, in);
 	PRINT_TIMER("adj2 mse");
 }
@@ -129,7 +141,7 @@ const struct nlop_s* nlop_mse_create(int N, const long dims[N], unsigned long me
 {
 	PTR_ALLOC(struct mse_s, data);
 	SET_TYPEID(mse_s, data);
-	
+
 	PTR_ALLOC(long[N + 1], rdims);
 	(*rdims[0] = 2);
 	md_copy_dims(N, *rdims + 1, dims);
@@ -149,7 +161,7 @@ const struct nlop_s* nlop_mse_create(int N, const long dims[N], unsigned long me
 	md_copy_dims(N, nl_idims[1], data->rdims + 1);
 
 
-	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mse_fun, (nlop_fun_t[2][1]){ { mse_der1 }, { mse_der2 } }, (nlop_fun_t[2][1]){ { mse_adj1 }, { mse_adj2 } }, NULL, NULL, mse_del);
+	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mse_fun, (nlop_der_fun_t[2][1]){ { mse_der1 }, { mse_der2 } }, (nlop_der_fun_t[2][1]){ { mse_adj1 }, { mse_adj2 } }, NULL, NULL, mse_del);
 }
 
 
@@ -199,8 +211,11 @@ static void cce_fun(const nlop_data_t* _data, int D, complex float* args[D])
 }
 
 
-static void cce_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void cce_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct cce_s* data = CAST_DOWN(cce_s, _data);
 	assert(NULL != data->tmp_log);
 	assert(NULL != data->tmp_div);
@@ -211,8 +226,11 @@ static void cce_der1(const nlop_data_t* _data, complex float* dst, const complex
 	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
 }
 
-static void cce_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void cce_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct cce_s* data = CAST_DOWN(cce_s, _data);
 	assert(NULL != data->tmp_log);
 	assert(NULL != data->tmp_div);
@@ -223,8 +241,11 @@ static void cce_der2(const nlop_data_t* _data, complex float* dst, const complex
 	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
 }
 
-static void cce_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void cce_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct cce_s* data = CAST_DOWN(cce_s, _data);
 	assert(NULL != data->tmp_log);
 	assert(NULL != data->tmp_div);
@@ -237,8 +258,11 @@ static void cce_adj1(const nlop_data_t* _data, complex float* dst, const complex
 	md_free(tmp);
 }
 
-static void cce_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void cce_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct cce_s* data = CAST_DOWN(cce_s, _data);
 	assert(NULL != data->tmp_log);
 	assert(NULL != data->tmp_div);
@@ -287,7 +311,7 @@ const struct nlop_s* nlop_cce_create(int N, const long dims[N])
 	md_copy_strides(N, nl_istr[0], MD_STRIDES(N, dims, CFL_SIZE));
 	md_copy_strides(N, nl_istr[1], MD_STRIDES(N, dims, CFL_SIZE));
 
-	return nlop_generic_create2(1, 1, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), cce_fun, (nlop_fun_t[2][1]){ { cce_der1 }, { cce_der2 } }, (nlop_fun_t[2][1]){ { cce_adj1 }, { cce_adj2 } }, NULL, NULL, cce_del);
+	return nlop_generic_create2(1, 1, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), cce_fun, (nlop_der_fun_t[2][1]){ { cce_der1 }, { cce_der2 } }, (nlop_der_fun_t[2][1]){ { cce_adj1 }, { cce_adj2 } }, NULL, NULL, cce_del);
 }
 
 
@@ -333,16 +357,22 @@ static void frequency_compensation_fun(const nlop_data_t* _data, complex float* 
 }
 
 
-static void frequency_compensation_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void frequency_compensation_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	UNUSED(dst);
 	UNUSED(src);
 	UNUSED(_data);
 	error("loss frequency compensation derivative not implemented");
 }
 
-static void frequency_compensation_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void frequency_compensation_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	UNUSED(dst);
 	UNUSED(src);
 	UNUSED(_data);
@@ -379,7 +409,7 @@ static const struct nlop_s* nlop_frequency_compensation_create(int N, const long
 	// will be initialized later, to transparently support GPU
 	data->sum = NULL;
     	data->in = NULL;
-	
+
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), frequency_compensation_fun, frequency_compensation_der, frequency_compensation_adj, NULL, NULL, frequency_compensation_del);
 }
 

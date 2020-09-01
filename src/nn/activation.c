@@ -205,28 +205,40 @@ static void bias_op_apply(const nlop_data_t* _data, int N, complex float* args[N
 	PRINT_TIMER("biases");
 }
 
-static void bias_op_deriv1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void bias_op_deriv1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 	md_copy2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), dst, MD_STRIDES(d->N, d->dims, CFL_SIZE), src, CFL_SIZE);
 }
 
-static void bias_op_deriv2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void bias_op_deriv2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 	md_copy2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), dst, MD_STRIDES(d->N, d->bdims, CFL_SIZE), src, CFL_SIZE);
 }
 
-static void bias_op_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void bias_op_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 	md_copy2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), dst, MD_STRIDES(d->N, d->dims, CFL_SIZE), src, CFL_SIZE);
 	PRINT_TIMER("bias adj1");
 }
 
-static void bias_op_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void bias_op_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 
@@ -299,7 +311,7 @@ const struct nlop_s* nlop_bias_create(unsigned int N, const long dims[N], const 
 
 
 	return nlop_generic_create2(1, N, nl_odims, nl_ostrs, 2, N, nl_idims, nl_istrs, CAST_UP(PTR_PASS(data)),
-				    bias_op_apply, (nlop_fun_t[2][1]){ { bias_op_deriv1}, {bias_op_deriv2} }, (nlop_fun_t[2][1]){ {bias_op_adj1}, {bias_op_adj2} }, NULL, NULL, bias_op_free);
+				    bias_op_apply, (nlop_der_fun_t[2][1]){ { bias_op_deriv1}, {bias_op_deriv2} }, (nlop_der_fun_t[2][1]){ {bias_op_adj1}, {bias_op_adj2} }, NULL, NULL, bias_op_free);
 }
 
 
@@ -342,16 +354,22 @@ static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N], 
 }
 
 
-static void relu_deriv(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void relu_deriv(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
 	assert(NULL != d->tmp);
 
 	md_mul2(d->codom->N, d->dom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src);
 }
 
-static void relu_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void relu_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
 	assert(NULL != d->tmp);
 
@@ -411,7 +429,7 @@ const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const
 	operator_property_flags_t props[1][1] = {{0}};
 
 	return nlop_generic_with_props_create2(	1, N, nl_odims, nl_ostr, 1, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-						relu_apply, (nlop_fun_t[1][1]){ { relu_deriv } }, (nlop_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, props);
+						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, props);
 }
 
 const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])
@@ -583,7 +601,7 @@ static const struct nlop_s* nlop_relu_bias_create2(unsigned int N, const long di
 	md_calc_strides(N, nl_istrs[1], nl_idims[1], CFL_SIZE);
 
 
-	return nlop_generic_create2(1, N, nl_odims, nl_ostrs, 2, N, nl_idims, nl_istrs, CAST_UP(PTR_PASS(data)), relu_bias_apply, (nlop_fun_t[2][1]){ { relu_bias_der1 }, { relu_bias_der2 } }, (nlop_fun_t[2][1]){ { relu_bias_adj1 }, { relu_bias_adj2 } }, NULL, NULL, relu_bias_free);
+	return nlop_generic_create2(1, N, nl_odims, nl_ostrs, 2, N, nl_idims, nl_istrs, CAST_UP(PTR_PASS(data)), relu_bias_apply, (nlop_der_fun_t[2][1]){ { relu_bias_der1 }, { relu_bias_der2 } }, (nlop_der_fun_t[2][1]){ { relu_bias_adj1 }, { relu_bias_adj2 } }, NULL, NULL, relu_bias_free);
 }
 
 const struct nlop_s* nlop_relu_bias_create(unsigned int N, const long dims[N], const long bdims[N])
@@ -649,8 +667,11 @@ static void softmax_apply(const nlop_data_t* _data, complex float* dst, const co
 	PRINT_TIMER("frw softmax")
 }
 
-static void softmax_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void softmax_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	//applying a_i -> a_j = sum_i D_jS_ia_i = sum_i S_i(\delta_ij - S_j)a_i
 	const struct softmax_s* d = CAST_DOWN(softmax_s, _data);
 	assert(NULL != d->tmp);
@@ -755,8 +776,11 @@ static void sigmoid_apply(const nlop_data_t* _data, complex float* dst, const co
 }
 
 
-static void sigmoid_deriv(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void sigmoid_deriv(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct sigmoid_s* d = CAST_DOWN(sigmoid_s, _data);
 	assert(NULL != d->tmp);
 
@@ -767,8 +791,11 @@ static void sigmoid_deriv(const nlop_data_t* _data, complex float* dst, const co
 	md_free(tmp_real);
 }
 
-static void sigmoid_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void sigmoid_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const struct sigmoid_s* d = CAST_DOWN(sigmoid_s, _data);
 	assert(NULL != d->tmp);
 

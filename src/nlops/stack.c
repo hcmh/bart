@@ -63,29 +63,41 @@ static void stack_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	md_copy2(data->N, data->idims2, MD_STRIDES(data->N, data->odims, CFL_SIZE), dst + data->offset, MD_STRIDES(data->N, data->idims2, CFL_SIZE), src2, CFL_SIZE);
 }
 
-static void stack_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void stack_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(stack_s, _data);
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
 	md_copy2(data->N, data->idims2, MD_STRIDES(data->N, data->odims, CFL_SIZE), dst + data->offset, MD_STRIDES(data->N, data->idims2, CFL_SIZE), src, CFL_SIZE);
 }
 
-static void stack_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void stack_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(stack_s, _data);
 	md_copy2(data->N, data->idims2, MD_STRIDES(data->N, data->idims2, CFL_SIZE) , dst, MD_STRIDES(data->N, data->odims, CFL_SIZE), src + data->offset, CFL_SIZE);
 }
 
-static void stack_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void stack_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 
 	const auto data = CAST_DOWN(stack_s, _data);
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
 	md_copy2(data->N, data->idims1, MD_STRIDES(data->N, data->odims, CFL_SIZE), dst, MD_STRIDES(data->N, data->idims1, CFL_SIZE), src, CFL_SIZE);
 }
 
-static void stack_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void stack_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(stack_s, _data);
 	md_copy2(data->N, data->idims1, MD_STRIDES(data->N, data->idims1, CFL_SIZE), dst, MD_STRIDES(data->N, data->odims, CFL_SIZE), src, CFL_SIZE);
 }
@@ -162,7 +174,7 @@ struct nlop_s* nlop_stack_create(int N, const long odims[N], const long idims1[N
 
 
 	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)),
-		stack_fun, (nlop_fun_t[2][1]){ { stack_der1 }, { stack_der2 } }, (nlop_fun_t[2][1]){ { stack_adj1 }, { stack_adj2 } }, NULL, NULL, stack_del);
+		stack_fun, (nlop_der_fun_t[2][1]){ { stack_der1 }, { stack_der2 } }, (nlop_der_fun_t[2][1]){ { stack_adj1 }, { stack_adj2 } }, NULL, NULL, stack_del);
 }
 
 

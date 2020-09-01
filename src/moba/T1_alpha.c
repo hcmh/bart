@@ -68,7 +68,7 @@ static void moba_calc_weights(const long dims[3], complex float* dst)
 		if (1 != dims[i])
 			flags = MD_SET(flags, i);
 
-	
+
 	klaplace(3, dims, flags, dst);
 	md_zsmul(3, dims, dst, dst, 440.);
 	md_zsadd(3, dims, dst, dst, 1.);
@@ -101,7 +101,7 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 
 	for (int i = 0; i < data->N; i++)
 		pos[i] = 0;
-        
+
         float reg_parameter = 1e-8;
 
 	// M0
@@ -119,7 +119,7 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	T1_forw_alpha(data->linop_alpha, data->tmp_map, data->alpha);
 
 	// R1s = R1 + alpha * scaling_alpha
-	
+
 	md_zsmul(data->N, data->map_dims, data->tmp_R1s, data->tmp_map, data->scaling_alpha);
 	md_zadd(data->N, data->map_dims, data->tmp_R1s, data->R1, data->tmp_R1s);
 
@@ -152,7 +152,7 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 			//debug_printf(DP_DEBUG2, "\tTI: %f\n", creal(data->TI[k]));
 			md_zsmul(data->N, img_dims, (void*)data->tmp_dalpha + data->out_strs[5] * k + data->out_strs[13] * s,
 						(void*)data->tmp_dalpha + data->out_strs[5] * k + data->out_strs[13] * s, data->TI[k]);
-	
+
 	// R1 / R1s.^2
         md_zmul(data->N, data->map_dims, data->tmp_map, data->tmp_R1s, data->tmp_R1s);
 	md_zdiv_reg(data->N, data->map_dims, data->tmp_map, data->R1, data->tmp_map, reg_parameter);
@@ -160,7 +160,7 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	// R1 / R1s.^2 .* (exp(-t * R1s) - 1)
 	md_zsub2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_ones);
         md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->tmp_map, data->out_strs, data->tmp_exp);
-        
+
 	// alpha'
 	md_zadd(data->N, data->out_dims, data->tmp_dalpha, data->tmp_dalpha, data->tmp_dR1);
         md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dalpha, data->map_strs, data->M0, data->out_strs, data->tmp_dalpha);
@@ -175,8 +175,11 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	md_zsmul(data->N, data->out_dims, data->tmp_dalpha, data->tmp_dalpha, data->scaling_alpha);
 }
 
-static void T1_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void T1_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	struct T1_alpha_s* data = CAST_DOWN(T1_alpha_s, _data);
 	long pos[data->N];
 
@@ -209,8 +212,11 @@ static void T1_der(const nlop_data_t* _data, complex float* dst, const complex f
 	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dalpha);
 }
 
-static void T1_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void T1_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	struct T1_alpha_s* data = CAST_DOWN(T1_alpha_s, _data);
 
 	long pos[data->N];

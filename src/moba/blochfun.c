@@ -44,28 +44,28 @@ struct blochFun_s {
 	const long* in_dims;
 	const long* out_dims;
 	const long* input_dims;
-	
+
 	const long* strs;
 	const long* map_strs;
 	const long* in_strs;
 	const long* out_strs;
 	const long* input_strs;
-	
+
 	float scale[4];
-	
+
 	//derivatives
 	complex float* Sig;
 
 	complex float* derivatives;
-	
+
 	complex float* input_b1;
 	complex float* input_sliceprofile;
 	complex float* input_fa_profile;
-	
+
 	struct modBlochFit fitParameter;
-	
+
 	bool use_gpu;
-	
+
 	int counter;
 
 };
@@ -77,26 +77,26 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 {
 	double starttime = timestamp();
 	debug_printf(DP_DEBUG2, "Started Forward Calculation\n");
-	
+
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
-	
+
 	if (DP_DEBUG2 <= debug_level) {
-		
+
 		char name[255] = {'\0'};
-		
-		sprintf(name, "current_map_%02d", data->counter); 
+
+		sprintf(name, "current_map_%02d", data->counter);
 		dump_cfl(name, data->N, data->in_dims, src);
-		
+
 		data->counter++;
 	}
-	
-	
+
+
 	// Allocate GPU memory
 	complex float* r1scale_tmp;
 	complex float* r2scale_tmp;
 	complex float* m0scale_tmp;
-	
-	
+
+
 #ifdef USE_CUDA
 	if (data->use_gpu) {
 
@@ -115,29 +115,29 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	r2scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	m0scale_tmp = md_alloc(data->N, data->map_dims, CFL_SIZE);
 #endif
-	
-	
+
+
 	long pos[data->N];
 	md_set_dims(data->N, pos, 0);
 
 	// Copy necessary files from GPU to CPU
-	// R1 
+	// R1
 	pos[COEFF_DIM] = 0;
 	const complex float* R1 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 	md_zsmul2(data->N, data->map_dims, data->map_strs, r1scale_tmp, data->map_strs, R1, data->scale[0]);
 
 	complex float* r1scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, r1scale, r1scale_tmp, CFL_SIZE);
-	
-	// R2 
+
+	// R2
 	pos[COEFF_DIM] = 2;
 	const complex float* R2 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 	md_zsmul2(data->N, data->map_dims, data->map_strs, r2scale_tmp, data->map_strs, R2, data->scale[2]);
 
 	complex float* r2scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, r2scale, r2scale_tmp, CFL_SIZE);
-	
-	// M0 
+
+	// M0
 	pos[COEFF_DIM] = 1;
 	const complex float* M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
 	md_zsmul2(data->N, data->map_dims, data->map_strs, m0scale_tmp, data->map_strs, M0, data->scale[1]);
@@ -163,34 +163,34 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 		md_copy(data->N, data->input_dims, b1_cpu, data->input_b1, CFL_SIZE);
 	}
 
-	
+
 	long sliceprofile_dims[DIMS];
-		
+
 	complex float* sliceprofile_cpu = NULL;
 
 	if (NULL != data->input_sliceprofile) {
-		
+
 		md_set_dims(DIMS, sliceprofile_dims, 1);
 		sliceprofile_dims[READ_DIM] = data->fitParameter.sliceprofile_spins;
-		
+
 		sliceprofile_cpu = md_alloc(data->N, sliceprofile_dims, CFL_SIZE);
 		md_copy(data->N, sliceprofile_dims, sliceprofile_cpu, data->input_sliceprofile, CFL_SIZE);
-		
+
 		debug_printf(DP_DEBUG2, "\n Slice Profile Estimates:\t");
 		for (int i = 0; i < data->fitParameter.sliceprofile_spins; i++)
 			debug_printf(DP_DEBUG2, "%f\t", cabsf(sliceprofile_cpu[i]) );
 		debug_printf(DP_DEBUG2, "\n");
 	}
-	
+
 	long vfa_dims[DIMS];
-		
+
 	complex float* var_fa_cpu = NULL;
 
 	if (NULL != data->input_fa_profile) {
-		
+
 		md_set_dims(DIMS, vfa_dims, 1);
 		vfa_dims[READ_DIM] = data->fitParameter.num_vfa;
-		
+
 		var_fa_cpu = md_alloc(data->N, vfa_dims, CFL_SIZE);
 		md_copy(data->N, vfa_dims, var_fa_cpu, data->input_fa_profile, CFL_SIZE);
 	}
@@ -215,7 +215,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 // 	debug_printf(DP_DEBUG3, "x:(%d,%d),\ty:(%d,%d),\tz:(%d,%d),\n", xstart, xend, ystart, yend, zstart, zend);
 	debug_printf(DP_DEBUG2, "seq: %d,\trfDuration: %f,\tTR:%f,\tTE:%f,\trep:%d,\tav:%d,\tFA:%f\n",
-								data->fitParameter.sequence, data->fitParameter.rfduration, data->fitParameter.tr, 
+								data->fitParameter.sequence, data->fitParameter.rfduration, data->fitParameter.tr,
 								data->fitParameter.te, data->out_dims[TE_DIM], data->fitParameter.averaged_spokes,
 								data->fitParameter.fa);
 
@@ -244,7 +244,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 				//Get effective flipangle from B1 map -> this do not include inversion efficiency
 				float b1 = 1.;
-				
+
 				if (NULL != data->input_b1) {
 
 					b1 = cabsf(b1_cpu[spa_ind]);
@@ -254,29 +254,29 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				}
 
 				struct sim_data sim_data;
-				
+
 				sim_data.seq = simdata_seq_defaults;
 				sim_data.seq.seq_type = data->fitParameter.sequence;
 				sim_data.seq.tr = data->fitParameter.tr;
 				sim_data.seq.te = data->fitParameter.te;
-				
+
 				if (4 == sim_data.seq.seq_type)
 					sim_data.seq.rep_num = data->fitParameter.num_vfa;
 				else
 					sim_data.seq.rep_num = (data->out_dims[TE_DIM] + rm_first_echo) * data->fitParameter.averaged_spokes;
-				
+
 				sim_data.seq.spin_num = data->fitParameter.sliceprofile_spins;
 				sim_data.seq.num_average_rep = data->fitParameter.averaged_spokes;
 				sim_data.seq.run_num = data->fitParameter.runs;
 				sim_data.seq.inversion_pulse_length = data->fitParameter.inversion_pulse_length;
 				sim_data.seq.prep_pulse_length = data->fitParameter.prep_pulse_length;
-				
+
 				sim_data.voxel = simdata_voxel_defaults;
 				sim_data.voxel.r1 = crealf(r1scale[spa_ind]);
 				sim_data.voxel.r2 = crealf(r2scale[spa_ind]);
 				sim_data.voxel.m0 = m0scale[spa_ind];
 				sim_data.voxel.w = 0;
-				
+
 				sim_data.pulse = simdata_pulse_defaults;
 				sim_data.pulse.flipangle = angle * b1;
 				sim_data.pulse.rf_end = data->fitParameter.rfduration;
@@ -288,20 +288,20 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				complex float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 				complex float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 				complex float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
-				
+
 				if (NULL != data->input_sliceprofile) {
-					
+
 					sim_data.seq.slice_profile = md_alloc(DIMS, sliceprofile_dims, CFL_SIZE);
 					md_copy(DIMS, sliceprofile_dims, sim_data.seq.slice_profile, sliceprofile_cpu, CFL_SIZE);
 				}
-				
+
 				if (NULL != data->input_fa_profile) {
-					
+
 					sim_data.seq.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
 					md_copy(DIMS, vfa_dims, sim_data.seq.variable_fa, var_fa_cpu, CFL_SIZE);
 				}
-				
-				
+
+
 				if (data->fitParameter.full_ode_sim || NULL != data->input_fa_profile)	//variable flipangles are only included into ode simulation yet
 					ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
 				else
@@ -310,7 +310,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 				long curr_pos[DIMS];
 				md_copy_dims(DIMS, curr_pos, spa_pos);
-				
+
 				long position = 0;
 
 				for (int i = 0, j = 0; j < sim_data.seq.rep_num - rm_first_echo; j++) {
@@ -342,7 +342,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	md_free(r1scale);
 	md_free(r2scale);
 	md_free(m0scale);
-			
+
 	debug_printf(DP_DEBUG3, "Copy data\n");
 
 	//-------------------------------------------------------------------
@@ -352,7 +352,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	md_copy(data->N, data->out_dims, dst, sig_cpu, CFL_SIZE);
 
 	md_free(sig_cpu);
-	
+
 	//-------------------------------------------------------------------
 	// Collect data of derivatives in single arrray
 	//-------------------------------------------------------------------
@@ -377,20 +377,22 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 	if (NULL != data->input_sliceprofile)
 		md_free(sliceprofile_cpu);
-	
+
 	if (NULL != data->input_b1)
 		md_free(b1_cpu);
-	
+
 	if (NULL != data->input_fa_profile)
 		md_free(var_fa_cpu);
-	
+
 	double totaltime = timestamp() - starttime;
 	debug_printf(DP_DEBUG2, "Time = %.2f s\n", totaltime);
 }
 
 
-static void Bloch_der(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void Bloch_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 
 	// START_TIMER;
 	debug_printf(DP_DEBUG3, "Start Derivative\n");
@@ -406,8 +408,10 @@ static void Bloch_der(const nlop_data_t* _data, complex float* dst, const comple
 
 
 
-static void Bloch_adj(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void Bloch_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
 	// START_TIMER;
 	debug_printf(DP_DEBUG3, "Start Adjoint\n");
 
@@ -424,11 +428,11 @@ static void Bloch_adj(const nlop_data_t* _data, complex float* dst, const comple
 static void Bloch_del(const nlop_data_t* _data)
 {
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
-	
+
 	md_free(data->Sig);
 
 	md_free(data->derivatives);
-	
+
 	md_free(data->input_b1);
 	md_free(data->input_sliceprofile);
 	md_free(data->input_fa_profile);
@@ -438,7 +442,7 @@ static void Bloch_del(const nlop_data_t* _data)
 	xfree(data->in_dims);
 	xfree(data->out_dims);
 	xfree(data->input_dims);
-	
+
 	xfree(data->strs);
 	xfree(data->map_strs);
 	xfree(data->in_strs);
@@ -501,16 +505,16 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	data->scale[3] = fit_para->scale[3];	// signal scaling
 
 	data->Sig = my_alloc(N, out_dims, CFL_SIZE);
-	
+
 	data->derivatives = my_alloc(N, dims, CFL_SIZE);
-	
-	
+
+
 	if (NULL != fit_para->input_b1) {
-		
+
 		PTR_ALLOC(long[N], nindims);
 		md_copy_dims(N, *nindims, input_dims);
 		data->input_dims = *PTR_PASS(nindims);
-		
+
 		PTR_ALLOC(long[N], ninstr);
 		md_calc_strides(N, *ninstr, input_dims, CFL_SIZE);
 		data->input_strs = *PTR_PASS(ninstr);
@@ -519,12 +523,12 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 		md_copy(N, input_dims, data->input_b1, fit_para->input_b1, CFL_SIZE);
 	}
 	else {
-		
+
 		data->input_b1 = NULL;
 		data->input_dims = NULL;
 		data->input_strs = NULL;
 	}
-	
+
 	if (NULL != fit_para->input_sliceprofile) {
 
 		long sliceprofile_dims[DIMS];
@@ -538,8 +542,8 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	}
 	else
 		data->input_sliceprofile = NULL;
-	
-	
+
+
 	if (NULL != fit_para->input_fa_profile) {
 
 		long vfa_dims[DIMS];
@@ -553,7 +557,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	}
 	else
 		data->input_fa_profile = NULL;
-	
+
 
 	//Set fitting parameter
 	data->fitParameter.sequence = fit_para->sequence;
@@ -575,9 +579,8 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	data->fitParameter.inversion_pulse_length = fit_para->inversion_pulse_length;
 	data->fitParameter.prep_pulse_length = fit_para->prep_pulse_length;
 	data->use_gpu = use_gpu;
-	
+
 	data->counter = 0;
-	
+
 	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), Bloch_fun, Bloch_der, Bloch_adj, NULL, NULL, Bloch_del);
 }
-

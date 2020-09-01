@@ -93,8 +93,11 @@ static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N], 
 	PRINT_TIMER("frw tenmul");
 }
 
-static void tenmul_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void tenmul_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
@@ -105,8 +108,11 @@ static void tenmul_der2(const nlop_data_t* _data, complex float* dst, const comp
 	PRINT_TIMER("der1 tenmul");
 }
 
-static void tenmul_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void tenmul_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
@@ -118,8 +124,11 @@ static void tenmul_adj2(const nlop_data_t* _data, complex float* dst, const comp
 	PRINT_TIMER("adj2 tenmul");
 }
 
-static void tenmul_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void tenmul_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
@@ -130,8 +139,11 @@ static void tenmul_der1(const nlop_data_t* _data, complex float* dst, const comp
 	PRINT_TIMER("der1 tenmul");
 }
 
-static void tenmul_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void tenmul_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
@@ -213,7 +225,7 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 	operator_property_flags_t props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
 
 	return nlop_generic_with_props_create2(1, N, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-		tenmul_fun, (nlop_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, props);
+		tenmul_fun, (nlop_der_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_der_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, props);
 }
 
 

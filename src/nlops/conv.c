@@ -120,8 +120,11 @@ static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* ar
 }
 
 
-static void convcorr_geom_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void convcorr_geom_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
@@ -135,8 +138,11 @@ static void convcorr_geom_der2(const nlop_data_t* _data, complex float* dst, con
 	PRINT_TIMER("der2 convgeo");
 }
 
-static void convcorr_geom_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void convcorr_geom_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
@@ -150,8 +156,11 @@ static void convcorr_geom_adj2(const nlop_data_t* _data, complex float* dst, con
 	PRINT_TIMER("adj2 convgeo");
 }
 
-static void convcorr_geom_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void convcorr_geom_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
@@ -165,8 +174,11 @@ static void convcorr_geom_der1(const nlop_data_t* _data, complex float* dst, con
 	PRINT_TIMER("der1 convgeo");
 }
 
-static void convcorr_geom_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void convcorr_geom_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
@@ -264,8 +276,8 @@ static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags
 	operator_property_flags_t props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
 
 	return nlop_generic_with_props_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
-				    (nlop_fun_t[2][1]){ { convcorr_geom_der1 }, { convcorr_geom_der2 } },
-				    (nlop_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, props);
+				    (nlop_der_fun_t[2][1]){ { convcorr_geom_der1 }, { convcorr_geom_der2 } },
+				    (nlop_der_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, props);
 }
 
 
@@ -381,8 +393,11 @@ static void conv_fft_fun(const nlop_data_t* _data, int N, complex float* args[N]
 	fft(data->N, data->odims, data->flags, dst, dst);
 }
 
-static void conv_fft_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void conv_fft_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(conv_fft_s, _data);
 
 	complex float* kernel_tmp2 = NULL;
@@ -405,8 +420,11 @@ static void conv_fft_der2(const nlop_data_t* _data, complex float* dst, const co
 	fft(data->N, data->odims, data->flags, dst, dst);
 }
 
-static void conv_fft_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void conv_fft_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(conv_fft_s, _data);
 
 	complex float* output_tmp = md_alloc_sameplace(data->N, data->odims, CFL_SIZE, data->kernel);
@@ -425,8 +443,11 @@ static void conv_fft_adj2(const nlop_data_t* _data, complex float* dst, const co
 	md_free(kernel_tmp);
 }
 
-static void conv_fft_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void conv_fft_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(conv_fft_s, _data);
 
 	complex float* image_tmp = NULL;
@@ -448,8 +469,11 @@ static void conv_fft_der1(const nlop_data_t* _data, complex float* dst, const co
 	fft(data->N, data->odims, data->flags, dst, dst);
 }
 
-static void conv_fft_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void conv_fft_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
+	UNUSED(o);
+	UNUSED(i);
+
 	const auto data = CAST_DOWN(conv_fft_s, _data);
 
 	complex float* output_tmp = NULL;
@@ -551,8 +575,8 @@ static struct nlop_s* nlop_conv_fft_cyclic_create(long N, unsigned int flags, co
 
 
 	return nlop_generic_create2(1, N, nl_odims, nl_ostrs, 2, N, nl_idims, nl_istrs, CAST_UP(PTR_PASS(data)), conv_fft_fun,
-				   (nlop_fun_t[2][1]){ { conv_fft_der1 }, { conv_fft_der2 } },
-				   (nlop_fun_t[2][1]){ { conv_fft_adj1 }, { conv_fft_adj2 } }, NULL, NULL, conv_fft_del);
+				   (nlop_der_fun_t[2][1]){ { conv_fft_der1 }, { conv_fft_der2 } },
+				   (nlop_der_fun_t[2][1]){ { conv_fft_adj1 }, { conv_fft_adj2 } }, NULL, NULL, conv_fft_del);
 }
 
 struct nlop_s* nlop_convcorr_fft_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum PADDING conv_pad, bool conv)
