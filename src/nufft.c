@@ -30,6 +30,7 @@
 
 #include "noncart/nufft.h"
 #include "noncart/nudft.h"
+#include "noncart/nuqft.h"
 #include "noncart/precond.h"
 
 
@@ -46,6 +47,7 @@ int main_nufft(int argc, char* argv[])
 	bool inverse = false;
 	bool precond = false;
 	bool dft = false;
+	bool qft = false;
 	bool use_gpu = false;
 
 	struct nufft_conf_s conf = nufft_conf_defaults;
@@ -68,6 +70,7 @@ int main_nufft(int argc, char* argv[])
 		OPT_UINT('m', &cgconf.maxiter, "", "()"),
 		OPT_SET('P', &conf.periodic, "periodic k-space"),
 		OPT_SET('s', &dft, "DFT"),
+		OPT_SET('Q', &qft, "(QFT)"),
 		OPT_SET('g', &use_gpu, "GPU (only inverse)"),
 		OPT_CLEAR('1', &conf.decomp, "use/return oversampled grid"),
 	};
@@ -85,7 +88,12 @@ int main_nufft(int argc, char* argv[])
 	long traj_dims[DIMS];
 	complex float* traj = load_cfl(argv[1], DIMS, traj_dims);
 
-	assert(3 == traj_dims[0]);
+	int T = 3;
+
+	if (qft)
+		T = 9;
+
+	assert(T == traj_dims[0]);
 
 
 	(use_gpu ? num_init_gpu_memopt : num_init)();
@@ -119,10 +127,13 @@ int main_nufft(int argc, char* argv[])
 
 		const struct linop_s* nufft_op;
 
-		if (!dft)
+		if (!dft && !qft)
 			nufft_op = nufft_create(DIMS, ksp_dims, coilim_dims, traj_dims, traj, NULL, conf);
 		else
+		if (!qft)
 			nufft_op = nudft_create(DIMS, FFT_FLAGS, ksp_dims, coilim_dims, traj_dims, traj);
+		else
+			nufft_op = nuqft_create(DIMS, FFT_FLAGS, ksp_dims, coilim_dims, traj_dims, traj);
 
 
 		if (inverse) {

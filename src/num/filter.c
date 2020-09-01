@@ -260,20 +260,22 @@ void linear_phase(unsigned int N, const long dims[N], const float pos[N], comple
 }
 
 
-void quadratic_phase(unsigned int N, const long dims[N], const float mom0[N][N], complex float* out)
+void quadratic_phase2(unsigned int N, const long dims[N], float cnst0, const float lin0[N], const float mom0[N][N], complex float* out)
 {
-	float cnt = 0.;
+	float cnt = 2. * M_PI * cnst0;
 	float lin[N];
 	float mom[N][N];
 
-	for (int i = 0; i < (int)N; i++)
-		for (int j = 0; j < (int)N; j++)
-			mom[i][j] = 2. * M_PI * mom0[i][j] / (dims[i] * dims[j]);
-
-
 	for (int i = 0; i < (int)N; i++) {
 
-		lin[i] = 0.;
+		lin[i] = M_PI * 2. * lin0[i] / dims[i];
+		cnt -= M_PI * lin0[i];
+
+		for (int j = 0; j < (int)N; j++)
+			mom[i][j] = 2. * M_PI * mom0[i][j] / (dims[i] * dims[j]);
+	}
+
+	for (int i = 0; i < (int)N; i++) {
 
 		for (int j = 0; j < (int)N; j++) {
 
@@ -292,6 +294,15 @@ void quadratic_phase(unsigned int N, const long dims[N], const float mom0[N][N],
 	md_zexpj(N, dims, out, out);
 }
 
+void quadratic_phase(unsigned int N, const long dims[N], const float mom0[N][N], complex float* out)
+{
+	float lin[N];
+
+	for (int i = 0; i < (int)N; i++)
+		lin[i] = 0.;
+
+	return quadratic_phase2(N, dims, 0., lin, mom0, out);
+}
 
 void klaplace_scaled(unsigned int N, const long dims[N], unsigned int flags, const float sc[N], complex float* out)
 {
