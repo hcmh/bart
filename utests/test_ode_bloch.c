@@ -357,11 +357,7 @@ static bool test_ode_sa_bloch(void)
 	for (int i = 0; i < 3; i++)
 		err2 += powf(xp[0][i] - x2[i], 2.);
 
-#ifdef  __clang__
 	if (err2 > 1.E-6)
-#else
-	if (err2 > 1.E-7)
-#endif
 		return false;
 
 
@@ -448,7 +444,7 @@ static bool test_int_matrix_bloch_sa(void)
 	bloch_relaxation(x2r2, end, x0s, data.r1, data.r2 + q, data.gb);
 
 	assert(1. == x1[9]);
-	
+
 	
 	//Mxy
 	float err2 = 0.;
