@@ -44,6 +44,8 @@ struct iter6_adam_conf {
 
 	INTERFACE(iter6_conf);
 
+	long reset_epoch;
+
 	float epsilon;
 	float beta1;
 	float beta2;

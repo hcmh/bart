@@ -71,6 +71,7 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_STRING(0, "save_checkpoints_filename", (const char**)(&(train_conf.INTERFACE.dump_filename)), "file", "save intermediate weights during training (_epoch is attached to file)"),
 		OPTL_LONG(0, "save_checkpoints_interval", &(train_conf.INTERFACE.dump_mod), "int", "save weights every int epochs"),
 		OPTL_LONG('b', "batch_size", &(Nb), "Nb", "number epochs to train"),
+		OPTL_LONG(0, "adam_reset_momentum", &(train_conf.reset_epoch), "epoch", "reset the adam algorithm after this number of epochs"),
 		OPTL_SET(0, "random_batches", &(random_order), "draw random batches"),
 
 		OPTL_SET('n', "normalize", &normalize, "normalize the input by maximum of zero-filled reconstruction"),

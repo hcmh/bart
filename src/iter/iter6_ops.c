@@ -120,6 +120,7 @@ struct adam_update_s {
 	float epsilon;
 
 	int t;
+	int t_reset;
 };
 
 static DEF_TYPEID(adam_update_s);
@@ -160,6 +161,15 @@ static void adam_update_apply(const operator_data_t* _data, unsigned int N, void
 	md_sadd(d->dom->N, d->dom->dims, dst, dst, epsilon);
 	md_div(d->dom->N, d->dom->dims, dst, d->first_mom, dst);
 	md_smul(d->dom->N, d->dom->dims, dst, dst, -scale);
+
+	if (d->t == d->t_reset) {
+
+		d->t = 0;
+		md_free(d->first_mom);
+		md_free(d->second_mom);
+		d->first_mom = NULL;
+		d->second_mom = NULL;
+	}
 }
 
 
@@ -172,7 +182,7 @@ static void adam_update_free(const operator_data_t* _data)
 	xfree(d);
 }
 
-const struct operator_s* operator_adam_update_create(unsigned int N, const long dims[N], float lr, float beta1, float beta2, float epsilon)
+const struct operator_s* operator_adam_update_create(unsigned int N, const long dims[N], float lr, float beta1, float beta2, float epsilon, long reset_mod)
 {
 	PTR_ALLOC(struct adam_update_s, data);
 	SET_TYPEID(adam_update_s, data);
@@ -189,6 +199,7 @@ const struct operator_s* operator_adam_update_create(unsigned int N, const long 
 	data->beta1 = beta1;
 	data->beta2 = beta2;
 	data->t = 0;
+	data->t_reset = reset_mod;
 
 	return operator_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), adam_update_apply, adam_update_free);
 }

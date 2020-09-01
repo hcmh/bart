@@ -106,6 +106,8 @@ const struct iter6_adam_conf iter6_adam_conf_defaults = {
 
 	.INTERFACE.batchnorm_momentum = .95,
 
+	.reset_epoch = -1,
+
 	.epsilon = 1.e-7,
 
 	.beta1 = 0.9,
@@ -358,7 +360,7 @@ void iter6_adam(	iter6_conf* _conf,
 
 		for (int j = 0; j < NI; j++)
 			upd_ops[i][j] = NULL;
-		upd_ops[i][i] = operator_adam_update_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.learning_rate, conf->beta1, conf->beta2, conf->epsilon);
+		upd_ops[i][i] = operator_adam_update_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.learning_rate, conf->beta1, conf->beta2, conf->epsilon, numbatches * conf->reset_epoch);
 		if ((0.0 != conf->INTERFACE.clip_norm) || (0.0 != conf->INTERFACE.clip_val)) {
 
 			const struct operator_s* tmp1 = operator_clip_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.clip_norm, conf->INTERFACE.clip_val);
