@@ -46,7 +46,7 @@ static bool test_nlop_trans_con(void)
 
 static bool test_nn_tf_forward(void)
 {
- 	auto nlop = nlop_tf_create(1, 1, "/home/gluo/deep_recon/exported/pixelcnn");
+ 	auto nlop = nlop_tf_create(1, 1, "/media/radon_home/deep_recon/exported/pixel_cnn");
 
 	nlop_debug(DP_INFO, nlop);
 
@@ -54,12 +54,15 @@ static bool test_nn_tf_forward(void)
 	complex float* in = md_alloc(dom->N, dom->dims, dom->size);
 	md_clear(dom->N, dom->dims, in, dom->size);
 
+
 	auto cod = nlop_generic_codomain(nlop, 0);
 	complex float* out = md_alloc(dom->N, dom->dims, dom->size);
+	md_zfill(cod->N, cod->dims, out, 5. + 5*I);
 
 	nlop_apply(nlop, cod->N, cod->dims, out, dom->N, dom->dims, in);
 	//nlop_generic_apply_unchecked(nlop, 2, {(void*)out, (void*)in});
 
+	printf("Loss : %f + %f i\n", creal(*out), cimag(*out));
 
 	return true;
 }
