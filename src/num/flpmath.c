@@ -420,6 +420,7 @@ static void make_3op_scalar(md_3op_t fun, unsigned int D, const long dims[D], co
 
 		if (!MD_IS_SET(flags, i - 1))
 			continue;
+
 		if ((4096 >= size * dims[i]) && (dims[i - 1] * ostr[i - 1] == ostr[i]) && (ostr[i] == istr[i]))
 			flags = MD_SET(flags, i);
 	}
@@ -1720,8 +1721,12 @@ static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], 
 	D = simplify_dims(3, D, tdims, strs);
 
 	//sum over outer dimension
-	if ((2 == D) && (CFL_SIZE == tostr[0]) && (CFL_SIZE == tistr1[0]) && (CFL_SIZE == tistr2[0])
-		     && (0 == tostr[1]) && (0 == tistr1[1]) && ((long)CFL_SIZE * tdims[0] == tistr2[1])) {
+	if ((2 == D) && (CFL_SIZE == tostr[0])
+		     && (CFL_SIZE == tistr1[0])
+		     && (CFL_SIZE == tistr2[0])
+		     && (0 == tostr[1])
+		     && (0 == tistr1[1])
+		     && ((long)CFL_SIZE * tdims[0] == tistr2[1])) {
 
 #ifdef USE_CUDA
 
@@ -1738,11 +1743,14 @@ static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], 
 
 			long tdimst[2] = {tdims[1], tdims[0]};
 
-			complex float *tmp = md_alloc_gpu(2, tdims, CFL_SIZE);
+			complex float* tmp = md_alloc_gpu(2, tdims, CFL_SIZE);
+
 			md_transpose(2, 0, 1, tdimst, tmp, tdims, iptr2, CFL_SIZE);
+
 			for (long i = 0; i < tdimst[1]; i++)
 				cuda_zsum(tdimst[0], tmp + i * tdimst[0]);
-			md_copy2(1, tdims, tostr, optr, MD_STRIDES(2, tdimst, CFL_SIZE)+1, tmp, CFL_SIZE);
+
+			md_copy2(1, tdims, tostr, optr, MD_STRIDES(2, tdimst, CFL_SIZE) + 1, tmp, CFL_SIZE);
 			md_free(tmp);
 
 			return true;
