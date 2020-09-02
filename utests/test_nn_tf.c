@@ -54,15 +54,17 @@ static bool test_nn_tf_forward(void)
 	complex float* in = md_alloc(dom->N, dom->dims, dom->size);
 	md_clear(dom->N, dom->dims, in, dom->size);
 
-
 	auto cod = nlop_generic_codomain(nlop, 0);
-	complex float* out = md_alloc(dom->N, dom->dims, dom->size);
-	md_zfill(cod->N, cod->dims, out, 5. + 5*I);
+	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
 
 	nlop_apply(nlop, cod->N, cod->dims, out, dom->N, dom->dims, in);
-	//nlop_generic_apply_unchecked(nlop, 2, {(void*)out, (void*)in});
-
 	printf("Loss : %f + %f i\n", creal(*out), cimag(*out));
+
+	complex float* grad = md_alloc(dom->N, dom->dims, dom->size);
+	complex float grad_ys = 1;
+	nlop_adjoint(nlop, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys);
+
+	
 
 	return true;
 }

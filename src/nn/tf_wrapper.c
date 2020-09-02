@@ -142,8 +142,6 @@ static void restore_sess(TF_Graph* graph, TF_Status *status, TF_Session *sess, c
 	if (TF_GetCode(status) != TF_OK)
 		error("ERROR: Unable to run restore_op: %s\n", TF_Message(status));
 
-
-
 	debug_printf(DP_INFO, "Session restored.\n");
 
 }
@@ -191,6 +189,27 @@ struct tf_s {
 	TF_Session* sess;
 	TF_Status* status;
 	TF_Graph* graph;
+
+	TF_Tensor **input_tensors;
+	TF_Tensor **output_tensors;
+	TF_Tensor *grad_tensors;
+	TF_Tensor *grad_ys_tensors;
+
+	struct TF_Output *inputs_op;
+	struct TF_Output *outputs_op;
+	struct TF_Output grad_op;
+	struct TF_Output grad_ys_op;
+
+	int *nr_out_dim;
+	int *nr_in_dim;
+	int nr_grad_dim;
+	int nr_grad_ys_dim;
+
+	int64_t **out_dims_tf;
+	int64_t **in_dims_tf;
+	int64_t *grad_dims_tf;
+	int64_t *grad_ys_dims_tf;
+
 };
 
 DEF_TYPEID(tf_s);
@@ -201,74 +220,27 @@ static void tf_forward(const nlop_data_t* _data, int N, complex float* args[N])
 	auto data = CAST_DOWN(tf_s, _data);
 	assert(data->nr_inputs + data->nr_outputs == N);
 
-	struct TF_Output run_inputs[data->nr_inputs];
-	TF_Tensor* input_tensors[data->nr_inputs];
-
-	for (int i = 0; i < data->nr_inputs; i++){
-
-		char in_name[20];
-		sprintf(in_name, "input_%d", i);
-
-		run_inputs[i] = (struct TF_Output){TF_GraphOperationByName(data->graph, in_name), 0};
-		int nr_dim = TF_GraphGetTensorNumDims(data->graph, run_inputs[i], data->status);
-
-		int64_t dims_tf[nr_dim];
-		TF_GraphGetTensorShape(data->graph, run_inputs[i], dims_tf, nr_dim, data->status);
-		
-		input_tensors[i] = TF_AllocateTensor(TF_FLOAT, dims_tf, nr_dim,  product(nr_dim, dims_tf) * FL_SIZE);
-		
-		md_copy(nr_dim, dims_tf, TF_TensorData(input_tensors[i]), args[i + data->nr_outputs], FL_SIZE);
-
-	}
-
-	struct TF_Output run_outputs[data->nr_outputs];
-	TF_Tensor* output_tensors[data->nr_outputs];
-
-	for (int i = 0; i < data->nr_outputs; i++){
-
-		char out_name[20];
-		sprintf(out_name, "output_%d", i);
-
-		run_outputs[i] = (struct TF_Output){TF_GraphOperationByName(data->graph, out_name), 0};
-		int nr_dim = TF_GraphGetTensorNumDims(data->graph, run_outputs[i], data->status);
-
-		int64_t dims_tf[nr_dim];
-		TF_GraphGetTensorShape(data->graph, run_outputs[i], dims_tf, nr_dim, data->status);
-
-		output_tensors[i] = TF_AllocateTensor(TF_FLOAT, dims_tf, nr_dim, product(nr_dim, dims_tf) * FL_SIZE);
-		
-	}
-
+	for (int i = 0; i < data->nr_inputs; i++)
+		md_copy(data->nr_in_dim[i], data->in_dims_tf[i], TF_TensorData(data->input_tensors[i]), args[i + data->nr_outputs], FL_SIZE);
 
 	TF_SessionRun(data->sess,
 				/* RunOptions */ NULL,
-				/* Input tensors */ run_inputs, input_tensors, data->nr_inputs,
-				/* Output tensors */ run_outputs, output_tensors, data->nr_outputs,
+				/* Input tensors */ data->inputs_op, data->input_tensors, data->nr_inputs,
+				/* Output tensors */ data->outputs_op, data->output_tensors, data->nr_outputs,
 				/* Target operations */ NULL, 0,
 				/* RunMetadata */ NULL,
 				/* Output status */ data->status);	
-
 	
 	// Delete tf tensor
 
-	for (int i = 0; i < data->nr_inputs; i++)
-		TF_DeleteTensor(input_tensors[i]);
+	//for (int i = 0; i < data->nr_inputs; i++)
+	//	TF_DeleteTensor(data->input_tensors[i]);
 
 	for (int i = 0; i < data->nr_outputs; i++){
-
-		char out_name[20];
-		sprintf(out_name, "output_%d", i);
-
-		run_outputs[i] = (struct TF_Output){TF_GraphOperationByName(data->graph, out_name), 0};
-		int nr_dim = TF_GraphGetTensorNumDims(data->graph, run_outputs[i], data->status);
-
-		int64_t dims_tf[nr_dim];
-		TF_GraphGetTensorShape(data->graph, run_outputs[i], dims_tf, nr_dim, data->status);
-		md_copy(nr_dim, dims_tf, args[i], TF_TensorData(output_tensors[i]), FL_SIZE);
-		TF_DeleteTensor(output_tensors[i]);
+		md_copy(data->nr_out_dim[i], data->out_dims_tf[i], args[i], TF_TensorData(data->output_tensors[i]), FL_SIZE);
+		TF_DeleteTensor(data->output_tensors[i]);
 	}
 		
-
 }
 
 static void tf_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -289,46 +261,59 @@ static void tf_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, com
 	char in_name[20];
 	sprintf(in_name, "grad_ys_%d", o); // o corresponds to output of forward model
 
-	struct TF_Output run_input = {TF_GraphOperationByName(data->graph, in_name), 0};
-	int nr_in_dim = TF_GraphGetTensorNumDims(data->graph, run_input, data->status);
+	data->grad_ys_op = (struct TF_Output){TF_GraphOperationByName(data->graph, in_name), 0};
+	data->nr_grad_ys_dim = TF_GraphGetTensorNumDims(data->graph, data->grad_ys_op, data->status);
 
-	int64_t in_dims_tf[nr_in_dim];
-	TF_GraphGetTensorShape(data->graph, run_input, in_dims_tf, nr_in_dim, data->status);
+	data->grad_ys_dims_tf = (int64_t*)malloc(sizeof(int64_t) * data->nr_grad_ys_dim);
+	TF_GraphGetTensorShape(data->graph, data->grad_ys_op, data->grad_ys_dims_tf, data->nr_grad_ys_dim, data->status);
 
-	TF_Tensor* input_tensor = TF_AllocateTensor(TF_FLOAT, in_dims_tf, nr_in_dim, product(nr_in_dim, in_dims_tf) * FL_SIZE);
+	data->grad_ys_tensors = TF_AllocateTensor(TF_FLOAT,
+												data->grad_ys_dims_tf,
+												data->nr_grad_ys_dim,
+												product(data->nr_grad_ys_dim, data->grad_ys_dims_tf) * FL_SIZE);
 	
-	md_copy(nr_in_dim, in_dims_tf, TF_TensorData(input_tensor), src, FL_SIZE);
+	md_copy(data->nr_grad_ys_dim, data->grad_ys_dims_tf, TF_TensorData(data->grad_ys_tensors), src, FL_SIZE);
 
 	// grad_
 	char out_name[20];
 	sprintf(out_name, "grad_%d", i);
 
-	struct TF_Output run_output = {TF_GraphOperationByName(data->graph, out_name), 0};
-	int nr_out_dim = TF_GraphGetTensorNumDims(data->graph, run_output, data->status);
+	data->grad_op = (struct TF_Output){TF_GraphOperationByName(data->graph, out_name), 0};
+	data->nr_grad_dim = TF_GraphGetTensorNumDims(data->graph, data->grad_op, data->status);	
 
-	int64_t out_dims_tf[nr_out_dim];
-	TF_GraphGetTensorShape(data->graph, run_output, out_dims_tf, nr_out_dim, data->status);
+	data->grad_dims_tf = (int64_t*)malloc(sizeof(int64_t) * data->nr_grad_dim);
 
-	TF_Tensor* output_tensor = TF_AllocateTensor(TF_FLOAT, out_dims_tf, nr_out_dim, product(nr_out_dim, out_dims_tf) * FL_SIZE);	
+	TF_GraphGetTensorShape(data->graph, data->grad_op, data->grad_dims_tf, data->nr_grad_dim, data->status);
+
+	data->grad_tensors = TF_AllocateTensor(TF_FLOAT, 
+											data->grad_dims_tf,
+											data->nr_grad_dim,
+											product(data->nr_grad_dim, data->grad_dims_tf) * FL_SIZE);	
+	struct TF_Output *inp_ops = (struct TF_Output *)malloc(sizeof(TF_Output) * 2);
+	
+	inp_ops[0] = data->inputs_op[0];
+	inp_ops[1] = data->grad_ys_op;
+
+	struct TF_Tensor **inp_tensors = (struct TF_Tensor**)malloc(sizeof(struct TF_Tensor *) * 2);
+	inp_tensors[0] = data->input_tensors[0];
+	inp_tensors[1] = data->grad_ys_tensors;
 
 	TF_SessionRun(data->sess,
 				/* RunOptions */ NULL,
-				/* Input tensors */ &run_input, &input_tensor, 1,
-				/* Output tensors */ &run_output, &output_tensor, 1,
+				/* Input tensors */ inp_ops, inp_tensors, 2,
+				/* Output tensors */ &(data->grad_op), &(data->grad_tensors), 1,
 				/* Target operations */ NULL, 0,
 				/* RunMetadata */ NULL,
 				/* Output status */ data->status);
 	
 	// Delete tf tensor
 
-	TF_DeleteTensor(input_tensor);
+	TF_DeleteTensor(inp_tensors[0]);
+	TF_DeleteTensor(inp_tensors[1]);
 
 
-	md_copy(nr_out_dim, out_dims_tf, dst, TF_TensorData(output_tensor), FL_SIZE);
-	TF_DeleteTensor(output_tensor);
-
-	
-
+	md_copy(data->nr_grad_dim, data->grad_dims_tf, dst, TF_TensorData(data->grad_tensors), FL_SIZE);
+	TF_DeleteTensor(data->grad_tensors);
 }
 
 
@@ -343,6 +328,7 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 	PTR_ALLOC(struct tf_s, data);
 	SET_TYPEID(tf_s, data);
 
+	// load graph, restore session
 	char graph_path[strlen(path) + 4];
 	sprintf(graph_path, "%s.pb", path);
 	const char* cpkt_path = path;
@@ -364,27 +350,70 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 	data->nr_outputs = nr_outputs;
 
 
+	// handle outputs
 	int OO = nr_outputs;
 	int ON = 1;
 	int ON_arr[OO];
 
-	for (int i = 0; i< nr_outputs; i++) {
+	data->outputs_op = (struct TF_Output*)malloc(sizeof(struct TF_Output) * data->nr_outputs);
+	data->output_tensors = (TF_Tensor**)malloc(sizeof(TF_Tensor *) * data->nr_outputs);
+	
+	data->nr_out_dim = (int *)malloc(sizeof(int) * data->nr_outputs);
+	data->out_dims_tf = (int64_t**)malloc(sizeof(int64_t *) * data->nr_outputs);
 
-		char out_name[20]; sprintf(out_name, "output_%d", i);
-		ON_arr[i] = TF_GraphGetTensorNumDims(data->graph, (struct TF_Output){TF_GraphOperationByName(data->graph, out_name), 0}, data->status);
+	for (int i = 0; i < data->nr_outputs; i++){
+
+		char out_name[20];
+		sprintf(out_name, "output_%d", i);
+
+		data->outputs_op[i] = (struct TF_Output){TF_GraphOperationByName(data->graph, out_name), 0};
+		data->nr_out_dim[i] = TF_GraphGetTensorNumDims(data->graph, data->outputs_op[i], data->status);
+
+		ON_arr[i] = data->nr_out_dim[i];
 		ON = MAX(ON, ON_arr[i]);
+
+		data->out_dims_tf[i] = (int64_t *)malloc(sizeof(int64_t) * data->nr_out_dim[i]);
+		
+		TF_GraphGetTensorShape(data->graph, data->outputs_op[i], data->out_dims_tf[i], data->nr_out_dim[i], data->status);
+
+		data->output_tensors[i] = TF_AllocateTensor(TF_FLOAT, 
+													data->out_dims_tf[i],
+													data->nr_out_dim[i],
+													product(data->nr_out_dim[i], data->out_dims_tf[i]) * FL_SIZE);
+		
 	}
 
-
+	// handle inputs
 	int II = nr_inputs;
 	int IN = 1;
 	int IN_arr[II];
 
-	for (int i = 0; i< nr_inputs; i++) {
+	data->inputs_op = (struct TF_Output*)malloc(sizeof(struct TF_Output) * data->nr_inputs);
+	data->input_tensors = (TF_Tensor**)malloc(sizeof(TF_Tensor*) * data->nr_inputs);
+	
+	data->nr_in_dim = (int *)malloc(sizeof(int) * data->nr_inputs);
+	data->in_dims_tf = (int64_t**)malloc(sizeof(int64_t *) * data->nr_inputs);
 
-		char in_name[20]; sprintf(in_name, "input_%d", i);
-		IN_arr[i] = TF_GraphGetTensorNumDims(data->graph, (struct TF_Output){TF_GraphOperationByName(data->graph, in_name), 0}, data->status);
+	for (int i = 0; i < data->nr_inputs; i++){
+
+		char in_name[20];
+		sprintf(in_name, "input_%d", i);
+
+		data->inputs_op[i] = (struct TF_Output){TF_GraphOperationByName(data->graph, in_name), 0};
+		data->nr_in_dim[i] = TF_GraphGetTensorNumDims(data->graph, data->inputs_op[i], data->status);
+
+		IN_arr[i] = data->nr_in_dim[i];
 		IN = MAX(IN, IN_arr[i]);
+
+		data->in_dims_tf[i] = (int64_t*)malloc(sizeof(int64_t) * data->nr_in_dim[i]);
+		
+		TF_GraphGetTensorShape(data->graph, data->inputs_op[i], data->in_dims_tf[i], data->nr_in_dim[i], data->status);
+		
+		data->input_tensors[i] = TF_AllocateTensor(TF_FLOAT,
+													data->in_dims_tf[i],
+													data->nr_in_dim[i],
+													product(data->nr_in_dim[i], data->in_dims_tf[i]) * FL_SIZE);
+
 	}
 
 	long nl_odims[OO][ON];
