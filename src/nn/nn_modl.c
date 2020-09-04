@@ -580,7 +580,7 @@ void apply_nn_modl(	struct modl_s* modl,
 	args[13] = modl->bn_i;
 	args[14] = modl->bn_n;
 
-	nlop_generic_apply_unchecked(nlop_modl, 15, (void**)args);
+	nlop_generic_apply_select_derivative_unchecked(nlop_modl, 15, (void**)args, 0, 0);
 
 	if (normalize) {
 
