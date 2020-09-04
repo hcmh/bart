@@ -41,6 +41,7 @@ struct modl_s {
 	_Bool shared_lambda;
 	_Bool share_pattern;
 
+	_Bool reinsert_zerofilled;
 	_Bool nullspace;
 };
 
