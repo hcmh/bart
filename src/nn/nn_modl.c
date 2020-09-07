@@ -899,6 +899,7 @@ void nn_modl_load_weights(struct modl_s* modl, const char* name, bool overwrite_
 		modl->Kz = dims[1][4];
 
 		modl->Nl = dims[2][5] + 2;
+		modl->Nt = dims[10][6];
 
 		modl->shared_weights = dims[0][1] != dims[10][6];
 
