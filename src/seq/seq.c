@@ -158,9 +158,10 @@ static bool seq_check_limits(int N, const struct seq_event ev[N], const struct s
 
 			if (check(m, sys->max_grad_ampl))
 				return false;
-
+#if 0
 			if (check(d, 1. / sys->inv_slew_rate))
 				return false;
+#endif
 		}
 	}
 	

@@ -1,7 +1,7 @@
 
 #include "misc/opts.h"
 
-#include "simu/seq.h"
+#include "seq/seq.h"
 
 static const char usage_str[] = "<outfile>";
 static const char help_str[] = "Computes sequence.";
