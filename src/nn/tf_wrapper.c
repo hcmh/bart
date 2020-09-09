@@ -9,6 +9,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
+#include "num/ops.h"
 
 #include "linops/someops.h"
 
@@ -178,7 +179,6 @@ static TF_Tensor* CreateTensor(TF_DataType data_type,
 	return tensor;
 }
 
-
 struct tf_s {
 
 	INTERFACE(nlop_data_t);
@@ -192,28 +192,27 @@ struct tf_s {
 
 	TF_Tensor **input_tensors;
 	TF_Tensor **output_tensors;
-	TF_Tensor *grad_tensors;
-	TF_Tensor *grad_ys_tensors;
+	TF_Tensor **grad_tensors;
+	TF_Tensor **grad_ys_tensors;
 
 	struct TF_Output *inputs_op;
 	struct TF_Output *outputs_op;
-	struct TF_Output grad_op;
-	struct TF_Output grad_ys_op;
+	struct TF_Output *grad_op;
+	struct TF_Output *grad_ys_op;
 
 	int *nr_out_dim;
 	int *nr_in_dim;
-	int nr_grad_dim;
-	int nr_grad_ys_dim;
+	int *nr_grad_dim;
+	int *nr_grad_ys_dim;
 
 	int64_t **out_dims_tf;
 	int64_t **in_dims_tf;
-	int64_t *grad_dims_tf;
-	int64_t *grad_ys_dims_tf;
+	int64_t **grad_dims_tf;
+	int64_t **grad_ys_dims_tf;
 
 };
 
 DEF_TYPEID(tf_s);
-
 
 static void tf_forward(const nlop_data_t* _data, int N, complex float* args[N])
 {
@@ -230,16 +229,10 @@ static void tf_forward(const nlop_data_t* _data, int N, complex float* args[N])
 				/* Target operations */ NULL, 0,
 				/* RunMetadata */ NULL,
 				/* Output status */ data->status);	
-	
-	// Delete tf tensor
 
-	//for (int i = 0; i < data->nr_inputs; i++)
-	//	TF_DeleteTensor(data->input_tensors[i]);
-
-	for (int i = 0; i < data->nr_outputs; i++){
+	for (int i = 0; i < data->nr_outputs; i++)
 		md_copy(data->nr_out_dim[i], data->out_dims_tf[i], args[i], TF_TensorData(data->output_tensors[i]), FL_SIZE);
-		TF_DeleteTensor(data->output_tensors[i]);
-	}
+	
 		
 }
 
@@ -257,71 +250,36 @@ static void tf_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, com
 {
 	auto data = CAST_DOWN(tf_s, _data);
 
-	// grad_ys_
-	char in_name[20];
-	sprintf(in_name, "grad_ys_%d", o); // o corresponds to output of forward model
+	md_copy(data->nr_grad_ys_dim[i], data->grad_ys_dims_tf[i], TF_TensorData(data->grad_ys_tensors[i]), src, FL_SIZE);
 
-	data->grad_ys_op = (struct TF_Output){TF_GraphOperationByName(data->graph, in_name), 0};
-	data->nr_grad_ys_dim = TF_GraphGetTensorNumDims(data->graph, data->grad_ys_op, data->status);
-
-	data->grad_ys_dims_tf = (int64_t*)malloc(sizeof(int64_t) * data->nr_grad_ys_dim);
-	TF_GraphGetTensorShape(data->graph, data->grad_ys_op, data->grad_ys_dims_tf, data->nr_grad_ys_dim, data->status);
-
-	data->grad_ys_tensors = TF_AllocateTensor(TF_FLOAT,
-												data->grad_ys_dims_tf,
-												data->nr_grad_ys_dim,
-												product(data->nr_grad_ys_dim, data->grad_ys_dims_tf) * FL_SIZE);
-	
-	md_copy(data->nr_grad_ys_dim, data->grad_ys_dims_tf, TF_TensorData(data->grad_ys_tensors), src, FL_SIZE);
-
-	// grad_
-	char out_name[20];
-	sprintf(out_name, "grad_%d", i);
-
-	data->grad_op = (struct TF_Output){TF_GraphOperationByName(data->graph, out_name), 0};
-	data->nr_grad_dim = TF_GraphGetTensorNumDims(data->graph, data->grad_op, data->status);	
-
-	data->grad_dims_tf = (int64_t*)malloc(sizeof(int64_t) * data->nr_grad_dim);
-
-	TF_GraphGetTensorShape(data->graph, data->grad_op, data->grad_dims_tf, data->nr_grad_dim, data->status);
-
-	data->grad_tensors = TF_AllocateTensor(TF_FLOAT, 
-											data->grad_dims_tf,
-											data->nr_grad_dim,
-											product(data->nr_grad_dim, data->grad_dims_tf) * FL_SIZE);	
 	struct TF_Output *inp_ops = (struct TF_Output *)malloc(sizeof(TF_Output) * 2);
 	
-	inp_ops[0] = data->inputs_op[0];
-	inp_ops[1] = data->grad_ys_op;
+	inp_ops[0] = data->inputs_op[i];
+	inp_ops[1] = data->grad_ys_op[i];
 
 	struct TF_Tensor **inp_tensors = (struct TF_Tensor**)malloc(sizeof(struct TF_Tensor *) * 2);
-	inp_tensors[0] = data->input_tensors[0];
-	inp_tensors[1] = data->grad_ys_tensors;
+	inp_tensors[0] = data->input_tensors[i];
+	inp_tensors[1] = data->grad_ys_tensors[i];
 
 	TF_SessionRun(data->sess,
 				/* RunOptions */ NULL,
 				/* Input tensors */ inp_ops, inp_tensors, 2,
-				/* Output tensors */ &(data->grad_op), &(data->grad_tensors), 1,
+				/* Output tensors */ &(data->grad_op[o]), &(data->grad_tensors[o]), 1,
 				/* Target operations */ NULL, 0,
 				/* RunMetadata */ NULL,
 				/* Output status */ data->status);
 	
-	// Delete tf tensor
-
-	TF_DeleteTensor(inp_tensors[0]);
-	TF_DeleteTensor(inp_tensors[1]);
-
-
-	md_copy(data->nr_grad_dim, data->grad_dims_tf, dst, TF_TensorData(data->grad_tensors), FL_SIZE);
-	TF_DeleteTensor(data->grad_tensors);
+	
+	md_copy(data->nr_grad_dim[o], data->grad_dims_tf[o], dst, TF_TensorData(data->grad_tensors[o]), FL_SIZE);
 }
 
 
 static void tf_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(tf_s, _data);
+	for(int i = 0; i < data->nr_inputs; i++)
+		TF_DeleteTensor(data->input_tensors[i]);
 }
-
 
 const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* path)
 {
@@ -350,16 +308,37 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 	data->nr_outputs = nr_outputs;
 
 
-	// handle outputs
+	/*** handle outputs and grad_ys ***/
+
+	// outputs
 	int OO = nr_outputs;
 	int ON = 1;
 	int ON_arr[OO];
 
-	data->outputs_op = (struct TF_Output*)malloc(sizeof(struct TF_Output) * data->nr_outputs);
-	data->output_tensors = (TF_Tensor**)malloc(sizeof(TF_Tensor *) * data->nr_outputs);
+	PTR_ALLOC(struct TF_Output[data->nr_outputs], outputs_op);
+	data->outputs_op = *PTR_PASS(outputs_op);
+
+	PTR_ALLOC(struct TF_Tensor*[data->nr_outputs], output_tensors);
+	data->output_tensors = *PTR_PASS(output_tensors);
 	
-	data->nr_out_dim = (int *)malloc(sizeof(int) * data->nr_outputs);
-	data->out_dims_tf = (int64_t**)malloc(sizeof(int64_t *) * data->nr_outputs);
+	PTR_ALLOC(int[data->nr_outputs], nr_out_dim);
+	data->nr_out_dim = *PTR_PASS(nr_out_dim);
+
+	PTR_ALLOC(int64_t*[data->nr_outputs], out_dims_tf);
+	data->out_dims_tf = *PTR_PASS(out_dims_tf);
+	
+	// grad_ys_
+	PTR_ALLOC(struct TF_Output[data->nr_outputs], grad_ys_op);
+	data->grad_ys_op = *PTR_PASS(grad_ys_op);
+
+	PTR_ALLOC(struct TF_Tensor*[data->nr_outputs], grad_ys_tensors);
+	data->grad_ys_tensors = *PTR_PASS(grad_ys_tensors);
+
+	PTR_ALLOC(int[data->nr_outputs], nr_grad_ys_dim);
+	data->nr_grad_ys_dim = *PTR_PASS(nr_grad_ys_dim);
+
+	PTR_ALLOC(int64_t*[data->nr_outputs], grad_ys_dims_tf);
+	data->grad_ys_dims_tf = *PTR_PASS(grad_ys_dims_tf);
 
 	for (int i = 0; i < data->nr_outputs; i++){
 
@@ -372,7 +351,8 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 		ON_arr[i] = data->nr_out_dim[i];
 		ON = MAX(ON, ON_arr[i]);
 
-		data->out_dims_tf[i] = (int64_t *)malloc(sizeof(int64_t) * data->nr_out_dim[i]);
+		PTR_ALLOC(int64_t[data->nr_out_dim[i]], nr_out_dim);
+		data->out_dims_tf[i] = *PTR_PASS(nr_out_dim);
 		
 		TF_GraphGetTensorShape(data->graph, data->outputs_op[i], data->out_dims_tf[i], data->nr_out_dim[i], data->status);
 
@@ -381,21 +361,56 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 													data->nr_out_dim[i],
 													product(data->nr_out_dim[i], data->out_dims_tf[i]) * FL_SIZE);
 		
+		char grad_ys_name[20];
+		sprintf(grad_ys_name, "grad_ys_%d", i); 
+		
+		data->grad_ys_op[i] = (struct TF_Output){TF_GraphOperationByName(data->graph, grad_ys_name), 0};
+		data->nr_grad_ys_dim[i] = TF_GraphGetTensorNumDims(data->graph, data->grad_ys_op[i], data->status);
+
+		PTR_ALLOC(int64_t[data->nr_grad_ys_dim[i]], nr_grad_ys_dim);
+		data->grad_ys_dims_tf[i] = *PTR_PASS(nr_grad_ys_dim);
+
+		TF_GraphGetTensorShape(data->graph, data->grad_ys_op[i], data->grad_ys_dims_tf[i], data->nr_grad_ys_dim[i], data->status);
+	
+		data->grad_ys_tensors[i] = TF_AllocateTensor(TF_FLOAT,
+												data->grad_ys_dims_tf[i],
+												data->nr_grad_ys_dim[i],
+												product(data->nr_grad_ys_dim[i], data->grad_ys_dims_tf[i]) * FL_SIZE);
+												
 	}
 
-	// handle inputs
+	// handle inputs and grad
 	int II = nr_inputs;
 	int IN = 1;
 	int IN_arr[II];
 
-	data->inputs_op = (struct TF_Output*)malloc(sizeof(struct TF_Output) * data->nr_inputs);
-	data->input_tensors = (TF_Tensor**)malloc(sizeof(TF_Tensor*) * data->nr_inputs);
+	PTR_ALLOC(struct TF_Output[data->nr_inputs], inputs_op);
+	data->inputs_op = *PTR_PASS(inputs_op);
+
+	PTR_ALLOC(struct TF_Tensor*[data->nr_inputs], input_tensors);
+	data->input_tensors = *PTR_PASS(input_tensors);
 	
-	data->nr_in_dim = (int *)malloc(sizeof(int) * data->nr_inputs);
-	data->in_dims_tf = (int64_t**)malloc(sizeof(int64_t *) * data->nr_inputs);
+	PTR_ALLOC(int[data->nr_inputs], nr_in_dim);
+	data->nr_in_dim = *PTR_PASS(nr_in_dim);
+
+	PTR_ALLOC(int64_t *[data->nr_inputs], in_dims_tf);
+	data->in_dims_tf = *PTR_PASS(in_dims_tf);
+
+	PTR_ALLOC(struct TF_Output[data->nr_inputs], grad_op);
+	data->grad_op = *PTR_PASS(grad_op);
+
+	PTR_ALLOC(struct TF_Tensor*[data->nr_inputs], grad_tensors);
+	data->grad_tensors = *PTR_PASS(grad_tensors);
+
+	PTR_ALLOC(int[data->nr_inputs], nr_grad_dim);
+	data->nr_grad_dim = *PTR_PASS(nr_grad_dim);
+
+	PTR_ALLOC(int64_t *[data->nr_inputs], grad_dims_tf);
+	data->grad_dims_tf = *PTR_PASS(grad_dims_tf);
 
 	for (int i = 0; i < data->nr_inputs; i++){
 
+		// inputs
 		char in_name[20];
 		sprintf(in_name, "input_%d", i);
 
@@ -405,7 +420,8 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 		IN_arr[i] = data->nr_in_dim[i];
 		IN = MAX(IN, IN_arr[i]);
 
-		data->in_dims_tf[i] = (int64_t*)malloc(sizeof(int64_t) * data->nr_in_dim[i]);
+		PTR_ALLOC(int64_t[data->nr_in_dim[i]], in_dims_tf);
+		data->in_dims_tf[i] = *PTR_PASS(in_dims_tf);
 		
 		TF_GraphGetTensorShape(data->graph, data->inputs_op[i], data->in_dims_tf[i], data->nr_in_dim[i], data->status);
 		
@@ -413,6 +429,23 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 													data->in_dims_tf[i],
 													data->nr_in_dim[i],
 													product(data->nr_in_dim[i], data->in_dims_tf[i]) * FL_SIZE);
+
+		//grads
+		char grad_name[20];
+		sprintf(grad_name, "grad_%d", i);
+
+		data->grad_op[i] = (struct TF_Output){TF_GraphOperationByName(data->graph, grad_name), 0};
+		data->nr_grad_dim[i] = TF_GraphGetTensorNumDims(data->graph, data->grad_op[i], data->status);
+
+		PTR_ALLOC(int64_t[data->nr_grad_dim[i]], grad_dims_tf);
+		data->grad_dims_tf[i] = *PTR_PASS(grad_dims_tf);
+
+		TF_GraphGetTensorShape(data->graph, data->grad_op[i], data->grad_dims_tf[i], data->nr_grad_dim[i], data->status);
+
+		data->grad_tensors[i] = TF_AllocateTensor(TF_FLOAT,
+													data->grad_dims_tf[i],
+													data->nr_grad_dim[i],
+													product(data->nr_grad_dim[i], data->grad_dims_tf[i]) * FL_SIZE);
 
 	}
 
@@ -457,7 +490,7 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 
 	const struct nlop_s* result = nlop_generic_create(	OO, ON, nl_odims, II, IN, nl_idims,
 								CAST_UP(PTR_PASS(data)), tf_forward, deriv, adjoint, normal, norm_inv, tf_del);
-
+/*
 	for (int i = 0; i < II; i++) {
 
 			auto iov = nlop_generic_domain(result, i);
@@ -469,6 +502,17 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 			auto iov = nlop_generic_codomain(result, o);
 			result = nlop_reshape_out_F(result, o, MAX(ON_arr[o] - 1, 1), iov->dims);
 		}
-
+*/
 	return result;
+}
+
+
+extern const struct TF_Tensor** get_input_tensor(struct nlop_s* op)
+{
+	
+	nlop_data_t* data = nlop_get_data(op);
+	
+	struct tf_s* tf_data = CAST_DOWN(tf_s, data);
+	
+	return tf_data->input_tensors;
 }

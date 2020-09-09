@@ -225,6 +225,7 @@ MODULES_sim = -lsimu
 MODULES_rtnlinv = -lnoncart -lnoir -lnlops -liter -llinops
 MODULES_signal = -lsimu
 MODULES_pad = -lnum
+#MODULES_dl_prior = -lnn -lnlops -llinops -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart
 
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
@@ -554,13 +555,13 @@ MODULES_test_geom += -lgeom
 # lib iter
 UTARGETS += test_iter test_prox
 MODULES_test_iter += -liter -lnlops -llinops
-MODULES_test_prox += -liter -lnlops -llinops
+MODULES_test_prox += -liter -lnlops -llinops -lnn
 
 # lib nn
-UTARGETS += test_nn_layers test_nn test_nn_tf
+UTARGETS += test_nn_layers test_nn #test_nn_tf
 MODULES_test_nn += -lnn -lnlops -llinops
 MODULES_test_nn_layers += -lnn -lnlops -llinops
-MODULES_test_nn_tf += -lnn -lnlops -llinops
+#MODULES_test_nn_tf += -lnn -lnlops -llinops
 
 UTARGETS_GPU += test_cuda_nlop
 MODULES_test_cuda_nlop += -lnn -lnlops -llinops -lnum

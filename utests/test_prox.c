@@ -13,6 +13,7 @@
 #include "num/ops_p.h"
 #include "num/ops.h"
 #include "num/rand.h"
+#include "num/iovec.h"
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -22,7 +23,7 @@
 #include "iter/thresh.h"
 
 #include "utest.h"
-
+#include "stdio.h"
 
 
 static bool test_thresh(void)
@@ -262,3 +263,23 @@ static bool test_op_stack(void)
 }
 
 UT_REGISTER_TEST(test_op_stack);
+
+static bool test_logp_prox(void)
+{
+	unsigned int N = 4;
+	long dims1[4] = {4,128,128,1};
+
+	struct operator_p_s* op = prox_logp_create(N, dims1, "/media/radon_home/deep_recon/exported/pixel_cnn");
+	auto dom = operator_p_domain(op);
+	auto cod = operator_p_codomain(op);
+
+	complex float* dst = md_alloc(cod->N, cod->dims, cod->size);
+	complex float* src = md_alloc(dom->N, dom->dims, dom->size);
+	md_clear(dom->N, dom->dims, src, dom->size);
+
+	operator_p_apply(op, 0.1, cod->N, cod->dims, dst, dom->N, dom->dims, src);
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_logp_prox);

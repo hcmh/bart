@@ -23,13 +23,16 @@
 #endif
 
 #include "linops/linop.h"
+#include "nlops/nlop.h"
+
+#include "nn/tf_wrapper.h"
 
 #include "iter/iter.h"
 
 #include "misc/misc.h"
 
 #include "prox.h"
-
+#include "stdio.h"
 
 /** 
  * Proximal function of f is defined as
@@ -272,6 +275,71 @@ const struct operator_p_s* prox_l2norm_create(unsigned int N, const long dims[N]
 	pdata->size = md_calc_size(N, dims) * 2;
 
 	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(pdata)), prox_l2norm_apply, prox_l2norm_del);
+}
+
+
+/*
+ * proximal function for log probability serving as a denoiser in admm step
+ * v_k+1 <- Denoiser(v_k)
+ * 
+ */
+struct  prox_logp_data
+{
+	INTERFACE(operator_data_t);
+
+	long size;	
+	struct nlop_s *tf_ops;
+	
+};
+
+DEF_TYPEID(prox_logp_data);
+
+static void prox_logp_fun(const operator_data_t* data, float lambda, complex float *dst, const  complex float* vk)
+{
+
+	auto pdata = CAST_DOWN(prox_logp_data, data);
+
+	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
+	auto cod = nlop_generic_codomain(pdata->tf_ops, 0); // grad_ys
+
+	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
+	md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), vk, CFL_SIZE);
+
+	complex float* grad = md_alloc(dom->N, dom->dims, dom->size);
+	complex float grad_ys = 1 + 1*I;
+
+	nlop_adjoint(pdata->tf_ops, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys);
+	
+	md_smul(dom->N, dom->dims, grad, grad, lambda); // grad = lambda * grad
+	md_add(dom->N, dom->dims, dst, grad, vk);       // dst(vk+1) = vk + grad
+
+}
+
+static void prox_logp_apply(const operator_data_t* data, float lambda, complex float* dst, complex float* src)
+{
+	prox_logp_fun(data, lambda, dst, src);
+}
+
+static void prox_logp_del(const operator_data_t* _data)
+{
+	xfree(CAST_DOWN(prox_l2norm_data, _data));
+}
+
+extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], const char* graph_file)
+{
+	PTR_ALLOC(struct prox_logp_data, pdata);
+	SET_TYPEID(prox_logp_data, pdata);
+
+	pdata->tf_ops = nlop_tf_create(1, 1, graph_file);
+	
+	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
+
+	// check dims
+	assert(N == dom->N);
+	for(int i=0; i++; i<N)
+		assert(dims[i] == dom->dims[i]);
+
+	return operator_p_create(dom->N, dom->dims, dom->N, dom->dims, CAST_UP(PTR_PASS(pdata)), prox_logp_apply, prox_logp_del);
 }
 
 
@@ -656,7 +724,6 @@ const struct operator_p_s* prox_zsmax_create(unsigned int N, const long dims[N],
 {
 	return prox_ineq_create(N, dims, NULL, a, true);
 }
-
 
 struct prox_rvc_data {
 
