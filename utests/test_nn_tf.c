@@ -66,7 +66,7 @@ static bool test_nn_tf_forward(void)
 	complex float* grad = md_alloc(dom->N, dom->dims, dom->size);
 	complex float grad_ys = 1+1*I;
 	nlop_adjoint(nlop, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys);
-	linop_adjoint(nlop_get_derivative(nlop, 0, 0), dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys);
+	//linop_adjoint(nlop_get_derivative(nlop, 0, 0), dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys);
 	
 	return true;
 }

@@ -310,8 +310,8 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 
 	nlop_adjoint(pdata->tf_ops, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys);
 	
-	md_smul(dom->N, dom->dims, grad, grad, lambda); // grad = lambda * grad
-	md_add(dom->N, dom->dims, dst, grad, vk);       // dst(vk+1) = vk + grad
+	md_zsmul(dom->N, dom->dims, grad, grad, lambda); // grad = lambda * grad
+	md_zadd(dom->N, dom->dims, dst, grad, vk);       // dst(vk+1) = vk + grad
 
 }
 
@@ -333,12 +333,11 @@ extern const struct operator_p_s* prox_logp_create(unsigned int N, const long di
 	pdata->tf_ops = nlop_tf_create(1, 1, graph_file);
 	
 	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
-
+	
 	// check dims
-	assert(N == dom->N);
-	for(int i=0; i++; i<N)
-		assert(dims[i] == dom->dims[i]);
-
+	//assert(N == dom->N);
+	//assert(md_check_equal_dims(dom->N, dims, dom->dims, ~(READ_DIM|PHS1_DIM|PHS2_DIM|COIL_DIM)));
+	
 	return operator_p_create(dom->N, dom->dims, dom->N, dom->dims, CAST_UP(PTR_PASS(pdata)), prox_logp_apply, prox_logp_del);
 }
 
