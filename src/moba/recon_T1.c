@@ -157,8 +157,8 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		T1_forw_alpha(nl.linop_alpha, x, x);
 		md_zreal(DIMS, map_dims, x, x);
 		md_zsmul(DIMS, map_dims, x, x, -conf->IR_phy * 1e-6 * 0.2);
+		md_smin(1, MD_DIMS(2 * map_size), (float*)x, (float*)x, 0.);
 		md_zexp(DIMS, map_dims, x, x);
-		md_smin(1, MD_DIMS(2 * map_size), (float*)x, (float*)x, 1.);
 		md_zacos(DIMS, map_dims, x, x);
 	        md_zsmul(DIMS, map_dims, x, x, 180. / M_PI);
 		md_copy_block(DIMS, pos, imgs_dims, img, map_dims, x, CFL_SIZE);
