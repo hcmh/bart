@@ -343,6 +343,14 @@ int main_moba(int argc, char* argv[])
 		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
+
+		if (0. != conf.IR_phy) {
+
+			pos[COEFF_DIM] = 2;
+			md_zfill(DIMS, single_map_dims, single_map, 0.);
+			md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
+		}
+
 	}
 
 #ifdef  USE_CUDA
