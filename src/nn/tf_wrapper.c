@@ -1,4 +1,3 @@
-
 #include <complex.h>
 #include <stdio.h>
 
@@ -214,13 +213,60 @@ struct tf_s {
 
 DEF_TYPEID(tf_s);
 
+static void float2cplx(unsigned int D, const long *dims, complex float* optr, float* iptr)
+{
+	long chn_dims[D];
+	md_copy_dims(D, chn_dims, dims);
+	chn_dims[D-1] = 1;
+
+	long offset = md_calc_size(D, chn_dims);
+
+	float* real = md_alloc(D, chn_dims, FL_SIZE);
+	float* imag = md_alloc(D, chn_dims, FL_SIZE);
+
+	md_copy(D, chn_dims, real, iptr, FL_SIZE);
+	md_copy(D, chn_dims, imag, iptr+offset, FL_SIZE);
+
+	md_zcmpl(D, chn_dims, optr, real, imag);
+	
+	free(real);
+	free(imag);
+}
+
+
+static void cplx2float(unsigned int D, const long *dims, float* optr, complex float* iptr)
+{
+	long chn_dims[D];
+	md_copy_dims(D, chn_dims, dims);
+	chn_dims[D-1] = 1;
+
+	long offset = md_calc_size(D, chn_dims);
+
+	float* real = md_alloc(D, chn_dims, FL_SIZE);
+	float* imag = md_alloc(D, chn_dims, FL_SIZE);
+	
+	md_real(D, chn_dims, real, iptr);
+	md_imag(D, chn_dims, imag, iptr);
+
+	md_copy(D, chn_dims, optr + 0, real, FL_SIZE);
+	md_copy(D, chn_dims, optr + offset, imag, FL_SIZE);
+
+	free(real);
+	free(imag);
+}
+
 static void tf_forward(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	auto data = CAST_DOWN(tf_s, _data);
 	assert(data->nr_inputs + data->nr_outputs == N);
 
 	for (int i = 0; i < data->nr_inputs; i++)
+	{
+		//float* tmp = md_alloc(data->nr_in_dim[i], data->in_dims_tf[i], FL_SIZE);
+		//cplx2float(data->nr_in_dim[i], data->in_dims_tf[i], tmp, args[i + data->nr_outputs]);
 		md_copy(data->nr_in_dim[i], data->in_dims_tf[i], TF_TensorData(data->input_tensors[i]), args[i + data->nr_outputs], FL_SIZE);
+	}
+		
 
 	TF_SessionRun(data->sess,
 				/* RunOptions */ NULL,
@@ -471,7 +517,7 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 		TF_GraphGetTensorShape(data->graph, (struct TF_Output){TF_GraphOperationByName(data->graph, in_name), 0}, dims_tf, IN_arr[i], data->status);
 
 		for (int j = 0; j < IN; j++)
-			nl_idims[i][j] = (j < IN_arr[i] - 1) ? dims_tf[j] : 1;
+			nl_idims[i][j] = (j < IN_arr[i]-1) ? dims_tf[j] : 1;
 	}
 
 	nlop_der_fun_t deriv[II][OO];

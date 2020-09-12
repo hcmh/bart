@@ -302,6 +302,13 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
 	auto cod = nlop_generic_codomain(pdata->tf_ops, 0); // grad_ys
 
+
+	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
+
+	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, vk);
+
+	printf("Loss : %f + %f i\n", creal(*out), cimag(*out));
+
 	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
 	md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), vk, CFL_SIZE);
 
@@ -311,7 +318,7 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	nlop_adjoint(pdata->tf_ops, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys);
 	
 	md_zsmul(dom->N, dom->dims, grad, grad, lambda); // grad = lambda * grad
-	md_zadd(dom->N, dom->dims, dst, grad, vk);       // dst(vk+1) = vk + grad
+	md_zsub(dom->N, dom->dims, dst, vk, grad);       // dst(vk+1) = vk + grad
 
 }
 
@@ -333,11 +340,7 @@ extern const struct operator_p_s* prox_logp_create(unsigned int N, const long di
 	pdata->tf_ops = nlop_tf_create(1, 1, graph_file);
 	
 	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
-	
-	// check dims
-	//assert(N == dom->N);
-	//assert(md_check_equal_dims(dom->N, dims, dom->dims, ~(READ_DIM|PHS1_DIM|PHS2_DIM|COIL_DIM)));
-	
+		
 	return operator_p_create(dom->N, dom->dims, dom->N, dom->dims, CAST_UP(PTR_PASS(pdata)), prox_logp_apply, prox_logp_del);
 }
 
