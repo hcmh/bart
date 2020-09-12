@@ -30,6 +30,8 @@
 #include "iter/iter.h"
 
 #include "misc/misc.h"
+#include "misc/mri.h"
+
 
 #include "prox.h"
 #include "stdio.h"
@@ -287,38 +289,88 @@ struct  prox_logp_data
 {
 	INTERFACE(operator_data_t);
 
-	long size;	
 	struct nlop_s *tf_ops;
+	unsigned int N;
+	long *dims;
 	
 };
 
 DEF_TYPEID(prox_logp_data);
 
-static void prox_logp_fun(const operator_data_t* data, float lambda, complex float *dst, const  complex float* vk)
+static void prox_logp_fun(const operator_data_t* data, float lambda, complex float *dst, const  complex float* src)
 {
 
 	auto pdata = CAST_DOWN(prox_logp_data, data);
 
+	
 	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
 	auto cod = nlop_generic_codomain(pdata->tf_ops, 0); // grad_ys
 
+	// slice image
+	long slice_dims[DIMS];
+	md_set_dims(DIMS, slice_dims, 1);
 
-	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
+	slice_dims[0] = dom->dims[1];
+	slice_dims[1] = dom->dims[2];
+	
+	int nx = (pdata->dims[0] + slice_dims[0] - 1)/slice_dims[0];
+	int ny = (pdata->dims[1] + slice_dims[1] - 1)/slice_dims[1];
+				
+	slice_dims[2] = nx*ny;
+	
+	long pos[DIMS];
+	md_set_dims(DIMS, pos, 0);
 
-	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, vk);
+	complex float* slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
+	complex float* tmp_slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
 
-	printf("Loss : %f + %f i\n", creal(*out), cimag(*out));
+	int offset = 0;
+	for (size_t i = 0; i < nx; i++)
+	{
+		for (size_t j = 0; j < ny; j++)
+		{
+			pos[0] = j*128;
+			pos[1] = i*128;
+			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
+			md_copy_block(2, pos, slice_dims, tmp_slices + offset, pdata->dims, src, CFL_SIZE);
+		}
+	}
+	
+	md_transpose(DIMS, 1, 0, slice_dims, slices, slice_dims, tmp_slices, CFL_SIZE);
+	
+	//complex float* out = md_alloc(cod->N, cod->dims, cod->size);
+	//nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
+	//printf("Loss : %f + %f i\n", creal(*out), cimag(*out));
 
 	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
-	md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), vk, CFL_SIZE);
+	md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), src, CFL_SIZE);
 
 	complex float* grad = md_alloc(dom->N, dom->dims, dom->size);
 	complex float grad_ys = 1 + 1*I;
 
 	nlop_adjoint(pdata->tf_ops, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys);
 	
-	md_zsmul(dom->N, dom->dims, grad, grad, lambda); // grad = lambda * grad
-	md_zsub(dom->N, dom->dims, dst, vk, grad);       // dst(vk+1) = vk + grad
+	// stitch grad back image size
+
+	complex float* grad_c = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
+	complex float* grad_f = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
+
+	for(size_t i=0; i < nx; i++)
+	{
+		for (size_t j=0; j < ny; j++)
+		{
+			pos[0] = i*128;
+			pos[1] = j*128;
+			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
+			md_copy_block(2, pos, pdata->dims, grad_c, slice_dims, grad+offset, CFL_SIZE);
+		}
+	}
+		
+	md_transpose(DIMS, 1, 0, pdata->dims, grad_f, pdata->dims, grad_c, CFL_SIZE);
+
+	//update 
+	md_zsmul(pdata->N, pdata->dims, grad, grad, lambda); // grad = lambda * grad
+	md_zsub(pdata->N, pdata->dims, dst, src, grad);       // dst(src+1) = src + grad
 
 }
 
@@ -339,9 +391,12 @@ extern const struct operator_p_s* prox_logp_create(unsigned int N, const long di
 
 	pdata->tf_ops = nlop_tf_create(1, 1, graph_file);
 	
-	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
+	
+	pdata->N = N;
+	pdata->dims = (long*)malloc(N*sizeof(long));
+	memcpy(pdata->dims, dims, N*sizeof(long));
 		
-	return operator_p_create(dom->N, dom->dims, dom->N, dom->dims, CAST_UP(PTR_PASS(pdata)), prox_logp_apply, prox_logp_del);
+	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(pdata)), prox_logp_apply, prox_logp_del);
 }
 
 
