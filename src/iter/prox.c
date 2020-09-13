@@ -31,7 +31,7 @@
 
 #include "misc/misc.h"
 #include "misc/mri.h"
-
+#include "misc/debug.h"
 
 #include "prox.h"
 #include "stdio.h"
@@ -329,8 +329,8 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	{
 		for (size_t j = 0; j < ny; j++)
 		{
-			pos[0] = j*128;
-			pos[1] = i*128;
+			pos[0] = j*slice_dims[1];
+			pos[1] = i*slice_dims[0];
 			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
 			md_copy_block(2, pos, slice_dims, tmp_slices + offset, pdata->dims, src, CFL_SIZE);
 		}
@@ -338,39 +338,36 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	
 	md_transpose(DIMS, 1, 0, slice_dims, slices, slice_dims, tmp_slices, CFL_SIZE);
 	
-	//complex float* out = md_alloc(cod->N, cod->dims, cod->size);
-	//nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
-	//printf("Loss : %f + %f i\n", creal(*out), cimag(*out));
+	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
+	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
+	printf("Log P : %f\n", creal(*out));
 
 	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
-	md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), src, CFL_SIZE);
+	md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), slices, CFL_SIZE);
 
 	complex float* grad = md_alloc(dom->N, dom->dims, dom->size);
 	complex float grad_ys = 1 + 1*I;
 
-	nlop_adjoint(pdata->tf_ops, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys);
-	
-	// stitch grad back image size
+	nlop_adjoint(pdata->tf_ops, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys); // grad [4, sx, sy]
 
-	complex float* grad_c = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
-	complex float* grad_f = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
+	//update 
+	md_zsmul(dom->N, dom->dims, grad, grad, lambda); 	// grad = lambda * grad
+	md_zsub(dom->N, dom->dims, slices, slices, grad);   // dst(src+1) = src + grad
+	
+	complex float* tmp = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
 
 	for(size_t i=0; i < nx; i++)
 	{
 		for (size_t j=0; j < ny; j++)
 		{
-			pos[0] = i*128;
-			pos[1] = j*128;
+			pos[0] = j*slice_dims[0];
+			pos[1] = i*slice_dims[1];
 			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
-			md_copy_block(2, pos, pdata->dims, grad_c, slice_dims, grad+offset, CFL_SIZE);
+			md_copy_block(2, pos, pdata->dims, tmp, slice_dims, slices+offset, CFL_SIZE);
 		}
 	}
-		
-	md_transpose(DIMS, 1, 0, pdata->dims, grad_f, pdata->dims, grad_c, CFL_SIZE);
 
-	//update 
-	md_zsmul(pdata->N, pdata->dims, grad, grad, lambda); // grad = lambda * grad
-	md_zsub(pdata->N, pdata->dims, dst, src, grad);       // dst(src+1) = src + grad
+	md_transpose(pdata->N, 1, 0, pdata->dims, dst, pdata->dims, tmp, CFL_SIZE);
 
 }
 

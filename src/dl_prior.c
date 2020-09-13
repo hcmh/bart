@@ -65,35 +65,36 @@ int main_dl_prior(int argc, char* argv[])
 	const struct opt_s opts[] = {
 		OPT_FLOAT('l', &lambda, "lambda", "step size"),
 		OPT_INT('i', &iter, "iter", "iterations"),
-		OPT_FLOAT('n', &noise_level, "iter", "iterations"),
+		OPT_FLOAT('n', &noise_level, "noise", "noise level"),
 	};
 	
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);	
 
 	long img_dims[DIMS];
 	complex float* img = load_cfl(argv[2], DIMS, img_dims);
-	char noisy_file[100];
-	sprintf(noisy_file, "%s_n", argv[2]);
-
+	
 	struct operator_p_s* op = prox_logp_create(2, img_dims, argv[1]);
+	auto dom = operator_p_domain(op);
+	auto cod = operator_p_codomain(op);
 
 	complex float* out = create_cfl(argv[3], DIMS, img_dims);
+	complex float* tmp = md_alloc(DIMS, img_dims, CFL_SIZE);
 
-	complex float* noise = md_alloc_sameplace(DIMS, img_dims, CFL_SIZE, img);
+	complex float* noise = md_alloc(DIMS, img_dims, CFL_SIZE);
 
 	md_gaussian_rand(DIMS, img_dims, noise);
 	md_zsmul(DIMS, img_dims, noise, noise, noise_level);
-	md_zadd(DIMS, img_dims, out, img, noise);
+	md_zadd(DIMS, img_dims, tmp, img, noise);
 
 	for (int i = 0; i < iter; i++)
 	{
-		printf("%d ");
-		operator_p_apply(op, lambda, 2, img_dims, out, 2, img_dims, out);
+		printf("%d\n", i);
+		operator_p_apply(op, lambda, cod->N, cod->dims, tmp, dom->N, dom->dims, tmp);
 	}	
-	printf("\n");
-	
-	unmap_cfl(DIMS, img_dims, img);
+	md_copy(DIMS, img_dims, out, tmp, CFL_SIZE);
 	unmap_cfl(DIMS, img_dims, out);
+	unmap_cfl(DIMS, img_dims, img);
+	
 
     return 0;
 }
