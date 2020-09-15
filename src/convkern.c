@@ -33,19 +33,16 @@ static const char help_str[] = "Compute convolution kernel";
 
 typedef enum {SOBEL, GAUSS} kernel_type;
 
-static void meshgrid(long N, complex float* mesh, long type)
-{
-	assert((N % 2) == 1);
+struct kernel_conf {
+	long N; 		// dimension
+	float sigma;	// standart deviation 
+};
 
-	for (int i = 0; i < N; i++)
-		for (int j = 0; j < N; j++)
-			if (type == 0)
-				mesh[i + j * N ] = - N/2 + i;
-			else if (type == 1)
-				mesh[i * N + j] = - N/2 + i;
-	
-	return;
-}
+const struct kernel_conf kernel_conf_default = {
+
+	.N  			= 1,
+	.sigma 			= 1,
+};
 
 // Tensor multiplication of 1D kernels to create multi-dimensional kernel
 static void meshmul(const long mesh_dims[3], complex float* mesh, 
@@ -95,7 +92,7 @@ static void meshmul(const long mesh_dims[3], complex float* mesh,
 }				
 
 // creates kernel of type 'type' and dimension 'N'
-static void kernelgrid(long mesh_dims[3], complex float* mesh, long N, kernel_type type)
+static void kernelgrid(long mesh_dims[3], complex float* mesh, kernel_type type, const struct kernel_conf* conf)
 {
 
 	long m0_dims[3] = { mesh_dims[0], 1, 1};
@@ -113,14 +110,12 @@ static void kernelgrid(long mesh_dims[3], complex float* mesh, long N, kernel_ty
 	switch (type) {
 
 		case GAUSS: {
-			
-			float sigma = 1;
-			
+					
 			md_zspow(3, m0_dims, m, m, 2);
-			md_zsmul(3, m0_dims, m, m, -1./(2 * pow(sigma, 2)));
+			md_zsmul(3, m0_dims, m, m, -1./(2 * pow(conf->sigma, 2)));
 			md_zexp(3, m0_dims, m, m);	
 
-			meshmul(mesh_dims, mesh, m0_dims, m, m1_dims, m, m2_dims, m, N);				
+			meshmul(mesh_dims, mesh, m0_dims, m, m1_dims, m, m2_dims, m, conf->N);				
 
 			// normalize sum of entries to 1
 			complex float sum;
@@ -134,18 +129,18 @@ static void kernelgrid(long mesh_dims[3], complex float* mesh, long N, kernel_ty
 			assert(m0_dims[0] == 3);
 			assert(3 == md_calc_size(3, m0_dims));
 			
-			if (N > 1) {
+			if (conf->N > 1) {
 				assert(m1_dims[1] == 3);
 				assert(3 == md_calc_size(3, m1_dims));
 			}
 
 			complex float* m1 = md_alloc(3, m1_dims, CFL_SIZE);
 			
-			m1[0] = - 1 + 0i;
-			m1[1] = - 2 + 0i;
-			m1[2] = - 1 + 0i;
+			m1[0] = 1;
+			m1[1] = 2;
+			m1[2] = 1;
 			
-			meshmul(mesh_dims, mesh, m0_dims, m, m1_dims, m1, m2_dims, m1, N);				
+			meshmul(mesh_dims, mesh, m0_dims, m, m1_dims, m1, m2_dims, m1, conf->N);				
 
 			md_free(m1);
 			break;
@@ -162,37 +157,39 @@ static void kernelgrid(long mesh_dims[3], complex float* mesh, long N, kernel_ty
 int main_convkern(int argc, char* argv[])
 {
 
-	long gauss_len = 0;
+	float gauss[2] = { 0, 1};
 	bool sobel = false;
+	struct kernel_conf conf = kernel_conf_default;
 
 	const struct opt_s opts[] = {
 
 		OPT_SET('s', &sobel, "Sobel kernel"),
-		OPT_LONG('g', &gauss_len, "len", "Gaussian kernel"),
+		OPT_FLVEC2('g', &gauss, "len:sigma", "Gaussian kernel"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
-	long N = (long)atoi(argv[1]); // kernel dimensions
+	conf.N = (long)atoi(argv[1]); // kernel dimensions
 	long dims[3] = { 1, 1, 1};
-	float sigma = 1;
-
+	
 	enum { SOBEL, GAUSS } type = SOBEL;
 
 
 	if (sobel) {
 		
 		type = SOBEL;	
-		for (int i = 0; i < N; i++)
+		for (int i = 0; i < conf.N; i++)
 			dims[i] = 3;
 
-	} else if (gauss_len > 0) {
+	} else if ((int)gauss[0] > 0) {
 
 		type = GAUSS;
-		for (int i = 0; i < N; i++)
-			dims[i] = gauss_len;
+		conf.sigma = gauss[1];
+		for (int i = 0; i < conf.N; i++)
+			dims[i] = (int)gauss[0];
+		
 	}
 	
 	complex float* kernel = create_cfl(argv[2], 3, dims);
@@ -201,12 +198,12 @@ int main_convkern(int argc, char* argv[])
 
 		case SOBEL: {
 
-			kernelgrid(dims, kernel, N, SOBEL);
+			kernelgrid(dims, kernel, SOBEL, &conf);
 			break;
 		} 
 		case GAUSS: {
 
-			kernelgrid(dims, kernel, N, GAUSS);
+			kernelgrid(dims, kernel, GAUSS, &conf);
 			break;
 		}
 	}
