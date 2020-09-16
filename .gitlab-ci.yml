@@ -9,15 +9,22 @@ before_script:
 
 stages:
   - build
-  - test
+  - test1
+  - test2
 
 Build:
   stage: build
   script:
     - make
 
-Test:
-  stage: test
+Unit_Test:
+  stage: test1
   script:
     - make utest
+
+Integration_Test:
+  stage: test2
+  script:
+    - make test
+
 
