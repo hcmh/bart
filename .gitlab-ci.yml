@@ -1,0 +1,21 @@
+
+image: debian:stable
+
+before_script:
+  - apt-get update -qq && apt-get install
+  - apt-get install libfftw3-dev libblas-dev libpng-dev
+  - apt-get install gcc-5 liblapacke-dev
+
+stages:
+  - build
+  - test
+
+Build:
+  stage: build
+  script:
+    - make
+
+Test:
+  stage: test
+    - make utest
+
