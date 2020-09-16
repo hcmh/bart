@@ -17,7 +17,7 @@ tests/test-convkern-sobel: ones scale join convkern nrmse
 
 tests/test-convkern-gauss: ones scale join convkern nrmse
 	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)		;\
-	$(TOOLDIR)/ones 2 1 1 o.rau				;\
+	$(TOOLDIR)/ones 2 1 1 o.ra				;\
 	$(TOOLDIR)/scale 0.2042 o.ra o1.ra			;\
         $(TOOLDIR)/scale 0.1238 o.ra o2.ra			;\
 	$(TOOLDIR)/scale 0.07511 o.ra o3.ra			;\
