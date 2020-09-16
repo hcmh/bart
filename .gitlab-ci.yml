@@ -17,5 +17,6 @@ Build:
 
 Test:
   stage: test
+  script:
     - make utest
 
