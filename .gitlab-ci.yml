@@ -3,6 +3,7 @@ image: debian:stable
 
 before_script:
   - apt-get update -qq && apt-get install -y -qq
+  - apt-get install -y -qq make
   - apt-get install -y -qq libfftw3-dev libblas-dev libpng-dev
   - apt-get install -y -qq gcc liblapacke-dev
 
