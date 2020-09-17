@@ -93,8 +93,8 @@ int main_signal(int argc, char* argv[])
 
 	assert(!(parm.ir && parm.ir_ss));
 
-	// if (-1 != TE)
-	// 	parm.te = TE;
+	if (-1 != TE)
+		parm.te = TE;
 
 	dims[COEFF_DIM] = truncf(T1[2]);
 	dims[COEFF2_DIM] = truncf(T2[2]);
