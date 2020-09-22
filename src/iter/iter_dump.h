@@ -24,16 +24,8 @@ typedef struct iter_dump_s {
 
 const struct iter_dump_s* iter_dump_multi_default_create(const char* base_filename, long save_mod, long NI, unsigned long save_flag, unsigned int D[NI], const long* dims[NI]);
 
-inline void iter_dump_multi(const struct iter_dump_s* data, long epoch, long NI, const float* x[NI])
-{
-	if ((NULL != data) && (NULL != data->fun_multi))
-		data->fun_multi(data, epoch, NI, x);
-}
-inline void iter_dump(const struct iter_dump_s* data, long epoch, const float* x)
-{
-	if ((NULL != data) && (NULL != data->fun))
-		data->fun(data, epoch, x);
-}
+void iter_dump_multi(const struct iter_dump_s* data, long epoch, long NI, const float* x[NI]);
+void iter_dump(const struct iter_dump_s* data, long epoch, const float* x);
 
 void iter_dump_free(const struct iter_dump_s* data);
 

@@ -20,6 +20,18 @@ void iter_dump_free(const struct iter_dump_s* data)
 	data->free(data);
 }
 
+void iter_dump_multi(const struct iter_dump_s* data, long epoch, long NI, const float* x[NI])
+{
+	if ((NULL != data) && (NULL != data->fun_multi))
+		data->fun_multi(data, epoch, NI, x);
+}
+
+void iter_dump(const struct iter_dump_s* data, long epoch, const float* x)
+{
+	if ((NULL != data) && (NULL != data->fun))
+		data->fun(data, epoch, x);
+}
+
 struct iter_dump_default_s {
 
 	INTERFACE(iter_dump_t);
