@@ -54,7 +54,6 @@ static const char help_str[] = "Denoise image via prior";
 
 int main_dl_prior(int argc, char* argv[])
 {
-    
 	
 	float lambda = 0;
 	int   iter = 1;
@@ -90,11 +89,11 @@ int main_dl_prior(int argc, char* argv[])
 	{
 		printf("%d\n", i);
 		operator_p_apply(op, lambda, cod->N, cod->dims, tmp, dom->N, dom->dims, tmp);
-	}	
+	}
+
 	md_copy(DIMS, img_dims, out, tmp, CFL_SIZE);
 	unmap_cfl(DIMS, img_dims, out);
 	unmap_cfl(DIMS, img_dims, img);
 	
-
     return 0;
 }

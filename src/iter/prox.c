@@ -301,7 +301,6 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 {
 
 	auto pdata = CAST_DOWN(prox_logp_data, data);
-
 	
 	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
 	auto cod = nlop_generic_codomain(pdata->tf_ops, 0); // grad_ys
@@ -342,6 +341,7 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
 	printf("Log P : %f\n", creal(*out));
 
+	//copy slices to feed tensor
 	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
 	md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), slices, CFL_SIZE);
 
@@ -354,8 +354,8 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	md_zsmul(dom->N, dom->dims, grad, grad, lambda); 	// grad = lambda * grad
 	md_zsub(dom->N, dom->dims, slices, slices, grad);   // dst(src+1) = src + grad
 	
+	// back to fortran arrays
 	complex float* tmp = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
-
 	for(size_t i=0; i < nx; i++)
 	{
 		for (size_t j=0; j < ny; j++)
