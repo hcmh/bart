@@ -52,7 +52,7 @@ enum algo_t italgo_choose(int nr_penalties, const struct reg_s regs[nr_penalties
 
 			algo = ALGO_ADMM;
 			break;
-
+		case LOGP:
 		default:
 			if (0 == i)
 				algo = ALGO_FISTA;

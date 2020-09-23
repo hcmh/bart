@@ -22,6 +22,8 @@
 #include "iter/prox.h"
 #include "iter/thresh.h"
 
+#include "nn/tf_wrapper_prox.h"
+
 #include "utest.h"
 #include "stdio.h"
 
@@ -269,7 +271,8 @@ static bool test_logp_prox(void)
 	unsigned int N = 4;
 	long dims1[4] = {4,128,128,1};
 
-	struct operator_p_s* op = prox_logp_create(N, dims1, "/media/radon_home/deep_recon/exported/pixel_cnn");
+	struct nlop_s * tf_ops = nlop_tf_create(1, 1, "/media/radon_home/deep_recon/exported/pixel_cnn");
+	struct operator_p_s* op = prox_logp_create(N, dims1, tf_ops);
 	auto dom = operator_p_domain(op);
 	auto cod = operator_p_codomain(op);
 

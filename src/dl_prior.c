@@ -28,7 +28,7 @@
 #include "nlops/cast.h"
 #include "nlops/chain.h"
 
-#include "nn/tf_wrapper.h"
+#include "nn/tf_wrapper_prox.h"
 
 #include "noncart/nufft.h"
 
@@ -71,8 +71,8 @@ int main_dl_prior(int argc, char* argv[])
 
 	long img_dims[DIMS];
 	complex float* img = load_cfl(argv[2], DIMS, img_dims);
-	
-	struct operator_p_s* op = prox_logp_create(2, img_dims, argv[1]);
+	struct nlop_s * tf_ops = nlop_tf_create(1, 1, argv[1]);
+	struct operator_p_s* op = prox_logp_create(2, img_dims, tf_ops);
 	auto dom = operator_p_domain(op);
 	auto cod = operator_p_codomain(op);
 

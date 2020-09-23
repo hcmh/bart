@@ -25,7 +25,7 @@
 #include "linops/linop.h"
 #include "nlops/nlop.h"
 
-#include "nn/tf_wrapper.h"
+#include "nn/tf_wrapper_prox.h"
 
 #include "iter/iter.h"
 
@@ -350,7 +350,7 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 
 	nlop_adjoint(pdata->tf_ops, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys); // grad [4, sx, sy]
 
-	//update 
+	// update 
 	md_zsmul(dom->N, dom->dims, grad, grad, lambda); 	// grad = lambda * grad
 	md_zsub(dom->N, dom->dims, slices, slices, grad);   // dst(src+1) = src + grad
 	
@@ -381,13 +381,12 @@ static void prox_logp_del(const operator_data_t* _data)
 	xfree(CAST_DOWN(prox_l2norm_data, _data));
 }
 
-extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], const char* graph_file)
+extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], struct nlop_s * tf_ops)
 {
 	PTR_ALLOC(struct prox_logp_data, pdata);
 	SET_TYPEID(prox_logp_data, pdata);
 
-	pdata->tf_ops = nlop_tf_create(1, 1, graph_file);
-	
+	pdata->tf_ops = tf_ops;
 	
 	pdata->N = N;
 	pdata->dims = (long*)malloc(N*sizeof(long));

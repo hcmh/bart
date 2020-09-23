@@ -31,6 +31,7 @@
 #include "linops/waveop.h"
 #include "linops/fmac.h"
 
+#include "nn/tf_wrapper_prox.h"
 
 #include "wavelet/wavthresh.h"
 
@@ -67,6 +68,7 @@ void help_reg(void)
 			"-R T:7:0:.01\t3D isotropic total variation with 0.01 regularization.\n"
 			"-R L:7:7:.02\tLocally low rank with spatial decimation and 0.02 regularization.\n"
 			"-R M:7:7:.03\tMulti-scale low rank with spatial decimation and 0.03 regularization.\n"
+			"-R LP:{graph_path}:C	\tpixel-cnn based prior in image domain\n"
 	      );
 }
 
@@ -199,11 +201,22 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%f", &regs[r].xflags, &regs[r].jflags, &regs[r].lambda);
 			assert(3 == ret);
 		}
+		else if (strcmp(rt, "LP") == 0)
+		{
+			
+			regs[r].xform = LOGP;
+			regs[r].graph_file = (char *)malloc(100*sizeof(char));
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f", regs[r].graph_file, &regs[r].lambda);
+			assert(2 == ret);
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
+		}
 		else if (strcmp(rt, "h") == 0) {
 
 			help_reg();
 			exit(0);
 		}
+
 		else {
 
 			error("Unrecognized regularization type: \"%s\" (-Rh for help).\n", rt);
@@ -580,6 +593,14 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 			trafos[nr] = linop_fmac_create(DIMS, dims, TIME_FLAG, TIME2_FLAG, ~(TIME2_FLAG|TIME_FLAG), Q);
 			
 			prox_ops[nr] = prox_thresh_create(DIMS, out_dims, regs[nr].lambda, 0);
+			break;
+		}
+
+		case LOGP:
+		{
+			debug_printf(DP_INFO, "pixel-cnn based prior located at %s in image domain.\n lambda: %f\n", regs[nr].graph_file, regs[nr].lambda);
+			struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file);
+			prox_ops[nr] = prox_logp_create(2, img_dims, tf_ops);
 			break;
 		}
 
