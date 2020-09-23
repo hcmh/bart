@@ -598,9 +598,11 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 
 		case LOGP:
 		{
+			
 			debug_printf(DP_INFO, "pixel-cnn based prior located at %s in image domain.\n lambda: %f\n", regs[nr].graph_file, regs[nr].lambda);
+
 			struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file);
-			prox_ops[nr] = prox_logp_create(2, img_dims, tf_ops);
+			prox_ops[nr] = prox_logp_create(2, img_dims, tf_ops, regs[nr].lambda);
 			break;
 		}
 
