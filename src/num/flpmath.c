@@ -732,6 +732,8 @@ void md_smul(unsigned int D, const long dims[D], float* optr, const float* iptr,
  */
 void md_zmulc2(unsigned int D, const long dim[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
+	if (simple_zmulc(D, dim, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
 	MAKE_Z3OP(zmulc, D, dim, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
@@ -1467,6 +1469,8 @@ void md_fmacD(unsigned int D, const long dims[D], double* optr, const float* ipt
  */
 void md_zfmacc2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
+	if (simple_zfmacc(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
 	MAKE_Z3OP(zfmacc, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 

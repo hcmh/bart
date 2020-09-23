@@ -528,12 +528,12 @@ void blas_zmul_cgeru(unsigned int N, const long dims[N], const long ostr[N], com
 void blas_zmul_cscal(unsigned int N, const long dims[N], const long ostr[N], complex float* optr, const long istr1[N], const complex float* iptr1, const long istr2[N], const complex float* iptr2)
 {
 	long size = 8;
-	assert((ostr[0] == istr1[0]) && (0 == ostr[0] % size) && (0 == istr2[0]));
+	assert(((optr != iptr1) || (ostr[0] == istr1[0])) && (0 == ostr[0] % size) && (0 == istr2[0]));
 	assert(1 == N);
 
 	if (optr != iptr1)
 		md_copy2(N, dims, ostr, optr, istr1, iptr1, size);
-	blas2_cscal(dims[0], iptr2, istr1[0] / size, optr);
+	blas2_cscal(dims[0], iptr2, ostr[0] / size, optr);
 }
 
 

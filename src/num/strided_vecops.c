@@ -26,6 +26,7 @@
 #include "misc/misc.h"
 #include "misc/debug.h"
 
+#include "num/flpmath.h"
 #include "num/multind.h"
 #include "num/optimize.h"
 #include "num/blas_md_wrapper.h"
@@ -45,6 +46,29 @@ void activate_strided_vecops(void)
 void deactivate_strided_vecops(void)
 {
 	use_strided_vecops = false;
+}
+
+static long get_offset_pointer(unsigned int N, const long dims[N], const long strs[N], size_t size) {
+
+	long result = 0;
+	for (unsigned int i = 0; i < N; i++) {
+
+		assert(0 == strs[i] % size);
+		if (0 > strs[i])
+			result -= strs[i] / size * (dims[i] - 1);
+	}
+	return result;
+}
+
+static size_t get_size(unsigned int N, const long dims[N], const long strs[N], size_t size) {
+
+	size_t result = 1;
+	for (unsigned int i = 0; i < N; i++) {
+
+		assert(0 == strs[i] % size);
+		result += labs(strs[i] / (long)size * (dims[i] - 1));
+	}
+	return result;
 }
 
 typedef long (*md_check_3op_t)(unsigned long N, long ndims[N], long nostrs[N], long nistrs1[N], long nistrs2[N], const long dims[N], const long ostrs[N], const long istrs1[N], const long istrs2[N], long size);
@@ -483,7 +507,7 @@ static long check_dgmm(unsigned long N, long ndims[N], long nostrs[N], long nist
 	return 2;
 }
 
-static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_checks], unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_checks], unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2, bool conj)
 {
 	if (!use_strided_vecops)
 		return false;
@@ -497,6 +521,8 @@ static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_c
 
 	const complex float* tin1 = NULL;
 	const complex float* tin2 = NULL;
+
+	complex float* conj_in = NULL;
 
 	long N_in = -1;
 	md_z3op_t strided_kernel = NULL;
@@ -515,35 +541,51 @@ static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_c
 		if (!applicable)
 			continue;
 
-		tin1 = in1;
-		tin2 = in2;
 		N_in = strided_calls[i].check_fun(N, ndims, nostrs, nistrs1, nistrs2, dims, ostrs, istrs1, istrs2, size);
-		if (-1 != N_in)
-			break;
+		if (-1 != N_in) {
 
-		tin1 = in2;
-		tin2 = in1;
-		N_in = strided_calls[i].check_fun(N, ndims, nostrs, nistrs1, nistrs2, dims, ostrs, istrs2, istrs1, size);
-		if (-1 != N_in)
+			tin1 = in1;
+			tin2 = in2;
+
+			if (conj) {
+				long size_tmp = get_size(N, dims, istrs2, CFL_SIZE);
+				conj_in = md_alloc_sameplace(1, &size_tmp, CFL_SIZE, in2);
+				md_zconj(1, &size_tmp, conj_in, in2 - get_offset_pointer(N, dims, istrs2, CFL_SIZE));
+				tin2 = conj_in + get_offset_pointer(N, dims, istrs2, CFL_SIZE);
+			}
 			break;
+		}
+
+
+		N_in = strided_calls[i].check_fun(N, ndims, nostrs, nistrs1, nistrs2, dims, ostrs, istrs2, istrs1, size);
+		if (-1 != N_in) {
+
+			tin1 = in2;
+			tin2 = in1;
+
+			if (conj) {
+				long size_tmp = get_size(N, dims, istrs2, CFL_SIZE);
+				conj_in = md_alloc_sameplace(1, &size_tmp, CFL_SIZE, in2);
+				md_zconj(1, &size_tmp, conj_in, in2 - get_offset_pointer(N, dims, istrs2, CFL_SIZE));
+				tin1 = conj_in + get_offset_pointer(N, dims, istrs2, CFL_SIZE);
+			}
+
+			break;
+		}
 	}
 
 	if (-1 == N_in)
 		return false;
 	//FIXME: blas calls are not sve with large input dimensions
-	if (INT_MAX / 2 < md_calc_size(N_in, ndims))
+	if (INT_MAX / 2 < md_calc_size(N_in, ndims)) {
+
+		md_free(conj_in);
 		return false;
-
-	size_t osize = 0;
-	size_t isize1 = 0;
-	size_t isize2 = 0;
-
-	for (int i = 0; i < N_in; i++) {
-
-		osize = MAX(osize, (size_t)(nostrs[i] * ndims[i]));
-		isize1 = MAX(osize, (size_t)(nistrs1[i] * ndims[i]));
-		isize2 = MAX(osize, (size_t)(nistrs2[i] * ndims[i]));
 	}
+
+	size_t osize = CFL_SIZE * get_size(N_in, ndims, nostrs, CFL_SIZE);
+	size_t isize1 = CFL_SIZE * get_size(N_in, ndims, nistrs1, CFL_SIZE);
+	size_t isize2 = CFL_SIZE * get_size(N_in, ndims, nistrs2, CFL_SIZE);
 
 	//clang
 	long* ndims_ptr = &ndims[0];
@@ -565,6 +607,7 @@ static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_c
 				nostrs + N_in, (void*)out, nistrs1 + N_in, (void*)tin1, nistrs2 + N_in, (void*)tin2,
 				(size_t[3]){ osize, isize1, isize2 }, nary_inner_z3op);
 
+	md_free(conj_in);
 	return true;
 }
 
@@ -619,16 +662,9 @@ static bool simple_3op(int N_checks, struct simple_3op_check strided_calls[N_che
 	if (INT_MAX / 2 < md_calc_size(N_in, ndims))
 		return false;
 
-	size_t osize = 0;
-	size_t isize1 = 0;
-	size_t isize2 = 0;
-
-	for (int i = 0; i < N_in; i++) {
-
-		osize = MAX(osize, (size_t)(nostrs[i] * ndims[i]));
-		isize1 = MAX(osize, (size_t)(nistrs1[i] * ndims[i]));
-		isize2 = MAX(osize, (size_t)(nistrs2[i] * ndims[i]));
-	}
+	size_t osize = FL_SIZE * get_size(N_in, ndims, nostrs, FL_SIZE);
+	size_t isize1 = FL_SIZE * get_size(N_in, ndims, nistrs1, FL_SIZE);
+	size_t isize2 = FL_SIZE * get_size(N_in, ndims, nistrs2, FL_SIZE);
 
 	//clang
 	long* ndims_ptr = &ndims[0];
@@ -732,7 +768,20 @@ bool simple_zfmac(unsigned int N, const long dims[N], const long ostrs[N], compl
 						};
 
 	return simple_z3op(	sizeof(strided_calls) / sizeof(strided_calls[0]), strided_calls,
-				N, dims, ostrs, out, istrs1, in1, istrs2, in2);
+				N, dims, ostrs, out, istrs1, in1, istrs2, in2, false);
+}
+
+bool simple_zfmacc(unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+	struct simple_z3op_check strided_calls[] = {	{check_gemm,  blas_zfmac_cgemm, true, true, false},
+							{check_gemv,  blas_zfmac_cgemv, true, true, false},
+							{check_ger,   blas_zfmac_cgeru, true, true, false},
+							{check_axpy,  blas_zfmac_caxpy, true, true, false},
+							{check_dot,   blas_zfmac_cdotu, true, true, false}
+						};
+
+	return simple_z3op(	sizeof(strided_calls) / sizeof(strided_calls[0]), strided_calls,
+				N, dims, ostrs, out, istrs1, in1, istrs2, in2, true);
 }
 
 bool simple_fmac(unsigned int N, const long dims[N], const long ostrs[N], float* out, const long istrs1[N], const float* in1, const long istrs2[N], const float* in2)
@@ -755,7 +804,17 @@ bool simple_zmul(unsigned int N, const long dims[N], const long ostrs[N], comple
 							{check_axpy,  blas_zmul_cscal, true, true, true}
 						};
 	return simple_z3op(	sizeof(strided_calls) / sizeof(strided_calls[0]), strided_calls,
-				N, dims, ostrs, out, istrs1, in1, istrs2, in2);
+				N, dims, ostrs, out, istrs1, in1, istrs2, in2, false);
+}
+
+bool simple_zmulc(unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+	struct simple_z3op_check strided_calls[] = {	{check_ger,   blas_zmul_cgeru, true, true, false},
+							{check_dgmm,  blas_zmul_cdgmm, true, false, true},
+							{check_axpy,  blas_zmul_cscal, true, true, true}
+						};
+	return simple_z3op(	sizeof(strided_calls) / sizeof(strided_calls[0]), strided_calls,
+				N, dims, ostrs, out, istrs1, in1, istrs2, in2, true);
 }
 
 bool simple_mul(unsigned int N, const long dims[N], const long ostrs[N], float* out, const long istrs1[N], const float* in1, const long istrs2[N], const float* in2)
