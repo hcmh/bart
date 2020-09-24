@@ -28,7 +28,7 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "<output>";
+static const char usage_str[] = "dims <output>";
 static const char help_str[] = "Compute convolution kernel";
 
 typedef enum {SOBEL, GAUSS} kernel_type;
