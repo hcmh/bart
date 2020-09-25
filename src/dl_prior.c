@@ -72,7 +72,7 @@ int main_dl_prior(int argc, char* argv[])
 	long img_dims[DIMS];
 	complex float* img = load_cfl(argv[2], DIMS, img_dims);
 	struct nlop_s * tf_ops = nlop_tf_create(1, 1, argv[1]);
-	struct operator_p_s* op = prox_logp_create(2, img_dims, tf_ops, 1);
+	struct operator_p_s* op = prox_logp_create(2, img_dims, tf_ops, lambda, 0.9);
 	auto dom = operator_p_domain(op);
 	auto cod = operator_p_codomain(op);
 
@@ -88,7 +88,7 @@ int main_dl_prior(int argc, char* argv[])
 	for (int i = 0; i < iter; i++)
 	{
 		printf("%d\n", i);
-		operator_p_apply(op, lambda, cod->N, cod->dims, tmp, dom->N, dom->dims, tmp);
+		operator_p_apply(op, 1.0, cod->N, cod->dims, tmp, dom->N, dom->dims, tmp);
 	}
 
 	md_copy(DIMS, img_dims, out, tmp, CFL_SIZE);

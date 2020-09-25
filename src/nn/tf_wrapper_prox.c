@@ -23,7 +23,7 @@
 #include "num/gpuops.h"
 #endif
 
-#include "tf_wrapper.h"
+#include "tf_wrapper_prox.h"
 
 static void free_buffer(void* data, size_t length) { free((void*)data); }
 static void deallocator(void* ptr, size_t len, void* arg) { }; //free((void*)ptr);
@@ -65,6 +65,7 @@ static TF_Buffer* read_graph(const char* file)
 static void load_graph(TF_Buffer* graph_def, TF_Graph* graph, TF_Status* status)
 {
 	TF_ImportGraphDefOptions* opts = TF_NewImportGraphDefOptions();
+	TF_ImportGraphDefOptionsSetDefaultDevice(opts, "/device:GPU:0");
 	TF_GraphImportGraphDef(graph, graph_def, opts, status);
 	TF_DeleteImportGraphDefOptions(opts);
 

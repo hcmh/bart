@@ -68,7 +68,7 @@ void help_reg(void)
 			"-R T:7:0:.01\t3D isotropic total variation with 0.01 regularization.\n"
 			"-R L:7:7:.02\tLocally low rank with spatial decimation and 0.02 regularization.\n"
 			"-R M:7:7:.03\tMulti-scale low rank with spatial decimation and 0.03 regularization.\n"
-			"-R LP:{graph_path}:C	\tpixel-cnn based prior in image domain\n"
+			"-R LP:{graph_path}:C:p\tpixel-cnn based prior in image domain\n"
 	      );
 }
 
@@ -206,8 +206,8 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			
 			regs[r].xform = LOGP;
 			regs[r].graph_file = (char *)malloc(100*sizeof(char));
-			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f", regs[r].graph_file, &regs[r].lambda);
-			assert(2 == ret);
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf", regs[r].graph_file, &regs[r].lambda, &regs[r].pct);
+			assert(3 == ret);
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
 		}
@@ -599,10 +599,11 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 		case LOGP:
 		{
 			
-			debug_printf(DP_INFO, "pixel-cnn based prior located at %s in image domain.\n lambda: %f\n", regs[nr].graph_file, regs[nr].lambda);
-
+			debug_printf(DP_INFO, "pixel-cnn based prior located at %s in image domain.\n lambda: %f\n percentage: %f\n", 
+						regs[nr].graph_file, regs[nr].lambda, regs[nr].pct);
+			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file);
-			prox_ops[nr] = prox_logp_create(2, img_dims, tf_ops, regs[nr].lambda);
+			prox_ops[nr] = prox_logp_create(2, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct);
 			break;
 		}
 

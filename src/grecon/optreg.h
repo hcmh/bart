@@ -27,7 +27,7 @@ struct reg_s {
 	unsigned int k;
 
 	char *graph_file;
-	
+	double pct;	
 };
 
 

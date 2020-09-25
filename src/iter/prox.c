@@ -18,6 +18,7 @@
 #include "num/ops_p.h"
 #include "num/ops.h"
 #include "num/iovec.h"
+#include "num/rand.h"
 #ifdef USE_CUDA
 #include "num/gpuops.h"
 #endif
@@ -293,6 +294,7 @@ struct  prox_logp_data
 	unsigned int N;
 	long *dims;
 	float lambda;
+	float p;
 };
 
 DEF_TYPEID(prox_logp_data);
@@ -341,11 +343,9 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
 	debug_printf(DP_INFO, "Log P : %f\n", creal(*out));
 
-	debug_print_dims(DP_INFO, pdata->N, pdata->dims);
-	
 	//copy slices to feed tensor
-	//struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
-	//md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), slices, CFL_SIZE);
+	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
+	md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), slices, CFL_SIZE);
 
 	complex float* grad = md_alloc(dom->N, dom->dims, dom->size);
 	complex float grad_ys = 1 + 1*I;
@@ -353,8 +353,14 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 	nlop_adjoint(pdata->tf_ops, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys); // grad [4, sx, sy]
 
 	// update 
-	md_zsmul(dom->N, dom->dims, grad, grad, pdata->lambda*step_size); 	// grad = lambda * grad
-	md_zsub(dom->N, dom->dims, slices, slices, grad);   // dst(src+1) = src + grad
+
+	md_zsmul(dom->N, dom->dims, grad, grad, pdata->lambda*step_size);
+	complex float* rand_mask = md_alloc(dom->N, dom->dims, CFL_SIZE);
+
+	md_rand_one(dom->N, dom->dims, rand_mask, pdata->p);
+	md_zmul(dom->N, dom->dims, grad, grad, rand_mask);
+	
+	md_zsub(dom->N, dom->dims, slices, slices, grad);   // dst(src+1) = src - grad
 	
 	// back to fortran arrays
 	complex float* tmp = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
@@ -362,8 +368,8 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 	{
 		for (size_t j=0; j < ny; j++)
 		{
-			pos[0] = j*slice_dims[0];
-			pos[1] = i*slice_dims[1];
+			pos[0] = i*slice_dims[0];
+			pos[1] = j*slice_dims[1];
 			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
 			md_copy_block(2, pos, pdata->dims, tmp, slice_dims, slices+offset, CFL_SIZE);
 		}
@@ -383,18 +389,18 @@ static void prox_logp_del(const operator_data_t* _data)
 	xfree(CAST_DOWN(prox_l2norm_data, _data));
 }
 
-extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], struct nlop_s * tf_ops, float lambda)
+extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], struct nlop_s * tf_ops, float lambda, float p)
 {
 	PTR_ALLOC(struct prox_logp_data, pdata);
 	SET_TYPEID(prox_logp_data, pdata);
 
 	pdata->tf_ops = tf_ops;
 	pdata->lambda = lambda;
-
+	pdata->p = p;
+	
 	pdata->N = N;
-	pdata->dims = (long*)malloc(N*sizeof(long));
-	memcpy(pdata->dims, dims, N*sizeof(long));
-		
+	pdata->dims = dims;
+			
 	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(pdata)), prox_logp_apply, prox_logp_del);
 }
 
