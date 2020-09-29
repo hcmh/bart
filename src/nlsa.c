@@ -147,8 +147,8 @@ int main_nlsa(int argc, char* argv[])
 	long A_dims[2];
 	complex float* A = calibration_matrix(A_dims, nlsa_conf.kernel_dims, cal_dims, cal);
 
-	if (nlsa_conf.nlsa_rank == 0)
-		nlsa_conf.nlsa_rank = A_dims[1];
+	if (nlsa_conf.nlsa_rank == 0) 
+		nlsa_conf.nlsa_rank = (A_dims[0] >= A_dims[1]) ? A_dims[1] : A_dims[0];
 
 	
 	if (nlsa_conf.rank != 0 && abs(nlsa_conf.rank) > nlsa_conf.nlsa_rank)
