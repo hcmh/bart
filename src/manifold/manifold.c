@@ -274,27 +274,28 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 	complex float* W = md_alloc(2, L_dims, CFL_SIZE); // weight matrix
 
 
-	char type;
+	typedef enum {KERNEL, TNN, CG, CLASSIC} laplace_type;
+	laplace_type type;
 
 	if (conf->kernel) 
-		type = 'K';
+		type = KERNEL;
 	else if (conf->temporal_nn)
-		type = 'N';
+		type = TNN;
 	else if (conf->kernel_CG)
-		type = 'G';
+		type = CG;
 	else
-		type = 'C';
+		type = CLASSIC;
 
 	switch (type) {
 
-	case 'C': { // conventional
-
+	case CLASSIC: { // conventional Laplacian calculation
+ 
 		gauss_kernel(L_dims, W, src_dims, src, conf, false);
 
 		break;
 	}
 	
-	case 'K': { // kernel approach
+	case KERNEL: { // kernel approach
 		// This is a reimplementation of the MATLAB code https://github.com/ahaseebahmed/SpiralSToRM/blob/master/
 		// Note: we don't use double precicion!
 
@@ -385,7 +386,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		break;
 	}
 
-	case 'N': { // temporal nearest neighbour
+	case TNN: { // temporal nearest neighbour
 		
 
 		md_clear(2, L_dims, W, CFL_SIZE);
@@ -398,7 +399,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 		break;
 	}
 
-	case 'G': { // kernel CG approach
+	case CG: { // kernel CG approach
 
 		error("CG approach requires revision");
 		/* The CG implementation works, but it is not clear if the SToRM theory 
