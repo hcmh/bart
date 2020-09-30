@@ -540,6 +540,8 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 		float lambda_nn = 1.;
 		md_zsmul(2, L_dims, L_nn, L_nn, lambda_nn);
 		md_zadd(2, L_dims, L, L, L_nn);
+		
+		md_free(L_nn);
 	}
 
 
@@ -563,98 +565,119 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 	
 	debug_printf(DP_DEBUG3, "done\n");
 
-	// TODO: avoid explicit allocation by using strides
-	long l = nlsa_conf.nlsa_rank;
-	long Ur_dims[2] = { N, l }; // rank cut off
-	complex float* Ur = md_alloc(2, Ur_dims, CFL_SIZE);
-	md_resize(2, Ur_dims, Ur, U_dims, U, CFL_SIZE);
+	if (nlsa_conf.basis_out) {
+		// Output Laplace-Beltrami basis
 
-	long Utp_dims[2] = { l, N };
-	complex float* Utp = md_alloc(2, Utp_dims, CFL_SIZE);
-	md_transpose(2, 0, 1, Utp_dims, Utp, Ur_dims, Ur, CFL_SIZE);
+		complex float* T = create_cfl(nlsa_conf.name_tbasis, 2, U_dims);
+		md_copy(2, U_dims, T, U, CFL_SIZE);	
+		unmap_cfl(2, U_dims, T);
 
+		// Make complex number
+		long zs_dims[1] = { N };
+		complex float* zs = ((NULL != nlsa_conf.name_S) ? create_cfl : anon_cfl) (nlsa_conf.name_S, 1, zs_dims);
 
-	// UA = Utp @ A (alternative: U[i,j] = np.sum(U[:,j] * A[:,i] )
-	long UA_dims[2];
-	UA_dims[0] = l;
-	UA_dims[1] = M;
+		for (int i = 0; i < N; i++)
+			zs[i] = S_square[i] + 0.i;
+		
+		unmap_cfl(1, zs_dims, zs);
 
-	long A_xdims[3] = { 1, N, M };
-	long Utp_xdims[3] = { l, N, 1 };
-	long UA_xdims[3] = { l, 1, M };
+	} else {
+		// Actual NLSA: Project temporal process on Laplace-Beltrami basis 
 
-	long A_xstrs[3];
-	md_calc_strides(3, A_xstrs, A_xdims, CFL_SIZE);
-	long Utp_xstrs[3];
-	md_calc_strides(2, Utp_xstrs, Utp_xdims, CFL_SIZE);	
-	long UA_xstrs[3];
-	md_calc_strides(3, UA_xstrs, UA_xdims, CFL_SIZE);
+		// TODO: avoid explicit allocation by using strides
+		long l = nlsa_conf.nlsa_rank;
+		long Ur_dims[2] = { N, l }; // rank cut off
+		complex float* Ur = md_alloc(2, Ur_dims, CFL_SIZE);
+		md_resize(2, Ur_dims, Ur, U_dims, U, CFL_SIZE);
 
-	if (l > M)
-		error("Choose smaller nlsa_rank!");
-
-	complex float* UA = md_alloc(2, UA_dims, CFL_SIZE);
-
-	long max_dims[3];
-	md_tenmul_dims(3, max_dims, UA_xdims, Utp_xdims, A_xdims);
-
-	md_ztenmul(3, UA_xdims, UA, Utp_xdims, Utp, A_xdims, A);
-
-	// UA = u @ s @ vH
-	long u_dims[2] = { l, l };
-	long vH_dims[2] = { l, M };
-	long vH_strs[2];
-	md_calc_strides(2, vH_strs, vH_dims, CFL_SIZE);
-
-	complex float* u = md_alloc(2, u_dims, CFL_SIZE);
-	complex float* vH = md_alloc(2, vH_dims, CFL_SIZE);
-
-	float* s = xmalloc(l * sizeof(float));
-
-	debug_printf(DP_DEBUG3, "SVD of Projection %dx%d matrix...", M, l);
-
-	// NOTE: Lapack destroys L!
-	lapack_svd_econ(l, M, (complex float (*)[l])u, (complex float (*)[l])vH, s, (complex float (*)[l])UA);
-
-	debug_printf(DP_DEBUG3, "done\n");
+		long Utp_dims[2] = { l, N };
+		complex float* Utp = md_alloc(2, Utp_dims, CFL_SIZE);
+		md_transpose(2, 0, 1, Utp_dims, Utp, Ur_dims, Ur, CFL_SIZE);
 
 
-	// Make complex number
-	long zs_dims[2] = { 1, l };
-	complex float* zs = ((NULL != nlsa_conf.name_S) ? create_cfl : anon_cfl) (nlsa_conf.name_S, 2, zs_dims);
+		// UA = Utp @ A (alternative: U[i,j] = np.sum(U[:,j] * A[:,i] )
+		long UA_dims[2];
+		UA_dims[0] = l;
+		UA_dims[1] = M;
 
-	for (int i = 0; i < l; i++)
-		zs[i] = s[i] + 0.i;
+		long A_xdims[3] = { 1, N, M };
+		long Utp_xdims[3] = { l, N, 1 };
+		long UA_xdims[3] = { l, 1, M };
+
+		long A_xstrs[3];
+		md_calc_strides(3, A_xstrs, A_xdims, CFL_SIZE);
+		long Utp_xstrs[3];
+		md_calc_strides(2, Utp_xstrs, Utp_xdims, CFL_SIZE);	
+		long UA_xstrs[3];
+		md_calc_strides(3, UA_xstrs, UA_xdims, CFL_SIZE);
+
+		if (l > M)
+			error("Choose smaller nlsa_rank!");
+
+		complex float* UA = md_alloc(2, UA_dims, CFL_SIZE);
+
+		long max_dims[3];
+		md_tenmul_dims(3, max_dims, UA_xdims, Utp_xdims, A_xdims);
+
+		md_ztenmul(3, UA_xdims, UA, Utp_xdims, Utp, A_xdims, A);
+
+		// UA = u @ s @ vH
+		long u_dims[2] = { l, l };
+		long vH_dims[2] = { l, M };
+		long vH_strs[2];
+		md_calc_strides(2, vH_strs, vH_dims, CFL_SIZE);
+
+		complex float* u = md_alloc(2, u_dims, CFL_SIZE);
+		complex float* vH = md_alloc(2, vH_dims, CFL_SIZE);
+
+		float* s = xmalloc(l * sizeof(float));
+
+		debug_printf(DP_DEBUG3, "SVD of Projection %dx%d matrix...", M, l);
+
+		// NOTE: Lapack destroys L!
+		lapack_svd_econ(l, M, (complex float (*)[l])u, (complex float (*)[l])vH, s, (complex float (*)[l])UA);
+
+		debug_printf(DP_DEBUG3, "done\n");
 
 
-	// Temporal basis: T = U @ u (alternative: T[i,j] = sum(U[i,:l] * u[:l,j]))
-	long T_dims[2] = { N, l };
-	complex float* T = create_cfl(nlsa_conf.name_tbasis, 2, T_dims);
+		// Make complex number
+		long zs_dims[1] = { l };
+		complex float* zs = ((NULL != nlsa_conf.name_S) ? create_cfl : anon_cfl) (nlsa_conf.name_S, 1, zs_dims);
 
-	long U_xdims[3] = { N, l, 1};
-	long u_xdims[3] = { 1, l, l};
-	long T_xdims[3] = { N, 1, l};
-			
-	md_ztenmul(3, T_xdims, T, U_xdims, U, u_xdims, u);
+		for (int i = 0; i < l; i++)
+			zs[i] = s[i] + 0.i;
 
 
-	if (NULL != back) {
+		// Temporal basis: T = U @ u (alternative: T[i,j] = sum(U[i,:l] * u[:l,j]))
+		long T_dims[2] = { N, l };
+		complex float* T = create_cfl(nlsa_conf.name_tbasis, 2, T_dims);
 
-		debug_printf(DP_DEBUG3, "Backprojection...\n");
+		long U_xdims[3] = { N, l, 1};
+		long u_xdims[3] = { 1, l, l};
+		long T_xdims[3] = { N, 1, l};
+				
+		md_ztenmul(3, T_xdims, T, U_xdims, U, u_xdims, u);
 
-		backprojection(N, M, cal_dims, back, A_dims, zs, T_dims, T, vH, nlsa_conf);
+
+		if (NULL != back) {
+
+			debug_printf(DP_DEBUG3, "Backprojection...\n");
+
+			backprojection(N, M, cal_dims, back, A_dims, zs, T_dims, T, vH, nlsa_conf);
+		}
+
+		md_free(Ur);
+		md_free(Utp);
+		md_free(UA);
+		xfree(s);
+		unmap_cfl(1, zs_dims, zs);
+
 	}
 
-	md_free(Ur);
-	md_free(Utp);
-	md_free(U);
-	md_free(UH);
 	md_free(L);
-	md_free(UA);
-	xfree(s);
-	unmap_cfl(2, zs_dims, zs);
+	md_free(U);
+	md_free(UH);	
 	xfree(S_square);
-
 }
 
 

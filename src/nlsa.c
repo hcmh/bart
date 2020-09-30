@@ -91,7 +91,7 @@ int main_nlsa(int argc, char* argv[])
 		OPT_FLOAT('e', &nlsa_conf.weight, "exp", "Soft delay-embedding"),
 		OPT_SET('T', &nlsa_conf.temporal_nn, "Temporal nearest neighbour"),
 		OPT_SET('o', &nlsa_conf.L_out, "(Output Laplacian as __L.cfl)"),
-
+		OPT_SET('b', &nlsa_conf.basis_out, "Output Laplace-Beltrami-basis "),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -115,6 +115,9 @@ int main_nlsa(int argc, char* argv[])
 		nlsa_conf.backproj = argv[4];
 
 	}
+
+	if(nlsa_conf.backproj)
+		assert(!nlsa_conf.basis_out);
 	
 
 	long in_dims[DIMS];

@@ -33,7 +33,7 @@ struct delay_conf {
 	long nlsa_rank;	 	// smoothness of manifold
 	char* name_tbasis;  // output name of temporal basis for NLSA
 	_Bool L_out;		// output Laplacian
-
+	_Bool basis_out;	// output Laplace-Beltrami basis
 };
 
 extern const struct delay_conf ssa_conf_default;
