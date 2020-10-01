@@ -22,6 +22,7 @@ struct laplace_conf {
 	_Bool norm;	 		// output D^-1 @ L (output normalized Laplacian, where L = D - W)
 	_Bool anisotrop;	// anisotropic sampling
 	_Bool dmap;			// diffusion map (output transition probability matrix P = D^{-1}W)
+	_Bool W;			// output weights matrix instead of Laplacian
 	float median; 		// median normalization for kernel approach
 	int iter_max;	 	// kernel approach: iterations
 

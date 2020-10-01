@@ -44,6 +44,7 @@ const struct laplace_conf laplace_conf_default = {
 	.norm			= false,
 	.anisotrop		= false,
 	.dmap			= false,
+	.W				= false,
 	.median 		= -1,
 	.iter_max		= 50,
 
@@ -495,8 +496,29 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 	// D
 	md_zsum(2, L_dims, PHS1_FLAG, D, W);
 
-	if (conf->dmap) {
+	typedef enum {CLASSIC_L, DMAP, WGHT} output_type;
+	output_type out_type = CLASSIC_L;
 
+	if (conf->dmap)
+		out_type = DMAP;
+	else if (conf->W)
+		out_type = WGHT;
+
+	switch(out_type) {
+
+	case CLASSIC_L: {
+
+		//L = D - W		
+		md_zsmul(2, L_dims, L, W, -1.);
+
+		#pragma omp parallel for
+		for (int i = 0; i < L_dims[0]; i++)
+			L[i * L_dims[0] + i] += D[i];
+
+		break;
+	}
+	
+	case DMAP: {
 
 		// "L" := D^{-1} @ W  (=: P transition probability matrix)
 		#pragma omp parallel for
@@ -505,19 +527,22 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 			D[i] = 1. / D[i];	
 		}
 
-		md_ztenmul(2, L_dims, L, L_dims, W, D_dims, D);					
+		md_ztenmul(2, L_dims, L, L_dims, W, D_dims, D);	
 
-	} else {
-	
-		//L = D - W		
-		md_zsmul(2, L_dims, L, W, -1.);
-
-		#pragma omp parallel for
-		for (int i = 0; i < L_dims[0]; i++)
-			L[i * L_dims[0] + i] += D[i];
+		break;
 	}
 
-	if (conf->norm){
+	case WGHT: {
+
+		// "L" := W
+		md_copy(2, L_dims, L, W, CFL_SIZE);
+
+		break;
+	}
+	}
+
+
+	if (conf->norm && out_type != WGHT){
 
 		// L := D^{-1} @ L
 		#pragma omp parallel for
