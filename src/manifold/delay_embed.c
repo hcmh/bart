@@ -42,6 +42,7 @@ const struct delay_conf ssa_conf_default = {
 	.name_tbasis = NULL,
 	.L_out		= 0,
 	.basis_out	= 0,	
+	.riemann	= 0,
 };
 
 const struct delay_conf nlsa_conf_default = {
@@ -66,6 +67,7 @@ const struct delay_conf nlsa_conf_default = {
 	.name_tbasis = NULL,
 	.L_out		= 0,
 	.basis_out	= 0,	
+	.riemann	= 0,
 };
 
 

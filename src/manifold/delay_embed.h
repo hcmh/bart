@@ -34,6 +34,7 @@ struct delay_conf {
 	char* name_tbasis;  // output name of temporal basis for NLSA
 	_Bool L_out;		// output Laplacian
 	_Bool basis_out;	// output Laplace-Beltrami basis
+	_Bool riemann;		// include riemann measure
 };
 
 extern const struct delay_conf ssa_conf_default;

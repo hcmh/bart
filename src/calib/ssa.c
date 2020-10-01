@@ -594,6 +594,41 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 		complex float* Utp = md_alloc(2, Utp_dims, CFL_SIZE);
 		md_transpose(2, 0, 1, Utp_dims, Utp, Ur_dims, Ur, CFL_SIZE);
 
+		// Include Riemann measure
+		if (nlsa_conf.riemann) {
+			/* Giannakis, D., & Majda, A. J. (2013).
+ 			 * Nonlinear Laplacian spectral analysis: capturing intermittent and low‐frequency spatiotemporal patterns in high‐dimensional data.
+ 			 * Statistical Analysis and Data Mining: The ASA Data Science Journal, 6(3), 180-194.
+			 * 
+			 * Utp_riemann = Utp[l, :] * riemann[:]
+			 * Q[:] = sum(wght[:,:], 0)
+			 * riemann = Q[:] / sum(Q)
+			 */
+
+			struct laplace_conf riemann_conf = laplace_conf_default;
+			riemann_conf.W = true;
+
+			complex float* wght = md_alloc(2, L_dims, CFL_SIZE);
+			calc_laplace(&riemann_conf, L_dims, wght, A_dims, A);
+
+			long riemann_dims[2] = { 1, L_dims[1]};
+			complex float* riemann = md_alloc(2, riemann_dims, CFL_SIZE);
+			md_zsum(2, L_dims, READ_FLAG, riemann, wght);
+
+			long riemann_strs[2];
+			md_calc_strides(2, riemann_strs, riemann_dims, CFL_SIZE);
+			long Utp_strs[2];
+			md_calc_strides(2, Utp_strs, Utp_dims, CFL_SIZE);
+			
+			complex float norm = 1;
+			md_zsum(2, riemann_dims, PHS1_FLAG, &norm, riemann);
+
+			md_zmul2(2, Utp_dims, Utp_strs, Utp, riemann_strs, riemann, Utp_strs, Utp);
+			md_zsmul(2, Utp_dims, Utp, Utp, norm);
+
+			md_free(wght);
+			md_free(riemann);
+		}
 
 		// UA = Utp @ A (alternative: U[i,j] = np.sum(U[:,j] * A[:,i] )
 		long UA_dims[2];
