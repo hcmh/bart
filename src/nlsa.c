@@ -90,14 +90,17 @@ int main_nlsa(int argc, char* argv[])
 		OPT_SET('T', &nlsa_conf.temporal_nn, "Temporal nearest neighbour"),
 		OPT_SET('o', &nlsa_conf.L_out, "(Output Laplacian as __L.cfl)"),
 		OPT_SET('b', &nlsa_conf.basis_out, "Output Laplace-Beltrami-basis "),
-		OPT_SET('R', &nlsa_conf.riemann, "Include Riemann measure"),
+		OPT_CLEAR('d', &conf.dmap, "Do not use Diffusion-Map approach"),
 		OPT_SET('v', &conf.local_v, "Local velocity weighting"),		
+		OPT_SET('R', &nlsa_conf.riemann, "Include Riemann measure"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
+	if (!conf.dmap)
+		nlsa_conf.basis_out = true;
 
 	if ( -1 == nlsa_conf.window)
 		error("Specify window length '-w'");

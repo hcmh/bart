@@ -569,15 +569,24 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 		// Output Laplace-Beltrami basis
 
 		complex float* T = create_cfl(nlsa_conf.name_tbasis, 2, U_dims);
-		md_copy(2, U_dims, T, U, CFL_SIZE);	
+
+		if (laplace_conf.dmap)
+			md_copy(2, U_dims, T, U, CFL_SIZE);	
+		else
+			md_flip(2, U_dims, MD_BIT(1), T, U, CFL_SIZE); // flip, because non-Diffusion-Map Laplacians have most significant EVs at the end
+
 		unmap_cfl(2, U_dims, T);
 
 		// Make complex number
 		long zs_dims[1] = { N };
 		complex float* zs = ((NULL != nlsa_conf.name_S) ? create_cfl : anon_cfl) (nlsa_conf.name_S, 1, zs_dims);
 
-		for (int i = 0; i < N; i++)
-			zs[i] = S_square[i] + 0.i;
+		for (int i = 0; i < N; i++) {
+			if (laplace_conf.dmap)
+				zs[i] = S_square[i] + 0.i;
+			else
+				zs[i] = S_square[N - i -1] + 0.i;
+		}
 		
 		unmap_cfl(1, zs_dims, zs);
 
