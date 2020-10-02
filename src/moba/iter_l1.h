@@ -16,6 +16,7 @@ struct mdb_irgnm_l1_conf {
 	float step;
 	float lower_bound;
 	int constrained_maps; /*As bitmask*/
+	bool auto_norm_off;
 	int not_wav_maps;
 	float wav_reg;
 	unsigned int flags;

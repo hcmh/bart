@@ -17,6 +17,7 @@ struct moba_conf {
 	float tolerance;
 	unsigned int inner_iter;
 	bool noncartesian;
+	bool auto_norm_off;
         bool sms;
 	bool MOLLI;
 	bool k_filter;

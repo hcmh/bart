@@ -90,6 +90,7 @@ int main_moba(int argc, char* argv[])
 		OPT_SET('k', &conf.k_filter, "k-space edge filter for non-Cartesian trajectories"),
 		OPT_SET('S', &conf.IR_SS, "use the IR steady-state model"),
 		OPT_FLOAT('P', &conf.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
+		OPT_SET('n', &conf.auto_norm_off, "disable normlization of parameter maps for thresholding"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
