@@ -420,7 +420,7 @@ int main_modbloch(int argc, char* argv[])
 	long tmp_strs[DIMS];
 	md_calc_strides(DIMS, tmp_strs, tmp_dims, CFL_SIZE);
 	
-	complex float initval[3] = {0.8, 4., 10.};//	R1, M0, R2
+	complex float initval[3] = {0.5, 4., 2.};//	R1, M0, R2
 	
 	// Determine DERIVATIVE and SIGNAL scaling by simulating the applied sequence
 
