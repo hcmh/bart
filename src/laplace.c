@@ -47,6 +47,7 @@ int main_laplace(int argc, char* argv[])
 		OPT_FLOAT('l', &conf.kernel_lambda, "lambda", "(Kernel lambda)"),	
 		OPT_FLOAT('G', &conf.kernel_gamma, "gamma", "(Kernel gamma minimum)"),
 		OPT_INT('i', &conf.iter_max, "iter", "[Kernel] Number of iterations"),
+		OPT_SET('v', &conf.local_v, "Local velocity weighting"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);

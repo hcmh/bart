@@ -45,6 +45,7 @@ const struct laplace_conf laplace_conf_default = {
 	.anisotrop		= false,
 	.dmap			= false,
 	.W				= false,
+	.local_v		= false,
 	.median 		= -1,
 	.iter_max		= 50,
 
@@ -227,6 +228,51 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 		
 		
 		md_zsmul(3, cov_dims, kernel, kernel, - 1./pow(conf->sigma,2));
+
+		if (conf->local_v) {
+			/* Weight by local velocities
+			 * Giannakis, D., & Majda, A. J. (2013).
+ 			 * Nonlinear Laplacian spectral analysis: capturing intermittent and low‐frequency spatiotemporal patterns in high‐dimensional data.
+ 			 * Statistical Analysis and Data Mining: The ASA Data Science Journal, 6(3), 180-194.
+			 */
+
+			complex float* src_shift = md_alloc(2, src_dims, CFL_SIZE);
+			complex float* diff = md_alloc(2, src_dims, CFL_SIZE);
+			long shift[2] = { 1, 0};
+			md_circ_shift(2, src_dims, shift, src_shift, src, CFL_SIZE);
+			md_zsub(2, src_dims, diff, src, src_shift);
+			
+			long local_v_dims[2] = { src_dims[0], 1};
+			complex float* local_v = md_alloc(2, local_v_dims, CFL_SIZE);
+			md_zrss(2, src_dims, MD_BIT(1), local_v, diff);
+			
+			// remove mean
+			complex float mean = 1;
+			md_zavg(2, local_v_dims, MD_BIT(0), &mean, local_v);
+			md_zsadd(2, local_v_dims, local_v, local_v, -mean); 
+			
+			// normalize
+			complex float std = 1;
+			md_zstd(2, local_v_dims, MD_BIT(0), &std, local_v);
+			md_zsmul(2, local_v_dims, local_v, local_v, 0.5/std);
+
+			// offset to 1
+			md_moving_avgz(2, 0, local_v_dims, local_v, local_v);
+			md_zsadd(2, local_v_dims, local_v, local_v, 1);
+
+			local_v[0] = 1. + 0i; // account for circ-shift artifact
+
+			md_zsqrt(2, local_v_dims, local_v, local_v);
+			
+			for (int i = 0; i < kernel_dims[0]; i++)
+				for (int j = 0; j < kernel_dims[1]; j++) 
+					kernel[i * kernel_dims[1] + j] /= (local_v[i] * local_v[j]);
+				
+			md_free(src_shift);
+			md_free(diff);
+			md_free(local_v);
+		}
+
 		md_zexp(3, cov_dims, kernel, kernel);
 
 		// keep only nn nearest neighbors
@@ -517,7 +563,7 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 
 		break;
 	}
-	
+
 	case DMAP: {
 
 		// "L" := D^{-1} @ W  (=: P transition probability matrix)

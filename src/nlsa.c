@@ -24,7 +24,6 @@
  *
  * Comments on NLSA:
  * The NLSA is not exactly implemented as proposed by Giannakis & Maida:
- * 	We don't consider the local velocities in the exponent
  * 	We don't approximate the Laplacian eigenvectors but calculate them explicitly
  * 
  * 'nlsa_rank' defines the smoothness of the manifold (temporal evolution)
@@ -92,6 +91,7 @@ int main_nlsa(int argc, char* argv[])
 		OPT_SET('o', &nlsa_conf.L_out, "(Output Laplacian as __L.cfl)"),
 		OPT_SET('b', &nlsa_conf.basis_out, "Output Laplace-Beltrami-basis "),
 		OPT_SET('R', &nlsa_conf.riemann, "Include Riemann measure"),
+		OPT_SET('v', &conf.local_v, "Local velocity weighting"),		
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
