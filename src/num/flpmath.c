@@ -39,7 +39,7 @@
 #include "num/optimize.h"
 #include "num/blas.h"
 #include "num/convcorr.h"
-#include "num/strided_vecops.h"
+#include "num/vecops_strided.h"
 
 #include "misc/misc.h"
 #include "misc/types.h"

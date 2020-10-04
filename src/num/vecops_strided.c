@@ -34,7 +34,7 @@
 #include "num/gpuops.h"
 #endif
 
-#include "strided_vecops.h"
+#include "vecops_strided.h"
 
 static bool use_strided_vecops = true;
 

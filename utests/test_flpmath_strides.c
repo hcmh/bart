@@ -2,7 +2,7 @@
 
 #include "num/flpmath.h"
 #include "num/multind.h"
-#include "num/strided_vecops.h"
+#include "num/vecops_strided.h"
 #include "num/rand.h"
 
 #include "misc/misc.h"
