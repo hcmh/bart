@@ -86,6 +86,7 @@ int main_nnmodl(int argc, char* argv[])
 
 		OPTL_FLOAT(0, "modl_fix_lambda", &(modl.lambda_fixed), "lambda", "fix lambda to given value (def: -1. = trainable)"),
 		OPTL_SET(0, "modl_nullspace", &(modl.nullspace), "construct modl using nullspace formulation"),
+		OPTL_SET(0, "modl_nullspace_no_squarred_lambda", &(modl.nullspace_lambda_not_squarred), "construct modl using nullspace formulation and fix lambda square issue"),
 		OPTL_SET(0, "modl_reinsert_zerofilled", &(modl.reinsert_zerofilled), "reinsert zero-filled reconstruction and current reconstruction to all DW networks"),
 
 		OPTL_UINT(0, "conjgrad_iterations", &(def_conf.maxiter), "iter", "number of iterations in data-consistency layer (def: 50)"),
@@ -94,10 +95,12 @@ int main_nnmodl(int argc, char* argv[])
 
 		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
 		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
-		OPTL_LONG('Z', "fov_z", (udims + 2), "z", "Nz of the target image (guessed from reference(training) / kspace(inference))"),
+		//OPTL_LONG('Z', "fov_z", (udims + 2), "z", "Nz of the target image (guessed from reference(training) / kspace(inference))"), maximum number of long opts exceeded
 	};
 
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	if (modl.nullspace_lambda_not_squarred)
+		modl.nullspace = true;
 
 	train_conf.INTERFACE.batchgen_type = random_order;
 

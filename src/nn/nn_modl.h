@@ -43,6 +43,7 @@ struct modl_s {
 
 	_Bool reinsert_zerofilled;
 	_Bool nullspace;
+	_Bool nullspace_lambda_not_squarred;
 };
 
 extern const struct modl_s modl_default;

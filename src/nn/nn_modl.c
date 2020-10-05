@@ -85,6 +85,7 @@ const struct modl_s modl_default = {
 
 	.nullspace = false,
 	.reinsert_zerofilled = false,
+	.nullspace_lambda_not_squarred = false,
 };
 
 static const struct nlop_s* nlop_dw_first_layer(const struct modl_s* config, const long udims[5], enum NETWORK_STATUS status)
@@ -188,12 +189,18 @@ static const struct nlop_s* nlop_dw_create(const struct modl_s* config, const lo
 
 	nlop_dw = nlop_chain2_FF(nlop_dw, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0); //in: xn, xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: zn, bn0_out, bni_out, bnn_out
 	nlop_dw = nlop_dup_F(nlop_dw, 0, 1); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn + xn', bn0_out, bni_out, bnn_out
-	if (-1. == config->lambda_fixed) {
-		nlop_dw = nlop_chain2_swap_FF(nlop_dw, 0, nlop_tenmul_create(5, udims, udims, MD_SINGLETON_DIMS(5)), 0);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: xn + xn', bn0_out, bni_out, bnn_out
-		nlop_dw = nlop_reshape_in_F(nlop_dw, os + 11, 1, MD_SINGLETON_DIMS(1));
-	} else {
-		nlop_dw = nlop_chain2_FF(nlop_dw, 0, nlop_from_linop_F(linop_scale_create(5, udims, config->lambda_fixed)), 0);
+	if (config->nullspace_lambda_not_squarred && config->nullspace) {
+
 		nlop_dw = nlop_combine_FF(nlop_dw, nlop_del_out_create(1, MD_SINGLETON_DIMS(1)));
+	} else {
+
+		if (-1. == config->lambda_fixed) {
+			nlop_dw = nlop_chain2_swap_FF(nlop_dw, 0, nlop_tenmul_create(5, udims, udims, MD_SINGLETON_DIMS(5)), 0);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: xn + xn', bn0_out, bni_out, bnn_out
+			nlop_dw = nlop_reshape_in_F(nlop_dw, os + 11, 1, MD_SINGLETON_DIMS(1));
+		} else {
+			nlop_dw = nlop_chain2_FF(nlop_dw, 0, nlop_from_linop_F(linop_scale_create(5, udims, config->lambda_fixed)), 0);
+			nlop_dw = nlop_combine_FF(nlop_dw, nlop_del_out_create(1, MD_SINGLETON_DIMS(1)));
+		}
 	}
 
 	nlop_dw = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(1, MD_SINGLETON_DIMS(1))), 0, nlop_dw, os + 11);
