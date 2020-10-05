@@ -2,6 +2,7 @@
 #define ITER6_H
 #include "italgos.h"
 #include "iter/iter_dump.h"
+#include "batch_gen.h"
 
 struct iter_dump_s;
 typedef struct iter6_conf_s {
@@ -21,6 +22,9 @@ typedef struct iter6_conf_s {
 	const struct iter_dump_s* dump;
 	const char* dump_filename;
 	long dump_mod;
+
+	enum BATCH_GEN_TYPE batchgen_type;
+	int batch_seed;
 
 } iter6_conf;
 
