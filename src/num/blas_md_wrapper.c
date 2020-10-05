@@ -152,7 +152,7 @@ void blas_zfmac_cgeru(unsigned int N, const long dims[N], const long ostr[N], co
 
 	blas_cgeru(dims[0], dims[1], 1., incx, iptr1, incy, iptr2, lda, optr);
 }
-i
+
 
 /**
  * caxpy for inner zfmac kernel
