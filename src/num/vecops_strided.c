@@ -1,3 +1,11 @@
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors: Moritz Blumenthal
+ */
+
+
 /**
  * In this file, we check if md_calls with specific strides can be efficiently
  * computed by external libraries / specialized functions.
