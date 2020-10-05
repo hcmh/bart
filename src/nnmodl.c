@@ -49,7 +49,7 @@ int main_nnmodl(int argc, char* argv[])
 	bool initialize = false;
 	bool normalize = false;
 
-	bool random_order = false;
+	int random_order = 0;
 
 	char* filename_weights_load = NULL;
 
@@ -72,7 +72,7 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_LONG(0, "save_checkpoints_interval", &(train_conf.INTERFACE.dump_mod), "int", "save weights every int epochs"),
 		OPTL_LONG('b', "batch_size", &(Nb), "Nb", "number epochs to train"),
 		OPTL_LONG(0, "adam_reset_momentum", &(train_conf.reset_epoch), "epoch", "reset the adam algorithm after this number of epochs"),
-		OPTL_SET(0, "random_batches", &(random_order), "draw random batches"),
+		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2= shuffle data, 3=randonly draw data"),
 
 		OPTL_SET('n', "normalize", &normalize, "normalize the input by maximum of zero-filled reconstruction"),
 
@@ -98,6 +98,8 @@ int main_nnmodl(int argc, char* argv[])
 	};
 
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	train_conf.INTERFACE.batchgen_type = random_order;
 
 	char* filename_kspace = argv[1];
 	char* filename_coil = argv[2];
@@ -168,7 +170,7 @@ int main_nnmodl(int argc, char* argv[])
 
 		complex float* file_ref = load_cfl(filename_out, 5, udims);
 
-		train_nn_modl(&modl, CAST_UP(&train_conf), udims, file_ref, kdims, file_kspace, file_coil, pdims, file_pattern, Nb, random_order, normalize, (10 == argc) ? (const char**)argv + 6: NULL);
+		train_nn_modl(&modl, CAST_UP(&train_conf), udims, file_ref, kdims, file_kspace, file_coil, pdims, file_pattern, Nb, normalize, (10 == argc) ? (const char**)argv + 6: NULL);
 		nn_modl_store_weights(&modl, filename_weights);
 		unmap_cfl(5, udims, file_ref);
 	}

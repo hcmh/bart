@@ -60,7 +60,7 @@ extern void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 				const long udims[5], _Complex float* ref,
 				const long kdims[5], _Complex float* kspace, const _Complex float* coil,
 				const long pdims[5], const _Complex float* pattern,
-				long Nb, _Bool random_order, _Bool normalize, const char** valid_files);
+				long Nb, _Bool normalize, const char** valid_files);
 
 extern void nn_modl_store_weights(struct modl_s* modl, const char* name);
 extern void nn_modl_load_weights(struct modl_s* modl, const char* name, _Bool overwrite_parameters);

@@ -440,7 +440,7 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 			const long udims[5], _Complex float* ref,
 			const long kdims[5], _Complex float* kspace, const _Complex float* coil,
 			const long pdims[5], const _Complex float* pattern,
-			long Nb, bool random_order, bool normalize, const char** valid_files)
+			long Nb, bool normalize, const char** valid_files)
 {
 	complex float* scaling = NULL;
 	if (normalize) {
@@ -479,7 +479,7 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 					nlop_generic_domain(nlop_train, 2)->dims,
 					nlop_generic_domain(nlop_train, 3)->dims};
 
-	auto batch_generator = (random_order ? batch_gen_rand_create : batch_gen_linear_create)(4, 5, train_dims, train_data, Nt, 0);
+	auto batch_generator = batch_gen_create_from_iter(train_conf, 4, 5, train_dims, train_data, Nt, 0);
 
 	//setup for iter algorithm
 	float* data[15];
