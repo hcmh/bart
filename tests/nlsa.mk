@@ -16,6 +16,22 @@ tests/test-nlsa: traj phantom resize squeeze nlsa cabs nrmse ssa
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-nlsa-kernel: traj phantom resize squeeze nlsa cabs nrmse ssa
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+		$(TOOLDIR)/traj -x128 -y50 -G -D t.ra						;\
+		$(TOOLDIR)/phantom -t t.ra -s8 k.ra 						;\
+		$(TOOLDIR)/resize -c 1 1 k.ra k1.ra 						;\
+		$(TOOLDIR)/squeeze k1.ra kx.ra 							;\
+		$(TOOLDIR)/ssa -w10 -m0 -n0 kx.ra eof.ra 					;\
+		$(TOOLDIR)/nlsa -k -i5 -L50 -w10 -m0 -n0 kx.ra nlsa.ra 				;\
+		$(TOOLDIR)/cabs nlsa.ra nlsaabs.ra						;\
+		$(TOOLDIR)/cabs eof.ra eofabs.ra 						;\
+		$(TOOLDIR)/resize 1 10 nlsaabs.ra utest.ra 					;\
+		$(TOOLDIR)/resize 1 10 eofabs.ra eoftest.ra 					;\
+		$(TOOLDIR)/nrmse -t 0.0001 utest.ra eoftest.ra 				;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
 
 tests/test-nlsa-backprojection: traj phantom resize squeeze nlsa nrmse
 	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP) 						;\
