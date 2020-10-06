@@ -221,8 +221,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 	md_select_dims(DIMS, ~TIME2_FLAG, x_no_time2_dims, x_dims);
 
 	long coil_dims[DIMS];
-	md_copy_dims(DIMS, coil_dims, img_dims);
-	coil_dims[COEFF_DIM] = 1L;
+	md_select_dims(DIMS, ~COEFF_FLAG, coil_dims, dims);
 
 	long coil_no_time2_dims[DIMS];
 	md_select_dims(DIMS, ~TIME2_FLAG, coil_no_time2_dims, coil_dims);
