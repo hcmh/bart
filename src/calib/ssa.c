@@ -34,10 +34,8 @@
  * Statistical Analysis and Data Mining: The ASA Data Science Journal, 6(3), 180-194.
  * 
  * Comments on NLSA:
- * The NLSA is not exactly implemented as proposed by Giannakis & Maida:
- *	We don't use the metric mu (yet)
- * 	We don't consider the local velocities in the exponent
- * 	We don't approximate the Laplacian eigenvectors but calculate them explicitly
+ * The NLSA is not exactly implemented as proposed by Giannakis & Maida
+ * as we do not approximate the Laplacian eigenvectors but calculate them explicitly
  * 
  * 'nlsa_rank' defines the smoothness of the manifold (temporal evolution)
  * 
@@ -59,7 +57,7 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include "misc/mmio.h" // TODO: should not be here?
+#include "misc/mmio.h"
 #include "misc/mri.h"
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -77,7 +75,7 @@
 
 #include "ssa.h"
 
-//  Spectral EOF analysis
+// spectral EOF analysis
 extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const float dt, const float f, const float f_interval, const long max)
 {
 	long EOF_strs[2];
@@ -95,7 +93,7 @@ extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const
 	if (f_interval == -1)
 		interval_up = T_center;
 	
-	// Create mask to select frequency-region of interest
+	// create mask to select frequency-region of interest
 	long mask_dims[2] = { EOF_dims[0], 1 };
 	long mask_strs[2];
 	md_calc_strides(2, mask_strs, mask_dims, CFL_SIZE);
@@ -111,7 +109,7 @@ extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const
 	if (f_interval == -1)
 		mask[0] = 1. + 0i;
 
-	// Apply mask to select roi and calculate energy
+	// apply mask to select roi and calculate energy
 	complex float* EOF_masked = md_alloc(2, EOF_dims, CFL_SIZE);
 	md_zmul2(2, EOF_dims, EOF_strs, EOF_masked, EOF_strs, EOF_fft, mask_strs, mask);
 
@@ -119,7 +117,7 @@ extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const
 	complex float* EOF_rss = md_alloc(2, EOF_rss_dims, CFL_SIZE);
 	md_zrss(2, EOF_dims, MD_BIT(0), EOF_rss, EOF_masked);
 
-	// Apply reverse mask (to exclude the roi) and calculate energy
+	// apply reverse mask (to exclude the roi) and calculate energy
 	md_zfill(2, mask_dims, mask, 1.);
 
 	for (int i = interval_low; i < interval_up; i++) {
@@ -135,10 +133,7 @@ extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const
 	complex float* EOF_rss_ex = md_alloc(2, EOF_rss_dims, CFL_SIZE);
 	md_zrss(2, EOF_dims, MD_BIT(0), EOF_rss_ex, EOF_masked);
 
-	// dump_cfl("EOF_rss", 2, EOF_rss_dims, EOF_rss);
-	// dump_cfl("EOF_rss_ex", 2, EOF_rss_dims, EOF_rss_ex);
-
-	// Calculate fraction
+	// calculate fraction
 	md_zdiv(2, EOF_rss_dims, EOF_rss, EOF_rss, EOF_rss_ex);
 
 	long flags = 0;
@@ -165,7 +160,8 @@ extern int detect_freq_EOF(const long EOF_dims[2], complex float* EOF_fft, const
 	return flags;
 }
 
-// Check symmetry of the W-sized filters
+// check symmetry of the W-sized filters
+// EOFs that belong to symmetric filters are in phase with the actual oscillation
 static bool PC_symmetric(const long PC_line_dims[2], complex float* PC_line, int W) {
 
 	int channels = (int)(PC_line_dims[1] / (1. * W));
@@ -179,7 +175,7 @@ static bool PC_symmetric(const long PC_line_dims[2], complex float* PC_line, int
 
 	long sign = 0;
 
-	for (int i = 0; i < channels; i++) { // Loop over all W-sized filters
+	for (int i = 0; i < channels; i++) { // loop over all W-sized filters
 
 		pos[0] = i * W;
 
@@ -317,7 +313,7 @@ static void backprojection( const long N,
 
 	md_ztenmul(3, A_xdims, A_backproj, T_xdims, T, PC_xdims, PC);
 
-	// Reorder & Anti-diagonal summation
+	// reorder & anti-diagonal summation
 	long kern_dims[4];
 	md_set_dims(DIMS, kern_dims, 1);
 	md_min_dims(4, ~0u, kern_dims, kernelCoil_dims, cal_dims);
@@ -329,8 +325,8 @@ static void backprojection( const long N,
 
 	casorati_matrixH(4, kern_dims, cal_dims, cal_strs, back, A1_dims, A_backproj);
 
-	// Missing normalization for summed anti-diagonals
-	long b = MIN(kern_dims[0], cal_dims[0] - kern_dims[0] + 1); // Minimum of window length and maximum lag
+	// missing normalization for summed anti-diagonals
+	long b = MIN(kern_dims[0], cal_dims[0] - kern_dims[0] + 1); // minimum of window length and maximum lag
 
 	long norm_dims[DIMS];
 	md_singleton_dims(DIMS, norm_dims);
@@ -566,7 +562,7 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 	debug_printf(DP_DEBUG3, "done\n");
 
 	if (nlsa_conf.basis_out) {
-		// Output Laplace-Beltrami basis
+		// output Laplace-Beltrami basis
 
 		complex float* T = create_cfl(nlsa_conf.name_tbasis, 2, U_dims);
 
@@ -577,7 +573,7 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 
 		unmap_cfl(2, U_dims, T);
 
-		// Make complex number
+		// convert to complex number
 		long zs_dims[1] = { N };
 		complex float* zs = ((NULL != nlsa_conf.name_S) ? create_cfl : anon_cfl) (nlsa_conf.name_S, 1, zs_dims);
 
@@ -591,7 +587,7 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 		unmap_cfl(1, zs_dims, zs);
 
 	} else {
-		// Actual NLSA: Project temporal process on Laplace-Beltrami basis 
+		// actual NLSA: Project temporal process on Laplace-Beltrami basis 
 
 		// TODO: avoid explicit allocation by using strides
 		long l = nlsa_conf.nlsa_rank;
@@ -603,7 +599,7 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 		complex float* Utp = md_alloc(2, Utp_dims, CFL_SIZE);
 		md_transpose(2, 0, 1, Utp_dims, Utp, Ur_dims, Ur, CFL_SIZE);
 
-		// Include Riemann measure
+		// include Riemann measure
 		if (nlsa_conf.riemann) {
 			/* Giannakis, D., & Majda, A. J. (2013).
  			 * Nonlinear Laplacian spectral analysis: capturing intermittent and low‐frequency spatiotemporal patterns in high‐dimensional data.
@@ -684,7 +680,7 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 		debug_printf(DP_DEBUG3, "done\n");
 
 
-		// Make complex number
+		// convert to complex number
 		long zs_dims[1] = { l };
 		complex float* zs = ((NULL != nlsa_conf.name_S) ? create_cfl : anon_cfl) (nlsa_conf.name_S, 1, zs_dims);
 
@@ -692,7 +688,7 @@ extern void nlsa_fary(	const long cal_dims[DIMS],
 			zs[i] = s[i] + 0.i;
 
 
-		// Temporal basis: T = U @ u (alternative: T[i,j] = sum(U[i,:l] * u[:l,j]))
+		// temporal basis: T = U @ u (alternative: T[i,j] = sum(U[i,:l] * u[:l,j]))
 		long T_dims[2] = { N, l };
 		complex float* T = create_cfl(nlsa_conf.name_tbasis, 2, T_dims);
 

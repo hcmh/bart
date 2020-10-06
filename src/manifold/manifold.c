@@ -9,7 +9,6 @@
 
 #include <complex.h>
 #include <math.h>
-// #include <stdio.h>
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -25,7 +24,6 @@
 #include "manifold.h"
 
 #include "linops/linop.h"
-//#include "linops/someops.h"
 #include "linops/fmac.h"
 
 #include "iter/iter.h"
@@ -95,7 +93,7 @@ static void calc_kernel_W(	const long N,
 	xfree(Sf);
 }
 
-// Set sigma to maximum distance
+// set sigma to maximum distance
 static void calc_sigma(const long L_dims[2], const complex float* dist, struct laplace_conf* conf)
 {
 
@@ -219,7 +217,6 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 		if (conf->sigma == -1)
 			calc_sigma(kernel_dims, kernel, conf);
 		
-		
 		if (normalize) {
 			conf->median = crealf(median_complex_float(kernel_dims[0] * kernel_dims[1], kernel));
 			md_zsmul(3, cov_dims, kernel, kernel, 1. / conf->median);
@@ -232,7 +229,8 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 		if (conf->local_v) {
 			/* Weight by local velocities
 			 * Giannakis, D., & Majda, A. J. (2013).
- 			 * Nonlinear Laplacian spectral analysis: capturing intermittent and low‐frequency spatiotemporal patterns in high‐dimensional data.
+ 			 * Nonlinear Laplacian spectral analysis: capturing intermittent and
+			 * low‐frequency spatiotemporal patterns in high‐dimensional data.
  			 * Statistical Analysis and Data Mining: The ASA Data Science Journal, 6(3), 180-194.
 			 */
 
@@ -285,13 +283,13 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 
 			for (int i = 0; i < kernel_dims[0];  i++) {
 
-				thresh = quickselect_complex(&buf[i * kernel_dims[0]], kernel_dims[0], kernel_dims[0] - conf->nn); // Get nn-th smallest distance. (Destroys dist_dump-array!)
+				// get nn-th smallest distance. (Destroys dist_dump-array!)
+				thresh = quickselect_complex(&buf[i * kernel_dims[0]], kernel_dims[0], kernel_dims[0] - conf->nn); 
 
 				for (int j = 0; j < kernel_dims[0]; j++)
 					kernel[i * kernel_dims[0] + j] *= (cabs(dist[i * kernel_dims[0] + j]) > thresh) ? 0 : 1;
 			}
 
-			// Symmetrize
 			symmetrize(kernel_dims, kernel);
 
 			md_free(dist);
@@ -307,7 +305,6 @@ static void gauss_kernel(const long kernel_dims[2], complex float* kernel, const
 		md_free(src_sq);
 		md_free(src_sum);
 		md_free(cov);
-
 }
 
 
@@ -533,8 +530,8 @@ void calc_laplace(struct laplace_conf* conf, const long L_dims[2], complex float
 	} // end switch
 
 	// Adjacency matrix (weight matrix) W must have zeros on main diagonal
-	/* This is not necessary when using the definition L = D - W, 
-	but it is important for P = D^{-1} @ W */
+	// This is not necessary when using the definition L = D - W, 
+	// but it is important for P = D^{-1} @ W
 	#pragma omp parallel for
 	for (int i = 0; i < L_dims[0]; i++)
 			W[i + L_dims[0] * i] = 0;
@@ -642,7 +639,7 @@ void kmeans(long centroids_dims[2], complex float* centroids, long src_dims[2], 
 	float error_old = __FLT_MAX__;
 	float error = 0;
 
-	// Initialize centroids
+	// initialize centroids
 	long delta = (long)floor(n_samp / k);
 	for (int i = 0; i < k; i++)
 		for (int j =0; j < n_coord; j++)
@@ -717,5 +714,4 @@ void kmeans(long centroids_dims[2], complex float* centroids, long src_dims[2], 
 	md_free(diff);
 	md_free(clustersize);
 	free(dist);
-
 }
