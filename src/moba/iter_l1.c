@@ -385,7 +385,7 @@ static void T1inv_del(const operator_data_t* _data)
 }
 
 
-static const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, const long dims[DIMS], struct nlop_s* nlop)
+const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, const long dims[DIMS], struct nlop_s* nlop)
 {
 	PTR_ALLOC(struct T1inv2_s, data);
 	SET_TYPEID(T1inv2_s, data);
