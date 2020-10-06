@@ -223,18 +223,20 @@ const struct signal_model signal_multi_grad_echo_defaults = {
 	.m0 = 1.,
 	.m0_water = .80,
 	.m0_fat = .20,
-	.t2star = .03, // s
+	.t2 = .03, // s
 	.off_reson = 100, // Hz
-	.te = 3. * 1.E-3, // s
+	.te = 1.6 * 1.E-3, // s
 	.b0 = 3., // Tesla
 };
 
 
 complex float calc_fat_modulation(float b0, float TE)
 {
-	enum { FATPEAKS = 6 };
-	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60 };
-	float amp[FATPEAKS] = { 0.087, 0.693, 0.128, 0.004, 0.039, 0.048 };
+	/* refer to:
+	   ISMRM water/fat toolbox
+	 */
+	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60, 0 };
+	float amp[FATPEAKS] = { 0.087, 0.693, 0.128, 0.004, 0.039, 0.048, 0 };
 
 	complex float out = 0.;
 
@@ -247,8 +249,8 @@ complex float calc_fat_modulation(float b0, float TE)
 	return out;
 }
 
-
-static complex float signal_multi_grad_echo(const struct signal_model* data, int ind)
+#if 0
+static complex float signal_MECO_WFR2S(const struct signal_model* data, int ind)
 {
 	assert(data->m0 == data->m0_water + data->m0_fat);
 
@@ -256,18 +258,30 @@ static complex float signal_multi_grad_echo(const struct signal_model* data, int
 
 	complex float cshift = calc_fat_modulation(data->b0, TE);
 
-	float W = data->m0_water;
-	float F = data->m0_fat;
+	complex float z = -1. / data->t2 + 2.i * M_PI * data->off_reson;
 
-	complex float z = -1. / data->t2star + 2.i * M_PI * data->off_reson;
+	return (data->m0_water + data->m0_fat * cshift) * cexpf(z * TE);
+}
+#endif
 
-	return (W + F * cshift) * cexpf(z * TE);
+
+static complex float signal_MECO_R2S(const struct signal_model* data, int ind)
+{
+	assert(data->m0 == data->m0_water + data->m0_fat);
+
+	complex float TE = data->te * ind + 0.i;
+
+	float ofr = 20.; // data->off_reson
+
+	complex float z = -1. / data->t2 + 2.i * M_PI * ofr;
+
+	return data->m0 * cexpf(z * TE);
 }
 
 void multi_grad_echo_model(const struct signal_model* data, int N, complex float out[N])
 {
 	for (int ind = 0; ind < N; ind++)
-		out[ind] = signal_multi_grad_echo(data, ind);
+		out[ind] = signal_MECO_R2S(data, ind);
 }
 
 
