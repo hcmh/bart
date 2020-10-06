@@ -23,7 +23,7 @@ tests/test-nlsa-backprojection: traj phantom resize squeeze nlsa nrmse
 		$(TOOLDIR)/phantom -t t.ra -s8 k.ra 						;\
 		$(TOOLDIR)/resize -c 1 1 k.ra k1.ra 						;\
 		$(TOOLDIR)/squeeze k1.ra kx.ra 							;\
-		$(TOOLDIR)/nlsa -L50 -r50 -w10 -m0 -z -n0 kx.ra nlsa.ra s.ra back.ra 		;\
+		$(TOOLDIR)/nlsa -L0 -r41 -w10 -m0 -z -n0 kx.ra nlsa.ra s.ra back.ra 		;\
 		$(TOOLDIR)/nrmse -t 0.00001 kx.ra back.ra 	 				;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
