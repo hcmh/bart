@@ -19,7 +19,7 @@
 
 #include "T1fun.h"
 
-// #define general  //FIXME: more general, but less gpu efficient
+#define general  //FIXME: more general, but less gpu efficient
 
 struct T1_s {
 

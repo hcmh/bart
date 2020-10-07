@@ -58,7 +58,7 @@ struct T2_s {
 
 DEF_TYPEID(T2_s);
 
-// Calculate Model: rho .*exp(-scaling_z.*z.*TI), TI = [0,1]
+// Calculate Model: rho .*exp(-scaling_z.*z.*TI)
 static void T2_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	struct T2_s* data = CAST_DOWN(T2_s, _data);
@@ -78,12 +78,8 @@ static void T2_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	// -1*scaling_z.*z
 	md_zsmul(data->N, data->map_dims, data->tmp_map, data->z, -1 * data->scaling_z);
 
-	// exp(-TI.*scaling_z.*z), TI = [0,1]
-
-	for(int k = 0; k < data->TI_dims[TE_DIM]; k++)
-		md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->tmp_exp + data->out_strs[TE_DIM] * k, data->map_strs, (void*)data->tmp_map, data->TI[k]);
-
-	// md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_map, data->TI_strs, data->TI);
+	// exp(-TI.*scaling_z.*z), 
+	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_map, data->TI_strs, data->TI);
 
 	md_zexp(data->N, data->out_dims, data->tmp_exp, data->tmp_exp);
 
@@ -92,20 +88,12 @@ static void T2_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	md_zsmul(data->N, data->out_dims, data->tmp_drho, data->tmp_exp, 1.0);
 
 	// model:
-	// rho.*exp(-TI.*scaling_z.*z), TI = [0,1]
+	// rho.*exp(-TI.*scaling_z.*z)
 	md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->rho, data->out_strs, data->tmp_exp);
 
-	long img_dims[data->N];
-	md_select_dims(data->N, FFT_FLAGS, img_dims, data->map_dims);
-
 	// dz: z' = -rho.*scaling_z.*TI.*exp(-TI.*scaling_z.*z)
-	// TI.*exp(-TI.*scaling_z.*z), TI = [0,1]
-
-	for (int s = 0; s < data->out_dims[SLICE_DIM]; s++)
-		for(int k = 0; k < data->TI_dims[TE_DIM]; k++)
-			md_zsmul(data->N, img_dims, (void*)data->tmp_exp + data->out_strs[TE_DIM] * k + data->out_strs[SLICE_DIM] * s, (void*)data->tmp_exp + data->out_strs[TE_DIM] * k + data->out_strs[SLICE_DIM] * s, data->TI[k]);
-
-	// md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->out_strs, data->tmp_exp, data->TI_strs, data->TI);
+	// TI.*exp(-TI.*scaling_z.*z)
+	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->out_strs, data->tmp_exp, data->TI_strs, data->TI);
 	md_zsmul(data->N, data->out_dims, data->tmp_exp, data->tmp_exp, -1*data->scaling_z);
 	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dz, data->map_strs, data->rho, data->out_strs, data->tmp_exp);
 }
@@ -251,7 +239,7 @@ struct nlop_s* nlop_T2_create(int N, const long map_dims[N], const long out_dims
 	data->tmp_exp = my_alloc(N, out_dims, CFL_SIZE);
 	data->tmp_drho = my_alloc(N, out_dims, CFL_SIZE);
 	data->tmp_dz = my_alloc(N, out_dims, CFL_SIZE);
-	data->TI = md_alloc(N, TI_dims, CFL_SIZE);
+	data->TI = my_alloc(N, TI_dims, CFL_SIZE);
 
 	md_copy(N, TI_dims, data->TI, TI, CFL_SIZE);
 
