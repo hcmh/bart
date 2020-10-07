@@ -2,6 +2,7 @@
 
 struct iter3_irgnm_conf;
 struct nlop_s;
+struct opt_reg_s;
 
 
 #ifndef DIMS

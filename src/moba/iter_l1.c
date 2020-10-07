@@ -39,7 +39,9 @@
 #include "iter/prox.h"
 #include "iter/admm.h"
 
-#include "optreg_moba.h"
+#include "optreg.h"
+
+#include "grecon/optreg.h"
 #include "grecon/italgo.h"
 
 #include "linops/linop.h"
@@ -49,6 +51,9 @@
 
 
 #include "iter_l1.h"
+
+// TODO: "10" stands for the enum of the signal model
+#define T1_MODEL 10
 
 
 
@@ -126,7 +131,7 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 
 				if (constrain_flags & 1) {
 
-					debug_printf(DP_DEBUG3, "Cosen constrained maps: %d\n", map);
+					debug_printf(DP_DEBUG4, "Chosen constrained maps: %d\n", map);
 
 					md_zsmax(DIMS, dims1, (_Complex float*)dst + map * res * res
 							+ i * res * res * parameters + j * res * res * parameters * slices,
@@ -244,16 +249,6 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 
 	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
 
-	NESTED(void, continuation, (struct ist_data* itrdata))
-	{
-		itrdata->scale = data->alpha;
-	};
-
-	UNUSED(continuation);
-
-	unsigned int llr_blk = 8;
-	unsigned int shift_mode = 1;
-
 	// initialize prox functions
 
 	const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
@@ -263,7 +258,7 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 
 	debug_printf(DP_INFO, "##reg. alpha = %f\n", data->conf->ropts->lambda);
 
-	opt_reg_configure_moba(DIMS, data->dims, data->conf->ropts, thresh_ops, trafos, llr_blk, shift_mode, NULL, NULL, data->conf->usegpu);
+	opt_reg_moba_configure(DIMS, data->dims, data->conf->ropts, thresh_ops, trafos, T1_MODEL);
 
 	struct iter_admm_conf conf1 = iter_admm_defaults;
 
@@ -275,8 +270,8 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 	unsigned int D = data->conf->ropts->r;;
 
 	const struct operator_s* normaleq_op = NULL;
-        
-        UNUSED(normaleq_op);
+
+	UNUSED(normaleq_op);
 
 	struct admm_plan_s admm_plan = {
 
@@ -329,7 +324,7 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 		(struct iter_op_s){ normal, CAST_UP(data) }, NULL);
 
 
-	opt_reg_free_moba(data->conf->ropts, thresh_ops, trafos);
+	opt_reg_free(data->conf->ropts, thresh_ops, trafos);
 
 
 	md_free(tmp);
@@ -402,7 +397,7 @@ const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, 
 
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims); 
-	img_dims[COEFF_DIM] = img_dims[COEFF_DIM] - conf->not_wav_maps;	// Just penalize T1 map
+	img_dims[COEFF_DIM] = img_dims[COEFF_DIM] - conf->not_wav_maps;	// jointly penalize the first few maps
 	debug_print_dims(DP_INFO, DIMS, img_dims);
 
 	auto prox1 = create_prox(img_dims, COEFF_FLAG, conf->wav_reg);
@@ -467,10 +462,7 @@ void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
         const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	unsigned int llr_blk = 8;
-	unsigned int shift_mode = 1;
-
-	opt_reg_configure_moba(DIMS, dims, conf->ropts, thresh_ops, trafos, llr_blk, shift_mode, NULL, NULL, conf->usegpu);
+	opt_reg_moba_configure(DIMS, dims, conf->ropts, thresh_ops, trafos, T1_MODEL);
 
 	struct iter_admm_conf conf1 = iter_admm_defaults;
 
@@ -493,7 +485,7 @@ void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
 	operator_p_free(inv_op);
 
 #if 0
-         opt_reg_free_moba(conf->ropts, thresh_ops, trafos);
+	opt_reg_free(conf->ropts, thresh_ops, trafos);
 #endif
 
 }

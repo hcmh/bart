@@ -1,14 +1,12 @@
-/* Copyright 2015-2017. The Regents of the University of California.
- * Copyright 2015-2018. Martin Uecker.
+/* Copyright 2020. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
- *
+ * 
  * Authors:
- * 2015-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2015-2016 Frank Ong <frankong@berkeley.edu>
- * 2015-2017 Jon Tamir <jtamir@eecs.berkeley.edu>
- * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
- * 2020      Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
+ * 2020 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
+ * 2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ * 
  */
 
 #include <assert.h>
@@ -17,189 +15,129 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "num/multind.h"
-#include "num/iovec.h"
-#include "num/ops_p.h"
-#include "num/ops.h"
+#include "grecon/optreg.h"
 
 #include "iter/prox.h"
 #include "iter/thresh.h"
 
+#include "linops/grad.h"
 #include "linops/linop.h"
 #include "linops/someops.h"
-#include "linops/grad.h"
-#include "linops/sum.h"
-#include "linops/waveop.h"
-#include "linops/fmac.h"
 
+#include "misc/debug.h"
+#include "misc/mri.h"
+#include "misc/opts.h"
+#include "misc/utils.h"
+
+#include "num/iovec.h"
+#include "num/multind.h"
+#include "num/ops_p.h"
+#include "num/ops.h"
 
 #include "wavelet/wavthresh.h"
-
 #include "lowrank/lrthresh.h"
 
-#include "misc/mri.h"
-#include "misc/utils.h"
-#include "misc/opts.h"
-#include "misc/debug.h"
+#include "optreg.h"
 
-#include "optreg_moba.h"
-
-
-#define CFL_SIZE sizeof(complex float)
 
 
 void help_reg_moba(void)
 {
-	printf( "Generalized regularization options (experimental)\n\n"
+	printf( "Generalized regularization options for model-based reconstructions (experimental)\n\n"
 			"-R <T>:A:B:C\t<T> is regularization type (single letter),\n"
-			"\t\tA is transform flags, B is joint threshold flags,\n"
-			"\t\tand C is regularization value. Specify any number\n"
-			"\t\tof regularization terms.\n\n"
-			"-R Q:C    \tl2-norm in image domain\n"
-                        "-R S:C    \tpositive constraint\n"
-			"-R W:A:B:C\tl1-wavelet\n"
-		        "\t\tC is an integer percentage, i.e. from 0-100\n"
+			"\t\tA is transform flags,\n"
+			"\t\tB is joint threshold flags,\n"
+			"\t\tC is regularization value.\n"
+			"\t\tSpecify any number of regularization terms.\n\n"
+			"-R W:0:0:C\tl1-wavelet (A and B are internally determined by moba models)\n"
+			"-R L:0:0:C\tlocally low rank (A and B are internally determined by moba models)\n"
+			"-R Q:C\tl2 regularization\n"
+			"-R S\tnon-negative constraint\n"
 			"-R T:A:B:C\ttotal variation\n"
-			"-R M2:C    \tmanifold l2-norm in image domain\n"
-			"-R T:7:0:.01\t3D isotropic total variation with 0.01 regularization.\n"
-			"-R L:7:7:.02\tLocally low rank with spatial decimation and 0.02 regularization.\n"
-			"-R M:7:7:.03\tMulti-scale low rank with spatial decimation and 0.03 regularization.\n"
-	      );
+		  );
 }
-
-
-
 
 bool opt_reg_moba(void* ptr, char c, const char* optarg)
 {
 	struct opt_reg_s* p = ptr;
+
 	struct reg_s* regs = p->regs;
 	const int r = p->r;
-	const float lambda = p->lambda;
 
 	assert(r < NUM_REGS);
-
+	
 	char rt[5];
-
+	int ret;
+	
 	switch (c) {
 
-	case 'r': {
+	case 'r':
 
 		// first get transform type
-		int ret = sscanf(optarg, "%4[^:]", rt);
+		ret = sscanf(optarg, "%4[^:]", rt);
 		assert(1 == ret);
 
-		// next switch based on transform type
 		if (strcmp(rt, "W") == 0) {
 
 			regs[r].xform = L1WAV;
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%f", &regs[r].xflags, &regs[r].jflags, &regs[r].lambda);
 			assert(3 == ret);
-		}
-		else if (strcmp(rt, "L") == 0) {
+
+		} else 
+		if (strcmp(rt, "L") == 0) {
 
 			regs[r].xform = LLR;
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%f", &regs[r].xflags, &regs[r].jflags, &regs[r].lambda);
 			assert(3 == ret);
-		}
-		else if (strcmp(rt, "T") == 0) {
+
+		} else 
+		if (strcmp(rt, "Q") == 0) {
+
+			regs[r].xform = L2IMG;
+			int ret = sscanf(optarg, "%*[^:]:%f", &regs[r].lambda);
+			assert(1 == ret);
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
+
+		} else 
+		if (strcmp(rt, "S") == 0) {
+
+			regs[r].xform = POS;
+
+		} else 
+		if (strcmp(rt, "T") == 0) {
 
 			regs[r].xform = TV;
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%f", &regs[r].xflags, &regs[r].jflags, &regs[r].lambda);
 			assert(3 == ret);
-		}
-		else if (strcmp(rt, "S") == 0) {
 
-			regs[r].xform = POS;
-			int ret = sscanf(optarg, "%*[^:]:%f", &regs[r].lambda);
-			assert(1 == ret);
-			regs[r].xflags = 0u;
-			regs[r].jflags = 0u;
-		}
-		else if (strcmp(rt, "Q") == 0) {
-
-			regs[r].xform = L2IMG;
-			int ret = sscanf(optarg, "%*[^:]:%f", &regs[r].lambda);
-			assert(1 == ret);
-			regs[r].xflags = 0u;
-			regs[r].jflags = 0u;
-		}
-		else if (strcmp(rt, "h") == 0) {
+		} else 
+		if (strcmp(rt, "h") == 0) {
 
 			help_reg_moba();
 			exit(0);
-		}
-		else {
-
-			error("Unrecognized regularization type: \"%s\" (-rh for help).\n", rt);
-		}
-
-		p->r++;
-		break;
-	}
-
-	case 'l':
-
-		assert(r < NUM_REGS);
-		regs[r].lambda = lambda;
-		regs[r].xflags = 0u;
-		regs[r].jflags = 0u;
-
-		if (0 == strcmp("1", optarg)) {
-
-			regs[r].xform = L1WAV;
-			regs[r].xflags = 7u;
-
-		} else if (0 == strcmp("2", optarg)) {
-
-			regs[r].xform = L2IMG;
 
 		} else {
 
-			error("Unknown regularization type.\n");
+			error(" > Unrecognized regularization type: \"%s\"\n", rt);
 		}
 
-		p->lambda = -1.;
 		p->r++;
 		break;
+
 	}
 
 	return false;
 }
 
-bool opt_reg_init_moba(struct opt_reg_s* ropts)
+
+static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int model)
 {
-	ropts->r = 0;
-	ropts->lambda = -1;
-	ropts->k = 0;
+	UNUSED(model);
 
-	return false;
-}
-
-#if 0
-void opt_bpursuit_configure(struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], const struct linop_s* model_op, const complex float* data, const float eps)
-{
-	int nr_penalties = ropts->r;
-	assert(NUM_REGS > nr_penalties);
-
-	const struct iovec_s* iov = linop_codomain(model_op);
-	prox_ops[nr_penalties] = prox_l2ball_create(iov->N, iov->dims, eps, data);
-	trafos[nr_penalties] = linop_clone(model_op);
-
-	ropts->r++;
-}
-#endif
-
-void opt_reg_configure_moba(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS],
-unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], const _Complex float* Q, bool use_gpu)
-{
-	UNUSED(Q);
-	UNUSED(Q_dims);
-	UNUSED(llr_blk);
-	UNUSED(use_gpu);
-	
 	float lambda = ropts->lambda;
-	bool randshift = shift_mode == 1;
+	unsigned int shift_model = 1;
+	bool randshift = shift_model == 1;
 #if 0
 	bool overlapping_blocks = shift_mode == 2;
 #endif
@@ -497,19 +435,22 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 
 			break;
 
+		default:
+
+			prox_ops[nr] = NULL;
+			trafos[nr] = NULL;
+
+			break;
 
 		}
 	}
 }
 
 
-void opt_reg_free_moba(struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS])
+
+void opt_reg_moba_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int model)
 {
-	int nr_penalties = ropts->r;
 
-	for (int nr = 0; nr < nr_penalties; nr++) {
+	opt_reg_T1_configure(N, dims, ropts, prox_ops, trafos, model);
 
-		operator_p_free(prox_ops[nr]);
-		linop_free(trafos[nr]);
-	}
 }

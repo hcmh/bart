@@ -31,12 +31,14 @@
 #include "linops/linop.h"
 
 #include "iter/iter2.h"
-#include "moba/optreg_moba.h"
-#include "grecon/italgo.h"
 
+#include "moba/optreg.h"
 #include "moba/recon_T1.h"
 #include "moba/recon_T2.h"
 
+
+#include "grecon/optreg.h"
+#include "grecon/italgo.h"
 
 
 
@@ -61,7 +63,7 @@ int main_moba(int argc, char* argv[])
 	bool unused = false;
 	enum mdb_t { MDB_T1, MDB_T2 } mode = { MDB_T1 };
 
-	opt_reg_init_moba(&conf.ropts);
+	opt_reg_init(&conf.ropts);
 
 
 	const struct opt_s opts[] = {
