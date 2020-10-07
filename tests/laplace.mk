@@ -25,11 +25,11 @@ tests/test-laplace-norm: ones zeros join laplace flip scale delta saxpy nrmse
 		$(TOOLDIR)/laplace -N1 -s1 -n j.ra Lg.ra			;\
 		$(TOOLDIR)/flip 1 j.ra jf.ra				;\
 		$(TOOLDIR)/join 1 j.ra jf.ra j.ra jf.ra j.ra jf.ra T.ra	;\
-		$(TOOLDIR)/bart scale -- -1 T.ra  T1.ra ;\
-		$(TOOLDIR)/bart delta 2 3 60 delta.ra ;\
-		$(TOOLDIR)/bart saxpy 30 delta.ra T1.ra  T2.ra ;\
-		$(TOOLDIR)/bart scale 0.03448 T2.ra T3.ra ;\
-		$(TOOLDIR)/bart nrmse -t 0.002 T3.ra  Lg.ra ;\
+		$(TOOLDIR)/scale -- -1 T.ra  T1.ra ;\
+		$(TOOLDIR)/delta 2 3 60 delta.ra ;\
+		$(TOOLDIR)/saxpy 30 delta.ra T1.ra  T2.ra ;\
+		$(TOOLDIR)/scale 0.03448 T2.ra T3.ra ;\
+		$(TOOLDIR)/nrmse -t 0.002 T3.ra  Lg.ra ;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 	
