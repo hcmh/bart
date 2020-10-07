@@ -274,7 +274,7 @@ static bool test_nlop_zcos(void)
 	enum { N = 3 };
 	long dims[N] = { 10, 7, 3 };
 
-	struct nlop_s* zcos = nlop_zcos(N, dims);
+	struct nlop_s* zcos = nlop_zcos_create(N, dims);
 
 	float err_der = nlop_test_derivatives(zcos);
 	float err_adj = nlop_test_adj_derivatives(zcos, false);
@@ -286,7 +286,7 @@ static bool test_nlop_zcos(void)
 
 
 
-UT_REGISTER_TEST(test_nlop_zsin);
+UT_REGISTER_TEST(test_nlop_zcos);
 
 static bool test_nlop_zsin(void)
 {
