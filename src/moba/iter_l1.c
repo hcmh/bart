@@ -264,7 +264,7 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 
 	conf1.maxiter = maxiter;
 	conf1.rho = data->conf->rho;
-	conf1.cg_eps = 0.01;
+	conf1.cg_eps = 0.01 * alpha;
 
 	struct iter_admm_conf *conf = &conf1;
 	unsigned int D = data->conf->ropts->r;;
@@ -287,7 +287,8 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 		.hogwild = conf->hogwild,
 		.ABSTOL = conf->ABSTOL,
 		.RELTOL = conf->RELTOL,
-		.alpha = conf->alpha * conf->INTERFACE.alpha,
+		.alpha = conf->alpha,
+		.lambda = alpha,
 		.tau = conf->tau,
 		.tau_max = conf->tau_max,
 		.mu = conf->mu,
