@@ -49,3 +49,8 @@ doc/commands.txt
 
 # test files
 tests/test-*
+
+#clangd cache
+.clangd/*
+.cache/*
+compile_commands.json
