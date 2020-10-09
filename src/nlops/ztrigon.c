@@ -34,7 +34,8 @@ DEF_TYPEID(zsin_s);
 static void zsin_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(zsin_s, _data);
-
+	if (NULL == data->xn)
+		data->xn = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
 	md_zsin(data->N, data->dims, dst, src);
 	md_zcos(data->N, data->dims, data->xn, src);
 }
@@ -76,7 +77,8 @@ struct nlop_s* nlop_zsin_create(int N, const long dims[N])
 
 	data->N = N;
 	data->dims = *PTR_PASS(ndims);
-	data->xn = md_alloc(N, dims, CFL_SIZE);
+	data->xn = NULL;
+	
 
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)),
 		zsin_fun, zsin_der, zsin_adj, NULL, NULL, zsin_del);
@@ -96,7 +98,8 @@ DEF_TYPEID(zcos_s);
 static void zcos_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(zcos_s, _data);
-
+	if (NULL == data->xn)
+		data->xn = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
 	md_zcos(data->N, data->dims, dst, src);
 	md_zsin(data->N, data->dims, data->xn, src);
 	md_zsmul(data->N, data->dims, data->xn, data->xn, -1);
@@ -139,7 +142,7 @@ struct nlop_s* nlop_zcos_create(int N, const long dims[N])
 
 	data->N = N;
 	data->dims = *PTR_PASS(ndims);
-	data->xn = md_alloc(N, dims, CFL_SIZE);
+	data->xn = NULL;
 
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)),
 		zcos_fun, zcos_der, zcos_adj, NULL, NULL, zcos_del);
