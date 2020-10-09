@@ -113,7 +113,7 @@ static const struct operator_s* operator_zaxpbz_create(int N, const long dims[N]
 
 	unsigned int Ns[3] = {N, N, N};
 
-	return operator_generic_create(3, MD_BIT(0), Ns, op_dims, CAST_UP(PTR_PASS(data)), zaxpbz_fun, zaxpbz_del);
+	return operator_generic_create(3, (bool[3]){true, false, false}, Ns, op_dims, CAST_UP(PTR_PASS(data)), zaxpbz_fun, zaxpbz_del);
 }
 
 

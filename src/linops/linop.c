@@ -137,12 +137,12 @@ struct linop_s* linop_with_props_create2(unsigned int ON, const long odims[ON], 
 
 	operator_property_flags_t lin_props[1][1] = {{linop_props}};
 
-	lo->forward = operator_with_props_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, op_property_io_create(1, 1, MD_BIT(0), lin_props));
-	lo->adjoint = operator_with_props_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, op_property_io_create(1, 1, MD_BIT(0), lin_props));
+	lo->forward = operator_with_props_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
+	lo->adjoint = operator_with_props_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
 
 	if (NULL != normal) {
 
-		lo->normal = operator_with_props_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, op_property_io_create(1, 1, MD_BIT(0), lin_props));
+		lo->normal = operator_with_props_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
 
 	} else {
 

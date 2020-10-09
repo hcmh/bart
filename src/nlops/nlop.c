@@ -249,7 +249,11 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 		}
 	}
 
-	n->op = operator_generic_with_props_create2(OO + II, (1lu << OO) - 1lu, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, op_property_create(OO + II, (1lu << OO) - 1lu, tmp_props));
+	bool io_flags[OO + II];
+	for (uint i = 0; i < OO + II; i++)
+		io_flags[i] = i < OO;
+
+	n->op = operator_generic_with_props_create2(OO + II, io_flags, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, op_property_create(OO + II, io_flags, tmp_props));
 
 
 	return PTR_PASS(n);
@@ -325,7 +329,11 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 		for (int j = 0; j < II + OO; j++)
 			tmp_props[i][j] = MD_BIT(OP_PROP_ATOMIC);
 
-	n->op = operator_generic_with_props_create2(OO + II, (1lu << OO) - 1lu, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, op_property_create(OO + II, (1lu << OO) - 1lu, tmp_props));
+	bool io_flags[OO + II];
+	for (uint i = 0; i < OO + II; i++)
+		io_flags[i] = i < OO;
+
+	n->op = operator_generic_with_props_create2(OO + II, io_flags, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, op_property_create(OO + II, io_flags, tmp_props));
 
 
 	return PTR_PASS(n);
@@ -486,7 +494,18 @@ void nlop_generic_apply_select_derivative_unchecked(const struct nlop_s* op, int
 	unsigned int II = nlop_get_nr_in_args(op);
 	unsigned int OO = nlop_get_nr_out_args(op);
 
-	auto opts =  op_options_select_der_create(OO, II, out_der_flag, in_der_flag);
+	assert(II <= 8 *sizeof(out_der_flag));
+	assert(OO <= 8 *sizeof(in_der_flag));
+
+	bool out_der_arr[OO];
+	for(uint i = 0; i < OO; i++)
+		out_der_arr[i] = MD_IS_SET(out_der_flag, i);
+	
+	bool in_der_arr[II];
+	for(uint i = 0; i < II; i++)
+		in_der_arr[i] = MD_IS_SET(in_der_flag, i);
+
+	auto opts =  op_options_select_der_create(OO, II, out_der_arr, in_der_arr);
 	nlop_generic_apply_with_opts_unchecked(op, N, args, opts);
 	op_options_free(opts);
 }

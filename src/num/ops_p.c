@@ -19,7 +19,7 @@
 struct operator_s {
 
 	unsigned int N;
-	operator_io_flags_t io_flags;
+	const bool* io_flags;
 	const struct iovec_s** domain;
 
 	operator_data_t* data;
@@ -56,7 +56,10 @@ const struct iovec_s* operator_p_domain(const struct operator_p_s* _op)
 {
 	auto op = (const struct operator_s*)_op;
 	assert(3 == op->N);
-	assert(2u == op->io_flags);
+	assert(!op->io_flags[0]);
+	assert(op->io_flags[1]);
+	assert(!op->io_flags[2]);
+
 	return op->domain[2];
 }
 
@@ -70,7 +73,10 @@ const struct iovec_s* operator_p_codomain(const struct operator_p_s* _op)
 {
 	auto op = (const struct operator_s*)_op;
 	assert(3 == op->N);
-	assert(2u == op->io_flags);
+	assert(!op->io_flags[0]);
+	assert(op->io_flags[1]);
+	assert(!op->io_flags[2]);
+
 	return op->domain[1];
 }
 
@@ -128,6 +134,7 @@ static void operator_del(const struct shared_obj_s* sptr)
 		iovec_free(x->domain[i]);
 
 	xfree(x->domain);
+	xfree(x->io_flags);
 	op_property_free(x->props);
 	xfree(x);
 }
@@ -154,13 +161,15 @@ const struct operator_p_s* operator_p_create2(unsigned int ON, const long out_di
 	(*dom)[1] = iovec_create2(ON, out_dims, out_strs, CFL_SIZE);
 	(*dom)[2] = iovec_create2(IN, in_dims, in_strs, CFL_SIZE);
 
+	bool io_flags[3] = {false, true, false};
+
 	o->N = 3;
-	o->io_flags = MD_BIT(1);
+	o->io_flags = ARR_CLONE(bool[3], io_flags);
 	o->domain = *PTR_PASS(dom);
 	o->data = CAST_UP(PTR_PASS(op));
 	o->apply = op_p_apply;
 	o->apply_opts = NULL;
-	o->props = op_property_create(3, MD_BIT(1), NULL);
+	o->props = op_property_create(3, io_flags, NULL);
 	o->del = op_p_del;
 
 	shared_obj_init(&o->sptr, operator_del);
@@ -202,7 +211,10 @@ const struct operator_s* operator_p_upcast(const struct operator_p_s* op)
 const struct operator_p_s* operator_p_downcast(const struct operator_s* op)
 {
 	assert(3 == op->N);
-	assert(2u == op->io_flags);
+	
+	assert(!op->io_flags[0]);
+	assert(op->io_flags[1]);
+	assert(!op->io_flags[2]);
 
 	return (const struct operator_p_s*)op;
 }

@@ -14,7 +14,6 @@
 #include "num/ops_opts.h"
 
 typedef struct operator_data_s { TYPEID* TYPEID; } operator_data_t;
-typedef uint64_t operator_io_flags_t;
 
 typedef void (*operator_fun_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)]);
 typedef void (*operator_fun_opts_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)], const struct op_options_s* options);
@@ -39,15 +38,15 @@ extern const struct operator_s* operator_with_props_create2(unsigned int ON, con
 		unsigned int IN, const long in_dims[__VLA(IN)], const long in_strs[__VLA(IN)],
 		operator_data_t* data, operator_fun_opts_t apply, operator_del_t de, const struct op_property_s* props);
 
-extern const struct operator_s* operator_generic_create(unsigned int N, operator_io_flags_t io_flags,
+extern const struct operator_s* operator_generic_create(unsigned int N, const _Bool io_flags[N],
 		const unsigned int D[__VLA(N)], const long* out_dims[__VLA(N)],
 		operator_data_t* data, operator_fun_t apply, operator_del_t del);
 
-extern const struct operator_s* operator_generic_create2(unsigned int N, operator_io_flags_t io_flags,
+extern const struct operator_s* operator_generic_create2(unsigned int N, const _Bool io_flags[N],
 			const unsigned int D[__VLA(N)], const long* out_dims[__VLA(N)], const long* out_strs[__VLA(N)],
 			operator_data_t* data, operator_fun_t apply, operator_del_t del);
 
-extern const struct operator_s* operator_generic_with_props_create2(unsigned int N, operator_io_flags_t io_flags,
+extern const struct operator_s* operator_generic_with_props_create2(unsigned int N, const _Bool io_flags[N],
 			const unsigned int D[__VLA(N)], const long* dims[__VLA(N)], const long* strs[__VLA(N)],
 			operator_data_t* data, operator_fun_opts_t apply, operator_del_t del, const struct op_property_s* props);
 
@@ -104,7 +103,6 @@ struct iovec_s;
 extern unsigned int operator_nr_args(const struct operator_s* op);
 extern unsigned int operator_nr_in_args(const struct operator_s* op);
 extern unsigned int operator_nr_out_args(const struct operator_s* op);
-extern unsigned int operator_ioflags(const struct operator_s* op);
 
 extern const struct iovec_s* operator_arg_domain(const struct operator_s* op, unsigned int n);
 extern const struct iovec_s* operator_arg_in_domain(const struct operator_s* op, unsigned int n);
