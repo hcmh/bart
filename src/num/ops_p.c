@@ -273,7 +273,10 @@ const struct operator_s* operator_p_bind(const struct operator_p_s* op, float al
 	float* nalpha = xmalloc(sizeof(float));
 	*nalpha = alpha;
 
-	return operator_attach(operator_bind2(operator_p_upcast(op), 0, 1, (long[]){ 1 }, (long[]){ 0 }, nalpha), nalpha, xfree);
+	const struct operator_s* bind = operator_bind2(operator_p_upcast(op), 0, 1, (long[]){ 1 }, (long[]){ 0 }, nalpha);
+	const struct operator_s* result = operator_attach(bind, nalpha, xfree);
+	operator_free(bind);
+	return result;
 }
 
 
