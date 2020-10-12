@@ -40,6 +40,7 @@ int main_traj(int argc, char* argv[])
 	int E = 1;
 	int mb = 1;
 	int turns = 1;
+	int even_echo_shift = 0;
 	float rot = 0.;
 	const char* pat_file = NULL;
 	bool force_grid = false;
@@ -67,6 +68,7 @@ int main_traj(int argc, char* argv[])
 		OPT_INT('a', &conf.accel, "a", "acceleration"),
 		OPT_INT('t', &turns, "t", "turns"),
 		OPT_INT('m', &mb, "mb", "SMS multiband factor"),
+		OPT_INT('v', &even_echo_shift, "(shift)", "(even echo shift)"),
 		OPT_SET('l', &conf.aligned, "aligned partition angle"),
 		OPT_SET('g', &conf.golden_partition, "golden angle in partition direction"),
 		OPT_SET('r', &conf.radial, "radial"),
@@ -248,9 +250,8 @@ int main_traj(int argc, char* argv[])
 			double read = (float)(i + D - X) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
 
 			if (conf.mems_traj) {
-				// read = ((e % 2) ? (float)(D - i - 2) : (float)(i + D - X)) - (float)D / 2.;
 				if (e % 2) // even
-					read = (float)(D - i - 2) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
+					read = (float)(D - i - even_echo_shift) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
 				else // odd
 					read = (float)(i + D - X) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
 			}
