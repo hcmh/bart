@@ -4,6 +4,7 @@
  *
  * Authors:
  * 2017-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
  */
 
 #include <complex.h>
@@ -103,7 +104,7 @@ static bool test_iter_irgnm_lsqr0(bool ref)
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_conjgrad, CAST_UP(&conf),
-				NULL, &zexp->derivative[0][0], NULL,
+				NULL, false, &zexp->derivative[0][0], NULL,
 				0, NULL, NULL, NULL);
 
 	iter4_irgnm2(CAST_UP(&iter3_irgnm_defaults), zexp,
@@ -160,7 +161,7 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_admm, CAST_UP(&conf),
-				NULL, &zexp->derivative[0][0], NULL,
+				NULL, true, &zexp->derivative[0][0], NULL,
 				regu ? 1 : 0,
 				regu ? prox_ops : NULL,
 				regu ? trafos : NULL,
@@ -262,7 +263,7 @@ static bool test_iter_irgnm_l1(void)
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_fista, CAST_UP(&conf),
-				NULL, &nlid->derivative[0][0], NULL,
+				NULL, true, &nlid->derivative[0][0], NULL,
 				1, prox_ops, trafos, NULL);
 
 	struct iter3_irgnm_conf conf2 = iter3_irgnm_defaults;

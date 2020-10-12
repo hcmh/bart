@@ -473,7 +473,7 @@ void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
 	conf1.cg_eps = 0.005;
 		
 	inv_op = lsqr2_create(&lsqr_defaults, iter2_admm, CAST_UP(&conf1), dst, &nlop->derivative[0][0],
-                         NULL, conf->ropts->r, thresh_ops, trafos, NULL);
+                         NULL, true, conf->ropts->r, thresh_ops, trafos, NULL);
 #endif
 
 	inv_op = T1inv_p_create(conf, dims, nlop);
