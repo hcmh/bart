@@ -138,8 +138,6 @@ const struct operator_p_s* lsqr2_create(const struct lsqr_conf* conf,
 
 		debug_printf(DP_DEBUG1, "lsqr: add GPU wrapper\n");
 		itop_op = operator_p_gpu_wrapper(itop_op);
-
-		adjoint = (NULL != adjoint) ? operator_gpu_wrapper(adjoint) : NULL;
 	}
 
 	const struct operator_p_s* lsqr_op;
