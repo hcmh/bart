@@ -41,7 +41,6 @@
 #include "nn/activation.h"
 #include "nn/layers.h"
 #include "nn/weights.h"
-#include "nn/nn.h"
 #include "nn/losses.h"
 #include "nn/init.h"
 

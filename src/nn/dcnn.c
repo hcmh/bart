@@ -30,7 +30,7 @@
 #include "nn/activation.h"
 #include "nn/layers.h"
 
-#include "nn.h"
+#include "dcnn.h"
 
 
 
