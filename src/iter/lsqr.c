@@ -75,7 +75,7 @@ static void normaleq_del(const operator_data_t* _data)
  */
 const struct operator_p_s* lsqr2_create(const struct lsqr_conf* conf,
 				      italgo_fun2_t italgo, iter_conf* iconf,
-				      const float* init,
+				      const float* init, bool warmstart,
 				      const struct linop_s* model_op,
 				      const struct operator_s* precond_op,
 			              unsigned int num_funs,
@@ -130,7 +130,7 @@ const struct operator_p_s* lsqr2_create(const struct lsqr_conf* conf,
 		operator_free(tmp);
 	}
 
-	const struct operator_p_s* itop_op = itop_p_create(italgo, iconf, init, normaleq_op, num_funs, prox_funs, prox_linops, monitor);
+	const struct operator_p_s* itop_op = itop_p_create(italgo, iconf, init, warmstart, normaleq_op, num_funs, prox_funs, prox_linops, monitor);
 
 	if (conf->it_gpu) {
 
@@ -169,7 +169,7 @@ void lsqr2(unsigned int N, const struct lsqr_conf* conf,
 	   struct iter_monitor_s* monitor)
 {
 	// nicer, but is still missing some features
-	const struct operator_p_s* op = lsqr2_create(conf, italgo, iconf, NULL, model_op, precond_op,
+	const struct operator_p_s* op = lsqr2_create(conf, italgo, iconf, NULL, false, model_op, precond_op,
 						num_funs, prox_funs, prox_linops, monitor);
 
 	operator_p_apply(op, 1., N, x_dims, x, N, y_dims, y);
@@ -202,7 +202,7 @@ void lsqr(unsigned int N,
 
 const struct operator_p_s* wlsqr2_create(const struct lsqr_conf* conf,
 					italgo_fun2_t italgo, iter_conf* iconf,
-					const float* init,
+					const float* init, bool warmstart,
 					const struct linop_s* model_op,
 					const struct linop_s* weights,
 					const struct operator_s* precond_op,
@@ -214,7 +214,7 @@ const struct operator_p_s* wlsqr2_create(const struct lsqr_conf* conf,
 	struct linop_s* op = linop_chain(model_op, weights);
 	linop_free(model_op);
 
-	const struct operator_p_s* lsqr_op = lsqr2_create(conf, italgo, iconf, init,
+	const struct operator_p_s* lsqr_op = lsqr2_create(conf, italgo, iconf, init, warmstart,
 						op, precond_op,
 						num_funs, prox_funs, prox_linops,
 						monitor);
