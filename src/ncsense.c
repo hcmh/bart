@@ -134,7 +134,7 @@ int main_ncsense(int argc, char* argv[])
 
 	const struct operator_p_s* op = lsqr2_create(&conf,
 				      iter2_conjgrad, CAST_UP(&cgconf),
-				      NULL, false, 
+				      NULL,
 				      forward_op,
 				      NULL,
 					0, NULL, NULL, NULL);

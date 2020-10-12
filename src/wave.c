@@ -397,7 +397,7 @@ int main_wave(int argc, char* argv[])
 	complex float* recon = create_cfl(argv[4], DIMS, recon_dims);
 	struct lsqr_conf lsqr_conf = { 0., use_gpu };
 	double recon_start = timestamp();
-	const struct operator_p_s* J = lsqr2_create(&lsqr_conf, italgo, iconf, NULL, false, A, NULL, 1, &T, NULL, NULL);
+	const struct operator_p_s* J = lsqr2_create(&lsqr_conf, italgo, iconf, NULL, A, NULL, 1, &T, NULL, NULL);
 	operator_p_apply(J, 1., DIMS, recon_dims, recon, DIMS, kspc_dims, kspc);
 	double recon_end = timestamp();
 	debug_printf(DP_INFO, "Done.\nReconstruction time: %f seconds.\n", recon_end - recon_start);

@@ -331,9 +331,9 @@ void iter2_admm(iter_conf* _conf,
 
 	struct admm_plan_s admm_plan = {
 
-		.maxiter = (0 == conf->maxiter) ? MIN(100, 10 * powf(2, logf(1./conf->INTERFACE.alpha))) : conf->maxiter,
+		.maxiter = conf->maxiter,
 		.maxitercg = conf->maxitercg,
-		.cg_eps = conf->cg_eps * conf->INTERFACE.alpha,
+		.cg_eps = conf->cg_eps,
 		.rho = conf->rho,
 		.num_funs = D,
 		.do_warmstart = conf->do_warmstart,
