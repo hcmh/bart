@@ -98,7 +98,7 @@ const struct operator_s* operator_generic_with_props_create2(unsigned int N, con
 	op->apply_opts = apply_with_opts;
 	op->del = del;
 	op->props = (NULL != props) ? props : op_property_create(N, io_flags, NULL);
-
+	
 	assert(N == op_property_get_N(op->props));
 	assert(op_property_check_io_flags(op->props, op->N, op->io_flags));
 
@@ -1146,12 +1146,9 @@ static void gpuwrp_fun(const operator_data_t* _data, unsigned int N, void* args[
 
 		const struct iovec_s* io = operator_arg_domain(op, i);
 
-#if 0
-		// FIXME: CG is initialized with the output, as this output is not copied to the gpu, it is initialized randomly (not reproducible)
 		if (op->io_flags[i])
 			gpu_ptr[i] = md_alloc_gpu(io->N, io->dims, io->size);
 		else
-#endif
 			gpu_ptr[i] = md_gpu_move(io->N, io->dims, args[i], io->size);
 	}
 
