@@ -1632,7 +1632,7 @@ const struct operator_s* operator_permute(const struct operator_s* op, int N, co
 		io_flags[i] = op->io_flags[perm[i]];
 	}
 
-	assert((sizeof(flags) <= N) || (MD_BIT(N) == flags + 1));
+	assert(((int)sizeof(flags) <= N) || (MD_BIT(N) == flags + 1));
 
 	// op = operator_ref(op);
 	PTR_ALLOC(struct permute_data_s, data);
