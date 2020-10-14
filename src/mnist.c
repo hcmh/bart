@@ -96,6 +96,8 @@ int main_mnist(int argc, char* argv[])
 #ifdef  USE_CUDA
 	if (use_gpu) {
 
+		num_init_gpu();
+
 		in_gpu = md_alloc_gpu(3, dims_in, CFL_SIZE);
 		md_copy(3, dims_in, in_gpu, in, CFL_SIZE);
 
@@ -104,11 +106,13 @@ int main_mnist(int argc, char* argv[])
 
 		out_gpu = md_alloc_gpu(2, dims_out, CFL_SIZE);
 		md_copy(2, dims_out, out_gpu, out, CFL_SIZE);
-	}
+	} else
 #else
 	if(use_gpu)
 		error("Compiled without gpu support!\n");
+	else
 #endif
+	num_init();
 
 
 
@@ -129,7 +133,7 @@ int main_mnist(int argc, char* argv[])
 	}
 
 	if (accuracy)
-        	printf("Accuracy = %f\n", accuracy_nn_mnist(dims_in[2], N_batch,  (NULL == weights_gpu) ? weights : weights_gpu, (NULL == in_gpu) ? in : in_gpu, out));
+		printf("Accuracy = %f\n", accuracy_nn_mnist(dims_in[2], N_batch,  (NULL == weights_gpu) ? weights : weights_gpu, (NULL == in_gpu) ? in : in_gpu, out));
 
 	md_free(out_gpu);
 	md_free(in_gpu);
