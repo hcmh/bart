@@ -147,6 +147,7 @@ int main_mobaT2star(int argc, char* argv[])
 	bool out_sens = false;
 	bool use_gpu = false;
 	bool use_lsqr = false;
+	bool use_warmstart = false;
 	bool stack_frames = false;
 
 	struct iter_admm_conf iadmm_conf = iter_admm_defaults;
@@ -162,6 +163,7 @@ int main_mobaT2star(int argc, char* argv[])
 		OPT_UINT('M', &sel_model, "model", "Select the model from enum { WF, WFR2S, WF2R2S, R2S, PHASEDIFF, PI } [default: WFR2S]"),
 		OPT_UINT('N', &sel_irgnm, "IRGNM", "Select IRGNM version { 1, 2 } [default: 1]"),
 		OPT_UINT('i', &moba_conf.iter, "iter", "Number of Newton steps [default: 8]"),
+		OPT_UINT('c', &moba_conf.inner_iter, "iter", "Number of inner iteratiion [default: 250]"),
 		OPT_FLOAT('T', &damping, "tempo", "damping on temporal frames [default: 0.9]"),
 		OPT_FLOAT('b', &scale_fB0, "s_fB0", "scale_fB0: scaling for fB0 [default: 1.0]"),
 		OPT_FLOAT('u', &moba_conf.rho, "rho", "ADMM rho"),
@@ -175,6 +177,7 @@ int main_mobaT2star(int argc, char* argv[])
 		OPT_SET('O', &out_origin_maps, "Output original maps from reconstruction without post processing"),
 		OPT_SET('g', &use_gpu, "Use gpu"),
 		OPT_SET('l', &use_lsqr, "(Use lsqr solver)"),
+		OPT_SET('W', &use_warmstart, "(Use warmstart in lsqr solver)"),
 		OPT_SELECT('S', enum MECO_WEIGHT_fB0, &wgh_fB0, MECO_SOBOLEV , "select Sobelev weight for fB0 [default]"),
 		OPT_SELECT('U', enum MECO_WEIGHT_fB0, &wgh_fB0, MECO_IDENTITY, "select identity weight for fB0"),
 		// OPT_SELECT('c', enum algo_t, &algo, ALGO_CG, "select CG"),
@@ -650,14 +653,14 @@ int main_mobaT2star(int argc, char* argv[])
 			complex float* Y_ptr_gpu = md_alloc_gpu(DIMS, Y_1s_dims, CFL_SIZE);
 			md_copy(DIMS, Y_1s_dims, Y_ptr_gpu, Y_ptr, CFL_SIZE);
 
-			meco_recon(&moba_conf, sel_model, sel_irgnm, pd_rvc, wgh_fB0, scale_fB0, CAST_UP(&iadmm_conf), out_origin_maps, scaling_Y, maps_1s_dims, maps_ptr, sens_1s_dims, sens_ptr, x, xref, P_ptr, mask, TE, Y_1s_dims, Y_ptr_gpu, use_lsqr);
+			meco_recon(&moba_conf, sel_model, sel_irgnm, pd_rvc, wgh_fB0, scale_fB0, use_warmstart, CAST_UP(&iadmm_conf), out_origin_maps, scaling_Y, maps_1s_dims, maps_ptr, sens_1s_dims, sens_ptr, x, xref, P_ptr, mask, TE, Y_1s_dims, Y_ptr_gpu, use_lsqr);
 
 			md_free(Y_ptr_gpu);
 		}
 #endif
 		if ( !use_gpu ) {
 
-			meco_recon(&moba_conf, sel_model, sel_irgnm, pd_rvc, wgh_fB0, scale_fB0, CAST_UP(&iadmm_conf), out_origin_maps, scaling_Y, maps_1s_dims, maps_ptr, sens_1s_dims, sens_ptr, x, xref, P_ptr, mask, TE, Y_1s_dims, Y_ptr, use_lsqr);
+			meco_recon(&moba_conf, sel_model, sel_irgnm, pd_rvc, wgh_fB0, scale_fB0, use_warmstart, CAST_UP(&iadmm_conf), out_origin_maps, scaling_Y, maps_1s_dims, maps_ptr, sens_1s_dims, sens_ptr, x, xref, P_ptr, mask, TE, Y_1s_dims, Y_ptr, use_lsqr);
 		}
 
 	}

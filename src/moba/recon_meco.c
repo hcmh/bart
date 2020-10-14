@@ -112,7 +112,7 @@ static void rescale_maps(unsigned int model, double scaling_Y, const struct lino
 
 void meco_recon(const struct moba_conf* moba_conf, 
 		unsigned int sel_model, unsigned int sel_irgnm, bool real_pd, 
-		unsigned int wgh_fB0, float scale_fB0, iter_conf* iconf, 
+		unsigned int wgh_fB0, float scale_fB0, bool warmstart, iter_conf* iconf, 
 		bool out_origin_maps, double scaling_Y, 
 		const long maps_dims[DIMS], complex float* maps, 
 		const long sens_dims[DIMS], complex float* sens, 
@@ -167,9 +167,9 @@ void meco_recon(const struct moba_conf* moba_conf,
 	irgnm_conf.alpha = moba_conf->alpha;
 	irgnm_conf.alpha_min = moba_conf->alpha_min;
 	irgnm_conf.redu = moba_conf->redu;
-	irgnm_conf.cgiter = 260;
-	irgnm_conf.cgtol = /*(sel_model == PI) ? 0.1 :*/ 0.01; // 1./3.;
-	irgnm_conf.nlinv_legacy = /*(sel_model == PI) ? true :*/ false;
+	irgnm_conf.cgiter = moba_conf->inner_iter;
+	irgnm_conf.cgtol = 0.01; // 1./3.;
+	irgnm_conf.nlinv_legacy = false;
 
 	long x_dims[DIMS];
 	md_merge_dims(DIMS, x_dims, maps_dims, sens_dims);
@@ -231,19 +231,17 @@ void meco_recon(const struct moba_conf* moba_conf,
 
 			opt_reg_moba_configure(DIMS, x_dims, &ropts, prox_ops, trafos, sel_model);
 
-			struct lsqr_conf lsqr_conf = { lsqr_defaults.lambda, use_gpu };
+			struct lsqr_conf lsqr_conf = { lsqr_defaults.lambda, false };
 
 			auto iadmm_conf = CAST_DOWN(iter_admm_conf, iconf);
+			iadmm_conf->maxiter = moba_conf->inner_iter;
 			iadmm_conf->cg_eps = irgnm_conf.cgtol;
 			iadmm_conf->rho = moba_conf->rho;
-			// set maxiter to 0 in order to 
-			//   1) iteratively increase it along Newton steps
-			//   2) not interfere with other programs that uses iter2_admm
-			iadmm_conf->maxiter = 0;
+			iadmm_conf->use_interface_alpha = true;
 
 			const struct nlop_s* nlop = nl.nlop;
 
-			inv_op = lsqr2_create(&lsqr_conf, iter2_admm, CAST_UP(iadmm_conf), NULL, true, &nlop->derivative[0][0], NULL, ropts.r, prox_ops, trafos, NULL);
+			inv_op = lsqr2_create(&lsqr_conf, iter2_admm, CAST_UP(iadmm_conf), NULL, warmstart, &nlop->derivative[0][0], NULL, ropts.r, prox_ops, trafos, NULL);
 
 		} else {
 

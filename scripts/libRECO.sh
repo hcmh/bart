@@ -638,7 +638,7 @@ init()
 			DIXON_INIT_STR="-I ${TEMP}_dixon_R_INIT"
 		fi
 
-		bart mobaT2star -O -M0 -i6 -R2 -n -F$FSMP ${DIXON_INIT_STR} -t ${TEMP}_init_traj ${TEMP}_init_kdat ${TEMP}_init_TE ${TEMP}_R_INIT
+		bart mobaT2star -O -M0 -i6 -R2 -F$FSMP ${DIXON_INIT_STR} -t ${TEMP}_init_traj ${TEMP}_init_kdat ${TEMP}_init_TE ${TEMP}_R_INIT
 
 		bart extract 6 2 3 10 $((IMEA-1)) $IMEA ${TEMP}_R_INIT ${TEMP}_fB0_init
 
