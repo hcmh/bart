@@ -77,6 +77,7 @@ int main_signal(int argc, char* argv[])
 	switch (seq) {
 
 	case FLASH: parm = signal_looklocker_defaults; break;
+	case MGRE:  parm = signal_multi_grad_echo_defaults; break;
 	case BSSFP: parm = signal_IR_bSSFP_defaults; break;
 	case TSE:   parm = signal_TSE_defaults; break;
 	case MOLLI: parm = signal_looklocker_defaults; break;

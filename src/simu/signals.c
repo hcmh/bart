@@ -224,7 +224,7 @@ const struct signal_model signal_multi_grad_echo_defaults = {
 	.m0_water = .80,
 	.m0_fat = .20,
 	.t2 = .03, // s
-	.off_reson = 100, // Hz
+	.off_reson = 20, // Hz
 	.te = 1.6 * 1.E-3, // s
 	.b0 = 3., // Tesla
 };
@@ -271,7 +271,7 @@ static complex float signal_MECO_R2S(const struct signal_model* data, int ind)
 
 	complex float TE = data->te * ind + 0.i;
 
-	float ofr = 20.; // data->off_reson
+	float ofr = data->off_reson;
 
 	complex float z = -1. / data->t2 + 2.i * M_PI * ofr;
 
