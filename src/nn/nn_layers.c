@@ -1,0 +1,253 @@
+
+#include "iter/italgos.h"
+#include "nlops/nlop.h"
+
+#include "nn/layers.h"
+#include "nn/nn.h"
+
+#include "nn_layers.h"
+
+/**
+ * Append convolution/correlation layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param filters number of output channels
+ * @param kernel_size {kx, ky, kz} size of convolution kernel
+ * @param conv convolution if true, correlation else
+ * @param conv_pad padding for the convolution
+ * @param channel_first data layout is {c, x, y, z}/{filter, channel, kx, ky, kz} if true, {x, y, z, c} {kx, ky, kz, channel, filter} else
+ * @param strides (not supported, must be NULL)
+ * @param dilations (not supported, must be NULL)
+ * @param initializer (NULL falls back to default)
+ */
+nn_t nn_append_convcorr_layer(nn_t network, int o, const char* oname, const char* ker_name, int filters, long const kernel_size[3], bool conv, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3], const struct initializer_s* init)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+
+	auto nlop = append_convcorr_layer(nlop_clone(nn_get_nlop(network)), o, filters, kernel_size, conv, conv_pad, channel_first, strides, dilations);
+	auto result = nn_from_nlop_F(nlop);
+
+	nn_clone_args(result, network);
+
+	result = nn_set_in_type_F(result, -1, NULL, IN_OPTIMIZE);
+	result = nn_set_initializer_F(result, -1, NULL, (NULL != init) ? init : init_kaiming_create(in_flag_conv(channel_first), true, false, 0));
+
+	if (NULL != ker_name)
+		result = nn_set_input_name_F(result, -1, ker_name);
+
+	nn_free(network);
+
+	return result;
+}
+
+/**
+ * Append transposed convolution/correlation layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param filters number of output channels
+ * @param kernel_size {kx, ky, kz} size of convolution kernel
+ * @param conv convolution if true, correlation else
+ * @param adjoint if true, the operator is a adjoint convolution, else it's a transposed one
+ * @param conv_pad padding for the convolution
+ * @param channel_first data layout is {c, x, y, z}/{filter, channel, kx, ky, kz} if true, {x, y, z, c} {kx, ky, kz, channel, filter} else
+ * @param strides (not supported, must be NULL)
+ * @param dilations (not supported, must be NULL)
+ * @param initializer (NULL falls back to default)
+ */
+nn_t nn_append_transposed_convcorr_layer(nn_t network, int o, const char* oname, const char* ker_name, int channels, long const kernel_size[3], bool conv, bool adjoint, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3], const struct initializer_s* init)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto nlop = append_transposed_convcorr_layer(nlop_clone(nn_get_nlop(network)), o, channels, kernel_size, conv, conv_pad, adjoint, channel_first, strides, dilations);
+	auto result = nn_from_nlop_F(nlop);
+	nn_clone_args(result, network);
+
+	result = nn_set_in_type_F(result, -1, NULL, IN_OPTIMIZE);
+	result = nn_set_initializer_F(result, -1, NULL, (NULL != init) ? init : init_kaiming_create(in_flag_conv(channel_first), true, false, 0));
+
+	if (NULL != ker_name)
+		result = nn_set_input_name_F(result, -1, ker_name);
+
+	nn_free(network);
+
+	return result;
+}
+
+
+/**
+ * Append dense layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param neurons number of output neurons
+ * @param initializer (NULL falls back to default)
+ */
+nn_t nn_append_dense_layer(nn_t network, int o, const char* oname, const char* weights_name, int out_neurons, const struct initializer_s* init)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto nlop = append_dense_layer(nlop_clone(nn_get_nlop(network)), o, out_neurons);
+	auto result = nn_from_nlop_F(nlop);
+	nn_clone_args(result, network);
+
+	result = nn_set_in_type_F(result, -1, NULL, IN_OPTIMIZE);
+	result = nn_set_initializer_F(result, -1, NULL, (NULL != init) ? init : init_kaiming_create(MD_BIT(1), true, false, 0));
+
+	if (NULL != weights_name)
+		result = nn_set_input_name_F(result, -1, weights_name);
+
+	nn_free(network);
+
+	return result;
+}
+
+
+/**
+ * Append batch normalization
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param norm_flags select dimension over which we normalize
+ * @param initializer (NULL falls back to default)
+ */
+nn_t nn_append_batchnorm_layer(nn_t network, int o, const char* oname, const char* stat_name, unsigned long norm_flags, enum NETWORK_STATUS status, const struct initializer_s* init)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+
+	auto nlop = append_batchnorm_layer(nlop_clone(nn_get_nlop(network)), o, norm_flags, status);
+	auto result = nn_from_nlop_F(nlop);
+	nn_clone_args(result, network);
+
+	result = nn_set_in_type_F(result, -1, NULL, IN_BATCHNORM);
+	result = nn_set_out_type_F(result, -1, NULL, OUT_BATCHNORM);
+	result = nn_set_initializer_F(result, -1, NULL, (NULL != init) ? init : init_const_create(0.));
+
+	if (NULL != stat_name) {
+
+		result = nn_set_input_name_F(result, -1, stat_name);
+		result = nn_set_output_name_F(result, -1, stat_name);
+	}
+
+	nn_free(network);
+
+	return result;
+}
+
+nn_t nn_append_maxpool_layer(nn_t network, int o, const char* oname, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_maxpool_layer(nlop_clone(nn_get_nlop(network)), o, pool_size, conv_pad, channel_first));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+/**
+ * Append blur-pooling layer
+ *
+ * Adapted from "Making Convolutional Networks Shift-Invariant Again"
+ * Richard Zhang
+ * arXiv:1904.11486v2
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param pool_size {px, py, pz} size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c} else
+ */
+nn_t nn_append_blurpool_layer(nn_t network, int o, const char* oname, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_blurpool_layer(nlop_clone(nn_get_nlop(network)), o, pool_size, conv_pad, channel_first));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+/**
+ * Append average pooling layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param pool_size {px, py, pz} size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c}else
+ */
+nn_t nn_append_avgpool_layer(nn_t network, int o, const char* oname, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_avgpool_layer(nlop_clone(nn_get_nlop(network)), o, pool_size, conv_pad, channel_first));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+/**
+ * Append nearest-neighbor upsampling layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param pool_size {px, py, pz} size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c}else
+ */
+nn_t nn_append_upsampl_layer(nn_t network, int o, const char* oname, const long pool_size[3], bool channel_first)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_upsampl_layer(nlop_clone(nn_get_nlop(network)), o, pool_size, channel_first));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+
+/**
+ * Append dropout layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param p procentage of outputs dropt out
+ */
+nn_t nn_append_dropout_layer(nn_t network, int o, const char* oname, float p, enum NETWORK_STATUS status)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_dropout_layer(nlop_clone(nn_get_nlop(network)), o, p, status));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+/**
+ * Append flatten layer
+ * flattens all dimensions except the last one (batch dim)
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ */
+nn_t nn_append_flatten_layer(nn_t network, int o, const char* oname)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_flatten_layer(nlop_clone(nn_get_nlop(network)), o));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+/**
+ * Append padding layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param N number of dimensions
+ * @param padd_for
+ * @param padd_after
+ * @param pad_type
+ */
+nn_t nn_append_padding_layer(nn_t network, int o, const char* oname, long N, long pad_for[N], long pad_after[N], enum PADDING pad_type)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_padding_layer(nlop_clone(nn_get_nlop(network)), o, N, pad_for, pad_after, pad_type));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
