@@ -6,6 +6,7 @@
 #include "misc/types.h"
 #include "misc/debug.h"
 
+#include "nn/layers.h"
 #include "num/iovec.h"
 #include "num/ops_p.h"
 #include "num/ops.h"
@@ -30,11 +31,12 @@
 #include "nlops/const.h"
 #include "nlops/conv.h"
 
-#include "nn/activation.h"
-#include "nn/layers.h"
-#include "nn/weights.h"
-#include "nn/losses.h"
-#include "nn/init.h"
+#include "nn/nn_activation.h"
+#include "nn/nn_layers.h"
+#include "nn/nn_weights.h"
+#include "nn/nn_losses.h"
+
+#include "nn/nn.h"
 
 #include "mnist.h"
 
@@ -42,199 +44,158 @@ static void hotenc_to_index(int N_batch, long prediction[N_batch], int N_hotenc,
 {
 
 	long dims[] = {N_hotenc, N_batch};
-    	long strs[2];
-    	md_calc_strides(2, strs, dims, CFL_SIZE);
+	long strs[2];
+	md_calc_strides(2, strs, dims, CFL_SIZE);
 
-    	for (int i_batch = 0; i_batch < N_batch; i_batch++){
+	for (int i_batch = 0; i_batch < N_batch; i_batch++){
 
 		prediction[i_batch] = 0;
 		for (int i = 1; i < N_hotenc; i++){
 
 			long pos[] = {i, i_batch};
-	    		long pos_max[] = {prediction[i_batch], i_batch};
+			long pos_max[] = {prediction[i_batch], i_batch};
 
 			if ((float)MD_ACCESS(2, strs, pos, in) > (float)MD_ACCESS(2, strs, pos_max, in))
 				prediction[i_batch] = i;
 		}
-    	}
+	}
 }
 
-const struct nlop_s* get_nn_mnist(int N_batch, enum NETWORK_STATUS status)
+static nn_t get_nn_mnist(int N_batch, enum NETWORK_STATUS status)
 {
 	unsigned int N = 5;
 	long indims[] = {1, 28, 28, 1, N_batch};
-	long expdims[] = {2, 28, 28, 1, N_batch};
 
-	const struct linop_s* id = linop_expand_create(N, expdims, indims); // optimization assumes nontrivial channeldim
-	const struct nlop_s* network = nlop_from_linop(id);
-	linop_free(id);
+	nn_t network = nn_from_nlop_F(nlop_from_linop(linop_identity_create(N, indims)));
 
 	long kernel_size[] = {3, 3, 1};
-    	long pool_size[] = {2, 2, 1};
+	long pool_size[] = {2, 2, 1};
 
 	bool conv = false;
 
-	network = append_convcorr_layer(network, 0, 32, kernel_size, conv, PAD_VALID, true, NULL, NULL);
-	network = append_activation_bias(network, 0, ACT_RELU, MD_BIT(0));
-	network = append_convcorr_layer(network, 0, 64, kernel_size, conv, PAD_VALID, true, NULL, NULL);
-	network = append_activation_bias(network, 0, ACT_RELU, MD_BIT(0));
-	network = append_maxpool_layer(network, 0, pool_size, PAD_VALID, true);
+	network = nn_append_convcorr_layer(network, 0, NULL, "conv_", 32, kernel_size, conv, PAD_VALID, true, NULL, NULL, NULL);
+	network = nn_append_activation_bias(network, 0, NULL, "conv_bias_", ACT_RELU, MD_BIT(0));
+	network = nn_append_convcorr_layer(network, 0, NULL, "conv_", 64, kernel_size, conv, PAD_VALID, true, NULL, NULL, NULL);
+	network = nn_append_activation_bias(network, 0, NULL, "conv_bias_", ACT_RELU, MD_BIT(0));
+	network = nn_append_maxpool_layer(network, 0, NULL, pool_size, PAD_VALID, true);
 
-	network = append_flatten_layer(network, 0);
-	network = append_dropout_layer(network, 0, 0.25, status);
-	network = append_dense_layer(network, 0, 128);
-	network = append_activation_bias(network, 0, ACT_RELU, MD_BIT(0));
-	network = append_dropout_layer(network, 0, 0.5, status);
-	network = append_dense_layer(network, 0, 10);
-	network = append_activation_bias(network, 0, ACT_SOFTMAX, MD_BIT(0));
+	network = nn_append_flatten_layer(network, 0, NULL);
+	network = nn_append_dropout_layer(network, 0, NULL, 0.25, status);
+	network = nn_append_dense_layer(network, 0, NULL, "dense_", 128, NULL);
+	network = nn_append_activation_bias(network, 0, NULL, "dense_bias_", ACT_RELU, MD_BIT(0));
+	network = nn_append_dropout_layer(network, 0, NULL, 0.5, status);
+	network = nn_append_dense_layer(network, 0, NULL, "dense_", 10, NULL);
+	network = nn_append_activation_bias(network, 0, NULL, "dense_bias_", ACT_SOFTMAX, MD_BIT(0));
 
 	return network;
 }
 
-int nn_mnist_get_num_weights(void)
+nn_weights_t init_nn_mnist(void)
 {
-	const struct nlop_s* network = get_nn_mnist(1, STAT_TRAIN);
-	network = deflatten_weightsF(network, 1);
-
-	int result = (nlop_generic_domain(network, 1)->dims)[0];
-	nlop_free(network);
+	auto network = get_nn_mnist(1, STAT_TRAIN);
+	auto result = nn_weights_create_from_nn(network);
+	nn_init(network, result);
+	nn_free(network);
 	return result;
 }
 
-
-void init_nn_mnist(complex float* weights)
+void train_nn_mnist(int N_batch, int N_total, nn_weights_t weights, const complex float* in, const complex float* out, long epochs)
 {
-	const struct nlop_s* network = get_nn_mnist(1, STAT_TRAIN);
+	nn_t train = nn_loss_cce_append(get_nn_mnist(N_batch, STAT_TRAIN), 0, NULL);
+	nn_debug(DP_INFO, train);
 
-	for (int i = 0; i < nlop_get_nr_in_args(network); i++){
+#ifdef USE_CUDA
+	if (nn_weights_on_gpu(weights)){
 
-		const struct iovec_s* tmp = nlop_generic_domain(network, i);
-		if (i != 0)
-	    		weights = init_auto(tmp->N, tmp->dims, weights, true);
+		auto iov = nlop_generic_domain(nn_get_nlop(train), 0);
+		long odims[iov->N];
+		md_copy_dims(iov->N, odims, iov->dims);
+		odims[iov->N - 1] = N_total;
+		out = md_gpu_move(iov->N, odims, out, iov->size);
+
+		iov = nlop_generic_domain(nn_get_nlop(train), 1);
+		long idims[iov->N];
+		md_copy_dims(iov->N, idims, iov->dims);
+		idims[iov->N - 1] = N_total;
+		in = md_gpu_move(iov->N, idims, in, iov->size);
 	}
+#endif
 
-	nlop_free(network);
-}
+	long NI = nn_get_nr_in_args(train);
+	long NO = nn_get_nr_out_args(train);
 
-void train_nn_mnist(int N_batch, int N_total, complex float* weights, const complex float* in, const complex float* out, long epochs)
-{
+	assert(NI == 2 + weights->N);
 
-	const struct nlop_s* network = get_nn_mnist(N_batch, STAT_TRAIN);
-	const struct nlop_s* loss = nlop_cce_create(nlop_generic_codomain(network, 0)->N, nlop_generic_codomain(network, 0)->dims);
-
-	const struct nlop_s* nlop_train = nlop_chain2_FF(network, 0, loss, 0);
-
-	float* src[nlop_get_nr_in_args(nlop_train)];
+	float* src[NI];
 	src[0] = (float*)out;
 	src[1] = (float*)in;
-	for (int i = 2; i < nlop_get_nr_in_args(nlop_train); i++){
-
-		src[i] =(float*)weights;
-		weights += md_calc_size(nlop_generic_domain(nlop_train, i)->N, nlop_generic_domain(nlop_train, i)->dims);
-	}
-
-	long NI = nlop_get_nr_in_args(nlop_train);
-	long NO = nlop_get_nr_out_args(nlop_train);
+	for (int i = 0; i < weights->N; i++)
+		src[i + 2] = (float*)weights->tensors[i];
 
 	enum IN_TYPE in_type[NI];
-	for (int i = 0; i < NI; i++)
-		in_type[i] = IN_OPTIMIZE;
-
 	enum OUT_TYPE out_type[NO];
-	for (int o = 0; o < NO; o++)
-		out_type[o] = OUT_OPTIMIZE;
-
+	nn_get_in_types(train, NI, in_type);
+	nn_get_out_types(train, NO, out_type);
 	in_type[0] = IN_BATCH;
 	in_type[1] = IN_BATCH;
-
-#if 1
 
 	struct iter6_adadelta_conf _conf = iter6_adadelta_conf_defaults;
 	_conf.INTERFACE.epochs = epochs;
 
-#if 1
-	auto nlop_validation = get_nn_mnist(N_batch, STAT_TEST);
-	nlop_validation = nlop_chain2_FF(nlop_validation, 0, nlop_cce_create(nlop_generic_codomain(nlop_validation, 0)->N, nlop_generic_codomain(nlop_validation, 0)->dims), 0);
-	auto iov0 = nlop_generic_domain(nlop_validation, 0);
-	auto iov1 = nlop_generic_domain(nlop_validation, 1);
-	auto del0 = nlop_del_out_create(iov0->N, iov0->dims);
-	auto del1 = nlop_del_out_create(iov1->N, iov1->dims);
-	nlop_validation = nlop_set_input_const_F(nlop_validation, 0, iov0->N, iov0->dims, true, (complex float*)src[0]);
-	nlop_validation = nlop_set_input_const_F(nlop_validation, 0, iov1->N, iov1->dims, true, (complex float*)src[1]);
-	nlop_validation = nlop_combine_FF(del1, nlop_validation);
-	nlop_validation = nlop_combine_FF(del0, nlop_validation);
-
-	auto monitor_validation_loss = monitor_iter6_nlop_create(nlop_validation, false, "val loss");
-	nlop_free(nlop_validation);
-	auto monitor =  create_monitor_iter6_progressbar_with_val_monitor(1, &monitor_validation_loss);
-
 	iter6_adadelta(CAST_UP(&_conf),
-			nlop_train,
-			NI, in_type, NULL, src,
-			NO, out_type,
-			N_batch, N_total / N_batch, NULL, monitor);
-
-	//monitor_iter6_dump_record(monitor, "history");
-	monitor_iter6_free(monitor);
-#else
-	//try batch generator for mnist
-	const complex float* train_data[] = { (complex float*)src[1] };
-	const long* train_dims[] = { nlop_generic_domain(nlop_train, 1)->dims };
-	auto batch_generator = batch_gen_linear_create(1, 5, train_dims, train_data, N_total, 0);
-	src[1] = NULL;
-	in_type[1] = IN_BATCH_GENERATOR;
-
-	iter6_adadelta(CAST_UP(&_conf),
-			nlop_train,
-			NI, in_type, NULL, src,
-			NO, out_type,
-			N_batch, N_total / N_batch, batch_generator, NULL);
-
-
-#endif
-#else
-	//example for adam
-	struct iter6_adam_conf _conf = iter6_adam_conf_defaults;
-	_conf.learning_rate = 0.0001;
-	_conf.epochs = epochs;
-
-	iter6_adam(CAST_UP(&_conf),
-			nlop_train,
+			nn_get_nlop(train),
 			NI, in_type, NULL, src,
 			NO, out_type,
 			N_batch, N_total / N_batch, NULL, NULL);
 
-#endif
+	nn_free(train);
 
-	nlop_free(nlop_train);
+#ifdef USE_CUDA
+	if (nn_weights_on_gpu(weights)){
+
+		md_free(in);
+		md_free(out);
+	}
+#endif
 }
 
-void predict_nn_mnist(int N_total, int N_batch, long prediction[N_total], const complex float* weights, const complex float* in)
+void predict_nn_mnist(int N_total, int N_batch, long prediction[N_total], nn_weights_t weights, const complex float* in)
 {
 	while (N_total > 0) {
 
 		N_batch = MIN(N_total, N_batch);
 
-		const struct nlop_s* network = get_nn_mnist(N_batch, STAT_TEST);
-		while(1 < nlop_get_nr_out_args(network))
-			network = nlop_del_out_F(network, 1);
-		network = deflatten_weightsF(network, 1);
-		network = nlop_set_input_const_F(network, 1, 1, nlop_generic_domain(network, 1)->dims, true, weights);
+		nn_t network = get_nn_mnist(N_batch, STAT_TEST);
+
+		auto nlop_predict = nn_get_nlop_wo_weights(network, weights, false);
 
 		long indims[] = {1, 28, 28, 1, N_batch};
 		long outdims[] = {10, N_batch};
 
-		complex float* tmp = md_alloc_sameplace(2, outdims, CFL_SIZE, weights);
+		const complex float* tmp_in = in;
+#ifdef USE_CUDA
+		if (nn_weights_on_gpu(weights)){
 
-		nlop_apply(network, 2, outdims, tmp, 5, indims, in);
-		nlop_free(network);
+			auto iov = nlop_generic_domain(nlop_predict, 0);
+			tmp_in = md_gpu_move(iov->N, iov->dims, in, iov->size);
+		}
+#endif
+
+		complex float* tmp_out = md_alloc_sameplace(2, outdims, CFL_SIZE, tmp_in);
+
+		nlop_apply(nlop_predict, 2, outdims, tmp_out, 5, indims, tmp_in);
+
+		nlop_free(nlop_predict);
+		nn_free(network);
 
 		complex float* tmp_cpu = md_alloc(2, outdims, CFL_SIZE);
-		md_copy(2, outdims, tmp_cpu, tmp, CFL_SIZE);
+		md_copy(2, outdims, tmp_cpu, tmp_out, CFL_SIZE);
+
+		md_free(tmp_out);
+		if (nn_weights_on_gpu(weights))
+			md_free(tmp_in);
 
 		hotenc_to_index(N_batch, prediction, 10, tmp_cpu);
-
-		md_free(tmp);
 		md_free(tmp_cpu);
 
 		prediction += N_batch;
@@ -243,7 +204,7 @@ void predict_nn_mnist(int N_total, int N_batch, long prediction[N_total], const 
 	}
 }
 
-float accuracy_nn_mnist(int N_total, int N_batch, const complex float* weights, const complex float* in, const complex float* out)
+float accuracy_nn_mnist(int N_total, int N_batch, nn_weights_t weights, const complex float* in, const complex float* out)
 {
 	long prediction[N_total];
 	predict_nn_mnist(N_total, N_batch, prediction, weights, in);
@@ -252,8 +213,8 @@ float accuracy_nn_mnist(int N_total, int N_batch, const complex float* weights, 
 	hotenc_to_index(N_total, label, 10, out);
 
 	long num_correct = 0;
-    	for (int i = 0; i < N_total; i++)
+	for (int i = 0; i < N_total; i++)
 		num_correct += (long)(prediction[i] == label[i]);
 
-    	return (float)num_correct / (float)N_total;
+	return (float)num_correct / (float)N_total;
 }
