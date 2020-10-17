@@ -317,7 +317,7 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 	return PTR_PASS(n);
 }
 
-struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, int stack_dim)
 {
 	int II = nlop_get_nr_in_args(x);
 	int OO = nlop_get_nr_out_args(x);
@@ -329,6 +329,11 @@ struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, unsigned 
 	auto doma = nlop_generic_domain(x, a);
 	auto domb = nlop_generic_domain(x, b);
 	assert(doma->N == domb->N);
+
+	assert(stack_dim < (int)doma->N);
+	assert(stack_dim >= -(int)doma->N);
+	if (0 > stack_dim)
+		stack_dim += doma->N;
 
 	long N = doma->N;
 	long idims[N];
@@ -348,7 +353,7 @@ struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, unsigned 
 	return nlop_permute_inputs_F(result, II - 1, perm);
 }
 
-struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, int stack_dim)
 {
 	auto result = nlop_stack_inputs(x, a, b, stack_dim);
 	nlop_free(x);
@@ -356,13 +361,13 @@ struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, unsigne
 }
 
 //renamed for consistency, deprecated
-struct nlop_s* nlop_destack(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+struct nlop_s* nlop_destack(const struct nlop_s* x, int a, int b, int stack_dim)
 {
 	return nlop_stack_inputs(x, a, b, stack_dim);
 }
 
 //renamed for consistency, deprecated
-struct nlop_s* nlop_destack_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+struct nlop_s* nlop_destack_F(const struct nlop_s* x, int a, int b, int stack_dim)
 {
 	return nlop_stack_inputs_F(x, a, b, stack_dim);
 }
@@ -370,7 +375,7 @@ struct nlop_s* nlop_destack_F(const struct nlop_s* x, int a, int b, unsigned lon
 
 
 
-struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, int stack_dim)
 {
 	//int II = nlop_get_nr_in_args(x);
 	int OO = nlop_get_nr_out_args(x);
@@ -382,6 +387,11 @@ struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, unsigned
 	auto codoma = nlop_generic_codomain(x, a);
 	auto codomb = nlop_generic_codomain(x, b);
 	assert(codoma->N == codomb->N);
+
+	assert(stack_dim < (int)codoma->N);
+	assert(stack_dim >= -(int)codoma->N);
+	if (0 > stack_dim)
+		stack_dim += codoma->N;
 
 	long N = codoma->N;
 	long odims[N];
@@ -402,7 +412,7 @@ struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, unsigned
 	return nlop_permute_outputs_F(result, OO - 1, perm);
 }
 
-struct nlop_s* nlop_stack_outputs_F(const struct nlop_s* x, int a, int b, unsigned long stack_dim)
+struct nlop_s* nlop_stack_outputs_F(const struct nlop_s* x, int a, int b, int stack_dim)
 {
 	auto result = nlop_stack_outputs(x, a, b, stack_dim);
 	nlop_free(x);
