@@ -76,7 +76,7 @@ int main_nnmodl(int argc, char* argv[])
 
 		OPTL_SET('n', "normalize", &normalize, "normalize the input by maximum of zero-filled reconstruction"),
 
-		OPTL_LONG(0, "modl_num_iterations", &(modl.Nt), "guessed", "number of layers (def: 10 / guessed from weights)"),
+		OPTL_LONG(0, "modl_num_iterations", &(modl.Nt), "guessed", "number of layers"),
 		OPTL_LONG(0, "modl_num_filters", &(modl.Nf), "guessed", "number of convolution filters (def: 48 / guessed from weights)"),
 		OPTL_LONG(0, "modl_num_layers", &(modl.Nl), "guessed", "number of convolution layers (def: 5 / guessed from weights)"),
 		OPTL_LONG(0, "modl_kernel_size_x", &(modl.Kx), "guessed", "kernel size x dimension (def: 3 / guessed from weights)"),
@@ -85,13 +85,14 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_SET(0, "modl_no_shared_weights", &(modl.shared_weights), "do not share weights"),
 
 		OPTL_FLOAT(0, "modl_fix_lambda", &(modl.lambda_fixed), "lambda", "fix lambda to given value (def: -1. = trainable)"),
-		OPTL_SET(0, "modl_nullspace", &(modl.nullspace), "construct modl using nullspace formulation"),
-		OPTL_SET(0, "modl_nullspace_no_squarred_lambda", &(modl.nullspace_lambda_not_squarred), "construct modl using nullspace formulation and fix lambda square issue"),
+		
+		OPTL_SET(0, "modl_tickhonov", &(modl.init_tickhonov), "initialize first MoDL iteration with Tickhonov regularized reconstruction"),
+		OPTL_CLEAR(0, "modl_no_residual", &(modl.residual_network), "no residual connection in dw block"),
 		OPTL_SET(0, "modl_reinsert_zerofilled", &(modl.reinsert_zerofilled), "reinsert zero-filled reconstruction and current reconstruction to all DW networks"),
+		OPTL_CLEAR(0, "modl_no_batchnorm", &(modl.batch_norm), "no batch normalization in dw block"),
 
 		OPTL_UINT(0, "conjgrad_iterations", &(def_conf.maxiter), "iter", "number of iterations in data-consistency layer (def: 50)"),
 		OPTL_FLOAT(0, "conjgrad_convergence_warning", &(modl.convergence_warn_limit), "limit", "warn if inversion error is larger than this limit (def: 0. = no warnings)"),
-		OPTL_CLEAR(0, "conjgrad_combined_inversion", &(modl.batch_independent), "construct one linear for all batches which is inverted"),
 
 		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
 		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
@@ -99,8 +100,6 @@ int main_nnmodl(int argc, char* argv[])
 	};
 
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
-	if (modl.nullspace_lambda_not_squarred)
-		modl.nullspace = true;
 
 	train_conf.INTERFACE.batchgen_type = random_order;
 

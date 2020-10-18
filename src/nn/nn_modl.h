@@ -1,5 +1,6 @@
 #include "iter/iter6.h"
 #include "iter/iter.h"
+#include "nn/nn_weights.h"
 
 struct modl_s {
 
@@ -15,26 +16,9 @@ struct modl_s {
 	_Bool batch_independent;
 	float convergence_warn_limit;
 
-	_Complex float* lambda;
-
-	_Complex float* conv_0;
-	_Complex float* conv_i;
-	_Complex float* conv_n;
-
-	_Complex float* bias_0;
-	_Complex float* bias_i;
-	_Complex float* bias_n;
-
-	_Complex float* gamma_n;
-
-	_Complex float* bn_0;
-	_Complex float* bn_i;
-	_Complex float* bn_n;
+	nn_weights_t weights;
 
 	float lambda_init;
-	float lambda_min;
-	float lambda_max;
-
 	float lambda_fixed;
 
 	_Bool shared_weights;
@@ -42,8 +26,9 @@ struct modl_s {
 	_Bool share_pattern;
 
 	_Bool reinsert_zerofilled;
-	_Bool nullspace;
-	_Bool nullspace_lambda_not_squarred;
+	_Bool init_tickhonov;
+	_Bool batch_norm;
+	_Bool residual_network;
 };
 
 extern const struct modl_s modl_default;
