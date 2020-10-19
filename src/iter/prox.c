@@ -295,9 +295,24 @@ struct  prox_logp_data
 	long *dims;
 	float lambda;
 	float p;
+	unsigned int steps;
 };
 
 DEF_TYPEID(prox_logp_data);
+
+static int compare_cmpl_magn(const void* a, const void* b)
+{
+	return (int)copysignf(1., (cabsf(*(complex float*)a) - cabsf(*(complex float*)b)));
+}
+
+static float calculate_max(unsigned int D, const long* dims, complex float* iptr)
+{	
+	long imsize = md_calc_size(D, dims);
+	complex float* tmp = md_alloc(D, dims, CFL_SIZE);
+	md_copy(D, dims, tmp, iptr, CFL_SIZE);
+	qsort(tmp, (size_t)imsize, sizeof(complex float), compare_cmpl_magn);
+	return cabsf(tmp[imsize-1]);
+}
 
 static void prox_logp_fun(const operator_data_t* data, float step_size, complex float *dst, const  complex float* src)
 {
@@ -324,6 +339,10 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 
 	complex float* slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
 	complex float* tmp_slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
+
+	float scalor = calculate_max(pdata->N, pdata->dims, src);
+	debug_printf(DP_INFO, "Scalor: %f\n", scalor);
+	md_zsmul(pdata->N, pdata->dims, src, src, 1. / scalor);
 
 	int offset = 0;
 	for (size_t i = 0; i < nx; i++)
@@ -374,14 +393,22 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 			md_copy_block(2, pos, pdata->dims, tmp, slice_dims, slices+offset, CFL_SIZE);
 		}
 	}
-
+	md_zsmul(pdata->N, pdata->dims, tmp, tmp, scalor);
 	md_transpose(DIMS, 1, 0, pdata->dims, dst, pdata->dims, tmp, CFL_SIZE);
 
 }
 
 static void prox_logp_apply(const operator_data_t* data, float lambda, complex float* dst, complex float* src)
 {
-	prox_logp_fun(data, lambda, dst, src);
+	auto pdata = CAST_DOWN(prox_logp_data, data);
+	complex float* tmp = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
+
+	for(int i=0; i<pdata->steps; i++)
+	{
+		prox_logp_fun(data, lambda, tmp, src);
+		md_copy(pdata->N, pdata->dims, dst, tmp, CFL_SIZE);
+	}
+	
 }
 
 static void prox_logp_del(const operator_data_t* _data)
@@ -389,7 +416,7 @@ static void prox_logp_del(const operator_data_t* _data)
 	xfree(CAST_DOWN(prox_l2norm_data, _data));
 }
 
-extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], struct nlop_s * tf_ops, float lambda, float p)
+extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], struct nlop_s * tf_ops, float lambda, float p, unsigned int steps)
 {
 	PTR_ALLOC(struct prox_logp_data, pdata);
 	SET_TYPEID(prox_logp_data, pdata);
@@ -400,7 +427,8 @@ extern const struct operator_p_s* prox_logp_create(unsigned int N, const long di
 	
 	pdata->N = N;
 	pdata->dims = dims;
-			
+	pdata->steps = steps;
+	
 	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(pdata)), prox_logp_apply, prox_logp_del);
 }
 

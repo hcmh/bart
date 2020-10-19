@@ -28,6 +28,7 @@ struct reg_s {
 
 	char *graph_file;
 	double pct;	
+	unsigned int steps;
 };
 
 
