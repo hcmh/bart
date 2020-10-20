@@ -25,6 +25,7 @@ extern const struct op_options_s* op_options_io_create(unsigned int NO, unsigned
 extern void op_options_free(const struct op_options_s* options);
 extern unsigned int op_options_get_N(const struct op_options_s* option);
 extern _Bool op_options_check_io_flags(const struct op_options_s* option, unsigned int N, const _Bool io_flags[N]);
+extern const struct op_options_s* op_options_clone(const struct op_options_s* prop);
 
 extern _Bool op_options_is_set(const struct op_options_s* options, unsigned int i, unsigned int j, enum OPERATOR_RUN_OPT_FLAGS_INDEX optionion);
 extern _Bool op_options_is_set_sym(const struct op_options_s* options, unsigned int i, unsigned int j, enum OPERATOR_RUN_OPT_FLAGS_INDEX optionion);

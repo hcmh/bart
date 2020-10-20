@@ -30,7 +30,7 @@ struct op_property_s {
 };
 
 
-//static operator_option_flags_t op_options_get_flag(const struct op_options_s* x, uint i, uint j);
+static operator_option_flags_t op_options_get_flag(const struct op_options_s* x, uint i, uint j);
 //static operator_option_flags_t op_options_get_io_flag(const struct op_options_s* x, uint o, uint i);
 static void op_options_set_flag(struct op_options_s* x, uint i, uint j, operator_option_flags_t flags);
 static void op_options_set_io_flag(struct op_options_s* x, uint o, uint i, operator_option_flags_t flags);
@@ -117,8 +117,22 @@ const struct op_options_s* op_options_io_create(uint NO, uint NI, const bool io_
 			if (NULL != options)
 				op_options_set_io_flag(result, o, i, options[o][i]);
 			else
-				op_options_set_io_flag(result, i, o, 0);
+				op_options_set_io_flag(result, o, i, 0);
 		}
+
+	return result;
+}
+
+const struct op_options_s* op_options_clone(const struct op_options_s* option)
+{
+	if (option == NULL)
+		return NULL;
+
+	struct op_options_s* result = op_options_create_internal(option->N, option->io_flags);
+
+	for (uint i = 0; i < option->N; i++)
+		for (uint j = 0; j < option->N; j++)
+			op_options_set_flag(result, i, j, op_options_get_flag(option, i, j));
 
 	return result;
 }
@@ -227,17 +241,6 @@ static void op_options_clear_ii(struct op_options_s* options, uint i1, uint i2, 
 	op_options_clear_sym(options, operator_io_index_to_index(options->io_flags, i1, false), operator_io_index_to_index(options->io_flags, i2, false), option);
 }
 
-
-static operator_option_flags_t op_options_get_flag(const struct op_options_s* x, uint i, uint j)
-{
-	if (NULL == x)
-		return 0;
-	assert(i < x->N);
-	assert(j < x->N);
-
-	return x->options[x->N * i + j];
-}
-
 static operator_option_flags_t op_options_get_io_flag(const struct op_options_s* x, uint o, uint i)
 {
 	if (NULL == x)
@@ -250,6 +253,17 @@ static operator_option_flags_t op_options_get_io_flag(const struct op_options_s*
 	return x->options[x->N * op + ip];
 }
 #endif
+
+static operator_option_flags_t op_options_get_flag(const struct op_options_s* x, uint i, uint j)
+{
+	if (NULL == x)
+		return 0;
+	assert(i < x->N);
+	assert(j < x->N);
+
+	return x->options[x->N * i + j];
+}
+
 static void op_options_set_flag(struct op_options_s* x, uint i, uint j, operator_option_flags_t flags)
 {
 	assert(i < x->N);
@@ -271,6 +285,8 @@ static void op_options_set_io_flag(struct op_options_s* x, uint o, uint i, opera
 
 bool op_options_is_set(const struct op_options_s* options, uint i, uint j, enum OPERATOR_RUN_OPT_FLAGS_INDEX option)
 {
+	if (NULL == options)
+		return false;
 	assert(i < options->N);
 	assert(j < options->N);
 	return (0 != MD_IS_SET(options->options[options->N * i + j], option));
@@ -283,6 +299,8 @@ bool op_options_is_set_sym(const struct op_options_s* options, uint i, uint j, e
 
 bool op_options_is_set_io(const struct op_options_s* options, uint o, uint i, enum OPERATOR_RUN_OPT_FLAGS_INDEX option)
 {
+	if (NULL == options)
+		return false;
 	assert(o < (uint)options->NO);
 	assert(i < (uint)options->NI);
 
@@ -293,6 +311,8 @@ bool op_options_is_set_io(const struct op_options_s* options, uint o, uint i, en
 
 bool op_options_is_set_oo(const struct op_options_s* options, uint o1, uint o2, enum OPERATOR_RUN_OPT_FLAGS_INDEX option)
 {
+	if (NULL == options)
+		return false;
 	assert(o1 < (uint)options->NO);
 	assert(o2 < (uint)options->NO);
 
@@ -303,6 +323,8 @@ bool op_options_is_set_oo(const struct op_options_s* options, uint o1, uint o2, 
 
 bool op_options_is_set_ii(const struct op_options_s* options, uint i1, uint i2, enum OPERATOR_RUN_OPT_FLAGS_INDEX option)
 {
+	if (NULL == options)
+		return false;
 	assert(i1 < (uint)options->NI);
 	assert(i2 < (uint)options->NI);
 
@@ -517,7 +539,7 @@ const struct op_property_s* op_property_io_create(uint NO, uint NI, const bool i
 			if (NULL != properties)
 				op_property_set_io_flag(result, o, i, properties[o][i]);
 			else
-				op_property_set_io_flag(result, i, o, 0);
+				op_property_set_io_flag(result, o, i, 0);
 		}
 
 	return result;
