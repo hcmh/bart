@@ -52,7 +52,7 @@ struct operator_s {
 
 	operator_data_t* data;
 	void (*apply)(const operator_data_t* data, unsigned int N, void* args[N]);
-	void (*apply_opts)(const operator_data_t* _data, unsigned int N, void* args[N], const struct op_options_s* opts);
+	void (*set_opts)(const operator_data_t* _data, const struct op_options_s* opts);
 	void (*del)(const operator_data_t* data);
 
 	const struct op_property_s* props;
@@ -82,7 +82,7 @@ static void operator_del(const struct shared_obj_s* sptr)
  */
 const struct operator_s* operator_generic_with_props_create2(unsigned int N, const bool io_flags[N],
 			const unsigned int D[N], const long* dims[N], const long* strs[N],
-			operator_data_t* data, operator_fun_opts_t apply_with_opts, operator_del_t del, const struct op_property_s* props)
+			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props)
 {
 	PTR_ALLOC(struct operator_s, op);
 	PTR_ALLOC(const struct iovec_s*[N], dom);
@@ -94,8 +94,8 @@ const struct operator_s* operator_generic_with_props_create2(unsigned int N, con
 	op->io_flags = ARR_CLONE(_Bool[N], io_flags);
 	op->domain = *PTR_PASS(dom);
 	op->data = data;
-	op->apply = NULL;
-	op->apply_opts = apply_with_opts;
+	op->apply = apply;
+	op->set_opts = set_opts;
 	op->del = del;
 	op->props = (NULL != props) ? props : op_property_create(N, io_flags, NULL);
 	
@@ -115,24 +115,7 @@ const struct operator_s* operator_generic_create2(unsigned int N, const bool io_
 			const unsigned int D[N], const long* dims[N], const long* strs[N],
 			operator_data_t* data, operator_fun_t apply, operator_del_t del)
 {
-	PTR_ALLOC(struct operator_s, op);
-	PTR_ALLOC(const struct iovec_s*[N], dom);
-
-	for (unsigned int i = 0; i < N; i++)
-		(*dom)[i] = iovec_create2(D[i], dims[i], strs[i], CFL_SIZE);
-
-	op->N = N;
-	op->io_flags = ARR_CLONE(_Bool[N], io_flags);
-	op->domain = *PTR_PASS(dom);
-	op->data = data;
-	op->apply = apply;
-	op->apply_opts = NULL;
-	op->del = del;
-	op->props = op_property_create(N, io_flags, NULL);
-
-	shared_obj_init(&op->sptr, operator_del);
-
-	return PTR_PASS(op);
+	return operator_generic_with_props_create2(N, io_flags,	D, dims, strs, data, apply, del, NULL, NULL);
 }
 
 
@@ -168,11 +151,11 @@ const struct operator_s* operator_create2(unsigned int ON, const long out_dims[O
 
 const struct operator_s* operator_with_props_create2(unsigned int ON, const long out_dims[ON], const long out_strs[ON],
 			unsigned int IN, const long in_dims[IN], const long in_strs[IN],
-			operator_data_t* data, operator_fun_opts_t apply, operator_del_t del, const struct op_property_s* props)
+			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props)
 {
 	return operator_generic_with_props_create2(2, (bool[2]){true, false}, (unsigned int[2]){ ON, IN },
 				(const long* [2]){ out_dims, in_dims }, (const long* [2]){ out_strs, in_strs },
-				data, apply, del, props);
+				data, apply, del, set_opts, props);
 }
 
 /**
@@ -487,10 +470,16 @@ struct operator_container_s {
 
 static DEF_TYPEID(operator_container_s );
 
-static void container_apply(const operator_data_t* _data, unsigned int N, void* args[N], const struct op_options_s* options)
+static void container_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 	const auto d = CAST_DOWN(operator_container_s, _data);
-	operator_generic_apply_with_opts_unchecked(d->x, N, args, options);
+	operator_generic_apply_unchecked(d->x, N, args);
+}
+
+static void container_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	const auto d = CAST_DOWN(operator_container_s, _data);
+	operator_set_options(d->x, options);
 }
 
 static void container_free(const operator_data_t* _data)
@@ -529,7 +518,7 @@ const struct operator_s* operator_reshape(const struct operator_s* op, unsigned 
 	op_dims[i] = dims;
 	op_strs[i] = strs;
 
-	return operator_generic_with_props_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), container_apply, container_free, op_property_clone(op->props));
+	return operator_generic_with_props_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), container_apply, container_free, container_set_opts, op_property_clone(op->props));
 }
 
 
@@ -611,35 +600,22 @@ const struct operator_s* operator_null_create(unsigned int N, const long dims[N]
 	return operator_null_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
 }
 
+void operator_set_options(const struct operator_s* op, const struct op_options_s* options) {
+
+	if (NULL != op->set_opts)
+		op->set_opts(op->data, options);
+}
+
 void operator_generic_apply_with_opts_unchecked(const struct operator_s* op, unsigned int N, void* args[N], const struct op_options_s* options)
 {
 	assert(op->N == N);
 	assert((NULL == options) || (N == op_options_get_N(options)));
 	assert(op_options_check_io_flags(options, N, op->io_flags));
 
-	if (NULL == options) {
+	if (NULL != options)
+		operator_set_options(op, options);
 
-		operator_generic_apply_unchecked(op, N, args);
-		return;
-	}
-
-	if (NULL != op->apply_opts) {
-
-		debug_trace("ENTER %p\n", op->apply_opts);
-		op->apply_opts(op->data, N, args, options);
-		debug_trace("LEAVE %p\n", op->apply_opts);
-		return;
-	}
-
-	if (NULL != op->apply) {
-
-		debug_trace("ENTER %p\n", op->apply);
-		op->apply(op->data, N, args);
-		debug_trace("LEAVE %p\n", op->apply);
-		return;
-	}
-
-	assert(0);
+	operator_generic_apply_unchecked(op, N, args);
 }
 
 
@@ -647,18 +623,9 @@ void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int 
 {
 	assert(op->N == N);
 
-	if (NULL != op->apply) {
-
-		debug_trace("ENTER %p\n", op->apply);
-		op->apply(op->data, N, args);
-		debug_trace("LEAVE %p\n", op->apply);
-	} else {
-
-		auto opts = op_options_create(N, op->io_flags, NULL);
-		operator_generic_apply_with_opts_unchecked(op, N, args, opts);
-		op_options_free(opts);
-	}
-
+	debug_trace("ENTER %p\n", op->apply);
+	op->apply(op->data, N, args);
+	debug_trace("LEAVE %p\n", op->apply);
 }
 
 
@@ -1233,7 +1200,7 @@ struct operator_combi_s {
 static DEF_TYPEID(operator_combi_s);
 
 
-static void combi_apply(const operator_data_t* _data, unsigned int N, void* args[N], const struct op_options_s* options)
+static void combi_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 	auto data = CAST_DOWN(operator_combi_s, _data);
 
@@ -1253,12 +1220,28 @@ static void combi_apply(const operator_data_t* _data, unsigned int N, void* args
 		assert(0 <= off);
 		assert(off < (int)N);
 
-		auto topts = op_options_combine_create(options, A, off, data->x[i]->io_flags);
-		operator_generic_apply_with_opts_unchecked(data->x[i], A, args + off, topts);
-		op_options_free(topts);
+		operator_generic_apply_unchecked(data->x[i], A, args + off);
 	}
 
 	assert(0 == off);
+}
+
+static void combi_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	auto data = CAST_DOWN(operator_combi_s, _data);
+
+	int off = 0;
+
+	for (int i = 0; i < (int)data->N; i++) {
+
+		int A = operator_nr_args(data->x[i]);
+
+		auto topts = op_options_combine_create(options, A, off, data->x[i]->io_flags);
+		operator_set_options(data->x[i], topts);
+		op_options_free(topts);
+
+		off += A;
+	}
 }
 
 static void combi_free(const operator_data_t* _data)
@@ -1321,7 +1304,7 @@ const struct operator_s* operator_combi_create(int N, const struct operator_s* x
 		}
 	}
 
-	return operator_generic_with_props_create2(A, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), combi_apply, combi_free, op_property_combine_create(N, properties));
+	return operator_generic_with_props_create2(A, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), combi_apply, combi_free, combi_set_opts, op_property_combine_create(N, properties));
 }
 
 
@@ -1339,7 +1322,7 @@ struct operator_dup_s {
 static DEF_TYPEID(operator_dup_s);
 
 
-static void dup_apply(const operator_data_t* _data, unsigned int N, void* args[N], const struct op_options_s* options)
+static void dup_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 	auto data = CAST_DOWN(operator_dup_s, _data);
 
@@ -1367,8 +1350,15 @@ static void dup_apply(const operator_data_t* _data, unsigned int N, void* args[N
 
 	args2[data->b] = args2[data->a];
 
-	auto topts = op_options_dup_create(options, data->a, data->b, N + 1, data->x->io_flags);
-	operator_generic_apply_with_opts_unchecked(data->x, N + 1, args2, topts);
+	operator_generic_apply_unchecked(data->x, N + 1, args2);
+}
+
+static void dup_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	auto data = CAST_DOWN(operator_dup_s, _data);
+
+	auto topts = op_options_dup_create(options, data->a, data->b, data->x->N, data->x->io_flags);
+	operator_set_options(data->x, topts);
 	op_options_free(topts);
 }
 
@@ -1425,7 +1415,7 @@ const struct operator_s* operator_dup_create(const struct operator_s* op, unsign
 	data->b = b;
 	data->x = operator_ref(op);
 
-	return operator_generic_with_props_create2(N - 1, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), dup_apply, dup_del, op_property_dup_create(op->props, a, b));
+	return operator_generic_with_props_create2(N - 1, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), dup_apply, dup_del, dup_set_opts, op_property_dup_create(op->props, a, b));
 }
 
 
@@ -1444,7 +1434,7 @@ struct operator_link_s {
 static DEF_TYPEID(operator_link_s);
 
 
-static void link_apply(const operator_data_t* _data, unsigned int N, void* args[N], const struct op_options_s* options)
+static void link_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 	auto data = CAST_DOWN(operator_link_s, _data);
 
@@ -1494,11 +1484,18 @@ static void link_apply(const operator_data_t* _data, unsigned int N, void* args[
 	for (int i = 0; i < (int)(N + 2); i++)
 		debug_printf(DP_DEBUG4, "link apply: out arg[%d] = %p\n", i, args2[i]);
 
-	const struct op_options_s* topts = op_options_link_create(options, data->a, data->b, data->x->props);
-	operator_generic_apply_with_opts_unchecked(data->x, N + 2, args2, topts);
-	op_options_free(topts);
+	operator_generic_apply_unchecked(data->x, N + 2, args2);
 
 	md_free(tmp);
+}
+
+static void link_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	auto data = CAST_DOWN(operator_link_s, _data);
+
+	const struct op_options_s* topts = op_options_link_create(options, data->a, data->b, data->x->props);
+	operator_set_options(data->x, topts);
+	op_options_free(topts);
 }
 
 static void link_del(const operator_data_t* _data)
@@ -1557,7 +1554,7 @@ const struct operator_s* operator_link_create(const struct operator_s* op, unsig
 	data->b = o;
 	data->x = operator_ref(op);
 
-	return operator_generic_with_props_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del, op_property_link_create(op->props, o, i));
+	return operator_generic_with_props_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del, link_set_opts, op_property_link_create(op->props, o, i));
 }
 
 
@@ -1574,7 +1571,7 @@ static DEF_TYPEID(permute_data_s);
 
 
 
-static void permute_fun(const operator_data_t* _data, unsigned int N, void* args[N], const struct op_options_s* options)
+static void permute_fun(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 	auto data = CAST_DOWN(permute_data_s, _data);
 
@@ -1591,8 +1588,15 @@ static void permute_fun(const operator_data_t* _data, unsigned int N, void* args
 	for (int i = 0; i < (int)N; i++)
 		debug_printf(DP_DEBUG4, "permute apply: out arg[%d] = %p\n", i, ptr[i]);
 
-	const struct op_options_s* topts = op_options_permute_create(options, N, data->perm);
-	operator_generic_apply_with_opts_unchecked(data->op, N, ptr, topts);
+	operator_generic_apply_unchecked(data->op, N, ptr);
+}
+
+static void permute_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	auto data = CAST_DOWN(permute_data_s, _data);
+
+	const struct op_options_s* topts = op_options_permute_create(options, op_options_get_N(options), data->perm);
+	operator_set_options(data->op, topts);
 	op_options_free(topts);
 }
 
@@ -1644,7 +1648,7 @@ const struct operator_s* operator_permute(const struct operator_s* op, int N, co
 
 	data->perm = nperm;
 
-	return operator_generic_with_props_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del,  op_property_permute_create(op->props, N, perm, io_flags));
+	return operator_generic_with_props_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del, permute_set_opts, op_property_permute_create(op->props, N, perm, io_flags));
 }
 
 

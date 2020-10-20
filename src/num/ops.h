@@ -16,7 +16,7 @@
 typedef struct operator_data_s { TYPEID* TYPEID; } operator_data_t;
 
 typedef void (*operator_fun_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)]);
-typedef void (*operator_fun_opts_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)], const struct op_options_s* options);
+typedef void (*operator_set_opts_t)(const operator_data_t* _data, const struct op_options_s* options);
 typedef void (*operator_del_t)(const operator_data_t* _data);
 
 
@@ -36,7 +36,7 @@ extern const struct operator_s* operator_create2(unsigned int ON, const long out
 
 extern const struct operator_s* operator_with_props_create2(unsigned int ON, const long out_dims[__VLA(ON)], const long out_strs[__VLA(ON)],
 		unsigned int IN, const long in_dims[__VLA(IN)], const long in_strs[__VLA(IN)],
-		operator_data_t* data, operator_fun_opts_t apply, operator_del_t de, const struct op_property_s* props);
+		operator_data_t* data, operator_fun_t apply, operator_del_t de, operator_set_opts_t set_opts, const struct op_property_s* props);
 
 extern const struct operator_s* operator_generic_create(unsigned int N, const _Bool io_flags[N],
 		const unsigned int D[__VLA(N)], const long* out_dims[__VLA(N)],
@@ -48,7 +48,7 @@ extern const struct operator_s* operator_generic_create2(unsigned int N, const _
 
 extern const struct operator_s* operator_generic_with_props_create2(unsigned int N, const _Bool io_flags[N],
 			const unsigned int D[__VLA(N)], const long* dims[__VLA(N)], const long* strs[__VLA(N)],
-			operator_data_t* data, operator_fun_opts_t apply, operator_del_t del, const struct op_property_s* props);
+			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props);
 
 
 extern const struct operator_s* operator_identity_create(unsigned int N, const long dims[__VLA(N)]);
@@ -87,6 +87,7 @@ extern const struct operator_s* operator_unref(const struct operator_s* x);
 
 #define OP_PASS(x) (operator_unref(x))
 
+extern void operator_set_options(const struct operator_s* op, const struct op_options_s* options);
 
 // apply functions
 extern void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int N, void* args[__VLA(N)]);

@@ -60,7 +60,7 @@ static void rbf_initialize(struct rbf_s* data, const complex float* arg, bool de
 
 #define STRIDED_MUL
 
-static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
+static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	//dst_ik = sum_j w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
 	//data->dz_ik = sum_j (mu_j - z_ik)/sigma^2 * w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
@@ -74,7 +74,7 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N], con
 	const complex float* zsrc = args[1];
 	const complex float* wsrc = args[2];
 
-	bool der1 = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
+	bool der1 = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
 	//bool der2 = !(MD_IS_SET(run_flags[0][2], OP_APP_NO_DER));
 
 	rbf_initialize(data, zdst, der1);
@@ -357,6 +357,6 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 
 	operator_property_flags_t props[2][1] = {{0},{0}};
 
-	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, props);
+	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, NULL, props);
 	return result;
 }

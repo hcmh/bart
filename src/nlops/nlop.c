@@ -46,7 +46,7 @@ struct nlop_op_data_s {
 	nlop_fun_t forward1;
 	nlop_gen_fun_t forward;
 
-	nlop_gen_fun_opts_t forward_opts;
+	nlop_set_opts_t set_opts;
 
 	unsigned int II;
 	unsigned int OO;
@@ -88,30 +88,39 @@ static void sptr_linop_del(const struct shared_ptr_s* sptr)
 	data->del(data->data);
 }
 
-static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)], const struct op_options_s* opts)
+static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)])
 {
 	auto data = CAST_DOWN(nlop_op_data_s, _data);
-
-	assert(N == data->II + data->OO);
 
 	if (NULL != data->forward1) {
 
 		assert(2 == N);
 		data->forward1(data->data, args[0], args[1]);
+		op_options_free(data->data->options);
+		data->data->options = NULL;
 		return;
 	}
 
 	if (NULL != data->forward) {
 
 		data->forward(data->data, N, *(complex float* (*)[N])args);
+		op_options_free(data->data->options);
+		data->data->options = NULL;
 		return;
 	}
 
-	if (NULL != data->forward_opts) {
+	assert(0);
+}
 
-		data->forward_opts(data->data, N, *(complex float* (*)[N])args, opts);
-		return;
-	}
+static void nlop_set_opts(const operator_data_t* _data, const struct op_options_s* opts)
+{
+	auto data = CAST_DOWN(nlop_op_data_s, _data);
+
+	op_options_free(data->data->options);
+	data->data->options = op_options_clone(opts);
+
+	if (NULL != data->set_opts)
+		data->set_opts(data->data, opts);
 }
 
 static void op_del(const operator_data_t* _data)
@@ -160,20 +169,23 @@ static void lop_del(const linop_data_t* _data)
 }
 
 struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims[OO][ON], const long ostr[OO][ON], int II, int IN, const long idims[II][IN], const long istr[II][IN],
-						nlop_data_t* data, nlop_gen_fun_opts_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO],
-						nlop_del_fun_t del, operator_property_flags_t props[II][OO])
+						nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO],
+						nlop_del_fun_t del,
+						nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO])
 {
 	PTR_ALLOC(struct nlop_s, n);
 
 	PTR_ALLOC(struct nlop_op_data_s, d);
 	SET_TYPEID(nlop_op_data_s, d);
 
+	data->options = NULL;
+
 	d->data = data;
 	d->II = II;
 	d->OO = OO;
 	d->forward1 = NULL;
-	d->forward = NULL;
-	d->forward_opts = forward;
+	d->forward = forward;
+	d->set_opts = set_opts;
 
 
 
@@ -241,7 +253,7 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 			d2->sptr.del = sptr_linop_del;
 
 			operator_property_flags_t der_props = MD_BIT(OP_PROP_ATOMIC);
-			if  (MD_IS_SET(props[i][o], OP_PROP_HOLOMORPHIC))
+			if ((NULL != props ) && (MD_IS_SET(props[i][o], OP_PROP_HOLOMORPHIC)))
 				der_props = MD_SET(der_props, OP_PROP_C_LIN);
 
 			(*der)[i][o] = linop_with_props_create2(ON, odims[o], ostr[o], IN, idims[i], istr[i],
@@ -253,7 +265,7 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 	for (int i = 0; i < OO + II; i++)
 		io_flags[i] = i < OO;
 
-	n->op = operator_generic_with_props_create2(OO + II, io_flags, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, op_property_create(OO + II, io_flags, tmp_props));
+	n->op = operator_generic_with_props_create2(OO + II, io_flags, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, nlop_set_opts, op_property_create(OO + II, io_flags, tmp_props));
 
 
 	return PTR_PASS(n);
@@ -262,81 +274,9 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], const long ostr[OO][ON], int II, int IN, const long idims[II][IN], const long istr[II][IN],
 	nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del)
 {
-	PTR_ALLOC(struct nlop_s, n);
-
-	PTR_ALLOC(struct nlop_op_data_s, d);
-	SET_TYPEID(nlop_op_data_s, d);
-
-	d->data = data;
-	d->II = II;
-	d->OO = OO;
-	d->forward1 = NULL;
-	d->forward = forward;
-	d->forward_opts = NULL;
-	d->del = del;
-
-	shared_ptr_init(&d->sptr, sptr_op_del);
-
-
-
-//	n->op = operator_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(PTR_PASS(d)), op_fun, op_del);
-
-	unsigned int D[OO + II];
-	for (int i = 0; i < OO + II; i++)
-		D[i] = (i < OO) ? ON : IN;
-
-	const long* dims[OO + II];
-
-	for (int i = 0; i < OO + II; i++)
-		dims[i] = (i < OO) ? odims[i] : idims[i - OO];
-
-	const long* strs[OO + II];
-
-	for (int i = 0; i < OO + II; i++)
-		strs[i] = (i < OO) ? ostr[i] : istr[i - OO];
-
-
-	const struct linop_s* (*der)[II][OO] = TYPE_ALLOC(const struct linop_s*[II][OO]);
-
-	n->derivative = &(*der)[0][0];
-
-	for (int i = 0; i < II; i++) {
-		for (int o = 0; o < OO; o++) {
-
-			PTR_ALLOC(struct nlop_linop_data_s, d2);
-			SET_TYPEID(nlop_linop_data_s, d2);
-
-			d2->data = data;
-			d2->del = del;
-			d2->deriv = deriv[i][o];
-			d2->adjoint = adjoint[i][o];
-			d2->normal = (NULL != normal) ? normal[i][o] : NULL;
-			d2->norm_inv = (NULL != norm_inv) ? norm_inv[i][o] : NULL;
-
-			d2->o = o;
-			d2->i = i;
-
-			shared_ptr_copy(&d2->sptr, &d->sptr);
-			d2->sptr.del = sptr_linop_del;
-
-			(*der)[i][o] = linop_with_props_create2(ON, odims[o], ostr[o], IN, idims[i], istr[i],
-						     CAST_UP(PTR_PASS(d2)), lop_der, lop_adj,  (NULL != normal) ? lop_nrm : NULL, (NULL != norm_inv) ? lop_nrm_inv : NULL, lop_del, 0);
-		}
-	}
-
-	operator_property_flags_t tmp_props[II + OO][II + OO];
-	for (int i = 0; i < II + OO; i++)
-		for (int j = 0; j < II + OO; j++)
-			tmp_props[i][j] = MD_BIT(OP_PROP_ATOMIC);
-
-	bool io_flags[OO + II];
-	for (int i = 0; i < OO + II; i++)
-		io_flags[i] = i < OO;
-
-	n->op = operator_generic_with_props_create2(OO + II, io_flags, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, op_property_create(OO + II, io_flags, tmp_props));
-
-
-	return PTR_PASS(n);
+	return nlop_generic_with_props_create2(OO, ON, odims, ostr, II, IN, idims, istr,
+						data, forward, deriv, adjoint, normal, norm_inv,
+						del, NULL, NULL);
 }
 
 struct nlop_s* nlop_generic_create(int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
@@ -353,8 +293,8 @@ struct nlop_s* nlop_generic_create(int OO, int ON, const long odims[OO][ON], int
 }
 
 struct nlop_s* nlop_generic_with_props_create(	int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
-						nlop_data_t* data, nlop_gen_fun_opts_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
-						operator_property_flags_t io_prop[II][OO])
+						nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
+						nlop_set_opts_t set_opts, operator_property_flags_t io_prop[II][OO])
 {
 	long istrs[II][IN];
 	for (int i = 0; i < II; i++)
@@ -363,7 +303,7 @@ struct nlop_s* nlop_generic_with_props_create(	int OO, int ON, const long odims[
 	for (int o = 0; o < OO; o++)
 		md_calc_strides(ON, ostrs[o], odims[o], CFL_SIZE);
 
-	return nlop_generic_with_props_create2(OO, ON, odims, ostrs, II, IN, idims, istrs, data, forward, deriv, adjoint, normal, norm_inv, del, io_prop);
+	return nlop_generic_with_props_create2(OO, ON, odims, ostrs, II, IN, idims, istrs, data, forward, deriv, adjoint, normal, norm_inv, del, set_opts, io_prop);
 }
 
 struct nlop_s* nlop_create2(unsigned int ON, const long odims[__VLA(ON)], const long ostrs[__VLA(ON)],

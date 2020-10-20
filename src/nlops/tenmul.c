@@ -66,7 +66,7 @@ static void tenmul_initialize(struct tenmul_s* data, const complex float* arg, b
 }
 
 
-static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
+static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	START_TIMER;
 	const auto data = CAST_DOWN(tenmul_s, _data);
@@ -79,8 +79,8 @@ static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N], 
 #ifdef USE_CUDA
 	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
 #endif
-	bool der1 = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
-	bool der2 = !op_options_is_set_io(opts, 0, 1, OP_APP_NO_DER);
+	bool der1 = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
+	bool der2 = !op_options_is_set_io(_data->options, 0, 1, OP_APP_NO_DER);
 
 	tenmul_initialize(data, dst, der1, der2);
 
@@ -225,7 +225,7 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 	operator_property_flags_t props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
 
 	return nlop_generic_with_props_create2(1, N, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-		tenmul_fun, (nlop_der_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_der_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, props);
+		tenmul_fun, (nlop_der_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_der_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, NULL, props);
 }
 
 

@@ -63,11 +63,10 @@ static void shared_del(const operator_data_t* _data)
 	xfree(data);
 }
 
-static void shared_apply(const operator_data_t* _data, unsigned int N, void* args[N], const struct op_options_s* opts)
+static void shared_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 	auto data = CAST_DOWN(shared_data_s, _data);
 
-	UNUSED(opts);
 	assert(2 == N);
 	debug_trace("ENTER %p\n", data->u.apply);
 	data->u.apply(data->data, args[0], args[1]);
@@ -137,12 +136,12 @@ struct linop_s* linop_with_props_create2(unsigned int ON, const long odims[ON], 
 
 	operator_property_flags_t lin_props[1][1] = {{linop_props}};
 
-	lo->forward = operator_with_props_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
-	lo->adjoint = operator_with_props_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
+	lo->forward = operator_with_props_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
+	lo->adjoint = operator_with_props_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
 
 	if (NULL != normal) {
 
-		lo->normal = operator_with_props_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
+		lo->normal = operator_with_props_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
 
 	} else {
 

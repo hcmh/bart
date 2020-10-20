@@ -328,7 +328,7 @@ struct relu_s {
 
 DEF_TYPEID(relu_s);
 
-static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
+static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	START_TIMER;
 
@@ -344,7 +344,7 @@ static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N], 
 	md_smax2(d->dom->N, d->dom->dims, d->codom->strs, (float*)dst, d->codom->strs, (float*)src, 0.);
 	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
 
-	if (op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER)) {
+	if (op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER)) {
 
 		md_free(d->tmp);
 		d->tmp = NULL;
@@ -429,7 +429,7 @@ const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const
 	operator_property_flags_t props[1][1] = {{0}};
 
 	return nlop_generic_with_props_create2(	1, N, nl_odims, nl_ostr, 1, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, props);
+						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, NULL, props);
 }
 
 const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])

@@ -87,7 +87,7 @@ static void convcorr_initialize(struct convcorr_geom_s* data, const complex floa
 	}
 }
 
-static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
+static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	START_TIMER;
 
@@ -102,8 +102,8 @@ static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* ar
 	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
 #endif
 
-	bool der1 = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
-	bool der2 = !op_options_is_set_io(opts, 0, 1, OP_APP_NO_DER);
+	bool der1 = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
+	bool der2 = !op_options_is_set_io(_data->options, 0, 1, OP_APP_NO_DER);
 
 	convcorr_initialize(data, dst, der1, der2);
 
@@ -278,7 +278,7 @@ static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags
 
 	return nlop_generic_with_props_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
 				    (nlop_der_fun_t[2][1]){ { convcorr_geom_der1 }, { convcorr_geom_der2 } },
-				    (nlop_der_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, props);
+				    (nlop_der_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, NULL, props);
 }
 
 
