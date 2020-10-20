@@ -220,6 +220,20 @@ operator_data_t* operator_get_data(const struct operator_s* x)
 	return x->data;
 }
 
+const bool* operator_get_io_flags(const struct operator_s* x)
+{
+	return x->io_flags;
+}
+
+operator_property_flags_t operator_get_property_flag(const struct operator_s* x, unsigned int i, unsigned int j)
+{
+	return op_property_get_flag(x->props, i, j);
+}
+operator_property_flags_t operator_get_property_io_flag(const struct operator_s* x, unsigned int o, unsigned int i)
+{
+	return op_property_get_io_flag(x->props, o, i);
+}
+
 
 
 /**

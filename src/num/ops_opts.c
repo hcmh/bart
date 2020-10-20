@@ -35,8 +35,6 @@ static operator_option_flags_t op_options_get_flag(const struct op_options_s* x,
 static void op_options_set_flag(struct op_options_s* x, uint i, uint j, operator_option_flags_t flags);
 static void op_options_set_io_flag(struct op_options_s* x, uint o, uint i, operator_option_flags_t flags);
 
-static operator_property_flags_t op_property_get_flag(const struct op_property_s* x, uint i, uint j);
-static operator_property_flags_t op_property_get_io_flag(const struct op_property_s* x, uint o, uint i);
 static void op_property_set_flag(const struct op_property_s* x, uint i, uint j, operator_property_flags_t flags);
 static void op_property_set_io_flag(const struct op_property_s* x, uint o, uint i, operator_property_flags_t flags);
 
@@ -571,7 +569,7 @@ void op_property_free(const struct op_property_s* prop)
 	xfree(prop);
 }
 
-static operator_property_flags_t op_property_get_flag(const struct op_property_s* x, uint i, uint j)
+operator_property_flags_t op_property_get_flag(const struct op_property_s* x, uint i, uint j)
 {
 	if (NULL == x)
 		return 0;
@@ -581,7 +579,7 @@ static operator_property_flags_t op_property_get_flag(const struct op_property_s
 	return x->properties[x->N * i + j];
 }
 
-static operator_property_flags_t op_property_get_io_flag(const struct op_property_s* x, uint o, uint i)
+operator_property_flags_t op_property_get_io_flag(const struct op_property_s* x, uint o, uint i)
 {
 	if (NULL == x)
 		return 0;

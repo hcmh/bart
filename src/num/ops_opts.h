@@ -58,6 +58,9 @@ extern const struct op_property_s* op_property_clone(const struct op_property_s*
 extern _Bool op_property_is_set(const struct op_property_s* x, unsigned int i, unsigned int j, enum OPERATOR_IO_PROP_FLAGS_INDEX property);
 extern _Bool op_property_is_set_io(const struct op_property_s* x, unsigned int o, unsigned int i, enum OPERATOR_IO_PROP_FLAGS_INDEX property);
 
+extern operator_property_flags_t op_property_get_flag(const struct op_property_s* x, unsigned int i, unsigned int j);
+extern operator_property_flags_t op_property_get_io_flag(const struct op_property_s* x, unsigned int o, unsigned int i);
+
 extern void op_property_io_print(int debug_level, const struct op_property_s* x);
 
 #endif //OPERATOR_OPTS_H
