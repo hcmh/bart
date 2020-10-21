@@ -81,6 +81,8 @@ extern void nn_get_out_types(nn_t op, unsigned int N, enum OUT_TYPE out_types[N]
 extern const struct iovec_s* nn_generic_domain(nn_t op, int i, const char* iname);
 extern const struct iovec_s* nn_generic_codomain(nn_t op, int o, const char* oname);
 
+extern nn_t nn_checkpoint_F(nn_t op, _Bool der_once);
+
 extern void nn_debug(enum debug_levels dl, nn_t x);
 
 #endif
