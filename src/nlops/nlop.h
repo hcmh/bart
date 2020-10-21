@@ -71,7 +71,7 @@ extern void nlop_adjoint(const struct nlop_s* op, int ON, const long odims[ON], 
 extern void nlop_generic_apply_unchecked(const struct nlop_s* op, int N, void* args[N]);
 extern void nlop_generic_apply_with_opts_unchecked(const struct nlop_s* op, int N, void* args[N], const struct op_options_s* opts);
 extern void nlop_generic_apply_select_derivative_unchecked(const struct nlop_s* op, int N, void* args[N], unsigned long out_der_flag, unsigned long in_der_flag);
-
+extern void nlop_clear_derivative(const struct nlop_s* op);
 
 extern const struct linop_s* nlop_get_derivative(const struct nlop_s* op, int o, int i);
 

@@ -372,6 +372,8 @@ const struct op_options_s* op_options_combine_create(const struct op_options_s* 
 
 			if (op_options_is_set(combine_options, off + i, off + j, OP_APP_NO_DER))
 				op_options_set(result, i, j, OP_APP_NO_DER);
+			if (op_options_is_set(combine_options, off + i, off + j, OP_APP_CLEAR_DER))
+				op_options_set(result, i, j, OP_APP_CLEAR_DER);
 		}
 
 	return result;
@@ -399,11 +401,15 @@ const struct op_options_s* op_options_dup_create(const struct op_options_s* dup_
 					continue;
 				if (op_options_is_set_io(dup_options, o, ip, OP_APP_NO_DER))
 					op_options_set_io(result, o, i, OP_APP_NO_DER);
+				if (op_options_is_set_io(dup_options, o, ip, OP_APP_CLEAR_DER))
+					op_options_set_io(result, o, i, OP_APP_CLEAR_DER);
 				ip++;
 			}
 
 			if (op_options_is_set_io(result, o, io_index_a, OP_APP_NO_DER))
 				op_options_set_io(result, o, io_index_b, OP_APP_NO_DER);
+			if (op_options_is_set_io(result, o, io_index_a, OP_APP_CLEAR_DER))
+				op_options_set_io(result, o, io_index_b, OP_APP_CLEAR_DER);
 		}
 	}
 
@@ -426,8 +432,10 @@ const struct op_options_s* op_options_link_create(const struct op_options_s* lin
 	uint NI = result->NI;
 
 	for (uint ip = 0; ip < NI; ip++)
-		for (uint op = 0; op < NO; op++)
+		for (uint op = 0; op < NO; op++) {
 			op_options_set_io(result, op, ip, OP_APP_NO_DER);
+			op_options_set_io(result, op, ip, OP_APP_CLEAR_DER);
+		}
 
 	/*
 	* Select needed derivatives (loop over i, j)
@@ -449,6 +457,15 @@ const struct op_options_s* op_options_link_create(const struct op_options_s* lin
 				if (!(op_property_is_set_io(prop, op, in_ind, OP_PROP_INDEPENDENT)))
 					op_options_clear_io(result, out_ind, ip, OP_APP_NO_DER);
 			}
+
+			if (!op_options_is_set_io(link_options, o, i, OP_APP_CLEAR_DER)) {
+
+				op_options_clear_io(result, op, ip, OP_APP_CLEAR_DER);
+				if (!(op_property_is_set_io(prop, out_ind, ip, OP_PROP_INDEPENDENT)))
+					op_options_clear_io(result, op, in_ind, OP_APP_CLEAR_DER);
+				if (!(op_property_is_set_io(prop, op, in_ind, OP_PROP_INDEPENDENT)))
+					op_options_clear_io(result, out_ind, ip, OP_APP_CLEAR_DER);
+			}
 		}
 	}
 
@@ -469,6 +486,8 @@ const struct op_options_s* op_options_permute_create(const struct op_options_s* 
 
 			if (op_options_is_set(permute_options, i, j, OP_APP_NO_DER))
 				op_options_set(result, perm[i], perm[j], OP_APP_NO_DER);
+			if (op_options_is_set(permute_options, i, j, OP_APP_CLEAR_DER))
+				op_options_set(result, perm[i], perm[j], OP_APP_CLEAR_DER);
 		}
 
 	return result;
@@ -485,6 +504,20 @@ const struct op_options_s* op_options_select_der_create(uint NO, uint NI, bool o
 		for (uint i = 0; i < NI; i++)
 			if (!(out_der_flag[o] && in_der_flag[i]))
 				op_options_set_io(result, o, i, OP_APP_NO_DER);
+
+	return result;
+}
+
+const struct op_options_s* op_options_clear_der_create(uint NO, uint NI)
+{
+	bool io_flags[NO + NI];
+	for (uint i = 0; i < NO + NI; i++)
+		io_flags[i] = (i < NO);
+
+	struct op_options_s* result = op_options_create_internal(NO + NI, io_flags);
+	for (uint o = 0; o < NO; o++)
+		for (uint i = 0; i < NI; i++)
+			op_options_set_io(result, o, i, OP_APP_CLEAR_DER);
 
 	return result;
 }

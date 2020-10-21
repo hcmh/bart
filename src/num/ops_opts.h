@@ -5,7 +5,8 @@
 
 
 
-enum OPERATOR_RUN_OPT_FLAGS_INDEX {	OP_APP_NO_DER, 	// nlops do not need to store information for derivative
+enum OPERATOR_RUN_OPT_FLAGS_INDEX {	OP_APP_NO_DER, 		// nlops do not need to store information for derivative
+					OP_APP_CLEAR_DER, 	// delete information for derivative
 					};
 enum OPERATOR_IO_PROP_FLAGS_INDEX {	OP_PROP_ATOMIC, // in/out puts belong to the same operator on the lowest level
 					OP_PROP_R_LIN,	// operator is linear over the real numbers
@@ -39,6 +40,7 @@ extern const struct op_options_s* op_options_link_create(const struct op_options
 extern const struct op_options_s* op_options_permute_create(const struct op_options_s* permute_options, unsigned int N, const int perm[N]);
 
 extern const struct op_options_s* op_options_select_der_create(unsigned int NO, unsigned int NI, _Bool out_der_flag[NO], _Bool in_der_flag[NI]);
+extern const struct op_options_s* op_options_clear_der_create(unsigned int NO, unsigned int NI);
 
 extern void print_operator_option_flags(const struct op_options_s* options);
 extern void print_operator_io_option_flags(const struct op_options_s* options);

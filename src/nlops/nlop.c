@@ -32,7 +32,8 @@
 static operator_property_flags_t nlops_props_understood = MD_BIT(OP_PROP_ATOMIC)
 							| MD_BIT(OP_PROP_R_LIN)
 							| MD_BIT(OP_PROP_C_LIN)
-							| MD_BIT(OP_PROP_HOLOMORPHIC);
+							| MD_BIT(OP_PROP_HOLOMORPHIC)
+							| MD_BIT(OP_PROP_INDEPENDENT);
 
 struct nlop_op_data_s {
 
@@ -448,6 +449,13 @@ void nlop_generic_apply_select_derivative_unchecked(const struct nlop_s* op, int
 	auto opts =  op_options_select_der_create(OO, II, out_der_arr, in_der_arr);
 	nlop_generic_apply_with_opts_unchecked(op, N, args, opts);
 	op_options_free(opts);
+}
+
+void nlop_clear_derivative(const struct nlop_s* op)
+{
+	auto opt = op_options_clear_der_create(nlop_get_nr_out_args(op), nlop_get_nr_in_args(op));
+	operator_set_options(op->op, opt);
+	op_options_free(opt);
 }
 
 const struct linop_s* nlop_get_derivative(const struct nlop_s* op, int o, int i)
