@@ -91,6 +91,8 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_SET(0, "modl_reinsert_zerofilled", &(modl.reinsert_zerofilled), "reinsert zero-filled reconstruction and current reconstruction to all DW networks"),
 		OPTL_CLEAR(0, "modl_no_batchnorm", &(modl.batch_norm), "no batch normalization in dw block"),
 
+		OPTL_SET(0, "modl_nullspace", &(modl.nullspace), "use nullspace formulation for the modl data-consistency layer"),
+
 		OPTL_UINT(0, "conjgrad_iterations", &(def_conf.maxiter), "iter", "number of iterations in data-consistency layer (def: 50)"),
 		OPTL_FLOAT(0, "conjgrad_convergence_warning", &(modl.convergence_warn_limit), "limit", "warn if inversion error is larger than this limit (def: 0. = no warnings)"),
 

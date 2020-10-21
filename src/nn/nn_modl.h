@@ -29,6 +29,8 @@ struct modl_s {
 	_Bool init_tickhonov;
 	_Bool batch_norm;
 	_Bool residual_network;
+
+	_Bool nullspace;
 };
 
 extern const struct modl_s modl_default;

@@ -81,6 +81,8 @@ const struct modl_s modl_default = {
 	.init_tickhonov = false,
 	.batch_norm = true,
 	.residual_network =true,
+
+	.nullspace = false,
 };
 
 static nn_t residual_create(const struct modl_s* config, const long udims[5], enum NETWORK_STATUS status){
@@ -215,7 +217,7 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 	return (1 == config->Nt) ? result : nn_checkpoint_F(result, true);
 }
 
-static nn_t data_consistency_create(const struct modl_s* config,const long dims[5], const long udims[5])
+static nn_t data_consistency_modl_create(const struct modl_s* config,const long dims[5], const long udims[5])
 {
 	auto nlop_dc = mri_normal_inversion_create_with_lambda(5, dims, config->share_pattern, config->lambda_fixed, config->batch_independent, config->convergence_warn_limit, config->normal_inversion_iter_conf); // in: x0+zn, coil, pattern, lambda; out: x(n+1)
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
@@ -249,7 +251,7 @@ static nn_t data_consistency_create(const struct modl_s* config,const long dims[
 static nn_t nn_modl_cell_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
 {
 	auto dw = residual_create(config, udims, status);
-	auto dc = data_consistency_create(config, dims, udims);
+	auto dc = data_consistency_modl_create(config, dims, udims);
 
 	if (config->reinsert_zerofilled)
 		dw = nn_mark_dup_F(dw, "zero_filled");
@@ -260,8 +262,13 @@ static nn_t nn_modl_cell_create(const struct modl_s* config,const long dims[5], 
 	return result;
 }
 
+static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status);
+
 static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
 {
+	if (config->nullspace)
+		return nn_nullspace_create(config, dims, udims, status);
+
 	auto result = nn_modl_cell_create(config, dims, udims, status);
 
 	for (int i = 1; i < config->Nt; i++) {
@@ -304,7 +311,7 @@ static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const
 		result = nn_mark_dup_F(result, "pattern");
 		result = (config->shared_lambda ? nn_mark_dup_F : nn_mark_stack_input_F)(result, "lambda");
 
-		auto dc = data_consistency_create(config, dims, udims);
+		auto dc = data_consistency_modl_create(config, dims, udims);
 		auto iov = nn_generic_domain(dc, 0, NULL);
 		complex float* zeros = md_alloc(iov->N, iov->dims, iov->size);
 		md_clear(iov->N, iov->dims, zeros, iov->size);
@@ -316,6 +323,117 @@ static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const
 
 		result = nn_dup_F(result, 0, "zero_filled", 0, NULL);
 	}
+
+	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
+	auto nlop_zf = nlop_mri_adjoint_create(5, dims, config->share_pattern);
+	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+	auto nn_zf = nn_from_nlop_F(nlop_zf);
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "coil");
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "pattern");
+
+	result = nn_mark_dup_F(result, "coil");
+	result = nn_mark_dup_F(result, "pattern");
+
+	result = nn_chain2_swap_FF(nn_zf, 0, NULL, result, 0, "zero_filled");
+	result = nn_stack_dup_by_name_F(result);
+
+	return result;
+}
+
+static nn_t data_consistency_nullspace_create(const struct modl_s* config,const long dims[5], const long udims[5])
+{
+	auto nlop_dc = mri_reg_proj_ker_create_with_lambda(5, dims, config->share_pattern, config->lambda_fixed, config->batch_independent, config->convergence_warn_limit, config->normal_inversion_iter_conf); // in: x0+zn, coil, pattern, lambda; out: x(n+1)
+	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
+	nlop_dc = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_dc, 0);
+	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+
+	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0);// in: zi, zero_filled, coil, pattern, lambda; out: x(n+1)
+
+	auto result = nn_from_nlop_F(nlop_dc);
+	nn_debug(DP_INFO, result);
+	result = nn_set_input_name_F(result, 0, "tickhonov_reg");
+	nn_debug(DP_INFO, result);
+	result = nn_set_input_name_F(result, 1, "coil");
+	nn_debug(DP_INFO, result);
+	result = nn_set_input_name_F(result, 1, "pattern");
+	nn_debug(DP_INFO, result);
+	result = nn_set_input_name_F(result, 1, "lambda");
+	nn_debug(DP_INFO, result);
+	result = nn_set_in_type_F(result, 0, "lambda", IN_OPTIMIZE);
+	result = nn_set_initializer_F(result, 0, "lambda", init_const_create((-1 != config->lambda_fixed) ? config->lambda_fixed : config->lambda_init));
+
+	return result;
+}
+
+static nn_t nn_nullspace_cell_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
+{
+	auto dw = residual_create(config, udims, status);
+	auto dc = data_consistency_nullspace_create(config, dims, udims);
+
+	nn_t result = nn_chain2_FF(dw, 0, NULL, dc, 0, NULL);
+	result = nn_stack_dup_by_name_F(result);
+
+	return result;
+}
+
+
+static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
+{
+	auto result = nn_nullspace_cell_create(config, dims, udims, status);
+
+	for (int i = 1; i < config->Nt; i++) {
+
+		auto tmp = nn_nullspace_cell_create(config, dims, udims, status);
+
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_0");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_i");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_n");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_0");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_i");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_n");
+
+		if (config->batch_norm) {
+		
+			tmp = nn_mark_stack_input_F(tmp, "bn_0");
+			tmp = nn_mark_stack_input_F(tmp, "bn_i");
+			tmp = nn_mark_stack_input_F(tmp, "bn_n");
+			tmp = nn_mark_stack_input_F(tmp, "gamma");
+
+			tmp = nn_mark_stack_output_F(tmp, "bn_0");
+			tmp = nn_mark_stack_output_F(tmp, "bn_i");
+			tmp = nn_mark_stack_output_F(tmp, "bn_n");
+		}
+
+		if (config->reinsert_zerofilled)
+			tmp = nn_mark_dup_F(tmp, "zero_filled");
+
+		tmp = nn_mark_dup_F(tmp, "tickhonov_reg");	
+		tmp = nn_mark_dup_F(tmp, "coil");
+		tmp = nn_mark_dup_F(tmp, "pattern");
+		tmp = (config->shared_lambda ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "lambda");
+
+
+		result = nn_chain2_FF(result, 0, NULL, tmp, 0, NULL);
+		result = nn_stack_dup_by_name_F(result);
+	}
+
+	result = nn_dup_F(result, 0, "tickhonov_reg", 0, NULL);
+
+	if (config->reinsert_zerofilled)
+		result = nn_mark_dup_F(result, "zero_filled");
+
+	result = nn_mark_dup_F(result, "coil");
+	result = nn_mark_dup_F(result, "pattern");
+	result = (config->shared_lambda ? nn_mark_dup_F : nn_mark_stack_input_F)(result, "lambda");
+
+	auto dc = data_consistency_modl_create(config, dims, udims);
+	auto iov = nn_generic_domain(dc, 0, NULL);
+	complex float* zeros = md_alloc(iov->N, iov->dims, iov->size);
+	md_clear(iov->N, iov->dims, zeros, iov->size);
+	dc = nn_chain2_FF(nn_from_nlop_F(nlop_const_create(iov->N, iov->dims, true, zeros)), 0, NULL, dc, 0, NULL);
+	result = nn_chain2_swap_FF(dc, 0, NULL, result, 0, "tickhonov_reg");
+	result = nn_stack_dup_by_name_F(result);
 
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
 	auto nlop_zf = nlop_mri_adjoint_create(5, dims, config->share_pattern);
