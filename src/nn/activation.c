@@ -328,6 +328,17 @@ struct relu_s {
 
 DEF_TYPEID(relu_s);
 
+static void relu_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
+{
+	const auto data = CAST_DOWN(relu_s, _data);
+
+	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
+
+		md_free(data->tmp);
+		data->tmp = NULL;
+	}
+}
+
 static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	START_TIMER;
@@ -429,7 +440,7 @@ const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const
 	operator_property_flags_t props[1][1] = {{0}};
 
 	return nlop_generic_with_props_create2(	1, N, nl_odims, nl_ostr, 1, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, NULL, props);
+						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, relu_set_opts, props);
 }
 
 const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])

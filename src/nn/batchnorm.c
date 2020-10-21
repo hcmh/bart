@@ -648,6 +648,17 @@ static void bn_clear_der(struct bn_s* data)
 	data->scale = NULL;
 }
 
+static void bn_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
+{
+	const auto data = CAST_DOWN(bn_s, _data);
+
+	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
+
+		md_free(data->out);
+		data->out = NULL;
+	}
+}
+
 static void bn_fun(const nlop_data_t* _data, int D, complex float* args[D])
 {
 	START_TIMER;
@@ -870,7 +881,7 @@ static const struct nlop_s* nlop_bn_create(int N, const long dims[N], unsigned l
 	return nlop_generic_with_props_create(3, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), bn_fun,
 						(nlop_der_fun_t[1][3]){ { bn_deradj_in, bn_der_mean, bn_der_var } },
 						(nlop_der_fun_t[1][3]){ { bn_deradj_in, bn_adj_mean, bn_adj_var } },
-						 NULL, NULL, bn_del, NULL, props);
+						 NULL, NULL, bn_del, bn_set_opts, props);
 }
 
 

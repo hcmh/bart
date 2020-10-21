@@ -87,6 +87,22 @@ static void convcorr_initialize(struct convcorr_geom_s* data, const complex floa
 	}
 }
 
+static void convcorr_geom_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
+{
+	const auto data = CAST_DOWN(convcorr_geom_s, _data);
+
+	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
+
+		md_free(data->src2);
+		data->src2 = NULL;
+	}
+	if(op_options_is_set_io(opts, 0, 1, OP_APP_CLEAR_DER)){
+
+		md_free(data->src1);
+		data->src1 = NULL;
+	}
+}
+
 static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	START_TIMER;
@@ -278,7 +294,7 @@ static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags
 
 	return nlop_generic_with_props_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
 				    (nlop_der_fun_t[2][1]){ { convcorr_geom_der1 }, { convcorr_geom_der2 } },
-				    (nlop_der_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, NULL, props);
+				    (nlop_der_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, convcorr_geom_set_opts, props);
 }
 
 
