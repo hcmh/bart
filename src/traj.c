@@ -254,13 +254,6 @@ int main_traj(int argc, char* argv[])
 			 */
 			double read = (float)(i + D - X) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
 
-			if (conf.mems_traj) {
-				if (e % 2) // even
-					read = (float)(D - i - even_echo_shift) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
-				else // odd
-					read = (float)(i + D - X) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
-			}
-
 			if (conf.golden_partition) {
 
 				double golden_ratio = (sqrtf(5.) + 1.) / 2;

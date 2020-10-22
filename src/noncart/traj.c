@@ -180,7 +180,7 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	if (conf.mems_traj) {
 
 		angle_s = angle_s * 1.;
-		angle_e = angle_s / E;
+		angle_e = angle_s / E + M_PI;
 		angle_t = golden_angle;
 
 	} else if (conf.golden) {
