@@ -610,6 +610,8 @@ const struct vec_ops gpu_ops = {
 	.zcmpl_real = cuda_zcmpl_real,
 	.zcmpl_imag = cuda_zcmpl_imag,
 	.zcmpl = cuda_zcmpl,
+
+	.zfill = cuda_zfill,
 };
 
 

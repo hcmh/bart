@@ -1470,3 +1470,17 @@ extern "C" void cuda_zcmpl(long N, _Complex float* dst, const float* real_src, c
 	kern_zcmpl<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, real_src, imag_src);
 }
 
+__global__ void kern_zfill(int N, cuFloatComplex val, cuFloatComplex* dst)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int i = start; i < N; i += stride)
+		dst[i] = val;
+}
+
+extern "C" void cuda_zfill(long N, _Complex float val, _Complex float* dst)
+{
+	kern_zfill<<<gridsize(N), blocksize(N)>>>(N, make_cuFloatComplex(__real(val), __imag(val)), (cuFloatComplex*)dst);
+}
+

@@ -3403,7 +3403,21 @@ void md_zwavg2_core2(unsigned int D, const long dims[D], unsigned int flags, con
  */
 void md_zfill2(unsigned int D, const long dim[D], const long str[D], complex float* ptr, complex float val)
 {
+#if 1
+	const long (*nstr[1])[D?D:1] = { (const long (*)[D?D:1])str};
+	void *nptr[1] = { ptr };
+	unsigned int io = 1;
+	size_t sizes[1] = { CFL_SIZE };
+
+	NESTED(void, nary_zfill, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		data->ops->zfill(data->size, val, ptr[0]);
+	};
+
+	optimized_nop(1, io, D, dim, nstr, nptr, sizes, nary_zfill);
+#else
 	md_fill2(D, dim, str, ptr, &val, CFL_SIZE);
+#endif
 }
 
 
@@ -3414,7 +3428,10 @@ void md_zfill2(unsigned int D, const long dim[D], const long str[D], complex flo
  */
 extern void md_zfill(unsigned int D, const long dim[D], complex float* ptr, complex float val)
 {
-	md_fill(D, dim, ptr, &val, CFL_SIZE);
+	long str[D];
+	md_calc_strides(D, str, dim, CFL_SIZE);
+
+	md_zfill2(D, dim, str, ptr, val);
 }
 
 

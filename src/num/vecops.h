@@ -98,6 +98,8 @@ struct vec_ops {
 	void (*zcmpl_real)(long N, _Complex float* dst, const float* src);
 	void (*zcmpl_imag)(long N, _Complex float* dst, const float* src);
 	void (*zcmpl)(long N, _Complex float* dst, const float* real_src, const float* imag_src);
+
+	void (*zfill)(long N, _Complex float val, _Complex float* dst);
 };
 
 

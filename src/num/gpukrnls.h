@@ -74,6 +74,7 @@ extern void cuda_imag(long N, float* dst, const _Complex float* src);
 extern void cuda_zcmpl_real(long N, _Complex float* dst, const float* src);
 extern void cuda_zcmpl_imag(long N, _Complex float* dst, const float* src);
 extern void cuda_zcmpl(long N, _Complex float* dst, const float* real_src, const float* imag_src);
+extern void cuda_zfill(long N, _Complex float val, _Complex float* dst);
 
 #ifdef __cplusplus
 }
