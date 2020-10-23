@@ -420,11 +420,13 @@ int main_modbloch(int argc, char* argv[])
 	long tmp_strs[DIMS];
 	md_calc_strides(DIMS, tmp_strs, tmp_dims, CFL_SIZE);
 	
-	complex float initval[3] = {0.5, 4., 2.};//	R1, M0, R2
+	complex float initval[3] = {0.5, 4., 0.01};//	R1, M0, R2
 	
 	// Determine DERIVATIVE and SIGNAL scaling by simulating the applied sequence
 
 	auto_scale(&fit_para, fit_para.scale, grid_dims, k_grid_data);
+
+	fit_para.scale[2] /= 1;
 
 	debug_printf(DP_INFO,"Scaling:\t%f,\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2], fit_para.scale[3]);
 
