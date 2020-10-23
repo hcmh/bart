@@ -22,15 +22,6 @@ struct linop_s;
 #endif
 
 
-extern const struct operator_p_s* create_wav_prox(const long img_dims[DIMS], unsigned int jt_flag, float lambda);
-
-extern const struct operator_p_s* create_llr_prox(const long img_dims[DIMS], unsigned int jt_flag, float lambda);
-
-extern const struct operator_p_s* create_stack_spatial_thresh_prox(unsigned int N, const long x_dims[__VLA(N)], long js_dim, unsigned int regu, float lambda, unsigned int model);
-
-extern const struct operator_p_s* create_stack_nonneg_prox(unsigned int N, const long x_dims[__VLA(N)], long jt_dim, unsigned int model, bool read_pd);
-
-
 struct opt_reg_s;
 
 

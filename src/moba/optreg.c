@@ -41,7 +41,7 @@
 #include "optreg.h"
 
 
-const struct operator_p_s* create_wav_prox(const long img_dims[DIMS], unsigned int jt_flag, float lambda)
+static const struct operator_p_s* create_wav_prox(const long img_dims[DIMS], unsigned int jt_flag, float lambda)
 {
 	bool randshift = true;
 	long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
@@ -59,7 +59,7 @@ const struct operator_p_s* create_wav_prox(const long img_dims[DIMS], unsigned i
 	return prox_wavelet_thresh_create(DIMS, img_dims, wflags, jt_flag, minsize, lambda, randshift);
 }
 
-const struct operator_p_s* create_llr_prox(const long img_dims[DIMS], unsigned int jt_flag, float lambda)
+static const struct operator_p_s* create_llr_prox(const long img_dims[DIMS], unsigned int jt_flag, float lambda)
 {
 	bool randshift = true;
 	long blk_dims[MAX_LEV][DIMS];
@@ -71,7 +71,7 @@ const struct operator_p_s* create_llr_prox(const long img_dims[DIMS], unsigned i
 	return lrthresh_create(img_dims, randshift, ~jt_flag, (const long (*)[])blk_dims, lambda, false, false, false);
 }
 
-const struct operator_p_s* create_stack_spatial_thresh_prox(unsigned int N, const long x_dims[N], long js_dim, unsigned int regu, float lambda, unsigned int model)
+static const struct operator_p_s* create_stack_spatial_thresh_prox(unsigned int N, const long x_dims[N], long js_dim, unsigned int regu, float lambda, unsigned int model)
 {
 	assert(MECO_PI != model);
 
@@ -129,7 +129,7 @@ const struct operator_p_s* create_stack_spatial_thresh_prox(unsigned int N, cons
 	return pcurr;
 }
 
-const struct operator_p_s* create_stack_nonneg_prox(unsigned int N, const long x_dims[N], long js_dim, unsigned int model, bool real_pd)
+static const struct operator_p_s* create_stack_nonneg_prox(unsigned int N, const long x_dims[N], long js_dim, unsigned int model, bool real_pd)
 {
 	assert(MECO_PI != model);
 
