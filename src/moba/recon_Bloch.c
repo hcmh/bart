@@ -93,7 +93,7 @@ void bloch_recon(const struct moba_conf* conf, const struct modBlochFit* fit_par
 										.lower_bound = 10E-4,
 										.constrained_maps = 5,
 										.not_wav_maps = fit_para->not_wav_maps,
-										.wav_reg = 0.1 };
+										.wav_reg = 1};
 
     	conf2.algo = 3;
 
