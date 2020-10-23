@@ -78,7 +78,7 @@ void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, flo
 	pulse->nl = nl;
 	pulse->nr = nr;
 	pulse->n = MAX(nl, nr);
-	pulse->t0 = pulse->pulse_length / ( 2 + (nl-1) + (nr-1) );
+	pulse->t0 = pulse->pulse_length / ( 2. + (nl - 1.) + (nr - 1.) );
 	pulse->alpha = alpha;
 	pulse->A = 1.;
 
@@ -89,5 +89,5 @@ void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, flo
 
 	//Update parameters
 	pulse->flipangle = angle;
-	pulse->A = scaling / 90 * angle;
+	pulse->A = scaling / 90. * angle;
 }

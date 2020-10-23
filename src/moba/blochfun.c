@@ -536,7 +536,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 		md_set_dims(DIMS, sliceprofile_dims, 1);
 		sliceprofile_dims[READ_DIM] = fit_para->sliceprofile_spins;
 
-		data->input_sliceprofile = my_alloc(N, sliceprofile_dims, CFL_SIZE);
+		data->input_sliceprofile = md_alloc(N, sliceprofile_dims, CFL_SIZE);	// Works just on CPU yet
 
 		md_copy(N, sliceprofile_dims, data->input_sliceprofile, fit_para->input_sliceprofile, CFL_SIZE);
 	}
