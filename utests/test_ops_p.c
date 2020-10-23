@@ -136,5 +136,46 @@ static bool test_op_p_stack2(void)
 
 UT_REGISTER_TEST(test_op_p_stack2);
 
+static bool test_op_p_stack3(void)
+{
+	enum { N = 4 };
+	long dims[N] = { 8, 1, 4, 4 };
+	long dims2[N] = { 8, 2, 4, 4 };
+	long dims3[N] = { 8, 3, 4, 4 };
+	long dims4[N] = { 8, 6, 4, 4 };
+
+	auto a = operator_p_scale(N, dims);
+	auto a2 = operator_p_scale(N, dims2);
+	auto a3 = operator_p_scale(N, dims3);
+
+	auto b = operator_p_stack(1, 1, a, a2); 
+	auto c = operator_p_stack(1, 1, b, a3);
+
+	operator_p_free(a);
+	operator_p_free(a2);
+	operator_p_free(b);
+
+	complex float* in = md_alloc(N, dims4, CFL_SIZE);
+	complex float* out = md_alloc(N, dims4, CFL_SIZE);
+
+	md_zfill(N, dims4, in, 1.);
+	md_zfill(N, dims4, out, 100.);
+
+	operator_p_apply(c, 2., N, dims4, out, N, dims4, in);
+
+	operator_p_free(c);
+
+	md_zfill(N, dims4, in, 2.);
+
+	float err = md_znrmse(N, dims4, out, in);
+
+	md_free(in);
+	md_free(out);
+
+	return (err < UT_TOL);
+}
+
+UT_REGISTER_TEST(test_op_p_stack3);
+
 
 
