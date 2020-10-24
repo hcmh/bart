@@ -608,3 +608,114 @@ nn_t nn_checkpoint_F(nn_t op, bool der_once)
 	return result;
 }
 
+void nn_export_graph(const char* filename, nn_t op, graph_t opts)
+{
+	int II = nlop_get_nr_in_args(op->network);
+	int OO = nlop_get_nr_out_args(op->network);
+
+	unsigned int D[II + OO];
+	const char** arg_nodes[II + OO];
+
+	const char* str = operator_get_graph_string(op->network->op, II + OO, D, arg_nodes, opts);
+
+	FILE *fp;
+	fp = fopen(filename, "w+");
+
+	assert(0 != fp);
+
+	fprintf(fp, "digraph { \n");
+
+	fprintf(fp, "{\n%s}\n", str);
+
+	int counter_input = 0;
+	int counter_weight = 0;
+
+
+	for (int o = 0; o < OO; o++) {
+
+		fprintf(fp, "%s -> Output_%d;\n", (arg_nodes[o])[0], o);
+		xfree((arg_nodes[o])[0]);
+		xfree((arg_nodes[o]));
+		assert(1 == D[o]);
+	}
+
+	for (int i = 0; i < II; i++) {
+
+		if ((IN_OPTIMIZE == op->in_types[i]) || (IN_BATCHNORM == op->in_types[i])) {
+
+			for (int j = 0; j < (int)D[OO + i]; j++) {
+
+				fprintf(fp, "Weight_%d -> %s;\n", counter_weight, (arg_nodes[OO + i])[j]);	
+				xfree((arg_nodes[OO + i])[j]);
+			}
+			counter_weight++;
+		} else {
+
+			for (int j = 0; j < (int)D[OO + i]; j++) {
+
+				fprintf(fp, "Input_%d -> %s;\n", counter_input, (arg_nodes[OO + i])[j]);	
+				xfree((arg_nodes[OO + i])[j]);
+			}
+			counter_input++;
+		}
+		xfree((arg_nodes[OO + i]));
+	}
+
+	int index = 0;
+	if (0 < counter_input) {
+
+		fprintf(fp, "subgraph cluster_inputs{ label = \"Inputs\";\n rank = source;\n");
+		for (int i = 0; i < counter_input; i++, index ++) {
+
+			while ((IN_OPTIMIZE == op->in_types[index]) || (IN_BATCHNORM == op->in_types[index]))
+				index++;
+			if (NULL != op->in_names[index])
+				fprintf(fp, "Input_%d [shape = diamond, label = \"%s\"];\n", i, op->in_names[index]);
+			else
+				fprintf(fp, "Input_%d [shape = diamond];\n", i);
+		}
+
+		fprintf(fp, "\n}\n");
+	}
+
+	if (0 < OO) {
+
+		fprintf(fp, "subgraph cluster_outputs{ label = \"Outputs\";\n rank = sink;\n");
+		for (int i = 0; i < OO; i++) {
+
+			if (NULL != op->out_names[i])
+				fprintf(fp, "Output_%d [shape = diamond, label = \"%s\"];\n", i, op->out_names[i]);
+			else
+				fprintf(fp, "Output_%d [shape = diamond];\n", i);
+		}
+		fprintf(fp, "edge[ style=invis];\nOutput_0");
+		for (int i = 1; i < OO; i++)
+				fprintf(fp, " -> Output_%d", i);
+		fprintf(fp, "\n}\n");
+	}
+
+
+
+	index = 0;
+	if (0 < counter_weight) {
+
+		fprintf(fp, "subgraph cluster_weights{\n label = \"Weights\";\n rank = source;\n");
+
+		for (int i = 0; i < counter_weight; i++, index ++) {
+
+			while (!((IN_OPTIMIZE == op->in_types[index]) || (IN_BATCHNORM == op->in_types[index])))
+				index++;
+			if (NULL != op->in_names[index])
+				fprintf(fp, "Weight_%d [shape = diamond, label = \"%s\"];\n", i, op->in_names[index]);
+			else
+				fprintf(fp, "Weight_%d [shape = diamond];\n", i);
+		}
+		fprintf(fp, "edge[ style=invis];\nWeight_0");
+		for (int i = 1; i < counter_weight; i++)
+				fprintf(fp, " -> Weight_%d", i);
+		fprintf(fp, "\n}\n");
+	}
+	fprintf(fp, " }");
+
+	fclose(fp);
+}

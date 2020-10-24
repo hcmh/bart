@@ -5,8 +5,8 @@
 #include "misc/debug.h"
 
 #include "iter/italgos.h"
+#include "nlops/nlop.h"
 
-struct nlop_s;
 struct initializer_s;
 
 struct nn_s {
@@ -84,5 +84,6 @@ extern const struct iovec_s* nn_generic_codomain(nn_t op, int o, const char* ona
 extern nn_t nn_checkpoint_F(nn_t op, _Bool der_once);
 
 extern void nn_debug(enum debug_levels dl, nn_t x);
+extern void nn_export_graph(const char* filename, nn_t op, graph_t opts);
 
 #endif
