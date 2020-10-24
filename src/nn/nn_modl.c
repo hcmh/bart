@@ -83,6 +83,8 @@ const struct modl_s modl_default = {
 	.residual_network =true,
 
 	.nullspace = false,
+
+	.draw_graph_filename = NULL,
 };
 
 static nn_t residual_create(const struct modl_s* config, const long udims[5], enum NETWORK_STATUS status){
@@ -149,9 +151,9 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 	// append last layer
 	const struct initializer_s* init = (config->batch_norm || !config->residual_network) ? NULL : init_const_create(0);
 	result = nn_append_convcorr_layer(result, 0, NULL, "conv_n", 1, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL, init);
-	
+
 	if (config->batch_norm) {
-		
+
 		result = nn_append_batchnorm_layer(result, 0, NULL, "bn_n", ~MD_BIT(0), status, NULL);
 
 		//append gamma for batchnorm
@@ -187,7 +189,7 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 	result = nn_append_singleton_dim_in_F(result, 0, "bias_0");
 	result = nn_append_singleton_dim_in_F(result, 0, "bias_i");
 	result = nn_append_singleton_dim_in_F(result, 0, "bias_n");
-	
+
 	if (config->batch_norm) {
 
 		result = nn_append_singleton_dim_in_F(result, 0, "gamma");
@@ -283,7 +285,7 @@ static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const
 		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_n");
 
 		if (config->batch_norm) {
-		
+
 			tmp = nn_mark_stack_input_F(tmp, "bn_0");
 			tmp = nn_mark_stack_input_F(tmp, "bn_i");
 			tmp = nn_mark_stack_input_F(tmp, "bn_n");
@@ -351,15 +353,10 @@ static nn_t data_consistency_nullspace_create(const struct modl_s* config,const 
 	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0);// in: zi, zero_filled, coil, pattern, lambda; out: x(n+1)
 
 	auto result = nn_from_nlop_F(nlop_dc);
-	nn_debug(DP_INFO, result);
 	result = nn_set_input_name_F(result, 0, "tickhonov_reg");
-	nn_debug(DP_INFO, result);
 	result = nn_set_input_name_F(result, 1, "coil");
-	nn_debug(DP_INFO, result);
 	result = nn_set_input_name_F(result, 1, "pattern");
-	nn_debug(DP_INFO, result);
 	result = nn_set_input_name_F(result, 1, "lambda");
-	nn_debug(DP_INFO, result);
 	result = nn_set_in_type_F(result, 0, "lambda", IN_OPTIMIZE);
 	result = nn_set_initializer_F(result, 0, "lambda", init_const_create((-1 != config->lambda_fixed) ? config->lambda_fixed : config->lambda_init));
 
@@ -394,7 +391,7 @@ static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], 
 		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_n");
 
 		if (config->batch_norm) {
-		
+
 			tmp = nn_mark_stack_input_F(tmp, "bn_0");
 			tmp = nn_mark_stack_input_F(tmp, "bn_i");
 			tmp = nn_mark_stack_input_F(tmp, "bn_n");
@@ -408,7 +405,7 @@ static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], 
 		if (config->reinsert_zerofilled)
 			tmp = nn_mark_dup_F(tmp, "zero_filled");
 
-		tmp = nn_mark_dup_F(tmp, "tickhonov_reg");	
+		tmp = nn_mark_dup_F(tmp, "tickhonov_reg");
 		tmp = nn_mark_dup_F(tmp, "coil");
 		tmp = nn_mark_dup_F(tmp, "pattern");
 		tmp = (config->shared_lambda ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "lambda");
@@ -542,6 +539,8 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 	modl->share_pattern = pdims[4] == 1;
 
 	auto nn_train = nn_modl_create(modl, nkdims, nudims, STAT_TRAIN);
+	if (NULL != modl->draw_graph_filename)
+		nn_export_graph(modl->draw_graph_filename, nn_train, (graph_t){true, false, false});
 	nn_train = nn_loss_mse_append(nn_train, 0, NULL, ~0ul);
 
 	//create batch generator
@@ -600,6 +599,9 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 	nn_debug(DP_INFO, nn_train);
 
 	iter6_adam(train_conf, nn_get_nlop(nn_train), NI, in_type, projections, src, NO, out_type, Nb, Nt / Nb, batch_generator, monitor);
+
+	if (NULL != modl->draw_graph_filename)
+		nn_export_graph(modl->draw_graph_filename, nn_train, (graph_t){false, true, true});
 
 	nn_free(nn_train);
 	nlop_free(batch_generator);

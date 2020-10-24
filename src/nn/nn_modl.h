@@ -31,6 +31,8 @@ struct modl_s {
 	_Bool residual_network;
 
 	_Bool nullspace;
+
+	const char* draw_graph_filename;
 };
 
 extern const struct modl_s modl_default;
@@ -55,3 +57,5 @@ extern void nn_modl_load_weights(struct modl_s* modl, const char* name, _Bool ov
 extern void nn_modl_free_weights(struct modl_s* modl);
 
 extern void nn_modl_move_gpucpu(struct modl_s* modl, _Bool gpu);
+
+extern void nn_modl_export_graph(const char* filename, const struct modl_s* config,const long dims[5], const long udims[5], _Bool train);

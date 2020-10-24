@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <complex.h>
+#include <libgen.h>
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -57,6 +58,8 @@ int main_nnmodl(int argc, char* argv[])
 
 	long Nb = 10;
 
+	bool draw_graph = false;
+
 	const struct opt_s opts[] = {
 
 		OPTL_SET('i', "initialize", &initialize, "initialize weights"),
@@ -64,6 +67,7 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_SET('g', "gpu", &use_gpu, "run on gpu"),
 		OPTL_SET('a', "apply", &apply, "apply variational network"),
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
+		OPTL_SET(0, "export_graph", &(draw_graph), "export graph.dot file in the weights directory"),
 
 		OPTL_FLOAT('r', "learning_rate", &(train_conf.INTERFACE.learning_rate), "lr", "learning rate"),
 		OPTL_INT('e', "epochs", &(train_conf.INTERFACE.epochs), "epochs", "number epochs to train"),
@@ -85,7 +89,7 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_SET(0, "modl_no_shared_weights", &(modl.shared_weights), "do not share weights"),
 
 		OPTL_FLOAT(0, "modl_fix_lambda", &(modl.lambda_fixed), "lambda", "fix lambda to given value (def: -1. = trainable)"),
-		
+
 		OPTL_SET(0, "modl_tickhonov", &(modl.init_tickhonov), "initialize first MoDL iteration with Tickhonov regularized reconstruction"),
 		OPTL_CLEAR(0, "modl_no_residual", &(modl.residual_network), "no residual connection in dw block"),
 		OPTL_SET(0, "modl_reinsert_zerofilled", &(modl.reinsert_zerofilled), "reinsert zero-filled reconstruction and current reconstruction to all DW networks"),
@@ -97,7 +101,7 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_FLOAT(0, "conjgrad_convergence_warning", &(modl.convergence_warn_limit), "limit", "warn if inversion error is larger than this limit (def: 0. = no warnings)"),
 
 		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
-		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
+		//OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
 		//OPTL_LONG('Z', "fov_z", (udims + 2), "z", "Nz of the target image (guessed from reference(training) / kspace(inference))"), maximum number of long opts exceeded
 	};
 
@@ -110,6 +114,12 @@ int main_nnmodl(int argc, char* argv[])
 	char* filename_pattern = argv[3];
 	char* filename_weights = argv[4];
 	char* filename_out = argv[5];
+
+	char graph_path[strlen(filename_weights) + 10];
+	sprintf(graph_path, "%s/graph.dot", dirname(filename_weights));
+	if (draw_graph)
+		modl.draw_graph_filename = graph_path;
+
 
 	if ((NULL != train_conf.INTERFACE.dump_filename) && (0 >= train_conf.INTERFACE.dump_mod))
 		train_conf.INTERFACE.dump_mod = 5;
