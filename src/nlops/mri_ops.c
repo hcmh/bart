@@ -375,7 +375,7 @@ const struct nlop_s* nlop_mri_gradient_step_create(int N, const long dims[N], bo
 						gradient_step_fun,
 						(nlop_der_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
 						(nlop_der_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
-						NULL, NULL, gradient_step_del, NULL, props);
+						NULL, NULL, gradient_step_del, NULL, props, NULL);
 }
 
 
@@ -788,7 +788,7 @@ const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], bool
 							mri_normal_inversion_fun,
 							(nlop_der_fun_t[4][1]){ { mri_normal_inversion_der }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_der_lambda } },
 							(nlop_der_fun_t[4][1]){ { mri_normal_inversion_adj }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_adj_lambda } },
-							NULL, NULL, mri_normal_inversion_del, NULL, props);
+							NULL, NULL, mri_normal_inversion_del, NULL, props, NULL);
 
 	if (-1. != lambda) {
 		complex float lambdac = lambda;
@@ -951,7 +951,7 @@ const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], bool sha
 							mri_reg_proj_fun,
 							(nlop_der_fun_t[4][1]){ { mri_reg_proj_der }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_der_lambda } },
 							(nlop_der_fun_t[4][1]){ { mri_reg_proj_adj }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_adj_lambda } },
-							NULL, NULL, mri_normal_inversion_del, NULL, props);
+							NULL, NULL, mri_normal_inversion_del, NULL, props, NULL);
 
 	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(N, nl_idims[0], -1., 1.), 0);
 	result = nlop_dup_F(result, 0, 1);

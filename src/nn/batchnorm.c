@@ -429,7 +429,7 @@ const struct nlop_s* nlop_normalize_create(int N, const long dims[N], unsigned l
 	return nlop_generic_with_props_create(	1, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)), normalize_fun,
 						(nlop_der_fun_t[3][1]){ { normalize_deradj_src}, { normalize_der_mean }, { normalize_der_var } },
 						(nlop_der_fun_t[3][1]){ { normalize_deradj_src}, { normalize_adj_mean }, { normalize_adj_var } },
-						NULL, NULL, normalize_del, NULL, props);
+						NULL, NULL, normalize_del, NULL, props, NULL);
 }
 
 struct rescale_s {
@@ -827,7 +827,7 @@ static const struct nlop_s* nlop_bn_create(int N, const long dims[N], unsigned l
 	return nlop_generic_with_props_create(3, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), bn_fun,
 						(nlop_der_fun_t[1][3]){ { bn_deradj_in, bn_der_mean, bn_der_var } },
 						(nlop_der_fun_t[1][3]){ { bn_deradj_in, bn_adj_mean, bn_adj_var } },
-						 NULL, NULL, bn_del, bn_set_opts, props);
+						 NULL, NULL, bn_del, bn_set_opts, props, NULL);
 }
 
 

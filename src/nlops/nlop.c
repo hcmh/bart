@@ -208,7 +208,8 @@ static const char* operator_graph_nlop(const operator_data_t* _data, unsigned in
 struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims[OO][ON], const long ostr[OO][ON], int II, int IN, const long idims[II][IN], const long istr[II][IN],
 						nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO],
 						nlop_del_fun_t del,
-						nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO])
+						nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO],
+						nlop_graph_t get_graph)
 {
 	PTR_ALLOC(struct nlop_s, n);
 
@@ -223,7 +224,7 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 	d->forward1 = NULL;
 	d->forward = forward;
 	d->set_opts = set_opts;
-	d->get_graph = NULL;
+	d->get_graph = get_graph;
 
 
 
@@ -314,7 +315,7 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 {
 	return nlop_generic_with_props_create2(OO, ON, odims, ostr, II, IN, idims, istr,
 						data, forward, deriv, adjoint, normal, norm_inv,
-						del, NULL, NULL);
+						del, NULL, NULL, NULL);
 }
 
 struct nlop_s* nlop_generic_create(int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
@@ -332,7 +333,8 @@ struct nlop_s* nlop_generic_create(int OO, int ON, const long odims[OO][ON], int
 
 struct nlop_s* nlop_generic_with_props_create(	int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
 						nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
-						nlop_set_opts_t set_opts, operator_property_flags_t io_prop[II][OO])
+						nlop_set_opts_t set_opts, operator_property_flags_t io_prop[II][OO],
+						nlop_graph_t get_graph)
 {
 	long istrs[II][IN];
 	for (int i = 0; i < II; i++)
@@ -341,7 +343,7 @@ struct nlop_s* nlop_generic_with_props_create(	int OO, int ON, const long odims[
 	for (int o = 0; o < OO; o++)
 		md_calc_strides(ON, ostrs[o], odims[o], CFL_SIZE);
 
-	return nlop_generic_with_props_create2(OO, ON, odims, ostrs, II, IN, idims, istrs, data, forward, deriv, adjoint, normal, norm_inv, del, set_opts, io_prop);
+	return nlop_generic_with_props_create2(OO, ON, odims, ostrs, II, IN, idims, istrs, data, forward, deriv, adjoint, normal, norm_inv, del, set_opts, io_prop, get_graph);
 }
 
 struct nlop_s* nlop_create2(unsigned int ON, const long odims[__VLA(ON)], const long ostrs[__VLA(ON)],

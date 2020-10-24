@@ -40,10 +40,12 @@ struct nlop_s {
 
 extern struct nlop_s* nlop_generic_with_props_create(	int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
 							nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
-							nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO]);
+							nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO],
+							nlop_graph_t get_graph);
 extern struct nlop_s* nlop_generic_with_props_create2(	int OO, int NO, const long odims[OO][NO], const long ostr[OO][NO], int II, int IN, const long idims[II][IN], const long istr[II][IN],
 							nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
-							nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO]);
+							nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO],
+							nlop_graph_t get_graph);
 
 extern struct nlop_s* nlop_generic_create(	int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
 						nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del);

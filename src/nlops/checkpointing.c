@@ -278,6 +278,12 @@ static void checkpoint_del(const nlop_data_t* _data)
 	xfree(d);
 }
 
+static const char* nlop_graph_checkpointing(const nlop_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	auto data = CAST_DOWN(checkpoint_s, _data);
+
+	return operator_graph_container(operator_get_graph_string(data->nlop->op, N, D, arg_nodes, opts), "checkpoint", _data, false);
+}
 
 const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_once)
 {
@@ -385,7 +391,7 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 		}
 
 	const struct nlop_s* result = nlop_generic_with_props_create(	OO, max_DO, nl_odims, II, max_DI, nl_idims, CAST_UP(PTR_PASS(d)),
-							checkpoint_fun, der_funs, adj_funs, NULL, NULL, checkpoint_del, NULL, props);
+							checkpoint_fun, der_funs, adj_funs, NULL, NULL, checkpoint_del, NULL, props, nlop_graph_checkpointing);
 	
 	for (uint i = 0; i < II; i++) {
 
