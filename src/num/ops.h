@@ -19,6 +19,8 @@ typedef void (*operator_fun_t)(const operator_data_t* _data, unsigned int N, voi
 typedef void (*operator_set_opts_t)(const operator_data_t* _data, const struct op_options_s* options);
 typedef void (*operator_del_t)(const operator_data_t* _data);
 
+typedef struct graph_settings {_Bool container;} graph_t;
+typedef const char* (*operator_graph_t)(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
 
 
 struct operator_s;
@@ -36,7 +38,7 @@ extern const struct operator_s* operator_create2(unsigned int ON, const long out
 
 extern const struct operator_s* operator_with_props_create2(unsigned int ON, const long out_dims[__VLA(ON)], const long out_strs[__VLA(ON)],
 		unsigned int IN, const long in_dims[__VLA(IN)], const long in_strs[__VLA(IN)],
-		operator_data_t* data, operator_fun_t apply, operator_del_t de, operator_set_opts_t set_opts, const struct op_property_s* props);
+		operator_data_t* data, operator_fun_t apply, operator_del_t de, operator_set_opts_t set_opts, const struct op_property_s* props, operator_graph_t get_graph);
 
 extern const struct operator_s* operator_generic_create(unsigned int N, const _Bool io_flags[N],
 		const unsigned int D[__VLA(N)], const long* out_dims[__VLA(N)],
@@ -48,7 +50,7 @@ extern const struct operator_s* operator_generic_create2(unsigned int N, const _
 
 extern const struct operator_s* operator_generic_with_props_create2(unsigned int N, const _Bool io_flags[N],
 			const unsigned int D[__VLA(N)], const long* dims[__VLA(N)], const long* strs[__VLA(N)],
-			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props);
+			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props, operator_graph_t get_graph);
 
 
 extern const struct operator_s* operator_identity_create(unsigned int N, const long dims[__VLA(N)]);
@@ -144,6 +146,9 @@ extern const struct operator_s* operator_extract_create2(const struct operator_s
 extern const struct operator_s* operator_permute(const struct operator_s* op, int N, const int perm[N]);
 extern const struct operator_s* operator_reshape(const struct operator_s* op, unsigned int i, long N, const long dims[__VLA(N)]);
 extern const struct operator_s* operator_set_properties(const struct operator_s* op, unsigned int N, const struct op_property_s* props);
+
+extern const char* operator_get_graph_string(const struct operator_s* op, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
+extern const char* operator_graph_container(const char* in_string, const char* container_name, const void* container_ptr, _Bool container);
 
 
 extern _Bool operator_zero_or_null_p(const struct operator_s* op);

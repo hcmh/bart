@@ -6,6 +6,8 @@
  * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
+#include <string.h>
+#include <stdio.h>
 
 #include "num/multind.h"
 
@@ -51,6 +53,8 @@ struct nlop_op_data_s {
 
 	unsigned int II;
 	unsigned int OO;
+
+	nlop_graph_t get_graph;
 };
 
 static DEF_TYPEID(nlop_op_data_s);
@@ -169,6 +173,38 @@ static void lop_del(const linop_data_t* _data)
 	xfree(data);
 }
 
+static const char* nlop_graph_default(nlop_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	UNUSED(opts);
+	size_t len_node = snprintf(NULL, 0, "nlop_%p", _data);
+
+	for (uint i = 0; i < N; i++) {
+
+		D[i] = 1;
+		PTR_ALLOC(const char*[D[i]], nodes_i);
+		arg_nodes[i] = *PTR_PASS(nodes_i);
+
+		PTR_ALLOC(char[len_node + 1], nname);
+		sprintf(*nname, "nlop_%p", _data);
+		(arg_nodes[i])[0] = *PTR_PASS(nname);
+	}
+	size_t len = snprintf(NULL, 0, "nlop_%p [label=\"nlop\\n%s\"];\n", _data, _data->TYPEID->name);
+	PTR_ALLOC(char[len + 1], node);
+	sprintf(*node, "nlop_%p [label=\"nlop\\n%s\"];\n", _data, _data->TYPEID->name);
+	return *PTR_PASS(node);
+}
+
+static const char* operator_graph_nlop(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	auto data = CAST_DOWN(nlop_op_data_s, _data);
+
+	if (NULL == data->get_graph)
+		return nlop_graph_default(data->data, N, D, arg_nodes, opts);
+	return data->get_graph(data->data, N, D, arg_nodes, opts);
+}
+
+
+
 struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims[OO][ON], const long ostr[OO][ON], int II, int IN, const long idims[II][IN], const long istr[II][IN],
 						nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO],
 						nlop_del_fun_t del,
@@ -187,6 +223,7 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 	d->forward1 = NULL;
 	d->forward = forward;
 	d->set_opts = set_opts;
+	d->get_graph = NULL;
 
 
 
@@ -266,7 +303,7 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 	for (int i = 0; i < OO + II; i++)
 		io_flags[i] = i < OO;
 
-	n->op = operator_generic_with_props_create2(OO + II, io_flags, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, nlop_set_opts, op_property_create(OO + II, io_flags, tmp_props));
+	n->op = operator_generic_with_props_create2(OO + II, io_flags, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, nlop_set_opts, op_property_create(OO + II, io_flags, tmp_props), operator_graph_nlop);
 
 
 	return PTR_PASS(n);
@@ -799,4 +836,61 @@ void nlop_debug(enum debug_levels dl, const struct nlop_s* x)
 		auto io = nlop_generic_codomain(x, o);
 		debug_print_dims(dl, io->N, io->dims);
 	}
+}
+
+void nlop_export_graph(const char* filename, const struct nlop_s* op, graph_t opts)
+{
+	int II = nlop_get_nr_in_args(op);
+	int OO = nlop_get_nr_out_args(op);
+
+	unsigned int D[II + OO];
+	const char** arg_nodes[II + OO];
+
+	const char* str = operator_get_graph_string(op->op, II + OO, D, arg_nodes, opts);
+
+	FILE *fp;
+	fp = fopen(filename, "w+");
+
+	assert(0 != fp);
+
+	fprintf(fp, "digraph { \n");
+	fprintf(fp, "{ rank = source\n");
+	for (int i = 0; i < II; i++)
+		fprintf(fp, "Input_%d;\n", i);
+	if(0 < II)
+		fprintf(fp, "edge[ style=invis];\nInput_0");
+	for (int i = 1; i < II; i++)
+		fprintf(fp, " -> Input_%d", i);
+
+	fprintf(fp, ";\n}\n{ rank = sink\n");
+	for (int i = 0; i < OO; i++)
+		fprintf(fp, "Output_%d;\n", i);
+	if(0 < OO)
+		fprintf(fp, "edge[ style=invis];\nOutput_0");
+	for (int i = 1; i < II; i++)
+		fprintf(fp, " -> Output_%d", i);
+	fprintf(fp, "}\n%s", str);
+
+
+
+	for (int o = 0; o < OO; o++) {
+
+		fprintf(fp, "%s -> Output_%d;\n", (arg_nodes[o])[0], o);
+		xfree((arg_nodes[o])[0]);
+		xfree((arg_nodes[o]));
+		assert(1 == D[o]);
+	}
+
+	for (int i = 0; i < II; i++) {
+
+		for (int j = 0; j < (int)D[OO + i]; j++) {
+
+			fprintf(fp, "Input_%d -> %s;\n", i, (arg_nodes[OO + i])[j]);
+			xfree((arg_nodes[OO + i])[j]);
+		}
+		xfree((arg_nodes[OO + i]));
+	}
+	fprintf(fp, "} \n");
+
+	fclose(fp);
 }

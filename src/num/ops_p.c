@@ -28,6 +28,8 @@ struct operator_s {
 	void (*set_opts)(const operator_data_t* _data, const struct op_options_s* opts);
 	void (*del)(const operator_data_t* data);
 
+	const char* (*get_graph)(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
+
 	const struct op_property_s* props;
 
 	struct shared_obj_s sptr;

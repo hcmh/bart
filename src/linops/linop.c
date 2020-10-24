@@ -10,6 +10,7 @@
 
 #include <complex.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <assert.h>
 
 #include "misc/types.h"
@@ -42,6 +43,8 @@ struct shared_data_s {
 	del_fun_t del;
 
 	struct shared_ptr_s sptr;
+
+	lop_graph_t get_graph;
 
 	union {
 
@@ -90,6 +93,36 @@ static void sptr_del(const struct shared_ptr_s* p)
 	data->del(data->data);
 }
 
+static const char* linop_graph_default(linop_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	UNUSED(opts);
+	size_t len_node = snprintf(NULL, 0, "linop_%p", _data);
+
+	for (uint i = 0; i < N; i++) {
+
+		D[i] = 1;
+		PTR_ALLOC(const char*[D[i]], nodes_i);
+		arg_nodes[i] = *PTR_PASS(nodes_i);
+
+		PTR_ALLOC(char[len_node + 1], nname);
+		sprintf(*nname, "linop_%p", _data);
+		(arg_nodes[i])[0] = *PTR_PASS(nname);
+	}
+	size_t len = snprintf(NULL, 0, "linop_%p [label=\"linop\\n%s\"];\n", _data, _data->TYPEID->name);
+	PTR_ALLOC(char[len + 1], node);
+	sprintf(*node, "linop_%p [label=\"linop\\n%s\"];\n", _data, _data->TYPEID->name);
+	return *PTR_PASS(node);
+}
+
+static const char* operator_graph_linop(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	auto data = CAST_DOWN(shared_data_s, _data);
+
+	if (NULL == data->get_graph)
+		return linop_graph_default(data->data, N, D, arg_nodes, opts);
+	return data->get_graph(data->data, N, D, arg_nodes, opts);
+}
+
 
 /**
  * Create a linear operator (with strides)
@@ -119,6 +152,7 @@ struct linop_s* linop_with_props_create2(unsigned int ON, const long odims[ON], 
 
 		shared_data[i]->data = data;
 		shared_data[i]->del = del;
+		shared_data[i]->get_graph = NULL;
 
 		if (0 == i)
 			shared_ptr_init(&shared_data[i]->sptr, sptr_del);
@@ -136,12 +170,12 @@ struct linop_s* linop_with_props_create2(unsigned int ON, const long odims[ON], 
 
 	operator_property_flags_t lin_props[1][1] = {{linop_props}};
 
-	lo->forward = operator_with_props_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
-	lo->adjoint = operator_with_props_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
+	lo->forward = operator_with_props_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props), operator_graph_linop);
+	lo->adjoint = operator_with_props_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props), operator_graph_linop);
 
 	if (NULL != normal) {
 
-		lo->normal = operator_with_props_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
+		lo->normal = operator_with_props_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props), operator_graph_linop);
 
 	} else {
 
