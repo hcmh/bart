@@ -74,20 +74,20 @@ static void init_meco_maps(long N, long* maps_dims, complex float* maps, unsigne
 		long map1_dims[N];
 		md_select_dims(N, ~COEFF_FLAG, map1_dims, maps_dims);
 
+		complex float* map1 = md_alloc(N, map1_dims, CFL_SIZE);
+
 		// W & F
 		long pd_flag = set_PD_flag(sel_model);
 
 		float val = 0.1;
 		for (long n = 0; n < NCOEFF; n++) {
 
-			if (MD_IS_SET(pd_flag, n)) {
-
-				pos[COEFF_DIM] = n;
-				complex float* map_i = (void*)maps + md_calc_offset(N, maps_strs, pos);
-				md_zfill(N, map1_dims, map_i, val);
-			}
+			pos[COEFF_DIM] = n;
+			md_zfill(N, map1_dims, map1, MD_IS_SET(pd_flag, n) ? val : 0.);
+			md_copy_block(N, pos, maps_dims, maps, map1_dims, map1, CFL_SIZE);
 		}
 
+		md_free(map1);
 		xfree(pos);
 	}
 }
@@ -197,10 +197,6 @@ int main_mobaT2star(int argc, char* argv[])
 
 	restrict_fov = (moba_conf.noncartesian) ? 0.5 : -1;
 
-	// allows joint reconstruction firstly for parallel imaging
-	if (stack_frames)
-		assert(MECO_PI == sel_model);
-
 	(use_gpu ? num_init_gpu_memopt : num_init)();
 	// num_init();
 
@@ -232,7 +228,7 @@ int main_mobaT2star(int argc, char* argv[])
 
 
 	if (MECO_PHASEDIFF == sel_model)
-		wgh_fB0 = MECO_IDENTITY; // hard-coded
+		wgh_fB0 = MECO_IDENTITY; // TODO: this is hard-coded!
 
 	debug_printf(DP_DEBUG2, " __ parameters: iter %2d; redu %.2f; alpha (%.1f, %.1f)\n", moba_conf.iter, moba_conf.redu, moba_conf.alpha, moba_conf.alpha_min);
 

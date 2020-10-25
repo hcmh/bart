@@ -566,8 +566,8 @@ ssafary()
 	bart bin -r0:1 -R$RESPI -c2:3 -C$CARDI -a${MOVAVG} ${TEMP}_eof ${TEMP}_tt ${TEMP}_tsg
 
 	# no -a option when switching on -M
-	# ~/reco/bart_comp/bart bin -M -r0:1 -R$RESPI -c2:3 -C$CARDI ${TEMP}_eof ${TEMP}_kk ${TEMP}_ksg
-	# ~/reco/bart_comp/bart bin -M -r0:1 -R$RESPI -c2:3 -C$CARDI ${TEMP}_eof ${TEMP}_tt ${TEMP}_tsg
+	# bart bin -M -r0:1 -R$RESPI -c2:3 -C$CARDI ${TEMP}_eof ${TEMP}_kk ${TEMP}_ksg
+	# bart bin -M -r0:1 -R$RESPI -c2:3 -C$CARDI ${TEMP}_eof ${TEMP}_tt ${TEMP}_tsg
 
 	bart transpose 11 10 ${TEMP}_ksg $KDAT1
 	bart transpose 11 10 ${TEMP}_tsg $TRAJ1

@@ -133,7 +133,7 @@ void meco_recon(const struct moba_conf* moba_conf,
 #endif
 
 	unsigned int fft_flags = FFT_FLAGS;
-	md_select_dims(DIMS, fft_flags|TE_FLAG, meco_dims, ksp_dims);
+	md_select_dims(DIMS, fft_flags|TE_FLAG|TIME_FLAG, meco_dims, ksp_dims);
 
 	long maps_size = md_calc_size(DIMS, maps_dims);
 	long sens_size = md_calc_size(DIMS, sens_dims);
