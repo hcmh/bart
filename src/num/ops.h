@@ -13,13 +13,13 @@
 
 #include "num/ops_opts.h"
 
-typedef struct operator_data_s { TYPEID* TYPEID; } operator_data_t;
+typedef struct operator_data_s { TYPEID* TYPEID; double run_time; } operator_data_t;
 
 typedef void (*operator_fun_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)]);
 typedef void (*operator_set_opts_t)(const operator_data_t* _data, const struct op_options_s* options);
 typedef void (*operator_del_t)(const operator_data_t* _data);
 
-typedef struct graph_settings {_Bool container;} graph_t;
+typedef struct graph_settings {_Bool container; _Bool time; } graph_t;
 typedef const char* (*operator_graph_t)(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
 
 

@@ -72,7 +72,11 @@ static void shared_apply(const operator_data_t* _data, unsigned int N, void* arg
 
 	assert(2 == N);
 	debug_trace("ENTER %p\n", data->u.apply);
+	#pragma omp critical
+	data->data->run_time -= timestamp();
 	data->u.apply(data->data, args[0], args[1]);
+	#pragma omp critical
+	data->data->run_time += timestamp();
 	debug_trace("LEAVE %p\n", data->u.apply);
 }
 
@@ -108,9 +112,12 @@ static const char* linop_graph_default(linop_data_t* _data, unsigned int N, unsi
 		sprintf(*nname, "linop_%p", _data);
 		(arg_nodes[i])[0] = *PTR_PASS(nname);
 	}
-	size_t len = snprintf(NULL, 0, "linop_%p [label=\"linop\\n%s\"];\n", _data, _data->TYPEID->name);
+	size_t len = snprintf(NULL, 0, "linop_%p [label=\"linop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
 	PTR_ALLOC(char[len + 1], node);
-	sprintf(*node, "linop_%p [label=\"linop\\n%s\"];\n", _data, _data->TYPEID->name);
+	if (opts.time)
+		sprintf(*node, "linop_%p [label=\"linop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
+	else
+		sprintf(*node, "linop_%p [label=\"linop\\n%s\"];\n", _data, _data->TYPEID->name);
 	return *PTR_PASS(node);
 }
 
@@ -147,6 +154,8 @@ struct linop_s* linop_with_props_create2(unsigned int ON, const long odims[ON], 
 
 	if (0 != (linop_props & (~linop_props_understood)))
 		error("Property passed to linop which is not understood\n");
+
+	data->run_time = 0;
 
 	for (unsigned int i = 0; i < 4; i++) {
 

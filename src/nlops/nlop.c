@@ -97,13 +97,15 @@ static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VL
 {
 	auto data = CAST_DOWN(nlop_op_data_s, _data);
 
+	#pragma omp critical
+	data->data->run_time -= timestamp();
+
 	if (NULL != data->forward1) {
 
 		assert(2 == N);
 		data->forward1(data->data, args[0], args[1]);
 		op_options_free(data->data->options);
 		data->data->options = NULL;
-		return;
 	}
 
 	if (NULL != data->forward) {
@@ -111,10 +113,12 @@ static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VL
 		data->forward(data->data, N, *(complex float* (*)[N])args);
 		op_options_free(data->data->options);
 		data->data->options = NULL;
-		return;
 	}
 
-	assert(0);
+	#pragma omp critical
+	data->data->run_time += timestamp();
+
+	return;
 }
 
 static void nlop_set_opts(const operator_data_t* _data, const struct op_options_s* opts)
@@ -147,21 +151,40 @@ static void lop_adj(const linop_data_t* _data, complex float* dst, const complex
 {
 	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
+	#pragma omp critical
+	data->data->run_time -= timestamp();
+
 	data->adjoint(data->data, data->o, data->i, dst, src);
+
+	#pragma omp critical
+	data->data->run_time += timestamp();
+
 }
 
 static void lop_nrm_inv(const linop_data_t* _data, float lambda, complex float* dst, const complex float* src)
 {
 	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
+	#pragma omp critical
+	data->data->run_time -= timestamp();
+
 	data->norm_inv(data->data, data->o, data->i, lambda, dst, src);
+
+	#pragma omp critical
+	data->data->run_time += timestamp();
 }
 
 static void lop_nrm(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
 	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
+	#pragma omp critical
+	data->data->run_time -= timestamp();
+
 	data->normal(data->data, data->o, data->i, dst, src);
+
+	#pragma omp critical
+	data->data->run_time += timestamp();
 }
 
 
@@ -188,9 +211,12 @@ static const char* nlop_graph_default(nlop_data_t* _data, unsigned int N, unsign
 		sprintf(*nname, "nlop_%p", _data);
 		(arg_nodes[i])[0] = *PTR_PASS(nname);
 	}
-	size_t len = snprintf(NULL, 0, "nlop_%p [label=\"nlop\\n%s\"];\n", _data, _data->TYPEID->name);
+	size_t len = snprintf(NULL, 0, "nlop_%p [label=\"nlop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
 	PTR_ALLOC(char[len + 1], node);
-	sprintf(*node, "nlop_%p [label=\"nlop\\n%s\"];\n", _data, _data->TYPEID->name);
+	if (opts.time)
+		sprintf(*node, "nlop_%p [label=\"nlop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
+	else
+		sprintf(*node, "nlop_%p [label=\"nlop\\n%s\"];\n", _data, _data->TYPEID->name);
 	return *PTR_PASS(node);
 }
 
@@ -219,6 +245,7 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 	data->options = NULL;
 
 	d->data = data;
+	d->data->run_time = 0.;
 	d->II = II;
 	d->OO = OO;
 	d->forward1 = NULL;
@@ -480,7 +507,7 @@ void nlop_generic_apply_select_derivative_unchecked(const struct nlop_s* op, int
 	bool out_der_arr[OO];
 	for(uint i = 0; i < OO; i++)
 		out_der_arr[i] = MD_IS_SET(out_der_flag, i);
-	
+
 	bool in_der_arr[II];
 	for(uint i = 0; i < II; i++)
 		in_der_arr[i] = MD_IS_SET(in_der_flag, i);

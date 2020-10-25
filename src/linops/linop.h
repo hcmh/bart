@@ -15,7 +15,7 @@
 #include "num/ops.h"
 
 extern TYPEID linop_data_s;
-typedef struct linop_data_s { TYPEID* TYPEID; } linop_data_t;
+typedef struct linop_data_s { TYPEID* TYPEID; double run_time; } linop_data_t;
 
 
 typedef void (*lop_fun_t)(const linop_data_t* _data, complex float* dst, const complex float* src);

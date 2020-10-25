@@ -95,6 +95,7 @@ const struct operator_s* operator_generic_with_props_create2(unsigned int N, con
 	op->io_flags = ARR_CLONE(_Bool[N], io_flags);
 	op->domain = *PTR_PASS(dom);
 	op->data = data;
+	op->data->run_time = 0.;
 	op->apply = apply;
 	op->set_opts = set_opts;
 	op->del = del;
@@ -636,7 +637,11 @@ void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int 
 	assert(op->N == N);
 
 	debug_trace("ENTER %p\n", op->apply);
+	#pragma omp critical
+	op->data->run_time -= timestamp();
 	op->apply(op->data, N, args);
+	#pragma omp critical
+	op->data->run_time += timestamp();
 	debug_trace("LEAVE %p\n", op->apply);
 }
 
@@ -1704,7 +1709,7 @@ static void extract_copy_fun(const operator_data_t* _data, unsigned int N, void*
 
 	for (int i = 0; i < (int)N; i++)
 		ptr[i] = args[i];
-	
+
 	auto iov = operator_arg_domain(data->op, data->a);
 
 	ptr[data->a] = md_alloc_sameplace(iov->N, iov->dims, iov->size, args[data->a]);
@@ -1797,7 +1802,7 @@ static bool stack_compatible(unsigned int D, const struct iovec_s* a, const stru
 	for (unsigned int i = 0; i < N; i++)
 		if ((D != i) && ((a->dims[i] != b->dims[i] || (a->strs[i] != b->strs[i]))))
 			return false;
-	
+
 	for (unsigned int i = D + 1; i < N; i++)
 		if (((a->dims[i] != 1) && (a->strs[i] != 0)) || ((b->dims[i] != 1) && (b->strs[i] != 0)))
 			return false;
@@ -1864,7 +1869,7 @@ static void stack_dims_trivial(unsigned int N, long dims[N], long strs[N], unsig
  * @param dim_list stack dimension for respective argument
  * @param a first operator to stack
  * @param b second operator to stack
- **/ 
+ **/
 const struct operator_s* operator_stack2(int M, const int arg_list[M], const int dim_list[M], const struct operator_s* a, const struct operator_s* b)
 {
 	a = operator_ref(a);
@@ -1884,12 +1889,12 @@ const struct operator_s* operator_stack2(int M, const int arg_list[M], const int
 
 		long dims[D];
 		long strs[D];
-		
+
 		if (stack_compatible(dim, ia, ib))
 			stack_dims(D, dims, strs, dim, ia, ib);
 		else
 			stack_dims_trivial(D, dims, strs, dim, ia, ib);
-		
+
 		long pos[D];
 
 		for (int i = 0; i < D; i++)
@@ -2588,9 +2593,12 @@ static const char* operator_graph_default(const operator_data_t* _data, unsigned
 		sprintf(*nname, "operator_%p", _data);
 		(arg_nodes[i])[0] = *PTR_PASS(nname);
 	}
-	size_t len = snprintf(NULL, 0, "operator_%p [label=\"operator\\n%s\"];\n", _data, _data->TYPEID->name);
+	size_t len = snprintf(NULL, 0, "operator_%p [label=\"operator\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
 	PTR_ALLOC(char[len + 1], node);
-	sprintf(*node, "operator_%p [label=\"operator\\n%s\"];\n", _data, _data->TYPEID->name);
+	if (opts.time)
+		sprintf(*node, "operator_%p [label=\"operator\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
+	else
+		sprintf(*node, "operator_%p [label=\"operator\\n%s\"];\n", _data, _data->TYPEID->name);
 	return *PTR_PASS(node);
 }
 
