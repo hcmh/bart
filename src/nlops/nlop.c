@@ -250,7 +250,7 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 	}
 
 	bool io_flags[OO + II];
-	for (uint i = 0; i < OO + II; i++)
+	for (int i = 0; i < OO + II; i++)
 		io_flags[i] = i < OO;
 
 	n->op = operator_generic_with_props_create2(OO + II, io_flags, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, op_property_create(OO + II, io_flags, tmp_props));
@@ -330,7 +330,7 @@ struct nlop_s* nlop_generic_create2(int OO, int ON, const long odims[OO][ON], co
 			tmp_props[i][j] = MD_BIT(OP_PROP_ATOMIC);
 
 	bool io_flags[OO + II];
-	for (uint i = 0; i < OO + II; i++)
+	for (int i = 0; i < OO + II; i++)
 		io_flags[i] = i < OO;
 
 	n->op = operator_generic_with_props_create2(OO + II, io_flags, D, dims, strs, CAST_UP(PTR_PASS(d)), op_fun, op_del, op_property_create(OO + II, io_flags, tmp_props));
