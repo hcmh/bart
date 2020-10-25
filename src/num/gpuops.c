@@ -442,6 +442,11 @@ void* cuda_malloc(long size)
 	return mem_device_malloc(cuda_get_device(), size, cuda_malloc_wrapper);
 }
 
+void cuda_sync_device(void)
+{
+	CUDA_ERROR(cudaDeviceSynchronize());
+}
+
 
 
 #if 0

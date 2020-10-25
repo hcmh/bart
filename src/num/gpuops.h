@@ -39,6 +39,7 @@ extern int cuda_get_device(void);
 extern void cuda_memcache_off(void);
 extern void cuda_memcache_clear(void);
 extern void cuda_use_global_memory(void);
+extern void cuda_sync_device(void);
 extern void print_cuda_meminfo(void);
 
 #ifdef __cplusplus
