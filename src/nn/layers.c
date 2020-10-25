@@ -20,27 +20,8 @@
 #include "nlops/conv.h"
 
 #include "nn/batchnorm.h"
-#include "nn_ops.h"
+#include "nn/nn_ops.h"
 #include "layers.h"
-
-static void perm_shift(int N, int from, int to, int perm[N])
-{
-	for (int j = 0; j < N; j ++){
-
-		if (j == to){
-
-			perm[j] = from;
-			continue;
-		}
-		int i = j;
-		if (j >= from)
-			i += 1;
-		if (j > to)
-			i -= 1;
-
-		perm[j] = i;
-	}
-}
 
 /**
  * Append convolution/correlation layer
@@ -87,11 +68,11 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 
 		channels = idims_layer[0];
 		md_copy_dims(3, idims_xyz, idims_layer + 1);
-    	} else {
+	} else {
 
 		channels = idims_layer[3];
 		md_copy_dims(3, idims_xyz, idims_layer);
-    	}
+	}
 
 	for (int i = 0; i< 3; i++){
 
@@ -160,13 +141,8 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, 5, kdims_layer);
 	network = nlop_chain2_FF(network, o, nlop_conv, 0);
 
-	int perm_in[NI + 1];
-	perm_shift(NI + 1, 0, NI, perm_in);
-	network = nlop_permute_inputs_F(network, NI + 1, perm_in);
-
-	int perm_out[NO];
-	perm_shift(NO, 0, o, perm_out);
-	network = nlop_permute_outputs_F(network, NO, perm_out);
+	network = nlop_shift_input_F(network, NI, 0);
+	network = nlop_shift_output_F(network, o, 0);
 
 	return network;
 }
@@ -219,11 +195,11 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 
 		filters = odims_layer[0];
 		md_copy_dims(3, odims_xyz, odims_layer + 1);
-    	} else {
+	} else {
 
 		filters = odims_layer[3];
 		md_copy_dims(3, odims_xyz, odims_layer);
-    	}
+	}
 
 	for (int i = 0; i< 3; i++){
 
@@ -293,17 +269,11 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, 5, odims_layer);
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, 5, kdims_layer);
 
-	const struct nlop_s* tmp = nlop_chain2_FF(network, o, nlop_conv, 0);
+	network = nlop_chain2_FF(network, o, nlop_conv, 0);
+	network = nlop_shift_input_F(network, NI, 0);
+	network = nlop_shift_output_F(network, o, 0);
 
-	int perm_in[NI + 1];
-	perm_shift(NI + 1, 0, NI, perm_in);
-	const struct nlop_s* result = nlop_permute_inputs_F(tmp, NI + 1, perm_in);
-
-	int perm_out[NO];
-	perm_shift(NO, 0, o, perm_out);
-	result = nlop_permute_outputs_F(result, NO, perm_out);
-
-	return result;
+	return network;
 }
 
 /**
@@ -365,22 +335,13 @@ const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, c
 
 	const struct nlop_s* pool_op = nlop_maxpool_create(5, idims_working, pool_size_working);
 
-	if (resize_needed){
+	if (resize_needed)
+		pool_op = nlop_chain_FF(nlop_from_linop_F(linop_expand_create(5, idims_layer, idims_working)), pool_op);
 
-		struct linop_s* lin_res = linop_expand_create(5, idims_layer, idims_working);
-		struct nlop_s* nlop_res = nlop_from_linop(lin_res);
-		linop_free(lin_res);
-		pool_op = nlop_chain_FF(nlop_res, pool_op);
-    	}
+	network = nlop_chain2_FF(network, o, pool_op, 0);
+	network = nlop_shift_output_F(network, o, 0);
 
-	struct nlop_s* tmp = nlop_chain2_FF(network, o, pool_op, 0);
-
-	int perm_out[NO];
-	perm_shift(NO, 0, o, perm_out);
-	struct nlop_s* result = nlop_permute_outputs(tmp, NO, perm_out);
-	nlop_free(tmp);
-
-	return result;
+	return network;
 }
 
 /**
@@ -446,22 +407,13 @@ const struct nlop_s* append_blurpool_layer(const struct nlop_s* network, int o, 
 
 	const struct nlop_s* pool_op = nlop_blurpool_create(5, idims_working, pool_size_working);
 
-	if (resize_needed){
+	if (resize_needed)
+		pool_op = nlop_chain_FF(nlop_from_linop_F(linop_expand_create(5, idims_layer, idims_working)), pool_op);
 
-		struct linop_s* lin_res = linop_expand_create(5, idims_layer, idims_working);
-		struct nlop_s* nlop_res = nlop_from_linop(lin_res);
-		linop_free(lin_res);
-		pool_op = nlop_chain_FF(nlop_res, pool_op);
-	}
+	network = nlop_chain2_FF(network, o, pool_op, 0);
+	network = nlop_shift_output_F(network, o, 0);
 
-	struct nlop_s* tmp = nlop_chain2_FF(network, o, pool_op, 0);
-
-	int perm_out[NO];
-	perm_shift(NO, 0, o, perm_out);
-	struct nlop_s* result = nlop_permute_outputs(tmp, NO, perm_out);
-	nlop_free(tmp);
-
-	return result;
+	return network;
 }
 
 /**
@@ -520,24 +472,13 @@ const struct nlop_s* append_avgpool_layer(const struct nlop_s* network, int o, c
 	const struct linop_s* lin_pool_op = linop_avgpool_create(5, idims_working, pool_size_working);
 	struct nlop_s* pool_op = nlop_from_linop_F(lin_pool_op);
 
-	if (resize_needed){
+	if (resize_needed)
+		pool_op = nlop_chain_FF(nlop_from_linop_F(linop_expand_create(5, idims_layer, idims_working)), pool_op);
 
-		struct linop_s* lin_res = linop_expand_create(5, idims_layer, idims_working);
-		struct nlop_s* nlop_res = nlop_from_linop(lin_res);
-		linop_free(lin_res);
-		pool_op = nlop_chain_FF(nlop_res, pool_op);
-	}
+	network = nlop_chain2_FF(network, o, pool_op, 0);
+	network = nlop_shift_output_F(network, o, 0);
 
-	struct nlop_s* tmp = nlop_chain2(network, o, pool_op, 0);
-	nlop_free(network);
-	nlop_free(pool_op);
-
-	int perm_out[NO];
-	perm_shift(NO, 0, o, perm_out);
-	struct nlop_s* result = nlop_permute_outputs(tmp, NO, perm_out);
-	nlop_free(tmp);
-
-	return result;
+	return network;
 }
 
 /**
@@ -572,20 +513,13 @@ const struct nlop_s* append_upsampl_layer(const struct nlop_s* network, int o, c
 		idims_working[i+1] = idims_layer[i+1] * pool_size[i];
 
 	auto pool = linop_avgpool_create(5, idims_working, pool_size_working);
-	const struct linop_s* lin_upsampl_op = linop_get_adjoint(pool);
+	const struct nlop_s* upsampl_op = nlop_from_linop_F(linop_get_adjoint(pool));
 	linop_free(pool);
 
-	assert(o < NO);
+	network = nlop_chain2_FF(network, o, upsampl_op, 0);
+	network = nlop_shift_output_F(network, o, 0);
 
-	assert((nlop_generic_codomain(network, o))->N == 5);
-	struct nlop_s* upsampl_op = nlop_from_linop_F(lin_upsampl_op);
-	struct nlop_s* tmp = nlop_chain2_FF(network, o, upsampl_op, 0);
-
-	int perm_out[NO];
-	perm_shift(NO, 0, o, perm_out);
-	struct nlop_s* result = nlop_permute_outputs_F(tmp, NO, perm_out);
-
-	return result;
+	return network;
 }
 
 /**
@@ -623,19 +557,11 @@ const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int
 	matmul = nlop_reshape_in_F(matmul, 0, 2, idims_layer);
 	matmul = nlop_reshape_in_F(matmul, 1, 2, wdims_layer);
 
-	const struct nlop_s* tmp = nlop_chain2_FF(network, o, matmul, 0);
+	network = nlop_chain2_FF(network, o, matmul, 0);
+	network = nlop_shift_input_F(network, NI, 0);
+	network = nlop_shift_output_F(network, o, 0);
 
-	int perm_in[NI + 1];
-	perm_shift(NI + 1, 0, NI, perm_in);
-	int perm_out[NO];
-	perm_shift(NO, 0, o, perm_out);
-
-	struct nlop_s* tmp_in = nlop_permute_inputs(tmp, NI + 1, perm_in);
-	nlop_free(tmp);
-	struct nlop_s* result = nlop_permute_outputs(tmp_in, NO, perm_out);
-	nlop_free(tmp_in);
-
-	return result;
+	return network;
 }
 
 
@@ -663,14 +589,10 @@ const struct nlop_s* append_dropout_layer(const struct nlop_s* network, int o, f
 	else
 		dropout_op = nlop_from_linop_F(linop_scale_create(N, idims, 1. - p));
 
-	const struct nlop_s* tmp = nlop_chain2_FF(network, o, dropout_op, 0);
+	network = nlop_chain2_FF(network, o, dropout_op, 0);
+	network = nlop_shift_output_F(network, 0, o);
 
-	int perm_out[NO];
-	perm_shift(NO, 0, o, perm_out);
-	struct nlop_s* result = nlop_permute_outputs(tmp, NO, perm_out);
-	nlop_free(tmp);
-
-	return result;
+	return network;
 }
 
 /**
@@ -717,10 +639,7 @@ const struct nlop_s* append_padding_layer(const struct nlop_s* network, int o, l
 	auto pad_op = nlop_from_linop_F(linop_padding_create(io->N, io->dims, pad_type, pad_for, pad_after));
 
 	network = nlop_chain2_FF(network, o, pad_op, 0);
-
-	int perm_out[NO];
-	perm_shift(NO, 0, o, perm_out);
-	network = nlop_permute_outputs_F(network, NO, perm_out);
+	network = nlop_shift_output_F(network, o, 0);
 
 	return network;
 }
@@ -741,17 +660,11 @@ const struct nlop_s* append_batchnorm_layer(const struct nlop_s* network, int o,
 
 	auto batchnorm = nlop_batchnorm_create(nlop_generic_codomain(network, o)->N, nlop_generic_codomain(network, o)->dims, norm_flags, 1.e-3, status);
 
-	auto result = nlop_chain2_FF(network, o, batchnorm , 0);
+	network = nlop_chain2_FF(network, o, batchnorm , 0);
 
-	int perm_in[NI + 1];
-	perm_shift(NI + 1, 0, NI, perm_in);
-	result = nlop_permute_inputs_F(result, NI + 1, perm_in);
+	network = nlop_shift_input(network, NI, 0);
+	network = nlop_shift_output_F(network, NO, 1);
+	network = nlop_shift_output_F(network, o, 0);
 
-	int perm_out[NO + 1];
-	perm_shift(NO + 1, 1, NO, perm_out);
-	result = nlop_permute_outputs_F(result, NO + 1, perm_out);
-	perm_shift(NO + 1, 0, o, perm_out);
-	result = nlop_permute_outputs_F(result, NO + 1, perm_out);
-
-	return result;
+	return network;
 }
