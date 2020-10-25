@@ -502,7 +502,11 @@ const struct operator_s* operator_reshape(const struct operator_s* op, unsigned 
 
 	assert(md_calc_size(N, dims) == md_calc_size(operator_arg_domain(op, i)->N, operator_arg_domain(op, i)->dims));
 
-	data->x = operator_ref(op);
+	auto opdata_test = CAST_MAYBE(op_reshape_s, op->data);
+	if (NULL != opdata_test)
+		data->x = operator_ref(opdata_test->x);
+	else
+		data->x = operator_ref(op);
 
 	long strs[N];
 	md_calc_strides(N, strs, dims, operator_arg_domain(op, i)->size);
@@ -1658,11 +1662,21 @@ const struct operator_s* operator_permute(const struct operator_s* op, int N, co
 	// op = operator_ref(op);
 	PTR_ALLOC(struct permute_data_s, data);
 	SET_TYPEID(permute_data_s, data);
-	data->op = operator_ref(op);
 
 	int* nperm = *TYPE_ALLOC(int[N]);
-	memcpy(nperm, perm, sizeof(int[N]));
 
+	auto opdata_test = CAST_MAYBE(permute_data_s, op->data);
+	if (NULL != opdata_test) {
+
+		data->op = operator_ref(opdata_test->op);
+		for (int i = 0; i < N; i++)
+			nperm[i] = opdata_test->perm[perm[i]];
+
+	} else {
+
+		data->op = operator_ref(op);
+		memcpy(nperm, perm, sizeof(int[N]));
+	}
 	data->perm = nperm;
 
 	return operator_generic_with_props_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del, permute_set_opts, op_property_permute_create(op->props, N, perm, io_flags), operator_graph_permute);
