@@ -8,6 +8,7 @@
  * 2018-2019 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  * 2019 Aurélien Trotier <a.trotier@gmail.com>
  * 2019 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ * 2020 Christian Holme <christian.holme@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>

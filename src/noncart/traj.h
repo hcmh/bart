@@ -6,6 +6,13 @@
  * 2018-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2018 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  * 2019 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ * 2020 Christian Holme <christian.holme@med.uni-goettingen.de>
+ */
+
+
+/*
+ * NOTE: due to the need for compatibility with Siemens IDEA,
+ * traj.c and traj.h need to be simultaneously valid C and valid C++!
  */
 
 struct traj_conf {
@@ -30,6 +37,30 @@ struct traj_conf {
 
 extern const struct traj_conf traj_defaults;
 extern const struct traj_conf rmfreq_defaults;
+
+// for the sequence
+enum ePEMode
+{
+	// PEMODE_CARTESIAN = 1,
+	PEMODE_RAD_ALAL = 1,
+	PEMODE_RAD_TUAL,
+	PEMODE_RAD_GAAL,
+	PEMODE_RAD_GA,
+	PEMODE_RAD_TUGA,
+	PEMODE_RAD_TUTU,
+	PEMODE_RAD_RANDAL,
+	PEMODE_RAD_RAND,
+	PEMODE_RAD_MINV_ALAL,
+	PEMODE_RAD_MINV_GA,
+	PEMODE_RAD_MEMS_HYB
+};
+
+const char* modestr(const enum ePEMode mode);
+
+double seq_rotation_angle(long spoke, long echo, long repetition, long inversion_repetition, long slice, enum ePEMode mode,
+		    long num_lines, long num_echoes, long num_repetitions, long num_turns, long num_inv_repets,
+		    long num_slices,long tiny_golden_index, long start_pos_GA, bool double_angle);
+
 
 #ifndef DIMS
 #define DIMS 16

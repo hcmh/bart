@@ -6,23 +6,24 @@
  * 2014-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2018-2020 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
  * 2019 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ * 2020 Christian Holme <christian.holme@med.uni-goettingen.de>
+ */
+
+
+/*
+ * NOTE: due to the need for compatibility with Siemens IDEA,
+ * traj.c and traj.h need to be simultaneously valid C and valid C++!
  */
 
 #include <stdbool.h>
 #include <math.h>
 #include <assert.h>
 
-#ifdef SSAFARY_PAPER
 #include "misc/debug.h"
-#endif
-
+#include "misc/misc.h"
 #include "misc/mri.h"
-#ifdef SSAFARY_PAPER
-#include "misc/debug.h"
-#endif
 
 #include "traj.h"
-
 
 const struct traj_conf traj_defaults = {
 
@@ -259,3 +260,189 @@ bool zpartition_skip(long partitions, long z_usamp[2], long partition, long fram
 	return true;
 }
 
+
+const char* modestr(const enum ePEMode mode)
+{
+	switch(mode)
+	{
+		case PEMODE_RAD_ALAL:
+			return "ALAL";
+		case PEMODE_RAD_TUAL:
+			return "TUAL";
+		case PEMODE_RAD_GAAL:
+			return "GAAL";
+		case PEMODE_RAD_GA:
+			return "GA";
+		case PEMODE_RAD_TUGA:
+			return "TUGA";
+		case PEMODE_RAD_TUTU:
+			return "TUTU";
+		case PEMODE_RAD_RANDAL:
+		case PEMODE_RAD_RAND:
+			return "INVALID! RAND!";
+		case PEMODE_RAD_MINV_ALAL:
+			return "MINV_ALAL";
+		case PEMODE_RAD_MINV_GA:
+			return "MINV_GA";
+		case PEMODE_RAD_MEMS_HYB:
+			return "MEMS";
+		default:
+			return "INVALID!";
+	}
+}
+
+
+double seq_rotation_angle(long spoke, long echo, long repetition, long inversion_repetition, long slice, enum ePEMode mode, long num_lines, long num_echoes, long num_repetitions,
+		    long num_turns, long num_inv_repets, long num_slices, long tiny_golden_index, long start_pos_GA, bool double_angle)
+{
+
+	double angle_spoke = 0.; // increment angle for spoke [rad]
+	double angle_frame = 0.; // increment angle for frame [rad]
+	double angle_slice = 0.; // increment angle for slice [rad]
+	double angle_echo  = 0.; // increment angle for echo [rad]
+
+	double base_angle[16] = {0.f};
+
+	struct traj_conf conf = {.spiral = false, .radial = true, .golden = false, .aligned = true, .full_circle = double_angle,
+		.half_circle_gold = false, .golden_partition = false, .d3d = false, .transverse = false, .asym_traj = false,
+		.mems_traj = false, .rational = false, .sms_turns = true, .accel = 1, .tiny_gold = (int) tiny_golden_index, .multiple_ga = 1};
+
+	switch (mode)
+	{
+
+		// Radial | Aligned frames | Aligned partitions
+		case PEMODE_RAD_ALAL:
+		// Radial | Turned frames | Aligned partitions
+		case PEMODE_RAD_TUAL:
+			conf.sms_turns = false;
+			break;
+		// Radial | Turned frames | (Linear)-turned partitions
+		case PEMODE_RAD_TUTU:
+			conf.aligned = false;
+			break;
+
+		// Radial | Turned frames | Golden-angle partitions
+		case PEMODE_RAD_TUGA:
+			conf.aligned = false;
+			conf.golden_partition = true;
+			conf.sms_turns = false;
+			break;
+
+		// Radial | Golden-angle frames | Aligned partitions
+		case PEMODE_RAD_GAAL:
+			conf.golden = true;
+			break;
+
+		// Radial | Consecutive spokes aquired in GA fashion
+		case PEMODE_RAD_GA:
+			conf.golden = true;
+			conf.golden_partition = true;
+			conf.aligned = false;
+			break;
+
+		// Radial | Multiple inversion recovery |
+		case PEMODE_RAD_MINV_ALAL:
+			num_lines = num_inv_repets; 	// TODO: Very ugly, but necessary
+							// to calculate the correct angle
+			break;
+
+		// Radial | Multiple inversion recovery |
+		case PEMODE_RAD_MINV_GA:
+			conf.golden = true;
+			conf.golden_partition = true;
+			conf.aligned = false;
+			break;
+
+		// Radial | Multi-Echo Multi-Spoke Hybrid
+		//   1) uniform spoke distribution within one frame
+		//   2) golden angle increment between frames and partitions
+		// Refer to:
+		// * Tan Z, Voit D, Kollmeier JM, Uecker M, Frahm J.
+		// * Dynamic water/fat separation and B0 inhomogeneity mapping -- joint
+		// * estimation using undersampled triple-echo multi-spoke radial FLASH.
+		// * Magn Reson Med 82:1000-1011 (2019)
+		case PEMODE_RAD_MEMS_HYB:
+			conf.mems_traj = true;
+			break;
+
+		case PEMODE_RAD_RAND:
+		case PEMODE_RAD_RANDAL: // No longer implemented! // Radial | Randomly aligned
+		default:
+			return 0.f;
+			break;
+	}
+
+	calc_base_angles(base_angle, num_lines, num_echoes, num_slices, num_turns, conf);
+
+	angle_spoke = base_angle[2];
+	angle_echo = base_angle[5];
+	angle_frame = base_angle[10];
+	angle_slice = base_angle[13];
+
+	long tspoke = spoke;
+	long tframe = repetition;
+	long tslice = slice;
+	long techo = echo;
+
+
+	switch (mode)
+	{
+		// Radial | Aligned frames | Aligned partitions
+		case PEMODE_RAD_ALAL:
+		// Radial | Turned frames | Aligned partitions
+		case PEMODE_RAD_TUAL:
+		// Radial | Turned frames | (Linear)-turned partitions
+		case PEMODE_RAD_TUTU:
+			tframe = (repetition % num_turns);
+			break;
+
+		// Radial | Turned frames | Golden-angle partitions // DEPRECATED
+		case PEMODE_RAD_TUGA: {
+			tframe = (repetition % num_turns);
+			double golden_ratio = (sqrt(5.) + 1.) / 2;
+			if (0 < slice)
+				angle_slice = fmod( (double)slice * (M_PI / (double)num_lines) / golden_ratio, M_PI / (double)num_lines ) / slice;
+			else
+				angle_slice = 0.f;
+			break;
+		}
+
+		// Radial | Golden-angle frames | Aligned partitions
+		case PEMODE_RAD_GAAL:
+			tframe = (start_pos_GA + repetition);
+			break;
+
+		// Radial | Consecutive spokes aquired in GA fashion
+		case PEMODE_RAD_GA:
+			break;
+
+		// Radial | Multiple inversion recovery |
+		case PEMODE_RAD_MINV_ALAL:
+			tspoke = inversion_repetition;
+			tframe = 0;
+			tslice = 0;
+			techo = 0;
+			break;
+
+		// Radial | Multiple inversion recovery |
+		case PEMODE_RAD_MINV_GA:
+			tframe = ( repetition + inversion_repetition * (num_repetitions+1) );
+			break;
+
+		// Radial | Multi-Echo Multi-Spoke Hybrid
+		case PEMODE_RAD_MEMS_HYB:
+			break;
+
+		case PEMODE_RAD_RAND:
+		case PEMODE_RAD_RANDAL: // No longer implemented! // Radial | Randomly aligned
+		default:
+			break;
+	}
+
+	double phi = angle_spoke * tspoke
+		+ angle_frame * tframe
+		+ angle_slice * tslice
+		+ angle_echo * techo;
+
+	return phi;
+}
