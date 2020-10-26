@@ -177,7 +177,7 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	 */
 	double angle_e = 0.;
 
-	if (conf.mems_traj && (E > 1)) {
+	if (conf.mems_traj) {
 
 		angle_s = angle_s * 1.;
 		angle_e = angle_s / E;
