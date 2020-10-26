@@ -139,12 +139,12 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	 * Magn Reson Med 75:2372-2378 (2016)
 	 */
 
-	double golden_ratio = (sqrtf(5.) + 1.) / 2;
+	double golden_ratio = (sqrt(5.) + 1.) / 2;
 	double golden_angle = M_PI / (golden_ratio + conf.tiny_gold - 1.);
 
 	// For numerical stability
 	if (1 == conf.tiny_gold)
-		golden_angle = M_PI * (2. - (3. - sqrtf(5.))) / 2.;
+		golden_angle = M_PI * (2. - (3. - sqrt(5.))) / 2.;
 
 	double angle_atom = M_PI / Y;
 
