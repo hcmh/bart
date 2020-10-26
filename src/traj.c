@@ -70,7 +70,7 @@ int main_traj(int argc, char* argv[])
 		OPT_INT('m', &mb, "mb", "SMS multiband factor"),
 		OPT_INT('v', &even_echo_shift, "(shift)", "(even echo shift)"),
 		OPT_SET('l', &conf.aligned, "aligned partition angle"),
-		OPT_SET('g', &conf.golden_partition, "golden angle in partition direction"),
+		OPT_SET('g', &conf.golden_partition, "(golden angle in partition direction)"),
 		OPT_SET('r', &conf.radial, "radial"),
 		OPT_SET('G', &conf.golden, "golden-ratio sampling"),
 		OPT_SET('H', &conf.half_circle_gold, "halfCircle golden-ratio sampling"),
@@ -194,6 +194,9 @@ int main_traj(int argc, char* argv[])
 
 	if (conf.radial && conf.spiral)
 		error("Choose either radial spokes or spirals\n");
+
+	if (conf.golden_partition)
+		debug_printf(DP_WARN, "golden partitions (-g) is deprecated and might be removed in a future version!\n");
 
 	if (conf.tiny_gold >= 1)
 		conf.golden = true;
