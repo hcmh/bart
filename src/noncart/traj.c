@@ -37,15 +37,16 @@ const struct traj_conf traj_defaults = {
 	.transverse = false,
 	.asym_traj = false,
 	.mems_traj = false,
+	.rational = false,
+	.sms_turns = false,
 	.accel = 1,
 	.tiny_gold = 0,
-	.rational = false,
 	.multiple_ga = 1,
-	.sms_turns = false,
 };
 
 const struct traj_conf rmfreq_defaults = {
 
+	.spiral = false,
 	.radial = true,
 	.golden = false,
 	.aligned = false,
@@ -56,9 +57,11 @@ const struct traj_conf rmfreq_defaults = {
 	.transverse = false,
 	.asym_traj = false,
 	.mems_traj = false,
+	.rational = false,
+	.sms_turns = false,
 	.accel = 1,
 	.tiny_gold = 0,
-	.rational = false,
+	.multiple_ga = 1,
 };
 
 
