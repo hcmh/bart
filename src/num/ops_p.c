@@ -211,7 +211,7 @@ const struct operator_s* operator_p_upcast(const struct operator_p_s* op)
 const struct operator_p_s* operator_p_downcast(const struct operator_s* op)
 {
 	assert(3 == op->N);
-	
+
 	assert(!op->io_flags[0]);
 	assert(op->io_flags[1]);
 	assert(!op->io_flags[2]);
@@ -307,6 +307,16 @@ const struct operator_p_s* operator_p_stack(int A, int B, const struct operator_
 	auto c = operator_stack2(2, (int[]){ 1, 2 }, (int[]){ A, B }, a, b);
 
 	return operator_p_downcast(c);
+}
+
+const struct operator_p_s* operator_p_reshape_in(const struct operator_p_s* op, unsigned int N, long dims[N])
+{
+	return operator_p_downcast(operator_reshape(operator_p_upcast(op), 2, N, dims));
+}
+
+const struct operator_p_s* operator_p_reshape_out(const struct operator_p_s* op, unsigned int N, long dims[N])
+{
+	return operator_p_downcast(operator_reshape(operator_p_upcast(op), 1, N, dims));
 }
 
 

@@ -41,6 +41,9 @@ extern void operator_p_apply2(const struct operator_p_s* op, float mu, unsigned 
 
 extern void operator_p_apply_unchecked(const struct operator_p_s* op, float mu,  _Complex float* dst, const _Complex float* src);
 
+const struct operator_p_s* operator_p_reshape_in(const struct operator_p_s* op, unsigned int N, long dims[N]);
+const struct operator_p_s* operator_p_reshape_out(const struct operator_p_s* op, unsigned int N, long dims[N]);
+
 
 // get functions
 struct iovec_s;
