@@ -1230,7 +1230,7 @@ int calc_convcorr_geom_strs_dil(int N, unsigned long flags,
 		if (MD_IS_SET(flags, i)) {
 
 			if (!test_mode)
-				assert(idims[i] == ((NULL == strides) ? 1 : strides[i]) * odims[i] + (kdims[i] - 1) * ((NULL == dilation) ? 1 : dilation[i]));
+				assert(idims[i] == ((NULL == strides) ? 1 : strides[i]) * (odims[i] - 1) + 1 + (kdims[i] - 1) * ((NULL == dilation) ? 1 : dilation[i]));
 
 			mdims[0 + i] = odims[i];
 			mdims[N + i] = kdims[i];

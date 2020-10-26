@@ -31,6 +31,7 @@
 #include "nn/layers.h"
 #include "nn/activation.h"
 #include "nn/init.h"
+#include "nn/nn_ops.h"
 #include "nn/mnist.h"
 #include "nn/rbf.h"
 #include "utest.h"
@@ -73,7 +74,7 @@ static bool test_nlop_conv_compare(void)
 	md_gaussian_rand(N, dims_image, src1);
 	md_gaussian_rand(N, dims_kernel, src2);
 
-	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true, 'N');
+	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true, NULL, NULL, 'N');
 	const struct nlop_s* conv_fft = nlop_convcorr_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true);
 
 	const struct nlop_s* conv_geom_const = nlop_set_input_const_F(conv_geom, 1, N, dims_kernel, true, src2);
@@ -109,7 +110,7 @@ static bool test_nlop_conv_derivative(void)
 	long dims_output[N] = { 4, 4, 2, 4, 1, 1};
 	unsigned long conv_flags = 9; //100100
 
-	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true, 'N');
+	const struct nlop_s* conv_geom = nlop_convcorr_geom_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true, NULL, NULL, 'N');
 	const struct nlop_s* conv_fft = nlop_convcorr_fft_create(N, conv_flags, dims_output, dims_image, dims_kernel, PAD_VALID, true);
 
 	float err_adj_geom = nlop_test_adj_derivatives(conv_geom, false);
@@ -531,3 +532,169 @@ static bool test_upsampl(void)
 }
 
 UT_REGISTER_TEST(test_upsampl);
+
+static bool test_blurpool(void)
+{
+	unsigned int N = 5;
+
+	long idims[] = {2, 6, 1, 1, 2};
+	long pool_size[] = {1,3,1,1,1};
+	long odims[] = {2, 2, 1, 1, 2};
+	complex float in[] = {	1101., 1202., 1103., 1204., 1105., 1206., 1107., 1208., 1109., 1210., 1111., 1212.,
+				2101., 2202., 2103., 2204., 2105., 2206., 2105., 2208., 2109., 2210., 2111., 2212. };
+
+	complex float maxpool_out[] = {	1105., 1206., 1111., 1212.,
+					2105., 2206., 2111., 2212.};
+	UNUSED(maxpool_out);
+	complex float blurpool_out[] = {1110.33, 1211.33, 1107.666, 1208.66,
+					2110.33, 2211.33, 2107.0, 2208.66};
+
+	complex float* output_layer = md_alloc(N, idims, CFL_SIZE);
+	const struct nlop_s* blurpool_layer = nlop_from_linop_F(linop_identity_create(N, idims));
+	blurpool_layer = append_blurpool_layer(blurpool_layer, 0, MAKE_ARRAY(3l, 1l, 1l), PAD_VALID, true);
+	nlop_apply(blurpool_layer, N, odims, output_layer, N, idims, in);
+
+	const struct nlop_s* blurpool_op = nlop_blurpool_create(N, idims, pool_size);
+	complex float* output_op = md_alloc(N, odims, CFL_SIZE);
+	nlop_generic_apply_unchecked(blurpool_op, 2, (void*[]){output_op, in});
+
+	float err = 	md_znrmse(N, odims, output_layer, blurpool_out) +
+			md_znrmse(N, odims, output_op, blurpool_out);
+
+	nlop_free(blurpool_layer);
+	nlop_free(blurpool_op);
+
+	md_free(output_layer);
+	md_free(output_op);
+
+	UT_ASSERT( 0.01 >  err);
+}
+
+UT_REGISTER_TEST(test_blurpool);
+
+/**
+ * Test append_convcorr_layer for implementation
+ * of strides and dilations.
+ * Test dilations with PAD_SAME and strides with PAD_VALID.
+ **/
+static bool test_nlop_conv_strs_dil(void)
+{
+	unsigned int N = 5;
+	long idims[] = {3, 7, 5, 1, 1};
+	long odims[] = {3, 7, 5, 1, 1};
+
+	long dilations[] = {2, 2, 1};
+	long strides[] = {2, 2, 1};
+	long kernel_size[] = {3, 3, 1};
+	long kernel_size_no_dil[] = {5, 5, 1};
+
+	long kdims[] = {odims[0], idims[0], kernel_size[0], kernel_size[1], kernel_size[2]};
+	long kdims_no_dil[] = {odims[0], idims[0], kernel_size_no_dil[0], kernel_size_no_dil[1], kernel_size_no_dil[2]};
+
+	// calculation of outdims for PAD_VALID convolution with strides
+	long odims_pad_valid[N];
+	long odims_strided[N];
+	md_copy_dims(N, odims_pad_valid, odims);
+	md_copy_dims(N, odims_strided, odims);
+	for (int i = 0; i < 3; i++){
+
+		odims_pad_valid[i+1] = odims[i+1] - (kernel_size[i] - 1);
+		odims_strided[i+1] = (odims_pad_valid[i+1] - 1) / strides[i] + 1;
+	}
+
+	complex float* kernel = md_alloc(N, kdims, CFL_SIZE); // kernel for conv with dilations
+	complex float* kernel_no_dil = md_alloc(N, kdims_no_dil, CFL_SIZE); // kernel for conv without dilations
+
+	// test dilations
+	// calculate strides strs_dil to manually create kernel equivalent to kernel with dilations
+	long strs_kdims[N];
+	md_calc_strides(N, strs_kdims, kdims, CFL_SIZE);
+
+	long strs_dil[N];
+	md_copy_strides(N, strs_dil, strs_kdims);
+	long prod_dil = 1;
+	long prod_no_dil = 1;
+	for (int i = 0; i < 3; i++){
+
+		strs_dil[2 + i] /= prod_dil;
+		strs_dil[2 + i] *= dilations[i] * prod_no_dil;
+		prod_no_dil *= kernel_size_no_dil[i];
+		prod_dil *= kernel_size[i];
+	}
+
+	md_gaussian_rand(N, kdims, kernel);
+	md_zfill(N, kdims_no_dil, kernel_no_dil, 0.);
+	md_copy2(N, kdims, strs_dil, kernel_no_dil, strs_kdims, kernel, CFL_SIZE); // equivalent to dilations option of convcorr function
+
+	auto forward_dil = append_convcorr_layer(nlop_from_linop_F(linop_identity_create(N, idims)), 0, odims[0], kernel_size, true, PAD_SAME, true, NULL, dilations);
+	forward_dil = nlop_set_input_const_F(forward_dil, 1, N, kdims, true, kernel);
+
+	auto forward_no_dil = append_convcorr_layer(nlop_from_linop_F(linop_identity_create(N, idims)), 0, odims[0], kernel_size_no_dil, true, PAD_SAME, true, NULL, NULL);
+	forward_no_dil = nlop_set_input_const_F(forward_no_dil, 1, N, kdims_no_dil, true, kernel_no_dil);
+
+	complex float* input = md_alloc(N, idims, CFL_SIZE);
+	complex float* output = md_alloc(N, odims, CFL_SIZE);
+	complex float* output_no_dil = md_alloc(N, odims, CFL_SIZE);
+
+	md_gaussian_rand(N, idims, input);
+
+	nlop_apply(forward_dil, N, odims, output, N, idims, input);
+	nlop_apply(forward_no_dil, N, odims, output_no_dil, N, idims, input);
+
+	float err = md_znrmse(N, odims, output, output_no_dil);
+
+	// test strides
+	auto forward_strs = append_convcorr_layer(nlop_from_linop_F(linop_identity_create(N, idims)), 0, odims[0], kernel_size, true, PAD_VALID, true, strides, NULL);
+	forward_strs = nlop_set_input_const_F(forward_strs, 1, N, kdims, true, kernel);
+
+	auto forward_pad = append_convcorr_layer(nlop_from_linop_F(linop_identity_create(N, idims)), 0, odims[0], kernel_size, true, PAD_VALID, true, NULL, NULL);
+	forward_pad = nlop_set_input_const_F(forward_pad, 1, N, kdims, true, kernel);
+
+	complex float* output_strs = md_alloc(N, odims_strided, CFL_SIZE);
+	complex float* output_pad = md_alloc(N, odims_pad_valid, CFL_SIZE);
+
+	nlop_apply(forward_strs, N, odims_strided, output_strs, N, idims, input);
+	nlop_apply(forward_pad, N, odims_pad_valid, output_pad, N, idims, input);
+
+	// calculate strides strs_strs to manually create equivalent of strided convolution
+	long strs_pad[N];
+	md_calc_strides(N, strs_pad, odims_strided, CFL_SIZE);
+
+	long strs_strs[N];
+	md_copy_strides(N, strs_strs, strs_pad);
+	long prod_strs = 1;
+	long prod_no_strs = 1;
+	strs_strs[4] = odims[0] * 8;
+	for (int i = 0; i < 3; i++){
+
+		strs_strs[1 + i] /= prod_strs;
+		strs_strs[1 + i] *= strides[i] * prod_no_strs;
+		prod_no_strs *= odims_pad_valid[i+1];
+		prod_strs *= odims_strided[i+1];
+		strs_strs[4] *= odims_pad_valid[i+1];
+	}
+
+	// manually create equivalent output to strides option of convcorr
+	complex float* pad_strided = md_alloc(N, odims_strided, CFL_SIZE);
+	md_copy2(N, odims_strided, strs_pad, pad_strided, strs_strs, output_pad, CFL_SIZE);
+
+	err += md_znrmse(N, odims_strided, output_strs, pad_strided);
+
+	md_free(kernel);
+	md_free(kernel_no_dil);
+
+	md_free(input);
+	md_free(output);
+	md_free(output_no_dil);
+	md_free(output_strs);
+	md_free(output_pad);
+	md_free(pad_strided);
+
+	nlop_free(forward_dil);
+	nlop_free(forward_no_dil);
+	nlop_free(forward_strs);
+	nlop_free(forward_pad);
+
+	UT_ASSERT(err < 1.e-2);
+}
+UT_REGISTER_TEST(test_nlop_conv_strs_dil);

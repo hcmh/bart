@@ -212,11 +212,12 @@ static void convcorr_geom_del(const nlop_data_t* _data)
 	xfree(data);
 }
 
-static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], bool conv, bool transp)
+static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N],
+							bool conv, const long strides[N], const long dilations[N], bool transp)
 {
 	for (int i = 0; i < N; i++)
 		if MD_IS_SET(flags, i)
-			assert(odims[i] == idims[i] - (kdims[i] - 1));
+			assert(idims[i] == strides[i] * (odims[i] - 1) + 1 + (kdims[i] - 1) * dilations[i]);
 
 	PTR_ALLOC(struct convcorr_geom_s, data);
 	SET_TYPEID(convcorr_geom_s, data);
@@ -250,19 +251,19 @@ static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags
 	md_copy_dims(N, *nidims2, nl_idims[1]);
 
 	if (transp)
-		data->shift = calc_convcorr_geom(	N, flags,
+		data->shift = calc_convcorr_geom_strs_dil(N, flags,
 							*nmdims, *nistrs1, *nistrs2, *nostrs,
 							odims, MD_STRIDES(N, odims, CFL_SIZE),
 							kdims, MD_STRIDES(N, kdims, CFL_SIZE),
 							idims, MD_STRIDES(N, idims, CFL_SIZE),
-							conv) / CFL_SIZE;
+							dilations, strides, conv, false) / CFL_SIZE;
 	else
-		data->shift = calc_convcorr_geom(	N, flags,
+		data->shift = calc_convcorr_geom_strs_dil(N, flags,
 							*nmdims, *nostrs, *nistrs2, *nistrs1,
 							odims, MD_STRIDES(N, odims, CFL_SIZE),
 							kdims, MD_STRIDES(N, kdims, CFL_SIZE),
 							idims, MD_STRIDES(N, idims, CFL_SIZE),
-							conv) / CFL_SIZE;
+							dilations, strides, conv, false) / CFL_SIZE;
 
 	data->odims = *PTR_PASS(nodims);
 	data->idims1 = *PTR_PASS(nidims1);
@@ -281,8 +282,17 @@ static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags
 }
 
 
-struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N], enum PADDING conv_pad, bool conv, char transpc)
+struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long odims[N], const long idims[N], const long kdims[N],
+					enum PADDING conv_pad, bool conv, const long strides[N], const long dilations[N], char transpc)
 {
+	long ones[N];
+	for (int i = 0; i < N; i++)
+		ones[i] = 1.;
+	if (NULL == strides)
+		strides = ones;
+	if (NULL == dilations)
+		dilations = ones;
+
 	struct nlop_s* result = NULL;
 
 	assert(('N' == transpc) || ('T' == transpc) || ('C' == transpc));
@@ -291,25 +301,23 @@ struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long 
 
 	if (PAD_VALID == conv_pad) {
 
-		result = nlop_convcorr_geom_valid_create(N, flags, odims, idims, kdims, conv, transp);
+		result = nlop_convcorr_geom_valid_create(N, flags, odims, idims, kdims, conv, strides, dilations, transp);
 	} else {
 
 		long pad[N];
 		long nidims[N];
 		for (int i = 0; i < N; i++) {
 
-			if(MD_IS_SET(flags, i)) {
+				if(MD_IS_SET(flags, i))
+					pad[i] = kdims[i] / 2 * dilations[i];
 
-				assert(1 == kdims[i] % 2);
-				pad[i] = kdims[i] / 2;
-			} else {
+				else
+					pad[i] = 0;
 
-				pad[i] = 0;
-			}
 			nidims[i] = idims[i] + 2 * pad[i];
 		}
 
-		result = nlop_convcorr_geom_valid_create(N, flags, odims, nidims, kdims, conv, transp);
+		result = nlop_convcorr_geom_valid_create(N, flags, odims, nidims, kdims, conv, strides, dilations, transp);
 
 		struct linop_s* pad_op = linop_padding_create(N, idims, conv_pad, pad, pad);
 
