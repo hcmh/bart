@@ -73,7 +73,7 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('g', &conf.golden_partition, "(golden angle in partition direction)"),
 		OPT_SET('r', &conf.radial, "radial"),
 		OPT_SET('G', &conf.golden, "golden-ratio sampling"),
-		OPT_SET('H', &conf.half_circle_gold, "halfCircle golden-ratio sampling"),
+		OPT_SET('H', &conf.half_circle_gold, "(halfCircle golden-ratio sampling)"),
 		OPT_INT('s', &conf.tiny_gold, "# Tiny GA", "tiny golden angle"),
 		OPT_INT('M', &conf.multiple_ga, "# Multiple", "multiple golden angle"),
 		OPT_SET('A', &conf.rational, "rational approximation of golden angles"),
@@ -175,6 +175,8 @@ int main_traj(int argc, char* argv[])
 	dims[SLICE_DIM] = mb;
 
 	if (conf.half_circle_gold) {
+
+		debug_printf(DP_WARN, "half-circle golden angle (-H) is deprecated and might be removed in a future version!\n");
 
 		conf.golden = true;
 
