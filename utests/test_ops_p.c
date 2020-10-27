@@ -177,5 +177,35 @@ static bool test_op_p_stack3(void)
 
 UT_REGISTER_TEST(test_op_p_stack3);
 
+static bool test_op_reshape(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 8, 4, 1 };
+	long dims2[N] = { 1, 1, 32 };
 
+	auto a = operator_p_scale(N, dims);
+	auto b = operator_p_reshape_in_F(a, N, dims2);
+	auto c = operator_p_reshape_out_F(b, N, dims2);
+
+	complex float* in = md_alloc(N, dims2, CFL_SIZE);
+	complex float* out = md_alloc(N, dims2, CFL_SIZE);
+
+	md_zfill(N, dims2, in, 1.);
+	md_zfill(N, dims2, out, 100.);
+
+	operator_p_apply(c, 2., N, dims2, out, N, dims2, in);
+
+	md_zfill(N, dims2, in, 2.);
+
+	float err = md_znrmse(N, dims2, out, in);
+
+	operator_p_free(c);
+
+	md_free(in);
+	md_free(out);
+
+	return (err < UT_TOL);
+}
+
+UT_REGISTER_TEST(test_op_reshape);
 
