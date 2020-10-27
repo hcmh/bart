@@ -168,6 +168,9 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	if (turns > 1)
 		angle_t = angle_atom / (turns * (conf.sms_turns ? mb : 1)) * (conf.full_circle ? 2 : 1);
 
+
+	double angle_e = M_PI; // flip all even echoes in any kind of multi-echo
+
 	/* radial multi-echo multi-spoke sampling
 	 *
 	 * Tan Z, Voit D, Kollmeier JM, Uecker M, Frahm J.
@@ -175,12 +178,10 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	 * estimation using undersampled  triple-echo multi-spoke radial FLASH.
 	 * Magn Reson Med 82:1000-1011 (2019)
 	 */
-	double angle_e = 0.;
-
 	if (conf.mems_traj) {
 
 		angle_s = angle_s * 1.;
-		angle_e = angle_s / E + M_PI;
+		angle_e += angle_s / E;
 		angle_t = golden_angle;
 
 	} else if (conf.golden) {
