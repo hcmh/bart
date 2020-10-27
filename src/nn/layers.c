@@ -1,3 +1,8 @@
+/*
+ * Operations to append layers to an existing network structure.
+ * The incoming network structure is freed and
+ * the network with the appended layer is outputted.
+ */
 #include <assert.h>
 #include <stdbool.h>
 #include <complex.h>
@@ -35,7 +40,6 @@
  * @param channel_first data layout is {c, x, y, z}/{filter, channel, kx, ky, kz} if true, {x, y, z, c} {kx, ky, kz, channel, filter} else
  * @param strides only take into account convolutions separated by strides {sx, sy, sz} (0 == (idims_xyz[i] - dilations[i] * (kernel_size[i] - 1) - 1) % strides[i]))
  * @param dilations elements of kernel dilated by {dx, dy, dz}
-
  */
 const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, int filters, long const kernel_size[3], bool conv, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3])
 {
@@ -51,9 +55,9 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 	assert(o < NO);
 	assert((nlop_generic_codomain(network, o))->N == 5);
 
-	long idims_layer[5]; // channel, x, y, z, batch		or x, y, z, channel, batch
-	long odims_layer[5]; // filters, ox, oy, oz, batch	or ox, oy, oz, filters, batch
-	long kdims_layer[5]; // filters, channel, kx, ky, kz	or x, y, z channel, filters
+	long idims_layer[5]; //channel, x, y, z, batch		or x, y, z, channel, batch
+	long odims_layer[5]; //filters, ox, oy, oz, batch	or ox, oy, oz, filters, batch
+	long kdims_layer[5]; //filters, channel, kx, ky, kz	or x, y, z channel, filters
 
 	long istrs_layer[5];
 
@@ -75,25 +79,21 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 		md_copy_dims(3, idims_xyz, idims_layer);
 	}
 
-
-
-	// calculate output dimension based on kernel size, dilations and strides: odims[i] = (idims[i] - dil[i] * (kdims[i] - 1) - 1) / strs[i] + 1
+	//calculate output dimension based on kernel size, dilations and strides: odims[i] = (idims[i] - dil[i] * (kdims[i] - 1) - 1) / strs[i] + 1
 	if (conv_pad == PAD_VALID){
 
 			for (int i = 0; i < 3; i++) {
 
 				assert(0 == (idims_xyz[i] - dilations[i] * (kernel_size[i] - 1) - 1) % strides[i]);
-
 				odims_xyz[i] = (idims_xyz[i] - dilations[i] * (kernel_size[i] - 1) - 1) / strides[i] + 1;
 
 			}
 	} else
 		md_copy_dims(3, odims_xyz, idims_xyz);
 
-	long idims_working[6];
-	long odims_working[6];
-	long kdims_working[6];
-
+	long idims_working[6]; //1, channel, x, y, z, batch		or x, y, z, channel, 1, batch
+	long odims_working[6]; //filters, 1, ox, oy, oz, batch		or ox, oy, oz, 1, filters, batch
+	long kdims_working[6]; //filters, channel, kx, ky, kz, 1	or kx, ky, kz channel, filters, 1
 	long strides_working[6];
 	long dilations_working[6];
 
@@ -151,7 +151,7 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 		md_copy_dims(3, dilations_working, dilations);
 	}
 
-	// select x y z dimensions (channel_first ? 001110 : 111000)
+	//select x y z dimensions (channel_first ? 001110 : 111000)
 	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working,
 								conv_pad, conv, strides_working, dilations_working, 'N');
 	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, 5, odims_layer);
@@ -195,9 +195,9 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 
 	//note that idims, odims, kdims refer to the dimensions of the forward convolution, i.e. idims[i] = strs[i] * (odims[i] - 1) + 1 + dil[i] * (kernel[i] - 1)
 
-	long idims_layer[5]; // channel, x, y, z, batch		or x, y, z, channel, batch
-	long odims_layer[5]; // filters, ox, oy, oz, batch	or ox, oy, oz, filters, batch
-	long kdims_layer[5]; // filters, channel, kx, ky, kz	or x, y, z channel, filters
+	long idims_layer[5]; //channel, x, y, z, batch		or x, y, z, channel, batch
+	long odims_layer[5]; //filters, ox, oy, oz, batch	or ox, oy, oz, filters, batch
+	long kdims_layer[5]; //filters, channel, kx, ky, kz	or x, y, z channel, filters
 
 	long ostrs_layer[5];
 
@@ -219,16 +219,16 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 		md_copy_dims(3, odims_xyz, odims_layer);
 	}
 
-	// calculate input dimension based on kernel size, dilations and strides: idims[i] = strs[i] * (odims[i] - 1) + 1 + dil[i] * (kernel[i] - 1)
+	//calculate input dimension based on kernel size, dilations and strides: idims[i] = strs[i] * (odims[i] - 1) + 1 + dil[i] * (kernel[i] - 1)
 	if (conv_pad == PAD_VALID)
 		for (int i = 0; i < 3; i++)
 			idims_xyz[i] = strides[i] * (odims_xyz[i] - 1) + 1 + dilations[i] * (kernel_size[i] - 1);
 	else
 		md_copy_dims(3, idims_xyz, odims_xyz);
 
-	long idims_working[6]; // 1, channel, x, y, z, batch		or x, y, z, channel, 1, batch
-	long odims_working[6]; // filters, 1, ox, oy, oz, batch		or ox, oy, oz, 1, filters, batch
-	long kdims_working[6]; // filters, channel, kx, ky, kz, 1	or kx, ky, kz channel, filters, 1
+	long idims_working[6]; //1, channel, x, y, z, batch		or x, y, z, channel, 1, batch
+	long odims_working[6]; //filters, 1, ox, oy, oz, batch		or ox, oy, oz, 1, filters, batch
+	long kdims_working[6]; //filters, channel, kx, ky, kz, 1	or kx, ky, kz channel, filters, 1
 	long strides_working[6];
 	long dilations_working[6];
 
@@ -382,7 +382,7 @@ const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, c
  * @param o output index of network, the layer is appended
  * @param pool_size {px, py, pz} size of pooling
  * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
- * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c} else
+ * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c} otherwise
  */
 const struct nlop_s* append_blurpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
 {
@@ -395,7 +395,7 @@ const struct nlop_s* append_blurpool_layer(const struct nlop_s* network, int o, 
 
 	assert((nlop_generic_codomain(network, o))->N == 5);
 
-	long idims_layer[5]; // channel, x, y, z, batch	or x, y, z, channel, batch
+	long idims_layer[5]; //channel, x, y, z, batch	or x, y, z, channel, batch
 	long idims_working[5];
 	long pool_size_working[5]; //1, px, py, pz, 1	or px, py, pz, 1, 1 depending on channel_first
 
@@ -450,7 +450,7 @@ const struct nlop_s* append_blurpool_layer(const struct nlop_s* network, int o, 
  * @param o output index of network, the layer is appended
  * @param pool_size {px, py, pz} size of pooling
  * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
- * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c}else
+ * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c} otherwise
  */
 const struct nlop_s* append_avgpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
 {
@@ -459,9 +459,9 @@ const struct nlop_s* append_avgpool_layer(const struct nlop_s* network, int o, c
 
 	assert((nlop_generic_codomain(network, o))->N == 5);
 
-	long idims_layer[5]; // channel, x, y, z, batch	or x, y, z, channel, batch
+	long idims_layer[5]; //channel, x, y, z, batch	or x, y, z, channel, batch
 	long idims_working[5];
-	long pool_size_working[5]; //1, px, py, pz, 1	or px, py, pz, 1, 1 depending on channel_first
+	long pool_size_working[5]; //1, px, py, pz, 1	or px, py, pz, 1, 1
 
 	long idims_xyz[3];
 
@@ -515,7 +515,7 @@ const struct nlop_s* append_avgpool_layer(const struct nlop_s* network, int o, c
  * @param o output index of network, the layer is appended
  * @param pool_size {px, py, pz} size of pooling
  * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
- * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c}else
+ * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c} otherwise
  */
 const struct nlop_s* append_upsampl_layer(const struct nlop_s* network, int o, const long pool_size[3], bool channel_first)
 {
@@ -524,7 +524,7 @@ const struct nlop_s* append_upsampl_layer(const struct nlop_s* network, int o, c
 
 	assert((nlop_generic_codomain(network, o))->N == 5);
 
-	long idims_layer[5]; // channel, x, y, z, batch	or x, y, z, channel, batch
+	long idims_layer[5]; //channel, x, y, z, batch	or x, y, z, channel, batch
 	long idims_working[5];
 	long pool_size_working[5]; //1, px, py, pz, 1	or px, py, pz, 1, 1 depending on channel_first
 
@@ -554,7 +554,7 @@ const struct nlop_s* append_upsampl_layer(const struct nlop_s* network, int o, c
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
- * @param neurons number of output neurons
+ * @param out_neurons number of output neurons
  */
 const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int out_neurons)
 {
@@ -568,16 +568,16 @@ const struct nlop_s* append_dense_layer(const struct nlop_s* network, int o, int
 	long batch = (nlop_generic_codomain(network, o)->dims)[1];
 	long in_neurons = (nlop_generic_codomain(network, o)->dims)[0];
 
-	long idims_layer[] = {in_neurons, batch};       // in neurons, batch
-	long odims_layer[] = {out_neurons, batch};      // out neurons, batch
-	long wdims_layer[] = {out_neurons, in_neurons}; // out neurons, in neurons
+	long idims_layer[] = {in_neurons, batch};       //in neurons, batch
+	long odims_layer[] = {out_neurons, batch};      //out neurons, batch
+	long wdims_layer[] = {out_neurons, in_neurons}; //out neurons, in neurons
 
 	long istrs_layer[2];
 	md_copy_strides(2, istrs_layer, nlop_generic_codomain(network, o)->strs);
 
-	long idims_working[] = {1, in_neurons, batch};       // in neurons, batch
-	long odims_working[] = {out_neurons, 1, batch};      // out neurons, batch
-	long wdims_working[] = {out_neurons, in_neurons, 1}; // out neurons, in neurons
+	long idims_working[] = {1, in_neurons, batch};       //in neurons, batch
+	long odims_working[] = {out_neurons, 1, batch};      //out neurons, batch
+	long wdims_working[] = {out_neurons, in_neurons, 1}; //out neurons, in neurons
 
 	const struct nlop_s* matmul = nlop_tenmul_create(3, odims_working, idims_working, wdims_working);
 	matmul = nlop_reshape_out_F(matmul, 0, 2, odims_layer);
