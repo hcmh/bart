@@ -1,4 +1,5 @@
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <complex.h>
@@ -251,6 +252,26 @@ const struct operator_p_s* operator_p_pst_chain(const struct operator_p_s* _a, c
 	return operator_p_downcast(z);
 }
 
+const struct operator_p_s* operator_p_pre_chain_FF(const struct operator_s* a, const struct operator_p_s* _b)
+{
+	auto result = operator_p_pre_chain(a, _b);
+
+	operator_free(a);
+	operator_p_free(_b);
+
+	return result;
+}
+
+const struct operator_p_s* operator_p_pst_chain_FF(const struct operator_p_s* _a, const struct operator_s* b)
+{
+	auto result = operator_p_pst_chain(_a, b);
+
+	operator_p_free(_a);
+	operator_free(b);
+
+	return result;
+}
+
 void operator_p_apply2(const struct operator_p_s* _op, float mu, unsigned int ON, const long odims[ON], const long ostrs[ON], complex float* dst, const long IN, const long idims[IN], const long istrs[IN], const complex float* src)
 {
 	auto op = operator_p_upcast(_op);
@@ -291,6 +312,12 @@ const struct operator_s* operator_p_bind(const struct operator_p_s* op, float al
 	return result;
 }
 
+const struct operator_s* operator_p_bind_F(const struct operator_p_s* op, float alpha)
+{
+	auto result = operator_p_bind(op, alpha);
+	operator_p_free(op);
+	return result;
+}
 
 
 const struct operator_p_s* operator_p_gpu_wrapper(const struct operator_p_s* op)
@@ -309,6 +336,16 @@ const struct operator_p_s* operator_p_stack(int A, int B, const struct operator_
 	return operator_p_downcast(c);
 }
 
+const struct operator_p_s* operator_p_stack_FF(int A, int B, const struct operator_p_s* _a, const struct operator_p_s* _b)
+{
+	auto result = operator_p_stack(A, B, _a, _b);
+
+	operator_p_free(_a);
+	operator_p_free(_b);
+
+	return result;
+}
+
 const struct operator_p_s* operator_p_reshape_in(const struct operator_p_s* op, unsigned int N, long dims[N])
 {
 	return operator_p_downcast(operator_reshape(operator_p_upcast(op), 2, N, dims));
@@ -317,6 +354,20 @@ const struct operator_p_s* operator_p_reshape_in(const struct operator_p_s* op, 
 const struct operator_p_s* operator_p_reshape_out(const struct operator_p_s* op, unsigned int N, long dims[N])
 {
 	return operator_p_downcast(operator_reshape(operator_p_upcast(op), 1, N, dims));
+}
+
+const struct operator_p_s* operator_p_reshape_in_F(const struct operator_p_s* op, unsigned int N, long dims[N])
+{
+	auto result = operator_p_reshape_in_F(op, N, dims);
+	operator_p_free(op);
+	return result;
+}
+
+const struct operator_p_s* operator_p_reshape_out_F(const struct operator_p_s* op, unsigned int N, long dims[N])
+{
+	auto result = operator_p_reshape_out_F(op, N, dims);
+	operator_p_free(op);
+	return result;
 }
 
 

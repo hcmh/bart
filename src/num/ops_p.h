@@ -58,6 +58,14 @@ extern const struct operator_p_s* operator_p_downcast(const struct operator_s* o
 
 extern const struct operator_p_s* operator_p_gpu_wrapper(const struct operator_p_s* op);
 
+// functions freeing its arguments
+extern const struct operator_p_s* operator_p_pre_chain_FF(const struct operator_s* a, const struct operator_p_s* _b);
+extern const struct operator_p_s* operator_p_pst_chain_FF(const struct operator_p_s* _a, const struct operator_s* b);
+extern const struct operator_s* operator_p_bind_F(const struct operator_p_s* op, float alpha);
+extern const struct operator_p_s* operator_p_stack_FF(int A, int B, const struct operator_p_s* _a, const struct operator_p_s* _b);
+extern const struct operator_p_s* operator_p_reshape_in_F(const struct operator_p_s* op, unsigned int N, long dims[N]);
+extern const struct operator_p_s* operator_p_reshape_out_F(const struct operator_p_s* op, unsigned int N, long dims[N]);
+
 
 #include "misc/cppwrap.h"
 
