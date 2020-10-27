@@ -289,32 +289,21 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims); 
 
-	long img_no_time2_dims[DIMS];
-	md_select_dims(DIMS, ~TIME2_FLAG, img_no_time2_dims, img_dims);
-
 	long x_dims[DIMS];
 	md_copy_dims(DIMS, x_dims, img_dims);
 	x_dims[COEFF_DIM] = img_dims[COEFF_DIM] + dims[COIL_DIM]; //FIXME
 
-	long x_no_time2_dims[DIMS];
-	md_select_dims(DIMS, ~TIME2_FLAG, x_no_time2_dims, x_dims);
-
 	long coil_dims[DIMS];
-	md_select_dims(DIMS, ~COEFF_FLAG, coil_dims, dims);
+	md_copy_dims(DIMS, coil_dims, x_dims);
+	coil_dims[COEFF_DIM] = x_dims[COIL_DIM];
 
-	long coil_no_time2_dims[DIMS];
-	md_select_dims(DIMS, ~TIME2_FLAG, coil_no_time2_dims, coil_dims);
+	long map_dims[DIMS];
+	md_copy_dims(DIMS, map_dims, img_dims);
+	map_dims[COEFF_DIM] = 1L;
 
-	long map_no_time2_dims[DIMS];
-	md_copy_dims(DIMS, map_no_time2_dims, img_no_time2_dims);
-	map_no_time2_dims[COEFF_DIM] = 1L;
-
-	long map2_no_time2_dims[DIMS];
-	md_copy_dims(DIMS, map2_no_time2_dims, img_no_time2_dims);
-	map2_no_time2_dims[COEFF_DIM] = map2_no_time2_dims[COEFF_DIM] - 1L;
-
-
-    	long phases = x_dims[TIME2_DIM];
+	long map2_dims[DIMS];
+	md_copy_dims(DIMS, map2_dims, img_dims);
+	map2_dims[COEFF_DIM] = map2_dims[COEFF_DIM] - 1L;
 
 	// if no penalities specified but regularization
 	// parameter is given, add a l2 penalty
@@ -347,232 +336,73 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 		switch (regs[nr].xform) {
 
 		case L1WAV:
-		{
 
+			regs[nr].lambda = lambda;
 			debug_printf(DP_INFO, "l1-wavelet regularization: %f\n", regs[nr].lambda);
 
-
+			randshift = true;
 			long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
-			minsize[0] = MIN(img_no_time2_dims[0], 16);
-			minsize[1] = MIN(img_no_time2_dims[1], 16);
-			minsize[2] = MIN(img_no_time2_dims[2], 16);
+			minsize[0] = MIN(img_dims[0], 16);
+			minsize[1] = MIN(img_dims[1], 16);
+			minsize[2] = MIN(img_dims[2], 16);
 
 
 			unsigned int wflags = 0;
 			for (unsigned int i = 0; i < DIMS; i++) {
 
-				if ((1 < img_no_time2_dims[i]) && MD_IS_SET(regs[nr].xflags, i)) {
+				if ((1 < img_dims[i]) && MD_IS_SET(regs[nr].xflags, i)) {
 
 					wflags = MD_SET(wflags, i);
-					minsize[i] = MIN(img_no_time2_dims[i], 16);
+					minsize[i] = MIN(img_dims[i], 16);
 				}
 			}
 
-			auto l1Wav_prox = prox_wavelet_thresh_create(DIMS, img_no_time2_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, randshift);
-			auto zero_prox = prox_zero_create(DIMS, coil_no_time2_dims);
+			auto l1Wav_prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, randshift);
+			auto zero_prox = prox_zero_create(DIMS, coil_dims);
 
-			auto stack = operator_p_stack(COEFF_DIM, COEFF_DIM, l1Wav_prox, zero_prox);
-			auto stack1 = operator_p_stack(COEFF_DIM, COEFF_DIM, l1Wav_prox, zero_prox);
-
-			auto id = linop_identity_create(DIMS, x_no_time2_dims);
-			auto id1 = linop_identity_create(DIMS, x_no_time2_dims);
-
-
-			if (phases > 1) {
-
-				for (int k = 0; k < (phases - 1); k++) {
-
-					auto tmp_prox = operator_p_stack(TIME2_DIM, TIME2_DIM, stack1, stack);
-					auto tmp_id = linop_stack(TIME2_DIM, TIME2_DIM, id1, id);
-
-					linop_free(id1);
-					operator_p_free(stack1);
-
-					id1 = tmp_id;
-					stack1 = tmp_prox;
-				}
-			}
-
-			trafos[nr] = id1;
-			prox_ops[nr] = stack1;
+			trafos[nr] = linop_identity_create(DIMS, x_dims);;
+			prox_ops[nr] = operator_p_stack(COEFF_DIM, COEFF_DIM, l1Wav_prox, zero_prox);;
 
 			operator_p_free(l1Wav_prox);
-			operator_p_free(zero_prox);
-			operator_p_free(stack);	
-			linop_free(id);		
+			operator_p_free(zero_prox);	
 
 			break;
-		}
 
 		case TV:
+		
+			regs[nr].lambda = lambda;
 			debug_printf(DP_INFO, "TV regularization: %f\n", regs[nr].lambda);
 
-			auto grad = linop_grad_create(DIMS, x_no_time2_dims, DIMS, regs[nr].xflags);
-			auto thresh_prox = prox_thresh_create(DIMS + 1,
-					linop_codomain(grad)->dims,
+			trafos[nr] = linop_grad_create(DIMS, x_dims, DIMS, regs[nr].xflags);
+			prox_ops[nr] = prox_thresh_create(DIMS + 1,
+					linop_codomain(trafos[nr])->dims,
 					regs[nr].lambda, regs[nr].jflags | MD_BIT(DIMS));
-			
-
-			auto grad1 = linop_grad_create(DIMS, x_no_time2_dims, DIMS, regs[nr].xflags);
-			auto thresh1 = prox_thresh_create(DIMS + 1,
-					linop_codomain(grad1)->dims,
-					regs[nr].lambda, regs[nr].jflags | MD_BIT(DIMS));
-
-			if ( phases > 1) {
-
-				for (int k = 0; k < (phases - 1); k++) {
-
-					auto tmp_id = linop_stack(TIME2_DIM, TIME2_DIM, grad1, grad);
-					auto tmp_thresh = operator_p_stack(TIME2_DIM, TIME2_DIM, thresh1, thresh_prox);
-
-					linop_free(grad1);
-					operator_p_free(thresh1);
-
-					grad1 = tmp_id;
-					thresh1 = tmp_thresh;
-				}
-			}
-			
-			trafos[nr] = grad1;
-			prox_ops[nr] = thresh1;
-
-			operator_p_free(thresh_prox);
-			linop_free(grad);
-
 			break;
-		case LLR:
 
-			debug_printf(DP_INFO, "lowrank regularization: %f\n", regs[nr].lambda);
-#if 0	
-			if (use_gpu)
-				error("GPU operation is not currently implemented for lowrank regularization.\n");
-
-
-			// add locally lowrank penalty
-			levels = llr_blkdims(blkdims, regs[nr].jflags, img_no_time2_dims, llr_blk);
-
-			assert(1 == levels);
-
-			assert(levels == img_no_time2_dims[LEVEL_DIM]);
-
-			for(int l = 0; l < levels; l++)
-#if 0
-				blkdims[l][MAPS_DIM] = img_dims[MAPS_DIM];
-#else
-				blkdims[l][MAPS_DIM] = 1;
-#endif
-
-			int remove_mean = 0;
-			
-			auto lrthresh_prox = lrthresh_create(img_no_time2_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, remove_mean, overlapping_blocks);
-			auto zero_prox = prox_zero_create(DIMS, coil_no_time2_dims);
-
-			auto id = linop_identity_create(DIMS, x_no_time2_dims);
-			auto id1 = linop_identity_create(DIMS, x_no_time2_dims);
-
-			auto stack = operator_p_stack(COEFF_DIM, COEFF_DIM, lrthresh_prox, zero_prox); 
-			auto stack1 = operator_p_stack(COEFF_DIM, COEFF_DIM, lrthresh_prox, zero_prox);
-			
-			if ( phases > 1) {
-
-				for (int k = 0; k < (phases - 1); k++) {
-
-					auto tmp_id = linop_stack(TIME2_DIM, TIME2_DIM, id1, id);
-					auto tmp_thresh = operator_p_stack(TIME2_DIM, TIME2_DIM, stack1, stack);
-
-					linop_free(id1);
-					operator_p_free(stack1);
-
-					id1 = tmp_id;
-					stack1 = tmp_thresh;
-				}
-			}
-			
-			trafos[nr] = id1;
-			prox_ops[nr] = stack1;
-			
-			operator_p_free(lrthresh_prox);
-			operator_p_free(zero_prox);
-			operator_p_free(stack);
-			linop_free(id);
-#endif
-			break;
 		case POS:
-			debug_printf(DP_INFO, "non-negative constraint\n");
 
-			auto zsmax_prox = prox_zsmax_create(DIMS, map_no_time2_dims, regs[nr].lambda);
-			auto zero_prox1 = prox_zero_create(DIMS, map2_no_time2_dims);
-			auto zero_prox2 = prox_zero_create(DIMS, coil_no_time2_dims);
-			auto stack0 = operator_p_stack(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox); 
+			debug_printf(DP_INFO, "non-negative constraint: %f\n", regs[nr].lambda);
 
-			auto stack2 = operator_p_stack(COEFF_DIM, COEFF_DIM, stack0, zero_prox2); 
-			auto stack3 = operator_p_stack(COEFF_DIM, COEFF_DIM, stack0, zero_prox2); 
-
-			auto id2 = linop_identity_create(DIMS, x_no_time2_dims);
-			auto id3 = linop_identity_create(DIMS, x_no_time2_dims);
-
-			
-			if ( phases > 1) {
-
-				for (int k = 0; k < (phases - 1); k++) {
-
-					auto tmp_id = linop_stack(TIME2_DIM, TIME2_DIM, id3, id2);
-					auto tmp_thresh = operator_p_stack(TIME2_DIM, TIME2_DIM, stack3, stack2);
-
-					linop_free(id3);
-					operator_p_free(stack3);
-
-					id3 = tmp_id;
-					stack3 = tmp_thresh;
-				}
-			}
-
-
-			trafos[nr] = id3;
-			prox_ops[nr] = stack3;
+			auto zsmax_prox = prox_zsmax_create(DIMS, map_dims, regs[nr].lambda);
+			auto zero_prox1 = prox_zero_create(DIMS, map2_dims);
+			auto zero_prox2 = prox_zero_create(DIMS, coil_dims);
+			auto stack0 = operator_p_stack(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox); 		
+	
+			trafos[nr] = linop_identity_create(DIMS, x_dims);;
+			prox_ops[nr] = operator_p_stack(COEFF_DIM, COEFF_DIM, stack0, zero_prox2); ;
 
 			operator_p_free(zsmax_prox);
 			operator_p_free(zero_prox1);
 			operator_p_free(zero_prox2);
 			operator_p_free(stack0);
-			operator_p_free(stack2);
-			linop_free(id2);
-
 			break;
 
 		case L2IMG:
+
 			debug_printf(DP_INFO, "l2 regularization: %f\n", regs[nr].lambda);
 
-			auto id0 = linop_identity_create(DIMS, x_no_time2_dims);
-			auto id4 = linop_identity_create(DIMS, x_no_time2_dims);
-
-			auto zero_prox3 = prox_zero_create(DIMS, img_no_time2_dims);
-			auto l2_coils = prox_leastsquares_create(DIMS, coil_no_time2_dims, lambda, NULL);
-
-			auto stack_prox = operator_p_stack(COEFF_DIM, COEFF_DIM, zero_prox3, l2_coils);
-			auto stack_prox1 = operator_p_stack(COEFF_DIM, COEFF_DIM, zero_prox3, l2_coils);
-
-			if ( phases > 1) {
-
-				for (int k = 0; k < (phases - 1); k++) {
-
-					auto tmp_id = linop_stack(TIME2_DIM, TIME2_DIM, id4, id0);
-					auto tmp_thresh = operator_p_stack(TIME2_DIM, TIME2_DIM, stack_prox1, stack_prox);
-
-					linop_free(id4);
-					operator_p_free(stack_prox1);
-
-					id4 = tmp_id;
-					stack_prox1 = tmp_thresh;
-				}
-			}
-
-			trafos[nr] = id4;
-			prox_ops[nr] = stack_prox1;
-
-			operator_p_free(zero_prox3);
-			operator_p_free(l2_coils);
-			linop_free(id0);
+			trafos[nr] = linop_identity_create(DIMS, x_dims);;
+			prox_ops[nr] = prox_l2norm_create(DIMS, x_dims, regs[nr].lambda);
 
 			break;
 
