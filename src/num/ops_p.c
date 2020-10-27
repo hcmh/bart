@@ -358,14 +358,14 @@ const struct operator_p_s* operator_p_reshape_out(const struct operator_p_s* op,
 
 const struct operator_p_s* operator_p_reshape_in_F(const struct operator_p_s* op, unsigned int N, long dims[N])
 {
-	auto result = operator_p_reshape_in_F(op, N, dims);
+	auto result = operator_p_reshape_in(op, N, dims);
 	operator_p_free(op);
 	return result;
 }
 
 const struct operator_p_s* operator_p_reshape_out_F(const struct operator_p_s* op, unsigned int N, long dims[N])
 {
-	auto result = operator_p_reshape_out_F(op, N, dims);
+	auto result = operator_p_reshape_out(op, N, dims);
 	operator_p_free(op);
 	return result;
 }
