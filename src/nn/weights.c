@@ -56,7 +56,6 @@ const struct nlop_s* deflatten_weights_create(const struct nlop_s* network, unsi
 		else
 			result = nlop_dup_F(nlop_combine_FF(result, nlop_from_linop_F(lin_tmp)), 0, 1);
 
-		linop_free(lin_tmp);
 		j += 1;
 
 	}
