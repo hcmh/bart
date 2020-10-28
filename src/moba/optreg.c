@@ -358,13 +358,16 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 			}
 
 			auto l1Wav_prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, randshift);
+			l1Wav_prox = operator_p_reshape_in_F(l1Wav_prox, 1, MD_DIMS(md_calc_size(operator_p_domain(l1Wav_prox)->N, operator_p_domain(l1Wav_prox)->dims)));
+			l1Wav_prox = operator_p_reshape_out_F(l1Wav_prox, 1, MD_DIMS(md_calc_size(operator_p_codomain(l1Wav_prox)->N, operator_p_codomain(l1Wav_prox)->dims)));
+			
 			auto zero_prox = prox_zero_create(DIMS, coil_dims);
 
-			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = operator_p_stack(COEFF_DIM, COEFF_DIM, l1Wav_prox, zero_prox);;
+			zero_prox = operator_p_reshape_in_F(zero_prox, 1, MD_DIMS(md_calc_size(operator_p_domain(zero_prox)->N, operator_p_domain(zero_prox)->dims)));
+			zero_prox = operator_p_reshape_out_F(zero_prox, 1, MD_DIMS(md_calc_size(operator_p_codomain(zero_prox)->N, operator_p_codomain(zero_prox)->dims)));
 
-			operator_p_free(l1Wav_prox);
-			operator_p_free(zero_prox);	
+			trafos[nr] = linop_identity_create(DIMS, x_dims);;
+			prox_ops[nr] = operator_p_stack_FF(0, 0, l1Wav_prox, zero_prox);;
 
 			break;
 
@@ -381,20 +384,26 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 
 		case POS:
 
+			regs[nr].lambda = 0.3;
+
 			debug_printf(DP_INFO, "non-negative constraint: %f\n", regs[nr].lambda);
 
 			auto zsmax_prox = prox_zsmax_create(DIMS, map_dims, regs[nr].lambda);
 			auto zero_prox1 = prox_zero_create(DIMS, map2_dims);
+			
+			auto stack0 = operator_p_stack_FF(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox); 	
+			
+			stack0 = operator_p_reshape_in_F(stack0, 1, MD_DIMS(md_calc_size(operator_p_domain(stack0)->N, operator_p_domain(stack0)->dims)));
+			stack0 = operator_p_reshape_out_F(stack0, 1, MD_DIMS(md_calc_size(operator_p_codomain(stack0)->N, operator_p_codomain(stack0)->dims)));
+			
 			auto zero_prox2 = prox_zero_create(DIMS, coil_dims);
-			auto stack0 = operator_p_stack(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox); 		
-	
-			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = operator_p_stack(COEFF_DIM, COEFF_DIM, stack0, zero_prox2); ;
 
-			operator_p_free(zsmax_prox);
-			operator_p_free(zero_prox1);
-			operator_p_free(zero_prox2);
-			operator_p_free(stack0);
+			zero_prox2 = operator_p_reshape_in_F(zero_prox2, 1, MD_DIMS(md_calc_size(operator_p_domain(zero_prox2)->N, operator_p_domain(zero_prox2)->dims)));
+			zero_prox2 = operator_p_reshape_out_F(zero_prox2, 1, MD_DIMS(md_calc_size(operator_p_codomain(zero_prox2)->N, operator_p_codomain(zero_prox2)->dims)));
+				
+			trafos[nr] = linop_identity_create(DIMS, x_dims);;
+			prox_ops[nr] = operator_p_stack_FF(0, 0, stack0, zero_prox2); ;
+
 			break;
 
 		case L2IMG:
