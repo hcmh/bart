@@ -177,7 +177,7 @@ static bool test_op_p_stack3(void)
 
 UT_REGISTER_TEST(test_op_p_stack3);
 
-static bool test_op_reshape(void)
+static bool test_op_p_reshape(void)
 {
 	enum { N = 3 };
 	long dims[N] = { 8, 4, 1 };
@@ -207,5 +207,46 @@ static bool test_op_reshape(void)
 	return (err < UT_TOL);
 }
 
-UT_REGISTER_TEST(test_op_reshape);
+UT_REGISTER_TEST(test_op_p_reshape);
+
+static bool test_op_p_reshape_stack(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 8, 4, 4 };
+	long dims2[N] = { 8, 1, 4 };
+	long dims3[1] = { 8*5*4};
+
+	const struct operator_p_s* a = operator_p_scale(N, dims);
+
+	a = operator_p_reshape_in_F(a, 1, MD_DIMS(md_calc_size(operator_p_domain(a)->N, operator_p_domain(a)->dims)));
+	a = operator_p_reshape_out_F(a, 1, MD_DIMS(md_calc_size(operator_p_codomain(a)->N, operator_p_codomain(a)->dims)));
+
+	const struct operator_p_s* b = operator_p_scale(N, dims2);
+
+	b = operator_p_reshape_in_F(b, 1, MD_DIMS(md_calc_size(operator_p_domain(b)->N, operator_p_domain(b)->dims)));
+	b = operator_p_reshape_out_F(b, 1, MD_DIMS(md_calc_size(operator_p_codomain(b)->N, operator_p_codomain(b)->dims)));
+
+	auto c = operator_p_stack_FF(0, 0, a, b);
+
+	complex float* in = md_alloc(1, dims3, CFL_SIZE);
+	complex float* out = md_alloc(1, dims3, CFL_SIZE);
+
+	md_zfill(1, dims3, in, 1.);
+	md_zfill(1, dims3, out, 100.);
+
+	operator_p_apply(c, 2., 1, dims3, out, 1, dims3, in);
+
+	md_zfill(1, dims3, in, 2.);
+
+	float err = md_znrmse(1, dims3, out, in);
+
+	operator_p_free(c);
+
+	md_free(in);
+	md_free(out);
+
+	return (err < UT_TOL);
+}
+
+UT_REGISTER_TEST(test_op_p_reshape_stack);
 
