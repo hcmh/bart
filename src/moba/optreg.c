@@ -25,12 +25,14 @@
 #include "linops/someops.h"
 
 #include "misc/debug.h"
+#include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/opts.h"
 #include "misc/utils.h"
 
-#include "num/iovec.h"
+#include "num/flpmath.h"
 #include "num/multind.h"
+#include "num/iovec.h"
 #include "num/ops_p.h"
 #include "num/ops.h"
 
@@ -69,6 +71,68 @@ static const struct operator_p_s* create_llr_prox(const long img_dims[DIMS], uns
 	UNUSED(levels);
 
 	return lrthresh_create(img_dims, randshift, ~jt_flag, (const long (*)[])blk_dims, lambda, false, false, false);
+}
+
+const struct operator_p_s* create_moba_nonneg_prox(unsigned int N, const long maps_dims[N], unsigned int coeff_dim, unsigned int time_dim, unsigned int coeff_flag)
+{
+	// single map dimensions
+	long map_dims[N];
+	md_select_dims(N, ~(MD_BIT(coeff_dim)|MD_BIT(time_dim)), map_dims, maps_dims);
+
+	const struct operator_p_s* p1 = prox_nonneg_create(N, map_dims);
+	const struct operator_p_s* p2 = prox_zero_create(N, map_dims);
+	const struct operator_p_s* p3 = NULL;
+
+	const struct operator_p_s* p_spa = NULL;
+
+	for (long m = 0; m < maps_dims[coeff_dim]; m++) {
+
+		p3 = MD_IS_SET(coeff_flag, m) ? p1 : p2;
+		p_spa = (NULL == p_spa) ? p3 : operator_p_stack(coeff_dim, coeff_dim, p_spa, p3);
+	}
+
+	operator_p_free(p1);
+	operator_p_free(p2);
+	operator_p_free(p3);
+
+	const struct operator_p_s* p_dst = operator_p_ref(p_spa);
+
+	for (long t = 1; t < maps_dims[time_dim]; t++) {
+
+		p_dst = operator_p_stack(time_dim, time_dim, p_dst, operator_p_ref(p_spa));
+	}
+
+	operator_p_free(p_spa);
+
+	return p_dst;
+}
+
+static const struct operator_p_s* create_moba_sens_prox(unsigned int N, const long sens_dims[N])
+{
+	const struct operator_p_s* p = prox_zero_create(N, sens_dims);
+	return p;
+}
+
+static const struct operator_p_s* flatten_prox(const struct operator_p_s* src)
+{
+	const struct operator_p_s* dst = operator_p_reshape_in_F(src, 1, MD_DIMS(md_calc_size(operator_p_domain(src)->N, operator_p_domain(src)->dims)));
+
+	dst = operator_p_reshape_out_F(dst, 1, MD_DIMS(md_calc_size(operator_p_codomain(dst)->N, operator_p_codomain(dst)->dims)));
+
+	return dst;
+}
+
+static const struct operator_p_s* stack_flatten_prox(const struct operator_p_s* prox_maps, const struct operator_p_s* prox_sens)
+{
+	auto prox1 = flatten_prox(prox_maps);
+	auto prox2 = flatten_prox(prox_sens);
+
+	auto prox3 = operator_p_stack(0, 0, prox1, prox2);
+
+	operator_p_free(prox1);
+	operator_p_free(prox2);
+
+	return prox3;
 }
 
 static const struct operator_p_s* create_stack_spatial_thresh_prox(unsigned int N, const long x_dims[N], long js_dim, unsigned int regu, float lambda, unsigned int model)
@@ -128,58 +192,6 @@ static const struct operator_p_s* create_stack_spatial_thresh_prox(unsigned int 
 
 	return pcurr;
 }
-
-static const struct operator_p_s* create_stack_nonneg_prox(unsigned int N, const long x_dims[N], long js_dim, unsigned int model, bool real_pd)
-{
-	assert(MECO_PI != model);
-
-	long R2S_flag = set_R2S_flag(model);
-	long  PD_flag = set_PD_flag(model);
-
-	long x_iden_dims[N];
-	long x_prox_dims[N];
-
-	const struct operator_p_s* prox1 = NULL;
-	const struct operator_p_s* prox2 = NULL;
-
-	const struct operator_p_s* pcurr = NULL;
-
-	long D = x_dims[js_dim];
-
-	for (long pind = 0; pind < D; pind++) {
-
-		if ((MD_IS_SET(PD_flag, pind) && real_pd) || MD_IS_SET(R2S_flag, pind)) {
-
-			md_copy_dims(N, x_prox_dims, x_dims);
-			x_prox_dims[js_dim] = 1;
-
-			debug_printf(DP_DEBUG4, " >> x_prox_dims: ");
-			debug_print_dims(DP_DEBUG4, N, x_prox_dims);
-
-			prox2 = prox_nonneg_create(N, x_prox_dims);
-			pcurr = (NULL == pcurr) ? prox2 : operator_p_stack(js_dim, js_dim, pcurr, prox2);
-
-		} else {
-
-			md_copy_dims(N, x_iden_dims, x_dims);
-			x_iden_dims[js_dim] = 1;
-
-			debug_printf(DP_DEBUG4, " >> x_iden_dims: ");
-			debug_print_dims(DP_DEBUG4, N, x_iden_dims);
-
-			prox1 = prox_zero_create(N, x_iden_dims);
-			pcurr = (NULL == pcurr) ? prox1 : operator_p_stack(js_dim, js_dim, pcurr, prox1);
-
-		}
-
-	}
-
-	operator_p_free(prox1);
-	operator_p_free(prox2);
-
-	return pcurr;
-}
-
 
 
 void help_reg_moba(void)
@@ -488,8 +500,12 @@ static void opt_reg_meco_configure(unsigned int N, const long dims[N], struct op
 
 			debug_printf(DP_INFO, " > non-negative constraint\n");
 
-			prox_ops[nr] = create_stack_nonneg_prox(N, x_dims, js_dim, model, false);
-			trafos[nr] = linop_identity_create(N, x_dims);
+			auto prox_maps = create_moba_nonneg_prox(N, maps_dims, js_dim, jt_dim, set_R2S_flag(model));
+			auto prox_sens = create_moba_sens_prox(N, sens_dims);
+
+			prox_ops[nr] = stack_flatten_prox(prox_maps, prox_sens);
+
+			trafos[nr] = linop_identity_create(1, MD_DIMS(md_calc_size(N, x_dims)));
 
 			break;
 
