@@ -370,6 +370,17 @@ const struct operator_p_s* operator_p_reshape_out_F(const struct operator_p_s* o
 	return result;
 }
 
+const struct operator_p_s* operator_p_flatten_F(const struct operator_p_s* op)
+{
+	auto dom = operator_p_domain(op);
+	auto cod = operator_p_codomain(op);
+
+	assert(iovec_check(dom, cod->N, cod->dims, cod->strs));
+	long size = md_calc_size(dom->N, dom->dims);
+
+	return operator_p_reshape_out_F(operator_p_reshape_in_F(op, 1, MD_DIMS(size)), 1, MD_DIMS(size));
+}
+
 
 struct scale_s {
 
