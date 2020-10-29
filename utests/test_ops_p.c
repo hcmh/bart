@@ -99,19 +99,17 @@ static bool test_op_p_stack2(void)
 
 	auto stack = operator_p_stack(2, 2, a, a2);
 
-	auto b = operator_p_stack(2, 2, a, a2); 
+	auto b = operator_p_stack_FF(2, 2, a, a2); 
 
 	long phases = dims[3];
 
 	for (int k = 0; k < (phases - 1); k++) {
 
 		auto tmp = operator_p_stack(3, 3, b, stack);
-                operator_p_free(b);
+		operator_p_free(b);
                 b = tmp;
 	}
 
-	operator_p_free(a);
-	operator_p_free(a2);
 	operator_p_free(stack);
 
 	complex float* in = md_alloc(N, dims2, CFL_SIZE);
@@ -148,12 +146,8 @@ static bool test_op_p_stack3(void)
 	auto a2 = operator_p_scale(N, dims2);
 	auto a3 = operator_p_scale(N, dims3);
 
-	auto b = operator_p_stack(1, 1, a, a2); 
-	auto c = operator_p_stack(1, 1, b, a3);
-
-	operator_p_free(a);
-	operator_p_free(a2);
-	operator_p_free(b);
+	auto b = operator_p_stack_FF(1, 1, a, a2); 
+	auto c = operator_p_stack_FF(1, 1, b, a3);
 
 	complex float* in = md_alloc(N, dims4, CFL_SIZE);
 	complex float* out = md_alloc(N, dims4, CFL_SIZE);
@@ -217,14 +211,10 @@ static bool test_op_p_reshape_stack(void)
 	long dims3[1] = { 8*5*4};
 
 	const struct operator_p_s* a = operator_p_scale(N, dims);
-
-	a = operator_p_reshape_in_F(a, 1, MD_DIMS(md_calc_size(operator_p_domain(a)->N, operator_p_domain(a)->dims)));
-	a = operator_p_reshape_out_F(a, 1, MD_DIMS(md_calc_size(operator_p_codomain(a)->N, operator_p_codomain(a)->dims)));
-
+	a = operator_p_flatten_F(a);
+	
 	const struct operator_p_s* b = operator_p_scale(N, dims2);
-
-	b = operator_p_reshape_in_F(b, 1, MD_DIMS(md_calc_size(operator_p_domain(b)->N, operator_p_domain(b)->dims)));
-	b = operator_p_reshape_out_F(b, 1, MD_DIMS(md_calc_size(operator_p_codomain(b)->N, operator_p_codomain(b)->dims)));
+	b = operator_p_flatten_F(b);
 
 	auto c = operator_p_stack_FF(0, 0, a, b);
 
