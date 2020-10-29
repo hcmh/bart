@@ -11,6 +11,7 @@
 #include "num/flpmath.h"
 #include "num/rand.h"
 #include "num/iovec.h"
+#include "num/ops_p.h"
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -802,7 +803,7 @@ static bool test_nlop_T2fun(void)
 
 UT_REGISTER_TEST(test_nlop_T2fun);
 
-
+#if 0
 static bool test_nlop_meco(void) 
 {
 	/* 
@@ -850,7 +851,7 @@ static bool test_nlop_meco(void)
 }
 
 // U T_REGISTER_TEST(test_nlop_meco);
-
+#endif
 
 static bool test_op_p_stack_moba_nonneg(void)
 {
@@ -861,12 +862,11 @@ static bool test_op_p_stack_moba_nonneg(void)
 	md_calc_strides(N, strs, dims, CFL_SIZE);
 
 	long s_dim = 2;
-	long t_dim = 3;
 
 	long p_pos = 3;
 	unsigned int s_flag = MD_BIT(p_pos);
 
-	const struct operator_p_s* p = create_moba_nonneg_prox(N, dims, s_dim, t_dim, s_flag);
+	const struct operator_p_s* p = create_moba_nonneg_prox(N, dims, s_dim, s_flag, 0.);
 
 	complex float* in  = md_alloc(N, dims, CFL_SIZE);
 	complex float* out = md_alloc(N, dims, CFL_SIZE);

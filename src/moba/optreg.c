@@ -73,36 +73,27 @@ static const struct operator_p_s* create_llr_prox(const long img_dims[DIMS], uns
 	return lrthresh_create(img_dims, randshift, ~jt_flag, (const long (*)[])blk_dims, lambda, false, false, false);
 }
 
-const struct operator_p_s* create_moba_nonneg_prox(unsigned int N, const long maps_dims[N], unsigned int coeff_dim, unsigned int time_dim, unsigned int coeff_flag)
+const struct operator_p_s* create_moba_nonneg_prox(unsigned int N, const long maps_dims[N], unsigned int coeff_dim, unsigned int coeff_flag, float lambda)
 {
 	// single map dimensions
 	long map_dims[N];
-	md_select_dims(N, ~(MD_BIT(coeff_dim)|MD_BIT(time_dim)), map_dims, maps_dims);
+	md_select_dims(N, ~MD_BIT(coeff_dim), map_dims, maps_dims);
 
-	const struct operator_p_s* p1 = prox_nonneg_create(N, map_dims);
+	const struct operator_p_s* p1 = prox_zsmax_create(N, map_dims, lambda);
 	const struct operator_p_s* p2 = prox_zero_create(N, map_dims);
 	const struct operator_p_s* p3 = NULL;
 
-	const struct operator_p_s* p_spa = NULL;
+	const struct operator_p_s* p_dst = NULL;
 
 	for (long m = 0; m < maps_dims[coeff_dim]; m++) {
 
 		p3 = MD_IS_SET(coeff_flag, m) ? p1 : p2;
-		p_spa = (NULL == p_spa) ? p3 : operator_p_stack(coeff_dim, coeff_dim, p_spa, p3);
+		p_dst = (NULL == p_dst) ? p3 : operator_p_stack(coeff_dim, coeff_dim, p_dst, p3);
 	}
 
 	operator_p_free(p1);
 	operator_p_free(p2);
 	operator_p_free(p3);
-
-	const struct operator_p_s* p_dst = operator_p_ref(p_spa);
-
-	for (long t = 1; t < maps_dims[time_dim]; t++) {
-
-		p_dst = operator_p_stack(time_dim, time_dim, p_dst, operator_p_ref(p_spa));
-	}
-
-	operator_p_free(p_spa);
 
 	return p_dst;
 }
@@ -205,7 +196,7 @@ void help_reg_moba(void)
 			"-R W:0:0:C\tl1-wavelet (A and B are internally determined by moba models)\n"
 			"-R L:0:0:C\tlocally low rank (A and B are internally determined by moba models)\n"
 			"-R Q:C\tl2 regularization\n"
-			"-R S\tnon-negative constraint\n"
+			"-R S:C\tnon-negative constraint\n"
 			"-R T:A:B:C\ttotal variation\n"
 		  );
 }
