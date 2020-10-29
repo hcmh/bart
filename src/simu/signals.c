@@ -235,8 +235,8 @@ complex float calc_fat_modulation(float b0, float TE)
 	/* refer to:
 	   ISMRM water/fat toolbox
 	 */
-	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60, 0 };
-	float amp[FATPEAKS] = { 0.087, 0.693, 0.128, 0.004, 0.039, 0.048, 0 };
+	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60 };
+	float amp[FATPEAKS] = { 0.087, 0.693, 0.128, 0.004, 0.039, 0.048 };
 
 	complex float out = 0.;
 
