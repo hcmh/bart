@@ -346,24 +346,24 @@ const struct operator_p_s* operator_p_stack_FF(int A, int B, const struct operat
 	return result;
 }
 
-const struct operator_p_s* operator_p_reshape_in(const struct operator_p_s* op, unsigned int N, long dims[N])
+const struct operator_p_s* operator_p_reshape_in(const struct operator_p_s* op, unsigned int N, const long dims[N])
 {
 	return operator_p_downcast(operator_reshape(operator_p_upcast(op), 2, N, dims));
 }
 
-const struct operator_p_s* operator_p_reshape_out(const struct operator_p_s* op, unsigned int N, long dims[N])
+const struct operator_p_s* operator_p_reshape_out(const struct operator_p_s* op, unsigned int N, const long dims[N])
 {
 	return operator_p_downcast(operator_reshape(operator_p_upcast(op), 1, N, dims));
 }
 
-const struct operator_p_s* operator_p_reshape_in_F(const struct operator_p_s* op, unsigned int N, long dims[N])
+const struct operator_p_s* operator_p_reshape_in_F(const struct operator_p_s* op, unsigned int N, const long dims[N])
 {
 	auto result = operator_p_reshape_in(op, N, dims);
 	operator_p_free(op);
 	return result;
 }
 
-const struct operator_p_s* operator_p_reshape_out_F(const struct operator_p_s* op, unsigned int N, long dims[N])
+const struct operator_p_s* operator_p_reshape_out_F(const struct operator_p_s* op, unsigned int N, const long dims[N])
 {
 	auto result = operator_p_reshape_out(op, N, dims);
 	operator_p_free(op);
