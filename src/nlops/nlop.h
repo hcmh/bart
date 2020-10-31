@@ -14,7 +14,8 @@
 #ifndef NLOP_H
 #define NLOP_H
 
-typedef struct nlop_data_s { TYPEID* TYPEID; const struct op_options_s* options; double run_time; } nlop_data_t;
+struct nlop_run_stats_s;
+typedef struct nlop_data_s { TYPEID* TYPEID; const struct op_options_s* options; struct nlop_run_stats_s* stats; } nlop_data_t;
 
 typedef void (*nlop_fun_t)(const nlop_data_t* _data, complex float* dst, const complex float* src);
 

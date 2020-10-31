@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "nn/batchnorm.h"
 #include "num/multind.h"
 
 #include "num/ops.h"
@@ -37,6 +38,111 @@ static operator_property_flags_t nlops_props_understood = MD_BIT(OP_PROP_ATOMIC)
 							| MD_BIT(OP_PROP_HOLOMORPHIC)
 							| MD_BIT(OP_PROP_INDEPENDENT);
 
+struct nlop_run_stats_s {
+
+	unsigned int II;
+	unsigned int OO;
+
+	double run_time;
+
+	unsigned long frw_calls;
+	unsigned long* der_calls;
+	unsigned long* adj_calls;
+
+	double frw_time;
+	double* der_time;
+	double* adj_time;
+};
+
+static struct nlop_run_stats_s* stats_create(unsigned int OO, unsigned int II){
+
+	PTR_ALLOC(struct nlop_run_stats_s, result);
+
+	PTR_ALLOC(unsigned long[OO * II], adj_calls);
+	PTR_ALLOC(unsigned long[OO * II], der_calls);
+	PTR_ALLOC(double[OO * II], adj_time);
+	PTR_ALLOC(double[OO * II], der_time);
+
+	result->run_time = 0.;
+
+	result->frw_calls = 0;
+	result->frw_time = 0.;
+	result->der_calls = *PTR_PASS(der_calls);
+	result->adj_calls = *PTR_PASS(adj_calls);
+	result->der_time = *PTR_PASS(der_time);
+	result->adj_time = *PTR_PASS(adj_time);
+	
+	for(uint i = 0; i < OO * II; i++) {
+
+		result->der_calls[i] = 0;
+		result->adj_calls[i] = 0;
+		result->der_time[i] = 0.;
+		result->adj_time[i] = 0.;
+	}
+
+	result->II = II;
+	result->OO = OO;
+
+	return PTR_PASS(result);
+}
+
+static void stats_free(const struct nlop_run_stats_s* stats)
+{
+	xfree(stats->der_calls);
+	xfree(stats->der_time);
+	xfree(stats->adj_calls);
+	xfree(stats->adj_time);
+	xfree(stats);
+}
+
+static void nlop_start_frw(struct nlop_run_stats_s* stats)
+{
+	#pragma omp critical
+	stats->run_time -= timestamp();
+	#pragma omp critical
+	stats->frw_time -= timestamp();
+}
+static void nlop_finish_frw(struct nlop_run_stats_s* stats)
+{
+	#pragma omp critical
+	stats->run_time += timestamp();
+	#pragma omp critical
+	stats->frw_time += timestamp();
+	stats->frw_calls ++;
+}
+static void nlop_start_der(struct nlop_run_stats_s* stats, unsigned int o, unsigned int i)
+{
+	#pragma omp critical
+	stats->run_time -= timestamp();
+	#pragma omp critical
+	stats->der_time[o + stats->OO * i] -= timestamp();
+}
+static void nlop_finish_der(struct nlop_run_stats_s* stats, unsigned int o, unsigned int i)
+{
+	#pragma omp critical
+	stats->run_time += timestamp();
+	#pragma omp critical
+	stats->der_time[o + stats->OO * i] += timestamp();
+	#pragma omp critical
+	stats->der_calls[o + stats->OO * i] += 1;
+}
+static void nlop_start_adj(struct nlop_run_stats_s* stats, unsigned int o, unsigned int i)
+{
+	#pragma omp critical
+	stats->run_time -= timestamp();
+	#pragma omp critical
+	stats->adj_time[o + stats->OO * i] -= timestamp();
+}
+static void nlop_finish_adj(struct nlop_run_stats_s* stats, unsigned int o, unsigned int i)
+{
+	#pragma omp critical
+	stats->run_time += timestamp();
+	#pragma omp critical
+	stats->adj_time[o + stats->OO * i] += timestamp();
+	#pragma omp critical
+	stats->adj_calls[o + stats->OO * i] += 1;
+}
+
 struct nlop_op_data_s {
 
 	INTERFACE(operator_data_t);
@@ -50,10 +156,6 @@ struct nlop_op_data_s {
 	nlop_gen_fun_t forward;
 
 	nlop_set_opts_t set_opts;
-
-	unsigned int II;
-	unsigned int OO;
-
 	nlop_graph_t get_graph;
 };
 
@@ -84,12 +186,14 @@ static DEF_TYPEID(nlop_linop_data_s);
 static void sptr_op_del(const struct shared_ptr_s* sptr)
 {
 	auto data = CONTAINER_OF(sptr, struct nlop_op_data_s, sptr);
+	stats_free(data->data->stats);
 	data->del(data->data);
 }
 
 static void sptr_linop_del(const struct shared_ptr_s* sptr)
 {
 	auto data = CONTAINER_OF(sptr, struct nlop_linop_data_s, sptr);
+	stats_free(data->data->stats);
 	data->del(data->data);
 }
 
@@ -97,8 +201,7 @@ static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VL
 {
 	auto data = CAST_DOWN(nlop_op_data_s, _data);
 
-	#pragma omp critical
-	data->data->run_time -= timestamp();
+	nlop_start_frw(data->data->stats);
 
 	if (NULL != data->forward1) {
 
@@ -115,8 +218,7 @@ static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VL
 		data->data->options = NULL;
 	}
 
-	#pragma omp critical
-	data->data->run_time += timestamp();
+	nlop_finish_frw(data->data->stats);
 
 	return;
 }
@@ -144,47 +246,36 @@ static void lop_der(const linop_data_t* _data, complex float* dst, const complex
 {
 	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
+	nlop_start_der(data->data->stats, data->o, data->i);
+
 	data->deriv(data->data, data->o, data->i, dst, src);
+
+	nlop_finish_der(data->data->stats, data->o, data->i);
 }
 
 static void lop_adj(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
 	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
-	#pragma omp critical
-	data->data->run_time -= timestamp();
+	nlop_start_adj(data->data->stats, data->o, data->i);
 
 	data->adjoint(data->data, data->o, data->i, dst, src);
 
-	#pragma omp critical
-	data->data->run_time += timestamp();
-
+	nlop_finish_adj(data->data->stats, data->o, data->i);
 }
 
 static void lop_nrm_inv(const linop_data_t* _data, float lambda, complex float* dst, const complex float* src)
 {
 	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
-	#pragma omp critical
-	data->data->run_time -= timestamp();
-
 	data->norm_inv(data->data, data->o, data->i, lambda, dst, src);
-
-	#pragma omp critical
-	data->data->run_time += timestamp();
 }
 
 static void lop_nrm(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
 	auto data = CAST_DOWN(nlop_linop_data_s, _data);
 
-	#pragma omp critical
-	data->data->run_time -= timestamp();
-
 	data->normal(data->data, data->o, data->i, dst, src);
-
-	#pragma omp critical
-	data->data->run_time += timestamp();
 }
 
 
@@ -211,12 +302,47 @@ static const char* nlop_graph_default(nlop_data_t* _data, unsigned int N, unsign
 		sprintf(*nname, "nlop_%p", _data);
 		(arg_nodes[i])[0] = *PTR_PASS(nname);
 	}
-	size_t len = snprintf(NULL, 0, "nlop_%p [label=\"nlop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
+	
+	auto stats = _data->stats;
+
+	size_t len = snprintf(NULL, 0, "nlop_%p [label=\"nlop\\n%s\\ntime: %fs\"];\n", _data, _data->TYPEID->name, stats->run_time);
+	
+	if (opts.calls) {
+
+		len += snprintf(NULL, 0, "\\n frw(%lu) %gs", stats->frw_calls, stats->frw_time);
+		
+		for (uint i = 0; i < stats->II; i++)
+			for (uint o = 0; o < stats->OO; o++)
+				len += snprintf(NULL, 0, "\\n (%u, %u): der(%lu) %gs; adj(%lu) %gs", o, i,
+						stats->der_calls[o + stats->OO * i], stats->der_time[o + stats->OO * i],
+						stats->adj_calls[o + stats->OO * i], stats->adj_time[o + stats->OO * i]
+					);
+	}
+
 	PTR_ALLOC(char[len + 1], node);
+	char tmp[len + 1];
+	
+	if (opts.calls) {
+
+		char* tmp2 = tmp;
+		tmp2 += snprintf(tmp2, len + 1, "\\n frw(%lu) %gs", stats->frw_calls, stats->frw_time);
+		
+		for (uint i = 0; i < stats->II; i++)
+			for (uint o = 0; o < stats->OO; o++)
+				tmp2 += snprintf(tmp2, len + 1, "\\n (%u, %u): der(%lu) %gs; adj(%lu) %gs", o, i,
+						stats->der_calls[o + stats->OO * i], stats->der_time[o + stats->OO * i],
+						stats->adj_calls[o + stats->OO * i], stats->adj_time[o + stats->OO * i]
+					);
+	} else
+		tmp[0] = '\0';
+
+		
 	if (opts.time)
-		sprintf(*node, "nlop_%p [label=\"nlop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
+		sprintf(*node, "nlop_%p [label=\"nlop\\n%s\\ntime: %fs%s\"];\n", _data, _data->TYPEID->name, stats->run_time, tmp);
 	else
-		sprintf(*node, "nlop_%p [label=\"nlop\\n%s\"];\n", _data, _data->TYPEID->name);
+		sprintf(*node, "nlop_%p [label=\"nlop\\n%s%s\"];\n", _data, _data->TYPEID->name, tmp);
+
+
 	return *PTR_PASS(node);
 }
 
@@ -243,16 +369,13 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 	SET_TYPEID(nlop_op_data_s, d);
 
 	data->options = NULL;
+	data->stats = stats_create(OO, II);
 
 	d->data = data;
-	d->data->run_time = 0.;
-	d->II = II;
-	d->OO = OO;
 	d->forward1 = NULL;
 	d->forward = forward;
 	d->set_opts = set_opts;
 	d->get_graph = get_graph;
-
 
 
 	operator_property_flags_t tmp_props[II + OO][II + OO];
