@@ -77,7 +77,8 @@ const struct nlop_s* deflatten_weights(const struct nlop_s* network, unsigned lo
 
 		while(MD_IS_SET(flag, j))
 			j += 1;
-			result = nlop_link_F(result, o, j);
+		
+		result = nlop_link_F(result, o, j);
 	}
 
 	return result;
