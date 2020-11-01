@@ -135,7 +135,7 @@ static const char help_str[] = "Binning\n";
 
 
 
-int main_bin(int argc, char* argv[])
+int main_bin(int argc, char* argv[argc])
 {
 
 	bool reorder = false;

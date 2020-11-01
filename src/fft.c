@@ -24,7 +24,8 @@ static const char help_str[] = "Performs a fast Fourier transform (FFT) along se
 
 
 
-int main_fft(int argc, char* argv[])
+
+int main_fft(int argc, char* argv[argc])
 {
 	bool unitary = false;
 	bool inv = false;

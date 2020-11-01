@@ -145,7 +145,7 @@ static const char help_str[] = "Perform (soft) thresholding with parameter lambd
 
 
 
-int main_threshold(int argc, char* argv[])
+int main_threshold(int argc, char* argv[argc])
 {
 	unsigned int flags = 0;
         

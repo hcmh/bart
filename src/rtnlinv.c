@@ -70,7 +70,7 @@ static const char help_str[] =
 
 
 
-int main_rtnlinv(int argc, char* argv[])
+int main_rtnlinv(int argc, char* argv[argc])
 {
 	double start_time = timestamp();
 

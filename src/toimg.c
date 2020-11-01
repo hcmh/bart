@@ -161,7 +161,7 @@ static void toimg_stack(const char* name, bool dicom, bool single_scale, bool us
 }
 
 
-int main_toimg(int argc, char* argv[])
+int main_toimg(int argc, char* argv[argc])
 {
 	float gamma = 1.;
 	float contrast = 0.;

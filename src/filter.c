@@ -35,7 +35,7 @@ static const char usage_str[] = "<input> <output>";
 static const char help_str[] = "Apply filter.\n";
 
 
-int main_filter(int argc, char* argv[])
+int main_filter(int argc, char* argv[argc])
 {
 	int len = -1;
 	int dim = -1;

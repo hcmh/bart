@@ -445,7 +445,7 @@ DEF_TYPEID(iterT1_nlop_s);
 
 
 void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
-	const long dims[],
+	const long dims[DIMS],
 	struct nlop_s* nlop,
 	long N, float* dst,
 	long M, const float* src)
