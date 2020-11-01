@@ -254,6 +254,11 @@ int main_traj(int argc, char* argv[])
 			 */
 			double read = (float)(i + D - X) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
 
+			// For odd echos in asymmetric multi-echo, the DC component is later than half of the readout instead of earlier.
+			// Therefore, for such echos, the readout position needs to be calculated as follows:
+			if ((D != X) && (1 == (e % 2)))
+					read = (float)i + (conf.asym_traj ? 0. : 0.5) - (float)D / 2.;
+
 			if (conf.golden_partition) {
 
 				double golden_ratio = (sqrt(5.) + 1.) / 2;
