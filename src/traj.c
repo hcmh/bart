@@ -256,7 +256,7 @@ int main_traj(int argc, char* argv[])
 
 			if (conf.golden_partition) {
 
-				double golden_ratio = (sqrtf(5.) + 1.) / 2;
+				double golden_ratio = (sqrt(5.) + 1.) / 2;
 				double angle_atom = M_PI / Y;
 
 				base_angle[SLICE_DIM] = (m > 0) ? (fmod(angle_atom * m / golden_ratio, angle_atom) / m) : 0;
@@ -278,7 +278,7 @@ int main_traj(int argc, char* argv[])
 
 			if (conf.d3d) {
 
-				int split = sqrtf(Y);
+				int split = sqrt(Y);
 				angle2 = s * M_PI / Y * (conf.full_circle ? 2 : 1) * split;
 
 				if (NULL != custom_angle)
