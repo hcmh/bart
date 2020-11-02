@@ -190,7 +190,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
     
 	int maxiter = MIN(data->conf->c2->cgiter, 10 * powf(2, data->outer_iter));
     
-	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
 
 	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
 
@@ -245,7 +245,7 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
     
 	int maxiter = MIN(data->conf->c2->cgiter, 10 * powf(2, data->outer_iter));
     
-	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
 
 	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
 
