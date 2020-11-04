@@ -11,6 +11,10 @@
 #include <stdbool.h>
 #include <math.h>
 #include <assert.h>
+#include <stdint.h>
+#include <complex.h>
+#include "num/rand.h"
+
 
 #ifdef SSAFARY_PAPER
 #include "misc/debug.h"
@@ -253,5 +257,81 @@ bool zpartition_skip(long partitions, long zusamp[2], long partition, long frame
 		return false;
 
 	return true;
+}
+
+
+// check if slice/partition z is part of AC region
+static bool z_in_AC(int z_reflines, int mb, int z)
+{
+    long DC_idx = mb / 2;
+    long AC_low_idx = DC_idx - (long)floor(z_reflines/2.);
+    long AC_high_idx = DC_idx + (long)ceil(z_reflines/2.) - 1;
+
+    if (z >= AC_low_idx && z <= AC_high_idx) // z is part of AC region
+        return true;
+    else
+        return false;
+}
+
+// check if lookup table contains slice/partition z
+bool z_contains(int* lookup, int size, int z)
+{
+    for ( int i = 0; i < size; i++ )
+        if ( lookup[i] == z )
+            return true;
+
+    return false;
+}
+
+// fill z-undersampling lookup table
+void z_lookup_fill(int* z_lookup, int z_reflines, int z_npattern, int mb_full, int mb_acc)
+{
+	for (int i = 0; i < (z_reflines * z_npattern); i++)
+		z_lookup[i] = -1;
+
+	// insert reference lines
+    for (int i = 0; i < z_npattern; i++) {
+
+        int count = 0;
+        for (int j = 0; j < mb_full; j++) {
+
+            if (z_in_AC(z_reflines, mb_full, j)) { // j is a reference line
+
+                    z_lookup[(i * mb_acc) + count] = j;
+                    count++;
+            }
+        }
+    }
+
+	// fill remaining entries with random values
+    uint64_t rand_seed[1] = { 476342442 };
+
+    double mean = mb_full / 2.;
+    double stdv = mb_full / 4.;
+
+    for ( int i = 0; i < z_npattern; i++ ) {
+
+        int count = 0; // prevent infinite loop
+        for ( int z = z_reflines; z < mb_acc; z++ ) {
+
+            do {
+				int z_new = -1;
+
+				do {
+
+					z_new = (int)(creal(rand_spcg32_normal(rand_seed)) * stdv + mean);
+				} while (z_new < 0 || z_new >= mb_full);
+
+				z_lookup[(i * mb_acc) + z] = z_new;
+                count ++;
+
+            } while (z_contains(&z_lookup[i * mb_acc], z, z_lookup[(i * mb_acc) + z]) && count < 100);
+
+            if (count == 100)
+                z_lookup[(i * mb_acc) + z] = (int)mean;
+        }
+    }
+
+
 }
 

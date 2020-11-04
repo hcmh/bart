@@ -133,7 +133,17 @@ int main_traj(int argc, char* argv[])
 		debug_printf(DP_INFO, "Angle for spoke n: ((n * %d) mod %d) * %f\n", gen_fibonacci(0, i - 1), total, 2. * M_PI / total);
 	}
 
-	int tot_sp = Y * E * mb * turns;	// total number of lines/spokes
+	// variables for z-undersampling
+	long z_reflines = zusamp[0];
+	long z_acc = zusamp[1];
+	int mb2 = mb / z_acc;
+
+    if ( z_reflines > mb2)
+		error("ERROR: More reference lines than partitions/slices!\n");
+
+
+
+	int tot_sp = Y * E * mb2 * turns;	// total number of lines/spokes
 	int N = X * tot_sp / conf.accel;
 
 
@@ -154,23 +164,8 @@ int main_traj(int argc, char* argv[])
 	    error("actual readout samples must be less than full samples");
 
 
-	// Variables for z-undersampling
-	long z_reflines = zusamp[0];
-	long z_acc = zusamp[1];
-
-	long mb2 = mb;
-
-	if (z_acc > 1) {
-
-		mb2 = z_reflines + (mb - z_reflines) / z_acc;
-
-		if ((mb2 < 1) || ((mb - z_reflines) % z_acc != 0))
-			error("Invalid z-Acceleration!\n");
-	}
-
-
 	dims[TIME_DIM] = turns;
-	dims[SLICE_DIM] = mb;
+	dims[SLICE_DIM] = mb2;
 
 	if (conf.half_circle_gold) {
 
@@ -226,7 +221,7 @@ int main_traj(int argc, char* argv[])
 
 
 
-	complex float* samples = create_cfl(argv[1], DIMS, dims);
+	complex float* samples = (z_acc > 1) ? anon_cfl(NULL, DIMS, dims) : create_cfl(argv[1], DIMS, dims);
 
 	md_clear(DIMS, dims, samples, CFL_SIZE);
 
@@ -367,6 +362,60 @@ int main_traj(int argc, char* argv[])
 	if (NULL != custom_angle_val)
 		unmap_cfl(3, sdims, custom_angle_val);
 	
+	// "inflate" partition dimension when z-undersampling is used
+	if (z_acc > 1) {
+
+		// actual trajectory
+		long z_dims[DIMS];
+		for (unsigned int i = 0; i < DIMS; i++)
+			z_dims[i] = dims[i];
+		z_dims[SLICE_DIM] = mb;
+
+		long z_strs[DIMS];
+		md_calc_strides(DIMS, z_strs, z_dims, CFL_SIZE); 
+
+		complex float* traj = create_cfl(argv[1], DIMS, z_dims);
+		md_clear(DIMS, z_dims, traj, CFL_SIZE);
+
+		// initialize lookup table which contains the indices of the partitions/slices to be sampled
+		const int z_npattern_max = 500;
+		const int z_npattern = ((turns * Y) > z_npattern_max) ? z_npattern_max : (turns * Y);
+
+		int* z_lookup = (int*)malloc((z_npattern * mb2) * sizeof(int));
+		z_lookup_fill(z_lookup, z_reflines, z_npattern, mb, mb2);
+
+		// copy slices/partitions of 'samples'-array to correct indices of 'traj'-array
+		long dims_red[DIMS];
+		md_select_dims(DIMS, ~(PHS2_FLAG|SLICE_FLAG|TIME_FLAG), dims_red, dims);
+
+		long z_pos_src[DIMS] = { 0 };
+		long z_pos_dst[DIMS] = { 0 };
+		int offset = 0;
+
+		for (int t = 0; t < dims[TIME_DIM]; t++) {
+
+			z_pos_src[TIME_DIM] = t;
+			z_pos_dst[TIME_DIM] = t;
+			for (int s = 0; s < dims[PHS2_DIM]; s++) {
+
+				z_pos_src[PHS2_DIM] = s;
+				z_pos_dst[PHS2_DIM] = s;
+				for (int z = 0; z < z_dims[SLICE_DIM]; z++) {
+
+					z_pos_dst[SLICE_DIM] = z;
+					offset = ((s + t * dims[PHS2_DIM]) * mb2) % z_npattern;
+					if (z_contains(&z_lookup[offset], mb2, z)) {
+
+						md_copy_block(DIMS, z_pos_src, dims_red, &MD_ACCESS(DIMS, z_strs, z_pos_dst, traj), dims, samples, CFL_SIZE);			
+						assert(z_pos_src[SLICE_DIM]++ < dims[SLICE_DIM]);
+					}
+				}
+				z_pos_src[SLICE_DIM] = 0;
+			}
+		}
+
+		unmap_cfl(3, z_dims, traj);
+	}
 
 	unmap_cfl(3, dims, samples);
 
