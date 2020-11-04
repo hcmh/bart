@@ -52,7 +52,7 @@ int main_traj(int argc, char* argv[])
 		{ 0., 0., 0. }
 	};
 
-	long z_usamp[2] = { 0, 1 }; // { reference Lines, acceleration }
+	long zusamp[2] = { 0, 1 }; // { reference Lines, acceleration }
 
 	const char* custom_angle = NULL;
 	const char* custom_gdelays = NULL;
@@ -84,7 +84,7 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('3', &conf.d3d, "3D"),
 		OPT_SET('c', &conf.asym_traj, "asymmetric trajectory"),
 		OPT_SET('E', &conf.mems_traj, "multi-echo multi-spoke trajectory"),
-		OPT_VEC2('z', &z_usamp, "Ref:Acel", "Undersampling in z-direction."),
+		OPT_VEC2('z', &zusamp, "Ref:Acel", "Undersampling in z-direction."),
 		OPT_STRING('C', &custom_angle, "file", "custom_angle file [phi + i * psi]"),
 		OPT_STRING('V', &custom_gdelays, "file", "custom_gdelays"),
 		OPT_SET('T', &conf.sms_turns, "(Modified SMS Turn Scheme)"),
@@ -155,8 +155,8 @@ int main_traj(int argc, char* argv[])
 
 
 	// Variables for z-undersampling
-	long z_reflines = z_usamp[0];
-	long z_acc = z_usamp[1];
+	long z_reflines = zusamp[0];
+	long z_acc = zusamp[1];
 
 	long mb2 = mb;
 

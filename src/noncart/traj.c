@@ -227,10 +227,10 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 
 
 // z-Undersampling
-bool zpartition_skip(long partitions, long z_usamp[2], long partition, long frame)
+bool zpartition_skip(long partitions, long zusamp[2], long partition, long frame)
 {
-	long z_reflines = z_usamp[0];
-	long z_acc = z_usamp[1];
+	long z_reflines = zusamp[0];
+	long z_acc = zusamp[1];
 
 	if (1 == z_acc) // No undersampling. Do not skip partition
 		return false;
