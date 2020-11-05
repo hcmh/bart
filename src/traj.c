@@ -365,6 +365,8 @@ int main_traj(int argc, char* argv[])
 	// "inflate" partition dimension when z-undersampling is used
 	if (z_acc > 1) {
 
+		long pos[DIMS] = { 0 };
+
 		// actual trajectory
 		long z_dims[DIMS];
 		for (unsigned int i = 0; i < DIMS; i++)
@@ -391,30 +393,33 @@ int main_traj(int argc, char* argv[])
 		long z_pos_src[DIMS] = { 0 };
 		long z_pos_dst[DIMS] = { 0 };
 		int offset = 0;
+		int s, t;
 
-		for (int t = 0; t < dims[TIME_DIM]; t++) {
-
+		do {
+			s = pos[PHS2_DIM];
+			t = pos[TIME_DIM];
 			z_pos_src[TIME_DIM] = t;
 			z_pos_dst[TIME_DIM] = t;
-			for (int s = 0; s < dims[PHS2_DIM]; s++) {
+			z_pos_src[PHS2_DIM] = s;
+			z_pos_dst[PHS2_DIM] = s;
 
-				z_pos_src[PHS2_DIM] = s;
-				z_pos_dst[PHS2_DIM] = s;
-				for (int z = 0; z < z_dims[SLICE_DIM]; z++) {
+			for (int z = 0; z < z_dims[SLICE_DIM]; z++) {
 
-					z_pos_dst[SLICE_DIM] = z;
-					offset = ((s + t * dims[PHS2_DIM]) * mb2) % z_npattern;
-					if (z_contains(&z_lookup[offset], mb2, z)) {
+				z_pos_dst[SLICE_DIM] = z;
+				offset = ((s + t * dims[PHS2_DIM]) * mb2) % z_npattern;
+				if (z_contains(&z_lookup[offset], mb2, z)) {
 
-						md_copy_block(DIMS, z_pos_src, dims_red, &MD_ACCESS(DIMS, z_strs, z_pos_dst, traj), dims, samples, CFL_SIZE);			
-						assert(z_pos_src[SLICE_DIM]++ < dims[SLICE_DIM]);
-					}
+					md_copy_block(DIMS, z_pos_src, dims_red, &MD_ACCESS(DIMS, z_strs, z_pos_dst, traj), dims, samples, CFL_SIZE);			
+					assert(z_pos_src[SLICE_DIM]++ < dims[SLICE_DIM]);
 				}
-				z_pos_src[SLICE_DIM] = 0;
 			}
-		}
+
+			z_pos_src[SLICE_DIM] = 0;
+			
+		} while(md_next(DIMS, dims, PHS2_FLAG|TIME_FLAG, pos));
 
 		unmap_cfl(3, z_dims, traj);
+		free(z_lookup);
 	}
 
 	unmap_cfl(3, dims, samples);
