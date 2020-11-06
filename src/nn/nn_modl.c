@@ -1,15 +1,22 @@
 #include <assert.h>
 #include <float.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "iter/italgos.h"
+
+#include "misc/cJSON.h"
+#include "misc/read_json.h"
 #include "misc/misc.h"
 #include "misc/debug.h"
 #include "misc/mmio.h"
-
 #include "misc/types.h"
+
 #include "nn/nn_const.h"
 #include "nn/nn_losses.h"
 #include "nn/nn_weights.h"
+
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
@@ -60,7 +67,7 @@ const struct modl_s modl_default = {
 
 	.Nt = 10,
 	.Nl = 5,
-	.Nf = 48,
+	.Nf = 32,
 
 	.Kx = 3,
 	.Ky = 3,
@@ -83,9 +90,70 @@ const struct modl_s modl_default = {
 	.residual_network =true,
 
 	.nullspace = false,
+	.use_dc = true,
 
 	.draw_graph_filename = NULL,
 };
+
+
+
+
+void modl_read_from_json(struct modl_s* config, const char *filename)
+{
+	// Import json geometry to ellipsis_e struct
+	char* file = readfile(filename);
+	
+	cJSON* json_data = cJSON_Parse(file);
+	check_json_file(json_data);
+	
+	// Get array from json file
+	const cJSON* network = cJSON_GetObjectItemCaseSensitive(json_data, "network");
+
+	const cJSON* modl = cJSON_GetObjectItemCaseSensitive(network, "modl");
+
+	cJSON_set_long(&(config->Nt), modl, "iterations");
+	cJSON_set_bool(&(config->reinsert_zerofilled), modl, "reinsert_zerofilled");
+	cJSON_set_bool(&(config->init_tickhonov), modl, "init_tickhonov");
+	cJSON_set_bool(&(config->nullspace), modl, "nullspace_formulation");
+
+	const cJSON* dw = cJSON_GetObjectItemCaseSensitive(network, "dw");
+	cJSON_set_long(&(config->Nl), dw, "conv_layers");
+	cJSON_set_long(&(config->Nf), dw, "filter");
+	cJSON_set_long(&(config->Kx),  cJSON_GetObjectItemCaseSensitive(dw, "kernels"), "x");
+	cJSON_set_long(&(config->Ky),  cJSON_GetObjectItemCaseSensitive(dw, "kernels"), "y");
+	cJSON_set_long(&(config->Kz),  cJSON_GetObjectItemCaseSensitive(dw, "kernels"), "z");
+	cJSON_set_bool(&(config->batch_norm), dw, "batch_normalization");
+	cJSON_set_bool(&(config->residual_network), dw, "residual_network");
+	cJSON_set_bool(&(config->shared_weights), dw, "shared_weights");
+
+	const cJSON* dc = cJSON_GetObjectItemCaseSensitive(network, "dc");
+	cJSON_set_bool(&(config->use_dc), dc, "use_dc");
+	cJSON_set_bool(&(config->shared_lambda), dc, "shared_lambda");
+	cJSON_set_float(&(config->lambda_fixed), dc, "fixed_lambda");
+	cJSON_set_float(&(config->lambda_init), dc, "lambda_init");
+	cJSON_set_float(&(config->convergence_warn_limit), dc, "convergence_warn_limit");
+	cJSON_set_uint(&((CAST_DOWN(iter_conjgrad_conf, config->normal_inversion_iter_conf))->maxiter), dc, "conjgrad_iterations");
+
+	cJSON_Delete(json_data);
+}
+
+void modl_read_udims_from_json(long udims[5], const char *filename)
+{
+	// Import json geometry to ellipsis_e struct
+	char* file = readfile(filename);
+	
+	cJSON* json_data = cJSON_Parse(file);
+	check_json_file(json_data);
+	
+	// Get array from json file
+	const cJSON* apply = cJSON_GetObjectItemCaseSensitive(json_data, "apply");
+
+	cJSON_set_long(&(udims[0]), cJSON_GetObjectItemCaseSensitive(apply, "target_dims"), "x");
+	cJSON_set_long(&(udims[1]), cJSON_GetObjectItemCaseSensitive(apply, "target_dims"), "y");
+	cJSON_set_long(&(udims[2]), cJSON_GetObjectItemCaseSensitive(apply, "target_dims"), "z");
+
+	cJSON_Delete(json_data);
+}
 
 static nn_t residual_create(const struct modl_s* config, const long udims[5], enum NETWORK_STATUS status){
 
@@ -108,8 +176,10 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 		result = nn_from_nlop(nlop_from_linop_F(linop_reshape_create(5, udims_w, 5, udims)));
 	}
 
+	auto conv_init = init_kaiming_create(in_flag_conv(true), false, false, 0);
+
 	// append first layer
-	result = nn_append_convcorr_layer(result, 0, NULL, "conv_0", config->Nf, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL, NULL);
+	result = nn_append_convcorr_layer(result, 0, NULL, "conv_0", config->Nf, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL, initializer_clone(conv_init));
 	if (config->batch_norm)
 		result = nn_append_batchnorm_layer(result, 0, NULL, "bn_0", ~MD_BIT(0), status, NULL);
 	result = nn_append_activation_bias(result, 0, NULL, "bias_0", ACT_RELU, MD_BIT(0));
@@ -130,7 +200,7 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 
 	for (int i = 0; i < config->Nl - 3; i++) {
 
-		result = nn_append_convcorr_layer(result, 0, NULL, NULL, config->Nf, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL, NULL);
+		result = nn_append_convcorr_layer(result, 0, NULL, NULL, config->Nf, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL, initializer_clone(conv_init));
 		result = nn_append_singleton_dim_in_F(result, -1, NULL);
 		result = nn_stack_inputs_F(result, 0, "conv_i", -1, NULL, -1);
 
@@ -149,8 +219,10 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 	}
 
 	// append last layer
-	const struct initializer_s* init = (config->batch_norm || !config->residual_network) ? NULL : init_const_create(0);
+	const struct initializer_s* init = (config->batch_norm || !config->residual_network) ? initializer_clone(conv_init) : init_const_create(0);
 	result = nn_append_convcorr_layer(result, 0, NULL, "conv_n", 1, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL, init);
+
+	initializer_free(conv_init);
 
 	if (config->batch_norm) {
 
@@ -265,9 +337,13 @@ static nn_t nn_modl_cell_create(const struct modl_s* config,const long dims[5], 
 }
 
 static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status);
+static nn_t nn_modl_no_dc_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status);
 
 static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
 {
+	if (!config->use_dc)
+		return nn_modl_no_dc_create(config, dims, udims, status);
+
 	if (config->nullspace)
 		return nn_nullspace_create(config, dims, udims, status);
 
@@ -449,12 +525,90 @@ static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], 
 	return result;
 }
 
+static nn_t nn_modl_no_dc_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
+{
+	auto result = residual_create(config, udims, status);
+
+	for (int i = 1; i < config->Nt; i++) {
+
+		auto tmp = residual_create(config, udims, status);
+
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_0");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_i");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_n");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_0");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_i");
+		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_n");
+
+		if (config->batch_norm) {
+
+			tmp = nn_mark_stack_input_F(tmp, "bn_0");
+			tmp = nn_mark_stack_input_F(tmp, "bn_i");
+			tmp = nn_mark_stack_input_F(tmp, "bn_n");
+			tmp = nn_mark_stack_input_F(tmp, "gamma");
+
+			tmp = nn_mark_stack_output_F(tmp, "bn_0");
+			tmp = nn_mark_stack_output_F(tmp, "bn_i");
+			tmp = nn_mark_stack_output_F(tmp, "bn_n");
+		}
+
+		if (config->reinsert_zerofilled)
+			tmp = nn_mark_dup_F(tmp, "zero_filled");
+
+		result = nn_chain2_FF(result, 0, NULL, tmp, 0, NULL);
+		result = nn_stack_dup_by_name_F(result);
+	}
+
+	if (config->reinsert_zerofilled)
+		result = nn_mark_dup_F(result, "zero_filled");
+
+	if (config->init_tickhonov) {
+
+		auto dc = data_consistency_modl_create(config, dims, udims);
+		auto iov = nn_generic_domain(dc, 0, NULL);
+		complex float* zeros = md_alloc(iov->N, iov->dims, iov->size);
+		md_clear(iov->N, iov->dims, zeros, iov->size);
+		dc = nn_chain2_FF(nn_from_nlop_F(nlop_const_create(iov->N, iov->dims, true, zeros)), 0, NULL, dc, 0, NULL);
+		result = nn_chain2_swap_FF(dc, 0, NULL, result, 0, NULL);
+		result = nn_stack_dup_by_name_F(result);
+
+		result = nn_mark_dup_F(result, "coil");
+		result = nn_mark_dup_F(result, "pattern");
+	} else {
+
+		result = nn_set_input_name_F(result, 0, "zero_filled");
+		result = nn_stack_dup_by_name_F(result);
+	}
+
+	
+
+	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
+	auto nlop_zf = nlop_mri_adjoint_create(5, dims, config->share_pattern);
+	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+	auto nn_zf = nn_from_nlop_F(nlop_zf);
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "coil");
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "pattern");
+
+	result = nn_chain2_swap_FF(nn_zf, 0, NULL, result, 0, "zero_filled");
+	result = nn_stack_dup_by_name_F(result);
+
+	return result;
+}
+
 
 static complex float get_lambda(long NI, const float* x[NI])
 {
 	complex float result = 0;
 	md_copy(1, MD_SINGLETON_DIMS(1), &result, x[4], CFL_SIZE);
 	return result;
+}
+
+static complex float get_infinity(long NI, const float* x[NI])
+{
+	UNUSED(x);
+	UNUSED(NI);
+	return INFINITY;
 }
 
 static nn_t create_modl_val_loss(struct modl_s* modl, bool normalize, const char**valid_files)
@@ -581,17 +735,18 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 
 	struct monitor_iter6_s* monitor;
 
+	bool lambda = (modl->use_dc) || (modl->init_tickhonov);
+
 	if (NULL != valid_files) {
 
 		auto nn_validation_loss = create_modl_val_loss(modl, normalize, valid_files);
-
-		struct monitor_value_s value_monitors[2] = {monitor_iter6_function_create(get_lambda, true, "lambda"), monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, "val loss")};
+		struct monitor_value_s value_monitors[2] = {monitor_iter6_function_create(lambda ? get_lambda : get_infinity, true, "lambda"), monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, "val loss")};
 		nn_free(nn_validation_loss);
 
 		monitor = create_monitor_iter6_progressbar_with_val_monitor(2, value_monitors);
 	} else {
 
-		auto value_monitor = monitor_iter6_function_create(get_lambda, true, "lambda");
+		auto value_monitor = monitor_iter6_function_create(lambda ? get_lambda : get_infinity, true, "lambda");
 		monitor = create_monitor_iter6_progressbar_with_val_monitor(1, &value_monitor);
 	}
 

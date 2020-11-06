@@ -57,8 +57,11 @@ int main_nnmodl(int argc, char* argv[])
 	long udims[5] = {1, 1, 1, 1, 1};
 
 	long Nb = 10;
+	bool one_iter = false;
 
 	bool draw_graph = false;
+
+	const char* config_file = NULL;
 
 	const struct opt_s opts[] = {
 
@@ -68,6 +71,8 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_SET('a', "apply", &apply, "apply variational network"),
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
 		OPTL_SET(0, "export_graph", &(draw_graph), "export graph.dot file in the weights directory"),
+
+		OPTL_STRING('c', "config", &config_file, "file", "file for loading modl configuration"),
 
 		OPTL_FLOAT('r', "learning_rate", &(train_conf.INTERFACE.learning_rate), "lr", "learning rate"),
 		OPTL_INT('e', "epochs", &(train_conf.INTERFACE.epochs), "epochs", "number epochs to train"),
@@ -80,32 +85,41 @@ int main_nnmodl(int argc, char* argv[])
 
 		OPTL_SET('n', "normalize", &normalize, "normalize the input by maximum of zero-filled reconstruction"),
 
-		OPTL_LONG(0, "modl_num_iterations", &(modl.Nt), "guessed", "number of layers"),
-		OPTL_LONG(0, "modl_num_filters", &(modl.Nf), "guessed", "number of convolution filters (def: 48 / guessed from weights)"),
-		OPTL_LONG(0, "modl_num_layers", &(modl.Nl), "guessed", "number of convolution layers (def: 5 / guessed from weights)"),
-		OPTL_LONG(0, "modl_kernel_size_x", &(modl.Kx), "guessed", "kernel size x dimension (def: 3 / guessed from weights)"),
-		OPTL_LONG(0, "modl_kernel_size_y", &(modl.Ky), "guessed", "kernel size y dimension (def: 3 / guessed from weights)"),
-		OPTL_LONG(0, "modl_kernel_size_z", &(modl.Kz), "guessed", "kernel size z dimension (def: 1 / guessed from weights)"),
-		OPTL_SET(0, "modl_no_shared_weights", &(modl.shared_weights), "do not share weights"),
+		OPTL_SET('o', "one_iter", &one_iter, "only one iteration"),
+
+		//OPTL_LONG(0, "modl_num_iterations", &Nt, "guessed", "number of layers"),
+		//OPTL_LONG(0, "modl_num_filters", &(modl.Nf), "guessed", "number of convolution filters (def: 48 / guessed from weights)"),
+		//OPTL_LONG(0, "modl_num_layers", &(modl.Nl), "guessed", "number of convolution layers (def: 5 / guessed from weights)"),
+		//OPTL_LONG(0, "modl_kernel_size_x", &(modl.Kx), "guessed", "kernel size x dimension (def: 3 / guessed from weights)"),
+		//OPTL_LONG(0, "modl_kernel_size_y", &(modl.Ky), "guessed", "kernel size y dimension (def: 3 / guessed from weights)"),
+		//OPTL_LONG(0, "modl_kernel_size_z", &(modl.Kz), "guessed", "kernel size z dimension (def: 1 / guessed from weights)"),
+		//OPTL_SET(0, "modl_no_shared_weights", &(modl.shared_weights), "do not share weights"),
 
 		OPTL_FLOAT(0, "modl_fix_lambda", &(modl.lambda_fixed), "lambda", "fix lambda to given value (def: -1. = trainable)"),
 
 		OPTL_SET(0, "modl_tickhonov", &(modl.init_tickhonov), "initialize first MoDL iteration with Tickhonov regularized reconstruction"),
 		OPTL_CLEAR(0, "modl_no_residual", &(modl.residual_network), "no residual connection in dw block"),
+		OPTL_CLEAR(0, "modl_no_dc", &(modl.use_dc), "do not use data consistency layers"),
 		OPTL_SET(0, "modl_reinsert_zerofilled", &(modl.reinsert_zerofilled), "reinsert zero-filled reconstruction and current reconstruction to all DW networks"),
 		OPTL_CLEAR(0, "modl_no_batchnorm", &(modl.batch_norm), "no batch normalization in dw block"),
 
 		OPTL_SET(0, "modl_nullspace", &(modl.nullspace), "use nullspace formulation for the modl data-consistency layer"),
 
 		OPTL_UINT(0, "conjgrad_iterations", &(def_conf.maxiter), "iter", "number of iterations in data-consistency layer (def: 50)"),
-		OPTL_FLOAT(0, "conjgrad_convergence_warning", &(modl.convergence_warn_limit), "limit", "warn if inversion error is larger than this limit (def: 0. = no warnings)"),
+		//OPTL_FLOAT(0, "conjgrad_convergence_warning", &(modl.convergence_warn_limit), "limit", "warn if inversion error is larger than this limit (def: 0. = no warnings)"),
 
 		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
-		//OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
-		//OPTL_LONG('Z', "fov_z", (udims + 2), "z", "Nz of the target image (guessed from reference(training) / kspace(inference))"), maximum number of long opts exceeded
+		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
+		OPTL_LONG('Z', "fov_z", (udims + 2), "z", "Nz of the target image (guessed from reference(training) / kspace(inference))"),
 	};
 
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	if (NULL != config_file)
+		modl_read_from_json(&modl, config_file);
+	
+	if (one_iter) 
+		modl.Nt = 1;
 
 	train_conf.INTERFACE.batchgen_type = random_order;
 
@@ -194,6 +208,9 @@ int main_nnmodl(int argc, char* argv[])
 
 		nn_modl_load_weights(&modl, filename_weights, true);
 		nn_modl_move_gpucpu(&modl, use_gpu);
+
+		if (NULL != config_file)
+			modl_read_udims_from_json(udims, config_file);
 
 		udims[0] = (1 == udims[0]) ? kdims[0] : udims[0];
 		udims[1] = (1 == udims[1]) ? kdims[1] : udims[1];

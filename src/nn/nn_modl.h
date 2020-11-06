@@ -31,6 +31,7 @@ struct modl_s {
 	_Bool residual_network;
 
 	_Bool nullspace;
+	_Bool use_dc;
 
 	const char* draw_graph_filename;
 };
@@ -59,3 +60,6 @@ extern void nn_modl_free_weights(struct modl_s* modl);
 extern void nn_modl_move_gpucpu(struct modl_s* modl, _Bool gpu);
 
 extern void nn_modl_export_graph(const char* filename, const struct modl_s* config,const long dims[5], const long udims[5], _Bool train);
+
+extern void modl_read_from_json(struct modl_s* config, const char *filename);
+extern void modl_read_udims_from_json(long udims[5], const char *filename);
