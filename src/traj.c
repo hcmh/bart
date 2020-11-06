@@ -406,9 +406,8 @@ int main_traj(int argc, char* argv[])
 			for (int z = 0; z < z_dims[SLICE_DIM]; z++) {
 
 				z_pos_dst[SLICE_DIM] = z;
-				offset = ((s + t * dims[PHS2_DIM]) * mb2) % z_npattern;
+				offset = ((s + t * dims[PHS2_DIM]) * mb2) % (z_npattern * mb2);
 				if (z_contains(&z_lookup[offset], mb2, z)) {
-
 					md_copy_block(DIMS, z_pos_src, dims_red, &MD_ACCESS(DIMS, z_strs, z_pos_dst, traj), dims, samples, CFL_SIZE);			
 					assert(z_pos_src[SLICE_DIM]++ < dims[SLICE_DIM]);
 				}
