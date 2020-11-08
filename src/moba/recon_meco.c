@@ -231,7 +231,8 @@ void meco_recon(const struct moba_conf* moba_conf,
 
 			opt_reg_moba_configure(DIMS, x_dims, &ropts, prox_ops, trafos, sel_model);
 
-			struct lsqr_conf lsqr_conf = { lsqr_defaults.lambda, false };
+			struct lsqr_conf lsqr_conf = lsqr_defaults;
+			lsqr_conf.warmstart = warmstart;
 
 			auto iadmm_conf = CAST_DOWN(iter_admm_conf, iconf);
 			iadmm_conf->maxiter = moba_conf->inner_iter;
@@ -241,7 +242,6 @@ void meco_recon(const struct moba_conf* moba_conf,
 
 			const struct nlop_s* nlop = nl.nlop;
 
-			// FIXME warmstart, 
 			inv_op = lsqr2_create(&lsqr_conf, iter2_admm, CAST_UP(iadmm_conf), NULL, &nlop->derivative[0][0], NULL, ropts.r, prox_ops, trafos, NULL);
 
 		} else {
