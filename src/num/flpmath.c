@@ -1706,72 +1706,6 @@ void md_axpy(unsigned int D, const long dims[D], float* optr, float val, const f
 	md_axpy2(D, dims, strs, optr, val, strs, iptr);
 }
 
-static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
-{
-	if (optr != iptr1)
-		return false;
-
-	long tostr[D];
-	long tistr1[D];
-	long tistr2[D];
-	long tdims[D];
-
-	md_copy_dims(D, tdims, dims);
-	md_copy_strides(D, tostr, ostr);
-	md_copy_strides(D, tistr1, istr1);
-	md_copy_strides(D, tistr2, istr2);
-
-	long (*strs[3])[D] = { &tostr, &tistr1, &tistr2 };
-	D = simplify_dims(3, D, tdims, strs);
-
-	//sum over outer dimension
-	if ((2 == D) && (CFL_SIZE == tostr[0])
-		     && (CFL_SIZE == tistr1[0])
-		     && (CFL_SIZE == tistr2[0])
-		     && (0 == tostr[1])
-		     && (0 == tistr1[1])
-		     && ((long)CFL_SIZE * tdims[0] == tistr2[1])) {
-
-#ifdef USE_CUDA
-
-		if (cuda_ondevice(iptr2)) {
-
-			assert(cuda_ondevice(optr));
-
-			if(8 * tdims[0] >= tdims[1])
-				return false;
-
-			//transpose data -> sum over inner dimensions
-			//cuda_zsum accumulates the sum in the first element
-			//copy the first elements to output
-
-			long tdimst[2] = {tdims[1], tdims[0]};
-
-			complex float* tmp = md_alloc_gpu(2, tdims, CFL_SIZE);
-
-			md_transpose(2, 0, 1, tdimst, tmp, tdims, iptr2, CFL_SIZE);
-
-			for (long i = 0; i < tdimst[1]; i++)
-				cuda_zsum(tdimst[0], tmp + i * tdimst[0]);
-
-			md_copy2(1, tdims, tostr, optr, MD_STRIDES(2, tdimst, CFL_SIZE) + 1, tmp, CFL_SIZE);
-			md_free(tmp);
-
-			return true;
-		}
-#endif
-
-		for (int j = 0; j < tdims[1]; j++)
-			for (int i = 0; i < tdims[0]; i++)
-				optr[i] += iptr2[i + tdims[0] * j];
-
-		return true;
-	}
-
-	return false;
-}
-
-
 /**
  * Add two complex arrays and save to output (with strides)
  *
@@ -1779,7 +1713,7 @@ static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], 
  */
 void md_zadd2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
-	if (simple_zsum(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+	if (simple_zadd(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
 		return;
 
 	MAKE_Z3OP_FROM_REAL(add, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
