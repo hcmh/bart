@@ -25,7 +25,7 @@ struct moba_conf {
 	bool stack_frames;
 	int algo;	// enum algo_t
 	float rho;
-	const struct opt_reg_s* ropts;
+	struct opt_reg_s* ropts;
 };
 
 

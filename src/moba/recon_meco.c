@@ -48,18 +48,50 @@
 #include "grecon/optreg.h"
 #include "grecon/italgo.h"
 
+#include "moba/meco.h"
+#include "moba/model_meco.h"
+#include "moba/moba.h"
 
-#include "iter_l1.h"
-#include "recon_T1.h"
-
-#include "meco.h"
-#include "model_meco.h"
 #include "recon_meco.h"
 
 
 #include "optreg.h"
 
 
+void init_meco_maps(const long maps_dims[DIMS], complex float* maps, enum meco_model sel_model)
+{
+	if (MECO_PI == sel_model) {
+
+		// set all parameters to 1.0
+		md_zfill(DIMS, maps_dims, maps, 1.0);
+
+	} else {
+
+		md_clear(DIMS, maps_dims, maps, CFL_SIZE);
+
+		long NCOEFF = maps_dims[COEFF_DIM];
+		long pos[DIMS] = { 0 };
+
+		long map1_dims[DIMS];
+		md_select_dims(DIMS, ~COEFF_FLAG, map1_dims, maps_dims);
+
+		complex float* map1 = md_alloc(DIMS, map1_dims, CFL_SIZE);
+
+		// W & F
+		long pd_flag = set_PD_flag(sel_model);
+		float val = 0.1;
+
+		for (int n = 0; n < NCOEFF; n++) {
+
+			pos[COEFF_DIM] = n;
+
+			md_zfill(DIMS, map1_dims, map1, MD_IS_SET(pd_flag, n) ? val : 0.);
+			md_copy_block(DIMS, pos, maps_dims, maps, map1_dims, map1, CFL_SIZE);
+		}
+
+		md_free(map1);
+	}
+}
 
 // rescale the reconstructed maps to the unit of Hz
 // note: input and output are both maps
@@ -82,8 +114,7 @@ static void rescale_maps(unsigned int model, double scaling_Y, const struct lino
 		complex float* map = md_alloc_sameplace(DIMS, map_dims, CFL_SIZE, maps);
 
 
-
-		long pos[DIMS] = { [0 ... DIMS -1] = 0 };
+		long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
 
 		for (long n = 0; n < nr_coeff; n++) {
 
@@ -104,213 +135,274 @@ static void rescale_maps(unsigned int model, double scaling_Y, const struct lino
 		}
 
 		md_free(map);
-
 	}
 }
 
 
 
-void meco_recon(const struct moba_conf* moba_conf, 
-		unsigned int sel_model, unsigned int sel_irgnm, bool real_pd, 
-		unsigned int wgh_fB0, float scale_fB0, bool warmstart, iter_conf* iconf, 
-		bool out_origin_maps, double scaling_Y, 
+void meco_recon(struct moba_conf* moba_conf, 
+		enum meco_model sel_model, bool real_pd, 
+		float* scale_fB0, bool warmstart, bool out_origin_maps, 
 		const long maps_dims[DIMS], complex float* maps, 
 		const long sens_dims[DIMS], complex float* sens, 
-		complex float* x, complex float* xref, 
-		const complex float* pattern, 
+		const long init_dims[DIMS], complex float* init, 
 		const complex float* mask, 
 		const complex float* TE, 
-		const long ksp_dims[DIMS], 
-		const complex float* ksp, 
-		bool use_lsqr)
+		const long P_dims[DIMS], complex float* P, 
+		const long Y_dims[DIMS], complex float* Y)
 {
-	long meco_dims[DIMS];
-
 	bool use_gpu = false;
 
 #ifdef USE_CUDA
-	use_gpu = cuda_ondevice(ksp) ? true : false;
+	use_gpu = cuda_ondevice(Y);
 #endif
 
+	// setup pointer
+
+	long frame_pos[DIMS] = { 0 };
+	long P_pos[DIMS] = { 0 };
+
+	complex float* maps_ptr = (void*)maps + md_calc_offset(DIMS, MD_STRIDES(DIMS, maps_dims, CFL_SIZE), frame_pos);
+	complex float* sens_ptr = (void*)sens + md_calc_offset(DIMS, MD_STRIDES(DIMS, sens_dims, CFL_SIZE), frame_pos);
+
 	unsigned int fft_flags = FFT_FLAGS;
-	md_select_dims(DIMS, fft_flags|TE_FLAG|TIME_FLAG, meco_dims, ksp_dims);
-
-	long maps_size = md_calc_size(DIMS, maps_dims);
-	long sens_size = md_calc_size(DIMS, sens_dims);
-	long x_size = maps_size + sens_size;
-
-	long y_size = md_calc_size(DIMS, ksp_dims);
-
-	// x = (maps; coils)
-	// variable which is optimized by the IRGNM
-	complex float* x_akt = md_alloc_sameplace(1, MD_DIMS(x_size), CFL_SIZE, ksp);
-	md_copy(1, MD_DIMS(x_size), x_akt, x, CFL_SIZE);
-
-	complex float* xref_akt = md_alloc_sameplace(1, MD_DIMS(x_size), CFL_SIZE, ksp);
-	md_copy(1, MD_DIMS(x_size), xref_akt, xref, CFL_SIZE);
-
-	struct noir_model_conf_s mconf = noir_model_conf_defaults;
-	mconf.noncart = moba_conf->noncartesian;
-	mconf.fft_flags = fft_flags;
-	mconf.a = 880;
-	mconf.b = 32.;
-	mconf.cnstcoil_flags = TE_FLAG;
-
-	double start_time = timestamp();
-	struct meco_s nl = meco_create(ksp_dims, meco_dims, maps_dims, mask, TE, pattern, sel_model, real_pd, wgh_fB0, scale_fB0, use_gpu, &mconf);
-	double nlsecs = timestamp() - start_time;
-	debug_printf(DP_DEBUG2, "  _ nl of meco Create Time: %.2f s\n", nlsecs);
 
 
-	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
-	irgnm_conf.iter = moba_conf->iter;
-	irgnm_conf.alpha = moba_conf->alpha;
-	irgnm_conf.alpha_min = moba_conf->alpha_min;
-	irgnm_conf.redu = moba_conf->redu;
-	irgnm_conf.cgiter = moba_conf->inner_iter;
-	irgnm_conf.cgtol = 0.01; // 1./3.;
-	irgnm_conf.nlinv_legacy = false;
+	// dimensions & size
 
-	long x_dims[DIMS];
-	md_merge_dims(DIMS, x_dims, maps_dims, sens_dims);
-	debug_printf(DP_DEBUG2, "  _ x_dims: \t");
-	debug_print_dims(DP_DEBUG2, DIMS, x_dims);
+	long maps_1s_dims[DIMS];
+	md_copy_dims(DIMS, maps_1s_dims, maps_dims);
+
+	long sens_1s_dims[DIMS];
+	md_copy_dims(DIMS, sens_1s_dims, sens_dims);
+
+	long Y_1s_dims[DIMS];
+	md_copy_dims(DIMS, Y_1s_dims, Y_dims);
+
+	if (!moba_conf->stack_frames) {
+
+		maps_1s_dims[TIME_DIM] = 1;
+		sens_1s_dims[TIME_DIM] = 1;
+
+		Y_1s_dims[TIME_DIM] = 1;
+	}
+
+	long maps_1s_size = md_calc_size(DIMS, maps_1s_dims);
+	long sens_1s_size = md_calc_size(DIMS, sens_1s_dims);
+
+	long x_1s_size = maps_1s_size + sens_1s_size;
+	long y_1s_size = md_calc_size(DIMS, Y_1s_dims);
+
+	long meco_1s_dims[DIMS];
+	md_select_dims(DIMS, fft_flags|TE_FLAG|TIME_FLAG, meco_1s_dims, Y_1s_dims);
+
+	// init maps and sens
+
+	if (NULL != init) {
+
+		assert(md_check_bounds(DIMS, 0, maps_1s_dims, init_dims));
+
+		md_copy(DIMS, maps_1s_dims, maps_ptr, init, CFL_SIZE); // maps
+
+		long init_size = md_calc_size(DIMS, init_dims);
+
+		if (init_size > maps_1s_size) {
+
+			assert(init_size == x_1s_size);
+
+			fftmod(DIMS, sens_1s_dims, FFT_FLAGS | (moba_conf->stack_frames ? TIME_FLAG : 0u), sens_ptr, init + maps_1s_size);
+
+		} else {
+
+			md_clear(DIMS, sens_1s_dims, sens_ptr, CFL_SIZE);
+		}
+
+		debug_printf(DP_DEBUG2, " >> init maps provided.\n");
+
+	} else {
+
+		init_meco_maps(maps_1s_dims, maps_ptr, sel_model);
+
+		md_clear(DIMS, sens_1s_dims, sens_ptr, CFL_SIZE);
+	}
+
+	long mask_dims[DIMS];
+	md_select_dims(DIMS, FFT_FLAGS, mask_dims, maps_dims);
+
+	md_zmul2(DIMS, maps_1s_dims, MD_STRIDES(DIMS, maps_1s_dims, CFL_SIZE), maps_ptr, 
+		MD_STRIDES(DIMS, maps_1s_dims, CFL_SIZE), maps_ptr, 
+		MD_STRIDES(DIMS, mask_dims, CFL_SIZE), mask);
 
 
-	// linearized reconstruction
 
-	struct opt_reg_s ropts = moba_conf->ropts;
+	// scaling of psf
 
-	const struct operator_p_s* inv_op = NULL;
+	ifft(DIMS, P_dims, FFT_FLAGS, P, P);
 
-	const struct operator_p_s* prox_ops[NUM_REGS] = { NULL };
-	const struct linop_s* trafos[NUM_REGS] = { NULL };
+	double scaling_P = 1. / cabsf(P[0]) / 10.;
+
+	md_zsmul(DIMS, P_dims, P, P, scaling_P);
+
+	fft(DIMS, P_dims, FFT_FLAGS, P, P);
 
 
-	if (ALGO_CG != moba_conf->algo) // CG
-		sel_irgnm = 2;
 
-	if (ALGO_CG == moba_conf->algo) { // CG
+	// reconstruction: jointly or sequentially
 
-		debug_printf(DP_DEBUG2, " > linearized problem solved by CG\n");
-		
-		// assert(0 == moba_conf->ropts->r);
+	complex float* x_akt    = md_alloc_sameplace(1, MD_DIMS(x_1s_size), CFL_SIZE, Y);
+	complex float* xref_akt = md_alloc_sameplace(1, MD_DIMS(x_1s_size), CFL_SIZE, Y);
 
-		inv_op = NULL;
 
-	} else 
-	if (ALGO_FISTA == moba_conf->algo) { // FISTA
+	for (long f = 0; f < (moba_conf->stack_frames ? 1 : Y_dims[TIME_DIM]); f++) {
 
-		debug_printf(DP_DEBUG2, " > linearized problem solved by FISTA\n");
+		debug_printf(DP_INFO, moba_conf->stack_frames ? ">>> stack " : ">>> frame ");
+		debug_printf(DP_INFO, "%3d\n", f);
 
-		struct mdb_irgnm_l1_conf mdb_conf = { 
-			.c2 = &irgnm_conf, 
-			.opt_reg = 1, 
-			.step = moba_conf->step, 
-			.lower_bound = moba_conf->lower_bound, 
-			.constrained_maps = set_R2S_flag(sel_model), 
-			.not_wav_maps = 1, 
-			.flags = FFT_FLAGS, 
-			.usegpu = use_gpu, 
-			.algo = moba_conf->algo, 
-			.rho = moba_conf->rho, 
-			.ropts = &ropts, 
-			.wav_reg = 1. };
+		bool reset = (0 == f);
 
-		inv_op = T1inv_p_create(&mdb_conf, x_dims, nl.nlop);
+		// Y
+		frame_pos[TIME_DIM] = f;
 
-	} else 
-	if (ALGO_ADMM == moba_conf->algo) {
+		complex float* Y_ptr = (void*)Y + md_calc_offset(DIMS, MD_STRIDES(DIMS, Y_dims, CFL_SIZE), frame_pos);
 
-		debug_printf(DP_DEBUG2, " > linearized problem solved by ADMM ");
+		double scaling_Y = 100. / md_znorm(DIMS, Y_1s_dims, Y_ptr);
 
-		if (use_lsqr) {
+		md_zsmul(DIMS, Y_1s_dims, Y_ptr, Y_ptr, scaling_Y);
+
+		// P
+		P_pos[TIME_DIM] = f % P_dims[TIME_DIM];
+
+		complex float* P_ptr = (void*)P + md_calc_offset(DIMS, MD_STRIDES(DIMS, P_dims, CFL_SIZE), P_pos);
+
+		maps_ptr = (void*)maps + md_calc_offset(DIMS, MD_STRIDES(DIMS, maps_dims, CFL_SIZE), frame_pos);
+		sens_ptr = (void*)sens + md_calc_offset(DIMS, MD_STRIDES(DIMS, sens_dims, CFL_SIZE), frame_pos);
+
+		if (reset) {
+
+			md_copy(DIMS, maps_1s_dims, x_akt, maps_ptr, CFL_SIZE);
+			md_copy(DIMS, sens_1s_dims, x_akt + maps_1s_size, sens_ptr, CFL_SIZE);
+
+			md_zsmul(1, MD_DIMS(x_1s_size), xref_akt, x_akt, (MECO_PI != sel_model) ? moba_conf->damping : 0.);
+
+		} else {
+
+			md_zsmul(1, MD_DIMS(x_1s_size), xref_akt, x_akt, moba_conf->damping);
+		}
+
+
+		struct noir_model_conf_s mconf = noir_model_conf_defaults;
+		mconf.noncart = moba_conf->noncartesian;
+		mconf.fft_flags = fft_flags;
+		mconf.a = 880;
+		mconf.b = 32.;
+		mconf.cnstcoil_flags = TE_FLAG;
+
+		struct meco_s nl = meco_create(Y_1s_dims, meco_1s_dims, maps_1s_dims, mask, TE, P_ptr, sel_model, real_pd, scale_fB0, use_gpu, &mconf);
+
+
+		struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
+		irgnm_conf.iter = moba_conf->iter;
+		irgnm_conf.alpha = moba_conf->alpha;
+		irgnm_conf.alpha_min = moba_conf->alpha_min;
+		irgnm_conf.redu = moba_conf->redu;
+		irgnm_conf.cgiter = moba_conf->inner_iter;
+		irgnm_conf.cgtol = 0.01;
+		irgnm_conf.nlinv_legacy = false;
+
+		long x_dims[DIMS];
+		md_merge_dims(DIMS, x_dims, maps_1s_dims, sens_1s_dims); // mixed
+
+		// linearized reconstruction
+
+		struct opt_reg_s* ropts = moba_conf->ropts;
+
+		const struct operator_p_s* inv_op = NULL;
+
+		const struct operator_p_s* prox_ops[NUM_REGS] = { NULL };
+		const struct linop_s* trafos[NUM_REGS] = { NULL };
+
+		if (0 == ropts->r)
+			moba_conf->algo = ALGO_CG;
+
+
+		if (ALGO_CG == moba_conf->algo) { // CG
+
+			debug_printf(DP_DEBUG2, " >> linearized problem solved by CG\n");
+			
+			// assert(0 == moba_conf->ropts->r);
+
+			inv_op = NULL;
+
+		} else 
+		if (ALGO_ADMM == moba_conf->algo) {
+
+			debug_printf(DP_DEBUG2, " >> linearized problem solved by ADMM ");
 
 			/* use lsqr */
 			debug_printf(DP_DEBUG2, "in lsqr\n");
 
-			opt_reg_moba_configure(DIMS, x_dims, &ropts, prox_ops, trafos, sel_model);
+			opt_reg_moba_configure(DIMS, x_dims, ropts, prox_ops, trafos, sel_model);
+
+
+			struct iter_admm_conf iadmm_conf = iter_admm_defaults;
+			iadmm_conf.maxiter = moba_conf->inner_iter;
+			iadmm_conf.cg_eps = irgnm_conf.cgtol;
+			iadmm_conf.rho = moba_conf->rho;
+
 
 			struct lsqr_conf lsqr_conf = lsqr_defaults;
+			lsqr_conf.it_gpu = false;
 			lsqr_conf.warmstart = warmstart;
 
-			auto iadmm_conf = CAST_DOWN(iter_admm_conf, iconf);
-			iadmm_conf->maxiter = moba_conf->inner_iter;
-			iadmm_conf->cg_eps = irgnm_conf.cgtol;
-			iadmm_conf->rho = moba_conf->rho;
-			// FIXME iadmm_conf->use_interface_alpha = true;
+			NESTED(void, lsqr_cont, (iter_conf* iconf))
+			{
+				auto aconf = CAST_DOWN(iter_admm_conf, iconf);
+
+		                aconf->maxiter = MIN(iadmm_conf.maxiter, 10. * powf(2., logf(1. / iconf->alpha)));
+				aconf->cg_eps = iadmm_conf.cg_eps * iconf->alpha;
+			};
+
+			lsqr_conf.icont = lsqr_cont;
 
 			const struct nlop_s* nlop = nl.nlop;
 
-			inv_op = lsqr2_create(&lsqr_conf, iter2_admm, CAST_UP(iadmm_conf), NULL, &nlop->derivative[0][0], NULL, ropts.r, prox_ops, trafos, NULL);
+			inv_op = lsqr2_create(&lsqr_conf, iter2_admm, CAST_UP(&iadmm_conf), NULL, &nlop->derivative[0][0], NULL, ropts->r, prox_ops, trafos, NULL);
 
 		} else {
 
-			/* use iter_l1 */
-			debug_printf(DP_DEBUG2, "in iter l1\n");
-
-			struct mdb_irgnm_l1_conf mdb_conf = { 
-				.c2 = &irgnm_conf, 
-				.opt_reg = 1, 
-				.step = moba_conf->step, 
-				.lower_bound = moba_conf->lower_bound, 
-				.constrained_maps = set_R2S_flag(sel_model), 
-				.not_wav_maps = 1, 
-				.flags = FFT_FLAGS, 
-				.usegpu = use_gpu, 
-				.algo = moba_conf->algo, 
-				.rho = moba_conf->rho, 
-				.ropts = &ropts, 
-				.wav_reg = 1. };
-
-			inv_op = T1inv_p_create(&mdb_conf, x_dims, nl.nlop);
-
+			error(" >> Unrecognized algorithms\n");
 		}
 
-	} else {
 
-		error(" > Unrecognized algorithms\n");
+		// irgnm reconstruction
+
+		((NULL == inv_op) ? iter4_irgnm : iter4_irgnm2)(CAST_UP(&irgnm_conf),
+			nl.nlop,
+			x_1s_size * 2, (float*)x_akt, (float*)xref_akt,
+			y_1s_size * 2, (const float*)Y_ptr,
+			inv_op, (struct iter_op_s){ NULL, NULL });
+
+		operator_p_free(inv_op);
+
+		opt_reg_free(ropts, prox_ops, trafos);
+
+
+		// post processing
+
+		md_copy(DIMS, maps_1s_dims, maps_ptr, x_akt, CFL_SIZE);
+		md_copy(DIMS, sens_1s_dims, sens_ptr, x_akt + maps_1s_size, CFL_SIZE);
+
+		if (!out_origin_maps) {
+
+			rescale_maps(sel_model, scaling_Y, nl.linop_fB0, nl.scaling, maps_1s_dims, maps_ptr);
+
+			noir_forw_coils(nl.linop, sens_ptr, sens_ptr);
+			fftmod(DIMS, sens_1s_dims, mconf.fft_flags, sens_ptr, sens_ptr);
+		}
+
+		nlop_free(nl.nlop);
 	}
-
-
-	// irgnm reconstruction
-
-	((1==sel_irgnm) ? iter4_irgnm : iter4_irgnm2)(CAST_UP(&irgnm_conf), 
-		nl.nlop, 
-		x_size * 2, (float*)x_akt, (float*)xref_akt, 
-		y_size * 2, (const float*)ksp, 
-		inv_op, (struct iter_op_s){ NULL, NULL });
-
-	operator_p_free(inv_op);
-
-	opt_reg_free(&ropts, prox_ops, trafos);
-
-
-	// post processing
-
-	md_copy(DIMS, maps_dims, maps, x_akt, CFL_SIZE);
-
-	md_copy(DIMS, sens_dims, sens, x_akt + maps_size, CFL_SIZE);
-
-	if ( !out_origin_maps ) {
-
-		rescale_maps(sel_model, scaling_Y, nl.linop_fB0, nl.scaling, maps_dims, maps);
-
-		noir_forw_coils(nl.linop, sens, sens);
-		fftmod(DIMS, sens_dims, mconf.fft_flags, sens, sens);
-	}
-
-	md_copy(1, MD_DIMS(x_size), xref, xref_akt, CFL_SIZE);
-
-	md_copy(1, MD_DIMS(x_size), x, x_akt, CFL_SIZE);
-
-
 
 	md_free(x_akt);
 	md_free(xref_akt);
-
-	nlop_free(nl.nlop);
-
-	// linop_free(nl.linop);
-	// linop_free(nl.linop_fB0);
 }

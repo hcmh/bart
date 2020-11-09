@@ -1,3 +1,11 @@
+/* Copyright 2020. Uecker Lab, University Medical Center Goettingen.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ * 
+ * Authors:
+ * 2019-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2019-2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ */
 
 #include <stdlib.h>
 #include <complex.h>
@@ -6,26 +14,25 @@
 #include <assert.h>
 
 #include "misc/debug.h"
-#include "misc/misc.h"
-#include "misc/mmio.h"
 
 #include "nlops/chain.h"
 #include "nlops/nlop.h"
 
 #include "num/flpmath.h"
-#include "num/iovec.h"
 #include "num/multind.h"
 
-#include "meco.h"
-#include "model_meco.h"
 #include "noir/model.h"
 
+#include "moba/model_meco.h"
 
-struct meco_s meco_create(const long dims[DIMS], const long y_dims[DIMS], const long x_dims[DIMS], const complex float* mask, const complex float* TE, const complex float* psf, unsigned int sel_model, bool real_pd, unsigned int wgh_fB0, float scale_fB0, bool use_gpu, const struct noir_model_conf_s* conf)
+#include "meco.h"
+
+
+struct meco_s meco_create(const long dims[DIMS], const long y_dims[DIMS], const long x_dims[DIMS], const complex float* mask, const complex float* TE, const complex float* psf, enum meco_model sel_model, bool real_pd, float* scale_fB0, bool use_gpu, const struct noir_model_conf_s* conf)
 {
 	struct meco_s ret;
 
-	if ( sel_model == MECO_PI ) {
+	if (MECO_PI == sel_model) {
 
 		struct noir_s nlinv = noir_create(dims, mask, psf, conf);
 
@@ -35,7 +42,7 @@ struct meco_s meco_create(const long dims[DIMS], const long y_dims[DIMS], const 
 	} else {
 
 		// chain model
-		struct nlop_s* meco = nlop_meco_create(DIMS, y_dims, x_dims, TE, sel_model, real_pd, wgh_fB0, scale_fB0, use_gpu);
+		struct nlop_s* meco = nlop_meco_create(DIMS, y_dims, x_dims, TE, sel_model, real_pd, scale_fB0, use_gpu);
 		
 		struct noir_s nlinv = noir_create3(dims, mask, psf, conf);
 
@@ -56,7 +63,6 @@ struct meco_s meco_create(const long dims[DIMS], const long y_dims[DIMS], const 
 		nlop_free(nlinv.nlop);		
 	}
 
-	
 	return ret;
-
 }
+
