@@ -2,7 +2,7 @@
 
 #include "num/flpmath.h"
 #include "num/multind.h"
-#include "num/strided_vecops.h"
+#include "num/vecops_strided.h"
 #include "num/rand.h"
 #include "num/init.h"
 
@@ -449,3 +449,81 @@ UT_GPU_REGISTER_TEST(test_optimized_md_mul2_smul2);
 UT_GPU_REGISTER_TEST(test_optimized_md_mul2_dgmm);
 UT_GPU_REGISTER_TEST(test_optimized_md_mul2_ger);
 UT_GPU_REGISTER_TEST(test_optimized_md_mul2_ger2);
+
+static bool test_optimized_md_zadd(unsigned long out_flag, unsigned long in1_flag, unsigned long in2_flag, bool in1_same, bool in2_same, bool optimization_expected, float err_val)
+{
+#ifndef USE_CUDA
+	UNUSED(out_flag);
+	UNUSED(in1_flag);
+	UNUSED(in2_flag);
+	UNUSED(optimization_expected);
+	UNUSED(err_val);
+	UNUSED(in1_same);
+	UNUSED(in2_same);
+	return true;
+#else
+	num_init_gpu();
+	enum {D = 5};
+	long dims[D] = {3, 32, 7, 13, 3};
+	md_select_dims(D, out_flag | in1_flag | in2_flag, dims, dims);
+
+	size_t size = CFL_SIZE;
+
+	long odims[D];
+	long idims1[D];
+	long idims2[D];
+	md_select_dims(D, out_flag, odims, dims);
+	md_select_dims(D, in1_flag, idims1, dims);
+	md_select_dims(D, in2_flag, idims2, dims);
+
+	long ostr[D];
+	long istr1[D];
+	long istr2[D];
+	md_calc_strides(D, ostr, odims, size);
+	md_calc_strides(D, istr1, idims1, size);
+	md_calc_strides(D, istr2, idims2, size);
+
+	complex float* optr1 = md_alloc_gpu(D, odims, size);
+	complex float* optr2 = md_alloc_gpu(D, odims, size);
+	complex float* iptr1 = md_alloc_gpu(D, idims1, size);
+	complex float* iptr2 = md_alloc_gpu(D, idims2, size);
+
+	md_gaussian_rand(D, idims1, iptr1);
+	md_gaussian_rand(D, idims2, iptr2);
+	md_gaussian_rand(D, odims, optr1);
+	md_copy(D, odims, optr2, optr1, size);
+
+	deactivate_strided_vecops();
+	md_zadd2(D, dims, ostr, optr1, istr1, !in1_same ? iptr1 : optr1, istr2, !in2_same ? iptr2 : optr1);
+	activate_strided_vecops();
+	bool result = (optimization_expected == simple_zadd(D, dims, ostr, optr2, istr1, !in1_same ? iptr1 : optr2, istr2, !in2_same ? iptr2 : optr2));
+	debug_printf(DP_DEBUG1, "%d %.10f\n", optimization_expected, md_znrmse(D, odims, optr1, optr2));
+	result &= (!optimization_expected) || (err_val > md_znrmse(D, odims, optr1, optr2));
+	md_free(optr1);
+	md_free(optr2);
+	md_free(iptr1);
+	md_free(iptr2);
+
+	return result;
+#endif
+}
+
+static bool test_optimized_md_zadd2_reduce_inner1(void) { UT_ASSERT(test_optimized_md_zadd(~(1ul+4ul), ~(1ul+4ul), ~0ul, true, false, true, 1.e-6)); }
+static bool test_optimized_md_zadd2_reduce_inner2(void) { UT_ASSERT(test_optimized_md_zadd(~(1ul+4ul), ~(1ul+4ul), ~0ul, false, false, false, 1.e-6)); }
+static bool test_optimized_md_zadd2_reduce_inner3(void) { UT_ASSERT(test_optimized_md_zadd(~(1ul+4ul), ~(1ul), ~0ul, true, false, false, 1.e-6)); }
+static bool test_optimized_md_zadd2_reduce_inner4(void) { UT_ASSERT(test_optimized_md_zadd(~(1ul+2ul), ~4ul, ~(1ul + 2ul), false, true, true, 1.e-6)); }
+static bool test_optimized_md_zadd2_reduce_inner5(void) { UT_ASSERT(test_optimized_md_zadd(0ul, ~4ul, 0ul, false, true, true, 2.e-6)); }
+UT_GPU_REGISTER_TEST(test_optimized_md_zadd2_reduce_inner1);
+UT_GPU_REGISTER_TEST(test_optimized_md_zadd2_reduce_inner2);
+UT_GPU_REGISTER_TEST(test_optimized_md_zadd2_reduce_inner3);
+UT_GPU_REGISTER_TEST(test_optimized_md_zadd2_reduce_inner4);
+UT_GPU_REGISTER_TEST(test_optimized_md_zadd2_reduce_inner5);
+
+static bool test_optimized_md_zadd2_reduce_outer1(void) { UT_ASSERT(test_optimized_md_zadd(~(4ul), ~(4ul), ~0ul, true, false, true, 1.e-6)); }
+static bool test_optimized_md_zadd2_reduce_outer2(void) { UT_ASSERT(test_optimized_md_zadd(~(2ul), ~(2ul+4ul), ~0ul, false, false, false, 1.e-6)); }
+static bool test_optimized_md_zadd2_reduce_outer3(void) { UT_ASSERT(test_optimized_md_zadd(~(8ul), ~(1ul), ~(8ul), true, false, false, 1.e-6)); }
+static bool test_optimized_md_zadd2_reduce_outer4(void) { UT_ASSERT(test_optimized_md_zadd(~(4ul), ~(8ul), ~(4ul), false, true, true, 1.e-6)); }
+UT_GPU_REGISTER_TEST(test_optimized_md_zadd2_reduce_outer1);
+UT_GPU_REGISTER_TEST(test_optimized_md_zadd2_reduce_outer2);
+UT_GPU_REGISTER_TEST(test_optimized_md_zadd2_reduce_outer3);
+UT_GPU_REGISTER_TEST(test_optimized_md_zadd2_reduce_outer4);

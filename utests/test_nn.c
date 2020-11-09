@@ -221,7 +221,7 @@ static bool test_nlop_stats(void)
 	nlop_free(nlop);
 
 
-	UT_ASSERT((err < 1.e-7) && (err_der < 5.e-3) && (err_adj < 1.e-6));
+	UT_ASSERT((err < 1.e-6) && (err_der < 5.e-3) && (err_adj < 1.e-6));
 }
 
 
