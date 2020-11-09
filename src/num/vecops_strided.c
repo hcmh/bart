@@ -1016,3 +1016,16 @@ bool simple_zadd(unsigned int N, const long dims[N], const long ostrs[N], comple
 	return simple_z3op(	ARRAY_SIZE(strided_calls), strided_calls,
 				N, dims, ostrs, out, istrs1, in1, istrs2, in2, false);
 }
+
+bool simple_add(unsigned int N, const long dims[N], const long ostrs[N], float* out, const long istrs1[N], const float* in1, const long istrs2[N], const float* in2)
+{
+	struct simple_3op_check strided_calls[] = {
+		{ check_reduce_outer,	reduce_add_outer_gpu, true, false, false, true },
+		{ check_reduce_inner,	reduce_add_inner_gpu, true, false, false, true },
+		{ check_reduce_outer,	reduce_add_gemv, true, true, false, true },
+		{ check_reduce_inner,	reduce_add_gemv, true, true, false, true },
+	};
+
+	return simple_3op(	ARRAY_SIZE(strided_calls), strided_calls,
+				N, dims, ostrs, out, istrs1, in1, istrs2, in2);
+}
