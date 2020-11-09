@@ -32,9 +32,10 @@
 
 #include "moba/model_T2.h"
 #include "moba/iter_l1.h"
+#include "moba/recon_T1.h"
+#include "moba/moba.h"
 
 #include "recon_T2.h"
-#include "recon_T1.h"
 
 
 
@@ -86,7 +87,7 @@ void T2_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct opt_reg_s ropts = conf->ropts;
+	struct opt_reg_s* ropts = conf->ropts;
 
 
 	struct mdb_irgnm_l1_conf conf2 = {
@@ -100,7 +101,7 @@ void T2_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		.usegpu = usegpu,
 		.algo = conf->algo,
 		.rho = conf->rho,
-		.ropts = &ropts,
+		.ropts = ropts,
 		.wav_reg = 0.1,
 		.auto_norm_off = conf->auto_norm_off };
 

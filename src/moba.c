@@ -32,14 +32,13 @@
 
 #include "iter/iter2.h"
 
-#include "moba/optreg.h"
-#include "moba/recon_T1.h"
-#include "moba/recon_T2.h"
-
-
 #include "grecon/optreg.h"
 #include "grecon/italgo.h"
 
+#include "moba/optreg.h"
+#include "moba/recon_T1.h"
+#include "moba/recon_T2.h"
+#include "moba/moba.h"
 
 
 static const char usage_str[] = "<kspace> <TI/TE> <output> [<sensitivities>]";
@@ -57,13 +56,17 @@ int main_moba(int argc, char* argv[argc])
 	const char* psf = NULL;
 	const char* trajectory = NULL;
 	const char* time_T1relax = NULL;
+
 	struct moba_conf conf = moba_defaults;
+	struct opt_reg_s ropts;
+	conf.ropts = &ropts;
+
 	bool out_sens = false;
 	bool use_gpu = false;
 	bool unused = false;
 	enum mdb_t { MDB_T1, MDB_T2 } mode = { MDB_T1 };
 
-	opt_reg_init(&conf.ropts);
+	opt_reg_init(&ropts);
 
 
 	const struct opt_s opts[] = {
@@ -71,7 +74,7 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
 		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "T2 mapping using model-based Fast Spin Echo"),
 		OPT_UINT('l', &conf.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
-		{ 'r', NULL, true, opt_reg_moba, &conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
+		{ 'r', NULL, true, opt_reg_moba, &ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
                 OPT_FLOAT('u', &conf.rho, "rho", "ADMM rho"),
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
@@ -105,7 +108,7 @@ int main_moba(int argc, char* argv[argc])
 	
 	conf.algo = ALGO_FISTA;
 
-	if (conf.ropts.r > 0)
+	if (conf.ropts->r > 0)
 		conf.algo = ALGO_ADMM;
 		
 

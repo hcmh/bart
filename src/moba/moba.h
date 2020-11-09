@@ -28,4 +28,4 @@ struct moba_conf {
 	struct opt_reg_s* ropts;
 };
 
-
+extern struct moba_conf moba_defaults;

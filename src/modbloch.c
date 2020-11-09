@@ -38,6 +38,7 @@
 #include "moba/recon_Bloch.h"
 #include "moba/model_Bloch.h"
 #include "moba/scale.h"
+#include "moba/moba.h"
 
 static void help_seq(void)
 {

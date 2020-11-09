@@ -1,5 +1,5 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2019. Uecker Lab, University Medical Center Goettingen.
+ * Copyright 2019-2020. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
@@ -31,6 +31,7 @@
 #include "moba/model_T1.h"
 #include "moba/iter_l1.h"
 #include "moba/T1_alpha.h"
+#include "moba/moba.h"
 
 #include "recon_T1.h"
 
@@ -85,7 +86,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct opt_reg_s ropts = conf->ropts;
+	struct opt_reg_s* ropts = conf->ropts;
 
 	struct mdb_irgnm_l1_conf conf2 = {
 		.c2 = &irgnm_conf,
@@ -98,7 +99,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		.usegpu = usegpu,
 		.algo = conf->algo,
 		.rho = conf->rho,
-		.ropts = &ropts,
+		.ropts = ropts,
 		.wav_reg = 1,
 		.auto_norm_off = conf->auto_norm_off };
 
