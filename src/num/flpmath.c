@@ -1803,6 +1803,8 @@ void md_zsub(unsigned int D, const long dims[D], complex float* optr, const comp
  */
 void md_add2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr1[D], const float* iptr1, const long istr2[D], const float* iptr2)
 {
+	if (simple_add(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
 	MAKE_3OP(add, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
