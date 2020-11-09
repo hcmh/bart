@@ -24,6 +24,7 @@ extern const struct operator_p_s* prox_rvc_create(unsigned int N, const long dim
 extern const struct operator_p_s* prox_nonneg_create(unsigned int N, const long dims[__VLA(N)]);
 extern const struct operator_p_s* prox_zsmax_create(unsigned int N, const long dims[__VLA(N)], float a);
 extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float lambda, float p, unsigned int steps);
+extern const struct operator_p_s* prox_logp_nlinv_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float lambda, float p, unsigned int steps, float base, unsigned int irgnm_steps, float rho);
 extern const struct operator_p_s* op_p_auto_normalize(const struct operator_p_s*, long flags);
 
 #include "misc/cppwrap.h"

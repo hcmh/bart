@@ -445,7 +445,7 @@ static void prox_logp_apply(const operator_data_t* data, float lambda, complex f
 	for(unsigned int i=0; i<pdata->steps; i++)
 	{
 		prox_logp_fun(data, lambda, dst, tmp);
-		md_copy(pdata->N, pdata->dims, tmp, dst, CFL_SIZE);	
+		md_copy(pdata->N, pdata->dims, tmp, dst, CFL_SIZE);
 	}
 	
 	md_free(tmp);
@@ -473,6 +473,198 @@ extern const struct operator_p_s* prox_logp_create(unsigned int N, const long di
 	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(pdata)), prox_logp_apply, prox_logp_del);
 }
 
+struct  prox_logp_nlinv_data
+{
+	INTERFACE(operator_data_t);
+
+	const struct nlop_s *tf_ops;
+	unsigned int N;
+
+	const long *dims;
+	float step_size;
+	float p;
+	unsigned int steps;
+
+	unsigned int irgnm_steps;
+	float base;
+	float rho;
+};
+
+DEF_TYPEID(prox_logp_nlinv_data);
+
+static void prox_logp_nlinv_fun(const operator_data_t* data, float lambda, complex float *dst, const  complex float* src)
+{
+
+	auto pdata = CAST_DOWN(prox_logp_nlinv_data, data);
+	
+	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
+	auto cod = nlop_generic_codomain(pdata->tf_ops, 0); // grad_ys
+
+	long resized_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, resized_dims, pdata->dims);
+	complex float* u_resized = NULL;
+
+	// hard code below crop FOV 
+	if(pdata->dims[0]>256)
+	{
+
+		resized_dims[0] = pdata->dims[0]/2;
+		resized_dims[1] = pdata->dims[1]/2;
+
+		u_resized = md_alloc(DIMS, resized_dims, CFL_SIZE);
+
+		long pos[2];
+		for (unsigned int i = 0; i < 2; i++)
+			pos[i] = labs((resized_dims[i] / 2) - (pdata->dims[i] / 2));
+
+		md_copy_block(2, pos, resized_dims, u_resized, pdata->dims, (const complex float*)src, CFL_SIZE);
+	}
+	else{
+		u_resized = md_alloc(DIMS, pdata->dims, CFL_SIZE);
+		md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
+	}
+
+	// slice FOV
+	long slice_dims[DIMS];
+	md_set_dims(DIMS, slice_dims, 1);
+
+	slice_dims[0] = dom->dims[1];
+	slice_dims[1] = dom->dims[2];
+
+	unsigned int nx = (resized_dims[0] + slice_dims[0] - 1)/slice_dims[0];
+	unsigned int ny = (resized_dims[1] + slice_dims[1] - 1)/slice_dims[1];
+
+	slice_dims[2] = nx*ny;
+	
+	long pos[DIMS];
+	md_set_dims(DIMS, pos, 0);
+	
+	complex float* slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
+	complex float* tmp_slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
+	
+	float scalor = calculate_max(DIMS, resized_dims, u_resized);
+	
+	scalor = scalor + 1e-06;
+	md_zsmul(DIMS, resized_dims, u_resized, u_resized, 1. / scalor);
+
+	int offset = 0;
+	for (size_t i = 0; i < nx; i++)
+	{
+		for (size_t j = 0; j < ny; j++)
+		{
+			pos[0] = j*slice_dims[1];
+			pos[1] = i*slice_dims[0];
+			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
+			md_copy_block(2, pos, slice_dims, tmp_slices + offset, resized_dims, u_resized, CFL_SIZE);
+		}
+	}
+	
+	md_transpose(pdata->N, 1, 0, slice_dims, slices, slice_dims, tmp_slices, CFL_SIZE);
+	
+	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
+	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
+	debug_printf(DP_DEBUG3, "\tLog P: %f  Scalor: %f  Step size: %f  lambda: %f\n ", creal(*out), scalor, pdata->step_size, lambda);
+
+	//copy slices to feed tensor
+	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
+	md_copy(dom->N, dom->dims, TF_TensorData(*input_tensor), slices, CFL_SIZE);
+
+	complex float* grad = md_alloc(dom->N, dom->dims, dom->size);
+	complex float grad_ys = 1 + 1*I;
+
+	nlop_adjoint(pdata->tf_ops, dom->N, dom->dims, grad, cod->N, cod->dims, &grad_ys); // grad [4, sx, sy]
+
+	// update 
+
+	md_zsmul(dom->N, dom->dims, grad, grad, pdata->step_size*lambda);
+	complex float* rand_mask = md_alloc(dom->N, dom->dims, CFL_SIZE);
+
+	md_rand_one(dom->N, dom->dims, rand_mask, pdata->p);
+	md_zmul(dom->N, dom->dims, grad, grad, rand_mask);
+	
+	md_zsub(dom->N, dom->dims, slices, slices, grad);   // dst(src+1) = src - grad
+	
+	// back to fortran arrays
+	complex float* tmp = md_alloc(DIMS, resized_dims, CFL_SIZE);
+	complex float* tmp1 = md_alloc(DIMS, resized_dims, CFL_SIZE);
+	for(size_t i=0; i < nx; i++)
+	{
+		for (size_t j=0; j < ny; j++)
+		{
+			pos[0] = i*slice_dims[0];
+			pos[1] = j*slice_dims[1];
+			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
+			md_copy_block(2, pos, resized_dims, tmp, slice_dims, slices+offset, CFL_SIZE);
+		}
+	}
+	md_zsmul(DIMS, resized_dims, tmp, tmp, scalor);
+
+	md_transpose(DIMS, 1, 0, resized_dims, tmp1, resized_dims, tmp, CFL_SIZE);
+	
+	for (unsigned int i = 0; i < 2; i++)
+		pos[i] = labs((resized_dims[i] / 2) - (pdata->dims[i] / 2));
+
+	md_copy_block(2, pos, pdata->dims, (complex float*)dst, resized_dims, (const complex float*)tmp1, CFL_SIZE);
+	
+	md_free(u_resized);
+	md_free(slices);
+	md_free(tmp_slices);
+	md_free(tmp);
+}
+
+static void prox_logp_nlinv_apply(const operator_data_t* data, float lambda, complex float* dst, const complex float* src)
+{
+	auto pdata = CAST_DOWN(prox_logp_nlinv_data, data);
+	
+	complex float* tmp = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
+	md_copy(pdata->N, pdata->dims, tmp, src, CFL_SIZE);
+	
+	float k = -1. * log(lambda*pdata->rho) / log(pdata->base);
+	float alpha = lambda*pdata->rho;
+
+	float cur = powf(pdata->base, k) / powf(pdata->base, (float)pdata->irgnm_steps-1.);
+
+	float final = cur;
+
+	debug_printf(DP_INFO, "--->step k %f cur %f alpha %f cur*alpha*k/max %f\n", k, cur, alpha, final);
+
+	// cur*alpha*log(1+k/(float)pdata->irgnm_steps)/log(2.)
+
+	for(unsigned int i=0; i<pdata->steps; i++)
+	{
+		prox_logp_nlinv_fun(data, final, dst, tmp);
+		md_copy(pdata->N, pdata->dims, tmp, dst, CFL_SIZE);
+	}
+	
+	md_free(tmp);	
+}
+
+static void prox_logp_nlinv_del(const operator_data_t* _data)
+{
+	xfree(CAST_DOWN(prox_logp_nlinv_data, _data));
+}
+
+extern const struct operator_p_s* prox_logp_nlinv_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float step_size, float p, unsigned int steps, float base, unsigned int irgnm_steps, float rho)
+{
+	PTR_ALLOC(struct prox_logp_nlinv_data, pdata);
+	SET_TYPEID(prox_logp_nlinv_data, pdata);
+
+	pdata->tf_ops = tf_ops;
+	pdata->step_size = step_size;
+	pdata->p = p;
+	
+	pdata->N = N;
+	pdata->dims = (long*)malloc(sizeof(long)*pdata->N);
+	md_copy_dims(pdata->N, pdata->dims, dims);
+	pdata->steps = steps;
+
+	pdata->base = base;
+	pdata->irgnm_steps = irgnm_steps;
+
+	pdata->rho = rho;
+
+	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(pdata)), prox_logp_nlinv_apply, prox_logp_nlinv_del);
+}
 
 /**
  * Data for computing prox_l2ball_fun:

@@ -11,7 +11,7 @@ struct linop_s;
 
 struct reg_s
 {
-    enum {L1WAV, L2IMG, TV, LOGP} xform;
+    enum {L1WAV, L2IMG, TV, LOGP, LOGPA} xform;
 
     unsigned int xflags;
 	unsigned int jflags;
@@ -23,6 +23,9 @@ struct reg_s
 	double pct;	
 	unsigned int steps;
 
+    unsigned int irgnm_steps;
+    float base;
+    float rho;
 };
 
 struct opt_reg_s

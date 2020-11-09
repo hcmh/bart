@@ -29,6 +29,7 @@
 #include "iter/iter4.h"
 #include "iter/thresh.h"
 #include "iter/italgos.h"
+#include "iter/lsqr.h"
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -207,9 +208,30 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	iter4_fun_f* irgnm_ptr = &iter4_irgnm;// default solver cg
 
 	struct iter_admm_conf admm_conf_reg = iter_admm_defaults;
+	
 	admm_conf_reg.maxiter = conf->inner_iter;
 	admm_conf_reg.rho = conf->rho; 
-	admm_conf_reg.use_interface_alpha = true;
+	admm_conf_reg.use_interface_alpha = false;
+
+	struct lsqr_conf lsqr_conf_reg = lsqr_defaults;
+	lsqr_conf_reg.it_gpu = false;
+	lsqr_conf_reg.warmstart = true;
+
+	NESTED(void, lsqr_cont, (iter_conf* iconf)) 
+	{
+		auto aconf = CAST_DOWN(iter_admm_conf, iconf);
+		
+
+		aconf->maxiter = MIN(admm_conf_reg.maxiter, 10. * powf(2., logf(1. / iconf->alpha)));
+		aconf->cg_eps = admm_conf_reg.cg_eps * iconf->alpha;
+		
+		//iconf->alpha = iconf->alpha * (float)admm_conf_reg.out_iter / (float)admm_conf_reg.max_outiter;
+
+		//iconf->alpha = 1. - iconf->alpha;
+
+	};
+
+	lsqr_conf_reg.icont = lsqr_cont;
 	
 	struct irgnm_reg_conf reg_conf = {
 		.irgnm_conf = &irgnm_conf,
@@ -222,6 +244,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 		.max_outiter = conf->iter,
 		.shift_mode = conf->shift_mode,
 		.admm_conf_reg = &admm_conf_reg,
+		.lsqr_conf_reg = &lsqr_conf_reg,
 	};
 
 	//  pinv_op for irgnm

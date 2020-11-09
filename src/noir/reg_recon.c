@@ -49,7 +49,7 @@ struct reg_nlinv {
 	float alpha;
 	unsigned int outer_iter;
 
-	const struct operator_p_s* prox_kernel;
+	const struct operator_p_s** prox_kernel;
 
 };
 
@@ -84,9 +84,9 @@ static void logp_prox(iter_op_data* _data, float rho, float* dst, const float* s
 {
 	auto data = CAST_DOWN(reg_nlinv, _data);
 
-	if (data->outer_iter > data->conf->max_outiter-3)
+	if (data->outer_iter > data->conf->max_outiter-2)
 	{
-		operator_p_apply_unchecked(data->prox_kernel, rho, (_Complex float*)dst, (const complex float*)src);
+		operator_p_apply_unchecked(data->prox_kernel[0], rho, (_Complex float*)dst, (const complex float*)src);
 	}
 
 }
@@ -94,8 +94,21 @@ static void logp_prox(iter_op_data* _data, float rho, float* dst, const float* s
 static void l1_prox(iter_op_data* _data, float rho, float* dst, const float* src)
 {
 	auto data = CAST_DOWN(reg_nlinv, _data);
-	operator_p_apply_unchecked(data->prox_kernel, rho, (_Complex float*)dst, (const complex float*)src);
+	operator_p_apply_unchecked(data->prox_kernel[0], rho, (_Complex float*)dst, (const complex float*)src);
 }
+
+
+static void combined_prox(iter_op_data* _data, float rho, float* dst , const float* src)
+{
+	
+	auto data = CAST_DOWN(reg_nlinv, _data);
+	if (data->outer_iter > data->conf->max_outiter-2)
+		operator_p_apply_unchecked(data->prox_kernel[1], rho, (_Complex float*)dst, (const complex float*)src);
+	else
+		operator_p_apply_unchecked(data->prox_kernel[0], rho, (_Complex float*)dst, (const complex float*)src);
+	
+}
+
 
 static void fista_solver(iter_op_data* _data, float alpha,  float* dst, const float* src)
 {
@@ -125,15 +138,23 @@ static void fista_solver(iter_op_data* _data, float alpha,  float* dst, const fl
 
 	prox_hooker* prox_ptr = NULL;
 
-	if (data->conf->ropts->regs[0].xform == L1WAV)
-		prox_ptr = &l1_prox;
+	if (data->conf->ropts->r == 1 ){
+		
+		if (data->conf->ropts->regs[0].xform == L1WAV)
+			prox_ptr = &l1_prox;
 
-	if (data->conf->ropts->regs[0].xform == LOGP)
-	{
-		prox_ptr = &logp_prox;
-		scale = powf(5, data->outer_iter)/powf(5, (data->conf->max_outiter)-1)*powf((float)data->outer_iter/((float)(data->conf->max_outiter)-1), 5.);
-		printf("--->>> scale value %f outer_iter %d max outer_iter%d\n", scale, data->outer_iter, data->conf->max_outiter);
+		if (data->conf->ropts->regs[0].xform == LOGP)
+		{
+			prox_ptr = &logp_prox;
+			scale = powf(5, data->outer_iter)/powf(5, (data->conf->max_outiter)-1)*powf((float)data->outer_iter/((float)(data->conf->max_outiter)-1), 5.);
+			printf("--->>> scale value %f outer_iter %d max outer_iter%d\n", scale, data->outer_iter, data->conf->max_outiter);
+		}
 	}
+	else{
+		prox_ptr = &combined_prox;
+	}
+
+	
 
 	NESTED(void, continuation, (struct ist_data* itrdata))
 	{
@@ -182,10 +203,8 @@ extern const struct operator_p_s* reg_pinv_op_create(struct irgnm_reg_conf* conf
 {
 
 	const struct operator_p_s* pinv_op = NULL;
-	const struct operator_p_s* prox_kernel = thresh_ops[0];
-	
-	if(conf->algo == ALGO_FISTA)
-	{
+
+	if(conf->algo == ALGO_FISTA){
         PTR_ALLOC(struct reg_nlinv_s, data);
 	    SET_TYPEID(reg_nlinv_s, data);
     	SET_TYPEID(reg_nlinv, &data->ins_reg_nlinv);
@@ -199,6 +218,7 @@ extern const struct operator_p_s* reg_pinv_op_create(struct irgnm_reg_conf* conf
 		printf("use fista\n");
 		long* ndims = *TYPE_ALLOC(long[DIMS]);
 		md_copy_dims(DIMS, ndims, dims);
+
 		struct reg_nlinv ins_reg_nlinv={
 			{&TYPEID(reg_nlinv)},
 			.nlop = nlop_clone(nlop),
@@ -208,7 +228,7 @@ extern const struct operator_p_s* reg_pinv_op_create(struct irgnm_reg_conf* conf
 			.dims = ndims,
 			.alpha = 1.0,
 			.outer_iter = 0,
-			.prox_kernel = prox_kernel,
+			.prox_kernel = thresh_ops,
 		};
 		data->ins_reg_nlinv = ins_reg_nlinv;
 		
@@ -218,8 +238,8 @@ extern const struct operator_p_s* reg_pinv_op_create(struct irgnm_reg_conf* conf
 	{
 		
 		printf("use admm\n");
-		
-		pinv_op = lsqr2_create(&lsqr_defaults, 
+
+		pinv_op = lsqr2_create(conf->lsqr_conf_reg, 
 								iter2_admm,
 								CAST_UP(conf->admm_conf_reg),
 								NULL, true, &nlop->derivative[0][0],

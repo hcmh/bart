@@ -88,6 +88,15 @@ bool opt_reg_nlinv(void* ptr, char c, const char* optarg)
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
 		}
+		else if (strcmp(rt, "LPA") == 0)
+		{
+			regs[r].xform = LOGPA;
+			regs[r].graph_file = (char *)malloc(100*sizeof(char));
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%f:%u:%f", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].base, &regs[r].irgnm_steps, &regs[r].rho);
+			assert(7 == ret);
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
+		}
 		else if (strcmp(rt, "h") == 0) {
 
 			help_reg_nlinv();
@@ -234,7 +243,7 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 
 			trafos[nr] = linop_identity_create(DIMS, x_dims);
 
-			auto prox_img = prox_wavelet_thresh_create(DIMS, img_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, randshift); 
+			auto prox_img = prox_wavelet_thresh_create(DIMS, img_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, true); 
 
 			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
 
@@ -268,8 +277,7 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 		
         case LOGP:
 		{
-			debug_printf(DP_INFO, "pixel-cnn based prior located at %s.\nlambda: %f\npercentage: %f\nsteps: %u\n", 
-						regs[nr].graph_file, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
+			debug_printf(DP_INFO, "logp based prior lambda: %f percentage: %f steps: %u\n", regs[nr].lambda, regs[nr].pct, regs[nr].steps);
 			
 			trafos[nr] = linop_identity_create(DIMS, x_dims);
 
@@ -283,6 +291,22 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 			break;
 		}
         
+		case LOGPA:
+		{
+			debug_printf(DP_INFO, "adaptive logp based prior lambda: %f percentage: %f steps: %u\n", regs[nr].lambda, regs[nr].pct, regs[nr].steps);
+					
+			trafos[nr] = linop_identity_create(DIMS, x_dims);
+
+			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file);
+
+			auto prox_img = prox_logp_nlinv_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].base, regs[nr].irgnm_steps, regs[nr].rho);
+
+			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
+
+			prox_ops[nr] = stack_flatten_prox(prox_img, prox_coil);
+			break;
+		}
+
         }        
     }
 }

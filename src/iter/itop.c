@@ -33,6 +33,7 @@ struct itop_s {
 	italgo_fun2_t italgo;
 	iter_conf* iconf;
 	struct iter_monitor_s* monitor;
+	itop_continuation_t* icont;
 
 	const struct operator_s* op;
 	unsigned int num_funs;
@@ -70,6 +71,10 @@ static void itop_apply(const operator_data_t* _data, float alpha, complex float*
 	iter_conf* iconf2 = xmalloc(SIZEOF(data->iconf));
 	memcpy(iconf2, data->iconf, SIZEOF(data->iconf));
 	iconf2->alpha = alpha;
+
+	// callback to change parameters for this run
+	if (NULL != data->icont)
+		data->icont(iconf2);
 
 	data->italgo(iconf2, data->op, data->num_funs, data->prox_funs, data->prox_linops, NULL,
 			NULL, data->size, (float*)dst, (const float*)src, data->monitor);
@@ -114,7 +119,8 @@ const struct operator_p_s* itop_p_create(italgo_fun2_t italgo, iter_conf* iconf,
 					unsigned int num_funs,
 					const struct operator_p_s* prox_funs[num_funs],
 					const struct linop_s* prox_linops[num_funs],
-					struct iter_monitor_s* monitor)
+					struct iter_monitor_s* monitor,
+					itop_continuation_t icont)
 {
 	PTR_ALLOC(struct itop_s, data);
 	SET_TYPEID(itop_s, data);
@@ -133,6 +139,7 @@ const struct operator_p_s* itop_p_create(italgo_fun2_t italgo, iter_conf* iconf,
 
 	data->iconf = iconf;
 	data->italgo = italgo;
+	data->icont = icont;
 	data->monitor = monitor;
 	data->op = (NULL == op) ? NULL : operator_ref(op);
 	data->num_funs = num_funs;
@@ -179,10 +186,8 @@ const struct operator_s* itop_create(	italgo_fun2_t italgo, iter_conf* iconf,
 					unsigned int num_funs,
 					const struct operator_p_s* prox_funs[num_funs],
 					const struct linop_s* prox_linops[num_funs],
-					struct iter_monitor_s* monitor)
+					struct iter_monitor_s* monitor,
+					itop_continuation_t icont)
 {
-	auto tmp = itop_p_create(italgo, iconf, init, warmstart, op, num_funs, prox_funs, prox_linops, monitor);
-	auto result = operator_p_bind(tmp, 1.);
-	operator_p_free(tmp);
-	return result;
+	return operator_p_bind(itop_p_create(italgo, iconf, init, warmstart, op, num_funs, prox_funs, prox_linops, monitor, icont), 1.);
 }
