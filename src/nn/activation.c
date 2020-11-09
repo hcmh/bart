@@ -242,23 +242,8 @@ static void bias_op_adj2(const nlop_data_t* _data, unsigned int o, unsigned int 
 	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 
-#ifdef USE_CUDA //FIXME: optimize zadd2 for accumulation in first or second dim
-	if (cuda_ondevice(src)) {
-
-		long tdims[d->N];
-		md_select_dims(d->N, ~md_nontriv_dims(d->N, d->bdims), tdims, d->dims);
-
-		complex float* ones = md_alloc_sameplace(d->N, tdims, CFL_SIZE, src);
-		md_zfill(d->N, tdims, ones, 1.);
-		md_ztenmul(d->N, d->bdims, dst, d->dims, src, tdims, ones);
-
-		md_free(ones);
-	} else
-#endif
-	{
-		md_clear(d->N, d->bdims, dst, CFL_SIZE);
-		md_zsum(d->N, d->dims, ~md_nontriv_dims(d->N, d->bdims), dst, src);
-	}
+	md_clear(d->N, d->bdims, dst, CFL_SIZE);
+	md_zsum(d->N, d->dims, ~md_nontriv_dims(d->N, d->bdims), dst, src);
 
 	PRINT_TIMER("bias adj2");
 }
