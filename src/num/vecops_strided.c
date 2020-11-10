@@ -1029,3 +1029,14 @@ bool simple_add(unsigned int N, const long dims[N], const long ostrs[N], float* 
 	return simple_3op(	ARRAY_SIZE(strided_calls), strided_calls,
 				N, dims, ostrs, out, istrs1, in1, istrs2, in2);
 }
+
+bool simple_zmax(unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
+{
+	struct simple_z3op_check strided_calls[] = {
+		{ check_reduce_outer,	reduce_zmax_outer_gpu, true, false, false, true },
+		{ check_reduce_inner,	reduce_zmax_inner_gpu, true, false, false, true },
+	};
+
+	return simple_z3op(	ARRAY_SIZE(strided_calls), strided_calls,
+				N, dims, ostrs, out, istrs1, in1, istrs2, in2, false);
+}

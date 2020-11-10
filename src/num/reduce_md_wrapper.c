@@ -279,3 +279,70 @@ void reduce_add_gemv(unsigned int N, const long dims[__VLA(N)], const long ostr[
 		md_free(ones);
 	}
 }
+
+/**
+ *
+ * @param dims dimension
+ * @param ostr must be of the form {0, 1} or {0}
+ * @param optr
+ * @param istr1 must be of the form {0, 1} or {0}
+ * @param iptr1 must equal optr
+ * @param istr1 must be of the form {1, dim[0]} or {1}
+ * @param iptr1 
+ **/
+void reduce_zmax_inner_gpu(unsigned int N, const long dims[__VLA(N)], const long ostr[__VLA(N)], complex float* optr, const long istr1[__VLA(N)], const complex float* iptr1, const long istr2[__VLA(N)], const complex float* iptr2)
+{
+	long size = 8;
+
+	assert((2 == N) || (1 == N));
+	assert((0 == ostr[0]));
+	assert((0 == istr1[0]));
+	assert((size == istr2[0]));
+
+	if ((2 == N) && (1 != dims[1])){
+
+		assert((0 == ostr[0]) && (size == ostr[1]));
+		assert((0 == istr1[0]) && (size == istr1[1]));
+		assert((size == istr2[0]) && (size * dims[0] == istr2[1]));
+	}
+
+	assert(optr == iptr1);
+
+#ifdef USE_CUDA
+	assert(cuda_ondevice(optr) && cuda_ondevice(iptr2));
+	cuda_reduce_zmax_inner(dims[0], (2 == N) ? dims[1] : 1, optr, iptr2);
+#else
+	UNUSED(iptr2);
+	error("Compiled without gpu support!");
+#endif
+}
+
+/**
+ *
+ * @param dims dimension
+ * @param ostr must be of the form {1, 0}
+ * @param optr
+ * @param istr1 must be of the form {1, 0}
+ * @param iptr1 must equal optr
+ * @param istr1 must be of the form {1, dim[0]}
+ * @param iptr1 
+ **/
+void reduce_zmax_outer_gpu(unsigned int N, const long dims[__VLA(N)], const long ostr[__VLA(N)], complex float* optr, const long istr1[__VLA(N)], const complex float* iptr1, const long istr2[__VLA(N)], const complex float* iptr2)
+{
+	long size = 8;
+
+	assert(2 == N) ;
+	assert(((1 == dims[0]) || (size == ostr[0])) && (0 == ostr[1]));
+	assert(((1 == dims[0]) || (size == istr1[0])) && (0 == istr1[1]));
+	assert(((1 == dims[0]) || (size == istr2[0])) && (size * dims[0] == istr2[1]));
+
+	assert(optr == iptr1);
+
+#ifdef USE_CUDA
+	assert(cuda_ondevice(optr) && cuda_ondevice(iptr2));
+	cuda_reduce_zmax_outer(dims[1], dims[0], optr, iptr2);
+#else
+	UNUSED(iptr2);
+	error("Compiled without gpu support!");
+#endif
+}
