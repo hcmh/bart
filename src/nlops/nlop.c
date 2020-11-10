@@ -355,6 +355,25 @@ static const char* operator_graph_nlop(const operator_data_t* _data, unsigned in
 	return data->get_graph(data->data, N, D, arg_nodes, opts);
 }
 
+static void der_not_implemented(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+	UNUSED(dst);
+	UNUSED(src);
+
+	error("Derivative o=%d, i=%d of %s is not implemented!\n", o, i, _data->TYPEID->name);
+}
+
+static void adj_not_implemented(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+	UNUSED(dst);
+	UNUSED(src);
+
+	error("Adjoint derivative o=%d, i=%d of %s is not implemented!\n", o, i, _data->TYPEID->name);
+}
 
 
 struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims[OO][ON], const long ostr[OO][ON], int II, int IN, const long idims[II][IN], const long istr[II][IN],
@@ -430,8 +449,8 @@ struct nlop_s* nlop_generic_with_props_create2(	int OO, int ON, const long odims
 
 			d2->data = data;
 			d2->del = del;
-			d2->deriv = deriv[i][o];
-			d2->adjoint = adjoint[i][o];
+			d2->deriv = (NULL != deriv) ? ((NULL != deriv[i][o]) ? deriv[i][o] : der_not_implemented) : der_not_implemented;
+			d2->adjoint = (NULL != adjoint) ? ((NULL != adjoint[i][o]) ? adjoint[i][o] : adj_not_implemented) : adj_not_implemented;
 			d2->normal = (NULL != normal) ? normal[i][o] : NULL;
 			d2->norm_inv = (NULL != norm_inv) ? norm_inv[i][o] : NULL;
 
