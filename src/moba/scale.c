@@ -68,7 +68,7 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[4], const long k
 			if (4 == sim_data.seq.seq_type)
 				sim_data.seq.rep_num = fit_para->num_vfa;
 			else
-				sim_data.seq.rep_num = dims[TE_DIM];
+				sim_data.seq.rep_num = dims[TE_DIM] * fit_para->averaged_spokes;
 			
 			sim_data.seq.spin_num = 1;
 			sim_data.seq.num_average_rep = fit_para->averaged_spokes;

@@ -313,7 +313,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 				long position = 0;
 
-				for (int i = 0, j = 0; j < sim_data.seq.rep_num - rm_first_echo; j++) {
+				for (int i = 0, j = 0; j < (sim_data.seq.rep_num - rm_first_echo) / sim_data.seq.num_average_rep; j++) {
 
 					// 1.2 deg is threshold to keep 601 data points
 					// ->	see: J. Asslaender et al.
