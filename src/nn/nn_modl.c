@@ -60,6 +60,8 @@
 #include "nn/nn_layers.h"
 #include "nn/nn_activation.h"
 
+#include "nn/nn_ops.h"
+
 #include "nn_modl.h"
 
 
@@ -91,6 +93,8 @@ const struct modl_s modl_default = {
 
 	.nullspace = false,
 	.use_dc = true,
+
+	.normalize = false,
 
 	.draw_graph_filename = NULL,
 };
@@ -336,6 +340,30 @@ static nn_t nn_modl_cell_create(const struct modl_s* config,const long dims[5], 
 	return result;
 }
 
+static nn_t nn_modl_zf_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
+{
+	UNUSED(status);
+
+	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
+	auto nlop_zf = nlop_mri_adjoint_create(5, dims, config->share_pattern);
+	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+	auto nn_zf = nn_from_nlop_F(nlop_zf);
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "coil");
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "pattern");
+
+	if (config->normalize) {
+
+		auto nn_normalize = nn_from_nlop_F(nlop_norm_zmax_create(5, udims, MD_BIT(4), true));
+		nn_normalize = nn_set_output_name_F(nn_normalize, 1, "normalize_scale");
+		nn_zf = nn_chain2_FF(nn_zf, 0, NULL, nn_normalize, 0, NULL);
+	}
+
+	return nn_zf;
+}
+
+
+
 static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status);
 static nn_t nn_modl_no_dc_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status);
 
@@ -402,13 +430,7 @@ static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const
 		result = nn_dup_F(result, 0, "zero_filled", 0, NULL);
 	}
 
-	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	auto nlop_zf = nlop_mri_adjoint_create(5, dims, config->share_pattern);
-	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
-	auto nn_zf = nn_from_nlop_F(nlop_zf);
-	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
-	nn_zf = nn_set_input_name_F(nn_zf, 0, "coil");
-	nn_zf = nn_set_input_name_F(nn_zf, 0, "pattern");
+	auto nn_zf = nn_modl_zf_create(config, dims, udims, status);
 
 	result = nn_mark_dup_F(result, "coil");
 	result = nn_mark_dup_F(result, "pattern");
@@ -508,13 +530,7 @@ static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], 
 	result = nn_chain2_swap_FF(dc, 0, NULL, result, 0, "tickhonov_reg");
 	result = nn_stack_dup_by_name_F(result);
 
-	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	auto nlop_zf = nlop_mri_adjoint_create(5, dims, config->share_pattern);
-	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
-	auto nn_zf = nn_from_nlop_F(nlop_zf);
-	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
-	nn_zf = nn_set_input_name_F(nn_zf, 0, "coil");
-	nn_zf = nn_set_input_name_F(nn_zf, 0, "pattern");
+	auto nn_zf = nn_modl_zf_create(config, dims, udims, status);
 
 	result = nn_mark_dup_F(result, "coil");
 	result = nn_mark_dup_F(result, "pattern");
@@ -580,15 +596,7 @@ static nn_t nn_modl_no_dc_create(const struct modl_s* config,const long dims[5],
 		result = nn_stack_dup_by_name_F(result);
 	}
 
-	
-
-	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	auto nlop_zf = nlop_mri_adjoint_create(5, dims, config->share_pattern);
-	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
-	auto nn_zf = nn_from_nlop_F(nlop_zf);
-	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
-	nn_zf = nn_set_input_name_F(nn_zf, 0, "coil");
-	nn_zf = nn_set_input_name_F(nn_zf, 0, "pattern");
+	auto nn_zf = nn_modl_zf_create(config, dims, udims, status);
 
 	result = nn_chain2_swap_FF(nn_zf, 0, NULL, result, 0, "zero_filled");
 	result = nn_stack_dup_by_name_F(result);
@@ -611,7 +619,7 @@ static complex float get_infinity(long NI, const float* x[NI])
 	return INFINITY;
 }
 
-static nn_t create_modl_val_loss(struct modl_s* modl, bool normalize, const char**valid_files)
+static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
 {
 	long kdims[5];
 	long cdims[5];
@@ -623,26 +631,28 @@ static nn_t create_modl_val_loss(struct modl_s* modl, bool normalize, const char
 	complex float* val_pattern = load_cfl(valid_files[2], 5, pdims);
 	complex float* val_ref = load_cfl(valid_files[3], 5, udims);
 
-	if (normalize) {
-
-		complex float* scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
-		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
-		compute_zero_filled(udims, u0, kdims, val_kspace, val_coil, pdims, val_pattern);
-		compute_scale_max_abs(udims, scaling, u0);
-		md_free(u0);
-
-		normalize_by_scale(udims, scaling, val_ref, val_ref);
-		normalize_by_scale(kdims, scaling, val_kspace, val_kspace);
-		md_free(scaling);
-	}
-
 	auto valid_loss = nn_modl_create(modl, kdims, udims, STAT_TEST);
 
 	const struct nlop_s* loss = nlop_mse_create(5, udims, ~0ul);
 	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
 	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
 
-	valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 0, NULL);
+	if(modl->normalize) {
+
+		long sdims[5];
+		md_select_dims(5, MD_BIT(4), sdims, udims);
+
+		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
+
+		valid_loss = nn_chain2_FF(valid_loss, 0, "normalize_scale", nn_norm_ref, 1, NULL);
+		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 0, NULL);
+		valid_loss = nn_link_F(valid_loss, 1, NULL, 0, NULL);
+		valid_loss = nn_set_out_type_F(valid_loss, 0, NULL, OUT_OPTIMIZE);
+
+	} else {
+
+		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 0, NULL);
+	}
 
 	valid_loss = nn_ignore_input_F(valid_loss, 0, NULL, 5, udims, true, val_ref);
 	valid_loss = nn_ignore_input_F(valid_loss, 0, "kspace", 5, kdims, true, val_kspace);
@@ -660,25 +670,55 @@ static nn_t create_modl_val_loss(struct modl_s* modl, bool normalize, const char
 	return valid_loss;
 }
 
+static nn_t nn_modl_train_op_create(const struct modl_s* modl, const long dims[5], const long udims[5])
+{
+	auto nn_train = nn_modl_create(modl, dims, udims, STAT_TRAIN);
+	
+	if(modl->normalize) {
+
+		long sdims[5];
+		md_select_dims(5, MD_BIT(4), sdims, dims);
+
+		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
+
+		nn_train = nn_chain2_FF(nn_train, 0, "normalize_scale", nn_norm_ref, 1, NULL);
+		nn_train = nn_chain2_FF(nn_train, 1, NULL, nn_from_nlop(nlop_mse_create(5, udims, ~0ul)), 1, NULL);
+		nn_train = nn_link_F(nn_train, 1, NULL, 0, NULL);
+		nn_train = nn_set_out_type_F(nn_train, 0, NULL, OUT_OPTIMIZE);
+
+	} else {
+
+		nn_train = nn_loss_mse_append(nn_train, 0, NULL, ~0ul);
+	}
+
+	return nn_train;
+}
+
+static const struct nlop_s* nn_modl_apply_op_create(const struct modl_s* modl, const long dims[5], const long udims[5])
+{
+	auto nn_apply = nn_modl_create(modl, dims, udims, STAT_TEST);
+
+	if (modl->normalize) {
+
+		long sdims[5];
+		md_select_dims(5, MD_BIT(4), sdims, dims);
+		auto nn_norm_ref = nn_from_nlop(nlop_tenmul_create(5, udims, udims, sdims));
+
+		nn_apply = nn_chain2_FF(nn_apply, 0, NULL, nn_norm_ref, 0, NULL);
+		nn_apply = nn_link_F(nn_apply, 0, "normalize_scale", 0, NULL);
+	}
+
+	return nn_get_nlop_wo_weights(nn_apply, modl->weights, false);
+}
+
+
+
 void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 			const long udims[5], _Complex float* ref,
 			const long kdims[5], _Complex float* kspace, const _Complex float* coil,
 			const long pdims[5], const _Complex float* pattern,
-			long Nb, bool normalize, const char** valid_files)
+			long Nb, const char** valid_files)
 {
-	complex float* scaling = NULL;
-	if (normalize) {
-
-		scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
-		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
-		compute_zero_filled(udims, u0, kdims, kspace, coil, pdims, pattern);
-		compute_scale_max_abs(udims, scaling, u0);
-		md_free(u0);
-
-		normalize_by_scale(kdims, scaling, kspace, kspace);
-		normalize_by_scale(udims, scaling, ref, ref);
-	}
-
 	long Nt = kdims[4]; // number datasets
 
 	long nkdims[5];
@@ -692,10 +732,10 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 
 	modl->share_pattern = pdims[4] == 1;
 
-	auto nn_train = nn_modl_create(modl, nkdims, nudims, STAT_TRAIN);
+	auto nn_train = nn_modl_train_op_create(modl, nkdims, nudims);
+
 	if (NULL != modl->draw_graph_filename)
-		nn_export_graph(modl->draw_graph_filename, nn_train, (graph_t){true, false, false});
-	nn_train = nn_loss_mse_append(nn_train, 0, NULL, ~0ul);
+		nn_export_graph(modl->draw_graph_filename, nn_train, (graph_t){false, false, false});
 
 	//create batch generator
 	const complex float* train_data[] = {ref, kspace, coil, pattern};
@@ -739,7 +779,7 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 
 	if (NULL != valid_files) {
 
-		auto nn_validation_loss = create_modl_val_loss(modl, normalize, valid_files);
+		auto nn_validation_loss = create_modl_val_loss(modl, valid_files);
 		struct monitor_value_s value_monitors[2] = {monitor_iter6_function_create(lambda ? get_lambda : get_infinity, true, "lambda"), monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, "val loss")};
 		nn_free(nn_validation_loss);
 
@@ -755,59 +795,30 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 
 	iter6_adam(train_conf, nn_get_nlop(nn_train), NI, in_type, projections, src, NO, out_type, Nb, Nt / Nb, batch_generator, monitor);
 
-	if (NULL != modl->draw_graph_filename)
-		nn_export_graph(modl->draw_graph_filename, nn_train, (graph_t){false, true, true});
-
 	nn_free(nn_train);
 	nlop_free(batch_generator);
 
 	monitor_iter6_free(monitor);
-
-	if (normalize) {
-
-		renormalize_by_scale(kdims, scaling, kspace, kspace);
-		renormalize_by_scale(udims, scaling, ref, ref);
-		md_free(scaling);
-	}
 }
 
 
 void apply_nn_modl(	struct modl_s* modl,
 			const long udims[5], complex float* out,
-			const long kdims[5], const complex float* kspace, const complex float* coil, const long pdims[5], const complex float* pattern,
-			bool normalize)
+			const long kdims[5], const complex float* kspace, const complex float* coil, const long pdims[5], const complex float* pattern)
 {
 
 	modl->share_pattern = (1 == pdims[4]);
 
-	auto nn_modl = nn_modl_create(modl, kdims, udims, STAT_TEST);
-	auto nlop_modl = nn_get_nlop_wo_weights(nn_modl, modl->weights, false);
+	auto nlop_modl = nn_modl_apply_op_create(modl, kdims, udims);
 
 	complex float* out_tmp = md_alloc_sameplace(5, udims, CFL_SIZE, modl->weights->tensors[0]);
 	complex float* kspace_tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, modl->weights->tensors[0]);
 	complex float* coil_tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, modl->weights->tensors[0]);
 	complex float* pattern_tmp = md_alloc_sameplace(5, pdims, CFL_SIZE, modl->weights->tensors[0]);
 
-	complex float* scaling = NULL;
-
 	md_copy(5, kdims, kspace_tmp, kspace, CFL_SIZE);
 	md_copy(5, kdims, coil_tmp, coil, CFL_SIZE);
 	md_copy(5, pdims, pattern_tmp, pattern, CFL_SIZE);
-
-	if (normalize) {
-
-		complex float* scaling_cpu = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
-		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
-		compute_zero_filled(udims, u0, kdims, kspace, coil, pdims, pattern);
-		compute_scale_max_abs(udims, scaling_cpu, u0);
-		md_free(u0);
-
-		scaling = md_alloc_sameplace(1, MAKE_ARRAY(kdims[4]), CFL_SIZE, modl->weights->tensors[0]);
-		md_copy(1, MAKE_ARRAY(kdims[4]), scaling, scaling_cpu, CFL_SIZE);
-		md_free(scaling_cpu);
-
-		normalize_by_scale(kdims, scaling, kspace_tmp, kspace_tmp);
-	}
 
 	complex float* args[4];
 
@@ -818,16 +829,9 @@ void apply_nn_modl(	struct modl_s* modl,
 
 	nlop_generic_apply_select_derivative_unchecked(nlop_modl, 4, (void**)args, 0, 0);
 
-	if (normalize) {
-
-		renormalize_by_scale(udims, scaling, out_tmp, out_tmp);
-		md_free(scaling);
-	}
-
 	md_copy(5, udims, out, out_tmp, CFL_SIZE);
 
 	nlop_free(nlop_modl);
-	nn_free(nn_modl);
 
 	md_free(out_tmp);
 	md_free(kspace_tmp);
@@ -838,8 +842,7 @@ void apply_nn_modl(	struct modl_s* modl,
 void apply_nn_modl_batchwise(	struct modl_s* modl,
 				const long udims[5], complex float * out,
 				const long kdims[5], const complex float* kspace, const complex float* coil, const long pdims[5], const complex float* pattern,
-				long Nb,
-				bool normalize)
+				long Nb)
 {
 	long Nt = kdims[4];
 	while (0 < Nt) {
@@ -858,7 +861,7 @@ void apply_nn_modl_batchwise(	struct modl_s* modl,
 		udims1[4] = Nb_tmp;
 		pdims1[4] = MIN(pdims1[4], Nb_tmp);
 
-		apply_nn_modl(modl, udims1, out, kdims1, kspace, coil, pdims1, pattern, normalize);
+		apply_nn_modl(modl, udims1, out, kdims1, kspace, coil, pdims1, pattern);
 
 		out += md_calc_size(5, udims1);
 		kspace += md_calc_size(5, kdims1);

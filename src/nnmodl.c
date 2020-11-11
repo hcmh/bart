@@ -48,7 +48,6 @@ int main_nnmodl(int argc, char* argv[])
 	bool apply = false;
 	bool use_gpu = false;
 	bool initialize = false;
-	bool normalize = false;
 
 	int random_order = 0;
 
@@ -62,6 +61,7 @@ int main_nnmodl(int argc, char* argv[])
 	bool draw_graph = false;
 
 	const char* config_file = NULL;
+	bool load_mem = false;
 
 	const struct opt_s opts[] = {
 
@@ -83,7 +83,8 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_LONG(0, "adam_reset_momentum", &(train_conf.reset_epoch), "epoch", "reset the adam algorithm after this number of epochs"),
 		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2= shuffle data, 3=randonly draw data"),
 
-		OPTL_SET('n', "normalize", &normalize, "normalize the input by maximum of zero-filled reconstruction"),
+		OPTL_SET('n', "normalize", &(modl.normalize), "normalize the input by maximum of zero-filled reconstruction"),
+		OPTL_SET('m', "load_data", &(load_mem), "load files int memory"),
 
 		OPTL_SET('o', "one_iter", &one_iter, "only one iteration"),
 
@@ -171,9 +172,31 @@ int main_nnmodl(int argc, char* argv[])
 	long cdims[5]; 		//[Nkx, Nky, Nkz, Nc, Nt]
 	long pdims[5]; 		//[Nkx, Nky, Nkz, 1,  1 or Nb]
 
-	complex float* file_kspace = load_cfl(filename_kspace, 5, kdims);
-	complex float* file_coil = load_cfl(filename_coil, 5, cdims);
-	complex float* file_pattern = load_cfl(filename_pattern, 5, pdims);
+	complex float* kspace = load_cfl(filename_kspace, 5, kdims);
+	complex float* coil = load_cfl(filename_coil, 5, cdims);
+	complex float* pattern = load_cfl(filename_pattern, 5, pdims);
+
+#ifdef USE_CUDA
+
+	if (load_mem) {
+
+		complex float* mem_kspace = md_alloc_gpu(5, kdims, CFL_SIZE);
+		complex float* mem_coil = md_alloc_gpu(5, cdims, CFL_SIZE);
+		complex float* mem_pattern = md_alloc_gpu(5, pdims, CFL_SIZE);
+
+		md_copy(5, kdims, mem_kspace, kspace, CFL_SIZE);
+		md_copy(5, cdims, mem_coil, coil, CFL_SIZE);
+		md_copy(5, pdims, mem_pattern, pattern, CFL_SIZE);
+
+		unmap_cfl(5, kdims, kspace);
+		unmap_cfl(5, cdims, coil);
+		unmap_cfl(5, pdims, pattern);
+
+		kspace = mem_kspace;
+		coil = mem_coil;
+		pattern = mem_pattern;
+	}
+#endif
 
 	for (int i = 0; i < 5; i++)
 		assert(kdims[i] == cdims[i]);
@@ -196,11 +219,25 @@ int main_nnmodl(int argc, char* argv[])
 		nn_modl_move_gpucpu(&modl, use_gpu);
 
 
-		complex float* file_ref = load_cfl(filename_out, 5, udims);
+		complex float* ref = load_cfl(filename_out, 5, udims);
+#ifdef USE_CUDA
+		if (load_mem) {
 
-		train_nn_modl(&modl, CAST_UP(&train_conf), udims, file_ref, kdims, file_kspace, file_coil, pdims, file_pattern, Nb, normalize, (10 == argc) ? (const char**)argv + 6: NULL);
+			complex float* mem_ref = md_alloc_gpu(5, udims, CFL_SIZE);
+			md_copy(5, udims, mem_ref, ref, CFL_SIZE);
+			unmap_cfl(5, udims, ref);
+			ref = mem_ref;
+		}
+#endif
+
+		train_nn_modl(&modl, CAST_UP(&train_conf), udims, ref, kdims, kspace, coil, pdims, pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
 		nn_modl_store_weights(&modl, filename_weights);
-		unmap_cfl(5, udims, file_ref);
+#ifdef USE_CUDA		
+		if (load_mem)
+			md_free(ref);
+		else
+#endif
+			unmap_cfl(5, udims, ref);
 	}
 
 
@@ -219,17 +256,28 @@ int main_nnmodl(int argc, char* argv[])
 
 		complex float* file_out = create_cfl(filename_out, 5, udims);
 
-		apply_nn_modl_batchwise(&modl, udims, file_out, kdims, file_kspace, file_coil, pdims, file_pattern, Nb, normalize);
+		apply_nn_modl_batchwise(&modl, udims, file_out, kdims, kspace, coil, pdims, pattern, Nb);
 
 		unmap_cfl(5, udims, file_out);
 
 	}
 
 	nn_modl_free_weights(&modl);
+#ifdef USE_CUDA
+	if (load_mem) {
 
-	unmap_cfl(5, pdims, file_pattern);
-	unmap_cfl(5, kdims, file_kspace);
-	unmap_cfl(5, cdims, file_coil);
+		md_free(pattern);
+		md_free(kspace);
+		md_free(coil);
+
+	} else
+#endif
+	 {
+	
+		unmap_cfl(5, pdims, pattern);
+		unmap_cfl(5, kdims, kspace);
+		unmap_cfl(5, cdims, coil);
+	}
 
 
 	exit(0);
