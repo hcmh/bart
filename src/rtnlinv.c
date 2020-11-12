@@ -123,6 +123,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_VEC3('x', &my_img_dims, "x:y:z", "Explicitly specify image dimensions"),
 		OPT_SET('A', &alt_scaling, "(Alternative scaling)"), // Used for SSA-FARY paper
  		OPT_SET('s', &conf.sms, "Simultaneous Multi-Slice reconstruction"),
+  		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
 		OPTL_CLEAR(0, "cart", &conf.noncart, "(force cartesian)"),
 	};
 
@@ -150,7 +151,14 @@ int main_rtnlinv(int argc, char* argv[])
 	if (conf.sms) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
-		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output
+		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output (consistency with SMS implementation on scanner)
+	}
+
+	// SoS
+	if (conf.sos) {
+
+		debug_printf(DP_INFO, "SoS-NLINV reconstruction. Number of partitions: %d\n", ksp_dims[SLICE_DIM]);
+		// fftmod not necessary for SoS 
 	}
 
 	long pat_dims[DIMS];

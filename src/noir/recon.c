@@ -75,6 +75,7 @@ const struct noir_conf_s noir_defaults = {
 	.b = 32.,
 	.pattern_for_each_coil = false,
 	.sms = false,
+	.sos = false,
 	.cnstcoil_flags = 0u,
 	.img_space_coils = false,
 };
@@ -91,12 +92,14 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	mconf.ptrn_flags = ~(MAPS_FLAG|COIL_FLAG);
 	mconf.cnstcoil_flags = conf->cnstcoil_flags;
 
-	if (conf->sms)
+	if (conf->sms || conf->sos)
 		mconf.fft_flags |= SLICE_FLAG;
 
 	if (conf->pattern_for_each_coil)
 		mconf.ptrn_flags |= COIL_FLAG;
 
+	if (conf->sos)
+		mconf.sos = true;
 
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];

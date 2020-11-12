@@ -49,6 +49,7 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 	.enlive_flags = 0u,
 	.rvc = false,
 	.noncart = false,
+	.sos = false,
 	.a = 220.,
 	.b = 32.,
 };
