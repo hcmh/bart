@@ -98,6 +98,7 @@ int main_nlinv(int argc, char* argv[])
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPTL_SET('n', "noncart", &conf.noncart, "(non-Cartesian)"),
+  		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
 		OPT_FLOAT('w', &scaling, "val", "inverse scaling of the data"),
 	};
 
@@ -113,12 +114,22 @@ int main_nlinv(int argc, char* argv[])
 	complex float* kspace = load_cfl(argv[1], DIMS, ksp_dims);
 
 	// FIXME: SMS should not be the default
+	// FIXME: SMS option letter (-s) in rtnlinv is already in use in nlinv
 
-	if (1 != ksp_dims[SLICE_DIM]) {
+	// SMS
+	if (1 != ksp_dims[SLICE_DIM] && !conf.sos) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
-		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output
+		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output (consistency with SMS implementation on scanner)
 		conf.sms = true;
+	}
+
+	// SoS
+	if (conf.sos) {
+
+		debug_printf(DP_INFO, "SoS-NLINV reconstruction. Number of partitions: %d\n", ksp_dims[SLICE_DIM]);
+		assert(1 < ksp_dims[SLICE_DIM]);
+		// fftmod not necessary for SoS 
 	}
 
 	// The only multimap we understand with is the one we do ourselves, where
@@ -207,7 +218,7 @@ int main_nlinv(int argc, char* argv[])
 		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
 
 		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
-		fftmod(DIMS, sens_dims, FFT_FLAGS | (conf.sms ? SLICE_FLAG : 0u), ksens, init + skip);
+		fftmod(DIMS, sens_dims, FFT_FLAGS | ((conf.sms || conf.sos) ? SLICE_FLAG : 0u), ksens, init + skip);
 
 		unmap_cfl(DIMS, init_dims, init);
 
@@ -311,7 +322,7 @@ int main_nlinv(int argc, char* argv[])
 #else
 		scaling = 100. / md_znorm(DIMS, kgrid_dims, kgrid);
 
-		if (conf.sms)
+		if (conf.sms || conf.sos)
 			scaling *= sqrt(kgrid_dims[SLICE_DIM]);
 #endif
 	}
