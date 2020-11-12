@@ -333,11 +333,11 @@ void klaplace_scaled(unsigned int N, const long dims[N], unsigned int flags, con
 }
 
 
-void klaplace(unsigned int N, const long dims[N], unsigned int flags, complex float* out)
+void klaplace(unsigned int N, const long dims[N], const long dims_sc[N], unsigned int flags, complex float* out)
 {
 	float sc[N];
 	for (unsigned int j = 0; j < N; j++)
-		sc[j] = 1. / (float)dims[j];
+		sc[j] = 1. / (float)dims_sc[j];
 
 	klaplace_scaled(N, dims, flags, sc, out);
 }

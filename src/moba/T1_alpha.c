@@ -69,7 +69,7 @@ static void moba_calc_weights(const long dims[3], complex float* dst)
 			flags = MD_SET(flags, i);
 
 
-	klaplace(3, dims, flags, dst);
+	klaplace(3, dims, dims, flags, dst);
 	md_zsmul(3, dims, dst, dst, 440.);
 	md_zsadd(3, dims, dst, dst, 1.);
 	md_zspow(3, dims, dst, dst, -10.);

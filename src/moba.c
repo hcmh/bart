@@ -286,7 +286,7 @@ int main_moba(int argc, char* argv[])
 		filter = anon_cfl("", DIMS, map_dims);
 		float lambda = 2e-3;
 
-		klaplace(DIMS, map_dims, READ_FLAG|PHS1_FLAG, filter);
+		klaplace(DIMS, map_dims, map_dims, READ_FLAG|PHS1_FLAG, filter);
 		md_zreal(DIMS, map_dims, filter, filter);
 		md_zsqrt(DIMS, map_dims, filter, filter);
 

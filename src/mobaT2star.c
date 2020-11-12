@@ -105,7 +105,7 @@ static void edge_weight(const long dims[3], complex float* dst)
 	float beta = 100.;
 
 	// FIXME: when dims[0] != dims[1]
-	klaplace(3, dims, flags, dst);
+	klaplace(3, dims, dims, flags, dst);
 	md_zspow(3, dims, dst, dst, 0.5);
 
 	md_zsmul(3, dims, dst, dst, -beta*2);

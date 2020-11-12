@@ -207,7 +207,7 @@ static void meco_calc_weights(const nlop_data_t* _data, const int N, const long 
 
 			debug_printf(DP_DEBUG2, " sobolev weight on fB0\n");
 
-			klaplace(N, dims, flags, data->weights);
+			klaplace(N, dims, dims, flags, data->weights);
 			md_zsmul(N, dims, data->weights, data->weights, 222.);
 			md_zsadd(N, dims, data->weights, data->weights, 1.);
 			md_zspow(N, dims, data->weights, data->weights, -16.);
