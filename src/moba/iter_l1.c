@@ -93,13 +93,15 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 	long coils = data->dims[COIL_DIM];
 	long slices = data->dims[SLICE_DIM];
 	long mphases = data->dims[TIME2_DIM];
+	long time = data->dims[TIME_DIM];
+ 
+        if (1 == data->conf->opt_reg) {
+ 
+                md_axpy(1, MD_DIMS(data->size_x * coils / (coils + parameters)),
+						dst + res * res * 2 * parameters * slices * time * mphases,
+                                                data->alpha,
+						src + res * res * 2 * parameters * slices * time * mphases);
 
-	if (1 == data->conf->opt_reg) {
-
-		md_axpy(1, MD_DIMS(data->size_x * coils / (coils + parameters)),
-	                                        dst + res * res * 2 * parameters * slices * mphases,
-						data->alpha,
-	                                        src + res * res * 2 * parameters * slices * mphases);
 	} else {
 
 		md_axpy(1, MD_DIMS(data->size_x), dst, data->alpha, src);
