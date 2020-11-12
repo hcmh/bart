@@ -151,7 +151,7 @@ int main_moba(int argc, char* argv[])
 	}
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|COEFF_FLAG|SLICE_FLAG|TIME2_FLAG, img_dims, grid_dims);
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|COEFF_FLAG|SLICE_FLAG|TIME_FLAG|TIME2_FLAG, img_dims, grid_dims);
 
 	img_dims[COEFF_DIM] = (conf.IR_SS || (MDB_T2 == mode)) ? 2 : 3;
 
@@ -159,13 +159,13 @@ int main_moba(int argc, char* argv[])
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
 	long single_map_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, single_map_dims, grid_dims);
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|SLICE_FLAG|TIME_FLAG|TIME2_FLAG, single_map_dims, grid_dims);
 
 	long single_map_strs[DIMS];
 	md_calc_strides(DIMS, single_map_strs, single_map_dims, CFL_SIZE);
 
 	long coil_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, coil_dims, grid_dims);
+	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME_FLAG|TIME2_FLAG, coil_dims, grid_dims);
 
 	long coil_strs[DIMS];
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
@@ -242,7 +242,7 @@ int main_moba(int argc, char* argv[])
 
 		// Gridding sampling pattern
 		
-		md_select_dims(DIMS, FFT_FLAGS|TE_FLAG|SLICE_FLAG|TIME2_FLAG, pat_dims, grid_dims);
+		md_select_dims(DIMS, FFT_FLAGS|TE_FLAG|SLICE_FLAG|TIME_FLAG|TIME2_FLAG, pat_dims, grid_dims);
 		pattern = anon_cfl("", DIMS, pat_dims);
 
 		nufft_op_p = nufft_create(DIMS, ones_dims, pat_dims, traj_dims, traj, NULL, nufft_conf);
