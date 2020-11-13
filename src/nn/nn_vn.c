@@ -1,10 +1,17 @@
 #include <assert.h>
 
+#include "iter/italgos.h"
 #include "misc/misc.h"
 #include "misc/mmio.h"
 #include "misc/debug.h"
 
 #include "misc/mri.h"
+#include "nn/nn_ops.h"
+#include "nn/initializer.h"
+#include "nn/nn.h"
+#include "nn/nn_const.h"
+#include "nn/nn_weights.h"
+#include "nn/nn_chain.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
@@ -83,14 +90,14 @@ const struct vn_s vn_default = {
 	.Imax = 1.,
 	.Imin = -1.,
 
-	.conv_w = NULL,
-	.rbf_w = NULL,
-	.lambda_w = NULL,
+	.weights = NULL,
 
 	.lambda_init = .2,
 	.init_scale_mu = 0.04,
 
 	.share_pattern = true,
+
+	.normalize = false,
 };
 
 
@@ -108,7 +115,7 @@ const struct vn_s vn_default = {
  *
  * Ru:	 	udims:	(Ux, Uy, Uz, 1, Nb)
  */
-static const struct nlop_s* nlop_ru_create(struct vn_s* vn, const long udims[5])
+static nn_t nn_ru_create(const struct vn_s* vn, const long udims[5])
 {
 	//Padding
 	long pad_up[5] = {0, (vn->Kx - 1), (vn->Ky - 1), (vn->Kz - 1), 0};
@@ -129,36 +136,47 @@ static const struct nlop_s* nlop_ru_create(struct vn_s* vn, const long udims[5])
 	long kerdims[5] = {vn->Nf, vn->Kx, vn->Ky, vn->Kz, 1};
 	long wdims[3] = {vn->Nf, vn->Nw, 1};
 
-	const struct nlop_s* result = nlop_from_linop_F(linop_reshape_create(5, udimsw, 5, udims)); // in: u
-	//result = nlop_chain2_FF(result, 0, padu, 0); // in: u
-	result = append_padding_layer(result, 0, 5, pad_up, pad_up, PAD_SYMMETRIC);
-	result = append_convcorr_layer(result, 0, vn->Nf, ker_size, false, PAD_SAME, true, NULL, NULL); // in: u, conv_w
+	const struct nlop_s* nlop_result = nlop_from_linop_F(linop_reshape_create(5, udimsw, 5, udims)); // in: u
+	//nlop_result = nlop_chain2_FF(nlop_result, 0, padu, 0); // in: u
+	nlop_result = append_padding_layer(nlop_result, 0, 5, pad_up, pad_up, PAD_SYMMETRIC);
+	nlop_result = append_convcorr_layer(nlop_result, 0, vn->Nf, ker_size, false, PAD_SAME, true, NULL, NULL); // in: u, conv_w
 
 	const struct nlop_s* rbf = nlop_activation_rbf_create(rbfdims, vn->Imax, vn->Imin);
 	rbf = nlop_reshape_in_F(rbf, 0, 5, zdimsw);
 	rbf = nlop_reshape_out_F(rbf, 0, 5, zdimsw);
-	result = nlop_chain2_FF(result, 0, rbf, 0); //in: rbf_w, in, conv_w
+	nlop_result = nlop_chain2_FF(nlop_result, 0, rbf, 0); //in: rbf_w, in, conv_w
 
-	result = append_transposed_convcorr_layer(result, 0, 1, ker_size, false, true, PAD_SAME, true, NULL, NULL); //in: rbf_w, u, conv_w, conv_w
-	//result = nlop_chain2_FF(result, 0, padd, 0); //in: rbf_w, u, conv_w, conv_w
-	result = append_padding_layer(result, 0, 5, pad_down, pad_down, PAD_VALID);
-	result = nlop_dup_F(result, 2, 3); //in: rbf_w, u, conv_w
+	nlop_result = append_transposed_convcorr_layer(nlop_result, 0, 1, ker_size, false, true, PAD_SAME, true, NULL, NULL); //in: rbf_w, u, conv_w, conv_w
+	//nlop_result = nlop_chain2_FF(nlop_result, 0, padd, 0); //in: rbf_w, u, conv_w, conv_w
+	nlop_result = append_padding_layer(nlop_result, 0, 5, pad_down, pad_down, PAD_VALID);
+	nlop_result = nlop_dup_F(nlop_result, 2, 3); //in: rbf_w, u, conv_w
 
-	result = nlop_reshape_out_F(result, 0, 5, udims); //in: rbf_w, u, conv_w
-	result = nlop_reshape_in_F(result, 2, 5, kerdims); //in: rbf_w, u, conv_w
-	result = nlop_reshape_in_F(result, 0, 3, wdims); //in: rbf_w, u, conv_w
+	nlop_result = nlop_reshape_out_F(nlop_result, 0, 5, udims); //in: rbf_w, u, conv_w
+	nlop_result = nlop_reshape_in_F(nlop_result, 2, 5, kerdims); //in: rbf_w, u, conv_w
+	nlop_result = nlop_reshape_in_F(nlop_result, 0, 3, wdims); //in: rbf_w, u, conv_w
 
 	//VN implementation: u_k = (real(up) * real(k) + imag(up) * imag(k))
-	result = nlop_chain2_FF(nlop_from_linop_F(linop_zconj_create(5, kerdims)), 0, result, 2); //in: rbf_w, u, conv_w
-	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_scale_create(5, udims, 1. / vn->Nf)), 0); //in: rbf_w, u, conv_w
+	nlop_result = nlop_chain2_FF(nlop_from_linop_F(linop_zconj_create(5, kerdims)), 0, nlop_result, 2); //in: rbf_w, u, conv_w
+	nlop_result = nlop_chain2_FF(nlop_result, 0, nlop_from_linop_F(linop_scale_create(5, udims, 1. / vn->Nf)), 0); //in: rbf_w, u, conv_w
 
 	int perm [] = {1, 2, 0};
-	result = nlop_permute_inputs_F(result, 3, perm); //in: u, conv_w, rbf_w
+	nlop_result = nlop_permute_inputs_F(nlop_result, 3, perm); //in: u, conv_w, rbf_w
 
-	debug_printf(DP_DEBUG3, "RU created: ");
-	nlop_debug(DP_DEBUG3, result);
+	auto nn_result = nn_from_nlop_F(nlop_result);
+	nn_result = nn_set_input_name_F(nn_result, 0, "u");
+	nn_result = nn_set_input_name_F(nn_result, 0, "conv_w");
+	nn_result = nn_set_input_name_F(nn_result, 0, "rbf_w");
 
-	return  result;
+	nn_result = nn_set_initializer_F(nn_result, 0, "conv_w", init_std_normal_create(false, 1. / sqrtf((float)vn->Kx * vn->Ky * vn->Kz), 0));
+	nn_result = nn_set_initializer_F(nn_result, 0, "rbf_w", init_linspace_create(1., vn->Imin * vn->init_scale_mu, vn->Imax * vn->init_scale_mu, true));
+	nn_result = nn_set_in_type_F(nn_result, 0, "conv_w", IN_OPTIMIZE);
+	nn_result = nn_set_in_type_F(nn_result, 0, "rbf_w", IN_OPTIMIZE);
+
+	nn_result = nn_set_output_name_F(nn_result, 0, "Ru");
+
+	nn_debug(DP_DEBUG3, nn_result);
+
+	return nn_result;
 }
 
 /**
@@ -173,30 +191,42 @@ static const struct nlop_s* nlop_ru_create(struct vn_s* vn, const long udims[5])
  * kspace:	kdims: 	(Nx, Ny, Nz, Nc, Nb)
  * coil:	kdims:	(Nx, Ny, Nz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 / Nb)
- * lambda:	dims:	(1)
+ * lambda_w:	dims:	(1)
  *
  * Output tensors:
  * Du:		udims: 	(Ux, Uy, Uz, 1,  Nb)
  */
-static const struct nlop_s* nlop_du_create(struct vn_s* vn, const long dims[5], const long udims[5])
+static nn_t nn_du_create(const struct vn_s* vn, const long dims[5], const long udims[5])
 {
-	const struct nlop_s* result = nlop_mri_gradient_step_create(5, dims, vn->share_pattern);
+	const struct nlop_s* nlop_result = nlop_mri_gradient_step_create(5, dims, vn->share_pattern);
 
 	long udimsw[5];
 	md_select_dims(5, ~COIL_FLAG, udimsw, dims);
 
 	if (!md_check_equal_dims(5, udims, udimsw, ~0)) {
 
-		result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udimsw)), 0);
-		result = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udimsw, udims)), 0, result, 0);
+		nlop_result = nlop_chain2_FF(nlop_result, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udimsw)), 0);
+		nlop_result = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udimsw, udims)), 0, nlop_result, 0);
 	}
-	result = nlop_chain2_swap_FF(result, 0, nlop_tenmul_create(5, udims, udims, MD_SINGLETON_DIMS(5)), 0);
-	result = nlop_reshape_in_F(result, 4, 1, MD_SINGLETON_DIMS(1));
+	nlop_result = nlop_chain2_swap_FF(nlop_result, 0, nlop_tenmul_create(5, udims, udims, MD_SINGLETON_DIMS(5)), 0);
+	nlop_result = nlop_reshape_in_F(nlop_result, 4, 1, MD_SINGLETON_DIMS(1));
 
-	debug_printf(DP_DEBUG3, "DU created: ");
-	nlop_debug(DP_DEBUG3, result);
+	auto nn_result = nn_from_nlop_F(nlop_result);
 
-	return result;
+	nn_result = nn_set_input_name_F(nn_result, 0, "u");
+	nn_result = nn_set_input_name_F(nn_result, 0, "kspace");
+	nn_result = nn_set_input_name_F(nn_result, 0, "coil");
+	nn_result = nn_set_input_name_F(nn_result, 0, "pattern");
+	nn_result = nn_set_input_name_F(nn_result, 0, "lambda_w");
+
+	nn_result = nn_set_initializer_F(nn_result, 0, "lambda_w", init_const_create(vn->lambda_init));
+	nn_result = nn_set_in_type_F(nn_result, 0, "lambda_w", IN_OPTIMIZE);
+
+	nn_result = nn_set_output_name_F(nn_result, 0, "Du");
+
+	nn_debug(DP_DEBUG3, nn_result);
+
+	return nn_result;
 }
 
 
@@ -205,6 +235,7 @@ static const struct nlop_s* nlop_du_create(struct vn_s* vn, const long dims[5], 
  *
  * @param vn structure describing the variational network
  * @param dims (Nx, Ny, Nz, Nc, Nb)
+ * @param udims (Ux, Uy, Uz, 1, Nb)
  *
  * Input tensors:
  * u(t):	udims:	(Ux, Uy, Uz, 1,  Nb)
@@ -218,36 +249,91 @@ static const struct nlop_s* nlop_du_create(struct vn_s* vn, const long dims[5], 
  * Output tensors:
  * u(t+1):	udims:	(Ux, Uy, Uz, 1, Nb)
  */
-static const struct nlop_s* get_vn_cell(struct vn_s* vn, const long dims[5], const long udims[5])
+static nn_t nn_vn_cell_create(const struct vn_s* vn, const long dims[5], const long udims[5])
 {
-	const struct nlop_s* ru = nlop_ru_create(vn, udims); //in: u(t), conv_w, rbf_w
-	const struct nlop_s* du = nlop_du_create(vn, dims, udims); //in: u(t), kspace, coil, pattern, lambda
-	du = nlop_reshape_in_F(du, 4, 2, MD_SINGLETON_DIMS(2)); // in: u(t), kspace, coil, pattern, lambda
+	auto ru = nn_ru_create(vn, udims); //in: u(t), conv_w, rbf_w
+	auto du = nn_du_create(vn, dims, udims); //in: u(t), kspace, coil, pattern, lambda
+	du = nn_append_singleton_dim_in_F(du, 0, "lambda_w");
+	ru = nn_mark_dup_F(ru, "u");
 
-	const struct nlop_s* result = nlop_combine_FF(du, ru); // in: u(t), kspace, coil, pattern, lambda, u(t), conv_w, rbf_w; out: du, ru
-	result = nlop_dup_F(result, 0, 5); // in: u(t), lambda, kspace, coil, pattern, conv_w, rbf_w; out: du, ru
+	auto result = nn_combine_FF(du, ru); // in: u(t), kspace, coil, pattern, lambda, u(t), conv_w, rbf_w; out: du, ru
+	result = nn_stack_dup_by_name_F(result); // in: u(t), lambda, kspace, coil, pattern, conv_w, rbf_w; out: du, ru
 
-	result = nlop_combine_FF(nlop_zaxpbz_create(5, udims, 1., 1.), result); // in: du, ru, u(t), kspace, coil, pattern, lambda, conv_w, rbf_w; out: du+ru, du, ru
-	result = nlop_link_F(result, 1, 0);
-	result = nlop_link_F(result, 1, 0); // in: u(t), lambda, kspace, coil, pattern, conv_w, rbf_w; out: du+ru
+	result = nn_combine_FF(nn_from_nlop_F(nlop_zaxpbz_create(5, udims, 1., 1.)), result); // in: du, ru, u(t), kspace, coil, pattern, lambda, conv_w, rbf_w; out: du+ru, du, ru
+	result = nn_link_F(result, 0, "Du", 0, NULL);
+	result = nn_link_F(result, 0, "Ru", 0, NULL);// in: u(t), lambda, kspace, coil, pattern, conv_w, rbf_w; out: du+ru
 
-	result = nlop_combine_FF(nlop_zaxpbz_create(5, udims, 1., -1.), result); // in: u(t), (du+ru), u(t), kspace, coil, pattern, lambda, conv_w, rbf_w; out: u(t+1)=u(t)-(du+ru), du+ru
-	result = nlop_dup_F(result , 0, 2); // in: u(t), (du+ru), lambda, kspace, coil, pattern, conv_w, rbf_w; out: u(t+1), (du+ru)
-	result = nlop_link_F(result, 1, 1); // in: u(t), kspace, coil, pattern, lambda, conv_w, rbf_w; out: u(t+1)
+	auto residual = nn_from_nlop_F(nlop_zaxpbz_create(5, udims, 1., -1.));
+	residual = nn_set_input_name_F(residual, 0, "u");
 
-	result = nlop_permute_inputs_F(result, 7, MAKE_ARRAY(0, 1, 2, 3, 5, 6, 4)); // in: u(t), kspace, coil, pattern, conv_w, rbf_w, lambda; out: u(t+1)
+	result = nn_mark_dup_F(result, "u");
 
-	debug_printf(DP_DEBUG3, "VN CELL created: ");
-	nlop_debug(DP_DEBUG3, result);
+	result = nn_combine_FF(residual, result); // in: u(t), (du+ru), u(t), kspace, coil, pattern, lambda, conv_w, rbf_w; out: u(t+1)=u(t)-(du+ru), du+ru
+	result = nn_stack_dup_by_name_F(result); // in: u(t), (du+ru), lambda, kspace, coil, pattern, conv_w, rbf_w; out: u(t+1), (du+ru)
+	result = nn_link_F(result, 1, NULL, 0, NULL); // in: u(t), kspace, coil, pattern, lambda, conv_w, rbf_w; out: u(t+1)
+
+	result = nn_sort_inputs_by_list_F(result, 7,
+		(const char*[7]) {
+			"u",
+			"kspace",
+			"coil",
+			"pattern",
+			"conv_w",
+			"rbf_w",
+			"lambda_w"
+			}
+		); // in: u(t), kspace, coil, pattern, conv_w, rbf_w, lambda; out: u(t+1)
+
+	nn_debug(DP_DEBUG3, result);
 
 	return result;
 }
 
 /**
- * Returns variational network
+ * Returns operator computing [normalized] zerofilled reconstruction
+ * [and normalization scale]
  *
  * @param vn structure describing the variational network
  * @param dims (Nx, Ny, Nz, Nc, Nb)
+ * @param udims (Ux, Uy, Uz, 1, Nb)
+ *
+ * Input tensors:
+ * kspace:	kdims:	(Nx, Ny, Nz, Nc, Nb)
+ * coils:	kdims:	(Nx, Ny, Nz, Nc, Nb)
+ * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 / Nb)
+ *
+ * Output tensors:
+ * u(0):	udims:	(Ux, Uy, Uz, 1,  Nb)
+ * [normalize_scale: 	(1,  1,  1,  1,  Nb)]
+ */
+static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const long udims[5])
+{
+	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
+	auto nlop_zf = nlop_mri_adjoint_create(5, dims, vn->share_pattern);
+	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+	auto nn_zf = nn_from_nlop_F(nlop_zf);
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "coil");
+	nn_zf = nn_set_input_name_F(nn_zf, 0, "pattern");
+
+	if (vn->normalize) {
+
+		auto nn_normalize = nn_from_nlop_F(nlop_norm_zmax_create(5, udims, MD_BIT(4), true));
+		nn_normalize = nn_set_output_name_F(nn_normalize, 1, "normalize_scale");
+		nn_zf = nn_chain2_FF(nn_zf, 0, NULL, nn_normalize, 0, NULL);
+	}
+
+	nn_zf = nn_set_output_name_F(nn_zf, 0, "zero_filled");
+
+	return nn_zf;
+}
+
+/**
+ * Returns operator representing the variational network
+ *
+ * @param vn structure describing the variational network
+ * @param dims (Nx, Ny, Nz, Nc, Nb)
+ * @param udims (Ux, Uy, Uz, 1, Nb)
  *
  * Input tensors:
  * kspace:	kdims:	(Nx, Ny, Nz, Nc, Nb)
@@ -256,49 +342,121 @@ static const struct nlop_s* get_vn_cell(struct vn_s* vn, const long dims[5], con
  * conv_w[0:1]:	kerdims:(Nf, Kx, Ky, Kz, Nl)
  * rbf_w[0:1]:	wdims:	(Nf, Nw , Nl)
  * l[0:1]:	ldims:	(1,  Nl)
-
  *
  * Output tensors:
- * u(l):	udims:	(Ux, Uy, Uz, 1,  Ub)
+ * u(l):	udims:	(Ux, Uy, Uz, 1,  Nb)
+ * [normalize_scale: 	(1,  1,  1,  1,  Nb)]
  */
-static const struct nlop_s* get_variational_network(struct vn_s* vn, const long dims[5], const long udims[5])
+static nn_t nn_vn_create(const struct vn_s* vn, const long dims[5], const long udims[5])
 {
-	const struct nlop_s* result = get_vn_cell(vn, dims, udims);
+	auto result = nn_vn_cell_create(vn, dims, udims);
 
 	for (int l = 1; l < vn->Nl; l++) {
 
-		const struct nlop_s* tmp = get_vn_cell(vn, dims, udims);
+		auto tmp = nn_vn_cell_create(vn, dims, udims);
+		tmp = nn_mark_dup_F(tmp, "kspace");
+		tmp = nn_mark_dup_F(tmp, "coil");
+		tmp = nn_mark_dup_F(tmp, "pattern");
+		tmp = nn_mark_stack_input_F(tmp, "conv_w");
+		tmp = nn_mark_stack_input_F(tmp, "rbf_w");
+		tmp = nn_mark_stack_input_F(tmp, "lambda_w");
+		tmp = nn_rename_input_F(tmp, "u_tmp", "u");
 
-		result = nlop_chain2_FF(result, 0, tmp, 0); //in: kspace, coil, pattern, conv_w[l], rbf_w[l], lambda[l], u(0), kspace, coil, pattern, conv_w[0:l-1], rbf_w[0:l-1], lambda[0:l-1]
+		result = nn_chain2_FF(result, 0, NULL, tmp, 0, "u_tmp"); //in: kspace, coil, pattern, conv_w[l], rbf_w[l], lambda[l], u(0), kspace, coil, pattern, conv_w[0:l-1], rbf_w[0:l-1], lambda[0:l-1]
+		result = nn_stack_dup_by_name_F(result);
 
-		result = nlop_dup_F(result, 0, 7);
-		result = nlop_dup_F(result, 1, 7);
-		result = nlop_dup_F(result, 2, 7); //in: kspace, coil, pattern, conv_w[l], rbf_w[l], lambda[l], u(0), conv_w[0:l-1], rbf_w[0:l-1], lambda[0:l-1]
-
-		result = nlop_destack_F(result, 7, 3, 4);
-		result = nlop_destack_F(result, 7, 4, 2);
-		result = nlop_destack_F(result, 7, 5, 1); //in: kspace, coil, pattern, conv_w[0:l], rbf_w[0:l], lambda[0:l], u(0)
-
-		result = nlop_permute_inputs_F(result, 7, MAKE_ARRAY(6, 0, 1, 2, 3, 4, 5));
+		result = nn_sort_inputs_by_list_F(result, 7,
+		(const char*[7]) {
+			"u",
+			"kspace",
+			"coil",
+			"pattern",
+			"conv_w",
+			"rbf_w",
+			"lambda_w"
+			}
+		);
 	}
 
-	auto adjoint_op = nlop_mri_adjoint_create(5, dims, vn->share_pattern);
+	auto nn_zf = nn_vn_zf_create(vn, dims, udims);
+	nn_zf = nn_mark_dup_F(nn_zf, "kspace");
+	nn_zf = nn_mark_dup_F(nn_zf, "coil");
+	nn_zf = nn_mark_dup_F(nn_zf, "pattern");
 
-	long udimsw[5];
-	md_select_dims(5, ~COIL_FLAG, udimsw, dims);
-	if (!md_check_equal_dims(5, udimsw, udims, ~0))
-		adjoint_op = nlop_chain2_FF(adjoint_op, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udimsw)), 0);
+	if (vn->normalize) {
 
-	result = nlop_chain2_FF(adjoint_op, 0, result, 0); //in: kspace, coil, pattern, conv_w[0:l], rbf_w[0:l], lambda[0:l], kspace, coil, pattern
+		long sdims[5];
+		md_select_dims(5, MD_BIT(4), sdims, dims);
 
-	result = nlop_dup_F(result, 0, 6);
-	result = nlop_dup_F(result, 1, 6);
-	result = nlop_dup_F(result, 2, 6); //in: kspace, coil, pattern, conv_w[0:l], rbf_w[0:l], lambda[0:l]
+		const struct nlop_s* scale = nlop_tenmul_create(5, dims, dims, sdims);
+		scale = nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, scale, 1);
+		scale = nlop_combine_FF(scale, nlop_from_linop_F(linop_identity_create(5, sdims)));
+		scale = nlop_dup_F(scale, 1, 2);
 
-	debug_printf(DP_DEBUG1, "VN created: ");
-	nlop_debug(DP_DEBUG1, result);
+		auto nn_scale = nn_from_nlop_F(scale);
+		nn_scale = nn_set_input_name_F(nn_scale, 0, "kspace");
+		nn_scale = nn_set_input_name_F(nn_scale, 0, "normalize_scale");
+		nn_scale = nn_set_output_name_F(nn_scale, 1, "normalize_scale");
+
+		result = nn_rename_input_F(result, "kspace_normalized", "kspace");
+		nn_zf = nn_rename_output_F(nn_zf, "normalize_scale_tmp", "normalize_scale");
+
+		result = nn_chain2_FF(nn_scale, 0, NULL, result, 0, "kspace_normalized");
+		result = nn_chain2_FF(nn_zf, 0, "normalize_scale_tmp", result, 0, "normalize_scale");
+	} else {
+
+		result = nn_combine_FF(result, nn_zf);
+	}
+
+	result = nn_link_F(result, 0, "zero_filled", 0, "u");
+	result = nn_stack_dup_by_name_F(result);
+
+	result = nn_sort_inputs_by_list_F(result, 6,
+		(const char*[6]) {
+			"kspace",
+			"coil",
+			"pattern",
+			"conv_w",
+			"rbf_w",
+			"lambda_w"
+			}
+		);
+
+	nn_debug(DP_DEBUG1, result);
 
 	return result;
+}
+
+/**
+ * Returns which applies the variational network
+ *
+ * @param vn structure describing the variational network
+ * @param dims (Nx, Ny, Nz, Nc, Nb)
+ * @param udims (Ux, Uy, Uz, 1, Nb)
+ *
+ * Input tensors:
+ * kspace:	kdims:	(Nx, Ny, Nz, Nc, Nb)
+ * coils:	kdims:	(Nx, Ny, Nz, Nc, Nb)
+ * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 / Nb)
+ *
+ * Output tensors:
+ * u(l):	udims:	(Ux, Uy, Uz, 1,  Nb)
+ */
+static const struct nlop_s* nlop_vn_apply_create(struct vn_s* vn, const long dims[5], const long udims[5])
+{
+	auto nn_apply = nn_vn_create(vn, dims, udims);
+
+	if (vn->normalize) {
+
+		long sdims[5];
+		md_select_dims(5, MD_BIT(4), sdims, dims);
+		auto nn_norm_ref = nn_from_nlop(nlop_tenmul_create(5, udims, udims, sdims));
+
+		nn_apply = nn_chain2_FF(nn_apply, 0, NULL, nn_norm_ref, 0, NULL);
+		nn_apply = nn_link_F(nn_apply, 0, "normalize_scale", 0, NULL);
+	}
+
+	return nn_get_nlop_wo_weights_F(nn_apply, vn->weights, false);
 }
 
 
@@ -313,52 +471,29 @@ static const struct nlop_s* get_variational_network(struct vn_s* vn, const long 
  * @param kspace pointer to kspace data
  * @param coils pointer to coil data
  * @param pdims (Nx, Ny, Nz, 1, 1 / Nb) - dims of pattern
- * @param coils pointer to pattern data
+ * @param pattern pointer to pattern data
  */
-void apply_variational_network( struct vn_s* vn,
- 				const long udims[5], complex float* out,
-				const long kdims[5], const complex float* kspace, const complex float* coil, const long pdims[5], const complex float* pattern,
-				bool normalize)
+void apply_vn(	struct vn_s* vn,
+		const long udims[5], complex float* out,
+		const long kdims[5], const complex float* kspace, const complex float* coil,
+		const long pdims[5], const complex float* pattern)
 {
 
 	vn->share_pattern = (1 == pdims[4]);
 
-	auto network = get_variational_network(vn, kdims, udims);
+	auto network = nlop_vn_apply_create(vn, kdims, udims);
 
-	complex float* out_tmp = md_alloc_sameplace(5, udims, CFL_SIZE, vn->conv_w);
-	complex float* kspace_tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, vn->conv_w);
-	complex float* coil_tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, vn->conv_w);
-	complex float* pattern_tmp = md_alloc_sameplace(5, pdims, CFL_SIZE, vn->conv_w);
-
-	complex float* scaling = NULL;
+	complex float* out_tmp = md_alloc_sameplace(5, udims, CFL_SIZE, vn->weights->tensors[0]);
+	complex float* kspace_tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, vn->weights->tensors[0]);
+	complex float* coil_tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, vn->weights->tensors[0]);
+	complex float* pattern_tmp = md_alloc_sameplace(5, pdims, CFL_SIZE, vn->weights->tensors[0]);
 
 	md_copy(5, kdims, kspace_tmp, kspace, CFL_SIZE);
 	md_copy(5, kdims, coil_tmp, coil, CFL_SIZE);
 	md_copy(5, pdims, pattern_tmp, pattern, CFL_SIZE);
 
-	if (normalize) {
-
-		complex float* scaling_cpu = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
-		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
-		compute_zero_filled(udims, u0, kdims, kspace, coil, pdims, pattern);
-		compute_scale_max_abs(udims, scaling_cpu, u0);
-		md_free(u0);
-
-		scaling = md_alloc_sameplace(1, MAKE_ARRAY(kdims[4]), CFL_SIZE, vn->conv_w);
-		md_copy(1, MAKE_ARRAY(kdims[4]), scaling, scaling_cpu, CFL_SIZE);
-		md_free(scaling_cpu);
-
-		normalize_by_scale(kdims, scaling, kspace_tmp, kspace_tmp);
-	}
-
-	void* refs[] = {(void*)out_tmp, (void*)kspace_tmp, (void*)coil_tmp, (void*)pattern_tmp, (void*)vn->conv_w, (void*)vn->rbf_w, (void*)vn->lambda_w};
-	nlop_generic_apply_select_derivative_unchecked(network, 7, refs, 0, 0);
-
-	if (normalize) {
-
-		renormalize_by_scale(udims, scaling, out_tmp, out_tmp);
-		md_free(scaling);
-	}
+	void* refs[] = {(void*)out_tmp, (void*)kspace_tmp, (void*)coil_tmp, (void*)pattern_tmp};
+	nlop_generic_apply_select_derivative_unchecked(network, 4, refs, 0, 0);
 
 	md_copy(5, udims, out, out_tmp, CFL_SIZE);
 
@@ -374,20 +509,20 @@ void apply_variational_network( struct vn_s* vn,
  * Creates Variational Network and applies it batchwise
  *
  * @param vn structure describing the variational network
- * @param udims (Ux, Uy, Uz, 1, Nb) - image dims
+ * @param udims (Ux, Uy, Uz, 1, Nt) - image dims
  * @param out pointer to output array
- * @param kdims (Nx, Ny, Nz, Nc, Nb) - dims of kspace and coils
+ * @param kdims (Nx, Ny, Nz, Nc, Nt) - dims of kspace and coils
  * @param kspace pointer to kspace data
  * @param coils pointer to coil data
- * @param pdims (Nx, Ny, Nz, 1, 1 / Nb) - dims of pattern
- * @param coils pointer to pattern data
- * @param Nb batch size for applying vn
+ * @param pdims (Nx, Ny, Nz, 1, 1 / Nt) - dims of pattern
+ * @param pattern pointer to pattern data
+ * @param Nb batch size
  */
-void apply_variational_network_batchwise(	struct vn_s* vn,
-						const long udims[5], complex float * out,
-						const long kdims[5], const complex float* kspace, const complex float* coil, const long pdims[5], const complex float* pattern,
-						long Nb,
-						bool normalize)
+void apply_vn_batchwise(	struct vn_s* vn,
+				const long udims[5], complex float * out,
+				const long kdims[5], const complex float* kspace, const complex float* coil,
+				const long pdims[5], const complex float* pattern,
+				long Nb)
 {
 	long Nt = kdims[4];
 	while (0 < Nt) {
@@ -406,7 +541,7 @@ void apply_variational_network_batchwise(	struct vn_s* vn,
 		udims1[4] = Nb_tmp;
 		pdims1[4] = MIN(pdims1[4], Nb_tmp);
 
-		apply_variational_network(vn, udims1, out, kdims1, kspace, coil, pdims1, pattern, normalize);
+		apply_vn(vn, udims1, out, kdims1, kspace, coil, pdims1, pattern);
 
 		out += md_calc_size(5, udims1);
 		kspace += md_calc_size(5, kdims1);
@@ -418,7 +553,74 @@ void apply_variational_network_batchwise(	struct vn_s* vn,
 	}
 }
 
-static const struct nlop_s* create_vn_val_loss(struct vn_s* vn, bool normalize, const char**valid_files)
+/**
+ * Returns operator computing the training loss
+ *
+ * @param vn structure describing the variational network
+ * @param dims (Nx, Ny, Nz, Nc, Nb)
+ * @param udims (Ux, Uy, Uz, 1, Nb)
+ *
+ * Input tensors:
+ * u_ref:	udims:	(Ux, Uy, Uz, 1,  Nb)
+ * kspace:	kdims:	(Nx, Ny, Nz, Nc, Nb)
+ * coils:	kdims:	(Nx, Ny, Nz, Nc, Nb)
+ * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 / Nb)
+ * conv_w[0:1]:	kerdims:(Nf, Kx, Ky, Kz, Nl)
+ * rbf_w[0:1]:	wdims:	(Nf, Nw , Nl)
+ * l[0:1]:	ldims:	(1,  Nl)
+ *
+ * Output tensors:
+ * loss:	dims:	(1)
+ */
+static nn_t vn_train_op_create(const struct vn_s* vn, const long dims[5], const long udims[5])
+{
+	auto nn_train = nn_vn_create(vn, dims, udims);
+
+	//append loss = 1/(2N) sum_i^N || |x_i| - |y_i| ||^2 with |x_i| = sqrt(Re[x_i]^2 + Im[x_i]^2 + epsilon)
+	const struct nlop_s* loss = nlop_mse_create(5, udims, ~0ul);
+	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
+	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
+
+	if(vn->normalize) {
+
+		long sdims[5];
+		md_select_dims(5, MD_BIT(4), sdims, dims);
+
+		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
+
+		nn_train = nn_chain2_FF(nn_train, 0, "normalize_scale", nn_norm_ref, 1, NULL);
+		nn_train = nn_chain2_FF(nn_train, 1, NULL, nn_from_nlop(loss), 1, NULL);
+		nn_train = nn_link_F(nn_train, 1, NULL, 0, NULL);
+		nn_train = nn_set_out_type_F(nn_train, 0, NULL, OUT_OPTIMIZE);
+
+	} else {
+
+		nn_train = nn_chain2_FF(nn_train, 0, NULL, nn_from_nlop(loss), 1, NULL);
+		nn_train = nn_set_out_type_F(nn_train, 0, NULL, OUT_OPTIMIZE);
+	}
+
+	return nn_train;
+}
+
+/**
+ * Returns operator computing the validation loss
+ *
+ * @param vn structure describing the variational network
+ * @param valid_files file names for validation data 
+ *
+ * Input tensors:
+ * u_ref:	udims:	(Ux, Uy, Uz, 1,  Nb) [ignored]
+ * kspace:	kdims:	(Nx, Ny, Nz, Nc, Nb) [ignored]
+ * coils:	kdims:	(Nx, Ny, Nz, Nc, Nb) [ignored]
+ * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 / Nb) [ignored]
+ * conv_w[0:1]:	kerdims:(Nf, Kx, Ky, Kz, Nl)
+ * rbf_w[0:1]:	wdims:	(Nf, Nw , Nl)
+ * l[0:1]:	ldims:	(1,  Nl)
+ *
+ * Output tensors:
+ * valid_loss:	dims:	(1)
+ */
+static nn_t vn_valid_loss_create(struct vn_s* vn, const char**valid_files)
 {
 	long kdims[5];
 	long cdims[5];
@@ -430,36 +632,14 @@ static const struct nlop_s* create_vn_val_loss(struct vn_s* vn, bool normalize, 
 	complex float* val_pattern = load_cfl(valid_files[2], 5, pdims);
 	complex float* val_ref = load_cfl(valid_files[3], 5, udims);
 
-	if (normalize) {
+	vn->share_pattern = pdims[4] == 1;
 
-		complex float* scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
-		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
-		compute_zero_filled(udims, u0, kdims, val_kspace, val_coil, pdims, val_pattern);
-		compute_scale_max_abs(udims, scaling, u0);
-		md_free(u0);
+	auto valid_loss = vn_train_op_create(vn, kdims, udims);
 
-		normalize_by_scale(udims, scaling, val_ref, val_ref);
-		normalize_by_scale(kdims, scaling, val_kspace, val_kspace);
-		md_free(scaling);
-	}
-
-	auto valid_loss = get_variational_network(vn, kdims, udims);
-
-	const struct nlop_s* loss = nlop_mse_create(5, udims, ~0ul);
-	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
-	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
-
-	valid_loss = nlop_chain2_FF(valid_loss, 0, loss, 0);
-
-	valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, udims, true, val_ref);
-	valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, kdims, true, val_kspace);
-	valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, cdims, true, val_coil);
-	valid_loss = nlop_set_input_const_F(valid_loss, 0, 5, pdims, true, val_pattern);
-
-	valid_loss = nlop_combine_FF(nlop_del_out_create(5, pdims), valid_loss);
-	valid_loss = nlop_combine_FF(nlop_del_out_create(5, cdims), valid_loss);
-	valid_loss = nlop_combine_FF(nlop_del_out_create(5, kdims), valid_loss);
-	valid_loss = nlop_combine_FF(nlop_del_out_create(5, udims), valid_loss);
+	valid_loss = nn_ignore_input_F(valid_loss, 0, NULL, 5, udims, true, val_ref);
+	valid_loss = nn_ignore_input_F(valid_loss, 0, "kspace", 5, kdims, true, val_kspace);
+	valid_loss = nn_ignore_input_F(valid_loss, 0, "coil", 5, cdims, true, val_coil);
+	valid_loss = nn_ignore_input_F(valid_loss, 0, "pattern", 5, pdims, true, val_pattern);
 
 	unmap_cfl(5, udims, val_ref);
 	unmap_cfl(5, kdims, val_kspace);
@@ -484,27 +664,14 @@ static const struct nlop_s* create_vn_val_loss(struct vn_s* vn, bool normalize, 
  * @param pdims (Nx, Ny, Nz, 1, 1 / Nb) - dims of pattern
  * @param coils pointer to pattern data
  * @param Nb batch size for training
- * @param random_order draw random datasets to composite batch
+ * @param valid_files file names for validation data 
  */
-void train_nn_varnet(	struct vn_s* vn, struct iter6_conf_s* train_conf,
+void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 			const long udims[5], _Complex float* ref,
 			const long kdims[5], _Complex float* kspace, const _Complex float* coil,
 			const long pdims[5], const _Complex float* pattern,
-			long Nb, bool random_order, bool normalize, const char** valid_files)
+			long Nb, const char** valid_files)
 {
-	complex float* scaling = NULL;
-	if (normalize) {
-
-		scaling = md_alloc(1, MAKE_ARRAY(kdims[4]), CFL_SIZE);
-		complex float* u0 = md_alloc(5, udims, CFL_SIZE);
-		compute_zero_filled(udims, u0, kdims, kspace, coil, pdims, pattern);
-		compute_scale_max_abs(udims, scaling, u0);
-		md_free(u0);
-
-		normalize_by_scale(kdims, scaling, kspace, kspace);
-		normalize_by_scale(udims, scaling, ref, ref);
-	}
-
 	long Nt = kdims[4]; // number datasets
 
 	long nkdims[5];
@@ -518,57 +685,53 @@ void train_nn_varnet(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 
 	vn->share_pattern = pdims[4] == 1;
 
-	auto network = get_variational_network(vn, nkdims, nudims);
-
-	//append loss = 1/(2N) sum_i^N || |x_i| - |y_i| ||^2 with |x_i| = sqrt(Re[x_i]^2 + Im[x_i]^2 + epsilon)
-	const struct nlop_s* loss = nlop_mse_create(5, nudims, ~0ul);
-	loss = nlop_chain2_FF(nlop_smo_abs_create(5, nudims, 1.e-12), 0, loss, 0);
-	loss = nlop_chain2_FF(nlop_smo_abs_create(5, nudims, 1.e-12), 0, loss, 0);
-
-	network = nlop_chain2_FF(network, 0, loss, 0);
-
-	debug_printf(DP_DEBUG3, "train op created: ");
-	nlop_debug(DP_DEBUG3, network);
+	auto nn_train = vn_train_op_create(vn, nkdims, nudims);
 
 	//create batch generator
 	const complex float* train_data[] = {ref, kspace, coil, pattern};
-	const long* train_dims[] = {	nlop_generic_domain(network, 0)->dims,
-					nlop_generic_domain(network, 1)->dims,
-					nlop_generic_domain(network, 2)->dims,
-					nlop_generic_domain(network, 3)->dims};
+	const long* train_dims[] = {	nn_generic_domain(nn_train, 0, NULL)->dims,
+					nn_generic_domain(nn_train, 0, "kspace")->dims,
+					nn_generic_domain(nn_train, 0, "coil")->dims,
+					nn_generic_domain(nn_train, 0, "pattern")->dims};
 
-
-	auto batch_generator = (random_order ? batch_gen_rand_create : batch_gen_linear_create)(4, 5, train_dims, train_data, Nt, 0);
+	auto batch_generator = batch_gen_create_from_iter(train_conf, 4, 5, train_dims, train_data, Nt, 0);
 
 	//setup for iter algorithm
-	float* data[7];
-	enum IN_TYPE in_type[7];
-	const struct operator_p_s* projections[7];
+	int NI = nn_get_nr_in_args(nn_train);
+	int NO = nn_get_nr_out_args(nn_train);
+
+	float* src[NI];
+
+	for (int i = 0; i < vn->weights->N; i++)
+		src[i + 4] = (float*)vn->weights->tensors[i];
+
+	enum IN_TYPE in_type[NI];
+	const struct operator_p_s* projections[NI];
+	enum OUT_TYPE out_type[NO];
+
+	nn_get_in_types(nn_train, NI, in_type);
+	nn_get_out_types(nn_train, NO, out_type);
 
 	for (int i = 0; i < 4; i++) {
 
-		data[i] = NULL;
+		src[i] = NULL;
 		in_type[i] = IN_BATCH_GENERATOR;
 		projections[i] = NULL;
 	}
 
-	data[4] = (float*)vn->conv_w;
-	data[5] = (float*)vn->rbf_w;
-	data[6] = (float*)vn->lambda_w;
+	for (int i = 4; i < NI; i++)
+		projections[i] = NULL;
 
-	projections[4] = operator_project_mean_free_sphere_create(nlop_generic_domain(network, 4)->N, nlop_generic_domain(network, 4)->dims, MD_BIT(0) | MD_BIT(4), false);
-	projections[5] = NULL;
-	projections[6] = operator_project_pos_real_create(nlop_generic_domain(network, 6)->N, nlop_generic_domain(network, 6)->dims);
-
-	in_type[4] = IN_OPTIMIZE;
-	in_type[5] = IN_OPTIMIZE;
-	in_type[6] = IN_OPTIMIZE;
+	auto conv_iov = nn_generic_domain(nn_train, 0, "conv_w");
+	projections[4] = operator_project_mean_free_sphere_create(conv_iov->N, conv_iov->dims, MD_BIT(0) | MD_BIT(4), false);
+	auto lambda_iov = nn_generic_domain(nn_train, 0, "lambda_w");
+	projections[6] = operator_project_pos_real_create(lambda_iov->N, lambda_iov->dims);
 
 	struct monitor_iter6_s* monitor;
 
 	if (NULL != valid_files) {
 
-		auto nlop_validation_loss = create_vn_val_loss(vn, normalize, valid_files);
+		auto nlop_validation_loss = nn_get_nlop(vn_valid_loss_create(vn, valid_files));
 		auto monitor_validation_loss = monitor_iter6_nlop_create(nlop_validation_loss, false, "val loss");
 		nlop_free(nlop_validation_loss);
 		monitor =  create_monitor_iter6_progressbar_with_val_monitor(1, &monitor_validation_loss);
@@ -577,140 +740,42 @@ void train_nn_varnet(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 		monitor = create_monitor_iter6_progressbar_record();
 	}
 
-	iter6_iPALM(train_conf, network, 7, in_type, projections, data, 1, MAKE_ARRAY((enum OUT_TYPE)OUT_OPTIMIZE), 0, Nt / Nb, batch_generator, monitor);
-	nlop_free(network);
+	iter6_iPALM(train_conf, nn_get_nlop(nn_train), 7, in_type, projections, src, 1, out_type, 0, Nt / Nb, batch_generator, monitor);
+	nn_free(nn_train);
 	nlop_free(batch_generator);
 
 	monitor_iter6_free(monitor);
-
-	if (normalize) {
-
-		renormalize_by_scale(kdims, scaling, kspace, kspace);
-		renormalize_by_scale(udims, scaling, ref, ref);
-		md_free(scaling);
-	}
 }
 
 /**
- * Move vn weights to gpu / cpu
+ * Initialize weights of variational network
+ *
+ * @param vn structure describing the variational network
  */
-void vn_move_gpucpu(struct vn_s* vn, bool gpu) {
-	#ifdef USE_CUDA
-
-	if ((NULL == vn->conv_w) || (NULL == vn->rbf_w) || (NULL == vn->lambda_w))
-		error("vn uninitialized\n");
-
-	long conv_size = vn->Nl * vn->Kx * vn->Ky * vn->Kz * vn->Nf;
-	long rbf_size = vn->Nl * vn->Nf * vn->Nw;
-	long lambda_size = vn->Nl;
-
-	complex float* conv_w = (gpu ? md_alloc_gpu: md_alloc)(1, &conv_size, CFL_SIZE);
-	complex float* rbf_w = (gpu ? md_alloc_gpu: md_alloc)(1, &rbf_size, CFL_SIZE);
-	complex float* lambda_w = (gpu ? md_alloc_gpu: md_alloc)(1, &lambda_size, CFL_SIZE);
-
-	md_copy(1, &conv_size, conv_w, vn->conv_w, CFL_SIZE);
-	md_copy(1, &rbf_size, rbf_w, vn->rbf_w, CFL_SIZE);
-	md_copy(1, &lambda_size, lambda_w, vn->lambda_w, CFL_SIZE);
-
-	md_free(vn->conv_w);
-	md_free(vn->rbf_w);
-	md_free(vn->lambda_w);
-
-	vn->rbf_w = rbf_w;
-	vn->conv_w = conv_w;
-	vn->lambda_w = lambda_w;
-	#else
-	UNUSED(vn);
-	if (gpu)
-		error("compiled without cuda support\n");
-	#endif
+void init_vn(struct vn_s* vn)
+{
+	auto network = nn_vn_create(vn, MD_DIMS(vn->Kx, vn->Ky, vn->Kz, 1, 1), MD_DIMS(vn->Kx, vn->Ky, vn->Kz, 1, 1));
+	vn->weights = nn_weights_create_from_nn(network);
+	nn_init(network, vn->weights);
+	nn_free(network);
 }
 
-void initialize_varnet(struct vn_s* vn)
+/**
+ * Load weights of variational network from file
+ *
+ * @param vn structure describing the variational network
+ */
+void load_vn(struct vn_s* vn, const char* filename, bool overwrite_pars)
 {
-	long conv_size = vn->Nl * vn->Kx * vn->Ky * vn->Kz * vn->Nf;
-	long rbf_size = vn->Nl * vn->Nf * vn->Nw;
-	long lambda_size = vn->Nl;
+	vn->weights = load_nn_weights(filename);
 
-	if (NULL == vn->conv_w)
-		vn->conv_w = md_alloc(1, &conv_size, CFL_SIZE);
-	if (NULL == vn->rbf_w)
-		vn->rbf_w = md_alloc(1, &rbf_size, CFL_SIZE);
-	if (NULL == vn->lambda_w)
-		vn->lambda_w = md_alloc(1, &lambda_size, CFL_SIZE);
+	if (overwrite_pars){
 
-	md_zfill(1, &lambda_size, vn->lambda_w, vn->lambda_init);
-
-	complex float mu[vn->Nw];
-	for (int i = 0; i < vn->Nw; i++)
-		mu[i] = vn->init_scale_mu * (vn->Imin + (i)*(vn->Imax - vn->Imin) / ((float)vn->Nw - 1.));
-	long wdims[3] = {vn->Nf, vn->Nw, vn->Nl};
-	md_copy2(3, wdims, MD_STRIDES(3, wdims, CFL_SIZE), vn->rbf_w, MAKE_ARRAY(0l, 8l, 0l) , mu, CFL_SIZE);
-
-	long kdims[5] = {vn->Nf, vn->Kx, vn->Ky, vn->Kz, vn->Nl};
-	complex float* tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, vn->conv_w);
-	md_gaussian_rand(5, kdims, tmp);
-	md_zsmax(5, kdims, tmp, tmp, I);
-	md_gaussian_rand(5, kdims, vn->conv_w);
-	md_zadd(5, kdims, vn->conv_w, vn->conv_w, tmp);
-	md_free(tmp);
-	md_zsmul(5, kdims, vn->conv_w, vn->conv_w, 1. / sqrtf((float)vn->Kx * vn->Ky * vn->Kz));
-}
-
-void save_varnet(struct vn_s* vn, const char* filename)
-{
-	unsigned int D[3] = {5, 3, 2};
-
-	long dims_conv_w[5] = {vn->Nf, vn->Kx, vn->Ky, vn->Kz, vn->Nl};
-	long dims_rbf_w[3] = {vn->Nf, vn->Nw, vn->Nl};
-	long dims_lambda_w[2] = {1, vn->Nl};
-
-	const long* dims[3] = {dims_conv_w, dims_rbf_w, dims_lambda_w};
-	const complex float* args[3] = {vn->conv_w, vn->rbf_w, vn->lambda_w};
-
-	dump_multi_cfl(filename, 3, D, dims, args);
-}
-
-void load_varnet(struct vn_s* vn, const char* filename)
-{
-	if((NULL != vn->lambda_w) || (NULL != vn->conv_w) || (NULL != vn->rbf_w))
-		error("Loading variational network would overwrite initialized weights!");
-
-	unsigned int D[3];
-	long dims[3][5];
-	complex float* args[3];
-
-	load_multi_cfl(filename, 3, 5, D, dims, args);
-
-	bool dims_okay = true;
-	dims_okay &= (5 == D[0]);
-	dims_okay &= (3 == D[1]);
-	dims_okay &= (2 == D[2]);
-
-	vn->Nf = dims[0][0];
-	vn->Kx = dims[0][1];
-	vn->Ky = dims[0][2];
-	vn->Kz = dims[0][3];
-	vn->Nl = dims[0][4];
-	vn->Nw = dims[1][1];
-
-	dims_okay &= (1 == dims[2][0]);
-	dims_okay &= (vn->Nl == dims[1][2]);
-	dims_okay &= (vn->Nl == dims[2][1]);
-	dims_okay &= (vn->Nf == dims[1][0]);
-
-	if (!dims_okay)
-		error("Loaded dimensions do not match the variational network!\n");
-
-	vn->conv_w = md_alloc(5, dims[0], CFL_SIZE);
-	vn->rbf_w = md_alloc(3, dims[1], CFL_SIZE);
-	vn->lambda_w = md_alloc(2, dims[2], CFL_SIZE);
-
-	md_copy(5, dims[0], vn->conv_w, args[0], CFL_SIZE);
-	md_copy(3, dims[1], vn->rbf_w, args[1], CFL_SIZE);
-	md_copy(2, dims[2], vn->lambda_w, args[2], CFL_SIZE);
-
-	const long* dims_unmap[3] = {&dims[0][0], &dims[1][0], &dims[2][0]};
-
-	unmap_multi_cfl(3, D, dims_unmap , args);
+		vn->Nf = vn->weights->iovs[0]->dims[0];
+		vn->Kx = vn->weights->iovs[0]->dims[1];
+		vn->Ky = vn->weights->iovs[0]->dims[2];
+		vn->Kz = vn->weights->iovs[0]->dims[3];
+		vn->Nl = vn->weights->iovs[0]->dims[4];
+		vn->Nw = vn->weights->iovs[1]->dims[1];
+	}
 }

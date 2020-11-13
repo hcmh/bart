@@ -18,6 +18,8 @@
 #include "misc/opts.h"
 #include "misc/mmio.h"
 
+#include "nn/nn_weights.h"
+
 #include "nn/nn_vn.h"
 
 #ifndef DIMS
@@ -40,8 +42,8 @@ int main_nnvn(int argc, char* argv[])
 	bool apply = false;
 	bool use_gpu = false;
 	bool initialize = false;
-	bool normalize = false;
-	bool random_order = false;
+
+	int random_order = 0;
 
 	char* filename_weights_load = NULL;
 
@@ -63,9 +65,9 @@ int main_nnvn(int argc, char* argv[])
 		OPTL_STRING(0, "save_checkpoints_filename", (const char**)(&(train_conf.INTERFACE.dump_filename)), "file", "save intermediate weights during training (_epoch is attached to file)"),
 		OPTL_LONG(0, "save_checkpoints_interval", &(train_conf.INTERFACE.dump_mod), "int", "save weights every int epochs"),
 		OPTL_LONG('b', "batch_size", &(Nb), "Nb", "number epochs to train"),
-		OPTL_SET(0, "random_batches", &(random_order), "draw random batches"),
+		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2= shuffle data, 3=randonly draw data"),
 
-		OPTL_SET('n', "normalize", &normalize, "normalize the input by maximum of zero-filled reconstruction"),
+		OPTL_SET('n', "normalize", &(vn_config.normalize), "normalize the input by maximum of zero-filled reconstruction"),
 
 		OPTL_LONG(0, "vn_num_iterations", &(vn_config.Nl), "guessed", "number of layers (def:10 / guessed from weights)"),
 		OPTL_LONG(0, "vn_num_filters", &(vn_config.Nf), "guessed", "number of convolution filters (def:24 / guessed from weights)"),
@@ -88,6 +90,8 @@ int main_nnvn(int argc, char* argv[])
 	if ((NULL == train_conf.INTERFACE.dump_filename) && (0 < train_conf.INTERFACE.dump_mod))
 		train_conf.INTERFACE.dump_filename = argv[4];
 
+	train_conf.INTERFACE.batchgen_type = random_order;
+
 	//we only give K as commandline
 	train_conf.beta = train_conf.alpha;
 	train_conf.trivial_stepsize = true;
@@ -106,8 +110,8 @@ int main_nnvn(int argc, char* argv[])
 
 		if(initialize) {
 
-			initialize_varnet(&vn_config);
-			save_varnet(&vn_config, filename_weights);
+			init_vn(&vn_config);
+			dump_nn_weights(filename_weights, vn_config.weights);
 		} else
 			error("Network needs to be either trained (-t) or applied (-a)!\n");
 	}
@@ -143,29 +147,26 @@ int main_nnvn(int argc, char* argv[])
 			error("For training, weights must be either initialized(-i) or loaded (-l)!\n");
 
 		if (initialize)
-			initialize_varnet(&vn_config);
+			init_vn(&vn_config);
 		else
-			load_varnet(&vn_config, filename_weights_load);
+			load_vn(&vn_config, filename_weights_load, false);
 
-		vn_move_gpucpu(&vn_config, use_gpu);
+		if (use_gpu)
+			move_gpu_nn_weights(vn_config.weights);
 
 		complex float* file_ref = load_cfl(filename_out, 5, udims);
 
-		debug_printf(DP_INFO, "Train Variational Network with\n[Nkx, Nky, Nkz, Nc, Nt] = ");
-		debug_print_dims(DP_INFO, 5, kdims);
-		debug_printf(DP_INFO, "[Ux, Uy, Uz, 1,  Nt] = ");
-		debug_print_dims(DP_INFO, 5, udims);
-
-		train_nn_varnet(&vn_config, CAST_UP(&train_conf), udims, file_ref, kdims, file_kspace, file_coil, pdims, file_pattern, Nb, random_order, normalize, (10 == argc) ? (const char**)argv + 6: NULL);
+		train_vn(&vn_config, CAST_UP(&train_conf), udims, file_ref, kdims, file_kspace, file_coil, pdims, file_pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
 		unmap_cfl(5, udims, file_ref);
-		save_varnet(&vn_config, filename_weights);
+		dump_nn_weights(filename_weights, vn_config.weights);
 	}
 
 
 	if (apply) {
 
-		load_varnet(&vn_config, filename_weights);
-		vn_move_gpucpu(&vn_config, use_gpu);
+		load_vn(&vn_config, filename_weights, true);
+		if (use_gpu)
+			move_gpu_nn_weights(vn_config.weights);
 
 		udims[0] = (1 == udims[0]) ? kdims[0] : udims[0];
 		udims[1] = (1 == udims[1]) ? kdims[1] : udims[1];
@@ -174,12 +175,7 @@ int main_nnvn(int argc, char* argv[])
 
 		complex float* file_out = create_cfl(filename_out, 5, udims);
 
-		debug_printf(DP_INFO, "Run Variational Network with (Nb = %d)\n[Nx, Ny, Nz, Nc, Nt] = ", Nb);
-		debug_print_dims(DP_INFO, 5, kdims);
-		debug_printf(DP_INFO, "[Ux, Uy, Uz, 1, Nt] = ");
-		debug_print_dims(DP_INFO, 5, udims);
-
-		apply_variational_network_batchwise(&vn_config, udims, file_out, kdims, file_kspace, file_coil, pdims, file_pattern, Nb, normalize);
+		apply_vn_batchwise(&vn_config, udims, file_out, kdims, file_kspace, file_coil, pdims, file_pattern, Nb);
 
 		unmap_cfl(5, udims, file_out);
 	}
