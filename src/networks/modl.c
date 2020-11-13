@@ -52,7 +52,7 @@
 #include "nn/losses.h"
 #include "nn/init.h"
 
-#include "nn/initializer.h"
+#include "nn/init.h"
 
 #include "nn/nn.h"
 #include "nn/chain.h"

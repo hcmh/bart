@@ -9,7 +9,7 @@
 #include "misc/shrdptr.h"
 #include "misc/types.h"
 
-#include "nn/initializer.h"
+#include "nn/init.h"
 #include "nn/chain.h"
 #include "num/multind.h"
 #include "num/ops.h"

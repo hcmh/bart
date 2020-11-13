@@ -7,7 +7,7 @@
 
 #include "misc/mri.h"
 #include "nn/nn_ops.h"
-#include "nn/initializer.h"
+#include "nn/init.h"
 #include "nn/nn.h"
 #include "nn/const.h"
 #include "nn/weights.h"

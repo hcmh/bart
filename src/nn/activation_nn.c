@@ -4,7 +4,7 @@
 #include "nn/activation.h"
 
 #include "nn/nn.h"
-#include "nn/initializer.h"
+#include "nn/init.h"
 
 #include "activation_nn.h"
 

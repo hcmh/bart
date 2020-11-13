@@ -3,7 +3,7 @@
 
 #include "nn/layers.h"
 #include "nn/nn.h"
-#include "nn/initializer.h"
+#include "nn/init.h"
 
 extern nn_t nn_append_convcorr_layer(nn_t network, int o, const char* oname, const char* ker_name, int filters, long const kernel_size[3], _Bool conv, enum PADDING conv_pad, _Bool channel_first, const long strides[3], const long dilations[3], const struct initializer_s* init);
 extern nn_t nn_append_transposed_convcorr_layer(nn_t network, int o, const char* oname, const char* ker_name, int channels, long const kernel_size[3], _Bool conv, _Bool adjoint, enum PADDING conv_pad, _Bool channel_first, const long strides[3], const long dilations[3], const struct initializer_s* init);

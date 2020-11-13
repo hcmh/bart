@@ -19,7 +19,7 @@
 #include "nlops/chain.h"
 
 #include "nn/nn.h"
-#include "nn/initializer.h"
+#include "nn/init.h"
 
 #include "weights.h"
 
