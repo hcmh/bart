@@ -33,7 +33,7 @@
 
 #include "nn/activation_nn.h"
 #include "nn/layers_nn.h"
-#include "nn/nn_weights.h"
+#include "nn/weights.h"
 #include "nn/losses_nn.h"
 
 #include "nn/nn.h"

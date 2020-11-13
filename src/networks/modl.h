@@ -1,6 +1,6 @@
 #include "iter/iter6.h"
 #include "iter/iter.h"
-#include "nn/nn_weights.h"
+#include "nn/weights.h"
 
 struct modl_s {
 

@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <complex.h>
 
-#include "nn/nn_weights.h"
+#include "nn/weights.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/init.h"

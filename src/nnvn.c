@@ -18,7 +18,7 @@
 #include "misc/opts.h"
 #include "misc/mmio.h"
 
-#include "nn/nn_weights.h"
+#include "nn/weights.h"
 
 #include "networks/vn.h"
 

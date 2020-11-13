@@ -15,7 +15,7 @@
 
 #include "nn/const.h"
 #include "nn/losses_nn.h"
-#include "nn/nn_weights.h"
+#include "nn/weights.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"

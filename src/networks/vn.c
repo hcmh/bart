@@ -10,7 +10,7 @@
 #include "nn/initializer.h"
 #include "nn/nn.h"
 #include "nn/const.h"
-#include "nn/nn_weights.h"
+#include "nn/weights.h"
 #include "nn/chain.h"
 #include "num/multind.h"
 #include "num/flpmath.h"

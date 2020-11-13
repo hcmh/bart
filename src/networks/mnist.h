@@ -2,7 +2,7 @@
 #include "nn/init.h"
 #include "nn/layers.h"
 #include "nn/nn.h"
-#include "nn/nn_weights.h"
+#include "nn/weights.h"
 
 extern nn_weights_t init_nn_mnist(void);
 extern void train_nn_mnist(int N_batch, int N_total, nn_weights_t, const _Complex float* in, const _Complex float* out, long epochs);
