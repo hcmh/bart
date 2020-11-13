@@ -2,6 +2,7 @@
 #define LAYERS_H
 
 #include "nlops/conv.h"
+#include "misc/cppwrap.h"
 
 enum NETWORK_STATUS {STAT_TRAIN, STAT_TEST};
 
