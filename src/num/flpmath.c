@@ -4220,31 +4220,3 @@ void md_pdf_gauss(unsigned int D, const long dims[D], float* optr, const float* 
 {
 	md_pdf_gauss2(D, dims, MD_STRIDES(D, dims, FL_SIZE), optr, MD_STRIDES(D, dims, FL_SIZE), iptr, mu, sigma);
 }
-
-
-/**
- * Multiply scalar array with a scalar and save to output (with strides)
- *
- * optr = iptr * valptr[0]
- */
-void md_smul_ptr2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, const float* valptr)
-{
-
-	NESTED(void, nary_smul_ptr, (struct nary_opt_data_s* data, void* ptr[]))
-	{
-		data->ops->smul_ptr(data->size, valptr, ptr[0], ptr[1]);
-	};
-
-	optimized_twoop_oi(D, dims, ostr, optr, istr, iptr,
-		(size_t[2]){ FL_SIZE, FL_SIZE }, nary_smul_ptr);
-}
-
-/**
- * Multiply scalar array with a scalar and save to output (with strides)
- *
- * optr = iptr * valptr[0]
- */
-void md_smul_ptr(unsigned int D, const long dims[D], float* optr, const float* iptr, const float* valptr)
-{
-	md_smul_ptr2(D, dims, MD_STRIDES(D, dims, FL_SIZE), optr, MD_STRIDES(D, dims, FL_SIZE), iptr, valptr);
-}

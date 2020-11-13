@@ -67,7 +67,6 @@ extern void cuda_zconvcorr_3D_CF_TK(_Complex float* krn, const _Complex float* s
 extern void cuda_zconvcorr_3D_CF_TI(_Complex float* im, const _Complex float* out, const _Complex float* krn, long odims[3], long idims[3], long kdims[3], _Bool conv);
 extern void cuda_im2col(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5]);
 extern void cuda_im2col_transp(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5]);
-extern void cuda_smul_ptr(long N, const float* alpha, float* dst, const float* src);
 extern void cuda_pdf_gauss(long N, float mu, float sig, float* dst, const float* src);
 extern void cuda_real(long N, float* dst, const _Complex float* src);
 extern void cuda_imag(long N, float* dst, const _Complex float* src);

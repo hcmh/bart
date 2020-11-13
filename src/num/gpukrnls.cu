@@ -141,20 +141,6 @@ extern "C" void cuda_smul(long N, float alpha, float* dst, const float* src)
 	kern_smul<<<gridsize(N), blocksize(N)>>>(N, alpha, dst, src);
 }
 
-__global__ void kern_smul_ptr(long N, const float* alpha, float* dst, const float* src)
-{
-	int start = threadIdx.x + blockDim.x * blockIdx.x;
-	int stride = blockDim.x * gridDim.x;
-
-	for (long i = start; i < N; i += stride)
-		dst[i] = alpha[0] * src[i];
-}
-
-extern "C" void cuda_smul_ptr(long N, const float* alpha, float* dst, const float* src)
-{
-	kern_smul_ptr<<<gridsize(N), blocksize(N)>>>(N, alpha, dst, src);
-}
-
 
 typedef void (*cuda_3op_f)(long N, float* dst, const float* src1, const float* src2);
 
