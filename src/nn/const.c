@@ -13,7 +13,7 @@
 #include "nlops/const.h"
 
 #include "nn/nn.h"
-#include "nn_const.h"
+#include "const.h"
 
 
 nn_t nn_set_input_const_F(nn_t op, int i, const char* iname, int N, const long dims[N], _Bool copy, const _Complex float* in)

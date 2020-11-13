@@ -8,7 +8,7 @@
 
 #include "nn/losses.h"
 
-#include "nn/nn_chain.h"
+#include "nn/chain.h"
 #include "nn/nn.h"
 
 #include "losses_nn.h"

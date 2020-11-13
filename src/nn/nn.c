@@ -10,7 +10,7 @@
 #include "misc/types.h"
 
 #include "nn/initializer.h"
-#include "nn/nn_chain.h"
+#include "nn/chain.h"
 #include "num/multind.h"
 #include "num/ops.h"
 #include "num/iovec.h"

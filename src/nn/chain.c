@@ -11,7 +11,7 @@
 #include "nlops/chain.h"
 
 #include "nn/nn.h"
-#include "nn_chain.h"
+#include "chain.h"
 
 
 nn_t nn_reshape_out(nn_t op, int o, const char* oname, int N, const long odims[N])

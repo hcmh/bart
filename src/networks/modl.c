@@ -13,7 +13,7 @@
 #include "misc/mmio.h"
 #include "misc/types.h"
 
-#include "nn/nn_const.h"
+#include "nn/const.h"
 #include "nn/losses_nn.h"
 #include "nn/nn_weights.h"
 
@@ -55,7 +55,7 @@
 #include "nn/initializer.h"
 
 #include "nn/nn.h"
-#include "nn/nn_chain.h"
+#include "nn/chain.h"
 #include "nn/layers_nn.h"
 #include "nn/activation_nn.h"
 
