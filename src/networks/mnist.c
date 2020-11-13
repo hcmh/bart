@@ -31,10 +31,10 @@
 #include "nlops/const.h"
 #include "nlops/conv.h"
 
-#include "nn/nn_activation.h"
+#include "nn/activation_nn.h"
 #include "nn/layers_nn.h"
 #include "nn/nn_weights.h"
-#include "nn/nn_losses.h"
+#include "nn/losses_nn.h"
 
 #include "nn/nn.h"
 

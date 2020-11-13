@@ -6,7 +6,7 @@
 #include "nn/nn.h"
 #include "nn/initializer.h"
 
-#include "nn_activation.h"
+#include "activation_nn.h"
 
 
 nn_t nn_append_activation(nn_t network, int o, const char* oname, enum ACTIVATION activation)

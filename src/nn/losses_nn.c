@@ -11,7 +11,7 @@
 #include "nn/nn_chain.h"
 #include "nn/nn.h"
 
-#include "nn_losses.h"
+#include "losses_nn.h"
 
 nn_t nn_loss_mse_append(nn_t network, int o, const char* oname, unsigned long mean_dims)
 {
