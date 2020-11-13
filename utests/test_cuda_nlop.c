@@ -24,7 +24,6 @@
 #include "nn/losses.h"
 #include "nn/activation.h"
 #include "nn/init.h"
-#include "nn/mnist.h"
 #include "utest.h"
 
 static bool test_dense_layer_gpu(void)

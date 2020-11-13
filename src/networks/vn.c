@@ -44,9 +44,8 @@
 #include "nn/layers.h"
 #include "nn/losses.h"
 #include "nn/rbf.h"
-#include "nn/misc_nn.h"
 
-#include "nn_vn.h"
+#include "vn.h"
 
 /*
 Conventions:

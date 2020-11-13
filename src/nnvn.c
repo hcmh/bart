@@ -20,7 +20,7 @@
 
 #include "nn/nn_weights.h"
 
-#include "nn/nn_vn.h"
+#include "networks/vn.h"
 
 #ifndef DIMS
 #define DIMS 16

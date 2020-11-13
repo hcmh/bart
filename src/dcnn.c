@@ -17,7 +17,7 @@
 #include "misc/opts.h"
 #include "misc/mmio.h"
 
-#include "nn/dcnn.h"
+#include "networks/dcnn.h"
 
 #ifndef DIMS
 #define DIMS 16

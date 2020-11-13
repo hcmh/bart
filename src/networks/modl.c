@@ -51,7 +51,6 @@
 #include "nn/layers.h"
 #include "nn/losses.h"
 #include "nn/init.h"
-#include "nn/misc_nn.h"
 
 #include "nn/initializer.h"
 
@@ -62,7 +61,7 @@
 
 #include "nn/nn_ops.h"
 
-#include "nn_modl.h"
+#include "modl.h"
 
 
 const struct modl_s modl_default = {

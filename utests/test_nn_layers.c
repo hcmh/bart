@@ -32,7 +32,7 @@
 #include "nn/activation.h"
 #include "nn/init.h"
 #include "nn/nn_ops.h"
-#include "nn/mnist.h"
+#include "networks/mnist.h"
 #include "nn/rbf.h"
 #include "utest.h"
 

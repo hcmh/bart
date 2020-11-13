@@ -198,7 +198,7 @@ MODULES_rof = -liter -llinops
 MODULES_tgv = -liter -llinops
 MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu -lgeom
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -liter -lmanifold -lmoba -lgeom -lnlops
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnetworks -lnn -liter -lmanifold -lmoba -lgeom -lnlops
 MODULES_sake = -lsake
 MODULES_traj = -lnoncart
 MODULES_wave = -liter -lwavelet -llinops -llowrank
@@ -215,7 +215,7 @@ MODULES_kernel = -lrkhs -lnoncart
 MODULES_power = -lrkhs -lnoncart
 MODULES_approx = -lrkhs -lnoncart
 MODULES_kmat = -lrkhs -lnoncart
-MODULES_dcnn = -lnn -llinops
+MODULES_dcnn = -lnetworks -lnn -llinops
 MODULES_ssa = -lcalib -lmanifold -liter -llinops
 MODULES_nlsa = -lcalib -lmanifold -liter -llinops
 MODULES_bin = -lcalib
@@ -496,7 +496,7 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 
 endef
 
-ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom rkhs na nn manifold seq
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom rkhs na networks nn manifold seq
 $(eval $(foreach t,$(ALIBS),$(eval $(call alib,$(t)))))
 
 

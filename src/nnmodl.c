@@ -19,7 +19,7 @@
 #include "misc/opts.h"
 #include "misc/mmio.h"
 
-#include "nn/nn_modl.h"
+#include "networks/modl.h"
 
 #ifndef DIMS
 #define DIMS 16

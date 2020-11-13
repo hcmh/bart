@@ -20,7 +20,7 @@
 #include "misc/mmio.h"
 #include "misc/misc.h"
 
-#include "nn/mnist.h"
+#include "networks/mnist.h"
 
 #ifndef DIMS
 #define DIMS 16
