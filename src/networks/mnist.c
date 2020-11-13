@@ -32,7 +32,7 @@
 #include "nlops/conv.h"
 
 #include "nn/nn_activation.h"
-#include "nn/nn_layers.h"
+#include "nn/layers_nn.h"
 #include "nn/nn_weights.h"
 #include "nn/nn_losses.h"
 

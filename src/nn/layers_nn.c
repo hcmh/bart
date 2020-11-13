@@ -5,7 +5,7 @@
 #include "nn/layers.h"
 #include "nn/nn.h"
 
-#include "nn_layers.h"
+#include "layers_nn.h"
 
 /**
  * Append convolution/correlation layer

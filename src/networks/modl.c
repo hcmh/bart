@@ -56,7 +56,7 @@
 
 #include "nn/nn.h"
 #include "nn/nn_chain.h"
-#include "nn/nn_layers.h"
+#include "nn/layers_nn.h"
 #include "nn/nn_activation.h"
 
 #include "nn/nn_ops.h"
