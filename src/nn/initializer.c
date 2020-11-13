@@ -227,4 +227,106 @@ const struct initializer_s* init_kaiming_create(unsigned long in_flags, bool rea
 	return CAST_UP(PTR_PASS(data));
 }
 
+struct initializer_std_normal_s {
+
+	INTERFACE(init_t);
+
+	bool uniform;
+	bool real;
+
+	float scale;
+	float mean;
+};
+
+static DEF_TYPEID(initializer_std_normal_s);
+
+static void init_std_normal_fun(const init_t* conf_, long N, const long dims[N], complex float* weights)
+{
+	auto conf = CAST_DOWN(initializer_std_normal_s, conf_);
+
+	get_base_dist(N, dims, weights, conf->uniform, conf->real);
+	md_zsmul(N, dims, weights, weights, conf->scale);
+	md_zsadd(N, dims, weights, weights, conf->mean + (conf->real ? 0 : I * conf->mean));
+}
+
+const struct initializer_s* init_std_normal_create(bool real, float scale, float mean)
+{
+	PTR_ALLOC(struct initializer_std_normal_s, data);
+	SET_TYPEID(initializer_std_normal_s, data);
+
+	shared_obj_init(&(data->INTERFACE.sptr), init_del);
+	data->INTERFACE.del = NULL;
+	data->INTERFACE.fun = init_std_normal_fun;
+
+	data->uniform = false;
+	data->real = real;
+	data->scale = scale;
+	data->mean = mean;
+
+	return CAST_UP(PTR_PASS(data));
+}
+
+const struct initializer_s* init_uniform_create(bool real, float scale, float mean)
+{
+	PTR_ALLOC(struct initializer_std_normal_s, data);
+	SET_TYPEID(initializer_std_normal_s, data);
+
+	shared_obj_init(&(data->INTERFACE.sptr), init_del);
+	data->INTERFACE.del = NULL;
+	data->INTERFACE.fun = init_std_normal_fun;
+
+	data->uniform = true;
+	data->real = real;
+	data->scale = scale;
+	data->mean = mean;
+
+	return CAST_UP(PTR_PASS(data));
+}
+
+struct initializer_linspace_s {
+
+	INTERFACE(init_t);
+
+	unsigned int dim;
+
+	complex float min_val;
+	complex float max_val;
+
+	bool max_inc;
+};
+
+static DEF_TYPEID(initializer_linspace_s);
+
+static void init_linspace_fun(const init_t* conf_, long N, const long dims[N], complex float* weights)
+{
+	auto conf = CAST_DOWN(initializer_linspace_s, conf_);
+
+	assert(conf->dim < N);
+
+	complex float vals[dims[conf->dim]];
+	for (int i = 0; i < dims[conf->dim]; i++)
+		vals[i] = conf->min_val + i *(conf->max_val - conf->min_val) / ((float)dims[conf->dim] - (conf->max_inc? 1. : 0));
+
+	long vdims[N];
+	md_select_dims(N, MD_BIT(conf->dim), vdims, dims);
+
+	md_copy2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), weights, MD_STRIDES(N, vdims, CFL_SIZE), vals, CFL_SIZE);
+}
+
+const struct initializer_s* init_linspace_create(unsigned int dim, complex float min_val, complex float max_val, bool max_inc)
+{
+	PTR_ALLOC(struct initializer_linspace_s, data);
+	SET_TYPEID(initializer_linspace_s, data);
+
+	shared_obj_init(&(data->INTERFACE.sptr), init_del);
+	data->INTERFACE.del = NULL;
+	data->INTERFACE.fun = init_linspace_fun;
+
+	data->dim = dim;
+	data->max_val = max_val;
+	data->max_inc = max_inc;
+	data->min_val = min_val;
+
+	return CAST_UP(PTR_PASS(data));
+}
 
