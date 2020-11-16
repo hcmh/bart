@@ -41,6 +41,7 @@
 
 #include "iter/vec.h"
 #include "iter/monitor.h"
+#include "iter/monitor_iter6.h"
 #include "iter/iter_dump.h"
 
 #include "italgos.h"

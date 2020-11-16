@@ -617,7 +617,60 @@ static complex float get_infinity(long NI, const float* x[NI])
 	UNUSED(NI);
 	return INFINITY;
 }
+#if 1
+static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
+{
+	long kdims[5];
+	long cdims[5];
+	long udims[5];
+	long pdims[5];
 
+	complex float* val_kspace = load_cfl(valid_files[0], 5, kdims);
+	complex float* val_coil = load_cfl(valid_files[1], 5, cdims);
+	complex float* val_pattern = load_cfl(valid_files[2], 5, pdims);
+	complex float* val_ref = load_cfl(valid_files[3], 5, udims);
+
+	auto valid_loss = nn_modl_create(modl, kdims, udims, STAT_TEST);
+
+	const struct nlop_s* loss = nlop_combine_FF(nlop_mse_create(5, udims, ~0ul), nlop_mse_create(5, udims, ~0ul));
+	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
+	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
+	loss = nlop_dup_F(loss, 0, 2);
+	loss = nlop_dup_F(loss, 1, 2);
+
+	if(modl->normalize) {
+
+		long sdims[5];
+		md_select_dims(5, MD_BIT(4), sdims, udims);
+
+		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
+
+		valid_loss = nn_chain2_FF(valid_loss, 0, "normalize_scale", nn_norm_ref, 1, NULL);
+		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 0, NULL);
+		valid_loss = nn_link_F(valid_loss, 2, NULL, 0, NULL);
+		valid_loss = nn_set_out_type_F(valid_loss, 0, NULL, OUT_OPTIMIZE);
+
+	} else {
+
+		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 0, NULL);
+	}
+
+	valid_loss = nn_ignore_input_F(valid_loss, 0, NULL, 5, udims, true, val_ref);
+	valid_loss = nn_ignore_input_F(valid_loss, 0, "kspace", 5, kdims, true, val_kspace);
+	valid_loss = nn_ignore_input_F(valid_loss, 0, "coil", 5, cdims, true, val_coil);
+	valid_loss = nn_ignore_input_F(valid_loss, 0, "pattern", 5, pdims, true, val_pattern);
+
+	//batchnorm out
+	valid_loss = nn_del_out_bn_F(valid_loss);
+
+	unmap_cfl(5, udims, val_ref);
+	unmap_cfl(5, kdims, val_kspace);
+	unmap_cfl(5, cdims, val_coil);
+	unmap_cfl(5, pdims, val_pattern);
+
+	return valid_loss;
+}
+#else
 static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
 {
 	long kdims[5];
@@ -668,6 +721,7 @@ static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
 
 	return valid_loss;
 }
+#endif
 
 static nn_t nn_modl_train_op_create(const struct modl_s* modl, const long dims[5], const long udims[5])
 {
@@ -771,23 +825,22 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 	for (int i = 4; i < NI; i++)
 		projections[i] = NULL;
 
-
-	struct monitor_iter6_s* monitor;
-
 	bool lambda = (modl->use_dc) || (modl->init_tickhonov);
+
+	const struct monitor_value_s* value_monitors[2];
+	value_monitors[0] = monitor_iter6_function_create(lambda ? get_lambda : get_infinity, true, "lambda");
 
 	if (NULL != valid_files) {
 
 		auto nn_validation_loss = create_modl_val_loss(modl, valid_files);
-		struct monitor_value_s value_monitors[2] = {monitor_iter6_function_create(lambda ? get_lambda : get_infinity, true, "lambda"), monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, "val loss")};
+		value_monitors[1] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, 2, (const char*[2]){"val loss (mag)", "val loss"});
 		nn_free(nn_validation_loss);
-
-		monitor = create_monitor_iter6_progressbar_with_val_monitor(2, value_monitors);
 	} else {
 
-		auto value_monitor = monitor_iter6_function_create(lambda ? get_lambda : get_infinity, true, "lambda");
-		monitor = create_monitor_iter6_progressbar_with_val_monitor(1, &value_monitor);
+		value_monitors[1] = NULL;
 	}
+
+	struct monitor_iter6_s* monitor = monitor_iter6_create(true, true, (NULL != valid_files) ? 2 : 1, value_monitors);
 
 	debug_printf(DP_INFO, "Train MoDL\n");
 	nn_debug(DP_INFO, nn_train);

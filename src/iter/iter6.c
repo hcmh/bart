@@ -272,7 +272,7 @@ void iter6_adadelta(	iter6_conf* _conf,
 
 	bool free_monitor = (NULL == monitor);
 	if (free_monitor)
-		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
+		monitor = monitor_iter6_create(true, false, 0, NULL);
 
 	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
 	if (free_dump)
@@ -360,7 +360,7 @@ void iter6_adam(	iter6_conf* _conf,
 
 	bool free_monitor = (NULL == monitor);
 	if (free_monitor)
-		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
+		monitor = monitor_iter6_create(true, false, 0, NULL);
 
 	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
 	if (free_dump)
@@ -448,7 +448,7 @@ void iter6_sgd(	iter6_conf* _conf,
 
 	bool free_monitor = (NULL == monitor);
 	if (free_monitor)
-		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
+		monitor = monitor_iter6_create(true, false, 0, NULL);
 
 	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
 	if (free_dump)
@@ -540,7 +540,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 
 	bool free_monitor = (NULL == monitor);
 	if (free_monitor)
-		monitor = (NULL != conf->INTERFACE.history_filename) ? create_monitor_iter6_progressbar_record() : create_monitor_iter6_progressbar_trivial();
+		monitor = monitor_iter6_create(true, false, 0, NULL);
 
 	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
 	if (free_dump)

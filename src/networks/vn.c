@@ -726,18 +726,17 @@ void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 	auto lambda_iov = nn_generic_domain(nn_train, 0, "lambda_w");
 	projections[6] = operator_project_pos_real_create(lambda_iov->N, lambda_iov->dims);
 
-	struct monitor_iter6_s* monitor;
-
+	const struct monitor_value_s* value_monitors[1];
 	if (NULL != valid_files) {
 
-		auto nlop_validation_loss = nn_get_nlop(vn_valid_loss_create(vn, valid_files));
-		auto monitor_validation_loss = monitor_iter6_nlop_create(nlop_validation_loss, false, "val loss");
-		nlop_free(nlop_validation_loss);
-		monitor =  create_monitor_iter6_progressbar_with_val_monitor(1, &monitor_validation_loss);
+		auto nn_validation_loss = vn_valid_loss_create(vn, valid_files);
+		value_monitors[0] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, 1, (const char*[1]){"val loss (mag)"});
+		nn_free(nn_validation_loss);
 	} else {
 
-		monitor = create_monitor_iter6_progressbar_record();
+		value_monitors[0] = NULL;
 	}
+	struct monitor_iter6_s* monitor = monitor_iter6_create(true, true, (NULL != valid_files) ? 1 : 0, value_monitors);
 
 	iter6_iPALM(train_conf, nn_get_nlop(nn_train), 7, in_type, projections, src, 1, out_type, 0, Nt / Nb, batch_generator, monitor);
 	nn_free(nn_train);
