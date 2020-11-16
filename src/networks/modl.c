@@ -98,66 +98,6 @@ const struct modl_s modl_default = {
 	.draw_graph_filename = NULL,
 };
 
-
-
-
-void modl_read_from_json(struct modl_s* config, const char *filename)
-{
-	// Import json geometry to ellipsis_e struct
-	char* file = readfile(filename);
-	
-	cJSON* json_data = cJSON_Parse(file);
-	check_json_file(json_data);
-	
-	// Get array from json file
-	const cJSON* network = cJSON_GetObjectItemCaseSensitive(json_data, "network");
-
-	const cJSON* modl = cJSON_GetObjectItemCaseSensitive(network, "modl");
-
-	cJSON_set_long(&(config->Nt), modl, "iterations");
-	cJSON_set_bool(&(config->reinsert_zerofilled), modl, "reinsert_zerofilled");
-	cJSON_set_bool(&(config->init_tickhonov), modl, "init_tickhonov");
-	cJSON_set_bool(&(config->nullspace), modl, "nullspace_formulation");
-
-	const cJSON* dw = cJSON_GetObjectItemCaseSensitive(network, "dw");
-	cJSON_set_long(&(config->Nl), dw, "conv_layers");
-	cJSON_set_long(&(config->Nf), dw, "filter");
-	cJSON_set_long(&(config->Kx),  cJSON_GetObjectItemCaseSensitive(dw, "kernels"), "x");
-	cJSON_set_long(&(config->Ky),  cJSON_GetObjectItemCaseSensitive(dw, "kernels"), "y");
-	cJSON_set_long(&(config->Kz),  cJSON_GetObjectItemCaseSensitive(dw, "kernels"), "z");
-	cJSON_set_bool(&(config->batch_norm), dw, "batch_normalization");
-	cJSON_set_bool(&(config->residual_network), dw, "residual_network");
-	cJSON_set_bool(&(config->shared_weights), dw, "shared_weights");
-
-	const cJSON* dc = cJSON_GetObjectItemCaseSensitive(network, "dc");
-	cJSON_set_bool(&(config->use_dc), dc, "use_dc");
-	cJSON_set_bool(&(config->shared_lambda), dc, "shared_lambda");
-	cJSON_set_float(&(config->lambda_fixed), dc, "fixed_lambda");
-	cJSON_set_float(&(config->lambda_init), dc, "lambda_init");
-	cJSON_set_float(&(config->convergence_warn_limit), dc, "convergence_warn_limit");
-	cJSON_set_uint(&((CAST_DOWN(iter_conjgrad_conf, config->normal_inversion_iter_conf))->maxiter), dc, "conjgrad_iterations");
-
-	cJSON_Delete(json_data);
-}
-
-void modl_read_udims_from_json(long udims[5], const char *filename)
-{
-	// Import json geometry to ellipsis_e struct
-	char* file = readfile(filename);
-	
-	cJSON* json_data = cJSON_Parse(file);
-	check_json_file(json_data);
-	
-	// Get array from json file
-	const cJSON* apply = cJSON_GetObjectItemCaseSensitive(json_data, "apply");
-
-	cJSON_set_long(&(udims[0]), cJSON_GetObjectItemCaseSensitive(apply, "target_dims"), "x");
-	cJSON_set_long(&(udims[1]), cJSON_GetObjectItemCaseSensitive(apply, "target_dims"), "y");
-	cJSON_set_long(&(udims[2]), cJSON_GetObjectItemCaseSensitive(apply, "target_dims"), "z");
-
-	cJSON_Delete(json_data);
-}
-
 static nn_t residual_create(const struct modl_s* config, const long udims[5], enum NETWORK_STATUS status){
 
 	long udims_w[5] = {1, udims[0], udims[1], udims[2], udims[4]};

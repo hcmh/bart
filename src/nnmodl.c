@@ -17,6 +17,7 @@
 
 #include "misc/debug.h"
 #include "misc/opts.h"
+#include "misc/opts_json.h"
 #include "misc/mmio.h"
 
 #include "networks/modl.h"
@@ -88,27 +89,6 @@ int main_nnmodl(int argc, char* argv[])
 
 		OPTL_SET('o', "one_iter", &one_iter, "only one iteration"),
 
-		//OPTL_LONG(0, "modl_num_iterations", &Nt, "guessed", "number of layers"),
-		//OPTL_LONG(0, "modl_num_filters", &(modl.Nf), "guessed", "number of convolution filters (def: 48 / guessed from weights)"),
-		//OPTL_LONG(0, "modl_num_layers", &(modl.Nl), "guessed", "number of convolution layers (def: 5 / guessed from weights)"),
-		//OPTL_LONG(0, "modl_kernel_size_x", &(modl.Kx), "guessed", "kernel size x dimension (def: 3 / guessed from weights)"),
-		//OPTL_LONG(0, "modl_kernel_size_y", &(modl.Ky), "guessed", "kernel size y dimension (def: 3 / guessed from weights)"),
-		//OPTL_LONG(0, "modl_kernel_size_z", &(modl.Kz), "guessed", "kernel size z dimension (def: 1 / guessed from weights)"),
-		//OPTL_SET(0, "modl_no_shared_weights", &(modl.shared_weights), "do not share weights"),
-
-		OPTL_FLOAT(0, "modl_fix_lambda", &(modl.lambda_fixed), "lambda", "fix lambda to given value (def: -1. = trainable)"),
-
-		OPTL_SET(0, "modl_tickhonov", &(modl.init_tickhonov), "initialize first MoDL iteration with Tickhonov regularized reconstruction"),
-		OPTL_CLEAR(0, "modl_no_residual", &(modl.residual_network), "no residual connection in dw block"),
-		OPTL_CLEAR(0, "modl_no_dc", &(modl.use_dc), "do not use data consistency layers"),
-		OPTL_SET(0, "modl_reinsert_zerofilled", &(modl.reinsert_zerofilled), "reinsert zero-filled reconstruction and current reconstruction to all DW networks"),
-		OPTL_CLEAR(0, "modl_no_batchnorm", &(modl.batch_norm), "no batch normalization in dw block"),
-
-		OPTL_SET(0, "modl_nullspace", &(modl.nullspace), "use nullspace formulation for the modl data-consistency layer"),
-
-		OPTL_UINT(0, "conjgrad_iterations", &(def_conf.maxiter), "iter", "number of iterations in data-consistency layer (def: 50)"),
-		//OPTL_FLOAT(0, "conjgrad_convergence_warning", &(modl.convergence_warn_limit), "limit", "warn if inversion error is larger than this limit (def: 0. = no warnings)"),
-
 		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
 		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
 		OPTL_LONG('Z', "fov_z", (udims + 2), "z", "Nz of the target image (guessed from reference(training) / kspace(inference))"),
@@ -116,8 +96,39 @@ int main_nnmodl(int argc, char* argv[])
 
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
-	if (NULL != config_file)
-		modl_read_from_json(&modl, config_file);
+	if (NULL != config_file) {
+
+		const struct opt_json_s opts_json[] = {
+
+			JSON_BOOL(JSON_LABEL("data", "normalize"), &(modl.normalize), false,  ""),
+
+			JSON_LONG(JSON_LABEL("network", "modl", "iterations"), &(modl.Nt), true,  ""),
+			JSON_BOOL(JSON_LABEL("network", "modl", "reinsert_zerofilled"), &(modl.reinsert_zerofilled), false,  ""),
+			JSON_BOOL(JSON_LABEL("network", "modl", "init_tickhonov"), &(modl.init_tickhonov), false,  ""),
+			JSON_BOOL(JSON_LABEL("network", "modl", "nullspace_formulation"), &(modl.nullspace), false,  ""),
+
+			JSON_LONG(JSON_LABEL("network", "dw", "conv_layers"), &(modl.Nl), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "dw", "filter"), &(modl.Nf), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "dw", "kernels", "x"), &(modl.Kx), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "dw", "kernels", "y"), &(modl.Ky), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "dw", "kernels", "z"), &(modl.Kz), false,  ""),
+			JSON_BOOL(JSON_LABEL("network", "dw", "batch_normalization"), &(modl.batch_norm), false,  ""),
+			JSON_BOOL(JSON_LABEL("network", "dw", "residual_network"), &(modl.residual_network), false,  ""),
+			JSON_BOOL(JSON_LABEL("network", "dw", "shared_weights"), &(modl.shared_weights), false,  ""),
+
+			JSON_BOOL(JSON_LABEL("network", "dc", "use_dc"), &(modl.use_dc), false,  ""),
+			JSON_BOOL(JSON_LABEL("network", "dc", "shared_lambda"), &(modl.shared_weights), false,  ""),
+			JSON_FLOAT(JSON_LABEL("network", "dc", "fixed_lambda"), &(modl.lambda_fixed), false,  ""),
+			JSON_FLOAT(JSON_LABEL("network", "dc", "lambda_init"), &(modl.lambda_init), false,  ""),
+			JSON_UINT(JSON_LABEL("network", "dc", "conjgrad_iterations"), &(def_conf.maxiter), false,  ""),
+
+			JSON_LONG(JSON_LABEL("apply", "target_dims", "x"), udims, false,  ""),
+			JSON_LONG(JSON_LABEL("apply", "target_dims", "y"), udims + 1, false,  ""),
+			JSON_LONG(JSON_LABEL("apply", "target_dims", "z"), udims + 2, false,  ""),
+
+		};
+		read_json(config_file, ARRAY_SIZE(opts_json), opts_json);
+	}
 	
 	if (one_iter) 
 		modl.Nt = 1;
@@ -245,9 +256,6 @@ int main_nnmodl(int argc, char* argv[])
 
 		nn_modl_load_weights(&modl, filename_weights, true);
 		nn_modl_move_gpucpu(&modl, use_gpu);
-
-		if (NULL != config_file)
-			modl_read_udims_from_json(udims, config_file);
 
 		udims[0] = (1 == udims[0]) ? kdims[0] : udims[0];
 		udims[1] = (1 == udims[1]) ? kdims[1] : udims[1];
