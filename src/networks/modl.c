@@ -728,7 +728,7 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 	auto nn_train = nn_modl_train_op_create(modl, nkdims, nudims);
 
 	if (NULL != modl->draw_graph_filename)
-		nn_export_graph(modl->draw_graph_filename, nn_train, (graph_t){false, false, false});
+		nn_export_graph(modl->draw_graph_filename, nn_train, graph_default);
 
 	//create batch generator
 	const complex float* train_data[] = {ref, kspace, coil, pattern};

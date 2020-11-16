@@ -2592,6 +2592,8 @@ void operator_apply_parallel_unchecked(unsigned int N, const struct operator_s* 
 	reorder_operators(N, op, dst, src);
 }
 
+graph_t graph_default = {false, false, false};
+
 static const char* operator_graph_default(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
 {
 	UNUSED(opts);
