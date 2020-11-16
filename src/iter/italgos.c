@@ -912,7 +912,7 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 
 	for (unsigned int epoch = 0; epoch < epochs; epoch++) {
 
-		iter_dump_multi(dump, epoch, NI, (const float**)x);
+		iter_dump(dump, epoch, NI, (const float**)x);
 
 		for (int i_batch = 0; i_batch < N_total / N_batch; i_batch++) {
 
@@ -1117,7 +1117,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 
 	for (int epoch = epoch_start; epoch < epoch_end; epoch++) {
 
-		iter_dump_multi(dump, epoch, NI, (const float**)x);
+		iter_dump(dump, epoch, NI, (const float**)x);
 
 		for (int batch = 0; batch < N_batch; batch++) {
 

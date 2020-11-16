@@ -257,7 +257,7 @@ static const struct iter_dump_s* iter6_dump_default_create(const char* base_file
 			save_flag = MD_SET(save_flag, i);
 	}
 
-	return iter_dump_multi_default_create(base_filename, save_mod, NI, save_flag, D, dims);
+	return iter_dump_default_create(base_filename, save_mod, NI, save_flag, D, dims);
 }
 
 void iter6_adadelta(	iter6_conf* _conf,
