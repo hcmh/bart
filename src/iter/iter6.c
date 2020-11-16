@@ -45,27 +45,25 @@ DEF_TYPEID(iter6_adadelta_conf);
 DEF_TYPEID(iter6_adam_conf);
 DEF_TYPEID(iter6_iPALM_conf);
 
+#define ITER6_DEFAULT \
+	.INTERFACE.epochs = 1, \
+	.INTERFACE.clip_norm = 0., \
+	.INTERFACE.clip_val = 0., \
+	.INTERFACE.history_filename = NULL, \
+	.INTERFACE.dump = NULL, \
+	.INTERFACE.dump_filename = NULL, \
+	.INTERFACE.dump_mod = -1, \
+	.INTERFACE.batchnorm_momentum = .95, \
+	.INTERFACE.batchgen_type = BATCH_GEN_SAME, \
+	.INTERFACE.batch_seed = 123,
 
 const struct iter6_sgd_conf iter6_sgd_conf_defaults = {
 
 	.INTERFACE.TYPEID = &TYPEID2(iter6_sgd_conf),
+	
+	ITER6_DEFAULT
 
-	.INTERFACE.epochs = 1,
-	.INTERFACE.learning_rate = 0.01,
-
-	.INTERFACE.clip_norm = 0.,
-	.INTERFACE.clip_val = 0.,
-
-	.INTERFACE.history_filename = NULL,
-
-	.INTERFACE.dump = NULL,
-	.INTERFACE.dump_filename = NULL,
-	.INTERFACE.dump_mod = -1,
-
-	.INTERFACE.batchnorm_momentum = .95,
-
-	.INTERFACE.batchgen_type = BATCH_GEN_SAME,
-	.INTERFACE.batch_seed = 123,
+	.INTERFACE.learning_rate = 0.001,
 
 	.momentum = 0.
 };
@@ -75,22 +73,9 @@ const struct iter6_adadelta_conf iter6_adadelta_conf_defaults = {
 
 	.INTERFACE.TYPEID = &TYPEID2(iter6_adadelta_conf),
 
-	.INTERFACE.epochs = 1,
+	ITER6_DEFAULT
+
 	.INTERFACE.learning_rate = 1.,
-
-	.INTERFACE.clip_norm = 0.0,
-	.INTERFACE.clip_val = 0.0,
-
-	.INTERFACE.history_filename = NULL,
-
-	.INTERFACE.dump = NULL,
-	.INTERFACE.dump_filename = NULL,
-	.INTERFACE.dump_mod = -1,
-
-	.INTERFACE.batchnorm_momentum = .95,
-
-	.INTERFACE.batchgen_type = BATCH_GEN_SAME,
-	.INTERFACE.batch_seed = 123,
 
 	.rho = 0.95
 };
@@ -99,22 +84,9 @@ const struct iter6_adam_conf iter6_adam_conf_defaults = {
 
 	.INTERFACE.TYPEID = &TYPEID2(iter6_adam_conf),
 
-	.INTERFACE.epochs = 1,
+	ITER6_DEFAULT
+
 	.INTERFACE.learning_rate = .001,
-
-	.INTERFACE.clip_norm = 0.0,
-	.INTERFACE.clip_val = 0.0,
-
-	.INTERFACE.history_filename = NULL,
-
-	.INTERFACE.dump = NULL,
-	.INTERFACE.dump_filename = NULL,
-	.INTERFACE.dump_mod = -1,
-
-	.INTERFACE.batchnorm_momentum = .95,
-
-	.INTERFACE.batchgen_type = BATCH_GEN_SAME,
-	.INTERFACE.batch_seed = 123,
 
 	.reset_epoch = -1,
 
@@ -129,22 +101,9 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 
 	.INTERFACE.TYPEID = &TYPEID2(iter6_iPALM_conf),
 
-	.INTERFACE.epochs = 1,
+	ITER6_DEFAULT
+
 	.INTERFACE.learning_rate = 1.,
-
-	.INTERFACE.clip_norm = 0.0,
-	.INTERFACE.clip_val = 0.0,
-
-	.INTERFACE.history_filename = NULL,
-
-	.INTERFACE.dump = NULL,
-	.INTERFACE.dump_filename = NULL,
-	.INTERFACE.dump_mod = -1,
-
-	.INTERFACE.batchnorm_momentum = .95,
-
-	.INTERFACE.batchgen_type = BATCH_GEN_SAME,
-	.INTERFACE.batch_seed = 123,
 
 	.Lmin = 1.e-10,
 	.Lmax = 1.e10,
