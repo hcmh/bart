@@ -617,7 +617,8 @@ static nn_t vn_train_op_create(const struct vn_s* vn, const long dims[5], const 
  * l[0:1]:	ldims:	(1,  Nl)
  *
  * Output tensors:
- * valid_loss:	dims:	(1)
+ * mse (mag):	dims:	(1)
+ * mse:		dims:	(1)
  */
 static nn_t vn_valid_loss_create(struct vn_s* vn, const char**valid_files)
 {
@@ -633,7 +634,31 @@ static nn_t vn_valid_loss_create(struct vn_s* vn, const char**valid_files)
 
 	vn->share_pattern = pdims[4] == 1;
 
-	auto valid_loss = vn_train_op_create(vn, kdims, udims);
+	auto valid_loss = nn_vn_create(vn, kdims, udims);
+
+	const struct nlop_s* loss = nlop_combine_FF(nlop_mse_create(5, udims, ~0ul), nlop_mse_create(5, udims, ~0ul));
+	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
+	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
+	loss = nlop_dup_F(loss, 0, 2);
+	loss = nlop_dup_F(loss, 1, 2);
+
+	if(vn->normalize) {
+
+		long sdims[5];
+		md_select_dims(5, MD_BIT(4), sdims, kdims);
+
+		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
+
+		valid_loss = nn_chain2_FF(valid_loss, 0, "normalize_scale", nn_norm_ref, 1, NULL);
+		valid_loss = nn_chain2_FF(valid_loss, 1, NULL, nn_from_nlop(loss), 1, NULL);
+		valid_loss = nn_link_F(valid_loss, 2, NULL, 0, NULL);
+		valid_loss = nn_set_out_type_F(valid_loss, 0, NULL, OUT_OPTIMIZE);
+
+	} else {
+
+		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop(loss), 1, NULL);
+		valid_loss = nn_set_out_type_F(valid_loss, 0, NULL, OUT_OPTIMIZE);
+	}
 
 	valid_loss = nn_ignore_input_F(valid_loss, 0, NULL, 5, udims, true, val_ref);
 	valid_loss = nn_ignore_input_F(valid_loss, 0, "kspace", 5, kdims, true, val_kspace);
@@ -730,13 +755,16 @@ void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 	if (NULL != valid_files) {
 
 		auto nn_validation_loss = vn_valid_loss_create(vn, valid_files);
-		value_monitors[0] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, 1, (const char*[1]){"val loss (mag)"});
+		value_monitors[0] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, 2, (const char*[2]){"val loss (mag)", "val loss"});
 		nn_free(nn_validation_loss);
 	} else {
 
 		value_monitors[0] = NULL;
 	}
 	struct monitor_iter6_s* monitor = monitor_iter6_create(true, true, (NULL != valid_files) ? 1 : 0, value_monitors);
+
+	debug_printf(DP_INFO, "Train VarNet\n");
+	nn_debug(DP_INFO, nn_train);
 
 	iter6_iPALM(train_conf, nn_get_nlop(nn_train), 7, in_type, projections, src, 1, out_type, 0, Nt / Nb, batch_generator, monitor);
 	nn_free(nn_train);
