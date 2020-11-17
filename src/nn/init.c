@@ -330,7 +330,163 @@ const struct initializer_s* init_linspace_create(unsigned int dim, complex float
 	return CAST_UP(PTR_PASS(data));
 }
 
+struct initializer_reshape_s {
 
+	INTERFACE(init_t);
+
+	unsigned int N;
+	long* dims;
+
+	const struct initializer_s* init;
+};
+
+static DEF_TYPEID(initializer_reshape_s);
+
+static void init_reshape_fun(const init_t* conf_, long N, const long dims[N], complex float* weights)
+{
+	auto d = CAST_DOWN(initializer_reshape_s, conf_);
+
+	assert(md_calc_size(N, dims) == md_calc_size(d->N, d->dims));
+
+	initializer_apply(d->init, d->N, d->dims, weights);
+}
+
+static void init_reshape_del(const init_t* conf_)
+{
+	auto d = CAST_DOWN(initializer_reshape_s, conf_);
+	initializer_free(d->init);
+	xfree(d->dims);
+}
+
+const struct initializer_s* init_reshape_create(unsigned int N, const long dims[N], const struct initializer_s* init)
+{
+	if(NULL == init)
+		return NULL;
+	PTR_ALLOC(struct initializer_reshape_s, data);
+	SET_TYPEID(initializer_reshape_s, data);
+
+	shared_obj_init(&(data->INTERFACE.sptr), init_del);
+	data->INTERFACE.del = init_reshape_del;
+	data->INTERFACE.fun = init_reshape_fun;
+
+	data->N = N;
+	PTR_ALLOC(long[N], ndims);
+	md_copy_dims(N, *ndims, dims);
+	data->dims = *PTR_PASS(ndims);
+	data->init = initializer_clone(init);
+
+	return CAST_UP(PTR_PASS(data));
+}
+
+struct initializer_stack_s {
+
+	INTERFACE(init_t);
+
+	unsigned int N;
+	long* dims;
+	long* dimsa;
+	long* dimsb;
+	int stack_dim;
+
+	const struct initializer_s* inita;
+	const struct initializer_s* initb;
+};
+
+static DEF_TYPEID(initializer_stack_s);
+
+static void init_stack_fun(const init_t* conf_, long N, const long dims[N], complex float* weights)
+{
+	auto d = CAST_DOWN(initializer_stack_s, conf_);
+
+	assert(md_calc_size(N, dims) == md_calc_size(d->N, d->dimsa) + md_calc_size(d->N, d->dimsb));
+
+	complex float* weightsa = md_alloc(d->N, d->dimsa, CFL_SIZE);
+	complex float* weightsb = md_alloc(d->N, d->dimsb, CFL_SIZE);
+
+	initializer_apply(d->inita, d->N, d->dimsa, weightsa);
+	initializer_apply(d->initb, d->N, d->dimsb, weightsb);
+
+	long pos[d->N];
+	for (uint i = 0; i < N; i++)
+		pos[i] = 0;
+
+	md_copy_block(d->N, pos, d->dims, weights, d->dimsa, weightsa, CFL_SIZE);
+	pos[d->stack_dim] = d->dimsa[d->stack_dim];
+	md_copy_block(d->N, pos, d->dims, weights, d->dimsb, weightsb, CFL_SIZE);
+
+	md_free(weightsa);
+	md_free(weightsb);
+}
+
+static void init_stack_del(const init_t* conf_)
+{
+	auto d = CAST_DOWN(initializer_stack_s, conf_);
+	initializer_free(d->inita);
+	initializer_free(d->initb);
+	xfree(d->dims);
+	xfree(d->dimsa);
+	xfree(d->dimsb);
+}
+
+const struct initializer_s* init_stack_create(unsigned int N, int stack_dim, const long dimsa[N], const struct initializer_s* inita, const long dimsb[N], const struct initializer_s* initb)
+{
+	if (NULL == inita && NULL == initb)
+		return NULL;
+
+	PTR_ALLOC(struct initializer_stack_s, data);
+	SET_TYPEID(initializer_stack_s, data);
+
+	shared_obj_init(&(data->INTERFACE.sptr), init_del);
+	data->INTERFACE.del = init_stack_del;
+	data->INTERFACE.fun = init_stack_fun;
+
+	data->N = N;
+	
+	data->stack_dim = (0 > stack_dim) ? (int)N + stack_dim : stack_dim;
+	assert((0 <= data->stack_dim) && (data->stack_dim < (int)N));
+
+	data->inita = (NULL == inita) ? init_const_create(0) : initializer_clone(inita);
+	data->initb = (NULL == initb) ? init_const_create(0) : initializer_clone(initb);
+
+	PTR_ALLOC(long[N], ndimsa);
+	md_copy_dims(N, *ndimsa, dimsa);
+	data->dimsa = *PTR_PASS(ndimsa);
+
+	PTR_ALLOC(long[N], ndimsb);
+	md_copy_dims(N, *ndimsb, dimsb);
+	data->dimsb = *PTR_PASS(ndimsb);
+
+	PTR_ALLOC(long[N], dims);
+	for (int i = 0; i < (int)N; i++) {
+
+		if (i == data->stack_dim) {
+
+			(*dims)[i] = dimsa[i] + dimsb[i];
+		} else {
+			assert(dimsa[i] == dimsb[i]);
+			(*dims)[i] = dimsa[i];
+		}
+	}
+	data->dims = *PTR_PASS(dims);
+
+	return CAST_UP(PTR_PASS(data));
+}
+
+const struct initializer_s* init_dup_create(const struct initializer_s* inita, const struct initializer_s* initb)
+{
+	if (NULL == inita && NULL == initb)
+		return NULL;
+	
+	if ((NULL == inita) && (NULL != initb))
+		return initializer_clone(initb);
+	
+	if ((NULL == initb) && (NULL != inita))
+		return initializer_clone(inita);
+
+	if (inita->TYPEID != initb->TYPEID)
+		error("Dup for arguments with different initializers, i.e. \"%s\" and \"%s\"!", inita->TYPEID->name, initb->TYPEID->name);
+	return initializer_clone(inita);
+}
 
 
 /**

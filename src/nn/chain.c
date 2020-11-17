@@ -4,6 +4,7 @@
 
 #include "misc/misc.h"
 
+#include "nn/init.h"
 #include "num/iovec.h"
 #include "num/multind.h"
 
@@ -35,6 +36,11 @@ nn_t nn_reshape_in(nn_t op, int i, const char* iname, int N, const long idims[N]
 		nn_clone_arg_i_from_i(result, i, op, i);
 	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
+
+	auto iov = nlop_generic_domain(op->network, i);
+	auto init_tmp = init_reshape_create(iov->N, iov->dims, result->initializers[i]);
+	initializer_free(result->initializers[i]);
+	result->initializers[i] = init_tmp;
 
 	return result;
 }
@@ -256,6 +262,8 @@ nn_t nn_dup(nn_t x, int a, const char* aname, int b, const char* bname)
 	unsigned int II = nn_get_nr_in_args(x);
 	unsigned int OO = nn_get_nr_out_args(x);
 
+	auto init_tmp = init_dup_create(x->initializers[a], x->initializers[b]);
+
 	auto nlop = nlop_dup(nn_get_nlop(x), MIN(a , b), MAX(a, b));
 	if (a > b)
 		nlop = nlop_shift_input_F(nlop, a - 1, b);
@@ -269,6 +277,9 @@ nn_t nn_dup(nn_t x, int a, const char* aname, int b, const char* bname)
 	}
 	for (unsigned int i = 0; i < OO; i++)
 		nn_clone_arg_o_from_o(result, i, x, i);
+
+	initializer_free(result->initializers[(a > b) ? a - 1 : a]);
+	result->initializers[(a > b) ? a - 1 : a] = init_tmp;
 
 	return result;
 }
@@ -288,6 +299,11 @@ nn_t nn_stack_inputs(nn_t x, int a, const char* aname, int b, const char* bname,
 	unsigned int II = nn_get_nr_in_args(x);
 	unsigned int OO = nn_get_nr_out_args(x);
 
+	auto iova = nlop_generic_domain(x->network, a);
+	auto iovb = nlop_generic_domain(x->network, b);
+	assert(iova->N == iovb->N);
+	auto init_tmp = init_stack_create(iova->N, stack_dim, iova->dims, x->initializers[a], iovb->dims, x->initializers[b]);
+
 	auto nlop = nlop_stack_inputs(nn_get_nlop(x), a, b, stack_dim);
 	if (a > b)
 		nlop = nlop_shift_input_F(nlop, a - 1, b);
@@ -300,6 +316,10 @@ nn_t nn_stack_inputs(nn_t x, int a, const char* aname, int b, const char* bname,
 	}
 	for (unsigned int i = 0; i < OO; i++)
 		nn_clone_arg_o_from_o(result, i, x, i);
+	
+	initializer_free(result->initializers[(a > b) ? a - 1 : a]);
+	result->initializers[(a > b) ? a - 1 : a] = init_tmp;
+
 	return result;
 }
 nn_t nn_stack_inputs_F(nn_t x, int a, const char* aname, int b, const char* bname, int stack_dim)
