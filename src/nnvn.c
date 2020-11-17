@@ -16,6 +16,7 @@
 
 #include "misc/debug.h"
 #include "misc/opts.h"
+#include "misc/opts_json.h"
 #include "misc/mmio.h"
 
 #include "nn/weights.h"
@@ -51,6 +52,9 @@ int main_nnvn(int argc, char* argv[])
 
 	long Nb = 10;
 
+	const char* config_file = NULL;
+	bool load_mem = false;
+
 	const struct opt_s opts[] = {
 
 		OPTL_SET('i', "initialize", &initialize, "initialize weights"),
@@ -58,6 +62,8 @@ int main_nnvn(int argc, char* argv[])
 		OPTL_SET('g', "gpu", &use_gpu, "run on gpu"),
 		OPTL_SET('a', "apply", &apply, "apply variational network"),
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
+
+		OPTL_STRING('c', "config", &config_file, "file", "file for loading varnet configuration"),
 
 		OPTL_FLOAT('r', "learning_rate", &(train_conf.INTERFACE.learning_rate), "lr", "learning rate"),
 		OPTL_INT('e', "epochs", &(train_conf.INTERFACE.epochs), "epochs", "number epochs to train"),
@@ -68,13 +74,7 @@ int main_nnvn(int argc, char* argv[])
 		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2= shuffle data, 3=randonly draw data"),
 
 		OPTL_SET('n', "normalize", &(vn_config.normalize), "normalize the input by maximum of zero-filled reconstruction"),
-
-		OPTL_LONG(0, "vn_num_iterations", &(vn_config.Nl), "guessed", "number of layers (def:10 / guessed from weights)"),
-		OPTL_LONG(0, "vn_num_filters", &(vn_config.Nf), "guessed", "number of convolution filters (def:24 / guessed from weights)"),
-		OPTL_LONG(0, "vn_num_rbf", &(vn_config.Nw), "guessed", "number of activation filters (def:31 / guessed from weights)"),
-		OPTL_LONG(0, "vn_kernel_size_x", &(vn_config.Kx), "guessed", "kernel size x dimension (def:11 / guessed from weights)"),
-		OPTL_LONG(0, "vn_kernel_size_y", &(vn_config.Ky), "guessed", "kernel size y dimension (def:11 / guessed from weights)"),
-		OPTL_LONG(0, "vn_kernel_size_z", &(vn_config.Kz), "guessed", "kernel size z dimension (def:1 / guessed from weights)"),
+		OPTL_SET('m', "load_data", &(load_mem), "load files int memory"),
 
 		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
 		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
@@ -89,6 +89,28 @@ int main_nnvn(int argc, char* argv[])
 		train_conf.INTERFACE.dump_mod = 5;
 	if ((NULL == train_conf.INTERFACE.dump_filename) && (0 < train_conf.INTERFACE.dump_mod))
 		train_conf.INTERFACE.dump_filename = argv[4];
+	
+	if (NULL != config_file) {
+
+		const struct opt_json_s opts_json[] = {
+
+			JSON_BOOL(JSON_LABEL("data", "normalize"), &(vn_config.normalize), false,  ""),
+
+			JSON_LONG(JSON_LABEL("network", "iterations"), &(vn_config.Nl), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "filter"), &(vn_config.Nf), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "num_rbf"), &(vn_config.Nw), true,  ""),
+			
+			JSON_LONG(JSON_LABEL("network", "kernels", "x"), &(vn_config.Kx), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "kernels", "y"), &(vn_config.Ky), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "kernels", "z"), &(vn_config.Kz), false,  ""),
+
+			JSON_LONG(JSON_LABEL("apply", "target_dims", "x"), udims, false,  ""),
+			JSON_LONG(JSON_LABEL("apply", "target_dims", "y"), udims + 1, false,  ""),
+			JSON_LONG(JSON_LABEL("apply", "target_dims", "z"), udims + 2, false,  ""),
+
+		};
+		read_json(config_file, ARRAY_SIZE(opts_json), opts_json);
+	}
 
 	train_conf.INTERFACE.batchgen_type = random_order;
 
