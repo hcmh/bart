@@ -369,7 +369,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		data->tmp.rep_counter = 0;
 		data->pulse.phase = 0;
 
-		if (data->seq.seq_type == 1 || data->seq.seq_type == 5) {
+		if (data->seq.seq_type == 1 || data->seq.seq_type == 5 || data->seq.seq_type == 7) {
 
 		// 	apply_inversion(N, xp, data->seq.inversion_pulse_length, data);
 			xp[2] = -1;
@@ -377,7 +377,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		}
 
 		//for bSSFP based sequences: alpha/2 and tr/2 preparation
-		if (data->seq.seq_type == 0 || data->seq.seq_type == 1)
+		if (data->seq.seq_type == 0 || data->seq.seq_type == 1 || data->seq.seq_type == 7)
 			apply_signal_preparation(N, xp, data);
 
 		// IR FLASH (Look-Locker model) assumes perfect inversion followed by a relaxation block
@@ -396,11 +396,35 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 
 		float matrix_to_tr[N][N];
 		prepare_matrix_to_tr( N, matrix_to_tr, data);
-        
+
+
+
+		float matrix_to_te_fa2[N][N];
+		float matrix_to_te_fa2_PI[N][N];
+
+		if (7 == data->seq.seq_type) {	// half change IR bSSFP
+
+			data->pulse.flipangle *= 2;
+
+			prepare_matrix_to_te( N, matrix_to_te_fa2, data);
+
+			data->pulse.phase = M_PI;
+			prepare_matrix_to_te( N, matrix_to_te_fa2_PI, data);
+			data->pulse.phase = 0.;
+
+			data->pulse.flipangle /= 2;
+		}
+
 		while (data->tmp.rep_counter < data->seq.rep_num) { 
 			
 			if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
+
 				apply_sim_matrix( N, xp, matrix_to_te );
+
+			else if (7 == data->seq.seq_type && 500 <= data->tmp.rep_counter)
+
+				apply_sim_matrix( N, xp, ( ( data->tmp.rep_counter % 2 == 0 ) ? matrix_to_te_fa2 : matrix_to_te_fa2_PI) );
+
 			else
 				apply_sim_matrix( N, xp, ( ( data->tmp.rep_counter % 2 == 0 ) ? matrix_to_te : matrix_to_te_PI) );
 
