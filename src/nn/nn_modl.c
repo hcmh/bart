@@ -34,6 +34,7 @@
 #include "nlops/someops.h"
 #include "nlops/mri_ops.h"
 #include "nlops/const.h"
+#include "nlops/stack.h"
 
 #include "nn/activation.h"
 #include "nn/layers.h"
@@ -83,17 +84,29 @@ const struct modl_s modl_default = {
 	.lambda_fixed = -1.,
 
 	.nullspace = false,
+	.reinsert_zerofilled = false,
 };
 
 static const struct nlop_s* nlop_dw_first_layer(const struct modl_s* config, const long udims[5], enum NETWORK_STATUS status)
 {
 	long udims_w[5] = {1, udims[0], udims[1], udims[2], udims[4]};
 
-	const struct nlop_s* result = nlop_from_linop_F(linop_reshape_create(5, udims_w, 5, udims));
+	const struct nlop_s* result = NULL;
+	if (config->reinsert_zerofilled) {
 
-	result = append_convcorr_layer(result, 0, config->Nf, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL); //in: xn, conv_w; out; xn'
-	result = append_batchnorm_layer(result, 0, ~MD_BIT(0), status); //in: xn, conv0, bn0_in; out: xn', bn0_out
-	result = append_activation_bias(result, 0, ACT_RELU, MD_BIT(0)); //in: xn, conv0, bn0_in, bias0; out: xn', bn0_out
+		long udims_w2[5] = {2, udims[0], udims[1], udims[2], udims[4]};
+		result = nlop_stack_create(5, udims_w2, udims_w, udims_w, 0);
+		result = nlop_reshape_in_F(result, 0, 5, udims);
+		result = nlop_reshape_in_F(result, 1, 5, udims);
+
+	} else {
+
+		result = nlop_from_linop_F(linop_reshape_create(5, udims_w, 5, udims));
+	}
+
+	result = append_convcorr_layer(result, 0, config->Nf, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL); //in: xn, [x0], conv_w; out; xn'
+	result = append_batchnorm_layer(result, 0, ~MD_BIT(0), status); //in: xn, [x0], conv0, bn0_in; out: xn', bn0_out
+	result = append_activation_bias(result, 0, ACT_RELU, MD_BIT(0)); //in: xn, [x0], conv0, bn0_in, bias0; out: xn', bn0_out
 
 	return result;
 }
@@ -102,33 +115,35 @@ static const struct nlop_s* nlop_dw_append_center_layer(const struct modl_s* con
 {
 	assert(0 < config->Nl - 2);
 
-	nlop_dw = append_convcorr_layer(nlop_dw, 0, config->Nf, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL); //in: xn, conv0, bn0_in, bias0, convi; out: xn', bn0_out
-	nlop_dw = append_batchnorm_layer(nlop_dw, 0, ~MD_BIT(0), status); //in: xn, conv0, bn0_in, bias0, convi, bni_in; out: xn', bn0_out, bni_out
-	nlop_dw = append_activation_bias(nlop_dw, 0, ACT_RELU, MD_BIT(0)); //in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi; out: xn', bn0_out, bni_out
+	nlop_dw = append_convcorr_layer(nlop_dw, 0, config->Nf, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL); //in: xn, [x0], conv0, bn0_in, bias0, convi; out: xn', bn0_out
+	nlop_dw = append_batchnorm_layer(nlop_dw, 0, ~MD_BIT(0), status); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in; out: xn', bn0_out, bni_out
+	nlop_dw = append_activation_bias(nlop_dw, 0, ACT_RELU, MD_BIT(0)); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi; out: xn', bn0_out, bni_out
 
-	nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, 4);
-	nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, 5);
-	nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, 6);
+	int os = config->reinsert_zerofilled ? 1 : 0;
+
+	nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, os + 4);
+	nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, os + 5);
+	nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, os + 6);
 	nlop_dw = nlop_append_singleton_dim_out_F(nlop_dw, 2);
 
 
 	for (int i = 0; i < config->Nl - 3; i++) {
 
 		nlop_dw = append_convcorr_layer(nlop_dw, 0, config->Nf, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL);
-		//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convi'; out: xn', bn0_out, bni_out
-		nlop_dw = append_batchnorm_layer(nlop_dw, 0, ~MD_BIT(0), status); //in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convi', bni_in'; out: xn', bn0_out, bni_out, bni_out'
-		nlop_dw = append_activation_bias(nlop_dw, 0, ACT_RELU, MD_BIT(0)); //in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convi', bni_in', biasi_in'; out: xn', bn0_out, bni_out, bni_out'
+		//in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convi'; out: xn', bn0_out, bni_out
+		nlop_dw = append_batchnorm_layer(nlop_dw, 0, ~MD_BIT(0), status); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convi', bni_in'; out: xn', bn0_out, bni_out, bni_out'
+		nlop_dw = append_activation_bias(nlop_dw, 0, ACT_RELU, MD_BIT(0)); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convi', bni_in', biasi_in'; out: xn', bn0_out, bni_out, bni_out'
 
-		nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, 7);
-		nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, 8);
-		nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, 9);
+		nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, os + 7);
+		nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, os + 8);
+		nlop_dw = nlop_append_singleton_dim_in_F(nlop_dw, os + 9);
 		nlop_dw = nlop_append_singleton_dim_out_F(nlop_dw, 3);
 
-		nlop_dw = nlop_stack_inputs_F(nlop_dw, 4, 7, nlop_generic_domain(nlop_dw, 4)->N - 1);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, bni_in', biasi_in'; out: xn', bn0_out, bni_out, bni_out'
-		nlop_dw = nlop_stack_inputs_F(nlop_dw, 5, 7, nlop_generic_domain(nlop_dw, 5)->N - 1);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, biasi_in'; out: xn', bn0_out, bni_out, bni_out'
-		nlop_dw = nlop_stack_inputs_F(nlop_dw, 6, 7, nlop_generic_domain(nlop_dw, 6)->N - 1);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi; out: xn', bn0_out, bni_out, bni_out'
+		nlop_dw = nlop_stack_inputs_F(nlop_dw, os + 4, os + 7, nlop_generic_domain(nlop_dw, os + 4)->N - 1);//in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, bni_in', biasi_in'; out: xn', bn0_out, bni_out, bni_out'
+		nlop_dw = nlop_stack_inputs_F(nlop_dw, os + 5, os + 7, nlop_generic_domain(nlop_dw, os + 5)->N - 1);//in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, biasi_in'; out: xn', bn0_out, bni_out, bni_out'
+		nlop_dw = nlop_stack_inputs_F(nlop_dw, os + 6, os + 7, nlop_generic_domain(nlop_dw, os + 6)->N - 1);//in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi; out: xn', bn0_out, bni_out, bni_out'
 
-		nlop_dw = nlop_stack_outputs_F(nlop_dw, 2, 3, nlop_generic_codomain(nlop_dw, 2)->N - 1);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi; out: xn', bn0_out, bni_out
+		nlop_dw = nlop_stack_outputs_F(nlop_dw, 2, 3, nlop_generic_codomain(nlop_dw, 2)->N - 1);//in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi; out: xn', bn0_out, bni_out
 	}
 
 	return nlop_dw;
@@ -138,10 +153,10 @@ static const struct nlop_s* nlop_dw_append_last_layer(const struct modl_s* confi
 {
 	assert(0 < config->Nl - 2);
 
-	//nlop_dw in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi; out: xn', bn0_out, bni_out
+	//nlop_dw in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi; out: xn', bn0_out, bni_out
 
-	nlop_dw = append_convcorr_layer(nlop_dw, 0, 1, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL); //in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn; out: xn', bn0_out, bni_out
-	nlop_dw = append_batchnorm_layer(nlop_dw, 0, ~MD_BIT(0), status); //in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in; out: xn', bn0_out, bni_out, bnn_out
+	nlop_dw = append_convcorr_layer(nlop_dw, 0, 1, MAKE_ARRAY(config->Kx, config->Ky, config->Kz), false, PAD_SAME, true, NULL, NULL); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convn; out: xn', bn0_out, bni_out
+	nlop_dw = append_batchnorm_layer(nlop_dw, 0, ~MD_BIT(0), status); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in; out: xn', bn0_out, bni_out, bnn_out
 
 	//append gamma for batchnorm
 	long N_out = nlop_generic_codomain(nlop_dw, 0)->N;
@@ -151,8 +166,8 @@ static const struct nlop_s* nlop_dw_append_last_layer(const struct modl_s* confi
 	md_select_dims(N_out, MD_BIT(0), gdims, nlop_generic_codomain(nlop_dw, 0)->dims);
 	auto nlop_gamma_mul = nlop_tenmul_create(N_out, odims, odims, gdims);
 
-	nlop_dw = nlop_chain2_swap_FF(nlop_dw, 0, nlop_gamma_mul, 0); //in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman; out: xn', bn0_out, bni_out, bnn_out
-	nlop_dw = append_activation_bias(nlop_dw, 0, ACT_LIN, MD_BIT(0)); //in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn', bn0_out, bni_out, bnn_out
+	nlop_dw = nlop_chain2_swap_FF(nlop_dw, 0, nlop_gamma_mul, 0); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman; out: xn', bn0_out, bni_out, bnn_out
+	nlop_dw = append_activation_bias(nlop_dw, 0, ACT_LIN, MD_BIT(0)); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn', bn0_out, bni_out, bnn_out
 
 	const long* udims_r = nlop_generic_codomain(nlop_dw, 0)->dims;
 	long udims[5] = {udims_r[1], udims_r[2], udims_r[3], 1, udims_r[4]};
@@ -169,17 +184,19 @@ static const struct nlop_s* nlop_dw_create(const struct modl_s* config, const lo
 	nlop_dw = nlop_dw_append_center_layer(config, nlop_dw, status);
 	nlop_dw = nlop_dw_append_last_layer(config, nlop_dw, status);
 
-	nlop_dw = nlop_chain2_FF(nlop_dw, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0); //in: xn, xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: zn, bn0_out, bni_out, bnn_out
-	nlop_dw = nlop_dup_F(nlop_dw, 0, 1); //in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn + xn', bn0_out, bni_out, bnn_out
+	int os = config->reinsert_zerofilled ? 1 : 0;
+
+	nlop_dw = nlop_chain2_FF(nlop_dw, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0); //in: xn, xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: zn, bn0_out, bni_out, bnn_out
+	nlop_dw = nlop_dup_F(nlop_dw, 0, 1); //in: xn, [x0], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn + xn', bn0_out, bni_out, bnn_out
 	if (-1. == config->lambda_fixed) {
 		nlop_dw = nlop_chain2_swap_FF(nlop_dw, 0, nlop_tenmul_create(5, udims, udims, MD_SINGLETON_DIMS(5)), 0);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: xn + xn', bn0_out, bni_out, bnn_out
-		nlop_dw = nlop_reshape_in_F(nlop_dw, 11, 1, MD_SINGLETON_DIMS(1));
+		nlop_dw = nlop_reshape_in_F(nlop_dw, os + 11, 1, MD_SINGLETON_DIMS(1));
 	} else {
 		nlop_dw = nlop_chain2_FF(nlop_dw, 0, nlop_from_linop_F(linop_scale_create(5, udims, config->lambda_fixed)), 0);
 		nlop_dw = nlop_combine_FF(nlop_dw, nlop_del_out_create(1, MD_SINGLETON_DIMS(1)));
 	}
 
-	nlop_dw = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(1, MD_SINGLETON_DIMS(1))), 0, nlop_dw, 11);
+	nlop_dw = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(1, MD_SINGLETON_DIMS(1))), 0, nlop_dw, os + 11);
 
 	debug_printf(DP_DEBUG3, "MoDL dw created\n");
 
@@ -197,7 +214,9 @@ static const struct nlop_s* nlop_modl_cell_create(const struct modl_s* config,co
 
 	auto nlop_dw = nlop_dw_create(config, udims, status);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: zn, bn0_out, bni_out, bnn_out
 
-	const struct nlop_s* result = nlop_chain2_FF(nlop_dw, 0, nlop_dc, 1); //in: x0, coil, pattern, lambda, xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: x(n+1), bn0_out, bni_out, bnn_out
+	const struct nlop_s* result = nlop_chain2_FF(nlop_dw, 0, nlop_dc, 1); //in: x0, coil, pattern, lambda, xn, [x0_zero], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: x(n+1), bn0_out, bni_out, bnn_out
+	if (config->reinsert_zerofilled)
+		result = nlop_dup_F(result, 0, 5);
 	result = nlop_dup_F(result, 3, 15); //in: x0, coil, pattern, lambda, xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
 	result = nlop_permute_inputs_F(result, 15, MAKE_ARRAY(4, 0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)); //in: xn, x0, coil, pattern, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
 
@@ -222,9 +241,11 @@ static const struct nlop_s* nlop_nullspace_modl_cell_create(const struct modl_s*
 
 	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0); // in: x0, DW(xn), coil, pattern, lambda; out: PDW(xn) + x0
 
-	auto nlop_dw = nlop_dw_create(config, udims, status);//in: xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: DW(xn), bn0_out, bni_out, bnn_out
+	auto nlop_dw = nlop_dw_create(config, udims, status);//in: xn, [x0_zero], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: DW(xn), bn0_out, bni_out, bnn_out
 
-	result = nlop_chain2_FF(nlop_dw, 0, result, 1); //in: x0, coil, pattern, lambda, xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: x(n+1), bn0_out, bni_out, bnn_out
+	result = nlop_chain2_FF(nlop_dw, 0, result, 1); //in: x0, coil, pattern, lambda, xn, [x0_zero], conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn, lambda; out: x(n+1), bn0_out, bni_out, bnn_out
+	if (config->reinsert_zerofilled)
+		result = nlop_stack_inputs_F(result, 0, 5, 3); //here we (ab) use the coil dimension for stacking the current input xn and the zerofilled reconstruction x0_zero as input for the next dw
 
 	result = nlop_dup_F(result, 3, 15); //in: x0, coil, pattern, lambda, xn, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
 	result = nlop_permute_inputs_F(result, 15, MAKE_ARRAY(4, 0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)); //in: xn, x0, coil, pattern, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+1), bn0_out, bni_out, bnn_out
@@ -299,6 +320,8 @@ static const struct nlop_s* nlop_modl_network_create(const struct modl_s* config
 		result = nlop_permute_inputs_F(result, 15, MAKE_ARRAY(14, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13));
 		//in: xn, x0, coil, pattern, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: x(n+2), bn0_out, bni_out, bnn_out
 	}
+	if ((config->reinsert_zerofilled) && (config->nullspace))
+		result = nlop_chain2_swap_FF(nlop_from_linop_F(linop_expand_create(5, nlop_generic_domain(result, 0)->dims, nlop_generic_domain(result, 1)->dims)), 0, result, 0);
 
 	result = nlop_dup_F(result, 0, 1);
 	//in: x0, coil, pattern, lambda, conv0, bn0_in, bias0, convi, bni_in, biasi, convn, bnn_in, gamman, biasn; out: xn, bn0_out, bni_out, bnn_out
@@ -312,6 +335,13 @@ static const struct nlop_s* nlop_modl_network_create(const struct modl_s* config
 		auto nlop_norm_inv = mri_normal_inversion_create_with_lambda(5, dims, config->share_pattern, config->lambda_fixed, config->batch_independent, config->convergence_warn_limit, config->normal_inversion_iter_conf); // in: Atb, coil, pattern, lambda; out: A^+b
 		nlop_norm_inv = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_norm_inv, 0);
 		nlop_norm_inv = nlop_chain2_FF(nlop_norm_inv, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+
+		if (config->reinsert_zerofilled) {
+
+			long udims_2[5] = {udims[0], udims[1], udims[2], 2, udims[4]};
+			nlop_norm_inv = nlop_chain2_FF(nlop_norm_inv, 0, nlop_stack_create(5, udims_2, udims, udims, 3), 0);
+			nlop_norm_inv = nlop_dup_F(nlop_norm_inv, 0, 1);
+		}
 
 		nlop_zf = nlop_chain2_swap_FF(nlop_zf, 0,nlop_norm_inv, 0); // in: kspace, coil, pattern, coil, pattern, lambda; out: A^+b
 		nlop_zf = nlop_dup_F(nlop_zf, 1, 3);
@@ -580,7 +610,7 @@ void apply_nn_modl(	struct modl_s* modl,
 	args[13] = modl->bn_i;
 	args[14] = modl->bn_n;
 
-	nlop_generic_apply_unchecked(nlop_modl, 15, (void**)args);
+	nlop_generic_apply_select_derivative_unchecked(nlop_modl, 15, (void**)args, 0, 0);
 
 	if (normalize) {
 
@@ -652,7 +682,7 @@ void init_nn_modl(struct modl_s* modl)
 
 	long dims_lambda[2] = {1, modl->shared_weights ? 1 : modl->Nt};
 
-	long dims_conv_0[6] = {modl->Nf, 1, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
+	long dims_conv_0[6] = {modl->Nf, modl->reinsert_zerofilled ? 2 : 1, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
 	long dims_conv_i[7] = {modl->Nf, modl->Nf, modl->Kx, modl->Ky, modl->Kz, modl->Nl - 2, modl->shared_weights ? 1 : modl->Nt};
 	long dims_conv_n[6] = {1, modl->Nf, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
 
@@ -739,7 +769,7 @@ void nn_modl_move_gpucpu(struct modl_s* modl, bool gpu) {
 
 	long dims_lambda[2] = {1, modl->shared_weights ? 1 : modl->Nt};
 
-	long dims_conv_0[6] = {modl->Nf, 1, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
+	long dims_conv_0[6] = {modl->Nf, modl->reinsert_zerofilled ? 2 : 1, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
 	long dims_conv_i[7] = {modl->Nf, modl->Nf, modl->Kx, modl->Ky, modl->Kz, modl->Nl - 2, modl->shared_weights ? 1 : modl->Nt};
 	long dims_conv_n[6] = {1, modl->Nf, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
 
@@ -801,7 +831,7 @@ extern void nn_modl_store_weights(struct modl_s* modl, const char* name)
 
 	long dims_lambda[2] = {1, modl->shared_weights ? 1 : modl->Nt};
 
-	long dims_conv_0[6] = {modl->Nf, 1, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
+	long dims_conv_0[6] = {modl->Nf, modl->reinsert_zerofilled ? 2 : 1, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
 	long dims_conv_i[7] = {modl->Nf, modl->Nf, modl->Kx, modl->Ky, modl->Kz, modl->Nl - 2, modl->shared_weights ? 1 : modl->Nt};
 	long dims_conv_n[6] = {1, modl->Nf, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
 
@@ -869,13 +899,16 @@ void nn_modl_load_weights(struct modl_s* modl, const char* name, bool overwrite_
 		modl->Kz = dims[1][4];
 
 		modl->Nl = dims[2][5] + 2;
+		modl->Nt = dims[10][6];
 
 		modl->shared_weights = dims[0][1] != dims[10][6];
+
+		modl->reinsert_zerofilled = (2 == dims[1][1]);
 	}
 
 
 	long dims_lambda[2] = {1, modl->shared_weights ? 1 : modl->Nt};
-	long dims_conv_0[6] = {modl->Nf, 1, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
+	long dims_conv_0[6] = {modl->Nf, modl->reinsert_zerofilled ? 2 : 1, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
 	long dims_conv_i[7] = {modl->Nf, modl->Nf, modl->Kx, modl->Ky, modl->Kz, modl->Nl - 2, modl->shared_weights ? 1 : modl->Nt};
 	long dims_conv_n[6] = {1, modl->Nf, modl->Kx, modl->Ky, modl->Kz, modl->shared_weights ? 1 : modl->Nt};
 	long dims_bias_0[2] = {modl->Nf, modl->shared_weights ? 1 : modl->Nt};

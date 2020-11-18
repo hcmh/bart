@@ -1,3 +1,11 @@
+/* Copyright 2020. Uecker Lab, University Medical Center Goettingen.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ * 
+ * Authors:
+ * 2019-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2019-2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ */
 
 #include <complex.h>
 #include <stdbool.h>
@@ -18,9 +26,12 @@
 #include "iter/iter2.h"
 #include "iter/iter3.h"
 #include "iter/iter4.h"
+#include "iter/lsqr.h"
 #include "iter/prox.h"
 #include "iter/thresh.h"
 #include "iter/vec.h"
+
+#include "linops/someops.h"
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -34,305 +45,100 @@
 #include "wavelet/wavthresh.h"
 #include "lowrank/lrthresh.h"
 
+#include "grecon/optreg.h"
+#include "grecon/italgo.h"
+
+
+#include "iter_l1.h"
+#include "recon_T1.h"
+
 #include "meco.h"
 #include "model_meco.h"
 #include "recon_meco.h"
 
 
-struct mecoinv_s {
-
-	INTERFACE(iter_op_data);
-
-	unsigned int model;
-	unsigned int regu;
-
-	const struct nlop_s* nlop;
-	const struct iter3_irgnm_conf* conf;
-
-	long x_size;
-	long y_size;
-
-	const long* x_dims;
-
-	float alpha;
-	float step;
-
-	bool first_iter;
-	int outer_iter;
-
-	const struct operator_p_s* prox1;
-	const struct operator_p_s* prox2;
-};
-
-DEF_TYPEID(mecoinv_s);
+#include "optreg.h"
 
 
 
-// TODO: the src and dst must be the same pointer, otherwise a copy from src to dst must be done in the begining of the function
-static void nonneg_constraint(iter_op_data* _data, float* dst, const float* src)
+// rescale the reconstructed maps to the unit of Hz
+// note: input and output are both maps
+static void rescale_maps(unsigned int model, double scaling_Y, const struct linop_s* op, const complex float* scaling, const long maps_dims[DIMS], complex float* maps)
 {
-	auto data = CAST_DOWN(mecoinv_s, _data);
+	if (MECO_PI == model) {
 
-	long map_size = data->x_dims[0] * data->x_dims[1];
-
-	long map_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS, map_dims, data->x_dims);
-
-	long nmaps = data->x_dims[COEFF_DIM];
-	long dista = 0;
-
-
-	float lower_bound = 0.0;
-
-	if ((data->model == WFR2S) || (data->model == R2S)) {
-
-		dista = (nmaps - 2) * map_size;
-		md_zsmax(DIMS, map_dims, (_Complex float*)dst + dista, (const _Complex float*)src + dista, lower_bound);
-
-	} else
-	if ( data->model == WF2R2S ) {
-
-		dista = 3 * map_size;
-		md_zsmax(DIMS, map_dims, (_Complex float*)dst + dista, (const _Complex float*)src + dista, lower_bound);
-
-		dista = 1 * map_size;
-		md_zsmax(DIMS, map_dims, (_Complex float*)dst + dista, (const _Complex float*)src + dista, lower_bound);
-
-	}
-
-}
-
-
-// TODO: the src and dst must be the same pointer, otherwise a copy from src to dst must be done in the begining of the function
-static void combined_prox(iter_op_data* _data, float rho, float* dst, const float* src)
-{
-	auto data = CAST_DOWN(mecoinv_s, _data);
-
-	if (data->first_iter) {
-
-		data->first_iter = false;
+		md_zsmul(DIMS, maps_dims, maps, maps, 1. / scaling_Y);
 
 	} else {
 
-		nonneg_constraint(_data, dst, src);
-	}
+		long nr_coeff = maps_dims[COEFF_DIM];
 
-#if 1
-	operator_p_apply_unchecked(data->prox2, rho, (_Complex float*)dst, (const _Complex float*)dst);
-#else
-	operator_p_apply_unchecked(data->prox1, rho, (_Complex float*)dst, (const _Complex float*)dst);
-#endif
+		long R2S_flag = set_R2S_flag(model);
+		long fB0_flag = set_fB0_flag(model);
 
-	nonneg_constraint(_data, dst, dst);
-}
+		long map_dims[DIMS];
+		md_select_dims(DIMS, ~COEFF_FLAG, map_dims, maps_dims);
+
+		complex float* map = md_alloc_sameplace(DIMS, map_dims, CFL_SIZE, maps);
 
 
 
-static void normal_equ(iter_op_data* _data, float* dst, const float* src)
-{
-	auto data = CAST_DOWN(mecoinv_s, _data);
+		long pos[DIMS] = { [0 ... DIMS -1] = 0 };
 
-	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->y_size), FL_SIZE, src);
+		for (long n = 0; n < nr_coeff; n++) {
 
-	linop_forward_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
-	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)dst, (const complex float*)tmp);
+			pos[COEFF_DIM] = n;
+			md_copy_block(DIMS, pos, map_dims, map, maps_dims, maps, CFL_SIZE);
 
-	md_free(tmp);
+			md_zsmul(DIMS, map_dims, map, map, scaling[n]);
 
-#if 0
-	long map_size = data->x_dims[0] * data->x_dims[1];
-	long maps = data->x_dims[COEFF_DIM];
-	long sens = data->x_dims[COIL_DIM];
+			if (MD_IS_SET(R2S_flag, n) || MD_IS_SET(fB0_flag, n)) {
 
-	md_axpy(1, MD_DIMS(data->x_size * sens / (maps + sens)),
-						 dst + map_size * 2 * maps,
-						 data->alpha,
-						 src + map_size * 2 * maps);
-#else
-	md_axpy(1, MD_DIMS(data->x_size), dst, data->alpha, src);
-#endif
-}
+				if (MD_IS_SET(fB0_flag, n))
+					linop_forward_unchecked(op, map, map);
 
+				md_zsmul(DIMS, map_dims, map, map, 1000.); // kHz --> Hz
+			}
 
-
-static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const float* src)
-{
-	auto data = CAST_DOWN(mecoinv_s, _data);
-
-	data->alpha = alpha;	// update alpha for normal operator
-
-    
-	void* x = md_alloc_sameplace(1, MD_DIMS(data->x_size), FL_SIZE, src);
-	md_gaussian_rand(1, MD_DIMS(data->x_size / 2), x);
-	double maxeigen = power(20, data->x_size, select_vecops(src), (struct iter_op_s){ normal_equ, CAST_UP(data) }, x);
-	md_free(x);
-
-	double step = data->step / maxeigen;
-
-	if (WAV == data->regu)
-		wavthresh_rand_state_set(data->prox1, 1);
-    
-	int maxiter = MIN(data->conf->cgiter, 10 * powf(2, data->outer_iter));
-    
-	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->y_size), FL_SIZE, src);
-
-	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
-
-	float eps = md_norm(1, MD_DIMS(data->x_size), tmp);
-
-	data->first_iter = true;
-
-	NESTED(void, continuation, (struct ist_data* itrdata))
-	{
-		itrdata->scale = data->alpha;
-	};
-
-	debug_printf(DP_DEBUG3, "> FISTA parameters:\n");
-	debug_printf(DP_DEBUG3, "  alpha %.6f; epsilon %.6f; tau %.6f\n", alpha, data->conf->cgtol * alpha * eps, step);
-
-	fista(maxiter, data->conf->cgtol * alpha * eps, step,
-		data->x_size,
-		select_vecops(src),
-		continuation,
-		(struct iter_op_s){ normal_equ, CAST_UP(data) },
-		(struct iter_op_p_s){ combined_prox, CAST_UP(data) },
-		dst, tmp, NULL);
-
-	nonneg_constraint(CAST_UP(data), dst, dst);
-
-	md_free(tmp);
-
-	data->outer_iter++;
-}
-
-
-
-static const struct operator_p_s* create_wav_prox(const long img_dims[DIMS], unsigned int jt_flag)
-{
-	bool randshift = true;
-	long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
-	unsigned int wflags = 0;
-
-	for (unsigned int i = 0; i < DIMS; i++) {
-
-		if ((1 < img_dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
-
-			wflags = MD_SET(wflags, i);
-			minsize[i] = MIN(img_dims[i], DIMS);
+			md_copy_block(DIMS, pos, maps_dims, maps, map_dims, map, CFL_SIZE);
 		}
+
+		md_free(map);
+
 	}
-
-	return prox_wavelet_thresh_create(DIMS, img_dims, wflags, jt_flag, minsize, 1., randshift);
-}
-
-static const struct operator_p_s* create_llr_prox(const long img_dims[DIMS], unsigned int jt_flag)
-{
-	bool randshift = true;
-	long blk_dims[MAX_LEV][DIMS];
-	int blk_size = 8;
-
-	int levels = llr_blkdims(blk_dims, ~jt_flag, img_dims, blk_size);
-	UNUSED(levels);
-
-	debug_printf(DP_DEBUG2, "  > blk_dims: ");
-	debug_print_dims(DP_DEBUG2, DIMS, blk_dims[0]);
-
-	return lrthresh_create(img_dims, randshift, ~jt_flag, (const long (*)[])blk_dims, 1., false, false, false);
 }
 
 
 
-struct mecoinv2_s {
-
-	INTERFACE(operator_data_t);
-
-	struct mecoinv_s data;
-};
-
-DEF_TYPEID(mecoinv2_s);
-
-
-static void mecoinv_apply(const operator_data_t* _data, float alpha, complex float* dst, const complex float* src)
-{
-	const auto data = &CAST_DOWN(mecoinv2_s, _data)->data;
-	inverse_fista(CAST_UP(data), alpha, (float*)dst, (const float*)src);
-}
-
-static void mecoinv_del(const operator_data_t* _data)
-{
-	auto data = CAST_DOWN(mecoinv2_s, _data);
-
-	operator_p_free(data->data.prox1);
-	operator_p_free(data->data.prox2);
-
-	nlop_free(data->data.nlop);
-
-	xfree(data->data.x_dims);
-	xfree(data);
-}
-
-static const struct operator_p_s* mecoinv_p_create(const struct iter3_irgnm_conf* conf, unsigned int sel_model, unsigned int sel_regu, const long dims[DIMS], struct nlop_s* nlop)
-{
-	PTR_ALLOC(struct mecoinv2_s, data);
-	SET_TYPEID(mecoinv2_s, data);
-	SET_TYPEID(mecoinv_s, &data->data);
-
-	auto cd = nlop_codomain(nlop);
-	auto dm = nlop_domain(nlop);
-
-	int M = 2 * md_calc_size(cd->N, cd->dims);
-	int N = 2 * md_calc_size(dm->N, dm->dims);
-
-	long* ndims = *TYPE_ALLOC(long[DIMS]);
-	md_copy_dims(DIMS, ndims, dims);
-
-	long jt_dim = (sel_model == PI) ? (TE_DIM) : (COEFF_DIM);
-	unsigned int jt_flag = (sel_model == PI) ? (TE_FLAG) : (COEFF_FLAG);
-
-	long maps_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, maps_dims, dims);
-	maps_dims[jt_dim] = (sel_model == PI) ? (maps_dims[jt_dim]) : (maps_dims[jt_dim] - 1);
-	
-	debug_printf(DP_INFO, "  _ jt_dims: \t");
-	debug_print_dims(DP_INFO, DIMS, maps_dims);
-
-	auto prox1 = ((WAV==sel_regu) ? create_wav_prox : create_llr_prox)(maps_dims, jt_flag);
-
-	auto prox2 = op_p_auto_normalize(prox1, ~jt_flag);
-
-	struct mecoinv_s idata = {
-
-		{ &TYPEID(mecoinv_s) }, sel_model, sel_regu, nlop_clone(nlop), conf,
-		N, M, ndims, 1.0, 1., true, 0, prox1, prox2
-	};
-
-	data->data = idata;
-
-	return operator_p_create(dm->N, dm->dims, cd->N, cd->dims, CAST_UP(PTR_PASS(data)), mecoinv_apply, mecoinv_del);
-}
-
-
-
-void meco_recon(const struct noir_conf_s* conf, unsigned int sel_model, unsigned int sel_regu, bool out_origin_maps, const long maps_dims[DIMS], const long sens_dims[DIMS], complex float* x, complex float* xref, const complex float* pattern, const complex float* mask, const complex float* TE, const long ksp_dims[DIMS], const complex float* ksp)
+void meco_recon(const struct moba_conf* moba_conf, 
+		unsigned int sel_model, unsigned int sel_irgnm, bool real_pd, 
+		unsigned int wgh_fB0, float scale_fB0, bool warmstart, iter_conf* iconf, 
+		bool out_origin_maps, double scaling_Y, 
+		const long maps_dims[DIMS], complex float* maps, 
+		const long sens_dims[DIMS], complex float* sens, 
+		complex float* x, complex float* xref, 
+		const complex float* pattern, 
+		const complex float* mask, 
+		const complex float* TE, 
+		const long ksp_dims[DIMS], 
+		const complex float* ksp, 
+		bool use_lsqr)
 {
 	long meco_dims[DIMS];
-	long map_dims[DIMS];
 
 	bool use_gpu = false;
 
 #ifdef USE_CUDA
 	use_gpu = cuda_ondevice(ksp) ? true : false;
 #endif
-	
 
-	unsigned int fft_flags = FFT_FLAGS|SLICE_FLAG;
-	md_select_dims(DIMS, fft_flags|TE_FLAG, meco_dims, ksp_dims);
-	md_select_dims(DIMS, fft_flags, map_dims, ksp_dims);
-	
+	unsigned int fft_flags = FFT_FLAGS;
+	md_select_dims(DIMS, fft_flags|TE_FLAG|TIME_FLAG, meco_dims, ksp_dims);
+
 	long maps_size = md_calc_size(DIMS, maps_dims);
 	long sens_size = md_calc_size(DIMS, sens_dims);
 	long x_size = maps_size + sens_size;
-	
+
 	long y_size = md_calc_size(DIMS, ksp_dims);
 
 	// x = (maps; coils)
@@ -344,29 +150,26 @@ void meco_recon(const struct noir_conf_s* conf, unsigned int sel_model, unsigned
 	md_copy(1, MD_DIMS(x_size), xref_akt, xref, CFL_SIZE);
 
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
-	mconf.rvc = conf->rvc;
-	mconf.noncart = conf->noncart;
+	mconf.noncart = moba_conf->noncartesian;
 	mconf.fft_flags = fft_flags;
-	mconf.a = conf->a;
-	mconf.b = conf->b;
+	mconf.a = 880;
+	mconf.b = 32.;
 	mconf.cnstcoil_flags = TE_FLAG;
 
 	double start_time = timestamp();
-	struct meco_s nl = meco_create(ksp_dims, meco_dims, maps_dims, mask, TE, pattern, sel_model, use_gpu, &mconf);
+	struct meco_s nl = meco_create(ksp_dims, meco_dims, maps_dims, mask, TE, pattern, sel_model, real_pd, wgh_fB0, scale_fB0, use_gpu, &mconf);
 	double nlsecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "  _ nl of meco Create Time: %.2f s\n", nlsecs);
 
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
-	irgnm_conf.iter = conf->iter;
-	irgnm_conf.alpha = conf->alpha;
-	irgnm_conf.alpha_min = conf->alpha_min;
-	irgnm_conf.redu = conf->redu;
-	irgnm_conf.cgiter = 260;
-	irgnm_conf.cgtol = (sel_model == PI) ? 0.1 : 0.01; // 1./3.;
-	irgnm_conf.nlinv_legacy = (sel_model == PI) ? true : false;
-	// irgnm_conf.step = 1.; // 0.9; // 0.475;
-
+	irgnm_conf.iter = moba_conf->iter;
+	irgnm_conf.alpha = moba_conf->alpha;
+	irgnm_conf.alpha_min = moba_conf->alpha_min;
+	irgnm_conf.redu = moba_conf->redu;
+	irgnm_conf.cgiter = moba_conf->inner_iter;
+	irgnm_conf.cgtol = 0.01; // 1./3.;
+	irgnm_conf.nlinv_legacy = false;
 
 	long x_dims[DIMS];
 	md_merge_dims(DIMS, x_dims, maps_dims, sens_dims);
@@ -374,62 +177,127 @@ void meco_recon(const struct noir_conf_s* conf, unsigned int sel_model, unsigned
 	debug_print_dims(DP_DEBUG2, DIMS, x_dims);
 
 
-	long NMAPS = maps_dims[COEFF_DIM];
-	long map_size = md_calc_size(DIMS, map_dims);
-	long map_pos;
+	// linearized reconstruction
 
+	struct opt_reg_s ropts = moba_conf->ropts;
 
 	const struct operator_p_s* inv_op = NULL;
 
-	// irgnm reconstruction 
-	if ( sel_regu == TIKHONOV ) {
+	const struct operator_p_s* prox_ops[NUM_REGS] = { NULL };
+	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-		iter4_irgnm(CAST_UP(&irgnm_conf), 
-			nl.nlop, 
-			x_size * 2, (float*)x_akt, (float*)xref_akt, 
-			y_size * 2, (const float*)ksp, 
-			NULL, (struct iter_op_s){ NULL, NULL });
+
+	if (ALGO_CG != moba_conf->algo) // CG
+		sel_irgnm = 2;
+
+	if (ALGO_CG == moba_conf->algo) { // CG
+
+		debug_printf(DP_DEBUG2, " > linearized problem solved by CG\n");
+		
+		// assert(0 == moba_conf->ropts->r);
+
+		inv_op = NULL;
+
+	} else 
+	if (ALGO_FISTA == moba_conf->algo) { // FISTA
+
+		debug_printf(DP_DEBUG2, " > linearized problem solved by FISTA\n");
+
+		struct mdb_irgnm_l1_conf mdb_conf = { 
+			.c2 = &irgnm_conf, 
+			.opt_reg = 1, 
+			.step = moba_conf->step, 
+			.lower_bound = moba_conf->lower_bound, 
+			.constrained_maps = set_R2S_flag(sel_model), 
+			.not_wav_maps = 1, 
+			.flags = FFT_FLAGS, 
+			.usegpu = use_gpu, 
+			.algo = moba_conf->algo, 
+			.rho = moba_conf->rho, 
+			.ropts = &ropts, 
+			.wav_reg = 1. };
+
+		inv_op = T1inv_p_create(&mdb_conf, x_dims, nl.nlop);
+
+	} else 
+	if (ALGO_ADMM == moba_conf->algo) {
+
+		debug_printf(DP_DEBUG2, " > linearized problem solved by ADMM ");
+
+		if (use_lsqr) {
+
+			/* use lsqr */
+			debug_printf(DP_DEBUG2, "in lsqr\n");
+
+			opt_reg_moba_configure(DIMS, x_dims, &ropts, prox_ops, trafos, sel_model);
+
+			struct lsqr_conf lsqr_conf = { lsqr_defaults.lambda, false };
+
+			auto iadmm_conf = CAST_DOWN(iter_admm_conf, iconf);
+			iadmm_conf->maxiter = moba_conf->inner_iter;
+			iadmm_conf->cg_eps = irgnm_conf.cgtol;
+			iadmm_conf->rho = moba_conf->rho;
+			iadmm_conf->use_interface_alpha = true;
+
+			const struct nlop_s* nlop = nl.nlop;
+
+			inv_op = lsqr2_create(&lsqr_conf, iter2_admm, CAST_UP(iadmm_conf), NULL, warmstart, &nlop->derivative[0][0], NULL, ropts.r, prox_ops, trafos, NULL);
+
+		} else {
+
+			/* use iter_l1 */
+			debug_printf(DP_DEBUG2, "in iter l1\n");
+
+			struct mdb_irgnm_l1_conf mdb_conf = { 
+				.c2 = &irgnm_conf, 
+				.opt_reg = 1, 
+				.step = moba_conf->step, 
+				.lower_bound = moba_conf->lower_bound, 
+				.constrained_maps = set_R2S_flag(sel_model), 
+				.not_wav_maps = 1, 
+				.flags = FFT_FLAGS, 
+				.usegpu = use_gpu, 
+				.algo = moba_conf->algo, 
+				.rho = moba_conf->rho, 
+				.ropts = &ropts, 
+				.wav_reg = 1. };
+
+			inv_op = T1inv_p_create(&mdb_conf, x_dims, nl.nlop);
+
+		}
 
 	} else {
 
-		inv_op = mecoinv_p_create(&irgnm_conf, sel_model, sel_regu, x_dims, nl.nlop);
-
-		iter4_irgnm2(CAST_UP(&irgnm_conf), 
-			nl.nlop, 
-			x_size * 2, (float*)x_akt, (float*)xref_akt, 
-			y_size * 2, (const float*)ksp, 
-			inv_op, (struct iter_op_s){ NULL, NULL });
+		error(" > Unrecognized algorithms\n");
 	}
 
 
-	md_copy(1, MD_DIMS(x_size), xref_akt, x_akt, CFL_SIZE);
+	// irgnm reconstruction
+
+	((1==sel_irgnm) ? iter4_irgnm : iter4_irgnm2)(CAST_UP(&irgnm_conf), 
+		nl.nlop, 
+		x_size * 2, (float*)x_akt, (float*)xref_akt, 
+		y_size * 2, (const float*)ksp, 
+		inv_op, (struct iter_op_s){ NULL, NULL });
+
+	operator_p_free(inv_op);
+
+	opt_reg_free(&ropts, prox_ops, trafos);
+
+
+	// post processing
+
+	md_copy(DIMS, maps_dims, maps, x_akt, CFL_SIZE);
+
+	md_copy(DIMS, sens_dims, sens, x_akt + maps_size, CFL_SIZE);
 
 	if ( !out_origin_maps ) {
 
-		// fB0 (Hz)
-		if ( sel_model != PI ) {
-			map_pos = map_size * (NMAPS-1);
-			meco_forw_fB0(nl.linop_fB0, xref_akt + map_pos, xref_akt + map_pos);
-			md_zsmul(1, MD_DIMS(map_size), xref_akt + map_pos, xref_akt + map_pos, 1000.);
-		} 
+		rescale_maps(sel_model, scaling_Y, nl.linop_fB0, nl.scaling, maps_dims, maps);
 
-		// R2s (Hz)
-		if ((sel_model == WFR2S) || (sel_model == R2S)) {
-			map_pos = map_size * (NMAPS-2);
-			md_zsmul(1, MD_DIMS(map_size), xref_akt + map_pos, xref_akt + map_pos, 1000.);
-
-		} else
-		if ( sel_model == WF2R2S ) {
-			map_pos = map_size * 1;
-			md_zsmul(1, MD_DIMS(map_size), xref_akt + map_pos, xref_akt + map_pos, 1000.);
-
-			map_pos = map_size * 3;
-			md_zsmul(1, MD_DIMS(map_size), xref_akt + map_pos, xref_akt + map_pos, 1000.);
-		}
-
-		noir_forw_coils(nl.linop, xref_akt + maps_size, xref_akt + maps_size);
+		noir_forw_coils(nl.linop, sens, sens);
+		fftmod(DIMS, sens_dims, mconf.fft_flags, sens, sens);
 	}
-	
 
 	md_copy(1, MD_DIMS(x_size), xref, xref_akt, CFL_SIZE);
 
@@ -441,9 +309,6 @@ void meco_recon(const struct noir_conf_s* conf, unsigned int sel_model, unsigned
 	md_free(xref_akt);
 
 	nlop_free(nl.nlop);
-
-	if (sel_regu != TIKHONOV)
-		operator_p_free(inv_op);
 
 	// linop_free(nl.linop);
 	// linop_free(nl.linop_fB0);

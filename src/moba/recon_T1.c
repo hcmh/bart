@@ -54,6 +54,7 @@ struct moba_conf moba_defaults = {
 	.IR_phy = 0.,
 	.algo = 3,
         .rho = 0.01,
+	.auto_norm_off = false,
 };
 
 
@@ -68,9 +69,9 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	if (conf->sms)
 		fft_flags |= SLICE_FLAG;
 
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|MAPS_FLAG|TIME2_FLAG, data_dims, dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, imgs_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME_FLAG|TIME2_FLAG, coil_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|MAPS_FLAG|TIME_FLAG|TIME2_FLAG, data_dims, dims);
 
 
 	long skip = md_calc_size(DIMS, imgs_dims);
@@ -101,19 +102,32 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.alpha_min = conf->alpha_min;
-	irgnm_conf.cgtol = conf->tolerance;
+	irgnm_conf.cgtol = ((2 == conf->opt_reg) || (conf->auto_norm_off)) ? 1e-3 : conf->tolerance;
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
 	struct opt_reg_s ropts = conf->ropts;
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .opt_reg = conf->opt_reg, .step = conf->step, .lower_bound = conf->lower_bound, .constrained_maps = 4, .not_wav_maps = (0. == conf->IR_phy) ? 0 : 1, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo, .rho = conf->rho, .ropts = &ropts, .wav_reg = 1 };
+	struct mdb_irgnm_l1_conf conf2 = {
+		.c2 = &irgnm_conf,
+		.opt_reg = conf->opt_reg,
+		.step = conf->step,
+		.lower_bound = conf->lower_bound,
+		.constrained_maps = 4,
+		.not_wav_maps = (0. == conf->IR_phy) ? 0 : 1,
+		.flags = FFT_FLAGS,
+		.usegpu = usegpu,
+		.algo = conf->algo,
+		.rho = conf->rho,
+		.ropts = &ropts,
+		.wav_reg = 1,
+		.auto_norm_off = conf->auto_norm_off };
 
 	if (conf->MOLLI || (0. != conf->IR_phy))
 		conf2.constrained_maps = 2;
 
 	long irgnm_conf_dims[DIMS];
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
 
 	irgnm_conf_dims[COIL_DIM] = coil_dims[COIL_DIM];
 
@@ -157,8 +171,8 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		T1_forw_alpha(nl.linop_alpha, x, x);
 		md_zreal(DIMS, map_dims, x, x);
 		md_zsmul(DIMS, map_dims, x, x, -conf->IR_phy * 1e-6 * 0.2);
+		md_smin(1, MD_DIMS(2 * map_size), (float*)x, (float*)x, 0.);
 		md_zexp(DIMS, map_dims, x, x);
-		md_smin(1, MD_DIMS(2 * map_size), (float*)x, (float*)x, 1.);
 		md_zacos(DIMS, map_dims, x, x);
 	        md_zsmul(DIMS, map_dims, x, x, 180. / M_PI);
 		md_copy_block(DIMS, pos, imgs_dims, img, map_dims, x, CFL_SIZE);

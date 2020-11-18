@@ -11,6 +11,10 @@
 #include <stdbool.h>
 #include <math.h>
 #include <assert.h>
+#include <stdint.h>
+#include <complex.h>
+#include "num/rand.h"
+
 
 #ifdef SSAFARY_PAPER
 #include "misc/debug.h"
@@ -139,12 +143,12 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	 * Magn Reson Med 75:2372-2378 (2016)
 	 */
 
-	double golden_ratio = (sqrtf(5.) + 1.) / 2;
+	double golden_ratio = (sqrt(5.) + 1.) / 2;
 	double golden_angle = M_PI / (golden_ratio + conf.tiny_gold - 1.);
 
 	// For numerical stability
 	if (1 == conf.tiny_gold)
-		golden_angle = M_PI * (2. - (3. - sqrtf(5.))) / 2.;
+		golden_angle = M_PI * (2. - (3. - sqrt(5.))) / 2.;
 
 	double angle_atom = M_PI / Y;
 
@@ -177,10 +181,10 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 	 */
 	double angle_e = 0.;
 
-	if (conf.mems_traj && (E > 1)) {
+	if (conf.mems_traj) {
 
 		angle_s = angle_s * 1.;
-		angle_e = angle_s / E;
+		angle_e = angle_s / E + M_PI;
 		angle_t = golden_angle;
 
 	} else if (conf.golden) {
@@ -227,10 +231,10 @@ void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, 
 
 
 // z-Undersampling
-bool zpartition_skip(long partitions, long z_usamp[2], long partition, long frame)
+bool zpartition_skip(long partitions, long zusamp[2], long partition, long frame)
 {
-	long z_reflines = z_usamp[0];
-	long z_acc = z_usamp[1];
+	long z_reflines = zusamp[0];
+	long z_acc = zusamp[1];
 
 	if (1 == z_acc) // No undersampling. Do not skip partition
 		return false;
@@ -253,5 +257,81 @@ bool zpartition_skip(long partitions, long z_usamp[2], long partition, long fram
 		return false;
 
 	return true;
+}
+
+
+// check if slice/partition z is part of AC region
+static bool z_in_AC(int z_reflines, int mb, int z)
+{
+    long DC_idx = mb / 2;
+    long AC_low_idx = DC_idx - (long)floor(z_reflines/2.);
+    long AC_high_idx = DC_idx + (long)ceil(z_reflines/2.) - 1;
+
+    if (z >= AC_low_idx && z <= AC_high_idx) // z is part of AC region
+        return true;
+    else
+        return false;
+}
+
+// check if lookup table contains slice/partition z
+bool z_contains(int* lookup, int size, int z)
+{
+    for ( int i = 0; i < size; i++ )
+        if ( lookup[i] == z )
+            return true;
+
+    return false;
+}
+
+// fill z-undersampling lookup table
+void z_lookup_fill(int* z_lookup, int z_reflines, int z_npattern, int mb_full, int mb_acc)
+{
+	for (int i = 0; i < (z_reflines * z_npattern); i++)
+		z_lookup[i] = -1;
+
+	// insert reference lines
+    for (int i = 0; i < z_npattern; i++) {
+
+        int count = 0;
+        for (int j = 0; j < mb_full; j++) {
+
+            if (z_in_AC(z_reflines, mb_full, j)) { // j is a reference line
+
+                    z_lookup[(i * mb_acc) + count] = j;
+                    count++;
+            }
+        }
+    }
+
+	// fill remaining entries with random values
+    uint64_t rand_seed[1] = { 476342442 };
+
+    double mean = mb_full / 2.;
+    double stdv = mb_full / 4.;
+
+    for ( int i = 0; i < z_npattern; i++ ) {
+
+        int count = 0; // prevent infinite loop
+        for ( int z = z_reflines; z < mb_acc; z++ ) {
+
+            do {
+				int z_new = -1;
+
+				do {
+
+					z_new = (int)(creal(rand_spcg32_normal(rand_seed)) * stdv + mean);
+				} while (z_new < 0 || z_new >= mb_full);
+
+				z_lookup[(i * mb_acc) + z] = z_new;
+                count ++;
+
+            } while (z_contains(&z_lookup[i * mb_acc], z, z_lookup[(i * mb_acc) + z]) && count < 100);
+
+            if (count == 100)
+                z_lookup[(i * mb_acc) + z] = (int)mean;
+        }
+    }
+
+
 }
 

@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <complex.h>
+#include <stdint.h>
 
 #include "num/multind.h"
 
@@ -108,4 +109,34 @@ void md_rand_one(unsigned int D, const long dims[D], complex float* dst, double 
 #endif
 	for (long i = 0; i < md_calc_size(D, dims); i++)
 		dst[i] = (complex float)(uniform_rand() < p);
+}
+
+// Generic random number generator
+// adapted from Chris Wellons http://nullprogram.com/blog/2017/09/21/
+uint32_t rand_spcg32(uint64_t s[1]) 
+{
+    uint64_t m = 0x9b60933458e17d7d;
+    uint64_t a = 0xd737232eeccdf7ed;
+    *s = *s * m + a;
+    int shift = 29 - (*s >> 61);
+    return (uint32_t)(*s >> shift);
+}
+
+// Generic normal-distributed random number generator 
+complex double rand_spcg32_normal(uint64_t rand_seed[1])
+{
+	double u1, u2, s;
+
+ 	do {
+
+		u1 = 2. * (rand_spcg32(rand_seed) / (1. * RAND_MAX_SPCG32)) - 1.;
+		u2 = 2. * (rand_spcg32(rand_seed) / (1. * RAND_MAX_SPCG32))- 1.;
+   		s = u1 * u1 + u2 * u2;
+
+   	} while (s > 1.);
+
+	double re = sqrt(-2. * log(s) / s) * u1;
+	double im = sqrt(-2. * log(s) / s) * u2;
+
+	return re + 1.i * im;
 }

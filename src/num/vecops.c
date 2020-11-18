@@ -796,6 +796,12 @@ static void vec_zcmpl(long N, _Complex float* dst, const float* real_src, const 
 		dst[i] = real_src[i] + imag_src[i] * I;
 }
 
+static void vec_zfill(long N, _Complex float val, _Complex float* dst)
+{
+	for (int i = 0; i < N; i ++)
+		dst[i] = val;
+}
+
 /*
  * If you add functions here, please also add to gpuops.c/gpukrnls.cu
  */
@@ -886,6 +892,8 @@ const struct vec_ops cpu_ops = {
 	.zcmpl_real = vec_zcmpl_real,
 	.zcmpl_imag = vec_zcmpl_imag,
 	.zcmpl = vec_zcmpl,
+
+	.zfill = vec_zfill,
 };
 
 

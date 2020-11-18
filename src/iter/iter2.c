@@ -329,6 +329,13 @@ void iter2_admm(iter_conf* _conf,
 
 	assert(check_ops(size, normaleq_op, D, prox_ops, ops));
 
+	if ( conf->use_interface_alpha ) {
+
+		conf->maxiter = MIN(conf->maxiter, 10 * powf(2, logf(1./conf->INTERFACE.alpha)));
+		conf->cg_eps = conf->cg_eps * conf->INTERFACE.alpha;
+
+	}
+
 	struct admm_plan_s admm_plan = {
 
 		.maxiter = conf->maxiter,
@@ -343,7 +350,8 @@ void iter2_admm(iter_conf* _conf,
 		.hogwild = conf->hogwild,
 		.ABSTOL = conf->ABSTOL,
 		.RELTOL = conf->RELTOL,
-		.alpha = conf->alpha * conf->INTERFACE.alpha,
+		.alpha = conf->alpha,
+		.lambda = conf->INTERFACE.alpha,
 		.tau = conf->tau,
 		.tau_max = conf->tau_max,
 		.mu = conf->mu,

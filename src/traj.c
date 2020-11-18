@@ -40,8 +40,8 @@ int main_traj(int argc, char* argv[])
 	int E = 1;
 	int mb = 1;
 	int turns = 1;
+	int even_echo_shift = 0;
 	float rot = 0.;
-	const char* pat_file = NULL;
 	bool force_grid = false;
 
 
@@ -52,7 +52,7 @@ int main_traj(int argc, char* argv[])
 		{ 0., 0., 0. }
 	};
 
-	long z_usamp[2] = { 0, 1 }; // { reference Lines, acceleration }
+	long zusamp[2] = { 0, 1 }; // { reference Lines, acceleration }
 
 	const char* custom_angle = NULL;
 	const char* custom_gdelays = NULL;
@@ -67,11 +67,12 @@ int main_traj(int argc, char* argv[])
 		OPT_INT('a', &conf.accel, "a", "acceleration"),
 		OPT_INT('t', &turns, "t", "turns"),
 		OPT_INT('m', &mb, "mb", "SMS multiband factor"),
+		OPT_INT('v', &even_echo_shift, "(shift)", "(even echo shift)"),
 		OPT_SET('l', &conf.aligned, "aligned partition angle"),
-		OPT_SET('g', &conf.golden_partition, "golden angle in partition direction"),
+		OPT_SET('g', &conf.golden_partition, "(golden angle in partition direction)"),
 		OPT_SET('r', &conf.radial, "radial"),
 		OPT_SET('G', &conf.golden, "golden-ratio sampling"),
-		OPT_SET('H', &conf.half_circle_gold, "halfCircle golden-ratio sampling"),
+		OPT_SET('H', &conf.half_circle_gold, "(halfCircle golden-ratio sampling)"),
 		OPT_INT('s', &conf.tiny_gold, "# Tiny GA", "tiny golden angle"),
 		OPT_INT('M', &conf.multiple_ga, "# Multiple", "multiple golden angle"),
 		OPT_SET('A', &conf.rational, "rational approximation of golden angles"),
@@ -83,10 +84,9 @@ int main_traj(int argc, char* argv[])
 		OPT_SET('3', &conf.d3d, "3D"),
 		OPT_SET('c', &conf.asym_traj, "asymmetric trajectory"),
 		OPT_SET('E', &conf.mems_traj, "multi-echo multi-spoke trajectory"),
-		OPT_VEC2('z', &z_usamp, "Ref:Acel", "Undersampling in z-direction."),
+		OPT_VEC2('z', &zusamp, "Ref:Acel", "Undersampling in z-direction."),
 		OPT_STRING('C', &custom_angle, "file", "custom_angle file [phi + i * psi]"),
 		OPT_STRING('V', &custom_gdelays, "file", "custom_gdelays"),
-		OPT_STRING('p', &pat_file, "file", "Pattern"),
 		OPT_SET('T', &conf.sms_turns, "(Modified SMS Turn Scheme)"),
 		OPT_SET('f', &force_grid, "Force trajectory samples on Cartesian grid."),
 		OPT_SET('S', &conf.spiral, "Archimedean spiral readout"),
@@ -133,7 +133,17 @@ int main_traj(int argc, char* argv[])
 		debug_printf(DP_INFO, "Angle for spoke n: ((n * %d) mod %d) * %f\n", gen_fibonacci(0, i - 1), total, 2. * M_PI / total);
 	}
 
-	int tot_sp = Y * E * mb * turns;	// total number of lines/spokes
+	// variables for z-undersampling
+	long z_reflines = zusamp[0];
+	long z_acc = zusamp[1];
+	int mb2 = mb / z_acc;
+
+    if ( z_reflines > mb2)
+		error("ERROR: More reference lines than partitions/slices!\n");
+
+
+
+	int tot_sp = Y * E * mb2 * turns;	// total number of lines/spokes
 	int N = X * tot_sp / conf.accel;
 
 
@@ -154,25 +164,12 @@ int main_traj(int argc, char* argv[])
 	    error("actual readout samples must be less than full samples");
 
 
-	// Variables for z-undersampling
-	long z_reflines = z_usamp[0];
-	long z_acc = z_usamp[1];
-
-	long mb2 = mb;
-
-	if (z_acc > 1) {
-
-		mb2 = z_reflines + (mb - z_reflines) / z_acc;
-
-		if ((mb2 < 1) || ((mb - z_reflines) % z_acc != 0))
-			error("Invalid z-Acceleration!\n");
-	}
-
-
 	dims[TIME_DIM] = turns;
-	dims[SLICE_DIM] = mb;
+	dims[SLICE_DIM] = mb2;
 
 	if (conf.half_circle_gold) {
+
+		debug_printf(DP_WARN, "half-circle golden angle (-H) is deprecated and might be removed in a future version!\n");
 
 		conf.golden = true;
 
@@ -192,6 +189,9 @@ int main_traj(int argc, char* argv[])
 
 	if (conf.radial && conf.spiral)
 		error("Choose either radial spokes or spirals\n");
+
+	if (conf.golden_partition)
+		debug_printf(DP_WARN, "golden partitions (-g) is deprecated and might be removed in a future version!\n");
 
 	if (conf.tiny_gold >= 1)
 		conf.golden = true;
@@ -221,7 +221,7 @@ int main_traj(int argc, char* argv[])
 
 
 
-	complex float* samples = create_cfl(argv[1], DIMS, dims);
+	complex float* samples = (z_acc > 1) ? anon_cfl(NULL, DIMS, dims) : create_cfl(argv[1], DIMS, dims);
 
 	md_clear(DIMS, dims, samples, CFL_SIZE);
 
@@ -247,17 +247,14 @@ int main_traj(int argc, char* argv[])
 			 */
 			double read = (float)(i + D - X) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
 
-			if (conf.mems_traj) {
-				// read = ((e % 2) ? (float)(D - i - 2) : (float)(i + D - X)) - (float)D / 2.;
-				if (e % 2) // even
-					read = (float)(D - i - 2) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
-				else // odd
-					read = (float)(i + D - X) + (conf.asym_traj ? 0 : 0.5) - (float)D / 2.;
-			}
+			// For odd echos in asymmetric multi-echo, the DC component is later than half of the readout instead of earlier.
+			// Therefore, for such echos, the readout position needs to be calculated as follows:
+			if ((D != X) && (1 == (e % 2)))
+					read = (float)i + (conf.asym_traj ? 0. : 0.5) - (float)D / 2.;
 
 			if (conf.golden_partition) {
 
-				double golden_ratio = (sqrtf(5.) + 1.) / 2;
+				double golden_ratio = (sqrt(5.) + 1.) / 2;
 				double angle_atom = M_PI / Y;
 
 				base_angle[SLICE_DIM] = (m > 0) ? (fmod(angle_atom * m / golden_ratio, angle_atom) / m) : 0;
@@ -279,7 +276,7 @@ int main_traj(int argc, char* argv[])
 
 			if (conf.d3d) {
 
-				int split = sqrtf(Y);
+				int split = sqrt(Y);
 				angle2 = s * M_PI / Y * (conf.full_circle ? 2 : 1) * split;
 
 				if (NULL != custom_angle)
@@ -365,82 +362,64 @@ int main_traj(int argc, char* argv[])
 	if (NULL != custom_angle_val)
 		unmap_cfl(3, sdims, custom_angle_val);
 	
-	// Rearrange according to pattern
-	/* If you pass a k-space pattern with undersampling, this
-	 * guarantees a continously increasing angle and avoids the 
-	 * jumps due to undersampling.
-	 */
-	if (pat_file != NULL) {
-		
-		// Load pattern and extract single readout sample
-		long pat_dims[DIMS];
-		complex float* pat = load_cfl(pat_file, DIMS, pat_dims);
-		
-		if (!md_check_equal_dims(DIMS, dims, pat_dims, ~(READ_FLAG|COIL_FLAG)))
-			error("Pattern and trajectory options are inconsistent!");
-		
-		long pat1_dims[DIMS];
-		md_select_dims(DIMS, ~(PHS1_FLAG|COIL_FLAG), pat1_dims, pat_dims);
-		complex float* pat1 = md_alloc(DIMS, pat1_dims, CFL_SIZE);
-		
+	// "inflate" partition dimension when z-undersampling is used
+	if (z_acc > 1) {
+
 		long pos[DIMS] = { 0 };
-		md_copy_block(DIMS, pos, pat1_dims, pat1, pat_dims, pat, CFL_SIZE);
 
-		// Reorder trajectory according to (temporal) acquisition order (SLICE_DIM before PHS2_DIM before TIME_DIM)
-		long samples_t1_dims[DIMS];
-		long samples_t_dims[DIMS];
-		
-		md_transpose_dims(DIMS, 2, 3, samples_t1_dims, dims);
-		md_transpose_dims(DIMS, 2, 13, samples_t_dims, samples_t1_dims);
-		complex float* samples_t = md_alloc(DIMS, samples_t_dims, CFL_SIZE);		
-		md_transpose(DIMS, 2, 13, samples_t_dims, samples_t, samples_t1_dims, samples, CFL_SIZE);
-		
-		md_clear(DIMS, dims, samples, CFL_SIZE); // Output file to zeros
-		
-		long samples_flat_dims[DIMS] = { [0 ... DIMS - 1] = 1 };
-		samples_flat_dims[0] = 3;
-		samples_flat_dims[1] = dims[PHS1_DIM];
-		samples_flat_dims[2] = dims[SLICE_DIM] * dims[PHS2_DIM] * dims[TIME_DIM];
+		// actual trajectory
+		long z_dims[DIMS];
+		for (unsigned int i = 0; i < DIMS; i++)
+			z_dims[i] = dims[i];
+		z_dims[SLICE_DIM] = mb;
 
-		
-		long buf_dims[DIMS];
-		md_select_dims(DIMS, READ_FLAG|PHS1_FLAG, buf_dims, dims);
-		complex float* buf = md_alloc(DIMS, buf_dims, CFL_SIZE);
+		long z_strs[DIMS];
+		md_calc_strides(DIMS, z_strs, z_dims, CFL_SIZE); 
 
-		long pat1_buf_dims[DIMS] = { [0 ... DIMS - 1] = 1 };
-		complex float* pat1_buf = md_alloc(DIMS, pat1_buf_dims, CFL_SIZE);
-		
-		long pos1[DIMS] = { 0 };
-		long pos2[DIMS] = { 0 };		
-		
-		// Copy from flattend (time-continuous) array "samples_t" to correct position of the undersampled array "samples"
-		for (int i = 0; i < dims[TIME_DIM]; i++) {
-			
-			pos1[TIME_DIM] = i;
-			for (int j = 0; j < dims[PHS2_DIM]; j++) {
-				
-				pos1[PHS2_DIM] = j;
-				for (int k = 0; k < dims[SLICE_DIM]; k++) {
-					
-					pos1[SLICE_DIM] = k;
-					md_copy_block(DIMS, pos1, pat1_buf_dims, pat1_buf, pat1_dims, pat1, CFL_SIZE);
+		complex float* traj = create_cfl(argv[1], DIMS, z_dims);
+		md_clear(DIMS, z_dims, traj, CFL_SIZE);
 
-					if (crealf(*pat1_buf) != 0) {
-						md_copy_block(DIMS, pos2, buf_dims, buf, samples_flat_dims, samples_t, CFL_SIZE);
-						md_copy_block(DIMS, pos1, dims, samples, buf_dims, buf, CFL_SIZE);						
-						pos2[2] += 1;
-					}
-										
+		// initialize lookup table which contains the indices of the partitions/slices to be sampled
+		const int z_npattern_max = 500;
+		const int z_npattern = ((turns * Y) > z_npattern_max) ? z_npattern_max : (turns * Y);
+
+		int* z_lookup = (int*)malloc((z_npattern * mb2) * sizeof(int));
+		z_lookup_fill(z_lookup, z_reflines, z_npattern, mb, mb2);
+
+		// copy slices/partitions of 'samples'-array to correct indices of 'traj'-array
+		long dims_red[DIMS];
+		md_select_dims(DIMS, ~(PHS2_FLAG|SLICE_FLAG|TIME_FLAG), dims_red, dims);
+
+		long z_pos_src[DIMS] = { 0 };
+		long z_pos_dst[DIMS] = { 0 };
+		int offset = 0;
+		int s, t;
+
+		do {
+			s = pos[PHS2_DIM];
+			t = pos[TIME_DIM];
+			z_pos_src[TIME_DIM] = t;
+			z_pos_dst[TIME_DIM] = t;
+			z_pos_src[PHS2_DIM] = s;
+			z_pos_dst[PHS2_DIM] = s;
+
+			for (int z = 0; z < z_dims[SLICE_DIM]; z++) {
+
+				z_pos_dst[SLICE_DIM] = z;
+				offset = ((s + t * dims[PHS2_DIM]) * mb2) % (z_npattern * mb2);
+				if (z_contains(&z_lookup[offset], mb2, z)) {
+					md_copy_block(DIMS, z_pos_src, dims_red, &MD_ACCESS(DIMS, z_strs, z_pos_dst, traj), dims, samples, CFL_SIZE);			
+					assert(z_pos_src[SLICE_DIM]++ < dims[SLICE_DIM]);
 				}
 			}
-		}
-		
-		md_free(pat1);
-		md_free(samples_t);
-		md_free(buf);
-		md_free(pat1_buf);
-	}
 
+			z_pos_src[SLICE_DIM] = 0;
+			
+		} while(md_next(DIMS, dims, PHS2_FLAG|TIME_FLAG, pos));
+
+		unmap_cfl(3, z_dims, traj);
+		free(z_lookup);
+	}
 
 	unmap_cfl(3, dims, samples);
 

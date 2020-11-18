@@ -34,9 +34,25 @@
 #include "noir/model.h"
 
 #include "nlops/nlop.h"
+#include "moba/iter_l1.h"
+#include "moba/recon_T1.h"
+
+#include "iter/lsqr.h"
+#include "iter/prox.h"
+#include "iter/admm.h"
+
+#include "moba/optreg.h"
+
+#include "grecon/optreg.h"
+#include "grecon/italgo.h"
+
+#include "linops/linop.h"
+#include "linops/someops.h"
+#include "linops/grad.h"
 
 #include "recon.h"
 
+#define T1_MODEL 10
 
 struct nlop_wrapper_s {
 
@@ -73,10 +89,15 @@ const struct noir_conf_s noir_defaults = {
 	.redu = 2.,
 	.a = 220.,
 	.b = 32.,
+	.inner_iter = 100.,
 	.pattern_for_each_coil = false,
 	.sms = false,
 	.cnstcoil_flags = 0u,
 	.img_space_coils = false,
+	.opt_reg = 2,
+	.algo = 3,
+        .rho = 0.01,
+	.step = 0.9,
 };
 
 
@@ -134,12 +155,13 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 		if (conf->img_space_coils) { // transform coils back to k-space
 
-				complex float* coil_tmp = md_alloc(DIMS, coil_dims, CFL_SIZE);
-				ifftmod(DIMS, coil_dims, mconf.fft_flags, coil_tmp, ref + skip);
-				noir_back_coils(nl.linop, coil_tmp, coil_tmp);
-				md_copy(DIMS, imgs_dims, xref, ref, CFL_SIZE);
-				md_copy(DIMS, coil_dims, xref + skip, coil_tmp, CFL_SIZE);
-				md_free(coil_tmp);
+			complex float* coil_tmp = md_alloc(DIMS, coil_dims, CFL_SIZE);
+			ifftmod(DIMS, coil_dims, mconf.fft_flags, coil_tmp, ref + skip);
+			noir_back_coils(nl.linop, coil_tmp, coil_tmp);
+			md_copy(DIMS, imgs_dims, xref, ref, CFL_SIZE);
+			md_copy(DIMS, coil_dims, xref + skip, coil_tmp, CFL_SIZE);
+			md_free(coil_tmp);
+
 		} else {
 
 			md_copy(1, d1, xref, ref, CFL_SIZE);
@@ -153,9 +175,9 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.cgtol = 0.1f;
+	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 	irgnm_conf.alpha_min = conf->alpha_min;
-
 
 	struct nlop_wrapper_s nlw;
 
@@ -164,13 +186,59 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	nlw.noir = &nl;
 	nlw.split = skip;
 
+	struct opt_reg_s ropts = conf->ropts;
 
-	iter4_irgnm(CAST_UP(&irgnm_conf),
+	const struct operator_p_s* inv_op = NULL;
+
+	long irgnm_conf_dims[DIMS];
+	md_select_dims(DIMS, mconf.fft_flags|MAPS_FLAG|TIME_FLAG, irgnm_conf_dims, dims);
+
+	irgnm_conf_dims[COIL_DIM] = dims[COIL_DIM];
+
+	debug_printf(DP_INFO, "imgs_dims:\n\t");
+	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
+
+	struct mdb_irgnm_l1_conf mdb_conf = { 
+			.c2 = &irgnm_conf, 
+			.opt_reg = 1, 
+			.step = conf->step, 
+			.lower_bound = -INFINITY,   
+			.algo = conf->algo, 
+			.rho = conf->rho, 
+			.ropts = &ropts, 
+			.wav_reg = 1.,
+			.auto_norm_off = true };
+
+	inv_op = T1inv_p_create(&mdb_conf, irgnm_conf_dims, nl.nlop);
+
+	// initialize prox functions
+
+        const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
+	const struct linop_s* trafos[NUM_REGS] = { NULL };
+
+	opt_reg_moba_configure(DIMS, dims, mdb_conf.ropts, thresh_ops, trafos, T1_MODEL);
+
+	struct iter_admm_conf conf1 = iter_admm_defaults;
+
+	conf1.maxiter = conf->inner_iter;
+	conf1.cg_eps = irgnm_conf.cgtol;
+	conf1.rho = conf->rho;
+	conf1.use_interface_alpha = true;
+		
+	// inv_op = lsqr2_create(&lsqr_defaults, iter2_admm, CAST_UP(&conf1), NULL, true, &nl.nlop->derivative[0][0],
+        //                  NULL, mdb_conf.ropts->r, thresh_ops, trafos, NULL);
+
+	// if (4 == conf->algo)
+	// 	conf->opt_reg = 1;
+
+	((2 == conf->opt_reg) ? iter4_irgnm : iter4_irgnm2)(CAST_UP(&irgnm_conf),
 			nl.nlop,
 			size * 2, (float*)x, (const float*)xref,
 			data_size * 2, (const float*)kspace_data,
-			NULL,
+			((2 == conf->opt_reg) ? NULL : inv_op),
 			(struct iter_op_s){ orthogonalize, CAST_UP(&nlw) });
+	
+	opt_reg_free(mdb_conf.ropts, thresh_ops, trafos);
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
 	md_copy(DIMS, coil_dims, ksens, x + skip, CFL_SIZE);

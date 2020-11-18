@@ -103,7 +103,7 @@ static bool test_iter_irgnm_lsqr0(bool ref)
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_conjgrad, CAST_UP(&conf),
-				NULL, &zexp->derivative[0][0], NULL,
+				NULL, false, &zexp->derivative[0][0], NULL,
 				0, NULL, NULL, NULL);
 
 	iter4_irgnm2(CAST_UP(&iter3_irgnm_defaults), zexp,
@@ -160,14 +160,14 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_admm, CAST_UP(&conf),
-				NULL, &zexp->derivative[0][0], NULL,
+				NULL, false, &zexp->derivative[0][0], NULL,
 				regu ? 1 : 0,
 				regu ? prox_ops : NULL,
 				regu ? trafos : NULL,
 				NULL);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
-	irgnm_conf.iter = 5;
+	irgnm_conf.iter = 4;
 
 	iter4_irgnm2(CAST_UP(&irgnm_conf), zexp,
 		2 * md_calc_size(N, dims), (float*)src2, ref ? (const float*)src1 : NULL,
@@ -183,7 +183,7 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 	md_free(dst1);
 	md_free(src2);
 
-	UT_ASSERT(err < 1.E-5);
+	UT_ASSERT(err < 1.E-3);
 }
 
 
@@ -262,7 +262,7 @@ static bool test_iter_irgnm_l1(void)
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_fista, CAST_UP(&conf),
-				NULL, &nlid->derivative[0][0], NULL,
+				NULL, false, &nlid->derivative[0][0], NULL,
 				1, prox_ops, trafos, NULL);
 
 	struct iter3_irgnm_conf conf2 = iter3_irgnm_defaults;

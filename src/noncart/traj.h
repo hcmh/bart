@@ -38,6 +38,8 @@ extern const struct traj_conf rmfreq_defaults;
 extern void euler(float dir[3], float phi, float psi);
 extern void gradient_delay(float d[3], float coeff[2][3], float phi, float psi);
 extern void calc_base_angles(double base_angle[DIMS], int Y, int E, int mb, int turns, struct traj_conf conf);
-extern bool zpartition_skip(long partitions, long z_usamp[2], long partition, long frame);
+extern bool zpartition_skip(long partitions, long zusamp[2], long partition, long frame);
+extern void z_lookup_fill(int* z_lookup, int z_reflines, int z_npattern, int mb_full, int mb_acc);
+extern bool z_contains(int* lookup, int size, int z);
 extern int gen_fibonacci(int n, int ind);
 

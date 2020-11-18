@@ -188,7 +188,7 @@ static void gradient_step_initialize(struct gradient_step_s* data, const complex
 	}
 }
 
-static void gradient_step_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg], const struct op_options_s* opts)
+static void gradient_step_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
 {
 	const auto d = CAST_DOWN(gradient_step_s, _data);
 	assert(5 == Narg);
@@ -199,7 +199,7 @@ static void gradient_step_fun(const nlop_data_t* _data, int Narg, complex float*
 	const complex float* coil = args[3];
 	const complex float* pattern = args[4];
 
-	bool der = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
+	bool der = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
 	gradient_step_initialize(d, dst, der);
 
 	if (der) {
@@ -375,7 +375,7 @@ const struct nlop_s* nlop_mri_gradient_step_create(int N, const long dims[N], bo
 						gradient_step_fun,
 						(nlop_der_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
 						(nlop_der_fun_t[4][1]){ { gradient_step_deradj_image }, { gradient_step_ni }, { gradient_step_ni }, { gradient_step_ni } },
-						NULL, NULL, gradient_step_del, props);
+						NULL, NULL, gradient_step_del, NULL, props);
 }
 
 
@@ -403,6 +403,8 @@ struct mri_normal_inversion_s {
 	float check_convergence_warning_val;
 
 	const struct operator_s** normal_op;
+
+	const struct linop_s* lop_fft;
 
 	italgo_fun2_f* algo;
 	iter_conf* conf;
@@ -574,7 +576,10 @@ static void mri_normal_inversion_set_normal_ops(struct mri_normal_inversion_s* d
 		if (!md_check_equal_dims(d->N_op, d->cdims, d->kdims, ~0u))
 			linop_frw = linop_chain_FF(linop_frw, linop_resize_center_create(d->N_op, d->kdims, d->cdims));
 
-		linop_frw = linop_chain_FF(linop_frw, linop_fft_create(d->N_op, d->kdims, FFT_FLAGS));
+		if (NULL == d->lop_fft)
+			d->lop_fft = linop_fft_create(d->N_op, d->kdims, FFT_FLAGS);
+
+		linop_frw = linop_chain_FF(linop_frw, linop_clone(d->lop_fft));
 
 		auto linop_pattern = linop_cdiag_create(d->N_op, d->kdims, (1 == d->pdims[4]) ? FFT_FLAGS : FFT_FLAGS | MD_BIT(4), (1 == d->pdims[4]) ? tmp_pattern : tmp_pattern + i * md_calc_size(3, d->pdims));
 
@@ -601,7 +606,7 @@ static void mri_free_normal_ops(struct mri_normal_inversion_s* d)
 	}
 }
 
-static void mri_normal_inversion_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg], const struct op_options_s* opts)
+static void mri_normal_inversion_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
 {
 	const auto d = CAST_DOWN(mri_normal_inversion_s, _data);
 	assert(5 == Narg);
@@ -612,8 +617,8 @@ static void mri_normal_inversion_fun(const nlop_data_t* _data, int Narg, complex
 	const complex float* pattern = args[3];
 	const complex float* lptr = args[4];
 
-	bool der_in = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
-	bool der_lam = !op_options_is_set_io(opts, 0, 3, OP_APP_NO_DER);
+	bool der_in = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
+	bool der_lam = !op_options_is_set_io(_data->options, 0, 3, OP_APP_NO_DER);
 
 	mri_normal_inversion_set_normal_ops(d, coil, pattern, lptr);
 
@@ -657,6 +662,8 @@ static void mri_normal_inversion_del(const nlop_data_t* _data)
 	md_free(d->out);
 	md_free(d->coil);
 	md_free(d->fftmod);
+
+	linop_free(d->lop_fft);
 
 	for (int i = 0; i < d->batches_independent; i++)
 		operator_free(d->normal_op[i]);
@@ -713,6 +720,8 @@ static struct nlop_data_s* mri_normal_inversion_data_create(int N, const long di
 	data->normal_op = *PTR_PASS(normalops);
 
 	data->conf = NULL;
+
+	data->lop_fft = NULL;
 
 	if (NULL != CAST_MAYBE(iter_conjgrad_conf, conf)) {
 
@@ -779,7 +788,7 @@ const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], bool
 							mri_normal_inversion_fun,
 							(nlop_der_fun_t[4][1]){ { mri_normal_inversion_der }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_der_lambda } },
 							(nlop_der_fun_t[4][1]){ { mri_normal_inversion_adj }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_adj_lambda } },
-							NULL, NULL, mri_normal_inversion_del, props);
+							NULL, NULL, mri_normal_inversion_del, NULL, props);
 
 	if (-1. != lambda) {
 		complex float lambdac = lambda;
@@ -862,7 +871,7 @@ static void mri_reg_proj_adj(const nlop_data_t* _data, unsigned int o, unsigned 
 	PRINT_TIMER("der mri regularized projection");
 }
 
-static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg], const struct op_options_s* opts)
+static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
 {
 	const auto d = CAST_DOWN(mri_normal_inversion_s, _data);
 	assert(5 == Narg);
@@ -873,8 +882,8 @@ static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* 
 	const complex float* pattern = args[3];
 	const complex float* lptr = args[4];
 
-	bool der_in = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
-	bool der_lam = !op_options_is_set_io(opts, 0, 3, OP_APP_NO_DER);
+	bool der_in = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
+	bool der_lam = !op_options_is_set_io(_data->options, 0, 3, OP_APP_NO_DER);
 
 	mri_normal_inversion_set_normal_ops(d, coil, pattern, lptr);
 
@@ -942,7 +951,7 @@ const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], bool sha
 							mri_reg_proj_fun,
 							(nlop_der_fun_t[4][1]){ { mri_reg_proj_der }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_der_lambda } },
 							(nlop_der_fun_t[4][1]){ { mri_reg_proj_adj }, { mri_normal_inversion_ni }, { mri_normal_inversion_ni }, { mri_normal_inversion_adj_lambda } },
-							NULL, NULL, mri_normal_inversion_del, props);
+							NULL, NULL, mri_normal_inversion_del, NULL, props);
 
 	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(N, nl_idims[0], -1., 1.), 0);
 	result = nlop_dup_F(result, 0, 1);

@@ -107,6 +107,7 @@ const struct iter_admm_conf iter_admm_defaults = {
 	.relative_norm = false,
 	.hogwild = false,
 	.fast = false,
+	.use_interface_alpha = false,
 
 	.ABSTOL = 1.E-4,
 	.RELTOL = 1.E-3,

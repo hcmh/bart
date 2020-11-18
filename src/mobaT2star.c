@@ -3,14 +3,16 @@
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors: 
- * 2019 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
- * 2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2019-2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ * 2019-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
 
 #include <stdbool.h>
 #include <complex.h>
 #include <math.h>
+
+#include "iter/iter2.h"
 
 #include "linops/linop.h"
 
@@ -20,6 +22,10 @@
 #include "misc/utils.h"
 #include "misc/opts.h"
 #include "misc/debug.h"
+
+#include "moba/optreg.h"
+
+#include "moba/recon_T1.h"
 
 #include "moba/meco.h"
 #include "moba/recon_meco.h"
@@ -38,60 +44,78 @@
 #include "num/init.h"
 #include "num/mem.h"
 
+#include "grecon/optreg.h"
+#include "grecon/italgo.h"
+
+#define USE_NUFFT 1
 
 static const char usage_str[] = "<kspace> <TE> <output> [<sensitivities>]";
 static const char help_str[] =
 		"Quantivative mapping for multi-echo radial FLASH\n"
 		"via model-based nonlinear inverse reconstruction.";
 
-
-
-
-static void init_maps(long N, long* maps_dims, long* maps_strs, complex float* maps, unsigned int sel_model)
+static void init_meco_maps(long N, long* maps_dims, complex float* maps, unsigned int sel_model)
 {
-	// set all parameters to 1.0
-	md_zfill(N, maps_dims, maps, 1.0);
+	long maps_strs[N];
+	md_calc_strides(N, maps_strs, maps_dims, CFL_SIZE);
 
-	if ( sel_model != PI ) {
+	if ( sel_model == MECO_PI ) {
 
-		// set fB0 map to 0
+		// set all parameters to 1.0
+		md_zfill(N, maps_dims, maps, 1.0);
+
+	} else {
+
+		md_clear(N, maps_dims, maps, CFL_SIZE);
+
 		long NCOEFF = maps_dims[COEFF_DIM];
 		long* pos = calloc(N, sizeof(long));
-		pos[COEFF_DIM] = NCOEFF - 1; // fB0 position
 
-		complex float* map_fB0 = (void*)maps + md_calc_offset(N, maps_strs, pos);
 		long map1_dims[N];
 		md_select_dims(N, ~COEFF_FLAG, map1_dims, maps_dims);
-		md_zfill(N, map1_dims, map_fB0, 0.0);
 
+		complex float* map1 = md_alloc(N, map1_dims, CFL_SIZE);
+
+		// W & F
+		long pd_flag = set_PD_flag(sel_model);
+
+		float val = 0.1;
+		for (long n = 0; n < NCOEFF; n++) {
+
+			pos[COEFF_DIM] = n;
+			md_zfill(N, map1_dims, map1, MD_IS_SET(pd_flag, n) ? val : 0.);
+			md_copy_block(N, pos, maps_dims, maps, map1_dims, map1, CFL_SIZE);
+		}
+
+		md_free(map1);
 		xfree(pos);
 	}
 }
 
+/*
+static void edge_weight(const long dims[3], complex float* dst)
+{
+	unsigned int flags = 0;
 
-// static void edge_weight(const long dims[3], complex float* dst)
-// {
-// 	unsigned int flags = 0;
-
-// 	for (int i = 0; i < 3; i++)
-// 		if (1 != dims[i])
-// 			flags = MD_SET(flags, i);
+	for (int i = 0; i < 3; i++)
+		if (1 != dims[i])
+			flags = MD_SET(flags, i);
 
 
-// 	float beta = 100.;
+	float beta = 100.;
 
-// 	// FIXME: when dims[0] != dims[1]
-// 	klaplace(3, dims, flags, dst);
-// 	md_zspow(3, dims, dst, dst, 0.5);
+	// FIXME: when dims[0] != dims[1]
+	klaplace(3, dims, flags, dst);
+	md_zspow(3, dims, dst, dst, 0.5);
 
-// 	md_zsmul(3, dims, dst, dst, -beta*2);
-// 	md_zsadd(3, dims, dst, dst, beta);
+	md_zsmul(3, dims, dst, dst, -beta*2);
+	md_zsadd(3, dims, dst, dst, beta);
 
-// 	md_zatanr(3, dims, dst, dst);
-// 	md_zsmul(3, dims, dst, dst, -0.1/M_PI);
-// 	md_zsadd(3, dims, dst, dst, 0.05);
-// }
-
+	md_zatanr(3, dims, dst, dst);
+	md_zsmul(3, dims, dst, dst, -0.1/M_PI);
+	md_zsadd(3, dims, dst, dst, 0.05);
+}
+*/
 
 int main_mobaT2star(int argc, char* argv[])
 {
@@ -100,15 +124,20 @@ int main_mobaT2star(int argc, char* argv[])
 	struct nufft_conf_s nufft_conf = nufft_conf_defaults;
 	nufft_conf.toeplitz = false;
 
-	struct noir_conf_s conf = noir_defaults;
+	struct moba_conf moba_conf = moba_defaults;
 
 	float restrict_fov = -1.;
 	float overgrid = 1.5;
-	float temp_damp = 0.9;
+	float damping = 0.9;
 
-	unsigned int sel_model = WFR2S;
-	unsigned int sel_regu = TIKHONOV;
+	unsigned int sel_model = MECO_WFR2S;
+	unsigned int sel_irgnm = 1;
 	unsigned int fullsample = 0;
+
+	bool pd_rvc = false;
+
+	unsigned int wgh_fB0 = MECO_SOBOLEV;
+	float scale_fB0 = 1.;
 
 	// const char* psf_file = NULL;
 	const char* init_file = NULL;
@@ -117,26 +146,43 @@ int main_mobaT2star(int argc, char* argv[])
 	bool out_origin_maps = false;
 	bool out_sens = false;
 	bool use_gpu = false;
-	bool use_nufft = false;
+	bool use_lsqr = false;
+	bool use_warmstart = false;
+	bool stack_frames = false;
+
+	struct iter_admm_conf iadmm_conf = iter_admm_defaults;
+
+	opt_reg_init(&moba_conf.ropts);
+
 
 	const struct opt_s opts[] = {
 
+		{ 'r', NULL, true, opt_reg_moba, &moba_conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_UINT('F', &fullsample, "FSMP", "Full sample size (required for partial Fourier sampling)"),
-		OPT_UINT('M', &sel_model, "model", "Select the model from enum { WF, WFR2S, WF2R2S, R2S, PI } [default: WFR2S]"),
-		OPT_UINT('R', &sel_regu, "regu", "Select regularization type from enum { TIKHONOV, WAV, LLR } [default: TIKHONOV]"),
-		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps [default: 8]"),
-		OPT_FLOAT('T', &temp_damp, "tdamp", "temporal damping [default: 0.9]"),
-		OPT_FLOAT('a', &conf.a, "W_c", "(a in 1 + a * \\Laplace^-b/2) [default: 220]"),
-		OPT_FLOAT('b', &conf.b, "W_c", "(b in 1 + a * \\Laplace^-b/2) [default: 32]"),
-		OPT_FLOAT('f', &restrict_fov, "rFOV", "Restrict FOV (for non-cartesian trajectories) [default: 0.5]"),
-		OPT_FLOAT('j', &conf.alpha_min, "a_min", "Minimum regu. parameter [default: 0]"),
+		OPT_UINT('M', &sel_model, "model", "Select the model from enum { WF, WFR2S, WF2R2S, R2S, PHASEDIFF, PI } [default: WFR2S]"),
+		OPT_UINT('N', &sel_irgnm, "IRGNM", "Select IRGNM version { 1, 2 } [default: 1]"),
+		OPT_UINT('i', &moba_conf.iter, "iter", "Number of Newton steps [default: 8]"),
+		OPT_UINT('c', &moba_conf.inner_iter, "iter", "Number of inner iteratiion [default: 250]"),
+		OPT_FLOAT('T', &damping, "tempo", "damping on temporal frames [default: 0.9]"),
+		OPT_FLOAT('b', &scale_fB0, "s_fB0", "scale_fB0: scaling for fB0 [default: 1.0]"),
+		OPT_FLOAT('u', &moba_conf.rho, "rho", "ADMM rho"),
+		// OPT_FLOAT('f', &restrict_fov, "rFOV", "Restrict FOV (for non-cartesian trajectories) [default: 0.5]"),
+		// OPT_FLOAT('j', &moba_conf.alpha_min, "a_min", "Minimum regu. parameter [default: 0]"),
 		OPT_FLOAT('o', &overgrid, "os", "Oversampling factor for gridding [default: 1.5]"),
-		OPT_FLOAT('r', &conf.redu, "redu", "Reduction factor of the regularization strength [defautl: 2]"),
+		OPT_FLOAT('R', &moba_conf.redu, "redu", "Reduction factor of the regularization strength [default: 2]"),
+		OPT_SET('C', &pd_rvc, "Real-value constraint on proton density [default: 0]"),
+		OPT_SET('D', &iadmm_conf.dynamic_rho, "ADMM dynamic step size"),
+		OPT_SET('J', &stack_frames, "stack frames for joint reconstruction"),
 		OPT_SET('O', &out_origin_maps, "Output original maps from reconstruction without post processing"),
-		OPT_SET('c', &conf.rvc, "Real-value constraint [default: 0]"),
 		OPT_SET('g', &use_gpu, "Use gpu"),
-		OPT_SET('n', &/*conf.*/use_nufft, "Use nufft"),
+		OPT_SET('l', &use_lsqr, "(Use lsqr solver)"),
+		OPT_SET('W', &use_warmstart, "(Use warmstart in lsqr solver)"),
+		OPT_SELECT('S', enum MECO_WEIGHT_fB0, &wgh_fB0, MECO_SOBOLEV , "select Sobelev weight for fB0 [default]"),
+		OPT_SELECT('U', enum MECO_WEIGHT_fB0, &wgh_fB0, MECO_IDENTITY, "select identity weight for fB0"),
+		// OPT_SELECT('c', enum algo_t, &algo, ALGO_CG, "select CG"),
+		// OPT_SELECT('f', enum algo_t, &algo, ALGO_FISTA, "select FISTA"),
+		// OPT_SELECT('m', enum algo_t, &algo, ALGO_ADMM, "select ADMM"),
 		OPT_STRING('I', &init_file, "init", "File for initialization"),
 		// OPT_STRING('p', &psf_file, "psf", "File for point spread function"),
 		OPT_STRING('t', &traj_file, "traj", "File for trajectory"),
@@ -147,12 +193,12 @@ int main_mobaT2star(int argc, char* argv[])
 	if (5 == argc)
 		out_sens = true;
 
-	if (-1 == restrict_fov)
-		restrict_fov = 0.5;
+	moba_conf.noncartesian = true;
 
-	conf.noncart = true;
+	restrict_fov = (moba_conf.noncartesian) ? 0.5 : -1;
 
 	(use_gpu ? num_init_gpu_memopt : num_init)();
+	// num_init();
 
 #ifdef USE_CUDA
 	cuda_use_global_memory();
@@ -160,21 +206,42 @@ int main_mobaT2star(int argc, char* argv[])
 
 	debug_printf(DP_DEBUG2, "___ qmeco with model: ");
 	switch ( sel_model ) {
-		case WF     : debug_printf(DP_DEBUG2, "water, fat and B0 field ___\n"); break;
-		case WFR2S  : debug_printf(DP_DEBUG2, "water, fat, R2S, and B0 field ___\n"); break;
-		case WF2R2S : debug_printf(DP_DEBUG2, "water, water_R2s, fat, fat_R2S, and B0 field ___\n"); break;
-		case R2S    : debug_printf(DP_DEBUG2, "rho, R2S, and B0 field ___\n"); break;
-		case PI     : debug_printf(DP_DEBUG2, "multi echo images ___\n"); break;
+		case MECO_WF        : debug_printf(DP_DEBUG2, "water, fat and B0 field ___\n"); break;
+		case MECO_WFR2S     : debug_printf(DP_DEBUG2, "water, fat, R2S, and B0 field ___\n"); break;
+		case MECO_WF2R2S    : debug_printf(DP_DEBUG2, "water, water_R2s, fat, fat_R2S, and B0 field ___\n"); break;
+		case MECO_R2S       : debug_printf(DP_DEBUG2, "rho, R2S, and B0 field ___\n"); break;
+		case MECO_PHASEDIFF : debug_printf(DP_DEBUG2, "rho, and B0 field ___\n"); break;
+		case MECO_PI        : debug_printf(DP_DEBUG2, "multi echo images ___\n"); break;
 	}
 
-	debug_printf(DP_DEBUG2, " __ regularization: ");
-	switch ( sel_regu ) {
-		case TIKHONOV : debug_printf(DP_DEBUG2, "Tikhonov l2\n"); break;
-		case WAV      : debug_printf(DP_DEBUG2, "Daubechies wavelet l1\n"); break;
-		case LLR      : debug_printf(DP_DEBUG2, "Locally low rank l1\n"); break;
-	}
+	moba_conf.algo = ALGO_FISTA;
 
-	debug_printf(DP_DEBUG2, " __ parameters: iter %2d; redu %.2f; alpha (%.1f, %.1f); coil (%.1f, %.1f); rvc %d\n", conf.iter, conf.redu, conf.alpha, conf.alpha_min, conf.rvc, conf.a, conf.b);
+	debug_printf(DP_DEBUG2, " > nr of regularizations %d\n", moba_conf.ropts.r);
+
+	if (moba_conf.ropts.r > 0)
+		moba_conf.algo = ALGO_ADMM;
+
+	assert((1==sel_irgnm) || (2==sel_irgnm));
+
+	if (1 == sel_irgnm)
+		moba_conf.algo = ALGO_CG;
+
+
+	if (MECO_PHASEDIFF == sel_model)
+		wgh_fB0 = MECO_IDENTITY; // TODO: this is hard-coded!
+
+	debug_printf(DP_DEBUG2, " __ parameters: iter %2d; redu %.2f; alpha (%.1f, %.1f)\n", moba_conf.iter, moba_conf.redu, moba_conf.alpha, moba_conf.alpha_min);
+
+	debug_printf(DP_DEBUG2, " __ PD map: ");
+	debug_printf(DP_DEBUG2, (pd_rvc) ? "real\n" : "complex\n");
+
+	if (MECO_PI != sel_model) {
+
+		debug_printf(DP_DEBUG2, " __ fB0 map: weight type ");
+		debug_printf(DP_DEBUG2, (MECO_IDENTITY == wgh_fB0) ? "IDENTITY" : "SOBOLEV");
+		debug_printf(DP_DEBUG2, "; scale %f\n", scale_fB0);
+
+	}
 
 
 	// assert((psf_file!=NULL) ^ (traj_file!=NULL));
@@ -214,7 +281,6 @@ int main_mobaT2star(int argc, char* argv[])
 	long Y_dims[DIMS];
 	md_copy_dims(DIMS, Y_dims, ksp_dims);
 
-	complex float* Y = NULL;
 
 	complex float* P = NULL;
 	long P_dims[DIMS];
@@ -232,6 +298,8 @@ int main_mobaT2star(int argc, char* argv[])
 	long traj_1f_dims[DIMS];
 
 	complex float* traj = load_cfl(traj_file, DIMS, traj_dims);
+
+	md_zsmul(DIMS, traj_dims, traj, traj, overgrid);
 
 	md_calc_strides(DIMS, traj_strs, traj_dims, CFL_SIZE);
 	md_select_dims(DIMS, ~TIME_FLAG, traj_1f_dims, traj_dims);
@@ -254,58 +322,55 @@ int main_mobaT2star(int argc, char* argv[])
 
 	struct linop_s* nufft_op = NULL;
 
-	if ( !/*conf.*/use_nufft ) {
+	// compute point spread function
 
-		long ones_dims[DIMS];
-		md_copy_dims(DIMS, ones_dims, traj_dims);
-		ones_dims[READ_DIM] = 1L;
+#if USE_NUFFT == 1
 
-		complex float* ones = md_alloc(DIMS, ones_dims, CFL_SIZE);
-		md_clear(DIMS, ones_dims, ones, CFL_SIZE);
+	long wgh_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, wgh_dims, ksp_dims);
 
-		// complex float* k_dummy = md_alloc(DIMS, ones_dims, CFL_SIZE);
-		long pos_0[DIMS] = { 0 };
+	complex float* wgh = md_alloc(DIMS, wgh_dims, CFL_SIZE);
 
-		md_copy_block(DIMS, pos_0, ones_dims, ones, ksp_dims, ksp, CFL_SIZE);
+	estimate_pattern(DIMS, ksp_dims, COIL_FLAG, wgh, ksp);
 
-		// divide ksp-data by itself
-		// zdiv makes sure that division by zero is set to 0
-		md_zdiv(DIMS, ones_dims, ones, ones, ones);
+	P = compute_psf(DIMS, P_dims, traj_dims, traj, traj_dims, NULL, wgh_dims, wgh, false, false);
 
-		nufft_op = nufft_create(DIMS, ones_dims, P_dims, traj_dims, traj, NULL, nufft_conf);
+	fftuc(DIMS, P_dims, FFT_FLAGS, P, P);
 
-		P = anon_cfl("", DIMS, P_dims);
-		linop_adjoint(nufft_op, DIMS, P_dims, P, DIMS, ones_dims, ones);
+	md_free(wgh);
 
-		fftuc(DIMS, P_dims, FFT_FLAGS, P, P);
-		
-		linop_free(nufft_op);
-		md_free(ones);
+	debug_printf(DP_DEBUG2, "  _ psf prepared with compute_psf from nufft.\n");
 
-		dump_cfl("/scratch/ztan/_prep_P_linop", DIMS, P_dims, P);
-		debug_printf(DP_DEBUG2, "  _ psf prepared with nufft linop.\n");
+#else
 
-	} else {
+	long ones_dims[DIMS];
+	md_copy_dims(DIMS, ones_dims, traj_dims);
+	ones_dims[READ_DIM] = 1L;
 
-		long wgh_dims[DIMS];
-		md_select_dims(DIMS, ~COIL_FLAG, wgh_dims, ksp_dims);
+	complex float* ones = md_alloc(DIMS, ones_dims, CFL_SIZE);
+	md_clear(DIMS, ones_dims, ones, CFL_SIZE);
 
-		complex float* wgh = md_alloc(DIMS, wgh_dims, CFL_SIZE);
+	long pos_0[DIMS] = { 0 };
 
-		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, wgh, ksp);
+	md_copy_block(DIMS, pos_0, ones_dims, ones, ksp_dims, ksp, CFL_SIZE);
 
-		P = compute_psf(DIMS, P_dims, traj_dims, traj, traj_dims, NULL, wgh_dims, wgh, false, false);
+	// divide ksp-data by itself
+	// zdiv makes sure that division by zero is set to 0
+	md_zdiv(DIMS, ones_dims, ones, ones, ones);
 
-		fftuc(DIMS, P_dims, FFT_FLAGS, P, P);
+	nufft_op = nufft_create(DIMS, ones_dims, P_dims, traj_dims, traj, NULL, nufft_conf);
 
-		dump_cfl("/scratch/ztan/_prep_P_compute_psf", DIMS, P_dims, P);
-		dump_cfl("/scratch/ztan/_ksp_wgh", DIMS, wgh_dims, wgh);
+	P = anon_cfl("", DIMS, P_dims);
+	linop_adjoint(nufft_op, DIMS, P_dims, P, DIMS, ones_dims, ones);
 
-		md_free(wgh);
+	fftuc(DIMS, P_dims, FFT_FLAGS, P, P);
+	
+	linop_free(nufft_op);
+	md_free(ones);
 
-		debug_printf(DP_DEBUG2, "  _ psf prepared with compute_psf from nufft.\n");
+	debug_printf(DP_DEBUG2, "  _ psf prepared with nufft linop.\n");
 
-	}
+#endif
 
 
 
@@ -323,7 +388,7 @@ int main_mobaT2star(int argc, char* argv[])
 	md_calc_strides(DIMS, P_strs, P_dims, CFL_SIZE);
 
 
-#if 0
+#if 1
 
 	debug_printf(DP_DEBUG2, "  _ psf scaling.\n");
 
@@ -362,27 +427,14 @@ int main_mobaT2star(int argc, char* argv[])
 	long maps_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|COEFF_FLAG|TIME_FLAG|SLICE_FLAG, maps_dims, Y_dims);
 
-	if ( sel_model == PI ) {
-		maps_dims[TE_DIM] = Y_dims[TE_DIM];
-	} else {
-		maps_dims[COEFF_DIM] = set_num_of_coeff(sel_model);
-	}
+	long coeff_dim = (MECO_PI==sel_model) ? TE_DIM : COEFF_DIM;
+	maps_dims[coeff_dim] = (MECO_PI==sel_model) ? Y_dims[TE_DIM] : set_num_of_coeff(sel_model);
 
 	long maps_strs[DIMS];
 	md_calc_strides(DIMS, maps_strs, maps_dims, CFL_SIZE);
 
 	long maps_1f_dims[DIMS];
 	md_select_dims(DIMS, ~TIME_FLAG, maps_1f_dims, maps_dims);
-
-	long maps_1f_strs[DIMS];
-	md_calc_strides(DIMS, maps_1f_strs, maps_1f_dims, CFL_SIZE);
-
-	long img_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|SLICE_FLAG, img_dims, Y_dims);
-
-	long img_strs[DIMS];
-	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
-
 
 	long sens_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|TIME_FLAG|SLICE_FLAG, sens_dims, Y_dims);
@@ -409,9 +461,9 @@ int main_mobaT2star(int argc, char* argv[])
 	complex float* sens 	= (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[4] : "", DIMS, sens_dims);
 
 	long* frame_pos         = calloc(DIMS, sizeof(long));
-	complex float* maps_1f  = (void*)maps + md_calc_offset(DIMS, maps_strs, frame_pos);
-	complex float* sens_1f  = (void*)sens + md_calc_offset(DIMS, sens_strs, frame_pos);
-	
+	complex float* maps_ptr = (void*)maps + md_calc_offset(DIMS, maps_strs, frame_pos);
+	complex float* sens_ptr = (void*)sens + md_calc_offset(DIMS, sens_strs, frame_pos);
+
 
 
 
@@ -430,29 +482,58 @@ int main_mobaT2star(int argc, char* argv[])
 	debug_print_dims(DP_DEBUG2, DIMS, sens_dims);
 	
 
+
+
+	long Y_1s_dims[DIMS];
+	md_copy_dims(DIMS, Y_1s_dims, Y_dims);
+
+	long P_1s_dims[DIMS];
+	md_copy_dims(DIMS, P_1s_dims, P_dims);
+
+	long ksp_1s_dims[DIMS];
+	md_copy_dims(DIMS, ksp_1s_dims, ksp_dims);
+
+	long traj_1s_dims[DIMS];
+	md_copy_dims(DIMS, traj_1s_dims, traj_dims);
+
+	long maps_1s_dims[DIMS];
+	md_copy_dims(DIMS, maps_1s_dims, maps_dims);
+
+	long sens_1s_dims[DIMS];
+	md_copy_dims(DIMS, sens_1s_dims, sens_dims);
+
+	if (!stack_frames) {
+
+		Y_1s_dims[TIME_DIM] = 1;
+		P_1s_dims[TIME_DIM] = 1;
+		ksp_1s_dims[TIME_DIM] = 1;
+		traj_1s_dims[TIME_DIM] = 1;
+		maps_1s_dims[TIME_DIM] = 1;
+		sens_1s_dims[TIME_DIM] = 1;
+	}
 	
 
 
 	// === initialization ===
 	if ( NULL != init_file ) {
 
-		long skip = md_calc_size(DIMS, maps_1f_dims);
+		long skip = md_calc_size(DIMS, maps_1s_dims);
 		long init_dims[DIMS];
 		complex float* init = load_cfl(init_file, DIMS, init_dims);
 
-		assert(md_check_bounds(DIMS, 0, maps_1f_dims, init_dims));
+		assert(md_check_bounds(DIMS, 0, maps_1s_dims, init_dims));
 
-		md_copy(DIMS, maps_1f_dims, maps_1f, init, CFL_SIZE); // maps
-		fftmod(DIMS, sens_1f_dims, FFT_FLAGS|SLICE_FLAG, sens_1f, init + skip);
-		
+		md_copy(DIMS, maps_1s_dims, maps_ptr, init, CFL_SIZE); // maps
+		fftmod(DIMS, sens_1s_dims, FFT_FLAGS | (stack_frames ? TIME_FLAG : 0u), sens_ptr, init + skip);
+
 		unmap_cfl(DIMS, init_dims, init);
 
 		debug_printf(DP_DEBUG2, "  _ init maps provided.\n");
 
 	} else {
 
-		init_maps(DIMS, maps_1f_dims, maps_1f_strs, maps_1f, sel_model);
-		md_clear(DIMS, sens_1f_dims, sens_1f, CFL_SIZE);
+		init_meco_maps(DIMS, maps_1s_dims, maps_ptr, sel_model);
+		md_clear(DIMS, sens_1s_dims, sens_ptr, CFL_SIZE);
 
 	}
 
@@ -471,9 +552,7 @@ int main_mobaT2star(int argc, char* argv[])
 		restrict_dims[2] = restrict_fov;
 		mask = compute_mask(DIMS, mask_dims, restrict_dims);
 
-		// dump_cfl("/tmp/meco_mask", DIMS, mask_dims, mask);
-
-		md_zmul2(DIMS, maps_1f_dims, maps_1f_strs, maps_1f, maps_1f_strs, maps_1f, mask_strs, mask);
+		md_zmul2(DIMS, maps_1s_dims, MD_STRIDES(DIMS, maps_1s_dims, CFL_SIZE), maps_ptr, MD_STRIDES(DIMS, maps_1s_dims, CFL_SIZE), maps_ptr, mask_strs, mask);
 	}
 
 
@@ -488,17 +567,20 @@ int main_mobaT2star(int argc, char* argv[])
 	if ( !use_gpu ) {
 		debug_printf(DP_DEBUG2, "CPU __\n");
 	}
-	
-	complex float* Y_1f = md_alloc(DIMS, Y_1f_dims, CFL_SIZE);
 
-	long maps_1f_size = md_calc_size(DIMS, maps_1f_dims);
-	long sens_1f_size = md_calc_size(DIMS, sens_1f_dims);
-	long x_1f_size = maps_1f_size + sens_1f_size;
 
-	complex float* x    = md_alloc(1, MD_DIMS(x_1f_size), CFL_SIZE);
-	complex float* xref = md_alloc(1, MD_DIMS(x_1f_size), CFL_SIZE);
 
-	for (long f = 0; f < Y_dims[TIME_DIM]; f++) {
+	complex float* Y = md_alloc(DIMS, Y_dims, CFL_SIZE);
+
+	long maps_1s_size = md_calc_size(DIMS, maps_1s_dims);
+	long sens_1s_size = md_calc_size(DIMS, sens_1s_dims);
+	long x_1s_size = maps_1s_size + sens_1s_size;
+
+	complex float* x    = md_alloc(1, MD_DIMS(x_1s_size), CFL_SIZE);
+	complex float* xref = md_alloc(1, MD_DIMS(x_1s_size), CFL_SIZE);
+
+
+	for (long f = 0; f < (stack_frames ? 1 : Y_dims[TIME_DIM]); f++) {
 
 		bool reset = (f==0) ? true : false;
 
@@ -506,96 +588,89 @@ int main_mobaT2star(int argc, char* argv[])
 
 		frame_pos[TIME_DIM] = f;
 
-		// if ( !conf.use_nufft ) {
+		complex float* Y_ptr = (void*)Y + md_calc_offset(DIMS, Y_strs, frame_pos);
 
-			long* traj_pos = calloc(DIMS, sizeof(long));
-			traj_pos[TIME_DIM] = f % P_turns;
 
-			complex float* traj_1f = (void*)traj + md_calc_offset(DIMS, traj_strs, traj_pos);
+		long* traj_pos = calloc(DIMS, sizeof(long));
+		traj_pos[TIME_DIM] = f % P_turns;
 
-			nufft_op = nufft_create(DIMS, ksp_1f_dims, Y_1f_dims, traj_1f_dims, traj_1f, NULL, nufft_conf);
+		complex float* traj_1f = (void*)traj + md_calc_offset(DIMS, traj_strs, traj_pos);
 
-			complex float* ksp_1f = (void*)ksp + md_calc_offset(DIMS, ksp_strs, frame_pos);
-			linop_adjoint(nufft_op, DIMS, Y_1f_dims, Y_1f, DIMS, ksp_1f_dims, ksp_1f);
-			fftuc(DIMS, Y_1f_dims, FFT_FLAGS, Y_1f, Y_1f);
+		nufft_op = nufft_create(DIMS, ksp_1s_dims, Y_1s_dims, traj_1s_dims, traj_1f, NULL, nufft_conf);
 
-			linop_free(nufft_op);
+		complex float* ksp_1f = (void*)ksp + md_calc_offset(DIMS, ksp_strs, frame_pos);
+		linop_adjoint(nufft_op, DIMS, Y_1s_dims, Y_ptr, DIMS, ksp_1s_dims, ksp_1f);
+		fftuc(DIMS, Y_1s_dims, FFT_FLAGS, Y_ptr, Y_ptr);
 
-		// } else {
+		linop_free(nufft_op);
 
-		// }
 
-		double yscale = md_znorm(DIMS, Y_1f_dims, Y_1f);
-		double scaling_Y_1f = 100. / yscale;
-		md_zsmul(DIMS, Y_1f_dims, Y_1f, Y_1f, scaling_Y_1f);
+
+		double scaling_Y = 100. / md_znorm(DIMS, Y_1s_dims, Y_ptr);
+
+		// if (stack_frames)
+		// 	scaling_Y *= sqrt(Y_1s_dims[TIME_DIM]);
+
+		md_zsmul(DIMS, Y_1s_dims, Y_ptr, Y_ptr, scaling_Y);
 
 
 		P_pos[TIME_DIM] = f % P_turns;
-		complex float* P_1f = (void*)P + md_calc_offset(DIMS, P_strs, P_pos);
+		complex float* P_ptr = (void*)P + md_calc_offset(DIMS, P_strs, P_pos);
 
 
 		debug_printf(DP_DEBUG2, " __ Scaling: ");
-		debug_printf(DP_DEBUG2, "||Y|| = %.4f; ", yscale);
-		debug_printf(DP_DEBUG2, "||P|| = %.4f\n", md_znorm(DIMS, P_1f_dims, P_1f));
+		debug_printf(DP_DEBUG2, "||Y|| = %.4f; ", md_znorm(DIMS, Y_1s_dims, Y_ptr));
+		debug_printf(DP_DEBUG2, "||P|| = %.4f\n", md_znorm(DIMS, P_1s_dims, P_ptr));
 
 
 
-		maps_1f = (void*)maps + md_calc_offset(DIMS, maps_strs, frame_pos);
-		sens_1f = (void*)sens + md_calc_offset(DIMS, sens_strs, frame_pos);
+		maps_ptr = (void*)maps + md_calc_offset(DIMS, maps_strs, frame_pos);
+		sens_ptr = (void*)sens + md_calc_offset(DIMS, sens_strs, frame_pos);
 
 
 		if ( reset ) {
 
-			md_copy(DIMS, maps_1f_dims, x, maps_1f, CFL_SIZE);
-			md_copy(DIMS, sens_1f_dims, x + maps_1f_size, sens_1f, CFL_SIZE);
+			md_copy(DIMS, maps_1s_dims, x, maps_ptr, CFL_SIZE);
+			md_copy(DIMS, sens_1s_dims, x + maps_1s_size, sens_ptr, CFL_SIZE);
 
-			if ( NULL != init_file )
-				md_zsmul(1, MD_DIMS(x_1f_size), xref, x, temp_damp);
-			else
-				md_clear(1, MD_DIMS(x_1f_size), xref, CFL_SIZE);
-
+#if 1
+			md_zsmul(1, MD_DIMS(x_1s_size), xref, x, (MECO_PI!=sel_model) ? damping : 0);
+#else
+			md_zsmul(1, MD_DIMS(x_1s_size), xref, x, (NULL!=init_file) ? damping : 0.);
+#endif
 		} else {
 
-			md_zsmul(1, MD_DIMS(x_1f_size), xref, x, temp_damp);
+			md_zsmul(1, MD_DIMS(x_1s_size), xref, x, damping);
 		}
 
 #ifdef USE_CUDA
 		if ( use_gpu ) {
 
-			complex float* Y_1f_gpu = md_alloc_gpu(DIMS, Y_1f_dims, CFL_SIZE);
-			md_copy(DIMS, Y_1f_dims, Y_1f_gpu, Y_1f, CFL_SIZE);
+			complex float* Y_ptr_gpu = md_alloc_gpu(DIMS, Y_1s_dims, CFL_SIZE);
+			md_copy(DIMS, Y_1s_dims, Y_ptr_gpu, Y_ptr, CFL_SIZE);
 
-			meco_recon(&conf, sel_model, sel_regu, out_origin_maps, maps_1f_dims, sens_1f_dims, x, xref, P_1f, mask, TE, Y_1f_dims, Y_1f_gpu);
+			meco_recon(&moba_conf, sel_model, sel_irgnm, pd_rvc, wgh_fB0, scale_fB0, use_warmstart, CAST_UP(&iadmm_conf), out_origin_maps, scaling_Y, maps_1s_dims, maps_ptr, sens_1s_dims, sens_ptr, x, xref, P_ptr, mask, TE, Y_1s_dims, Y_ptr_gpu, use_lsqr);
 
-			md_free(Y_1f_gpu);
+			md_free(Y_ptr_gpu);
 		}
 #endif
 		if ( !use_gpu ) {
 
-			meco_recon(&conf, sel_model, sel_regu, out_origin_maps, maps_1f_dims, sens_1f_dims, x, xref, P_1f, mask, TE, Y_1f_dims, Y_1f);
+			meco_recon(&moba_conf, sel_model, sel_irgnm, pd_rvc, wgh_fB0, scale_fB0, use_warmstart, CAST_UP(&iadmm_conf), out_origin_maps, scaling_Y, maps_1s_dims, maps_ptr, sens_1s_dims, sens_ptr, x, xref, P_ptr, mask, TE, Y_1s_dims, Y_ptr, use_lsqr);
 		}
-		
-
-		md_copy(DIMS, maps_1f_dims, maps_1f, xref, CFL_SIZE);
-		md_zsmul(DIMS, maps_1f_dims, maps_1f, maps_1f, 1. / scaling_Y_1f);
-
-		md_copy(DIMS, sens_1f_dims, sens_1f, xref + maps_1f_size, CFL_SIZE);
-
-		fftmod(DIMS, sens_1f_dims, FFT_FLAGS|SLICE_FLAG, sens_1f, sens_1f);
 
 	}
 
-
+	debug_printf(DP_DEBUG2, "___ finished\n");
 
 	md_free(mask);
-	md_free(Y_1f);
+	md_free(Y);
 	md_free(x);
 	md_free(xref);
 
 	unmap_cfl(DIMS, maps_dims, maps);
 	unmap_cfl(DIMS, sens_dims, sens);
 	unmap_cfl(DIMS, P_dims, P);
-	unmap_cfl(DIMS, Y_dims, Y);
 	unmap_cfl(DIMS, ksp_dims, ksp);
 	unmap_cfl(DIMS, TE_dims, TE);
 
@@ -605,5 +680,6 @@ int main_mobaT2star(int argc, char* argv[])
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "___ Total Time: %.2f s\n", recosecs);
-	exit(0);
+
+	return 0;
 }

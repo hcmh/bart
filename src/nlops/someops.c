@@ -113,7 +113,7 @@ static const struct operator_s* operator_zaxpbz_create(int N, const long dims[N]
 
 	unsigned int Ns[3] = {N, N, N};
 
-	return operator_generic_create(3, MD_BIT(0), Ns, op_dims, CAST_UP(PTR_PASS(data)), zaxpbz_fun, zaxpbz_del);
+	return operator_generic_create(3, (bool[3]){true, false, false}, Ns, op_dims, CAST_UP(PTR_PASS(data)), zaxpbz_fun, zaxpbz_del);
 }
 
 
@@ -331,4 +331,88 @@ const struct nlop_s* nlop_dump_create(int N, const long dims[N], const char* fil
 	data->counter = 0;
 
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), dump_fun, dump_der, dump_adj, NULL, NULL, dump_del);
+}
+
+
+struct zinv_reg_s {
+
+	INTERFACE(nlop_data_t);
+
+	unsigned long N;
+	const long* dims;
+
+	complex float epsilon; //reg not implemented
+	complex float* tmp;
+};
+
+DEF_TYPEID(zinv_reg_s);
+
+static void zinv_reg_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(zinv_reg_s, _data);
+
+	unsigned int N = data->N;
+	const long* dims = data->dims;
+
+	if (NULL == data->tmp)
+		data->tmp = md_alloc_sameplace(N, dims, CFL_SIZE, dst);
+
+	md_zfill(N, dims, data->tmp, 1.);
+	md_zdiv(N,dims, dst, data->tmp, src);
+
+	md_zmul(N, dims, data->tmp, dst, dst);
+	md_zsmul(N, dims, data->tmp, data->tmp, -1.);
+}
+
+
+static void zinv_reg_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	const struct zinv_reg_s* data = CAST_DOWN(zinv_reg_s, _data);
+	assert(NULL != data->tmp);
+
+	md_zmul(data->N, data->dims, dst, src, data->tmp);
+}
+
+static void zinv_reg_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	const struct zinv_reg_s* data = CAST_DOWN(zinv_reg_s, _data);
+	assert(NULL != data->tmp);
+
+	md_zmulc(data->N, data->dims, dst, src, data->tmp);
+}
+
+static void zinv_reg_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(zinv_reg_s, _data);
+
+	md_free(data->tmp);
+	xfree(data->dims);
+	xfree(data);
+}
+
+/**
+ * Operator computing the inverse
+ * f(x) = 1 / x
+ */
+const struct nlop_s* nlop_zinv_create(int N, const long dims[N])
+{
+	PTR_ALLOC(struct zinv_reg_s, data);
+	SET_TYPEID(zinv_reg_s, data);
+
+	data->N = N;
+	PTR_ALLOC(long[N], ndims);
+	md_copy_dims(N, *ndims, dims);
+	data->dims = *PTR_PASS(ndims);
+	data->epsilon = 0;
+
+	// will be initialized later, to transparently support GPU
+	data->tmp = NULL;
+
+	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), zinv_reg_fun, zinv_reg_der, zinv_reg_adj, NULL, NULL, zinv_reg_del);
 }

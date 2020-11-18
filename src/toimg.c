@@ -54,7 +54,7 @@ static double windowing(double g, double a, double b, double x)
 }
 
 
-static void toimg(bool dicom, bool use_windowing, const char* name, const char study_uid[64], const char series_uid[64], long inum,
+static void toimg(bool dicom, bool use_windowing, bool quantitative, const char* name, const char study_uid[64], const char series_uid[64], long inum,
 	float gamma, float contrast, float window, float scale, long h, long w, const complex float* data)
 {
 	int len = strlen(name);
@@ -63,7 +63,7 @@ static void toimg(bool dicom, bool use_windowing, const char* name, const char s
 	int nr_bytes = dicom ? 2 : 3;
 	unsigned char (*buf)[h][w][nr_bytes] = TYPE_ALLOC(unsigned char[h][w][nr_bytes]);
 
-	float max_val = dicom ? 65535. : 255.;
+	float max_val = dicom ? (quantitative ? scale : 65535.) : 255.;
 
 	for (int i = 0; i < h; i++) {
 
@@ -99,7 +99,7 @@ static void toimg(bool dicom, bool use_windowing, const char* name, const char s
 }
 
 
-static void toimg_stack(const char* name, bool dicom, bool single_scale, bool use_windowing, float gamma, float contrast, float window, const long dims[DIMS], const complex float* data)
+static void toimg_stack(const char* name, bool dicom, bool single_scale, bool use_windowing, bool quantitative, float gamma, float contrast, float window, const long dims[DIMS], const complex float* data)
 {
 	long data_size = md_calc_size(DIMS, dims); 
 
@@ -154,7 +154,7 @@ static void toimg_stack(const char* name, bool dicom, bool single_scale, bool us
 		if (0. == scale)
 			scale = 1.;
 
-		toimg(dicom, use_windowing, name_i, study_uid, series_uid, i, gamma, contrast, window, scale, sq_dims[0], sq_dims[1], data + i * img_size);
+		toimg(dicom, use_windowing, quantitative, name_i, study_uid, series_uid, i, gamma, contrast, window, scale, sq_dims[0], sq_dims[1], data + i * img_size);
 	}
 
 	debug_printf(DP_INFO, "done.\n", num_imgs);
@@ -169,6 +169,7 @@ int main_toimg(int argc, char* argv[])
 	bool use_windowing = false;
 	bool single_scale = true;
 	bool dicom = false;
+	bool quantitative = false;
 
 	const struct opt_s opts[] = {
 
@@ -178,6 +179,7 @@ int main_toimg(int argc, char* argv[])
 		OPT_SET('d', &dicom, "write to dicom format (deprecated, use extension .dcm)"),
 		OPT_CLEAR('m', &single_scale, "re-scale each image"),
 		OPT_SET('W', &use_windowing, "use dynamic windowing"),
+		OPT_SET('Q', &quantitative, "quantitative imaging (use the input value)"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -202,7 +204,7 @@ int main_toimg(int argc, char* argv[])
 	long dims[DIMS];
 	complex float* data = load_cfl(argv[1], DIMS, dims);
 
-	toimg_stack(argv[2], dicom, single_scale, use_windowing, gamma, contrast, window, dims, data);
+	toimg_stack(argv[2], dicom, single_scale, use_windowing, quantitative, gamma, contrast, window, dims, data);
 
 	unmap_cfl(DIMS, dims, data);
 

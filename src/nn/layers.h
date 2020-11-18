@@ -1,5 +1,5 @@
-#ifndef NN_LAYERS_H
-#define NN_LAYERS_H
+#ifndef LAYERS_H
+#define LAYERS_H
 
 #include "nlops/conv.h"
 

@@ -19,7 +19,7 @@ export DEBUG_LEVEL=3
 M_PI=$(echo "4*a(1)" | bc -l)
 
 NSMP=1        #
-FSMP=1        #
+FSMP=0        #
 NSPK=1        #
 NCOI=1        #
 NECO=1        #
@@ -30,7 +30,7 @@ GRAD=0        #
 
 TRAJ_NAME="mems_hy"  #
 
-NMEA4RECO=1
+NMEA4RECO=0
 NECO4RECO=1
 
 GRIDSIZE=1
@@ -44,6 +44,7 @@ RECO_GDC_STR="-c"
 
 MODEL=1
 
+OS_SLI=0
 
 DEST="/tmp/"
 TEMP=${DEST}_temp
@@ -54,7 +55,7 @@ TEMP=${DEST}_temp
 set_dest_dir()
 {
 	DEST="$1"
-	TEMP=${DEST}_temp
+	TEMP=${DEST}/_temp
 }
 
 # =====================================================
@@ -64,7 +65,7 @@ set_gdc_method()
 {
 	GDC_METHOD="$1"
 
-	echo "  > set GDC_METHOD: $GDC_METHOD"
+	echo "> set GDC_METHOD: $GDC_METHOD"
 }
 
 # =====================================================
@@ -76,21 +77,33 @@ set_model()
 
 	case $MODEL in
 		0)
-			echo "  > model: WF"
+			echo "> model: WF"
 			;;
 		1)
-			echo "  > model: WFR2S"
+			echo "> model: WFR2S"
 			;;
 		2)
-			echo "  > model: WF2R2S"
+			echo "> model: WF2R2S"
 			;;
 		3)
-			echo "  > model: R2S"
+			echo "> model: R2S"
 			;;
 		*)
-			echo "  > model: unknown"
+			echo "> model: unknown"
 			;;
 	esac
+}
+
+# =====================================================
+#    
+# =====================================================
+set_full_sample()
+{
+	FSMP="$1"
+
+	if [ $FSMP -lt $NSMP ] || [ $FSMP -le 0 ]; then
+		let FSMP=NSMP
+	fi
 }
 
 # =====================================================
@@ -151,7 +164,7 @@ golden_rad2ind()
 		DIFF=$(echo "$GRAD-$CRAD" | bc -l)
 		if (( $(echo "${DIFF#-} < $ACCU" | bc -l) )); then 
 			let GIND=CIND
-			echo "  > find golen_index (GIND) as $GIND given golden_angle (GRAD) as $GRAD"
+			echo "> find golen_index (GIND) as $GIND given golden_angle (GRAD) as $GRAD"
 			break
 		fi
 		let CIND=CIND+1
@@ -159,7 +172,7 @@ golden_rad2ind()
 
 	if [ $CIND -eq 20 ]; then
 		GIND=0
-		echo "  > can't find the correct golden angle. set golden_index (GIND) back to 0"
+		echo "> can't find the correct golden angle. set golden_index (GIND) back to 0"
 	fi
 }
 
@@ -176,7 +189,7 @@ datread()
 	KDAT="$3" # OUTPUT k-space data
 
 
-	echo "  > read raw k-space data"
+	echo "> read raw k-space data"
 
 
 	if [ "$DATMODE" = "MPI" ]; then
@@ -189,7 +202,7 @@ datread()
 		NCOI=`echo ${DIMS} | cut -d"x" -f5`
 		# NECO=`echo ${DIMS} | cut -d"x" -f6` # FIXME
 		NMEA=`echo ${DIMS} | cut -d"x" -f12`
-		NSLI=`echo ${DIMS} | cut -d"x" -f13`
+		NSLI=`echo ${DIMS} | cut -d"x" -f13` # FIXME
 
 		BCMEAS=0
 
@@ -231,8 +244,22 @@ datread()
 
 		bart twixread -x${NSMP} -y${NSPK} -c${NCOI} -n${NMEA} -b${BCMEAS} -s${NSLI} $DATFILE $KDAT
 
-		echo "  > NSMP $NSMP; FSMP $FSMP; NSPK $NSPK; NCOI $NCOI; NMEA $NMEA; NSLI $NSLI; TRAJ_NAME: $TRAJ_NAME"
+		golden_rad2ind $GRAD $GIND
+
+	else
+
+		bart twixread -A $DATFILE ${TEMP}_kdat0
+		bart transpose 2 13 ${TEMP}_kdat0 $KDAT # move slices to the 13th dim
+
+		NSMP=$(bart show -d  0 $KDAT)
+		NSPK=$(bart show -d  1 $KDAT)
+		NCOI=$(bart show -d  3 $KDAT)
+		NMEA=$(bart show -d 10 $KDAT)
+		NSLI=$(bart show -d 13 $KDAT)
+
 	fi
+
+	rm -rf ${TEMP}*
 }
 
 
@@ -247,9 +274,11 @@ coicomp()
 
 	KDAT1="$3" # OUTPUT coil-compressed k-space data
 
-	echo "  > coil compression"
+	echo "> coil compression"
 
 	bart cc -A -p${VC} $KDAT0 $KDAT1
+
+	NCOI=$(bart show -d  3 $KDAT1)
 }
 
 
@@ -257,58 +286,57 @@ coicomp()
 #    separate spokes to spoke and echo dimensions
 # =====================================================
 
-dat_spk2eco()
+spk2eco()
 {
 	TRAJ_NAME="$1"   # INPUT trajectory name
-	KDAT0="$2"  # INPUT k-space data
+	NECO="$2"
+	OS_SLI="$3"      # INPUT oversampling in slice/partition direction
+	KDAT0="$4"       # INPUT k-space data
 
-	KDAT1="$3"  # OUTPUT k-space data
+	KDAT1="$5"       # OUTPUT k-space data
 
 	bart transpose 1 2 $KDAT0 ${TEMP}_10
 	bart transpose 0 1 ${TEMP}_10 $KDAT1
 
 	rm -rf ${TEMP}*
 
-	if [ "${TRAJ_NAME:0:4}" = "mems" ]; then
-		echo "  > split traversing spokes to echoes"
-		let TURN=NMEA
-		let NSPK=NSPK/NECO
-		bart transpose 2 10 $KDAT1 ${TEMP}_spk2frm
-		bart reshape $(bart bitmask 5 10) $NECO $NSPK ${TEMP}_spk2frm ${TEMP}_esep
-		bart transpose 5 10 ${TEMP}_esep ${TEMP}_eord
-		bart transpose 2  5 ${TEMP}_eord ${TEMP}_sord
-		bart transpose 5 10 ${TEMP}_sord $KDAT1
+	if [ "${TRAJ_NAME:0:4}" = "mems" ] && [ $NECO -gt 1 ]; then
+
+		echo "> split traversing spokes to echoes"
+
+		NMEA=$(bart show -d 10 $KDAT0)
+		NTMP=$(bart show -d  1 $KDAT0)
+		TURN=$(( NMEA ))
+		NSPK=$(( NTMP / NECO ))
+
+		bart reshape $(bart bitmask 2 5) $NECO $NSPK $KDAT1 ${TEMP}_kdat_es
+		bart transpose 2 5 ${TEMP}_kdat_es $KDAT1
 
 		rm -rf ${TEMP}*
-
-		# if [ $FlipEvenEco -eq 1 ]; then
-		# 	echo "  > flip samples from even echoes"
-		# 	local IECO=0
-		# 	while [ $IECO -lt $NECO ]; do
-
-		# 		bart slice 5 $IECO $kdat ${temp}_kdat_$IECO
-		# 		if [ $(($IECO%2)) -eq 1 ]; then # even echoes
-		# 			bart flip $(bart bitmask 1) ${temp}_kdat_$IECO ${temp}_kdat_flip_$IECO
-		# 		else
-		# 			bart scale 1 ${temp}_kdat_$IECO ${temp}_kdat_flip_$IECO
-		# 		fi
-
-		# 		let IECO=IECO+1
-		# 	done
-		# 	bart join 5 `seq -s" " -f "${temp}_kdat_flip_%g" 0 $(( $NECO-1 ))` $kdat
-
-		# 	FLIP_STR="-F"
-
-		# else
-		# 	FLIP_STR=""
-
-		# fi
 
 		RECO_TRAJ_STR="-E -e$NECO"
 
 	elif [ "${TRAJ_NAME:0:4}" = "turn" ]; then
 		RECO_TRAJ_STR=""
 	fi
+
+	NSLI=$(bart show -d 13 $KDAT1)
+
+	if [ $NSLI -gt 1 ]; then
+		bart fft $(bart bitmask 13) $KDAT1 ${TEMP}_kdat1
+
+		local CMP=`echo "$OS_SLI > 0" | bc`
+
+		if [ $CMP -eq 1 ]; then
+			NSLI=$(printf "%.0f" $(echo "scale=2; $NSLI/(1+$OS_SLI)" | bc))
+		fi
+
+		bart resize -c 13 $NSLI ${TEMP}_kdat1 $KDAT1
+	fi
+
+	NSLI=$(bart show -d 13 $KDAT1)
+
+	rm -rf ${TEMP}*
 
 }
 
@@ -318,18 +346,22 @@ dat_spk2eco()
 # =====================================================
 traj()
 {
-	RECO_TRAJ_STR="$1" # INPUT trajectory string for traj
-	RECO_GDC_STR="$2"  # INPUT gradient delay correction string
+	KDAT="$1"          # INPUT kdat
+	FSMP="$2"
+	GIND="$3"
+	RECO_GDC_STR="$4"  # INPUT gradient delay correction string
 
-	TRAJ="$3"          # OUTPUT trajectory file
+	TRAJ="$5"          # OUTPUT trajectory file
 
-	echo "  > calculate trajectory with GDC: $RECO_GDC_STR"
+	NSMP=$(bart show -d  1 $KDAT)
+	NSPK=$(bart show -d  2 $KDAT)
+	NMEA=$(bart show -d 10 $KDAT)
+	NECO=$(bart show -d  5 $KDAT)
+	NSLI=$(bart show -d 13 $KDAT)
 
-	bart traj -x$NSMP -d$FSMP -y$NSPK -t$NMEA -r -s$GIND -D $RECO_TRAJ_STR $RECO_GDC_STR ${TEMP}_traj
+	echo "> calculate trajectory with GDC: $RECO_GDC_STR"
 
-	bart scale $OVERGRID ${TEMP}_traj $TRAJ
-
-	rm -rf ${TEMP}*
+	bart traj -x $NSMP -d $FSMP -y $NSPK -t $NMEA -m $NSLI -l -r -s $GIND -D -E -e $NECO $RECO_GDC_STR $TRAJ
 }
 
 
@@ -339,21 +371,32 @@ traj()
 
 estdelay()
 {
-	ECOWISE="$1" # 
+	ECOWISE="$1"      # INPUT echo wise correction (0 or 1)
+	EVENECOSHIFT="$2" # INPUT even echo shift (2 - MPI;)
+	KDAT="$3"         # INPUT kdat
+	FSMP="$4"         # INPUT full sample
+	TRAJ="$5"         # INPUT traj
 
-	KDAT="$2"    # INPUT kdat
-	TRAJ="$3"    # INPUT traj
-
-	GDC="$4"     # OUTPUT gradient delay correction file
-
-
-	echo "  > estimate gradient delay coefficients"
+	GDC="$6"          # OUTPUT gradient delay correction file
 
 
-	bart reshape $(bart bitmask 2 10) 1 $(( NSPK * NMEA )) $KDAT ${TEMP}_kdat_estdelay
-	bart reshape $(bart bitmask 2 10) 1 $(( NSPK * NMEA )) $TRAJ ${TEMP}_traj_estdelay
+	NSMP=$(bart show -d  1 $KDAT)
+	NSPK=$(bart show -d  2 $KDAT)
+	NECO=$(bart show -d  5 $KDAT)
+	NMEA=$(bart show -d 10 $KDAT)
+	NSLI=$(bart show -d 13 $KDAT)
 
-	NSPK4GDC=400 # number of spokes for GDC
+	local CTR_SLI_NR=$(( ($NSLI == 1) ? (0) : ( NSLI/2 ) ))
+
+	echo "> estimate gradient delay coefficients using the central slice $CTR_SLI_NR"
+
+	bart slice 13 $CTR_SLI_NR $KDAT ${TEMP}_kdat
+	bart slice 13 $CTR_SLI_NR $TRAJ ${TEMP}_traj
+
+	bart reshape $(bart bitmask 2 10) 1 $(( NSPK * NMEA )) ${TEMP}_kdat ${TEMP}_kdat_estdelay
+	bart reshape $(bart bitmask 2 10) 1 $(( NSPK * NMEA )) ${TEMP}_traj ${TEMP}_traj_estdelay
+
+	NSPK4GDC=80 # number of spokes for GDC
 
 	bart resize -c 10 $NSPK4GDC ${TEMP}_kdat_estdelay ${TEMP}_kdat_estdelay_t
 	bart resize -c 10 $NSPK4GDC ${TEMP}_traj_estdelay ${TEMP}_traj_estdelay_t
@@ -366,6 +409,7 @@ estdelay()
 	bart zeros 16 3 1 1 1 1 $NECO 1 1 1 1 1 1 1 1 1 1 $GDC
 
 
+	local FLIP_EVEN_ECO=1
 
 	local TOTALECO=$(( ($ECOWISE==1) ? NECO : 1 ))
 
@@ -375,19 +419,38 @@ estdelay()
 		bart slice 5 $IECO ${TEMP}_kdat_estdelay_a ${TEMP}_kdat_estdelay_${IECO}
 		bart slice 5 $IECO ${TEMP}_traj_estdelay_a ${TEMP}_traj_estdelay_${IECO}
 
-		local LEN=$(( ($IECO%2 == 0) ? ($FSMP/2) : ($FSMP/2 + 2) ))
+		local CTR=$(( FSMP/2 ))
+		local DIF=$(( FSMP - NSMP ))
+		local RADIUS=$(( CTR - DIF ))
 
-		if [ $(($IECO%2)) -eq 1 ]; then # even echoes
-			bart flip $(bart bitmask 1) ${TEMP}_kdat_estdelay_${IECO} ${TEMP}_kk
-			bart flip $(bart bitmask 1) ${TEMP}_traj_estdelay_${IECO} ${TEMP}_tt
+
+		# the echo position for even echoes are flipped
+		local ECOPOS=$(( ($IECO%2 == 0) ? (RADIUS) : (RADIUS + EVENECOSHIFT - 1) ))
+		local LEN=$(( ECOPOS * 2 ))
+
+		if [ $FLIP_EVEN_ECO -eq 1 ]; then
+
+			if [ $(($IECO%2)) -eq 1 ]; then # even echoes
+				bart flip $(bart bitmask 1) ${TEMP}_kdat_estdelay_${IECO} ${TEMP}_kk
+				bart flip $(bart bitmask 1) ${TEMP}_traj_estdelay_${IECO} ${TEMP}_tt
+			else
+				bart scale 1 ${TEMP}_kdat_estdelay_${IECO} ${TEMP}_kk
+				bart scale 1 ${TEMP}_traj_estdelay_${IECO} ${TEMP}_tt
+			fi
+
+			bart resize 1 $LEN ${TEMP}_kk ${TEMP}_kk_r
+			bart resize 1 $LEN ${TEMP}_tt ${TEMP}_tt_r
+
 		else
-			bart scale 1 ${TEMP}_kdat_estdelay_${IECO} ${TEMP}_kk
-			bart scale 1 ${TEMP}_traj_estdelay_${IECO} ${TEMP}_tt
+
+			if [ $(($IECO%2)) -eq 1 ]; then # even echoes
+				bart extract 1 $(( NSMP - (ECOPOS+1)*2 )) $NSMP ${TEMP}_kdat_estdelay_${IECO} ${TEMP}_kk_r
+				bart extract 1 $(( NSMP - (ECOPOS+1)*2 )) $NSMP ${TEMP}_traj_estdelay_${IECO} ${TEMP}_tt_r
+			else
+				bart resize 1 $LEN ${TEMP}_kdat_estdelay_${IECO} ${TEMP}_kk_r
+				bart resize 1 $LEN ${TEMP}_traj_estdelay_${IECO} ${TEMP}_tt_r
+			fi
 		fi
-
-		bart resize 1 $LEN ${TEMP}_kk ${TEMP}_kk_r
-		bart resize 1 $LEN ${TEMP}_tt ${TEMP}_tt_r
-
 
 		local GDC_OPT=$( [ "${GDC_METHOD:0:4}" == "ring" ] && echo "-R" || echo "" )
 
@@ -421,14 +484,27 @@ estdelay()
 ssafary()
 {
 	KDAT0="$1"    # INPUT kdat
-	TRAJ0="$2"    # INPUT traj
+	FSMP="$2"
+	TRAJ0="$3"    # INPUT traj
 
-	EOF="$3"      # OUTPUT EOF
-	KDAT1="$4"    # OUTPUT sorted kdat
-	TRAJ1="$5"    # OUTPUT sorted traj
+	WINSIZE="$4"  # window size
+	MOVAVG="$5"   # moving average
+
+	EOF="$6"      # OUTPUT EOF
+	SV="$7"       # OUTPUT SV
+	KDAT1="$8"    # OUTPUT sorted kdat
+	TRAJ1="$9"    # OUTPUT sorted traj
+
+	NSMP=$(bart show -d  1 $KDAT0)
+	NSPK=$(bart show -d  2 $KDAT0)
+	NCOI=$(bart show -d  3 $KDAT0)
+	NECO=$(bart show -d  5 $KDAT0)
+	NMEA=$(bart show -d 10 $KDAT0)
+	NSLI=$(bart show -d 13 $KDAT0)
+	
 
 
-	echo "  > self gating via ssafary"
+	echo "> self gating via ssafary"
 
 	local IECO=0
 
@@ -438,16 +514,19 @@ ssafary()
 	bart slice 5 $IECO ${TEMP}_kk ${TEMP}_kk_e
 	bart slice 5 $IECO ${TEMP}_tt ${TEMP}_tt_e
 
-	local CTR=$(( $FSMP/2 - ($FSMP - $NSMP) ))
+	# bart slice 5 $IECO $GDC ${TEMP}_gd_e
+	# bart cordelay -q ${TEMP}_gd_e ${TEMP}_tt_e ${TEMP}_kk_e ${TEMP}_kk_e_cor
 
 	# extract DC component
+	local CTR=$(( $FSMP/2 - ($FSMP - $NSMP) ))
 	bart extract 1 $CTR $(( $CTR + 1 )) ${TEMP}_kk_e ${TEMP}_kk_ec
 
 
 	bart rmfreq ${TEMP}_tt_e ${TEMP}_kk_ec ${TEMP}_kk_ec_rmfreq
 
 
-	bart transpose 2 10 ${TEMP}_kk_ec_rmfreq ${TEMP}_kc
+	bart transpose 2 10 ${TEMP}_kk_ec_rmfreq ${TEMP}_kc_smp
+	bart reshape $(bart bitmask 3 13) $(( NCOI*NSLI )) 1 ${TEMP}_kc_smp ${TEMP}_kc
 
 	bart squeeze ${TEMP}_kc ${TEMP}_ac1
 	bart scale -- -1i ${TEMP}_ac1 ${TEMP}_ac2
@@ -459,7 +538,8 @@ ssafary()
 
 
 
-	bart ssa -w231 ${TEMP}_ac ${EOF}
+	bart ssa -w ${WINSIZE} ${TEMP}_ac ${EOF} ${SV}
+	# ~/reco/bart_comp/bart ssa -w ${WINSIZE} ${TEMP}_ac ${EOF} ${SV}
 
 
 
@@ -482,46 +562,20 @@ ssafary()
 	local RESPI=7
 	local CARDI=1 # 20
 
-	bart bin -r0:1 -R$RESPI -c2:3 -C$CARDI -a600 ${TEMP}_eof ${TEMP}_kk ${TEMP}_ksg
-	bart bin -r0:1 -R$RESPI -c2:3 -C$CARDI -a600 ${TEMP}_eof ${TEMP}_tt ${TEMP}_tsg
+	bart bin -r0:1 -R$RESPI -c2:3 -C$CARDI -a${MOVAVG} ${TEMP}_eof ${TEMP}_kk ${TEMP}_ksg
+	bart bin -r0:1 -R$RESPI -c2:3 -C$CARDI -a${MOVAVG} ${TEMP}_eof ${TEMP}_tt ${TEMP}_tsg
 
+	# no -a option when switching on -M
+	# bart bin -M -r0:1 -R$RESPI -c2:3 -C$CARDI ${TEMP}_eof ${TEMP}_kk ${TEMP}_ksg
+	# bart bin -M -r0:1 -R$RESPI -c2:3 -C$CARDI ${TEMP}_eof ${TEMP}_tt ${TEMP}_tsg
 
 	bart transpose 11 10 ${TEMP}_ksg $KDAT1
 	bart transpose 11 10 ${TEMP}_tsg $TRAJ1
 
 
-	rm -rf ${TEMP}*
+	# rm -rf ${TEMP}*
 
 }
-
-
-
-# =====================================================
-#    gridding
-# =====================================================
-
-# grid()
-# {
-
-
-# 	echo "  > grid P"
-# 	bart ones 16 1 $NSMP $NSPK 1 1 $NECO4RECO 1 1 1 1 $TURN 1 1 1 1 1 ${TEMP}_pdat
-# 	bart nufft -d $GRIDSIZE:$GRIDSIZE:1 -a $traj4reco ${TEMP}_pdat ${TEMP}_psf
-# 	bart fft -u 3 ${TEMP}_psf $P
-
-# 	echo "  > grid Y"
-# 	local IMEA=0
-# 	while [ $IMEA -lt $NMEA4RECO ]; do
-# 		bart slice 10 $IMEA $kdat4reco ${temp}_Y
-# 		bart slice 10 $(($IMEA%$TURN)) $traj4reco ${temp}_traj
-# 		bart nufft -d $GRIDSIZE:$GRIDSIZE:1 -a ${temp}_traj ${temp}_Y ${temp}_img_$IMEA
-# 		bart fft -u 3 ${temp}_img_$IMEA ${temp}_Y_$IMEA
-# 		let IMEA=IMEA+1
-# 	done
-# 	bart join 10 `seq -s" " -f "${temp}_Y_%g" 0 $((TMEA-1))` $Y
-
-# 	rm -rf ${temp}*
-# }
 
 
 # =====================================================
@@ -533,76 +587,112 @@ init()
 	MODEL="$1"  # INPUT model
 	KDAT="$2"   # INPUT kdat
 	TRAJ="$3"   # INPUT traj
+	GRIDSIZE="$4"
+	FSMP="$5"
+	DIXON="$6"
 
-	R_INIT="$4" # OUTPUT R_INIT
+	INITIMG="$7"
 
-	echo "  > initialization"
+	R_INIT="$8" # OUTPUT R_INIT
+
+	VC=$(bart show -d 3 $KDAT)
+
+	echo "> initialization"
+
+	NSLI=$(bart show -d 13 $KDAT)
 
 	local IECO=3
 
-	# local TMEAS=$(bart show -d 10 $KDAT)
+	local TMEA=$(bart show -d 10 $KDAT)
 
-	# NMEA4RECO=$(( ($TMEAS < $NMEA4RECO) ? $TMEAS : $NMEA4RECO ))
+	local IMEA=$(( ($TMEA <= 7) ? TMEA : 7 ))
 
-	local IMEA=10 # $(( ($TMEA <= 10) ? TMEA : 10 ))
+	for (( S=0; S<${NSLI}; S++ )); do
 
-	bart extract 5 0 $IECO 10 0 $IMEA $KDAT ${TEMP}_init_kdat
-	bart extract 5 0 $IECO 10 0 $IMEA $TRAJ ${TEMP}_init_traj
-	bart extract 5 0 $IECO $TE ${TEMP}_init_TE
+		bart slice 13 $S $KDAT ${TEMP}_kdat0
+		bart slice 13 $S $TRAJ ${TEMP}_traj0
 
-	bart nufft -d $GRIDSIZE:$GRIDSIZE:1 -a ${TEMP}_init_traj ${TEMP}_init_kdat ${TEMP}_init_Yi
+		bart extract 5 0 $IECO 10 0 $IMEA ${TEMP}_kdat0 ${TEMP}_init_kdat
+		bart extract 5 0 $IECO 10 0 $IMEA ${TEMP}_traj0 ${TEMP}_init_traj
+		bart extract 5 0 $IECO $TE ${TEMP}_init_TE
 
-	bart slice 3 0 ${TEMP}_init_Yi ${TEMP}_dixon_I0
-	bart avg $(bart bitmask 10) ${TEMP}_dixon_I0 ${TEMP}_dixon_I1
-	bart dixon ${TEMP}_init_TE ${TEMP}_dixon_I1 ${TEMP}_dixon_WF
+		let NMAP=VC+3
 
-	# bart fft -u 3 ${TEMP}_init_Yi ${TEMP}_init_Y
+		bart zeros 16 $GRIDSIZE $GRIDSIZE 1 1 1 1 1 1 1 1 1 1 1 1 1 1 ${TEMP}_img0
+		bart zeros 16 $GRIDSIZE $GRIDSIZE 1 1 1 1 $VC 1 1 1 1 1 1 1 1 1 ${TEMP}_coi0
 
-	let NMAP=VC+3
+		bart ones 16 $GRIDSIZE $GRIDSIZE 1 1 1 1 1 1 1 1 1 1 1 1 1 1 ${TEMP}_img1
+		bart scale 0.03 ${TEMP}_img1 ${TEMP}_img2
 
-	bart zeros 16 $GRIDSIZE $GRIDSIZE 1 1 1 1 1 1 1 1 1 1 1 1 1 1 ${TEMP}_img0
-	bart zeros 16 $GRIDSIZE $GRIDSIZE 1 1 1 1 $VC 1 1 1 1 1 1 1 1 1 ${TEMP}_coi0
+		bart scale 1 ${TEMP}_img0 ${TEMP}_R2S_init
 
-	bart join 6 ${TEMP}_dixon_WF ${TEMP}_img0 ${TEMP}_coi0 ${TEMP}_dixon_R_INIT
+		DIXON_INIT_STR=""
+		if [ $DIXON -eq 1 ]; then
 
-	bart mobaT2star -O -M0 -R0 -i6 -r2 -a880 -d5 -g -F$FSMP -t ${TEMP}_init_traj ${TEMP}_init_kdat ${TEMP}_init_TE ${TEMP}_R_INIT ${TEMP}_C_INIT_$IMEA
+			bart nufft -d $GRIDSIZE:$GRIDSIZE:1 -a ${TEMP}_init_traj ${TEMP}_init_kdat ${TEMP}_init_Yi
+			bart slice 3 0 ${TEMP}_init_Yi ${TEMP}_dixon_I0
+			bart avg $(bart bitmask 10) ${TEMP}_dixon_I0 ${TEMP}_dixon_I1
+			bart dixon ${TEMP}_init_TE ${TEMP}_dixon_I1 ${TEMP}_dixon_WF
+			bart join 6 ${TEMP}_dixon_WF ${TEMP}_img0 ${TEMP}_coi0 ${TEMP}_dixon_R_INIT
 
-	# bart mobaT2star -O -I ${TEMP}_dixon_R_INIT -M0 -R0 -i6 -r2 -a880 -d5 -g -t ${TEMP}_init_traj ${TEMP}_init_Y ${TEMP}_init_TE ${TEMP}_R_INIT # ${TEMP}_C_INIT_$IMEA
+			DIXON_INIT_STR="-I ${TEMP}_dixon_R_INIT"
+		fi
 
-	bart extract 6 0 1 10 $((IMEA-1)) $IMEA ${TEMP}_R_INIT ${TEMP}_W_init
-	bart extract 6 1 2 10 $((IMEA-1)) $IMEA ${TEMP}_R_INIT ${TEMP}_F_init
-	bart extract 6 2 3 10 $((IMEA-1)) $IMEA ${TEMP}_R_INIT ${TEMP}_fB0_init
+		bart mobaT2star -O -M0 -i6 -R2 -F$FSMP ${DIXON_INIT_STR} -t ${TEMP}_init_traj ${TEMP}_init_kdat ${TEMP}_init_TE ${TEMP}_R_INIT
 
-	# TODO: init coils as well
-	# bart extract 10 $((IMEA-1)) $IMEA ${TEMP}_C_INIT_$IMEA ${TEMP}_C_INIT 
+		bart extract 6 2 3 10 $((IMEA-1)) $IMEA ${TEMP}_R_INIT ${TEMP}_fB0_init
 
-	case $MODEL in
-		0)
-			echo " __ init model 0: WF __"
-			let NMAP=VC+3
-			bart join 6 ${TEMP}_W_init ${TEMP}_F_init ${TEMP}_fB0_init ${TEMP}_coi0 $R_INIT
-			;;
+		if [ $INITIMG -eq 0 ]; then
 
-		1)
-			echo " __ init model 1: WFR2S __"
-			let NMAP=VC+4
-			bart join 6 ${TEMP}_W_init ${TEMP}_F_init ${TEMP}_img0 ${TEMP}_fB0_init ${TEMP}_coi0 $R_INIT
-			;;
-		2)
-			echo " __ init model 2: WF2R2S __"
-			let NMAP=VC+5
-			bart join 6 ${TEMP}_W_init ${TEMP}_img0 ${TEMP}_F_init ${TEMP}_img0 ${TEMP}_fB0_init ${TEMP}_coi0 $R_INIT
-			;;
-		3)
-			echo " __ init model 3: R2S __"
-			let NMAP=VC+3
-			bart join 6 0 ${TEMP}_W_init ${TEMP}_img0 ${TEMP}_fB0_init ${TEMP}_coi0 $R_INIT
-			;;
-		*)
-			echo " __ unknown model __"
-			exit 1
-			;;
-	esac
+			bart extract 6 0 1 10 $((IMEA-1)) $IMEA ${TEMP}_R_INIT ${TEMP}_W_init
+			bart extract 6 1 2 10 $((IMEA-1)) $IMEA ${TEMP}_R_INIT ${TEMP}_F_init
+		
+		elif [ $INITIMG -eq 1 ]; then
+
+			bart scale 0.1 ${TEMP}_img1 ${TEMP}_W_init
+			bart scale 0.1 ${TEMP}_img1 ${TEMP}_F_init
+
+		fi
+
+		# TODO: init coils as well
+		# bart extract 10 $((IMEA-1)) $IMEA ${TEMP}_C_INIT_$IMEA ${TEMP}_C_INIT 
+
+		case $MODEL in
+			0)
+				echo " __ init model 0: WF __"
+				let NMAP=VC+3
+				bart join 6 ${TEMP}_W_init ${TEMP}_F_init ${TEMP}_fB0_init ${TEMP}_coi0 ${TEMP}_R_INIT_S${S}
+				;;
+
+			1)
+				echo " __ init model 1: WFR2S __"
+				let NMAP=VC+4
+				bart join 6 ${TEMP}_W_init ${TEMP}_F_init ${TEMP}_R2S_init ${TEMP}_fB0_init ${TEMP}_coi0 ${TEMP}_R_INIT_S${S}
+				;;
+			2)
+				echo " __ init model 2: WF2R2S __"
+				let NMAP=VC+5
+				bart join 6 ${TEMP}_W_init ${TEMP}_R2S_init ${TEMP}_F_init ${TEMP}_R2S_init ${TEMP}_fB0_init ${TEMP}_coi0 ${TEMP}_R_INIT_S${S}
+				;;
+			3)
+				echo " __ init model 3: R2S __"
+				let NMAP=VC+3
+				bart join 6 ${TEMP}_W_init ${TEMP}_R2S_init ${TEMP}_fB0_init ${TEMP}_coi0 ${TEMP}_R_INIT_S${S}
+				;;
+			4)
+				echo " __ init model 4: PHASEDIFF __"
+				let NMAP=VC+2
+				bart join 6 ${TEMP}_W_init ${TEMP}_fB0_init ${TEMP}_coi0 ${TEMP}_R_INIT_S${S}
+				;;
+			*)
+				echo " __ unknown model __"
+				exit 1
+				;;
+		esac
+
+	done
+
+	bart join 13 `seq -s" " -f "${TEMP}_R_INIT_S%g" 0 $(( $NSLI - 1))` $R_INIT
 
 	rm -rf ${TEMP}*
 
@@ -616,30 +706,30 @@ init()
 
 reco()
 {
-	KDAT="$1" # INPUT k-space data
-	TRAJ="$2" # INPUT trajectory
+	RECOTYPE="$1"   # NLINV, PICS, MOBA
 
-	R="$3"    # OUTPUT reconstructed images
+	TRAJ="$2"       # INPUT trajectory
+	KDAT="$3"       # INPUT k-space data
+	TE="$4"         # INPUT echo-time file
 
+	R="$5"          # OUTPUT reconstructed images
 
+	# case "$RECOTYPE" in
 
-	local TMEAS=$(bart show -d 10 $KDAT)
+	# 	"NLINV")
 
-	NMEA4RECO=$(( ($TMEAS < $NMEA4RECO) ? $TMEAS : $NMEA4RECO ))
+	# 		bart rtnlinv -r2 -d5 -g -t $TRAJ $KDAT $R
+	# 		;
 
-	echo "  > iterative reconstructions on $NMEA4RECO frames"
+	# 	"PICS")
 
-	bart extract 10 0 $NMEA4RECO $KDAT ${TEMP}_KDAT4RECO
-	bart extract 10 0 $NMEA4RECO $TRAJ ${TEMP}_TRAJ4RECO
+	# 		;
+	# 	"MOBA")
 
+	# 		bart mobaT2star -M2 -R0 -i7 -d5 -g -o$OVERGRID -F$FSMP -t ${TEMP}_TRAJ4RECO ${TEMP}_KDAT4RECO $TE $R
+	# 		;
 
-	# NLINV
-
-	local TECO=$(bart show -d 5 $KDAT)
-
-	bart ones 16 1 1 1 1 1 $TECO 1 1 1 1 1 1 1 1 1 1 ${TEMP}_TE
-
-	bart mobaT2star -M4 -R0 -i7 -r2 -T0.9 -a440 -d5 -g -o$OVERGRID -F$FSMP -t ${TEMP}_TRAJ4RECO ${TEMP}_KDAT4RECO ${TEMP}_TE $R
+	# esac
 
 	rm -rf ${TEMP}*
 }

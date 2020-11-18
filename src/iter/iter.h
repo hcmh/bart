@@ -102,7 +102,8 @@ struct iter_admm_conf {
 	_Bool dynamic_tau;
 	_Bool relative_norm;
 	_Bool hogwild;
-	
+	_Bool use_interface_alpha;
+
 	double ABSTOL;
 	double RELTOL;
 

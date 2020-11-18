@@ -30,7 +30,6 @@ struct rbf_s {
 	float Imin;
 	float sigma;
 
-	float* ones;
 	float* w;
 	float* z;
 	float* dz; //sum_j (mu_j -z_ik)/sigma^2 * w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
@@ -60,7 +59,7 @@ static void rbf_initialize(struct rbf_s* data, const complex float* arg, bool de
 
 #define STRIDED_MUL
 
-static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
+static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	//dst_ik = sum_j w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
 	//data->dz_ik = sum_j (mu_j - z_ik)/sigma^2 * w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
@@ -74,7 +73,7 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N], con
 	const complex float* zsrc = args[1];
 	const complex float* wsrc = args[2];
 
-	bool der1 = !op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER);
+	bool der1 = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
 	//bool der2 = !(MD_IS_SET(run_flags[0][2], OP_APP_NO_DER));
 
 	rbf_initialize(data, zdst, der1);
@@ -88,12 +87,6 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N], con
 
 	float* real_dst = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, zdst);
 	md_clear(data->N, data->zdom->dims, real_dst, FL_SIZE);
-
-	if (NULL == data->ones) {
-		data->ones = md_alloc_sameplace(1, data->zdom->dims + 1, FL_SIZE, zdst);
-		float one = 1;
-		md_fill(1, data->zdom->dims + 1, data->ones, &one, FL_SIZE);
-	}
 
 	//use dest as tmp
 	float* tmp1 = (float*)zdst;
@@ -214,24 +207,14 @@ static void rbf_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 
 	float* tmp1 = md_alloc_sameplace(2, data->zdom->dims, FL_SIZE, dst);
 
-	if (NULL == data->ones) {
-		data->ones = md_alloc_sameplace(1, data->zdom->dims + 1, FL_SIZE, dst);
-		float one = 1;
-		md_fill(1, data->zdom->dims + 1, data->ones, &one, FL_SIZE);
-	}
-
 	for (int j = 0; j < Nw; j++) {
 
 		md_pdf_gauss(2, data->zdom->dims, tmp1, data->z, (mumin + j * dmu), data->sigma);//tmp1 = 1/sqrt(2pi simga^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 		long wpos[3] = {0, 0, j};
 		float* wtmp = real_dst + md_calc_offset(data->N, data->wdom->strs, wpos) / FL_SIZE;
 
-		md_mul(2, data->dom->dims, tmp1, tmp1, real_src); // tmp2 = exp[-(z_ik-mu_j)²/(2*sigma²)] * phi_ik
-
-		md_fmac2(2, data->dom->dims, data->wdom->strs, wtmp, data->zdom->strs, tmp1, MAKE_ARRAY(0l, 4l), data->ones);
-
-		//blas_gemv_fmac(data->zdom->dims[0], data->zdom->dims[1], wtmp, tmp1, 'N', data->ones);
-		//md_add2(2, data->dom->dims, data->wdom->strs, wtmp, data->wdom->strs, wtmp, data->zdom->strs, tmp1); // wtmp = sum_k exp[-(z_ik-mu_j)²/(2*sigma²)] * phi_ik
+		md_mul(2, data->dom->dims, tmp1, tmp1, real_src); // tmp1 = exp[-(z_ik-mu_j)²/(2*sigma²)] * phi_ik
+		md_add2(2, data->dom->dims, data->wdom->strs, wtmp, data->wdom->strs, wtmp, data->zdom->strs, tmp1);
 		//add is optimized for reductions -> change if fmac is optimized
 	}
 	md_free(real_src);
@@ -284,7 +267,6 @@ static void rbf_del(const nlop_data_t* _data)
 	md_free(data->w);
 	md_free(data->z);
 	md_free(data->dz);
-	md_free(data->ones);
 
 	iovec_free(data->dom);
 	iovec_free(data->zdom);
@@ -336,7 +318,6 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 	data->w = NULL;
 	data->z = NULL;
 	data->dz = NULL;
-	data->ones = NULL;
 
 	data->Imax = Imax;
 	data->Imin = Imin;
@@ -357,6 +338,6 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 
 	operator_property_flags_t props[2][1] = {{0},{0}};
 
-	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, props);
+	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, NULL, props);
 	return result;
 }

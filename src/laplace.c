@@ -37,40 +37,30 @@ int main_laplace(int argc, char* argv[])
 
 	const struct opt_s opts[] = {
 
-		OPT_INT('n', &conf.nn, "nn", "Number of nearest neighbours"),
+		OPT_INT('N', &conf.nn, "nn", "Number of nearest neighbours"),
 		OPT_FLOAT('s', &conf.sigma, "sigma", "Standard deviation"),
-		OPT_SET('g', &conf.gen_out, "Output inv(D) @ W"),
+		OPT_SET('n', &conf.norm, "Normalized Laplacian"),
+		OPT_SET('P', &conf.dmap, "Transition Probability Matrix (diffusion map)"),
+		OPT_SET('a', &conf.anisotrop, "Anisotropy correction"),
 		OPT_SET('T', &conf.temporal_nn, "Temporal nearest neighbours"),
+		OPT_SET('k', &conf.kernel, "Kernel approach"),
+		OPT_FLOAT('l', &conf.kernel_lambda, "lambda", "(Kernel lambda)"),	
+		OPT_FLOAT('G', &conf.kernel_gamma, "gamma", "(Kernel gamma minimum)"),
+		OPT_INT('i', &conf.iter_max, "iter", "[Kernel] Number of iterations"),
+		OPT_SET('v', &conf.local_v, "Local velocity weighting"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
+	assert(!(conf.kernel && conf.temporal_nn));
+
 
 	long src_dims[DIMS];
 	complex float* src = load_cfl(argv[1], DIMS, src_dims);
 
-	long L_dims[2];
-
-	if (conf.temporal_nn) {
-
-		debug_printf(DP_INFO, "Calculating temporal nearest neighbour Laplacian!\n");
-
-		int max = 0;
-		for (int i = 0; i < src_dims[0]; i++)
-			max = (max < creal(src[i])) ? creal(src[i]) : max;
-
-		L_dims[0] = max + 1;
-		L_dims[1] = max + 1;
-
-	} else {
-
-		debug_printf(DP_INFO, "Calculating Laplacian!\n");
-
-		L_dims[0] = src_dims[0];
-		L_dims[1] = src_dims[0];
-	}
+	long L_dims[2] = {src_dims[0], src_dims[0]};
 
 	complex float* L = create_cfl(argv[2], 2, L_dims);
 

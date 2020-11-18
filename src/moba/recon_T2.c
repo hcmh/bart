@@ -86,7 +86,23 @@ void T2_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct mdb_irgnm_l1_conf conf2 = { .c2 = &irgnm_conf, .step = 0.9, .lower_bound = 0., .constrained_maps = 2, .not_wav_maps = 0, .flags = FFT_FLAGS, .usegpu = usegpu, .algo = conf->algo, .wav_reg = 0.1 };
+	struct opt_reg_s ropts = conf->ropts;
+
+
+	struct mdb_irgnm_l1_conf conf2 = {
+		.c2 = &irgnm_conf,
+		.opt_reg = conf->opt_reg,
+		.step = conf->step,
+		.lower_bound = conf->lower_bound,
+		.constrained_maps = 2,
+		.not_wav_maps = (0. == conf->IR_phy) ? 0 : 1,
+		.flags = FFT_FLAGS,
+		.usegpu = usegpu,
+		.algo = conf->algo,
+		.rho = conf->rho,
+		.ropts = &ropts,
+		.wav_reg = 0.1,
+		.auto_norm_off = conf->auto_norm_off };
 
 	long irgnm_conf_dims[DIMS];
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG, irgnm_conf_dims, imgs_dims);

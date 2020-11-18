@@ -352,7 +352,7 @@ void apply_variational_network( struct vn_s* vn,
 	}
 
 	void* refs[] = {(void*)out_tmp, (void*)kspace_tmp, (void*)coil_tmp, (void*)pattern_tmp, (void*)vn->conv_w, (void*)vn->rbf_w, (void*)vn->lambda_w};
-	nlop_generic_apply_unchecked(network, 7, refs);
+	nlop_generic_apply_select_derivative_unchecked(network, 7, refs, 0, 0);
 
 	if (normalize) {
 

@@ -14,6 +14,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/filter.h"
+#include "num/vecops.h"
 
 #include "misc/misc.h"
 #include "misc/mri.h"
@@ -36,6 +37,8 @@ const struct bin_conf_s bin_defaults = {
 
 	.offset_angle = { 0., 0. },
 
+	.amplitude = 0,
+
 };
 
 // Binning by equal central angle
@@ -57,6 +60,35 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 	}
 }
 
+// Binning by amplitude
+static void det_bins_amp(const long state_dims[DIMS], const complex float* state, const long bins_dims[DIMS], float* bins, const int idx, const int n)
+{
+	int T = bins_dims[TIME_DIM];
+	
+	float* s = md_alloc(DIMS, state_dims, FL_SIZE);
+	
+	md_real(DIMS, state_dims, s, state);
+
+	float min = quickselect(s, T, T - 1); // resorts s!
+
+	md_real(DIMS, state_dims, s, state);
+	md_sadd(DIMS, state_dims, s, s, -min); // make positive
+
+	float max = quickselect(s, T, 0); // resorts s!
+
+	md_real(DIMS, state_dims, s, state);
+	md_sadd(DIMS, state_dims, s, s, -min);
+
+	float delta = (float)max / n;
+	float amp = 0.;
+
+	for (int t = 0; t < T; t++) {
+
+		amp = s[t];
+		bins[idx * T + t] = floorf(amp * 0.99 / delta);
+	}
+}
+
 
 
 /* Check if time is consistent with increasing bin index
@@ -68,16 +100,32 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 static bool check_valid_time(const long singleton_dims[DIMS], complex float* singleton, const long labels_dims[DIMS], const complex float* labels, const long labels_idx[2])
 {
 	// Indices at half of total time
-	int idx_0 = floor(singleton_dims[TIME_DIM] / 2.);
-	int idx_1 = idx_0 + 1;
+	bool valid_index = false;
+	int idx_shift = 0;
 
+	int idx_0 = 0;
+	int idx_1 = 0;
 	long pos[DIMS] = { 0 };
 
-	pos[TIME2_DIM] = labels_idx[0];
-	md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
+	float a_0 = 0.;
+	float a_1 = 0.;
 
-	float a_0 = crealf(singleton[idx_0]);
-	float a_1 = crealf(singleton[idx_1]);
+	// prevent ambiguity
+	while (!valid_index) {
+		idx_0 = floor(singleton_dims[TIME_DIM] / 2.) + idx_shift;
+		idx_1 = idx_0 + 1;
+
+		pos[TIME2_DIM] = labels_idx[0];
+		md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
+
+		a_0 = crealf(singleton[idx_0]);
+		a_1 = crealf(singleton[idx_1]);
+
+		if (a_0 != a_1)
+			valid_index = true;
+		else
+			idx_shift += 1;
+	}
 
 	pos[TIME2_DIM] = labels_idx[1];
 	md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
@@ -273,17 +321,21 @@ extern int bin_quadrature(const long bins_dims[DIMS], float* bins,
 		md_copy_block(DIMS, pos, card_state_dims, card_state, card_state_singleton_dims, card_state_singleton, CFL_SIZE);
 	}
 
-	if (conf.mavg_window > 0) {
-
+	if (conf.mavg_window > 0)
 		moving_average(resp_state_dims, resp_state, conf.mavg_window);
+	else if (conf.mavg_window > 0 || conf.mavg_window_card > 0) 
 		moving_average(card_state_dims, card_state, (conf.mavg_window_card > 0) ? conf.mavg_window_card : conf.mavg_window);
-	}
+	
 
 	if (NULL != conf.card_out)
 		dump_cfl(conf.card_out, DIMS, card_state_dims, card_state);
 
 	// Determine bins
-	det_bins(resp_state, bins_dims, bins, 1, conf.n_resp, conf.offset_angle[0]); // respiratory motion
+	if (conf.amplitude)
+		det_bins_amp(resp_state_dims, resp_state, bins_dims, bins, 1, conf.n_resp); // amplitude binning for respiratory motion
+	else
+		det_bins(resp_state, bins_dims, bins, 1, conf.n_resp, conf.offset_angle[0]); // respiratory motion	 
+
 	det_bins(card_state, bins_dims, bins, 0, conf.n_card, conf.offset_angle[1]); // cardiac motion
 
 	md_free(card_state);

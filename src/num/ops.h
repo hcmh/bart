@@ -14,10 +14,9 @@
 #include "num/ops_opts.h"
 
 typedef struct operator_data_s { TYPEID* TYPEID; } operator_data_t;
-typedef uint64_t operator_io_flags_t;
 
 typedef void (*operator_fun_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)]);
-typedef void (*operator_fun_opts_t)(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)], const struct op_options_s* options);
+typedef void (*operator_set_opts_t)(const operator_data_t* _data, const struct op_options_s* options);
 typedef void (*operator_del_t)(const operator_data_t* _data);
 
 
@@ -37,19 +36,19 @@ extern const struct operator_s* operator_create2(unsigned int ON, const long out
 
 extern const struct operator_s* operator_with_props_create2(unsigned int ON, const long out_dims[__VLA(ON)], const long out_strs[__VLA(ON)],
 		unsigned int IN, const long in_dims[__VLA(IN)], const long in_strs[__VLA(IN)],
-		operator_data_t* data, operator_fun_opts_t apply, operator_del_t de, const struct op_property_s* props);
+		operator_data_t* data, operator_fun_t apply, operator_del_t de, operator_set_opts_t set_opts, const struct op_property_s* props);
 
-extern const struct operator_s* operator_generic_create(unsigned int N, operator_io_flags_t io_flags,
+extern const struct operator_s* operator_generic_create(unsigned int N, const _Bool io_flags[N],
 		const unsigned int D[__VLA(N)], const long* out_dims[__VLA(N)],
 		operator_data_t* data, operator_fun_t apply, operator_del_t del);
 
-extern const struct operator_s* operator_generic_create2(unsigned int N, operator_io_flags_t io_flags,
+extern const struct operator_s* operator_generic_create2(unsigned int N, const _Bool io_flags[N],
 			const unsigned int D[__VLA(N)], const long* out_dims[__VLA(N)], const long* out_strs[__VLA(N)],
 			operator_data_t* data, operator_fun_t apply, operator_del_t del);
 
-extern const struct operator_s* operator_generic_with_props_create2(unsigned int N, operator_io_flags_t io_flags,
+extern const struct operator_s* operator_generic_with_props_create2(unsigned int N, const _Bool io_flags[N],
 			const unsigned int D[__VLA(N)], const long* dims[__VLA(N)], const long* strs[__VLA(N)],
-			operator_data_t* data, operator_fun_opts_t apply, operator_del_t del, const struct op_property_s* props);
+			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props);
 
 
 extern const struct operator_s* operator_identity_create(unsigned int N, const long dims[__VLA(N)]);
@@ -88,6 +87,7 @@ extern const struct operator_s* operator_unref(const struct operator_s* x);
 
 #define OP_PASS(x) (operator_unref(x))
 
+extern void operator_set_options(const struct operator_s* op, const struct op_options_s* options);
 
 // apply functions
 extern void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int N, void* args[__VLA(N)]);
@@ -104,7 +104,6 @@ struct iovec_s;
 extern unsigned int operator_nr_args(const struct operator_s* op);
 extern unsigned int operator_nr_in_args(const struct operator_s* op);
 extern unsigned int operator_nr_out_args(const struct operator_s* op);
-extern unsigned int operator_ioflags(const struct operator_s* op);
 
 extern const struct iovec_s* operator_arg_domain(const struct operator_s* op, unsigned int n);
 extern const struct iovec_s* operator_arg_in_domain(const struct operator_s* op, unsigned int n);
@@ -113,6 +112,9 @@ extern const struct iovec_s* operator_domain(const struct operator_s* op);
 extern const struct iovec_s* operator_codomain(const struct operator_s* op);
 
 extern operator_data_t* operator_get_data(const struct operator_s* op);
+extern const _Bool* operator_get_io_flags(const struct operator_s* op);
+extern operator_property_flags_t operator_get_property_flag(const struct operator_s* x, unsigned int i, unsigned int j);
+extern operator_property_flags_t operator_get_property_io_flag(const struct operator_s* x, unsigned int o, unsigned int i);
 
 extern const struct operator_s* operator_copy_wrapper(unsigned int N, const long* strs[N], const struct operator_s* op);
 

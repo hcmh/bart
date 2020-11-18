@@ -148,10 +148,10 @@ const struct operator_p_s* sense_recon_create(const struct sense_conf* conf, con
 	if (NULL == pattern) {
 
 		if (conf->bpsense)
-			op = lsqr2_create(&lsqr_conf, italgo, iconf, (const float*)init, NULL, NULL,
+			op = lsqr2_create(&lsqr_conf, italgo, iconf, (const float*)init, false, NULL, NULL,
 					num_funs, thresh_op, thresh_funs, monitor);
 		else
-			op = lsqr2_create(&lsqr_conf, italgo, iconf, (const float*)init, sense_op, precond_op,
+			op = lsqr2_create(&lsqr_conf, italgo, iconf, (const float*)init, false, sense_op, precond_op,
 					num_funs, thresh_op, thresh_funs, monitor);
 
 		linop_free(sense_op);
@@ -172,7 +172,7 @@ const struct operator_p_s* sense_recon_create(const struct sense_conf* conf, con
 		struct linop_s* weights_op = linop_cdiag_create(DIMS, ksp_dims, ~COIL_FLAG, weights);
 		md_free(weights);
 
-		op = wlsqr2_create(&lsqr_conf, italgo, iconf, (const float*)init,
+		op = wlsqr2_create(&lsqr_conf, italgo, iconf, (const float*)init, false, 
 						sense_op, weights_op, precond_op,
 						num_funs, thresh_op, thresh_funs,
 						monitor);

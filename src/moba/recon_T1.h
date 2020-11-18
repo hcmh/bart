@@ -3,7 +3,8 @@
 #define RECON_T1_H
 
 #include "misc/mri.h"
-#include "optreg_moba.h"
+
+#include "grecon/optreg.h"
 
 struct moba_conf {
 
@@ -17,13 +18,14 @@ struct moba_conf {
 	float tolerance;
 	unsigned int inner_iter;
 	bool noncartesian;
-        bool sms;
+	bool auto_norm_off;
+	bool sms;
 	bool MOLLI;
 	bool k_filter;
 	bool IR_SS;
 	float IR_phy;
 	int algo;
-        float rho;
+	float rho;
 	struct opt_reg_s ropts;
 };
 

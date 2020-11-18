@@ -47,6 +47,7 @@
 
 extern inline void iter_op_call(struct iter_op_s op, float* dst, const float* src);
 extern inline void iter_nlop_call(struct iter_nlop_s op, int N, float* args[N]);
+extern inline void iter_nlop_call_select_der(struct iter_nlop_s op, int N, float* args[N], unsigned long der_out, unsigned long der_in);
 extern inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src);
 extern inline void iter_op_arr_call(struct iter_op_arr_s op, int NO, unsigned long oflags, float* dst[NO], int NI, unsigned long iflags, const float* src[NI]);
 

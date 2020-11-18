@@ -5,6 +5,7 @@
 
 #include <assert.h>
 
+#include "iter/batch_gen.h"
 #include "num/ops.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -63,6 +64,9 @@ const struct iter6_sgd_conf iter6_sgd_conf_defaults = {
 
 	.INTERFACE.batchnorm_momentum = .95,
 
+	.INTERFACE.batchgen_type = BATCH_GEN_SAME,
+	.INTERFACE.batch_seed = 123,
+
 	.momentum = 0.
 };
 
@@ -85,6 +89,9 @@ const struct iter6_adadelta_conf iter6_adadelta_conf_defaults = {
 
 	.INTERFACE.batchnorm_momentum = .95,
 
+	.INTERFACE.batchgen_type = BATCH_GEN_SAME,
+	.INTERFACE.batch_seed = 123,
+
 	.rho = 0.95
 };
 
@@ -105,6 +112,9 @@ const struct iter6_adam_conf iter6_adam_conf_defaults = {
 	.INTERFACE.dump_mod = -1,
 
 	.INTERFACE.batchnorm_momentum = .95,
+
+	.INTERFACE.batchgen_type = BATCH_GEN_SAME,
+	.INTERFACE.batch_seed = 123,
 
 	.reset_epoch = -1,
 
@@ -132,6 +142,9 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 	.INTERFACE.dump_mod = -1,
 
 	.INTERFACE.batchnorm_momentum = .95,
+
+	.INTERFACE.batchgen_type = BATCH_GEN_SAME,
+	.INTERFACE.batch_seed = 123,
 
 	.Lmin = 1.e-10,
 	.Lmax = 1.e10,

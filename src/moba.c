@@ -31,12 +31,14 @@
 #include "linops/linop.h"
 
 #include "iter/iter2.h"
-#include "moba/optreg_moba.h"
-#include "grecon/italgo.h"
 
+#include "moba/optreg.h"
 #include "moba/recon_T1.h"
 #include "moba/recon_T2.h"
 
+
+#include "grecon/optreg.h"
+#include "grecon/italgo.h"
 
 
 
@@ -61,7 +63,7 @@ int main_moba(int argc, char* argv[])
 	bool unused = false;
 	enum mdb_t { MDB_T1, MDB_T2 } mode = { MDB_T1 };
 
-	opt_reg_init_moba(&conf.ropts);
+	opt_reg_init(&conf.ropts);
 
 
 	const struct opt_s opts[] = {
@@ -90,6 +92,7 @@ int main_moba(int argc, char* argv[])
 		OPT_SET('k', &conf.k_filter, "k-space edge filter for non-Cartesian trajectories"),
 		OPT_SET('S', &conf.IR_SS, "use the IR steady-state model"),
 		OPT_FLOAT('P', &conf.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
+		OPT_SET('n', &conf.auto_norm_off, "disable normlization of parameter maps for thresholding"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -148,7 +151,7 @@ int main_moba(int argc, char* argv[])
 	}
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|COEFF_FLAG|SLICE_FLAG|TIME2_FLAG, img_dims, grid_dims);
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|COEFF_FLAG|SLICE_FLAG|TIME_FLAG|TIME2_FLAG, img_dims, grid_dims);
 
 	img_dims[COEFF_DIM] = (conf.IR_SS || (MDB_T2 == mode)) ? 2 : 3;
 
@@ -156,13 +159,13 @@ int main_moba(int argc, char* argv[])
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
 	long single_map_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, single_map_dims, grid_dims);
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|SLICE_FLAG|TIME_FLAG|TIME2_FLAG, single_map_dims, grid_dims);
 
 	long single_map_strs[DIMS];
 	md_calc_strides(DIMS, single_map_strs, single_map_dims, CFL_SIZE);
 
 	long coil_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME2_FLAG, coil_dims, grid_dims);
+	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|SLICE_FLAG|TIME_FLAG|TIME2_FLAG, coil_dims, grid_dims);
 
 	long coil_strs[DIMS];
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
@@ -239,7 +242,7 @@ int main_moba(int argc, char* argv[])
 
 		// Gridding sampling pattern
 		
-		md_select_dims(DIMS, FFT_FLAGS|TE_FLAG|SLICE_FLAG|TIME2_FLAG, pat_dims, grid_dims);
+		md_select_dims(DIMS, FFT_FLAGS|TE_FLAG|SLICE_FLAG|TIME_FLAG|TIME2_FLAG, pat_dims, grid_dims);
 		pattern = anon_cfl("", DIMS, pat_dims);
 
 		nufft_op_p = nufft_create(DIMS, ones_dims, pat_dims, traj_dims, traj, NULL, nufft_conf);
@@ -343,6 +346,14 @@ int main_moba(int argc, char* argv[])
 		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
+
+		if (0. != conf.IR_phy) {
+
+			pos[COEFF_DIM] = 2;
+			md_zfill(DIMS, single_map_dims, single_map, 0.);
+			md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
+		}
+
 	}
 
 #ifdef  USE_CUDA

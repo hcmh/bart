@@ -34,9 +34,11 @@ DEF_TYPEID(zexp_s);
 static void zexp_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(zexp_s, _data);
-
+	if (NULL == data->xn)
+		data->xn = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
 	md_zexp(data->N, data->dims, data->xn, src);
 	md_copy(data->N, data->dims, dst, data->xn, CFL_SIZE);
+
 }
 
 static void zexp_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -77,7 +79,7 @@ struct nlop_s* nlop_zexp_create(int N, const long dims[N])
 
 	data->N = N;
 	data->dims = *PTR_PASS(ndims);
-	data->xn = md_alloc(N, dims, CFL_SIZE);
+	data->xn = NULL;
 
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)),
 		zexp_fun, zexp_der, zexp_adj, NULL, NULL, zexp_del);

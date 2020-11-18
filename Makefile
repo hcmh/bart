@@ -28,6 +28,8 @@ DEBUG?=0
 FFTWTHREADS?=1
 ISMRMRD?=0
 NOEXEC_STACK?=0
+PARALLEL?=0
+PARALLEL_NJOBS?=
 
 LOG_BACKEND?=0
 LOG_SIEMENS_BACKEND?=0
@@ -162,9 +164,9 @@ ISMRM_BASE ?= /usr/local/ismrmrd/
 TBASE=show slice crop resize join transpose squeeze flatten zeros ones flip circshift extract repmat bitmask reshape version delta copy casorati vec poly index linspace pad
 TFLP=scale invert conj fmac saxpy sdot spow cpyphs creal carg normalize cdf97 pattern nrmse mip avg cabs zexp
 TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavelet window var std fftrot
-TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobaT2star modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv dl_prior
-TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans
-TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon genLLbasis
+TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobaT2star modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv dlprior
+TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans convkern nlsa eof
+TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon genLLbasis synthesize
 TIO=toimg dcmread dcmtag
 TSIM=phantom phantom_json traj upat bloch sim tbasis signal
 TNN=mnist nn_segm nnvn nnmodl
@@ -177,8 +179,8 @@ MODULES_pics = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart -l
 MODULES_sqpics = -lsense -liter -llinops -lwavelet -llowrank -lnoncart
 MODULES_pocsense = -lsense -liter -llinops -lwavelet
 MODULES_nlinv = -lnoir -liter -lnlops -llinops -lnoncart
-MODULES_moba = -lmoba -lnoir -liter -lnlops -llinops -lwavelet -lnoncart
-MODULES_mobaT2star = -lmoba -lnoir -liter -lnlops -llinops -lwavelet -lsimu -lnoncart -llowrank
+MODULES_moba = -lmoba -lnoir -liter -lnlops -lwavelet -lnoncart -lgrecon -llinops -llowrank -lsimu
+MODULES_mobaT2star = -lmoba -lnoir -liter -lnlops -lwavelet -lnoncart -lgrecon -llinops -llowrank -lsimu
 MODULES_rtnlinv = -lnoir -liter -lnlops -llinops -lnoncart
 MODULES_bpsense = -lsense -lnoncart -liter -llinops -lwavelet
 MODULES_itsense = -liter -llinops
@@ -214,18 +216,20 @@ MODULES_power = -lrkhs -lnoncart
 MODULES_approx = -lrkhs -lnoncart
 MODULES_kmat = -lrkhs -lnoncart
 MODULES_dcnn = -lnn -llinops
-MODULES_ssa = -lcalib -lmanifold
+MODULES_ssa = -lcalib -lmanifold -liter -llinops
+MODULES_nlsa = -lcalib -lmanifold -liter -llinops
 MODULES_bin = -lcalib
-MODULES_laplace = -lmanifold
-MODULES_kmeans = -lmanifold
+MODULES_laplace = -lmanifold -liter -llinops
+MODULES_kmeans = -lmanifold -liter -llinops
 MODULES_tgv = -liter -llinops
 MODULES_bloch = -lsimu
-MODULES_modbloch = -lmoba -lnoir -lnlops -llinops -lsimu -lwavelet -liter -lnoncart
+MODULES_modbloch = -lmoba -lnoir -liter -lsimu -lnlops -lwavelet -lnoncart -lgrecon -llinops -llowrank
 MODULES_sim = -lsimu
 MODULES_rtnlinv = -lnoncart -lnoir -lnlops -liter -llinops
 MODULES_signal = -lsimu
 MODULES_pad = -lnum
 MODULES_dl_prior = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart -lnn -lnlops
+MODULES_eof = -lcalib
 
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
@@ -275,18 +279,19 @@ ifeq ($(NOEXEC_STACK),1)
 CPPFLAGS += -DNOEXEC_STACK
 endif
 
+
 ifeq ($(PARALLEL),1)
-MAKEFLAGS += -j
+MAKEFLAGS += -j$(PARALLEL_NJOBS)
 endif
 
 
 ifeq ($(MAKESTAGE),1)
 .PHONY: doc/commands.txt $(TARGETS)
 default all clean allclean distclean doc/commands.txt doxygen test utest utest_gpu gputest pythontest testague testslow $(TARGETS):
-	make MAKESTAGE=2 $(MAKECMDGOALS)
+	$(MAKE) MAKESTAGE=2 $(MAKECMDGOALS)
 
 tests/test-%: force
-	make MAKESTAGE=2 $(MAKECMDGOALS)
+	$(MAKE) MAKESTAGE=2 $(MAKECMDGOALS)
 
 force: ;
 
@@ -492,7 +497,7 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 
 endef
 
-ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom rkhs na nn manifold
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom rkhs na nn manifold seq
 $(eval $(foreach t,$(ALIBS),$(eval $(call alib,$(t)))))
 
 
@@ -521,7 +526,7 @@ UTARGETS += test_pattern test_types test_misc test_mmio
 
 # lib moba
 UTARGETS += test_moba
-MODULES_test_moba += -lmoba -lnoir -lnlops -llinops -lsimu
+MODULES_test_moba += -lmoba -lnoir -llowrank -lwavelet -liter -lnlops -llinops -lsimu
 
 # lib nlop
 UTARGETS += test_nlop
@@ -532,7 +537,7 @@ UTARGETS += test_nufft
 MODULES_test_nufft += -lnoncart -llinops
 
 # lib num
-UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2 test_flpmath_strides
+UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2 test_flpmath2
 UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test_ops_p test_specfun test_convcorr
 UTARGETS_GPU += test_cudafft test_cuda_flpmath_strides test_cuda_memcache_clear
 
@@ -566,6 +571,9 @@ MODULES_test_nn_layers += -lnn -lnlops -llinops
 UTARGETS_GPU += test_cuda_nlop
 MODULES_test_cuda_nlop += -lnn -lnlops -llinops -lnum
 
+# lib calib
+UTARGETS += test_eof
+MODULES_test_eof += -lcalib -lnum -lmanifold -liter -llinops
 
 # sort BTARGETS after everything is included
 BTARGETS:=$(sort $(BTARGETS))
@@ -675,7 +683,7 @@ isclean: $(ALLMAKEFILES)
 ifeq ($(AUTOCLEAN),1)
 	@echo "CONFIGURATION MODIFIED. RUNNING FULL REBUILD."
 	touch isclean
-	make allclean || rm isclean
+	$(MAKE) allclean || rm isclean
 else
 ifneq ($(MAKECMDGOALS),allclean)
 	@echo "CONFIGURATION MODIFIED."

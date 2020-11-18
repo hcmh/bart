@@ -23,6 +23,8 @@
 #include "linops/someops.h"
 
 #include "nlops/zexp.h"
+#include "nlops/someops.h"
+#include "nlops/ztrigon.h"
 #include "nlops/tenmul.h"
 #include "nlops/nlop.h"
 #include "nlops/cast.h"
@@ -266,6 +268,45 @@ static bool test_nlop_zexp(void)
 
 
 UT_REGISTER_TEST(test_nlop_zexp);
+
+
+static bool test_nlop_zcos(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	struct nlop_s* zcos = nlop_zcos_create(N, dims);
+
+	float err_der = nlop_test_derivatives(zcos);
+	float err_adj = nlop_test_adj_derivatives(zcos, false);
+
+	nlop_free(zcos);
+
+	UT_ASSERT((err_der < 1E-2) && (err_adj < UT_TOL));
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_zcos);
+
+static bool test_nlop_zsin(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 10, 7, 3 };
+
+	struct nlop_s* zsin = nlop_zsin_create(N, dims);
+
+	float err_der = nlop_test_derivatives(zsin);
+	float err_adj = nlop_test_adj_derivatives(zsin, false);
+
+	nlop_free(zsin);
+
+	UT_ASSERT((err_der < 1E-2) && (err_adj < UT_TOL));
+}
+
+
+
+UT_REGISTER_TEST(test_nlop_zsin);
 
 
 
@@ -1120,3 +1161,23 @@ static bool test_nlop_select_derivatives_link(void)
 }
 
 UT_REGISTER_TEST(test_nlop_select_derivatives_link);
+
+
+static bool test_nlop_zinv(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 5, 1, 3 };
+
+	auto nlop = nlop_zinv_create(N, dims);
+
+
+	float err_adj = nlop_test_adj_derivatives(nlop, false);
+	float err_der = nlop_test_derivatives(nlop);
+
+	nlop_free(nlop);
+
+	debug_printf(DP_DEBUG1, "zinv errors:, adj: %.8f, %.8f\n", err_der, err_adj);
+	UT_ASSERT((err_adj < UT_TOL) && (err_der < 2.E-2));
+}
+
+UT_REGISTER_TEST(test_nlop_zinv);

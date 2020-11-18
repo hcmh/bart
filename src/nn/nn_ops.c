@@ -456,6 +456,9 @@ static void zmax_del(const struct nlop_data_s* _data)
 	xfree(data);
 }
 
+/**
+ * Returns maximum value of array along specified flags.
+ **/
 const struct nlop_s* nlop_zmax_create(int N, const long dims[N], unsigned long flags)
 {
 	PTR_ALLOC(struct zmax_s, data);
@@ -529,6 +532,9 @@ static void pool_del(const struct linop_data_s* _data)
 	xfree(data);
 }
 
+/**
+ * Pool incoming dimensions with given pool size.
+ **/
 const struct linop_s* linop_pool_create(int N, const long dims[N], const long pool_size[N])
 {
 	PTR_ALLOC(struct pool_s, data);

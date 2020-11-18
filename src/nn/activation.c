@@ -242,23 +242,8 @@ static void bias_op_adj2(const nlop_data_t* _data, unsigned int o, unsigned int 
 	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 
-#ifdef USE_CUDA //FIXME: optimize zadd2 for accumulation in first or second dim
-	if (cuda_ondevice(src)) {
-
-		long tdims[d->N];
-		md_select_dims(d->N, ~md_nontriv_dims(d->N, d->bdims), tdims, d->dims);
-
-		complex float* ones = md_alloc_sameplace(d->N, tdims, CFL_SIZE, src);
-		md_zfill(d->N, tdims, ones, 1.);
-		md_ztenmul(d->N, d->bdims, dst, d->dims, src, tdims, ones);
-
-		md_free(ones);
-	} else
-#endif
-	{
-		md_clear(d->N, d->bdims, dst, CFL_SIZE);
-		md_zsum(d->N, d->dims, ~md_nontriv_dims(d->N, d->bdims), dst, src);
-	}
+	md_clear(d->N, d->bdims, dst, CFL_SIZE);
+	md_zsum(d->N, d->dims, ~md_nontriv_dims(d->N, d->bdims), dst, src);
 
 	PRINT_TIMER("bias adj2");
 }
@@ -328,7 +313,18 @@ struct relu_s {
 
 DEF_TYPEID(relu_s);
 
-static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N], const struct op_options_s* opts)
+static void relu_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
+{
+	const auto data = CAST_DOWN(relu_s, _data);
+
+	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
+
+		md_free(data->tmp);
+		data->tmp = NULL;
+	}
+}
+
+static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	START_TIMER;
 
@@ -344,7 +340,7 @@ static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N], 
 	md_smax2(d->dom->N, d->dom->dims, d->codom->strs, (float*)dst, d->codom->strs, (float*)src, 0.);
 	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
 
-	if (op_options_is_set_io(opts, 0, 0, OP_APP_NO_DER)) {
+	if (op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER)) {
 
 		md_free(d->tmp);
 		d->tmp = NULL;
@@ -429,7 +425,7 @@ const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const
 	operator_property_flags_t props[1][1] = {{0}};
 
 	return nlop_generic_with_props_create2(	1, N, nl_odims, nl_ostr, 1, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, props);
+						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, relu_set_opts, props);
 }
 
 const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])

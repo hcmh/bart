@@ -63,11 +63,10 @@ static void shared_del(const operator_data_t* _data)
 	xfree(data);
 }
 
-static void shared_apply(const operator_data_t* _data, unsigned int N, void* args[N], const struct op_options_s* opts)
+static void shared_apply(const operator_data_t* _data, unsigned int N, void* args[N])
 {
 	auto data = CAST_DOWN(shared_data_s, _data);
 
-	UNUSED(opts);
 	assert(2 == N);
 	debug_trace("ENTER %p\n", data->u.apply);
 	data->u.apply(data->data, args[0], args[1]);
@@ -137,12 +136,12 @@ struct linop_s* linop_with_props_create2(unsigned int ON, const long odims[ON], 
 
 	operator_property_flags_t lin_props[1][1] = {{linop_props}};
 
-	lo->forward = operator_with_props_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, op_property_io_create(1, 1, MD_BIT(0), lin_props));
-	lo->adjoint = operator_with_props_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, op_property_io_create(1, 1, MD_BIT(0), lin_props));
+	lo->forward = operator_with_props_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
+	lo->adjoint = operator_with_props_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
 
 	if (NULL != normal) {
 
-		lo->normal = operator_with_props_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, op_property_io_create(1, 1, MD_BIT(0), lin_props));
+		lo->normal = operator_with_props_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props));
 
 	} else {
 
@@ -669,4 +668,56 @@ struct linop_s* linop_plus_FF(const struct linop_s* a, const struct linop_s* b)
 	linop_free(b);
 
 	return x;
+}
+
+
+struct linop_s* linop_reshape_in(const struct linop_s* op, unsigned int NI, const long idims[NI]) {
+
+	PTR_ALLOC(struct linop_s, c);
+
+	c->forward = operator_reshape(op->forward, 1, NI, idims);
+	c->adjoint = operator_reshape(op->adjoint, 0, NI, idims);
+
+	if (NULL != op->normal) {
+
+		auto tmp = operator_reshape(op->normal, 1, NI, idims);
+		c->normal = operator_reshape(tmp, 0, NI, idims);
+		operator_free(tmp);
+	} else {
+
+		c->normal = NULL;
+	}
+
+	if (NULL != op->norm_inv)
+		c->norm_inv = operator_p_reshape_out_F(operator_p_reshape_in(op->norm_inv, NI, idims), NI, idims);
+	else
+		c->norm_inv = NULL;
+
+	return PTR_PASS(c);
+}
+
+struct linop_s* linop_reshape_out(const struct linop_s* op, unsigned int NO, const long odims[NO])
+{
+	PTR_ALLOC(struct linop_s, c);
+
+	c->forward = operator_reshape(op->forward, 0, NO, odims);
+	c->adjoint = operator_reshape(op->adjoint, 1, NO, odims);
+	c->normal = operator_ref(op->normal);
+	c->norm_inv = operator_p_ref(op->norm_inv);
+
+	return PTR_PASS(c);
+}
+
+struct linop_s* linop_reshape_in_F(const struct linop_s* op, unsigned int NI, const long idims[NI])
+{
+	auto result = linop_reshape_in(op, NI, idims);
+	linop_free(op);
+	return result;
+}
+
+struct linop_s* linop_reshape_out_F(const struct linop_s* op, unsigned int NO, const long odims[NO])
+{
+	auto result = linop_reshape_out(op, NO, odims);
+	linop_free(op);
+	return result;
 }

@@ -1,24 +1,32 @@
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors: Moritz Blumenthal
+ */
+
 #include <assert.h>
 #include <complex.h>
 #include <stdbool.h>
 
 #include "misc/misc.h"
-#include "num/blas.h"
 
-#include "blas_md_wrapper.h"
+#include "num/blas.h"
 #include "num/multind.h"
 
-//In this file we use units of elementsize for strides as in BLAS conventions
-//x > 0 is an positive integer
+#include "blas_md_wrapper.h"
 
+// In this file we use units of elementsize for strides as in BLAS conventions
+// x > 0 is an positive integer
 
 static bool check_blas_strides(int N, const long str[N], long size)
 {
-	for (int i = 0; i < N; i++){
+	for (int i = 0; i < N; i++) {
 
 		if ((0 != str[i] % size) || (0 > str[i]))
 			return false;
 	}
+
 	return true;
 }
 
@@ -71,6 +79,7 @@ void blas_zfmac_cgemm(unsigned int N, const long dims[N], const long ostr[N], co
 	blas_cgemm(transa, transb, dims[0], dims[2], dims[1], 1., lda, iptr1, ldb, iptr2, 1., ldc, optr);
 }
 
+
 /**
  * cgemv for inner zfmac kernel
  *
@@ -110,6 +119,7 @@ void blas_zfmac_cgemv(unsigned int N, const long dims[N], const long ostr[N], co
 	blas_cgemv(trans, m, n, 1., lda, iptr1, incx, iptr2, 1., incy, optr);
 }
 
+
 /**
  * cgeru for inner zfmac kernel
  *
@@ -143,6 +153,7 @@ void blas_zfmac_cgeru(unsigned int N, const long dims[N], const long ostr[N], co
 	blas_cgeru(dims[0], dims[1], 1., incx, iptr1, incy, iptr2, lda, optr);
 }
 
+
 /**
  * caxpy for inner zfmac kernel
  *
@@ -173,6 +184,7 @@ void blas_zfmac_caxpy(unsigned int N, const long dims[N], const long ostr[N], co
 	blas2_caxpy(dims[0], iptr2, incx, iptr1, incy, optr);
 }
 
+
 /**
  * cdotu for inner zfmac kernel
  *
@@ -200,15 +212,20 @@ void blas_zfmac_cdotu(unsigned int N, const long dims[N], const long ostr[N], co
 	long incx = istr1[0] / size;
 	long incy = istr2[0] / size;
 
+
 	complex float* tmp = md_alloc_sameplace(1, MAKE_ARRAY(1l), size, optr);
+
 	blas2_cdotu(tmp, dims[0], incx, iptr1, incy, iptr2);
 	blas_caxpy(1, 1., size, tmp, size, optr);
+
 	md_free(tmp);
 }
 
+
+
 /****************************************************************************************************
  *
- * Wrappers for zfmac
+ * Wrappers for fmac
  *
  ****************************************************************************************************/
 
@@ -254,6 +271,7 @@ void blas_fmac_sgemm(unsigned int N, const long dims[N], const long ostr[N], flo
 	blas_sgemm(transa, transb, dims[0], dims[2], dims[1], 1., lda, iptr1, ldb, iptr2, 1., ldc, optr);
 }
 
+
 /**
  * sgemv for inner fmac kernel
  *
@@ -293,6 +311,7 @@ void blas_fmac_sgemv(unsigned int N, const long dims[N], const long ostr[N], flo
 	blas_sgemv(trans, m, n, 1., lda, iptr1, incx, iptr2, 1., incy, optr);
 }
 
+
 /**
  * sger for inner fmac kernel
  *
@@ -327,6 +346,7 @@ void blas_fmac_sger(unsigned int N, const long dims[N], const long ostr[N], floa
 	blas_sger(dims[0], dims[1], 1., incx, iptr1, incy, iptr2, lda, optr);
 }
 
+
 /**
  * saxpy for inner fmac kernel
  *
@@ -357,6 +377,7 @@ void blas_fmac_saxpy(unsigned int N, const long dims[N], const long ostr[N], flo
 	blas2_saxpy(dims[0], iptr2, incx, iptr1, incy, optr);
 }
 
+
 /**
  * sdot for inner fmac kernel
  *
@@ -384,11 +405,16 @@ void blas_fmac_sdot(unsigned int N, const long dims[N], const long ostr[N], floa
 	long incx = istr1[0] / size;
 	long incy = istr2[0] / size;
 
+
 	float* tmp = md_alloc_sameplace(1, MAKE_ARRAY(1l), size, optr);
+
 	blas2_sdot(tmp, dims[0], incx, iptr1, incy, iptr2);
 	blas_saxpy(1, 1., size, tmp, size, optr);
+
 	md_free(tmp);
 }
+
+
 
 /****************************************************************************************************
  *
@@ -431,6 +457,7 @@ void blas_zmul_cmatcopy(unsigned int N, const long dims[N], const long ostr[N], 
 	blas2_cmatcopy(trans, dims[0], dims[1], iptr2, iptr1, lda, optr, ldb);
 }
 
+
 /**
  *
  * @param dims dimension
@@ -463,6 +490,7 @@ void blas_zsmul_cmatcopy(unsigned int N, const long dims[N], const long ostr[N],
 	blas_cmatcopy(trans, dims[0], dims[1], val, iptr, lda, optr, ldb);
 }
 
+
 /**
  *
  * @param dims dimension
@@ -490,11 +518,13 @@ void blas_zmul_cdgmm(unsigned int N, const long dims[N], const long ostr[N], com
 	long lda = istr1[1] / size;
 	long ldc = ostr[1] / size;
 	long incx = (0 == istr2[1]) ? istr2[0] / size : istr2[1] / size;
+
 	lda = MAX(1, lda);
 	ldc = MAX(1, ldc);
 
 	blas_cdgmm(dims[0], dims[1], 0 == istr2[1], iptr1, lda, iptr2, incx, optr, ldc);
 }
+
 
 /**
  * sger for inner mul kernel
@@ -510,7 +540,9 @@ void blas_zmul_cdgmm(unsigned int N, const long dims[N], const long ostr[N], com
 void blas_zmul_cgeru(unsigned int N, const long dims[N], const long ostr[N], complex float* optr, const long istr1[N], const complex float* iptr1, const long istr2[N], const complex float* iptr2)
 {
 	long size = 8;
+
 	md_clear2(N, dims, ostr, optr, size);
+
 	blas_zfmac_cgeru(N, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
@@ -528,13 +560,17 @@ void blas_zmul_cgeru(unsigned int N, const long dims[N], const long ostr[N], com
 void blas_zmul_cscal(unsigned int N, const long dims[N], const long ostr[N], complex float* optr, const long istr1[N], const complex float* iptr1, const long istr2[N], const complex float* iptr2)
 {
 	long size = 8;
-	assert((ostr[0] == istr1[0]) && (0 == ostr[0] % size) && (0 == istr2[0]));
+
+	assert(((optr != iptr1) || (ostr[0] == istr1[0])) && (0 == ostr[0] % size) && (0 == istr2[0]));
 	assert(1 == N);
 
 	if (optr != iptr1)
 		md_copy2(N, dims, ostr, optr, istr1, iptr1, size);
-	blas2_cscal(dims[0], iptr2, istr1[0] / size, optr);
+
+	blas2_cscal(dims[0], iptr2, ostr[0] / size, optr);
 }
+
+
 
 
 /****************************************************************************************************
@@ -578,6 +614,7 @@ void blas_mul_smatcopy(unsigned int N, const long dims[N], const long ostr[N], f
 	blas2_smatcopy(trans, dims[0], dims[1], iptr2, iptr1, lda, optr, ldb);
 }
 
+
 /**
  *
  * @param dims dimension
@@ -609,6 +646,7 @@ void blas_smul_smatcopy(unsigned int N, const long dims[N], const long ostr[N], 
 
 	blas_smatcopy(trans, dims[0], dims[1], val, iptr, lda, optr, ldb);
 }
+
 
 /**
  *
@@ -643,6 +681,7 @@ void blas_mul_sdgmm(unsigned int N, const long dims[N], const long ostr[N], floa
 	blas_sdgmm(dims[0], dims[1], 0 == istr2[1], iptr1, lda, iptr2, incx, optr, ldc);
 }
 
+
 /**
  * sger for inner mul kernel
  *
@@ -657,9 +696,12 @@ void blas_mul_sdgmm(unsigned int N, const long dims[N], const long ostr[N], floa
 void blas_mul_sger(unsigned int N, const long dims[N], const long ostr[N], float* optr, const long istr1[N], const float* iptr1, const long istr2[N], const float* iptr2)
 {
 	long size = 4;
+
 	md_clear2(N, dims, ostr, optr, size);
+
 	blas_fmac_sger(N, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
+
 
 /**
  *
@@ -674,10 +716,12 @@ void blas_mul_sger(unsigned int N, const long dims[N], const long ostr[N], float
 void blas_mul_sscal(unsigned int N, const long dims[N], const long ostr[N], float* optr, const long istr1[N], const float* iptr1, const long istr2[N], const float* iptr2)
 {
 	long size = 4;
+
 	assert((ostr[0] == istr1[0]) && (0 == ostr[0] % size) && (0 == istr2[0]));
 	assert(1 == N);
 
 	if (optr != iptr1)
 		md_copy2(N, dims, ostr, optr, istr1, iptr1, size);
+
 	blas2_sscal(dims[0], iptr2, istr1[0] / size, optr);
 }

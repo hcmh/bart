@@ -97,7 +97,7 @@ int cuda_get_device(void)
 
 static int num_cuda_reserved_devices(void)
 {
-	assert(bitcount(reserved_gpus) == n_reserved_gpus);
+	assert((int)bitcount(reserved_gpus) == n_reserved_gpus);
 	return n_reserved_gpus;
 }
 
@@ -568,6 +568,8 @@ const struct vec_ops gpu_ops = {
 	.zconj = cuda_zconj,
 	.zexpj = cuda_zexpj,
 	.zexp = cuda_zexp,
+	.zsin = cuda_zsin,
+	.zcos = cuda_zcos,	
 	.zlog = cuda_zlog,
 	.zarg = cuda_zarg,
 	.zabs = cuda_zabs,
@@ -608,6 +610,8 @@ const struct vec_ops gpu_ops = {
 	.zcmpl_real = cuda_zcmpl_real,
 	.zcmpl_imag = cuda_zcmpl_imag,
 	.zcmpl = cuda_zcmpl,
+
+	.zfill = cuda_zfill,
 };
 
 
