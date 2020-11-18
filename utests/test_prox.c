@@ -268,11 +268,11 @@ UT_REGISTER_TEST(test_op_stack);
 
 static bool test_logp_prox(void)
 {
-	unsigned int N = 4;
-	long dims1[4] = {4,128,128,1};
+	unsigned int N = 2;
+	long dims1[3] = {256,256,1};
 
-	struct nlop_s * tf_ops = nlop_tf_create(1, 1, "/media/radon_home/deep_recon/exported/pixel_cnn");
-	struct operator_p_s* op = prox_logp_create(N, dims1, tf_ops);
+	struct nlop_s * tf_ops = nlop_tf_create(1, 1, "/home/gluo/utils/prior/exported/pixel_cnn");
+	struct operator_p_s* op = prox_logp_create(N, dims1, tf_ops, 1., 0.7, 20);
 	auto dom = operator_p_domain(op);
 	auto cod = operator_p_codomain(op);
 

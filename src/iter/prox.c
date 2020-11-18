@@ -282,7 +282,7 @@ const struct operator_p_s* prox_l2norm_create(unsigned int N, const long dims[N]
 
 
 /*
- * proximal function for log probability serving as a denoiser in admm step
+ * proximal function for log probability function as a denoiser in iteration
  * v_k+1 <- Denoiser(v_k)
  * 
  */
@@ -341,7 +341,8 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 	complex float* tmp_slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
 
 	float scalor = calculate_max(pdata->N, pdata->dims, src);
-	debug_printf(DP_INFO, "Scalor: %f\n", scalor);
+	debug_printf(DP_INFO, "\tScalor: %f\n", scalor);
+	scalor = scalor + 1e-06;
 	md_zsmul(pdata->N, pdata->dims, src, src, 1. / scalor);
 
 	int offset = 0;
@@ -360,7 +361,7 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 	
 	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
 	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
-	debug_printf(DP_INFO, "Log P : %f\n", creal(*out));
+	debug_printf(DP_INFO, "\tLog P : %f\n", creal(*out));
 
 	//copy slices to feed tensor
 	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
@@ -413,7 +414,7 @@ static void prox_logp_apply(const operator_data_t* data, float lambda, complex f
 
 static void prox_logp_del(const operator_data_t* _data)
 {
-	xfree(CAST_DOWN(prox_l2norm_data, _data));
+	xfree(CAST_DOWN(prox_logp_data, _data));
 }
 
 extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], struct nlop_s * tf_ops, float lambda, float p, unsigned int steps)

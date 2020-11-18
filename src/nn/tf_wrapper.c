@@ -38,6 +38,50 @@ static int product(int n, int64_t ar[n])
     return result;
 }
 
+static void read_gpu_config(char* path, uint8_t* config)
+{
+	FILE *gpu_config_file;
+	gpu_config_file = fopen(path, "r");
+	
+	if(NULL==gpu_config_file)
+		printf("gpu config file doesn't exist");
+
+	fseek (gpu_config_file, 0, SEEK_END);
+ 	long lSize = ftell (gpu_config_file);
+	char* buffer = (char*) malloc (sizeof(char)*lSize);
+	fseek(gpu_config_file, 0, SEEK_SET);
+	fread(buffer, 1, lSize, gpu_config_file);
+
+	char tmp[10]={0};
+	
+	int j=0;
+	int i=0;
+	int u;
+	
+	int count = 0;
+	while( buffer[i] !='\0')
+	{
+
+		if(buffer[i]!='\t')
+		{
+			tmp[j] = buffer[i];
+			j++;
+		}
+		else
+		{
+			j=0;
+			config[count] = (uint8_t)strtoul(tmp, NULL, 16);
+			memset(tmp, 0, 10);
+			count++;
+		}
+		
+		i++;
+	}
+	
+	fclose(gpu_config_file);
+	
+}
+
 // function to read network/graph definition from binary protobuf file
 static TF_Buffer* read_graph(const char* file)
 {
@@ -75,10 +119,18 @@ static void load_graph(TF_Buffer* graph_def, TF_Graph* graph, TF_Status* status)
 }
 
 // function to create session
-static TF_Session* create_session(TF_Graph* graph, TF_Status* status, bool test)
+static TF_Session* create_session(TF_Graph* graph, TF_Status* status, uint8_t* config, bool test)
 {
+	
 	TF_SessionOptions* opt = TF_NewSessionOptions();
+	
+	TF_SetConfig(opt, (void*)config, strlen(config), status);
+	
+	if (TF_GetCode(status) != TF_OK)
+		debug_printf(DP_INFO, "GPU selection failed\n");
+		
 	TF_Session* sess = TF_NewSession(graph, opt, status);
+	
 	TF_DeleteSessionOptions(opt);
 	if (TF_GetCode(status) != TF_OK)
 		error("ERROR: Unable to create session %s\n", TF_Message(status));
@@ -102,6 +154,19 @@ static TF_Session* create_session(TF_Graph* graph, TF_Status* status, bool test)
 		debug_printf(DP_INFO, "Session initialized.\n");
 	}
 
+	TF_DeviceList *devices= TF_SessionListDevices(sess, status);
+
+	int nr_gpus = TF_DeviceListCount(devices);
+	debug_printf(DP_INFO, "====num of devices: %d  ====\n", nr_gpus);
+	for (int i=0; i<nr_gpus; i++)
+	{
+		char *info = TF_DeviceListName(devices, i, status);
+		char *type = TF_DeviceListType(devices, i, status);
+		debug_printf(DP_INFO, "DEVICE %d: %s |", i, type);
+		debug_printf(DP_INFO, info);
+		debug_printf(DP_INFO, "\n");
+	}
+	
 	return sess;
 }
 
@@ -343,8 +408,16 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 	TF_Status* status = TF_NewStatus();
 
 	load_graph(graph_def, graph, status);
-	TF_Session* sess = create_session(graph, status, false);
+	char gpu_config_path[strlen(path)+8];
+	sprintf(gpu_config_path, "%s_gpu_id", path);
+	
+	uint8_t* config_char = (uint8_t*) malloc(20*sizeof(uint8_t));
+	read_gpu_config(gpu_config_path, config_char);
+
+	TF_Session* sess = create_session(graph, status, config_char, false);
 	restore_sess(graph, status, sess, cpkt_path);
+
+	free(config_char);
 
 	data->sess = sess;
 	data->status = status;
