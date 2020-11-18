@@ -7,7 +7,7 @@
 #include "misc/cppwrap.h"
 
 #include "misc/mri.h"
-
+#include "grecon/optreg.h"
 
 struct noir_conf_s {
 
@@ -19,10 +19,17 @@ struct noir_conf_s {
 	float redu;
 	float a;
 	float b;
+	unsigned int inner_iter;
 	_Bool pattern_for_each_coil;
 	_Bool sms;
 	unsigned int cnstcoil_flags;
 	_Bool img_space_coils;
+	unsigned int opt_reg;
+	float step;
+	unsigned int algo;
+	float rho;
+	struct opt_reg_s ropts;
+
 };
 
 extern const struct noir_conf_s noir_defaults;
