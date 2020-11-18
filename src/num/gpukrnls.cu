@@ -1253,9 +1253,15 @@ __global__ void kern_im2col_valid_loop_in(	cuFloatComplex* dst, const cuFloatCom
 
 		cuFloatComplex val = src[i];
 
+		#if 0 //FIXME: for some reason this does not work for sm_70, changing one "long" to "int" fixes this, too???
 		for (long kx = KX - 1; kx >= 0; kx--)
 		for (long ky = KY - 1; ky >= 0; ky--)
 		for (long kz = KZ - 1; kz >= 0; kz--) {
+		#else
+		for (long kx = 0; kx < KX; kx++)
+		for (long ky = 0; ky < KY; ky++)
+		for (long kz = 0; kz < KZ; kz++) {
+		#endif
 
 			long ox = ix - kx;
 			long oy = iy - ky;
