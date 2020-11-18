@@ -21,7 +21,6 @@
 #include <cuda.h>
 #include <cuComplex.h>
 
-#include "misc/debug.h"
 #include "num/gpukrnls.h"
 
 #if 1
