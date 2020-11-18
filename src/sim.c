@@ -152,11 +152,11 @@ int main_sim(int argc, char* argv[])
 
 	// TODO: Fix pass preperation time to sim tool
 	if (5 == sim_data.seq.seq_type)
-		sim_data.seq.prep_pulse_length = 0.00001;	// match analytical Look-Locker model
+		sim_data.seq.prep_pulse_length = 0.0001;	// match analytical Look-Locker model
 	else
 		sim_data.seq.prep_pulse_length = sim_data.pulse.rf_end;
 
-	sim_data.seq.inversion_pulse_length = 0.00001;
+	sim_data.seq.inversion_pulse_length = 0.0001;
 
 	// Prepare analytical case
 	struct signal_model parm;
