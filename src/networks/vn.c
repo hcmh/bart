@@ -29,6 +29,8 @@
 #include "linops/linop.h"
 #include "linops/someops.h"
 
+#include "iter/iter.h"
+#include "iter/iter2.h"
 #include "iter/iter6.h"
 #include "iter/batch_gen.h"
 #include "iter/monitor_iter6.h"
@@ -97,6 +99,10 @@ const struct vn_s vn_default = {
 	.share_pattern = true,
 
 	.normalize = false,
+
+	.init_tickhonov = false,
+	.lambda_fixed_tickhonov = -1.,
+	.lambda_init_tickhonov = 0.1,
 };
 
 
@@ -322,7 +328,34 @@ static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const lon
 		nn_zf = nn_chain2_FF(nn_zf, 0, NULL, nn_normalize, 0, NULL);
 	}
 
-	nn_zf = nn_set_output_name_F(nn_zf, 0, "zero_filled");
+	if (vn->init_tickhonov) {
+
+		struct iter_conjgrad_conf def_conf = iter_conjgrad_defaults;
+		def_conf.l2lambda = 1.;
+		def_conf.maxiter = 10;
+
+		auto nlop_dc = mri_normal_inversion_create(5, dims, vn->share_pattern, vn->lambda_fixed_tickhonov, true, 0, CAST_UP(&def_conf));
+		nlop_dc = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_dc, 0);
+		nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+		
+		auto nn_dc = nn_from_nlop_F(nlop_dc);
+		nn_dc = nn_set_input_name_F(nn_dc, 1, "coil");
+		nn_dc = nn_set_input_name_F(nn_dc, 1, "pattern");
+
+		if (-1. == vn->lambda_fixed_tickhonov) {
+			nn_dc = nn_set_input_name_F(nn_dc, 1, "lambda_0");
+			nn_dc = nn_append_singleton_dim_in_F(nn_dc, 0, "lambda_0");
+			nn_dc = nn_set_in_type_F(nn_dc, 0, "lambda_0", IN_OPTIMIZE);
+			nn_dc = nn_set_initializer_F(nn_dc, 0, "lambda_0", init_const_create(0.1));
+		}
+
+		nn_dc = nn_mark_dup_F(nn_dc, "coil");
+		nn_dc = nn_mark_dup_F(nn_dc, "pattern");
+
+		nn_zf = nn_chain2(nn_zf, 0, NULL, nn_dc, 0, NULL);
+	}
+
+	nn_zf = nn_set_output_name_F(nn_zf, 0, "u0");
 
 	return nn_zf;
 }
@@ -364,15 +397,16 @@ static nn_t nn_vn_create(const struct vn_s* vn, const long dims[5], const long u
 		result = nn_chain2_FF(result, 0, NULL, tmp, 0, "u_tmp"); //in: kspace, coil, pattern, conv_w[l], rbf_w[l], lambda[l], u(0), kspace, coil, pattern, conv_w[0:l-1], rbf_w[0:l-1], lambda[0:l-1]
 		result = nn_stack_dup_by_name_F(result);
 
-		result = nn_sort_inputs_by_list_F(result, 7,
-		(const char*[7]) {
+		result = nn_sort_inputs_by_list_F(result, 8,
+		(const char*[8]) {
 			"u",
 			"kspace",
 			"coil",
 			"pattern",
 			"conv_w",
 			"rbf_w",
-			"lambda_w"
+			"lambda_w",
+			"lambda_0"
 			}
 		);
 	}
@@ -407,17 +441,18 @@ static nn_t nn_vn_create(const struct vn_s* vn, const long dims[5], const long u
 		result = nn_combine_FF(result, nn_zf);
 	}
 
-	result = nn_link_F(result, 0, "zero_filled", 0, "u");
+	result = nn_link_F(result, 0, "u0", 0, "u");
 	result = nn_stack_dup_by_name_F(result);
 
-	result = nn_sort_inputs_by_list_F(result, 6,
-		(const char*[6]) {
+	result = nn_sort_inputs_by_list_F(result, 7,
+		(const char*[8]) {
 			"kspace",
 			"coil",
 			"pattern",
 			"conv_w",
 			"rbf_w",
-			"lambda_w"
+			"lambda_w",
+			"lambda_0"
 			}
 		);
 
@@ -766,7 +801,7 @@ void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 	debug_printf(DP_INFO, "Train VarNet\n");
 	nn_debug(DP_INFO, nn_train);
 
-	iter6_iPALM(train_conf, nn_get_nlop(nn_train), 7, in_type, projections, src, 1, out_type, 0, Nt / Nb, batch_generator, monitor);
+	iter6_iPALM(train_conf, nn_get_nlop(nn_train), NI, in_type, projections, src, 1, out_type, 0, Nt / Nb, batch_generator, monitor);
 	nn_free(nn_train);
 	nlop_free(batch_generator);
 

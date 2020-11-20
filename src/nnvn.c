@@ -104,6 +104,10 @@ int main_nnvn(int argc, char* argv[])
 			JSON_LONG(JSON_LABEL("network", "kernels", "y"), &(vn_config.Ky), true,  ""),
 			JSON_LONG(JSON_LABEL("network", "kernels", "z"), &(vn_config.Kz), false,  ""),
 
+			JSON_BOOL(JSON_LABEL("network", "init_tickhonov"), &(vn_config.init_tickhonov), false,  ""),
+			JSON_FLOAT(JSON_LABEL("network", "init_tickhonov_lambda_fixed"), &(vn_config.lambda_fixed_tickhonov), false,  ""),
+			JSON_FLOAT(JSON_LABEL("network", "init_tickhonov_lambda_init"), &(vn_config.lambda_init_tickhonov), false,  ""),	
+
 			JSON_LONG(JSON_LABEL("apply", "target_dims", "x"), udims, false,  ""),
 			JSON_LONG(JSON_LABEL("apply", "target_dims", "y"), udims + 1, false,  ""),
 			JSON_LONG(JSON_LABEL("apply", "target_dims", "z"), udims + 2, false,  ""),

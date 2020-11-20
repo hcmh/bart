@@ -20,6 +20,10 @@ struct vn_s {
 	_Bool normalize;
 
 	_Bool share_pattern;
+
+	_Bool init_tickhonov;
+	float lambda_fixed_tickhonov;
+	float lambda_init_tickhonov;
 };
 
 extern const struct vn_s vn_default;
