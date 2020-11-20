@@ -546,7 +546,7 @@ void apply_vn_batchwise(	struct vn_s* vn,
 		kspace += md_calc_size(5, kdims1);
 		coil += md_calc_size(5, kdims1);
 		if (1 < pdims[4])
-			coil += md_calc_size(5, pdims1);
+			pattern += md_calc_size(5, pdims1);
 
 		Nt -= Nb_tmp;
 	}
