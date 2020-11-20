@@ -701,6 +701,8 @@ static const struct nlop_s* nn_modl_apply_op_create(const struct modl_s* modl, c
 		nn_apply = nn_link_F(nn_apply, 0, "normalize_scale", 0, NULL);
 	}
 
+	nn_debug(DP_INFO, nn_apply);
+
 	return nn_get_nlop_wo_weights(nn_apply, modl->weights, false);
 }
 
@@ -904,7 +906,7 @@ void nn_modl_load_weights(struct modl_s* modl, const char* name, bool overwrite_
 		modl->Ky = loaded_weights->iovs[1]->dims[3];
 		modl->Kz = loaded_weights->iovs[1]->dims[4];
 
-		modl->reinsert_zerofilled = (2 == loaded_weights->iovs[1]->dims[0]);
+		modl->reinsert_zerofilled = (2 == loaded_weights->iovs[1]->dims[1]);
 	}
 
 	auto network = nn_modl_create(modl, MD_DIMS(modl->Kx, modl->Ky, modl->Kz, 1, 1), MD_DIMS(modl->Kx, modl->Ky, modl->Kz, 1, 1), STAT_TRAIN);
