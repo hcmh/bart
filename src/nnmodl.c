@@ -191,9 +191,9 @@ int main_nnmodl(int argc, char* argv[])
 
 	if (load_mem) {
 
-		complex float* mem_kspace = md_alloc_gpu(5, kdims, CFL_SIZE);
-		complex float* mem_coil = md_alloc_gpu(5, cdims, CFL_SIZE);
-		complex float* mem_pattern = md_alloc_gpu(5, pdims, CFL_SIZE);
+		complex float* mem_kspace = md_alloc(5, kdims, CFL_SIZE);
+		complex float* mem_coil = md_alloc(5, cdims, CFL_SIZE);
+		complex float* mem_pattern = md_alloc(5, pdims, CFL_SIZE);
 
 		md_copy(5, kdims, mem_kspace, kspace, CFL_SIZE);
 		md_copy(5, cdims, mem_coil, coil, CFL_SIZE);
@@ -234,7 +234,7 @@ int main_nnmodl(int argc, char* argv[])
 #ifdef USE_CUDA
 		if (load_mem) {
 
-			complex float* mem_ref = md_alloc_gpu(5, udims, CFL_SIZE);
+			complex float* mem_ref = md_alloc(5, udims, CFL_SIZE);
 			md_copy(5, udims, mem_ref, ref, CFL_SIZE);
 			unmap_cfl(5, udims, ref);
 			ref = mem_ref;
