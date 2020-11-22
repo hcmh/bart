@@ -1312,6 +1312,46 @@ __global__ void kern_im2col_valid_loop_out(	cuFloatComplex* dst, const cuFloatCo
 	}
 }
 
+
+__global__ void kern_im2col_valid_loop_in_int(	cuFloatComplex* dst, const cuFloatComplex* src,
+						int NC,
+						int OX, int OY, int OZ,
+						int IX, int IY, int IZ,
+						int KX, int KY, int KZ)
+{
+	int start = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = gridDim.x * blockDim.x;
+
+	for(long i = start; i < NC * IX * IY * IZ; i += stride){
+
+		int i0 = i;
+		int c = i0 % NC;
+		i0 = (i0 - c) / NC;
+		int ix = i0 % IX;
+		i0 = (i0 - ix) / IX;
+		int iy = i0 % IY;
+		i0 = (i0 - iy) / IY;
+		int iz = i0;
+
+		cuFloatComplex val = src[i];
+
+		for (int kx = 0; kx < KX; kx++)
+		for (int ky = 0; ky < KY; ky++)
+		for (int kz = 0; kz < KZ; kz++) {
+
+			int ox = ix - kx;
+			int oy = iy - ky;
+			int oz = iz - kz;
+
+			long o0 = c + NC * (kx + KX * (ky + KY * (kz + KZ * (ox + OX * (oy + OY * oz)))));
+		
+			if ((0 <= ox) && (0 <= oy) && (0 <= oz) && (OX > ox) && (OY > oy) && (OZ > oz))
+				dst[o0] = val;
+		}
+	}
+}
+
+
 extern "C" void cuda_im2col(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5])
 {
 	if (16 > kdims[1]) {
@@ -1327,7 +1367,16 @@ extern "C" void cuda_im2col(_Complex float* dst, const _Complex float* src, long
 	
 		long N = idims[1] * idims[2] * idims[3] * idims[4];
 
-		kern_im2col_valid_loop_in<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+		if ((INT_MAX > N) && (INT_MAX > kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4]))
+			kern_im2col_valid_loop_in_int
+					<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+										kdims[1],
+										odims[2], odims[3], odims[4],
+										idims[2], idims[3], idims[4],
+										kdims[2], kdims[3], kdims[4]);
+		else
+			kern_im2col_valid_loop_in
+					<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
 										kdims[1],
 										odims[2], odims[3], odims[4],
 										idims[2], idims[3], idims[4],
@@ -1377,11 +1426,61 @@ __global__ void kern_im2col_transp(	cuFloatComplex* dst, const cuFloatComplex* s
 	}
 }
 
+__global__ void kern_im2col_transp_int(	cuFloatComplex* dst, const cuFloatComplex* src,
+					int NC,
+					int OX, int OY, int OZ,
+					int IX, int IY, int IZ,
+					int KX, int KY, int KZ)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (long i = start; i < NC * IX * IY * IZ; i += stride) {
+
+		int i0 = i;
+
+		int c = i0 % NC;
+		i0 = (i0 - c) / NC;
+		int ix = i0 % IX;
+		i0 = (i0 - ix) / IX;
+		int iy = i0 % IY;
+		i0 = (i0 - iy) / IY;
+		int iz = i0;
+
+		cuFloatComplex result = make_cuFloatComplex(0., 0.);
+
+		for (int kx = 0; kx < KX; kx++)
+		for (int ky = 0; ky < KY; ky++)
+		for (int kz = 0; kz < KZ; kz++) {
+
+			int ox = ix - kx;
+			int oy = iy - ky;
+			int oz = iz - kz;
+
+			long index = c + (NC * KX * KY * KZ) * (ox + OX * oy + OX * OY *oz) + NC * (kx + KX * (ky + KY * kz));
+
+			if ((0 <= ox) && (0 <= oy) && (0 <= oz) && (OX > ox) && (OY > oy) && (OZ > oz))
+				result = cuCaddf(result, src[index]);
+		}
+
+		dst[i] = cuCaddf(result, dst[i]);
+	}
+}
+
 extern "C" void cuda_im2col_transp(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5])
 {
 	long N = idims[0] * idims[1] * idims[2] * idims[3] * idims[4];
 
-	kern_im2col_transp<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+	if ((INT_MAX > N) && (INT_MAX > kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4]))
+		kern_im2col_transp_int
+			<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+								kdims[1],
+								odims[2], odims[3], odims[4],
+								idims[2], idims[3], idims[4],
+								kdims[2], kdims[3], kdims[4]);
+	else
+		kern_im2col_transp
+			<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
 								kdims[1],
 								odims[2], odims[3], odims[4],
 								idims[2], idims[3], idims[4],
