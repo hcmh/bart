@@ -36,6 +36,8 @@ struct modl_s {
 	_Bool normalize;
 
 	const char* draw_graph_filename;
+
+	_Bool low_mem;
 };
 
 extern const struct modl_s modl_default;

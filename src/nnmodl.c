@@ -86,6 +86,7 @@ int main_nnmodl(int argc, char* argv[])
 
 		OPTL_SET('n', "normalize", &(modl.normalize), "normalize the input by maximum of zero-filled reconstruction"),
 		OPTL_SET('m', "load_data", &(load_mem), "load files int memory"),
+		OPTL_SET(0, "low_mem", &(modl.low_mem), "reduce memory usage by checkpointing"),
 
 		OPTL_SET('o', "one_iter", &one_iter, "only one iteration"),
 
@@ -101,6 +102,7 @@ int main_nnmodl(int argc, char* argv[])
 		const struct opt_json_s opts_json[] = {
 
 			JSON_BOOL(JSON_LABEL("data", "normalize"), &(modl.normalize), false,  ""),
+			JSON_BOOL(JSON_LABEL("general", "low_mem"), &(modl.low_mem), false,  ""),
 
 			JSON_LONG(JSON_LABEL("network", "modl", "iterations"), &(modl.Nt), true,  ""),
 			JSON_BOOL(JSON_LABEL("network", "modl", "reinsert_zerofilled"), &(modl.reinsert_zerofilled), false,  ""),

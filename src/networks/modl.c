@@ -96,6 +96,8 @@ const struct modl_s modl_default = {
 	.normalize = false,
 
 	.draw_graph_filename = NULL,
+
+	.low_mem = false,
 };
 
 static nn_t residual_create(const struct modl_s* config, const long udims[5], enum NETWORK_STATUS status){
@@ -231,7 +233,7 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 			}
 		);
 
-	return nn_checkpoint_F(result, true, (1 < config->Nt));
+	return nn_checkpoint_F(result, true, config->low_mem && (1 < config->Nt));
 }
 
 static nn_t data_consistency_modl_create(const struct modl_s* config,const long dims[5], const long udims[5])
