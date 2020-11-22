@@ -1486,7 +1486,7 @@ static void link_apply(const operator_data_t* _data, unsigned int N, void* args[
 #ifdef USE_CUDA
 	// scalar parameters of op_p may sit on cpu, while tmp should be on gpu
 	bool gpu = false;
-	for (uint i = 0; i < N; i++)
+	for (uint i = 0; !gpu && i < N; i++)
 		gpu |= cuda_ondevice(args[i]);
 	if (gpu)
 		tmp = md_alloc_gpu(iov->N, iov->dims, iov->size);
