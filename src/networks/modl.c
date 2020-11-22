@@ -231,7 +231,7 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 			}
 		);
 
-	return (1 == config->Nt) ? result : nn_checkpoint_F(result, true);
+	return nn_checkpoint_F(result, true, (1 < config->Nt));
 }
 
 static nn_t data_consistency_modl_create(const struct modl_s* config,const long dims[5], const long udims[5])

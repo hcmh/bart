@@ -43,6 +43,8 @@ struct checkpoint_s {
 	
 	unsigned int* DO;
 	const long** odims;
+
+	bool clear_mem;
 };
 
 DEF_TYPEID(checkpoint_s);
@@ -110,7 +112,10 @@ static void checkpoint_fun(const nlop_data_t* _data, int N, complex float* args[
 			opts_flags[o][i] = MD_BIT(OP_APP_NO_DER);
 	
 	const struct op_options_s* opts = op_options_io_create(data->OO, data->II, operator_get_io_flags(data->nlop->op), opts_flags);
-	nlop_generic_apply_with_opts_unchecked(data->nlop, N, (void**)args, opts);
+	if (data->clear_mem) 
+		nlop_generic_apply_with_opts_unchecked(data->nlop, N, (void**)args, opts);
+	else
+		nlop_generic_apply_with_opts_unchecked(data->nlop, N, (void**)args, _data->options);
 	op_options_free(opts);
 
 	for (uint i = 0; i < data->II; i++)
@@ -148,7 +153,8 @@ static void checkpoint_der(const nlop_data_t* _data, unsigned int o, unsigned in
 		args[j] = md_alloc_sameplace(d->DO[j], d->odims[j], CFL_SIZE, src);
 	for (uint j = 0; j < d->II; j++)
 		args[d->OO + j] = d->inputs[j];
-	nlop_generic_apply_with_opts_unchecked(d->nlop, d->OO + d->II, (void**)args, d->opts_no_der);
+	if (d->clear_mem)
+		nlop_generic_apply_with_opts_unchecked(d->nlop, d->OO + d->II, (void**)args, d->opts_no_der);
 	for (uint j = 0; j < d->OO; j++)
 		md_free(args[j]);
 
@@ -168,8 +174,8 @@ static void checkpoint_der(const nlop_data_t* _data, unsigned int o, unsigned in
 	}
 
 	operator_apply_parallel_unchecked(num_ops_par, der_ops, (complex float**)args, src);
-
-	nlop_clear_derivative(d->nlop);
+	if (d->clear_mem)
+		nlop_clear_derivative(d->nlop);
 
 	assert(NULL != d->der_out[i + d->II * o]);
 	md_copy(d->DO[o], d->odims[o], dst, d->der_out[i + d->II * o], CFL_SIZE);
@@ -206,7 +212,8 @@ static void checkpoint_adj(const nlop_data_t* _data, unsigned int o, unsigned in
 		args[j] = md_alloc_sameplace(d->DO[j], d->odims[j], CFL_SIZE, src);
 	for (uint j = 0; j < d->II; j++)
 		args[d->OO + j] = d->inputs[j];
-	nlop_generic_apply_with_opts_unchecked(d->nlop, d->OO + d->II, (void**)args, d->opts_no_der);
+	if (d->clear_mem)
+		nlop_generic_apply_with_opts_unchecked(d->nlop, d->OO + d->II, (void**)args, d->opts_no_der);
 	for (uint j = 0; j < d->OO; j++)
 		md_free(args[j]);
 
@@ -226,8 +233,8 @@ static void checkpoint_adj(const nlop_data_t* _data, unsigned int o, unsigned in
 	}
 
 	operator_apply_parallel_unchecked(num_ops_par, adj_ops, (complex float**)args, src);
-
-	nlop_clear_derivative(d->nlop);
+	if (d->clear_mem)
+		nlop_clear_derivative(d->nlop);
 
 	assert(NULL != d->adj_out[i + d->II * o]);
 	md_copy(d->DI[i], d->idims[i], dst, d->adj_out[i + d->II * o], CFL_SIZE);
@@ -285,7 +292,7 @@ static const char* nlop_graph_checkpointing(const nlop_data_t* _data, unsigned i
 	return operator_graph_container(operator_get_graph_string(data->nlop->op, N, D, arg_nodes, opts), "checkpoint", _data, false);
 }
 
-const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_once)
+const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_once, bool clear_mem)
 {
 
 	PTR_ALLOC(struct checkpoint_s, d);
@@ -328,6 +335,7 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 	d->odims = * PTR_PASS(odims);
 	d->DI = *PTR_PASS(DI);
 	d->idims = * PTR_PASS(idims);
+	d->clear_mem = clear_mem;
 
 
 	d->nlop = nlop_clone(nlop);
@@ -407,9 +415,9 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 	return result;
 }
 
-const struct nlop_s* nlop_checkpoint_create_F(const struct nlop_s* nlop, bool der_once)
+const struct nlop_s* nlop_checkpoint_create_F(const struct nlop_s* nlop, bool der_once, bool clear_mem)
 {
-	auto result = nlop_checkpoint_create(nlop, der_once);
+	auto result = nlop_checkpoint_create(nlop, der_once, clear_mem);
 	nlop_free(nlop);
 	return result;
 }

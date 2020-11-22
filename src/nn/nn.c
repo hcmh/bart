@@ -594,9 +594,9 @@ void nn_get_out_types(nn_t op, uint N, enum OUT_TYPE out_types[N])
 		out_types[i] = op->out_types[i];
 }
 
-nn_t nn_checkpoint_F(nn_t op, bool der_once)
+nn_t nn_checkpoint_F(nn_t op, bool der_once, bool clear_mem)
 {
-	auto result = nn_from_nlop(nlop_checkpoint_create(op->network, der_once));;
+	auto result = nn_from_nlop(nlop_checkpoint_create(op->network, der_once, clear_mem));
 
 	for (uint i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
