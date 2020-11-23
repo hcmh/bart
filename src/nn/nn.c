@@ -59,7 +59,7 @@ nn_t nn_from_nlop(const struct nlop_s* op)
 	nn->in_types = *PTR_PASS(in_types);
 	nn->out_types = *PTR_PASS(out_types);
 
-	nn->network = nlop_clone(op);
+	nn->nlop = nlop_clone(op);
 
 	return PTR_PASS(nn);
 }
@@ -84,7 +84,7 @@ void nn_free(nn_t op)
 	xfree(op->in_types);
 	xfree(op->out_types);
 
-	nlop_free(op->network);
+	nlop_free(op->nlop);
 
 	xfree(op);
 }
@@ -98,7 +98,7 @@ nn_t nn_from_nlop_F(const struct nlop_s* op)
 
 const struct nlop_s* nn_get_nlop(nn_t op)
 {
-	return op->network;
+	return op->nlop;
 }
 
 void nn_clone_arg_i_from_i(nn_t nn1, uint i1, nn_t nn2, uint i2)
@@ -141,7 +141,7 @@ void nn_clone_arg_o_from_o(nn_t nn1, uint o1, nn_t nn2, uint o2)
 
 nn_t nn_clone(nn_t op)
 {
-	auto result = nn_from_nlop(op->network);
+	auto result = nn_from_nlop(op->nlop);
 
 	for (uint i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
@@ -175,19 +175,19 @@ static int get_index_from_name(int N, const char* names[N], const char* name)
 
 unsigned int nn_get_nr_in_args(nn_t op)
 {
-	return nlop_get_nr_in_args(op->network);
+	return nlop_get_nr_in_args(op->nlop);
 }
 
 unsigned int nn_get_nr_out_args(nn_t op)
 {
-	return nlop_get_nr_out_args(op->network);
+	return nlop_get_nr_out_args(op->nlop);
 }
 
 unsigned int nn_get_nr_named_in_args(nn_t op)
 {
 	int result = 0;
 
-	for (int i = 0; i < nlop_get_nr_in_args(op->network); i++)
+	for (int i = 0; i < nlop_get_nr_in_args(op->nlop); i++)
 		if (NULL != op->in_names[i])
 			result++;
 	return result;
@@ -197,7 +197,7 @@ unsigned int nn_get_nr_named_out_args(nn_t op)
 {
 	int result = 0;
 
-	for (int i = 0; i < nlop_get_nr_out_args(op->network); i++)
+	for (int i = 0; i < nlop_get_nr_out_args(op->nlop); i++)
 		if (NULL != op->out_names[i])
 			result++;
 	return result;
@@ -227,7 +227,7 @@ int nn_get_out_arg_index(nn_t op, int o, const char* oname)
 	if (NULL != oname) {
 
 		assert((-1 == o) || (0 == o)); // index is ignored anyway
-		o = get_index_from_name(nlop_get_nr_out_args(op->network), op->out_names, oname);
+		o = get_index_from_name(nlop_get_nr_out_args(op->nlop), op->out_names, oname);
 		if (-1 == o)
 			error("Name %s not found!", oname);
 	} else {
@@ -248,7 +248,7 @@ int nn_get_in_arg_index(nn_t op, int i, const char* iname)
 	if (NULL != iname) {
 
 		assert((-1 == i) || (0 == i)); // index is ignored anyway
-		i = get_index_from_name(nlop_get_nr_in_args(op->network), op->in_names, iname);
+		i = get_index_from_name(nlop_get_nr_in_args(op->nlop), op->in_names, iname);
 		if (-1 == i)
 			error("Name %s not found!", iname);
 	} else {
@@ -267,13 +267,13 @@ int nn_get_in_arg_index(nn_t op, int i, const char* iname)
 
 const char* nn_get_in_name_from_arg_index(nn_t op, int i)
 {
-	assert(i < nlop_get_nr_in_args(op->network));
+	assert(i < nlop_get_nr_in_args(op->nlop));
 	return op->in_names[i];
 }
 
 const char* nn_get_out_name_from_arg_index(nn_t op, int o)
 {
-	assert(o < nlop_get_nr_out_args(op->network));
+	assert(o < nlop_get_nr_out_args(op->nlop));
 	return op->out_names[o];
 }
 
@@ -519,13 +519,13 @@ const char** nn_get_in_names(nn_t op) {
 const struct iovec_s* nn_generic_domain(nn_t op, int i, const char* iname)
 {
 	i = nn_get_in_arg_index(op, i, iname);
-	return nlop_generic_domain(op->network, i);
+	return nlop_generic_domain(op->nlop, i);
 }
 
 const struct iovec_s* nn_generic_codomain(nn_t op, int o, const char* oname)
 {
 	o = nn_get_out_arg_index(op, o, oname);
-	return nlop_generic_codomain(op->network, o);
+	return nlop_generic_codomain(op->nlop, o);
 }
 
 void nn_debug(enum debug_levels dl, nn_t x)
@@ -536,7 +536,7 @@ void nn_debug(enum debug_levels dl, nn_t x)
 
 	for (int i = 0, index = 0; i < II; i++) {
 
-		auto io = nlop_generic_domain(x->network, i);
+		auto io = nlop_generic_domain(x->nlop, i);
 		char index_name[17];
 		sprintf(index_name, "INDEX %d", index);
 		debug_printf(dl, "%-15s", (NULL == x->in_names[i]) ? index_name : x->in_names[i]);
@@ -552,7 +552,7 @@ void nn_debug(enum debug_levels dl, nn_t x)
 
 	for (int o = 0, index = 0; o < OO; o++) {
 
-		auto io = nlop_generic_codomain(x->network, o);
+		auto io = nlop_generic_codomain(x->nlop, o);
 
 		char index_name[17];
 		sprintf(index_name, "INDEX %d", index);
@@ -596,7 +596,7 @@ void nn_get_out_types(nn_t op, uint N, enum OUT_TYPE out_types[N])
 
 nn_t nn_checkpoint_F(nn_t op, bool der_once, bool clear_mem)
 {
-	auto result = nn_from_nlop(nlop_checkpoint_create(op->network, der_once, clear_mem));
+	auto result = nn_from_nlop(nlop_checkpoint_create(op->nlop, der_once, clear_mem));
 
 	for (uint i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
@@ -610,13 +610,13 @@ nn_t nn_checkpoint_F(nn_t op, bool der_once, bool clear_mem)
 
 void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 {
-	int II = nlop_get_nr_in_args(op->network);
-	int OO = nlop_get_nr_out_args(op->network);
+	int II = nlop_get_nr_in_args(op->nlop);
+	int OO = nlop_get_nr_out_args(op->nlop);
 
 	unsigned int D[II + OO];
 	const char** arg_nodes[II + OO];
 
-	const char* str = operator_get_graph_string(op->network->op, II + OO, D, arg_nodes, opts);
+	const char* str = operator_get_graph_string(op->nlop->op, II + OO, D, arg_nodes, opts);
 
 	FILE *fp;
 	fp = fopen(filename, "w+");
@@ -645,7 +645,7 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 
 			for (int j = 0; j < (int)D[OO + i]; j++) {
 
-				fprintf(fp, "Weight_%d -> %s;\n", counter_weight, (arg_nodes[OO + i])[j]);	
+				fprintf(fp, "Weight_%d -> %s;\n", counter_weight, (arg_nodes[OO + i])[j]);
 				xfree((arg_nodes[OO + i])[j]);
 			}
 			counter_weight++;
@@ -653,7 +653,7 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 
 			for (int j = 0; j < (int)D[OO + i]; j++) {
 
-				fprintf(fp, "Input_%d -> %s;\n", counter_input, (arg_nodes[OO + i])[j]);	
+				fprintf(fp, "Input_%d -> %s;\n", counter_input, (arg_nodes[OO + i])[j]);
 				xfree((arg_nodes[OO + i])[j]);
 			}
 			counter_input++;

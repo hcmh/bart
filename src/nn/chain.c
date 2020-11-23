@@ -37,7 +37,7 @@ nn_t nn_reshape_in(nn_t op, int i, const char* iname, int N, const long idims[N]
 	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 
-	auto iov = nlop_generic_domain(op->network, i);
+	auto iov = nlop_generic_domain(op->nlop, i);
 	auto init_tmp = init_reshape_create(iov->N, iov->dims, result->initializers[i]);
 	initializer_free(result->initializers[i]);
 	result->initializers[i] = init_tmp;
@@ -299,8 +299,8 @@ nn_t nn_stack_inputs(nn_t x, int a, const char* aname, int b, const char* bname,
 	unsigned int II = nn_get_nr_in_args(x);
 	unsigned int OO = nn_get_nr_out_args(x);
 
-	auto iova = nlop_generic_domain(x->network, a);
-	auto iovb = nlop_generic_domain(x->network, b);
+	auto iova = nlop_generic_domain(x->nlop, a);
+	auto iovb = nlop_generic_domain(x->nlop, b);
 	assert(iova->N == iovb->N);
 	auto init_tmp = init_stack_create(iova->N, stack_dim, iova->dims, x->initializers[a], iovb->dims, x->initializers[b]);
 
@@ -316,7 +316,7 @@ nn_t nn_stack_inputs(nn_t x, int a, const char* aname, int b, const char* bname,
 	}
 	for (unsigned int i = 0; i < OO; i++)
 		nn_clone_arg_o_from_o(result, i, x, i);
-	
+
 	initializer_free(result->initializers[(a > b) ? a - 1 : a]);
 	result->initializers[(a > b) ? a - 1 : a] = init_tmp;
 

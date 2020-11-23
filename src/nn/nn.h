@@ -11,7 +11,7 @@ struct initializer_s;
 
 struct nn_s {
 
-	const struct nlop_s* network;
+	const struct nlop_s* nlop;
 
 	const char** out_names;
 	const char**  in_names;

@@ -138,7 +138,7 @@ void nn_init(nn_t op, nn_weights_t weights)
 
 		if(NULL != op->initializers[i]) {
 
-			auto iov = nlop_generic_domain(op->network, i);
+			auto iov = nlop_generic_domain(op->nlop, i);
 			iovec_check(weights->iovs[ip], iov->N, iov->dims, iov->strs);
 			initializer_apply(op->initializers[i], iov->N, iov->dims, weights->tensors[ip++]);
 		}
@@ -150,9 +150,9 @@ nn_weights_t nn_weights_create_from_nn(nn_t x)
 	int N = nn_get_nr_weights(x);
 	const struct iovec_s* iovs[N];
 
-	for (int i = 0, ip = 0; i < nlop_get_nr_in_args(x->network); i++)
+	for (int i = 0, ip = 0; i < nlop_get_nr_in_args(x->nlop); i++)
 		if (NULL != x->initializers[i])
-			iovs[ip++] = nlop_generic_domain(x->network, i);
+			iovs[ip++] = nlop_generic_domain(x->nlop, i);
 
 	return nn_weights_create(N, iovs);
 }
@@ -162,7 +162,7 @@ const struct nlop_s* nn_get_nlop_wo_weights(nn_t op, nn_weights_t weights, bool 
 {
 	assert(weights->N == nn_get_nr_weights(op));
 
-	auto result = nlop_clone(op->network);
+	auto result = nlop_clone(op->nlop);
 
 	for (int i = (int)nn_get_nr_out_args(op) - 1; i >= 0; i--)
 		if (OUT_BATCHNORM == op->out_types[i])
@@ -259,7 +259,7 @@ const struct nlop_s* deflatten_weights(const struct nlop_s* network, unsigned lo
 
 		while(MD_IS_SET(flag, j))
 			j += 1;
-		
+
 		result = nlop_link_F(result, o, j);
 	}
 
