@@ -88,6 +88,13 @@ static void init_const_fun(const init_t* conf_, long N, const long dims[N], comp
 	md_zfill(N, dims, weights, conf->val);
 }
 
+/**
+ * Create a constant intializer
+ *
+ * @param val value to intialize weights with
+ *
+ * @returns Constant initializer
+ */
 const struct initializer_s* init_const_create(_Complex float val)
 {
 	PTR_ALLOC(struct initializer_const_s, data);
@@ -146,9 +153,7 @@ static float get_scaling_xavier(unsigned int N, const long dims[N], unsigned lon
 }
 
 /*
-He, K.; Zhang, X.; Ren, S. & Sun, J.
-Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification
-2015
+He, K.; Zhang, X.; Ren, S. & Sun, J. (2015). Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification
 */
 static float get_scaling_kaiming(unsigned int N, const long dims[N], unsigned long in_flags, float leaky_val)
 {
@@ -191,6 +196,21 @@ static void init_kaiming_fun(const init_t* conf_, long N, const long dims[N], co
 }
 
 
+/**
+ * Create a Xavier (Glorot) intializer
+ *
+ * Xavier Glorot, Yoshua Bengio ; Proceedings of the Thirteenth International Conference on Artificial Intelligence and Statistics, JMLR Workshop and Conference Proceedings 9:249-256, 2010.
+ * Glorot, X. & Bengio, Y.. (2010). Understanding the difficulty of training deep feedforward neural networks. Proceedings of the Thirteenth International Conference on Artificial Intelligence and Statistics, in PMLR 9:249-256
+ *
+ * Initializes weights with random numbers drawn from a uniform/normal distribution with standard deviation sqrt(2 / (inputs + outputs))
+ *
+ * @param in_flags bitmask selecting the dimensions corresponding to inputs
+ * @param out_flags bitmask selecting the dimensions corresponding to outputs
+ * @param real if true: the imaginary part is initialized with zeros
+ * @param uniform if true: the distribution is a scaled uniform distribution; else: the distribution is a scaled normal distribution
+ *
+ * @returns Xavier initializer
+ */
 const struct initializer_s* init_xavier_create(unsigned long in_flags, unsigned long out_flags, bool real, bool uniform)
 {
 	PTR_ALLOC(struct initializer_xavier_kaiming_s, data);
@@ -209,6 +229,20 @@ const struct initializer_s* init_xavier_create(unsigned long in_flags, unsigned 
 	return CAST_UP(PTR_PASS(data));
 }
 
+/**
+ * Create a Kaiming intializer
+ *
+ * He, K.; Zhang, X.; Ren, S. & Sun, J. (2015). Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification
+ *
+ * Initializes weights with random numbers drawn from a uniform/normal distribution with standard deviation sqrt(2 / (inputs *(1 + leaky_val^2)))
+ *
+ * @param in_flags bitmask selecting the dimensions corresponding to inputs
+ * @param real if true: the imaginary part is initialized with zeros
+ * @param uniform if true: the distribution is a scaled uniform distribution; else: the distribution is a scaled normal distribution
+ * @param leaky_val initialization Parametric ReLU / Leaky ReLU
+ *
+ * @returns Kaiming initializer
+ */
 const struct initializer_s* init_kaiming_create(unsigned long in_flags, bool real, bool uniform, float leaky_val)
 {
 	PTR_ALLOC(struct initializer_xavier_kaiming_s, data);
@@ -313,6 +347,16 @@ static void init_linspace_fun(const init_t* conf_, long N, const long dims[N], c
 	md_copy2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), weights, MD_STRIDES(N, vdims, CFL_SIZE), vals, CFL_SIZE);
 }
 
+/**
+ * Create a initializer to initialize with linear spacing along a selected dimension and constant along the other
+ *
+ * @param dim dimension along which the values are changing
+ * @param min_val
+ * @param max_val
+ * @param max_inc should the maximal value be included
+ *
+ * @returns Linear spaced initializer
+ */
 const struct initializer_s* init_linspace_create(unsigned int dim, complex float min_val, complex float max_val, bool max_inc)
 {
 	PTR_ALLOC(struct initializer_linspace_s, data);
@@ -358,6 +402,9 @@ static void init_reshape_del(const init_t* conf_)
 	xfree(d->dims);
 }
 
+/**
+ * Used internally to apply initializer with original dimensions if the input of a nn_t is reshaped
+ */
 const struct initializer_s* init_reshape_create(unsigned int N, const long dims[N], const struct initializer_s* init)
 {
 	if(NULL == init)
@@ -428,6 +475,10 @@ static void init_stack_del(const init_t* conf_)
 	xfree(d->dimsb);
 }
 
+/**
+ * Used internally to apply initializers of original inputs if two inputs of a nn_t are stacked
+ * If only one initializer is set, the other will fall back to a zero initializer
+ */
 const struct initializer_s* init_stack_create(unsigned int N, int stack_dim, const long dimsa[N], const struct initializer_s* inita, const long dimsb[N], const struct initializer_s* initb)
 {
 	if (NULL == inita && NULL == initb)
@@ -441,7 +492,7 @@ const struct initializer_s* init_stack_create(unsigned int N, int stack_dim, con
 	data->INTERFACE.fun = init_stack_fun;
 
 	data->N = N;
-	
+
 	data->stack_dim = (0 > stack_dim) ? (int)N + stack_dim : stack_dim;
 	assert((0 <= data->stack_dim) && (data->stack_dim < (int)N));
 
@@ -476,10 +527,10 @@ const struct initializer_s* init_dup_create(const struct initializer_s* inita, c
 {
 	if (NULL == inita && NULL == initb)
 		return NULL;
-	
+
 	if ((NULL == inita) && (NULL != initb))
 		return initializer_clone(initb);
-	
+
 	if ((NULL == initb) && (NULL != inita))
 		return initializer_clone(inita);
 

@@ -44,6 +44,14 @@ nn_weights_t nn_weights_create(int N, const struct iovec_s* iovs[N])
 	return PTR_PASS(result);
 }
 
+/**
+ * Load weights from file
+ *
+ * @param name file name of weights (without extension)
+ *
+ * @param returns pointer to struct holding loaded weights
+ *
+ */
 nn_weights_t load_nn_weights(const char *name)
 {
 	int N_max = 64;
@@ -79,6 +87,13 @@ nn_weights_t load_nn_weights(const char *name)
 	return PTR_PASS(result);
 }
 
+/**
+ * Stores weights to file
+ *
+ * @param name file name of weights (without extension)
+ * @param weights pointer to struct holding the weights
+ *
+ */
 void dump_nn_weights(const char *name, nn_weights_t weights) {
 
 	unsigned int D[weights->N];
@@ -92,6 +107,11 @@ void dump_nn_weights(const char *name, nn_weights_t weights) {
 	dump_multi_cfl(name, weights->N, D, dims, (const complex float**)weights->tensors);
 }
 
+/**
+ * Move weights to gpu
+ *
+ * @param weights pointer to struct holding the weights
+ */
 void move_gpu_nn_weights(nn_weights_t weights){
 #ifdef USE_CUDA
 	for (int i = 0; i < weights->N; i++) {
@@ -108,6 +128,13 @@ void move_gpu_nn_weights(nn_weights_t weights){
 #endif
 }
 
+/**
+ * Check if weigts are copied to gpu
+ *
+ * @param weights pointer to struct holding the weights
+ *
+ * @returns boolean if weights are copied to gpu
+ */
 bool nn_weights_on_gpu(nn_weights_t weights)
 {
 #ifdef USE_CUDA
@@ -118,6 +145,11 @@ bool nn_weights_on_gpu(nn_weights_t weights)
 #endif
 }
 
+/**
+ * Free all memory related to weights (dimensions and md arrays)
+ *
+ * @param weights pointer to struct holding the weights
+ */
 void nn_weights_free(nn_weights_t weights){
 
 	for (int i = 0; i < weights->N; i++) {
@@ -132,12 +164,22 @@ void nn_weights_free(nn_weights_t weights){
 	xfree(weights);
 }
 
+/**
+ * Initialize weights for all inputs of a nn_t which have an initializer
+ *
+ * @param op nn_t struct
+ * @param weights pointer to struct holding the weights, the struct and memory for the weights must be allocated
+ *
+ * @note The number of initializers must not exceed the number of weight tensors in the struct.
+ * @note The dimensions of the inputs with an initializer must coincide the dimensions of the weights.
+ */
 void nn_init(nn_t op, nn_weights_t weights)
 {
 	for (uint i = 0, ip = 0; i < nn_get_nr_in_args(op); i++){
 
 		if(NULL != op->initializers[i]) {
 
+			assert((int)ip < weights->N);
 			auto iov = nlop_generic_domain(op->nlop, i);
 			iovec_check(weights->iovs[ip], iov->N, iov->dims, iov->strs);
 			initializer_apply(op->initializers[i], iov->N, iov->dims, weights->tensors[ip++]);
@@ -145,6 +187,13 @@ void nn_init(nn_t op, nn_weights_t weights)
 	}
 }
 
+/**
+ * Create a nn_weights_t having a tensor for each input of a nn_t with an initializer
+ *
+ * @param op nn_t struct
+ *
+ * @returns nn_weight_t
+ */
 nn_weights_t nn_weights_create_from_nn(nn_t x)
 {
 	int N = nn_get_nr_weights(x);
@@ -158,6 +207,17 @@ nn_weights_t nn_weights_create_from_nn(nn_t x)
 }
 
 
+/**
+ * Create a nlop whose inputs corresponding to weights are set to the weights provided
+ *
+ * This function can be used to create a nlop which can be used for inference
+ *
+ * @param op nn_t struct
+ * @param weights
+ * @param copy if true: weights are copied into nlop; else: only pointer is stored
+ *
+ * @returns nlop used for inference
+ */
 const struct nlop_s* nn_get_nlop_wo_weights(nn_t op, nn_weights_t weights, bool copy)
 {
 	assert(weights->N == nn_get_nr_weights(op));
@@ -178,6 +238,17 @@ const struct nlop_s* nn_get_nlop_wo_weights(nn_t op, nn_weights_t weights, bool 
 	return result;
 }
 
+/**
+ * Create a nlop whose inputs corresponding to weights are set to the weights provided and free nn_t
+ *
+ * This function can be used to create a nlop which can be used for inference
+ *
+ * @param op nn_t struct
+ * @param weights
+ * @param copy if true: weights are copied into nlop; else: only pointer is stored
+ *
+ * @returns nlop used for inference
+ */
 const struct nlop_s* nn_get_nlop_wo_weights_F(nn_t op, nn_weights_t weights, bool copy)
 {
 	auto result = nn_get_nlop_wo_weights(op, weights, copy);
@@ -186,6 +257,15 @@ const struct nlop_s* nn_get_nlop_wo_weights_F(nn_t op, nn_weights_t weights, boo
 	return result;
 }
 
+/**
+ * Copy weights from one struct into another
+ *
+ * If a src dimension is one and the corresponding dst dim not, the array is repeated along this dimension.
+ * Other deviations in the dimensions of dst and src are not allowed.
+ *
+ * @param dst
+ * @param src
+ */
 void nn_weights_copy(nn_weights_t dst, nn_weights_t src){
 
 	assert(dst->N == src->N);

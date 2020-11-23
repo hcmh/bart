@@ -9,6 +9,33 @@
 
 struct initializer_s;
 
+/*
+In this file, we define the struct nn_s and its type nn_t.
+
+This struct is a wrapper around a non-linear operator which should simplify the composition of complex neural networks.
+While inputs and outputs of non-linear operators are indexed with a positive index, the nn_t type supports both indexing using name strings and nummeric indexing.
+Note that named arguments are not counted for numeric indexing, but a named input might be between to numeric indices.
+Negative indices can be used to start counting from the last index (this is not possible for nlops).
+
+An example how the consecutive inputs of a nn_t might be accessed is:
+[0, 1, "weight1", "bias27", 2, "pattern", -3, 4, "kspace" -1]
+
+Functions working with a specific input/output are usually passed an integer and a string. The integer value is only used for indexing if the string points to NULL, else the string is used.
+To avoid confusions, the integer must be 0 or -1 in case the string is used for indexing.
+Examples
+
+- (0, NULL) will access input 0
+- (2, NULL) will access input 4
+- (0, "pattern") will access input 4
+- (3, "pattern") will produce an error
+- (0, "pAttern") will produce an error as the string is not found
+
+In the definition of the functions in this file, we use the term "index" for the numeric indices of a nn_t type and the term "arg_index" for the indices of the correponding non-linear operator.
+
+
+Moreover, the nn_t type can store an initializer for each input and the types of inputs/outputs used for optimization.
+
+*/
 struct nn_s {
 
 	const struct nlop_s* nlop;

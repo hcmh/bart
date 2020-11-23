@@ -16,6 +16,19 @@
 #include "const.h"
 
 
+/**
+ * Set one input of nn_t to a constant array, i.e. the resulting nn_t has one input less, and free nn_t
+ *
+ * @param op nn_t struct (will be freed)
+ * @param i input index (ignored if iname != NULL)
+ * @param iname name of input
+ * @param N no. of dimensions of the constant array
+ * @param dims dimensions of constant array (must coincide with dimensions of input)
+ * @param copy if true: store a copy of the array in the nn_t (nlop); else: only store a pointer
+ * @param in constant input array
+ *
+ * @returns nn_t with one input set to the constant input array
+ */
 nn_t nn_set_input_const_F(nn_t op, int i, const char* iname, int N, const long dims[N], _Bool copy, const _Complex float* in)
 {
 	i = nn_get_in_arg_index(op, i, iname);
@@ -36,6 +49,15 @@ nn_t nn_set_input_const_F(nn_t op, int i, const char* iname, int N, const long d
 	return result;
 }
 
+/**
+ * Delete one output of nn_t, i.e. the resulting nn_t has one output less, and free nn_t
+ *
+ * @param op nn_t struct (will be freed)
+ * @param o input index (ignored if oname != NULL)
+ * @param oname name of input
+ *
+ * @returns nn_t with one output less
+ */
 nn_t nn_del_out_F(nn_t op, int o, const char* oname)
 {
 	o = nn_get_out_arg_index(op, o, oname);
@@ -56,6 +78,14 @@ nn_t nn_del_out_F(nn_t op, int o, const char* oname)
 	return result;
 }
 
+/**
+ * Delete all outputs of nn_t which are used to update floating mean/variance of batch normalization layers, and free nn_t
+ * This function can be used to extract the forward operator needed for inference
+ *
+ * @param op nn_t struct (will be freed)
+ *
+ * @returns nn_t without outputs for batch normalization
+ */
 nn_t nn_del_out_bn_F(nn_t op)
 {
 	auto result = op;
@@ -66,6 +96,19 @@ nn_t nn_del_out_bn_F(nn_t op)
 	return result;
 }
 
+/**
+ * Set one input of nn_t to a constant array but keep the input as dummy input (when applied the array for the input will be ignored), and free nn_t
+ *
+ * @param op nn_t struct (will be freed)
+ * @param i input index (ignored if iname != NULL)
+ * @param iname name of input
+ * @param N no. of dimensions of the constant array
+ * @param dims dimensions of constant array (must coincide with dimensions of input)
+ * @param copy if true: store a copy of the array in the nn_t (nlop); else: only store a pointer
+ * @param in constant input array
+ *
+ * @returns nn_t with one input set to the constant input array
+ */
 nn_t nn_ignore_input_F(nn_t op, int i, const char* iname, int N, const long dims[N], _Bool copy, const _Complex float* in)
 {
 	i = nn_get_in_arg_index(op, i, iname);
