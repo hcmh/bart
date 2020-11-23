@@ -260,7 +260,11 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 
 	debug_printf(DP_INFO, "##reg. alpha = %f\n", data->conf->ropts->lambda);
 
-	opt_reg_moba_configure(DIMS, data->dims, data->conf->ropts, thresh_ops, trafos, T1_MODEL);
+	struct optreg_conf optreg_conf = optreg_defaults;
+
+	optreg_conf.moba_model = T1_MODEL;
+
+	opt_reg_moba_configure(DIMS, data->dims, data->conf->ropts, thresh_ops, trafos, &optreg_conf);
 
 	struct iter_admm_conf conf1 = iter_admm_defaults;
 
@@ -465,7 +469,11 @@ void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
         const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_moba_configure(DIMS, dims, conf->ropts, thresh_ops, trafos, T1_MODEL);
+	struct optreg_conf optreg_conf = optreg_defaults;
+
+	optreg_conf.moba_model = T1_MODEL;
+
+	opt_reg_moba_configure(DIMS, dims, conf->ropts, thresh_ops, trafos, &optreg_conf);
 
 	struct iter_admm_conf conf1 = iter_admm_defaults;
 
