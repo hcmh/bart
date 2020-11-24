@@ -455,7 +455,7 @@ nn_t nn_unset_input_name_F(nn_t op, const char* name)
 
 	xfree(result->in_names[i]);
 	result->in_names[i] = NULL;
-	result = nn_shift_input_index_F(op, nn_get_nr_in_args(op) - 1, i);
+	result = nn_shift_input_index_F(result, nn_get_nr_in_args(op) - 1, i);
 
 	nn_free(op);
 	return result;
@@ -468,7 +468,7 @@ nn_t nn_unset_output_name_F(nn_t op, const char* name)
 
 	xfree(result->out_names[i]);
 	result->out_names[i] = NULL;
-	result = nn_shift_output_index_F(op, nn_get_nr_out_args(op) - 1, i);
+	result = nn_shift_output_index_F(result, nn_get_nr_out_args(op) - 1, i);
 
 	nn_free(op);
 	return result;
