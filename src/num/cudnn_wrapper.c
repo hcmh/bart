@@ -35,11 +35,13 @@ static cudnnHandle_t get_handle(void)
 	return handle;
 }
 
-static cudnnHandle_t destroy_handle(void)
+#if 0
+static void destroy_handle(void)
 {
 	CUDNN_ERROR(cudnnDestroy(handle));
 	handle_created = false;
 }
+#endif
 
 
 static bool check_trivial_cf_3d(int N, long odims[N], long ostrs[N], long idims[N], long istrs[N], long kdims[N], long kstrs[N],
