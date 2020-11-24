@@ -1037,6 +1037,8 @@ static bool test_nlop_select_derivatives(void)
 	assert(false == nlop_tenmul_der_available(tenmul1, 0));
 	assert(false == nlop_tenmul_der_available(tenmul1, 1));
 
+	nlop_free(tenmul1);
+
 	return true;
 }
 
@@ -1067,6 +1069,9 @@ static bool test_nlop_select_derivatives_dup(void)
 
 	assert(false == nlop_tenmul_der_available(tenmul1, 0));
 	assert(false == nlop_tenmul_der_available(tenmul1, 1));
+
+	nlop_free(tenmul1);
+	nlop_free(op);
 
 	return true;
 }
@@ -1109,6 +1114,10 @@ static bool test_nlop_select_derivatives_combine(void)
 	assert(true == nlop_tenmul_der_available(tenmul1, 1));
 	assert(true == nlop_tenmul_der_available(tenmul2, 0));
 	assert(false == nlop_tenmul_der_available(tenmul2, 1));
+
+	nlop_free(tenmul1);
+	nlop_free(tenmul2);
+	nlop_free(op);
 
 	return true;
 }
@@ -1156,6 +1165,10 @@ static bool test_nlop_select_derivatives_link(void)
 	assert(false == nlop_tenmul_der_available(tenmul1, 1));
 	assert(true == nlop_tenmul_der_available(tenmul2, 0));
 	assert(false == nlop_tenmul_der_available(tenmul2, 1));
+
+	nlop_free(tenmul1);
+	nlop_free(tenmul2);
+	nlop_free(op);
 
 	return true;
 }

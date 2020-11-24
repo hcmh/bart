@@ -71,7 +71,7 @@ static struct nlop_run_stats_s* stats_create(unsigned int OO, unsigned int II){
 	result->adj_calls = *PTR_PASS(adj_calls);
 	result->der_time = *PTR_PASS(der_time);
 	result->adj_time = *PTR_PASS(adj_time);
-	
+
 	for(uint i = 0; i < OO * II; i++) {
 
 		result->der_calls[i] = 0;
@@ -186,6 +186,7 @@ static DEF_TYPEID(nlop_linop_data_s);
 static void sptr_op_del(const struct shared_ptr_s* sptr)
 {
 	auto data = CONTAINER_OF(sptr, struct nlop_op_data_s, sptr);
+	op_options_free(data->data->options);
 	stats_free(data->data->stats);
 	data->del(data->data);
 }
@@ -193,6 +194,7 @@ static void sptr_op_del(const struct shared_ptr_s* sptr)
 static void sptr_linop_del(const struct shared_ptr_s* sptr)
 {
 	auto data = CONTAINER_OF(sptr, struct nlop_linop_data_s, sptr);
+	op_options_free(data->data->options);
 	stats_free(data->data->stats);
 	data->del(data->data);
 }
@@ -302,15 +304,15 @@ static const char* nlop_graph_default(nlop_data_t* _data, unsigned int N, unsign
 		sprintf(*nname, "nlop_%p", _data);
 		(arg_nodes[i])[0] = *PTR_PASS(nname);
 	}
-	
+
 	auto stats = _data->stats;
 
 	size_t len = snprintf(NULL, 0, "nlop_%p [label=\"nlop\\n%s\\ntime: %fs\"];\n", _data, _data->TYPEID->name, stats->run_time);
-	
+
 	if (opts.calls) {
 
 		len += snprintf(NULL, 0, "\\n frw(%lu) %gs", stats->frw_calls, stats->frw_time);
-		
+
 		for (uint i = 0; i < stats->II; i++)
 			for (uint o = 0; o < stats->OO; o++)
 				len += snprintf(NULL, 0, "\\n (%u, %u): der(%lu) %gs; adj(%lu) %gs", o, i,
@@ -321,12 +323,12 @@ static const char* nlop_graph_default(nlop_data_t* _data, unsigned int N, unsign
 
 	PTR_ALLOC(char[len + 1], node);
 	char tmp[len + 1];
-	
+
 	if (opts.calls) {
 
 		char* tmp2 = tmp;
 		tmp2 += snprintf(tmp2, len + 1, "\\n frw(%lu) %gs", stats->frw_calls, stats->frw_time);
-		
+
 		for (uint i = 0; i < stats->II; i++)
 			for (uint o = 0; o < stats->OO; o++)
 				tmp2 += snprintf(tmp2, len + 1, "\\n (%u, %u): der(%lu) %gs; adj(%lu) %gs", o, i,
@@ -336,7 +338,7 @@ static const char* nlop_graph_default(nlop_data_t* _data, unsigned int N, unsign
 	} else
 		tmp[0] = '\0';
 
-		
+
 	if (opts.time)
 		sprintf(*node, "nlop_%p [label=\"nlop\\n%s\\ntime: %fs%s\"];\n", _data, _data->TYPEID->name, stats->run_time, tmp);
 	else
