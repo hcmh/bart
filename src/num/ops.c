@@ -55,6 +55,7 @@ struct operator_s {
 	void (*set_opts)(const operator_data_t* _data, const struct op_options_s* opts);
 	void (*del)(const operator_data_t* data);
 
+	const char* (*get_graph)(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
 	const struct op_property_s* props;
 
 	struct shared_obj_s sptr;
@@ -84,7 +85,7 @@ static void operator_del(const struct shared_obj_s* sptr)
  */
 const struct operator_s* operator_generic_with_props_create2(unsigned int N, const bool io_flags[N],
 			const unsigned int D[N], const long* dims[N], const long* strs[N],
-			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props)
+			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props, operator_graph_t get_graph)
 {
 	PTR_ALLOC(struct operator_s, op);
 	PTR_ALLOC(const struct iovec_s*[N], dom);
@@ -100,6 +101,7 @@ const struct operator_s* operator_generic_with_props_create2(unsigned int N, con
 	op->set_opts = set_opts;
 	op->del = del;
 	op->props = (NULL != props) ? props : op_property_create(N, io_flags, NULL);
+	op->get_graph = get_graph;
 
 	shared_obj_init(&op->sptr, operator_del);
 
@@ -114,7 +116,7 @@ const struct operator_s* operator_generic_create2(unsigned int N, const bool io_
 			const unsigned int D[N], const long* dims[N], const long* strs[N],
 			operator_data_t* data, operator_fun_t apply, operator_del_t del)
 {
-	return operator_generic_with_props_create2(N, io_flags,	D, dims, strs, data, apply, del, NULL, NULL);
+	return operator_generic_with_props_create2(N, io_flags,	D, dims, strs, data, apply, del, NULL, NULL, NULL);
 }
 
 /**
@@ -148,11 +150,11 @@ const struct operator_s* operator_create2(unsigned int ON, const long out_dims[O
 
 const struct operator_s* operator_with_props_create2(unsigned int ON, const long out_dims[ON], const long out_strs[ON],
 			unsigned int IN, const long in_dims[IN], const long in_strs[IN],
-			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props)
+			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props, operator_graph_t get_graph)
 {
 	return operator_generic_with_props_create2(2, (bool[2]){true, false}, (unsigned int[2]){ ON, IN },
 				(const long* [2]){ out_dims, in_dims }, (const long* [2]){ out_strs, in_strs },
-				data, apply, del, set_opts, props);
+				data, apply, del, set_opts, props, get_graph);
 }
 
 /**
@@ -374,6 +376,13 @@ const struct iovec_s* operator_codomain(const struct operator_s* op)
 
 
 
+static const char* operator_graph_default(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
+static const char* operator_graph_combine(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
+static const char* operator_graph_chain(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
+static const char* operator_graph_dup(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
+static const char* operator_graph_link(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
+static const char* operator_graph_permute(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
+static const char* operator_graph_reshape(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
 
 
 
@@ -517,7 +526,7 @@ const struct operator_s* operator_reshape(const struct operator_s* op, unsigned 
 	op_dims[i] = dims;
 	op_strs[i] = strs;
 
-	return operator_generic_with_props_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), reshape_apply, reshape_free, reshape_set_opts, op_property_clone(op->props));
+	return operator_generic_with_props_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), reshape_apply, reshape_free, reshape_set_opts, op_property_clone(op->props), operator_graph_reshape);
 }
 
 
@@ -1320,7 +1329,7 @@ const struct operator_s* operator_combi_create(int N, const struct operator_s* x
 		}
 	}
 
-	return operator_generic_with_props_create2(A, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), combi_apply, combi_free, combi_set_opts, op_property_combine_create(N, properties));
+	return operator_generic_with_props_create2(A, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), combi_apply, combi_free, combi_set_opts, op_property_combine_create(N, properties), operator_graph_combine);
 }
 
 
@@ -1431,7 +1440,7 @@ const struct operator_s* operator_dup_create(const struct operator_s* op, unsign
 	data->b = b;
 	data->x = operator_ref(op);
 
-	return operator_generic_with_props_create2(N - 1, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), dup_apply, dup_del, dup_set_opts, op_property_dup_create(op->props, a, b));
+	return operator_generic_with_props_create2(N - 1, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), dup_apply, dup_del, dup_set_opts, op_property_dup_create(op->props, a, b), operator_graph_dup);
 }
 
 
@@ -1573,7 +1582,7 @@ const struct operator_s* operator_link_create(const struct operator_s* op, unsig
 	data->b = o;
 	data->x = operator_ref(op);
 
-	return operator_generic_with_props_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del, link_set_opts, op_property_link_create(op->props, o, i));
+	return operator_generic_with_props_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del, link_set_opts, op_property_link_create(op->props, o, i), operator_graph_link);
 }
 
 
@@ -1677,7 +1686,7 @@ const struct operator_s* operator_permute(const struct operator_s* op, int N, co
 	}
 	data->perm = nperm;
 
-	return operator_generic_with_props_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del, permute_set_opts, op_property_permute_create(op->props, N, perm, io_flags));
+	return operator_generic_with_props_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del, permute_set_opts, op_property_permute_create(op->props, N, perm, io_flags), operator_graph_permute);
 }
 
 
@@ -2165,7 +2174,7 @@ const struct operator_s* operator_chainN(unsigned int N, const struct operator_s
 	return operator_generic_with_props_create2(2, (bool[2]){true, false}, (unsigned int[2]){ operator_codomain(x[N - 1])->N, operator_domain(x[0])->N},
 						(const long*[2]){ operator_codomain(x[N - 1])->dims, operator_domain(x[0])->dims},
 						(const long*[2]){ operator_codomain(x[N - 1])->strs, operator_domain(x[0])->strs},
-						CAST_UP(PTR_PASS(c)), chain_apply, chain_free, NULL, NULL);
+						CAST_UP(PTR_PASS(c)), chain_apply, chain_free, NULL, NULL, operator_graph_chain);
 }
 
 static const struct operator_chain_s* get_chain_data(const struct operator_s* chain_op)
@@ -2611,4 +2620,209 @@ void operator_apply_parallel_unchecked(unsigned int N, const struct operator_s* 
 		return;
 
 	reorder_operators(N, op, dst, src);
+}
+
+graph_t graph_default = {false};
+graph_t graph_stats = {false};
+
+static const char* operator_graph_default(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	UNUSED(opts);
+
+	for (uint i = 0; i < N; i++) {
+
+		D[i] = 1;
+		PTR_ALLOC(const char*[D[i]], nodes_i);
+		arg_nodes[i] = *PTR_PASS(nodes_i);
+
+		(arg_nodes[i])[0] = ptr_printf("operator_%p", _data);
+	}
+	
+	return ptr_printf("operator_%p [label=\"operator\\n%s\"];\n", _data, _data->TYPEID->name);
+}
+
+static const char* operator_graph_combine(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	auto data = CAST_DOWN(operator_combi_s, _data);
+
+	const char* result = ptr_printf("");
+
+	for (int i = 0; i < data->N; i++) {
+
+		unsigned int n = data->x[i]->N;
+
+		auto tresult = operator_get_graph_string(data->x[i], n, D, arg_nodes, opts);
+		auto nresult = ptr_printf("%s%s", tresult, result);
+
+		xfree(tresult);
+		xfree(result);
+
+		result = nresult;
+
+		D += n;
+		arg_nodes += n;
+	}
+
+	return operator_graph_container(result, _data->TYPEID->name, _data, opts.container);
+}
+
+static const char* operator_graph_chain(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	auto data = CAST_DOWN(operator_chain_s, _data);
+
+	assert(2 == N);
+
+	const char* result = operator_get_graph_string(data->x[0], 2, D, arg_nodes, opts);
+
+	for (uint i = 1; i < data->N; i++) {
+
+		unsigned int d[2];
+		const char** arg_nodes_tmp[2];
+
+		const char* append_string = operator_get_graph_string(data->x[i], 2, d, arg_nodes_tmp, opts);
+
+		const char* tresult = ptr_printf("%s%s", result, append_string);
+
+		xfree(result);
+		xfree(append_string);
+		result = tresult;
+
+		for (uint j = 0; j < d[1]; j++)
+			for (uint k = 0; k < D[0]; k++) {
+
+				tresult = ptr_printf("%s%s -> %s;\n", result, arg_nodes[0][k], arg_nodes_tmp[1][j]);
+				xfree(result);
+				result = tresult;
+			}
+		for (uint j = 0; j < d[1]; j++)
+			xfree(arg_nodes_tmp[1][j]);
+		for (uint j = 0; j < D[0]; j++)
+			xfree(arg_nodes[0][j]);
+		xfree(arg_nodes_tmp[1]);
+		xfree(arg_nodes[0]);
+
+		arg_nodes[0] = arg_nodes_tmp[0];
+		D[0] = d[1];
+	}
+
+	return operator_graph_container(result, _data->TYPEID->name, _data, opts.container);
+}
+
+static const char* operator_graph_dup(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	auto data = CAST_DOWN(operator_dup_s, _data);
+
+	assert(data->a < data->b);
+
+	unsigned int d[N + 1];
+	const char** nodes[N + 1];
+
+	const char* result = operator_get_graph_string(data->x, N + 1, d, nodes, opts);
+
+	for (uint i = 0, ip = 0; ip < N + 1; ip++) {
+
+		if (ip == (uint)data->b)
+			continue;
+
+		D[i] = d[ip];
+		arg_nodes[i] = nodes[ip];
+		i++;
+	}
+
+	D[data->a] = d[data->a] + d[data->b];
+	PTR_ALLOC(const char*[D[data->a]], nnode);
+	arg_nodes[data->a] = *PTR_PASS(nnode);
+
+	for(uint i = 0; i < d[data->a]; i++)
+		(arg_nodes[data->a])[i] = (nodes[data->a])[i];
+	for(uint i = 0; i < d[data->b]; i++)
+		(arg_nodes[data->a])[d[data->a] + i] = (nodes[data->b])[i];
+
+	xfree(nodes[data->a]);
+	xfree(nodes[data->b]);
+
+	return operator_graph_container(result, _data->TYPEID->name, _data, opts.container);
+}
+
+static const char* operator_graph_link(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	auto data = CAST_DOWN(operator_link_s, _data);
+
+	unsigned int d[N + 2];
+	const char** nodes[N + 2];
+
+	const char* result = operator_get_graph_string(data->x, N + 2, d, nodes, opts);
+
+	for (uint i = 0, ip = 0; ip < N + 2; ip++) {
+
+		if ((ip == (uint)data->a) || (ip == (uint)data->b))
+			continue;
+
+		D[i] = d[ip];
+		arg_nodes[i] = nodes[ip];
+		i++;
+	}
+
+	for (uint i = 0; i < d[data->a]; i++) {
+
+		auto tresult = ptr_printf("%s%s -> %s;\n", result, (nodes[data->b])[0], (nodes[data->a])[i]);
+		xfree(result);
+		result = tresult;
+
+		xfree((nodes[data->a])[i]);
+	}
+	xfree((nodes[data->b])[0]);
+
+	xfree(nodes[data->a]);
+	xfree(nodes[data->b]);
+
+	return operator_graph_container(result, _data->TYPEID->name, _data, opts.container);
+}
+
+static const char* operator_graph_permute(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	auto data = CAST_DOWN(permute_data_s, _data);
+
+	unsigned int d[N];
+	const char** nodes[N];
+	const char* result = operator_get_graph_string(data->op, N, d, nodes, opts);
+
+	for (uint i = 0; i < N; i++) {
+
+		D[i] = d[data->perm[i]];
+		arg_nodes[i] = nodes[data->perm[i]];
+	}
+
+	return operator_graph_container(result, _data->TYPEID->name, _data, opts.container);
+}
+
+static const char* operator_graph_reshape(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	auto data = CAST_DOWN(op_reshape_s, _data);
+
+	return operator_graph_container(operator_get_graph_string(data->x, N, D, arg_nodes, opts), _data->TYPEID->name, _data, opts.container);
+}
+
+const char* operator_graph_container(const char* in_string, const char* container_name, const void* container_ptr, bool container)
+{
+	const char* result = NULL;
+	
+	if (container)
+		result = ptr_printf("subgraph cluster_%s_%p {\n label = \"%s\";\n%s}\n", container_name, container_ptr, container_name, in_string);
+	else
+		result = ptr_printf("subgraph {\n%s}\n", in_string);
+		
+	xfree(in_string);
+	
+	return result;
+}
+
+const char* operator_get_graph_string(const struct operator_s* op, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+{
+	assert(op->N == N);
+	if (NULL == op->get_graph)
+		return operator_graph_default(op->data, N, D, arg_nodes, opts);
+	auto result = op->get_graph(op->data, N, D, arg_nodes, opts);
+
+	return result;
 }
