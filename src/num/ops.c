@@ -52,7 +52,10 @@ struct operator_s {
 
 	operator_data_t* data;
 	void (*apply)(const operator_data_t* data, unsigned int N, void* args[N]);
+	void (*set_opts)(const operator_data_t* _data, const struct op_options_s* opts);
 	void (*del)(const operator_data_t* data);
+
+	const struct op_property_s* props;
 
 	struct shared_obj_s sptr;
 };
@@ -69,6 +72,8 @@ static void operator_del(const struct shared_obj_s* sptr)
 		iovec_free(x->domain[i]);
 
 	xfree(x->domain);
+	xfree(x->io_flags);
+	op_property_free(x->props);
 	xfree(x);
 }
 
@@ -77,9 +82,9 @@ static void operator_del(const struct shared_obj_s* sptr)
 /**
  * Create an operator (with strides)
  */
-const struct operator_s* operator_generic_create2(unsigned int N, const bool io_flags[N],
+const struct operator_s* operator_generic_with_props_create2(unsigned int N, const bool io_flags[N],
 			const unsigned int D[N], const long* dims[N], const long* strs[N],
-			operator_data_t* data, operator_fun_t apply, operator_del_t del)
+			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props)
 {
 	PTR_ALLOC(struct operator_s, op);
 	PTR_ALLOC(const struct iovec_s*[N], dom);
@@ -92,7 +97,9 @@ const struct operator_s* operator_generic_create2(unsigned int N, const bool io_
 	op->domain = *PTR_PASS(dom);
 	op->data = data;
 	op->apply = apply;
+	op->set_opts = set_opts;
 	op->del = del;
+	op->props = (NULL != props) ? props : op_property_create(N, io_flags, NULL);
 
 	shared_obj_init(&op->sptr, operator_del);
 
@@ -100,6 +107,15 @@ const struct operator_s* operator_generic_create2(unsigned int N, const bool io_
 }
 
 
+/**
+ * Create an operator (with strides)
+ */
+const struct operator_s* operator_generic_create2(unsigned int N, const bool io_flags[N],
+			const unsigned int D[N], const long* dims[N], const long* strs[N],
+			operator_data_t* data, operator_fun_t apply, operator_del_t del)
+{
+	return operator_generic_with_props_create2(N, io_flags,	D, dims, strs, data, apply, del, NULL, NULL);
+}
 
 /**
  * Create an operator (without strides)
@@ -128,6 +144,15 @@ const struct operator_s* operator_create2(unsigned int ON, const long out_dims[O
 	return operator_generic_create2(2, (bool[2]){ true, false }, (unsigned int[2]){ ON, IN },
 				(const long* [2]){ out_dims, in_dims }, (const long* [2]){ out_strs, in_strs },
 				data, apply, del);
+}
+
+const struct operator_s* operator_with_props_create2(unsigned int ON, const long out_dims[ON], const long out_strs[ON],
+			unsigned int IN, const long in_dims[IN], const long in_strs[IN],
+			operator_data_t* data, operator_fun_t apply, operator_del_t del, operator_set_opts_t set_opts, const struct op_property_s* props)
+{
+	return operator_generic_with_props_create2(2, (bool[2]){true, false}, (unsigned int[2]){ ON, IN },
+				(const long* [2]){ out_dims, in_dims }, (const long* [2]){ out_strs, in_strs },
+				data, apply, del, set_opts, props);
 }
 
 /**
@@ -195,6 +220,16 @@ operator_data_t* operator_get_data(const struct operator_s* x)
 const bool* operator_get_io_flags(const struct operator_s* x)
 {
 	return x->io_flags;
+}
+
+operator_property_flags_t operator_get_property_flag(const struct operator_s* x, unsigned int i, unsigned int j)
+{
+	return op_property_get_flag(x->props, i, j);
+}
+
+operator_property_flags_t operator_get_property_io_flag(const struct operator_s* x, unsigned int o, unsigned int i)
+{
+	return op_property_get_io_flag(x->props, o, i);
 }
 
 
@@ -435,6 +470,11 @@ static void reshape_apply(const operator_data_t* _data, unsigned int N, void* ar
 	operator_generic_apply_unchecked(d->x, N, args);
 }
 
+static void reshape_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	const auto d = CAST_DOWN(op_reshape_s, _data);
+	operator_set_options(d->x, options);
+}
 
 
 static void reshape_free(const operator_data_t* _data)
@@ -477,7 +517,7 @@ const struct operator_s* operator_reshape(const struct operator_s* op, unsigned 
 	op_dims[i] = dims;
 	op_strs[i] = strs;
 
-	return operator_generic_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), reshape_apply, reshape_free);
+	return operator_generic_with_props_create2(A, op->io_flags, D, op_dims, op_strs, CAST_UP(PTR_PASS(data)), reshape_apply, reshape_free, reshape_set_opts, op_property_clone(op->props));
 }
 
 
@@ -570,6 +610,25 @@ const struct operator_s* operator_null_create(unsigned int N, const long dims[N]
 {
 	return operator_null_create2(N, dims, MD_STRIDES(N, dims, CFL_SIZE));
 }
+
+void operator_set_options(const struct operator_s* op, const struct op_options_s* options) {
+
+	if (NULL != op->set_opts)
+		op->set_opts(op->data, options);
+}
+
+void operator_generic_apply_with_opts_unchecked(const struct operator_s* op, unsigned int N, void* args[N], const struct op_options_s* options)
+{
+	assert(op->N == N);
+	assert((NULL == options) || (N == op_options_get_N(options)));
+	assert(op_options_check_io_flags(options, N, op->io_flags));
+
+	if (NULL != options)
+		operator_set_options(op, options);
+
+	operator_generic_apply_unchecked(op, N, args);
+}
+
 
 void operator_generic_apply_unchecked(const struct operator_s* op, unsigned int N, void* args[N])
 {
@@ -1183,6 +1242,24 @@ static void combi_apply(const operator_data_t* _data, unsigned int N, void* args
 	assert(0 == off);
 }
 
+static void combi_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	auto data = CAST_DOWN(operator_combi_s, _data);
+
+	int off = 0;
+
+	for (int i = 0; i < (int)data->N; i++) {
+
+		int A = operator_nr_args(data->x[i]);
+
+		auto topts = op_options_combine_create(options, A, off, data->x[i]->io_flags);
+		operator_set_options(data->x[i], topts);
+		op_options_free(topts);
+
+		off += A;
+	}
+}
+
 static void combi_free(const operator_data_t* _data)
 {
 	auto data = CAST_DOWN(operator_combi_s, _data);
@@ -1224,7 +1301,11 @@ const struct operator_s* operator_combi_create(int N, const struct operator_s* x
 
 	int a = 0;
 
+	const struct op_property_s* properties[N];
+
 	for (int i = 0; i < N; i++) {
+
+		properties[i] = x[i]->props;
 
 		for (int j = 0; j < (int)operator_nr_args(x[i]); j++) {
 
@@ -1239,7 +1320,7 @@ const struct operator_s* operator_combi_create(int N, const struct operator_s* x
 		}
 	}
 
-	return operator_generic_create2(A, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), combi_apply, combi_free);
+	return operator_generic_with_props_create2(A, io_flags, D, dims, strs, CAST_UP(PTR_PASS(c)), combi_apply, combi_free, combi_set_opts, op_property_combine_create(N, properties));
 }
 
 
@@ -1286,6 +1367,15 @@ static void dup_apply(const operator_data_t* _data, unsigned int N, void* args[N
 	args2[data->b] = args2[data->a];
 
 	operator_generic_apply_unchecked(data->x, N + 1, args2);
+}
+
+static void dup_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	auto data = CAST_DOWN(operator_dup_s, _data);
+
+	auto topts = op_options_dup_create(options, data->a, data->b, data->x->N, data->x->io_flags);
+	operator_set_options(data->x, topts);
+	op_options_free(topts);
 }
 
 static void dup_del(const operator_data_t* _data)
@@ -1341,13 +1431,13 @@ const struct operator_s* operator_dup_create(const struct operator_s* op, unsign
 	data->b = b;
 	data->x = operator_ref(op);
 
-	return operator_generic_create2(N - 1, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), dup_apply, dup_del);
+	return operator_generic_with_props_create2(N - 1, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), dup_apply, dup_del, dup_set_opts, op_property_dup_create(op->props, a, b));
 }
 
 
 
 
-// FIXME: we should reimplement link in terms of dup and bind (caveat: gpu)
+// FIXME: we should reimplement link in terms of dup and bind (caveat: gpu; io_flags)
 struct operator_link_s {
 
 	INTERFACE(operator_data_t);
@@ -1418,6 +1508,15 @@ static void link_apply(const operator_data_t* _data, unsigned int N, void* args[
 	md_free(tmp);
 }
 
+static void link_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	auto data = CAST_DOWN(operator_link_s, _data);
+
+	const struct op_options_s* topts = op_options_link_create(options, data->a, data->b, data->x->props);
+	operator_set_options(data->x, topts);
+	op_options_free(topts);
+}
+
 static void link_del(const operator_data_t* _data)
 {
 	auto data = CAST_DOWN(operator_link_s, _data);
@@ -1474,7 +1573,7 @@ const struct operator_s* operator_link_create(const struct operator_s* op, unsig
 	data->b = o;
 	data->x = operator_ref(op);
 
-	return operator_generic_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del);
+	return operator_generic_with_props_create2(N - 2, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), link_apply, link_del, link_set_opts, op_property_link_create(op->props, o, i));
 }
 
 
@@ -1509,6 +1608,15 @@ static void permute_fun(const operator_data_t* _data, unsigned int N, void* args
 		debug_printf(DP_DEBUG4, "permute apply: out arg[%d] = %p\n", i, ptr[i]);
 
 	operator_generic_apply_unchecked(data->op, N, ptr);
+}
+
+static void permute_set_opts(const operator_data_t* _data, const struct op_options_s* options)
+{
+	auto data = CAST_DOWN(permute_data_s, _data);
+
+	const struct op_options_s* topts = op_options_permute_create(options, op_options_get_N(options), data->perm);
+	operator_set_options(data->op, topts);
+	op_options_free(topts);
 }
 
 
@@ -1552,14 +1660,24 @@ const struct operator_s* operator_permute(const struct operator_s* op, int N, co
 	// op = operator_ref(op);
 	PTR_ALLOC(struct permute_data_s, data);
 	SET_TYPEID(permute_data_s, data);
-	data->op = operator_ref(op);
 
 	int* nperm = *TYPE_ALLOC(int[N]);
-	memcpy(nperm, perm, sizeof(int[N]));
 
+	auto opdata_test = CAST_MAYBE(permute_data_s, op->data);
+	if (NULL != opdata_test) {
+
+		data->op = operator_ref(opdata_test->op);
+		for (int i = 0; i < N; i++)
+			nperm[i] = opdata_test->perm[perm[i]];
+
+	} else {
+
+		data->op = operator_ref(op);
+		memcpy(nperm, perm, sizeof(int[N]));
+	}
 	data->perm = nperm;
 
-	return operator_generic_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del);
+	return operator_generic_with_props_create2(N, io_flags, D, dims, strs, CAST_UP(PTR_PASS(data)), permute_fun, permute_del, permute_set_opts, op_property_permute_create(op->props, N, perm, io_flags));
 }
 
 
@@ -2044,9 +2162,10 @@ const struct operator_s* operator_chainN(unsigned int N, const struct operator_s
 	c->x = *PTR_PASS(xp);
 	c->N = N;
 
-	return operator_create2(operator_codomain(x[N - 1])->N, operator_codomain(x[N - 1])->dims, operator_codomain(x[N - 1])->strs,
-				operator_domain(x[0])->N, operator_domain(x[0])->dims, operator_domain(x[0])->strs,
-				CAST_UP(PTR_PASS(c)), chain_apply, chain_free);
+	return operator_generic_with_props_create2(2, (bool[2]){true, false}, (unsigned int[2]){ operator_codomain(x[N - 1])->N, operator_domain(x[0])->N},
+						(const long*[2]){ operator_codomain(x[N - 1])->dims, operator_domain(x[0])->dims},
+						(const long*[2]){ operator_codomain(x[N - 1])->strs, operator_domain(x[0])->strs},
+						CAST_UP(PTR_PASS(c)), chain_apply, chain_free, NULL, NULL);
 }
 
 static const struct operator_chain_s* get_chain_data(const struct operator_s* chain_op)
