@@ -38,7 +38,6 @@
 #include "num/vecops.h"
 #include "num/optimize.h"
 #include "num/blas.h"
-#include "num/convcorr.h"
 #include "num/vecops_strided.h"
 
 #include "misc/misc.h"
@@ -1369,9 +1368,6 @@ void md_zmatmul(unsigned int D, const long out_dims[D], complex float* dst, cons
  */
 void md_zfmac2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
-	if (simple_zconvcorr(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
-		return;
-
 	if (simple_zfmac(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
 		return;
 
