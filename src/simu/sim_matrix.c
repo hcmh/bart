@@ -369,7 +369,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		data->tmp.rep_counter = 0;
 		data->pulse.phase = 0;
 
-		if (data->seq.seq_type == 1 || data->seq.seq_type == 5 || data->seq.seq_type == 7) {
+		if (data->seq.seq_type == 1 || data->seq.seq_type == 8  || data->seq.seq_type == 5 || data->seq.seq_type == 7) {
 
 		// 	apply_inversion(N, xp, data->seq.inversion_pulse_length, data);
 			xp[2] = -1;
