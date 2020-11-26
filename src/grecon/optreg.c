@@ -602,7 +602,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 			debug_printf(DP_INFO, "pixel-cnn based prior located at %s.\nlambda: %f\npercentage: %f\nsteps: %u\n", 
 						regs[nr].graph_file, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
-			struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file);
+			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file);
 			prox_ops[nr] = prox_logp_create(2, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
 			break;
 		}

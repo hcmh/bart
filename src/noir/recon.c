@@ -21,6 +21,8 @@
 #include "num/flpmath.h"
 #include "num/fft.h"
 
+#include "iter/iter.h"
+#include "iter/iter2.h"
 #include "iter/iter3.h"
 #include "iter/iter4.h"
 #include "iter/thresh.h"
@@ -34,16 +36,8 @@
 #include "noir/model.h"
 
 #include "nlops/nlop.h"
-#include "moba/iter_l1.h"
-#include "moba/recon_T1.h"
 
-#include "iter/lsqr.h"
-#include "iter/prox.h"
-#include "iter/admm.h"
-
-#include "moba/optreg.h"
-
-#include "grecon/optreg.h"
+#include "optreg.h"
 #include "grecon/italgo.h"
 
 #include "linops/linop.h"
@@ -51,6 +45,8 @@
 #include "linops/grad.h"
 
 #include "recon.h"
+#include "reg_recon.h"
+
 
 #define T1_MODEL 10
 
@@ -94,10 +90,11 @@ const struct noir_conf_s noir_defaults = {
 	.sms = false,
 	.cnstcoil_flags = 0u,
 	.img_space_coils = false,
-	.opt_reg = 2,
-	.algo = 3,
-        .rho = 0.01,
+	.algo = ALGO_FISTA,
+    .rho = 0.01,
 	.step = 0.9,
+	.tol = 0.001,
+	.shift_mode=1,
 };
 
 
@@ -188,7 +185,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 	struct opt_reg_s ropts = conf->ropts;
 
-	const struct operator_p_s* inv_op = NULL;
+	const struct operator_p_s* pinv_op = NULL;
 
 	long irgnm_conf_dims[DIMS];
 	md_select_dims(DIMS, mconf.fft_flags|MAPS_FLAG|TIME_FLAG, irgnm_conf_dims, dims);
@@ -196,49 +193,40 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf_dims[COIL_DIM] = dims[COIL_DIM];
 
 	debug_printf(DP_INFO, "imgs_dims:\n\t");
-	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
-
-	struct mdb_irgnm_l1_conf mdb_conf = { 
-			.c2 = &irgnm_conf, 
-			.opt_reg = 1, 
-			.step = conf->step, 
-			.lower_bound = -INFINITY,   
-			.algo = conf->algo, 
-			.rho = conf->rho, 
-			.ropts = &ropts, 
-			.wav_reg = 1.,
-			.auto_norm_off = true };
-
-	inv_op = T1inv_p_create(&mdb_conf, irgnm_conf_dims, nl.nlop);
+	debug_print_dims(DP_INFO, DIMS, imgs_dims);
 
 	// initialize prox functions
 
-        const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
+    const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_moba_configure(DIMS, dims, mdb_conf.ropts, thresh_ops, trafos, T1_MODEL);
+	opt_reg_nlinv_configure(DIMS, imgs_dims, &ropts, thresh_ops, trafos, conf->shift_mode);
+	iter4_fun_f* irgnm_ptr = &iter4_irgnm;// default sovler cg
+	struct irgnm_reg_conf reg_conf = {
+		.irgnm_conf = &irgnm_conf,
+		.ropts = &ropts,		
+		.algo = conf->algo,
+		.step = conf->step,
+		.rho = conf->rho,
+		.maxiter = conf->inner_iter,
+		.tol = conf->tol,
+		.shift_mode = conf->shift_mode,
+	};
 
-	struct iter_admm_conf conf1 = iter_admm_defaults;
-
-	conf1.maxiter = conf->inner_iter;
-	conf1.cg_eps = irgnm_conf.cgtol;
-	conf1.rho = conf->rho;
-	conf1.use_interface_alpha = true;
-		
-	// inv_op = lsqr2_create(&lsqr_defaults, iter2_admm, CAST_UP(&conf1), NULL, true, &nl.nlop->derivative[0][0],
-        //                  NULL, mdb_conf.ropts->r, thresh_ops, trafos, NULL);
-
-	// if (4 == conf->algo)
-	// 	conf->opt_reg = 1;
-
-	((2 == conf->opt_reg) ? iter4_irgnm : iter4_irgnm2)(CAST_UP(&irgnm_conf),
+	//  pinv_op for irgnm
+	if (ropts.r > 0){
+		irgnm_ptr = &iter4_irgnm2;
+		pinv_op = reg_pinv_op_create(&reg_conf, irgnm_conf_dims, nl.nlop, thresh_ops, trafos);
+	}
+	
+	(*irgnm_ptr)(CAST_UP(&irgnm_conf),
 			nl.nlop,
 			size * 2, (float*)x, (const float*)xref,
 			data_size * 2, (const float*)kspace_data,
-			((2 == conf->opt_reg) ? NULL : inv_op),
+			pinv_op,
 			(struct iter_op_s){ orthogonalize, CAST_UP(&nlw) });
 	
-	opt_reg_free(mdb_conf.ropts, thresh_ops, trafos);
+	opt_reg_nlinv_free(&ropts, thresh_ops, trafos);
 
 	md_copy(DIMS, imgs_dims, img, x, CFL_SIZE);
 	md_copy(DIMS, coil_dims, ksens, x + skip, CFL_SIZE);

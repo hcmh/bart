@@ -164,7 +164,7 @@ ISMRM_BASE ?= /usr/local/ismrmrd/
 TBASE=show slice crop resize join transpose squeeze flatten zeros ones flip circshift extract repmat bitmask reshape version delta copy casorati vec poly index linspace pad
 TFLP=scale invert conj fmac saxpy sdot spow cpyphs creal carg normalize cdf97 pattern nrmse mip avg cabs zexp
 TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavelet window var std fftrot
-TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobaT2star modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv dl_prior
+TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobaT2star modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans convkern nlsa eof
 TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon genLLbasis synthesize
 TIO=toimg dcmread dcmtag
@@ -228,7 +228,6 @@ MODULES_sim = -lsimu
 MODULES_rtnlinv = -lnoncart -lnoir -lnlops -liter -llinops
 MODULES_signal = -lsimu
 MODULES_pad = -lnum
-MODULES_dl_prior = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart -lnn -lnlops
 MODULES_eof = -lcalib
 
 

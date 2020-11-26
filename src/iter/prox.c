@@ -341,7 +341,7 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 	complex float* tmp_slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
 
 	float scalor = calculate_max(pdata->N, pdata->dims, src);
-	debug_printf(DP_INFO, "\tScalor: %f\n", scalor);
+	
 	scalor = scalor + 1e-06;
 	md_zsmul(pdata->N, pdata->dims, src, src, 1. / scalor);
 
@@ -357,11 +357,11 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 		}
 	}
 	
-	md_transpose(DIMS, 1, 0, slice_dims, slices, slice_dims, tmp_slices, CFL_SIZE);
+	md_transpose(pdata->N, 1, 0, slice_dims, slices, slice_dims, tmp_slices, CFL_SIZE);
 	
 	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
 	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
-	debug_printf(DP_INFO, "\tLog P : %f\n", creal(*out));
+	debug_printf(DP_INFO, "\tLog P: %f\tScalor: %f\tStep size: %f\n", creal(*out), scalor, pdata->lambda*step_size);
 
 	//copy slices to feed tensor
 	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
@@ -403,7 +403,6 @@ static void prox_logp_apply(const operator_data_t* data, float lambda, complex f
 {
 	auto pdata = CAST_DOWN(prox_logp_data, data);
 	
-	debug_print_dims(DP_INFO, 2, pdata->dims);
 	complex float* tmp = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
 	md_copy(pdata->N, pdata->dims, tmp, src, CFL_SIZE);
 

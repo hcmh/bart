@@ -10,7 +10,7 @@
 
 struct operator_p_s;
 struct linop_s;
-
+struct nlop_s;
 
 extern const struct operator_p_s* prox_normaleq_create(const struct linop_s* op, const _Complex float* y);
 extern const struct operator_p_s* prox_leastsquares_create(unsigned int N, const long dims[__VLA(N)], float lambda, const _Complex float* y);
@@ -23,8 +23,7 @@ extern const struct operator_p_s* prox_greq_create(unsigned int N, const long di
 extern const struct operator_p_s* prox_rvc_create(unsigned int N, const long dims[__VLA(N)]);
 extern const struct operator_p_s* prox_nonneg_create(unsigned int N, const long dims[__VLA(N)]);
 extern const struct operator_p_s* prox_zsmax_create(unsigned int N, const long dims[__VLA(N)], float a);
-extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], struct nlop_s * tf_ops, float lambda, float p, unsigned int steps);
-struct operator_p_s;
+extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float lambda, float p, unsigned int steps);
 extern const struct operator_p_s* op_p_auto_normalize(const struct operator_p_s*, long flags);
 
 #include "misc/cppwrap.h"

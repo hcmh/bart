@@ -45,13 +45,11 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
+#include "noir/optreg.h"
 #include "noir/recon.h"
 #include "noir/misc.h"
 
-#include "moba/optreg.h"
-
 #include "iter/iter2.h"
-#include "grecon/optreg.h"
 #include "grecon/italgo.h"
 
 
@@ -80,16 +78,17 @@ int main_nlinv(int argc, char* argv[])
 	bool use_gpu = false;
 	float scaling = -1.;
 	float scaling_psf = 1.;
+	bool randshift = true;
 
-	opt_reg_init(&conf.ropts);
+	opt_reg_nlinv_init(&conf.ropts);
 
 	const struct opt_s opts[] = {
-
+		{ 'l', NULL, true, opt_reg_nlinv, &conf.ropts, "1/-l2\t\ttoggle l1-wavelet or l2 regularization." },
+		OPT_FLOAT('e', &conf.ropts.lambda, "lambda", "regularization parameter"),
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
-		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
-		OPT_UINT('l', &conf.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
-		{ 'r', NULL, true, opt_reg_moba, &conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
-                OPT_FLOAT('u', &conf.rho, "rho", "ADMM rho"),
+		OPT_FLOAT('r', &conf.redu, "", "(reduction factor)"),
+		{ 'R', NULL, true, opt_reg_nlinv, &conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-Rh for help)" },
+        OPT_FLOAT('u', &conf.rho, "rho", "ADMM rho"),
 		OPT_FLOAT('M', &conf.alpha_min, "", "(minimum for regularization)"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
@@ -109,6 +108,9 @@ int main_nlinv(int argc, char* argv[])
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPTL_SET('n', "noncart", &conf.noncart, "(non-Cartesian)"),
 		OPT_FLOAT('w', &scaling, "val", "inverse scaling of the data"),
+		OPT_SELECT('A', enum algo_t, &conf.algo, ALGO_ADMM, "select ADMM"),
+		OPT_FLOAT('y', &scaling_psf, "psf scalor", "psf scalor"),
+		OPT_CLEAR('z', &randshift, "disable random wavelet cycle spinning"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -116,8 +118,9 @@ int main_nlinv(int argc, char* argv[])
 	if (4 == argc)
 		out_sens = true;
 
-	if (conf.ropts.r > 0)
-		conf.algo = ALGO_ADMM;
+	if (!randshift)
+		conf.shift_mode = 0;
+		
 
 	(use_gpu ? num_init_gpu_memopt : num_init)();
 
@@ -323,9 +326,15 @@ int main_nlinv(int argc, char* argv[])
 #else
 		scaling = 100. / md_znorm(DIMS, kgrid_dims, kgrid);
 
-		if (1 == conf.opt_reg)
-			scaling_psf = 10. / md_znorm(DIMS, psf_dims, psf);
+		if (conf.ropts.r > 0){
 
+			ifft(DIMS, psf_dims, FFT_FLAGS, psf, psf);
+			double scaling_P = 1. / md_znorm(DIMS, psf_dims, psf)/scaling_psf;
+			md_zsmul(DIMS, psf_dims, psf, psf, scaling_P);
+			
+			fft(DIMS, psf_dims, FFT_FLAGS, psf, psf);
+			
+		}
 
 		if (conf.sms)
 			scaling *= sqrt(kgrid_dims[SLICE_DIM]);
@@ -335,8 +344,7 @@ int main_nlinv(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
 
-	md_zsmul(DIMS, kgrid_dims, kgrid, kgrid, scaling);
-	md_zsmul(DIMS, psf_dims, psf, psf, scaling_psf);
+	md_zsmul(DIMS, kgrid_dims, kgrid, kgrid, scaling);	
 
 
 	if (-1. == restrict_fov) {
