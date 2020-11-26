@@ -12,6 +12,9 @@
 
 extern struct linop_s* linop_cdiag_create(unsigned int N, const long dims[__VLA(N)], unsigned int flags, const _Complex float* diag);
 extern struct linop_s* linop_rdiag_create(unsigned int N, const long dims[__VLA(N)], unsigned int flags, const _Complex float* diag);
+extern struct linop_s* linop_scale_create(unsigned int N, const long dims[N], const _Complex float scale);
+extern struct linop_s* linop_zconj_create(unsigned int N, const long dims[N]);
+extern struct linop_s* linop_zreal_create(unsigned int N, const long dims[N]);
 
 extern struct linop_s* linop_identity_create(unsigned int N, const long dims[__VLA(N)]);
 
@@ -20,6 +23,7 @@ extern struct linop_s* linop_resize_center_create(unsigned int N, const long out
 extern struct linop_s* linop_expand_create(unsigned int N, const long out_dims[__VLA(N)], const long in_dims[__VLA(N)]);
 extern struct linop_s* linop_reshape_create(unsigned int A, const long out_dims[__VLA(A)], int B, const long in_dims[__VLA(B)]);
 extern struct linop_s* linop_extract_create(unsigned int N, const long pos[N], const long out_dims[N], const long in_dims[N]);
+extern struct linop_s* linop_permute_create(unsigned int N, const unsigned int order[__VLA(N)], const long idims[N]);
 extern struct linop_s* linop_transpose_create(int N, int a, int b, const long dims[N]);
 
 
@@ -30,6 +34,13 @@ extern struct linop_s* linop_ifftc_create(int N, const long dims[__VLA(N)], unsi
 extern struct linop_s* linop_fft_create_measure(int N, const long dims[__VLA(N)], unsigned int flags);
 
 extern struct linop_s* linop_cdf97_create(int N, const long dims[__VLA(N)], unsigned int flag);
+
+#ifndef __PADD_ENUMS
+#define __PADD_ENUMS
+enum PADDING {PAD_VALID, PAD_SAME, PAD_CYCLIC, PAD_SYMMETRIC, PAD_REFLECT, PAD_CAUSAL};
+#endif
+extern struct linop_s* linop_padding_create_onedim(unsigned int N, const long dims[N], enum PADDING pad_type, unsigned int pad_dim, long pad_for, long pad_after);
+extern struct linop_s* linop_padding_create(unsigned int N, const long dims[N], enum PADDING pad_type, long pad_for[N], long pad_after[N]);
 
 #ifndef __CONV_ENUMS
 #define __CONV_ENUMS
@@ -48,4 +59,3 @@ extern struct linop_s* linop_matrix_chain(const struct linop_s* a, const struct 
 
 #include "misc/cppwrap.h"
 #endif // __SOMEOPS_H
-
