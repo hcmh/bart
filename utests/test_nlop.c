@@ -1216,8 +1216,8 @@ static bool test_nlop_checkpointing(void)
 	auto nlop = get_test_nlop(N, dims);
 	auto nlop_cp = nlop_checkpoint_create_F(get_test_nlop(N, dims), true, true);
 
-	unsigned int OO = 2;
-	unsigned int II = 5;
+	int OO = 2;
+	int II = 5;
 
 	void* args[OO + II];
 	void* args_cp[OO + II];
