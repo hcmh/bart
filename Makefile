@@ -28,6 +28,7 @@ BLAS_THREADSAFE?=0
 OPENBLAS?=0
 MKL?=0
 CUDA?=0
+CUDNN?=0
 ACML?=0
 OMP?=1
 SLINK?=0
@@ -148,6 +149,7 @@ endif
 # cuda
 
 CUDA_BASE ?= /usr/
+CUDNN_BASE ?= $(CUDA_BASE)
 
 
 # acml
@@ -325,10 +327,18 @@ NVCC = $(CUDA_BASE)/bin/nvcc
 ifeq ($(CUDA),1)
 CUDA_H := -I$(CUDA_BASE)/include
 CPPFLAGS += -DUSE_CUDA $(CUDA_H)
+ifeq ($(CUDNN),1)
+CUDNN_H := -I$(CUDNN_BASE)/include
+CPPFLAGS += -DUSE_CUDNN $(CUDNN_H)
+endif
 ifeq ($(BUILDTYPE), MacOSX)
 CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -m64 -lstdc++
 else
+ifeq ($(CUDNN),1)
+CUDA_L := -L$(CUDA_BASE)/lib -L$(CUDNN_BASE)/lib64 -lcudnn -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib
+else
 CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib
+endif
 endif
 else
 CUDA_H :=
@@ -770,4 +780,3 @@ install: bart $(root)/doc/commands.txt
 # symbol table
 bart.syms: bart
 	rules/make_symbol_table.sh bart bart.syms
-
