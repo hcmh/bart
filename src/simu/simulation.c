@@ -351,7 +351,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 			if (   (0 == data->seq.seq_type)
 			    || (1 == data->seq.seq_type)
 			    || (3 == data->seq.seq_type)
-			    || (6 == data->seq.seq_type)
+			    || (6 == data->seq.seq_type) ) {
 
 				struct sim_data prep_data = *data;
 
