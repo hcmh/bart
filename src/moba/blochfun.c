@@ -315,13 +315,6 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 				for (int i = 0, j = 0; j < (sim_data.seq.rep_num - rm_first_echo) / sim_data.seq.num_average_rep; j++) {
 
-					// 1.2 deg is threshold to keep 601 data points
-					// ->	see: J. Asslaender et al.
-					//		Hybrid-State Free Precession in Nuclear Magnetic Resonance
-					//		arXiv:1807.03424
-					if (NULL != data->input_fa_profile)
-						if (cabsf(var_fa_cpu[j]) <= 1.2)
-							continue;
 
 					assert(i <= data->out_dims[TE_DIM]);
 

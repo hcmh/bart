@@ -110,6 +110,8 @@ int main_sim(int argc, char* argv[])
 	float T1[3] = { 0.5, 4., 10 };
 	float T2[3] = {  0.05,  0.5, 10 };
 
+	const char* input_variable_theta = NULL;
+
 	// initalize values for simulation
 	struct sim_data sim_data;
 	sim_data.seq = simdata_seq_defaults;
@@ -121,9 +123,10 @@ int main_sim(int argc, char* argv[])
 
 	const struct opt_s opts[] = {
 
-		OPT_SET('o', &ode, "ODE based simulation [Default: OBS]"),
-		OPT_FLVEC3('1', &T1, "min:max:N", "range of T1s"),
-		OPT_FLVEC3('2', &T2, "min:max:N", "range of T2s"),
+		OPT_SET('o', 	&ode, 		"ODE based simulation [Default: OBS]"),
+		OPT_FLVEC3('1', &T1, 		"min:max:N", "range of T1s"),
+		OPT_FLVEC3('2', &T2, 		"min:max:N", "range of T2s"),
+		OPT_STRING('F',	&input_variable_theta, 	"", "Input for variable flipangle profile"),
 		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw> (-Ph for help)" },
 	};
 
@@ -173,6 +176,29 @@ int main_sim(int argc, char* argv[])
 		}
 
 		sim_to_signal_struct(&parm, &sim_data);
+	}
+
+	// Import variable flipangle file if provided
+	complex float* input_theta = NULL;
+	complex float* input_vfa = NULL;
+
+	long input_vfa_dims[DIMS];
+
+	if (NULL != input_variable_theta) {
+
+		input_theta = load_cfl(input_variable_theta, DIMS, input_vfa_dims);
+
+		input_vfa = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
+
+		debug_printf(DP_DEBUG2, "Number of variable flip angles: %d\n", input_vfa_dims[READ_DIM]);
+
+		// Conversion from polar coordinates to flipangle
+		for (int i = 0; i < input_vfa_dims[READ_DIM]; i++)
+			input_vfa[i] = 180 / M_PI * ((0 == i) ?  input_theta[i] : (input_theta[i] + input_theta[i-1]));
+
+		sim_data.seq.variable_fa = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
+
+		md_copy(DIMS, input_vfa_dims, sim_data.seq.variable_fa, input_vfa, CFL_SIZE);
 	}
 
 

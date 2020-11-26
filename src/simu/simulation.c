@@ -351,16 +351,11 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 			if (   (0 == data->seq.seq_type)
 			    || (1 == data->seq.seq_type)
 			    || (3 == data->seq.seq_type)
-			    || (   (4 == data->seq.seq_type)
-			        && (0 == data->tmp.run_counter))
-			    || (6 == data->seq.seq_type)) {
+			    || (6 == data->seq.seq_type)
 
 				struct sim_data prep_data = *data;
 
-				if (4 == data->seq.seq_type)
-					prep_data.pulse.flipangle = cabsf(data->seq.variable_fa[data->tmp.rep_counter]) / 2. * slice_factor;
-				else
-					prep_data.pulse.flipangle = data->pulse.flipangle / 2.;
+				prep_data.pulse.flipangle = data->pulse.flipangle / 2.;
 
 				prep_data.pulse.phase = M_PI;
 				prep_data.seq.te = data->seq.prep_pulse_length;

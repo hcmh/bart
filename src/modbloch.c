@@ -309,18 +309,26 @@ int main_modbloch(int argc, char* argv[])
 
 	// Load passed variable flip angle file
 
+	complex float* input_theta = NULL;
 	complex float* input_vfa = NULL;
 
 	long input_vfa_dims[DIMS];
 
 	if (NULL != inputVFA) {
 
-		input_vfa = load_cfl(inputVFA, DIMS, input_vfa_dims);
+		input_theta = load_cfl(inputVFA, DIMS, input_vfa_dims);
 
 		fit_para.num_vfa = input_vfa_dims[READ_DIM];
-		debug_printf(DP_DEBUG3, "Number of variable flip angles: %d\n", fit_para.num_vfa);
+
+		input_vfa = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
+
+		debug_printf(DP_DEBUG2, "Number of variable flip angles: %d\n", fit_para.num_vfa);
+
+		for (int i = 0; i < input_vfa_dims[READ_DIM]; i++)
+			input_vfa[i] = 180 / M_PI * ((0 == i) ?  input_theta[i] : (input_theta[i] + input_theta[i-1]));
 
 		fit_para.input_fa_profile = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
+
 		md_copy(DIMS, input_vfa_dims, fit_para.input_fa_profile, input_vfa, CFL_SIZE);
 	}
 

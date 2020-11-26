@@ -52,6 +52,9 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[4], const long k
 
 	float lim_T1[2] = {0.3, 4.};
 	float lim_T2[2] = {0.01, 1.5};
+
+	if (4 == fit_para->sequence)
+		assert(fit_para->num_vfa > dims[TE_DIM] * fit_para->averaged_spokes);
 	
 	#pragma omp parallel for collapse(2)
 	for (int x = 0; x < dims[0]; x++) {
@@ -64,11 +67,8 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[4], const long k
 			sim_data.seq.seq_type = fit_para->sequence;
 			sim_data.seq.tr = fit_para->tr;
 			sim_data.seq.te = fit_para->te;
-			
-			if (4 == sim_data.seq.seq_type)
-				sim_data.seq.rep_num = fit_para->num_vfa;
-			else
-				sim_data.seq.rep_num = dims[TE_DIM] * fit_para->averaged_spokes;
+
+			sim_data.seq.rep_num = dims[TE_DIM] * fit_para->averaged_spokes;
 			
 			sim_data.seq.spin_num = 1;
 			sim_data.seq.num_average_rep = fit_para->averaged_spokes;
