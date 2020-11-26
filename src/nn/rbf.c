@@ -64,7 +64,6 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	//dst_ik = sum_j w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
 	//data->dz_ik = sum_j (mu_j - z_ik)/sigma^2 * w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
 
-	START_TIMER;
 
 	assert(3 == N);
 	const auto data = CAST_DOWN(rbf_s, _data);
@@ -131,7 +130,6 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	md_zcmpl_real(data->zdom->N, data->zdom->dims,zdst, real_dst);
 	md_free(real_dst);
 
-	PRINT_TIMER("frw rbf");
 }
 
 static void rbf_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -141,7 +139,6 @@ static void rbf_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 
 
 	//dst_ik = sum_j src_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
-	START_TIMER;
 	const auto data = CAST_DOWN(rbf_s, _data);
 
 	long Nw = data->dom->dims[2];
@@ -182,7 +179,6 @@ static void rbf_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	md_free(real_dst);
 	md_free(real_src);
 
-	PRINT_TIMER("frw rbf");
 
 }
 
@@ -192,7 +188,6 @@ static void rbf_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(i);
 
 	//dst_ij = sum_k src_ik * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
-	START_TIMER;
 	const auto data = CAST_DOWN(rbf_s, _data);
 
 	long Nw = data->dom->dims[2];
@@ -225,7 +220,6 @@ static void rbf_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	md_zcmpl_real(data->wdom->N, data->wdom->dims, dst, real_dst);
 	md_free(real_dst);
 
-	PRINT_TIMER("adj2 rbf");
 }
 
 static void rbf_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -248,7 +242,6 @@ static void rbf_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 	const auto data = CAST_DOWN(rbf_s, _data);
 
 	complex float* tmp = md_alloc_sameplace(data->N, data->zdom->dims, CFL_SIZE, dst);
@@ -257,7 +250,6 @@ static void rbf_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	md_zrmul(data->N, data->zdom->dims, dst, src, tmp);
 
 	md_free(tmp);
-	PRINT_TIMER("adj1 rbf");
 }
 
 static void rbf_del(const nlop_data_t* _data)

@@ -47,8 +47,7 @@ DEF_TYPEID(zaxpbz_s);
 
 static void zaxpbz_fun(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-	START_TIMER;
-	const auto data = CAST_DOWN(zaxpbz_s, _data);
+		const auto data = CAST_DOWN(zaxpbz_s, _data);
 	assert(3 == N);
 
 	complex float* dst = args[0];
@@ -62,27 +61,23 @@ static void zaxpbz_fun(const operator_data_t* _data, unsigned int N, void* args[
 	if ((1. == data->scale1) && (1. == data->scale2)) {
 
 		md_zadd(data->N, data->dims, dst, src1, src2);
-		PRINT_TIMER("frw zaxpbz");
-		return;
+			return;
 	}
 
 	if ((1. == data->scale1) && (-1. == data->scale2)) {
 
 		md_zsub(data->N, data->dims, dst, src1, src2);
-		PRINT_TIMER("frw zaxpbz");
-		return;
+			return;
 	}
 
 	if ((-1. == data->scale1) && (1. == data->scale2)) {
 
 		md_zsub(data->N, data->dims, dst, src2, src1);
-		PRINT_TIMER("frw zaxpbz");
-		return;
+			return;
 	}
 
 	md_zsmul(data->N, data->dims, dst, src1, data->scale1);
 	md_zaxpy(data->N, data->dims, dst, data->scale2, src2);
-	PRINT_TIMER("frw zaxpbz");
 }
 
 static void zaxpbz_del(const operator_data_t* _data)
@@ -145,7 +140,6 @@ DEF_TYPEID(smo_abs_s);
 
 static void smo_abs_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(smo_abs_s, _data);
 
 	long rdims[data->N + 1];
@@ -161,7 +155,6 @@ static void smo_abs_fun(const nlop_data_t* _data, complex float* dst, const comp
 	md_sqrt(data->N+1, rdims, (float*)dst, (float*)dst);
 	md_zdiv(data->N, data->dims, data->tmp, src, dst);
 
-	PRINT_TIMER("frw smoabs");
 }
 
 
@@ -182,7 +175,6 @@ static void smo_abs_adj(const nlop_data_t* _data, unsigned int o, unsigned int i
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 
 	const struct smo_abs_s* data = CAST_DOWN(smo_abs_s, _data);
 	assert(NULL != data->tmp);
@@ -190,7 +182,6 @@ static void smo_abs_adj(const nlop_data_t* _data, unsigned int o, unsigned int i
 	md_zreal(data->N, data->dims, dst, src);
 	md_zmul(data->N, data->dims, dst, dst, data->tmp);
 
-	PRINT_TIMER("adj smoabs");
 }
 
 static void smo_abs_del(const nlop_data_t* _data)

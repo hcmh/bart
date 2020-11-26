@@ -44,7 +44,6 @@ DEF_TYPEID(mse_s);
 
 static void mse_fun(const nlop_data_t* _data, int D, complex float* args[D])
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(mse_s, _data);
 	assert(3 == D);
 
@@ -64,7 +63,6 @@ static void mse_fun(const nlop_data_t* _data, int D, complex float* args[D])
 	complex float scale = 1. / data->scaling;
 	result = result * scale;
 	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
-	PRINT_TIMER("frw mse");
 }
 
 
@@ -101,7 +99,6 @@ static void mse_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
@@ -109,7 +106,6 @@ static void mse_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	md_copy(1, MAKE_ARRAY(1l), &in, src, FL_SIZE);
 	in *= 2. / data->scaling;
 	md_smul(data->N, data->rdims, (float*)dst, data->tmp, in);
-	PRINT_TIMER("adj1 mse");
 }
 
 static void mse_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -117,7 +113,6 @@ static void mse_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 	const struct mse_s* data = CAST_DOWN(mse_s, _data);
 	assert(NULL != data->tmp);
 
@@ -125,7 +120,6 @@ static void mse_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	md_copy(1, MAKE_ARRAY(1l), &in, src, FL_SIZE);
 	in *= -2. / data->scaling;
 	md_smul(data->N, data->rdims, (float*)dst, data->tmp, in);
-	PRINT_TIMER("adj2 mse");
 }
 
 static void mse_del(const nlop_data_t* _data)
@@ -187,7 +181,6 @@ static void cce_initialize(struct cce_s* data, const complex float* arg)
 
 static void cce_fun(const nlop_data_t* _data, int D, complex float* args[D])
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(cce_s, _data);
 	assert(3 == D);
 
@@ -207,7 +200,6 @@ static void cce_fun(const nlop_data_t* _data, int D, complex float* args[D])
 	long odims[1];
 	md_singleton_dims(1, odims);
 	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
-	PRINT_TIMER("loss cce");
 }
 
 
@@ -340,7 +332,6 @@ static void frequency_compensation_initialize(struct frequency_compensation_s* d
 
 static void frequency_compensation_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(frequency_compensation_s, _data);
 
 #ifdef USE_CUDA
@@ -353,7 +344,6 @@ static void frequency_compensation_fun(const nlop_data_t* _data, complex float* 
 	md_zsmul(data->N, data->sum_dom->dims, data->sum, data->sum, 1. / md_calc_size(data->N, data->sum_dom->dims));
 	md_zdiv2(data->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->sum_dom->strs, data->sum);
 
-	PRINT_TIMER("loss frequency_compensation");
 }
 
 

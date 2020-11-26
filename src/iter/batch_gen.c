@@ -36,7 +36,6 @@ DEF_TYPEID(batch_gen_rand_s);
 
 static void batch_gen_rand_fun(const struct nlop_data_s* _data, int N, complex float* args[N])
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(batch_gen_rand_s, _data);
 
 	long indices[data->Nb];
@@ -62,7 +61,6 @@ static void batch_gen_rand_fun(const struct nlop_data_s* _data, int N, complex f
 			md_copy(data->N - 1, data->dims[j], args[j] + offset_dst, (complex float*)data->data[j] + offset_src, CFL_SIZE);
 		}
 	}
-	PRINT_TIMER("frw batchgen rand");
 }
 
 static void batch_gen_rand_del(const nlop_data_t* _data)
@@ -228,7 +226,6 @@ DEF_TYPEID(batch_gen_data_s);
 
 static void batch_gen_fun(const struct nlop_data_s* _data, int N, complex float* args[N])
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(batch_gen_data_s, _data);
 
 	assert(data->D == N);
@@ -258,7 +255,6 @@ static void batch_gen_fun(const struct nlop_data_s* _data, int N, complex float*
 	}
 
 	data->start = (start + data->Nb);
-	PRINT_TIMER("frw batchgen");
 }
 
 static void batch_gen_del(const nlop_data_t* _data)

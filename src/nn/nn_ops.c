@@ -48,7 +48,6 @@ DEF_TYPEID(maxpool_s);
 
 static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(maxpool_s, _data);
 
 	unsigned long N = data->N;
@@ -75,7 +74,6 @@ static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const comp
 	md_zgreatequal2(2, tdims, tstrs, data->pool, tstrs, tmp, tstrs0, dst);
 
 	md_free(tmp);
-	PRINT_TIMER("mpools");
 }
 
 static void maxpool_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -103,7 +101,6 @@ static void maxpool_adj(const nlop_data_t* _data, unsigned int o, unsigned int i
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 	const auto data = CAST_DOWN(maxpool_s, _data);
 
 	long N = data->N;
@@ -117,7 +114,6 @@ static void maxpool_adj(const nlop_data_t* _data, unsigned int o, unsigned int i
 	md_copy2(2 * N, data->pool_dims, data->pool_strs, dst, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, CFL_SIZE);
 
 	md_free(tmp);
-	PRINT_TIMER("mpool adjs");
 }
 
 static void maxpool_del(const struct nlop_data_s* _data)
@@ -196,7 +192,6 @@ DEF_TYPEID(dropout_s);
 
 static void dropout_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(dropout_s, _data);
 
 	if (NULL == data->tmp)
@@ -210,7 +205,6 @@ static void dropout_fun(const nlop_data_t* _data, complex float* dst, const comp
 	md_rand_one(data->N, data->tmpdom->dims, data->tmp, (1. - data->p));
 
 	md_ztenmul2(data->N, data->codom->dims, data->codom->strs, dst, data->tmpdom->strs, data->tmp, data->dom->strs, src);
-	PRINT_TIMER("douts");
 }
 
 static void dropout_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -227,12 +221,10 @@ static void dropout_adj(const nlop_data_t* _data, unsigned int o, unsigned int i
 {
 	UNUSED(o);
 	UNUSED(i);
-	START_TIMER;
 	const auto data = CAST_DOWN(dropout_s, _data);
 	assert(NULL != data->tmp);
 
 	md_ztenmul2(data->N, data->dom->dims, data->dom->strs, dst, data->tmpdom->strs, data->tmp, data->codom->strs, src);
-	PRINT_TIMER("dout adjs");
 }
 
 
@@ -285,7 +277,6 @@ DEF_TYPEID(avgpool_s);
 
 static void avgpool_fun(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(avgpool_s, _data);
 
 	unsigned long N = data->N;
@@ -302,7 +293,6 @@ static void avgpool_fun(const linop_data_t* _data, complex float* dst, const com
 	md_zsmul(1, tdims, dst, dst, 1. / tdims[1]); //divide by pool dim to gain average
 
 	md_free(tmp);
-	PRINT_TIMER("mpools");
 }
 
 /**
@@ -311,7 +301,6 @@ static void avgpool_fun(const linop_data_t* _data, complex float* dst, const com
  */
 static void avgpool_adj(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(avgpool_s, _data);
 	long N = data->N;
 
@@ -333,7 +322,6 @@ static void avgpool_adj(const linop_data_t* _data, complex float* dst, const com
 	md_free(ones);
 	md_free(tmp_adj);
 	md_free(tmp);
-	PRINT_TIMER("mpool adjs");
 }
 
 static void avgpool_del(const struct linop_data_s* _data)
@@ -433,13 +421,11 @@ static void zmax_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 	const auto data = CAST_DOWN(zmax_s, _data);
 
 	//md_ztenmul(data->N, data->dims, dst, data->outdims, src, data->dims, data->pool); //alternative
 	md_zmul2(data->N, data->dims, data->strides, dst, data->outstrides, src, data->strides, data->pool);
 
-	PRINT_TIMER("zmax adjs");
 }
 
 static void zmax_del(const struct nlop_data_s* _data)
@@ -503,23 +489,19 @@ DEF_TYPEID(pool_s);
 
 static void pool_fun(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(pool_s, _data);
 
 	md_copy2(data->N, data->pool_dims, MD_STRIDES(data->N, data->pool_dims, CFL_SIZE), dst, data->pool_strs, src, CFL_SIZE);
 
-	PRINT_TIMER("pools");
 }
 
 static void pool_adj(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(pool_s, _data);
 
 	md_clear(data->N, data->dims, dst, CFL_SIZE);
 	md_copy2(data->N, data->pool_dims, data->pool_strs, dst, MD_STRIDES(data->N, data->pool_dims, CFL_SIZE), src, CFL_SIZE);
 
-	PRINT_TIMER("pool adjs");
 }
 
 static void pool_del(const struct linop_data_s* _data)

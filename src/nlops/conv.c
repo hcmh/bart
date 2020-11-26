@@ -96,7 +96,6 @@ static void convcorr_geom_set_opts(const nlop_data_t* _data, const struct op_opt
 
 static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
-	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 	assert(3 == N);
@@ -123,7 +122,6 @@ static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* ar
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
 	md_zfmac2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs1, src1, data->istrs2, src2 + data->shift);
 
-	PRINT_TIMER("frw convgeo");
 }
 
 
@@ -132,7 +130,6 @@ static void convcorr_geom_der2(const nlop_data_t* _data, unsigned int o, unsigne
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
@@ -142,7 +139,6 @@ static void convcorr_geom_der2(const nlop_data_t* _data, unsigned int o, unsigne
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
 	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs2, src + data->shift, data->istrs1, data->src1);
 
-	PRINT_TIMER("der2 convgeo");
 }
 
 static void convcorr_geom_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -150,7 +146,6 @@ static void convcorr_geom_adj2(const nlop_data_t* _data, unsigned int o, unsigne
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
@@ -160,7 +155,6 @@ static void convcorr_geom_adj2(const nlop_data_t* _data, unsigned int o, unsigne
 	md_clear(data->N, data->idims2, dst, CFL_SIZE);
 	md_zfmac2(2 * data->N, data->mdims, data->istrs2, dst + data->shift, data->ostrs, src, data->istrs1, data->src1);
 
-	PRINT_TIMER("adj2 convgeo");
 }
 
 static void convcorr_geom_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -168,7 +162,6 @@ static void convcorr_geom_der1(const nlop_data_t* _data, unsigned int o, unsigne
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
@@ -178,7 +171,6 @@ static void convcorr_geom_der1(const nlop_data_t* _data, unsigned int o, unsigne
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
 	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs1, src, data->istrs2, data->src2 + data->shift);
 
-	PRINT_TIMER("der1 convgeo");
 }
 
 static void convcorr_geom_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -186,7 +178,6 @@ static void convcorr_geom_adj1(const nlop_data_t* _data, unsigned int o, unsigne
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
@@ -196,7 +187,6 @@ static void convcorr_geom_adj1(const nlop_data_t* _data, unsigned int o, unsigne
 	md_clear(data->N, data->idims1, dst, CFL_SIZE);
 	md_zfmac2(2 * data->N, data->mdims, data->istrs1, dst, data->ostrs, src, data->istrs2, data->src2 + data->shift);
 
-	PRINT_TIMER("adj1 convgeo");
 }
 
 
