@@ -114,7 +114,22 @@ struct nlop_s* nlop_set_input_const2(const struct nlop_s* a, int i, int N, const
 	int ai = nlop_get_nr_in_args(a);
 	assert(i < ai);
 
-	struct nlop_s* nlop_const = nlop_const_create2(N, dims, strs, copy, in);
+	auto iov = nlop_generic_domain(a, i);
+	int N_min = (N < (int)(iov->N)) ? N : (int)(iov->N);
+	int N_max = (N > (int)(iov->N)) ? N : (int)(iov->N);
+	long ndims[N_max];
+	long nstrs[N_max];
+	md_singleton_dims(N_max, ndims);
+	md_singleton_strides(N_max, nstrs);
+	md_copy_dims(N_min, ndims, dims);
+	md_copy_strides(N_min, nstrs, strs);
+
+	for (uint i = N_min; i < iov->N; i++)
+		assert(1 == iov->dims[i]);
+	for (int i = N_min; i < N; i++)
+		assert(1 == dims[i]);
+
+	struct nlop_s* nlop_const = nlop_const_create2(iov->N, ndims, nstrs, copy, in);
 	struct nlop_s* result = nlop_chain2(nlop_const, 0,  a,  i);
 	nlop_free(nlop_const);
 
