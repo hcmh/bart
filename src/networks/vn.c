@@ -103,6 +103,8 @@ const struct vn_s vn_default = {
 	.init_tickhonov = false,
 	.lambda_fixed_tickhonov = -1.,
 	.lambda_init_tickhonov = 0.1,
+
+	.low_mem = false,
 };
 
 
@@ -181,7 +183,7 @@ static nn_t nn_ru_create(const struct vn_s* vn, const long udims[5])
 
 	nn_debug(DP_DEBUG3, nn_result);
 
-	return nn_result;
+	return nn_checkpoint_F(nn_result, true, vn->low_mem);
 }
 
 /**

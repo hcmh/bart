@@ -94,6 +94,8 @@ int main_nnvn(int argc, char* argv[])
 
 		const struct opt_json_s opts_json[] = {
 
+			JSON_BOOL(JSON_LABEL("general", "low_mem"), &(vn_config.low_mem), false,  ""),
+
 			JSON_BOOL(JSON_LABEL("data", "normalize"), &(vn_config.normalize), false,  ""),
 
 			JSON_LONG(JSON_LABEL("network", "iterations"), &(vn_config.Nl), true,  ""),

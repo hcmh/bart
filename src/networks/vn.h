@@ -24,6 +24,8 @@ struct vn_s {
 	_Bool init_tickhonov;
 	float lambda_fixed_tickhonov;
 	float lambda_init_tickhonov;
+
+	_Bool low_mem;
 };
 
 extern const struct vn_s vn_default;
