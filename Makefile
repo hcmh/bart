@@ -529,7 +529,7 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 
 endef
 
-ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom nn
 ifeq ($(ISMRMRD),1)
 ALIBS += ismrm
 endif
@@ -590,8 +590,10 @@ UTARGETS += test_iter test_prox
 MODULES_test_iter += -liter -lnlops -llinops
 MODULES_test_prox += -liter -llinops
 
-
-
+# lib nn
+UTARGETS += test_nn_ops test_nn
+MODULES_test_nn_ops += -lnn -lnlops -llinops -liter
+MODULES_test_nn += -lnn -lnlops -llinops -liter
 
 
 
