@@ -311,8 +311,9 @@ static bool simple_zconvcorr_fwd(	unsigned int N, const long dims[N],
 						kdims, MD_STRIDES(N, kdims, size), krn,
 						flags, NULL, NULL, conv))
 				return true;
-#endif
 
+	if(!cuda_ondevice(out))
+#endif
 	for(int i = 0; (unsigned long)i < sizeof(algos_fwd_cpu) / sizeof(algos_fwd_cpu[0]); i++)
 		if (algos_fwd_cpu[i](	N,
 					odims, MD_STRIDES(N, odims, size), out,
@@ -394,8 +395,9 @@ static bool simple_zconvcorr_bwd_in(	unsigned int N, const long dims[N],
 						kdims, MD_STRIDES(N, kdims, size), krn,
 						flags, NULL, NULL, conv))
 				return true;
-#endif
 
+	if(!cuda_ondevice(out))
+#endif
 	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_in_cpu) / sizeof(algos_bwd_in_cpu[0]); i++)
 		if (algos_bwd_in_cpu[i](	N,
 					odims, MD_STRIDES(N, odims, size), out,
@@ -477,8 +479,9 @@ static bool simple_zconvcorr_bwd_krn(	unsigned int N, const long dims[N],
 						kdims, MD_STRIDES(N, kdims, size), krn,
 						flags, NULL, NULL, conv))
 				return true;
-#endif
 
+	if(!cuda_ondevice(out))
+#endif
 	for(int i = 0; (unsigned long)i < sizeof(algos_bwd_krn_cpu) / sizeof(algos_bwd_krn_cpu[0]); i++)
 		if (algos_bwd_krn_cpu[i](	N,
 					odims, MD_STRIDES(N, odims, size), out,
