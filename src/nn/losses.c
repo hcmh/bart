@@ -1,10 +1,8 @@
-
-/* Copyright 2017-2018. Martin Uecker.
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * Authors: Moritz Blumenthal
  */
 
 #include <assert.h>
@@ -31,7 +29,12 @@
 #include "nlops/nlop.h"
 #include "nlops/cast.h"
 #include "nlops/chain.h"
+#include "nlops/conv.h"
+#include "nlops/tenmul.h"
+#include "nlops/const.h"
+#include "nlops/someops.h"
 
+#include "nn/nn_ops.h"
 #include "nn/misc.h"
 
 #include "losses.h"
@@ -256,191 +259,156 @@ const struct nlop_s* nlop_mpsnr_create(int N, const long dims[N], unsigned long 
 }
 
 
-struct mssim_s {
-
-	INTERFACE(nlop_data_t);
-
-	long N;
-	const long* dims;
-	const long* kdims;
-	const long* odims;
-
-	unsigned long conv_flag;
-	unsigned long mean_flag;
-
-	float k1;
-	float k2;
-};
-
-DEF_TYPEID(mssim_s);
-
-static void mssim_fun(const nlop_data_t* _data, int D, complex float* args[D])
+static const struct nlop_s* get_mean_op(int N, const long dims[N], long const kdims[N], unsigned long flags)
 {
-	const auto data = CAST_DOWN(mssim_s, _data);
-	assert(3 == D);
+	long odims[N];
+	for (int i = 0; i < N; i++)
+		odims[i] = (MD_IS_SET(flags, i)) ? dims[i] - kdims[i] + 1 : dims[i];
 
-	complex float* dst = args[0];
-	const complex float* src1 = args[1];
-	const complex float* src2 = args[2];
+	complex float mean = 1. / md_calc_size(N, kdims);
 
-#ifdef USE_CUDA
-	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
-#endif
-	int N = data->N;
-	const long* dims = data->dims;
-	const long* kdims = data->kdims;
-	const long* odims = data->odims;
-
-	long mdims[N];
-	md_select_dims(N, data->mean_flag, mdims, dims);
-
-	complex float* krn_mean = md_alloc_sameplace(N, kdims, CFL_SIZE, src1);
-	md_zfill(N, kdims, krn_mean, 1. / ((float)md_calc_size(N, kdims)));
-
-	complex float* tmp1 = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
-	complex float* tmp2 = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
-
-	md_zabs(N, dims, tmp1, src1);
-	md_zabs(N, dims, tmp2, src2);
-
-
-	complex float* c1 = md_alloc_sameplace(N, mdims, CFL_SIZE, src1);
-	complex float* c2 = md_alloc_sameplace(N, mdims, CFL_SIZE, src2);
-	md_clear(N, mdims, c1, CFL_SIZE);
-	md_zmax2(N, dims, MD_STRIDES(N, mdims, CFL_SIZE), c1, MD_STRIDES(N, mdims, CFL_SIZE), c1, MD_STRIDES(N, dims, CFL_SIZE), tmp2);
-	md_zmul(N, mdims, c1, c1, c1);
-	md_zsmul(N, mdims, c2, c1, data->k2 * data->k2);
-	md_zsmul(N, mdims, c1, c1, data->k1 * data->k1);
-
-	complex float* mu_x = md_alloc_sameplace(N, odims, CFL_SIZE, src1);
-	complex float* mu_y = md_alloc_sameplace(N, odims, CFL_SIZE, src2);
-
-	md_zcorr(N, data->conv_flag, odims, mu_x, kdims, krn_mean, dims, tmp1);
-	md_zcorr(N, data->conv_flag, odims, mu_y, kdims, krn_mean, dims, tmp2);
-
-	md_zmul(N, dims, tmp1, tmp1, tmp1);
-	md_zmul(N, dims, tmp2, tmp2, tmp2);
-
-	complex float* s_xx = md_alloc_sameplace(N, odims, CFL_SIZE, src1);
-	complex float* s_yy = md_alloc_sameplace(N, odims, CFL_SIZE, src1);
-
-	md_zcorr(N, data->conv_flag, odims, s_xx, kdims, krn_mean, dims, tmp1);
-	md_zcorr(N, data->conv_flag, odims, s_yy, kdims, krn_mean, dims, tmp2);
-
-	complex float* s_xy = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
-	md_zabs(N, dims, tmp1, src1);
-	md_zabs(N, dims, tmp2, src2);
-	md_zmul(N, dims, tmp1, tmp1, tmp2);
-	md_zcorr(N, data->conv_flag, odims, s_xy, kdims, krn_mean, dims, tmp1);
-
-	md_free(tmp1);
-	md_free(tmp2);
-	md_free(krn_mean);
-
-	complex float* mu_xy = md_alloc_sameplace(N, odims, CFL_SIZE, src1);
-	md_zmul(N, odims, mu_xy, mu_x, mu_y);
-
-	md_zmul(N, odims, mu_x, mu_x, mu_x);
-	md_zmul(N, odims, mu_y, mu_y, mu_y);
-
-	md_zsub(N, odims, s_xx, s_xx, mu_x);
-	md_zsub(N, odims, s_yy, s_yy, mu_y);
-	md_zsub(N, odims, s_xy, s_xy, mu_xy);
-
-	md_zsmul(N, odims, mu_xy, mu_xy, 2);
-	md_zsmul(N, odims, s_xy, s_xy, 2);
-
-	md_zadd(N, odims, mu_x, mu_x, mu_y);
-	md_zadd(N, odims, s_xx, s_xx, s_yy);
-	md_free(mu_y);
-	md_free(s_yy);
-
-	complex float* c1_large = md_alloc_sameplace(N, odims, CFL_SIZE, c1);
-	complex float* c2_large = md_alloc_sameplace(N, odims, CFL_SIZE, c2);
-
-	md_copy2(N, odims, MD_STRIDES(N, odims, CFL_SIZE), c1_large, MD_STRIDES(N, mdims, CFL_SIZE), c1, CFL_SIZE);
-	md_copy2(N, odims, MD_STRIDES(N, odims, CFL_SIZE), c2_large, MD_STRIDES(N, mdims, CFL_SIZE), c2, CFL_SIZE);
-
-	md_free(c1);
-	md_free(c2);
-
-	md_zadd(N, odims, mu_xy, mu_xy, c1_large);
-	md_zadd(N, odims, s_xy, s_xy, c2_large);
-	md_zadd(N, odims, mu_x, mu_x, c1_large);
-	md_zadd(N, odims, s_xx, s_xx, c2_large);
-
-	md_free(c1_large);
-	md_free(c2_large);
-
-	md_zmul(N, odims, mu_xy, mu_xy, s_xy);
-	md_zmul(N, odims, mu_x, mu_x, s_xx);
-	md_free(s_xy);
-	md_free(s_xx);
-
-	md_zdiv(N, odims, mu_xy, mu_xy, mu_x);
-	md_free(mu_x);
-
-	md_zavg(N, odims, ~0, dst, mu_xy);
-	md_free(mu_xy);
-
+	return nlop_set_input_const_F2(nlop_convcorr_geom_create(N, flags, odims, dims, kdims, PAD_VALID, false, NULL, NULL, 'N'), 1, N, kdims, MD_SINGLETON_STRS(N), true, &mean);
 }
 
-
-static void mssim_del(const nlop_data_t* _data)
+static const struct nlop_s* get_square_op(int N, const long dims[N])
 {
-	const auto data = CAST_DOWN(mssim_s, _data);
-
-	xfree(data->dims);
-	xfree(data->kdims);
-	xfree(data->odims);
-	xfree(data);
+	return nlop_dup_F(nlop_tenmul_create(N, dims, dims, dims), 0, 1);
 }
 
-const struct nlop_s* nlop_mssim_create(int N, const long dims[N], const long kdims[N], unsigned long conv_dims)
+const struct nlop_s* nlop_mssim_create(int N, const long dims[N], const long wdims[N], unsigned long flags)
 {
-	PTR_ALLOC(struct mssim_s, data);
-	SET_TYPEID(mssim_s, data);
+	bool simple = (5 == N);
+	simple &= (flags == 7);
+	simple &= (1 == dims[3]);
 
-	assert(7 == conv_dims);
-	assert(3 <= N);
+	if (simple) {
 
-	data->N = 6;
+		long tdims[6] = {1, 1, dims[0], dims[1], dims[2], dims[4]};
+		long twdims[6] = {1, 1, wdims[0], wdims[1], wdims[2], 1};
 
-	data->mean_flag = ~(MD_BIT(5) - 1);
-	data->conv_flag = 28;
+		auto result = nlop_mssim_create(6, tdims, twdims, 28);
+		result = nlop_reshape_in_F(result, 0, 5, dims);
+		result = nlop_reshape_in_F(result, 1, 5, dims);
 
-	PTR_ALLOC(long[data->N], ndims);
-	md_singleton_dims(data->N, *ndims);
-	md_copy_dims(3, (*ndims) + 2, dims);
-	(*ndims)[data->N - 1] = md_calc_size(N - 3, dims + 3);
-	data->dims = *PTR_PASS(ndims);
+		return result;
+	}
 
-	PTR_ALLOC(long[data->N], nkdims);
-	md_singleton_dims(data->N, *nkdims);
-	md_copy_dims(3, (*nkdims) + 2, kdims);
-	data->kdims = *PTR_PASS(nkdims);
+	float k1 = 0.01;
+	float k2 = 0.03;
+	float L = -1;
 
-	PTR_ALLOC(long[data->N], odims);
-	for (int i = 0; i < data->N; i++)
-		if (MD_IS_SET(data->conv_flag, i))
-			(*odims)[i] = (data->dims)[i] + 1 - (data->kdims)[i];
-		else
-			(*odims)[i] = (data->dims)[i];
+	long kdims[N];
+	md_select_dims(N, md_nontriv_dims(N, dims) & flags, kdims, wdims);
 
-	data->odims = *PTR_PASS(odims);
+	long odims[N];
+	for (int i = 0; i < N; i++)
+		odims[i] = (MD_IS_SET(flags, i)) ? dims[i] - kdims[i] + 1 : dims[i];
 
-	data->k1 = 0.01;
-	data->k2 = 0.03;
+	auto result = get_mean_op(N, dims, kdims, flags);
+	result = nlop_combine_FF(result, get_mean_op(N, dims, kdims, flags)); // in: x, y; out: E[x], E[y]
+	result = nlop_combine_FF(result, nlop_chain_FF(get_square_op(N, dims), get_mean_op(N, dims, kdims, flags))); // in: x, y, x ; out: E[x], E[y], E[x^2]
+	result = nlop_combine_FF(result, nlop_chain_FF(get_square_op(N, dims), get_mean_op(N, dims, kdims, flags))); // in: x, y, x, y ; out: E[x], E[y], E[x^2], E[y^2]
+	result = nlop_dup_F(result, 0, 2);
+	result = nlop_dup_F(result, 1, 2); // in: x, y; out: E[x], E[y], E[x^2], E[y^2]
+	result = nlop_combine_FF(result, nlop_chain2_FF(nlop_tenmul_create(N, dims, dims, dims), 0, get_mean_op(N, dims, kdims, flags), 0)); // in: x, y, x, y ; out: E[x], E[y], E[x^2], E[y^2], E[xy]
+	result = nlop_dup_F(result, 0, 2);
+	result = nlop_dup_F(result, 1, 2); // in: x, y; out: E[x], E[y], E[x^2], E[y^2], E[xy]
 
-	long nl_odims[1][1];
-	md_copy_dims(1, nl_odims[0], MD_SINGLETON_DIMS(1));
-	long nl_idims[2][N];
-	md_copy_dims(N, nl_idims[0], dims);
-	md_copy_dims(N, nl_idims[1], dims);
+	auto tmp = nlop_tenmul_create(N, odims, odims, odims);
+	tmp = nlop_combine_FF(get_square_op(N, odims), tmp);
+	tmp = nlop_combine_FF(get_square_op(N, odims), tmp);
+	tmp = nlop_dup_F(tmp, 0, 2);
+	tmp = nlop_dup_F(tmp, 1, 2); //in: E[x], E[y]; out: E[x]^2, E[y]^2, E[x]E[y]
 
-	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mssim_fun, (nlop_der_fun_t[2][1]){ { NULL }, { NULL } }, (nlop_der_fun_t[2][1]){ { NULL }, { NULL } }, NULL, NULL, mssim_del);
+	result = nlop_combine_FF(tmp, result); //in: E[x], E[y], x, y; out: E[x]^2, E[y]^2, E[x]E[y], E[x], E[y], E[x^2], E[y^2], E[xy]
+	result = nlop_link_F(result, 3, 0); //in: E[y], x, y; out: E[x]^2, E[y]^2, E[x]E[y], E[y], E[x^2], E[y^2], E[xy]
+	result = nlop_link_F(result, 3, 0); //in: x, y; out: E[x]^2, E[y]^2, E[x]E[y], E[x^2], E[y^2], E[xy]
+
+	tmp = nlop_dup_F(nlop_combine_FF(nlop_zaxpbz_create(N, odims, 2, -2), nlop_from_linop_F(linop_scale_create(N, odims, 2))), 1, 2); // in: E(xy), E(x)E[y]; out: 2 * Cov(x, y), 2*E[x]E[y]
+	result = nlop_combine_FF(tmp, result); // in: E(xy), E(x)E[y], x, y; out: 2 * Cov(x, y), 2*E[x]E[y], E[x]^2, E[y]^2, E[x]E[y], E[x^2], E[y^2], E[xy]
+	result = nlop_link_F(result, 7, 0);// in: E(x)E[y], x, y; out: 2 * Cov(x, y), 2*E[x]E[y], E[x]^2, E[y]^2, E[x]E[y], E[x^2], E[y^2]
+	result = nlop_link_F(result, 4, 0);// in: x, y; out: 2 * Cov(x, y), 2*E[x]E[y], E[x]^2, E[y]^2, E[x^2], E[y^2]
+
+	tmp = nlop_dup_F(nlop_combine_FF(nlop_zaxpbz_create(N, odims, 1, -1), nlop_from_linop_F(linop_identity_create(N, odims))), 1, 2); // in: E[y^2], E[y]^2; out: Var[y], E[y]^2
+	result = nlop_combine_FF(tmp, result);// in: E[y^2], E[y]^2, x, y; out: Var[y], E[y]^2, 2 * Cov(x, y), 2*E[x]E[y], E[x]^2, E[y]^2, E[x^2], E[y^2]
+	result = nlop_link_F(result, 7, 0);// in: E[y]^2, x, y; out: Var[y], E[y]^2, 2 * Cov(x, y), 2*E[x]E[y], E[x]^2, E[y]^2, E[x^2]
+	result = nlop_link_F(result, 5, 0);// in: x, y; out: Var[y], E[y]^2, 2 * Cov(x, y), 2*E[x]E[y], E[x]^2, E[x^2]
+
+	tmp = nlop_dup_F(nlop_combine_FF(nlop_zaxpbz_create(N, odims, 1, -1), nlop_from_linop_F(linop_identity_create(N, odims))), 1, 2); // in: E[x^2], E[x]^2; out: Var[x], E[x]^2
+	result = nlop_combine_FF(tmp, result); // in: E[x^2], E[x]^2, x, y; out: Var[x], E[x]^2, Var[y], E[y]^2, 2 * Cov(x, y), 2*E[x]E[y], E[x]^2, E[x^2]
+	result = nlop_link_F(result, 7, 0); // in: E[x]^2, x, y; out: Var[x], E[x]^2, Var[y], E[y]^2, 2 * Cov(x, y), 2*E[x]E[y], E[x]^2
+	result = nlop_link_F(result, 6, 0); // in: x, y; out: Var[x], E[x]^2, Var[y], E[y]^2, 2 * Cov(x, y), 2*E[x]E[y]
+
+	result = nlop_combine_FF(nlop_zaxpbz_create(N, odims, 1, 1), result); // in: E[x]^2, E[y]^2, x, y; out: E[x]^2+E[y]^2, Var[x], E[x]^2, Var[y], E[y]^2, 2 * Cov(x, y), 2*E[x]E[y]
+	result = nlop_link_F(result, 2, 0);
+	result = nlop_link_F(result, 3, 0); // in: x, y; out: E[x]^2+E[y]^2, Var[x], Var[y], 2 * Cov(x, y), 2*E[x]E[y]
+
+	result = nlop_combine_FF(nlop_zaxpbz_create(N, odims, 1, 1), result); // in: Var[x], Var[y], x, y; out: Var[x]+Var[y], E[x]^2+E[y]^2, Var[x], Var[y], 2 * Cov(x, y), 2*E[x]E[y]
+	result = nlop_link_F(result, 2, 0);
+	result = nlop_link_F(result, 2, 0); // in: x, y; out: Var[x]+Var[y], E[x]^2+E[y]^2, 2*Cov(x, y), 2*E[x]E[y]
+
+	result = nlop_chain2_swap_FF(result, 3, nlop_zaxpbz_create(N, odims, 1, 1), 0);
+	result = nlop_chain2_swap_FF(result, 3, nlop_zaxpbz_create(N, odims, 1, 1), 0);
+	result = nlop_chain2_swap_FF(result, 3, nlop_zaxpbz_create(N, odims, 1, 1), 0);
+	result = nlop_chain2_swap_FF(result, 3, nlop_zaxpbz_create(N, odims, 1, 1), 0); // in: x, y, c1, c2, c1, c2; out: Var[x]+Var[y]+c2, E[x]^2+E[y]^2+c1, 2*Cov(x, y)+c2, 2*E[x]E[y]+c1
+
+	result = nlop_dup_F(result, 2, 4);
+	result = nlop_dup_F(result, 3, 4); // in: x, y, c1, c2; out: Var[x]+Var[y]+c2, E[x]^2+E[y]^2+c1, 2*Cov(x, y)+c2, 2*E[x]E[y]+c1
+
+	result = nlop_combine_FF(nlop_tenmul_create(N, odims, odims, odims), result);
+	result = nlop_link_F(result, 1, 0);
+	result = nlop_link_F(result, 1, 0); // in: x, y, c1, c2; out: (Var[x]+Var[y]+c2)(E[x]^2+E[y]^2+c1), 2*Cov(x, y)+c2, 2*E[x]E[y]+c1
+
+	result = nlop_combine_FF(nlop_tenmul_create(N, odims, odims, odims), result);
+	result = nlop_link_F(result, 2, 0);
+	result = nlop_link_F(result, 2, 0); // in: x, y, c1, c2; out: (2*Cov(x, y)+c2)(2*E[x]E[y]+c1), (Var[x]+Var[y]+c2)(E[x]^2+E[y]^2+c1)
+
+	result = nlop_chain2_FF(result, 1, nlop_zinv_create(N, odims), 0);
+	result = nlop_combine_FF(nlop_tenmul_create(N, odims, odims, odims), result);
+	result = nlop_link_F(result, 1, 0);
+	result = nlop_link_F(result, 1, 0); // in: x, y, c1, c2; out: [(2*Cov(x, y)+c2)(2*E[x]E[y]+c1)] / [(Var[x]+Var[y]+c2)(E[x]^2+E[y]^2+c1)]
+
+	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_avg_create(N, odims, ~0)), 0);
+
+	result = nlop_reshape_out_F(result, 0, 1, MD_SINGLETON_DIMS(1));
+
+	if (-1 != L) {
+
+		assert(0 <= L);
+
+		complex float c1 = cpowf(k1 * L, 2);
+		complex float c2 = cpowf(k2 * L, 2);
+
+		result = nlop_set_input_const_F2(result, 2, N, odims, MD_SINGLETON_STRS(N), true, &c1);
+		result = nlop_set_input_const_F2(result, 2, N, odims, MD_SINGLETON_STRS(N), true, &c2);
+
+		result = nlop_chain2_FF(nlop_smo_abs_create(N, dims, L * 1.e-12), 0, result, 0);
+		result = nlop_chain2_FF(nlop_smo_abs_create(N, dims, L * 1.e-12), 0, result, 0);
+	} else {
+
+		long mdims[N]; // mean / batch - dims
+		md_select_dims(N, ~flags, mdims, dims);
+
+		auto nlop_normalize = nlop_norm_max_abs_create(N, dims, ~flags); //in: y; out: y / max(y), max(y)
+		nlop_normalize = nlop_chain2_FF(nlop_normalize, 1, nlop_zinv_create(N, mdims), 0); //in: y; out: 1 / max(y), y / max(y)
+		nlop_normalize = nlop_chain2_FF(nlop_normalize, 0, nlop_tenmul_create(N, dims, dims, mdims), 1); //in: x, y; out: x / max(y), y / max(y)
+
+		complex float k1_2 = k1 * k1;
+		complex float k2_2 = k2 * k2;
+
+		result = nlop_set_input_const_F2(result, 2, N, odims, MD_SINGLETON_STRS(N), true, &k1_2);
+		result = nlop_set_input_const_F2(result, 2, N, odims, MD_SINGLETON_STRS(N), true, &k2_2);
+
+		result = nlop_chain2_FF(nlop_smo_abs_create(N, dims, 1.e-12), 0, result, 0);
+		result = nlop_chain2_FF(nlop_smo_abs_create(N, dims, 1.e-12), 0, result, 0);
+
+		result = nlop_combine_FF(result, nlop_normalize); //in: x / max(y), y / max(y), x, y; out: mssim, x / max(y), y / max(y)
+		result = nlop_link_F(result, 1, 0);
+		result = nlop_link_F(result, 1, 0);
+	}
+
+	return result;
 }
-
 
 struct cce_s {
 
@@ -576,6 +544,7 @@ static void cce_del(const nlop_data_t* _data)
  *
  * @param N
  * @param dims
+ * @param batch_flag selects i-dims
  **/
 const struct nlop_s* nlop_cce_create(int N, const long dims[N], unsigned long batch_flag)
 {
@@ -718,14 +687,16 @@ static void frequency_compensation_fun(const nlop_data_t* _data, complex float* 
 	complex float* empty_labels = md_alloc_sameplace(data->sum_dom->N, data->sum_dom->dims, CFL_SIZE, src);
 	md_zslessequal(data->sum_dom->N, data->sum_dom->dims, empty_labels, sum, 0);
 	float N_empty_labels = roundf(powf(md_znorm(data->sum_dom->N, data->sum_dom->dims, empty_labels), 2));
-	md_free(empty_labels);
 
 	float N_batch_dims = (float)md_calc_size(data->N, data->dom->dims) / (float)md_calc_size(data->N, data->sum_dom->dims);
 	float N_labels = (float)md_calc_size(data->N, data->sum_dom->dims) - N_empty_labels;
 
 	md_zsmul(data->sum_dom->N, data->sum_dom->dims, sum, sum, N_labels / N_batch_dims);
+	md_zfill(data->sum_dom->N, data->sum_dom->dims, empty_labels, 1.);
+	md_zdiv(data->sum_dom->N, data->sum_dom->dims, sum, empty_labels, sum);
+	md_free(empty_labels);
 
-	md_zdiv2(data->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->sum_dom->strs, sum);
+	md_zmul2(data->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->sum_dom->strs, sum);
 
 	md_free(sum);
 }
@@ -775,10 +746,7 @@ static const struct nlop_s* nlop_frequency_compensation_create(int N, const long
  **/
 const struct nlop_s* nlop_weighted_cce_create(int N, const long dims[N], unsigned long batch_flag)
 {
-	//FIXME: more flexible batchflags (scaling in cce and interface change for batch_flag needed)
-	assert(MD_BIT(N-1) == batch_flag);
-
-	return nlop_chain2_FF(nlop_frequency_compensation_create(N, dims, batch_flag), 0, nlop_cce_create(N, dims, ~MD_BIT(0)), 1);
+	return nlop_chain2_FF(nlop_frequency_compensation_create(N, dims, batch_flag), 0, nlop_cce_create(N, dims, batch_flag), 1);
 }
 
 
@@ -1110,8 +1078,11 @@ const struct nlop_s* nlop_dice_create(int N, const long dims[N], unsigned long l
 	long out_dims[N];
 	md_copy_dims(N, out_dims, nlop_generic_codomain(dice, 0)->dims);
 
-	if (1 != md_calc_size(N, out_dims))
-		dice = nlop_chain2_FF(dice, 0, nlop_from_linop_F(linop_avg_create(N, out_dims, ~0)), 0);
+	if (1 != md_calc_size(N, out_dims)) {
+
+		auto linop_avg = linop_avg_create(N, out_dims, ~0);
+		dice = nlop_chain2_FF(dice, 0, nlop_from_linop_F(linop_avg), 0);
+	}
 
 	return nlop_reshape_out_F(dice, 0, 1, MD_DIMS(1));
 }

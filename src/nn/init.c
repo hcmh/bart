@@ -1,3 +1,10 @@
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors: Moritz Blumenthal
+ */
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <complex.h>
@@ -507,7 +514,7 @@ static void init_stack_fun(const init_t* conf_, long N, const long dims[N], comp
 	initializer_apply(d->initb, d->N, d->dimsb, weightsb);
 
 	long pos[d->N];
-	for (uint i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 		pos[i] = 0;
 
 	md_copy_block(d->N, pos, d->dims, weights, d->dimsa, weightsa, CFL_SIZE);

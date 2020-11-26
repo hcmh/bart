@@ -1,3 +1,10 @@
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors: Moritz Blumenthal
+ */
+
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,6 +22,39 @@
 #include "nn/nn.h"
 #include "const.h"
 
+/**
+ * Set one input of nn_t to a constant array, i.e. the resulting nn_t has one input less, and free nn_t
+ *
+ * @param op nn_t struct (will be freed)
+ * @param i input index (ignored if iname != NULL)
+ * @param iname name of input
+ * @param N no. of dimensions of the constant array
+ * @param dims dimensions of constant array (must coincide with dimensions of input)
+ * @param strs of array in mem
+ * @param copy if true: store a copy of the array in the nn_t (nlop); else: only store a pointer
+ * @param in constant input array
+ *
+ * @returns nn_t with one input set to the constant input array
+ */
+nn_t nn_set_input_const_F2(nn_t op, int i, const char* iname, int N, const long dims[N], const long strs[N], _Bool copy, const _Complex float* in)
+{
+	i = nn_get_in_arg_index(op, i, iname);
+	auto result = nn_from_nlop_F(nlop_set_input_const2(nn_get_nlop(op), i, N, dims, strs, copy, in));
+
+	for (int j = 0, jp = 0; j < nn_get_nr_in_args(result); j++) {
+
+		if (i == (int)j) jp++;
+		nn_clone_arg_i_from_i(result, j, op, jp);
+		jp++;
+	}
+
+	for (int j = 0; j < nn_get_nr_out_args(result); j++)
+		nn_clone_arg_o_from_o(result, j, op, j);
+
+	nn_free(op);
+
+	return result;
+}
 
 /**
  * Set one input of nn_t to a constant array, i.e. the resulting nn_t has one input less, and free nn_t
@@ -34,14 +74,14 @@ nn_t nn_set_input_const_F(nn_t op, int i, const char* iname, int N, const long d
 	i = nn_get_in_arg_index(op, i, iname);
 	auto result = nn_from_nlop_F(nlop_set_input_const(nn_get_nlop(op), i, N, dims, copy, in));
 
-	for (unsigned int j = 0, jp = 0; j < nn_get_nr_in_args(result); j++) {
+	for (int j = 0, jp = 0; j < nn_get_nr_in_args(result); j++) {
 
 		if (i == (int)j) jp++;
 		nn_clone_arg_i_from_i(result, j, op, jp);
 		jp++;
 	}
 
-	for (unsigned int j = 0; j < nn_get_nr_out_args(result); j++)
+	for (int j = 0; j < nn_get_nr_out_args(result); j++)
 		nn_clone_arg_o_from_o(result, j, op, j);
 
 	nn_free(op);
@@ -63,14 +103,14 @@ nn_t nn_del_out_F(nn_t op, int o, const char* oname)
 	o = nn_get_out_arg_index(op, o, oname);
 	auto result = nn_from_nlop_F(nlop_del_out(nn_get_nlop(op), o));
 
-	for (unsigned int j = 0, jp = 0; j < nn_get_nr_out_args(result); j++) {
+	for (int j = 0, jp = 0; j < nn_get_nr_out_args(result); j++) {
 
 		if (o == (int)j) jp++;
 		nn_clone_arg_o_from_o(result, j, op, jp);
 		jp++;
 	}
 
-	for (unsigned int i = 0; i < nn_get_nr_in_args(result); i++)
+	for (int i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
 
 	nn_free(op);
@@ -117,10 +157,10 @@ nn_t nn_ignore_input_F(nn_t op, int i, const char* iname, int N, const long dims
 	nlop = nlop_shift_input_F(nlop, i, 0);
 	auto result = nn_from_nlop_F(nlop);
 
-	for (unsigned int j = 0; j < nn_get_nr_in_args(result); j++)
+	for (int j = 0; j < nn_get_nr_in_args(result); j++)
 		nn_clone_arg_i_from_i(result, j, op, j);
 
-	for (unsigned int j = 0; j < nn_get_nr_out_args(result); j++)
+	for (int j = 0; j < nn_get_nr_out_args(result); j++)
 		nn_clone_arg_o_from_o(result, j, op, j);
 
 	nn_free(op);

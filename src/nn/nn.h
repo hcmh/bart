@@ -63,22 +63,22 @@ extern void nn_free(nn_t op);
 extern const struct nlop_s* nn_get_nlop(nn_t op);
 
 extern nn_t nn_clone(nn_t op);
-extern void nn_clone_arg_i_from_i(nn_t nn1, unsigned int i1, nn_t nn2, unsigned int i2);
-extern void nn_clone_arg_o_from_o(nn_t nn1, unsigned int o1, nn_t nn2, unsigned int o2);
+extern void nn_clone_arg_i_from_i(nn_t nn1, int i1, nn_t nn2, int i2);
+extern void nn_clone_arg_o_from_o(nn_t nn1, int o1, nn_t nn2, int o2);
 extern void nn_clone_args(nn_t dst, nn_t src);
 
-extern unsigned int nn_get_nr_named_in_args(nn_t op);
-extern unsigned int nn_get_nr_named_out_args(nn_t op);
-extern unsigned int nn_get_nr_unnamed_in_args(nn_t op);
-extern unsigned int nn_get_nr_unnamed_out_args(nn_t op);
-extern unsigned int nn_get_nr_in_args(nn_t op);
-extern unsigned int nn_get_nr_out_args(nn_t op);
+extern int nn_get_nr_named_in_args(nn_t op);
+extern int nn_get_nr_named_out_args(nn_t op);
+extern int nn_get_nr_unnamed_in_args(nn_t op);
+extern int nn_get_nr_unnamed_out_args(nn_t op);
+extern int nn_get_nr_in_args(nn_t op);
+extern int nn_get_nr_out_args(nn_t op);
 
 extern int nn_get_out_arg_index(nn_t op, int o, const char* oname);
 extern int nn_get_in_arg_index(nn_t op, int i, const char* iname);
 
-extern _Bool nn_is_num_in_index(nn_t op, unsigned int i);
-extern _Bool nn_is_num_out_index(nn_t op, unsigned int o);
+extern _Bool nn_is_num_in_index(nn_t op, int i);
+extern _Bool nn_is_num_out_index(nn_t op, int o);
 
 extern void nn_get_in_args_names(nn_t op, int nII, const char* inames[nII]);
 extern void nn_get_out_args_names(nn_t op, int nOO, const char* onames[nOO]);
@@ -112,12 +112,12 @@ extern _Bool nn_get_dup(nn_t op, int i, const char* iname);
 
 extern const char** nn_get_out_names(nn_t op);
 extern const char** nn_get_in_names(nn_t op);
-extern void nn_get_in_names_copy(unsigned int N, const char* names[N], nn_t op);
-extern void nn_get_out_names_copy(unsigned int N, const char* names[N], nn_t op);
+extern void nn_get_in_names_copy(int N, const char* names[N], nn_t op);
+extern void nn_get_out_names_copy(int N, const char* names[N], nn_t op);
 
 extern int nn_get_nr_weights(nn_t op);
-extern void nn_get_in_types(nn_t op, unsigned int N, enum IN_TYPE in_types[N]);
-extern void nn_get_out_types(nn_t op, unsigned int N, enum OUT_TYPE out_types[N]);
+extern void nn_get_in_types(nn_t op, int N, enum IN_TYPE in_types[N]);
+extern void nn_get_out_types(nn_t op, int N, enum OUT_TYPE out_types[N]);
 
 extern const struct iovec_s* nn_generic_domain(nn_t op, int i, const char* iname);
 extern const struct iovec_s* nn_generic_codomain(nn_t op, int o, const char* oname);
@@ -125,6 +125,6 @@ extern const struct iovec_s* nn_generic_codomain(nn_t op, int o, const char* ona
 extern nn_t nn_checkpoint_F(nn_t op, _Bool der_once, _Bool clear_mem);
 
 extern void nn_debug(enum debug_levels dl, nn_t x);
-extern void nn_export_graph(const char* filename, nn_t op, graph_t opts);
+extern void nn_export_graph(const char* filename, nn_t op);
 
 #endif

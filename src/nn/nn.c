@@ -1,3 +1,9 @@
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors: Moritz Blumenthal
+ */
 
 #include <stdio.h>
 #include <string.h>
@@ -8,6 +14,7 @@
 #include "misc/debug.h"
 #include "misc/shrdptr.h"
 #include "misc/types.h"
+#include "misc/graph.h"
 
 #include "nn/init.h"
 #include "nn/chain.h"
@@ -57,8 +64,8 @@ nn_t nn_from_nlop(const struct nlop_s* op)
 {
 	PTR_ALLOC(struct nn_s, nn);
 
-	uint NO = nlop_get_nr_out_args(op);
-	uint NI = nlop_get_nr_in_args(op);
+	int NO = nlop_get_nr_out_args(op);
+	int NI = nlop_get_nr_in_args(op);
 
 	PTR_ALLOC(const char*[NO], out_names);
 	PTR_ALLOC(const char*[NI], in_names);
@@ -69,7 +76,7 @@ nn_t nn_from_nlop(const struct nlop_s* op)
 	PTR_ALLOC(enum IN_TYPE[NI], in_types);
 	PTR_ALLOC(enum OUT_TYPE[NO], out_types);
 
-	for (uint i = 0; i < NI; i++) {
+	for (int i = 0; i < NI; i++) {
 
 		(*prox_ops)[i] = NULL;
 		(*in_names)[i] = NULL;
@@ -78,7 +85,7 @@ nn_t nn_from_nlop(const struct nlop_s* op)
 		(*dup)[i] = true;
 	}
 
-	for (uint o = 0; o < NO; o++) {
+	for (int o = 0; o < NO; o++) {
 
 		(*out_names)[o] = NULL;
 		(*out_types)[o] = OUT_UNDEFINED;
@@ -100,16 +107,16 @@ nn_t nn_from_nlop(const struct nlop_s* op)
 
 void nn_free(nn_t op)
 {
-	uint II = nn_get_nr_in_args(op);
-	uint OO = nn_get_nr_out_args(op);
+	int II = nn_get_nr_in_args(op);
+	int OO = nn_get_nr_out_args(op);
 
-	for (uint i = 0; i < II; i++){
+	for (int i = 0; i < II; i++){
 
 		xfree(op->in_names[i]);
 		initializer_free(op->initializers[i]);
 		operator_p_free(op->prox_ops[i]);
 	}
-	for (uint o = 0; o < OO; o++)
+	for (int o = 0; o < OO; o++)
 		xfree(op->out_names[o]);
 
 	xfree(op->in_names);
@@ -138,7 +145,7 @@ const struct nlop_s* nn_get_nlop(nn_t op)
 	return op->nlop;
 }
 
-void nn_clone_arg_i_from_i(nn_t nn1, uint i1, nn_t nn2, uint i2)
+void nn_clone_arg_i_from_i(nn_t nn1, int i1, nn_t nn2, int i2)
 {
 	if (NULL != nn1->in_names[i1])
 		xfree(nn1->in_names[i1]);
@@ -158,7 +165,7 @@ void nn_clone_arg_i_from_i(nn_t nn1, uint i1, nn_t nn2, uint i2)
 	nn1->dup[i1] = nn2->dup[i2];
 }
 
-void nn_clone_arg_o_from_o(nn_t nn1, uint o1, nn_t nn2, uint o2)
+void nn_clone_arg_o_from_o(nn_t nn1, int o1, nn_t nn2, int o2)
 {
 	if (NULL != nn1->out_names[o1])
 		xfree(nn1->out_names[o1]);
@@ -175,9 +182,9 @@ nn_t nn_clone(nn_t op)
 {
 	auto result = nn_from_nlop(op->nlop);
 
-	for (uint i = 0; i < nn_get_nr_in_args(result); i++)
+	for (int i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
-	for (uint i = 0; i < nn_get_nr_out_args(result); i++)
+	for (int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 
 	return result;
@@ -187,12 +194,12 @@ void nn_clone_args(nn_t dst, nn_t src)
 {
 	auto result = dst;
 
-	uint II = MIN(nn_get_nr_in_args(dst), nn_get_nr_in_args(src));
-	uint OO = MIN(nn_get_nr_out_args(dst), nn_get_nr_out_args(src));
+	int II = MIN(nn_get_nr_in_args(dst), nn_get_nr_in_args(src));
+	int OO = MIN(nn_get_nr_out_args(dst), nn_get_nr_out_args(src));
 
-	for (uint i = 0; i < II; i++)
+	for (int i = 0; i < II; i++)
 		nn_clone_arg_i_from_i(result, i, src, i);
-	for (uint i = 0; i < OO; i++)
+	for (int i = 0; i < OO; i++)
 		nn_clone_arg_o_from_o(result, i, src, i);
 }
 
@@ -205,17 +212,17 @@ static int get_index_from_name(int N, const char* names[N], const char* name)
 	return -1;
 }
 
-unsigned int nn_get_nr_in_args(nn_t op)
+int nn_get_nr_in_args(nn_t op)
 {
 	return nlop_get_nr_in_args(op->nlop);
 }
 
-unsigned int nn_get_nr_out_args(nn_t op)
+int nn_get_nr_out_args(nn_t op)
 {
 	return nlop_get_nr_out_args(op->nlop);
 }
 
-unsigned int nn_get_nr_named_in_args(nn_t op)
+int nn_get_nr_named_in_args(nn_t op)
 {
 	int result = 0;
 
@@ -225,7 +232,7 @@ unsigned int nn_get_nr_named_in_args(nn_t op)
 	return result;
 }
 
-unsigned int nn_get_nr_named_out_args(nn_t op)
+int nn_get_nr_named_out_args(nn_t op)
 {
 	int result = 0;
 
@@ -235,23 +242,23 @@ unsigned int nn_get_nr_named_out_args(nn_t op)
 	return result;
 }
 
-unsigned int nn_get_nr_unnamed_in_args(nn_t op)
+int nn_get_nr_unnamed_in_args(nn_t op)
 {
 	return nn_get_nr_in_args(op) - nn_get_nr_named_in_args(op);
 }
 
-unsigned int nn_get_nr_unnamed_out_args(nn_t op)
+int nn_get_nr_unnamed_out_args(nn_t op)
 {
 	return nn_get_nr_out_args(op) - nn_get_nr_named_out_args(op);
 }
 
-bool nn_is_num_in_index(nn_t op, unsigned int i)
+bool nn_is_num_in_index(nn_t op, int i)
 {
-	return i < (unsigned int)nn_get_nr_unnamed_in_args(op);
+	return i < (int)nn_get_nr_unnamed_in_args(op);
 }
-bool nn_is_num_out_index(nn_t op, unsigned int o)
+bool nn_is_num_out_index(nn_t op, int o)
 {
-	return o < (unsigned int)nn_get_nr_unnamed_out_args(op);
+	return o < (int)nn_get_nr_unnamed_out_args(op);
 }
 
 int nn_get_out_arg_index(nn_t op, int o, const char* oname)
@@ -515,21 +522,21 @@ nn_t nn_rename_output_F(nn_t op, const char* nname, const char* oname)
 	return result;
 }
 
-void nn_get_in_names_copy(unsigned int N, const char* names[N], nn_t op)
+void nn_get_in_names_copy(int N, const char* names[N], nn_t op)
 {
 	assert(nn_get_nr_named_in_args(op) == N);
 
-	for (unsigned int i = 0, i_name= 0; i_name < N; i++)
+	for (int i = 0, i_name= 0; i_name < N; i++)
 		if (NULL != op->in_names[i])
 			names[i_name++] = ptr_printf("%s", op->in_names[i]);
 
 }
 
-void nn_get_out_names_copy(unsigned int N, const char* names[N], nn_t op)
+void nn_get_out_names_copy(int N, const char* names[N], nn_t op)
 {
 	assert(nn_get_nr_named_out_args(op) == N);
 
-	for (unsigned int i = 0, i_name= 0; i_name < N; i++)
+	for (int i = 0, i_name= 0; i_name < N; i++)
 		if (NULL != op->out_names[i])
 			names[i_name++] = ptr_printf("%s", op->out_names[i]);
 
@@ -661,7 +668,7 @@ void nn_debug(enum debug_levels dl, nn_t x)
 int nn_get_nr_weights(nn_t op)
 {
 	int result = 0;
-	for (uint i = 0; i < nn_get_nr_in_args(op); i++){
+	for (int i = 0; i < nn_get_nr_in_args(op); i++){
 
 		if (NULL == op->initializers[i])
 			assert((IN_OPTIMIZE != op->in_types[i]) && (IN_BATCHNORM != op->in_types[i]));
@@ -671,19 +678,19 @@ int nn_get_nr_weights(nn_t op)
 	return result;
 }
 
-void nn_get_in_types(nn_t op, uint N, enum IN_TYPE in_types[N])
+void nn_get_in_types(nn_t op, int N, enum IN_TYPE in_types[N])
 {
 	assert(N == nn_get_nr_in_args(op));
 
-	for (uint i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 		in_types[i] = op->in_types[i];
 }
 
-void nn_get_out_types(nn_t op, uint N, enum OUT_TYPE out_types[N])
+void nn_get_out_types(nn_t op, int N, enum OUT_TYPE out_types[N])
 {
 	assert(N == nn_get_nr_out_args(op));
 
-	for (uint i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 		out_types[i] = op->out_types[i];
 }
 
@@ -691,9 +698,9 @@ nn_t nn_checkpoint_F(nn_t op, bool der_once, bool clear_mem)
 {
 	auto result = nn_from_nlop_F(nlop_checkpoint_create(op->nlop, der_once, clear_mem));
 
-	for (uint i = 0; i < nn_get_nr_in_args(result); i++)
+	for (int i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
-	for (uint i = 0; i < nn_get_nr_out_args(result); i++)
+	for (int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 
 	nn_free(op);
@@ -701,15 +708,16 @@ nn_t nn_checkpoint_F(nn_t op, bool der_once, bool clear_mem)
 	return result;
 }
 
-void nn_export_graph(const char* filename, nn_t op, graph_t opts)
+void nn_export_graph(const char* filename, nn_t op)
 {
 	int II = nlop_get_nr_in_args(op->nlop);
 	int OO = nlop_get_nr_out_args(op->nlop);
 
-	unsigned int D[II + OO];
-	const char** arg_nodes[II + OO];
+	const char* arg_nodes[II + OO];
 
-	const char* str = operator_get_graph_string(op->nlop->op, II + OO, D, arg_nodes, opts);
+	graph_t graph = operator_get_graph(op->nlop->op);
+	const char* str = print_internl_graph(graph, true, II + OO, arg_nodes);
+	graph_free(graph);
 
 	FILE *fp;
 	fp = fopen(filename, "w+");
@@ -717,47 +725,23 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 	assert(0 != fp);
 
 	fprintf(fp, "digraph {\nnewrank=true;\n");
-
 	fprintf(fp, "{\n%s}\n", str);
 
 	int counter_input = 0;
 	int counter_weight = 0;
 
-
-	for (int o = 0; o < OO; o++) {
-
-		fprintf(fp, "%s -> Output_%d;\n", (arg_nodes[o])[0], o);
-		xfree((arg_nodes[o])[0]);
-		xfree((arg_nodes[o]));
-		assert(1 == D[o]);
-	}
-
-	for (int i = 0; i < II; i++) {
-
-		if ((IN_OPTIMIZE == op->in_types[i]) || (IN_BATCHNORM == op->in_types[i])) {
-
-			for (int j = 0; j < (int)D[OO + i]; j++) {
-
-				fprintf(fp, "Weight_%d -> %s;\n", counter_weight, (arg_nodes[OO + i])[j]);
-				xfree((arg_nodes[OO + i])[j]);
-			}
+	for (int i = 0; i < II; i++)
+		if ((IN_OPTIMIZE == op->in_types[i]) || (IN_BATCHNORM == op->in_types[i]))
 			counter_weight++;
-		} else {
-
-			for (int j = 0; j < (int)D[OO + i]; j++) {
-
-				fprintf(fp, "Input_%d -> %s;\n", counter_input, (arg_nodes[OO + i])[j]);
-				xfree((arg_nodes[OO + i])[j]);
-			}
+		else
 			counter_input++;
-		}
-		xfree((arg_nodes[OO + i]));
-	}
+
+	fprintf(fp, "{\nrank=same\n");
 
 	int index = 0;
 	if (0 < counter_input) {
 
-		fprintf(fp, "subgraph cluster_inputs{ label = \"Inputs\";\nrank=source;\n");
+		fprintf(fp, "subgraph cluster_inputs{\nlabel = \"Inputs\";\nrank=source;\n");
 		for (int i = 0; i < counter_input; i++, index ++) {
 
 			while ((IN_OPTIMIZE == op->in_types[index]) || (IN_BATCHNORM == op->in_types[index]))
@@ -769,40 +753,15 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 			xfree(tmp);
 
 			if (NULL != op->in_names[index])
-				fprintf(fp, "Input_%d [shape = diamond, label = \"%s%s\"];\n", i, op->in_names[index], str_dims);
+				fprintf(fp, "%s [shape = diamond, label = \"%s%s\"];\n", arg_nodes[index + OO], op->in_names[index], str_dims);
 			else
-				fprintf(fp, "Input_%d [shape = diamond, label = \"Input_%d%s\"];\n", i, i, str_dims);
+				fprintf(fp, "%s [shape = diamond, label = \"Input_%d%s\"];\n", arg_nodes[index + OO], i, str_dims);
 
 			xfree(str_dims);
 		}
 
-		fprintf(fp, "\n}\n");
+		fprintf(fp, "}\n");
 	}
-
-	if (0 < OO) {
-
-		fprintf(fp, "subgraph cluster_outputs{ label = \"Outputs\";\nrank=sink;\n");
-		for (int i = 0; i < OO; i++) {
-
-			auto iov = nlop_generic_codomain(nn_get_nlop(op), i);
-			const char* tmp = ptr_print_dims(iov->N, iov->dims);
-			const char* str_dims = ptr_printf("\\n%s", tmp);
-			xfree(tmp);
-
-			if (NULL != op->out_names[i])
-				fprintf(fp, "Output_%d [shape = diamond, label = \"%s%s\"];\n", i, op->out_names[i], str_dims);
-			else
-				fprintf(fp, "Output_%d [shape = diamond, label = \"Output_%d%s\"];\n", i, i, str_dims);
-
-			xfree(str_dims);
-		}
-		fprintf(fp, "edge[ style=invis];\nOutput_0");
-		for (int i = 1; i < OO; i++)
-				fprintf(fp, " -> Output_%d", i);
-		fprintf(fp, "\n}\n");
-	}
-
-
 
 	index = 0;
 	if (0 < counter_weight) {
@@ -820,18 +779,45 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 			xfree(tmp);
 
 			if (NULL != op->in_names[index])
-				fprintf(fp, "Weight_%d [shape = diamond, label = \"%s%s\"];\n", i, op->in_names[index], str_dims);
+				fprintf(fp, "%s [shape = diamond, label = \"%s%s\"];\n", arg_nodes[index + OO], op->in_names[index], str_dims);
 			else
-				fprintf(fp, "Weight_%d [shape = diamond, label = \"Weight_%d%s\"];\n", i, i, str_dims);
+				fprintf(fp, "%s [shape = diamond, label = \"Weight_%d%s\"];\n", arg_nodes[index + OO], i, str_dims);
 
 			xfree(str_dims);
 		}
-		fprintf(fp, "edge[ style=invis];\nWeight_0");
+		fprintf(fp, "}\n");
+	}
+
+	if (1 < II) {
+
+		fprintf(fp, "{\nedge[ style=invis];\n%s", arg_nodes[OO]);
 		for (int i = 1; i < counter_weight; i++)
-				fprintf(fp, " -> Weight_%d", i);
+				fprintf(fp, " -> %s", arg_nodes[i + OO]);
 		fprintf(fp, "\n}\n");
 	}
-	fprintf(fp, " }");
+	fprintf(fp, "}\n");
+
+
+	if (0 < OO) {
+
+		fprintf(fp, "subgraph cluster_outputs{\nlabel = \"Outputs\";\nrank=sink;\n");
+		for (int i = 0; i < OO; i++) {
+
+			auto iov = nlop_generic_codomain(nn_get_nlop(op), i);
+			const char* tmp = ptr_print_dims(iov->N, iov->dims);
+			const char* str_dims = ptr_printf("\\n%s", tmp);
+			xfree(tmp);
+
+			if (NULL != op->out_names[i])
+				fprintf(fp, "%s [shape = diamond, label = \"%s%s\"];\n", arg_nodes[i], op->out_names[i], str_dims);
+			else
+				fprintf(fp, "%s [shape = diamond, label = \"Output_%d%s\"];\n", arg_nodes[i], i, str_dims);
+
+			xfree(str_dims);
+		}
+		fprintf(fp, "}\n");
+	}
+	fprintf(fp, "}\n");
 
 	fclose(fp);
 }

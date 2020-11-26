@@ -1,9 +1,8 @@
-/* Copyright 2017-2018. Martin Uecker.
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * Authors: Moritz Blumenthal
  */
 
 #include <assert.h>
@@ -298,7 +297,6 @@ struct relu_s {
 
 	INTERFACE(nlop_data_t);
 
-	complex float* der;
 	float slope_param;
 
 	const struct iovec_s* tmpdom;
@@ -308,16 +306,6 @@ struct relu_s {
 
 DEF_TYPEID(relu_s);
 
-static void relu_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
-{
-	const auto data = CAST_DOWN(relu_s, _data);
-
-	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
-
-		md_free(data->der);
-		data->der = NULL;
-	}
-}
 
 static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N])
 {
@@ -326,38 +314,40 @@ static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N])
 	complex float* dst = args[0];
 	complex float* src = args[1];
 
+	nlop_data_der_alloc_memory(_data, dst);
+	void* der_data[1];
+	nlop_get_der_array(_data, 1, (void**)der_data);
+	float* pos = der_data[0];
+
 	struct relu_s* d = CAST_DOWN(relu_s, _data);
 
-	if (NULL == d->der)
-		d->der = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
-
 	md_smax2(d->dom->N, d->dom->dims, d->codom->strs, (float*)dst, d->codom->strs, (float*)src, 0.);
-	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->der, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+	if ((0 == d->slope_param) && (nlop_der_requested(_data, 0, 0)))
+		md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, pos, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
 
 	// leaky RELU if slope parameter has been set
 	if (0 != d->slope_param) {
 
 		complex float* tmp = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
 		complex float* tmp2 = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
+		complex float* der = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
 
 		// eliminate ones in derivative, where input is zero to calculate tmp(x) = (0, if x >= 0; 1, if x < 0)
 		md_lessequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
-		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)tmp2, (float*)d->der, (float*)tmp);
+		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)tmp2, (float*)der, (float*)tmp);
 		md_sub(d->tmpdom->N, d->tmpdom->dims, (float*)tmp, (float*)tmp, (float*)tmp2);
 
 		// derivative der(x) = {1, if x >= 0; d->slope_param if x < 0}
-		md_axpy(d->tmpdom->N, d->tmpdom->dims, (float*)d->der, d->slope_param, (float*)tmp);
+		md_axpy(d->tmpdom->N, d->tmpdom->dims, (float*)der, d->slope_param, (float*)tmp);
 
-		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)dst, (float*)d->der, (float*)src);
+		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)dst, (float*)der, (float*)src);
 
 		md_free(tmp);
 		md_free(tmp2);
-	}
 
-	if (op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER)) {
+		if (nlop_der_requested(_data, 0, 0))
+			md_copy2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, pos, d->dom->strs, der, d->tmpdom->size);
 
-		md_free(d->der);
-		d->der = NULL;
 	}
 
 }
@@ -369,9 +359,12 @@ static void relu_deriv(const nlop_data_t* _data, unsigned int o, unsigned int i,
 	UNUSED(i);
 
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-	assert(NULL != d->der);
 
-	md_mul2(d->codom->N, d->dom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->der, d->dom->strs, (float*)src);
+	void* der_data[1];
+	nlop_get_der_array(_data, 1, (void**)der_data);
+	float* pos = der_data[0];
+
+	md_mul2(d->codom->N, d->dom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, pos, d->dom->strs, (float*)src);
 }
 
 static void relu_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -380,16 +373,17 @@ static void relu_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(i);
 
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-	assert(NULL != d->der);
 
-	md_mul2(d->dom->N, d->dom->dims, d->dom->strs, (float*)dst, d->tmpdom->strs, (float*)d->der, d->codom->strs, (float*)src);
+	void* der_data[1];
+	nlop_get_der_array(_data, 1, (void**)der_data);
+	float* pos = der_data[0];
+
+	md_mul2(d->dom->N, d->dom->dims, d->dom->strs, (float*)dst, d->tmpdom->strs, pos, d->codom->strs, (float*)src);
 }
 
 static void relu_free(const nlop_data_t* _data)
 {
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-
-	md_free(d->der);
 
 	iovec_free(d->tmpdom);
 	iovec_free(d->dom);
@@ -431,7 +425,6 @@ const struct nlop_s* nlop_leaky_relu_create2(unsigned int N, const long dims[N],
 	long tstrs[N + 1];
 	md_calc_strides(N + 1, tstrs, r_dims, FL_SIZE);
 
-	data->der = NULL;
 	data->slope_param = slope_parameter;
 
 	data->tmpdom = iovec_create2(N + 1, r_dims, tstrs, FL_SIZE);
@@ -448,10 +441,11 @@ const struct nlop_s* nlop_leaky_relu_create2(unsigned int N, const long dims[N],
 	long nl_istr[1][N];
 	md_copy_strides(N, nl_istr[0], istrs);
 
-	operator_property_flags_t props[1][1] = {{0}};
+	struct nlop_der_array_s* der_arrays[1];
+	der_arrays[0] = nlop_der_array_create(N, dims, CFL_SIZE, 1, 1, (bool[1][1]){ { true } });
 
-	return nlop_generic_with_props_create2(	1, N, nl_odims, nl_ostr, 1, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, relu_set_opts, props, NULL);
+	return nlop_generic_managed_create2(	1, N, nl_odims, nl_ostr, 1, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
+						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, 1, der_arrays, NULL);
 }
 
 const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])

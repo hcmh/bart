@@ -14,6 +14,9 @@ struct nn_weights_s {
 	_Complex float** tensors;
 };
 
+const struct nn_weights_s* create_multi_md_array(int N, int D[N], const long* dimensions[N], const _Complex float* x[N], size_t sizes[N]);
+void free_multi_md_array(const struct nn_weights_s* array);
+
 typedef struct nn_weights_s* nn_weights_t;
 
 nn_weights_t nn_weights_create(int N, const struct iovec_s* iovs[N]);
@@ -35,7 +38,4 @@ const struct nn_s* nn_get_wo_weights_F(nn_t op, nn_weights_t weights, _Bool copy
 const struct nlop_s* nn_get_nlop_wo_weights(nn_t op, nn_weights_t weights, _Bool copy);
 const struct nlop_s* nn_get_nlop_wo_weights_F(nn_t op, nn_weights_t weights, _Bool copy);
 
-extern const struct nlop_s* deflatten_weights_create(const struct nlop_s* network, unsigned long flag);
-extern const struct nlop_s* deflatten_weights(const struct nlop_s* network, unsigned long flag);
-extern const struct nlop_s* deflatten_weightsF(const struct nlop_s* network, unsigned long flag);
 #endif

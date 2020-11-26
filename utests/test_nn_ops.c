@@ -36,25 +36,6 @@
 #include "utest.h"
 
 
-static bool test_nlop_relu_derivative(void)
-{
-	enum { N = 3 };
-	long dims[N] = { 10, 7, 3 };
-
-	const struct nlop_s* relu = nlop_relu_create(N, dims);
-
-	double err = nlop_test_derivative(relu);
-
-	nlop_free(relu);
-
-	UT_ASSERT(err < 1.E-2);
-}
-
-
-UT_UNUSED_TEST(test_nlop_relu_derivative);
-
-
-
 
 static bool test_nlop_relu_der_adj(void)
 {
@@ -277,66 +258,6 @@ static bool test_nlop_normalize(void)
 
 UT_REGISTER_TEST(test_nlop_normalize);
 
-static bool test_nlop_shift_and_scale(void)
-{
-	enum { N = 2 };
-	long idims[N] = { 10, 3 };
-	unsigned long flags = MD_BIT(0);
-	long odims[N];
-	md_select_dims(N, ~flags, odims, idims);
-
-	complex float* src = md_alloc(N, idims, CFL_SIZE);
-	complex float* dst = md_alloc(N, idims, CFL_SIZE);
-	complex float* mean = md_alloc(N, odims, CFL_SIZE);
-	complex float* mean2 = md_alloc(N, odims, CFL_SIZE);
-	complex float* var = md_alloc(N, odims, CFL_SIZE);
-	complex float* var2 = md_alloc(N, odims, CFL_SIZE);
-	md_zfill(N, odims, var2, 1.);
-
-	md_gaussian_rand(N, idims, src);
-
-	auto nlop_stats = nlop_stats_create(N, idims, MD_BIT(0));
-	auto nlop_normalize = nlop_normalize_create(N, idims, MD_BIT(0), 0.);
-
-	auto nlop = nlop_chain2(nlop_stats, 0, nlop_normalize, 1);
-	nlop = nlop_link_F(nlop, 1, 1);
-	nlop = nlop_dup_F(nlop, 0, 1);
-	nlop_apply(nlop, N, idims, src, N, idims, src); //src is normalized
-	nlop_free(nlop);
-
-	md_gaussian_rand(N, odims, var);
-	md_gaussian_rand(N, odims, mean);
-
-	auto nlop_renormalize = nlop_scale_and_shift_create(N, idims, MD_BIT(0));
-
-	nlop_generic_apply_unchecked(nlop_renormalize, 4, MAKE_ARRAY((void*)dst, (void*)src, (void*)mean, (void*)var));
-	nlop_generic_apply_unchecked(nlop_stats, 3, MAKE_ARRAY((void*)mean2, (void*)var2, (void*)dst));
-	md_zmulc(N, odims, var, var, var);
-
-	float err = md_znrmse(N, odims, mean, mean2);
-	err += md_znrmse(N, odims, var, var2);
-
-	float err_der = nlop_test_derivatives(nlop_renormalize);
-	float err_adj = nlop_test_adj_derivatives(nlop_renormalize, false);
-
-	debug_printf(DP_DEBUG1, "Shift and Scale: Error: mean: %.8f, var: %.8f, der: %.8f, adj: %.8f\n",
-			md_znrmse(N, odims, mean, mean2), md_znrmse(N, odims, var, var2), err_der, err_adj);
-
-	md_free(mean);
-	md_free(var);
-	md_free(mean2);
-	md_free(var2);
-	md_free(src);
-	md_free(dst);
-
-	nlop_free(nlop_stats);
-	nlop_free(nlop_normalize);
-	nlop_free(nlop_renormalize);
-
-	UT_ASSERT((err < 5.e-7) && (err_der < 5.e-3) && (err_adj < 1.e-6));
-}
-
-UT_REGISTER_TEST(test_nlop_shift_and_scale);
 
 static bool test_nlop_bn(void)
 {
@@ -693,27 +614,36 @@ static bool test_nlop_rbf(void)
  	enum { N = 3 };
  	long dims[N] = { 4, 3, 5};
 
-	auto op = nlop_activation_rbf_create(dims, 1., -1.);
-	auto op_gpu = nlop_activation_rbf_create(dims, 1., -1.);
+	auto op = nlop_activation_rbf_create(dims, 1., -1., false);
 
 	float err_adj = nlop_test_adj_derivatives(op, true);
 	float err_der = nlop_test_derivatives(op);
 
-	#ifdef USE_CUDA
-	float err = compare_gpu(op, op_gpu);
-	#else
-	float err = 0.;
-	UNUSED(op_gpu);
-	#endif
-
 	nlop_free(op);
-	nlop_free(op_gpu);
 
-	debug_printf(DP_DEBUG1, "rbf errors der, adj, gpu: %.8f, %.8f, %.8f\n", err_der, err_adj, err);
-	UT_ASSERT((err_der < 1.E-2) && (err_adj < 1.E-6)  && (err < 1.E-5));
+	debug_printf(DP_DEBUG1, "rbf errors der: %.8f, adj %.8f\n", err_der, err_adj);
+	UT_ASSERT((err_der < 1.E-2) && (err_adj < 1.E-6));
 }
 
 UT_REGISTER_TEST(test_nlop_rbf);
+
+static bool test_nlop_rbf2(void)
+{
+ 	enum { N = 3 };
+ 	long dims[N] = { 4, 3, 5};
+
+	auto op = nlop_activation_rbf_create(dims, 1., -1., true);
+
+	float err_adj = nlop_test_adj_derivatives(op, true);
+	float err_der = nlop_test_derivatives(op);
+
+	nlop_free(op);
+
+	debug_printf(DP_DEBUG1, "rbf errors der: %.8f, adj %.8f\n", err_der, err_adj);
+	UT_ASSERT((err_der < 1.E-2) && (err_adj < 1.E-6));
+}
+
+UT_REGISTER_TEST(test_nlop_rbf2);
 
 static bool test_avgpool(void)
 {
@@ -981,7 +911,7 @@ static bool test_dice2(void)
 	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
 	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
 
-	bool der = nlop_test_derivatives_reduce(nlop, 10, 5, 0.01);
+	bool der = nlop_test_derivatives_reduce(nlop, 10, 4, 0.01);
 	float adj_err = nlop_test_adj_derivatives(nlop, true);
 
 	nlop_free(nlop);
@@ -1006,7 +936,7 @@ static bool test_dice3(void)
 	nlop_free(nlop);
 
 	debug_printf(DP_DEBUG1, "%d %f\n", der, adj_err);
-	UT_ASSERT(der && (5.E-6 > adj_err));
+	UT_ASSERT(der && (2 * UT_TOL > adj_err));
 }
 
 UT_REGISTER_TEST(test_dice3);

@@ -41,9 +41,9 @@ nn_t nn_real_input(nn_t op, int i, const char* iname)
 
 	auto result = nn_from_nlop_F(nlop_result);
 
-	for (unsigned int i = 0; i < nn_get_nr_in_args(result); i++)
+	for (int i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
-	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
+	for (int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 	return result;
 }
@@ -69,9 +69,9 @@ nn_t nn_real_output(nn_t op, int o, const char* oname)
 
 	auto result = nn_from_nlop_F(nlop_result);
 
-	for (unsigned int i = 0; i < nn_get_nr_in_args(result); i++)
+	for (int i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
-	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
+	for (int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 	return result;
 }
@@ -123,9 +123,9 @@ nn_t nn_reshape_out(nn_t op, int o, const char* oname, int N, const long odims[N
 	o = nn_get_out_arg_index(op, o, oname);
 	auto result = nn_from_nlop_F(nlop_reshape_out(nn_get_nlop(op), o, N, odims));
 
-	for (unsigned int i = 0; i < nn_get_nr_in_args(result); i++)
+	for (int i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
-	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
+	for (int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 
 	return result;
@@ -147,9 +147,9 @@ nn_t nn_reshape_in(nn_t op, int i, const char* iname, int N, const long idims[N]
 	i = nn_get_in_arg_index(op, i, iname);
 	auto result = nn_from_nlop_F(nlop_reshape_in(nn_get_nlop(op), i, N, idims));
 
-	for (unsigned int i = 0; i < nn_get_nr_in_args(result); i++)
+	for (int i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
-	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
+	for (int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 
 	auto iov = nlop_generic_domain(op->nlop, i);
@@ -253,31 +253,31 @@ nn_t nn_append_singleton_dim_out_F(nn_t op, int o, const char* oname)
  *
  * @note If I2 equals the number of unnamed inputs, only the unnamed inputs are permuted, i.e. the named ones stay at their positions
  */
-nn_t nn_permute_inputs(nn_t op, unsigned int I2, const int perm[I2])
+nn_t nn_permute_inputs(nn_t op, int I2, const int perm[I2])
 {
 	assert((nn_get_nr_in_args(op) == I2) || (nn_get_nr_unnamed_in_args(op) == I2));
 
-	unsigned int II = nn_get_nr_in_args(op);
+	int II = nn_get_nr_in_args(op);
 	int nperm[II];
 
-	for (unsigned int i = 0; i < II; i++)
+	for (int i = 0; i < II; i++)
 		nperm[i] = i;
 
 	if (nn_get_nr_unnamed_in_args(op) == I2) {
 
-		for(unsigned int i = 0; i < nn_get_nr_unnamed_in_args(op); i++)
+		for(int i = 0; i < nn_get_nr_unnamed_in_args(op); i++)
 			nperm[nn_get_in_arg_index(op, i, NULL)] = nn_get_in_arg_index(op, perm[i], NULL);
 	} else {
 
-		for(unsigned int i = 0; i < nn_get_nr_in_args(op); i++)
+		for(int i = 0; i < nn_get_nr_in_args(op); i++)
 			nperm[i] = perm[i];
 	}
 
 	auto result = nn_from_nlop_F(nlop_permute_inputs(nn_get_nlop(op), II, nperm));
 
-	for (unsigned int i = 0; i < nn_get_nr_in_args(result); i++)
+	for (int i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, nperm[i]);
-	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
+	for (int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 
 	return result;
@@ -295,31 +295,31 @@ nn_t nn_permute_inputs(nn_t op, unsigned int I2, const int perm[I2])
  *
  * @note If O2 equals the number of unnamed outputs, only the unnamed outputs are permuted, i.e. the named ones stay at their positions
  */
-nn_t nn_permute_outputs(nn_t op, unsigned int O2, const int perm[O2])
+nn_t nn_permute_outputs(nn_t op, int O2, const int perm[O2])
 {
 	assert((nn_get_nr_out_args(op) == O2) || (nn_get_nr_unnamed_out_args(op) == O2));
 
-	unsigned int OO = nn_get_nr_out_args(op);
+	int OO = nn_get_nr_out_args(op);
 	int nperm[OO];
 
-	for (unsigned int i = 0; i < OO; i++)
+	for (int i = 0; i < OO; i++)
 		nperm[i] = i;
 
 	if (nn_get_nr_unnamed_out_args(op) == O2) {
 
-		for(unsigned int i = 0; i < nn_get_nr_unnamed_out_args(op); i++)
+		for(int i = 0; i < nn_get_nr_unnamed_out_args(op); i++)
 			nperm[nn_get_out_arg_index(op, i, NULL)] = nn_get_out_arg_index(op, perm[i], NULL);
 	} else {
 
-		for(unsigned int i = 0; i < nn_get_nr_out_args(op); i++)
+		for(int i = 0; i < nn_get_nr_out_args(op); i++)
 			nperm[i] = perm[i];
 	}
 
 	auto result = nn_from_nlop_F(nlop_permute_outputs(nn_get_nlop(op), OO, nperm));
 
-	for (unsigned int i = 0; i < nn_get_nr_in_args(result); i++)
+	for (int i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
-	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
+	for (int i = 0; i < nn_get_nr_out_args(result); i++)
 		nn_clone_arg_o_from_o(result, i, op, nperm[i]);
 
 	return result;
@@ -337,7 +337,7 @@ nn_t nn_permute_outputs(nn_t op, unsigned int O2, const int perm[O2])
  *
  * @note If I2 equals the number of unnamed inputs, only the unnamed inputs are permuted, i.e. the named ones stay at their positions
  */
-nn_t nn_permute_inputs_F(nn_t op, unsigned int I2, const int perm[I2])
+nn_t nn_permute_inputs_F(nn_t op, int I2, const int perm[I2])
 {
 	auto result = nn_permute_inputs(op, I2, perm);
 	nn_free(op);
@@ -356,7 +356,7 @@ nn_t nn_permute_inputs_F(nn_t op, unsigned int I2, const int perm[I2])
  *
  * @note If O2 equals the number of unnamed outputs, only the unnamed outputs are permuted, i.e. the named ones stay at their positions
  */
-nn_t nn_permute_outputs_F(nn_t op, unsigned int O2, const int perm[O2])
+nn_t nn_permute_outputs_F(nn_t op, int O2, const int perm[O2])
 {
 	auto result = nn_permute_outputs(op, O2, perm);
 	nn_free(op);
@@ -384,33 +384,33 @@ nn_t nn_permute_outputs_F(nn_t op, unsigned int O2, const int perm[O2])
  */
 nn_t nn_combine(nn_t a, nn_t b)
 {
-	unsigned int IIa = nn_get_nr_in_args(a);
-	unsigned int IIb = nn_get_nr_in_args(b);
-	unsigned int OOa = nn_get_nr_out_args(a);
-	unsigned int OOb = nn_get_nr_out_args(b);
+	int IIa = nn_get_nr_in_args(a);
+	int IIb = nn_get_nr_in_args(b);
+	int OOa = nn_get_nr_out_args(a);
+	int OOb = nn_get_nr_out_args(b);
 
-	for (unsigned int ia = 0; ia < IIa; ia++)
-		for (unsigned int ib = 0; ib < IIb; ib++)
+	for (int ia = 0; ia < IIa; ia++)
+		for (int ib = 0; ib < IIb; ib++)
 			assert(    (NULL == nn_get_in_names(a)[ia])
 				|| (NULL == nn_get_in_names(b)[ib])
 				|| (0 != strcmp(nn_get_in_names(a)[ia], nn_get_in_names(b)[ib])));
 
-	for (unsigned int ia = 0; ia < OOa; ia++)
-		for (unsigned int ib = 0; ib < OOb; ib++)
+	for (int ia = 0; ia < OOa; ia++)
+		for (int ib = 0; ib < OOb; ib++)
 			assert(    (NULL == nn_get_out_names(a)[ia])
 				|| (NULL == nn_get_out_names(b)[ib])
 				|| (0 != strcmp(nn_get_out_names(a)[ia], nn_get_out_names(b)[ib])));
 
 	auto result = nn_from_nlop_F(nlop_combine(nn_get_nlop(a), nn_get_nlop(b)));
 
-	for (unsigned int i = 0; i < IIa; i++)
+	for (int i = 0; i < IIa; i++)
 		nn_clone_arg_i_from_i(result, i, a, i);
-	for (unsigned int i = 0; i < IIb; i++)
+	for (int i = 0; i < IIb; i++)
 		nn_clone_arg_i_from_i(result, IIa + i, b, i);
 
-	for (unsigned int i = 0; i < OOa; i++)
+	for (int i = 0; i < OOa; i++)
 		nn_clone_arg_o_from_o(result, i, a, i);
-	for (unsigned int i = 0; i < OOb; i++)
+	for (int i = 0; i < OOb; i++)
 		nn_clone_arg_o_from_o(result, OOa + i, b, i);
 
 	return result;
@@ -464,25 +464,25 @@ nn_t nn_combine_FF(nn_t a, nn_t b)
  */
 nn_t nn_link(nn_t op, int o, const char* oname, int i, const char* iname)
 {
-	unsigned int OO = nn_get_nr_out_args(op) - 1;
-	unsigned int II = nn_get_nr_in_args(op) - 1;
+	int OO = nn_get_nr_out_args(op) - 1;
+	int II = nn_get_nr_in_args(op) - 1;
 
 	o = nn_get_out_arg_index(op, o, oname);
 	i = nn_get_in_arg_index(op, i, iname);
 
 	auto result = nn_from_nlop_F(nlop_link(nn_get_nlop(op), o, i));
 
-	for (unsigned int ii = 0, ip = 0; ii < II; ii++){
+	for (int ii = 0, ip = 0; ii < II; ii++){
 
-		if ((int)ii == i)
+		if (ii == i)
 			ip++;
 		nn_clone_arg_i_from_i(result, ii, op, ip);
 		ip++;
 	}
 
-	for (unsigned int ii = 0, ip = 0; ii < OO; ii++){
+	for (int ii = 0, ip = 0; ii < OO; ii++){
 
-		if ((int)ii == o)
+		if (ii == o)
 			ip++;
 		nn_clone_arg_o_from_o(result, ii, op, ip);
 		ip++;
@@ -518,11 +518,11 @@ nn_t nn_link_F(nn_t x, int o, const char* oname, int i, const char* iname)
 }
 
 /**
- * Chain an output of nn_t a in an input of nn_t b
+ * Chain output o of nn a in input i of nn b.
  *
- * This is a combination of nn_combine and nn_link.
- * The first inputs of the resulting nn_t correspond to the inputs of b (except the input i), the latter ones to a.
- * The first outputs of the resulting nn_t correspond to the outputs of b, the latter ones to a, (except the output o).
+ * Returned operator has
+ * - inputs:  [b_0, ..., b_i-1, b_i+1, ..., b_n, a_0, ..., a_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o+1, ..., a_n]
  *
  * @param a nn_t struct
  * @param o output index (ignored if oname != NULL)
@@ -535,16 +535,46 @@ nn_t nn_link_F(nn_t x, int o, const char* oname, int i, const char* iname)
  */
 nn_t nn_chain2(nn_t a, int o, const char* oname, nn_t b, int i, const char* iname)
 {
-	int OO = nn_get_nr_unnamed_out_args(b);
-	return nn_link_F(nn_combine(b, a), (NULL == oname) ? o + OO : 0, oname, i, iname);
+	int IIa = nn_get_nr_in_args(a);
+	int IIb = nn_get_nr_in_args(b);
+	int OOa = nn_get_nr_out_args(a);
+	int OOb = nn_get_nr_out_args(b);
+
+	o = nn_get_out_arg_index(a, o, oname);
+	i = nn_get_in_arg_index(b, i, iname);
+
+	auto result = nn_from_nlop_F(nlop_chain2(a->nlop, o, b->nlop, i));
+
+	for (int j = 0, jp = 0; j < IIb - 1; j++, jp++) {
+
+		if (j == i)
+			jp++;
+		nn_clone_arg_i_from_i(result, j, b, jp);
+	}
+
+	for (int j = 0; j < IIa; j++)
+		nn_clone_arg_i_from_i(result, j + IIb - 1, a, j);
+
+	for (int j = 0; j < OOb; j++)
+		nn_clone_arg_o_from_o(result, j, b, j);
+
+	for (int j = 0, jp = 0; j < OOa - 1; j++, jp++) {
+
+		if (j == o)
+			jp++;
+		nn_clone_arg_o_from_o(result, j + OOb, a, jp);
+	}
+
+	return result;
 }
 
 /**
- * Chain an output of nn_t a in an input of nn_t b and free both nn_ts
+ * Chain output o of nn a in input i of nn b.
+ * Free a and b
  *
- * This is a combination of nn_combine and nn_link.
- * The first inputs of the resulting nn_t correspond to the inputs of b (except the input i), the latter ones to a.
- * The first outputs of the resulting nn_t correspond to the outputs of b, the latter ones to a, (except the output o).
+ * Returned operator has
+ * - inputs:  [b_0, ..., b_i-1, b_i+1, ..., b_n, a_0, ..., a_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o+1, ..., a_n]
  *
  * @param a nn_t struct (will be freed)
  * @param o output index (ignored if oname != NULL)
@@ -557,16 +587,22 @@ nn_t nn_chain2(nn_t a, int o, const char* oname, nn_t b, int i, const char* inam
  */
 nn_t nn_chain2_FF(nn_t a, int o, const char* oname, nn_t b, int i, const char* iname)
 {
-	int OO = nn_get_nr_unnamed_out_args(b);
-	return nn_link_F(nn_combine_FF(b, a), (NULL == oname) ? o + OO : 0, oname, i, iname);
+	auto result = nn_chain2(a, o, oname, b, i, iname);
+
+	nn_free(a);
+	nn_free(b);
+
+	return result;
 }
 
 /**
- * Chain an output of nn_t a in an input of nn_t b, permute the inputs of a to the end and free both nn_ts
+ * Chain output o of nn a in input i of nn b.
+ * Permute inputs.
+ * Free a and b.
  *
- * This is a combination of nn_combine and nn_link and nn_permute_inputs.
- * The first inputs of the resulting nn_t correspond to the inputs of a, the latter ones to b (except the input i).
- * The first outputs of the resulting nn_t correspond to the outputs of b, the latter ones to a, (except the output o).
+ * Returned operator has
+ * - inputs:  [a_0, ..., a_n, b_0, ..., b_i-1, b_i+1, ..., b_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o+1, ..., a_n]
  *
  * @param a nn_t struct (will be freed)
  * @param o output index (ignored if oname != NULL)
@@ -582,6 +618,116 @@ nn_t nn_chain2_swap_FF(nn_t a, int o, const char* oname, nn_t b, int i, const ch
 	int unIIa = nn_get_nr_in_args(a);
 
 	auto result = nn_chain2_FF(a, o, oname, b, i, iname);
+
+	int unII = nn_get_nr_in_args(result);
+	int perm[unII];
+
+	for (int i = 0; i < unII; i++)
+		perm[(unIIa + i) % unII] = i;
+
+	return nn_permute_inputs_F(result, unII, perm);
+}
+
+/**
+ * Chain output o of nn a in input i of nn b.
+ * Keep output of a
+ *
+ * Returned operator has
+ * - inputs:  [b_0, ..., b_i-1, b_i+1, ..., b_n, a_0, ..., a_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o+1, ..., a_n]
+ *
+ * @param a nn_t struct
+ * @param o output index (ignored if oname != NULL)
+ * @param oname name of output
+ * @param b nn_t struct
+ * @param i input index (ignored if iname != NULL)
+ * @param iname name of input
+ *
+ * @returns chained nn_t
+ */
+nn_t nn_chain2_keep(nn_t a, int o, const char* oname, nn_t b, int i, const char* iname)
+{
+	int IIa = nn_get_nr_in_args(a);
+	int IIb = nn_get_nr_in_args(b);
+	int OOa = nn_get_nr_out_args(a);
+	int OOb = nn_get_nr_out_args(b);
+
+	o = nn_get_out_arg_index(a, o, oname);
+	i = nn_get_in_arg_index(b, i, iname);
+
+	auto result = nn_from_nlop_F(nlop_chain2_keep(a->nlop, o, b->nlop, i));
+
+	for (int j = 0, jp = 0; j < IIb - 1; j++, jp++) {
+
+		if (j == i)
+			jp++;
+		nn_clone_arg_i_from_i(result, j, b, jp);
+	}
+
+	for (int j = 0; j < IIa; j++)
+		nn_clone_arg_i_from_i(result, j + IIb - 1, a, j);
+
+	for (int j = 0; j < OOb; j++)
+		nn_clone_arg_o_from_o(result, j, b, j);
+
+	for (int j = 0; j < OOa; j++)
+		nn_clone_arg_o_from_o(result, j + OOb, a, j);
+
+	return result;
+}
+
+/**
+ * Chain output o of nn a in input i of nn b.
+ * Keep output of a.
+ * Free a and b.
+ *
+ * Returned operator has
+ * - inputs:  [b_0, ..., b_i-1, b_i+1, ..., b_n, a_0, ..., a_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o+1, ..., a_n]
+ *
+ * @param a nn_t struct (will be freed)
+ * @param o output index (ignored if oname != NULL)
+ * @param oname name of output
+ * @param nn_t struct (will be freed)
+ * @param i input index (ignored if iname != NULL)
+ * @param iname name of input
+ *
+ * @returns chained nn_t
+ */
+nn_t nn_chain2_keep_FF(nn_t a, int o, const char* oname, nn_t b, int i, const char* iname)
+{
+	auto result = nn_chain2_keep(a, o, oname, b, i, iname);
+
+	nn_free(a);
+	nn_free(b);
+
+	return result;
+}
+
+/**
+ * Chain output o of nn a in input i of nn b.
+ *Keep output of a.
+ * Permute inputs.
+ * Free a and b.
+ *
+ * Returned operator has
+ * - inputs:  [a_0, ..., a_n, b_0, ..., b_i-1, b_i+1, ..., b_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o, a_o+1, ..., a_n]
+ *
+ * @param a nn_t struct (will be freed)
+ * @param o output index (ignored if oname != NULL)
+ * @param oname name of output
+ * @param nn_t struct (will be freed)
+ * @param i input index (ignored if iname != NULL)
+ * @param iname name of input
+ *
+ * @returns chained nn_t
+ */
+nn_t nn_chain2_keep_swap_FF(nn_t a, int o, const char* oname, nn_t b, int i, const char* iname)
+{
+	int unIIa = nn_get_nr_in_args(a);
+
+	auto result = nn_chain2_keep_FF(a, o, oname, b, i, iname);
 
 	int unII = nn_get_nr_in_args(result);
 	int perm[unII];
@@ -618,8 +764,8 @@ nn_t nn_dup(nn_t op, int a, const char* aname, int b, const char* bname)
 
 	assert(op->dup[a] == op->dup[b]);
 
-	unsigned int II = nn_get_nr_in_args(op);
-	unsigned int OO = nn_get_nr_out_args(op);
+	int II = nn_get_nr_in_args(op);
+	int OO = nn_get_nr_out_args(op);
 
 	auto init_tmp = init_dup_create(op->initializers[a], op->initializers[b]);
 
@@ -636,12 +782,12 @@ nn_t nn_dup(nn_t op, int a, const char* aname, int b, const char* bname)
 
 	auto result = nn_from_nlop_F(nlop);
 
-	for (unsigned int i = 0, ip = 0; i < II - 1; i++) {
+	for (int i = 0, ip = 0; i < II - 1; i++) {
 
-		if (i == (unsigned int)b) ip++;
+		if (i == b) ip++;
 		nn_clone_arg_i_from_i(result, i, op, ip++);
 	}
-	for (unsigned int i = 0; i < OO; i++)
+	for (int i = 0; i < OO; i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 
 	initializer_free(result->initializers[(a > b) ? a - 1 : a]);
@@ -703,8 +849,8 @@ nn_t nn_stack_inputs(nn_t op, int a, const char* aname, int b, const char* bname
 
 	assert(op->dup[a] == op->dup[b]);
 
-	unsigned int II = nn_get_nr_in_args(op);
-	unsigned int OO = nn_get_nr_out_args(op);
+	int II = nn_get_nr_in_args(op);
+	int OO = nn_get_nr_out_args(op);
 
 	auto iova = nlop_generic_domain(op->nlop, a);
 	auto iovb = nlop_generic_domain(op->nlop, b);
@@ -727,12 +873,12 @@ nn_t nn_stack_inputs(nn_t op, int a, const char* aname, int b, const char* bname
 		nlop = nlop_shift_input_F(nlop, a - 1, b);
 	auto result = nn_from_nlop_F(nlop);
 
-	for (unsigned int i = 0, ip = 0; i < II - 1; i++) {
+	for (int i = 0, ip = 0; i < II - 1; i++) {
 
-		if (i == (unsigned int)b) ip++;
+		if (i == b) ip++;
 		nn_clone_arg_i_from_i(result, i, op, ip++);
 	}
-	for (unsigned int i = 0; i < OO; i++)
+	for (int i = 0; i < OO; i++)
 		nn_clone_arg_o_from_o(result, i, op, i);
 
 	initializer_free(result->initializers[(a > b) ? a - 1 : a]);
@@ -789,20 +935,20 @@ nn_t nn_stack_outputs(nn_t op, int a, const char* aname, int b, const char* bnam
 	a = nn_get_out_arg_index(op, a, aname);
 	b = nn_get_out_arg_index(op, b, bname);
 
-	unsigned int II = nn_get_nr_in_args(op);
-	unsigned int OO = nn_get_nr_out_args(op);
+	int II = nn_get_nr_in_args(op);
+	int OO = nn_get_nr_out_args(op);
 
 	auto nlop = nlop_stack_outputs(nn_get_nlop(op), a, b, stack_dim);
 	if (a > b)
 		nlop = nlop_shift_output_F(nlop, a - 1, b);
 	auto result = nn_from_nlop_F(nlop);
 
-	for (unsigned int i = 0; i < II; i++)
+	for (int i = 0; i < II; i++)
 		nn_clone_arg_i_from_i(result, i, op, i);
 
-	for (unsigned int i = 0, ip = 0; i < OO - 1; i++) {
+	for (int i = 0, ip = 0; i < OO - 1; i++) {
 
-		if (i == (unsigned int)b) ip++;
+		if (i == b) ip++;
 		nn_clone_arg_o_from_o(result, i, op, ip++);
 	}
 
@@ -842,7 +988,7 @@ nn_t nn_stack_outputs_F(nn_t op, int a, const char* aname, int b, const char* bn
  *
  * @note the indices n and o also count named arguments, use nn_shift_input_F if only unnamed inputs shall be shifted
  */
-nn_t nn_shift_input_index_F(nn_t x, uint n, uint o)
+nn_t nn_shift_input_index_F(nn_t x, int n, int o)
 {
 	int new_index = n;
 	int old_index = o;
@@ -876,7 +1022,7 @@ nn_t nn_shift_input_index_F(nn_t x, uint n, uint o)
  *
  * @note the indices n and o also count named arguments, use nn_shift_output_F if only unnamed inputs shall be shifted
  */
-nn_t nn_shift_output_index_F(nn_t x, uint n, uint o)
+nn_t nn_shift_output_index_F(nn_t x, int n, int o)
 {
 	int new_index = n;
 	int old_index = o;
@@ -993,7 +1139,7 @@ nn_t nn_mark_stack_output_F(nn_t x, const char* name)
 static nn_t stack_in_by_name(nn_t x) {
 
 	const char* stack_name = NULL;
-	for (unsigned int i = 0; i < nn_get_nr_in_args(x); i ++)
+	for (int i = 0; i < nn_get_nr_in_args(x); i ++)
 		if (NULL != x->in_names[i] && 0 == strncmp(x->in_names[i], "#STACK_", 7))
 			stack_name = x->in_names[i];
 
@@ -1006,7 +1152,7 @@ static nn_t stack_in_by_name(nn_t x) {
 static nn_t stack_out_by_name(nn_t x) {
 
 	const char* stack_name = NULL;
-	for (unsigned int i = 0; i < nn_get_nr_out_args(x); i ++)
+	for (int i = 0; i < nn_get_nr_out_args(x); i ++)
 		if (NULL != x->out_names[i] && 0 == strncmp(x->out_names[i], "#STACK_", 7))
 			stack_name = x->out_names[i];
 
@@ -1019,7 +1165,7 @@ static nn_t stack_out_by_name(nn_t x) {
 static nn_t dup_by_name(nn_t x) {
 
 	const char* stack_name = NULL;
-	for (unsigned int i = 0; i < nn_get_nr_in_args(x); i ++)
+	for (int i = 0; i < nn_get_nr_in_args(x); i ++)
 		if (NULL != x->in_names[i] && 0 == strncmp(x->in_names[i], "#DUP_", 5))
 			stack_name = x->in_names[i];
 
@@ -1086,14 +1232,14 @@ static bool is_name_in_list(int N, const char* names[N], const char* name)
  *
  * @note not all input names must be provided in the list and vice versa
  */
-nn_t nn_sort_inputs_by_list_F(nn_t x, unsigned int N, const char* sorted_names[N])
+nn_t nn_sort_inputs_by_list_F(nn_t x, int N, const char* sorted_names[N])
 {
-	unsigned int II = nn_get_nr_in_args(x);
+	int II = nn_get_nr_in_args(x);
 	int nperm[II];
 
 	int index = 0;
 
-	for (uint i = 0; i < II; i++){
+	for (int i = 0; i < II; i++){
 
 		if (is_name_in_list(N, sorted_names, nn_get_in_name_from_arg_index(x, i, false))) {
 
@@ -1122,14 +1268,14 @@ nn_t nn_sort_inputs_by_list_F(nn_t x, unsigned int N, const char* sorted_names[N
  *
  * @note not all input names must be provided in the list and vice versa
  */
-nn_t nn_sort_outputs_by_list_F(nn_t x, unsigned int N, const char* sorted_names[N])
+nn_t nn_sort_outputs_by_list_F(nn_t x, int N, const char* sorted_names[N])
 {
-	unsigned int OO = nn_get_nr_out_args(x);
+	int OO = nn_get_nr_out_args(x);
 	int nperm[OO];
 
 	int index = 0;
 
-	for (uint i = 0; i < OO; i++){
+	for (int i = 0; i < OO; i++){
 
 		if (is_name_in_list(N, sorted_names, nn_get_out_name_from_arg_index(x, i, false))) {
 

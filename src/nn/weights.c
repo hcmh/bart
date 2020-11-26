@@ -1,3 +1,10 @@
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
+ * All rights reserved. Use of this source code is governed by
+ * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors: Moritz Blumenthal
+ */
+
 #include <complex.h>
 #include <assert.h>
 
@@ -22,6 +29,28 @@
 #include "nn/init.h"
 
 #include "weights.h"
+
+const struct nn_weights_s* create_multi_md_array(int N, int D[N], const long* dimensions[N], const _Complex float* x[N], size_t sizes[N])
+{
+	const struct iovec_s* iovs[N];
+	for (int i = 0; i < N; i++)
+		iovs[i] = iovec_create(D[i], dimensions[i], sizes[i]);
+
+	auto result = nn_weights_create(N, iovs);
+
+	for (int i = 0; i < N; i++) {
+
+		md_copy(D[i], dimensions[i], result->tensors[i], x[i], sizes[i]);
+		iovec_free(iovs[i]);
+	}
+
+	return result;
+}
+
+void free_multi_md_array(const struct nn_weights_s* array)
+{
+	nn_weights_free((struct nn_weights_s*)array);
+}
 
 
 
@@ -175,7 +204,7 @@ void nn_weights_free(nn_weights_t weights){
  */
 void nn_init(nn_t op, nn_weights_t weights)
 {
-	for (uint i = 0, ip = 0; i < nn_get_nr_in_args(op); i++){
+	for (int i = 0, ip = 0; i < nn_get_nr_in_args(op); i++){
 
 		if(NULL != op->initializers[i]) {
 
@@ -236,14 +265,14 @@ nn_t nn_get_wo_weights(nn_t op, nn_weights_t weights, bool copy)
 
 	auto result = nn_from_nlop_F(nlop_result);
 
-	for (unsigned int i = 0, j = 0; i < nn_get_nr_in_args(result); i++, j++) {
+	for (int i = 0, j = 0; i < nn_get_nr_in_args(result); i++, j++) {
 
 		while ((IN_OPTIMIZE == op->in_types[i]) || (IN_BATCHNORM == op->in_types[i]))
 			j++;
 		nn_clone_arg_i_from_i(result, i, op, j);
 	}
 
-	for (unsigned int i = 0, j = 0; i < nn_get_nr_out_args(result); i++, j++) {
+	for (int i = 0, j = 0; i < nn_get_nr_out_args(result); i++, j++) {
 
 		while (OUT_BATCHNORM == op->out_types[i])
 			j++;
@@ -339,72 +368,4 @@ void nn_weights_copy(nn_weights_t dst, nn_weights_t src){
 			MD_STRIDES(iovs->N, iovs->dims, iovs->size), src->tensors[i],
 			iovs->size);
 	}
-}
-
-
-
-const struct nlop_s* deflatten_weights_create(const struct nlop_s* network, unsigned long flag)
-{
-	int count = 0;
-	long size_in = 0;
-	for (int i = 0; i < nlop_get_nr_in_args(network); i++)
-		if(!(MD_IS_SET(flag, i))){
-
-			count += 1;
-			size_in += md_calc_size(nlop_generic_domain(network, i)->N, nlop_generic_domain(network, i)->dims);
-	}
-
-	assert(0 < count);
-
-	struct nlop_s* result = NULL;
-	long pos = 0;
-
-	for(int i = 0, j = 0; i < count; i++){
-
-		while(MD_IS_SET(flag, j))
-			j += 1;
-
-		const struct linop_s* lin_tmp = linop_copy_selected_create2(nlop_generic_domain(network, j)->N, nlop_generic_domain(network, j)->dims, nlop_generic_domain(network, j)->strs, size_in, pos);
-
-		pos += md_calc_size(nlop_generic_domain(network, j)->N, nlop_generic_domain(network, j)->dims);
-
-		if(result == NULL)
-			result = nlop_from_linop_F(lin_tmp);
-		else
-			result = nlop_dup_F(nlop_combine_FF(result, nlop_from_linop_F(lin_tmp)), 0, 1);
-
-		j += 1;
-
-	}
-
-	return result;
-}
-
-const struct nlop_s* deflatten_weights(const struct nlop_s* network, unsigned long flag)
-{
-	const struct nlop_s* deflatten = deflatten_weights_create(network, flag);
-	const struct nlop_s* result = nlop_combine(network, deflatten);
-
-	int o = nlop_get_nr_out_args(network);
-	int count = nlop_get_nr_out_args(deflatten);
-
-	nlop_free(deflatten);
-
-	for(int i = 0, j = 0; i < count; i++){
-
-		while(MD_IS_SET(flag, j))
-			j += 1;
-
-		result = nlop_link_F(result, o, j);
-	}
-
-	return result;
-}
-
-const struct nlop_s* deflatten_weightsF(const struct nlop_s* network, unsigned long flag)
-{
-	const struct nlop_s* result = deflatten_weights(network, flag);
-	nlop_free(network);
-
-	return result;
 }
