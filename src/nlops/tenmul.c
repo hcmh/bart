@@ -112,7 +112,6 @@ static void tenmul_der2(const nlop_data_t* _data, unsigned int o, unsigned int i
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
 	if (NULL == data->x1)
