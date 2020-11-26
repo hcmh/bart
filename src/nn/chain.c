@@ -388,7 +388,7 @@ nn_t nn_link(nn_t op, int o, const char* oname, int i, const char* iname)
 		if ((int)ii == o)
 			ip++;
 		nn_clone_arg_o_from_o(result, ii, op, ip);
-		op++;
+		ip++;
 	}
 
 	return result;
