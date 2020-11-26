@@ -1,5 +1,5 @@
 /* Copyright 2013. The Regents of the University of California.
- * All rights reserved. Use of this source code is governed by 
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
@@ -48,7 +48,7 @@ complex double gaussian_rand(void)
 	double u1, u2, s;
 
  	do {
-	
+
 		u1 = 2. * uniform_rand() - 1.;
 		u2 = 2. * uniform_rand() - 1.;
    		s = u1 * u1 + u2 * u2;
@@ -65,7 +65,7 @@ void md_gaussian_rand(unsigned int D, const long dims[D], complex float* dst)
 {
 #ifdef  USE_CUDA
 	if (cuda_ondevice(dst)) {
-	
+
 		complex float* tmp = md_alloc(D, dims, sizeof(complex float));
 		md_gaussian_rand(D, dims, tmp);
 		md_copy(D, dims, dst, tmp, sizeof(complex float));
@@ -78,3 +78,34 @@ void md_gaussian_rand(unsigned int D, const long dims[D], complex float* dst)
 		dst[i] = (complex float)gaussian_rand();
 }
 
+void md_uniform_rand(unsigned int D, const long dims[D], complex float* dst)
+{
+#ifdef  USE_CUDA
+	if (cuda_ondevice(dst)) {
+
+		complex float* tmp = md_alloc(D, dims, sizeof(complex float));
+		md_uniform_rand(D, dims, tmp);
+		md_copy(D, dims, dst, tmp, sizeof(complex float));
+		md_free(tmp);
+		return;
+	}
+#endif
+	for (long i = 0; i < md_calc_size(D, dims); i++)
+		dst[i] = (complex float)uniform_rand();
+}
+
+void md_rand_one(unsigned int D, const long dims[D], complex float* dst, double p)
+{
+#ifdef  USE_CUDA
+	if (cuda_ondevice(dst)) {
+
+		complex float* tmp = md_alloc(D, dims, sizeof(complex float));
+		md_rand_one(D, dims, tmp, p);
+		md_copy(D, dims, dst, tmp, sizeof(complex float));
+		md_free(tmp);
+		return;
+	}
+#endif
+	for (long i = 0; i < md_calc_size(D, dims); i++)
+		dst[i] = (complex float)(uniform_rand() < p);
+}
