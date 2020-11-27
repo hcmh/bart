@@ -72,7 +72,6 @@ zconvcorr_bwd_krn_algo_f* algos_bwd_krn_gpu[] = {
 zconvcorr_fwd_algo_f* algos_fwd_gpu[] = {
 					#ifdef USE_CUDNN
 						zconvcorr_fwd_cudnn_2d_cf,
-						zconvcorr_fwd_cudnn_3d_cf,
 					#endif
 						zconvcorr_fwd_im2col_cf_gpu,
 						zconvcorr_fwd_direct_cf};

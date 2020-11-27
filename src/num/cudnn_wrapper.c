@@ -7,6 +7,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/gpuops.h"
+#include "num/blas_md_wrapper.h"
 #include <cudnn.h>
 
 #include "misc/debug.h"
@@ -81,62 +82,158 @@ static bool check_trivial_cf_2d(int N, long odims[N], long ostrs[N], long idims[
 	return check_trivial_cf_3d(N, odims, ostrs, idims, istrs, kdims, kstrs, flags, dilation, strides, size) && (1 == odims[4]) && (1 == idims[4]) && (1 == kdims[4]);
 }
 
-bool zconvcorr_fwd_cudnn_2d_cf(	int N,
-				long odims[N], long ostrs[N], complex float* out,
-				long idims[N], long istrs[N], const complex float* in,
-				long kdims[N], long kstrs[N], const complex float* krn,
-				unsigned long flags, const long dilation[N], const long strides[N], bool conv)
+
+//Convert kernel bart channel first [out_channel, in_channel, imagex, ...] to NHWC [in_channel, image_x, ..., out_channel]
+static void bart_real_kernel_to_cudnn_NHWC(int N, const long kdims[N], float* dst, const float* src)
 {
-	size_t size = CFL_SIZE;
+	long trans_dims[2] = {md_calc_size(N - 1, kdims + 1), kdims[0]};
+	long trans_strs_out[2] = {FL_SIZE, FL_SIZE * trans_dims[0]};
+	long trans_strs_in[2] = {FL_SIZE * trans_dims[1], FL_SIZE};
 
-	if (!check_trivial_cf_2d(N, odims, ostrs, idims, istrs, kdims, kstrs, flags, dilation, strides, size))
-		return false;
+	blas_smul_smatcopy(2, trans_dims, trans_strs_out, dst, trans_strs_in, src, 1.);
+}
 
+//Convert kernel NHWC [in_channel, image_x, ..., out_channel] to bart channel first [out_channel, in_channel, imagex, ...]
+static void cudnn_NHWC_to_bart_real_kernel(int N, const long kdims[N], float* dst, const float* src)
+{
+	long trans_dims[2] = {kdims[0], md_calc_size(N - 1, kdims + 1)};
+	long trans_strs_out[2] = {FL_SIZE, FL_SIZE * trans_dims[0]};
+	long trans_strs_in[2] = {FL_SIZE * trans_dims[1], FL_SIZE};
+
+	blas_smul_smatcopy(2, trans_dims, trans_strs_out, dst, trans_strs_in, src, 1.);
+}
+
+//Convert kernel bart channel first complex [out_channel, in_channel, imagex, ...] to NHWC real [2 * in_channel, image_x, ..., 2 * out_channel]
+static void complex_kernel_to_real(int N, const long kdims[N], float* dst, const complex float* src)
+{
+	float* real = md_alloc_sameplace(N, kdims, FL_SIZE, dst);
+	float* imag = md_alloc_sameplace(N, kdims, FL_SIZE, dst);
+
+	md_real(N, kdims, real, src);
+	md_imag(N, kdims, imag, src);
+
+	long ckdims[N + 2];
+	long rkdims[N + 2];
+
+	for(int i = 0, ip = 0; ip < N + 2; ip++) {
+
+		if ((ip == 0) || (ip == 2))
+			continue;
+
+		ckdims[ip] = kdims[i];
+		rkdims[ip] = kdims[i];
+		i++;
+	}
+	rkdims[0] = 2; rkdims[2] = 2;
+	ckdims[0] = 1; ckdims[2] = 1;
+
+	long rkstrs [N + 2]; md_calc_strides(N + 2, rkstrs, rkdims, FL_SIZE);
+	long ckstrs [N + 2]; md_calc_strides(N + 2, ckstrs, ckdims, FL_SIZE);
+
+	long pos[N + 2];
+	for (int i = 0; i < N; i++)
+		pos[i] = 0;
+
+	float* tmp = md_alloc_sameplace(N + 2, rkdims, FL_SIZE, src);
+
+	// re to re
+	md_copy2(N + 2, ckdims, rkstrs, (void*)tmp + md_calc_offset(N + 2, rkstrs, pos), ckstrs, real, FL_SIZE);
+
+	// im to im
+	pos[0] = 1; pos[2] = 1;
+	md_copy2(N + 2, ckdims, rkstrs, (void*)tmp + md_calc_offset(N + 2, rkstrs, pos), ckstrs, real, FL_SIZE);
+
+	//re to im
+	pos[0] = 1; pos[2] = 0;
+	md_copy2(N + 2, ckdims, rkstrs, (void*)tmp + md_calc_offset(N + 2, rkstrs, pos), ckstrs, imag, FL_SIZE);
+
+	//im to re
+	pos[0] = 0; pos[2] = 1;
+	md_smul(N + 2, ckdims, imag, imag, -1.);
+	md_copy2(N + 2, ckdims, rkstrs, (void*)tmp + md_calc_offset(N + 2, rkstrs, pos), ckstrs, imag, FL_SIZE);
+
+	md_free(real);
+	md_free(imag);
+
+	long tkdims[N]; md_copy_dims(N, tkdims, kdims);
+	tkdims[0] *= 2;
+	tkdims[1] *= 2;
+
+	bart_real_kernel_to_cudnn_NHWC(N, tkdims, dst, tmp);
+}
+
+//Convert kernel NHWC real [2 * in_channel, image_x, ..., 2 * out_channel] to bart channel first complex [out_channel, in_channel, imagex, ...] (adjoint ooperation)
+static void complex_kernel_to_real_adjoint_cf(int N, const long kdims[N], complex float* dst, const float* src)
+{
+	long tkdims[N]; md_copy_dims(N, tkdims, kdims);
+	tkdims[0] *= 2;
+	tkdims[1] *= 2;
+	float* tmp = md_alloc_gpu(N, tkdims, FL_SIZE);
+
+	cudnn_NHWC_to_bart_real_kernel(N, tkdims, tmp, src);
+
+	long ckdims[N + 2];
+	long rkdims[N + 2];
+
+	for(int i = 0, ip = 0; ip < N + 2; ip++) {
+
+		if ((ip == 0) || (ip == 2))
+			continue;
+
+		ckdims[ip] = kdims[i];
+		rkdims[ip] = kdims[i];
+		i++;
+	}
+	rkdims[0] = 2; rkdims[2] = 2;
+	ckdims[0] = 1; ckdims[2] = 1;
+
+	long rkstrs [N + 2]; md_calc_strides(N + 2, rkstrs, rkdims, FL_SIZE);
+	long ckstrs [N + 2]; md_calc_strides(N + 2, ckstrs, ckdims, FL_SIZE);
+
+	long pos[N + 2];
+	for (int i = 0; i < N; i++)
+		pos[i] = 0;
+
+	float* real = md_alloc_sameplace(N, kdims, FL_SIZE, dst);
+	float* imag = md_alloc_sameplace(N, kdims, FL_SIZE, dst);
+	float* tmp1 = md_alloc_sameplace(N, kdims, FL_SIZE, dst);
+
+	md_copy2(N + 2, ckdims, ckstrs, real, rkstrs, (void*)tmp + md_calc_offset(N + 2, rkstrs, pos), FL_SIZE);
+
+	pos[0] = 1; pos[2] = 1;
+	md_copy2(N + 2, ckdims, ckstrs, tmp1, rkstrs, (void*)tmp + md_calc_offset(N + 2, rkstrs, pos), FL_SIZE);
+	md_add(N + 2, ckdims, real, real, tmp1);
+
+	pos[0] = 1; pos[2] = 0;
+	md_copy2(N + 2, ckdims, ckstrs, imag, rkstrs, (void*)tmp + md_calc_offset(N + 2, rkstrs, pos), FL_SIZE);
+
+	pos[0] = 0; pos[2] = 1;
+	md_copy2(N + 2, ckdims, ckstrs, tmp1, rkstrs, (void*)tmp + md_calc_offset(N + 2, rkstrs, pos), FL_SIZE);
+	md_sub(N + 2, ckdims, imag, imag, tmp1);
+	md_free(tmp1);
+	md_free(tmp);
+
+	md_zcmpl(N, kdims, dst, real, imag);
+
+	md_free(real);
+	md_free(imag);
+}
+
+static void cudnn_frw_in_2d_real(	long OC, long IC, long OX, long OY, long IX, long IY, long KX, long KY, long NB,
+				float* out, const float* in, const float* krn, bool conv,
+				cudnnTensorFormat_t tensor_format)
+{
 	cudnnTensorDescriptor_t in_desc;
 	cudnnTensorDescriptor_t out_desc;
-	cudnnTensorDescriptor_t krn_desc_cf;
-	cudnnTensorDescriptor_t krn_desc_cl;
 	cudnnFilterDescriptor_t krn_desc;
 
 	CUDNN_ERROR(cudnnCreateTensorDescriptor(&in_desc));
 	CUDNN_ERROR(cudnnCreateTensorDescriptor(&out_desc));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&krn_desc_cf));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&krn_desc_cl));
 	CUDNN_ERROR(cudnnCreateFilterDescriptor(&krn_desc));
 
-	CUDNN_ERROR(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NHWC, CUDNN_DATA_FLOAT, idims[5], 2 * idims[1], idims[3], idims[2]));
-	CUDNN_ERROR(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NHWC, CUDNN_DATA_FLOAT, odims[5], 2 * odims[0], odims[3], odims[2]));
-	CUDNN_ERROR(cudnnSetFilter4dDescriptor(krn_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 2 * kdims[0], 2 * kdims[1], kdims[3], kdims[2]));
-
-	int kdims_cudnn_trans[4] = {kdims[0], kdims[1], kdims[3], kdims[2]};
-	int kstrs_cudnn_in[4] = {2 * kstrs[0] / size, 2 * kstrs[1] / size, 2 * kstrs[3] / size, 2 * kstrs[2] / size};
-	int kstrs_cudnn_out[4] = {4 * kdims_cudnn_trans[1] * kdims_cudnn_trans[2] * kdims_cudnn_trans[3],  2 * kdims_cudnn_trans[2] * kdims_cudnn_trans[3], kdims_cudnn_trans[3], 1};
-
-	for (int i = 0; i < 4; i++) {
-
-		kstrs_cudnn_in[i] = MAX(1, kstrs_cudnn_in[i]);
-		kstrs_cudnn_out[i] = MAX(1, kstrs_cudnn_out[i]);
-	}
-
-
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(krn_desc_cf, CUDNN_DATA_FLOAT, 4, kdims_cudnn_trans, kstrs_cudnn_in));
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(krn_desc_cl, CUDNN_DATA_FLOAT, 4, kdims_cudnn_trans, kstrs_cudnn_out));
-
-	float* krn_tmp = md_alloc_gpu(N, kdims, 2 * size);
-	float alpha = 1;
-	float beta = 0;
-
-	//real of filter
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, krn, &beta, krn_desc_cl, krn_tmp)); // re -> re
-	alpha = 1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, krn, &beta, krn_desc_cl, krn_tmp + kdims_cudnn_trans[3] * kdims_cudnn_trans[2] + 2 * kdims_cudnn_trans[3] * kdims_cudnn_trans[2] * kdims_cudnn_trans[1])); // im -> im
-
-	//imag of filter
-	alpha = 1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, (float*)krn + 1, &beta, krn_desc_cl, krn_tmp + 2 * kdims_cudnn_trans[3] * kdims_cudnn_trans[2] * kdims_cudnn_trans[1])); // re -> im
-	alpha = -1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, (float*)krn + 1, &beta, krn_desc_cl, krn_tmp + kdims_cudnn_trans[3] * kdims_cudnn_trans[2])); // im -> re
-	alpha = 1.;
+	CUDNN_ERROR(cudnnSetTensor4dDescriptor(in_desc, tensor_format, CUDNN_DATA_FLOAT, NB, IC, IY, IX));
+	CUDNN_ERROR(cudnnSetTensor4dDescriptor(out_desc, tensor_format, CUDNN_DATA_FLOAT, NB, OC, OY, OX));
+	CUDNN_ERROR(cudnnSetFilter4dDescriptor(krn_desc, CUDNN_DATA_FLOAT, tensor_format, OC, IC, KY, KX));
 
 	cudnnConvolutionDescriptor_t conv_desc;
 	CUDNN_ERROR(cudnnCreateConvolutionDescriptor(&conv_desc));
@@ -149,25 +246,114 @@ bool zconvcorr_fwd_cudnn_2d_cf(	int N,
 	CUDNN_ERROR(cudnnGetConvolutionForwardWorkspaceSize(get_handle(), in_desc, krn_desc, conv_desc, out_desc, algo, &ws_size));
 	void* workspace = (0 < ws_size) ? cuda_malloc(ws_size) : NULL;
 
-	alpha = 1.;
-	beta = 1.;
-	CUDNN_ERROR(cudnnConvolutionForward(get_handle(), &alpha, in_desc, in, krn_desc, krn_tmp, conv_desc, algo, workspace, ws_size, &beta, out_desc, out));
+	float alpha = 1.;
+	float beta = 1.;
+	CUDNN_ERROR(cudnnConvolutionForward(get_handle(), &alpha, in_desc, in, krn_desc, krn, conv_desc, algo, workspace, ws_size, &beta, out_desc, out));
 
 	CUDNN_ERROR(cudnnDestroyTensorDescriptor(in_desc));
 	CUDNN_ERROR(cudnnDestroyTensorDescriptor(out_desc));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(krn_desc_cf));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(krn_desc_cl));
 	CUDNN_ERROR(cudnnDestroyFilterDescriptor(krn_desc));
 	CUDNN_ERROR(cudnnDestroyConvolutionDescriptor(conv_desc));
-	md_free(workspace);
-	md_free(krn_tmp);
-
-	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
-
-	return true;
 }
 
-bool zconvcorr_fwd_cudnn_3d_cf(	int N,
+static void cudnn_bwd_krn_2d_real(	long OC, long IC, long OX, long OY, long IX, long IY, long KX, long KY, long NB,
+				const float* out, const float* in, float* krn, bool conv,
+				cudnnTensorFormat_t tensor_format)
+{
+	cudnnTensorDescriptor_t in_desc;
+	cudnnTensorDescriptor_t out_desc;
+	cudnnFilterDescriptor_t krn_desc;
+
+	CUDNN_ERROR(cudnnCreateTensorDescriptor(&in_desc));
+	CUDNN_ERROR(cudnnCreateTensorDescriptor(&out_desc));
+	CUDNN_ERROR(cudnnCreateFilterDescriptor(&krn_desc));
+
+	CUDNN_ERROR(cudnnSetTensor4dDescriptor(in_desc, tensor_format, CUDNN_DATA_FLOAT, NB, IC, IY, IX));
+	CUDNN_ERROR(cudnnSetTensor4dDescriptor(out_desc, tensor_format, CUDNN_DATA_FLOAT, NB, OC, OY, OX));
+	CUDNN_ERROR(cudnnSetFilter4dDescriptor(krn_desc, CUDNN_DATA_FLOAT, tensor_format, OC, IC, KY, KX));
+
+	cudnnConvolutionDescriptor_t conv_desc;
+	CUDNN_ERROR(cudnnCreateConvolutionDescriptor(&conv_desc));
+	CUDNN_ERROR(cudnnSetConvolution2dDescriptor(conv_desc, 0, 0, 1, 1, 1, 1, conv ? CUDNN_CONVOLUTION : CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+
+	cudnnConvolutionBwdFilterAlgo_t algo;
+	CUDNN_ERROR(cudnnGetConvolutionBackwardFilterAlgorithm(get_handle(), in_desc, out_desc, conv_desc, krn_desc, CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST, 0, &algo));
+
+	size_t ws_size = 0;
+	CUDNN_ERROR(cudnnGetConvolutionBackwardFilterWorkspaceSize(get_handle(), in_desc, out_desc, conv_desc, krn_desc, algo, &ws_size));
+	void* workspace = (0 < ws_size) ? cuda_malloc(ws_size) : NULL;
+
+	float alpha = 1.;
+	float beta = 1.;
+	CUDNN_ERROR(cudnnConvolutionBackwardFilter(get_handle(), &alpha, in_desc, in, out_desc, out, conv_desc, algo, workspace, ws_size, &beta, krn_desc, krn));
+	md_free(workspace);
+
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(in_desc));
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(out_desc));
+	CUDNN_ERROR(cudnnDestroyFilterDescriptor(krn_desc));
+	CUDNN_ERROR(cudnnDestroyConvolutionDescriptor(conv_desc));
+}
+
+static void cudnn_bwd_in_2d_real(	long OC, long IC, long OX, long OY, long IX, long IY, long KX, long KY, long NB,
+				const float* out, float* in, const float* krn, bool conv,
+				cudnnTensorFormat_t tensor_format)
+{
+	cudnnTensorDescriptor_t in_desc;
+	cudnnTensorDescriptor_t out_desc;
+	cudnnFilterDescriptor_t krn_desc;
+
+	CUDNN_ERROR(cudnnCreateTensorDescriptor(&in_desc));
+	CUDNN_ERROR(cudnnCreateTensorDescriptor(&out_desc));
+	CUDNN_ERROR(cudnnCreateFilterDescriptor(&krn_desc));
+
+	CUDNN_ERROR(cudnnSetTensor4dDescriptor(in_desc, tensor_format, CUDNN_DATA_FLOAT, NB, IC, IY, IX));
+	CUDNN_ERROR(cudnnSetTensor4dDescriptor(out_desc, tensor_format, CUDNN_DATA_FLOAT, NB, OC, OY, OX));
+	CUDNN_ERROR(cudnnSetFilter4dDescriptor(krn_desc, CUDNN_DATA_FLOAT, tensor_format, OC, IC, KY, KX));
+
+	cudnnConvolutionDescriptor_t conv_desc;
+	CUDNN_ERROR(cudnnCreateConvolutionDescriptor(&conv_desc));
+	CUDNN_ERROR(cudnnSetConvolution2dDescriptor(conv_desc, 0, 0, 1, 1, 1, 1, conv ? CUDNN_CONVOLUTION : CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+
+	cudnnConvolutionBwdDataAlgo_t algo = CUDNN_CONVOLUTION_BWD_DATA_ALGO_0;
+	CUDNN_ERROR(cudnnGetConvolutionBackwardDataAlgorithm(get_handle(), krn_desc, out_desc, conv_desc, in_desc, CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST, 0, &algo));
+
+	size_t ws_size = 0;
+	CUDNN_ERROR(cudnnGetConvolutionBackwardDataWorkspaceSize(get_handle(), krn_desc, out_desc, conv_desc, in_desc, algo, &ws_size));
+	void* workspace = (0 < ws_size) ? cuda_malloc(ws_size) : NULL;
+
+	float alpha = 1.;
+	float beta = 1.;
+	CUDNN_ERROR(cudnnConvolutionBackwardData(get_handle(), &alpha, krn_desc, krn, out_desc, out, conv_desc, algo, workspace, ws_size, &beta, in_desc, in));
+	md_free(workspace);
+
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(in_desc));
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(out_desc));
+	CUDNN_ERROR(cudnnDestroyFilterDescriptor(krn_desc));
+	CUDNN_ERROR(cudnnDestroyConvolutionDescriptor(conv_desc));
+}
+
+static void cudnn_tensor_transform(cudnnTensorFormat_t format_out, cudnnTensorFormat_t format_in, long N, long C, long H, long W, float* dst, const float* src)
+{
+	cudnnTensorDescriptor_t in_desc;
+	cudnnTensorDescriptor_t out_desc;
+
+	CUDNN_ERROR(cudnnCreateTensorDescriptor(&in_desc));
+	CUDNN_ERROR(cudnnCreateTensorDescriptor(&out_desc));
+
+	CUDNN_ERROR(cudnnSetTensor4dDescriptor(in_desc, format_in, CUDNN_DATA_FLOAT, N, C, H, W));
+	CUDNN_ERROR(cudnnSetTensor4dDescriptor(out_desc, format_out, CUDNN_DATA_FLOAT, N, C, H, W));
+
+	float alpha = 1.;
+	float beta = 1.;
+
+	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, in_desc, src, &beta, out_desc, dst));
+
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(in_desc));
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(out_desc));
+}
+
+
+bool zconvcorr_fwd_cudnn_2d_cf(	int N,
 				long odims[N], long ostrs[N], complex float* out,
 				long idims[N], long istrs[N], const complex float* in,
 				long kdims[N], long kstrs[N], const complex float* krn,
@@ -175,97 +361,14 @@ bool zconvcorr_fwd_cudnn_3d_cf(	int N,
 {
 	size_t size = CFL_SIZE;
 
-	if (!check_trivial_cf_3d(N, odims, ostrs, idims, istrs, kdims, kstrs, flags, dilation, strides, size))
+	if (!check_trivial_cf_2d(N, odims, ostrs, idims, istrs, kdims, kstrs, flags, dilation, strides, size))
 		return false;
 
-	cudnnTensorDescriptor_t in_desc;
-	cudnnTensorDescriptor_t out_desc;
-	cudnnTensorDescriptor_t krn_desc_cf;
-	cudnnTensorDescriptor_t krn_desc_cl;
-	cudnnFilterDescriptor_t krn_desc;
+	float* krn_tmp = cuda_malloc(4 * md_calc_size(N, kdims) * FL_SIZE);
+	complex_kernel_to_real(N, kdims, krn_tmp, krn);
 
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&in_desc));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&out_desc));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&krn_desc_cf));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&krn_desc_cl));
-	CUDNN_ERROR(cudnnCreateFilterDescriptor(&krn_desc));
-
-	int cudnn_idims[5] = {idims[5], 2 * idims[1], idims[4], idims[3], idims[2]};
-	int cudnn_istrs[5] = {	2 * idims[1] * idims[2] * idims[3] * idims[4],
-				1,
-				2 * idims[1] * idims[2] * idims[3],
-				2 * idims[1] * idims[2],
-				2 * idims[1],
-				};
-	int cudnn_ostrs[5] = {	2 * odims[0] * odims[2] * odims[3] * odims[4],
-				1,
-				2 * odims[0] * odims[2] * odims[3],
-				2 * odims[0] * odims[2],
-				2 * odims[0],
-				};
-	int cudnn_odims[5] = {odims[5], 2 * odims[0], odims[4], odims[3], odims[2]};
-	int cudnn_kdims[5] = {2 * kdims[0], 2 * kdims[1], kdims[4], kdims[3], kdims[2]};
-
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(in_desc, CUDNN_DATA_FLOAT, 5, cudnn_idims, cudnn_istrs));
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(out_desc, CUDNN_DATA_FLOAT, 5, cudnn_odims, cudnn_ostrs));
-	CUDNN_ERROR(cudnnSetFilterNdDescriptor(krn_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 5, cudnn_kdims));
-
-	int kdims_cudnn_trans[5] = {kdims[0], kdims[1], kdims[4], kdims[3], kdims[2]};
-	int kstrs_cudnn_in[5] = {2 * kstrs[0] / size, 2 * kstrs[1] / size, 2 * kstrs[4] / size, 2 * kstrs[3] / size, 2 * kstrs[2] / size};
-	int kstrs_cudnn_out[5] = {	4 * kdims_cudnn_trans[1] * kdims_cudnn_trans[2] * kdims_cudnn_trans[3] * kdims_cudnn_trans[4],
-					2 * kdims_cudnn_trans[2] * kdims_cudnn_trans[3] * kdims_cudnn_trans[4],
-					kdims_cudnn_trans[3] * kdims_cudnn_trans[4],
-					kdims_cudnn_trans[4],
-					1};
-
-	for (int i = 0; i < 5; i++) {
-
-		kstrs_cudnn_in[i] = MAX(1, kstrs_cudnn_in[i]);
-		kstrs_cudnn_out[i] = MAX(1, kstrs_cudnn_out[i]);
-	}
-
-
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(krn_desc_cf, CUDNN_DATA_FLOAT, 5, kdims_cudnn_trans, kstrs_cudnn_in));
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(krn_desc_cl, CUDNN_DATA_FLOAT, 5, kdims_cudnn_trans, kstrs_cudnn_out));
-
-	float* krn_tmp = md_alloc_gpu(N, kdims, 2 * size);
-	float alpha = 1;
-	float beta = 0;
-
-	//real of filter
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, krn, &beta, krn_desc_cl, krn_tmp)); // re -> re
-	alpha = 1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, krn, &beta, krn_desc_cl, krn_tmp +	kdims_cudnn_trans[4] * kdims_cudnn_trans[3] * kdims_cudnn_trans[2] + 2 * kdims_cudnn_trans[4] * kdims_cudnn_trans[3] * kdims_cudnn_trans[2] * kdims_cudnn_trans[1])); // im -> im
-
-	//imag of filter
-	alpha = 1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, (float*)krn + 1, &beta, krn_desc_cl, krn_tmp + 2 * kdims_cudnn_trans[4] *  kdims_cudnn_trans[3] * kdims_cudnn_trans[2] * kdims_cudnn_trans[1])); // re -> im
-	alpha = -1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, (float*)krn + 1, &beta, krn_desc_cl, krn_tmp + kdims_cudnn_trans[4] * kdims_cudnn_trans[3] * kdims_cudnn_trans[2])); // im -> re
-	alpha = 1.;
-
-	cudnnConvolutionDescriptor_t conv_desc;
-	CUDNN_ERROR(cudnnCreateConvolutionDescriptor(&conv_desc));
-	CUDNN_ERROR(cudnnSetConvolutionNdDescriptor(conv_desc, 3, MAKE_ARRAY(0,0,0), MAKE_ARRAY(1,1,1), MAKE_ARRAY(1,1,1), conv ? CUDNN_CONVOLUTION : CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
-
-	cudnnConvolutionFwdAlgo_t algo;
-	CUDNN_ERROR(cudnnGetConvolutionForwardAlgorithm(get_handle(), in_desc, krn_desc, conv_desc, out_desc, CUDNN_CONVOLUTION_FWD_PREFER_FASTEST, 0, &algo));
-
-	size_t ws_size = 0;
-	CUDNN_ERROR(cudnnGetConvolutionForwardWorkspaceSize(get_handle(), in_desc, krn_desc, conv_desc, out_desc, algo, &ws_size));
-	void* workspace = (0 < ws_size) ? cuda_malloc(ws_size) : NULL;
-
-	alpha = 1.;
-	beta = 1.;
-	CUDNN_ERROR(cudnnConvolutionForward(get_handle(), &alpha, in_desc, in, krn_desc, krn_tmp, conv_desc, algo, workspace, ws_size, &beta, out_desc, out));
-
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(in_desc));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(out_desc));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(krn_desc_cf));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(krn_desc_cl));
-	CUDNN_ERROR(cudnnDestroyFilterDescriptor(krn_desc));
-	CUDNN_ERROR(cudnnDestroyConvolutionDescriptor(conv_desc));
-	md_free(workspace);
+	cudnn_frw_in_2d_real(	2 * odims[0], 2 * idims[1], odims[2], odims[3], idims[2], idims[3], kdims[2], kdims[3], odims[5],
+				(float*)out, (const float*)in, krn_tmp, conv, CUDNN_TENSOR_NHWC);
 	md_free(krn_tmp);
 
 	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
@@ -284,84 +387,40 @@ bool zconvcorr_bwd_in_cudnn_2d_cf(	int N,
 	if (!check_trivial_cf_2d(N, odims, ostrs, idims, istrs, kdims, kstrs, flags, dilation, strides, size))
 		return false;
 
-	cudnnTensorDescriptor_t in_desc;
-	cudnnTensorDescriptor_t out_desc_NHWC;
-	cudnnTensorDescriptor_t out_desc_NCHW;
-	cudnnTensorDescriptor_t krn_desc_cf;
-	cudnnTensorDescriptor_t krn_desc_cl;
-	cudnnFilterDescriptor_t krn_desc;
+	complex float* krn_conj = md_alloc_gpu(N, kdims, CFL_SIZE);
+	md_zconj(N, kdims, krn_conj, krn);
 
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&in_desc));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&out_desc_NCHW));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&out_desc_NHWC));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&krn_desc_cf));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&krn_desc_cl));
-	CUDNN_ERROR(cudnnCreateFilterDescriptor(&krn_desc));
+	float* krn_tmp = cuda_malloc(4 * md_calc_size(N, kdims) * FL_SIZE);
+	complex_kernel_to_real(N, kdims, krn_tmp, krn_conj);
 
-	CUDNN_ERROR(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NHWC, CUDNN_DATA_FLOAT, idims[5], 2 * idims[1], idims[3], idims[2]));
-	CUDNN_ERROR(cudnnSetTensor4dDescriptor(out_desc_NCHW, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, odims[5], 2 * odims[0], odims[3], odims[2]));
-	CUDNN_ERROR(cudnnSetTensor4dDescriptor(out_desc_NHWC, CUDNN_TENSOR_NHWC, CUDNN_DATA_FLOAT, odims[5], 2 * odims[0], odims[3], odims[2]));
-	CUDNN_ERROR(cudnnSetFilter4dDescriptor(krn_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 2 * kdims[0], 2 * kdims[1], kdims[3], kdims[2]));
+	md_free(krn_conj);
 
-	int kdims_cudnn_trans[4] = {kdims[0], kdims[1], kdims[3], kdims[2]};
-	int kstrs_cudnn_in[4] = {2 * kstrs[0] / size, 2 * kstrs[1] / size, 2 * kstrs[3] / size, 2 * kstrs[2] / size};
-	int kstrs_cudnn_out[4] = {4 * kdims_cudnn_trans[1] * kdims_cudnn_trans[2] * kdims_cudnn_trans[3],  2 * kdims_cudnn_trans[2] * kdims_cudnn_trans[3],  kdims_cudnn_trans[3], 1};
+	if (false) { //for some cases this is slow
 
-	for (int i = 0; i < 4; i++) {
+		cudnn_bwd_in_2d_real(	2 * odims[0], 2 * idims[1], odims[2], odims[3], idims[2], idims[3], kdims[2], kdims[3], odims[5],
+					(const float*)out, (float*)in, krn_tmp, conv, CUDNN_TENSOR_NHWC);
+	} else {
 
-		kstrs_cudnn_in[i] = MAX(1, kstrs_cudnn_in[i]);
-		kstrs_cudnn_out[i] = MAX(1, kstrs_cudnn_out[i]);
+		float* in_tmp2 = cuda_malloc(md_calc_size(N, idims) * CFL_SIZE);
+		float* out_tmp2 = cuda_malloc(md_calc_size(N, odims) * CFL_SIZE);
+		float* krn_tmp2 = cuda_malloc(4 * md_calc_size(N, kdims) * FL_SIZE);
+		cuda_clear(md_calc_size(N, idims) * CFL_SIZE, in_tmp2);
+		cuda_clear(md_calc_size(N, odims) * CFL_SIZE, out_tmp2);
+		cuda_clear(4 * md_calc_size(N, kdims) * FL_SIZE, krn_tmp2);
+
+		cudnn_tensor_transform(CUDNN_TENSOR_NCHW, CUDNN_TENSOR_NHWC, odims[5], 2 * odims[0], odims[3], odims[2], out_tmp2, (const float*)out);
+		cudnn_tensor_transform(CUDNN_TENSOR_NCHW, CUDNN_TENSOR_NHWC, 2 * kdims[0], 2 * kdims[1], kdims[3], kdims[2], krn_tmp2, (const float*)krn_tmp);
+
+		cudnn_bwd_in_2d_real(	2 * odims[0], 2 * idims[1], odims[2], odims[3], idims[2], idims[3], kdims[2], kdims[3], odims[5],
+					(const float*)out_tmp2, (float*)in_tmp2, krn_tmp2, conv, CUDNN_TENSOR_NCHW);
+
+		cudnn_tensor_transform(CUDNN_TENSOR_NHWC, CUDNN_TENSOR_NCHW, idims[5], 2 * idims[1], idims[3], idims[2], (float*)in, (const float*)in_tmp2);
+
+		md_free(krn_tmp2);
+		md_free(in_tmp2);
+		md_free(out_tmp2);
 	}
 
-
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(krn_desc_cf, CUDNN_DATA_FLOAT, 4, kdims_cudnn_trans, kstrs_cudnn_in));
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(krn_desc_cl, CUDNN_DATA_FLOAT, 4, kdims_cudnn_trans, kstrs_cudnn_out));
-
-	float* krn_tmp = md_alloc_gpu(N, kdims, 2 * size);
-	float alpha = 1;
-	float beta = 0;
-
-	//real of filter
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, krn, &beta, krn_desc_cl, krn_tmp)); // re -> re
-	alpha = 1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, krn, &beta, krn_desc_cl, krn_tmp + kdims_cudnn_trans[2] * kdims_cudnn_trans[3] + 2 * kdims_cudnn_trans[3] * kdims_cudnn_trans[2] * kdims_cudnn_trans[1])); // im -> im
-
-	//imag of filter
-	alpha = -1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, (float*)krn + 1, &beta, krn_desc_cl, krn_tmp + 2 * kdims_cudnn_trans[3] * kdims_cudnn_trans[2] * kdims_cudnn_trans[1])); // re -> im
-	alpha = 1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cf, (float*)krn + 1, &beta, krn_desc_cl, krn_tmp + kdims_cudnn_trans[2] * kdims_cudnn_trans[3])); // im -> re
-	alpha = 1.;
-
-	cudnnConvolutionDescriptor_t conv_desc;
-	CUDNN_ERROR(cudnnCreateConvolutionDescriptor(&conv_desc));
-	CUDNN_ERROR(cudnnSetConvolution2dDescriptor(conv_desc, 0, 0, 1, 1, 1, 1, conv ? CUDNN_CONVOLUTION : CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
-
-	cudnnConvolutionBwdDataAlgo_t algo;
-	CUDNN_ERROR(cudnnGetConvolutionBackwardDataAlgorithm(get_handle(), krn_desc, out_desc_NCHW, conv_desc, in_desc, CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST, 0, &algo));
-
-	size_t ws_size = 0;
-	CUDNN_ERROR(cudnnGetConvolutionBackwardDataWorkspaceSize(get_handle(), krn_desc, out_desc_NCHW, conv_desc, in_desc, algo, &ws_size));
-	void* workspace = (0 < ws_size) ? cuda_malloc(ws_size) : NULL;
-
-	float* out_tmp = md_alloc_gpu(N, odims, CFL_SIZE);
-	alpha = 1.;
-	beta = 0.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, out_desc_NHWC, out, &beta, out_desc_NCHW, out_tmp));
-
-	alpha = 1.;
-	beta = 1.;
-	CUDNN_ERROR(cudnnConvolutionBackwardData(get_handle(), &alpha, krn_desc, krn_tmp, out_desc_NCHW, out_tmp, conv_desc, algo, workspace, ws_size, &beta, in_desc, in));
-
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(in_desc));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(out_desc_NCHW));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(out_desc_NHWC));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(krn_desc_cf));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(krn_desc_cl));
-	CUDNN_ERROR(cudnnDestroyFilterDescriptor(krn_desc));
-	CUDNN_ERROR(cudnnDestroyConvolutionDescriptor(conv_desc));
-	md_free(workspace);
-	md_free(out_tmp);
 	md_free(krn_tmp);
 
 	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
@@ -380,91 +439,24 @@ bool zconvcorr_bwd_krn_cudnn_2d_cf(	int N,
 	if (!check_trivial_cf_2d(N, odims, ostrs, idims, istrs, kdims, kstrs, flags, dilation, strides, size))
 		return false;
 
-	cudnnTensorDescriptor_t in_desc_NCHW;
-	cudnnTensorDescriptor_t in_desc_NHWC;
-	cudnnTensorDescriptor_t out_desc_NHWC;
-	cudnnTensorDescriptor_t out_desc_NCHW;
-	cudnnTensorDescriptor_t krn_desc_cf;
-	cudnnTensorDescriptor_t krn_desc_cl;
-	cudnnFilterDescriptor_t krn_desc;
-
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&in_desc_NCHW));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&in_desc_NHWC));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&out_desc_NCHW));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&out_desc_NHWC));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&krn_desc_cf));
-	CUDNN_ERROR(cudnnCreateTensorDescriptor(&krn_desc_cl));
-	CUDNN_ERROR(cudnnCreateFilterDescriptor(&krn_desc));
-
-	CUDNN_ERROR(cudnnSetTensor4dDescriptor(in_desc_NHWC, CUDNN_TENSOR_NHWC, CUDNN_DATA_FLOAT, idims[5], 2 * idims[1], idims[3], idims[2]));
-	CUDNN_ERROR(cudnnSetTensor4dDescriptor(in_desc_NCHW, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, idims[5], 2 * idims[1], idims[3], idims[2]));
-	CUDNN_ERROR(cudnnSetTensor4dDescriptor(out_desc_NCHW, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, odims[5], 2 * odims[0], odims[3], odims[2]));
-	CUDNN_ERROR(cudnnSetTensor4dDescriptor(out_desc_NHWC, CUDNN_TENSOR_NHWC, CUDNN_DATA_FLOAT, odims[5], 2 * odims[0], odims[3], odims[2]));
-	CUDNN_ERROR(cudnnSetFilter4dDescriptor(krn_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 2 * kdims[0], 2 * kdims[1], kdims[3], kdims[2]));
-
-	float* krn_tmp = md_alloc_gpu(N, kdims, 2 * size);
-	float* out_tmp = md_alloc_gpu(N, odims, size);
-	float* in_tmp = md_alloc_gpu(N, idims, size);
-
-	float alpha = 1.;
-	float beta = 0.;
-
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(),&alpha, in_desc_NHWC, in, &beta, in_desc_NCHW, in_tmp));
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(),&alpha, out_desc_NHWC, out, &beta, out_desc_NCHW, out_tmp));
-
-	cudnnConvolutionDescriptor_t conv_desc;
-	CUDNN_ERROR(cudnnCreateConvolutionDescriptor(&conv_desc));
-	CUDNN_ERROR(cudnnSetConvolution2dDescriptor(conv_desc, 0, 0, 1, 1, 1, 1, conv ? CUDNN_CONVOLUTION : CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
-	cudnnConvolutionBwdFilterAlgo_t algo;
-	CUDNN_ERROR(cudnnGetConvolutionBackwardFilterAlgorithm(get_handle(), in_desc_NCHW, out_desc_NCHW, conv_desc, krn_desc, CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST, 0, &algo));
-
-	size_t ws_size = 0;
-	CUDNN_ERROR(cudnnGetConvolutionBackwardFilterWorkspaceSize(get_handle(), in_desc_NCHW, out_desc_NCHW, conv_desc, krn_desc, algo, &ws_size));
-	void* workspace = (0 < ws_size) ? cuda_malloc(ws_size) : NULL;
-
-	alpha = 1.;
-	beta = 0.;
-	CUDNN_ERROR(cudnnConvolutionBackwardFilter(get_handle(), &alpha, in_desc_NCHW, in_tmp, out_desc_NCHW, out_tmp, conv_desc, algo, workspace, ws_size, &beta, krn_desc, krn_tmp));
+	complex float* in_conj = md_alloc_gpu(N, idims, CFL_SIZE);
+	md_zconj(N, idims, in_conj, in);
 
 
-	int kdims_cudnn_trans[4] = {kdims[0], kdims[1], kdims[3], kdims[2]};
-	int kstrs_cudnn_in[4] = {2 * kstrs[0] / size, 2 * kstrs[1] / size, 2 * kstrs[3] / size, 2 * kstrs[2] / size};
-	int kstrs_cudnn_out[4] = {4 * kdims_cudnn_trans[1] * kdims_cudnn_trans[2] * kdims_cudnn_trans[3],  2 * kdims_cudnn_trans[2] * kdims_cudnn_trans[3],  kdims_cudnn_trans[3], 1};
+	float* krn_tmp = cuda_malloc(4 * md_calc_size(N, kdims) * FL_SIZE);
+	cuda_clear(4 * md_calc_size(N, kdims) * FL_SIZE, krn_tmp);
 
-	for (int i = 0; i < 4; i++) {
+	cudnn_bwd_krn_2d_real(	2 * odims[0], 2 * idims[1], odims[2], odims[3], idims[2], idims[3], kdims[2], kdims[3], odims[5],
+				(const float*)out, (const float*)in_conj, krn_tmp, conv, CUDNN_TENSOR_NHWC);
 
-		kstrs_cudnn_in[i] = MAX(1, kstrs_cudnn_in[i]);
-		kstrs_cudnn_out[i] = MAX(1, kstrs_cudnn_out[i]);
-	}
+	md_free(in_conj);
 
-
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(krn_desc_cf, CUDNN_DATA_FLOAT, 4, kdims_cudnn_trans, kstrs_cudnn_in));
-	CUDNN_ERROR(cudnnSetTensorNdDescriptor(krn_desc_cl, CUDNN_DATA_FLOAT, 4, kdims_cudnn_trans, kstrs_cudnn_out));
-
-	alpha = 1;
-	beta = 1;
-
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cl, krn_tmp, &beta, krn_desc_cf, krn)); // re -> re
-	alpha = -1;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cl, krn_tmp + kdims_cudnn_trans[2] * kdims_cudnn_trans[3] + 2 * kdims_cudnn_trans[3] * kdims_cudnn_trans[2] * kdims_cudnn_trans[1], &beta, krn_desc_cf, krn)); // im -> im
-	alpha = 1.;
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cl, krn_tmp + 2 * kdims_cudnn_trans[3] * kdims_cudnn_trans[2] * kdims_cudnn_trans[1] , &beta, krn_desc_cf, (float*)krn + 1)); // re -> im
-	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, krn_desc_cl, krn_tmp + kdims_cudnn_trans[2] * kdims_cudnn_trans[3], &beta, krn_desc_cf, (float*)krn + 1)); // im -> re
-
-
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(in_desc_NHWC));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(in_desc_NCHW));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(out_desc_NCHW));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(out_desc_NHWC));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(krn_desc_cf));
-	CUDNN_ERROR(cudnnDestroyTensorDescriptor(krn_desc_cl));
-	CUDNN_ERROR(cudnnDestroyFilterDescriptor(krn_desc));
-	CUDNN_ERROR(cudnnDestroyConvolutionDescriptor(conv_desc));
-	md_free(workspace);
-	md_free(in_tmp);
-	md_free(out_tmp);
+	complex float* krn_tmp2 = md_alloc_gpu(N, kdims, CFL_SIZE);
+	complex_kernel_to_real_adjoint_cf(N, kdims, krn_tmp2, krn_tmp);
 	md_free(krn_tmp);
 
+	md_zadd(N, kdims, krn, krn, krn_tmp2);
+	md_free(krn_tmp2);
 	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
 
 	return true;
@@ -472,4 +464,3 @@ bool zconvcorr_bwd_krn_cudnn_2d_cf(	int N,
 
 #endif
 #endif
-
