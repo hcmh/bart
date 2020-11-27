@@ -154,20 +154,39 @@ int main_nnvn(int argc, char* argv[])
 		num_init();
 
 	long kdims[5]; 		//[Nkx, Nky, Nkz, Nc, Nt]
-	long dims_coil[5]; 	//[Nkx, Nky, Nkz, Nc, Nt]
+	long cdims[5]; 		//[Nkx, Nky, Nkz, Nc, Nt]
 	long pdims[5]; 		//[Nkx, Nky, Nkz, 1,  1 or Nb]
 
-	complex float* file_kspace = load_cfl(filename_kspace, 5, kdims);
-	complex float* file_coil = load_cfl(filename_coil, 5, dims_coil);
-	complex float* file_pattern = load_cfl(filename_pattern, 5, pdims);
+	complex float* kspace = load_cfl(filename_kspace, 5, kdims);
+	complex float* coil = load_cfl(filename_coil, 5, cdims);
+	complex float* pattern = load_cfl(filename_pattern, 5, pdims);
+
+
+	if (load_mem) {
+
+		complex float* mem_kspace = md_alloc(5, kdims, CFL_SIZE);
+		complex float* mem_coil = md_alloc(5, cdims, CFL_SIZE);
+		complex float* mem_pattern = md_alloc(5, pdims, CFL_SIZE);
+
+		md_copy(5, kdims, mem_kspace, kspace, CFL_SIZE);
+		md_copy(5, cdims, mem_coil, coil, CFL_SIZE);
+		md_copy(5, pdims, mem_pattern, pattern, CFL_SIZE);
+
+		unmap_cfl(5, kdims, kspace);
+		unmap_cfl(5, cdims, coil);
+		unmap_cfl(5, pdims, pattern);
+
+		kspace = mem_kspace;
+		coil = mem_coil;
+		pattern = mem_pattern;
+	}
 
 	for (int i = 0; i < 5; i++)
-		assert(kdims[i] == dims_coil[i]);
+		assert(kdims[i] == cdims[i]);
 	for (int i = 0; i < 3; i++)
 		assert(kdims[i] == pdims[i]);
 	assert(1 == pdims[3]);
 	assert((1 == pdims[4]) || (kdims[4] == pdims[4]));
-
 
 	if (train){
 
@@ -182,11 +201,22 @@ int main_nnvn(int argc, char* argv[])
 		if (use_gpu)
 			move_gpu_nn_weights(vn_config.weights);
 
-		complex float* file_ref = load_cfl(filename_out, 5, udims);
+		complex float* ref = load_cfl(filename_out, 5, udims);
+		if (load_mem) {
 
-		train_vn(&vn_config, CAST_UP(&train_conf), udims, file_ref, kdims, file_kspace, file_coil, pdims, file_pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
-		unmap_cfl(5, udims, file_ref);
+			complex float* mem_ref = md_alloc(5, udims, CFL_SIZE);
+			md_copy(5, udims, mem_ref, ref, CFL_SIZE);
+			unmap_cfl(5, udims, ref);
+			ref = mem_ref;
+		}
+
+		train_vn(&vn_config, CAST_UP(&train_conf), udims, ref, kdims, kspace, coil, pdims, pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
 		dump_nn_weights(filename_weights, vn_config.weights);
+
+		if (load_mem)
+			md_free(ref);
+		else
+			unmap_cfl(5, udims, ref);
 	}
 
 
@@ -203,14 +233,23 @@ int main_nnvn(int argc, char* argv[])
 
 		complex float* file_out = create_cfl(filename_out, 5, udims);
 
-		apply_vn_batchwise(&vn_config, udims, file_out, kdims, file_kspace, file_coil, pdims, file_pattern, Nb);
+		apply_vn_batchwise(&vn_config, udims, file_out, kdims, kspace, coil, pdims, pattern, Nb);
 
 		unmap_cfl(5, udims, file_out);
 	}
 
-	unmap_cfl(5, pdims, file_pattern);
-	unmap_cfl(5, kdims, file_kspace);
-	unmap_cfl(5, kdims, file_coil);
+	if (load_mem) {
+
+		md_free(pattern);
+		md_free(kspace);
+		md_free(coil);
+
+	} else {
+
+		unmap_cfl(5, pdims, pattern);
+		unmap_cfl(5, kdims, kspace);
+		unmap_cfl(5, cdims, coil);
+	}
 
 
 	exit(0);

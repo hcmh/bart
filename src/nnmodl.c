@@ -131,8 +131,8 @@ int main_nnmodl(int argc, char* argv[])
 		};
 		read_json(config_file, ARRAY_SIZE(opts_json), opts_json);
 	}
-	
-	if (one_iter) 
+
+	if (one_iter)
 		modl.Nt = 1;
 
 	train_conf.INTERFACE.batchgen_type = random_order;
@@ -189,7 +189,6 @@ int main_nnmodl(int argc, char* argv[])
 	complex float* coil = load_cfl(filename_coil, 5, cdims);
 	complex float* pattern = load_cfl(filename_pattern, 5, pdims);
 
-#ifdef USE_CUDA
 
 	if (load_mem) {
 
@@ -209,7 +208,6 @@ int main_nnmodl(int argc, char* argv[])
 		coil = mem_coil;
 		pattern = mem_pattern;
 	}
-#endif
 
 	for (int i = 0; i < 5; i++)
 		assert(kdims[i] == cdims[i]);
@@ -233,7 +231,6 @@ int main_nnmodl(int argc, char* argv[])
 
 
 		complex float* ref = load_cfl(filename_out, 5, udims);
-#ifdef USE_CUDA
 		if (load_mem) {
 
 			complex float* mem_ref = md_alloc(5, udims, CFL_SIZE);
@@ -241,15 +238,12 @@ int main_nnmodl(int argc, char* argv[])
 			unmap_cfl(5, udims, ref);
 			ref = mem_ref;
 		}
-#endif
 
 		train_nn_modl(&modl, CAST_UP(&train_conf), udims, ref, kdims, kspace, coil, pdims, pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
 		nn_modl_store_weights(&modl, filename_weights);
-#ifdef USE_CUDA		
 		if (load_mem)
 			md_free(ref);
 		else
-#endif
 			unmap_cfl(5, udims, ref);
 	}
 
@@ -273,17 +267,15 @@ int main_nnmodl(int argc, char* argv[])
 	}
 
 	nn_modl_free_weights(&modl);
-#ifdef USE_CUDA
+
 	if (load_mem) {
 
 		md_free(pattern);
 		md_free(kspace);
 		md_free(coil);
 
-	} else
-#endif
-	 {
-	
+	} else {
+
 		unmap_cfl(5, pdims, pattern);
 		unmap_cfl(5, kdims, kspace);
 		unmap_cfl(5, cdims, coil);
