@@ -210,6 +210,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 		.rho = conf->rho,
 		.maxiter = conf->inner_iter,
 		.tol = conf->tol,
+		.max_outiter = conf->iter,
 		.shift_mode = conf->shift_mode,
 	};
 

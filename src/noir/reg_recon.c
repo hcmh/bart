@@ -35,21 +35,22 @@
 
 
 struct reg_nlinv {
-    
-    INTERFACE(iter_op_data);
+	
+	INTERFACE(iter_op_data);
 
-    const struct nlop_s* nlop;
-    const struct irgnm_reg_conf* conf;
+	const struct nlop_s* nlop;
+	const struct irgnm_reg_conf* conf;
 
-    long size_x;
-    long size_y;
+	long size_x;
+	long size_y;
 
-    long *dims;
+	long *dims;
 
-    float alpha;
+	float alpha;
 	int outer_iter;
 
-    const struct operator_p_s* prox_kernel;
+	const struct operator_p_s* prox_kernel;
+
 };
 
 DEF_TYPEID(reg_nlinv);
@@ -57,104 +58,119 @@ DEF_TYPEID(reg_nlinv);
 
 static void normal(iter_op_data* _data, float* dst, const float* src)
 {
-    auto data = CAST_DOWN(reg_nlinv, _data);
+	auto data = CAST_DOWN(reg_nlinv, _data);
 
-    linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)dst, (const complex float*)src);
+	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)dst, (const complex float*)src);
 
-    long img_dims[DIMS];
-    md_select_dims(DIMS, ~COIL_FLAG, img_dims, data->dims);
-    long skip = md_calc_size(DIMS, img_dims)*2;
+	long img_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, data->dims);
+	long skip = md_calc_size(DIMS, img_dims)*2;
 
-    long coil_dims[DIMS];
-    md_copy_dims(DIMS, coil_dims, data->dims);
-    
-    md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
+	long coil_dims[DIMS];
+	md_copy_dims(DIMS, coil_dims, data->dims);
+	
+	auto dm = nlop_domain(data->nlop);
+
+	if(data->conf->ropts->regs[0].xform == L1WAV)
+		md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
+	else
+		md_axpy(DIMS, dm->dims, dst, data->alpha, src);
+
 }
 
 static void logp_prox(iter_op_data* _data, float rho, float* dst, const float* src)
 {
-    auto data = CAST_DOWN(reg_nlinv, _data);
-    printf("run logp_prox \n");
-    /*data crop*/
-    long img_dims[DIMS];
-    md_select_dims(DIMS, ~COIL_FLAG, img_dims, data->dims);
+	auto data = CAST_DOWN(reg_nlinv, _data);
 
-    long resized_dims[DIMS];
-    md_select_dims(DIMS, ~COIL_FLAG, resized_dims, data->dims);
-    complex float* u_resized = NULL;
+	long img_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, data->dims);
 
-    if(img_dims[0]>256)
-    {
+	long resized_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, resized_dims, data->dims);
+	complex float* u_resized = NULL;
 
-        resized_dims[0] = img_dims[0]/2;
-        resized_dims[1] = img_dims[1]/2;
+	if(img_dims[0]>256)
+	{
 
-        u_resized = md_alloc(DIMS, resized_dims, CFL_SIZE);
+		resized_dims[0] = img_dims[0]/2;
+		resized_dims[1] = img_dims[1]/2;
 
-        long pos[2];
-	    for (unsigned int i = 0; i < 2; i++)
-		    pos[i] = labs((resized_dims[i] / 2) - (img_dims[i] / 2));
+		u_resized = md_alloc(DIMS, resized_dims, CFL_SIZE);
 
-	    md_copy_block(2, pos, resized_dims, u_resized, img_dims, (const complex float*)src, CFL_SIZE);
+		long pos[2];
+		for (unsigned int i = 0; i < 2; i++)
+			pos[i] = labs((resized_dims[i] / 2) - (img_dims[i] / 2));
 
-    }
-    else{
-        u_resized = md_alloc(DIMS, img_dims, CFL_SIZE);
-        md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
-    }
+		md_copy_block(2, pos, resized_dims, u_resized, img_dims, (const complex float*)src, CFL_SIZE);
 
-    operator_p_apply_unchecked(data->prox_kernel, rho, (_Complex float*)u_resized, (const complex float*)u_resized);
+	}
+	else{
+		u_resized = md_alloc(DIMS, img_dims, CFL_SIZE);
+		md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
+	}
 
-    long pos[2];
+	if (data->outer_iter > data->conf->max_outiter-2)
+	{
+		operator_p_apply_unchecked(data->prox_kernel, rho, (_Complex float*)u_resized, (const complex float*)u_resized);
+	}
+
+	long pos[2];
 	for (unsigned int i = 0; i < 2; i++)
-	    pos[i] = labs((resized_dims[i] / 2) - (img_dims[i] / 2));
+		pos[i] = labs((resized_dims[i] / 2) - (img_dims[i] / 2));
 
 	md_copy_block(2, pos, img_dims, (complex float*)dst, resized_dims, (const complex float*)u_resized, CFL_SIZE);
-    
-    md_free(u_resized);
+	
+	md_free(u_resized);
 }
 
 static void l1_prox(iter_op_data* _data, float rho, float* dst, const float* src)
 {
-    auto data = CAST_DOWN(reg_nlinv, _data);
-    printf("run l1 prox \n");
-    operator_p_apply_unchecked(data->prox_kernel, rho, (_Complex float*)dst, (const complex float*)src);
+	auto data = CAST_DOWN(reg_nlinv, _data);
+	operator_p_apply_unchecked(data->prox_kernel, rho, (_Complex float*)dst, (const complex float*)src);
 }
 
 static void fista_solver(iter_op_data* _data, float alpha,  float* dst, const float* src)
 {
-    auto data = CAST_DOWN(reg_nlinv, _data);
+	auto data = CAST_DOWN(reg_nlinv, _data);
 	
 	data->alpha = alpha;
+	float scale = alpha;
+
+	double step = data->conf->step;
+
 	void* x = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
 	md_gaussian_rand(1, MD_DIMS(data->size_x / 2), x);
 	double maxeigen = power(20, data->size_x, select_vecops(src), (struct iter_op_s){ normal, CAST_UP(data) }, x);
 	md_free(x);
-
-	double step = data->conf->step / maxeigen;
+	step = step / maxeigen;
 
 	int maxiter = MIN(data->conf->maxiter, 3 * (int)powf(1.5, data->outer_iter));
-	debug_printf(DP_DEBUG3, "##reg. alpha = %f %d \n", alpha, maxiter);
-    
+	debug_printf(DP_DEBUG3, "##reg. alpha = %f iteration %d step size %f \n", alpha, maxiter, step);
+	
 	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
 
 	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
 
 	float eps = md_norm(1, MD_DIMS(data->size_x), tmp);
+	
+	typedef void prox_hooker(iter_op_data* _data, float rho, float* dst, const float* src);
+
+	prox_hooker* prox_ptr = NULL;
+
+	if (data->conf->ropts->regs[0].xform == L1WAV)
+		prox_ptr = &l1_prox;
+
+	if (data->conf->ropts->regs[0].xform == LOGP)
+	{
+		prox_ptr = &logp_prox;
+		scale = powf(2.71828, data->outer_iter)/powf(2.71828, (data->conf->max_outiter)-1)*powf((float)data->outer_iter/((float)(data->conf->max_outiter)-1), 3.);
+		printf("--->>> scale value %f outer_iter %d max outer_iter%d\n", scale, data->outer_iter, data->conf->max_outiter);
+	}
 
 	NESTED(void, continuation, (struct ist_data* itrdata))
 	{
-		itrdata->scale = data->alpha;
+		itrdata->scale = scale;
 	};
-    
-    typedef void prox_hooker(iter_op_data* _data, float rho, float* dst, const float* src);
-
-    prox_hooker* prox_ptr = NULL;
-
-    if (data->conf->ropts->regs[0].xform == L1WAV)
-        prox_ptr = &l1_prox;
-    if (data->conf->ropts->regs[0].xform == LOGP)
-        prox_ptr = &logp_prox;
 
 	fista(maxiter, data->conf->tol * alpha * eps, step,
 		data->size_x,
@@ -172,71 +188,71 @@ static void fista_solver(iter_op_data* _data, float alpha,  float* dst, const fl
 
 struct reg_nlinv_s {
 
-    INTERFACE(operator_data_t);
-    struct reg_nlinv ins_reg_nlinv;
+	INTERFACE(operator_data_t);
+	struct reg_nlinv ins_reg_nlinv;
 };
 
 DEF_TYPEID(reg_nlinv_s);
 
 static void reg_nlinv_apply(const operator_data_t* _data, float alpha, complex float* dst, const complex float* src)
 {
-    debug_printf(DP_INFO, "--> reg_nlinv_apply reached\n");
-    const auto data = &CAST_DOWN(reg_nlinv_s, _data)->ins_reg_nlinv;
+	const auto data = &CAST_DOWN(reg_nlinv_s, _data)->ins_reg_nlinv;
 	fista_solver(CAST_UP(data), alpha, (float*)dst, (float*)src);
 }
 
 static void reg_nlinv_del(const operator_data_t* _data)
 {
-    auto data = CAST_DOWN(reg_nlinv_s, _data);
+	auto data = CAST_DOWN(reg_nlinv_s, _data);
 
-    nlop_free(data->ins_reg_nlinv.nlop);
+	nlop_free(data->ins_reg_nlinv.nlop);
 
-    xfree(data->ins_reg_nlinv.dims);
+	xfree(data->ins_reg_nlinv.dims);
 	xfree(data);
 }
 
 extern const struct operator_p_s* reg_pinv_op_create(struct irgnm_reg_conf* conf, const long dims[DIMS], struct nlop_s* nlop, const struct operator_p_s** thresh_ops, const struct linop_s** trafos)
 {
-    PTR_ALLOC(struct reg_nlinv_s, data);
-    SET_TYPEID(reg_nlinv_s, data);
-    SET_TYPEID(reg_nlinv, &data->ins_reg_nlinv);
+	PTR_ALLOC(struct reg_nlinv_s, data);
+	SET_TYPEID(reg_nlinv_s, data);
+	SET_TYPEID(reg_nlinv, &data->ins_reg_nlinv);
 
-    auto cd = nlop_codomain(nlop);
+	auto cd = nlop_codomain(nlop);
 	auto dm = nlop_domain(nlop);
-    debug_printf(DP_INFO, "in dims: ");
-    debug_print_dims(DP_INFO, dm->N, dm->dims);
-    debug_printf(DP_INFO, "out dims: ");
-    debug_print_dims(DP_INFO, cd->N, cd->dims);
+	debug_printf(DP_INFO, "in dims: ");
+	debug_print_dims(DP_INFO, dm->N, dm->dims);
+	debug_printf(DP_INFO, "out dims: ");
+	debug_print_dims(DP_INFO, cd->N, cd->dims);
 
-    int M = 2 * md_calc_size(cd->N, cd->dims);
+	int M = 2 * md_calc_size(cd->N, cd->dims);
 	int N = 2 * md_calc_size(dm->N, dm->dims);
-    
-    const struct operator_p_s* pinv_op = NULL;
-    const struct operator_p_s* prox_kernel = thresh_ops[0];
-    
+	
+	const struct operator_p_s* pinv_op = NULL;
+	const struct operator_p_s* prox_kernel = thresh_ops[0];
+	
 
-    if(conf->algo == ALGO_FISTA)
-    {
-        printf("use fista\n");
-        long* ndims = *TYPE_ALLOC(long[DIMS]);
-	    md_copy_dims(DIMS, ndims, dims);
-        struct reg_nlinv ins_reg_nlinv={
-            {&TYPEID(reg_nlinv)},
-            nlop_clone(nlop),
-            conf,
-            N,M,
-            ndims,
-            1.0,
-			0,
-            prox_kernel,
-        };
-        data->ins_reg_nlinv = ins_reg_nlinv;
-        
-        pinv_op = operator_p_create(dm->N, dm->dims, cd->N, cd->dims, CAST_UP(PTR_PASS(data)), reg_nlinv_apply, reg_nlinv_del);
-    }
-    else
-    {
-        
+	if(conf->algo == ALGO_FISTA)
+	{
+		printf("use fista\n");
+		long* ndims = *TYPE_ALLOC(long[DIMS]);
+		md_copy_dims(DIMS, ndims, dims);
+		struct reg_nlinv ins_reg_nlinv={
+			{&TYPEID(reg_nlinv)},
+			.nlop = nlop_clone(nlop),
+			.conf=conf,
+			.size_x = N,
+			.size_y = M,
+			.dims = ndims,
+			.alpha = 1.0,
+			.outer_iter = 0,
+			.prox_kernel = prox_kernel,
+		};
+		data->ins_reg_nlinv = ins_reg_nlinv;
+		
+		pinv_op = operator_p_create(dm->N, dm->dims, cd->N, cd->dims, CAST_UP(PTR_PASS(data)), reg_nlinv_apply, reg_nlinv_del);
+	}
+	else
+	{
+		
 		printf("use admm\n");
 		struct iter_admm_conf admm_conf_reg = iter_admm_defaults;
 
@@ -251,7 +267,7 @@ extern const struct operator_p_s* reg_pinv_op_create(struct irgnm_reg_conf* conf
 								NULL, true, &nlop->derivative[0][0],
 								NULL, conf->ropts->r, thresh_ops, trafos, NULL);
 
-    }
-    
-    return pinv_op;
+	}
+	
+	return pinv_op;
 }

@@ -293,7 +293,7 @@ struct  prox_logp_data
 	const struct nlop_s *tf_ops;
 	unsigned int N;
 	const long *dims;
-	float lambda;
+	float step_size;
 	float p;
 	unsigned int steps;
 };
@@ -314,7 +314,7 @@ static float calculate_max(unsigned int D, const long* dims, complex float* iptr
 	return cabsf(tmp[imsize-1]);
 }
 
-static void prox_logp_fun(const operator_data_t* data, float step_size, complex float *dst, const  complex float* src)
+static void prox_logp_fun(const operator_data_t* data, float lambda, complex float *dst, const  complex float* src)
 {
 
 	auto pdata = CAST_DOWN(prox_logp_data, data);
@@ -361,7 +361,7 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 	
 	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
 	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
-	debug_printf(DP_INFO, "\tLog P: %f\tScalor: %f\tStep size: %f\n", creal(*out), scalor, pdata->lambda*step_size);
+	debug_printf(DP_DEBUG3, "\tLog P: %f  Scalor: %f  Step size: %f  lambda: %f\n ", creal(*out), scalor, pdata->step_size, lambda);
 
 	//copy slices to feed tensor
 	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
@@ -374,7 +374,7 @@ static void prox_logp_fun(const operator_data_t* data, float step_size, complex 
 
 	// update 
 
-	md_zsmul(dom->N, dom->dims, grad, grad, pdata->lambda*step_size);
+	md_zsmul(dom->N, dom->dims, grad, grad, pdata->step_size*lambda);
 	complex float* rand_mask = md_alloc(dom->N, dom->dims, CFL_SIZE);
 
 	md_rand_one(dom->N, dom->dims, rand_mask, pdata->p);
@@ -420,13 +420,13 @@ static void prox_logp_del(const operator_data_t* _data)
 	xfree(CAST_DOWN(prox_logp_data, _data));
 }
 
-extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float lambda, float p, unsigned int steps)
+extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float step_size, float p, unsigned int steps)
 {
 	PTR_ALLOC(struct prox_logp_data, pdata);
 	SET_TYPEID(prox_logp_data, pdata);
 
 	pdata->tf_ops = tf_ops;
-	pdata->lambda = lambda;
+	pdata->step_size = step_size;
 	pdata->p = p;
 	
 	pdata->N = N;

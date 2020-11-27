@@ -23,6 +23,7 @@ struct irgnm_reg_conf{
     float rho;
     unsigned int maxiter;
     float tol;
+    unsigned int max_outiter;
     unsigned int shift_mode;
 };
 
