@@ -53,7 +53,7 @@ static const char help_str[] = "Model-based nonlinear inverse reconstruction\n";
 // TODO:
 static void edge_filter(const long map_dims[DIMS], complex float* dst)
 {
-#if 1
+#if 0
 	float lambda = 2e-3;
 
 	klaplace(DIMS, map_dims, READ_FLAG|PHS1_FLAG, dst);
