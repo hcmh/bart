@@ -434,7 +434,6 @@ int main_modbloch(int argc, char* argv[])
 
 	auto_scale(&fit_para, fit_para.scale, grid_dims, k_grid_data);
 
-	fit_para.scale[2] /= 1;
 
 	debug_printf(DP_INFO,"Scaling:\t%f,\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2], fit_para.scale[3]);
 
