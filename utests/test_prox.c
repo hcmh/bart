@@ -275,7 +275,10 @@ static bool test_logp_prox(void)
 	struct operator_p_s* op = prox_logp_create(N, dims1, tf_ops, 1., 0.7, 20);
 	auto dom = operator_p_domain(op);
 	auto cod = operator_p_codomain(op);
-
+	debug_printf(DP_INFO, "in dims: ");
+	debug_print_dims(DP_INFO, dom->N, dom->dims);
+	debug_printf(DP_INFO, "out dims: ");
+	debug_print_dims(DP_INFO, cod->N, cod->dims);
 	complex float* dst = md_alloc(cod->N, cod->dims, cod->size);
 	complex float* src = md_alloc(dom->N, dom->dims, dom->size);
 	md_clear(dom->N, dom->dims, src, dom->size);

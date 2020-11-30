@@ -314,6 +314,7 @@ static float calculate_max(unsigned int D, const long* dims, complex float* iptr
 	return cabsf(tmp[imsize-1]);
 }
 
+
 static void prox_logp_fun(const operator_data_t* data, float lambda, complex float *dst, const  complex float* src)
 {
 
@@ -322,28 +323,52 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	auto dom = nlop_generic_domain(pdata->tf_ops, 0);
 	auto cod = nlop_generic_codomain(pdata->tf_ops, 0); // grad_ys
 
-	// slice image
+	long resized_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, resized_dims, pdata->dims);
+	complex float* u_resized = NULL;
+
+	// hard code below crop FOV 
+	if(pdata->dims[0]>256)
+	{
+
+		resized_dims[0] = pdata->dims[0]/2;
+		resized_dims[1] = pdata->dims[1]/2;
+
+		u_resized = md_alloc(DIMS, resized_dims, CFL_SIZE);
+
+		long pos[2];
+		for (unsigned int i = 0; i < 2; i++)
+			pos[i] = labs((resized_dims[i] / 2) - (pdata->dims[i] / 2));
+
+		md_copy_block(2, pos, resized_dims, u_resized, pdata->dims, (const complex float*)src, CFL_SIZE);
+	}
+	else{
+		u_resized = md_alloc(DIMS, pdata->dims, CFL_SIZE);
+		md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
+	}
+
+	// slice FOV
 	long slice_dims[DIMS];
 	md_set_dims(DIMS, slice_dims, 1);
 
 	slice_dims[0] = dom->dims[1];
 	slice_dims[1] = dom->dims[2];
 
-	int nx = (pdata->dims[0] + slice_dims[0] - 1)/slice_dims[0];
-	int ny = (pdata->dims[1] + slice_dims[1] - 1)/slice_dims[1];
-				
+	unsigned int nx = (resized_dims[0] + slice_dims[0] - 1)/slice_dims[0];
+	unsigned int ny = (resized_dims[1] + slice_dims[1] - 1)/slice_dims[1];
+
 	slice_dims[2] = nx*ny;
 	
 	long pos[DIMS];
 	md_set_dims(DIMS, pos, 0);
-
+	
 	complex float* slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
 	complex float* tmp_slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
-
-	float scalor = calculate_max(pdata->N, pdata->dims, src);
+	
+	float scalor = calculate_max(DIMS, resized_dims, u_resized);
 	
 	scalor = scalor + 1e-06;
-	md_zsmul(pdata->N, pdata->dims, src, src, 1. / scalor);
+	md_zsmul(DIMS, resized_dims, u_resized, u_resized, 1. / scalor);
 
 	int offset = 0;
 	for (size_t i = 0; i < nx; i++)
@@ -353,7 +378,7 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 			pos[0] = j*slice_dims[1];
 			pos[1] = i*slice_dims[0];
 			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
-			md_copy_block(2, pos, slice_dims, tmp_slices + offset, pdata->dims, src, CFL_SIZE);
+			md_copy_block(2, pos, slice_dims, tmp_slices + offset, resized_dims, u_resized, CFL_SIZE);
 		}
 	}
 	
@@ -383,7 +408,8 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	md_zsub(dom->N, dom->dims, slices, slices, grad);   // dst(src+1) = src - grad
 	
 	// back to fortran arrays
-	complex float* tmp = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
+	complex float* tmp = md_alloc(DIMS, resized_dims, CFL_SIZE);
+	complex float* tmp1 = md_alloc(DIMS, resized_dims, CFL_SIZE);
 	for(size_t i=0; i < nx; i++)
 	{
 		for (size_t j=0; j < ny; j++)
@@ -391,22 +417,32 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 			pos[0] = i*slice_dims[0];
 			pos[1] = j*slice_dims[1];
 			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
-			md_copy_block(2, pos, pdata->dims, tmp, slice_dims, slices+offset, CFL_SIZE);
+			md_copy_block(2, pos, resized_dims, tmp, slice_dims, slices+offset, CFL_SIZE);
 		}
 	}
-	md_zsmul(pdata->N, pdata->dims, tmp, tmp, scalor);
-	md_transpose(pdata->N, 1, 0, pdata->dims, dst, pdata->dims, tmp, CFL_SIZE);
+	md_zsmul(DIMS, resized_dims, tmp, tmp, scalor);
+
+	md_transpose(DIMS, 1, 0, resized_dims, tmp1, resized_dims, tmp, CFL_SIZE);
+	
+	for (unsigned int i = 0; i < 2; i++)
+		pos[i] = labs((resized_dims[i] / 2) - (pdata->dims[i] / 2));
+
+	md_copy_block(2, pos, pdata->dims, (complex float*)dst, resized_dims, (const complex float*)tmp1, CFL_SIZE);
+	
+	md_free(u_resized);
+	md_free(slices);
+	md_free(tmp_slices);
 	md_free(tmp);
 }
 
-static void prox_logp_apply(const operator_data_t* data, float lambda, complex float* dst, complex float* src)
+static void prox_logp_apply(const operator_data_t* data, float lambda, complex float* dst, const complex float* src)
 {
 	auto pdata = CAST_DOWN(prox_logp_data, data);
 	
 	complex float* tmp = md_alloc(pdata->N, pdata->dims, CFL_SIZE);
 	md_copy(pdata->N, pdata->dims, tmp, src, CFL_SIZE);
 
-	for(int i=0; i<pdata->steps; i++)
+	for(unsigned int i=0; i<pdata->steps; i++)
 	{
 		prox_logp_fun(data, lambda, dst, tmp);
 		md_copy(pdata->N, pdata->dims, tmp, dst, CFL_SIZE);	

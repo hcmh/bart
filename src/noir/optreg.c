@@ -142,12 +142,47 @@ bool opt_reg_nlinv_init(struct opt_reg_s* ropts)
 }
 
 
-void opt_reg_nlinv_configure(unsigned int N, const long img_dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int shift_mode)
+static const struct operator_p_s* nlinv_sens_prox_create(unsigned int N, const long sens_dims[N])
+{
+	const struct operator_p_s* prox = prox_zero_create(N, sens_dims);
+	return prox;
+}
+
+static const struct operator_p_s* flatten_prox(const struct operator_p_s* src)
+{
+	const struct operator_p_s* dst = operator_p_reshape_in_F(src, 1, MD_DIMS(md_calc_size(operator_p_domain(src)->N, operator_p_domain(src)->dims)));
+	dst = operator_p_reshape_out_F(dst, 1, MD_DIMS(md_calc_size(operator_p_codomain(dst)->N, operator_p_codomain(dst)->dims)));
+	return dst;
+}
+
+static const struct operator_p_s* stack_flatten_prox(const struct operator_p_s* prox_maps, const struct operator_p_s* prox_sens)
+{
+	auto prox1 = flatten_prox(prox_maps);
+	auto prox2 = flatten_prox(prox_sens);
+	auto prox3 = operator_p_stack(0, 0, prox1, prox2);
+	operator_p_free(prox1);
+	operator_p_free(prox2);
+	return prox3;
+}
+
+
+
+void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int shift_mode)
 {
 
 	bool randshift = shift_mode == 1;
 	
     float lambda = ropts->lambda;
+
+	long img_dims[N];
+	md_select_dims(N, ~COIL_FLAG, img_dims, dims);
+
+	long coil_dims[N];
+	md_select_dims(N, ~COEFF_FLAG, coil_dims, dims);
+	
+	long x_dims[DIMS];
+	md_copy_dims(DIMS, x_dims, coil_dims);
+	x_dims[COIL_DIM] = x_dims[COIL_DIM] + 1;
 
     if (-1. == lambda)
 		lambda = 0.;
@@ -197,8 +232,13 @@ void opt_reg_nlinv_configure(unsigned int N, const long img_dims[N], struct opt_
 				}
 			}
 
-			trafos[nr] = linop_identity_create(DIMS, img_dims);
-			prox_ops[nr] = prox_wavelet_thresh_create(DIMS, img_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, randshift); 
+			trafos[nr] = linop_identity_create(DIMS, x_dims);
+
+			auto prox_img = prox_wavelet_thresh_create(DIMS, img_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, randshift); 
+
+			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
+
+			prox_ops[nr] = stack_flatten_prox(prox_img, prox_coil);
 			break;
         }
         
@@ -216,22 +256,30 @@ void opt_reg_nlinv_configure(unsigned int N, const long img_dims[N], struct opt_
 		{
 			debug_printf(DP_INFO, "l2 regularization: %f\n", regs[nr].lambda);
 
-			trafos[nr] = linop_identity_create(DIMS, img_dims);
-			prox_ops[nr] = prox_leastsquares_create(DIMS, img_dims, regs[nr].lambda, NULL);
+			trafos[nr] = linop_identity_create(DIMS, x_dims);
+			
+			auto prox_img = prox_leastsquares_create(DIMS, img_dims, regs[nr].lambda, NULL);
+
+			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
+
+			prox_ops[nr] = stack_flatten_prox(prox_img, prox_coil);
 			break;
 		}
 		
         case LOGP:
 		{
-			
 			debug_printf(DP_INFO, "pixel-cnn based prior located at %s.\nlambda: %f\npercentage: %f\nsteps: %u\n", 
 						regs[nr].graph_file, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
-			trafos[nr] = linop_identity_create(DIMS, img_dims);
+			
+			trafos[nr] = linop_identity_create(DIMS, x_dims);
+
 			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file);
-			long tmp_dims[2];
-			tmp_dims[0] = img_dims[0]/2;
-			tmp_dims[1] = img_dims[1]/2; // TODO: need a fix 
-			prox_ops[nr] = prox_logp_create(2, tmp_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
+
+			auto prox_img = prox_logp_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
+
+			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
+
+			prox_ops[nr] = stack_flatten_prox(prox_img, prox_coil);
 			break;
 		}
         

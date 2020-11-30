@@ -17,9 +17,11 @@
 #include <math.h>
 #include <assert.h>
 
+#include "num/ops_p.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/fft.h"
+
 
 #include "iter/iter.h"
 #include "iter/iter2.h"
@@ -44,8 +46,9 @@
 #include "linops/someops.h"
 #include "linops/grad.h"
 
-#include "recon.h"
 #include "reg_recon.h"
+#include "recon.h"
+
 
 
 #define T1_MODEL 10
@@ -200,8 +203,14 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
     const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_nlinv_configure(DIMS, imgs_dims, &ropts, thresh_ops, trafos, conf->shift_mode);
-	iter4_fun_f* irgnm_ptr = &iter4_irgnm;// default sovler cg
+	opt_reg_nlinv_configure(DIMS, irgnm_conf_dims, &ropts, thresh_ops, trafos, conf->shift_mode);
+	iter4_fun_f* irgnm_ptr = &iter4_irgnm;// default solver cg
+
+	struct iter_admm_conf admm_conf_reg = iter_admm_defaults;
+	admm_conf_reg.maxiter = conf->inner_iter;
+	admm_conf_reg.rho = conf->rho; 
+	admm_conf_reg.use_interface_alpha = true;
+	
 	struct irgnm_reg_conf reg_conf = {
 		.irgnm_conf = &irgnm_conf,
 		.ropts = &ropts,		
@@ -212,6 +221,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 		.tol = conf->tol,
 		.max_outiter = conf->iter,
 		.shift_mode = conf->shift_mode,
+		.admm_conf_reg = &admm_conf_reg,
 	};
 
 	//  pinv_op for irgnm
@@ -219,7 +229,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 		irgnm_ptr = &iter4_irgnm2;
 		pinv_op = reg_pinv_op_create(&reg_conf, irgnm_conf_dims, nl.nlop, thresh_ops, trafos);
 	}
-	
+
 	(*irgnm_ptr)(CAST_UP(&irgnm_conf),
 			nl.nlop,
 			size * 2, (float*)x, (const float*)xref,
@@ -239,7 +249,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 
 	nlop_free(nl.nlop);
-
+	operator_p_free(pinv_op);
 	md_free(x);
 	md_free(xref);
 }
