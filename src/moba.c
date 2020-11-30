@@ -1,5 +1,5 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2019. Uecker Lab, University Medical Center Goettingen.
+ * Copyright 2019-2020. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
@@ -296,6 +296,10 @@ int main_moba(int argc, char* argv[])
 
 		md_zsmul(DIMS, map_dims, filter, filter, -1. / M_PI);
 		md_zsadd(DIMS, map_dims, filter, filter, 1.0);
+<<<<<<< HEAD
+=======
+
+>>>>>>> master
 		md_zsmul(DIMS, map_dims, filter, filter, lambda);
 
 		md_zadd2(DIMS, pat_dims, pat_strs, pattern, pat_strs, pattern, map_strs, filter);
@@ -303,14 +307,13 @@ int main_moba(int argc, char* argv[])
 		unmap_cfl(DIMS, map_dims, filter);
 	}
 
-
 	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);
 	double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
 
         if (conf.sms) {
 
-		scaling *= sqrt(grid_dims[SLICE_DIM] / 5.0);
-		scaling_psf *= sqrt(grid_dims[SLICE_DIM] / 5.0);
+		scaling *= grid_dims[SLICE_DIM] / 5.0;
+		scaling_psf *= grid_dims[SLICE_DIM] / 5.0;
 	}
 
 	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
