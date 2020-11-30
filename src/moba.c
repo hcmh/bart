@@ -296,10 +296,7 @@ int main_moba(int argc, char* argv[])
 
 		md_zsmul(DIMS, map_dims, filter, filter, -1. / M_PI);
 		md_zsadd(DIMS, map_dims, filter, filter, 1.0);
-<<<<<<< HEAD
-=======
 
->>>>>>> master
 		md_zsmul(DIMS, map_dims, filter, filter, lambda);
 
 		md_zadd2(DIMS, pat_dims, pat_strs, pattern, pat_strs, pattern, map_strs, filter);
