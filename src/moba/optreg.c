@@ -298,7 +298,7 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 
 	long coil_dims[DIMS];
 	md_copy_dims(DIMS, coil_dims, x_dims);
-	coil_dims[COEFF_DIM] = x_dims[COIL_DIM];
+	coil_dims[COEFF_DIM] = dims[COIL_DIM];
 
 	long map_dims[DIMS];
 	md_copy_dims(DIMS, map_dims, img_dims);
@@ -307,6 +307,13 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 	long map2_dims[DIMS];
 	md_copy_dims(DIMS, map2_dims, img_dims);
 	map2_dims[COEFF_DIM] = map2_dims[COEFF_DIM] - 1L;
+
+	// print out all the dims
+	debug_print_dims(DP_INFO, DIMS, img_dims);
+	debug_print_dims(DP_INFO, DIMS, coil_dims);
+	debug_print_dims(DP_INFO, DIMS, x_dims);
+	debug_print_dims(DP_INFO, DIMS, map_dims);
+	debug_print_dims(DP_INFO, DIMS, map2_dims);
 
 	// if no penalities specified but regularization
 	// parameter is given, add a l2 penalty
@@ -340,49 +347,32 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 
 		case L1WAV:
 
-			regs[nr].lambda = lambda;
+			regs[nr].lambda = 1. * lambda;
 			debug_printf(DP_INFO, "l1-wavelet regularization: %f\n", regs[nr].lambda);
 
-			randshift = true;
-			long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
-			minsize[0] = MIN(img_dims[0], 16);
-			minsize[1] = MIN(img_dims[1], 16);
-			minsize[2] = MIN(img_dims[2], 16);
-
-
-			unsigned int wflags = 0;
-			for (unsigned int i = 0; i < DIMS; i++) {
-
-				if ((1 < img_dims[i]) && MD_IS_SET(regs[nr].xflags, i)) {
-
-					wflags = MD_SET(wflags, i);
-					minsize[i] = MIN(img_dims[i], 16);
-				}
-			}
-
-			auto l1Wav_prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, randshift);
-			l1Wav_prox = operator_p_reshape_in_F(l1Wav_prox, 1, MD_DIMS(md_calc_size(operator_p_domain(l1Wav_prox)->N, operator_p_domain(l1Wav_prox)->dims)));
-			l1Wav_prox = operator_p_reshape_out_F(l1Wav_prox, 1, MD_DIMS(md_calc_size(operator_p_codomain(l1Wav_prox)->N, operator_p_codomain(l1Wav_prox)->dims)));
-			
+			auto l1Wav_prox = create_wav_prox(img_dims, regs[nr].jflags, regs[nr].lambda);	
 			auto zero_prox = prox_zero_create(DIMS, coil_dims);
 
-			zero_prox = operator_p_reshape_in_F(zero_prox, 1, MD_DIMS(md_calc_size(operator_p_domain(zero_prox)->N, operator_p_domain(zero_prox)->dims)));
-			zero_prox = operator_p_reshape_out_F(zero_prox, 1, MD_DIMS(md_calc_size(operator_p_codomain(zero_prox)->N, operator_p_codomain(zero_prox)->dims)));
-
-			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = operator_p_stack_FF(0, 0, l1Wav_prox, zero_prox);;
+			trafos[nr] = linop_identity_create(DIMS, x_dims);
+			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(l1Wav_prox), operator_p_flatten_F(zero_prox));
 
 			break;
 
 		case TV:
 		
-			regs[nr].lambda = lambda;
+			regs[nr].lambda = 1. * lambda;
 			debug_printf(DP_INFO, "TV regularization: %f\n", regs[nr].lambda);
 
-			trafos[nr] = linop_grad_create(DIMS, x_dims, DIMS, regs[nr].xflags);
+			auto extract = linop_extract_create(1, MD_DIMS(0), MD_DIMS(md_calc_size(DIMS, img_dims)), MD_DIMS(md_calc_size(DIMS, x_dims)));
+			extract = linop_reshape_out_F(extract, DIMS, img_dims);
+			
+                        auto grad = linop_grad_create(DIMS, img_dims, DIMS, regs[nr].xflags);
+
+			trafos[nr] = linop_chain_FF(extract, grad);
 			prox_ops[nr] = prox_thresh_create(DIMS + 1,
 					linop_codomain(trafos[nr])->dims,
 					regs[nr].lambda, regs[nr].jflags | MD_BIT(DIMS));
+	
 			break;
 
 		case POS:
@@ -396,16 +386,10 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 			
 			auto stack0 = operator_p_stack_FF(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox); 	
 			
-			stack0 = operator_p_reshape_in_F(stack0, 1, MD_DIMS(md_calc_size(operator_p_domain(stack0)->N, operator_p_domain(stack0)->dims)));
-			stack0 = operator_p_reshape_out_F(stack0, 1, MD_DIMS(md_calc_size(operator_p_codomain(stack0)->N, operator_p_codomain(stack0)->dims)));
-			
 			auto zero_prox2 = prox_zero_create(DIMS, coil_dims);
-
-			zero_prox2 = operator_p_reshape_in_F(zero_prox2, 1, MD_DIMS(md_calc_size(operator_p_domain(zero_prox2)->N, operator_p_domain(zero_prox2)->dims)));
-			zero_prox2 = operator_p_reshape_out_F(zero_prox2, 1, MD_DIMS(md_calc_size(operator_p_codomain(zero_prox2)->N, operator_p_codomain(zero_prox2)->dims)));
 				
 			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = operator_p_stack_FF(0, 0, stack0, zero_prox2); ;
+			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(stack0), operator_p_flatten_F(zero_prox2));
 
 			break;
 
