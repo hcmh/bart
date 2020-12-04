@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <complex.h>
 #include <libgen.h>
+#include <string.h>
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -137,14 +138,16 @@ int main_nnmodl(int argc, char* argv[])
 
 	train_conf.INTERFACE.batchgen_type = random_order;
 
-	char* filename_kspace = argv[1];
-	char* filename_coil = argv[2];
-	char* filename_pattern = argv[3];
-	char* filename_weights = argv[4];
-	char* filename_out = argv[5];
+	const char* filename_kspace = argv[1];
+	const char* filename_coil = argv[2];
+	const char* filename_pattern = argv[3];
+	const char* filename_weights = argv[4];
+	const char* filename_out = argv[5];
 
 	char graph_path[strlen(filename_weights) + 10];
-	sprintf(graph_path, "%s/graph.dot", dirname(filename_weights));
+	char filename_weights_tmp[strlen(filename_weights) + 1];
+	strcpy(filename_weights_tmp, filename_weights);
+	sprintf(graph_path, "%s/graph.dot", dirname(filename_weights_tmp));
 	if (draw_graph)
 		modl.draw_graph_filename = graph_path;
 
