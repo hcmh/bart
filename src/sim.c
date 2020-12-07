@@ -198,6 +198,7 @@ int main_sim(int argc, char* argv[])
 		vfa_dims[READ_DIM] = sim_data.seq.rep_num;
 
 		debug_print_dims(DP_DEBUG2, DIMS, vfa_dims);
+
 		sim_data.seq.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
 
 		get_antihsfp_fa(sim_data.seq.rep_num, sim_data.seq.variable_fa);
@@ -215,19 +216,17 @@ int main_sim(int argc, char* argv[])
 
 	complex float* x_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* y_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* z_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
 
-	// Output z component?
+	// Output z check up's
 
 	if (NULL != z_component || NULL != radial_component) {
 
-		if (4 == sim_data.seq.seq_type)
+		if (sim_data.seq.analytical && 4 == sim_data.seq.seq_type)
 			debug_printf(DP_WARN, "Analytical HSFP model only holds for radial component! Output as signal!\n");
 
 		assert(!sim_data.seq.analytical);
 	}
-
-	complex float* z_magnetization = ((NULL != z_component) ? create_cfl : anon_cfl)((NULL != z_component) ? z_component : "", DIMS, dims);
-
 
 	long dims1[DIMS];
 	md_select_dims(DIMS, TE_FLAG, dims1, dims);
@@ -288,6 +287,19 @@ int main_sim(int argc, char* argv[])
 
 	unmap_cfl(DIMS, dims, signals);
 
+	// Export z Component
+
+	complex float* z_comp = NULL;
+
+	if (NULL != z_component) {
+
+		z_comp = create_cfl(z_component, DIMS, dims);
+
+		md_copy(DIMS, dims, z_comp, z_magnetization, CFL_SIZE);
+
+		unmap_cfl(DIMS, dims, z_comp);
+	}
+
 	// Determine radial component of magnetization
 
 	complex float* radial_comp = NULL;
@@ -312,12 +324,13 @@ int main_sim(int argc, char* argv[])
 		md_free(tmp);
 		md_free(tmp2);
 		md_free(tmp3);
+
+		unmap_cfl(DIMS, dims, radial_comp);
 	}
 
 	md_free(x_magnetization);
 	md_free(y_magnetization);
-	unmap_cfl(DIMS, dims, z_magnetization);
-	unmap_cfl(DIMS, dims, radial_comp);
+	md_free(z_magnetization);
 
 	return 0;
 }
