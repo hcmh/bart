@@ -21,6 +21,7 @@
 #include "simu/sim_matrix.h"
 #include "simu/bloch.h"
 #include "simu/signals.h"
+#include "simu/polar_angles.h"
 #include "simu/variable_flipangles.h"
 
 
@@ -172,6 +173,7 @@ int main_sim(int argc, char* argv[])
 		
 		case 1: parm = signal_IR_bSSFP_defaults; break;
 		case 2: parm = signal_looklocker_defaults; break;
+		case 4: parm = signal_hsfp_defaults; break;
 		case 5: parm = signal_looklocker_defaults; break;
 
 		default: error("sequence type not supported");
@@ -185,6 +187,8 @@ int main_sim(int argc, char* argv[])
 
 		assert(ode);
 
+		if (1 == sim_data.seq.analytical)
+			assert(N_PA_ANTIHSFP >= sim_data.seq.rep_num);
 		long vfa_dims[DIMS] = { 1 };
 		vfa_dims[READ_DIM] = sim_data.seq.rep_num;
 
@@ -208,8 +212,14 @@ int main_sim(int argc, char* argv[])
 	complex float* y_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
 
 	// Output z component?
-	if (NULL != z_component || NULL != radial_component)
+
+	if (NULL != z_component || NULL != radial_component) {
+
+		if (4 == sim_data.seq.seq_type)
+			debug_printf(DP_WARN, "Analytical HSFP model only holds for radial component! Output as signal!\n");
+
 		assert(!sim_data.seq.analytical);
+	}
 
 	complex float* z_magnetization = ((NULL != z_component) ? create_cfl : anon_cfl)((NULL != z_component) ? z_component : "", DIMS, dims);
 
@@ -237,6 +247,7 @@ int main_sim(int argc, char* argv[])
 
 			case 1: IR_bSSFP_model(&parm, N, out_x); break;
 			case 2: looklocker_model(&parm, N, out_x); break;
+			case 4: hsfp_simu(&parm, N, sim_data.seq.variable_fa, out_x); break;
 			case 5: looklocker_model(&parm, N, out_x); break;
 
 			default: assert(0);
@@ -245,8 +256,8 @@ int main_sim(int argc, char* argv[])
 		else
 			bloch_simulation(&sim_data, N, out_x, out_y, out_z, ode);
 
-		// FIXME: Mapping NULL -> NULL ugly for analytic case...
 		md_copy_block(DIMS, pos, dims, x_magnetization, dims1, out_x, CFL_SIZE);
+		// FIXME: Mapping NULL -> NULL ugly for analytical case...
 		md_copy_block(DIMS, pos, dims, y_magnetization, dims1, out_y, CFL_SIZE);
 		md_copy_block(DIMS, pos, dims, z_magnetization, dims1, out_z, CFL_SIZE);
 
@@ -256,14 +267,23 @@ int main_sim(int argc, char* argv[])
 		printf("z[%d]:\t%f\n", i, creal(z_magnetization[i]));
 
 	// Determine signal
+
 	complex float* signals = create_cfl(argv[1], DIMS, dims);
 
-	complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
+	if (sim_data.seq.analytical)
 
-	md_zsmul(DIMS, dims, tmp, y_magnetization, I);
-	md_zadd(DIMS, dims, signals, x_magnetization, tmp);
+		md_copy(DIMS, dims, signals, x_magnetization, CFL_SIZE);
 
-	md_free(tmp);
+	else {
+
+		complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
+
+		md_zsmul(DIMS, dims, tmp, y_magnetization, I);
+		md_zadd(DIMS, dims, signals, x_magnetization, tmp);
+
+		md_free(tmp);
+	}
+
 	unmap_cfl(DIMS, dims, signals);
 
 	// Determine radial component of magnetization
