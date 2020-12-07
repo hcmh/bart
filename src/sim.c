@@ -119,12 +119,15 @@ int main_sim(int argc, char* argv[])
 	sim_data.grad = simdata_grad_defaults;
 	sim_data.tmp = simdata_tmp_defaults;
 
+	const char* z_component = NULL;
+
 
 	const struct opt_s opts[] = {
 
-		OPT_SET('o', 	&ode, 		"ODE based simulation [Default: OBS]"),
-		OPT_FLVEC3('1', &T1, 		"min:max:N", "range of T1s"),
-		OPT_FLVEC3('2', &T2, 		"min:max:N", "range of T2s"),
+		OPT_SET(	'o', 	&ode, 			"ODE based simulation [Default: OBS]"),
+		OPT_FLVEC3(	'1',	&T1, 			"min:max:N", "range of T1s"),
+		OPT_FLVEC3(	'2',	&T2, 			"min:max:N", "range of T2s"),
+		OPT_STRING(	'z',	&z_component,		"", "Output z component"),
 		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw> (-Ph for help)" },
 	};
 
@@ -190,6 +193,8 @@ int main_sim(int argc, char* argv[])
 		// 	printf("FA[%d]:\t%f\n", i, cabs(sim_data.seq.variable_fa[i]));
 	}
 
+	complex float* z_magnetization = ((NULL != z_component) ? create_cfl : anon_cfl)((NULL != z_component) ? z_component : "", DIMS, dims);
+
 	// Prepare multi relaxation parameter simulation
 	dims[COEFF_DIM] = truncf(T1[2]);
 	dims[COEFF2_DIM] = truncf(T2[2]);
@@ -212,6 +217,7 @@ int main_sim(int argc, char* argv[])
 		sim_data.voxel.m0 = 1.;
 
 		complex float out[N];
+		complex float out_z[N];
 
 		if (sim_data.seq.analytical) {
 
@@ -229,14 +235,16 @@ int main_sim(int argc, char* argv[])
 			}
 		} 
 		else
-			bloch_simulation(&sim_data, N, out, ode);
+			bloch_simulation(&sim_data, N, out, out_z, ode);
 
 
 		md_copy_block(DIMS, pos, dims, signals, dims1, out, CFL_SIZE);
+		md_copy_block(DIMS, pos, dims, z_magnetization, dims1, out_z, CFL_SIZE);
 
 	} while(md_next(DIMS, dims, ~TE_FLAG, pos));
 
 	unmap_cfl(DIMS, dims, signals);
+	unmap_cfl(DIMS, dims, z_magnetization);
 
 	return 0;
 }

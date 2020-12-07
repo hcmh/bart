@@ -496,7 +496,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 }
 
 
-void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, bool ode)
+void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, complex float* z_comp, bool ode)
 {
 	complex float mxy_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
 	complex float sa_r1_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
@@ -504,12 +504,16 @@ void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, bool
 	complex float sa_m0_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
 
 	if (ode)
-		ode_bloch_simulation3(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);		// ODE simulation
+		ode_bloch_simulation3(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// ODE simulation
 	else
 		matrix_bloch_simulation(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// OBS simulation, does not work with hard-pulses!
 
-	for (int t = 0; t < N; t++) 
+	for (int t = 0; t < N; t++) {
+
 		out[t] = mxy_sig[t][1] + mxy_sig[t][0] * I;
+
+		z_comp[t] = mxy_sig[t][2];
+	}
 }
 
 
