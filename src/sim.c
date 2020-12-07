@@ -21,6 +21,7 @@
 #include "simu/sim_matrix.h"
 #include "simu/bloch.h"
 #include "simu/signals.h"
+#include "simu/variable_flipangles.h"
 
 
 static const char usage_str[] = "<OUT:basis-functions>";
@@ -36,7 +37,7 @@ static void help_seq(void)
 		"\t\t\t1 = invbSSFP\n"
 		"\t\t\t2 = FLASH\n"
 		"\t\t\t3 = pcbSSFP\n"
-		"\t\t\t4 = inv. bSSFP without preparation\n"
+		"\t\t\t4 = antiperiodic HSFP\n"
 		"\t\t\t5 = invFLASH\n"
 		"\t\t\t6 = invpcbSSFP\n"
 		"tr:\t Repetition time [s]\n"
@@ -110,8 +111,6 @@ int main_sim(int argc, char* argv[])
 	float T1[3] = { 0.5, 4., 10 };
 	float T2[3] = {  0.05,  0.5, 10 };
 
-	const char* input_variable_theta = NULL;
-
 	// initalize values for simulation
 	struct sim_data sim_data;
 	sim_data.seq = simdata_seq_defaults;
@@ -126,7 +125,6 @@ int main_sim(int argc, char* argv[])
 		OPT_SET('o', 	&ode, 		"ODE based simulation [Default: OBS]"),
 		OPT_FLVEC3('1', &T1, 		"min:max:N", "range of T1s"),
 		OPT_FLVEC3('2', &T2, 		"min:max:N", "range of T2s"),
-		OPT_STRING('F',	&input_variable_theta, 	"", "Input for variable flipangle profile"),
 		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw> (-Ph for help)" },
 	};
 
@@ -179,28 +177,18 @@ int main_sim(int argc, char* argv[])
 	}
 
 	// Import variable flipangle file if provided
-	complex float* input_theta = NULL;
-	complex float* input_vfa = NULL;
+	if (4 == sim_data.seq.seq_type) {
 
-	long input_vfa_dims[DIMS];
+		long vfa_dims[DIMS] = { 1 };
+		vfa_dims[READ_DIM] = sim_data.seq.rep_num;
 
-	if (NULL != input_variable_theta) {
+		sim_data.seq.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
 
-		input_theta = load_cfl(input_variable_theta, DIMS, input_vfa_dims);
+		get_antihsfp_fa(sim_data.seq.rep_num, sim_data.seq.variable_fa);
 
-		input_vfa = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
-
-		debug_printf(DP_DEBUG2, "Number of variable flip angles: %d\n", input_vfa_dims[READ_DIM]);
-
-		// Conversion from polar coordinates to flipangle
-		for (int i = 0; i < input_vfa_dims[READ_DIM]; i++)
-			input_vfa[i] = 180 / M_PI * ((0 == i) ?  input_theta[i] : (input_theta[i] + input_theta[i-1]));
-
-		sim_data.seq.variable_fa = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
-
-		md_copy(DIMS, input_vfa_dims, sim_data.seq.variable_fa, input_vfa, CFL_SIZE);
+		// for(int i = 0; i < sim_data.seq.rep_num; i++)
+		// 	printf("FA[%d]:\t%f\n", i, cabs(sim_data.seq.variable_fa[i]));
 	}
-
 
 	// Prepare multi relaxation parameter simulation
 	dims[COEFF_DIM] = truncf(T1[2]);
@@ -211,7 +199,6 @@ int main_sim(int argc, char* argv[])
 
 
 	complex float* signals = create_cfl(argv[1], DIMS, dims);
-
 
 	long dims1[DIMS];
 	md_select_dims(DIMS, TE_FLAG, dims1, dims);
