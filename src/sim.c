@@ -251,7 +251,7 @@ int main_sim(int argc, char* argv[])
 
 			case 1: IR_bSSFP_model(&parm, N, out_x); break;
 			case 2: looklocker_model(&parm, N, out_x); break;
-			case 4: hsfp_simu(&parm, N, sim_data.seq.variable_fa, out_x); break;
+			case 4: hsfp_simu(&parm, N, polarangles_antihsfp, out_x); break;
 			case 5: looklocker_model(&parm, N, out_x); break;
 
 			default: assert(0);
