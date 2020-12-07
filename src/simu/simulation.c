@@ -21,6 +21,7 @@
 
 #include "simulation.h"
 #include "sim_matrix.h"
+#include "polar_angles.h"
 
 
 
@@ -406,6 +407,30 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 					}
 				}
 
+				// Apply inversion after one acquisition of HSFP sequence is performed
+				if ((4 == data->seq.seq_type) && (851 == data->tmp.rep_counter)) {
+
+					struct sim_data inv_data = *data;
+
+					if (0 != inv_data.pulse.rf_end) // for non-hard pulses
+						inv_data.pulse.rf_end = data->seq.inversion_pulse_length;
+
+					inv_data.pulse.flipangle = 180.;
+					inv_data.seq.te = data->pulse.rf_end;
+					inv_data.seq.tr = data->pulse.rf_end;
+
+					create_sim_block(&inv_data);
+
+					run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+
+					for (int i = 0; i < P + 2; i++) {
+
+						xp[i][0] = 0.;
+						xp[i][1] = 0.;
+					}
+				}
+
+				// Break for MOLLI experiments
 				if (0 != data->tmp.rep_counter && 0 != data->seq.molli_break && (data->tmp.rep_counter%data->seq.molli_measure == 0))
 					relaxation2(data, h, tol, N, P, xp, 0., data->seq.molli_break * data->seq.tr);
 
