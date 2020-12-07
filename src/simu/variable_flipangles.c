@@ -19,7 +19,7 @@ static void polar2fa(int repetitions, int length_pa_array, complex float* out, f
 
                 ind = i%length_pa_array;
 
-                out[i] = 180. / M_PI * ((0 == ind) ? in[ind] : (in[ind] + in[ind-1]));
+                out[i] = 180. / M_PI * ((0 == ind) ? in[ind] : (in[ind] + in[ind-1])) + 0 * I;
         }
 }
 
@@ -29,5 +29,6 @@ void get_antihsfp_fa(int repetitions, complex float* fa_out) {
 
         // FIXME: Allow for more than 2 repetitions
         assert(2 * N_PA_ANTIHSFP >= repetitions);
+
         polar2fa(repetitions, N_PA_ANTIHSFP, fa_out, polarangles_antihsfp);
 }
