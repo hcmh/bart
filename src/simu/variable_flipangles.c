@@ -19,14 +19,7 @@ static void polar2fa(int repetitions, int length_pa_array, complex float* out, f
 
                 ind = i%length_pa_array;
 
-                if (0 == i)                     // first intitial pulse
-                        out[i] = 180. / M_PI * in[ind];
-
-                else if (0 != i && 0 == ind)    // fulfill continuous measurement if repetitions > length_pa_array
-                        out[i] = 180. / M_PI * (in[ind] + in[i-1]);
-
-                else
-                        out[i] = 180. / M_PI * (in[ind] + in[ind-1]);
+                out[i] = 180. / M_PI * ((0 == ind) ? in[ind] : (in[ind] + in[ind-1]));
         }
 }
 
