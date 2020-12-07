@@ -120,7 +120,7 @@ int main_sim(int argc, char* argv[])
 	sim_data.tmp = simdata_tmp_defaults;
 
 	const char* z_component = NULL;
-
+	const char* radial_component = NULL;
 
 	const struct opt_s opts[] = {
 
@@ -128,6 +128,7 @@ int main_sim(int argc, char* argv[])
 		OPT_FLVEC3(	'1',	&T1, 			"min:max:N", "range of T1s"),
 		OPT_FLVEC3(	'2',	&T2, 			"min:max:N", "range of T2s"),
 		OPT_STRING(	'z',	&z_component,		"", "Output z component"),
+		OPT_STRING(	'r',	&radial_component,	"", "Output radial component"),
 		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw> (-Ph for help)" },
 	};
 
@@ -207,7 +208,7 @@ int main_sim(int argc, char* argv[])
 	complex float* y_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
 
 	// Output z component?
-	if (NULL != z_component)
+	if (NULL != z_component || NULL != radial_component)
 		assert(!sim_data.seq.analytical);
 
 	complex float* z_magnetization = ((NULL != z_component) ? create_cfl : anon_cfl)((NULL != z_component) ? z_component : "", DIMS, dims);
@@ -257,10 +258,38 @@ int main_sim(int argc, char* argv[])
 	// Determine signal
 	complex float* signals = create_cfl(argv[1], DIMS, dims);
 
-	md_zimag(DIMS, dims, y_magnetization, y_magnetization);
-	md_zadd(DIMS, dims, signals, x_magnetization, y_magnetization);
+	complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
 
+	md_zsmul(DIMS, dims, tmp, y_magnetization, I);
+	md_zadd(DIMS, dims, signals, x_magnetization, tmp);
+
+	md_free(tmp);
 	unmap_cfl(DIMS, dims, signals);
+
+	// Determine radial component of magnetization
+	complex float* radial_comp = NULL;
+
+	if (NULL != radial_component) {
+
+		radial_comp = create_cfl(radial_component, DIMS, dims);
+
+		complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
+		complex float* tmp2 = md_alloc(DIMS, dims, CFL_SIZE);
+		complex float* tmp3 = md_alloc(DIMS, dims, CFL_SIZE);
+
+		md_zmul(DIMS, dims, tmp, x_magnetization, x_magnetization);
+		md_zmul(DIMS, dims, tmp2, y_magnetization, y_magnetization);
+		md_zmul(DIMS, dims, tmp3, z_magnetization, z_magnetization);
+
+		md_zadd(DIMS, dims, tmp2, tmp2, tmp);
+		md_zadd(DIMS, dims, tmp3, tmp3, tmp2);
+
+		md_zsqrt(DIMS, dims, radial_comp, tmp3);
+
+		md_free(tmp);
+		md_free(tmp2);
+		md_free(tmp3);
+	}
 
 	md_free(x_magnetization);
 	md_free(y_magnetization);
