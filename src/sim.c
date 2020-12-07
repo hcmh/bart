@@ -193,9 +193,11 @@ int main_sim(int argc, char* argv[])
 		if (1 == sim_data.seq.analytical)
 			assert(N_PA_ANTIHSFP >= sim_data.seq.rep_num);
 
-		long vfa_dims[DIMS] = { 1 };
+		long vfa_dims[DIMS];
+		md_set_dims(DIMS, vfa_dims, 1);
 		vfa_dims[READ_DIM] = sim_data.seq.rep_num;
 
+		debug_print_dims(DP_DEBUG2, DIMS, vfa_dims);
 		sim_data.seq.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
 
 		get_antihsfp_fa(sim_data.seq.rep_num, sim_data.seq.variable_fa);
