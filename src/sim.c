@@ -154,6 +154,7 @@ int main_sim(int argc, char* argv[])
 #endif
 
 	// Pass pre defined data
+
 	dims[TE_DIM] = sim_data.seq.rep_num;
 
 	// TODO: Fix pass preperation time to sim tool
@@ -165,6 +166,7 @@ int main_sim(int argc, char* argv[])
 	sim_data.seq.inversion_pulse_length = 0.0001;
 
 	// Prepare analytical case
+
 	struct signal_model parm;
 	
 	if (sim_data.seq.analytical) {
@@ -183,24 +185,24 @@ int main_sim(int argc, char* argv[])
 	}
 
 	// Import variable flipangle file if provided
+
 	if (4 == sim_data.seq.seq_type) {
 
 		assert(ode);
 
 		if (1 == sim_data.seq.analytical)
 			assert(N_PA_ANTIHSFP >= sim_data.seq.rep_num);
+
 		long vfa_dims[DIMS] = { 1 };
 		vfa_dims[READ_DIM] = sim_data.seq.rep_num;
 
 		sim_data.seq.variable_fa = md_alloc(DIMS, vfa_dims, CFL_SIZE);
 
 		get_antihsfp_fa(sim_data.seq.rep_num, sim_data.seq.variable_fa);
-
-		// for(int i = 0; i < sim_data.seq.rep_num; i++)
-		// 	printf("FA[%d]:\t%f\n", i, cabs(sim_data.seq.variable_fa[i]));
 	}
 
 	// Prepare multi relaxation parameter simulation
+
 	dims[COEFF_DIM] = truncf(T1[2]);
 	dims[COEFF2_DIM] = truncf(T2[2]);
 	
@@ -208,6 +210,7 @@ int main_sim(int argc, char* argv[])
 		error("invalid parameter range");
 
 	// Allocate memory for magnetization components
+
 	complex float* x_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* y_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
 
@@ -263,9 +266,6 @@ int main_sim(int argc, char* argv[])
 
 	} while(md_next(DIMS, dims, ~TE_FLAG, pos));
 
-	for (int i = 0; i < N; i++)
-		printf("z[%d]:\t%f\n", i, creal(z_magnetization[i]));
-
 	// Determine signal
 
 	complex float* signals = create_cfl(argv[1], DIMS, dims);
@@ -287,6 +287,7 @@ int main_sim(int argc, char* argv[])
 	unmap_cfl(DIMS, dims, signals);
 
 	// Determine radial component of magnetization
+
 	complex float* radial_comp = NULL;
 
 	if (NULL != radial_component) {
