@@ -182,6 +182,8 @@ int main_sim(int argc, char* argv[])
 	// Import variable flipangle file if provided
 	if (4 == sim_data.seq.seq_type) {
 
+		assert(ode);
+
 		long vfa_dims[DIMS] = { 1 };
 		vfa_dims[READ_DIM] = sim_data.seq.rep_num;
 
@@ -192,6 +194,10 @@ int main_sim(int argc, char* argv[])
 		// for(int i = 0; i < sim_data.seq.rep_num; i++)
 		// 	printf("FA[%d]:\t%f\n", i, cabs(sim_data.seq.variable_fa[i]));
 	}
+
+	// Output z component of signal?
+	if (NULL != z_component)
+		assert(!sim_data.seq.analytical);
 
 	complex float* z_magnetization = ((NULL != z_component) ? create_cfl : anon_cfl)((NULL != z_component) ? z_component : "", DIMS, dims);
 
