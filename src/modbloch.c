@@ -112,6 +112,7 @@ int main_modbloch(int argc, char* argv[])
 	struct moba_conf conf = moba_defaults;
 	struct modBlochFit fit_para = modBlochFit_defaults;
 
+	bool k_filter = false;
 	bool out_sens = false;
 	bool inputSP = false;
 	bool use_gpu = false;
@@ -134,6 +135,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_STRING(	'F',	&inputVFA, 		"", "Input for variable flipangle profile"),
 		OPT_INT(	'n', 	&fit_para.not_wav_maps, "", "# Removed Maps from Wav.Denoisng"),
 		OPT_SET(	'O', 	&fit_para.full_ode_sim	,  "Apply full ODE simulation"),
+		OPT_SET(	'k', 	&k_filter		,  "Smooth pattern edges wit filter?"),
 		OPT_SET(	'S', 	&inputSP		,  "Add Slice Profile"),
 		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
@@ -292,6 +294,42 @@ int main_modbloch(int argc, char* argv[])
 		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace_data);
 		md_copy(DIMS, grid_dims, k_grid_data, kspace_data, CFL_SIZE);
 	}
+
+	// Filter pattern to smooth sharp edges in PSF
+	// Pruessmann et al.,"Advances in Sensitivity Encoding With Arbitrary k-Space Trajectories", MRM, 2001.
+
+	if (k_filter) {
+
+		long map_dims[DIMS];
+		md_select_dims(DIMS, FFT_FLAGS, map_dims, pat_dims);
+
+		long map_strs[DIMS];
+		md_calc_strides(DIMS, map_strs, map_dims, CFL_SIZE);
+
+		long pat_strs[DIMS];
+		md_calc_strides(DIMS, pat_strs, pat_dims, CFL_SIZE);
+
+		complex float* filter = NULL;
+		filter = anon_cfl("", DIMS, map_dims);
+		float lambda = 5e-3;
+
+		klaplace(DIMS, map_dims, map_dims, READ_FLAG|PHS1_FLAG, filter);
+		md_zreal(DIMS, map_dims, filter, filter);
+		md_zsqrt(DIMS, map_dims, filter, filter);
+
+		md_zsmul(DIMS, map_dims, filter, filter, -2.);
+		md_zsadd(DIMS, map_dims, filter, filter, 1.);
+		md_zatanr(DIMS, map_dims, filter, filter);
+
+		md_zsmul(DIMS, map_dims, filter, filter, -1. / M_PI);
+		md_zsadd(DIMS, map_dims, filter, filter, 1.0);
+		md_zsmul(DIMS, map_dims, filter, filter, lambda);
+
+		md_zadd2(DIMS, pat_dims, pat_strs, pattern, pat_strs, pattern, map_strs, filter);
+
+		unmap_cfl(DIMS, map_dims, filter);
+	}
+
 	
 	// Load passed B1
 
@@ -431,9 +469,7 @@ int main_modbloch(int argc, char* argv[])
 	complex float initval[3] = {0.5, 4., 0.01};//	R1, M0, R2
 	
 	// Determine DERIVATIVE and SIGNAL scaling by simulating the applied sequence
-
 	auto_scale(&fit_para, fit_para.scale, grid_dims, k_grid_data);
-
 
 	debug_printf(DP_INFO,"Scaling:\t%f,\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2], fit_para.scale[3]);
 
