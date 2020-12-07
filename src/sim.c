@@ -195,12 +195,6 @@ int main_sim(int argc, char* argv[])
 		// 	printf("FA[%d]:\t%f\n", i, cabs(sim_data.seq.variable_fa[i]));
 	}
 
-	// Output z component of signal?
-	if (NULL != z_component)
-		assert(!sim_data.seq.analytical);
-
-	complex float* z_magnetization = ((NULL != z_component) ? create_cfl : anon_cfl)((NULL != z_component) ? z_component : "", DIMS, dims);
-
 	// Prepare multi relaxation parameter simulation
 	dims[COEFF_DIM] = truncf(T1[2]);
 	dims[COEFF2_DIM] = truncf(T2[2]);
@@ -208,8 +202,13 @@ int main_sim(int argc, char* argv[])
 	if ((dims[TE_DIM] < 1) || (dims[COEFF_DIM] < 1) || (dims[COEFF2_DIM] < 1))
 		error("invalid parameter range");
 
-
 	complex float* signals = create_cfl(argv[1], DIMS, dims);
+
+	// Output z component of signal?
+	if (NULL != z_component)
+		assert(!sim_data.seq.analytical);
+
+	complex float* z_magnetization = ((NULL != z_component) ? create_cfl : anon_cfl)((NULL != z_component) ? z_component : "", DIMS, dims);
 
 	long dims1[DIMS];
 	md_select_dims(DIMS, TE_FLAG, dims1, dims);
