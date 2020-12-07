@@ -294,6 +294,7 @@ int main_sim(int argc, char* argv[])
 	md_free(x_magnetization);
 	md_free(y_magnetization);
 	unmap_cfl(DIMS, dims, z_magnetization);
+	unmap_cfl(DIMS, dims, radial_comp);
 
 	return 0;
 }
