@@ -202,13 +202,16 @@ int main_sim(int argc, char* argv[])
 	if ((dims[TE_DIM] < 1) || (dims[COEFF_DIM] < 1) || (dims[COEFF2_DIM] < 1))
 		error("invalid parameter range");
 
-	complex float* signals = create_cfl(argv[1], DIMS, dims);
+	// Allocate memory for magnetization components
+	complex float* x_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* y_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
 
-	// Output z component of signal?
+	// Output z component?
 	if (NULL != z_component)
 		assert(!sim_data.seq.analytical);
 
 	complex float* z_magnetization = ((NULL != z_component) ? create_cfl : anon_cfl)((NULL != z_component) ? z_component : "", DIMS, dims);
+
 
 	long dims1[DIMS];
 	md_select_dims(DIMS, TE_FLAG, dims1, dims);
@@ -221,8 +224,7 @@ int main_sim(int argc, char* argv[])
 		sim_data.voxel.r2 = 1. / ( T2[0] + (T2[1] - T2[0]) / T2[2] * (float)pos[COEFF2_DIM] );
 		sim_data.voxel.m0 = 1.;
 
-		complex float out[N];
-		complex float out_z[N];
+		complex float out_x[N], out_y[N], out_z[N];
 
 		if (sim_data.seq.analytical) {
 
@@ -232,23 +234,36 @@ int main_sim(int argc, char* argv[])
 
 			switch (sim_data.seq.seq_type) {
 
-			case 1: IR_bSSFP_model(&parm, N, out); break;
-			case 2: looklocker_model(&parm, N, out); break;
-			case 5: looklocker_model(&parm, N, out); break;
+			case 1: IR_bSSFP_model(&parm, N, out_x); break;
+			case 2: looklocker_model(&parm, N, out_x); break;
+			case 5: looklocker_model(&parm, N, out_x); break;
 
 			default: assert(0);
 			}
 		} 
 		else
-			bloch_simulation(&sim_data, N, out, out_z, ode);
+			bloch_simulation(&sim_data, N, out_x, out_y, out_z, ode);
 
-
-		md_copy_block(DIMS, pos, dims, signals, dims1, out, CFL_SIZE);
+		// FIXME: Mapping NULL -> NULL ugly for analytic case...
+		md_copy_block(DIMS, pos, dims, x_magnetization, dims1, out_x, CFL_SIZE);
+		md_copy_block(DIMS, pos, dims, y_magnetization, dims1, out_y, CFL_SIZE);
 		md_copy_block(DIMS, pos, dims, z_magnetization, dims1, out_z, CFL_SIZE);
 
 	} while(md_next(DIMS, dims, ~TE_FLAG, pos));
 
+	for (int i = 0; i < N; i++)
+		printf("z[%d]:\t%f\n", i, creal(z_magnetization[i]));
+
+	// Determine signal
+	complex float* signals = create_cfl(argv[1], DIMS, dims);
+
+	md_zimag(DIMS, dims, y_magnetization, y_magnetization);
+	md_zadd(DIMS, dims, signals, x_magnetization, y_magnetization);
+
 	unmap_cfl(DIMS, dims, signals);
+
+	md_free(x_magnetization);
+	md_free(y_magnetization);
 	unmap_cfl(DIMS, dims, z_magnetization);
 
 	return 0;

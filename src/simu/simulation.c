@@ -496,7 +496,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 }
 
 
-void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, complex float* z_comp, bool ode)
+void bloch_simulation(struct sim_data* sim_data, int N, complex float* x_out, complex float* y_out, complex float* z_out, bool ode)
 {
 	complex float mxy_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
 	complex float sa_r1_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
@@ -510,10 +510,9 @@ void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, comp
 
 	for (int t = 0; t < N; t++) {
 
-		out[t] = mxy_sig[t][1] + mxy_sig[t][0] * I;
-
-		z_comp[t] = mxy_sig[t][2];
+		x_out[t] = mxy_sig[t][1];
+		y_out[t] = mxy_sig[t][0];
+		z_out[t] = mxy_sig[t][2];
 	}
 }
-
 
