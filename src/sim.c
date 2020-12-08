@@ -48,6 +48,7 @@ static void help_seq(void)
 		"#tr:\t Number of repetitions\n"
 		"dw:\t off-resonance\n"
 		"Dinv:\t inversion time\n"
+		"BWTP:\t BandWidth Time Product of pulses\n"
 	);
 }
 
@@ -73,7 +74,7 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 
 	case 'P': {
 		
-		int ret = sscanf(optarg, "%9[^:]", rt);
+		int ret = sscanf(optarg, "%10[^:]", rt);
 		assert(1 == ret);
 
 		if (strcmp(rt, "h") == 0) {
@@ -86,7 +87,7 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 			// Collect simulation data
 			struct sim_data* sim_data = ptr;
 
-			ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d:%f:%f",
+			ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d:%f:%f:%f",
 									&sim_data->seq.analytical,
 									&sim_data->seq.seq_type, 
 									&sim_data->seq.tr, 
@@ -95,8 +96,9 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 									&sim_data->pulse.flipangle,
 									&sim_data->seq.rep_num,
 									&sim_data->voxel.w,
-									&sim_data->seq.inversion_pulse_length);
-			assert(9 == ret);
+									&sim_data->seq.inversion_pulse_length,
+									&sim_data->pulse.bwtp);
+			assert(10 == ret);
 		}
 		break;
 	}
@@ -132,7 +134,7 @@ int main_sim(int argc, char* argv[])
 		OPT_FLVEC3(	'2',	&T2, 			"min:max:N", "range of T2s"),
 		OPT_STRING(	'z',	&z_component,		"", "Output z component"),
 		OPT_STRING(	'r',	&radial_component,	"", "Output radial component"),
-		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H:I\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw:Dinv> (-Ph for help)" },
+		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H:I:J\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw:Dinv:BWTP> (-Ph for help)" },
 	};
 
 
