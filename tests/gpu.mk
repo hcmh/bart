@@ -56,10 +56,10 @@ tests/test-mdb-gpu-bloch-traj: traj repmat phantom sim fmac modbloch nrmse
 	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
 	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
 	$(TOOLDIR)/phantom -c -k -t traj.ra basis_geom.ra				;\
-	$(TOOLDIR)/sim -P 1:1:0.0045:0.00225:0.001:45:1000:0 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
+	$(TOOLDIR)/sim -P 1:1:0.0045:0.00225:0.001:45:1000:0:0.00001:4 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
 	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra k_space.ra		;\
-	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -t traj.ra k_space.ra reco1.ra sens1.ra	;\
-	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001 -R2 -f1 -o0 -g -l1 -n0 -i15 -a1 -m0 -r0 -t traj.ra k_space.ra reco2.ra sens2.ra	;\
+	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001:4 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -t traj.ra k_space.ra reco1.ra sens1.ra	;\
+	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001:4 -R2 -f1 -o0 -g -l1 -n0 -i15 -a1 -m0 -r0 -t traj.ra k_space.ra reco2.ra sens2.ra	;\
 	$(TOOLDIR)/nrmse -t 0.001 reco1.ra reco2.ra				;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
