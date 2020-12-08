@@ -23,6 +23,7 @@
 
 #include "linops/linop.h"
 
+#include "simu/simulation.h"
 #include "simu/slice_profile.h"
 #include "simu/variable_flipangles.h"
 
@@ -372,12 +373,18 @@ int main_modbloch(int argc, char* argv[])
 
 	if (inputSP) {
 
+		struct simdata_pulse pulse = simdata_pulse_defaults;
+
+		pulse.rf_end = fit_para.rfduration;
+		pulse.flipangle = fit_para.fa;
+		pulse.bwtp = fit_para.bwtp;
+
 		md_set_dims(DIMS, slcprfl_dims, 1);
 		slcprfl_dims[READ_DIM] = 10;
 
 		sliceprofile = md_alloc(DIMS, slcprfl_dims, CFL_SIZE);
 
-		estimate_slice_profile(DIMS, slcprfl_dims, sliceprofile);
+		estimate_slice_profile(DIMS, slcprfl_dims, sliceprofile, &pulse);
 
 		fit_para.sliceprofile_spins = slcprfl_dims[READ_DIM];
 
