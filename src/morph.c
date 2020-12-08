@@ -27,7 +27,7 @@ static void mask_conv(unsigned int D, const long mask_dims[D], complex float* ma
 	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(D, (READ_FLAG|PHS1_FLAG|PHS2_FLAG), dims, dims, mask_dims,
 								PAD_SAME, false, NULL, NULL, 'N');
 
-	nlop_generic_apply_unchecked(nlop_conv, 3, (void**[3]){out, in, mask});
+	nlop_generic_apply_unchecked(nlop_conv, 3, (void*[3]){out, (void*)in, mask});
 
 	nlop_free(nlop_conv);
 }
