@@ -17,6 +17,7 @@
 #include "num/fft.h"
 #include "num/init.h"
 #include "num/gpuops.h"
+#include "num/filter.h"
 
 #include "noncart/nufft.h"
 
