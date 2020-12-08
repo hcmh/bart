@@ -238,7 +238,7 @@ void relaxation2(struct sim_data* data, float h, float tol, int N, int P, float 
 
 void create_sim_block(struct sim_data* data)
 {
-	pulse_create(&data->pulse, data->pulse.rf_start, data->pulse.rf_end, data->pulse.flipangle, data->pulse.phase, data->pulse.nl, data->pulse.nr, data->pulse.alpha);
+	pulse_create(&data->pulse, data->pulse.rf_start, data->pulse.rf_end, data->pulse.flipangle, data->pulse.phase, data->pulse.bwtp, data->pulse.alpha);
 }
 
 

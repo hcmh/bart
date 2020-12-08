@@ -143,7 +143,7 @@ static bool test_sinc_function(void)
 {
 	struct simdata_pulse pulse = simdata_pulse_defaults;
 	
-	pulse_create(&pulse, 0, 0.009, 90, 0, 2, 2, 0.46);
+	pulse_create(&pulse, 0., 0.009, 90., 0., 4., 0.46);
 
 	float pulse_length = pulse.rf_end - pulse.rf_start;
 	float samples = 1000;
@@ -211,7 +211,7 @@ static bool test_RF_pulse(void)
 			data.grad = simdata_grad_defaults;
 			data.tmp = simdata_tmp_defaults;
 	
-			pulse_create(&data.pulse, 0, trf, angle, 0, 2, 2, 0.46);
+			pulse_create(&data.pulse, 0, trf, angle, 0, 4., 0.46);
 			
 			float xp[4][3] = { { 0., 0., 1. }, { 0. }, { 0. }, { 0. } }; //xp[P + 2][N]
 			
@@ -400,7 +400,7 @@ static bool test_RF_pulse_matexp(void)
 			data.pulse.pulse_applied = true;
 				
 	
-			pulse_create(&data.pulse, 0, trf, angle, 0, 2, 2, 0.46);
+			pulse_create(&data.pulse, 0, trf, angle, 0, 4., 0.46);
 			
 			enum { N = 10 };
 			

@@ -18,6 +18,7 @@ const struct simdata_pulse simdata_pulse_defaults = {
 	.rf_end = 0.01,
 	.flipangle = 1.,
 	.phase = 0.,
+	.bwtp = 4.,
 	.nl = 2.,
 	.nr = 2.,
 	.n = 2.,
@@ -67,7 +68,7 @@ float pulse_sinc(const struct simdata_pulse* pulse, float t)
 
 
 
-void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle /*[°]*/, float phase, float nl, float nr, float alpha)
+void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle /*[°]*/, float phase, float bwtp, float alpha)
 {
 	// windowed sinc-pulses only
 	pulse->rf_start = rf_start;
@@ -75,14 +76,14 @@ void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, flo
 	pulse->pulse_length = rf_end - rf_start;
 	pulse->flipangle = 90.;
 	pulse->phase = phase;
-	pulse->nl = nl;
-	pulse->nr = nr;
-	pulse->n = MAX(nl, nr);
-	pulse->t0 = pulse->pulse_length / ( 2. + (nl - 1.) + (nr - 1.) );
+	pulse->nl = bwtp / 2.;	// Asume symetric pulses
+	pulse->nr = bwtp / 2.;
+	pulse->n = MAX(pulse->nl, pulse->nr);
+	pulse->t0 = pulse->pulse_length / ( 2. + (pulse->nl - 1.) + (pulse->nr - 1.) );
 	pulse->alpha = alpha;
 	pulse->A = 1.;
 
-	// Determine scaling factor to Ensure pi/2 = PulseIntegral -> 90 degree rotation
+	// Determine scaling factor to ensure pi/2 = PulseIntegral -> 90 degree rotation
 	float integral = pulse_integral(pulse); 
 
 	float scaling = M_PI / 2. / integral;

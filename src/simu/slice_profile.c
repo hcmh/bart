@@ -23,7 +23,7 @@ void estimate_slice_profile(unsigned int N, const long dims[N], complex float* o
 	float pulse_length = 0.001;
 	float flipangle = 6.;
 
-	pulse_create(&pulse, 0., pulse_length, flipangle, 0., 2., 2., 0.46);
+	pulse_create(&pulse, 0., pulse_length, flipangle, 0., 4., 0.46);
 
 	float samples = 1000.;
 	float dt =  pulse_length / samples;
