@@ -65,6 +65,8 @@ static void sim_to_signal_struct (struct signal_model* signal_data, struct sim_d
 	signal_data->ir = (1 == sim_data->seq.seq_type || 5 == sim_data->seq.seq_type) ? true : false;
 }
 
+
+// FIXME: Separate simulation parameter -P ..:... for pulse, -S ...:... for sequence, etc. to clean up interface
 static bool opt_seq(void* ptr, char c, const char* optarg)
 {
 	// Check if help function is called
