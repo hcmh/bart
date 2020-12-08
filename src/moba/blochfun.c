@@ -280,6 +280,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				sim_data.pulse = simdata_pulse_defaults;
 				sim_data.pulse.flipangle = angle * b1;
 				sim_data.pulse.rf_end = data->fitParameter.rfduration;
+				sim_data.pulse.bwtp = data->fitParameter.bwtp;
 				sim_data.grad = simdata_grad_defaults;
 				sim_data.tmp = simdata_tmp_defaults;
 
@@ -555,6 +556,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	//Set fitting parameter
 	data->fitParameter.sequence = fit_para->sequence;
 	data->fitParameter.rfduration = fit_para->rfduration;
+	data->fitParameter.bwtp = fit_para->bwtp;
 	data->fitParameter.tr = fit_para->tr;
 	data->fitParameter.te = fit_para->te;
 	data->fitParameter.fa = fit_para->fa;

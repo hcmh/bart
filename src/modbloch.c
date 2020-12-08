@@ -66,7 +66,7 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 
 	case 'P': {
 		
-		int ret = sscanf(optarg, "%7[^:]", rt);
+		int ret = sscanf(optarg, "%8[^:]", rt);
 		assert(1 == ret);
 
 		if (strcmp(rt, "h") == 0) {
@@ -79,15 +79,16 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 			// Collect simulation data
 			struct modBlochFit* data = ptr;
 
-			ret = sscanf(optarg, "%d:%f:%f:%f:%f:%f:%f",	
+			ret = sscanf(optarg, "%d:%f:%f:%f:%f:%f:%f:%f",
 									&data->sequence,
 									&data->tr, 
 									&data->te, 
 									&data->fa, 
 									&data->rfduration, 
 									&data->inversion_pulse_length,
-									&data->prep_pulse_length);
-			assert(7 == ret);
+									&data->prep_pulse_length,
+									&data->bwtp);
+			assert(8 == ret);
 		}
 		break;
 	}
@@ -141,7 +142,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'w', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
 		OPT_SET(	'g', 	&use_gpu			,  "use gpu"),
-		{ 'P', NULL, true, opt_seq, &fit_para, "\tA:B:C:D:E:F:G\tSequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep> (-Ph for help)" },
+		{ 'P', NULL, true, opt_seq, &fit_para, "\tA:B:C:D:E:F:G:H\tSequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep:BWTP> (-Ph for help)" },
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);

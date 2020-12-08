@@ -6,7 +6,7 @@ tests/test-mdb-bloch: phantom sim fmac fft ones modbloch slice scale nrmse
 	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra image.ra		;\
 	$(TOOLDIR)/fft 3 image.ra k_space.ra					;\
 	$(TOOLDIR)/ones 6 16 16 1 1 1 1000 psf.ra		;\
-	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -p psf.ra k_space.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001:4 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -p psf.ra k_space.ra reco.ra sens.ra	;\
 	$(TOOLDIR)/slice 6 0 reco.ra t1map.ra				;\
 	$(TOOLDIR)/fmac t1map.ra basis_geom.ra masked_t1.ra				;\
 	$(TOOLDIR)/scale -- 1.12 basis_geom.ra ref_t1.ra				;\
@@ -30,7 +30,7 @@ tests/test-mdb-bloch-psf: traj repmat phantom sim fmac ones nufft fft modbloch s
 	$(TOOLDIR)/fft -u 3 psf.ra pattern.ra	;\
 	$(TOOLDIR)/nufft -d 16:16:1 -a traj.ra k_space.ra zerofill.ra		;\
 	$(TOOLDIR)/fft -u 3 zerofill.ra k_grid.ra	;\
-	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -p pattern.ra k_grid.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001:4 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -p pattern.ra k_grid.ra reco.ra sens.ra	;\
 	$(TOOLDIR)/slice 6 0 reco.ra t1map.ra				;\
 	$(TOOLDIR)/phantom -x 16 -c ref_geom.ra				;\
 	$(TOOLDIR)/fmac t1map.ra ref_geom.ra masked_t1.ra				;\
@@ -50,7 +50,7 @@ tests/test-mdb-bloch-traj: traj repmat phantom sim fmac modbloch slice scale nrm
 	$(TOOLDIR)/phantom -c -k -t traj.ra basis_geom.ra				;\
 	$(TOOLDIR)/sim -P 1:1:0.0045:0.00225:0.001:45:1000:0:0.00001:4 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
 	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra k_space.ra		;\
-	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -t traj.ra k_space.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001:4 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -t traj.ra k_space.ra reco.ra sens.ra	;\
 	$(TOOLDIR)/slice 6 0 reco.ra t1map.ra				;\
 	$(TOOLDIR)/phantom -x 16 -c ref_geom.ra				;\
 	$(TOOLDIR)/fmac t1map.ra ref_geom.ra masked_t1.ra				;\

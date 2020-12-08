@@ -48,6 +48,7 @@ const struct modBlochFit modBlochFit_defaults = {
 	
 	.sequence = 1, /*inv. bSSFP*/
 	.rfduration = 0.0009,
+	.bwtp = 4,
 	.tr = 0.0045,
 	.te = 0.00225,
 	.averaged_spokes = 1,

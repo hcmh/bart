@@ -23,6 +23,7 @@ struct modBlochFit {
 	/*Simulation Parameter*/
 	int sequence;
 	float rfduration;
+	float bwtp;
 	float tr;
 	float te;
 	int averaged_spokes;
