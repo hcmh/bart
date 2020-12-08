@@ -24,6 +24,7 @@
 #include "linops/linop.h"
 
 #include "simu/slice_profile.h"
+#include "simu/variable_flipangles.h"
 
 #include "misc/mri.h"
 #include "misc/misc.h"
@@ -120,7 +121,6 @@ int main_modbloch(int argc, char* argv[])
 	bool use_gpu = false;
 
 	const char* inputB1 = NULL;
-	const char* inputVFA = NULL;
 	
 	const struct opt_s opts[] = {
 
@@ -134,7 +134,6 @@ int main_modbloch(int argc, char* argv[])
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	't',	&trajectory,		"", "Input Trajectory"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
-		OPT_STRING(	'F',	&inputVFA, 		"", "Input for variable flipangle profile"),
 		OPT_INT(	'n', 	&fit_para.not_wav_maps, "", "# Removed Maps from Wav.Denoisng"),
 		OPT_SET(	'O', 	&fit_para.full_ode_sim	,  "Apply full ODE simulation"),
 		OPT_SET(	'k', 	&k_filter		,  "Smooth pattern edges wit filter?"),
@@ -349,27 +348,21 @@ int main_modbloch(int argc, char* argv[])
 
 	// Load passed variable flip angle file
 
-	complex float* input_theta = NULL;
-	complex float* input_vfa = NULL;
+	if (4 == fit_para.sequence) {
 
-	long input_vfa_dims[DIMS];
+		assert(fit_para.full_ode_sim);
 
-	if (NULL != inputVFA) {
+		long vfa_dims[DIMS];
+		md_set_dims(DIMS, vfa_dims, 1);
+		vfa_dims[READ_DIM] = ksp_dims[TE_DIM];
 
-		input_theta = load_cfl(inputVFA, DIMS, input_vfa_dims);
+		debug_print_dims(DP_DEBUG2, DIMS, vfa_dims);
 
-		fit_para.num_vfa = input_vfa_dims[READ_DIM];
+		fit_para.num_vfa = ksp_dims[TE_DIM];
 
-		input_vfa = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
+		fit_para.input_fa_profile = md_alloc(DIMS, vfa_dims, CFL_SIZE);
 
-		debug_printf(DP_DEBUG2, "Number of variable flip angles: %d\n", fit_para.num_vfa);
-
-		for (int i = 0; i < input_vfa_dims[READ_DIM]; i++)
-			input_vfa[i] = 180 / M_PI * ((0 == i) ?  input_theta[i] : (input_theta[i] + input_theta[i-1]));
-
-		fit_para.input_fa_profile = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
-
-		md_copy(DIMS, input_vfa_dims, fit_para.input_fa_profile, input_vfa, CFL_SIZE);
+		get_antihsfp_fa(fit_para.num_vfa, fit_para.input_fa_profile);
 	}
 
 	// Determine Slice Profile
@@ -562,9 +555,6 @@ int main_modbloch(int argc, char* argv[])
 
 	if(NULL != input_b1)
 		unmap_cfl(DIMS, input_b1_dims, input_b1);
-
-	if(NULL != input_vfa)
-		unmap_cfl(DIMS, input_vfa_dims, input_vfa);
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
