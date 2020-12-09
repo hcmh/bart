@@ -93,10 +93,12 @@ static float signal_hsfp(const struct signal_model* data, float r0_val, int N, c
 	return sum.a * (r0_val + 1. / data->t1 * sum.r0);
 }
 
-
-void hsfp_simu(const struct signal_model* data, int N, const float pa[N], complex float out[N])
+void hsfp_simu(const struct signal_model* data, int N, const float pa[N], complex float out[N], bool periodic)
 {
-	float r0_val = r0(data, N, pa);
+	float r0_val = -1.;
+
+	if (periodic)
+		r0_val = r0(data, N, pa);
 
 	for (int ind = 0; ind < N; ind++)
 		out[ind] = signal_hsfp(data, r0_val, N, pa, ind);

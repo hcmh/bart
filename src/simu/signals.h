@@ -29,7 +29,7 @@ extern void TSE_model(const struct signal_model* data, int N, complex float out[
 
 extern const struct signal_model signal_hsfp_defaults;
 
-extern void hsfp_simu(const struct signal_model* data, int N, const float pa[N], complex float out[N]);
+extern void hsfp_simu(const struct signal_model* data, int N, const float pa[N], complex float out[N], bool periodic);
 
 
 extern const struct signal_model signal_looklocker_defaults;

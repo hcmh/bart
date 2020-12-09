@@ -57,9 +57,8 @@ tests/test-sim-analy-irflash: sim cabs mip spow fmac nrmse
 tests/test-sim-analy-antihsfp: sim extract nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
 	$(TOOLDIR)/sim -P 1:4:0.0045:0.00225:0.00001:1:851:0:0.00001:4 -1 0.781:0.781:1 -2 0.065:0.065:1 -o analyt.ra		;\
-	$(TOOLDIR)/sim -P 0:4:0.0045:0.00225:0.00001:1:1702:0:0.00001:4 -1 0.781:0.781:1 -2 0.065:0.065:1 -o -r rad.ra simu.ra		;\
-	$(TOOLDIR)/extract 5 851 1702 rad.ra ex.ra			;\
-	$(TOOLDIR)/nrmse -t 0.5 ex.ra analyt.ra			;\
+	$(TOOLDIR)/sim -P 0:4:0.0045:0.00225:0.00001:1:851:0:0.00001:4 -1 0.781:0.781:1 -2 0.065:0.065:1 -o -r rad.ra simu.ra		;\
+	$(TOOLDIR)/nrmse -t 0.58 rad.ra analyt.ra			;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
