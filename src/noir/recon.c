@@ -212,6 +212,8 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	admm_conf_reg.maxiter = conf->inner_iter;
 	admm_conf_reg.rho = conf->rho; 
 	admm_conf_reg.use_interface_alpha = false;
+	admm_conf_reg.max_outiter = conf->iter;
+	admm_conf_reg.out_iter = 0;
 
 	struct lsqr_conf lsqr_conf_reg = lsqr_defaults;
 	lsqr_conf_reg.it_gpu = false;
@@ -221,11 +223,13 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	{
 		auto aconf = CAST_DOWN(iter_admm_conf, iconf);
 		
+		admm_conf_reg.out_iter = admm_conf_reg.out_iter + 1;
 
 		aconf->maxiter = MIN(admm_conf_reg.maxiter, 10. * powf(2., logf(1. / iconf->alpha)));
 		aconf->cg_eps = admm_conf_reg.cg_eps * iconf->alpha;
 		
-		//iconf->alpha = iconf->alpha * (float)admm_conf_reg.out_iter / (float)admm_conf_reg.max_outiter;
+		aconf->maxitercg = (unsigned int)(iter_admm_defaults.maxitercg - logf((float)admm_conf_reg.out_iter)/logf(1.3));
+		
 
 		//iconf->alpha = 1. - iconf->alpha;
 

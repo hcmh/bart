@@ -118,6 +118,9 @@ const struct iter_admm_conf iter_admm_defaults = {
 	.tau = 2.,
 	.tau_max = 20,
 	.mu = 3,
+
+	.out_iter=0,
+	.max_outiter=8,
 };
 
 

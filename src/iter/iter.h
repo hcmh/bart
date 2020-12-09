@@ -116,6 +116,9 @@ struct iter_admm_conf {
 	float cg_eps;
 
 	_Bool fast;
+
+	unsigned int out_iter;
+	unsigned int max_outiter;
 };
 
 

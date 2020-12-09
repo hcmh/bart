@@ -73,8 +73,8 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 
 	if(data->conf->ropts->regs[0].xform == L1WAV)
 		md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
-	else if(data->conf->ropts->regs[0].xform == LOGP && data->outer_iter > data->conf->max_outiter-3)
-		md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
+	//else if(data->conf->ropts->regs[0].xform == LOGP && data->outer_iter > data->conf->max_outiter-3)
+	//	md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
 	else
 		md_axpy(DIMS, dm->dims, dst, data->alpha, src);
 
@@ -84,7 +84,7 @@ static void logp_prox(iter_op_data* _data, float rho, float* dst, const float* s
 {
 	auto data = CAST_DOWN(reg_nlinv, _data);
 
-	if (data->outer_iter > data->conf->max_outiter-2)
+	if (data->outer_iter > 0)//data->conf->max_outiter-2)
 	{
 		operator_p_apply_unchecked(data->prox_kernel[0], rho, (_Complex float*)dst, (const complex float*)src);
 	}
@@ -158,7 +158,10 @@ static void fista_solver(iter_op_data* _data, float alpha,  float* dst, const fl
 
 	NESTED(void, continuation, (struct ist_data* itrdata))
 	{
-		itrdata->scale = scale;
+		if(alpha < 0.2)
+			itrdata->scale = 0.2;
+		else
+			itrdata->scale = alpha;
 	};
 
 	fista(maxiter, data->conf->tol * alpha * eps, step,

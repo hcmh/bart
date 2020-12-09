@@ -346,7 +346,7 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 		u_resized = md_alloc(DIMS, pdata->dims, CFL_SIZE);
 		md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
 	}
-
+	
 	// slice FOV
 	long slice_dims[DIMS];
 	md_set_dims(DIMS, slice_dims, 1);
@@ -385,6 +385,7 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	md_transpose(pdata->N, 1, 0, slice_dims, slices, slice_dims, tmp_slices, CFL_SIZE);
 	
 	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
+
 	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
 	debug_printf(DP_DEBUG3, "\tLog P: %f  Scalor: %f  Step size: %f  lambda: %f\n ", creal(*out), scalor, pdata->step_size, lambda);
 
@@ -433,6 +434,7 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	md_free(slices);
 	md_free(tmp_slices);
 	md_free(tmp);
+	md_free(tmp1);
 }
 
 static void prox_logp_apply(const operator_data_t* data, float lambda, complex float* dst, const complex float* src)
@@ -488,6 +490,8 @@ struct  prox_logp_nlinv_data
 	unsigned int irgnm_steps;
 	float base;
 	float rho;
+
+	unsigned int k;
 };
 
 DEF_TYPEID(prox_logp_nlinv_data);
@@ -523,7 +527,10 @@ static void prox_logp_nlinv_fun(const operator_data_t* data, float lambda, compl
 		u_resized = md_alloc(DIMS, pdata->dims, CFL_SIZE);
 		md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
 	}
-
+	char tmp_path[100];
+	sprintf(tmp_path, "/scratch/gluo/tmp_%d", pdata->k);
+	dump_cfl(tmp_path, pdata->N, pdata->dims, src);
+	
 	// slice FOV
 	long slice_dims[DIMS];
 	md_set_dims(DIMS, slice_dims, 1);
@@ -622,11 +629,14 @@ static void prox_logp_nlinv_apply(const operator_data_t* data, float lambda, com
 	float k = -1. * log(lambda*pdata->rho) / log(pdata->base);
 	float alpha = lambda*pdata->rho;
 
-	float cur = powf(pdata->base, k) / powf(pdata->base, (float)pdata->irgnm_steps-1.);
+	pdata->k = (unsigned int) k;
 
+	float cur = powf(pdata->base, k) / powf(pdata->base, (float)pdata->irgnm_steps-1.);
 	float final = cur;
 
-	debug_printf(DP_INFO, "--->step k %f cur %f alpha %f cur*alpha*k/max %f\n", k, cur, alpha, final);
+	float final2 = powf(1.5, k)/powf(1.5,((float)pdata->irgnm_steps-1.))*alpha/pdata->rho;
+
+	debug_printf(DP_INFO, "--->step k %f cur %f alpha %f cur*alpha*k/max %f  final2 %f\n", k, cur, alpha, final, final2);
 
 	// cur*alpha*log(1+k/(float)pdata->irgnm_steps)/log(2.)
 
