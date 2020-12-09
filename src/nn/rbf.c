@@ -45,7 +45,7 @@ static void rbf_initialize(struct rbf_s* data, const complex float* arg, bool de
 	if (NULL == data->z)
 		data->z = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, arg);
 
-	if (der1 &&(NULL == data->dz))
+	if (der1 && (NULL == data->dz))
 		data->dz = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, arg);
 
 	if (der1)
@@ -54,6 +54,24 @@ static void rbf_initialize(struct rbf_s* data, const complex float* arg, bool de
 	if (!der1 &&(NULL != data->dz)){
 		md_free(data->dz);
 		data->dz = NULL;
+	}
+}
+
+static void rbf_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
+{
+	const auto data = CAST_DOWN(rbf_s, _data);
+
+	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
+
+		md_free(data->dz);
+		data->dz = NULL;
+	}
+	if(op_options_is_set_io(opts, 0, 1, OP_APP_CLEAR_DER)){
+
+		md_free(data->z);
+		md_free(data->w);
+		data->z = NULL;
+		data->w = NULL;
 	}
 }
 
@@ -73,7 +91,7 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	const complex float* wsrc = args[2];
 
 	bool der1 = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
-	//bool der2 = !(MD_IS_SET(run_flags[0][2], OP_APP_NO_DER));
+	bool der2 = !op_options_is_set_io(_data->options, 0, 1, OP_APP_NO_DER);
 
 	rbf_initialize(data, zdst, der1);
 
@@ -123,6 +141,14 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 
 		md_fmac(3, data->zdom->dims, data->dz, real_dst, data->z); //data->dz = sum_j w_ij 1/sqrt(2pi simga^2) * (z_ik - mu_j) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 		md_smul(3, data->zdom->dims, data->dz, data->dz, (- sqrtf(2. * M_PI) / data->sigma)); // zdst_ik = -1/sigma^2 sum_k (z_ik-mu_j) * w_ij * exp[-(z_ik-mu_j)²/(2*sigma²)]
+	}
+
+	if (!der2) {
+
+		md_free(data->z);
+		md_free(data->w);
+		data->z = NULL;
+		data->w = NULL;
 	}
 
 	md_smul(3, data->zdom->dims, real_dst, real_dst, (sqrtf(2. * M_PI) * data->sigma)); // zdst_ik = -1/sigma^2 sum_k (z_ik-mu_j) * w_ij * exp[-(z_ik-mu_j)²/(2*sigma²)]
@@ -330,6 +356,6 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 
 	operator_property_flags_t props[2][1] = {{0},{0}};
 
-	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, NULL, props, NULL);
+	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, rbf_set_opts, props, NULL);
 	return result;
 }

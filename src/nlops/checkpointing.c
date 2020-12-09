@@ -104,7 +104,7 @@ static void checkpoint_fun(const nlop_data_t* _data, int N, complex float* args[
 		for (uint o = 0; o < data->OO; o++)
 			der = der || !op_options_is_set_io(_data->options, o, i, OP_APP_NO_DER);
 
-	checkpoint_save_inputs(data, data->II, (const complex float**)(args + data->OO), der);
+	checkpoint_save_inputs(data, data->II, (const complex float**)(args + data->OO), der && data->clear_mem);
 
 	operator_option_flags_t opts_flags[data->OO][data->II];
 	for (uint i = 0; i < data->II; i++)
@@ -141,6 +141,14 @@ static void checkpoint_der(const nlop_data_t* _data, unsigned int o, unsigned in
 			md_free(d->der_out[i + d->II * o]);
 			d->der_out[i + d->II * o] = NULL;
 		}
+
+		for (unsigned int o = 0; o < d->OO; o++)
+			if (NULL != d->der_out[i + d->II * o])
+				return;
+
+		md_free(d->der_in[i]);
+		d->der_in[i] = NULL;
+
 		return;
 	}
 
@@ -189,6 +197,15 @@ static void checkpoint_der(const nlop_data_t* _data, unsigned int o, unsigned in
 		md_free(d->der_out[i + d->II * o]);
 		d->der_out[i + d->II * o] = NULL;
 	}
+
+	for (unsigned int o = 0; o < d->OO; o++)
+		if (NULL != d->der_out[i + d->II * o])
+			return;
+
+	md_free(d->der_in[i]);
+	d->der_in[i] = NULL;
+
+	return;
 }
 
 
@@ -205,6 +222,14 @@ static void checkpoint_adj(const nlop_data_t* _data, unsigned int o, unsigned in
 			md_free(d->adj_out[i + d->II * o]);
 			d->adj_out[i + d->II * o] = NULL;
 		}
+
+		for (unsigned int i = 0; i < d->II; i++)
+			if (NULL != d->adj_out[i + d->II * o])
+				return;
+
+		md_free(d->adj_in[o]);
+		d->adj_in[o] = NULL;
+
 		return;
 	}
 
@@ -253,6 +278,13 @@ static void checkpoint_adj(const nlop_data_t* _data, unsigned int o, unsigned in
 		md_free(d->adj_out[i + d->II * o]);
 		d->adj_out[i + d->II * o] = NULL;
 	}
+
+	for (unsigned int i = 0; i < d->II; i++)
+		if (NULL != d->adj_out[i + d->II * o])
+			return;
+
+	md_free(d->adj_in[o]);
+	d->adj_in[o] = NULL;
 }
 
 
