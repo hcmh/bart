@@ -94,6 +94,16 @@ tests/test-sim-ode-irflash: sim nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-sim-analy-antihsfp_continuity: sim extract nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+	$(TOOLDIR)/sim -P 0:4:0.0045:0.00225:0.00001:1:5106:0:0.00001:4 -1 0.781:0.781:1 -2 0.065:0.065:1 -o -r rad.ra simu.ra		;\
+	$(TOOLDIR)/extract 5 4255 5106 rad.ra ex1.ra			;\
+	$(TOOLDIR)/extract 5 3404 4255 rad.ra ex2.ra			;\
+	$(TOOLDIR)/nrmse -t 0.00001 ex1.ra ex2.ra			;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
 TESTS += tests/test-sim-to-signal-irflash tests/test-sim-to-signal-flash tests/test-sim-to-signal-irbSSFP
 TESTS += tests/test-sim-analy-irbssfp tests/test-sim-analy-flash tests/test-sim-analy-irflash tests/test-sim-analy-antihsfp
 TESTS += tests/test-sim-ode-bssfp tests/test-sim-ode-irbssfp tests/test-sim-ode-flash tests/test-sim-ode-irflash
+TESTS += tests/test-sim-analy-antihsfp_continuity

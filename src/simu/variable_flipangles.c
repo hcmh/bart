@@ -27,8 +27,5 @@ void get_antihsfp_fa(int repetitions, complex float* fa_out) {
 
         assert(0 < repetitions);
 
-        // FIXME: Allow for more than 2 repetitions
-        assert(2 * N_PA_ANTIHSFP >= repetitions);
-
         polar2fa(repetitions, N_PA_ANTIHSFP, fa_out, polarangles_antihsfp);
 }
