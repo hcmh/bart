@@ -205,7 +205,7 @@ int main_rtnlinv(int argc, char* argv[argc])
 			
 			for (int i = 0; i < 3; i++)
 				if (my_img_dims[i] != 1)
-					my_img_dims[i] *= 2;
+					my_img_dims[i] *= (!alt_scaling) ? 2 : 1;
 			
 			md_copy_dims(3, sens_dims, my_img_dims);
 		}
