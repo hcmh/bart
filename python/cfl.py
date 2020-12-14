@@ -1,8 +1,8 @@
 # Copyright 2013-2015. The Regents of the University of California.
-# All rights reserved. Use of this source code is governed by 
+# All rights reserved. Use of this source code is governed by
 # a BSD-style license which can be found in the LICENSE file.
 #
-# Authors: 
+# Authors:
 # 2013 Martin Uecker <uecker@eecs.berkeley.edu>
 # 2015 Jonathan Tamir <jtamir@eecs.berkeley.edu>
 
@@ -27,6 +27,36 @@ def readcfl(name):
     with open(name + ".cfl", "rb") as d:
         a = np.fromfile(d, dtype=np.complex64, count=n);
     return a.reshape(dims, order='F') # column-major
+
+def readmulticfl(name):
+    # get dims from .hdr
+    h = open(name + ".hdr", "r")
+    lines = h.read().splitlines()
+    h.close()
+
+    index_dim = 1 + lines.index('# Dimensions')
+    total_size = int(lines[index_dim])
+    index_sizes = 1 + lines.index('# SizesDimensions')
+    sizes = [int(i) for i in lines[index_sizes].split()]
+    index_dims = 1 + lines.index('# MultiDimensions')
+
+    d = open(name + ".cfl", "r")
+    a = np.fromfile(d, dtype=np.complex64, count=total_size)
+    d.close()
+
+    offset = 0
+    result = []
+    for i in range(len(sizes)):
+        dims = ([int(i) for i in lines[index_dims + i].split()])
+        n = np.prod(dims)
+        result.append(a[offset:offset+n].reshape(dims, order='F'))
+        offset += n
+
+    if(total_size != offset):
+        #raise RuntimeError
+        print("Error")
+
+    return result
 
 
 def writecfl(name, array):
