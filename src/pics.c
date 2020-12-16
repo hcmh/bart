@@ -538,8 +538,19 @@ int main_pics(int argc, char* argv[])
 
 	if (NULL != pattern) {
 
+		long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
+
 		pattern1 = md_alloc(DIMS, pat1_dims, CFL_SIZE);
-		md_slice(DIMS, loop_flags, (const long[DIMS]){ [0 ... DIMS - 1] = 0 }, pat_dims, pattern1, pattern, CFL_SIZE);
+		md_slice(DIMS, loop_flags, pos, pat_dims, pattern1, pattern, CFL_SIZE);
+
+		long pat_strs[DIMS];
+		md_calc_strides(DIMS, pat_strs, pat_dims, CFL_SIZE);
+
+		do {
+			if (0. != md_zrmse2(DIMS, pat1_dims, pat_strs, pattern, pat_strs, &MD_ACCESS(DIMS, pat_strs, pos, pattern)))
+				error("The pattern of different batches coes not coincide!");
+
+		} while (md_next(DIMS, pat_dims, loop_flags, pos));
 	}
 
 	// FIXME: re-initialize forward_op and precond_op
