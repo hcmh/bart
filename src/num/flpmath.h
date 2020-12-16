@@ -306,6 +306,7 @@ extern void md_zwavg2_core2(unsigned int D, const long dims[__VLA(D)], unsigned 
 
 extern float md_zrms(unsigned int D, const long dim[__VLA(D)], const _Complex float* in);
 extern float md_zrmse(unsigned int D, const long dim[__VLA(D)], const _Complex float* in1, const _Complex float* in2);
+extern float md_zrmse2(unsigned int D, const long dim[__VLA(D)], const long str1[__VLA(D)], const _Complex float* in1, const long str2[__VLA(D)], const _Complex float* in2);
 extern float md_znrmse(unsigned int D, const long dim[__VLA(D)], const _Complex float* ref, const _Complex float* in);
 extern float md_znorme(unsigned int D, const long dim[__VLA(D)], const _Complex float* in1, const _Complex float* in2);
 extern float md_zrnorme(unsigned int D, const long dim[__VLA(D)], const _Complex float* ref, const _Complex float* in);

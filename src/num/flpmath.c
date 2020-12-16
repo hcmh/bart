@@ -2467,6 +2467,26 @@ float md_zrms(unsigned int D, const long dim[D], const complex float* in)
 	return md_znorm(D, dim, in) / sqrtl(md_calc_size(D, dim));
 }
 
+/**
+ * Calculate root-mean-square error between two complex arrays
+ *
+ * return sqrt((in1 - in2)^2 / length(in))
+ */
+float md_zrmse2(unsigned int D, const long dim[D], const long str1[D], const complex float* in1, const long str2[D], const complex float* in2)
+{
+	complex float* err = md_alloc_sameplace(D, dim, CFL_SIZE, in1);
+
+	long estr[D];
+	md_calc_strides(D, estr, dim, CFL_SIZE);
+
+	md_zsub2(D, dim, estr, err, str1, in1, str2, in2);
+
+	float val = md_zrms(D, dim, err);
+
+	md_free(err);
+
+	return val;
+}
 
 
 /**
@@ -2476,15 +2496,10 @@ float md_zrms(unsigned int D, const long dim[D], const complex float* in)
  */
 float md_zrmse(unsigned int D, const long dim[D], const complex float* in1, const complex float* in2)
 {
-	complex float* err = md_alloc_sameplace(D, dim, CFL_SIZE, in1);
+	long str[D];
+	md_calc_strides(D, str, dim, CFL_SIZE);
 
-	md_zsub(D, dim, err, in1, in2);
-
-	float val = md_zrms(D, dim, err);
-
-	md_free(err);
-
-	return val;
+	return md_zrmse2(D, dim, str, in1, str, in2);
 }
 
 
