@@ -116,7 +116,7 @@ int main_modbloch(int argc, char* argv[])
 	struct moba_conf conf = moba_defaults;
 	struct modBlochFit fit_para = modBlochFit_defaults;
 
-	bool k_filter = false;
+	float k_filter = -1.;	// typically 5e-3
 	bool out_sens = false;
 	bool inputSP = false;
 	bool use_gpu = false;
@@ -137,7 +137,7 @@ int main_modbloch(int argc, char* argv[])
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_INT(	'n', 	&fit_para.not_wav_maps, "", "# Removed Maps from Wav.Denoisng"),
 		OPT_SET(	'O', 	&fit_para.full_ode_sim	,  "Apply full ODE simulation"),
-		OPT_SET(	'k', 	&k_filter		,  "Smooth pattern edges wit filter?"),
+		OPT_FLOAT(	'k', 	&k_filter,		"",  "Smooth pattern edges wit filter?"),
 		OPT_SET(	'S', 	&inputSP		,  "Add Slice Profile"),
 		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
@@ -300,7 +300,7 @@ int main_modbloch(int argc, char* argv[])
 	// Filter pattern to smooth sharp edges in PSF
 	// Pruessmann et al.,"Advances in Sensitivity Encoding With Arbitrary k-Space Trajectories", MRM, 2001.
 
-	if (k_filter) {
+	if (-1 != k_filter) {
 
 		long map_dims[DIMS];
 		md_select_dims(DIMS, FFT_FLAGS, map_dims, pat_dims);
@@ -313,7 +313,7 @@ int main_modbloch(int argc, char* argv[])
 
 		complex float* filter = NULL;
 		filter = anon_cfl("", DIMS, map_dims);
-		float lambda = 5e-3;
+		float lambda = k_filter;
 
 		klaplace(DIMS, map_dims, map_dims, READ_FLAG|PHS1_FLAG, filter);
 		md_zreal(DIMS, map_dims, filter, filter);
