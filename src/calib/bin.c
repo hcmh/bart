@@ -53,7 +53,7 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 		float angle = atan2f(crealf(state[T + t]), crealf(state[t])) + offset * ( 2 * M_PI / 360.);
 
 		angle = (angle < 0.) ? (angle + 2. * M_PI) : angle;
-
+		
 		bins[idx * T + t] = floorf(angle / central_angle);
 
  		//debug_printf(DP_INFO, "%f: bin %f\n", (M_PI + atan2f(crealf(state[T + t]), crealf(state[t]))) * 360 / 2. / M_PI, bins[idx * T + t]);
@@ -112,8 +112,13 @@ static bool check_valid_time(const long singleton_dims[DIMS], complex float* sin
 
 	// prevent ambiguity
 	while (!valid_index) {
-		idx_0 = floor(singleton_dims[TIME_DIM] / 2.) + idx_shift;
-		idx_1 = idx_0 + 1;
+
+		if (floor(singleton_dims[TIME_DIM] / 2.) + idx_shift < singleton_dims[TIME_DIM] - 2) {
+
+			idx_0 = floor(singleton_dims[TIME_DIM] / 2.) + idx_shift;
+			idx_1 = idx_0 + 1;
+		} else // prevent array overflow
+			break;
 
 		pos[TIME2_DIM] = labels_idx[0];
 		md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
