@@ -347,7 +347,7 @@ int main_modbloch(int argc, char* argv[])
 		md_copy(DIMS, input_b1_dims, fit_para.input_b1, input_b1, CFL_SIZE);
 	}
 
-	// Load passed variable flip angle file
+	// Load variable flip angles
 
 	if (4 == fit_para.sequence) {
 
@@ -391,6 +391,8 @@ int main_modbloch(int argc, char* argv[])
 		fit_para.input_sliceprofile = md_alloc(DIMS, slcprfl_dims, CFL_SIZE);
 
 		md_copy(DIMS, slcprfl_dims, fit_para.input_sliceprofile, sliceprofile, CFL_SIZE);
+
+		md_free(sliceprofile);
 	}
 
 	// Scale DATA
@@ -550,9 +552,6 @@ int main_modbloch(int argc, char* argv[])
 	md_free(tmp_img);
 	md_free(ones_tmp);
 	md_free(mask);
-
-	if (inputSP)
-		md_free(sliceprofile);
 
 	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
