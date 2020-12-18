@@ -123,6 +123,30 @@ tests/test-bin-quadrature-offset: ones scale reshape transpose join bin nrmse
 	#rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@	
 
+tests/test-bin-quadrature-softgating: ones scale reshape transpose join bin nrmse
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
+ 		$(TOOLDIR)/ones 2 1 1 o1.ra				;\
+ 		$(TOOLDIR)/scale 0 o1.ra o0.ra			;\
+ 		$(TOOLDIR)/scale -- -1 o1.ra om1.ra		;\
+ 		$(TOOLDIR)/scale 2 o1.ra o2.ra			;\
+ 		$(TOOLDIR)/join 1 o1.ra o1.ra q1.ra		;\
+ 		$(TOOLDIR)/join 1 o1.ra om1.ra q2.ra	;\
+ 		$(TOOLDIR)/join 1 o2.ra o1.ra q3.ra		;\
+ 		$(TOOLDIR)/join 0 q2.ra q3.ra qc.ra		;\
+ 		$(TOOLDIR)/join 0 q1.ra q2.ra qr.ra		;\
+ 		$(TOOLDIR)/join 1 qr.ra qc.ra q.ra		;\
+ 		$(TOOLDIR)/reshape 3075 1 1 2 4 q.ra eof.ra ;\
+ 		$(TOOLDIR)/join 0 o1.ra o1.ra pat0.ra		;\
+ 		$(TOOLDIR)/transpose 0 10 pat0.ra pat.ra	;\
+ 		$(TOOLDIR)/bin -C2 -R2 -w eof.ra pat.ra qbin_wght.ra ;\
+ 		$(TOOLDIR)/scale 0.835270 o1.ra oa.ra 	;\
+ 		$(TOOLDIR)/scale 0.708322 o1.ra ob.ra	;\
+ 		$(TOOLDIR)/join 10 o0.ra oa.ra r1.ra	;\
+ 		$(TOOLDIR)/join 10 ob.ra o0.ra r2.ra	;\
+ 		$(TOOLDIR)/join 11 r1.ra r2.ra ref.ra	;\
+ 		$(TOOLDIR)/nrmse -t 0.00001 ref.ra qbin_wght.ra ;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@	
 
 tests/test-bin-amplitude: ones scale reshape transpose join bin nrmse
 	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
@@ -155,5 +179,5 @@ tests/test-bin-amplitude: ones scale reshape transpose join bin nrmse
 	#rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@	
 
-TESTS += tests/test-bin-label tests/test-bin-reorder tests/test-bin-quadrature tests/test-bin-quadrature-offset tests/test-bin-amplitude
+TESTS += tests/test-bin-label tests/test-bin-reorder tests/test-bin-quadrature tests/test-bin-quadrature-offset tests/test-bin-quadrature-softgating tests/test-bin-amplitude
 
