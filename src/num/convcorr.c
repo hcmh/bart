@@ -6,6 +6,7 @@
 #ifdef USE_CUDA
 #include "num/gpuops.h"
 #include "num/gpukrnls.h"
+#include "num/gpu_conv.h"
 #ifdef USE_CUDNN
 #include "num/cudnn_wrapper.h"
 #endif

@@ -7,6 +7,7 @@
 #include "num/init.h"
 #include "num/reduce_md_wrapper.h"
 #include "num/gpukrnls.h"
+#include "num/gpu_conv.h"
 #include "num/gpuops.h"
 
 #include "misc/misc.h"

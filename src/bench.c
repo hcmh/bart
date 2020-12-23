@@ -36,6 +36,7 @@
 #include "num/convcorr.h"
 #ifdef USE_CUDA
 #include "num/gpukrnls.h"
+#include "num/gpu_conv.h"
 #endif
 #endif
 

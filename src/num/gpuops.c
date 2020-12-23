@@ -29,6 +29,7 @@
 #include "num/vecops.h"
 #include "num/gpuops.h"
 #include "num/gpukrnls.h"
+#include "num/gpu_conv.h"
 #include "num/mem.h"
 #include "num/multind.h"
 
