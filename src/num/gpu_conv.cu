@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
@@ -6,6 +7,7 @@
 #include <cuda.h>
 #include <cuComplex.h>
 
+#include "num/fxdiv.h"
 #include "num/gpu_conv.h"
 
 // limited by hardware to 1024 on most devices
@@ -20,6 +22,21 @@ static int blocksize(int N)
 static long gridsize(long N)
 {
 	return (N + BLOCKSIZE - 1) / BLOCKSIZE;
+}
+
+__device__ static inline uint32_t cuda_fxdiv_quotient_uint32_t(uint32_t n, const struct fxdiv_divisor_uint32_t divisor) {
+
+	const uint32_t t = __umulhi(n, divisor.m);
+	return (t + ((n - t) >> divisor.s1)) >> divisor.s2;
+}
+
+__device__ static inline uint64_t cuda_fxdiv_quotient_uint64_t(uint64_t n, const struct fxdiv_divisor_uint64_t divisor) {
+
+	if (1 == divisor.m && 0 == divisor.s1 && 0 == divisor.s2)
+		return n;
+
+	const uint64_t t = __umul64hi(n, divisor.m);
+	return (t + ((n - t) >> divisor.s1)) >> divisor.s2;
 }
 
 __global__ void kern_zconvcorr_3D(cuFloatComplex* dst, const cuFloatComplex* src, const cuFloatComplex* krn,
@@ -224,163 +241,175 @@ extern "C" void cuda_zconvcorr_3D_CF_TI(_Complex float* im, const _Complex float
 }
 
 
-__global__ void kern_im2col_valid_loop_in(	cuFloatComplex* dst, const cuFloatComplex* src,
-						long NC,
-						long OX, long OY, long OZ,
-						long IX, long IY, long IZ,
-						long KX, long KY, long KZ)
-{
-	int start = blockIdx.x * blockDim.x + threadIdx.x;
-	int stride = gridDim.x * blockDim.x;
-
-	for(long i = start; i < NC * IX * IY * IZ; i += stride){
-
-		long i0 = i;
-		long c = i % NC;
-		i = (i - c) / NC;
-		long ix = i % IX;
-		i = (i - ix) / IX;
-		long iy = i % IY;
-		i = (i - iy) / IY;
-		long iz = i % IZ;
-		i = (i - iz) / IZ;
-
-		i = i0;
-
-		cuFloatComplex val = src[i];
-
-		#if 0 //FIXME: for some reason this does not work for sm_70, changing one "long" to "int" fixes this, too???
-		for (long kx = KX - 1; kx >= 0; kx--)
-		for (long ky = KY - 1; ky >= 0; ky--)
-		for (long kz = KZ - 1; kz >= 0; kz--) {
-		#else
-		for (long kx = 0; kx < KX; kx++)
-		for (long ky = 0; ky < KY; ky++)
-		for (long kz = 0; kz < KZ; kz++) {
-		#endif
-
-			long ox = ix - kx;
-			long oy = iy - ky;
-			long oz = iz - kz;
-
-			long o0 = c + NC * (kx + KX * (ky + KY * (kz + KZ * (ox + OX * (oy + OY * oz)))));
-		
-			if ((0 <= ox) && (0 <= oy) && (0 <= oz) && (OX > ox) && (OY > oy) && (OZ > oz))
-				dst[o0] = val;
-		}
-	}
-}
-
-__global__ void kern_im2col_valid_loop_out(	cuFloatComplex* dst, const cuFloatComplex* src,
-						long NC,
-						long OX, long OY, long OZ,
-						long IX, long IY, long IZ,
-						long KX, long KY, long KZ)
+__global__ void kern_im2col_valid_uint32(	cuFloatComplex* dst, const cuFloatComplex* src,
+						uint32_t NC,
+						uint32_t OX, uint32_t OY, uint32_t OZ,
+						uint32_t IX, uint32_t IY, uint32_t IZ,
+						uint32_t KX, uint32_t KY, uint32_t KZ,
+						const struct fxdiv_divisor_uint32_t divNC,
+						const struct fxdiv_divisor_uint32_t divOX, const struct fxdiv_divisor_uint32_t divOY, const struct fxdiv_divisor_uint32_t divOZ,
+						const struct fxdiv_divisor_uint32_t divKX, const struct fxdiv_divisor_uint32_t divKY, const struct fxdiv_divisor_uint32_t divKZ)
 {
 	int start = threadIdx.x + blockDim.x * blockIdx.x;
 	int stride = blockDim.x * gridDim.x;
 
 	for (long i = start; i < OX * OY * OZ * KX * KY * KZ * NC; i += stride) {
 
-		long i0 = i;
+		uint32_t i0 = i;
 
-		long c = i % NC;
-		i = (i - c) / NC;
+		uint32_t i_new = cuda_fxdiv_quotient_uint32_t(i0, divNC);
+		uint32_t c = i0 - NC * i_new;
+		i0 = i_new;
 
-		long kx = i % KX;
-		i = (i - kx) / KX;
-		long ky = i % KY;
-		i = (i - ky) / KY;
-		long kz = i % KZ;
-		i = (i - kz) / KZ;
-	
-		long ox = i % OX;
-		i = (i - ox) / OX;
-		long oy = i % OY;
-		i = (i - oy) / OY;
-		long oz = i % OZ;
+		i_new = cuda_fxdiv_quotient_uint32_t(i0 , divKX);
+		uint32_t kx = i0 - KX * i_new;
+		i0 = i_new;
 
-		long i_ind = c + NC * ((ox + kx) + IX * ((oy + ky) + IY * (oz + kz)));
+		i_new = cuda_fxdiv_quotient_uint32_t(i0, divKY);
+		uint32_t ky = i0 - KY * i_new;
+		i0 = i_new;
 
-		dst[i0] = src[i_ind]; 
+		i_new = cuda_fxdiv_quotient_uint32_t(i0, divKZ);
+		uint32_t kz = i0 - KZ * i_new;
+		i0 = i_new;
 
-		i = i0;
+		i_new = cuda_fxdiv_quotient_uint32_t(i0, divOX);
+		uint32_t ox = i0 - OX * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint32_t(i0, divOY);
+		uint32_t oy = i0 - OY * i_new;
+		
+		uint32_t oz = i_new;
+
+		uint32_t i_ind = c + NC * ((ox + kx) + IX * ((oy + ky) + IY * (oz + kz)));
+
+		dst[i] = src[i_ind]; 
 	}
 }
 
-
-__global__ void kern_im2col_valid_loop_in_int(	cuFloatComplex* dst, const cuFloatComplex* src,
-						int NC,
-						int OX, int OY, int OZ,
-						int IX, int IY, int IZ,
-						int KX, int KY, int KZ)
+__global__ void kern_im2col_valid_2D_uint32(	cuFloatComplex* dst, const cuFloatComplex* src,
+						uint32_t NC,
+						uint32_t OX, uint32_t OY,
+						uint32_t IX, uint32_t IY,
+						uint32_t KX, uint32_t KY,
+						const struct fxdiv_divisor_uint32_t divNC,
+						const struct fxdiv_divisor_uint32_t divOX, const struct fxdiv_divisor_uint32_t divOY,
+						const struct fxdiv_divisor_uint32_t divKX, const struct fxdiv_divisor_uint32_t divKY)
 {
-	int start = blockIdx.x * blockDim.x + threadIdx.x;
-	int stride = gridDim.x * blockDim.x;
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
 
-	for(long i = start; i < NC * IX * IY * IZ; i += stride){
+	for (long i = start; i < NC * OX * OY * KX * KY; i += stride) {
 
-		int i0 = i;
-		int c = i0 % NC;
-		i0 = (i0 - c) / NC;
-		int ix = i0 % IX;
-		i0 = (i0 - ix) / IX;
-		int iy = i0 % IY;
-		i0 = (i0 - iy) / IY;
-		int iz = i0;
+		uint32_t i0 = i;
 
-		cuFloatComplex val = src[i];
+		uint32_t i_new = cuda_fxdiv_quotient_uint32_t(i0, divNC);
+		uint32_t c = i0 - NC * i_new;
+		i0 = i_new;
 
-		for (int kx = 0; kx < KX; kx++)
-		for (int ky = 0; ky < KY; ky++)
-		for (int kz = 0; kz < KZ; kz++) {
+		i_new = cuda_fxdiv_quotient_uint32_t(i0 , divKX);
+		uint32_t kx = i0 - KX * i_new;
+		i0 = i_new;
 
-			int ox = ix - kx;
-			int oy = iy - ky;
-			int oz = iz - kz;
+		i_new = cuda_fxdiv_quotient_uint32_t(i0, divKY);
+		uint32_t ky = i0 - KY * i_new;
+		i0 = i_new;
 
-			long o0 = c + NC * (kx + KX * (ky + KY * (kz + KZ * (ox + OX * (oy + OY * oz)))));
+
+		i_new = cuda_fxdiv_quotient_uint32_t(i0, divOX);
+		uint32_t ox = i0 - OX * i_new;
+		uint32_t oy = i_new;
+
+		uint32_t i_in = c + NC * (ox + kx + IX * (oy + ky));
+
+		dst[i] = src[i_in]; 
+	}
+}
+
+__global__ void kern_im2col_valid_uint64(	cuFloatComplex* dst, const cuFloatComplex* src,
+						uint64_t NC,
+						uint64_t OX, uint64_t OY, uint64_t OZ,
+						uint64_t IX, uint64_t IY, uint64_t IZ,
+						uint64_t KX, uint64_t KY, uint64_t KZ,
+						const struct fxdiv_divisor_uint64_t divNC,
+						const struct fxdiv_divisor_uint64_t divOX, const struct fxdiv_divisor_uint64_t divOY, const struct fxdiv_divisor_uint64_t divOZ,
+						const struct fxdiv_divisor_uint64_t divKX, const struct fxdiv_divisor_uint64_t divKY, const struct fxdiv_divisor_uint64_t divKZ)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (long i = start; i < OX * OY * OZ * KX * KY * KZ * NC; i += stride) {
+
+		uint64_t i0 = i;
+
+		uint64_t i_new = cuda_fxdiv_quotient_uint64_t(i0, divNC);
+		uint64_t c = i0 - NC * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0 , divKX);
+		uint64_t kx = i0 - KX * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0, divKY);
+		uint64_t ky = i0 - KY * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0, divKZ);
+		uint64_t kz = i0 - KZ * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0, divOX);
+		uint64_t ox = i0 - OX * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0, divOY);
+		uint64_t oy = i0 - OY * i_new;
 		
-			if ((0 <= ox) && (0 <= oy) && (0 <= oz) && (OX > ox) && (OY > oy) && (OZ > oz))
-				dst[o0] = val;
-		}
+		uint64_t oz = i_new;
+		uint64_t i_ind = c + NC * ((ox + kx) + IX * ((oy + ky) + IY * (oz + kz)));
+
+		dst[i] = src[i_ind]; 
 	}
 }
 
 
 extern "C" void cuda_im2col(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5])
 {
-	if (16 > kdims[1]) {
+	long N = kdims[1] * kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4];
 
-		long N = kdims[1] * kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4];
-
-		kern_im2col_valid_loop_out<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+	if (N < INT32_MAX)
+		if(1 == odims[4] && 1 == kdims[4])
+			kern_im2col_valid_2D_uint32<<<gridsize(N), blocksize(N)>>>((cuFloatComplex*) dst, (cuFloatComplex*) src,
 										kdims[1],
-										odims[2], odims[3], odims[4],
-										idims[2], idims[3], idims[4],
-										kdims[2], kdims[3], kdims[4]);
-	} else {
-	
-		long N = idims[1] * idims[2] * idims[3] * idims[4];
-
-		if ((INT_MAX > N) && (INT_MAX > kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4]))
-			kern_im2col_valid_loop_in_int
-					<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
-										kdims[1],
-										odims[2], odims[3], odims[4],
-										idims[2], idims[3], idims[4],
-										kdims[2], kdims[3], kdims[4]);
+										odims[2], odims[3],
+										idims[2], idims[3],
+										kdims[2], kdims[3],
+										fxdiv_init_uint32_t(kdims[1]),
+										fxdiv_init_uint32_t(odims[2]), fxdiv_init_uint32_t(odims[3]),
+										fxdiv_init_uint32_t(kdims[2]), fxdiv_init_uint32_t(kdims[3]));
 		else
-			kern_im2col_valid_loop_in
-					<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+			kern_im2col_valid_uint32<<<gridsize(N), blocksize(N)>>>((cuFloatComplex*) dst, (cuFloatComplex*) src,
 										kdims[1],
 										odims[2], odims[3], odims[4],
 										idims[2], idims[3], idims[4],
-										kdims[2], kdims[3], kdims[4]);
-	}
+										kdims[2], kdims[3], kdims[4],
+										fxdiv_init_uint32_t(kdims[1]),
+										fxdiv_init_uint32_t(odims[2]), fxdiv_init_uint32_t(odims[3]), fxdiv_init_uint32_t(odims[4]),
+										fxdiv_init_uint32_t(kdims[2]), fxdiv_init_uint32_t(kdims[3]), fxdiv_init_uint32_t(kdims[4]));
+	else
+		kern_im2col_valid_uint64<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+										kdims[1],
+										odims[2], odims[3], odims[4],
+										idims[2], idims[3], idims[4],
+										kdims[2], kdims[3], kdims[4],
+										fxdiv_init_uint64_t(kdims[1]),
+										fxdiv_init_uint64_t(odims[2]), fxdiv_init_uint64_t(odims[3]), fxdiv_init_uint64_t(odims[4]),
+										fxdiv_init_uint64_t(kdims[2]), fxdiv_init_uint64_t(kdims[3]), fxdiv_init_uint64_t(kdims[4]));
 }
 
-
+#if 0
+//bitwise reproducible
 __global__ void kern_im2col_transp(	cuFloatComplex* dst, const cuFloatComplex* src,
 					long NC,
 					long OX, long OY, long OZ,
@@ -393,14 +422,18 @@ __global__ void kern_im2col_transp(	cuFloatComplex* dst, const cuFloatComplex* s
 	for (long i = start; i < NC * IX * IY * IZ; i += stride) {
 
 		long i0 = i;
+		
+		long i_new = i0 / NC;
+		long c = i0 - i_new * NC;
+		i0 = i_new;
 
-		long c = i % NC;
-		i = (i - c) / NC;
-		long ix = i % IX;
-		i = (i - ix) / IX;
-		long iy = i % IY;
-		i = (i - iy) / IY;
-		long iz = i % IZ;
+		i_new = i0 / IX;
+		long ix = i0 - i_new * IX;
+		i0 = i_new;
+
+		i_new = i0 / IY;
+		long iy = i0 - i_new * IY;
+		long iz = i_new;
 
 		cuFloatComplex result = make_cuFloatComplex(0., 0.);
 
@@ -417,68 +450,134 @@ __global__ void kern_im2col_transp(	cuFloatComplex* dst, const cuFloatComplex* s
 			if ((0 <= ox) && (0 <= oy) && (0 <= oz) && (OX > ox) && (OY > oy) && (OZ > oz))
 				result = cuCaddf(result, src[index]);
 		}
-		i = i0;
+
 		dst[i] = cuCaddf(result, dst[i]);
 	}
 }
+#endif
 
-__global__ void kern_im2col_transp_int(	cuFloatComplex* dst, const cuFloatComplex* src,
-					int NC,
-					int OX, int OY, int OZ,
-					int IX, int IY, int IZ,
-					int KX, int KY, int KZ)
+__global__ void kern_im2col_transp_valid_2D_uint32(	cuFloatComplex* dst, const cuFloatComplex* src,
+						uint32_t NC,
+						uint32_t OX, uint32_t OY,
+						uint32_t IX, uint32_t IY,
+						uint32_t KX, uint32_t KY,
+						const struct fxdiv_divisor_uint32_t divNC,
+						const struct fxdiv_divisor_uint32_t divOX, const struct fxdiv_divisor_uint32_t divOY,
+						const struct fxdiv_divisor_uint32_t divKX, const struct fxdiv_divisor_uint32_t divKY)
 {
 	int start = threadIdx.x + blockDim.x * blockIdx.x;
 	int stride = blockDim.x * gridDim.x;
 
-	for (long i = start; i < NC * IX * IY * IZ; i += stride) {
+	for (long i = start; i < NC * OX * OY * KX * KY; i += stride) {
 
-		int i0 = i;
+		uint32_t i0 = i;
 
-		int c = i0 % NC;
-		i0 = (i0 - c) / NC;
-		int ix = i0 % IX;
-		i0 = (i0 - ix) / IX;
-		int iy = i0 % IY;
-		i0 = (i0 - iy) / IY;
-		int iz = i0;
+		uint32_t i_new = cuda_fxdiv_quotient_uint32_t(i0, divNC);
+		uint32_t c = i0 - NC * i_new;
+		i0 = i_new;
 
-		cuFloatComplex result = make_cuFloatComplex(0., 0.);
+		i_new = cuda_fxdiv_quotient_uint32_t(i0 , divKX);
+		uint32_t kx = i0 - KX * i_new;
+		i0 = i_new;
 
-		for (int kx = 0; kx < KX; kx++)
-		for (int ky = 0; ky < KY; ky++)
-		for (int kz = 0; kz < KZ; kz++) {
+		i_new = cuda_fxdiv_quotient_uint32_t(i0, divKY);
+		uint32_t ky = i0 - KY * i_new;
+		i0 = i_new;
 
-			int ox = ix - kx;
-			int oy = iy - ky;
-			int oz = iz - kz;
 
-			long index = c + (NC * KX * KY * KZ) * (ox + OX * oy + OX * OY *oz) + NC * (kx + KX * (ky + KY * kz));
+		i_new = cuda_fxdiv_quotient_uint32_t(i0, divOX);
+		uint32_t ox = i0 - OX * i_new;
+		uint32_t oy = i_new;
 
-			if ((0 <= ox) && (0 <= oy) && (0 <= oz) && (OX > ox) && (OY > oy) && (OZ > oz))
-				result = cuCaddf(result, src[index]);
-		}
+		uint32_t i_in = c + NC * (ox + kx + IX * (oy + ky));
 
-		dst[i] = cuCaddf(result, dst[i]);
+		atomicAdd(&(dst[i_in].x), src[i].x);
+		atomicAdd(&(dst[i_in].y), src[i].y); 
 	}
 }
 
+__global__ void kern_im2col_transp_valid_uint64(	cuFloatComplex* dst, const cuFloatComplex* src,
+						uint64_t NC,
+						uint64_t OX, uint64_t OY, uint64_t OZ,
+						uint64_t IX, uint64_t IY, uint64_t IZ,
+						uint64_t KX, uint64_t KY, uint64_t KZ,
+						const struct fxdiv_divisor_uint64_t divNC,
+						const struct fxdiv_divisor_uint64_t divOX, const struct fxdiv_divisor_uint64_t divOY, const struct fxdiv_divisor_uint64_t divOZ,
+						const struct fxdiv_divisor_uint64_t divKX, const struct fxdiv_divisor_uint64_t divKY, const struct fxdiv_divisor_uint64_t divKZ)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (long i = start; i < OX * OY * OZ * KX * KY * KZ * NC; i += stride) {
+
+		uint64_t i0 = i;
+
+		uint64_t i_new = cuda_fxdiv_quotient_uint64_t(i0, divNC);
+		uint64_t c = i0 - NC * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0 , divKX);
+		uint64_t kx = i0 - KX * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0, divKY);
+		uint64_t ky = i0 - KY * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0, divKZ);
+		uint64_t kz = i0 - KZ * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0, divOX);
+		uint64_t ox = i0 - OX * i_new;
+		i0 = i_new;
+
+		i_new = cuda_fxdiv_quotient_uint64_t(i0, divOY);
+		uint64_t oy = i0 - OY * i_new;
+		
+		uint64_t oz = i_new;
+		uint64_t i_in = c + NC * ((ox + kx) + IX * ((oy + ky) + IY * (oz + kz)));
+
+		atomicAdd(&(dst[i_in].x), src[i].x);
+		atomicAdd(&(dst[i_in].y), src[i].y); 
+	}
+}
+
+
 extern "C" void cuda_im2col_transp(_Complex float* dst, const _Complex float* src, long odims[5], long idims[5], long kdims[5])
 {
+#if 1
+	long N = kdims[1] * kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4];
+
+	if ((N < INT32_MAX) && (1 == odims[4]) && (1 == kdims[4]))
+
+		kern_im2col_transp_valid_2D_uint32<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+											kdims[1],
+											odims[2], odims[3],
+											idims[2], idims[3],
+											kdims[2], kdims[3],
+											fxdiv_init_uint32_t(kdims[1]),
+											fxdiv_init_uint32_t(odims[2]), fxdiv_init_uint32_t(odims[3]),
+											fxdiv_init_uint32_t(kdims[2]), fxdiv_init_uint32_t(kdims[3]));
+	else
+		kern_im2col_transp_valid_uint64<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+										kdims[1],
+										odims[2], odims[3], odims[4],
+										idims[2], idims[3], idims[4],
+										kdims[2], kdims[3], kdims[4],
+										fxdiv_init_uint64_t(kdims[1]),
+										fxdiv_init_uint64_t(odims[2]), fxdiv_init_uint64_t(odims[3]), fxdiv_init_uint64_t(odims[4]),
+										fxdiv_init_uint64_t(kdims[2]), fxdiv_init_uint64_t(kdims[3]), fxdiv_init_uint64_t(kdims[4]));
+#else
+	//bitwise reproducible
 	long N = idims[0] * idims[1] * idims[2] * idims[3] * idims[4];
 
-	if ((INT_MAX > N) && (INT_MAX > kdims[2] * kdims[3] * kdims[4] * odims[2] * odims[3] * odims[4]))
-		kern_im2col_transp_int
-			<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
-								kdims[1],
-								odims[2], odims[3], odims[4],
-								idims[2], idims[3], idims[4],
-								kdims[2], kdims[3], kdims[4]);
-	else
-		kern_im2col_transp
-			<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
-								kdims[1],
-								odims[2], odims[3], odims[4],
-								idims[2], idims[3], idims[4],
-								kdims[2], kdims[3], kdims[4]);
+	//kernel is faster using int but not to significantly
+	kern_im2col_transp
+		<<<gridsize(N), blocksize(N)>>>(	(cuFloatComplex*) dst, (cuFloatComplex*) src,
+							kdims[1],
+							odims[2], odims[3], odims[4],
+							idims[2], idims[3], idims[4],
+							kdims[2], kdims[3], kdims[4]);
+#endif
 }
