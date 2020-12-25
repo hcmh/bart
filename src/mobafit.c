@@ -87,6 +87,8 @@ int main_mobafit(int argc, char* argv[])
 
 	complex float* x = create_cfl(argv[3], DIMS, x_dims);
 
+	md_clear(DIMS, x_dims, x, CFL_SIZE);
+
 
 
 	long y_patch_dims[DIMS];
