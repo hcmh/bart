@@ -60,9 +60,8 @@ int main_pol2mask(int argc, char* argv[argc])
 
 	complex float* out = create_cfl(argv[2], DIMS, odims);
 
-	NESTED(complex float, sample, (void* _data, const long pos[]))
+	NESTED(complex float, sample, (const long pos[]))
 	{
-		UNUSED(_data);
 		int sum = 0;
 
 		long pos2[DIMS];
@@ -86,7 +85,7 @@ int main_pol2mask(int argc, char* argv[argc])
 		return sum;
 	};
 
-	md_parallel_zsample(DIMS, odims, out, NULL, sample);
+	md_parallel_zsample(DIMS, odims, out, sample);
 
 	unmap_cfl(DIMS, pdims, pol);
 	unmap_cfl(DIMS, odims, out);
