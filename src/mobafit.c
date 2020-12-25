@@ -93,6 +93,8 @@ int main_mobafit(int argc, char* argv[])
 
 	complex float* x = create_cfl(argv[3], DIMS, x_dims);
 
+	md_clear(DIMS, x_dims, x, CFL_SIZE);
+
 	if (IR_LL == seq)
 		md_zfill(DIMS, x_dims, x, 1.);
 
