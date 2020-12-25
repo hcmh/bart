@@ -3054,6 +3054,7 @@ void md_zrss(unsigned int D, const long dims[D], unsigned int flags, complex flo
 
 /**
  * Compute variance along selected dimensions (with strides)
+ * (with Bessel's correction)
  *
  * @param dims -- full dimensions of src image
  * @param flags -- bitmask for calculating variance, i.e. the dimensions that will not stay
@@ -3087,6 +3088,7 @@ void md_zvar2(unsigned int D, const long dims[D], unsigned int flags, const long
 
 /**
  * Compute variance along selected dimensions (without strides)
+ * (with Bessel's correction)
  *
  * @param dims -- full dimensions of src image
  * @param flags -- bitmask for calculating variance, i.e. the dimensions that will not stay
@@ -3105,6 +3107,7 @@ void md_zvar(unsigned int D, const long dims[D], unsigned int flags, complex flo
 
 /**
  * Compute standard deviation along selected dimensions (with strides)
+ * (with Bessel's correction)
  *
  * @param dims -- full dimensions of src image
  * @param flags -- bitmask for calculating standard deviation, i.e. the dimensions that will not stay
@@ -3133,6 +3136,7 @@ void md_zstd2(unsigned int D, const long dims[D], unsigned int flags, const long
 
 /**
  * Compute standard deviation along selected dimensions (without strides)
+ * (with Bessel's correction)
  *
  * @param dims -- full dimensions of src image
  * @param flags -- bitmask for calculating standard deviation, i.e. the dimensions that will not stay
