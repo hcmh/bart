@@ -16,7 +16,7 @@ tests/test-roistat-std: zeros noise ones resize roistat std nrmse
 
 
 
-tests/test-roistat-mult: zeros noise ones roiresize stat join nrmse
+tests/test-roistat-mult: zeros noise ones resize roistat join nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
 	$(TOOLDIR)/zeros 3 100 100 3 z.ra						;\
 	$(TOOLDIR)/noise -s1. -n1. z.ra n.ra						;\
