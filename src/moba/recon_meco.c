@@ -238,7 +238,7 @@ void meco_recon(const struct moba_conf* moba_conf,
 			iadmm_conf->maxiter = moba_conf->inner_iter;
 			iadmm_conf->cg_eps = irgnm_conf.cgtol;
 			iadmm_conf->rho = moba_conf->rho;
-			iadmm_conf->use_interface_alpha = true;
+			// FIXME iadmm_conf->use_interface_alpha = true;
 
 			const struct nlop_s* nlop = nl.nlop;
 
