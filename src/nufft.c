@@ -145,7 +145,7 @@ int main_nufft(int argc, char* argv[argc])
 
 			struct lsqr_conf lsqr_conf = lsqr_defaults;
 			lsqr_conf.lambda = lambda;
-			lsqr_conf.it_gpu = gpu;
+			lsqr_conf.it_gpu = use_gpu;
 
 			lsqr(DIMS, &lsqr_conf, iter_conjgrad, CAST_UP(&cgconf),
 			     nufft_op, NULL, coilim_dims, img, ksp_dims, ksp, precond_op);
