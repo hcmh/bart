@@ -6,7 +6,6 @@
  * Authors:
  * 2016-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2017 Jon Tamir <jtamir@eecs.berkeley.edu>
- * 2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
  */
 
 #include <assert.h>
@@ -41,7 +40,6 @@ struct itop_s {
 	const struct iovec_s* iov;
 
 	const float* init;
-	bool warmstart;
 
 	const struct operator_p_s** prox_funs;
 	const struct linop_s** prox_linops;
@@ -54,17 +52,13 @@ static void itop_apply(const operator_data_t* _data, float alpha, complex float*
 {
 	const auto data = CAST_DOWN(itop_s, _data);
 
-	if ( ! data->warmstart ) {
+	if (NULL == data->init) {
 
-		if (NULL == data->init) {
+		md_clear(1, MD_DIMS(data->size), dst, sizeof(float));
 
-			md_clear(1, MD_DIMS(data->size), dst, sizeof(float));
+	} else {
 
-		} else {
-
-			md_copy(data->iov->N, data->iov->dims, dst, data->init, data->iov->size);
-		}
-
+		md_copy(data->iov->N, data->iov->dims, dst, data->init, data->iov->size);
 	}
 
 	iter_conf* iconf2 = xmalloc(SIZEOF(data->iconf));
@@ -108,8 +102,7 @@ static void itop_del(const operator_data_t* _data)
 
 
 const struct operator_p_s* itop_p_create(italgo_fun2_t italgo, iter_conf* iconf,
-					const float* init, 
-					bool warmstart,
+					const float* init,
 					const struct operator_s* op,
 					unsigned int num_funs,
 					const struct operator_p_s* prox_funs[num_funs],
@@ -140,7 +133,6 @@ const struct operator_p_s* itop_p_create(italgo_fun2_t italgo, iter_conf* iconf,
 	data->prox_funs = NULL;
 	data->prox_linops = NULL;
 	data->init = NULL;
-	data->warmstart = warmstart;
 	data->iov = iovec_create(iov->N, iov->dims, iov->size);
 
 	if (NULL != init) {
@@ -174,14 +166,13 @@ const struct operator_p_s* itop_p_create(italgo_fun2_t italgo, iter_conf* iconf,
 
 const struct operator_s* itop_create(	italgo_fun2_t italgo, iter_conf* iconf,
 					const float* init,
-					bool warmstart,
 					const struct operator_s* op,
 					unsigned int num_funs,
 					const struct operator_p_s* prox_funs[num_funs],
 					const struct linop_s* prox_linops[num_funs],
 					struct iter_monitor_s* monitor)
 {
-	auto tmp = itop_p_create(italgo, iconf, init, warmstart, op, num_funs, prox_funs, prox_linops, monitor);
+	auto tmp = itop_p_create(italgo, iconf, init, op, num_funs, prox_funs, prox_linops, monitor);
 	auto result = operator_p_bind(tmp, 1.);
 	operator_p_free(tmp);
 	return result;

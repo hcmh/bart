@@ -241,7 +241,8 @@ void meco_recon(const struct moba_conf* moba_conf,
 
 			const struct nlop_s* nlop = nl.nlop;
 
-			inv_op = lsqr2_create(&lsqr_conf, iter2_admm, CAST_UP(iadmm_conf), NULL, warmstart, &nlop->derivative[0][0], NULL, ropts.r, prox_ops, trafos, NULL);
+			// FIXME warmstart, 
+			inv_op = lsqr2_create(&lsqr_conf, iter2_admm, CAST_UP(iadmm_conf), NULL, &nlop->derivative[0][0], NULL, ropts.r, prox_ops, trafos, NULL);
 
 		} else {
 
