@@ -34,7 +34,14 @@ static const char help_str[] = "Compute masks from polygons.";
 
 int main_pol2mask(int argc, char* argv[argc])
 {
-	const struct opt_s opts[] = { };
+	int X = 100;
+	int Y = 100;
+
+	const struct opt_s opts[] = {
+
+		OPT_INT('X', &X, "size", "size dimension 0"),
+		OPT_INT('Y', &Y, "size", "size dimension 1"),
+	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
@@ -54,8 +61,8 @@ int main_pol2mask(int argc, char* argv[argc])
 	md_calc_strides(DIMS, pstrs, pdims, CFL_SIZE);
 
 	md_copy_dims(DIMS, odims, pdims);
-	odims[0] = 100;
-	odims[1] = 100;
+	odims[0] = X;
+	odims[1] = Y;
 	odims[2] = 1;
 
 	complex float* out = create_cfl(argv[2], DIMS, odims);
