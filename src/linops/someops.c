@@ -613,85 +613,85 @@ struct linop_s* linop_padding_create_onedim(unsigned int N, const long dims[N], 
 
 	switch (pad_type) {
 
-		case PAD_VALID:
-			assert(0 >= pad_for);
-			assert(0 >= pad_after);
+	case PAD_VALID:
+		assert(0 >= pad_for);
+		assert(0 >= pad_after);
 
-			pos[pad_dim] -= pad_for;
-			data->offset_in_mid = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
-			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+		pos[pad_dim] -= pad_for;
+		data->offset_in_mid = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+		md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
 
-			//no sum over dims_for, dims_after
-			break;
-
-		case PAD_SAME:
-			assert(0 <= pad_for);
-			assert(0 <= pad_after);
-
-			data->offset_in_mid = 0;
-			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
-
-			((long*)(data->dims_for))[pad_dim] = 0;
-			((long*)(data->dims_after))[pad_dim] = 0;
-
-			//no sum over dims_for, dims_after
-			break;
-
-		case PAD_SYMMETRIC:
-			assert(0 <= pad_for);
-			assert(0 <= pad_after);
-
-			pos[pad_dim] = pad_for - 1;
-			data->offset_in_for = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
-			md_calc_strides(N, (long*)data->strs_for, dims, CFL_SIZE);
-			((long*)data->strs_for)[pad_dim] = -data->strs_for[pad_dim];
-
-			data->offset_in_mid = 0;
-			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
-
-			pos[pad_dim] = dims[pad_dim] - 1;
-			data->offset_in_after = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
-			md_calc_strides(N, (long*)data->strs_after, dims, CFL_SIZE);
-			((long*)data->strs_after)[pad_dim] = -data->strs_after[pad_dim];
-			break;
-
-		case PAD_REFLECT:
-			assert(0 <= pad_for);
-			assert(0 <= pad_after);
-
-			pos[pad_dim] = pad_for;
-			data->offset_in_for = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
-			md_calc_strides(N, (long*)data->strs_for, dims, CFL_SIZE);
-			((long*)data->strs_for)[pad_dim] = -data->strs_for[pad_dim];
-
-			data->offset_in_mid = 0;
-			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
-
-			pos[pad_dim] = dims[pad_dim] - 2;
-			data->offset_in_after = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
-			md_calc_strides(N, (long*)data->strs_after, dims, CFL_SIZE);
-			((long*)data->strs_after)[pad_dim] = -data->strs_after[pad_dim];
-			break;
-
-		case PAD_CYCLIC:
-			assert(0 <= pad_for);
-			assert(0 <= pad_after);
-
-			pos[pad_dim] = dims[pad_dim] - pad_for;
-			data->offset_in_for = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
-			md_calc_strides(N, (long*)data->strs_for, dims, CFL_SIZE);
-
-			data->offset_in_mid = 0;
-			md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
-
-			pos[pad_dim] = 0;
-			data->offset_in_after = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
-			md_calc_strides(N, (long*)data->strs_after, dims, CFL_SIZE);
-			break;
-
-		default:
-			assert(0);
+		//no sum over dims_for, dims_after
 		break;
+
+	case PAD_SAME:
+		assert(0 <= pad_for);
+		assert(0 <= pad_after);
+
+		data->offset_in_mid = 0;
+		md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+
+		((long*)(data->dims_for))[pad_dim] = 0;
+		((long*)(data->dims_after))[pad_dim] = 0;
+
+		//no sum over dims_for, dims_after
+		break;
+
+	case PAD_SYMMETRIC:
+		assert(0 <= pad_for);
+		assert(0 <= pad_after);
+
+		pos[pad_dim] = pad_for - 1;
+		data->offset_in_for = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+		md_calc_strides(N, (long*)data->strs_for, dims, CFL_SIZE);
+		((long*)data->strs_for)[pad_dim] = -data->strs_for[pad_dim];
+
+		data->offset_in_mid = 0;
+		md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+
+		pos[pad_dim] = dims[pad_dim] - 1;
+		data->offset_in_after = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+		md_calc_strides(N, (long*)data->strs_after, dims, CFL_SIZE);
+		((long*)data->strs_after)[pad_dim] = -data->strs_after[pad_dim];
+		break;
+
+	case PAD_REFLECT:
+		assert(0 <= pad_for);
+		assert(0 <= pad_after);
+
+		pos[pad_dim] = pad_for;
+		data->offset_in_for = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+		md_calc_strides(N, (long*)data->strs_for, dims, CFL_SIZE);
+		((long*)data->strs_for)[pad_dim] = -data->strs_for[pad_dim];
+
+		data->offset_in_mid = 0;
+		md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+
+		pos[pad_dim] = dims[pad_dim] - 2;
+		data->offset_in_after = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+		md_calc_strides(N, (long*)data->strs_after, dims, CFL_SIZE);
+		((long*)data->strs_after)[pad_dim] = -data->strs_after[pad_dim];
+		break;
+
+	case PAD_CYCLIC:
+		assert(0 <= pad_for);
+		assert(0 <= pad_after);
+
+		pos[pad_dim] = dims[pad_dim] - pad_for;
+		data->offset_in_for = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+		md_calc_strides(N, (long*)data->strs_for, dims, CFL_SIZE);
+
+		data->offset_in_mid = 0;
+		md_calc_strides(N, (long*)data->strs_mid, dims, CFL_SIZE);
+
+		pos[pad_dim] = 0;
+		data->offset_in_after = md_calc_offset(N, strs_in , pos) / CFL_SIZE;
+		md_calc_strides(N, (long*)data->strs_after, dims, CFL_SIZE);
+		break;
+
+	default:
+		assert(0);
+	break;
 	}
 
 	data->dims_in = *TYPE_ALLOC(long[N]);
@@ -724,7 +724,8 @@ struct linop_s* linop_padding_create(unsigned int N, const long dims[N], enum PA
 
 	struct linop_s* result = NULL;
 
-	for (unsigned int i = 0; i < N; i++)
+	for (unsigned int i = 0; i < N; i++) {
+
 		if ((0 != pad_for[i]) || (0 != pad_after[i])) {
 
 			if (NULL != result)
@@ -732,6 +733,7 @@ struct linop_s* linop_padding_create(unsigned int N, const long dims[N], enum PA
 			else
 				result = linop_padding_create_onedim(N, dims, pad_type, i, pad_for[i], pad_after[i]);
 		}
+	}
 
 	if (NULL == result)
 		result = linop_identity_create(N, dims);
@@ -1527,10 +1529,12 @@ static struct linop_s* linop_fft_create_priv(int N, const long dims[N], unsigned
 
 		complex float one[1] = { 1. };
 		md_fill(N, dims, fftmod_mat, one, CFL_SIZE);
+
 		if (forward)
 			fftmod(N, dims, flags, fftmodk_mat, fftmod_mat);
 		else
 			ifftmod(N, dims, flags, fftmodk_mat, fftmod_mat);
+
 		fftscale(N, dims, flags, fftmod_mat, fftmodk_mat);
 
 		struct linop_s* mod = linop_cdiag_create(N, dims, ~0u, fftmod_mat);
