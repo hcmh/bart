@@ -31,6 +31,6 @@ tests/test-sudoku: vec join fmac sudoku nrmse
 	touch $@
 
 
-TESTS += test-sudoku
+TESTS += tests/test-sudoku
 
 
