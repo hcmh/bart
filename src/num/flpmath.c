@@ -1624,6 +1624,7 @@ void md_zmax2(unsigned int D, const long dims[D], const long ostr[D], complex fl
 {
 	if (simple_zmax(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
 		return;
+
 	MAKE_Z3OP(zmax, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
