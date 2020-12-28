@@ -50,8 +50,7 @@ static bool test_nlop_relu_derivative(void)
 }
 
 
-
-//UT_REGI STER_TEST(test_nlop_relu_derivative);
+UT_UNUSED_TEST(test_nlop_relu_derivative);
 
 
 

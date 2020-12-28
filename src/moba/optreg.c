@@ -280,9 +280,9 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 	UNUSED(model);
 
 	float lambda = ropts->lambda;
+#if 0
 	unsigned int shift_model = 1;
 	bool randshift = shift_model == 1;
-#if 0
 	bool overlapping_blocks = shift_mode == 2;
 #endif
 
