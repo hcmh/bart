@@ -684,7 +684,7 @@ int read_ra(int fd, unsigned int n, long dimensions[n])
 
 	md_singleton_dims(n, dimensions);
 
-	for (unsigned int i = 0; i < header.ndims; i++) {
+	for (int i = 0; i < (int)header.ndims; i++) {
 
 		if (i < n)
 			dimensions[i] = dims[i];
