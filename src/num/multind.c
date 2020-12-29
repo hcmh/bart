@@ -1108,6 +1108,27 @@ void md_resize_center(unsigned int D, const long odim[D], void* optr, const long
 	md_copy_block(D, pos, odim, optr, idim, iptr, size);
 }
 
+
+
+/**
+ * Resize an array by zero-padding at the beginning.
+ *
+ * optr = [0 0 0 0 iptr]
+ *
+ */
+void md_resize_shift(unsigned int D, const long odim[D], void* optr, const long idim[D], const void* iptr, size_t size)
+{
+	long pos[D];
+	for (unsigned int i = 0; i < D; i++)
+		pos[i] = labs(odim[i] - idim[i]);
+
+	md_clear(D, odim, optr, size);
+	md_copy_block(D, pos, odim, optr, idim, iptr, size);
+}
+
+
+
+
 /**
  * Pad an array on both ends by val.
  *
