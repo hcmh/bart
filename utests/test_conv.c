@@ -42,8 +42,8 @@ UXT_REGISTER_TEST(test_conv_small);
 
 static bool test_conv_generic(enum conv_mode mode, enum conv_type type, int N, const complex float G[N])
 {
-	const complex float K[3] = { 0.5, 1., -1.i };
-	const complex float T[8] = { 1., 0., 0., 1., 0., 0., 0., 0. };
+	const complex float K[3] = { 0.5, 1., -1. };
+	const complex float T[8] = { 0.5, 0., 0., 1., 0., 0., 0., 1.i };
 	complex float O[N];
 
 	conv(1, 1u, type, mode,
@@ -51,13 +51,8 @@ static bool test_conv_generic(enum conv_mode mode, enum conv_type type, int N, c
 
 	bool ok = true;
 
-	for (int i = 0; i < N; i++) {
-
-//		if (mode == CONV_SYMMETRIC)
-//		printf("%d %f+%fi %f+%fi\n", i, crealf(O[i]), cimagf(O[i]), crealf(G[i]), cimagf(G[i]));
-
+	for (int i = 0; i < N; i++)
 		ok &= (1.E-4 > cabsf(O[i] - G[i]));
-	}
 
 	if (!ok)
 		printf("FAILED\n");
@@ -68,74 +63,73 @@ static bool test_conv_generic(enum conv_mode mode, enum conv_type type, int N, c
 static bool test_conv_sy_ex(void)
 {
 	return test_conv_generic(CONV_SYMMETRIC, CONV_EXTENDED,
-		10, (const complex float[10]){ 0.5, 1., -1.i, 0.5, 1., -1.i, 0., 0., 0., 0. });
+		10, (const complex float[10]){ 0.25, 0.5, -0.5, 0.5, 1., -1., 0., 0.5i, 1.i, -1.i });
 }
 
 static bool test_conv_sy_vd(void)
 {
 	return test_conv_generic(CONV_SYMMETRIC, CONV_VALID,
-		6, (const complex float[6]){ -1.i, 0.5, 1., -1.i, 0., 0. });
+		6, (const complex float[6]){ -0.5, 0.5, 1., -1., 0., 0.5i });
 }
 
 static bool test_conv_sy_tr(void)
 {
 	return test_conv_generic(CONV_SYMMETRIC, CONV_TRUNCATED,
-		8, (const complex float[8]){ 1., -1.i, 0.5, 1., -1.i, 0., 0., 0. });
+		8, (const complex float[8]){ 0.5, -0.5, 0.5, 1., -1., 0., 0.5i, 1.i });
 }
 
 static bool test_conv_sy_cy(void)
 {
 	return test_conv_generic(CONV_SYMMETRIC, CONV_CYCLIC,
-		8, (const complex float[8]){ 1., -1.i, 0.5, 1., -1.i, 0., 0., 0.5 });
+		8, (const complex float[8]){ 0.5 - 1.i, -0.5, 0.5, 1., -1., 0., 0.5i, 0.25 + 1.i });
 }
 
 static bool test_conv_ca_ex(void)
 {
 	return test_conv_generic(CONV_CAUSAL, CONV_EXTENDED,
-		10, (const complex float[10]){ 0.5, 1., -1.i, 0.5, 1., -1.i, 0., 0., 0., 0. });
+		10, (const complex float[10]){ 0.25, 0.5, -0.5, 0.5, 1., -1., 0., 0.5i, 1.i, -1.i });
 }
 
-static bool test_conv_ca_vd(void) // ?
+static bool test_conv_ca_vd(void)
 {
 	return test_conv_generic(CONV_CAUSAL, CONV_VALID,
-		6, (const complex float[6]){ 0.5, 1., -1.i, 0.5, 1., -1.i });
+		6, (const complex float[6]){ -0.5, 0.5, 1., -1., 0., 0.5i });
 }
 
 static bool test_conv_ca_tr(void)
 {
 	return test_conv_generic(CONV_CAUSAL, CONV_TRUNCATED,
-		8, (const complex float[8]){ 0.5, 1., -1.i, 0.5, 1., -1.i, 0., 0.  });
+		8, (const complex float[8]){ 0.25, 0.5, -0.5, 0.5, 1., -1., 0., 0.5i });
 }
 
 static bool test_conv_ca_cy(void)
 {
 	return test_conv_generic(CONV_CAUSAL, CONV_CYCLIC,
-		8, (const complex float[8]){ 0.5, 1., -1.i, 0.5, 1., -1.i, 0., 0.  });
+		8, (const complex float[8]){ 0.25 + 1.i, 0.5 - 1.i, -0.5, 0.5, 1., -1., 0., 0.5i });
 }
 
-
-static bool test_conv_ac_ex(void) //?
+static bool test_conv_ac_ex(void)
 {
 	return test_conv_generic(CONV_ANTICAUSAL, CONV_EXTENDED,
-		10, (const complex float[10]){ 0.5, -1.i, 1., 0.5, 0., 0., 0., 0., -1.i, 1. });
+		10, (const complex float[10]){ 0.25, 0.5, -0.5, 0.5, 1., -1., 0., 0.5i, 1.i, -1.i });
 }
 
 static bool test_conv_ac_vd(void)
 {
 	return test_conv_generic(CONV_ANTICAUSAL, CONV_VALID,
-		6, (const complex float[6]){ 0.5, -1.i, 1., 0.5, 0., 0. });
+		6, (const complex float[6]){ -0.5, 0.5, 1., -1., 0., 0.5i });
 }
 
 static bool test_conv_ac_tr(void)
 {
 	return test_conv_generic(CONV_ANTICAUSAL, CONV_TRUNCATED,
-		8, (const complex float[8]){ 0.5, -1.i, 1., 0.5, 0., 0., 0., 0. });
+		8, (const complex float[8]){ -0.5, 0.5, 1., -1., 0., 0.5i, 1.i, -1.i });
 }
 
-static bool test_conv_ac_cy(void) // ?
+static bool test_conv_ac_cy(void)
 {
 	return test_conv_generic(CONV_ANTICAUSAL, CONV_CYCLIC,
-		8, (const complex float[8]){ 0.5, -1.i, 1., 0.5, 0., 0.0, -1.i, 1. });
+		8, (const complex float[8]){ -0.5, 0.5, 1., -1., 0., 0.5i, 0.25 + 1.i, 0.5 - 1.i });
 }
 
 

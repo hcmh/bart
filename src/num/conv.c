@@ -57,6 +57,10 @@ struct conv_plan {
 struct conv_plan* conv_plan(int N, unsigned int flags, enum conv_type ctype, enum conv_mode cmode, const long odims[N],  
 		const long idims1[N], const long idims2[N], const complex float* src2)
 {
+	if (   (CONV_VALID == ctype)
+	    || (CONV_EXTENDED == ctype))
+		cmode = CONV_SYMMETRIC;
+
 	PTR_ALLOC(struct conv_plan, plan);
 
 	plan->N = N;
@@ -94,6 +98,7 @@ struct conv_plan* conv_plan(int N, unsigned int flags, enum conv_type ctype, enu
 			}
 
 			switch (ctype) {
+
 			case CONV_CYCLIC:
 		
 				assert(odims[i] == idims1[i]);
@@ -175,7 +180,16 @@ struct conv_plan* conv_plan(int N, unsigned int flags, enum conv_type ctype, enu
 	case CONV_ANTICAUSAL:
 
 	        md_resize(N, plan->kdims, plan->kernel, idims2, src2, CFL_SIZE);
-       		fft(N, plan->kdims, flags, plan->kernel, plan->kernel);
+
+		{
+			long cen[N];
+			for (int i = 0; i < N; i++)
+				cen[i] = MD_IS_SET(flags, i) ? (plan->kdims[i] - idims2[i] + 1) : 0;
+
+			md_circ_shift(N, plan->kdims, cen, plan->kernel, plan->kernel, CFL_SIZE);
+		}
+
+		ifft(N, plan->kdims, flags, plan->kernel, plan->kernel);
 		break;
 
 	default:
@@ -244,7 +258,6 @@ static void conv_cyclicH(struct conv_plan* plan, complex float* dst, const compl
 }
 
 
-
 void conv_exec(struct conv_plan* plan, complex float* dst, const complex float* src1)
 {
 	bool crop = (CONV_SYMMETRIC == plan->cmode);
@@ -269,7 +282,6 @@ void conv_exec(struct conv_plan* plan, complex float* dst, const complex float* 
 	if (pre || post)
 		md_free(tmp);
 }
-
 
 
 void conv_adjoint(struct conv_plan* plan, complex float* dst, const complex float* src1)
