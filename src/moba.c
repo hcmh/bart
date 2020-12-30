@@ -48,8 +48,6 @@
 #include "moba/recon_meco.h"
 
 
-#define USE_ESTIMATE_PATTERN 1
-
 static const char usage_str[] = "<kspace> <TI/TE> <output> [<sensitivities>]";
 static const char help_str[] = "Model-based nonlinear inverse reconstruction\n";
 
@@ -312,7 +310,6 @@ int main_moba(int argc, char* argv[argc])
 		struct nufft_conf_s nufft_conf = nufft_conf_defaults;
 		nufft_conf.toeplitz = false;
 
-		struct linop_s* nufft_op_p = NULL;
 		struct linop_s* nufft_op_k = NULL;
 
 		long traj_dims[DIMS];
@@ -327,8 +324,6 @@ int main_moba(int argc, char* argv[argc])
 		pattern = anon_cfl("", DIMS, pat_dims);
 
 		// Gridding sampling pattern
-
-#if USE_ESTIMATE_PATTERN == 1
 		
 		complex float* psf = NULL;
 
@@ -344,20 +339,7 @@ int main_moba(int argc, char* argv[argc])
 		fftuc(DIMS, pat_dims, FFT_FLAGS, pattern, psf);
 
 		md_free(wgh);
-
-#else
-
-		long ones_dims[DIMS];
-		md_copy_dims(DIMS, ones_dims, traj_dims);
-		ones_dims[READ_DIM] = 1L;
-		complex float* ones = md_alloc(DIMS, ones_dims, CFL_SIZE);
-		md_zfill(DIMS, ones_dims, ones, 1.0);
-
-		nufft_op_p = nufft_create(DIMS, ones_dims, pat_dims, traj_dims, traj, NULL, nufft_conf);
-		linop_adjoint(nufft_op_p, DIMS, pat_dims, pattern, DIMS, ones_dims, ones);
-		fftuc(DIMS, pat_dims, FFT_FLAGS, pattern, pattern);
-		md_free(ones);
-#endif
+		md_free(psf);
 
 		// Gridding raw data
 
@@ -365,7 +347,6 @@ int main_moba(int argc, char* argv[argc])
 		linop_adjoint(nufft_op_k, DIMS, grid_dims, k_grid_data, DIMS, ksp_dims, kspace_data);
 		fftuc(DIMS, grid_dims, FFT_FLAGS, k_grid_data, k_grid_data);
 
-		linop_free(nufft_op_p);
 		linop_free(nufft_op_k);
 
 		unmap_cfl(DIMS, ksp_dims, kspace_data);
