@@ -235,8 +235,8 @@ void IR_bSSFP_model(const struct signal_model* data, int N, complex float out[N]
 const struct signal_model signal_multi_grad_echo_defaults = {
 
 	.m0 = 1.,
-	.m0_water = .80,
-	.m0_fat = .20,
+	.m0_water = 1.,
+	.m0_fat = 0.,
 	.t2 = .03, // s
 	.off_reson = 20, // Hz
 	.te = 1.6 * 1.E-3, // s
@@ -252,11 +252,12 @@ const struct signal_model signal_multi_grad_echo_fat = {
 	.m0 = 1.,
 	.m0_water = 0.8,
 	.m0_fat = 0.2,
-	.t2star = .05, // s
+	.t2 = .05, // s
 	.off_reson = 20, // Hz
 	.te = 1.6 * 1.E-3, // s
 	.b0 = 3., // Tesla
 };
+
 
 
 complex float calc_fat_modulation(float b0, float TE)
@@ -281,39 +282,27 @@ complex float calc_fat_modulation(float b0, float TE)
 	return out;
 }
 
-#if 0
-static complex float signal_MECO_WFR2S(const struct signal_model* data, int ind)
+
+static complex float signal_multi_grad_echo(const struct signal_model* data, int ind)
 {
 	assert(data->m0 == data->m0_water + data->m0_fat);
 
-	complex float TE = data->te * ind + 0.i;
+	float TE = data->te * ind;
 
+	float W = data->m0_water;
+	float F = data->m0_fat;
 	complex float cshift = calc_fat_modulation(data->b0, TE);
 
 	complex float z = -1. / data->t2 + 2.i * M_PI * data->off_reson;
 
-	return (data->m0_water + data->m0_fat * cshift) * cexpf(z * TE);
+	return (W + F * cshift) * cexpf(z * TE);
 }
-#endif
 
-
-static complex float signal_MECO_R2S(const struct signal_model* data, int ind)
-{
-	assert(data->m0 == data->m0_water + data->m0_fat);
-
-	complex float TE = data->te * ind + 0.i;
-
-	float ofr = data->off_reson;
-
-	complex float z = -1. / data->t2 + 2.i * M_PI * ofr;
-
-	return data->m0 * cexpf(z * TE);
-}
 
 void multi_grad_echo_model(const struct signal_model* data, int N, complex float out[N])
 {
 	for (int ind = 0; ind < N; ind++)
-		out[ind] = signal_MECO_R2S(data, ind);
+		out[ind] = signal_multi_grad_echo(data, ind);
 }
 
 
