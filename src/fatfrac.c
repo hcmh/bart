@@ -72,6 +72,9 @@ int main_fatfrac(int argc, char* argv[argc])
 		else
 			fatfrac[p] = 1 - cabsf( W[p] / rho[p] );
 
+		if (safe_isnanf(crealf(fatfrac[p])) || safe_isnanf(cimagf(fatfrac[p])))
+			fatfrac[p] = 0.;
+
 		p++;
 
 	} while (md_next(DIMS, W_dims, ~0L, pos));
