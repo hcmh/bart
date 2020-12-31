@@ -159,7 +159,7 @@ tests/test-moba-meco-noncart-r2s: traj scale phantom signal fmac index extract m
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-moba-meco-noncart-wfr2s: traj scale phantom signal fmac index extract moba fatfrac slice resize nrmse
+tests/test-moba-meco-noncart-wfr2s: traj scale phantom signal fmac index extract moba slice resize saxpy cabs spow nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	                  ;\
 	$(TOOLDIR)/traj -x16 -y15 -r -D -E -e7 -c _traj.ra                ;\
 	$(TOOLDIR)/scale 0.5 _traj.ra traj.ra                             ;\
@@ -176,7 +176,11 @@ tests/test-moba-meco-noncart-wfr2s: traj scale phantom signal fmac index extract
 	$(TOOLDIR)/slice 6 1 reco_crop.ra F.ra                            ;\
 	$(TOOLDIR)/slice 6 2 reco_crop.ra R2S.ra                          ;\
 	$(TOOLDIR)/slice 6 3 reco_crop.ra fB0.ra                          ;\
-	$(TOOLDIR)/fatfrac W.ra F.ra fatfrac.ra                           ;\
+	$(TOOLDIR)/saxpy 1 W.ra F.ra temp_inphase.ra                      ;\
+	$(TOOLDIR)/cabs temp_inphase.ra temp_inphase_abs.ra               ;\
+	$(TOOLDIR)/spow -- -1. temp_inphase_abs.ra temp_deno.ra           ;\
+	$(TOOLDIR)/cabs F.ra temp_F_abs.ra                                ;\
+	$(TOOLDIR)/fmac temp_F_abs.ra temp_deno.ra fatfrac.ra             ;\
 	$(TOOLDIR)/phantom -x8 -c circ.ra                                 ;\
 	$(TOOLDIR)/fmac fatfrac.ra circ.ra fatfrac_masked.ra              ;\
 	$(TOOLDIR)/scale -- 0.20 circ.ra fatfrac_ref.ra                   ;\
@@ -186,7 +190,7 @@ tests/test-moba-meco-noncart-wfr2s: traj scale phantom signal fmac index extract
 	$(TOOLDIR)/nrmse -t 0.008 R2S_ref.ra R2S_masked.ra                ;\
 	$(TOOLDIR)/fmac fB0.ra circ.ra fB0_masked.ra                      ;\
 	$(TOOLDIR)/scale -- 20 circ.ra fB0_ref.ra                         ;\
-	$(TOOLDIR)/nrmse -t 0.0003 fB0_ref.ra fB0_masked.ra                ;\
+	$(TOOLDIR)/nrmse -t 0.0003 fB0_ref.ra fB0_masked.ra               ;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
