@@ -96,19 +96,19 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 
 	normal2(_data, dst, src);
 
-	long res = data->dims[0];
+	long res = data->dims[READ_DIM];
 	long parameters = data->dims[COEFF_DIM];
 	long coils = data->dims[COIL_DIM];
-	long slices = data->dims[SLICE_DIM];
-	long mphases = data->dims[TIME2_DIM];
 	long time = data->dims[TIME_DIM];
+	long time2 = data->dims[TIME2_DIM];
+	long slices = data->dims[SLICE_DIM];
  
         if (1 == data->conf->opt_reg) {
  
                 md_axpy(1, MD_DIMS(data->size_x * coils / (coils + parameters)),
-						dst + res * res * 2 * parameters * slices * time * mphases,
+						dst + res * res * 2 * parameters * time * time2 * slices,
                                                 data->alpha,
-						src + res * res * 2 * parameters * slices * time * mphases);
+						src + res * res * 2 * parameters * time * time2 * slices);
 
 	} else {
 
@@ -121,37 +121,41 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 {
 	auto data = CAST_DOWN(T1inv_s, _data);
 
-	long res = data->dims[0];
+	long res = data->dims[READ_DIM];
 	long parameters = data->dims[COEFF_DIM];
+	long time = data->dims[TIME_DIM];
+	long time2 = data->dims[TIME2_DIM];
 	long slices = data->dims[SLICE_DIM];
-	long mphases = data->dims[TIME2_DIM];
 
 	long dims1[DIMS];
-
 	md_select_dims(DIMS, FFT_FLAGS, dims1, data->dims);
+	
 
-	for (int j = 0; j < mphases; j++) {
+	for (int k = 0; k < slices; k++) {
+		
+		for (int j = 0; j < time2; j++) {
 
-		for (int i = 0; i < slices; i++) {
+			for (int i = 0; i < time; i++) {
 
-			int map = 0;
-			int constrain_flags = data->conf->constrained_maps;
+				int map = 0;
+				int constrain_flags = data->conf->constrained_maps;
 
-			while (constrain_flags) {
+				while (constrain_flags) {
 
-				if (constrain_flags & 1) {
+					if (constrain_flags & 1) {
 
-					debug_printf(DP_DEBUG4, "Chosen constrained maps: %d\n", map);
+						debug_printf(DP_DEBUG4, "Chosen constrained maps: %d\n", map);
 
-					md_zsmax(DIMS, dims1, (_Complex float*)dst + map * res * res
-							+ i * res * res * parameters + j * res * res * parameters * slices,
-						(const _Complex float*)src + map * res * res
-							+ i * res * res * parameters + j * res * res * parameters * slices,
-						data->conf->lower_bound);
+						md_zsmax(DIMS, dims1, (_Complex float*)dst + map * res * res
+							+ i * res * res * parameters + j * res * res * parameters * time + k * res * res * parameters * time2,
+							(const _Complex float*)src + map * res * res
+							+ i * res * res * parameters + j * res * res * parameters * time + k * res * res * parameters * time2,
+							data->conf->lower_bound);
+					}
+
+					constrain_flags >>= 1;
+					map++;	
 				}
-
-				constrain_flags >>= 1;
-				map++;
 			}
 		}
         }
@@ -449,6 +453,8 @@ static void T1inv_apply(const operator_data_t* _data, float alpha, complex float
 	}
 }
 
+
+
 static void T1inv_del(const operator_data_t* _data)
 {
 	auto data = CAST_DOWN(T1inv2_s, _data);
@@ -484,7 +490,7 @@ const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, 
 	debug_print_dims(DP_INFO, DIMS, img_dims);
 
 	auto prox1 = create_prox(img_dims, COEFF_FLAG, conf->wav_reg);
-	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | SLICE_FLAG | TIME2_FLAG));
+	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | TIME_FLAG | TIME2_FLAG | SLICE_FLAG));
 
 	if (1 == conf->not_wav_maps) {
 
@@ -495,7 +501,7 @@ const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, 
 		// auto prox3 = create_prox(map_dims, 0, 0.05);
 		auto prox3 = prox_zero_create(DIMS, map_dims);
 		auto prox4 = operator_p_stack(COEFF_DIM, COEFF_DIM, prox1, prox3);
-		prox2 = op_p_auto_normalize(prox4, ~(COEFF_FLAG | SLICE_FLAG | TIME2_FLAG));
+		prox2 = op_p_auto_normalize(prox4, ~(COEFF_FLAG | TIME_FLAG | TIME2_FLAG | SLICE_FLAG));
 
 		operator_p_free(prox3);
 		operator_p_free(prox4);
