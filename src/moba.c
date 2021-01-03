@@ -52,10 +52,8 @@ static const char usage_str[] = "<kspace> <TI/TE> <output> [<sensitivities>]";
 static const char help_str[] = "Model-based nonlinear inverse reconstruction\n";
 
 
-// TODO:
-static void edge_filter(const long map_dims[DIMS], complex float* dst)
+static void edge_filter1(const long map_dims[DIMS], complex float* dst)
 {
-#if 1
 	float lambda = 2e-3;
 
 	klaplace(DIMS, map_dims, map_dims, READ_FLAG|PHS1_FLAG, dst);
@@ -69,20 +67,21 @@ static void edge_filter(const long map_dims[DIMS], complex float* dst)
 	md_zsmul(DIMS, map_dims, dst, dst, -1. / M_PI);
 	md_zsadd(DIMS, map_dims, dst, dst, 1.0);
 	md_zsmul(DIMS, map_dims, dst, dst, lambda);
+}
 
-#else
+static void edge_filter2(const long map_dims[DIMS], complex float* dst)
+{
 	float beta = 100.;
 
 	klaplace(DIMS, map_dims, map_dims, READ_FLAG|PHS1_FLAG, dst);
 	md_zspow(DIMS, map_dims, dst, dst, 0.5);
 
-	md_zsmul(DIMS, map_dims, dst, dst, -beta*2);
+	md_zsmul(DIMS, map_dims, dst, dst, -beta * 2.);
 	md_zsadd(DIMS, map_dims, dst, dst, beta);
 
 	md_zatanr(DIMS, map_dims, dst, dst);
-	md_zsmul(DIMS, map_dims, dst, dst, -0.1/M_PI);
+	md_zsmul(DIMS, map_dims, dst, dst, -0.1 / M_PI);
 	md_zsadd(DIMS, map_dims, dst, dst, 0.05);
-#endif
 }
 
 
@@ -113,6 +112,7 @@ int main_moba(int argc, char* argv[argc])
 	bool use_gpu = false;
 	bool unused = false;
 	enum mdb_t { MDB_T1, MDB_T2, MDB_MGRE } mode = { MDB_T1 };
+	enum edge_filter_t { EF1, EF2 } k_filter_type = EF1;
 
 	opt_reg_init(&ropts);
 
@@ -151,6 +151,8 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SET('k', &conf.k_filter, "k-space edge filter for non-Cartesian trajectories"),
 		OPT_SET('S', &conf.IR_SS, "use the IR steady-state model"),
 		OPT_FLOAT('P', &conf.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
+		OPTL_SELECT(0, "kfilter-1", enum edge_filter_t, &k_filter_type, EF1, "k-space edge filter 1"),
+		OPTL_SELECT(0, "kfilter-2", enum edge_filter_t, &k_filter_type, EF2, "k-space edge filter 2"),
 		OPT_SET('n', &conf.auto_norm_off, "disable normlization of parameter maps for thresholding"),
 	};
 
@@ -242,6 +244,8 @@ int main_moba(int argc, char* argv[argc])
 	
 	if (0. != conf.IR_phy)
 		img_dims[COEFF_DIM] = 3;
+
+
 
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
@@ -336,6 +340,7 @@ int main_moba(int argc, char* argv[argc])
 
 		psf = compute_psf(DIMS, pat_dims, traj_dims, traj, traj_dims, NULL, wgh_dims, wgh, false, false);
 
+		// TODO: would the "pattern" here have memory issue?
 		fftuc(DIMS, pat_dims, FFT_FLAGS, pattern, psf);
 
 		md_free(wgh);
@@ -373,7 +378,17 @@ int main_moba(int argc, char* argv[argc])
 		md_calc_strides(DIMS, pat_strs, pat_dims, CFL_SIZE);
 
 		complex float* filter = md_alloc(DIMS, map_dims, CFL_SIZE);
-		edge_filter(map_dims, filter);
+
+		switch (k_filter_type) {
+
+		case EF1:
+			edge_filter1(map_dims, filter);
+			break;
+
+		case EF2:
+			edge_filter2(map_dims, filter);
+			break;
+		}
 
 		md_zadd2(DIMS, pat_dims, pat_strs, pattern, pat_strs, pattern, map_strs, filter);
 
