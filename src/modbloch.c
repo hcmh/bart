@@ -109,6 +109,8 @@ int main_modbloch(int argc, char* argv[])
 	double start_time = timestamp();
 
 	float restrict_fov = -1.;
+	float scalingR1 = -1.;
+	float scalingR2 = -1.;
 
 	const char* psf = NULL;
 	const char* trajectory = NULL;
@@ -117,6 +119,7 @@ int main_modbloch(int argc, char* argv[])
 	struct modBlochFit fit_para = modBlochFit_defaults;
 
 	float k_filter = -1.;	// typically 5e-3
+
 	bool out_sens = false;
 	bool inputSP = false;
 	bool use_gpu = false;
@@ -127,6 +130,8 @@ int main_modbloch(int argc, char* argv[])
 
 		OPT_UINT(	'i', 	&conf.iter, 		"", "Number of Newton steps"),
 		OPT_FLOAT(	'R', 	&conf.redu, 		"", "reduction factor"),
+		OPT_FLOAT(	'1', 	&scalingR1, 		"", "scaling dR1"),
+		OPT_FLOAT(	'2', 	&scalingR2, 		"", "scaling dR2"),
 		OPT_FLOAT(	'l', 	&conf.alpha, 		"", "alpha"),
 		OPT_FLOAT(	'm', 	&conf.alpha_min, 	"", "alpha_min"),
 		OPT_UINT(	'o', 	&conf.opt_reg, 		"", "regularization option (0: l2, 1: l1-wav)"),
@@ -474,6 +479,12 @@ int main_modbloch(int argc, char* argv[])
 	
 	// Determine DERIVATIVE and SIGNAL scaling by simulating the applied sequence
 	auto_scale(&fit_para, fit_para.scale, grid_dims, k_grid_data);
+
+	if (-1 != scalingR1)
+		fit_para.scale[0] = scalingR1;
+
+	if (-1 != scalingR2)
+		fit_para.scale[2] = scalingR2;
 
 	debug_printf(DP_INFO,"Scaling:\t%f,\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2], fit_para.scale[3]);
 
