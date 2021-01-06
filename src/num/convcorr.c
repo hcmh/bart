@@ -922,7 +922,7 @@ bool zconvcorr_fwd_im2col_cf_gpu(int N,
 		for (long i = 0; i < data->size; i++){
 
 			complex float* imat_tmp = md_alloc_gpu(1, &imat_size, size);
-			cuda_im2col(imat_tmp, (const complex float*)ptr[1] + i * isize, odims, idims, kdims);
+			cuda_im2col(imat_tmp, (const complex float*)ptr[1] + i * isize, odims, idims, kdims, NULL, NULL);
 
 			blas_matrix_zfmac(	M1, N1, K1,
 						(complex float*)ptr[0] + i * osize,
@@ -985,7 +985,7 @@ bool zconvcorr_bwd_krn_im2col_cf_gpu(int N,
 		for (long i = 0; i < data->size; i++){
 
 			complex float* imat_tmp = md_alloc_gpu(1, &imat_size, size);
-			cuda_im2col(imat_tmp, (const complex float*)ptr[1] + i * isize, odims, idims, kdims);
+			cuda_im2col(imat_tmp, (const complex float*)ptr[1] + i * isize, odims, idims, kdims, NULL, NULL);
 
 			blas_matrix_zfmac(	M1, K1, N1,
 						(complex float*)ptr[0] + i * ksize,
@@ -1055,7 +1055,7 @@ bool zconvcorr_bwd_in_im2col_cf_gpu(int N,
 						);
 
 
-			cuda_im2col_transp((complex float*)ptr[0] + i * isize, imat_tmp , odims, idims, kdims);
+			cuda_im2col_transp((complex float*)ptr[0] + i * isize, imat_tmp , odims, idims, kdims, NULL, NULL);
 
 			md_free(imat_tmp);
 		}

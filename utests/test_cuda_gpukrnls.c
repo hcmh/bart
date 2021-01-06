@@ -43,7 +43,7 @@ static bool test_im2col_loop_in(void)
 	md_copy2(8, idims_mat, MD_STRIDES(8, idims_mat, size), imat_cpu, istrs_mat, in_cpu, size);
 
 	complex float* imat_gpu = md_alloc_gpu(8, idims_mat, CFL_SIZE);
-	cuda_im2col(imat_gpu, in_gpu, odims, idims, kdims);
+	cuda_im2col(imat_gpu, in_gpu, odims, idims, kdims, NULL, NULL);
 
 	complex float* imat_gpu_cpu = md_alloc(8, idims_mat, CFL_SIZE);
 	md_copy(8, idims_mat, imat_gpu_cpu, imat_gpu, size);
@@ -90,7 +90,7 @@ static bool test_im2col_loop_out(void)
 	md_copy2(8, idims_mat, MD_STRIDES(8, idims_mat, size), imat_cpu, istrs_mat, in_cpu, size);
 
 	complex float* imat_gpu = md_alloc_gpu(8, idims_mat, CFL_SIZE);
-	cuda_im2col(imat_gpu, in_gpu, odims, idims, kdims);
+	cuda_im2col(imat_gpu, in_gpu, odims, idims, kdims, NULL, NULL);
 
 	complex float* imat_gpu_cpu = md_alloc(8, idims_mat, CFL_SIZE);
 	md_copy(8, idims_mat, imat_gpu_cpu, imat_gpu, size);
@@ -140,7 +140,7 @@ static bool test_im2col_adj(void)
 	md_copy(8, idims_mat, imat_gpu, imat_cpu, CFL_SIZE);
 
 	md_zadd2(8, idims_mat, istrs_mat, in_cpu, istrs_mat, in_cpu, MD_STRIDES(8, idims_mat, size), imat_cpu);
-	cuda_im2col_transp(in_gpu, imat_gpu, odims, idims, kdims);
+	cuda_im2col_transp(in_gpu, imat_gpu, odims, idims, kdims, NULL, NULL);
 
 	complex float* in_gpu_cpu = md_alloc(5, idims, CFL_SIZE);
 	md_copy(5, idims, in_gpu_cpu, in_gpu, size);

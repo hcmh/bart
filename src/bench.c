@@ -675,7 +675,7 @@ static double bench_im2col_fwd_gpu(long scale)
 
 	double tic = timestamp();
 	for(int i = 0; i < odims[5]; i++)
-		cuda_im2col(imat_tmp, iptr, odims, idims, kdims);
+		cuda_im2col(imat_tmp, iptr, odims, idims, kdims, NULL, NULL);
 	double toc = timestamp();
 
 	md_free(iptr);
