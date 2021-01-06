@@ -17,6 +17,7 @@
 #include "num/blas.h"
 #include "num/rand.h"
 #include "num/init.h"
+#include "num/vecops_strided.h"
 
 #include "misc/nested.h"
 #include "misc/misc.h"
@@ -1165,17 +1166,9 @@ bool test_zconvcorr_fwd(	int N, long odims[N], long ostrs[N], long idims[N], lon
 						idims, istrs,
 						dilation, strides, conv, false);
 
-#if 1
-	//force standard zfmac algorithm
-	NESTED(void, nary_z3op, (struct nary_opt_data_s* data, void* ptr[]))
-	{
-		data->ops->zfmac(data->size, ptr[0], ptr[1], ptr[2]);
-	};
-	optimized_threeop_oii(2 * N, tdims, tostrs, optr_ref, tistrs, iptr, tkstrs, kptr + shift,
-				(size_t[3]){ [0 ... 2] = CFL_SIZE }, nary_z3op);
-#else
+	deactivate_strided_vecops();
 	md_zfmac2(2 * N, tdims, tostrs, optr_ref, tistrs, iptr, tkstrs, kptr + shift);
-#endif
+	activate_strided_vecops();
 
 	long counter_cpu = 0;
 	long counter_gpu = 0;
@@ -1271,17 +1264,9 @@ bool test_zconvcorr_bwd_in(	int N, long odims[N], long ostrs[N], long idims[N], 
 
 
 
-#if 1
-	//force standard zfmac algorithm
-	NESTED(void, nary_z3op, (struct nary_opt_data_s* data, void* ptr[]))
-	{
-		data->ops->zfmac(data->size, ptr[0], ptr[1], ptr[2]);
-	};
-	optimized_threeop_oii(2 * N, tdims, tistrs, iptr_ref, tkstrs, kptr + shift, tostrs, optr,
-				(size_t[3]){ [0 ... 2] = CFL_SIZE }, nary_z3op);
-#else
+	deactivate_strided_vecops();
 	md_zfmac2(2 * N, tdims, tistrs, iptr_ref, tkstrs, kptr + shift, tostrs, optr);
-#endif
+	activate_strided_vecops();
 
 	long counter_cpu = 0;
 	long counter_gpu = 0;
@@ -1375,17 +1360,9 @@ bool test_zconvcorr_bwd_krn(	int N, long odims[N], long ostrs[N], long idims[N],
 						idims, istrs,
 						dilation, strides, conv, false);
 
-#if 1
-	//force standard zfmac algorithm
-	NESTED(void, nary_z3op, (struct nary_opt_data_s* data, void* ptr[]))
-	{
-		data->ops->zfmac(data->size, ptr[0], ptr[1], ptr[2]);
-	};
-	optimized_threeop_oii(2 * N, tdims, tkstrs, kptr_ref + shift, tostrs, optr, tistrs, iptr,
-				(size_t[3]){ [0 ... 2] = CFL_SIZE }, nary_z3op);
-#else
+	deactivate_strided_vecops();
 	md_zfmac2(2 * N, tdims, tkstrs, kptr_ref + shift, tostrs, optr, tistrs, iptr);
-#endif
+	activate_strided_vecops();
 
 	long counter_cpu = 0;
 	long counter_gpu = 0;

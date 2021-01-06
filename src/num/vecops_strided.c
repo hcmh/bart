@@ -929,6 +929,9 @@ static bool simple_s2op(int N_checks, struct simple_s2op_check strided_calls[N_c
 
 bool simple_zfmac(unsigned int N, const long dims[N], const long ostrs[N], complex float* out, const long istrs1[N], const complex float* in1, const long istrs2[N], const complex float* in2)
 {
+	if (!use_strided_vecops)
+		return false;
+
 	if (simple_zconvcorr(N, dims, ostrs, out, istrs1, in1, istrs2, in2))
 		return true;
 
