@@ -1532,3 +1532,310 @@ bool zconvcorr_bwd_krn_inner_matmul_cf(	int N,
 
 	return true;
 }
+
+#if 0 // code which might be used for tiling and im2col
+
+#if 0 // for multind.c
+/**
+ * Computes the next position. Returns true until last index.
+ */
+bool md_next_stepsize(unsigned int D, const long dims[D], unsigned long flags, long pos[D], long stepsize[D])
+{
+	if (0 == D--)
+		return false;
+
+	if (md_next_stepsize(D, dims, flags, pos, stepsize))
+		return true;
+
+	if (MD_IS_SET(flags, D)) {
+
+		assert((0 <= pos[D]) && (pos[D] < dims[D]));
+		
+		pos[D] += stepsize[D];
+
+		if (pos[D] < dims[D])
+			return true;
+
+		pos[D] = 0;
+	}
+
+	return false;
+}
+
+#endif
+
+
+/* *
+ * @args odims = [OC,  1 | OX, OY, ... | N_batch]
+ * @args kdims = [OC, IC | KX, KY, ... |       1]
+ * @args idims = [ 1, IC | IX, IY, ... | N_batch]
+ *
+ * */
+static void convcorr_im2col_in_cf(	long N, void* buffer,
+					const long odims[N], const long kdims[N], const long idims[N],
+					const long istrs[N], const long dilation[N], const long strides[N],
+					void* in, bool transp)
+{
+	long idims_mat[2 * N - 4]; // (IC, KX, KY, ... | OX, OY, ..., N_batch)
+	idims_mat[0] = idims[1];
+	md_copy_dims(N - 3, idims_mat + 1, kdims + 2);
+	md_copy_dims(N - 3, idims_mat + N - 2, odims + 2);
+	idims_mat[2 * N - 5] = idims[N - 1];
+
+	long istrs_mat[2 * N - 4];
+	istrs_mat[0] = istrs[1];
+	istrs_mat[2 * N - 5] = istrs[N - 1];
+
+	for (int i = 0; i < N - 3; i++) {
+
+		istrs_mat[i + 1] = istrs[i + 2] * (NULL == dilation ? 1 : dilation[i + 2]);
+		istrs_mat[N - 2 + i] = istrs[i + 2] * (NULL == strides ? 1 : strides[i + 2]);
+	}
+
+	long istrs_mat_triv[2 * N - 4];
+	md_calc_strides(2 * N - 4, istrs_mat_triv, idims_mat, CFL_SIZE);
+
+	if (transp) {
+
+		complex float* tmp = md_alloc(N, idims, CFL_SIZE);
+		md_clear(N, idims, tmp, CFL_SIZE);
+		md_zadd2(2 * N - 4, idims_mat, istrs_mat_triv, tmp, istrs_mat_triv, tmp, istrs_mat, buffer);
+		md_zadd2(N, idims, istrs, in, istrs, in, MD_STRIDES(N, idims, CFL_SIZE), tmp);
+		md_free(tmp);
+	} else {
+
+		md_copy2(2 * N - 4, idims_mat, istrs_mat_triv, buffer, istrs_mat, in, CFL_SIZE);
+	}
+}
+
+/* *
+ * @args odims = [OC,  1 | OX, OY, ... | N_batch]
+ * @args kdims = [OC, IC | KX, KY, ... |       1]
+ * @args idims = [ 1, IC | IX, IY, ... | N_batch]
+ *
+ * */
+static void convcorr_frw_im2col_cf(	int N,
+					const long odims[N], const long ostrs[N], complex float* out,
+					const long idims[N], const long istrs[N], const complex float* in,
+					const long kdims[N], const long kstrs[N], const complex float* krn,
+					const long dilation[N], const long strides[N], bool conv)
+{
+	long M1 = odims[0];
+	long K1 = md_calc_size(N - 1, kdims + 1);
+	long N1 = md_calc_size(N - 1, odims + 1);
+
+	assert(!conv);
+	
+	bool out_buffer_needed = !md_check_equal_dims(N, ostrs, MD_STRIDES(N, odims, CFL_SIZE), md_nontriv_dims(N, odims));
+	complex float* out_buffer = out;
+	
+	if (out_buffer_needed) {
+	
+		out_buffer = md_alloc(N, odims, CFL_SIZE);
+		md_copy2(N, odims, MD_STRIDES(N, odims, CFL_SIZE), out_buffer, ostrs, out, CFL_SIZE);
+	}
+
+	bool krn_buffer_needed = !md_check_equal_dims(N, kstrs, MD_STRIDES(N, kdims, CFL_SIZE), md_nontriv_dims(N, kdims));
+	const complex float* krn_buffer = krn;
+	
+	if (krn_buffer_needed) {
+	
+		complex float* tmp = md_alloc(N, kdims, CFL_SIZE);
+		md_copy2(N, kdims, MD_STRIDES(N, kdims, CFL_SIZE), tmp, kstrs, krn, CFL_SIZE);
+		krn_buffer = tmp;
+	}
+
+	complex float* in_buffer = md_alloc(2, (long[2]){K1, N1}, CFL_SIZE);
+	convcorr_im2col_in_cf(N, in_buffer, odims, kdims, idims, istrs, dilation, strides, in, false);
+	
+	blas_matrix_zfmac(	M1, N1, K1,
+				out_buffer,
+				krn, 'N',
+				in_buffer, 'N'
+				);
+
+	md_free(in_buffer);
+
+	if (out_buffer_needed) {
+	
+		md_copy2(N, odims, ostrs, out, MD_STRIDES(N, odims, CFL_SIZE), out_buffer, CFL_SIZE);
+		md_free(out_buffer);
+	}
+
+	if (krn_buffer_needed)
+		md_free(krn_buffer);
+}
+
+
+#if 1
+
+static void conv_frw_im2col_tiling(	int N,
+					const long odims[N], const long ostrs[N], complex float* out,
+					const long idims[N], const long istrs[N], const complex float* in,
+					const long kdims[N], const long kstrs[N], const complex float* krn,
+					const long dilation[N], const long strides[N], bool conv)
+{
+
+	long max_tiles[N];
+	for (int i = 0; i < N; i++)
+		max_tiles[i] = 8;
+	
+	if (6 != N) {
+	
+		long pos[N];
+		for (int i = 0; i < N; i++)
+			pos[i] = 0;
+
+		do {
+			long odims_tmp[N];
+			long idims_tmp[N];
+
+			for (int i = 2; i < N; i++)
+				odims_tmp[i] = MIN(max_tiles[i], odims[i] - pos[i]);
+			
+			for (int i = 2; i < N - 1; i++)
+				idims_tmp[i] = ((NULL == strides) ? 1 : strides[i]) * (odims_tmp[i] - 1) + 1 + (kdims[i] - 1) * ((NULL == dilation) ? 1 : dilation[i]);
+
+			odims_tmp[1] = odims[1];
+			odims_tmp[0] = odims[0];
+
+			idims_tmp[1] = idims[1];
+			idims_tmp[0] = idims[0];
+
+			idims_tmp[N - 1] = odims_tmp[N - 1]; 
+
+			long ipos[N];
+			ipos[0] = 0;
+			ipos[1] = 0;
+			for (int i = 2; i < N - 1; i++)
+				ipos[i] = pos[i] * ((NULL == strides) ? 1 : strides[i]);
+			ipos[N - 1] = pos[N - 1];
+
+			convcorr_frw_im2col_cf(	N,
+						odims_tmp, ostrs, &MD_ACCESS(N, ostrs, pos, out),
+						idims_tmp, istrs, &MD_ACCESS(N, istrs, ipos, in),
+						kdims, kstrs, krn,
+						dilation, strides, conv
+						);
+
+		} while (md_next_stepsize(N, odims, ~(MD_BIT(0) | MD_BIT(1)), pos, max_tiles));
+
+	} else {
+		#pragma omp parallel for collapse(4)
+		for(long b = 0; b < odims[5]; b += max_tiles[5])
+		for(long oz = 0; oz < odims[4]; oz += max_tiles[4])
+		for(long oy = 0; oy < odims[3]; oy += max_tiles[3])
+		for(long ox = 0; ox < odims[2]; ox += max_tiles[2]){
+
+			long pos[6] = {0, 0, ox, oy, oz, b};
+
+			long odims_tmp[N];
+			long idims_tmp[N];
+
+			for (int i = 2; i < N; i++)
+				odims_tmp[i] = MIN(max_tiles[i], odims[i] - pos[i]);
+			
+			for (int i = 2; i < N - 1; i++)
+				idims_tmp[i] = ((NULL == strides) ? 1 : strides[i]) * (odims_tmp[i] - 1) + 1 + (kdims[i] - 1) * ((NULL == dilation) ? 1 : dilation[i]);
+
+			odims_tmp[1] = odims[1];
+			odims_tmp[0] = odims[0];
+
+			idims_tmp[1] = idims[1];
+			idims_tmp[0] = idims[0];
+
+			idims_tmp[N - 1] = odims_tmp[N - 1]; 
+
+			long ipos[N];
+			ipos[0] = 0;
+			ipos[1] = 0;
+			for (int i = 2; i < N - 1; i++)
+				ipos[i] = pos[i] * ((NULL == strides) ? 1 : strides[i]);
+			ipos[N - 1] = pos[N - 1];
+
+			convcorr_frw_im2col_cf(	N,
+						odims_tmp, ostrs, &MD_ACCESS(N, ostrs, pos, out),
+						idims_tmp, istrs, &MD_ACCESS(N, istrs, ipos, in),
+						kdims, kstrs, krn,
+						dilation, strides, conv
+						);
+		}
+	}
+}
+
+#endif
+
+bool zconvcorr_fwd_im2col_cf_cpu(int N,
+				long odims[N], long ostrs[N], complex float* out,
+				long idims[N], long istrs[N], const complex float* in,
+				long kdims[N], long kstrs[N], const complex float* krn,
+				unsigned long flags, const long dilation[N], const long strides[N], bool conv)
+{
+#ifdef USE_CUDA
+	if (cuda_ondevice(out))
+		return false;
+#endif
+	size_t size = CFL_SIZE;
+
+	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
+		return false;
+	//if (!check_trivial_strs_dil(5, dilation, strides))
+	//	return false;
+	if (conv)
+		return false;
+
+	long odims_batch[6];
+	long kdims_batch[6];
+	long idims_batch[6];
+
+	md_copy_dims(5, odims_batch, odims);
+	md_copy_dims(5, kdims_batch, kdims);
+	md_copy_dims(5, idims_batch, idims);
+
+	odims_batch[5] = 1;
+	kdims_batch[5] = 1;
+	idims_batch[5] = 1;
+
+	bool include_batch = (odims[5] == idims[5]) && (1 == kdims[5]);
+	include_batch &= (ostrs[5] == md_calc_size(5, odims) * CFL_SIZE);
+	include_batch &= (istrs[5] == md_calc_size(5, idims) * CFL_SIZE);
+
+	if (include_batch) {
+
+		odims_batch[5] = odims[5];
+		idims_batch[5] = idims[5];
+	}
+
+	long osize = md_calc_size(6, odims_batch);
+	long ksize = md_calc_size(6, kdims_batch);
+	long isize = md_calc_size(6, idims_batch);
+
+	long* ptr_odims = &(odims_batch[0]);
+	long* ptr_idims = &(idims_batch[0]);
+	long* ptr_kdims = &(kdims_batch[0]);
+
+	int skip = include_batch ? 6 : 5;
+
+	long mdims[N - skip];
+	md_tenmul_dims(N - skip, mdims, odims + skip, idims + skip, kdims + skip);
+
+	NESTED(void, nary_zconvcorr3D_I2C_CF, (struct nary_opt_data_s* data, void* ptr[]))
+	{
+		for (long i = 0; i < data->size; i++)
+			(true ? conv_frw_im2col_tiling : convcorr_frw_im2col_cf) (	6,
+								ptr_odims, MD_STRIDES(6, ptr_odims, CFL_SIZE), (complex float*)ptr[0] + i * osize,
+								ptr_idims, MD_STRIDES(6, ptr_idims, CFL_SIZE), (const complex float*)ptr[1] + i * isize,
+								ptr_kdims, MD_STRIDES(6, ptr_kdims, CFL_SIZE), (const complex float*)ptr[2] + i * ksize,
+								dilation, strides, conv);
+	};
+
+	optimized_threeop_oii(N - skip, mdims, ostrs + skip, (void*)out, istrs + skip, (void*)in, kstrs + skip, (void*)krn,
+				(size_t[3]){ size * osize, size * isize, size * ksize},
+				nary_zconvcorr3D_I2C_CF);
+
+	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
+
+	return true;
+}
+
+#endif
