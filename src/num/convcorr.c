@@ -25,6 +25,18 @@
 
 #include "convcorr.h"
 
+static bool use_simple_convcorr = true;
+
+static void activate_simple_convcorr(void)
+{
+	use_simple_convcorr = true;
+}
+
+static void deactivate_simple_convcorr(void)
+{
+	use_simple_convcorr = false;
+}
+
 //#define CONVCORR_OPTIMIZE_CPU_ONLY
 //#define CONVCORR_OPTIMIZE_GPU_ONLY
 
@@ -53,13 +65,16 @@ static void optimized_threeop_oii(unsigned int D, const long dim[D], const long 
 	optimized_nop(3, io, D, dim, nstr, nptr, sizes, too);
 }
 
-zconvcorr_fwd_algo_f* algos_fwd_cpu[] = {	zconvcorr_fwd_im2col_cf_cpu,
+zconvcorr_fwd_algo_f* algos_fwd_cpu[] = {	zconvcorr_fwd_inner_matmul_cf,
+						zconvcorr_fwd_im2col_cf_cpu,
 						zconvcorr_fwd_direct_cf};
 
-zconvcorr_bwd_krn_algo_f* algos_bwd_krn_cpu[] = {	zconvcorr_bwd_krn_im2col_cf_cpu,
+zconvcorr_bwd_krn_algo_f* algos_bwd_krn_cpu[] = {	zconvcorr_bwd_krn_inner_matmul_cf,
+							zconvcorr_bwd_krn_im2col_cf_cpu,
 							zconvcorr_bwd_krn_direct_cf};
 
-zconvcorr_bwd_in_algo_f* algos_bwd_in_cpu[] = {	zconvcorr_bwd_in_im2col_cf_cpu,
+zconvcorr_bwd_in_algo_f* algos_bwd_in_cpu[] = {	zconvcorr_bwd_in_inner_matmul_cf,
+						zconvcorr_bwd_in_im2col_cf_cpu,
 						zconvcorr_bwd_in_direct_cf};
 
 #ifdef USE_CUDA
@@ -225,20 +240,9 @@ bool simple_zconvcorr(	unsigned int N, const long dims[N],
 			const long istrs1[N], const complex float* iptr1,
 			const long istrs2[N], const complex float* iptr2)
 {
-#ifdef USE_CUDA
-#ifdef CONVCORR_OPTIMIZE_CPU_ONLY
-	if (cuda_ondevice(optr))
+	if (!use_simple_convcorr)
 		return false;
-#endif
-#ifdef CONVCORR_OPTIMIZE_GPU_ONLY
-	if (!cuda_ondevice(optr))
-		return false;
-#endif
-#else
-#ifdef CONVCORR_OPTIMIZE_GPU_ONLY
-	return false;
-#endif
-#endif
+
 	if (simple_zconvcorr_fwd(N, dims, ostrs, optr, istrs1, iptr1, istrs2, iptr2))
 		return true;
 	if (simple_zconvcorr_bwd_in(N, dims, ostrs, optr, istrs1, iptr1, istrs2, iptr2))
@@ -1426,4 +1430,105 @@ bool test_zconvcorr_bwd_krn(	int N, long odims[N], long ostrs[N], long idims[N],
 	}
 
 	return result;
+}
+
+// don't use any convcorr optimization but rely on md_zfmac2 -> inner kernels such as cgemm are called
+// this is usually fast ...
+bool zconvcorr_fwd_inner_matmul_cf(	int N,
+					long odims[N], long ostrs[N], complex float* out,
+					long idims[N], long istrs[N], const complex float* in,
+					long kdims[N], long kstrs[N], const complex float* krn,
+					unsigned long flags, const long dilation[N], const long strides[N], bool conv)
+{
+#ifdef USE_CUDA
+	if (cuda_ondevice(out))
+		return false;
+#endif
+	size_t size = CFL_SIZE;
+
+	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
+		return false;
+
+	long tdims[2 * N];
+	long tostrs[2 * N];
+	long tistrs[2 * N];
+	long tkstrs[2 * N];
+
+	krn += calc_convcorr_geom_strs_dil(	N, flags,
+						tdims, tostrs, tkstrs, tistrs,
+						odims, ostrs, kdims, kstrs, idims, istrs,
+						dilation, strides, conv, false) / size;
+
+	deactivate_simple_convcorr();
+	md_zfmac2(2 * N, tdims, tostrs, out, tistrs, in, tkstrs, krn);
+	activate_simple_convcorr();
+	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
+
+	return true;
+}
+
+bool zconvcorr_bwd_in_inner_matmul_cf	(int N,
+					long odims[N], long ostrs[N], const complex float* out,
+					long idims[N], long istrs[N], complex float* in,
+					long kdims[N], long kstrs[N], const complex float* krn,
+					unsigned long flags, const long dilation[N], const long strides[N], bool conv)
+{
+#ifdef USE_CUDA
+	if (cuda_ondevice(out))
+		return false;
+#endif
+	size_t size = CFL_SIZE;
+
+	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
+		return false;
+
+	long tdims[2 * N];
+	long tostrs[2 * N];
+	long tistrs[2 * N];
+	long tkstrs[2 * N];
+
+	krn += calc_convcorr_geom_strs_dil(	N, flags,
+						tdims, tostrs, tkstrs, tistrs,
+						odims, ostrs, kdims, kstrs, idims, istrs,
+						dilation, strides, conv, false) / size;
+
+	deactivate_simple_convcorr();
+	md_zfmac2(2 * N, tdims, tistrs, in, tostrs, out, tkstrs, krn);
+	activate_simple_convcorr();
+	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
+
+	return true;
+}
+
+bool zconvcorr_bwd_krn_inner_matmul_cf(	int N,
+					long odims[N], long ostrs[N], const complex float* out,
+					long idims[N], long istrs[N], const complex float* in,
+					long kdims[N], long kstrs[N], complex float* krn,
+					unsigned long flags, const long dilation[N], const long strides[N], bool conv)
+{
+#ifdef USE_CUDA
+	if (cuda_ondevice(out))
+		return false;
+#endif
+	size_t size = CFL_SIZE;
+
+	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
+		return false;
+
+	long tdims[2 * N];
+	long tostrs[2 * N];
+	long tistrs[2 * N];
+	long tkstrs[2 * N];
+
+	krn += calc_convcorr_geom_strs_dil(	N, flags,
+						tdims, tostrs, tkstrs, tistrs,
+						odims, ostrs, kdims, kstrs, idims, istrs,
+						dilation, strides, conv, false) / size;
+
+	deactivate_simple_convcorr();
+	md_zfmac2(2 * N, tdims, tkstrs, krn, tostrs, out, tistrs, in);
+	activate_simple_convcorr();
+	debug_printf(DP_DEBUG3, "conv by %s \n", __func__);
+
+	return true;
 }
