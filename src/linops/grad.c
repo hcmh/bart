@@ -3,10 +3,10 @@
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors: 
+ * Authors:
  * 2014-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
- 
+
 #include <complex.h>
 #include <assert.h>
 #include <strings.h>
@@ -33,8 +33,9 @@ static void grad_dims(unsigned int D, long dims2[D], int d, unsigned int flags, 
 }
 
 
-static void grad_op(unsigned int D, const long dims[D], int d, unsigned int flags, complex float* out, const complex float* in)
+static void grad_op(unsigned int D, const long dims[D], int d, unsigned int flags, unsigned long order, const enum BOUNDARY_CONDITION bc, bool reverse, complex float* out, const complex float* in)
 {
+	assert(1 == order || 2 == order);
 	unsigned int N = bitcount(flags);
 
 	assert(N == dims[d]);
@@ -55,15 +56,17 @@ static void grad_op(unsigned int D, const long dims[D], int d, unsigned int flag
 
 		unsigned int lsb = ffs(flags2) - 1;
 		flags2 = MD_CLEAR(flags2, lsb);
-
-		md_zfdiff2(D, dims1, lsb, strs, (void*)out + i * strs[d], strs1, in);
+		if(1 == order)
+			(reverse ? md_zfdiff_backwards2 : md_zfdiff2)(D, dims1, lsb, bc, strs, (void*)out + i * strs[d], strs1, in);
+		if(2 == order)
+			md_zfdiff_central2(D, dims1, lsb, bc, reverse, strs, (void*)out + i * strs[d], strs1, in);
 	}
 
 	assert(0 == flags2);
 }
 
 
-static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int flags, complex float* out, const complex float* in)
+static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int flags, unsigned long order, const enum BOUNDARY_CONDITION bc, bool reverse, complex float* out, const complex float* in)
 {
 	unsigned int N = bitcount(flags);
 
@@ -91,7 +94,11 @@ static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int
 		unsigned int lsb = ffs(flags2) - 1;
 		flags2 = MD_CLEAR(flags2, lsb);
 
-		md_zfdiff_backwards2(D, dims1, lsb, strs1, tmp, strs, (void*)in + i * strs[d]);
+		if(1 == order)
+			(reverse ? md_zfdiff2 : md_zfdiff_backwards2)(D, dims1, lsb, bc, strs1, tmp, strs, (void*)in + i * strs[d]);
+		if(2 == order)
+			md_zfdiff_central2(D, dims1, lsb, bc, !reverse, strs1, tmp, strs, (void*)in + i * strs[d]);
+
 		md_zadd(D, dims1, out, out, tmp);
 	}
 
@@ -111,6 +118,9 @@ struct grad_s {
 	int d;
 	long* dims;
 	unsigned long flags;
+	unsigned int order;
+	bool reverse;
+	enum BOUNDARY_CONDITION bc;
 };
 
 static DEF_TYPEID(grad_s);
@@ -119,14 +129,14 @@ static void grad_op_apply(const linop_data_t* _data, complex float* dst, const c
 {
 	const auto data = CAST_DOWN(grad_s, _data);
 
-	grad_op(data->N, data->dims, data->d, data->flags, dst, src);
+	grad_op(data->N, data->dims, data->d, data->flags, data->order, data->bc, data->reverse, dst, src);
 }
-	
+
 static void grad_op_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(grad_s, _data);
 
-	grad_adjoint(data->N, data->dims, data->d, data->flags, dst, src);
+	grad_adjoint(data->N, data->dims, data->d, data->flags, data->order, data->bc, data->reverse, dst, src);
 }
 
 static void grad_op_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
@@ -136,8 +146,8 @@ static void grad_op_normal(const linop_data_t* _data, complex float* dst, const 
 	complex float* tmp = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
 
 	// this could be implemented more efficiently
-	grad_op(data->N, data->dims, data->d, data->flags, tmp, src);
-	grad_adjoint(data->N, data->dims, data->d, data->flags, dst, tmp);
+	grad_op(data->N, data->dims, data->d, data->flags, data->order, data->bc, data->reverse, tmp, src);
+	grad_adjoint(data->N, data->dims, data->d, data->flags, data->order, data->bc, data->reverse, dst, tmp);
 
 	md_free(tmp);
 }
@@ -150,8 +160,7 @@ static void grad_op_free(const linop_data_t* _data)
 	xfree(data);
 }
 
-struct linop_s* linop_grad_create(long N, const long dims[N], int d, unsigned int flags)
-{
+static struct linop_s* linop_fd_create(long N, const long dims[N], int d, unsigned int flags, unsigned int order, const enum BOUNDARY_CONDITION bc, bool reverse) {
 	PTR_ALLOC(struct grad_s, data);
 	SET_TYPEID(grad_s, data);
 
@@ -181,8 +190,31 @@ struct linop_s* linop_grad_create(long N, const long dims[N], int d, unsigned in
 
 	data->dims = *TYPE_ALLOC(long[N + 1]);
 
+	data->order = order;
+	data->reverse = reverse;
+	data->bc = bc;
+
 	md_copy_dims(NO, data->dims, dims2);
 
 	return linop_create(NO, dims2, N, dims, CAST_UP(PTR_PASS(data)), grad_op_apply, grad_op_adjoint, grad_op_normal, NULL, grad_op_free);
 }
 
+struct linop_s* linop_grad_create(long N, const long dims[N], int d, unsigned int flags)
+{
+	return linop_fd_create(N, dims, d, flags, 1, BC_PERIODIC, false);
+}
+
+struct linop_s* linop_div_create(long N, const long dims[N], int d, unsigned int flags)
+{
+	PTR_ALLOC(struct linop_s, op2);
+
+	assert(dims[d] == bitcount(flags));
+	long gdims[N];
+	md_select_dims(N, ~MD_BIT(d), gdims, dims);
+
+	auto op = linop_fd_create(N, gdims, d, flags, 1, BC_ZERO, true);
+	op2 = linop_get_adjoint(op);
+	linop_free(op);
+
+	return PTR_PASS(op2);
+}

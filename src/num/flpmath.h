@@ -16,6 +16,7 @@
 #define CDL_SIZE	sizeof(_Complex double)
 #define  DL_SIZE	sizeof(double)
 
+enum BOUNDARY_CONDITION {BC_PERIODIC, BC_ZERO}; 
 
 extern void md_mul2(unsigned int D, const long dim[__VLA(D)], const long ostr[__VLA(D)], float* optr, const long istr1[__VLA(D)], const float* iptr1, const long istr2[__VLA(D)], const float* iptr2);
 extern void md_mul(unsigned int D, const long dim[__VLA(D)], float* optr, const float* iptr1, const float* iptr2);
@@ -340,15 +341,17 @@ extern void md_smin(unsigned int D, const long dim[__VLA(D)], float* optr, const
 extern void md_smax2(unsigned int D, const long dim[__VLA(D)], const long ostr[__VLA(D)], float* optr, const long istr[__VLA(D)], const float* iptr, float val);
 extern void md_smax(unsigned int D, const long dim[__VLA(D)], float* optr, const float* iptr, float val);
 
-extern void md_fdiff2(unsigned int D, const long dims[__VLA(D)], unsigned int d, const long ostr[__VLA(D)], float* out, const long istr[__VLA(D)], const float* in);
-extern void md_fdiff(unsigned int D, const long dims[__VLA(D)], unsigned int d, float* out, const float* in);
-extern void md_fdiff_backwards2(unsigned int D, const long dims[__VLA(D)], unsigned int d, const long ostr[__VLA(D)], float* out, const long istr[__VLA(D)], const float* in);
-extern void md_fdiff_backwards(unsigned int D, const long dims[__VLA(D)], unsigned int d, float* out, const float* in);
+extern void md_fdiff2(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[__VLA(D)], float* out, const long istr[__VLA(D)], const float* in);
+extern void md_fdiff(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, float* out, const float* in);
+extern void md_fdiff_backwards2(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[__VLA(D)], float* out, const long istr[__VLA(D)], const float* in);
+extern void md_fdiff_backwards(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, float* out, const float* in);
 
-extern void md_zfdiff2(unsigned int D, const long dims[__VLA(D)], unsigned int d, const long ostr[__VLA(D)], _Complex float* out, const long istr[__VLA(D)], const _Complex float* in);
-extern void md_zfdiff(unsigned int D, const long dims[__VLA(D)], unsigned int d, _Complex float* out, const _Complex float* in);
-extern void md_zfdiff_backwards2(unsigned int D, const long dims[__VLA(D)], unsigned int d, const long ostr[__VLA(D)], _Complex float* out, const long istr[__VLA(D)], const _Complex float* in);
-extern void md_zfdiff_backwards(unsigned int D, const long dims[__VLA(D)], unsigned int d, _Complex float* out, const _Complex float* in);
+extern void md_zfdiff2(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[__VLA(D)], _Complex float* out, const long istr[__VLA(D)], const _Complex float* in);
+extern void md_zfdiff(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, _Complex float* out, const _Complex float* in);
+extern void md_zfdiff_backwards2(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[__VLA(D)], _Complex float* out, const long istr[__VLA(D)], const _Complex float* in);
+extern void md_zfdiff_backwards(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, _Complex float* out, const _Complex float* in);
+extern void md_zfdiff_central2(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, _Bool reverse, const long ostr[__VLA(D)], _Complex float* out, const long istr[__VLA(D)], const _Complex float* in);
+extern void md_zfdiff_central(unsigned int D, const long dims[__VLA(D)], unsigned int d, const enum BOUNDARY_CONDITION bc, _Bool reverse,  _Complex float* out, const _Complex float* in);
 
 
 extern void md_zfftmod(unsigned int D, const long dim[__VLA(D)], _Complex float* optr, const _Complex float* iptr, _Bool inv, double phase);
