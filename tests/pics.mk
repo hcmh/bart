@@ -1,4 +1,6 @@
 
+# for math in lowmem test
+SHELL=/bin/bash
 
 
 tests/test-pics-pi: pics scale nrmse $(TESTS_OUT)/shepplogan.ra $(TESTS_OUT)/shepplogan_coil_ksp.ra $(TESTS_OUT)/coils.ra
@@ -324,6 +326,23 @@ tests/test-pics-manifold: phantom ones transpose flip join reshape resize laplac
 	$(TOOLDIR)/join 10 im0.ra  im0.ra  im1.ra  im0.ra  im2.ra  im1.ra  im2.ra  im.ra  				;\
 	$(TOOLDIR)/nrmse -t0.12 rec_m2.ra  im.ra  						;\
 	$(TOOLDIR)/nrmse -t0.12 rec_m1.ra  im.ra 						;\
+
+# Without limiting the number of threads, this takes a very long time. The process appears
+# to sleep for most of it, so it seems to be parallelization overhead.
+tests/test-pics-lowmem: traj phantom repmat ones  pics nrmse
+	set +e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
+	export OMP_NUM_THREADS=4							;\
+	$(TOOLDIR)/traj -x 16 -y 3 -D -r t.ra						;\
+	$(TOOLDIR)/phantom -tt.ra -k k0.ra						;\
+	$(TOOLDIR)/repmat 5 200 k0.ra k1.ra						;\
+	$(TOOLDIR)/repmat 6 200 k1.ra k2.ra						;\
+	$(TOOLDIR)/ones 2 4 4 s.ra							;\
+	if [ $(( 100 * `$(TOOLDIR)/tests/print_max_rss.sh $(TOOLDIR)/pics -U -tt.ra k2.ra s.ra r1.ra` )) -ge \
+	      $(( 75 * `$(TOOLDIR)/tests/print_max_rss.sh $(TOOLDIR)/pics    -tt.ra k2.ra s.ra r2.ra` )) ] ; then \
+	     	echo "-U/--lowmem failed to reduce memory usage!"			;\
+		false									;\
+	fi										;\
+	$(TOOLDIR)/nrmse -t 0.0005 r1.ra r2.ra						;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
@@ -335,7 +354,7 @@ TESTS += tests/test-pics-weights tests/test-pics-noncart-weights
 TESTS += tests/test-pics-warmstart tests/test-pics-batch
 TESTS += tests/test-pics-tedim tests/test-pics-bp-noncart
 TESTS += tests/test-pics-basis tests/test-pics-basis-noncart tests/test-pics-basis-noncart-memory
-TESTS += tests/test-pics-basis-noncart-memory2
+#TESTS += tests/test-pics-lowmem
 TESTS += tests/test-pics-noncart-sms
 TESTS += tests/test-pics-manifold
 

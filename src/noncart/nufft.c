@@ -261,6 +261,7 @@ complex float* compute_psf(unsigned int N, const long img_dims[N], const long tr
 	struct nufft_conf_s conf = nufft_conf_defaults;
 	conf.periodic = periodic;
 	conf.toeplitz = false;	// avoid infinite loop
+	conf.lowmem = lowmem;
 
 
 	debug_printf(DP_DEBUG2, "nufft kernel dims: ");
@@ -894,6 +895,91 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 }
 
 
+static void split_nufft_adjoint (const struct nufft_data* data, int ND, complex float* grid, const complex float* src)
+{
+	debug_printf(DP_DEBUG1, "nufft_adj split calculation for lowmem\n");
+
+	// FFT_FLAGS, because the image dimensions can always occur in the trajectory
+
+	long nontriv_traj_flags = FFT_FLAGS | md_nontriv_dims(data->N, data->trj_dims);
+
+	long cm2_reduced_dims[ND];
+	md_select_dims(ND, nontriv_traj_flags, cm2_reduced_dims, data->cm2_dims);
+
+
+	// everything not in traj dims is done separately
+
+	long max_dims[ND];
+	md_set_dims(ND, max_dims, 1);
+	md_max_dims(ND, ~nontriv_traj_flags, max_dims, data->cm2_dims, data->ksp_dims);
+
+	long iter_dims[data->N];
+
+	// All dimension not in the nontriv_traj_flags and all dimensions in ksp dims but not in cm2 dims
+	// We need to exclude these last dimensions, because we have to sum over sum in the gridding procedure
+
+	long iter_flags = ~(  nontriv_traj_flags
+			    | (  md_nontriv_dims(ND, data->ksp_dims)
+			       & ~md_nontriv_dims(ND, data->cm2_dims)));
+
+	md_select_dims(data->N, iter_flags, iter_dims, max_dims);
+
+	long ksp_reduced_dims[ND];
+	md_select_dims(ND, nontriv_traj_flags, ksp_reduced_dims, data->ksp_dims);
+
+	long ksp_reduced_strs[ND];
+	md_calc_strides(ND, ksp_reduced_strs, ksp_reduced_dims, CFL_SIZE);
+
+	long ksp_strs[ND];
+	md_calc_strides(ND, ksp_strs, data->ksp_dims, CFL_SIZE);
+
+	long cml_reduced_dims[ND];
+	cml_reduced_dims[data->N] = data->cml_dims[data->N];
+	md_select_dims(data->N, nontriv_traj_flags, cml_reduced_dims, data->cml_dims);
+
+	long cml_reduced_strs[ND];
+	md_calc_strides(ND, cml_reduced_strs, cml_reduced_dims, CFL_SIZE);
+
+
+	complex float* grid_reduced = md_alloc(ND, cml_reduced_dims, CFL_SIZE);
+	complex float* gridX = md_alloc(ND, cm2_reduced_dims, CFL_SIZE);
+	complex float* src_reduced = md_alloc(ND, ksp_reduced_dims, CFL_SIZE);
+
+	long pos[ND];
+	md_set_dims(ND, pos, 0L);
+
+	do {
+		// sum over additional dimensions in the k-space
+		long sum_dims[ND];
+		long sum_flags = ~(nontriv_traj_flags | iter_flags);
+		md_select_dims(ND, sum_flags, sum_dims, max_dims);
+
+		md_clear(ND, cm2_reduced_dims, gridX, CFL_SIZE);
+
+		do {
+			md_copy_block2(data->N, pos, ksp_reduced_dims, ksp_reduced_strs, src_reduced, data->ksp_dims, ksp_strs, src, CFL_SIZE);
+
+			grid2(&data->grid_conf, ND, data->trj_dims, data->traj, cm2_reduced_dims, gridX, ksp_reduced_dims, src_reduced);
+
+		} while(md_next(ND, sum_dims, sum_flags, pos));
+
+
+		md_decompose(data->N, data->factors, cml_reduced_dims, grid_reduced, cm2_reduced_dims, gridX, CFL_SIZE);
+
+		md_copy_block2(ND, pos, data->cml_dims, data->cml_strs, grid, cml_reduced_dims, cml_reduced_strs, grid_reduced, CFL_SIZE);
+
+	} while(md_next(data->N, iter_dims, ~0L, pos));
+
+	md_zmulc2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, data->fftmod);
+
+	md_free(grid_reduced);
+	md_free(gridX);
+	md_free(src_reduced);
+}
+
+
+
+
 // Adjoint: from kspace to image
 static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
 {
@@ -922,19 +1008,32 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 		src = bdat;
 	}
 
-	complex float* gridX = md_calloc(data->N, data->cm2_dims, CFL_SIZE);
+	complex float* grid = md_alloc(ND, data->cml_dims, CFL_SIZE);
+	complex float* gridX = NULL;
 
-	grid2(&data->grid_conf, ND, data->trj_dims, data->traj, data->cm2_dims, gridX, data->ksp_dims, src);
+	if (data->conf.lowmem) {
+
+		split_nufft_adjoint(data, ND, grid, src);
+
+	} else {
+
+		gridX = md_calloc(data->N, data->cm2_dims, CFL_SIZE);
+
+		grid2(&data->grid_conf, ND, data->trj_dims, data->traj, data->cm2_dims, gridX, data->ksp_dims, src);
+	}
 
 	md_free(bdat);
 	md_free(wdat);
 
+	if (!data->conf.lowmem) {
 
-	complex float* grid = md_alloc(ND, data->cml_dims, CFL_SIZE);
+		md_decompose(data->N, data->factors, data->cml_dims, grid, data->cm2_dims, gridX, CFL_SIZE);
 
-	md_decompose(data->N, data->factors, data->cml_dims, grid, data->cm2_dims, gridX, CFL_SIZE);
-	md_free(gridX);
-	md_zmulc2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, data->fftmod);
+		md_free(gridX);
+
+		md_zmulc2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, data->fftmod);
+	}
+
 	linop_adjoint(data->fft_op, ND, data->cml_dims, grid, ND, data->cml_dims, grid);
 
 	md_clear(ND, data->cim_dims, dst, CFL_SIZE);
@@ -1128,7 +1227,7 @@ void estimate_im_dims(int N, unsigned long flags, long dims[N], const long tdims
 
 		if (MD_IS_SET(flags, j)) {
 
-			dims[t] = (0. == max_dims[t]) ? 1 : (2 * (long)((2. * max_dims[t] + 1.5) / 2.));
+			dims[t] = (0. == max_dims[t]) ? 1 : (2 * ceilf(max_dims[t]));
 			t++;
 		}
 	}

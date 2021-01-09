@@ -15,10 +15,6 @@
 #define GYRO 42.57747892
 #endif
 
-#ifndef FATPEAKS
-#define FATPEAKS 6
-#endif
-
 enum mri_dims {
 	READ_DIM,
 	PHS1_DIM,

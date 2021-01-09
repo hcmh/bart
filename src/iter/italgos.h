@@ -90,6 +90,7 @@ inline void iter_op_arr_call(struct iter_op_arr_s op, int NO, unsigned long ofla
 
 struct iter_monitor_s;
 struct monitor_iter6_s;
+
 float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 	long N,
 	const struct vec_iter_s* vops,
@@ -239,3 +240,4 @@ void iPALM(	long NI, long isize[__VLA(NI)], enum IN_TYPE in_type[__VLA(NI)], flo
 #include "misc/cppwrap.h"
 
 #endif // __ITALGOS_H
+

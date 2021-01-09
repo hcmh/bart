@@ -76,6 +76,7 @@ int main_nlinv(int argc, char* argv[argc])
 	bool scale_im = false;
 	bool use_gpu = false;
 	float scaling = -1.;
+	bool nufft_lowmem = false;
 
 	const struct opt_s opts[] = {
 
@@ -98,8 +99,9 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPTL_SET('n', "noncart", &conf.noncart, "(non-Cartesian)"),
-  		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
 		OPT_FLOAT('w', &scaling, "val", "inverse scaling of the data"),
+  		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
+		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 	};
 
 	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -143,7 +145,6 @@ int main_nlinv(int argc, char* argv[argc])
 	md_copy_dims(DIMS, dims, ksp_dims);
 	dims[MAPS_DIM] = nmaps;
 
-
 	complex float* traj = NULL;
 	long trj_dims[DIMS];
 
@@ -153,11 +154,17 @@ int main_nlinv(int argc, char* argv[argc])
 
 		traj = load_cfl(trajectory, DIMS, trj_dims);
 
+		estimate_im_dims(DIMS, FFT_FLAGS, dims, trj_dims, traj);
+		debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
+
 		md_zsmul(DIMS, trj_dims, traj, traj, 2.);
 
-		//if (0 == md_calc_size(3, sens_dims))
-			estimate_fast_sq_im_dims(3, dims, trj_dims, traj);
-	}
+		for (unsigned int i = 0; i < DIMS; i++)
+			if (MD_IS_SET(FFT_FLAGS, i) && (1 < dims[i]))
+				dims[i] *= 2;
+
+		md_copy_dims(DIMS - 3, dims + 3, ksp_dims + 3);
+	}	
 
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
@@ -272,7 +279,7 @@ int main_nlinv(int argc, char* argv[argc])
 
 		md_select_dims(DIMS, ~(COIL_FLAG|MAPS_FLAG), psf_dims, sens_dims);
 
-		psf = compute_psf(DIMS, psf_dims, trj_dims, traj, trj_dims, NULL, pat_dims, pattern, false, false);
+		psf = compute_psf(DIMS, psf_dims, trj_dims, traj, trj_dims, NULL, pat_dims, pattern, false, nufft_lowmem);
 
 		fftuc(DIMS, psf_dims, FFT_FLAGS, psf, psf);
 
@@ -283,7 +290,6 @@ int main_nlinv(int argc, char* argv[argc])
 				psf_sc *= 2.;
 
 		md_zsmul(DIMS, psf_dims, psf, psf, psf_sc);
-
 		debug_printf(DP_DEBUG3, "finished\n");
 
 
@@ -293,6 +299,7 @@ int main_nlinv(int argc, char* argv[argc])
 
 		struct nufft_conf_s nufft_conf = nufft_conf_defaults;
 		nufft_conf.toeplitz = false;
+		nufft_conf.lowmem = nufft_lowmem;
 
 		nufft_op = nufft_create(DIMS, ksp_dims, kgrid_dims, trj_dims, traj, NULL, nufft_conf);
 

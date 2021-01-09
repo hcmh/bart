@@ -137,14 +137,18 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 
 		if (conf->img_space_coils) { // transform coils back to k-space
 
-			complex float* coil_tmp = md_alloc(DIMS, coil_dims, CFL_SIZE);
-			ifftmod(DIMS, coil_dims, mconf.fft_flags, coil_tmp, ref + skip);
-			noir_back_coils(nl.linop, coil_tmp, coil_tmp);
-			md_copy(DIMS, imgs_dims, xref, ref, CFL_SIZE);
-			md_copy(DIMS, coil_dims, xref + skip, coil_tmp, CFL_SIZE);
-			md_free(coil_tmp);
+			complex float* ref_buf = md_alloc(1, d1, CFL_SIZE);
 
-		} else {
+			md_copy(1, d1, ref_buf, ref, CFL_SIZE);
+
+			ifftmod(DIMS, coil_dims, mconf.fft_flags, ref_buf + skip, ref + skip);
+			noir_back_coils(nl.linop, ref_buf + skip, ref_buf + skip);
+
+			md_copy(1, d1, xref, ref_buf, CFL_SIZE);
+
+			md_free(ref_buf);
+
+		} else  {
 
 			md_copy(1, d1, xref, ref, CFL_SIZE);
 		}

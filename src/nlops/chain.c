@@ -284,7 +284,7 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 
 	assert(a < II);
 	assert(b < II);
-        assert(a < b);
+	assert(a < b);
 
 	PTR_ALLOC(struct nlop_s, n);
 	PTR_ALLOC(const struct linop_s*[II-1][OO], der);
@@ -308,7 +308,6 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 				(*der)[i][o] = linop_plus(nlop_get_derivative(x, o, ip), nlop_get_derivative(x, o, b));
 			else
 				(*der)[i][o] = linop_clone(nlop_get_derivative(x, o, ip));
-
 		}
 	}
 

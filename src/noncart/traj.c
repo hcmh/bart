@@ -5,7 +5,7 @@
  *
  * 2014-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2018-2020 Sebastian Rosenzweig <sebastian.rosenzweig@med.uni-goettingen.de>
- * 2019 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ * 2019-2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>

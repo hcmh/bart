@@ -230,7 +230,7 @@ void IR_bSSFP_model(const struct signal_model* data, int N, complex float out[N]
 
 
 /*
- * multi gradient echo model (WFR2S)
+ * multi gradient echo model (R2S)
  */
 const struct signal_model signal_multi_grad_echo_defaults = {
 
@@ -244,11 +244,27 @@ const struct signal_model signal_multi_grad_echo_defaults = {
 };
 
 
+/*
+ * multi gradient echo model (WFR2S)
+ */
+const struct signal_model signal_multi_grad_echo_fat = {
+
+	.m0 = 1.,
+	.m0_water = 0.8,
+	.m0_fat = 0.2,
+	.t2star = .05, // s
+	.off_reson = 20, // Hz
+	.te = 1.6 * 1.E-3, // s
+	.b0 = 3., // Tesla
+};
+
+
 complex float calc_fat_modulation(float b0, float TE)
 {
 	/* refer to:
 	   ISMRM water/fat toolbox
 	 */
+	enum { FATPEAKS = 6 };
 	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60 };
 	float amp[FATPEAKS] = { 0.087, 0.693, 0.128, 0.004, 0.039, 0.048 };
 

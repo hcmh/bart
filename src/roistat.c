@@ -35,7 +35,7 @@ int main_roistat(int argc, char* argv[argc])
 	enum stat { ALL, COUNT, SUM, MEAN, STD, VAR, ENERGY } stat = ALL;
 
 	const struct opt_s opts[] = {
-	
+
 		OPT_SET('b', &bessel, "Bessel's correction, i.e. 1 / (n - 1)"),
 		OPT_SELECT('C', enum stat, &stat, COUNT, "voxel count"),
 		OPT_SELECT('S', enum stat, &stat, SUM, "sum"),
@@ -65,15 +65,15 @@ int main_roistat(int argc, char* argv[argc])
 	const char* var_name = NULL;
 
 	if (4 == argc) {
-		
+
 		switch (stat) {
 
-		case COUNT: 
+		case COUNT:
 			pat_name = argv[3];
 			break;
 
-		case SUM: 
-		case MEAN: 
+		case SUM:
+		case MEAN:
 			avg_name = argv[3];
 			break;
 
@@ -114,7 +114,7 @@ int main_roistat(int argc, char* argv[argc])
 	long ostrs[DIMS];
 	md_calc_strides(DIMS, ostrs, odims, CFL_SIZE);
 
-	
+
 	debug_print_dims(DP_DEBUG1, DIMS, odims);
 
 

@@ -18,7 +18,6 @@ struct nlop_run_stats_s;
 typedef struct nlop_data_s { TYPEID* TYPEID; const struct op_options_s* options; struct nlop_run_stats_s* stats; } nlop_data_t;
 
 typedef void (*nlop_fun_t)(const nlop_data_t* _data, complex float* dst, const complex float* src);
-
 typedef void (*nlop_p_fun_t)(const nlop_data_t* _data, unsigned int o, unsigned int i, float lambda, complex float* dst, const complex float* src);
 typedef void (*nlop_der_fun_t)(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src);
 

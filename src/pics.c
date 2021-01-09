@@ -183,8 +183,8 @@ int main_pics(int argc, char* argv[argc])
 		OPT_FLOAT('P', &bpsense_eps, "eps", "Basis Pursuit formulation, || y- Ax ||_2 <= eps"),
 		OPT_SELECT('a', enum algo_t, &algo, ALGO_PRIDU, "select Primal Dual"),
 		OPTL_SET('M', "sms", &sms, "Simultaneous Multi-Slice reconstruction"),
-		OPT_SET('U', &nuconf.lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_STRING('Q', &Q_file, "file", "Q. Laplace L = QQH."),
+		OPTL_SET('U', "lowmem", &nuconf.lowmem, "Use low-mem mode of the nuFFT"),
 	};
 
 
