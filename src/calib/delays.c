@@ -212,12 +212,14 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, bool b0, flo
 						A = 0.;
 						float N = 0.;
 
-						for (int c = 0; c < channels; c++)
-							A += spoke_i[l + c * ROI] * conjf(spoke_j[m + c * ROI]);
+						for (int c = 0; c < channels; c++) {
 
-						for (int c = 0; c < channels; c++)
-							//N += powf(cabsf(spoke_j[m + c * ROI]), 2.);
-							N += cabsf(spoke_i[l + c * ROI]) * cabsf(spoke_j[m + c * ROI]);
+							complex float si = spoke_i[l + c * ROI];
+							complex float sj = spoke_j[m + c * ROI];
+
+							A += si * conjf(sj);
+							N += cabsf(si) * cabsf(sj);
+						}
 
 						A /= N;
 					}
