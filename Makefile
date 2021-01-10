@@ -378,10 +378,10 @@ ifeq ($(BUILDTYPE), MacOSX)
 BLAS_L := -L$(BLAS_BASE)/lib -lopenblas
 else
 ifeq ($(NOLAPACKE),1)
-BLAS_L := -L$(BLAS_BASE)/lib -llapack -lblas
+BLAS_L := -L$(BLAS_BASE)/lib -llapack -lopenblas
 CPPFLAGS += -Isrc/lapacke
 else
-BLAS_L := -L$(BLAS_BASE)/lib -llapacke -lblas
+BLAS_L := -L$(BLAS_BASE)/lib -llapacke -lopenblas
 endif
 endif
 endif
