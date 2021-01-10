@@ -35,27 +35,6 @@
 #include "recon_T1.h"
 
 
-struct moba_conf moba_defaults = {
-
-	.iter = 8,
-	.opt_reg = 1,
-	.alpha = 1.,
-	.alpha_min = 0.,
-	.redu = 2.,
-	.step = 0.9,
-	.lower_bound = 0.,
-	.tolerance = 0.01,
-	.inner_iter = 250,
-	.noncartesian = false,
-	.sms = false,
-	.MOLLI = false,
-        .k_filter = false,
-	.IR_SS = false,
-	.IR_phy = 0.,
-	.algo = 3,
-        .rho = 0.01,
-	.auto_norm_off = false,
-};
 
 
 void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* TI_t1relax, const complex float* kspace_data, bool usegpu)
