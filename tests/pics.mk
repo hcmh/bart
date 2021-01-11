@@ -326,6 +326,8 @@ tests/test-pics-manifold: phantom ones transpose flip join reshape resize laplac
 	$(TOOLDIR)/join 10 im0.ra  im0.ra  im1.ra  im0.ra  im2.ra  im1.ra  im2.ra  im.ra  				;\
 	$(TOOLDIR)/nrmse -t0.12 rec_m2.ra  im.ra  						;\
 	$(TOOLDIR)/nrmse -t0.12 rec_m1.ra  im.ra 						;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
 
 # Without limiting the number of threads, this takes a very long time. The process appears
 # to sleep for most of it, so it seems to be parallelization overhead.
@@ -343,8 +345,6 @@ tests/test-pics-lowmem: traj phantom repmat ones  pics nrmse
 		false									;\
 	fi										;\
 	$(TOOLDIR)/nrmse -t 0.0005 r1.ra r2.ra						;\
-	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
-	touch $@
 
 
 
