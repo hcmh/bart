@@ -563,10 +563,11 @@ UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test
 UTARGETS_GPU += test_cuda_gpukrnls test_cudafft test_cuda_flpmath2 test_cuda_memcache_clear
 
 # lib simu
-UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_ode_simu test_signals
+UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_biot_savart_fft test_ode_simu test_signals
 MODULES_test_ode_bloch += -lsimu
 MODULES_test_tsegf += -lsimu
 MODULES_test_biot_savart += -lsimu
+MODULES_test_biot_savart_fft += -lsimu -llinops
 MODULES_test_ode_simu += -lsimu
 MODULES_test_signals += -lsimu
 
