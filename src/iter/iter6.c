@@ -219,177 +219,141 @@ static const struct iter_dump_s* iter6_dump_default_create(const char* base_file
 	return iter_dump_default_create(base_filename, save_mod, NI, save_flag, D, dims);
 }
 
+static const struct operator_s* get_update_operator(iter6_conf* conf, int N, const long dims[N], long numbatches)
+{
+	auto conf_adadelta = CAST_MAYBE(iter6_adadelta_conf, conf);
+	if (NULL != conf_adadelta)
+		return operator_adadelta_update_create(N, dims, conf->learning_rate, conf_adadelta->rho, 1.e-7);
+		
+	auto conf_sgd = CAST_MAYBE(iter6_sgd_conf, conf);
+	if (NULL != conf_sgd)
+		return operator_sgd_update_create(N, dims, conf->learning_rate);
+
+	auto conf_adam = CAST_MAYBE(iter6_adam_conf, conf);
+	if (NULL != conf_adam)
+		return operator_adam_update_create(N, dims, conf->learning_rate, conf_adam->beta1, conf_adam->beta2, conf_adam->epsilon, numbatches * conf_adam->reset_epoch);
+
+	error("iter6_conf not SGD-like!\n");
+	return NULL;
+}
+
+void iter6_sgd_like(	iter6_conf* conf,
+			const struct nlop_s* nlop,
+			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
+			long NO, enum OUT_TYPE out_type[NO],
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor)
+{
+	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
+	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
+	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
+
+	struct iter_op_p_s prox_iter[NI];
+	for (unsigned int i = 0; i < NI; i++)
+		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
+
+	long isize[NI];
+	long osize[NO];
+
+	//array of update operators
+	const struct operator_s* upd_ops[NI][NI];
+	for (int i = 0; i < NI; i++) {
+
+		for (int j = 0; j < NI; j++)
+			upd_ops[i][j] = NULL;
+		
+		upd_ops[i][i] = get_update_operator(conf, nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, numbatches);
+		
+		if ((0.0 != conf->clip_norm) || (0.0 != conf->clip_val)) {
+
+			const struct operator_s* tmp1 = operator_clip_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->clip_norm, conf->clip_val);
+			const struct operator_s* tmp2 = upd_ops[i][i];
+			upd_ops[i][i] = operator_chain(tmp1, tmp2);
+			operator_free(tmp1);
+			operator_free(tmp2);
+		}
+	}
+
+	struct iter6_op_arr_s upd_ops_data = { { &TYPEID(iter6_op_arr_s) }, NI, NI, &(upd_ops[0][0])};
+	struct iter_op_arr_s upd_op_arr ={iter6_op_arr_fun_diag, CAST_UP(&upd_ops_data)};
+
+
+	for (int i = 0; i < NI; i++)
+		isize[i] = 2 * md_calc_size(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims);
+	for (int o = 0; o < NO; o++)
+		osize[o] = 2 * md_calc_size(nlop_generic_codomain(nlop, o)->N, nlop_generic_codomain(nlop, o)->dims);
+
+	//gpu ref (dst[i] can be null if batch_gen)
+	float* gpu_ref = NULL;
+	for (int i = 0; i < NI; i++)
+		if (IN_OPTIMIZE == in_type[i])
+			gpu_ref = dst[i];
+	assert(NULL != gpu_ref);
+
+	bool free_monitor = (NULL == monitor);
+	if (free_monitor)
+		monitor = monitor_iter6_create(true, false, 0, NULL);
+
+	bool free_dump = ((NULL == conf->dump) && (NULL != conf->dump_filename) && (0 < conf->dump_mod));
+	if (free_dump)
+		conf->dump = iter6_dump_default_create(conf->dump_filename, conf->dump_mod, nlop, NI, in_type);
+
+	sgd(	conf->epochs, conf->batchnorm_momentum,
+		NI, isize, in_type, dst,
+		NO, osize, out_type,
+		batchsize, batchsize * numbatches,
+		select_vecops(gpu_ref),
+		nlop_iter, adj_op_arr,
+		upd_op_arr,
+		prox_iter,
+		nlop_batch_gen_iter,
+		(struct iter_op_s){ NULL, NULL }, monitor, conf->dump);
+
+	for (int i = 0; i < NI; i++)
+		operator_free(upd_ops[i][i]);
+
+	if (NULL != conf->history_filename)
+		monitor_iter6_dump_record(monitor, conf->history_filename);
+
+	if (free_monitor)
+		monitor_iter6_free(monitor);
+
+	if (free_dump) {
+		iter_dump_free(conf->dump);
+		conf->dump = NULL;
+	}
+}
+
+
 void iter6_adadelta(	iter6_conf* _conf,
 			const struct nlop_s* nlop,
 			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
 			long NO, enum OUT_TYPE out_type[NO],
 			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor)
 {
-	auto conf = CAST_DOWN(iter6_adadelta_conf, _conf);
+	auto conf = CAST_MAYBE(iter6_adadelta_conf, _conf);
+	assert(NULL != conf);
 
-	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
-	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
-	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
-
-	struct iter_op_p_s prox_iter[NI];
-	for (unsigned int i = 0; i < NI; i++)
-		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
-
-	long isize[NI];
-	long osize[NO];
-
-	//array of update operators
-	const struct operator_s* upd_ops[NI][NI];
-	for (int i = 0; i < NI; i++) {
-
-		for (int j = 0; j < NI; j++)
-			upd_ops[i][j] = NULL;
-		upd_ops[i][i] = operator_adadelta_update_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.learning_rate, conf->rho, 1.e-7);
-		if ((0.0 != conf->INTERFACE.clip_norm) || (0.0 != conf->INTERFACE.clip_val)) {
-
-			const struct operator_s* tmp1 = operator_clip_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.clip_norm, conf->INTERFACE.clip_val);
-			const struct operator_s* tmp2 = upd_ops[i][i];
-			upd_ops[i][i] = operator_chain(tmp1, tmp2);
-			operator_free(tmp1);
-			operator_free(tmp2);
-		}
-	}
-	struct iter6_op_arr_s upd_ops_data = { { &TYPEID(iter6_op_arr_s) }, NI, NI, &(upd_ops[0][0])};
-	struct iter_op_arr_s upd_op_arr ={iter6_op_arr_fun_diag, CAST_UP(&upd_ops_data)};
-
-
-	for (int i = 0; i < NI; i++)
-		isize[i] = 2 * md_calc_size(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims);
-	for (int o = 0; o < NO; o++)
-		osize[o] = 2 * md_calc_size(nlop_generic_codomain(nlop, o)->N, nlop_generic_codomain(nlop, o)->dims);
-
-	//gpu ref (dst[i] can be null if batch_gen)
-	float* gpu_ref = NULL;
-	for (int i = 0; i < NI; i++)
-		if (IN_OPTIMIZE == in_type[i])
-			gpu_ref = dst[i];
-	assert(NULL != gpu_ref);
-
-	bool free_monitor = (NULL == monitor);
-	if (free_monitor)
-		monitor = monitor_iter6_create(true, false, 0, NULL);
-
-	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
-	if (free_dump)
-		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
-
-	sgd(conf->INTERFACE.epochs, conf->INTERFACE.batchnorm_momentum,
-		NI, isize, in_type, dst,
-		NO, osize, out_type,
-		batchsize, batchsize * numbatches,
-		select_vecops(gpu_ref),
-		nlop_iter, adj_op_arr,
-		upd_op_arr,
-		prox_iter,
-		nlop_batch_gen_iter,
-		(struct iter_op_s){ NULL, NULL }, monitor, conf->INTERFACE.dump);
-
-	for (int i = 0; i < NI; i++)
-		operator_free(upd_ops[i][i]);
-
-	if (NULL != conf->INTERFACE.history_filename)
-		monitor_iter6_dump_record(monitor, conf->INTERFACE.history_filename);
-
-	if (free_monitor)
-		monitor_iter6_free(monitor);
-
-	if (free_dump) {
-		iter_dump_free(conf->INTERFACE.dump);
-		conf->INTERFACE.dump = NULL;
-	}
+	iter6_sgd_like(	_conf,
+			nlop,
+			NI, in_type, prox_ops, dst,
+			NO, out_type,
+			batchsize, numbatches, nlop_batch_gen, monitor);
 }
 
-void iter6_adam(	iter6_conf* _conf,
-			const struct nlop_s* nlop,
-			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
-			long NO, enum OUT_TYPE out_type[NO],
-			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor)
+void iter6_adam(iter6_conf* _conf,
+		const struct nlop_s* nlop,
+		long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
+		long NO, enum OUT_TYPE out_type[NO],
+		int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor)
 {
-	auto conf = CAST_DOWN(iter6_adam_conf, _conf);
+	auto conf = CAST_MAYBE(iter6_adam_conf, _conf);
+	assert(NULL != conf);
 
-	//assert(NULL == nlop_batch_gen);
-	//assert(NULL == prox_ops);
-
-	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
-	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
-	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
-
-	struct iter_op_p_s prox_iter[NI];
-	for (unsigned int i = 0; i < NI; i++)
-		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
-
-	long isize[NI];
-	long osize[NO];
-
-	//array of update operators
-	const struct operator_s* upd_ops[NI][NI];
-	for (int i = 0; i < NI; i++) {
-
-		for (int j = 0; j < NI; j++)
-			upd_ops[i][j] = NULL;
-		upd_ops[i][i] = operator_adam_update_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.learning_rate, conf->beta1, conf->beta2, conf->epsilon, numbatches * conf->reset_epoch);
-		if ((0.0 != conf->INTERFACE.clip_norm) || (0.0 != conf->INTERFACE.clip_val)) {
-
-			const struct operator_s* tmp1 = operator_clip_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.clip_norm, conf->INTERFACE.clip_val);
-			const struct operator_s* tmp2 = upd_ops[i][i];
-			upd_ops[i][i] = operator_chain(tmp1, tmp2);
-			operator_free(tmp1);
-			operator_free(tmp2);
-		}
-	}
-	struct iter6_op_arr_s upd_ops_data = { { &TYPEID(iter6_op_arr_s) }, NI, NI, &(upd_ops[0][0])};
-	struct iter_op_arr_s upd_op_arr ={iter6_op_arr_fun_diag, CAST_UP(&upd_ops_data)};
-
-
-	for (int i = 0; i < NI; i++)
-		isize[i] = 2 * md_calc_size(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims);
-	for (int o = 0; o < NO; o++)
-		osize[o] = 2 * md_calc_size(nlop_generic_codomain(nlop, o)->N, nlop_generic_codomain(nlop, o)->dims);
-
-	//gpu ref (dst[i] can be null if batch_gen)
-	float* gpu_ref = NULL;
-	for (int i = 0; i < NI; i++)
-		if (IN_OPTIMIZE == in_type[i])
-			gpu_ref = dst[i];
-	assert(NULL != gpu_ref);
-
-	bool free_monitor = (NULL == monitor);
-	if (free_monitor)
-		monitor = monitor_iter6_create(true, false, 0, NULL);
-
-	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
-	if (free_dump)
-		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
-
-	sgd(conf->INTERFACE.epochs, conf->INTERFACE.batchnorm_momentum,
-		NI, isize, in_type, dst,
-		NO, osize, out_type,
-		batchsize, batchsize * numbatches,
-		select_vecops(gpu_ref),
-		nlop_iter, adj_op_arr,
-		upd_op_arr,
-		prox_iter,
-		nlop_batch_gen_iter,
-		(struct iter_op_s){ NULL, NULL }, monitor, conf->INTERFACE.dump);
-
-	for (int i = 0; i < NI; i++)
-		operator_free(upd_ops[i][i]);
-
-	if (NULL != conf->INTERFACE.history_filename)
-		monitor_iter6_dump_record(monitor, conf->INTERFACE.history_filename);
-
-	if (free_monitor)
-		monitor_iter6_free(monitor);
-
-	if (free_dump) {
-		iter_dump_free(conf->INTERFACE.dump);
-		conf->INTERFACE.dump = NULL;
-	}
+	iter6_sgd_like(	_conf,
+			nlop,
+			NI, in_type, prox_ops, dst,
+			NO, out_type,
+			batchsize, numbatches, nlop_batch_gen, monitor);
 }
 
 void iter6_sgd(	iter6_conf* _conf,
@@ -398,86 +362,14 @@ void iter6_sgd(	iter6_conf* _conf,
 			long NO, enum OUT_TYPE out_type[NO],
 			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor)
 {
-	auto conf = CAST_DOWN(iter6_sgd_conf, _conf);
+	auto conf = CAST_MAYBE(iter6_sgd_conf, _conf);
+	assert(NULL != conf);
 
-	//assert(NULL == nlop_batch_gen);
-	//assert(NULL == prox_ops);
-
-	struct iter_nlop_s nlop_iter = NLOP2ITNLOP(nlop);
-	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
-	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
-
-	struct iter_op_p_s prox_iter[NI];
-	for (unsigned int i = 0; i < NI; i++)
-		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
-
-	long isize[NI];
-	long osize[NO];
-
-	//array of update operators
-	const struct operator_s* upd_ops[NI][NI];
-	for (int i = 0; i < NI; i++) {
-
-		for (int j = 0; j < NI; j++)
-			upd_ops[i][j] = NULL;
-		upd_ops[i][i] = operator_sgd_update_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.learning_rate);
-		if ((0.0 != conf->INTERFACE.clip_norm) || (0.0 != conf->INTERFACE.clip_val)) {
-
-			const struct operator_s* tmp1 = operator_clip_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.clip_norm, conf->INTERFACE.clip_val);
-			const struct operator_s* tmp2 = upd_ops[i][i];
-			upd_ops[i][i] = operator_chain(tmp1, tmp2);
-			operator_free(tmp1);
-			operator_free(tmp2);
-		}
-	}
-	struct iter6_op_arr_s upd_ops_data = { { &TYPEID(iter6_op_arr_s) }, NI, NI, &(upd_ops[0][0])};
-	struct iter_op_arr_s upd_op_arr ={iter6_op_arr_fun_diag, CAST_UP(&upd_ops_data)};
-
-
-	for (int i = 0; i < NI; i++)
-		isize[i] = 2 * md_calc_size(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims);
-	for (int o = 0; o < NO; o++)
-		osize[o] = 2 * md_calc_size(nlop_generic_codomain(nlop, o)->N, nlop_generic_codomain(nlop, o)->dims);
-
-	//gpu ref (dst[i] can be null if batch_gen)
-	float* gpu_ref = NULL;
-	for (int i = 0; i < NI; i++)
-		if (IN_OPTIMIZE == in_type[i])
-			gpu_ref = dst[i];
-	assert(NULL != gpu_ref);
-
-	bool free_monitor = (NULL == monitor);
-	if (free_monitor)
-		monitor = monitor_iter6_create(true, false, 0, NULL);
-
-	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
-	if (free_dump)
-		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
-
-	sgd(conf->INTERFACE.epochs, conf->INTERFACE.batchnorm_momentum,
-		NI, isize, in_type, dst,
-		NO, osize, out_type,
-		batchsize, batchsize * numbatches,
-		select_vecops(gpu_ref),
-		nlop_iter, adj_op_arr,
-		upd_op_arr,
-		prox_iter,
-		nlop_batch_gen_iter,
-		(struct iter_op_s){ NULL, NULL }, monitor, conf->INTERFACE.dump);
-
-	for (int i = 0; i < NI; i++)
-		operator_free(upd_ops[i][i]);
-
-	if (NULL != conf->INTERFACE.history_filename)
-		monitor_iter6_dump_record(monitor, conf->INTERFACE.history_filename);
-
-	if (free_monitor)
-		monitor_iter6_free(monitor);
-
-	if (free_dump) {
-		iter_dump_free(conf->INTERFACE.dump);
-		conf->INTERFACE.dump = NULL;
-	}
+	iter6_sgd_like(	_conf,
+			nlop,
+			NI, in_type, prox_ops, dst,
+			NO, out_type,
+			batchsize, numbatches, nlop_batch_gen, monitor);
 }
 
 void iter6_iPALM(	iter6_conf* _conf,

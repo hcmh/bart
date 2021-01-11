@@ -88,6 +88,7 @@ typedef void iter6_f(iter6_conf* _conf, const struct nlop_s* nlop, long NI, enum
 iter6_f iter6_adadelta;
 iter6_f iter6_adam;
 iter6_f iter6_sgd;
+iter6_f iter6_sgd_like;
 
 iter6_f iter6_iPALM;
 
