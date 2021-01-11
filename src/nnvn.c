@@ -55,6 +55,8 @@ int main_nnvn(int argc, char* argv[])
 	const char* config_file = NULL;
 	bool load_mem = false;
 
+	bool test_defaults = false;
+
 	const struct opt_s opts[] = {
 
 		OPTL_SET('i', "initialize", &initialize, "initialize weights"),
@@ -79,11 +81,24 @@ int main_nnvn(int argc, char* argv[])
 		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
 		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
 		OPTL_LONG('Z', "fov_z", (udims + 2), "z", "Nz of the target image (guessed from reference(training) / kspace(inference))"),
+
+		OPTL_SET(0, "test_defaults", &test_defaults, "set defaults to small values (used for testing)"),
 	};
 
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
 	if ((6 != argc) && (10 != argc))
 		error("wrong number of arguments\n");
+
+	if (test_defaults) {
+
+		vn_config.Nl = 2;
+		vn_config.Nf = 5;
+		
+		vn_config.Kx = 3;
+		vn_config.Ky = 3;
+
+		vn_config.Nw = 5;
+	}
 
 	if ((NULL != train_conf.INTERFACE.dump_filename) && (0 >= train_conf.INTERFACE.dump_mod))
 		train_conf.INTERFACE.dump_mod = 5;
