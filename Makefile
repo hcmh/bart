@@ -18,6 +18,7 @@ MAKEFLAGS += -R
 # use for parallel make
 AR=./ar_lock.sh
 
+OPENBLAS?=0
 MKL?=0
 CUDA?=0
 CUDNN?=0
@@ -378,10 +379,16 @@ ifeq ($(BUILDTYPE), MacOSX)
 BLAS_L := -L$(BLAS_BASE)/lib -lopenblas
 else
 ifeq ($(NOLAPACKE),1)
-BLAS_L := -L$(BLAS_BASE)/lib -llapack -lopenblas
+BLAS_L := -L$(BLAS_BASE)/lib -llapack -lblas
 CPPFLAGS += -Isrc/lapacke
 else
+ifeq ($(OPENBLAS), 1)
 BLAS_L := -L$(BLAS_BASE)/lib -llapacke -lopenblas
+CPPFLAGS += -DUSE_OPENBLAS
+CFLAGS += -DUSE_OPENBLAS
+else
+BLAS_L := -L$(BLAS_BASE)/lib -llapacke -lblas
+endif
 endif
 endif
 endif

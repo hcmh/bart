@@ -88,9 +88,7 @@ static cublasOperation_t cublas_trans(char trans){
 
 static void openblas_set_threads() {
 
-	return;
-
-#ifdef USE_MKL
+#ifndef USE_OPENBLAS
 	return;
 #else
 
