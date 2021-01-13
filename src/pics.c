@@ -251,6 +251,13 @@ int main_pics(int argc, char* argv[argc])
 	if (NULL != traj_file)
 		traj = load_cfl(traj_file, DIMS, traj_dims);
 
+	// Regularization on manifolds
+	long Q_dims[DIMS];
+	complex float* Q = NULL;
+	if (Q_file != NULL) {
+		Q = load_cfl(Q_file, DIMS, Q_dims);
+		assert(Q_dims[TIME_DIM] == ksp_dims[TIME_DIM]);
+	}
 
 	md_copy_dims(DIMS, max_dims, ksp_dims);
 	md_copy_dims(5, max_dims, map_dims);
@@ -577,12 +584,6 @@ int main_pics(int argc, char* argv[argc])
 		debug_printf(DP_INFO, "Maximum eigenvalue: %.2e\n", maxeigen);
 	}
 
-
-	// Regularization on manifolds
-	long Q_dims[DIMS];
-	complex float* Q = NULL;
-	if (Q_file != NULL)
-		Q = load_cfl(Q_file, DIMS, Q_dims);
 
 	// initialize prox functions
 
