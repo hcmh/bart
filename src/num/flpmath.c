@@ -3975,6 +3975,7 @@ static void md_fdiff_core2(unsigned int D, const long dims[D], unsigned int d, c
  */
 void md_fdiff2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], float* out, const long istr[D], const float* in)
 {
+	//TODO this does finite backward differences!
 	md_fdiff_core2(D, dims, d, bc, true, ostr, out, istr, in);
 }
 
@@ -4000,6 +4001,7 @@ void md_fdiff(unsigned int D, const long dims[D], unsigned int d, const enum BOU
  */
 void md_fdiff_backwards2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], float* out, const long istr[D], const float* in)
 {
+	//TODO this does finite forward differences * (-1)!
 	md_fdiff_core2(D, dims, d, bc, false, ostr, out, istr, in);
 }
 
