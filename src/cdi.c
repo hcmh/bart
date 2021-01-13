@@ -30,11 +30,11 @@ static void cdi_reco(const float fov[3], const long jdims[N], complex float* j, 
 	complex float* adj = md_alloc(N, jdims, CFL_SIZE);
 	auto bz_op = linop_bz_create(jdims, fov);
 
-	if(NULL!=bc_mask) {
+	if (NULL != bc_mask) {
 		auto mask_op = linop_cdiag_create(N, jdims, 15, bc_mask);
 		bz_op = linop_chain_FF(mask_op, bz_op);
 	}
-	if(NULL!=mask) {
+	if (NULL != mask) {
 		auto mask_op = linop_cdiag_create(N, bdims, 15, mask);
 		bz_op = linop_chain_FF(bz_op, mask_op);
 	}

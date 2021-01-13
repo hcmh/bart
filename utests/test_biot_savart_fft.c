@@ -4,14 +4,14 @@
  */
 
 
-#include <math.h>
-#include <stdio.h>
-#include <stdbool.h>
 #include <complex.h>
+#include <math.h>
+#include <stdbool.h>
+#include <stdio.h>
 
-#include "num/multind.h"
-#include "num/flpmath.h"
 #include "linops/linop.h"
+#include "num/flpmath.h"
+#include "num/multind.h"
 
 #include "simu/biot_savart_fft.h"
 
@@ -30,7 +30,7 @@ static bool test_linop_bz(void)
 	const float fov[] = {1 * fovscale, 10 * fovscale, 1 * fovscale};
 	const float voxelsize[] = {fov[0] / dims[1], fov[1] / dims[2], fov[2] / dims[3]};
 	float r = voxelsize[0] * 12, h = fov[1] * 0.75;
-	complex float* jfull = md_alloc(N, dims, CFL_SIZE);
+	complex float *jfull = md_alloc(N, dims, CFL_SIZE);
 	md_clear(N, dims, jfull, CFL_SIZE);
 	jcylinder(dims, fov, r, h, 1, jfull);
 
@@ -38,15 +38,14 @@ static bool test_linop_bz(void)
 	md_select_dims(N, 14, jdims, dims);
 	jdims[0] = 2;
 
-	complex float* j = md_alloc(N, jdims, CFL_SIZE);
+	complex float *j = md_alloc(N, jdims, CFL_SIZE);
 
 	md_resize(N, jdims, j, dims, jfull, CFL_SIZE);
 
 	md_free(jfull);
 
 	// calculate B_z
-
-	complex float* b = md_alloc(N, bdims, CFL_SIZE);
+	complex float *b = md_alloc(N, bdims, CFL_SIZE);
 	auto bz = linop_bz_create(jdims, fov);
 
 	linop_forward(bz, N, bdims, b, N, jdims, j);
@@ -63,7 +62,7 @@ static bool test_linop_bz(void)
 	int dmin = 20, dmax = center - 10;
 
 	// for different slices along the cylinder
-	for(int ysl = cylcenter - 3; ysl < cylcenter + 3; ysl++) {
+	for (int ysl = cylcenter - 3; ysl < cylcenter + 3; ysl++) {
 		// take a square with size 2*d
 		for (int d = dmin; d <= dmax; d++) {
 			float current = 0;

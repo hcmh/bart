@@ -5,8 +5,8 @@
  * Fast evaluation of the z-component of the Biot-Savart law for 3D current densities
  */
 
-#include <math.h>
 #include <assert.h>
+#include <math.h>
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -15,17 +15,17 @@
 #include "biot_savart_fft.h"
 
 //
-#include "misc/mmio.h"
 #include "misc/io.h"
+#include "misc/mmio.h"
 #include <stdio.h>
 
-#include <complex.h>
-#include "num/multind.h"
-#include "num/fft.h"
-#include "num/flpmath.h"
+#include "linops/fmac.h"
 #include "linops/linop.h"
 #include "linops/someops.h"
-#include "linops/fmac.h"
+#include "num/fft.h"
+#include "num/flpmath.h"
+#include "num/multind.h"
+#include <complex.h>
 
 #include "misc/debug.h"
 
@@ -44,75 +44,75 @@
  *			- 0 has no effect as the innermost voxel always is set to 0
  *			- 1 means a 3x3x3 box is set to 0
  */
-static complex float* biot_savart_kernel(const long dims[4], const float fov_in[3], long* kdims, long center_mask)
+static complex float *biot_savart_kernel(const long dims[4], const float fov_in[3], long *kdims, long center_mask)
 {
-	//calculate kernel size incl. padding
-	assert(2==dims[0] || 3==dims[0]);
+	// calculate kernel size incl. padding
+	assert((2 == dims[0]) || (3 == dims[0]));
 	kdims[0] = dims[0];
-	for(int i = 0; i<3; i++)
+	for (int i = 0; i < 3; i++)
 		kdims[i + 1] = ((int)(dims[i + 1] * 2)) - 1;
-	complex float* kern = md_alloc(NB, kdims, CFL_SIZE);
+	complex float *kern = md_alloc(NB, kdims, CFL_SIZE);
 	md_zfill(NB, kdims, kern, 0.);
-
 
 	// handle non-isotropic resolution
 	// rescale FOV to 1 x b x c, with b,c >= 1
 	float fov[3] = {1.};
 	float voxelsize[3] = {1.};
-	for(int i=0; i<3; i++) {
-		fov[i] = fov_in != NULL ? fov_in[i] : 1;
-		voxelsize[i] = fov[i] / ( dims[i+1] );
+	for (int i = 0; i < 3; i++) {
+		fov[i] = (fov_in != NULL) ? fov_in[i] : 1;
+		voxelsize[i] = fov[i] / dims[i + 1];
 	}
-	float min_fov=bz_unit(3, fov);
+	float min_fov = bz_unit(3, fov);
 	float scaling = 1 / (4 * M_PI);
-	for(int i=0; i<3; i++) {
+	for (int i = 0; i < 3; i++) {
 		voxelsize[i] /= min_fov;
 		fov[i] /= min_fov;
 		scaling *= voxelsize[i];
 	}
 	debug_printf(DP_DEBUG1, "Rescaled Voxelsize: %f %f %f", voxelsize[0], voxelsize[1], voxelsize[2]);
 
-	//fftw scaling
-	scaling /= md_calc_size(3, kdims+1);
+	// fftw scaling
+	scaling /= md_calc_size(3, kdims + 1);
 
-	//construct kernel
+	// construct kernel
 	long pos[] = {0, 0, 0, 0};
 	vec3_t x;
 	float b;
 	long p = 0;
 	do {
-		for(int i=0; i<3; i++)
-			x[i] = (pos[i+1] + 1) * voxelsize[i] - fov[i];
-		b = pow(vec3_sdot(x,x), 1.5);
+		for (int i = 0; i < 3; i++)
+			x[i] = (pos[i + 1] + 1) * voxelsize[i] - fov[i];
+		b = pow(vec3_sdot(x, x), 1.5);
 		bool mask = true;
-		for(int i=0; i<3; i++) {
+		for (int i = 0; i < 3; i++) {
 			mask = mask & (abs(kdims[i + 1] / 2 - pos[i + 1]) <= center_mask);
 		}
-		*(kern+p) = mask ? 0 : x[1] / b * scaling;
-		*(kern+p+1) = mask ? 0 : - x[0] / b * scaling;
-		p+=dims[0];
-	} while(md_next(NB, kdims, 14, pos));
+		*(kern + p) = mask ? 0 : x[1] / b * scaling;
+		*(kern + p + 1) = mask ? 0 : -x[0] / b * scaling;
+		p += dims[0];
+	} while (md_next(NB, kdims, 14, pos));
 
 	return kern;
 }
 
 
 
-float bz_unit(const long N, const float* fov)
+float bz_unit(const long N, const float *fov)
 {
 	float min_fov = 1;
-	if(fov != NULL) {
+	if (fov != NULL) {
 		min_fov = fov[0];
-		for(int i=0; i<N; i++) min_fov = fov[i] < min_fov ? fov[i] : min_fov;
+		for (int i = 0; i < N; i++)
+			min_fov = fov[i] < min_fov ? fov[i] : min_fov;
 	}
 	return min_fov;
 }
 
 
 
-static void fkern(const long kdims[4], complex float* kern)
+static void fkern(const long kdims[4], complex float *kern)
 {
-	//shift & fft for convolution
+	// shift & fft for convolution
 	ifftshift(4, kdims, 14, kern, kern);
 	fft(4, kdims, 14, kern, kern);
 }
@@ -126,11 +126,11 @@ static void fkern(const long kdims[4], complex float* kern)
  * @param jdims size of grid on which jx,jy are sampled
  * @param fov physical extent of the grid
  */
-struct linop_s* linop_bz_create(const long jdims[NB], const float fov[3])
+struct linop_s *linop_bz_create(const long jdims[NB], const float fov[3])
 {
-	assert(2 == jdims[0] || 3 == jdims[0]);
+	assert((2 == jdims[0]) || (3 == jdims[0]));
 	long kdims[NB];
-	complex float* kernel = biot_savart_kernel(jdims, fov, kdims, 0);
+	complex float *kernel = biot_savart_kernel(jdims, fov, kdims, 0);
 
 	long bdims[NB], bpdims[NB];
 	md_select_dims(NB, 14, bdims, jdims);
@@ -141,17 +141,17 @@ struct linop_s* linop_bz_create(const long jdims[NB], const float fov[3])
 	fkern(kdims, kernel);
 	auto conv = linop_fmac_create(NB, kdims, 1U, 0U, 0U, kernel);
 
-	//padding & cropping operators
+	// padding & cropping operators
 	auto pad = linop_expand_create(NB, kdims, jdims);
-	auto crop = linop_expand_create(NB, bdims, bpdims); //expand?? does it work?
+	auto crop = linop_expand_create(NB, bdims, bpdims); // expand?? does it work?
 
-	//fft ops
+	// fft ops
 	auto f = linop_fft_create(NB, kdims, 14);
-	auto finv = linop_ifft_create(NB, bpdims,14);
+	auto finv = linop_ifft_create(NB, bpdims, 14);
 
 	// the Chain
 	long n_ops = 5;
-	struct linop_s* op_chain[] = { pad, f, conv, finv, crop };
+	struct linop_s *op_chain[] = {pad, f, conv, finv, crop};
 	return linop_chainN(n_ops, op_chain);
 }
 
@@ -164,7 +164,7 @@ struct linop_s* linop_bz_create(const long jdims[NB], const float fov[3])
  * @param j input current density
  * @param b output variable for magnetic induction
  */
-void biot_savart_fft(const long *dims, const float *fov, complex float* j, complex float* b)
+void biot_savart_fft(const long *dims, const float *fov, complex float *j, complex float *b)
 {
 	long odims[NB] = {1, dims[1], dims[2], dims[3]};
 	auto bz = linop_bz_create(dims, fov);
@@ -183,55 +183,55 @@ void biot_savart_fft(const long *dims, const float *fov, complex float* j, compl
  * @param d direction (0, 1, 2)
  * @param out output variable; j is added
  */
-void jcylinder(const long* idims, const float *fov, const float R, const float h, const long d, complex float* out)
+void jcylinder(const long *idims, const float *fov, const float R, const float h, const long d, complex float *out)
 {
 	assert(idims[0] == 3);
-	const long* dims = idims + 1;
+	const long *dims = idims + 1;
 
-	assert(dims[0] > 1 && dims[1] > 1 && dims[2] > 1);
-	assert(0 <= d && d < 3);
+	assert((dims[0] > 1) && (dims[1] > 1) && (dims[2] > 1));
+	assert((0 <= d) && (d < 3));
 
 	float r = 0;
 	long blocksize = 1;
 	// logical axes  x, y, slice direction
 	// corresponding strides
-	long axes[] = {0, 1, 2}, strides0[] = {idims[0] , idims[0] * idims[1], idims[0] * idims[1] * idims[2]}, strides[3];
-	if(1==d) {
+	long axes[] = {0, 1, 2}, strides0[] = {idims[0], idims[0] * idims[1], idims[0] * idims[1] * idims[2]}, strides[3];
+	if (1 == d) {
 		axes[0] = 2;
 		axes[1] = 0;
 		axes[2] = 1;
-	}else if(0==d){
+	} else if (0 == d) {
 		axes[0] = 1;
 		axes[1] = 2;
 		axes[2] = 0;
 	}
+
 	for (unsigned int i = 0; i < 3; i++)
 		strides[i] = strides0[axes[i]];
 
 	assert(fov[axes[2]] > h);
 
 	long firstslice = (-h / 2 + fov[d] / 2) / fov[d] * dims[d];
-	long lastslice =  ( h / 2 + fov[d] / 2) / fov[d] * dims[d];
+	long lastslice = (h / 2 + fov[d] / 2) / fov[d] * dims[d];
 
-	//iterate over cylinder
+	// iterate over cylinder
 	long count = 0;
 	float dx = fov[axes[0]] / (dims[axes[0]] - 1), dy = fov[axes[1]] / (dims[axes[1]] - 1);
-	for(int i = 0; i < dims[axes[0]]; i++) {
-		float x = i * dx - fov[axes[0]]/2;
-		for(int j = 0; j < dims[axes[1]]; j++) {
+	for (int i = 0; i < dims[axes[0]]; i++) {
+		float x = i * dx - fov[axes[0]] / 2;
+		for (int j = 0; j < dims[axes[1]]; j++) {
 			float y = j * dy - fov[axes[1]] / 2;
-			for(int k = firstslice; k <= lastslice; k++) {
+			for (int k = firstslice; k <= lastslice; k++) {
 				long p = i * strides[0] + j * strides[1] + k * strides[2] + d * blocksize;
-				r = powf(powf(x, 2)+powf(y, 2), 0.5);
-				 if (r <= R) {
+				r = powf(powf(x, 2) + powf(y, 2), 0.5);
+				if (r <= R) {
 					out[p] = 1;
-					if(k == firstslice)
+					if (k == firstslice)
 						count++;
-				 };
+				};
 			}
 		}
 	}
 
 	md_zsmul(4, idims, out, out, 1. / (count * (fov[axes[0]] / dims[axes[0]] * fov[axes[1]] / dims[axes[1]])));
 }
-

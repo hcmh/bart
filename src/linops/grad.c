@@ -7,12 +7,12 @@
  * 2014-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
-#include <complex.h>
 #include <assert.h>
+#include <complex.h>
 #include <strings.h>
 
-#include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/multind.h"
 
 #include "linops/linop.h"
 
@@ -33,11 +33,12 @@ static void grad_dims(unsigned int D, long dims2[D], int d, unsigned int flags, 
 }
 
 
-static void grad_op(unsigned int D, const long dims[D], int d, unsigned int flags, unsigned long order, const enum BOUNDARY_CONDITION bc, bool reverse, complex float* out, const complex float* in)
-{
-	assert(1 == order || 2 == order);
-	unsigned int N = bitcount(flags);
 
+static void grad_op(unsigned int D, const long dims[D], int d, unsigned int flags, unsigned long order,
+		    const enum BOUNDARY_CONDITION bc, bool reverse, complex float *out, const complex float *in)
+{
+	assert((1 == order) || (2 == order));
+	unsigned int N = bitcount(flags);
 	assert(N == dims[d]);
 	assert(!MD_IS_SET(flags, d));
 
@@ -56,20 +57,22 @@ static void grad_op(unsigned int D, const long dims[D], int d, unsigned int flag
 
 		unsigned int lsb = ffs(flags2) - 1;
 		flags2 = MD_CLEAR(flags2, lsb);
-		if(1 == order)
-			(reverse ? md_zfdiff_backwards2 : md_zfdiff2)(D, dims1, lsb, bc, strs, (void*)out + i * strs[d], strs1, in);
-		if(2 == order)
-			md_zfdiff_central2(D, dims1, lsb, bc, reverse, strs, (void*)out + i * strs[d], strs1, in);
+		if (1 == order)
+			(reverse ? md_zfdiff_backwards2 : md_zfdiff2)(D, dims1, lsb, bc, strs, (void *)out + i * strs[d], strs1, in);
+		if (2 == order)
+			md_zfdiff_central2(D, dims1, lsb, bc, reverse, strs, (void *)out + i * strs[d], strs1, in);
 	}
 
 	assert(0 == flags2);
 }
 
 
-static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int flags, unsigned long order, const enum BOUNDARY_CONDITION bc, bool reverse, complex float* out, const complex float* in)
-{
-	unsigned int N = bitcount(flags);
 
+static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int flags, unsigned long order,
+			 const enum BOUNDARY_CONDITION bc, bool reverse, complex float *out, const complex float *in)
+{
+	assert((1 == order) || (2 == order));
+	unsigned int N = bitcount(flags);
 	assert(N == dims[d]);
 	assert(!MD_IS_SET(flags, d));
 
@@ -84,7 +87,7 @@ static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int
 
 	unsigned int flags2 = flags;
 
-	complex float* tmp = md_alloc_sameplace(D, dims1, CFL_SIZE, out);
+	complex float *tmp = md_alloc_sameplace(D, dims1, CFL_SIZE, out);
 
 	md_clear(D, dims1, out, CFL_SIZE);
 	md_clear(D, dims1, tmp, CFL_SIZE);
@@ -94,10 +97,11 @@ static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int
 		unsigned int lsb = ffs(flags2) - 1;
 		flags2 = MD_CLEAR(flags2, lsb);
 
-		if(1 == order)
-			(reverse ? md_zfdiff2 : md_zfdiff_backwards2)(D, dims1, lsb, bc, strs1, tmp, strs, (void*)in + i * strs[d]);
-		if(2 == order)
-			md_zfdiff_central2(D, dims1, lsb, bc, !reverse, strs1, tmp, strs, (void*)in + i * strs[d]);
+		if (1 == order)
+			(reverse ? md_zfdiff2 : md_zfdiff_backwards2)(D, dims1, lsb, bc, strs1, tmp, strs,
+								      (void *)in + i * strs[d]);
+		if (2 == order)
+			md_zfdiff_central2(D, dims1, lsb, bc, !reverse, strs1, tmp, strs, (void *)in + i * strs[d]);
 
 		md_zadd(D, dims1, out, out, tmp);
 	}
@@ -109,14 +113,13 @@ static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int
 
 
 
-
 struct grad_s {
 
 	INTERFACE(linop_data_t);
 
 	int N;
 	int d;
-	long* dims;
+	long *dims;
 	unsigned long flags;
 	unsigned int order;
 	bool reverse;
@@ -125,25 +128,25 @@ struct grad_s {
 
 static DEF_TYPEID(grad_s);
 
-static void grad_op_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
+static void grad_op_apply(const linop_data_t *_data, complex float *dst, const complex float *src)
 {
 	const auto data = CAST_DOWN(grad_s, _data);
 
 	grad_op(data->N, data->dims, data->d, data->flags, data->order, data->bc, data->reverse, dst, src);
 }
 
-static void grad_op_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+static void grad_op_adjoint(const linop_data_t *_data, complex float *dst, const complex float *src)
 {
 	const auto data = CAST_DOWN(grad_s, _data);
 
 	grad_adjoint(data->N, data->dims, data->d, data->flags, data->order, data->bc, data->reverse, dst, src);
 }
 
-static void grad_op_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
+static void grad_op_normal(const linop_data_t *_data, complex float *dst, const complex float *src)
 {
 	const auto data = CAST_DOWN(grad_s, _data);
 
-	complex float* tmp = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
+	complex float *tmp = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
 
 	// this could be implemented more efficiently
 	grad_op(data->N, data->dims, data->d, data->flags, data->order, data->bc, data->reverse, tmp, src);
@@ -152,7 +155,7 @@ static void grad_op_normal(const linop_data_t* _data, complex float* dst, const 
 	md_free(tmp);
 }
 
-static void grad_op_free(const linop_data_t* _data)
+static void grad_op_free(const linop_data_t *_data)
 {
 	const auto data = CAST_DOWN(grad_s, _data);
 
@@ -160,7 +163,9 @@ static void grad_op_free(const linop_data_t* _data)
 	xfree(data);
 }
 
-static struct linop_s* linop_fd_create(long N, const long dims[N], int d, unsigned int flags, unsigned int order, const enum BOUNDARY_CONDITION bc, bool reverse) {
+static struct linop_s *linop_fd_create(long N, const long dims[N], int d, unsigned int flags, unsigned int order,
+				       const enum BOUNDARY_CONDITION bc, bool reverse)
+{
 	PTR_ALLOC(struct grad_s, data);
 	SET_TYPEID(grad_s, data);
 
@@ -199,12 +204,12 @@ static struct linop_s* linop_fd_create(long N, const long dims[N], int d, unsign
 	return linop_create(NO, dims2, N, dims, CAST_UP(PTR_PASS(data)), grad_op_apply, grad_op_adjoint, grad_op_normal, NULL, grad_op_free);
 }
 
-struct linop_s* linop_grad_create(long N, const long dims[N], int d, unsigned int flags)
+struct linop_s *linop_grad_create(long N, const long dims[N], int d, unsigned int flags)
 {
 	return linop_fd_create(N, dims, d, flags, 1, BC_PERIODIC, false);
 }
 
-struct linop_s* linop_div_create(long N, const long dims[N], int d, unsigned int flags)
+struct linop_s *linop_div_create(long N, const long dims[N], int d, unsigned int flags)
 {
 	PTR_ALLOC(struct linop_s, op2);
 
