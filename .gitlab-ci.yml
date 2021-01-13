@@ -26,5 +26,6 @@ Integration_Test:
   stage: test2
   script:
     - make test
+    - make testslow
 
 
