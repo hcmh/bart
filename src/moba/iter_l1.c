@@ -171,6 +171,47 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 	pos_value(_data, dst, dst);
 }
 
+static void pd_print(long N,
+	iter_op_data* _data,
+	const struct vec_iter_s* vops,
+	float* src_new, const float* src_old)
+{
+	// Estimate update of maps
+
+	float* diff = md_alloc_sameplace(1, MD_DIMS(N), FL_SIZE, src_old);
+
+	vops->copy(N, diff, src_old);
+
+	vops->xpay(N, -1., diff, src_new);	// diff = src_new - src_old
+
+	vops->norm(N, diff);
+
+	// Apply normal operator update of maps
+
+	auto data = CAST_DOWN(T1inv_s, _data);
+
+	complex float* pd = md_alloc_sameplace(1, MD_DIMS(N), CFL_SIZE, src_old);
+
+	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), pd, (const complex float*)diff);
+
+	md_free(diff);
+
+	// Save update of map to file
+
+	long dims[DIMS];
+
+	md_select_dims(DIMS, FFT_FLAGS|COEFF_FLAG, dims, data->dims);
+
+	char name[255] = {'\0'};
+
+	sprintf(name, "derivatives_step_%02d", data->outer_iter);
+
+	dump_cfl(name, DIMS, dims, pd);
+
+	md_free(pd);
+}
+
+
 
 
 static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const float* src)
@@ -216,6 +257,11 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	pos_value(CAST_UP(data), dst, dst);
 
 	md_free(tmp);
+
+	// print partial derivatives
+
+	if (DP_DEBUG2 <= debug_level)
+		pd_print(data->size_x, _data, select_vecops(src), dst, src);
 
 	data->outer_iter++;
 }
