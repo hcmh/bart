@@ -345,6 +345,9 @@ tests/test-pics-lowmem: traj phantom repmat ones  pics nrmse
 		false									;\
 	fi										;\
 	$(TOOLDIR)/nrmse -t 0.0005 r1.ra r2.ra						;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
 
 
 
