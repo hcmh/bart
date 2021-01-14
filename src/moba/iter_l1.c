@@ -290,7 +290,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 
 	// print partial derivatives
 
-	if (DP_DEBUG2 <= debug_level)
+	if (DP_DEBUG3 <= debug_level)
 		pd_print(data->size_x, _data, select_vecops(src), dst, dst_tmp);
 
 	md_free(dst_tmp);
