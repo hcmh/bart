@@ -195,8 +195,6 @@ static void pd_print(long N,
 
 	float* diff = md_alloc_sameplace(1, MD_DIMS(N), FL_SIZE, prev_map);
 
-	// linop_forward_unchecked(data->nlop, (complex float*)diff, (const complex float*)src_old);
-
 	vops->copy(N, diff, prev_map);
 
 	vops->xpay(N, -1., diff, new_map);	// diff = new_map - prev_map
@@ -481,7 +479,7 @@ const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, 
 	md_copy_dims(DIMS, ndims, dims);
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims); 
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
 	img_dims[COEFF_DIM] = img_dims[COEFF_DIM] - conf->not_wav_maps;	// jointly penalize the first few maps
 	debug_print_dims(DP_INFO, DIMS, img_dims);
 
