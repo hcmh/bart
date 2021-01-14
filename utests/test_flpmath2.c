@@ -596,8 +596,49 @@ UT_REGISTER_TEST(test_optimized_md_zmax2_reduce_outer3);
 UT_REGISTER_TEST(test_optimized_md_zmax2_reduce_outer4);
 
 
-static bool test_blas_threadsave_gemm(void) {
-	
+static bool test_blas_threadsave_gemm1(void) {
+
+	long mdims[4] = {100, 100, 1, 1};
+	long idims[4] = {1, 100, 100, 1};
+	long odims[4] = {100, 1, 100, 1};
+
+	complex float* in = md_alloc(4, idims, 8);
+	complex float* mat = md_alloc(4, mdims, 8);
+	complex float* out1 = md_alloc(4, odims, 8);
+	complex float* out2 = md_alloc(4, odims, 8);
+
+	md_gaussian_rand(4, idims, in);
+	md_gaussian_rand(4, mdims, mat);
+
+	deactivate_strided_vecops();
+	md_ztenmulc(4, odims, out1, idims, in, mdims, mat);
+	activate_strided_vecops();
+
+	float err = 0.;
+
+	for (int i = 0; i < 5; i++) {
+
+		md_ztenmulc(4, odims, out2, idims, in, mdims, mat);
+		err += md_znrmse(4, odims, out1, out2);
+	}
+
+	md_free(in);
+	md_free(mat);
+	md_free(out1);
+	md_free(out2);
+
+	//this test fails if linked against libmkl-rt
+	//propably related to:
+	//https://community.intel.com/t5/Intel-oneAPI-Math-Kernel-Library/BUG-Race-condition-in-Intel-MKL-Update-3-matrix-multiplication/td-p/1214109
+	//https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=921207
+
+	UT_ASSERT(err < 1.e-5);
+}
+
+UT_REGISTER_TEST(test_blas_threadsave_gemm1);
+
+static bool test_blas_threadsave_gemm2(void) {
+
 	long mdims[4] = {100, 100, 1, 2};
 	long idims[4] = {1, 100, 100, 2};
 	long odims[4] = {100, 1, 100, 2};
@@ -611,14 +652,14 @@ static bool test_blas_threadsave_gemm(void) {
 	md_gaussian_rand(4, mdims, mat);
 
 	deactivate_strided_vecops();
-	md_ztenmul(4, odims, out1, idims, in, mdims, mat);
+	md_ztenmulc(4, odims, out1, idims, in, mdims, mat);
 	activate_strided_vecops();
 
 	float err = 0.;
 
 	for (int i = 0; i < 5; i++) {
 
-		md_ztenmul(4, odims, out2, idims, in, mdims, mat);
+		md_ztenmulc(4, odims, out2, idims, in, mdims, mat);
 		err += md_znrmse(4, odims, out1, out2);
 	}
 
@@ -630,7 +671,7 @@ static bool test_blas_threadsave_gemm(void) {
 	UT_ASSERT(err < 1.e-5);
 }
 
-UT_REGISTER_TEST(test_blas_threadsave_gemm);
+UT_REGISTER_TEST(test_blas_threadsave_gemm2);
 
 static bool test_blas_threadsave_gemv1(void) {
 	
@@ -663,7 +704,7 @@ static bool test_blas_threadsave_gemv1(void) {
 	md_free(out1);
 	md_free(out2);
 
-	UT_ASSERT(err < 1.e-5);
+	UT_ASSERT(err < 5.e-5);
 }
 
 UT_REGISTER_TEST(test_blas_threadsave_gemv1);
@@ -699,16 +740,16 @@ static bool test_blas_threadsave_gemv2(void) {
 	md_free(out1);
 	md_free(out2);
 
-	UT_ASSERT(err < 1.e-5);
+	UT_ASSERT(err < 5.e-5);
 }
 
 UT_REGISTER_TEST(test_blas_threadsave_gemv2);
 
 static bool test_blas_threadsave_gemv3(void) {
 	
-	long mdims[4] = {100, 100, 1, 2};
-	long idims[4] = {100, 1, 1, 2};
-	long odims[4] = {1, 100, 1, 2};
+	long mdims[4] = {1000, 1000, 1, 2};
+	long idims[4] = {1000, 1, 1, 2};
+	long odims[4] = {1, 1000, 1, 2};
 
 	complex float* in = md_alloc(4, idims, 8);
 	complex float* mat = md_alloc(4, mdims, 8);
