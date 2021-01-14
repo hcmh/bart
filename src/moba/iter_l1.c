@@ -174,33 +174,47 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 static void pd_print(long N,
 	iter_op_data* _data,
 	const struct vec_iter_s* vops,
-	float* src_new, const float* src_old)
+	float* new_map, const float* prev_map)
 {
+	auto data = CAST_DOWN(T1inv_s, _data);
+
+	long dims[DIMS];
+
+	md_select_dims(DIMS, FFT_FLAGS|COEFF_FLAG, dims, data->dims);
+
+
 	// Estimate update of maps
 
-	float* diff = md_alloc_sameplace(1, MD_DIMS(N), FL_SIZE, src_old);
+	float* diff = md_alloc_sameplace(1, MD_DIMS(N), FL_SIZE, prev_map);
 
-	vops->copy(N, diff, src_old);
+	// linop_forward_unchecked(data->nlop, (complex float*)diff, (const complex float*)src_old);
 
-	vops->xpay(N, -1., diff, src_new);	// diff = src_new - src_old
+	vops->copy(N, diff, prev_map);
+
+	vops->xpay(N, -1., diff, new_map);	// diff = new_map - prev_map
 
 	vops->norm(N, diff);
 
+#if 1
+	// Save differences between maps to file
+
+	char name0[255] = {'\0'};
+
+	sprintf(name0, "diff_step_%02d", data->outer_iter);
+
+	dump_cfl(name0, DIMS, dims, (const complex float*)diff);
+#endif
+
 	// Apply normal operator update of maps
 
-	auto data = CAST_DOWN(T1inv_s, _data);
-
-	complex float* pd = md_alloc_sameplace(1, MD_DIMS(N), CFL_SIZE, src_old);
+	complex float* pd = md_alloc_sameplace(1, MD_DIMS(N), CFL_SIZE, prev_map);
 
 	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), pd, (const complex float*)diff);
 
 	md_free(diff);
 
-	// Save update of map to file
 
-	long dims[DIMS];
-
-	md_select_dims(DIMS, FFT_FLAGS|COEFF_FLAG, dims, data->dims);
+	// Save partial derivatives to file
 
 	char name[255] = {'\0'};
 
@@ -246,6 +260,14 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 		itrdata->scale = data->alpha;
 	};
 
+	// Save old maps state
+
+	float* dst_tmp = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, dst);
+
+	md_copy(1, MD_DIMS(data->size_x), dst_tmp, dst, FL_SIZE);
+
+	// Run FISTA
+
 	fista(maxiter, data->conf->c2->cgtol * alpha * eps, step,
 		data->size_x,
 		select_vecops(src),
@@ -261,7 +283,9 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	// print partial derivatives
 
 	if (DP_DEBUG2 <= debug_level)
-		pd_print(data->size_x, _data, select_vecops(src), dst, src);
+		pd_print(data->size_x, _data, select_vecops(src), dst, dst_tmp);
+
+	md_free(dst_tmp);
 
 	data->outer_iter++;
 }
