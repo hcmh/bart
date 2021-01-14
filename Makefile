@@ -18,6 +18,9 @@ MAKEFLAGS += -R
 # use for parallel make
 AR=./ar_lock.sh
 
+# allow blas calls within omp regions (fails on Debian 9, openblas)
+BLAS_THREADSAFE?=
+
 OPENBLAS?=0
 MKL?=0
 CUDA?=0
@@ -390,6 +393,7 @@ ifeq ($(OPENBLAS), 1)
 BLAS_L := -L$(BLAS_BASE)/lib -llapacke -lopenblas
 CPPFLAGS += -DUSE_OPENBLAS
 CFLAGS += -DUSE_OPENBLAS
+BLAS_THREADSAFE?=1
 else
 BLAS_L := -L$(BLAS_BASE)/lib -llapacke -lblas
 endif
@@ -402,8 +406,14 @@ BLAS_H := -I$(MKL_BASE)/include
 BLAS_L := -L$(MKL_BASE)/lib/intel64 -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core
 CPPFLAGS += -DUSE_MKL -DMKL_Complex8="complex float" -DMKL_Complex16="complex double"
 CFLAGS += -DUSE_MKL -DMKL_Complex8="complex float" -DMKL_Complex16="complex double"
+BLAS_THREADSAFE?=1
 endif
 
+BLAS_THREADSAFE?=0
+ifeq ($(BLAS_THREADSAFE),1)
+CPPFLAGS += -DBLAS_THREADSAFE
+CFLAGS += -DBLAS_THREADSAFE
+endif
 
 
 CPPFLAGS += $(FFTW_H) $(BLAS_H)
