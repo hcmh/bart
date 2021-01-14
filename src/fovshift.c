@@ -27,10 +27,10 @@ static const char help_str[] = "Shifts FOV.";
 
 
 
-static complex float* noncart_shift(const float shift[3], const long idims[DIMS], const complex float* idata)
+static complex float* noncart_shift(const float shift[3], const long tdims[DIMS], const complex float* tdata)
 {
 	long odims[DIMS];
-	md_select_dims(DIMS, ~1u, odims, idims);
+	md_select_dims(DIMS, ~1u, odims, tdims);
 
 	complex float* odata = md_alloc(DIMS, odims, CFL_SIZE);
 
@@ -38,11 +38,10 @@ static complex float* noncart_shift(const float shift[3], const long idims[DIMS]
 
 	long shift_dims[DIMS] = { 3, [1 ... DIMS - 1] = 1 };
 
-	md_ztenmul2(DIMS, idims, MD_STRIDES(DIMS, odims, CFL_SIZE), odata,
-				MD_STRIDES(DIMS, idims, CFL_SIZE), idata,
+	md_ztenmul2(DIMS, tdims, MD_STRIDES(DIMS, odims, CFL_SIZE), odata,
+				MD_STRIDES(DIMS, tdims, CFL_SIZE), tdata,
 				MD_STRIDES(DIMS, shift_dims, CFL_SIZE), cshift);
 
-	unmap_cfl(DIMS, idims, idata);
 
 	md_zsmul(DIMS, odims, odata, odata, +2.i * M_PI);
 	md_zexp(DIMS, odims, odata, odata);
@@ -105,6 +104,7 @@ int main_fovshift(int argc, char* argv[])
 
 	md_free(phase);
 
+	unmap_cfl(DIMS, idims, idata);
 	unmap_cfl(DIMS, idims, odata);
 	return 0;
 }
