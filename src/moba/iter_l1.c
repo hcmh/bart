@@ -80,13 +80,21 @@ struct T1inv_s {
 
 DEF_TYPEID(T1inv_s);
 
-
-
-static void normal(iter_op_data* _data, float* dst, const float* src)
+// Apply normal operator
+static void normal2(iter_op_data* _data, float* dst, const float* src)
 {
 	auto data = CAST_DOWN(T1inv_s, _data);
 
 	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)dst, (const complex float*)src);
+}
+
+
+// Join application of normal operator with regularization
+static void normal(iter_op_data* _data, float* dst, const float* src)
+{
+	auto data = CAST_DOWN(T1inv_s, _data);
+
+	normal2(_data, dst, src);
 
 	long res = data->dims[0];
 	long parameters = data->dims[COEFF_DIM];
