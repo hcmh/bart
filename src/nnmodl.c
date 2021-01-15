@@ -70,9 +70,9 @@ int main_nnmodl(int argc, char* argv[])
 	const struct opt_s opts[] = {
 
 		OPTL_SET('i', "initialize", &initialize, "initialize weights"),
-		OPTL_SET('t', "train", &train, "train variational network"),
+		OPTL_SET('t', "train", &train, "train modl"),
 		OPTL_SET('g', "gpu", &use_gpu, "run on gpu"),
-		OPTL_SET('a', "apply", &apply, "apply variational network"),
+		OPTL_SET('a', "apply", &apply, "apply modl"),
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
 		OPTL_SET(0, "export_graph", &(draw_graph), "export graph.dot file in the weights directory"),
 
@@ -123,7 +123,6 @@ int main_nnmodl(int argc, char* argv[])
 			JSON_LONG(JSON_LABEL("network", "modl", "iterations"), &(modl.Nt), mandatory,  ""),
 			JSON_BOOL(JSON_LABEL("network", "modl", "reinsert_zerofilled"), &(modl.reinsert_zerofilled), false,  ""),
 			JSON_BOOL(JSON_LABEL("network", "modl", "init_tickhonov"), &(modl.init_tickhonov), false,  ""),
-			JSON_BOOL(JSON_LABEL("network", "modl", "nullspace_formulation"), &(modl.nullspace), false,  ""),
 
 			JSON_LONG(JSON_LABEL("network", "dw", "conv_layers"), &(modl.Nl), mandatory,  ""),
 			JSON_LONG(JSON_LABEL("network", "dw", "filter"), &(modl.Nf), mandatory,  ""),

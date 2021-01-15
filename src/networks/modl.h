@@ -30,7 +30,6 @@ struct modl_s {
 	_Bool batch_norm;
 	_Bool residual_network;
 
-	_Bool nullspace;
 	_Bool use_dc;
 
 	_Bool normalize;

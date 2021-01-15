@@ -90,7 +90,6 @@ const struct modl_s modl_default = {
 	.batch_norm = true,
 	.residual_network =true,
 
-	.nullspace = false,
 	.use_dc = true,
 
 	.normalize = false,
@@ -100,6 +99,34 @@ const struct modl_s modl_default = {
 	.low_mem = false,
 };
 
+const char* sorted_weight_names[] = {
+				"conv_0",
+				"conv_i",
+				"conv_n",
+				"bias_0",
+				"bias_i",
+				"bias_n",
+				"gamma",
+				"bn_0",
+				"bn_i",
+				"bn_n"
+			};
+/**
+ * Returns residual block (called DW in MoDL)
+ *
+ * Input tensors:
+ *
+ * INDEX_0: 	udims:	(Ux, Uy, Uz, 1, Nb)
+ * zero_filled:	udims:	(Ux, Uy, Uz, 1, Nb) [Optional]
+ * weights as listed in "sorted_weight_names"
+ *
+ * Output tensors:
+ *
+ * INDEX_0:	udims:	(Ux, Uy, Uz, 1, Nb)
+ * bn_0		[batchnorm output]
+ * bn_i
+ * bn_n
+ */
 static nn_t residual_create(const struct modl_s* config, const long udims[5], enum NETWORK_STATUS status){
 
 	long udims_w[5] = {1, udims[0], udims[1], udims[2], udims[4]};
@@ -186,73 +213,61 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 
 	result = nn_reshape_out_F(result, 0, NULL, 5, udims);
 
-#if 0
 	if (config->residual_network) {
 
 		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_zaxpbz_create(5, udims, 1, 1)), 1, NULL);
 		result = nn_dup_F(result, 0, NULL, 1, NULL);
 	}
-#else
-	//FIXME: the potentially vanishing residual connection reduce memory consumption when the derivatives are computed
-	result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_zaxpbz_create(5, udims, config->residual_network ? 1 : 0, 1)), 1, NULL);
-	result = nn_dup_F(result, 0, NULL, 1, NULL);
-#endif
-
 
 	// Append dims for stacking over modl iterations (non-shared weights)
-	result = nn_append_singleton_dim_in_F(result, 0, "conv_0");
-	result = nn_append_singleton_dim_in_F(result, 0, "conv_i");
-	result = nn_append_singleton_dim_in_F(result, 0, "conv_n");
-	result = nn_append_singleton_dim_in_F(result, 0, "bias_0");
-	result = nn_append_singleton_dim_in_F(result, 0, "bias_i");
-	result = nn_append_singleton_dim_in_F(result, 0, "bias_n");
+	for (unsigned int i = 0; i < ARRAY_SIZE(sorted_weight_names); i++)
+		result = nn_append_singleton_dim_in_if_exists_F(result, 0, sorted_weight_names[i]);
 
-	if (config->batch_norm) {
-
-		result = nn_append_singleton_dim_in_F(result, 0, "gamma");
-		result = nn_append_singleton_dim_in_F(result, 0, "bn_0");
-		result = nn_append_singleton_dim_in_F(result, 0, "bn_i");
-		result = nn_append_singleton_dim_in_F(result, 0, "bn_n");
-		result = nn_append_singleton_dim_out_F(result, 0, "bn_0");
-		result = nn_append_singleton_dim_out_F(result, 0, "bn_i");
-		result = nn_append_singleton_dim_out_F(result, 0, "bn_n");
-	}
-
-	result = nn_sort_inputs_by_list_F(result, 10,
-		(const char*[10]) {
-			"conv_0",
-			"conv_i",
-			"conv_n",
-			"bias_0",
-			"bias_i",
-			"bias_n",
-			"gamma",
-			"bn_0",
-			"bn_i",
-			"bn_n"
-			}
-		);
+	// sort weight inputs as specified by list
+	result = nn_sort_inputs_by_list_F(result, ARRAY_SIZE(sorted_weight_names), sorted_weight_names);
 
 	return nn_checkpoint_F(result, true, config->low_mem && (1 < config->Nt));
 }
 
+/**
+ * Returns dataconsistency block (called DC in MoDL)
+ *
+ * Input tensors:
+ *
+ * INDEX_0: 	udims:	(Ux, Uy, Uz,  1, Nb)
+ * zero_filled:	udims:	(Ux, Uy, Uz,  1, Nb)
+ * coil:	dims:	(Nx, Ny, Nz, Nc, Nb)
+ * pattern:	pdims:	(Nx, Ny, Nz,  1, 1 / Nb)
+ * lambda:		(1)
+ *
+ * Output tensors:
+ *
+ * INDEX_0:	udims:	(Ux, Uy, Uz, 1, Nb)
+ */
 static nn_t data_consistency_modl_create(const struct modl_s* config,const long dims[5], const long udims[5])
 {
-	auto nlop_dc = mri_normal_inversion_create_with_lambda(5, dims, config->share_pattern, config->lambda_fixed, config->batch_independent, config->convergence_warn_limit, config->normal_inversion_iter_conf); // in: x0+zn, coil, pattern, lambda; out: x(n+1)
-	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
+	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]}; // resized image dims corresponding to kspace used for frequency oversampling
+
+	auto nlop_dc = mri_normal_inversion_create(5, dims, config->share_pattern, config->lambda_fixed, config->batch_independent, config->convergence_warn_limit, config->normal_inversion_iter_conf); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
+	
 	nlop_dc = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_dc, 0);
-	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
-	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(5, udims, (-1. != config->lambda_fixed) ? config->lambda_fixed : 1., 1.), 0, nlop_dc, 0);// in: zi, zero_filled, coil, pattern, lambda; out: x(n+1)
+	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
 
+	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(5, udims, 1., 1.), 0, nlop_dc, 0); // in: lambda * zn, zero_filled, coil, pattern[, lambda]; out: x(n+1)
+
+	const struct nlop_s* nlop_scale_lambda = nlop_tenmul_create(5, udims, udims, MD_SINGLETON_DIMS(5));
+	nlop_scale_lambda = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(5, MD_SINGLETON_DIMS(5))), 0, nlop_scale_lambda, 1);
+	nlop_scale_lambda = nlop_reshape_in_F(nlop_scale_lambda, 1, 1, MD_SINGLETON_DIMS(1)); // in: zn, lambda; out: lambda * zn
+
+	nlop_dc = nlop_chain2_FF(nlop_scale_lambda, 0, nlop_dc, 0); // in: zero_filled, coil, pattern[, lambda], zn, lambda; out: x(n+1)
+	
 	if (-1. == config->lambda_fixed) {
-
-		const struct nlop_s* nlop_scale_lambda = nlop_tenmul_create(5, udims, udims, MD_SINGLETON_DIMS(5));
-		nlop_scale_lambda = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(5, MD_SINGLETON_DIMS(5))), 0, nlop_scale_lambda, 1);
-		nlop_scale_lambda = nlop_reshape_in_F(nlop_scale_lambda, 1, 1, MD_SINGLETON_DIMS(1));
-
-		nlop_dc = nlop_chain2_FF(nlop_scale_lambda, 0, nlop_dc, 0);// in: zero_filled, coil, pattern, lambda, zi, lambda; out: x(n+1)
+	
 		nlop_dc = nlop_dup_F(nlop_dc, 3, 5);
 		nlop_dc = nlop_shift_input_F(nlop_dc, 0, 4);
+	} else {
+
+		nlop_dc = nlop_shift_input_F(nlop_dc, 0, 3);		
 	}
 
 	auto result = nn_from_nlop_F(nlop_dc);
@@ -264,15 +279,37 @@ static nn_t data_consistency_modl_create(const struct modl_s* config,const long 
 	result = nn_set_in_type_F(result, 0, "lambda", IN_OPTIMIZE);
 	result = nn_set_initializer_F(result, 0, "lambda", init_const_create((-1 != config->lambda_fixed) ? config->lambda_fixed : config->lambda_init));
 
-	return result;
+	return result;  // in:  zn, zero_filled, coil, pattern, lambda; out: x(n+1)
 }
 
-static nn_t nn_modl_cell_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
+/**
+ * Returns one cell of MoDL iterations
+ *
+ * Input tensors:
+ *
+ * INDEX_0: 	udims:	(Ux, Uy, Uz,  1, Nb)
+ * zero_filled:	udims:	(Ux, Uy, Uz,  1, Nb)
+ * coil:	dims:	(Nx, Ny, Nz, Nc, Nb)
+ * pattern:	pdims:	(Nx, Ny, Nz,  1, 1 / Nb)
+ * lambda:		(1)
+ * weights as listed in "sorted_weight_names"
+ *
+ * Output tensors:
+ *
+ * INDEX_0:	udims:	(Ux, Uy, Uz, 1, Nb)
+ * bn_0		[batchnorm output]
+ * bn_i
+ * bn_n
+ */
+static nn_t nn_modl_cell_create(const struct modl_s* config, const long dims[5], const long udims[5], enum NETWORK_STATUS status)
 {
+	if (!config->use_dc)
+		return residual_create(config, udims, status);
+
 	auto dw = residual_create(config, udims, status);
 	auto dc = data_consistency_modl_create(config, dims, udims);
 
-	if (config->reinsert_zerofilled)
+	if (nn_is_name_in_in_args(dw, "zero_filled"))
 		dw = nn_mark_dup_F(dw, "zero_filled");
 
 	nn_t result = nn_chain2_FF(dw, 0, NULL, dc, 0, NULL);
@@ -281,6 +318,20 @@ static nn_t nn_modl_cell_create(const struct modl_s* config,const long dims[5], 
 	return result;
 }
 
+/**
+ * Computes zero filled reconstruction
+ *
+ * Input tensors:
+ *
+ * kspace: 	udims:	(Nx, Ny, Nz,  1, Nb)
+ * coil:	dims:	(Nx, Ny, Nz, Nc, Nb)
+ * pattern:	pdims:	(Nx, Ny, Nz,  1, 1 / Nb)
+ *
+ * Output tensors:
+ *
+ * INDEX_0:		udims:	(Ux, Uy, Uz, 1, Nb)
+ * normalize_scale:		( 1,  1,  1, 1, Nb)
+ */
 static nn_t nn_modl_zf_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
 {
 	UNUSED(status);
@@ -303,49 +354,31 @@ static nn_t nn_modl_zf_create(const struct modl_s* config,const long dims[5], co
 	return nn_zf;
 }
 
-
-
-static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status);
-static nn_t nn_modl_no_dc_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status);
-
 static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
 {
-	if (!config->use_dc)
-		return nn_modl_no_dc_create(config, dims, udims, status);
-
-	if (config->nullspace)
-		return nn_nullspace_create(config, dims, udims, status);
-
 	auto result = nn_modl_cell_create(config, dims, udims, status);
 
 	for (int i = 1; i < config->Nt; i++) {
 
 		auto tmp = nn_modl_cell_create(config, dims, udims, status);
 
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_0");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_i");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_n");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_0");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_i");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_n");
+		// batchnorm weights are always stacked
+		tmp = nn_mark_stack_input_if_exists_F(tmp, "bn_0");
+		tmp = nn_mark_stack_input_if_exists_F(tmp, "bn_i");
+		tmp = nn_mark_stack_input_if_exists_F(tmp, "bn_n");
+		tmp = nn_mark_stack_input_if_exists_F(tmp, "gamma");
+		tmp = nn_mark_stack_output_if_exists_F(tmp, "bn_0");
+		tmp = nn_mark_stack_output_if_exists_F(tmp, "bn_i");
+		tmp = nn_mark_stack_output_if_exists_F(tmp, "bn_n");
+		
+		// Dup or Stack other weights
+		for (unsigned int i = 0; i < ARRAY_SIZE(sorted_weight_names); i++)
+			tmp = (config->shared_weights ? nn_mark_dup_if_exists_F : nn_mark_stack_input_if_exists_F)(tmp, sorted_weight_names[i]);
 
-		if (config->batch_norm) {
-
-			tmp = nn_mark_stack_input_F(tmp, "bn_0");
-			tmp = nn_mark_stack_input_F(tmp, "bn_i");
-			tmp = nn_mark_stack_input_F(tmp, "bn_n");
-			tmp = nn_mark_stack_input_F(tmp, "gamma");
-
-			tmp = nn_mark_stack_output_F(tmp, "bn_0");
-			tmp = nn_mark_stack_output_F(tmp, "bn_i");
-			tmp = nn_mark_stack_output_F(tmp, "bn_n");
-		}
-
-		tmp = nn_mark_dup_F(tmp, "zero_filled");
-		tmp = nn_mark_dup_F(tmp, "coil");
-		tmp = nn_mark_dup_F(tmp, "pattern");
-		tmp = (config->shared_lambda ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "lambda");
-
+		tmp = nn_mark_dup_if_exists_F(tmp, "zero_filled");
+		tmp = nn_mark_dup_if_exists_F(tmp, "coil");
+		tmp = nn_mark_dup_if_exists_F(tmp, "pattern");
+		tmp = (config->shared_lambda ? nn_mark_dup_if_exists_F : nn_mark_stack_input_if_exists_F)(tmp, "lambda");
 
 		result = nn_chain2_FF(result, 0, NULL, tmp, 0, NULL);
 		result = nn_stack_dup_by_name_F(result);
@@ -353,198 +386,36 @@ static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const
 
 	if (config -> init_tickhonov) {
 
-		result = nn_mark_dup_F(result, "zero_filled");
-		result = nn_mark_dup_F(result, "coil");
-		result = nn_mark_dup_F(result, "pattern");
-		result = (config->shared_lambda ? nn_mark_dup_F : nn_mark_stack_input_F)(result, "lambda");
+		result = nn_mark_dup_if_exists_F(result, "zero_filled");
+		result = nn_mark_dup_if_exists_F(result, "coil");
+		result = nn_mark_dup_if_exists_F(result, "pattern");
+		result = (config->shared_lambda ? nn_mark_dup_if_exists_F : nn_mark_stack_input_if_exists_F)(result, "lambda");
 
 		auto dc = data_consistency_modl_create(config, dims, udims);
 		auto iov = nn_generic_domain(dc, 0, NULL);
 		complex float* zeros = md_alloc(iov->N, iov->dims, iov->size);
 		md_clear(iov->N, iov->dims, zeros, iov->size);
-		dc = nn_chain2_FF(nn_from_nlop_F(nlop_const_create(iov->N, iov->dims, true, zeros)), 0, NULL, dc, 0, NULL);
+		dc = nn_chain2_FF(nn_from_nlop_F(nlop_const_create(iov->N, iov->dims, true, zeros)), 0, NULL, dc, 0, NULL);   // in:  zero_filled, coil, pattern, lambda; out: (A^HA + lambda)^(-1) zerofilled
 
 		result = nn_chain2_swap_FF(dc, 0, NULL, result, 0, NULL);
 		result = nn_stack_dup_by_name_F(result);
 	} else {
-
-		result = nn_dup_F(result, 0, "zero_filled", 0, NULL);
-	}
+		if (nn_is_name_in_in_args(result, "zero_filled"))
+			result = nn_dup_F(result, 0, "zero_filled", 0, NULL);
+		else
+			result = nn_set_input_name_F(result, 0, "zero_filled"); 
+	}	
 
 	auto nn_zf = nn_modl_zf_create(config, dims, udims, status);
 
-	result = nn_mark_dup_F(result, "coil");
-	result = nn_mark_dup_F(result, "pattern");
+	result = nn_mark_dup_if_exists_F(result, "coil");
+	result = nn_mark_dup_if_exists_F(result, "pattern");
 
 	result = nn_chain2_swap_FF(nn_zf, 0, NULL, result, 0, "zero_filled");
 	result = nn_stack_dup_by_name_F(result);
 
 	return result;
 }
-
-static nn_t data_consistency_nullspace_create(const struct modl_s* config,const long dims[5], const long udims[5])
-{
-	auto nlop_dc = mri_reg_proj_ker_create_with_lambda(5, dims, config->share_pattern, config->lambda_fixed, config->batch_independent, config->convergence_warn_limit, config->normal_inversion_iter_conf); // in: x0+zn, coil, pattern, lambda; out: x(n+1)
-	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	nlop_dc = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_dc, 0);
-	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
-
-	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_zaxpbz_create(5, udims, 1., 1.), 0);// in: zi, zero_filled, coil, pattern, lambda; out: x(n+1)
-
-	auto result = nn_from_nlop_F(nlop_dc);
-	result = nn_set_input_name_F(result, 0, "tickhonov_reg");
-	result = nn_set_input_name_F(result, 1, "coil");
-	result = nn_set_input_name_F(result, 1, "pattern");
-	result = nn_set_input_name_F(result, 1, "lambda");
-	result = nn_set_in_type_F(result, 0, "lambda", IN_OPTIMIZE);
-	result = nn_set_initializer_F(result, 0, "lambda", init_const_create((-1 != config->lambda_fixed) ? config->lambda_fixed : config->lambda_init));
-
-	return result;
-}
-
-static nn_t nn_nullspace_cell_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
-{
-	auto dw = residual_create(config, udims, status);
-	auto dc = data_consistency_nullspace_create(config, dims, udims);
-
-	nn_t result = nn_chain2_FF(dw, 0, NULL, dc, 0, NULL);
-	result = nn_stack_dup_by_name_F(result);
-
-	return result;
-}
-
-
-static nn_t nn_nullspace_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
-{
-	auto result = nn_nullspace_cell_create(config, dims, udims, status);
-
-	for (int i = 1; i < config->Nt; i++) {
-
-		auto tmp = nn_nullspace_cell_create(config, dims, udims, status);
-
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_0");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_i");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_n");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_0");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_i");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_n");
-
-		if (config->batch_norm) {
-
-			tmp = nn_mark_stack_input_F(tmp, "bn_0");
-			tmp = nn_mark_stack_input_F(tmp, "bn_i");
-			tmp = nn_mark_stack_input_F(tmp, "bn_n");
-			tmp = nn_mark_stack_input_F(tmp, "gamma");
-
-			tmp = nn_mark_stack_output_F(tmp, "bn_0");
-			tmp = nn_mark_stack_output_F(tmp, "bn_i");
-			tmp = nn_mark_stack_output_F(tmp, "bn_n");
-		}
-
-		if (config->reinsert_zerofilled)
-			tmp = nn_mark_dup_F(tmp, "zero_filled");
-
-		tmp = nn_mark_dup_F(tmp, "tickhonov_reg");
-		tmp = nn_mark_dup_F(tmp, "coil");
-		tmp = nn_mark_dup_F(tmp, "pattern");
-		tmp = (config->shared_lambda ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "lambda");
-
-
-		result = nn_chain2_FF(result, 0, NULL, tmp, 0, NULL);
-		result = nn_stack_dup_by_name_F(result);
-	}
-
-	result = nn_dup_F(result, 0, "tickhonov_reg", 0, NULL);
-
-	if (config->reinsert_zerofilled)
-		result = nn_mark_dup_F(result, "zero_filled");
-
-	result = nn_mark_dup_F(result, "coil");
-	result = nn_mark_dup_F(result, "pattern");
-	result = (config->shared_lambda ? nn_mark_dup_F : nn_mark_stack_input_F)(result, "lambda");
-
-	auto dc = data_consistency_modl_create(config, dims, udims);
-	auto iov = nn_generic_domain(dc, 0, NULL);
-	complex float* zeros = md_alloc(iov->N, iov->dims, iov->size);
-	md_clear(iov->N, iov->dims, zeros, iov->size);
-	dc = nn_chain2_FF(nn_from_nlop_F(nlop_const_create(iov->N, iov->dims, true, zeros)), 0, NULL, dc, 0, NULL);
-	result = nn_chain2_swap_FF(dc, 0, NULL, result, 0, "tickhonov_reg");
-	result = nn_stack_dup_by_name_F(result);
-
-	auto nn_zf = nn_modl_zf_create(config, dims, udims, status);
-
-	result = nn_mark_dup_F(result, "coil");
-	result = nn_mark_dup_F(result, "pattern");
-
-	result = nn_chain2_swap_FF(nn_zf, 0, NULL, result, 0, "zero_filled");
-	result = nn_stack_dup_by_name_F(result);
-
-	return result;
-}
-
-static nn_t nn_modl_no_dc_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
-{
-	auto result = residual_create(config, udims, status);
-
-	for (int i = 1; i < config->Nt; i++) {
-
-		auto tmp = residual_create(config, udims, status);
-
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_0");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_i");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "conv_n");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_0");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_i");
-		tmp = (config->shared_weights ? nn_mark_dup_F : nn_mark_stack_input_F)(tmp, "bias_n");
-
-		if (config->batch_norm) {
-
-			tmp = nn_mark_stack_input_F(tmp, "bn_0");
-			tmp = nn_mark_stack_input_F(tmp, "bn_i");
-			tmp = nn_mark_stack_input_F(tmp, "bn_n");
-			tmp = nn_mark_stack_input_F(tmp, "gamma");
-
-			tmp = nn_mark_stack_output_F(tmp, "bn_0");
-			tmp = nn_mark_stack_output_F(tmp, "bn_i");
-			tmp = nn_mark_stack_output_F(tmp, "bn_n");
-		}
-
-		if (config->reinsert_zerofilled)
-			tmp = nn_mark_dup_F(tmp, "zero_filled");
-
-		result = nn_chain2_FF(result, 0, NULL, tmp, 0, NULL);
-		result = nn_stack_dup_by_name_F(result);
-	}
-
-	if (config->reinsert_zerofilled)
-		result = nn_mark_dup_F(result, "zero_filled");
-
-	if (config->init_tickhonov) {
-
-		auto dc = data_consistency_modl_create(config, dims, udims);
-		auto iov = nn_generic_domain(dc, 0, NULL);
-		complex float* zeros = md_alloc(iov->N, iov->dims, iov->size);
-		md_clear(iov->N, iov->dims, zeros, iov->size);
-		dc = nn_chain2_FF(nn_from_nlop_F(nlop_const_create(iov->N, iov->dims, true, zeros)), 0, NULL, dc, 0, NULL);
-		result = nn_chain2_swap_FF(dc, 0, NULL, result, 0, NULL);
-		result = nn_stack_dup_by_name_F(result);
-
-		result = nn_mark_dup_F(result, "coil");
-		result = nn_mark_dup_F(result, "pattern");
-	} else {
-
-		result = nn_set_input_name_F(result, 0, "zero_filled");
-		result = nn_stack_dup_by_name_F(result);
-	}
-
-	auto nn_zf = nn_modl_zf_create(config, dims, udims, status);
-
-	result = nn_chain2_swap_FF(nn_zf, 0, NULL, result, 0, "zero_filled");
-	result = nn_stack_dup_by_name_F(result);
-
-	return result;
-}
-
 
 static complex float get_lambda(long NI, const float* x[NI])
 {
@@ -559,7 +430,7 @@ static complex float get_infinity(long NI, const float* x[NI])
 	UNUSED(NI);
 	return INFINITY;
 }
-#if 1
+
 static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
 {
 	long kdims[5];
@@ -612,58 +483,6 @@ static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
 
 	return valid_loss;
 }
-#else
-static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
-{
-	long kdims[5];
-	long cdims[5];
-	long udims[5];
-	long pdims[5];
-
-	complex float* val_kspace = load_cfl(valid_files[0], 5, kdims);
-	complex float* val_coil = load_cfl(valid_files[1], 5, cdims);
-	complex float* val_pattern = load_cfl(valid_files[2], 5, pdims);
-	complex float* val_ref = load_cfl(valid_files[3], 5, udims);
-
-	auto valid_loss = nn_modl_create(modl, kdims, udims, STAT_TEST);
-
-	const struct nlop_s* loss = nlop_mse_create(5, udims, ~0ul);
-	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
-	loss = nlop_chain2_FF(nlop_smo_abs_create(5, udims, 1.e-12), 0, loss, 0);
-
-	if(modl->normalize) {
-
-		long sdims[5];
-		md_select_dims(5, MD_BIT(4), sdims, udims);
-
-		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
-
-		valid_loss = nn_chain2_FF(valid_loss, 0, "normalize_scale", nn_norm_ref, 1, NULL);
-		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 0, NULL);
-		valid_loss = nn_link_F(valid_loss, 1, NULL, 0, NULL);
-		valid_loss = nn_set_out_type_F(valid_loss, 0, NULL, OUT_OPTIMIZE);
-
-	} else {
-
-		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 0, NULL);
-	}
-
-	valid_loss = nn_ignore_input_F(valid_loss, 0, NULL, 5, udims, true, val_ref);
-	valid_loss = nn_ignore_input_F(valid_loss, 0, "kspace", 5, kdims, true, val_kspace);
-	valid_loss = nn_ignore_input_F(valid_loss, 0, "coil", 5, cdims, true, val_coil);
-	valid_loss = nn_ignore_input_F(valid_loss, 0, "pattern", 5, pdims, true, val_pattern);
-
-	//batchnorm out
-	valid_loss = nn_del_out_bn_F(valid_loss);
-
-	unmap_cfl(5, udims, val_ref);
-	unmap_cfl(5, kdims, val_kspace);
-	unmap_cfl(5, cdims, val_coil);
-	unmap_cfl(5, pdims, val_pattern);
-
-	return valid_loss;
-}
-#endif
 
 static nn_t nn_modl_train_op_create(const struct modl_s* modl, const long dims[5], const long udims[5])
 {
@@ -730,6 +549,8 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 	modl->share_pattern = pdims[4] == 1;
 
 	auto nn_train = nn_modl_train_op_create(modl, nkdims, nudims);
+	if (nn_is_name_in_in_args(nn_train, "lambda"))
+		nn_train = nn_set_in_type_F(nn_train, 0, "lambda", (-1 != modl->lambda_fixed) ? IN_STATIC : IN_OPTIMIZE);
 
 	if (NULL != modl->draw_graph_filename)
 		nn_export_graph(modl->draw_graph_filename, nn_train, graph_default);
