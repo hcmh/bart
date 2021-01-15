@@ -111,6 +111,8 @@ int main_nnmodl(int argc, char* argv[])
 		def_conf.maxiter = 10;
 	}
 
+	bool mandatory = !test_defaults;
+
 	if (NULL != config_file) {
 
 		const struct opt_json_s opts_json[] = {
@@ -118,15 +120,15 @@ int main_nnmodl(int argc, char* argv[])
 			JSON_BOOL(JSON_LABEL("data", "normalize"), &(modl.normalize), false,  ""),
 			JSON_BOOL(JSON_LABEL("general", "low_mem"), &(modl.low_mem), false,  ""),
 
-			JSON_LONG(JSON_LABEL("network", "modl", "iterations"), &(modl.Nt), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "modl", "iterations"), &(modl.Nt), mandatory,  ""),
 			JSON_BOOL(JSON_LABEL("network", "modl", "reinsert_zerofilled"), &(modl.reinsert_zerofilled), false,  ""),
 			JSON_BOOL(JSON_LABEL("network", "modl", "init_tickhonov"), &(modl.init_tickhonov), false,  ""),
 			JSON_BOOL(JSON_LABEL("network", "modl", "nullspace_formulation"), &(modl.nullspace), false,  ""),
 
-			JSON_LONG(JSON_LABEL("network", "dw", "conv_layers"), &(modl.Nl), true,  ""),
-			JSON_LONG(JSON_LABEL("network", "dw", "filter"), &(modl.Nf), true,  ""),
-			JSON_LONG(JSON_LABEL("network", "dw", "kernels", "x"), &(modl.Kx), true,  ""),
-			JSON_LONG(JSON_LABEL("network", "dw", "kernels", "y"), &(modl.Ky), true,  ""),
+			JSON_LONG(JSON_LABEL("network", "dw", "conv_layers"), &(modl.Nl), mandatory,  ""),
+			JSON_LONG(JSON_LABEL("network", "dw", "filter"), &(modl.Nf), mandatory,  ""),
+			JSON_LONG(JSON_LABEL("network", "dw", "kernels", "x"), &(modl.Kx), mandatory,  ""),
+			JSON_LONG(JSON_LABEL("network", "dw", "kernels", "y"), &(modl.Ky), mandatory,  ""),
 			JSON_LONG(JSON_LABEL("network", "dw", "kernels", "z"), &(modl.Kz), false,  ""),
 			JSON_BOOL(JSON_LABEL("network", "dw", "batch_normalization"), &(modl.batch_norm), false,  ""),
 			JSON_BOOL(JSON_LABEL("network", "dw", "residual_network"), &(modl.residual_network), false,  ""),
