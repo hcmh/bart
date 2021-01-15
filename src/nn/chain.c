@@ -1021,3 +1021,108 @@ nn_t nn_sort_outputs_by_list_F(nn_t x, unsigned int N, const char* sorted_names[
 
 	return nn_permute_outputs_F(x, OO, nperm);
 }
+
+
+/**
+ * Reshape input of nn_t to have an additional singleton dimension and free nn_t
+ * {dims[0], ..., dims[N-1]} -> {dims[0], ..., dims[N-1], 1}
+ * return op if name does not exist
+ *
+ * @param op nn_t struct (will be freed)
+ * @param i input index (ignored if iname != NULL)
+ * @param iname name of input
+ *
+ * @returns nn_t with reshaped input
+ */
+nn_t nn_append_singleton_dim_in_if_exists_F(nn_t op, int i, const char* iname)
+{
+	UNUSED(i);
+	assert(NULL != iname);
+	if (nn_is_name_in_in_args(op, iname))
+		return nn_append_singleton_dim_in_F(op, 0, iname);
+	else
+		return op;
+}
+
+/**
+ * Reshape output of nn_t to have an additional singleton dimension and free nn_t
+ * {dims[0], ..., dims[N-1]} -> {dims[0], ..., dims[N-1], 1}
+ * return op if name does not exist
+ *
+ * @param op nn_t struct (will be freed)
+ * @param o input index (ignored if oname != NULL)
+ * @param oname name of output
+ *
+ * @returns nn_t with reshaped output
+ */
+nn_t nn_append_singleton_dim_out_if_exists_F(nn_t op, int o, const char* oname)
+{
+	UNUSED(o);
+	assert(NULL != oname);
+	if (nn_is_name_in_out_args(op, oname))
+		return nn_append_singleton_dim_out_F(op, 0, oname);
+	else
+		return op;
+}
+
+
+/**
+ * Rename input with name to #DUP_name and free nn_t
+ *
+ * If the nn_t is combined with another having an input with the selected name,
+ * nn_stack_dup_by_name_F can be used to dup the two inputs
+ * return op if name does not exist
+ *
+ * @param op nn_t struct (will be freed)
+ * @param name old name
+ *
+ * @returns nn_t with new name
+ */
+nn_t nn_mark_dup_if_exists_F(nn_t x, const char* name)
+{
+	if (nn_is_name_in_in_args(x, name))
+		return nn_mark_dup_F(x, name);
+	else
+		return x;
+}
+
+/**
+ * Rename input with name to #STACK_name and free nn_t
+ *
+ * If the nn_t is combined with another having an input with the selected name,
+ * nn_stack_dup_by_name_F can be used to stack the two inputs
+ * return op if name does not exist
+ *
+ * @param op nn_t struct (will be freed)
+ * @param name old name
+ *
+ * @returns nn_t with new name
+ */
+nn_t nn_mark_stack_input_if_exists_F(nn_t x, const char* name)
+{
+	if (nn_is_name_in_in_args(x, name))
+		return nn_mark_stack_input_F(x, name);
+	else
+		return x;
+}
+
+/**
+ * Rename output with name to #STACK_name and free nn_t
+ *
+ * If the nn_t is combined with another having an input with the selected name,
+ * nn_stack_dup_by_name_F can be used to stack the two outputs
+ * return op if name does not exist
+ *
+ * @param op nn_t struct (will be freed)
+ * @param name old name
+ *
+ * @returns nn_t with new name
+ */
+nn_t nn_mark_stack_output_if_exists_F(nn_t x, const char* name)
+{
+	if (nn_is_name_in_out_args(x, name))
+		return nn_mark_stack_output_F(x, name);
+	else
+		return x;
+}
+
