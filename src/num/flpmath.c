@@ -4103,7 +4103,7 @@ void md_zfdiff_central2(unsigned int D, const long dims[D], unsigned int d, cons
 	md_circ_shift2(D, dims, pos, ostr, out, istr, in, CFL_SIZE);
 
 	if (reverse)
-		md_zsub2(D, dims, ostr, out, ostr, out, istr, in)
+		md_zsub2(D, dims, ostr, out, ostr, out, istr, in);
 	else
 		md_zsub2(D, dims, ostr, out, istr, in, ostr, out);
 
