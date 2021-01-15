@@ -4101,13 +4101,20 @@ void md_zfdiff_central2(unsigned int D, const long dims[D], unsigned int d, cons
 	pos[d] = 2;
 
 	md_circ_shift2(D, dims, pos, ostr, out, istr, in, CFL_SIZE);
-	reverse ? md_zsub2(D, dims, ostr, out, ostr, out, istr, in) : md_zsub2(D, dims, ostr, out, istr, in, ostr, out);
+
+	if (reverse)
+		md_zsub2(D, dims, ostr, out, ostr, out, istr, in)
+	else
+		md_zsub2(D, dims, ostr, out, istr, in, ostr, out);
+
 	pos[d] = -1;
 	md_circ_shift2(D, dims, pos, ostr, out, ostr, out, CFL_SIZE);
 
 	if (BC_ZERO == bc) {
+
 		long odims[D];
 		md_select_dims(D, ~MD_BIT(d), odims, dims);
+
 		md_set_dims(D, pos, 0);
 
 		// out[0] = in[1];
@@ -4116,10 +4123,13 @@ void md_zfdiff_central2(unsigned int D, const long dims[D], unsigned int d, cons
 		// out[n] = -in[n-1]
 		pos[d] = dims[d] - 1;
 		long ooffset = md_calc_offset(D, ostr, pos);
+
 		pos[d] = dims[d] - 2;
 		long ioffset = md_calc_offset(D, istr, pos);
+
 		md_zsmul2(D, odims, ostr, (void *)out + ooffset, istr, (void *)in + ioffset, reverse ? 1 : -1.);
 	}
+
 	// default: periodic boundary condition
 }
 
