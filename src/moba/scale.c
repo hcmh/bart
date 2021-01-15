@@ -12,10 +12,16 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "nlops/nlop.h"
+
 #include "num/multind.h"
 #include "num/loop.h"
 #include "num/flpmath.h"
 
+#include "iter/italgos.h"
+#include "iter/vec.h"
+
+#include "misc/types.h"
 #include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/debug.h"
@@ -29,6 +35,91 @@
 #include "model_Bloch.h"
 
 #include "scale.h"
+
+
+struct op_test_s {
+
+	INTERFACE(iter_op_data);
+
+	const struct nlop_s* nlop;
+};
+
+DEF_TYPEID(op_test_s);
+
+// Apply normal operator
+static void normal(iter_op_data* _data, float* dst, const float* src)
+{
+	auto data = CAST_DOWN(op_test_s, _data);
+
+	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)dst, (const complex float*)src);
+}
+
+// Test Bloch operator for scaling
+void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
+{
+	// Extract dimensions
+
+	long map_dims[DIMS];
+	long out_dims[DIMS];
+	long in_dims[DIMS];
+
+	md_select_dims(DIMS, FFT_FLAGS, map_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|TE_FLAG, out_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|COEFF_FLAG, in_dims, dims);
+
+	// Allocate storage for...
+
+	// ...parameter maps
+	complex float* para = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, in_dims, para, 0.);
+
+	// ...forward operator output
+	complex float* time_evolution = md_alloc_sameplace(DIMS, out_dims, CFL_SIZE, maps);
+
+	// ...single parameter map
+	complex float* ones = md_alloc_sameplace(DIMS, map_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, map_dims, ones, 1.);
+
+	// Collect data of operator
+
+	struct op_test_s op_data = {{ &TYPEID(op_test_s) }, nlop_clone(op)};
+
+	// Run forward operator to estimate derivatives
+
+	nlop_generic_apply_unchecked(op, 2, (void*[2]){time_evolution, (void*)maps});
+
+	long N = md_calc_size(DIMS, in_dims);
+
+	void* x = md_alloc_sameplace(1, MD_DIMS(N), CFL_SIZE, maps);
+
+	long pos[DIMS];
+	md_set_dims(DIMS, pos, 0);
+
+	double maxeigen = 0.;
+
+	for (int i = 0; i < in_dims[COEFF_DIM]; i++) {
+
+		pos[COEFF_DIM] = i;
+
+		md_copy_block(DIMS, pos, in_dims, para, map_dims, ones, CFL_SIZE); //FIXME: Better way to directly copy to x?
+
+		md_copy(DIMS, in_dims, x, para, CFL_SIZE);
+
+		maxeigen = power(20, 2*N, select_vecops(x),
+					(struct iter_op_s){ normal, CAST_UP(&op_data) }, (float*)x);
+
+		debug_printf(DP_INFO, "##max. eigenvalue Component %d: = %f\n", i, maxeigen);
+
+		md_zfill(DIMS, in_dims, para, 0.);
+	}
+
+	md_free(x);
+	md_free(para);
+	md_free(ones);
+	md_free(time_evolution);
+}
+
+
 
 // Automatically estimate partial derivative scaling
 // Idea:
