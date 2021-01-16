@@ -13,6 +13,8 @@
 #include "linops/someops.h"
 #include "linops/grad.h"
 
+#include "num/gpuops.h"
+
 #include "iter/iter.h"
 
 #include "misc/misc.h"
@@ -27,7 +29,7 @@
 
 static void cdi_reco(const float fov[3], const long jdims[N], complex float* j, const long bdims[N], const complex float* bz, const complex float* mask, const float reg, const float div_scale, const complex float* div_mask, unsigned int iter, float tol, const complex float* bc_mask)
 {
-	complex float* adj = md_alloc(N, jdims, CFL_SIZE);
+	complex float* adj = md_alloc_sameplace(N, jdims, CFL_SIZE, j);
 	auto bz_op = linop_bz_create(jdims, fov);
 
 	if (NULL != bc_mask) {
@@ -90,14 +92,16 @@ int main_cdi(int argc, char* argv[])
 {
 	float tik_reg = 0, div_scale = 0, tolerance = 1e-3;
 	unsigned int iter = 100;
+	bool use_gpu = false;
 	const struct opt_s opts[] = {
 		OPT_FLOAT('l', &tik_reg, "lambda_1", "Tikhonov Regularization"),
 		OPT_FLOAT('t', &tolerance, "t", "Stopping Tolerance"),
 		OPT_FLOAT('d', &div_scale, "lambda_2", "Divergence weighting factor"),
 		OPT_UINT('n', &iter, "Iterations", "Max. number of iterations"),
+		OPT_SET('g', &use_gpu, "use gpu"),
 	};
 	cmdline(&argc, argv, 5, 8, usage_str, help_str, ARRAY_SIZE(opts), opts);
-	num_init();
+	(use_gpu ? num_init_gpu_memopt : num_init)();
 
 	const int fov_ind = 1;
 	float fov[3] = {strtof(argv[fov_ind], NULL), strtof(argv[fov_ind + 1], NULL), strtof(argv[fov_ind + 2], NULL)};
@@ -116,9 +120,22 @@ int main_cdi(int argc, char* argv[])
 	md_copy_dims(N, jdims, bdims);
 	jdims[0] = 3;
 	complex float* j = create_cfl(argv[argc-1], N, jdims);
+	complex float* jx = j;
+#ifdef  USE_CUDA
+	if (use_gpu) {
 
-	cdi_reco(fov, jdims, j, bdims, b, mask, tik_reg, div_scale, div_mask, iter, tolerance, bc_mask);
-
+		cuda_use_global_memory();
+		complex float* j_gpu = md_alloc_gpu(N, jdims, CFL_SIZE);
+		jx = j_gpu;
+	}
+#endif
+	cdi_reco(fov, jdims, jx, bdims, b, mask, tik_reg, div_scale, div_mask, iter, tolerance, bc_mask);
+#ifdef  USE_CUDA
+	if (use_gpu) {
+		md_copy(N, jdims, j, jx, CFL_SIZE);
+		md_free(jx);
+	}
+#endif
 	unmap_cfl(N, bdims, b);
 	unmap_cfl(N, jdims, j);
 	if(mask != NULL)
