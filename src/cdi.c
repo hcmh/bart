@@ -84,7 +84,7 @@ static void cdi_reco(const float fov[3], const long jdims[N], complex float* j, 
 }
 
 
-static const char usage_str[] = "fovX fovY fovZ <bz> [<mask> [<div_mask> [<boundary condition mask>]]] <j>";
+static const char usage_str[] = "fovX fovY fovZ <bz> [<mask> [<boundary condition mask> [<div_mask>]]] <j>";
 static const char help_str[] = "Estimate the current density j that generates bz\n";
 
 
@@ -112,10 +112,10 @@ int main_cdi(int argc, char* argv[])
 	complex float* mask = NULL, * div_mask = NULL, * bc_mask = NULL;
 	if(argc>=7)
 		mask = load_cfl(argv[5], N, bdims);
-	if(argc>=8)
-		div_mask = load_cfl(argv[6], N, bdims);
-	if(argc==9)
-		bc_mask = load_cfl(argv[7], N, jdims);
+	if(argc==8)
+		bc_mask = load_cfl(argv[6], N, jdims);
+	if(argc>=9)
+		div_mask = load_cfl(argv[7], N, bdims);
 
 	md_copy_dims(N, jdims, bdims);
 	jdims[0] = 3;
