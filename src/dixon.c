@@ -70,6 +70,7 @@ int main_dixon(int argc, char* argv[])
 	complex float* pm = md_alloc(N, dims_in, CFL_SIZE);
 	md_zarg(N, dims_in, pm, in);
 
+	// TODO: B0 mapping
 	complex float* pB0  = md_alloc(N, dims_img, CFL_SIZE);
 	md_zsub2(N, dims_img, strs_img, pB0, strs_in, (void*)pm + strs_in[TE_DIM] * 1, strs_in, (void*)pm + strs_in[TE_DIM] * 0);
 	md_zsmul(N, dims_img, pB0, pB0, -1./(TE[1]-TE[0]));
@@ -85,7 +86,6 @@ int main_dixon(int argc, char* argv[])
 
 	}
 
-	// dump_cfl("/tmp/meco_pB0", N, dims_img, pB0);
 	xfree(pB0);
 
 
@@ -104,11 +104,6 @@ int main_dixon(int argc, char* argv[])
 
 	complex float* cshift = md_alloc(N, dims_TE, CFL_SIZE);
 	meco_calc_fat_modu(N, dims_TE, TE, cshift);
-
-	// debug_printf(DP_DEBUG3, "fat chemical shift: \n");
-	// for (int n = 0; n < dims_TE[TE_DIM]; n++) {
-	// 	debug_printf(DP_DEBUG3, " TE %.2f ms: (%.4f, %.4f)\n", crealf(TE[n]), crealf(cshift[n]), cimagf(cshift[n]));
-	// }
 
 	complex float lhs = 0.;
 
