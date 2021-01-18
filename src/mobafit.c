@@ -105,7 +105,7 @@ int main_mobafit(int argc, char* argv[])
 
 	case MGRE:  ;
 
-		float scale_fB0[2] = { MECO_IDENTITY, 1. };
+		float scale_fB0[2] = { 0., 1. };
 		nlop = nlop_meco_create(DIMS, y_patch_dims, x_patch_dims, TE, mgre_model, false, scale_fB0, use_gpu);
 		break;
 
