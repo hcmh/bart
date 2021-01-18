@@ -748,8 +748,11 @@ static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_c
 	size_t isize1 = get_block_size(N_in, ndims, nistrs1, size);
 	size_t isize2 = get_block_size(N_in, ndims, nistrs2, size);
 
-	if (0 == osize * isize1 * isize2)
+	if ((0 == osize) || (0 == isize1) || (0 == isize2))
+	{
+		md_free(conj_in);
 		return false; //cross check: data for inner kernel is contingous in memory
+	}
 
 	// clang
 	long* ndims_ptr = &ndims[0];
@@ -851,7 +854,7 @@ static bool simple_3op(int N_checks, struct simple_3op_check strided_calls[N_che
 	size_t isize1 = get_block_size(N_in, ndims, nistrs1, size);
 	size_t isize2 = get_block_size(N_in, ndims, nistrs2, size);
 
-	if (0 == osize * isize1 * isize2)
+	if ((0 == osize) || (0 == isize1) || (0 == isize2))
 		return false; //cross check: data for inner kernel is contingous in memory
 
 	// clang
