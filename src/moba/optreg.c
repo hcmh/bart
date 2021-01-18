@@ -349,7 +349,7 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 			regs[nr].lambda = 1. * lambda;
 			debug_printf(DP_INFO, "l1-wavelet regularization: %f\n", regs[nr].lambda);
 
-			auto l1Wav_prox = create_wav_prox(img_dims, regs[nr].jflags, regs[nr].lambda);	
+			auto l1Wav_prox = create_wav_prox(img_dims, regs[nr].xflags, regs[nr].jflags, regs[nr].lambda);
 			auto zero_prox = prox_zero_create(DIMS, coil_dims);
 
 			trafos[nr] = linop_identity_create(DIMS, x_dims);
