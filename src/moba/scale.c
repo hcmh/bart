@@ -17,6 +17,7 @@
 #include "num/multind.h"
 #include "num/loop.h"
 #include "num/flpmath.h"
+#include "num/rand.h"
 
 #include "iter/italgos.h"
 #include "iter/vec.h"
@@ -35,7 +36,6 @@
 #include "model_Bloch.h"
 
 #include "scale.h"
-
 
 struct op_test_s {
 
@@ -57,6 +57,9 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 // Test Bloch operator for scaling
 void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 {
+
+	debug_printf(DP_INFO, "\n#Calculate Eigenvalues from Normal Operator\n");
+
 	// Extract dimensions
 
 	long map_dims[DIMS];
@@ -69,24 +72,18 @@ void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 
 	// Allocate storage for...
 
-	// ...parameter maps
+	// ...temorary parameter maps
 	complex float* para = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
 	md_zfill(DIMS, in_dims, para, 0.);
 
 	// ...forward operator output
 	complex float* time_evolution = md_alloc_sameplace(DIMS, out_dims, CFL_SIZE, maps);
 
-	// ...single parameter map
-	complex float* ones = md_alloc_sameplace(DIMS, map_dims, CFL_SIZE, maps);
-	md_zfill(DIMS, map_dims, ones, 1.);
+	// ...random initialization for power method
+	complex float* rand = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_gaussian_rand(DIMS, in_dims, rand);
 
-	// Collect data of operator
-
-	struct op_test_s op_data = {{ &TYPEID(op_test_s) }, nlop_clone(op)};
-
-	// Run forward operator to estimate derivatives
-
-	nlop_generic_apply_unchecked(op, 2, (void*[2]){time_evolution, (void*)maps});
+	struct op_test_s op_data = {{ &TYPEID(op_test_s) }, op};
 
 	long N = md_calc_size(DIMS, in_dims);
 
@@ -97,16 +94,19 @@ void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 
 	double maxeigen = 0.;
 
-	for (int i = 0; i < in_dims[COEFF_DIM]; i++) {
+	// Maximum eigenvalue for R1
+	for (int i = 0; i < pos[COEFF_DIM]; i+=1) {	// Just run through R1 and R2 map
 
 		pos[COEFF_DIM] = i;
 
-		md_copy_block(DIMS, pos, in_dims, para, map_dims, ones, CFL_SIZE); //FIXME: Better way to directly copy to x?
+		md_copy_block(DIMS, pos, in_dims, para, in_dims, maps, CFL_SIZE);
 
-		md_copy(DIMS, in_dims, x, para, CFL_SIZE);
+		nlop_apply(op, DIMS, out_dims, time_evolution, DIMS, in_dims, para);
+
+		md_copy(DIMS, in_dims, x, rand, CFL_SIZE);
 
 		maxeigen = power(20, 2*N, select_vecops(x),
-					(struct iter_op_s){ normal, CAST_UP(&op_data) }, (float*)x);
+						(struct iter_op_s){ normal, CAST_UP(&op_data) }, (float*)x);
 
 		debug_printf(DP_INFO, "##max. eigenvalue Component %d: = %f\n", i, maxeigen);
 
@@ -115,7 +115,7 @@ void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 
 	md_free(x);
 	md_free(para);
-	md_free(ones);
+	md_free(rand);
 	md_free(time_evolution);
 }
 
