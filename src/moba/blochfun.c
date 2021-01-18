@@ -70,6 +70,13 @@ struct blochFun_s {
 
 DEF_TYPEID(blochFun_s);
 
+complex float* blochfun_get_derivatives(struct nlop_s* op)
+{
+	const nlop_data_t* _data = nlop_get_data(op);
+	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
+	return data->derivatives;
+}
+
 
 static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
