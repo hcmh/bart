@@ -54,8 +54,6 @@ struct blochFun_s {
 	float scale[4];
 
 	//derivatives
-	complex float* Sig;
-
 	complex float* derivatives;
 
 	complex float* input_b1;
@@ -423,8 +421,6 @@ static void Bloch_del(const nlop_data_t* _data)
 {
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
 
-	md_free(data->Sig);
-
 	md_free(data->derivatives);
 
 	md_free(data->input_b1);
@@ -497,8 +493,6 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	data->scale[1] = fit_para->scale[1];	// dM0 scaling
 	data->scale[2] = fit_para->scale[2];	// dR2 scaling
 	data->scale[3] = fit_para->scale[3];	// signal scaling
-
-	data->Sig = my_alloc(N, out_dims, CFL_SIZE);
 
 	data->derivatives = my_alloc(N, dims, CFL_SIZE);
 
