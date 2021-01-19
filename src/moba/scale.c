@@ -35,6 +35,8 @@
 #include "recon_Bloch.h"
 #include "model_Bloch.h"
 
+#include "blochfun.h"
+
 #include "scale.h"
 
 struct op_test_s {
@@ -58,7 +60,7 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 {
 
-	debug_printf(DP_INFO, "\n#Calculate Eigenvalues from Normal Operator\n");
+	debug_printf(DP_INFO, "\n# Calculate Eigenvalues from Normal Operator\n");
 
 	// Extract dimensions
 
@@ -72,18 +74,20 @@ void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 
 	// Allocate storage for...
 
-	// ...temorary parameter maps
+	// ...parameter maps
 	complex float* para = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
-	md_zfill(DIMS, in_dims, para, 0.);
 
 	// ...forward operator output
 	complex float* time_evolution = md_alloc_sameplace(DIMS, out_dims, CFL_SIZE, maps);
 
 	// ...random initialization for power method
-	complex float* rand = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
-	md_gaussian_rand(DIMS, in_dims, rand);
+	complex float* rand = md_alloc_sameplace(DIMS, map_dims, CFL_SIZE, maps);
+	md_gaussian_rand(DIMS, map_dims, rand);
 
 	struct op_test_s op_data = {{ &TYPEID(op_test_s) }, op};
+
+	// Run forward operator
+	nlop_apply(op, DIMS, out_dims, time_evolution, DIMS, in_dims, maps);
 
 	long N = md_calc_size(DIMS, in_dims);
 
@@ -95,22 +99,21 @@ void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 	double maxeigen = 0.;
 
 	// Maximum eigenvalue for R1
-	for (int i = 0; i < pos[COEFF_DIM]; i+=1) {	// Just run through R1 and R2 map
+	for (int i = 0; i < in_dims[COEFF_DIM]; i++) {
 
 		pos[COEFF_DIM] = i;
 
-		md_copy_block(DIMS, pos, in_dims, para, in_dims, maps, CFL_SIZE);
+		md_zfill(DIMS, in_dims, para, 0.);
 
-		nlop_apply(op, DIMS, out_dims, time_evolution, DIMS, in_dims, para);
+		md_copy_block(DIMS, pos, in_dims, para, map_dims, rand, CFL_SIZE);
 
-		md_copy(DIMS, in_dims, x, rand, CFL_SIZE);
+		md_copy(DIMS, in_dims, x, para, CFL_SIZE);
 
+		// Estimate eigenvalue: lambda_0
 		maxeigen = power(20, 2*N, select_vecops(x),
 						(struct iter_op_s){ normal, CAST_UP(&op_data) }, (float*)x);
 
-		debug_printf(DP_INFO, "##max. eigenvalue Component %d: = %f\n", i, maxeigen);
-
-		md_zfill(DIMS, in_dims, para, 0.);
+		debug_printf(DP_INFO, "## max. eigenvalue Component %d: = %f\n", i, maxeigen);
 	}
 
 	md_free(x);
@@ -118,7 +121,6 @@ void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 	md_free(rand);
 	md_free(time_evolution);
 }
-
 
 
 // Automatically estimate partial derivative scaling
