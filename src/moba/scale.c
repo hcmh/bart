@@ -74,7 +74,7 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 	md_copy(DIMS, data->in_dims, (complex float*) dst, data->tmp2, CFL_SIZE);
 }
 
-// Test Bloch operator for scaling
+
 void nlop_get_partial_ev(struct nlop_s* op, const long dims[DIMS], complex float* ev, complex float* maps)
 {
 
@@ -150,7 +150,7 @@ void nlop_get_partial_ev(struct nlop_s* op, const long dims[DIMS], complex float
 		maxeigen = power(20, 2*N, select_vecops(x),
 						(struct iter_op_s){ normal, CAST_UP(&op_data) }, (float*)x);
 
-		debug_printf(DP_INFO, "## max. eigenvalue Component %d: = %f\n", i, maxeigen);
+		debug_printf(DP_DEBUG2, "## max. eigenvalue Component %d: = %f\n", i, maxeigen);
 
 		ev[i] = maxeigen + 0*I;
 	}

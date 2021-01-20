@@ -244,7 +244,6 @@ static bool test_nlop_op_ev(void)
 	long out_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 
-	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
 	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
 
 	md_zfill(N, in_dims, src, 1.0);
@@ -254,7 +253,6 @@ static bool test_nlop_op_ev(void)
 	// f(x,y) = x + 2 y
 	struct nlop_s* test = nlop_test_create(N, map_dims, out_dims, in_dims);
 
-	// Estimation of eigenvalue of the normal operator == 5
 	nlop_get_partial_ev(test, in_dims, ev, src);
 
 	UT_ASSERT(crealf(ev[0]) == 1.);
@@ -264,7 +262,6 @@ static bool test_nlop_op_ev(void)
 	nlop_free(test);
 
 	md_free(src);
-	md_free(dst);
 	md_free(ev);
 
 }
