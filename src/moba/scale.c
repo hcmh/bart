@@ -44,6 +44,13 @@ struct op_test_s {
 	INTERFACE(iter_op_data);
 
 	const struct nlop_s* nlop;
+
+	const long* in_dims;
+
+	complex float* tmp;
+	complex float* tmp2;
+
+	complex float* projection;
 };
 
 DEF_TYPEID(op_test_s);
@@ -53,11 +60,22 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 {
 	auto data = CAST_DOWN(op_test_s, _data);
 
-	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)dst, (const complex float*)src);
+	// Apply normal operator
+
+	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), data->tmp, (const complex float*)src);
+
+	// Perform ortogonal projection onto desired parameter
+
+	md_clear(DIMS, data->in_dims, data->tmp2, CFL_SIZE);
+	md_zfmac(DIMS, data->in_dims, data->tmp2, data->projection, data->tmp);
+
+	// Copy to output
+
+	md_copy(DIMS, data->in_dims, (complex float*) dst, data->tmp2, CFL_SIZE);
 }
 
 // Test Bloch operator for scaling
-void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
+void nlop_get_partial_ev(struct nlop_s* op, const long dims[DIMS], complex float* ev, complex float* maps)
 {
 
 	debug_printf(DP_INFO, "\n# Calculate Eigenvalues from Normal Operator\n");
@@ -74,20 +92,38 @@ void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 
 	// Allocate storage for...
 
-	// ...parameter maps
+	// ...randomly initialized parameter maps for power method
 	complex float* para = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_gaussian_rand(DIMS, in_dims, para);
 
 	// ...forward operator output
 	complex float* time_evolution = md_alloc_sameplace(DIMS, out_dims, CFL_SIZE, maps);
 
-	// ...random initialization for power method
-	complex float* rand = md_alloc_sameplace(DIMS, map_dims, CFL_SIZE, maps);
-	md_gaussian_rand(DIMS, map_dims, rand);
+	// ...ones initialization for projection
+	complex float* ones = md_alloc_sameplace(DIMS, map_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, map_dims, ones, 1.);
 
-	struct op_test_s op_data = {{ &TYPEID(op_test_s) }, op};
+	struct op_test_s op_data = {{ &TYPEID(op_test_s) }, op, in_dims, NULL, NULL, NULL};
+
+	// ...the projection itself
+	op_data.projection = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, in_dims, op_data.projection, 0.);
+
+	//...some temporary files
+	op_data.tmp = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, in_dims, op_data.tmp, 0.);
+
+	//...some temporary files
+	op_data.tmp2 = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, in_dims, op_data.tmp2, 0.);
+
 
 	// Run forward operator
+
 	nlop_apply(op, DIMS, out_dims, time_evolution, DIMS, in_dims, maps);
+
+
+	// Prepare looping through coefficient dimension
 
 	long N = md_calc_size(DIMS, in_dims);
 
@@ -103,23 +139,29 @@ void op_scaling(struct nlop_s* op, const long dims[DIMS], complex float* maps)
 
 		pos[COEFF_DIM] = i;
 
-		md_zfill(DIMS, in_dims, para, 0.);
+		// Create desired orthogonal projection
+		md_zfill(DIMS, in_dims, op_data.projection, 0.);
+		md_copy_block(DIMS, pos, in_dims, op_data.projection, map_dims, ones, CFL_SIZE);
 
-		md_copy_block(DIMS, pos, in_dims, para, map_dims, rand, CFL_SIZE);
-
+		// Copy randomly initialized parameter to float
 		md_copy(DIMS, in_dims, x, para, CFL_SIZE);
 
-		// Estimate eigenvalue: lambda_0
+		// Estimate eigenvalue
 		maxeigen = power(20, 2*N, select_vecops(x),
 						(struct iter_op_s){ normal, CAST_UP(&op_data) }, (float*)x);
 
 		debug_printf(DP_INFO, "## max. eigenvalue Component %d: = %f\n", i, maxeigen);
+
+		ev[i] = maxeigen + 0*I;
 	}
 
 	md_free(x);
 	md_free(para);
-	md_free(rand);
+	md_free(ones);
 	md_free(time_evolution);
+	md_free(op_data.tmp);
+	md_free(op_data.tmp2);
+	md_free(op_data.projection);
 }
 
 
