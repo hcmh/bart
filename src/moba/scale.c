@@ -164,6 +164,20 @@ void nlop_get_partial_ev(struct nlop_s* op, const long dims[DIMS], complex float
 	md_free(op_data.projection);
 }
 
+void nlop_get_partial_scaling(struct nlop_s* op, const long dims[DIMS], complex float* scaling, complex float* maps, int ref)
+{
+	assert(ref < dims[COEFF_DIM]);
+
+	complex float* ev = md_alloc(1, MD_DIMS(dims[COEFF_DIM]), CFL_SIZE);
+
+	nlop_get_partial_ev(op, dims, ev, maps);
+
+	for (int i = 0; i < dims[COEFF_DIM]; i++)
+		scaling[i] = (ref == i) ? 1. : ev[ref] / ev[i];
+
+	md_free(ev);
+}
+
 
 // Automatically estimate partial derivative scaling
 // Idea:

@@ -266,3 +266,35 @@ static bool test_nlop_op_ev(void)
 
 }
 UT_REGISTER_TEST(test_nlop_op_ev);
+
+
+static bool test_nlop_op_scaling(void)
+{
+	enum { N = 16 };
+	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long out_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
+
+	md_zfill(N, in_dims, src, 1.0);
+
+	complex float* scaling = md_alloc(1, MD_DIMS(in_dims[COEFF_DIM]), CFL_SIZE);
+
+	// f(x,y) = x + 2 y
+	struct nlop_s* test = nlop_test_create(N, map_dims, out_dims, in_dims);
+
+	// Compare to reference 1
+	nlop_get_partial_scaling(test, in_dims, scaling, src, 1);
+
+	UT_ASSERT(crealf(scaling[0]) == 4.);
+
+	UT_ASSERT(crealf(scaling[1]) == 1.);
+
+	nlop_free(test);
+
+	md_free(src);
+	md_free(scaling);
+
+}
+UT_REGISTER_TEST(test_nlop_op_scaling);
