@@ -557,8 +557,9 @@ MODULES_test_batchsvd = -llowrank
 UTARGETS += test_pattern test_types test_misc test_mmio
 
 # lib moba
-UTARGETS += test_moba
+UTARGETS += test_moba test_scale
 MODULES_test_moba += -lmoba -lnoir -llowrank -lwavelet -liter -lnlops -llinops -lsimu
+MODULES_test_scale += -lmoba -lnoir -llowrank -liter -lnlops -llinops -lsimu
 
 # lib nlop
 UTARGETS += test_nlop
