@@ -16,6 +16,6 @@ struct T1_s {
 
 
 extern struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, 
-			const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, float IR_phy, bool use_gpu);
+			const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, float IR_phy, const complex float* alpha, bool use_gpu);
 
 

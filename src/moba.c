@@ -114,6 +114,8 @@ int main_moba(int argc, char* argv[argc])
 	enum mdb_t { MDB_T1, MDB_T2, MDB_MGRE } mode = { MDB_T1 };
 	enum edge_filter_t { EF1, EF2 } k_filter_type = EF1;
 
+	const char* input_alpha = NULL;
+
 	opt_reg_init(&ropts);
 
 	opt_reg_init(&ropts);
@@ -154,6 +156,7 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_SELECT(0, "kfilter-1", enum edge_filter_t, &k_filter_type, EF1, "k-space edge filter 1"),
 		OPTL_SELECT(0, "kfilter-2", enum edge_filter_t, &k_filter_type, EF2, "k-space edge filter 2"),
 		OPT_SET('n', &conf.auto_norm_off, "disable normlization of parameter maps for thresholding"),
+		OPT_STRING('A',	&input_alpha, 		"", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -239,7 +242,7 @@ int main_moba(int argc, char* argv[argc])
 	}
 
 	// TODO: unify these two into switch(mode)
-	if (conf.IR_SS)
+	if (conf.IR_SS || (NULL != input_alpha))
 		img_dims[COEFF_DIM] = 2;
 	
 	if (0. != conf.IR_phy)
@@ -402,7 +405,21 @@ int main_moba(int argc, char* argv[argc])
 
 	assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
 
+	// Load passed alpha map
 
+	complex float* alpha = NULL;
+
+	long input_alpha_dims[DIMS];
+
+	if (NULL != input_alpha) {
+
+		alpha = load_cfl(input_alpha, DIMS, input_alpha_dims);
+
+		conf.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
+		md_copy(DIMS, input_alpha_dims, conf.input_alpha, alpha, CFL_SIZE);
+
+		unmap_cfl(DIMS, input_alpha_dims, alpha);
+	}
 
 	// scaling
 
@@ -442,14 +459,14 @@ int main_moba(int argc, char* argv[argc])
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
-		if ((MDB_T1 == mode) || (MDB_T2 == mode) || (0. != conf.IR_phy) || (conf.IR_SS)) {
+		if ((MDB_T1 == mode) || (MDB_T2 == mode) || (0. != conf.IR_phy) || (NULL != input_alpha) || (conf.IR_SS)) {
 
 			// Choose a different initial guess for R1*
-			float init_param = (0. != conf.IR_phy) ? 3. : (conf.sms ? 2. : 1.5);
+			float init_param = (0. != conf.IR_phy || (NULL != input_alpha)) ? 3. : (conf.sms ? 2. : 1.5);
 
 			long pos[DIMS] = { 0 };
 
-			pos[COEFF_DIM] = ((conf.IR_SS) || (0. != conf.IR_phy) || (mode == MDB_T2)) ? 1 : 2;
+			pos[COEFF_DIM] = ((conf.IR_SS) || (0. != conf.IR_phy) || (NULL != input_alpha) || (mode == MDB_T2)) ? 1 : 2;
 
 			md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 			md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
@@ -534,6 +551,9 @@ int main_moba(int argc, char* argv[argc])
 
 	if (NULL != init_file)
 		unmap_cfl(DIMS, init_dims, init);
+
+	if (NULL != input_alpha)
+		unmap_cfl(DIMS, input_alpha_dims, conf.input_alpha);
 
 	double recosecs = timestamp() - start_time;
 

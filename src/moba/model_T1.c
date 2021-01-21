@@ -31,12 +31,13 @@
 #include "moba/IR_SS_fun.h"
 #include "moba/T1MOLLI.h"
 #include "moba/T1_alpha.h"
+#include "moba/T1_alpha_in.h"
 
 #include "model_T1.h"
 
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, 
-		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, float IR_phy, bool use_gpu)
+		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, float IR_phy, const complex float* alpha, bool use_gpu)
 {
 	long data_dims[DIMS];
 	md_select_dims(DIMS, ~COEFF_FLAG, data_dims, dims);
@@ -86,7 +87,11 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	} else if (0. != IR_phy) {
 		
                 T1 = nlop_T1_alpha_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+
+	} else if (NULL != alpha) {
 		
+                T1 = nlop_T1_alpha_in_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, alpha, use_gpu);
+
 	} else {
 
 		T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);

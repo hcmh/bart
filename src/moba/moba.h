@@ -1,5 +1,6 @@
 
 #include <stdbool.h>
+#include <complex.h>
 
 struct opt_reg_s;
 
@@ -26,6 +27,8 @@ struct moba_conf {
 	int algo;	// enum algo_t
 	float rho;
 	struct opt_reg_s* ropts;
+
+	complex float* input_alpha;
 };
 
 extern struct moba_conf moba_defaults;

@@ -4,6 +4,7 @@
  **/
  
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "moba.h"
 
@@ -29,5 +30,6 @@ struct moba_conf moba_defaults = {
 	.algo = 3,
 	.rho = 0.01,
 	.stack_frames = false,
+	.input_alpha = NULL,
 };
 

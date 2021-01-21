@@ -31,6 +31,7 @@
 #include "moba/model_T1.h"
 #include "moba/iter_l1.h"
 #include "moba/T1_alpha.h"
+#include "moba/T1_alpha_in.h"
 #include "moba/moba.h"
 
 #include "recon_T1.h"
@@ -74,7 +75,8 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	mconf.b = 32.;
 	mconf.cnstcoil_flags = TE_FLAG;
 
-	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, conf->MOLLI, TI_t1relax, conf->IR_SS, conf->IR_phy, usegpu);
+	// FIXME: Move all function arguments to struct to simplify adding new ones
+	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, conf->MOLLI, TI_t1relax, conf->IR_SS, conf->IR_phy, conf->input_alpha, usegpu);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
