@@ -55,9 +55,6 @@ static void destroy_handle(void)
 static bool check_trivial_cf_3d(int N, long odims[N], long ostrs[N], long idims[N], long istrs[N], long kdims[N], long kstrs[N],
 				unsigned long flags, const long dilation[N], const long strides[N], size_t size)
 {
-	if((28 != flags))
-		return false;
-
 	if ((NULL != dilation) && (!md_check_equal_dims(N, dilation, MD_SINGLETON_DIMS(N), ~(0l))))
 		return false;
 	if ((NULL != strides) && (!md_check_equal_dims(N, strides, MD_SINGLETON_DIMS(N), ~(0l))))
@@ -76,8 +73,17 @@ static bool check_trivial_cf_3d(int N, long odims[N], long ostrs[N], long idims[
 		if (1 != odims[i] * idims[i] * kdims[i])
 			return false;
 
+	// only convolutions in dims 2, 3, 4
+	if (0 != (flags & (~28ul)))
+		return false;
+	
+	// dims 2, 3, 4 must be convolution or singleton
+	for (int i = 2; i < 5; i++)
+		if(!MD_IS_SET(flags, i) && ((odims[i] != 1) || (kdims[i] != 1) || (idims[i] != 1)))
+			return false;
+
 	//Check matmul dims
-	if ((28 == flags) && ((1 != idims[0]) || (1 != odims[1]) || (1 != kdims[5])))
+	if (((1 != idims[0]) || (1 != odims[1]) || (1 != kdims[5])))
 		return false;
 
 	return true;

@@ -5,6 +5,12 @@
 
 #include "utest.h"
 
+#ifdef USE_CUDNN
+const int cudnn_imple = 1;
+#else
+const int cudnn_imple = 0;
+#endif
+
 
 static bool test_convcorr_frw_cf_2D(void)
 {
@@ -18,7 +24,7 @@ static bool test_convcorr_frw_cf_2D(void)
 					idims, MD_STRIDES(N, idims, CFL_SIZE),
 					kdims, MD_STRIDES(N, kdims, CFL_SIZE),
 					28, NULL, NULL, false,
-					1.e-6, 2, 2);
+					1.e-6, 2, 2 + cudnn_imple);
 
 	UT_ASSERT(test);
 }
@@ -36,7 +42,7 @@ static bool test_convcorr_bwd_in_cf_2D(void)
 					idims, MD_STRIDES(N, idims, CFL_SIZE),
 					kdims, MD_STRIDES(N, kdims, CFL_SIZE),
 					28, NULL, NULL, false,
-					1.e-6, 2, 2);
+					1.e-6, 2, 2 + cudnn_imple);
 
 	UT_ASSERT(test);
 }
@@ -54,7 +60,7 @@ static bool test_convcorr_bwd_krn_cf_2D(void)
 					idims, MD_STRIDES(N, idims, CFL_SIZE),
 					kdims, MD_STRIDES(N, kdims, CFL_SIZE),
 					28, NULL, NULL, false,
-					1.e-6, 2, 2);
+					1.e-6, 2, 2 + cudnn_imple);
 
 	UT_ASSERT(test);
 }
