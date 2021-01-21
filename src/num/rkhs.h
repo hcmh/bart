@@ -1,8 +1,10 @@
 
 #include <complex.h>
 
-typedef complex float krn_t(int D, const float x[D], const float y[D]);
-typedef void krn2_t(int M, complex float k[M][M], int D, const float x[D], const float y[D]);
+#include "misc/nested.h"
+
+typedef complex float CLOSURE_TYPE(krn_t)(int D, const float x[D], const float y[D]);
+typedef void CLOSURE_TYPE(krn2_t)(int M, complex float k[M][M], int D, const float x[D], const float y[D]);
 
 extern void rkhs_matrix(int N, complex float (*km)[N][N], int D, const float (*x)[N][D], krn_t krn, float alpha);
 extern void rkhs_matrix2(int N, int M, complex float (*km)[N][N][M][M], int D, const float (*x)[N][D], krn2_t krn, float alpha);
