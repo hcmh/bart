@@ -40,6 +40,7 @@
 #include "num/gpuops.h"
 #endif
 
+#include "moba/scale.h"
 #include "moba/optreg.h"
 #include "moba/recon_T1.h"
 #include "moba/recon_T2.h"
@@ -416,7 +417,8 @@ int main_moba(int argc, char* argv[argc])
 		alpha = load_cfl(input_alpha, DIMS, input_alpha_dims);
 
 		conf.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
-		md_copy(DIMS, input_alpha_dims, conf.input_alpha, alpha, CFL_SIZE);
+		fa_to_alpha(DIMS, input_alpha_dims, conf.input_alpha, alpha, get_tr_from_inversion(DIMS, TI_dims, TI));
+		// md_copy(DIMS, input_alpha_dims, conf.input_alpha, alpha, CFL_SIZE);
 
 		unmap_cfl(DIMS, input_alpha_dims, alpha);
 	}
