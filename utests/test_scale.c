@@ -298,3 +298,35 @@ static bool test_nlop_op_scaling(void)
 
 }
 UT_REGISTER_TEST(test_nlop_op_scaling);
+
+
+static bool test_fa_to_scale(void)
+{
+	enum { N = 2 };
+	long dims[N] = { 16, 16 };
+
+	complex float* src = md_alloc(N, dims, CFL_SIZE);
+	md_zfill(N, dims, src, 6.0);	// [deg]
+
+	complex float* dst = md_alloc(N, dims, CFL_SIZE);
+	md_zfill(N, dims, dst, 10.);
+
+	float tr = 0.003;
+
+	fa_to_alpha(N, dims, dst, src, tr);
+
+	complex float* ref = md_alloc(N, dims, CFL_SIZE);
+	md_zfill(N, dims, ref, 1.831);
+
+	float err = md_znrmse(N, dims, ref, dst);
+
+	// debug_printf(DP_INFO, "Error: %f\n", err);
+
+	UT_ASSERT(err < 1.E-4);
+
+	md_free(src);
+	md_free(dst);
+	md_free(ref);
+
+}
+UT_REGISTER_TEST(test_fa_to_scale);
