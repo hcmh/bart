@@ -195,6 +195,58 @@ void fa_to_alpha(unsigned int D, const long dims[D], void* optr, const void* ipt
 	md_free(tmp);
 }
 
+// get TR from inversion time
+float get_tr_from_inversion(unsigned int D, const long dims[D], complex float* iptr)
+{
+	// Find non trivial dimension
+	unsigned int nt_dim = 0;
+	unsigned int num = 0;
+
+	for (unsigned int i = 0; i < DIMS; i++) {
+
+		if (1 < dims[i]) {
+			nt_dim = i;
+			num++;
+		}
+	}
+	// Otherwise either to few or too many dimensions
+	// Only supports 1 D arrays atm
+	assert(num == 1);
+
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	long pos[D];
+	md_set_dims(D, pos, 0);
+
+	// find minimum difference between timesteps
+	float min_time = 100.;
+	long ind = 0;
+	long prev_ind = 0;
+
+	float diff = 0;
+
+	for (unsigned int i = 0; i < dims[nt_dim]; i++) {
+
+		pos[nt_dim] = i;
+
+		prev_ind = ind;
+		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+		if (0 == i)
+			continue;
+
+		diff = cabsf(iptr[ind]-iptr[prev_ind]);
+
+		min_time = (min_time > diff) ? diff : min_time;
+	}
+
+	debug_printf(DP_DEBUG2, "Min Timeinterval => TR = %f\n", min_time);
+
+	return min_time;
+}
+
+
 // Automatically estimate partial derivative scaling
 // Idea:
 //	1) Simulate array of homogeneously distributed T1 and T2 values

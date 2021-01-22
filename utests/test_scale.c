@@ -330,3 +330,20 @@ static bool test_fa_to_scale(void)
 
 }
 UT_REGISTER_TEST(test_fa_to_scale);
+
+
+static bool test_get_tr_from_inversion(void)
+{
+	enum { N = 16 };
+	long TI_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+	complex float TI[4] = { 0., 0.005, 1., 1.003 };
+
+	float tr = get_tr_from_inversion(N, TI_dims, TI);
+
+	// debug_printf(DP_INFO, "estimated TR: %f\n", tr);
+
+	UT_ASSERT(cabsf(TI[3]- TI[2]) == tr);
+}
+
+UT_REGISTER_TEST(test_get_tr_from_inversion);
