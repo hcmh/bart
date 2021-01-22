@@ -63,7 +63,7 @@ int main_mobafit(int argc, char* argv[])
 		OPT_SELECT('G', enum seq_type, &seq, MGRE, "MGRE"),
 		OPT_UINT('m', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
 		OPT_UINT('i', &iter, "iter", "Number of IRGNM steps"),
-		OPT_VEC3('p', &patch_size, "px,py,pz", "(patch size)"),
+		OPT_VEC3('p', &patch_size, "x:y:z", "(patch size) [default: 1:1:1]"),
 		OPT_SET('g', &use_gpu, "use gpu"),
 	};
 
