@@ -182,7 +182,10 @@ void nlop_get_partial_scaling(struct nlop_s* op, const long dims[DIMS], complex 
 // takes FA map (iptr) in degree!
 void fa_to_alpha(unsigned int D, const long dims[D], void* optr, const void* iptr, float tr)
 {
+
+#ifdef  USE_CUDA
 	assert(cuda_ondevice(optr) == cuda_ondevice(iptr));
+#endif
 
 	complex float* tmp = md_alloc_sameplace(D, dims, CFL_SIZE, iptr);
 
