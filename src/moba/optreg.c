@@ -436,7 +436,7 @@ static void opt_reg_meco_configure(unsigned int N, const long dims[N], struct op
 
 
 	// set number of coefficients for joint regularization
-	long nr_joint_coeff = set_num_of_coeff(optreg_conf->moba_model);
+	long nr_joint_coeff = (MECO_PI == optreg_conf->moba_model) ? maps_dims[COEFF_DIM] : set_num_of_coeff(optreg_conf->moba_model);
 
 	if (MECO_SOBOLEV == optreg_conf->weight_fB0_type) {
 
@@ -445,7 +445,7 @@ static void opt_reg_meco_configure(unsigned int N, const long dims[N], struct op
 
 	// set the flag for the position of the coefficient 
 	// which needs non-negativity constraint
-	long nonneg_flag = set_R2S_flag(optreg_conf->moba_model);
+	long nonneg_flag = (MECO_PI == optreg_conf->moba_model) ? 0L : set_R2S_flag(optreg_conf->moba_model);
 
 
 	struct reg_s* regs = ropts->regs;
@@ -535,6 +535,7 @@ void opt_reg_moba_configure(unsigned int N, const long dims[N], struct opt_reg_s
 	case MECO_WF2R2S:
 	case MECO_R2S:
 	case MECO_PHASEDIFF:
+	case MECO_PI:
 
 		opt_reg_meco_configure(N, dims, ropts, prox_ops, trafos, optreg_conf);
 
