@@ -876,7 +876,13 @@ static bool test_mriop_normalinv_config(bool batch_independent, bool share_patte
 	md_select_dims(N, share_pattern ? 7 : 23, pdims, dims);
 	md_select_dims(N, 23, idims, dims);
 
-	auto nlop_inv = mri_normal_inversion_create(N, dims, share_pattern, -1., batch_independent, 0., NULL); // in: x0, coil, pattern, lambda; out:
+	struct conf_mri_dims mri_conf = conf_nlop_mri_simple;
+	if (!share_pattern)
+		mri_conf.pattern_flags = ~MD_BIT(3);
+	if (!batch_independent)
+		mri_conf.batch_flags = 0;
+
+	auto nlop_inv = mri_normal_inversion_create(N, dims, &mri_conf); // in: x0, coil, pattern, lambda; out:
 
 	complex float* pattern = md_alloc(N, pdims, CFL_SIZE);
 	md_zfill(N, pdims, pattern, 1.);
@@ -972,16 +978,23 @@ static bool test_mriop_pinv_config(bool batch_independent, bool share_pattern)
 	md_zdiv2(5, kdims, MD_STRIDES(N, kdims, CFL_SIZE), coils, MD_STRIDES(N, kdims, CFL_SIZE), coils, MD_STRIDES(N, idims, CFL_SIZE), coils_scale);
 	md_free(coils_scale);
 
+	struct conf_mri_dims mri_conf = conf_nlop_mri_simple;
+	if (!share_pattern)
+		mri_conf.pattern_flags = ~MD_BIT(3);
+	if (!batch_independent)
+		mri_conf.batch_flags = 0;
+	mri_conf.lambda_fixed = 0.;
+
 	complex float* image = md_alloc(N, idims, CFL_SIZE);
 	md_gaussian_rand(N, idims, image);
 
 	complex float* kspace = md_alloc(N, kdims, CFL_SIZE);
-	auto frw = nlop_mri_forward_create(N, kdims, share_pattern);
+	auto frw = nlop_mri_forward_create(N, kdims, &mri_conf);
 	nlop_generic_apply_unchecked(frw, 4, MAKE_ARRAY((void*)kspace, (void*)image, (void*)coils, (void*)pattern));
 	nlop_free(frw);
 
 	complex float* image_out = md_alloc(N, idims, CFL_SIZE);
-	auto nlop_pinv = mri_reg_pinv(N, kdims, share_pattern, 0., batch_independent, 0., NULL, false); // in: kspace, coil, pattern; out: image
+	auto nlop_pinv = mri_reg_pinv(N, kdims, &mri_conf); // in: kspace, coil, pattern; out: image
 
 	nlop_generic_apply_unchecked(nlop_pinv, 4, MAKE_ARRAY((void*)image_out, (void*)kspace, (void*)coils, (void*)pattern));
 	nlop_free(nlop_pinv);

@@ -246,9 +246,15 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
  */
 static nn_t data_consistency_modl_create(const struct modl_s* config,const long dims[5], const long udims[5])
 {
+	struct conf_mri_dims mri_conf = conf_nlop_mri_simple;
+	if (!config->share_pattern)
+		mri_conf.pattern_flags = ~MD_BIT(3);
+	mri_conf.iter_conf = CAST_DOWN(iter_conjgrad_conf, config->normal_inversion_iter_conf);
+	mri_conf.lambda_fixed = config->lambda_fixed;
+
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]}; // resized image dims corresponding to kspace used for frequency oversampling
 
-	auto nlop_dc = mri_normal_inversion_create(5, dims, config->share_pattern, config->lambda_fixed, config->batch_independent, config->convergence_warn_limit, config->normal_inversion_iter_conf); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
+	auto nlop_dc = mri_normal_inversion_create(5, dims, &mri_conf); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
 	
 	nlop_dc = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_dc, 0);
 	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
@@ -335,9 +341,13 @@ static nn_t nn_modl_cell_create(const struct modl_s* config, const long dims[5],
 static nn_t nn_modl_zf_create(const struct modl_s* config,const long dims[5], const long udims[5], enum NETWORK_STATUS status)
 {
 	UNUSED(status);
+	
+	struct conf_mri_dims mri_conf = conf_nlop_mri_simple;
+	if (!config->share_pattern)
+		mri_conf.pattern_flags = ~MD_BIT(3);
 
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	auto nlop_zf = nlop_mri_adjoint_create(5, dims, config->share_pattern);
+	auto nlop_zf = nlop_mri_adjoint_create(5, dims, &mri_conf);
 	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
 	auto nn_zf = nn_from_nlop_F(nlop_zf);
 	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");

@@ -205,7 +205,11 @@ static nn_t nn_ru_create(const struct vn_s* vn, const long udims[5])
  */
 static nn_t nn_du_create(const struct vn_s* vn, const long dims[5], const long udims[5])
 {
-	const struct nlop_s* nlop_result = nlop_mri_gradient_step_create(5, dims, vn->share_pattern);
+	struct conf_mri_dims conf = conf_nlop_mri_simple;
+	if (!vn->share_pattern)
+		conf.pattern_flags = ~MD_BIT(3);
+	
+	const struct nlop_s* nlop_result = nlop_mri_gradient_step_create(5, dims, &conf);
 
 	long udimsw[5];
 	md_select_dims(5, ~COIL_FLAG, udimsw, dims);
@@ -315,8 +319,12 @@ static nn_t nn_vn_cell_create(const struct vn_s* vn, const long dims[5], const l
  */
 static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const long udims[5])
 {
+	struct conf_mri_dims conf = conf_nlop_mri_simple;
+		if (!vn->share_pattern)
+			conf.pattern_flags = ~MD_BIT(3);
+
 	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	auto nlop_zf = nlop_mri_adjoint_create(5, dims, vn->share_pattern);
+	auto nlop_zf = nlop_mri_adjoint_create(5, dims, &conf);
 	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
 	auto nn_zf = nn_from_nlop_F(nlop_zf);
 	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
@@ -336,7 +344,9 @@ static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const lon
 		def_conf.l2lambda = 1.;
 		def_conf.maxiter = 10;
 
-		auto nlop_dc = mri_normal_inversion_create(5, dims, vn->share_pattern, vn->lambda_fixed_tickhonov, true, 0, CAST_UP(&def_conf));
+		conf.iter_conf = &def_conf;
+
+		auto nlop_dc = mri_normal_inversion_create(5, dims, &conf);
 		nlop_dc = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_dc, 0);
 		nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
 		

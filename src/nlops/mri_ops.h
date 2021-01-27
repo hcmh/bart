@@ -1,15 +1,29 @@
-extern const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], _Bool share_pattern);
-extern const struct nlop_s* nlop_mri_adjoint_create(int N, const long dims[N], _Bool share_pattern);
-extern const struct nlop_s* nlop_mri_normal_create(int N, const long dims[N], _Bool share_pattern);
+struct conf_mri_dims {
 
-extern const struct nlop_s* nlop_mri_gradient_step_create(int N, const long dims[N], _Bool share_pattern);
+	unsigned long coil_flags;
+	unsigned long image_flags;
+	unsigned long mask_flags;
+	unsigned long pattern_flags;
+	unsigned long batch_flags;
+	unsigned long fft_flags;
 
-struct iter_conf_s;
-extern const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], _Bool share_pattern, float lambda, _Bool batch_independent, float convergence_warn_limit, struct iter_conf_s* conf);
-extern const struct nlop_s* mri_normal_inversion_create_with_lambda(int N, const long dims[N], _Bool share_pattern, float lambda, _Bool batch_independent, float convergence_warn_limit, struct iter_conf_s* conf);
+	_Bool regrid;
 
-extern const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], _Bool share_pattern, float lambda, _Bool batch_independent, float convergence_warn_limit, struct iter_conf_s* conf);
-extern const struct nlop_s* mri_reg_proj_ker_create_with_lambda(int N, const long dims[N], _Bool share_pattern, float lambda, _Bool batch_independent, float convergence_warn_limit, struct iter_conf_s* conf);
+	_Bool keep_mask_input;
+	_Bool keep_lambda_input;
 
-extern const struct nlop_s* mri_reg_pinv(int N, const long dims[N], _Bool share_pattern, float lambda, _Bool batch_independent, float convergence_warn_limit, struct iter_conf_s* conf, _Bool rescale);
-extern const struct nlop_s* mri_reg_pinv_with_lambda(int N, const long dims[N], _Bool share_pattern, float lambda, _Bool batch_independent, float convergence_warn_limit, struct iter_conf_s* conf, _Bool rescale);
+	float lambda_fixed;
+	struct iter_conjgrad_conf* iter_conf;
+};
+
+struct conf_mri_dims conf_nlop_mri_simple;
+
+extern const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], const struct conf_mri_dims* conf);
+extern const struct nlop_s* nlop_mri_adjoint_create(int N, const long dims[N], const struct conf_mri_dims* conf);
+extern const struct nlop_s* nlop_mri_normal_create(int N, const long dims[N], const struct conf_mri_dims* conf);
+
+extern const struct nlop_s* nlop_mri_gradient_step_create(int N, const long dims[N], const struct conf_mri_dims* conf);
+
+extern const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], const struct conf_mri_dims* conf);
+extern const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const struct conf_mri_dims* conf);
+extern const struct nlop_s* mri_reg_pinv(int N, const long dims[N], const struct conf_mri_dims* conf);
