@@ -623,7 +623,7 @@ void nn_get_out_types(nn_t op, uint N, enum OUT_TYPE out_types[N])
 
 nn_t nn_checkpoint_F(nn_t op, bool der_once, bool clear_mem)
 {
-	auto result = nn_from_nlop(nlop_checkpoint_create(op->nlop, der_once, clear_mem));
+	auto result = nn_from_nlop_F(nlop_checkpoint_create(op->nlop, der_once, clear_mem));
 
 	for (uint i = 0; i < nn_get_nr_in_args(result); i++)
 		nn_clone_arg_i_from_i(result, i, op, i);

@@ -486,7 +486,7 @@ static const struct nlop_s* nlop_vn_apply_create(struct vn_s* vn, const long dim
 
 		long sdims[5];
 		md_select_dims(5, MD_BIT(4), sdims, dims);
-		auto nn_norm_ref = nn_from_nlop(nlop_tenmul_create(5, udims, udims, sdims));
+		auto nn_norm_ref = nn_from_nlop_F(nlop_tenmul_create(5, udims, udims, sdims));
 
 		nn_apply = nn_chain2_FF(nn_apply, 0, NULL, nn_norm_ref, 0, NULL);
 		nn_apply = nn_link_F(nn_apply, 0, "normalize_scale", 0, NULL);
@@ -622,16 +622,16 @@ static nn_t vn_train_op_create(const struct vn_s* vn, const long dims[5], const 
 		long sdims[5];
 		md_select_dims(5, MD_BIT(4), sdims, dims);
 
-		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
+		auto nn_norm_ref = nn_from_nlop_F(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
 
 		nn_train = nn_chain2_FF(nn_train, 0, "normalize_scale", nn_norm_ref, 1, NULL);
-		nn_train = nn_chain2_FF(nn_train, 1, NULL, nn_from_nlop(loss), 1, NULL);
+		nn_train = nn_chain2_FF(nn_train, 1, NULL, nn_from_nlop_F(loss), 1, NULL);
 		nn_train = nn_link_F(nn_train, 1, NULL, 0, NULL);
 		nn_train = nn_set_out_type_F(nn_train, 0, NULL, OUT_OPTIMIZE);
 
 	} else {
 
-		nn_train = nn_chain2_FF(nn_train, 0, NULL, nn_from_nlop(loss), 1, NULL);
+		nn_train = nn_chain2_FF(nn_train, 0, NULL, nn_from_nlop_F(loss), 1, NULL);
 		nn_train = nn_set_out_type_F(nn_train, 0, NULL, OUT_OPTIMIZE);
 	}
 
@@ -684,16 +684,16 @@ static nn_t vn_valid_loss_create(struct vn_s* vn, const char**valid_files)
 		long sdims[5];
 		md_select_dims(5, MD_BIT(4), sdims, kdims);
 
-		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
+		auto nn_norm_ref = nn_from_nlop_F(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
 
 		valid_loss = nn_chain2_FF(valid_loss, 0, "normalize_scale", nn_norm_ref, 1, NULL);
-		valid_loss = nn_chain2_FF(valid_loss, 1, NULL, nn_from_nlop(loss), 1, NULL);
+		valid_loss = nn_chain2_FF(valid_loss, 1, NULL, nn_from_nlop_F(loss), 1, NULL);
 		valid_loss = nn_link_F(valid_loss, 2, NULL, 0, NULL);
 		valid_loss = nn_set_out_type_F(valid_loss, 0, NULL, OUT_OPTIMIZE);
 
 	} else {
 
-		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop(loss), 1, NULL);
+		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 1, NULL);
 		valid_loss = nn_set_out_type_F(valid_loss, 0, NULL, OUT_OPTIMIZE);
 	}
 

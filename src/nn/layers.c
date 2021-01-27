@@ -689,7 +689,7 @@ const struct nlop_s* append_batchnorm_layer(const struct nlop_s* network, int o,
 
 	network = nlop_chain2_FF(network, o, batchnorm , 0);
 
-	network = nlop_shift_input(network, NI, 0);
+	network = nlop_shift_input_F(network, NI, 0);
 	network = nlop_shift_output_F(network, NO, 1);
 	network = nlop_shift_output_F(network, o, 0);
 

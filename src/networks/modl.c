@@ -145,7 +145,7 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 
 	} else {
 
-		result = nn_from_nlop(nlop_from_linop_F(linop_reshape_create(5, udims_w, 5, udims)));
+		result = nn_from_nlop_F(nlop_from_linop_F(linop_reshape_create(5, udims_w, 5, udims)));
 	}
 
 	auto conv_init = init_kaiming_create(in_flag_conv(true), false, false, 0);
@@ -456,7 +456,7 @@ static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
 		long sdims[5];
 		md_select_dims(5, MD_BIT(4), sdims, udims);
 
-		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
+		auto nn_norm_ref = nn_from_nlop_F(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
 
 		valid_loss = nn_chain2_FF(valid_loss, 0, "normalize_scale", nn_norm_ref, 1, NULL);
 		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 0, NULL);
@@ -493,10 +493,10 @@ static nn_t nn_modl_train_op_create(const struct modl_s* modl, const long dims[5
 		long sdims[5];
 		md_select_dims(5, MD_BIT(4), sdims, dims);
 
-		auto nn_norm_ref = nn_from_nlop(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
+		auto nn_norm_ref = nn_from_nlop_F(nlop_chain2_FF(nlop_zinv_create(5, sdims), 0, nlop_tenmul_create(5, udims, udims, sdims), 1));
 
 		nn_train = nn_chain2_FF(nn_train, 0, "normalize_scale", nn_norm_ref, 1, NULL);
-		nn_train = nn_chain2_FF(nn_train, 1, NULL, nn_from_nlop(nlop_mse_create(5, udims, ~0ul)), 1, NULL);
+		nn_train = nn_chain2_FF(nn_train, 1, NULL, nn_from_nlop_F(nlop_mse_create(5, udims, ~0ul)), 1, NULL);
 		nn_train = nn_link_F(nn_train, 1, NULL, 0, NULL);
 		nn_train = nn_set_out_type_F(nn_train, 0, NULL, OUT_OPTIMIZE);
 
@@ -516,7 +516,7 @@ static const struct nlop_s* nn_modl_apply_op_create(const struct modl_s* modl, c
 
 		long sdims[5];
 		md_select_dims(5, MD_BIT(4), sdims, dims);
-		auto nn_norm_ref = nn_from_nlop(nlop_tenmul_create(5, udims, udims, sdims));
+		auto nn_norm_ref = nn_from_nlop_F(nlop_tenmul_create(5, udims, udims, sdims));
 
 		nn_apply = nn_chain2_FF(nn_apply, 0, NULL, nn_norm_ref, 0, NULL);
 		nn_apply = nn_link_F(nn_apply, 0, "normalize_scale", 0, NULL);
@@ -524,7 +524,7 @@ static const struct nlop_s* nn_modl_apply_op_create(const struct modl_s* modl, c
 
 	nn_debug(DP_INFO, nn_apply);
 
-	return nn_get_nlop_wo_weights(nn_apply, modl->weights, false);
+	return nn_get_nlop_wo_weights_F(nn_apply, modl->weights, false);
 }
 
 

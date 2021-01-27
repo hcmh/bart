@@ -276,6 +276,8 @@ static void monitor6_default_free(const struct monitor_iter6_s* _monitor)
 	xfree(monitor->val_monitors);
 
 	md_free(monitor->record);
+
+	xfree(_monitor);
 }
 
 void monitor_iter6_free(const struct monitor_iter6_s* monitor)
