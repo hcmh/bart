@@ -49,46 +49,10 @@ struct T1_alpha_in_s {
 
 	complex float* TI;
 
-	// const struct linop_s* linop_alpha;
-
-	float scaling_alpha;
-
 	int counter;
 };
 
 DEF_TYPEID(T1_alpha_in_s);
-
-// static void moba_calc_weights(const long dims[3], complex float* dst)
-// {
-// 	unsigned int flags = 0;
-
-// 	for (int i = 0; i < 3; i++)
-// 		if (1 != dims[i])
-// 			flags = MD_SET(flags, i);
-
-
-// 	klaplace(3, dims, dims, flags, dst);
-// 	md_zsmul(3, dims, dst, dst, 440.);
-// 	md_zsadd(3, dims, dst, dst, 1.);
-// 	md_zspow(3, dims, dst, dst, -10.);
-// }
-
-// const struct linop_s* T1_get_alpha_trafo(struct nlop_s* op)
-// {
-// 	const nlop_data_t* _data = nlop_get_data(op);
-// 	struct T1_alpha_in_s* data = CAST_DOWN(T1_alpha_in_s, _data);
-// 	return data->linop_alpha;
-// }
-
-// void T1_forw_alpha(const struct linop_s* op, complex float* dst, const complex float* src)
-// {
-// 	linop_forward_unchecked(op, dst, src);
-// }
-
-// void T1_back_alpha(const struct linop_s* op, complex float* dst, const complex float* src)
-// {
-// 	linop_adjoint_unchecked(op, dst, src);
-// }
 
 
 // Calculate Model: M0 * (R1/(R1 + alpha) - (1 + R1/(R1 + alpha)) * exp(-t.*(R1 + alpha)))
@@ -121,11 +85,8 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	pos[COEFF_DIM] = 1;
 	md_copy_block(data->N, pos, data->map_dims, data->R1, data->in_dims, src, CFL_SIZE);
 
-	// alpha
-	// T1_forw_alpha(data->linop_alpha, data->tmp_map, data->alpha);
-
 	// R1s = R1 + alpha * scaling_alpha
-	md_zsmul(data->N, data->map_dims, data->tmp_R1s, data->alpha, data->scaling_alpha);
+	md_copy(data->N, data->map_dims, data->tmp_R1s, data->alpha, CFL_SIZE);
 	md_zadd(data->N, data->map_dims, data->tmp_R1s, data->R1, data->tmp_R1s);
 
 	// exp(-t.* (R1 + alpha * scaling_alpha)):
@@ -167,9 +128,6 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->tmp_map, data->out_strs, data->tmp_exp);
 	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dR1, data->map_strs, data->M0, data->out_strs, data->tmp_dR1);
 	md_zsub(data->N, data->out_dims, data->tmp_dR1, data->tmp_dalpha, data->tmp_dR1);
-
-	// alpha' * scaling_alpha
-	md_zsmul(data->N, data->out_dims, data->tmp_dalpha, data->tmp_dalpha, data->scaling_alpha);
 }
 
 static void T1_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -187,30 +145,15 @@ static void T1_der(const nlop_data_t* _data, unsigned int o, unsigned int i, com
 	pos[COEFF_DIM] = 1;
 	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
 
-	//const complex float* tmp_M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-
 	// dst = R1' * dR1
 	md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dR1);
 
 	// tmp = dM0
 	pos[COEFF_DIM] = 0;
 	md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-	//const complex float* tmp_Mss = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
+
 	// dst = dst + dMss * Mss'
 	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dM0);
-
-	// // tmp =  dalpha
-	// pos[COEFF_DIM] = 2;
-	// md_copy_block(data->N, pos, data->map_dims, data->tmp_map, data->in_dims, src, CFL_SIZE);
-	// //const complex float* tmp_alpha = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	// T1_forw_alpha(data->linop_alpha, data->tmp_map, data->tmp_map);
-
-	// // dst = dst + dalpha * alpha'
-	// md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dalpha);
-
-	char name[255] = {'\0'};
-	sprintf(name, "current_derivative");
-	dump_cfl(name, data->N, data->out_dims, dst);
 }
 
 static void T1_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -228,7 +171,6 @@ static void T1_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, com
 	// sum (conj(M0') * src, t)
 	md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
 	md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->tmp_dR1);
-	//md_zreal(data->N, data->map_dims, data->tmp_map, data->tmp_map);
 
 	// dst[1] = sum (conj(M0') * src, t)
 	pos[COEFF_DIM] = 1;
@@ -241,21 +183,6 @@ static void T1_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, com
 	// dst[0] = sum (conj(Mss') * src, t)
 	pos[COEFF_DIM] = 0;
 	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
-
-
-	char name[255] = {'\0'};
-	sprintf(name, "current_adjoint");
-	dump_cfl(name, data->N, data->in_dims, dst);
-
-	// // sum (conj(alpha') * src, t)
-	// md_clear(data->N, data->map_dims, data->tmp_map, CFL_SIZE);
-	// md_zfmacc2(data->N, data->out_dims, data->map_strs, data->tmp_map, data->out_strs, src, data->out_strs, data->tmp_dalpha);
-	// // md_zreal(data->N, data->map_dims, data->tmp_map, data->tmp_map);
-	// T1_back_alpha(data->linop_alpha, data->tmp_map, data->tmp_map);
-
-	// // dst[2] = sum (conj(alpha') * src, t)
-	// pos[COEFF_DIM] = 2;
-	// md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
 }
 
 static void T1_del(const nlop_data_t* _data)
@@ -286,8 +213,6 @@ static void T1_del(const nlop_data_t* _data)
 	xfree(data->TI_strs);
 	xfree(data->in_strs);
 	xfree(data->out_strs);
-
-	// linop_free(data->linop_alpha);
 
 	xfree(data);
 }
@@ -341,7 +266,6 @@ struct nlop_s* nlop_T1_alpha_in_create(int N, const long map_dims[N], const long
 	data->N = N;
 	data->R1 = my_alloc(N, map_dims, CFL_SIZE);
 	data->M0 = my_alloc(N, map_dims, CFL_SIZE);
-	// data->alpha = my_alloc(N, map_dims, CFL_SIZE);
 	data->tmp_map = my_alloc(N, map_dims, CFL_SIZE);
         data->tmp_map1 = my_alloc(N, map_dims, CFL_SIZE);
 	data->tmp_ones = my_alloc(N, map_dims, CFL_SIZE);
@@ -361,33 +285,15 @@ struct nlop_s* nlop_T1_alpha_in_create(int N, const long map_dims[N], const long
 	md_copy(N, map_dims, data->alpha, alpha, CFL_SIZE);
 
 
-#if 0
-	// weight on alpha
-	long w_dims[N];
-	md_select_dims(N, FFT_FLAGS, w_dims, map_dims);
-
-	data->weights = md_alloc(N, w_dims, CFL_SIZE);
-	moba_calc_weights(w_dims, data->weights);
-
-	const struct linop_s* linop_wghts = linop_cdiag_create(N, map_dims, FFT_FLAGS, data->weights);
-	const struct linop_s* linop_ifftc = linop_ifftc_create(N, map_dims, FFT_FLAGS);
-
-	data->linop_alpha = linop_chain(linop_wghts, linop_ifftc);
-
-	linop_free(linop_wghts);
-	linop_free(linop_ifftc);
-#endif
-
 	data->counter = 0;
-	data->scaling_alpha = 1.;
 
-	if (DP_DEBUG2 <= debug_level) {
+	// if (DP_DEBUG2 <= debug_level) {
 
-		char name[255] = {'\0'};
+	// 	char name[255] = {'\0'};
 
-		sprintf(name, "current_alpha");
-		dump_cfl(name, data->N, data->map_dims, data->alpha);
-	}
+	// 	sprintf(name, "current_alpha");
+	// 	dump_cfl(name, data->N, data->map_dims, data->alpha);
+	// }
 
 	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
 }
