@@ -105,7 +105,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		.wav_reg = 1,
 		.auto_norm_off = conf->auto_norm_off };
 
-	if (conf->MOLLI || (0. != conf->IR_phy))
+	if (conf->MOLLI || (0. != conf->IR_phy)|| (NULL != conf->input_alpha))
 		conf2.constrained_maps = 2;
 
 	long irgnm_conf_dims[DIMS];
