@@ -135,6 +135,9 @@ int main_morph(int argc, char* argv[])
 
 	int mask_size = atoi(argv[1]);
 
+	// Only odd mask size values are supportet for the convolution
+	assert(1 == mask_size%2);
+
 	// FIXME: Check if data is binary else Raise
 	// ...
 
