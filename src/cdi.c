@@ -28,10 +28,10 @@
 #include "simu/biot_savart_fft.h"
 #define N 4
 
-static void cdi_reco(const float fov[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, unsigned int iter, float tol, const complex float *bc_mask)
+static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, unsigned int iter, float tol, const complex float *bc_mask)
 {
 	complex float *adj = md_alloc_sameplace(N, jdims, CFL_SIZE, j);
-	auto bz_op = linop_bz_create(jdims, fov);
+	auto bz_op = linop_bz_create(jdims, vox);
 
 	if (NULL != bc_mask) {
 		auto mask_op = linop_cdiag_create(N, jdims, 15, bc_mask);
@@ -65,8 +65,8 @@ static void cdi_reco(const float fov[3], const long jdims[N], complex float *j, 
 }
 
 
-static const char usage_str[] = "fovX fovY fovZ <bz> [<mask> [<boundary condition mask>]] <j>";
-static const char help_str[] = "Estimate the current density j that generates bz\n";
+static const char usage_str[] = "voxelsize(x) voxelsize(y) voxelsize(z) <bz> [<mask> [<boundary condition mask>]] <j>";
+static const char help_str[] = "Estimate the current density J (A/mm^2) that generates ΔB (Hz)\n";
 
 
 int main_cdi(int argc, char *argv[])
@@ -82,8 +82,8 @@ int main_cdi(int argc, char *argv[])
 
 	num_init();
 
-	const int fov_ind = 1;
-	float fov[3] = {strtof(argv[fov_ind], NULL), strtof(argv[fov_ind + 1], NULL), strtof(argv[fov_ind + 2], NULL)};
+	const int vox_ind = 1;
+	float vox[3] = {strtof(argv[vox_ind], NULL), strtof(argv[vox_ind + 1], NULL), strtof(argv[vox_ind + 2], NULL)};
 	long bdims[N], jdims[N];
 
 	complex float *b = load_cfl(argv[4], N, bdims);
@@ -98,7 +98,12 @@ int main_cdi(int argc, char *argv[])
 	jdims[0] = 3;
 	complex float *j = create_cfl(argv[argc - 1], N, jdims);
 
-	cdi_reco(fov, jdims, j, bdims, b, mask, tik_reg, iter, tolerance, bc_mask);
+	//complex float *b_scaled = md_alloc(N, bdims, CFL_SIZE);
+	md_zsmul(4, bdims, b, b, 1. / Hz_per_Tesla / Mu_0);
+	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, tolerance, bc_mask);
+	md_zsmul(4, jdims, j, j, 1./bz_unit(bdims+1, vox)/1.e6);
+
+	//md_free(b_scaled);
 
 	unmap_cfl(N, bdims, b);
 	unmap_cfl(N, jdims, j);

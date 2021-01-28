@@ -28,7 +28,8 @@ static bool test_linop_bz(void)
 	md_select_dims(N, 14, bdims, dims);
 	float fovscale = .1;
 	const float fov[] = {1 * fovscale, 10 * fovscale, 1 * fovscale};
-	const float voxelsize[] = {fov[0] / dims[1], fov[1] / dims[2], fov[2] / dims[3]};
+	float voxelsize[3];
+	fov_to_vox(voxelsize, dims+1, fov);
 	float r = voxelsize[0] * 12, h = fov[1] * 0.75;
 	complex float *jfull = md_alloc(N, dims, CFL_SIZE);
 	md_clear(N, dims, jfull, CFL_SIZE);
@@ -46,7 +47,7 @@ static bool test_linop_bz(void)
 
 	// calculate B_z
 	complex float *b = md_alloc(N, bdims, CFL_SIZE);
-	auto bz = linop_bz_create(jdims, fov);
+	auto bz = linop_bz_create(jdims, voxelsize);
 
 	linop_forward(bz, N, bdims, b, N, jdims, j);
 
@@ -54,7 +55,7 @@ static bool test_linop_bz(void)
 	md_free(j);
 
 	// scale
-	complex float fov_factor = bz_unit(3, fov);
+	complex float fov_factor = bz_unit(dims+1, voxelsize);
 	md_zsmul(N, bdims, b, b, fov_factor);
 
 	//apply amperes law to reconstruct the total current through the cylinder
