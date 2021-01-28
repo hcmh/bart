@@ -151,7 +151,7 @@ struct linop_s *linop_bz_create(const long jdims[NB], const float fov[3])
 
 	// the Chain
 	long n_ops = 5;
-	struct linop_s *op_chain[] = {pad, f, conv, finv, crop};
+	struct linop_s *op_chain[] = {pad, f, (struct linop_s*)conv, finv, crop}; //FIXME: we should make linops consistently const
 	return linop_chainN(n_ops, op_chain);
 }
 

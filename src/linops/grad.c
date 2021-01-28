@@ -218,7 +218,7 @@ struct linop_s *linop_div_create(long N, const long dims[N], int d, unsigned int
 	md_select_dims(N, ~MD_BIT(d), gdims, dims);
 
 	auto op = linop_fd_create(N, gdims, d, flags, 1, BC_ZERO, true);
-	op2 = linop_get_adjoint(op);
+	op2 = (struct linop_s*)linop_get_adjoint(op); //FIXME: we should make linops consistently const
 	linop_free(op);
 
 	return PTR_PASS(op2);
