@@ -252,12 +252,7 @@ static nn_t data_consistency_modl_create(const struct modl_s* config,const long 
 	mri_conf.iter_conf = CAST_DOWN(iter_conjgrad_conf, config->normal_inversion_iter_conf);
 	mri_conf.lambda_fixed = config->lambda_fixed;
 
-	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]}; // resized image dims corresponding to kspace used for frequency oversampling
-
-	auto nlop_dc = mri_normal_inversion_create(5, dims, &mri_conf); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
-	
-	nlop_dc = nlop_chain2_swap_FF(nlop_from_linop_F(linop_resize_center_create(5, udims_r, udims)), 0, nlop_dc, 0);
-	nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
+	auto nlop_dc = mri_normal_inversion_create(5, dims, udims, &mri_conf); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
 
 	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(5, udims, 1., 1.), 0, nlop_dc, 0); // in: lambda * zn, zero_filled, coil, pattern[, lambda]; out: x(n+1)
 
@@ -346,9 +341,7 @@ static nn_t nn_modl_zf_create(const struct modl_s* config,const long dims[5], co
 	if (!config->share_pattern)
 		mri_conf.pattern_flags = ~MD_BIT(3);
 
-	long udims_r[5] = {dims[0], dims[1], dims[2], 1, dims[4]};
-	auto nlop_zf = nlop_mri_adjoint_create(5, dims, &mri_conf);
-	nlop_zf = nlop_chain2_FF(nlop_zf, 0, nlop_from_linop_F(linop_resize_center_create(5, udims, udims_r)), 0);
+	auto nlop_zf = nlop_mri_adjoint_create(5, dims, udims, &mri_conf);
 	auto nn_zf = nn_from_nlop_F(nlop_zf);
 	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
 	nn_zf = nn_set_input_name_F(nn_zf, 0, "coil");
@@ -541,7 +534,8 @@ static const struct nlop_s* nn_modl_apply_op_create(const struct modl_s* modl, c
 
 void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 			const long udims[5], _Complex float* ref,
-			const long kdims[5], _Complex float* kspace, const _Complex float* coil,
+			const long kdims[5], _Complex float* kspace,
+			const long cdims[5], const _Complex float* coil,
 			const long pdims[5], const _Complex float* pattern,
 			long Nb, const char** valid_files)
 {
@@ -549,14 +543,17 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 
 	long nkdims[5];
 	long nudims[5];
+	long ncdims[5];
 
 	md_copy_dims(5, nkdims, kdims);
 	md_copy_dims(5, nudims, udims);
+	md_copy_dims(5, ncdims, cdims);
 
 	nkdims[4] = Nb;
 	nudims[4] = Nb;
+	ncdims[4] = Nb;
 
-	modl->share_pattern = pdims[4] == 1;
+	modl->share_pattern = (1 == pdims[4]);
 
 	auto nn_train = nn_modl_train_op_create(modl, nkdims, nudims);
 	if (nn_is_name_in_in_args(nn_train, "lambda"))
@@ -571,6 +568,8 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 					nn_generic_domain(nn_train, 0, "kspace")->dims,
 					nn_generic_domain(nn_train, 0, "coil")->dims,
 					nn_generic_domain(nn_train, 0, "pattern")->dims};
+	
+	assert(md_check_equal_dims(5, ncdims, train_dims[2], ~0));
 
 	auto batch_generator = batch_gen_create_from_iter(train_conf, 4, 5, train_dims, train_data, Nt, 0);
 
@@ -631,7 +630,9 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 
 void apply_nn_modl(	struct modl_s* modl,
 			const long udims[5], complex float* out,
-			const long kdims[5], const complex float* kspace, const complex float* coil, const long pdims[5], const complex float* pattern)
+			const long kdims[5], const complex float* kspace, 
+			const long cdims[5], const complex float* coil,
+			const long pdims[5], const complex float* pattern)
 {
 
 	modl->share_pattern = (1 == pdims[4]);
@@ -640,11 +641,11 @@ void apply_nn_modl(	struct modl_s* modl,
 
 	complex float* out_tmp = md_alloc_sameplace(5, udims, CFL_SIZE, modl->weights->tensors[0]);
 	complex float* kspace_tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, modl->weights->tensors[0]);
-	complex float* coil_tmp = md_alloc_sameplace(5, kdims, CFL_SIZE, modl->weights->tensors[0]);
+	complex float* coil_tmp = md_alloc_sameplace(5, cdims, CFL_SIZE, modl->weights->tensors[0]);
 	complex float* pattern_tmp = md_alloc_sameplace(5, pdims, CFL_SIZE, modl->weights->tensors[0]);
 
 	md_copy(5, kdims, kspace_tmp, kspace, CFL_SIZE);
-	md_copy(5, kdims, coil_tmp, coil, CFL_SIZE);
+	md_copy(5, cdims, coil_tmp, coil, CFL_SIZE);
 	md_copy(5, pdims, pattern_tmp, pattern, CFL_SIZE);
 
 	complex float* args[4];
@@ -668,31 +669,36 @@ void apply_nn_modl(	struct modl_s* modl,
 
 void apply_nn_modl_batchwise(	struct modl_s* modl,
 				const long udims[5], complex float * out,
-				const long kdims[5], const complex float* kspace, const complex float* coil, const long pdims[5], const complex float* pattern,
+				const long kdims[5], const complex float* kspace, 
+				const long cdims[5], const complex float* coil,
+				const long pdims[5], const complex float* pattern,
 				long Nb)
 {
 	long Nt = kdims[4];
 	while (0 < Nt) {
 
 		long kdims1[5];
+		long cdims1[5];
 		long udims1[5];
 		long pdims1[5];
 
 		md_copy_dims(5, kdims1, kdims);
+		md_copy_dims(5, cdims1, cdims);
 		md_copy_dims(5, udims1, udims);
 		md_copy_dims(5, pdims1, pdims);
 
 		long Nb_tmp = MIN(Nt, Nb);
 
 		kdims1[4] = Nb_tmp;
+		cdims1[4] = Nb_tmp;
 		udims1[4] = Nb_tmp;
 		pdims1[4] = MIN(pdims1[4], Nb_tmp);
 
-		apply_nn_modl(modl, udims1, out, kdims1, kspace, coil, pdims1, pattern);
+		apply_nn_modl(modl, udims1, out, kdims1, kspace, cdims1, coil, pdims1, pattern);
 
 		out += md_calc_size(5, udims1);
 		kspace += md_calc_size(5, kdims1);
-		coil += md_calc_size(5, kdims1);
+		coil += md_calc_size(5, cdims1);
 		if (1 < pdims[4])
 			pattern += md_calc_size(5, pdims1);
 

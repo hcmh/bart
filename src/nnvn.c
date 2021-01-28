@@ -3,6 +3,7 @@
 #include <complex.h>
 
 #include "misc/misc.h"
+#include "misc/mri.h"
 #include "misc/types.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -48,8 +49,6 @@ int main_nnvn(int argc, char* argv[])
 
 	char* filename_weights_load = NULL;
 
-	long udims[5] = {1, 1, 1, 1, 1};
-
 	long Nb = 10;
 
 	const char* config_file = NULL;
@@ -77,10 +76,6 @@ int main_nnvn(int argc, char* argv[])
 
 		OPTL_SET('n', "normalize", &(vn_config.normalize), "normalize the input by maximum of zero-filled reconstruction"),
 		OPTL_SET('m', "load_data", &(load_mem), "load files int memory"),
-
-		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
-		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
-		OPTL_LONG('Z', "fov_z", (udims + 2), "z", "Nz of the target image (guessed from reference(training) / kspace(inference))"),
 
 		OPTL_SET(0, "test_defaults", &test_defaults, "set defaults to small values (used for testing)"),
 	};
@@ -125,10 +120,6 @@ int main_nnvn(int argc, char* argv[])
 			JSON_FLOAT(JSON_LABEL("network", "init_tickhonov_lambda_fixed"), &(vn_config.lambda_fixed_tickhonov), false,  ""),
 			JSON_FLOAT(JSON_LABEL("network", "init_tickhonov_lambda_init"), &(vn_config.lambda_init_tickhonov), false,  ""),	
 
-			JSON_LONG(JSON_LABEL("apply", "target_dims", "x"), udims, false,  ""),
-			JSON_LONG(JSON_LABEL("apply", "target_dims", "y"), udims + 1, false,  ""),
-			JSON_LONG(JSON_LABEL("apply", "target_dims", "z"), udims + 2, false,  ""),
-
 		};
 		read_json(config_file, ARRAY_SIZE(opts_json), opts_json);
 	}
@@ -169,13 +160,14 @@ int main_nnvn(int argc, char* argv[])
 		num_init();
 
 	long kdims[5]; 		//[Nkx, Nky, Nkz, Nc, Nt]
-	long cdims[5]; 		//[Nkx, Nky, Nkz, Nc, Nt]
+	long cdims[5]; 		//[Ux,  Uy,  Uz,  Nc, Nt]
 	long pdims[5]; 		//[Nkx, Nky, Nkz, 1,  1 or Nb]
 
 	complex float* kspace = load_cfl(filename_kspace, 5, kdims);
 	complex float* coil = load_cfl(filename_coil, 5, cdims);
 	complex float* pattern = load_cfl(filename_pattern, 5, pdims);
 
+	long udims[5];
 
 	if (load_mem) {
 
@@ -196,7 +188,7 @@ int main_nnvn(int argc, char* argv[])
 		pattern = mem_pattern;
 	}
 
-	for (int i = 0; i < 5; i++)
+	for (int i = 3; i < 5; i++)
 		assert(kdims[i] == cdims[i]);
 	for (int i = 0; i < 3; i++)
 		assert(kdims[i] == pdims[i]);
@@ -217,6 +209,8 @@ int main_nnvn(int argc, char* argv[])
 			move_gpu_nn_weights(vn_config.weights);
 
 		complex float* ref = load_cfl(filename_out, 5, udims);
+		assert(md_check_equal_dims(5, udims, cdims, ~COIL_FLAG));
+
 		if (load_mem) {
 
 			complex float* mem_ref = md_alloc(5, udims, CFL_SIZE);
@@ -225,7 +219,7 @@ int main_nnvn(int argc, char* argv[])
 			ref = mem_ref;
 		}
 
-		train_vn(&vn_config, CAST_UP(&train_conf), udims, ref, kdims, kspace, coil, pdims, pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
+		train_vn(&vn_config, CAST_UP(&train_conf), udims, ref, kdims, kspace, cdims, coil, pdims, pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
 		dump_nn_weights(filename_weights, vn_config.weights);
 
 		if (load_mem)
@@ -241,14 +235,11 @@ int main_nnvn(int argc, char* argv[])
 		if (use_gpu)
 			move_gpu_nn_weights(vn_config.weights);
 
-		udims[0] = (1 == udims[0]) ? kdims[0] : udims[0];
-		udims[1] = (1 == udims[1]) ? kdims[1] : udims[1];
-		udims[2] = (1 == udims[2]) ? kdims[2] : udims[2];
-		udims[4] = (1 == udims[4]) ? kdims[4] : udims[4];
+		md_select_dims(5, FFT_FLAGS | MD_BIT(4), udims, cdims);
 
 		complex float* file_out = create_cfl(filename_out, 5, udims);
 
-		apply_vn_batchwise(&vn_config, udims, file_out, kdims, kspace, coil, pdims, pattern, Nb);
+		apply_vn_batchwise(&vn_config, udims, file_out, kdims, kspace, cdims, coil, pdims, pattern, Nb);
 
 		unmap_cfl(5, udims, file_out);
 	}

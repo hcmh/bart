@@ -36,12 +36,10 @@ struct conf_mri_dims conf_nlop_mri_simple = {
 
 	.coil_flags = ~(0ul),
 	.image_flags = ~COIL_FLAG,
-	.mask_flags = 0ul,
 	.pattern_flags = FFT_FLAGS,
 	.batch_flags = MD_BIT(4), 
 	.fft_flags = FFT_FLAGS,
 
-	.keep_mask_input = false,
 	.keep_lambda_input = false,
 
 	.lambda_fixed = -1,
@@ -49,6 +47,13 @@ struct conf_mri_dims conf_nlop_mri_simple = {
 
 	.regrid = true,
 };
+
+static bool test_idims_compatible(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+{
+	long tdims[N];
+	md_select_dims(N, conf->image_flags, tdims, dims);
+	return md_check_equal_dims(N, tdims, idims, ~(conf->fft_flags));
+}
 
 /**
  * Returns: MRI forward operator (SENSE Operator)
@@ -68,22 +73,31 @@ struct conf_mri_dims conf_nlop_mri_simple = {
  * Output tensors:
  * kspace:	kdims: 	(Nx, Ny, Nz, Nc, Nb)
  */
-const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
+	assert(test_idims_compatible(N, dims, idims, conf));
+
 	if (NULL == conf)
 		conf = &conf_nlop_mri_simple;
 
 	long cdims[N];
 	long pdims[N];
-	long idims[N];
+
 	md_select_dims(N, conf->coil_flags, cdims, dims);
 	md_select_dims(N, conf->pattern_flags, pdims, dims);
-	md_select_dims(N, conf->image_flags, idims, dims);
+
+	for (int i = 0; i < N; i++)
+		cdims[i] = MD_IS_SET(conf->fft_flags & conf->coil_flags, i) ? idims[i] : cdims[i];
 
 	const struct nlop_s* result = nlop_tenmul_create(N, cdims, idims, cdims); //in: image, coil
-	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_fftc_create(N, dims, conf->fft_flags)), 0); //in: image, coil
+
+	const struct linop_s* lop = linop_fftc_create(N, dims, conf->fft_flags);
+	if (!md_check_equal_dims(N, cdims, dims, ~0))
+		lop = linop_chain_FF(linop_resize_center_create(N, dims, cdims), lop);
+	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(lop), 0); //in: image, coil
+	
 	if (conf->regrid)
-	result = nlop_chain2_swap_FF(result, 0, nlop_tenmul_create(N, dims, dims, pdims), 0); //in: image, coil, pattern
+		result = nlop_chain2_swap_FF(result, 0, nlop_tenmul_create(N, dims, dims, pdims), 0); //in: image, coil, pattern
 	else
 		result = nlop_combine_FF(result, nlop_del_out_create(N, pdims));
 
@@ -110,19 +124,27 @@ const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], const st
  * Output tensors:
  * image:	idims: 	(Nx, Ny, Nz, Nc, Nb)
  */
-const struct nlop_s* nlop_mri_adjoint_create(int N, const long dims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* nlop_mri_adjoint_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
+
+	assert(test_idims_compatible(N, dims, idims, conf));
+	
 	if (NULL == conf)
 		conf = &conf_nlop_mri_simple;
 
 	long cdims[N];
 	long pdims[N];
-	long idims[N];
+
 	md_select_dims(N, conf->coil_flags, cdims, dims);
 	md_select_dims(N, conf->pattern_flags, pdims, dims);
-	md_select_dims(N, conf->image_flags, idims, dims);
 
-	const struct linop_s* lop = linop_ifftc_create(N, dims, conf->fft_flags);	
+	for (int i = 0; i < N; i++)
+		cdims[i] = MD_IS_SET(conf->fft_flags & conf->coil_flags, i) ? idims[i] : cdims[i];
+
+	const struct linop_s* lop = linop_ifftc_create(N, dims, conf->fft_flags);
+	if (!md_check_equal_dims(N, cdims, dims, ~0))
+		lop = linop_chain_FF(lop, linop_resize_center_create(N, cdims, dims));
+	
 	const struct nlop_s* result = nlop_from_linop_F(lop);
 
 	if (conf->regrid)
@@ -149,7 +171,6 @@ struct mri_normal_s {
 	const long* cdims;
 	const long* pdims;
 	const long* kdims;
-	const long* mdims;
 
 	complex float* coil;
 	complex float* pattern;
@@ -161,32 +182,34 @@ struct mri_normal_s {
 
 DEF_TYPEID(mri_normal_s);
 
-static struct mri_normal_s* mri_normal_data_create(int N, const long dims[N], const struct conf_mri_dims* conf)
+static struct mri_normal_s* mri_normal_data_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
+	assert(test_idims_compatible(N, dims, idims, conf));
+	
 	if (NULL == conf)
 		conf = &conf_nlop_mri_simple;
 		
 	PTR_ALLOC(struct mri_normal_s, data);
 	SET_TYPEID(mri_normal_s, data);
 
-	PTR_ALLOC(long[N], idims);
+	PTR_ALLOC(long[N], nidims);
 	PTR_ALLOC(long[N], kdims);
 	PTR_ALLOC(long[N], pdims);
 	PTR_ALLOC(long[N], cdims);
-	PTR_ALLOC(long[N], mdims);
 
 	md_select_dims(N, conf->coil_flags, *cdims, dims);
 	md_select_dims(N, conf->pattern_flags, *pdims, dims);
-	md_select_dims(N, conf->image_flags, *idims, dims);
-	md_select_dims(N, conf->mask_flags, *mdims, dims);
+	md_copy_dims(N, *nidims, idims);
 	md_copy_dims(N, *kdims, dims);
 
+	for (int i = 0; i < N; i++)
+		(*cdims)[i] = MD_IS_SET(conf->fft_flags & conf->coil_flags, i) ? idims[i] : (*cdims)[i];
+
 	data->N = N;
-	data->idims = *PTR_PASS(idims);
+	data->idims = *PTR_PASS(nidims);
 	data->kdims = *PTR_PASS(kdims);
 	data->pdims = *PTR_PASS(pdims);
 	data->cdims = *PTR_PASS(cdims);
-	data->mdims = *PTR_PASS(mdims);
 	
 	// will be initialized later, to transparently support GPU
 	data->coil = NULL;
@@ -202,7 +225,7 @@ static struct mri_normal_s* mri_normal_data_create(int N, const long dims[N], co
 static void mri_normal_initialize(struct mri_normal_s* data, const complex float* arg)
 {
 	if (NULL == data->coil)
-		data->coil = md_alloc_sameplace(data->N, data->kdims, CFL_SIZE, arg);
+		data->coil = md_alloc_sameplace(data->N, data->cdims, CFL_SIZE, arg);
 
 	if (NULL == data->pattern)
 		data->pattern = md_alloc_sameplace(data->N, data->pdims, CFL_SIZE, arg);
@@ -215,13 +238,28 @@ static void mri_normal_lin(const nlop_data_t* _data, unsigned int o, unsigned in
 
 	const auto d = CAST_DOWN(mri_normal_s, _data);
 
-	complex float* coil_image = md_alloc_sameplace(d->N, d->kdims, CFL_SIZE, dst);
-	md_ztenmul(d->N, d->kdims, coil_image, d->kdims, d->coil, d->idims, src);
-	linop_forward_unchecked(d->lop_fft, coil_image, coil_image);
-	md_zmul2(d->N, d->kdims, MD_STRIDES(d->N, d->kdims, CFL_SIZE), coil_image, MD_STRIDES(d->N, d->kdims, CFL_SIZE), coil_image, MD_STRIDES(d->N, d->pdims, CFL_SIZE), d->pattern);
-	linop_adjoint_unchecked(d->lop_fft, coil_image, coil_image);
-	md_ztenmulc(d->N, d->idims, dst, d->kdims, coil_image, d->kdims, d->coil);
+	bool resize = !md_check_equal_dims(d->N, d->cdims, d->kdims, ~0);
+
+	complex float* coil_image = md_alloc_sameplace(d->N, d->cdims, CFL_SIZE, dst);
+	complex float* tmp_kspace = resize ? md_alloc_sameplace(d->N, d->kdims, CFL_SIZE, dst) : coil_image;
+
+	md_ztenmul(d->N, d->cdims, coil_image, d->cdims, d->coil, d->idims, src);
+	
+	if (resize)
+		md_resize_center(d->N, d->kdims, tmp_kspace, d->cdims, coil_image, CFL_SIZE);
+	
+	linop_forward_unchecked(d->lop_fft, tmp_kspace, tmp_kspace);
+	md_zmul2(d->N, d->kdims, MD_STRIDES(d->N, d->kdims, CFL_SIZE), tmp_kspace, MD_STRIDES(d->N, d->kdims, CFL_SIZE), tmp_kspace, MD_STRIDES(d->N, d->pdims, CFL_SIZE), d->pattern);
+	linop_adjoint_unchecked(d->lop_fft, tmp_kspace, tmp_kspace);
+	
+	if (resize)
+		md_resize_center(d->N, d->cdims, coil_image, d->kdims, tmp_kspace, CFL_SIZE);
+	
+	md_ztenmulc(d->N, d->idims, dst, d->cdims, coil_image, d->cdims, d->coil);
+	
 	md_free(coil_image);
+	if (resize)
+		md_free(tmp_kspace);
 }
 
 static void mri_normal_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
@@ -232,15 +270,11 @@ static void mri_normal_fun(const nlop_data_t* _data, int Narg, complex float* ar
 	const complex float* image = args[1];
 	const complex float* coil = args[2];
 	const complex float* pattern = args[3];
-	const complex float* mask = args[4];
 
 	bool der = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
 	mri_normal_initialize(d, dst);
 
-	if (0 != md_nontriv_dims(d->N, d->mdims))
-		md_zmul2(d->N, d->cdims, MD_STRIDES(d->N, d->cdims, CFL_SIZE), d->coil, MD_STRIDES(d->N, d->cdims, CFL_SIZE), coil, MD_STRIDES(d->N, d->mdims, CFL_SIZE), mask);
-	else
-		md_copy(d->N, d->cdims, d->coil, coil, CFL_SIZE);
+	md_copy(d->N, d->cdims, d->coil, coil, CFL_SIZE);
 
 	md_copy(d->N, d->pdims, d->pattern, pattern, CFL_SIZE);
 
@@ -269,7 +303,6 @@ static void mri_normal_del(const nlop_data_t* _data)
 	xfree(d->pdims);
 	xfree(d->kdims);
 	xfree(d->cdims);
-	xfree(d->mdims);
 
 	xfree(d);
 }
@@ -288,73 +321,35 @@ static void mri_normal_del(const nlop_data_t* _data)
  * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
  * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 )
- * [mask:	mdims:	(Nx, Ny, Nz, 1,  1 )]
  *
  * Output tensors:
  * image:	idims: 	(Nx, Ny, Nz, Nc, Nb)
  */
-const struct nlop_s* nlop_mri_normal_create(int N, const long dims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* nlop_mri_normal_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
-	auto data = mri_normal_data_create(N, dims, conf);
+	auto data = mri_normal_data_create(N, dims, idims, conf);
 	
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], data->idims);
 
-	long nl_idims[4][N];
+	long nl_idims[3][N];
 	md_copy_dims(N, nl_idims[0], data->idims);
 	md_copy_dims(N, nl_idims[1], data->cdims);
 	md_copy_dims(N, nl_idims[2], data->pdims);
-	md_copy_dims(N, nl_idims[3], data->mdims);
 
-	operator_property_flags_t props[4][1] = { { 0 }, { 0 }, { 0 }, { 0 } };
+	operator_property_flags_t props[4][1] = { { 0 }, { 0 }, { 0 } };
 
 	const struct nlop_s* result = nlop_generic_with_props_create(	
-			1, N, nl_odims, 4, N, nl_idims, CAST_UP(data),
+			1, N, nl_odims, 3, N, nl_idims, CAST_UP(data),
 			mri_normal_fun,
-			(nlop_der_fun_t[4][1]){ { mri_normal_lin }, { NULL }, { NULL }, { NULL } },
-			(nlop_der_fun_t[4][1]){ { mri_normal_lin }, { NULL }, { NULL }, { NULL } },
+			(nlop_der_fun_t[3][1]){ { mri_normal_lin }, { NULL }, { NULL } },
+			(nlop_der_fun_t[3][1]){ { mri_normal_lin }, { NULL }, { NULL } },
 			NULL, NULL, mri_normal_del, NULL, props, NULL
 		);
 
-	if ((0 == conf->mask_flags) && (!conf->keep_mask_input)) {
-
-		complex float mask = 1;
-		result = nlop_set_input_const_F(result, 3, N, MD_SINGLETON_DIMS(N), true, &mask);
-	}
-
 	return result;
 }
 
-/**
- * Returns: MRI normal operator
- *
- * @param N
- * @param dims (Nx, Ny, Nz, Nc,  Nb)
- * @param conf can be NULL to fallback on nlop_mri_simple
- * 
- *
- * for default dims:
- *
- * Input tensors:
- * image:	kdims: 	(Nx, Ny, Nz, 1,  Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
- * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 )
- *
- * Output tensors:
- * image:	idims: 	(Nx, Ny, Nz, Nc, Nb)
- */
-const struct nlop_s* nlop_mri_normal_generic_create(int N, const long dims[N], const struct conf_mri_dims* conf)
-{
-	auto result = nlop_mri_forward_create(N, dims, conf);
-	result = nlop_chain2_swap_FF(result, 0, nlop_mri_adjoint_create(N, dims, conf), 0);
-
-	result = nlop_dup_F(result, 1, 3);
-	result = nlop_dup_F(result, 2, 3);
-
-	debug_printf(DP_DEBUG2, "mri normal created\n");
-
-	return result;
-}
 
 static void mri_gradient_step_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
 {
@@ -365,32 +360,37 @@ static void mri_gradient_step_fun(const nlop_data_t* _data, int Narg, complex fl
 	const complex float* kspace = args[2];
 	const complex float* coil = args[3];
 	const complex float* pattern = args[4];
-	const complex float* mask = args[5];
 
 	bool der = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
 	mri_normal_initialize(d, dst);
 
-	if (0 != md_nontriv_dims(d->N, d->mdims))
-		md_zmul2(d->N, d->cdims, MD_STRIDES(d->N, d->cdims, CFL_SIZE), d->coil, MD_STRIDES(d->N, d->cdims, CFL_SIZE), coil, MD_STRIDES(d->N, d->mdims, CFL_SIZE), mask);
-	else
-		md_copy(d->N, d->cdims, d->coil, coil, CFL_SIZE);
-
+	md_copy(d->N, d->cdims, d->coil, coil, CFL_SIZE);
 	md_copy(d->N, d->pdims, d->pattern, pattern, CFL_SIZE);
 
 	mri_normal_lin(_data, 0, 0, dst, image);
 
-	complex float* tmp = md_alloc_sameplace(d->N, d->kdims, CFL_SIZE, kspace);
+	complex float* tmp_ci = md_alloc_sameplace(d->N, d->kdims, CFL_SIZE, kspace);
 	
 	if (d->regrid) {
 
-		md_zmul2(d->N, d->kdims, MD_STRIDES(d->N, d->kdims, CFL_SIZE), tmp, MD_STRIDES(d->N, d->kdims, CFL_SIZE), kspace, MD_STRIDES(d->N, d->pdims, CFL_SIZE), d->pattern);
-		kspace = tmp;
+		md_zmul2(d->N, d->kdims, MD_STRIDES(d->N, d->kdims, CFL_SIZE), tmp_ci, MD_STRIDES(d->N, d->kdims, CFL_SIZE), kspace, MD_STRIDES(d->N, d->pdims, CFL_SIZE), d->pattern);
+		kspace = tmp_ci;
 	}
 
-	linop_adjoint_unchecked(d->lop_fft, tmp, kspace);
-	md_zsmul(d->N, d->kdims, tmp, tmp, -1.);
-	md_zfmacc2(d->N, d->kdims, MD_STRIDES(d->N, d->idims, CFL_SIZE), dst, MD_STRIDES(d->N, d->kdims, CFL_SIZE), tmp, MD_STRIDES(d->N, d->cdims, CFL_SIZE), d->coil);
-	md_free(tmp);
+	linop_adjoint_unchecked(d->lop_fft, tmp_ci, kspace);
+
+	bool resize = !md_check_equal_dims(d->N, d->cdims, d->kdims, ~0);
+	complex float* tmp_cir = resize ? md_alloc_sameplace(d->N, d->cdims, CFL_SIZE, dst) : tmp_ci;
+	
+	if (resize)
+		md_resize_center(d->N, d->cdims, tmp_cir, d->kdims, tmp_ci, CFL_SIZE);
+
+	md_zsmul(d->N, d->cdims, tmp_cir, tmp_cir, -1.);
+	md_zfmacc2(d->N, d->cdims, MD_STRIDES(d->N, d->idims, CFL_SIZE), dst, MD_STRIDES(d->N, d->cdims, CFL_SIZE), tmp_cir, MD_STRIDES(d->N, d->cdims, CFL_SIZE), d->coil);
+	md_free(tmp_ci);
+
+	if (resize)
+		md_free(tmp_cir);
 
 	if (!der) {
 
@@ -420,41 +420,33 @@ static void mri_gradient_step_fun(const nlop_data_t* _data, int Narg, complex fl
  * kspace:	kdims: 	(Nx, Ny, Nz, Nc, Nb)
  * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 )
- * [mask:	mdims:	(1,  1,  1,  1,  1 )]
  *
  * Output tensors:
  * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
  */
 
- const struct nlop_s* nlop_mri_gradient_step_create(int N, const long dims[N], const struct conf_mri_dims* conf)
+ const struct nlop_s* nlop_mri_gradient_step_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
-	auto data = mri_normal_data_create(N, dims, conf);
+	auto data = mri_normal_data_create(N, dims, idims, conf);
 	
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], data->idims);
 
-	long nl_idims[5][N];
+	long nl_idims[4][N];
 	md_copy_dims(N, nl_idims[0], data->idims);
 	md_copy_dims(N, nl_idims[1], data->kdims);
 	md_copy_dims(N, nl_idims[2], data->cdims);
 	md_copy_dims(N, nl_idims[3], data->pdims);
-	md_copy_dims(N, nl_idims[4], data->mdims);
 
-	operator_property_flags_t props[5][1] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+	operator_property_flags_t props[4][1] = { { 0 }, { 0 }, { 0 }, { 0 } };
 
 	const struct nlop_s* result = nlop_generic_with_props_create(	
-			1, N, nl_odims, 5, N, nl_idims, CAST_UP(data),
+			1, N, nl_odims, 4, N, nl_idims, CAST_UP(data),
 			mri_gradient_step_fun,
-			(nlop_der_fun_t[5][1]){ { mri_normal_lin }, { NULL }, { NULL }, { NULL }, { NULL } },
-			(nlop_der_fun_t[5][1]){ { mri_normal_lin }, { NULL }, { NULL }, { NULL }, { NULL } },
+			(nlop_der_fun_t[4][1]){ { mri_normal_lin }, { NULL }, { NULL }, { NULL } },
+			(nlop_der_fun_t[4][1]){ { mri_normal_lin }, { NULL }, { NULL }, { NULL } },
 			NULL, NULL, mri_normal_del, NULL, props, NULL
 		);
-
-	if ((0 == conf->mask_flags) && (!conf->keep_mask_input)) {
-
-		complex float mask = 1;
-		result = nlop_set_input_const_F(result, 4, N, MD_SINGLETON_DIMS(N), true, &mask);
-	}
 
 	return result;
 }
@@ -464,10 +456,10 @@ struct mri_normal_inversion_s {
 	INTERFACE(nlop_data_t);
 
 	unsigned long image_flags;
-	unsigned long mask_flags;
 	unsigned long pattern_flags;
 	unsigned long batch_flags;
 	unsigned long fft_flags;
+	unsigned long coil_flags;
 
 	int N;
 
@@ -475,20 +467,14 @@ struct mri_normal_inversion_s {
 	const long* pdims;
 	const long* cdims;
 	const long* kdims;
-	const long* mdims;
 
 	const long* istrs;
 	const long* pstrs;
 	const long* cstrs;
 	const long* kstrs;
-	const long* mstrs;
 
 	const long* bdims;
 
-	const long* fftdims;
-	const long* fftstrs;
-
-	complex float* fftmod;
 	complex float* coil;
 	complex float* out;
 
@@ -505,26 +491,15 @@ static void mri_normal_inversion_alloc(struct mri_normal_inversion_s* d, const v
 {
 	if (NULL == d->coil)
 		d->coil = md_alloc_sameplace(d->N, d->cdims, CFL_SIZE, ref);
-	
-	if (NULL == d->fftmod) {
-
-		complex float * tmp = md_alloc(d->N, d->fftdims, CFL_SIZE);
-		md_zfill(d->N, d->fftdims, tmp, 1.);
-		fftmod(d->N, d->fftdims, FFT_FLAGS, tmp, tmp);
-
-		d->fftmod = md_alloc_sameplace(d->N, d->fftdims, CFL_SIZE, ref);
-		md_resize_center(d->N, d->fftdims, d->fftmod , d->fftdims, tmp, CFL_SIZE);
-		md_free(tmp);
-	}
 
 	long kdims_normal[d->N];
 	md_select_dims(d->N, ~(d->batch_flags), kdims_normal, d->kdims);
 
 	if (NULL == d->lop_fft)
-		d->lop_fft = linop_fft_create(d->N, kdims_normal, d->fft_flags);
+		d->lop_fft = linop_fftc_create(d->N, kdims_normal, d->fft_flags);
 }
 
-static void mri_normal_inversion_set_normal_ops(struct mri_normal_inversion_s* d, const complex float* coil, const complex float* pattern, const complex float* mask, const complex float* lptr)
+static void mri_normal_inversion_set_normal_ops(struct mri_normal_inversion_s* d, const complex float* coil, const complex float* pattern, const complex float* lptr)
 {
 	mri_normal_inversion_alloc(d, coil);
 
@@ -543,11 +518,7 @@ static void mri_normal_inversion_set_normal_ops(struct mri_normal_inversion_s* d
 		error("Lambda=%f+%fi is not non-negative real number!\n", crealf(lambda), cimagf(lambda));
 	d->iter_conf.INTERFACE.alpha = crealf(lambda);
 
-	md_zmul2(d->N, d->cdims, d->cstrs, d->coil, d->cstrs, coil, d->fftstrs, d->fftmod);
-	if (NULL != mask)
-		md_zmul2(d->N, d->cdims, d->cstrs, d->coil, d->cstrs, d->coil, d->mstrs, mask);
-
-	complex float* tmp_pattern = md_alloc_sameplace(d->N, pdims_normal, CFL_SIZE, pattern);
+	md_copy(d->N, d->cdims, d->coil, coil, CFL_SIZE);
 
 	long pos[d->N];
 	for (int i = 0; i < d->N; i++)
@@ -558,10 +529,13 @@ static void mri_normal_inversion_set_normal_ops(struct mri_normal_inversion_s* d
 			operator_free(d->normal_op[md_calc_offset(d->N, MD_STRIDES(d->N, d->bdims, 1), pos)]);
 		
 		auto linop_frw = linop_fmac_create(d->N, cdims_normal, 0, ~(d->image_flags), 0, &MD_ACCESS(d->N, d->cstrs, pos, d->coil));
+		
+		if (!md_check_equal_dims(d->N, cdims_normal, kdims_normal, ~0))
+			linop_frw = linop_chain_FF(linop_frw, linop_resize_center_create(d->N, kdims_normal, cdims_normal));
+		
 		linop_frw = linop_chain_FF(linop_frw, linop_clone(d->lop_fft));
 		
-		md_zsmul(d->N, pdims_normal, tmp_pattern, &MD_ACCESS(d->N, d->pstrs, pos, pattern), 1. / md_calc_size(3, d->pdims));
-		auto linop_pattern = linop_cdiag_create(d->N, kdims_normal, d->pattern_flags, tmp_pattern);
+		auto linop_pattern = linop_cdiag_create(d->N, kdims_normal, d->pattern_flags, &MD_ACCESS(d->N, d->pstrs, pos, pattern));
 
 		d->normal_op[md_calc_offset(d->N, MD_STRIDES(d->N, d->bdims, 1), pos)] = operator_chainN(3, (const struct operator_s **)MAKE_ARRAY(linop_frw->forward, linop_pattern->forward, linop_frw->adjoint));
 
@@ -570,7 +544,6 @@ static void mri_normal_inversion_set_normal_ops(struct mri_normal_inversion_s* d
 
 	} while (md_next(d->N, d->bdims, ~(0ul), pos));
 
-	md_free(tmp_pattern);
 }
 
 DEF_TYPEID(mri_normal_inversion_s);
@@ -694,20 +667,19 @@ static void mri_free_normal_ops(struct mri_normal_inversion_s* d)
 static void mri_normal_inversion_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
 {
 	const auto d = CAST_DOWN(mri_normal_inversion_s, _data);
-	assert(6 == Narg);
+	assert(5 == Narg);
 
 	complex float* dst = args[0];
 	const complex float* image = args[1];
 	const complex float* coil = args[2];
 	const complex float* pattern = args[3];
-	const complex float* mask = args[4];
-	const complex float* lptr = args[5];
+	const complex float* lptr = args[4];
 
 	bool der_in = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
-	bool der_lam = !op_options_is_set_io(_data->options, 0, 4, OP_APP_NO_DER);
+	bool der_lam = !op_options_is_set_io(_data->options, 0, 3, OP_APP_NO_DER);
 	der_lam = der_lam && (-1 == d->lambda_fixed);
 
-	mri_normal_inversion_set_normal_ops(d, coil, pattern, mask, lptr);
+	mri_normal_inversion_set_normal_ops(d, coil, pattern, lptr);
 
 	mri_normal_inversion(d, dst, image);
 
@@ -737,20 +709,15 @@ static void mri_normal_inversion_del(const nlop_data_t* _data)
 	xfree(d->pdims);
 	xfree(d->cdims);
 	xfree(d->kdims);
-	xfree(d->mdims);
 
 	xfree(d->istrs);
 	xfree(d->pstrs);
 	xfree(d->cstrs);
 	xfree(d->kstrs);
-	xfree(d->mstrs);
 
 	xfree(d->bdims);
-	xfree(d->fftdims);
-	xfree(d->fftstrs);
 
 	md_free(d->out);
-	md_free(d->fftmod);
 
 	linop_free(d->lop_fft);
 
@@ -758,8 +725,10 @@ static void mri_normal_inversion_del(const nlop_data_t* _data)
 }
 
 
-static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, const long dims[N], const struct conf_mri_dims* conf)
+static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
+	assert(test_idims_compatible(N, dims, idims, conf));
+
 	if (NULL == conf)
 		conf = &conf_nlop_mri_simple;
 		
@@ -767,10 +736,10 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
 	SET_TYPEID(mri_normal_inversion_s, data);
 
 	data->image_flags = conf->image_flags;
-	data->mask_flags = conf->mask_flags;
 	data->pattern_flags = conf->pattern_flags;
 	data->batch_flags = conf->batch_flags;
 	data->fft_flags = conf->fft_flags;
+	data->coil_flags = conf->coil_flags;
 
 	// batch dims must be outer most dims
 	bool batch = false;
@@ -784,57 +753,47 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
 
 	data->N = N;
 
-	PTR_ALLOC(long[N], idims);
+	PTR_ALLOC(long[N], nidims);
 	PTR_ALLOC(long[N], cdims);
 	PTR_ALLOC(long[N], kdims);
 	PTR_ALLOC(long[N], pdims);
-	PTR_ALLOC(long[N], mdims);
-	PTR_ALLOC(long[N], fftdims);
 
 	PTR_ALLOC(long[N], bdims);
 
-	md_select_dims(N, data->image_flags, *idims, dims);
-	md_copy_dims(N, *cdims, dims);
+	md_copy_dims(N, *nidims, idims);
 	md_copy_dims(N, *kdims, dims);
+	md_select_dims(N, data->coil_flags, *cdims, dims);
 	md_select_dims(N, data->pattern_flags, *pdims, dims);
-	md_select_dims(N, data->mask_flags, *mdims, dims);
 	md_select_dims(N, data->batch_flags, *bdims, dims);
-	md_select_dims(N, data->fft_flags, *fftdims, dims);
 
-	data->idims = *PTR_PASS(idims);
+	for (int i = 0; i < N; i++)
+		(*cdims)[i] = MD_IS_SET(conf->fft_flags & conf->coil_flags, i) ? idims[i] : (*cdims)[i];
+
+	data->idims = *PTR_PASS(nidims);
 	data->pdims = *PTR_PASS(pdims);
 	data->cdims = *PTR_PASS(cdims);
 	data->kdims = *PTR_PASS(kdims);
-	data->mdims = *PTR_PASS(mdims);
 	data->bdims = *PTR_PASS(bdims);
-	data->fftdims = *PTR_PASS(fftdims);
 
 	PTR_ALLOC(long[N], istrs);
 	PTR_ALLOC(long[N], cstrs);
 	PTR_ALLOC(long[N], kstrs);
 	PTR_ALLOC(long[N], pstrs);
-	PTR_ALLOC(long[N], mstrs);
-	PTR_ALLOC(long[N], fftstrs);
 
 	md_calc_strides(N, *istrs, data->idims, CFL_SIZE);
 	md_calc_strides(N, *cstrs, data->cdims, CFL_SIZE);
 	md_calc_strides(N, *kstrs, data->kdims, CFL_SIZE);
 	md_calc_strides(N, *pstrs, data->pdims, CFL_SIZE);
-	md_calc_strides(N, *mstrs, data->mdims, CFL_SIZE);
-	md_calc_strides(N, *fftstrs, data->fftdims, CFL_SIZE);
 
 	data->istrs = *PTR_PASS(istrs);
 	data->pstrs = *PTR_PASS(pstrs);
 	data->cstrs = *PTR_PASS(cstrs);
 	data->kstrs = *PTR_PASS(kstrs);
-	data->mstrs = *PTR_PASS(mstrs);
-	data->fftstrs = *PTR_PASS(fftstrs);
 
 
 	// will be initialized later, to transparently support GPU
 	data->out= NULL;
 	data->coil = NULL;
-	data->fftmod = NULL;
 
 	data->lambda_fixed = conf->lambda_fixed;
 
@@ -877,49 +836,41 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
  * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
  * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 / Nb)
- * [mask:	mdims:	(Nx, Ny, Nz, 1,  1 / Nb)
  * [lambda:	ldims:	(1)]
  *
  * Output tensors:
  * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
  */
 
-const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
-	auto data = mri_normal_inversion_data_create(N, dims, conf);
+	auto data = mri_normal_inversion_data_create(N, dims, idims, conf);
 
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], data->idims);
 
-	long nl_idims[5][N];
+	long nl_idims[4][N];
 	md_copy_dims(N, nl_idims[0], data->idims);
 	md_copy_dims(N, nl_idims[1], data->cdims);
 	md_copy_dims(N, nl_idims[2], data->pdims);
-	md_copy_dims(N, nl_idims[3], data->mdims);
-	md_singleton_dims(N, nl_idims[4]);
+	md_singleton_dims(N, nl_idims[3]);
 
-	operator_property_flags_t props[5][1] = { { MD_BIT(OP_PROP_C_LIN) }, { 0 }, { 0 }, { 0 }, { 0 } };
+	operator_property_flags_t props[5][1] = { { MD_BIT(OP_PROP_C_LIN) }, { 0 }, { 0 }, { 0 } };
 
-	const struct nlop_s* result = nlop_generic_with_props_create(	1, N, nl_odims, 5, N, nl_idims, CAST_UP(data),
+	const struct nlop_s* result = nlop_generic_with_props_create(	1, N, nl_odims, 4, N, nl_idims, CAST_UP(data),
 									mri_normal_inversion_fun,
-									(nlop_der_fun_t[5][1]){ { mri_normal_inversion_der }, { NULL }, { NULL }, { NULL }, { mri_normal_inversion_der_lambda } },
-									(nlop_der_fun_t[5][1]){ { mri_normal_inversion_adj }, { NULL }, { NULL }, { NULL }, { mri_normal_inversion_adj_lambda } },
+									(nlop_der_fun_t[4][1]){ { mri_normal_inversion_der }, { NULL }, { NULL }, { mri_normal_inversion_der_lambda } },
+									(nlop_der_fun_t[4][1]){ { mri_normal_inversion_adj }, { NULL }, { NULL }, { mri_normal_inversion_adj_lambda } },
 									NULL, NULL, mri_normal_inversion_del, NULL, props, NULL
 								);
 
 	if ((-1. != conf->lambda_fixed) && (!conf->keep_lambda_input)) {
 
 		complex float lambdac = conf->lambda_fixed;
-		result = nlop_set_input_const_F(result, 4, N, MD_SINGLETON_DIMS(N), true, &lambdac);
+		result = nlop_set_input_const_F(result, 3, N, MD_SINGLETON_DIMS(N), true, &lambdac);
 	} else {
 
-		result = nlop_reshape_in_F(result, 4, 1, MD_SINGLETON_DIMS(1));
-	}
-
-	if ((0 == conf->mask_flags) && (!conf->keep_mask_input)) {
-
-		complex float mask = 1;
-		result = nlop_set_input_const_F(result, 3, N, MD_SINGLETON_DIMS(N), true, &mask);
+		result = nlop_reshape_in_F(result, 3, 1, MD_SINGLETON_DIMS(1));
 	}
 
 	return result;
@@ -965,20 +916,19 @@ static void mri_reg_proj_adj(const nlop_data_t* _data, unsigned int o, unsigned 
 static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
 {
 	const auto d = CAST_DOWN(mri_normal_inversion_s, _data);
-	assert(5 == Narg);
+	assert(4 == Narg);
 
 	complex float* dst = args[0];
 	const complex float* image = args[1];
 	const complex float* coil = args[2];
 	const complex float* pattern = args[3];
-	const complex float* mask = args[4];
-	const complex float* lptr = args[5];
+	const complex float* lptr = args[4];
 
 	bool der_in = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
-	bool der_lam = !op_options_is_set_io(_data->options, 0, 4, OP_APP_NO_DER);
+	bool der_lam = !op_options_is_set_io(_data->options, 0, 3, OP_APP_NO_DER);
 	der_lam = der_lam && (-1 == d->lambda_fixed);
 
-	mri_normal_inversion_set_normal_ops(d, coil, pattern, mask, lptr);
+	mri_normal_inversion_set_normal_ops(d, coil, pattern, lptr);
 
 	complex float* tmp = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
 	mri_normal(d, tmp, image);
@@ -1021,26 +971,25 @@ static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* 
  * Output tensors:
  * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
  */
-const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
-	auto data = mri_normal_inversion_data_create(N, dims, conf);
+	auto data = mri_normal_inversion_data_create(N, dims, idims, conf);
 
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], data->idims);
 
-	long nl_idims[5][N];
+	long nl_idims[4][N];
 	md_copy_dims(N, nl_idims[0], data->idims);
 	md_copy_dims(N, nl_idims[1], data->cdims);
 	md_copy_dims(N, nl_idims[2], data->pdims);
-	md_copy_dims(N, nl_idims[3], data->mdims);
-	md_singleton_dims(N, nl_idims[4]);
+	md_singleton_dims(N, nl_idims[3]);
 
-	operator_property_flags_t props[5][1] = { { MD_BIT(OP_PROP_C_LIN) }, { 0 }, { 0 }, { 0 }, { 0 } };
+	operator_property_flags_t props[4][1] = { { MD_BIT(OP_PROP_C_LIN) }, { 0 }, { 0 }, { 0 } };
 
-	const struct nlop_s* result = nlop_generic_with_props_create(	1, N, nl_odims, 5, N, nl_idims, CAST_UP(data),
+	const struct nlop_s* result = nlop_generic_with_props_create(	1, N, nl_odims, 4, N, nl_idims, CAST_UP(data),
 									mri_reg_proj_fun,
-									(nlop_der_fun_t[5][1]){ { mri_reg_proj_der }, { NULL }, { NULL }, { NULL }, { mri_normal_inversion_der_lambda } },
-									(nlop_der_fun_t[5][1]){ { mri_reg_proj_adj }, { NULL }, { NULL }, { NULL }, { mri_normal_inversion_adj_lambda } },
+									(nlop_der_fun_t[4][1]){ { mri_reg_proj_der }, { NULL }, { NULL }, { mri_normal_inversion_der_lambda } },
+									(nlop_der_fun_t[4][1]){ { mri_reg_proj_adj }, { NULL }, { NULL }, { mri_normal_inversion_adj_lambda } },
 									NULL, NULL, mri_normal_inversion_del, NULL, props, NULL
 								);
 
@@ -1050,16 +999,10 @@ const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const st
 	if ((-1. != conf->lambda_fixed) && (!conf->keep_lambda_input)) {
 
 		complex float lambdac = conf->lambda_fixed;
-		result = nlop_set_input_const_F(result, 4, N, MD_SINGLETON_DIMS(N), true, &lambdac);
+		result = nlop_set_input_const_F(result, 3, N, MD_SINGLETON_DIMS(N), true, &lambdac);
 	} else {
 
-		result = nlop_reshape_in_F(result, 4, 1, MD_SINGLETON_DIMS(1));
-	}
-
-	if ((0 == conf->mask_flags) && (!conf->keep_mask_input)) {
-
-		complex float mask = 1;
-		result = nlop_set_input_const_F(result, 3, N, MD_SINGLETON_DIMS(N), true, &mask);
+		result = nlop_reshape_in_F(result, 3, 1, MD_SINGLETON_DIMS(1));
 	}
 
 	return result;
@@ -1085,21 +1028,20 @@ const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const st
  * kspace:	kdims: 	(Nx, Ny, Nz, Nc, Nb)
  * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 )
- * [mask	mdims:	(1,  1,  1,  1,  1 )]
  * [lambda:	ldims:	(1)]
  *
  * Output tensors:
  * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
  */
 
-const struct nlop_s* mri_reg_pinv(int N, const long dims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* mri_reg_pinv(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
-	auto nlop_zf = nlop_mri_adjoint_create(N, dims, conf);// in: kspace, coil, pattern; out: Atb
-	auto nlop_norm_inv = mri_normal_inversion_create(N, dims, conf); // in: Atb, coil, pattern, [mask], [lambda]; out: A^+b
+	auto nlop_zf = nlop_mri_adjoint_create(N, dims, idims, conf);// in: kspace, coil, pattern; out: Atb
+	auto nlop_norm_inv = mri_normal_inversion_create(N, dims, idims, conf); // in: Atb, coil, pattern, [lambda]; out: A^+b
 
-	auto nlop_pseudo_inv = nlop_chain2_swap_FF(nlop_zf, 0, nlop_norm_inv, 0); // in: kspace, coil, pattern, coil, pattern, [mask], [lambda]; out: A^+b
+	auto nlop_pseudo_inv = nlop_chain2_swap_FF(nlop_zf, 0, nlop_norm_inv, 0); // in: kspace, coil, pattern, coil, pattern, [lambda]; out: A^+b
 	nlop_pseudo_inv = nlop_dup_F(nlop_pseudo_inv, 1, 3);
-	nlop_pseudo_inv = nlop_dup_F(nlop_pseudo_inv, 2, 3);// in: kspace, coil, pattern, [mask], [lambda]; out: A^+b
+	nlop_pseudo_inv = nlop_dup_F(nlop_pseudo_inv, 2, 3);// in: kspace, coil, pattern, [lambda]; out: A^+b
 
 	return nlop_pseudo_inv;
 }

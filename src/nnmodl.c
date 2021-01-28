@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "misc/misc.h"
+#include "misc/mri.h"
 #include "misc/types.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -55,8 +56,6 @@ int main_nnmodl(int argc, char* argv[])
 
 	char* filename_weights_load = NULL;
 
-	long udims[5] = {1, 1, 1, 1, 1};
-
 	long Nb = 10;
 	bool one_iter = false;
 
@@ -92,10 +91,6 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_SET(0, "low_mem", &(modl.low_mem), "reduce memory usage by checkpointing"),
 
 		OPTL_SET('o', "one_iter", &one_iter, "only one iteration"),
-
-		OPTL_LONG('X', "fov_x", (udims), "x", "Nx of the target image (guessed from reference(training) / kspace(inference))"),
-		OPTL_LONG('Y', "fov_y", (udims + 1), "y", "Ny of the target image (guessed from reference(training) / kspace(inference))"),
-		OPTL_LONG('Z', "fov_z", (udims + 2), "z", "Nz of the target image (guessed from reference(training) / kspace(inference))"),
 
 		OPTL_SET(0, "test_defaults", &test_defaults, "set defaults to small values (used for testing)"),
 	};
@@ -138,10 +133,6 @@ int main_nnmodl(int argc, char* argv[])
 			JSON_FLOAT(JSON_LABEL("network", "dc", "fixed_lambda"), &(modl.lambda_fixed), false,  ""),
 			JSON_FLOAT(JSON_LABEL("network", "dc", "lambda_init"), &(modl.lambda_init), false,  ""),
 			JSON_UINT(JSON_LABEL("network", "dc", "conjgrad_iterations"), &(def_conf.maxiter), false,  ""),
-
-			JSON_LONG(JSON_LABEL("apply", "target_dims", "x"), udims, false,  ""),
-			JSON_LONG(JSON_LABEL("apply", "target_dims", "y"), udims + 1, false,  ""),
-			JSON_LONG(JSON_LABEL("apply", "target_dims", "z"), udims + 2, false,  ""),
 
 		};
 		read_json(config_file, ARRAY_SIZE(opts_json), opts_json);
@@ -199,13 +190,14 @@ int main_nnmodl(int argc, char* argv[])
 
 
 	long kdims[5]; 		//[Nkx, Nky, Nkz, Nc, Nt]
-	long cdims[5]; 		//[Nkx, Nky, Nkz, Nc, Nt]
+	long cdims[5]; 		//[Ux,  Uy,  Uz,  Nc, Nt]
 	long pdims[5]; 		//[Nkx, Nky, Nkz, 1,  1 or Nb]
 
 	complex float* kspace = load_cfl(filename_kspace, 5, kdims);
 	complex float* coil = load_cfl(filename_coil, 5, cdims);
 	complex float* pattern = load_cfl(filename_pattern, 5, pdims);
 
+	long udims[5];
 
 	if (load_mem) {
 
@@ -226,7 +218,7 @@ int main_nnmodl(int argc, char* argv[])
 		pattern = mem_pattern;
 	}
 
-	for (int i = 0; i < 5; i++)
+	for (int i = 3; i < 5; i++)
 		assert(kdims[i] == cdims[i]);
 	for (int i = 0; i < 3; i++)
 		assert(kdims[i] == pdims[i]);
@@ -248,6 +240,8 @@ int main_nnmodl(int argc, char* argv[])
 
 
 		complex float* ref = load_cfl(filename_out, 5, udims);
+		assert(md_check_equal_dims(5, udims, cdims, ~COIL_FLAG));
+
 		if (load_mem) {
 
 			complex float* mem_ref = md_alloc(5, udims, CFL_SIZE);
@@ -256,7 +250,7 @@ int main_nnmodl(int argc, char* argv[])
 			ref = mem_ref;
 		}
 
-		train_nn_modl(&modl, CAST_UP(&train_conf), udims, ref, kdims, kspace, coil, pdims, pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
+		train_nn_modl(&modl, CAST_UP(&train_conf), udims, ref, kdims, kspace, cdims, coil, pdims, pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
 		nn_modl_store_weights(&modl, filename_weights);
 		if (load_mem)
 			md_free(ref);
@@ -270,14 +264,11 @@ int main_nnmodl(int argc, char* argv[])
 		nn_modl_load_weights(&modl, filename_weights, true);
 		nn_modl_move_gpucpu(&modl, use_gpu);
 
-		udims[0] = (1 == udims[0]) ? kdims[0] : udims[0];
-		udims[1] = (1 == udims[1]) ? kdims[1] : udims[1];
-		udims[2] = (1 == udims[2]) ? kdims[2] : udims[2];
-		udims[4] = (1 == udims[4]) ? kdims[4] : udims[4];
+		md_select_dims(5, FFT_FLAGS | MD_BIT(4), udims, cdims);
 
 		complex float* file_out = create_cfl(filename_out, 5, udims);
 
-		apply_nn_modl_batchwise(&modl, udims, file_out, kdims, kspace, coil, pdims, pattern, Nb);
+		apply_nn_modl_batchwise(&modl, udims, file_out, kdims, kspace, cdims, coil, pdims, pattern, Nb);
 
 		unmap_cfl(5, udims, file_out);
 
