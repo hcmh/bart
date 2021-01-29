@@ -101,12 +101,24 @@ const struct vn_s vn_default = {
 	.normalize = false,
 
 	.init_tickhonov = false,
-	.lambda_fixed_tickhonov = -1.,
-	.lambda_init_tickhonov = 0.1,
+	.lambda_fixed_tickhonov = 0.1,
 
 	.low_mem = false,
+
+	.regrid = true,
 };
 
+
+static struct conf_mri_dims get_vn_mri_conf(const struct vn_s* vn)
+{
+	struct conf_mri_dims conf = conf_nlop_mri_simple;
+	if (!vn->share_pattern)
+		conf.pattern_flags = ~MD_BIT(3);
+
+	conf.regrid = vn->regrid;
+
+	return conf;	
+}
 
 /**
  * Returns operator computing the update due to the regularizer
@@ -205,9 +217,7 @@ static nn_t nn_ru_create(const struct vn_s* vn, const long udims[5])
  */
 static nn_t nn_du_create(const struct vn_s* vn, const long dims[5], const long udims[5])
 {
-	struct conf_mri_dims conf = conf_nlop_mri_simple;
-	if (!vn->share_pattern)
-		conf.pattern_flags = ~MD_BIT(3);
+	struct conf_mri_dims conf = get_vn_mri_conf(vn);
 	
 	const struct nlop_s* nlop_result = nlop_mri_gradient_step_create(5, dims, udims, &conf);
 
@@ -311,22 +321,13 @@ static nn_t nn_vn_cell_create(const struct vn_s* vn, const long dims[5], const l
  */
 static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const long udims[5])
 {
-	struct conf_mri_dims conf = conf_nlop_mri_simple;
-		if (!vn->share_pattern)
-			conf.pattern_flags = ~MD_BIT(3);
+	struct conf_mri_dims conf = get_vn_mri_conf(vn);
 
 	auto nlop_zf = nlop_mri_adjoint_create(5, dims, udims, &conf);
 	auto nn_zf = nn_from_nlop_F(nlop_zf);
 	nn_zf = nn_set_input_name_F(nn_zf, 0, "kspace");
 	nn_zf = nn_set_input_name_F(nn_zf, 0, "coil");
 	nn_zf = nn_set_input_name_F(nn_zf, 0, "pattern");
-
-	if (vn->normalize) {
-
-		auto nn_normalize = nn_from_nlop_F(nlop_norm_zmax_create(5, udims, MD_BIT(4), true));
-		nn_normalize = nn_set_output_name_F(nn_normalize, 1, "normalize_scale");
-		nn_zf = nn_chain2_FF(nn_zf, 0, NULL, nn_normalize, 0, NULL);
-	}
 
 	if (vn->init_tickhonov) {
 
@@ -335,6 +336,8 @@ static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const lon
 		def_conf.maxiter = 10;
 
 		conf.iter_conf = &def_conf;
+		conf.lambda_fixed = vn->lambda_fixed_tickhonov;
+		assert(0 <= conf.lambda_fixed);
 
 		auto nlop_dc = mri_normal_inversion_create(5, dims, udims, &conf);
 		
@@ -342,17 +345,17 @@ static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const lon
 		nn_dc = nn_set_input_name_F(nn_dc, 1, "coil");
 		nn_dc = nn_set_input_name_F(nn_dc, 1, "pattern");
 
-		if (-1. == vn->lambda_fixed_tickhonov) {
-			nn_dc = nn_set_input_name_F(nn_dc, 1, "lambda_0");
-			nn_dc = nn_append_singleton_dim_in_F(nn_dc, 0, "lambda_0");
-			nn_dc = nn_set_in_type_F(nn_dc, 0, "lambda_0", IN_OPTIMIZE);
-			nn_dc = nn_set_initializer_F(nn_dc, 0, "lambda_0", init_const_create(0.1));
-		}
-
 		nn_dc = nn_mark_dup_F(nn_dc, "coil");
 		nn_dc = nn_mark_dup_F(nn_dc, "pattern");
 
 		nn_zf = nn_chain2(nn_zf, 0, NULL, nn_dc, 0, NULL);
+	}
+
+	if (vn->normalize) {
+
+		auto nn_normalize = nn_from_nlop_F(nlop_norm_zmax_create(5, udims, MD_BIT(4), true));
+		nn_normalize = nn_set_output_name_F(nn_normalize, 1, "normalize_scale");
+		nn_zf = nn_chain2_FF(nn_zf, 0, NULL, nn_normalize, 0, NULL);
 	}
 
 	nn_zf = nn_set_output_name_F(nn_zf, 0, "u0");

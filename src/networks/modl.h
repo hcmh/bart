@@ -37,6 +37,8 @@ struct modl_s {
 	const char* draw_graph_filename;
 
 	_Bool low_mem;
+
+	_Bool regrid;
 };
 
 extern const struct modl_s modl_default;

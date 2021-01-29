@@ -66,6 +66,9 @@ int main_nnmodl(int argc, char* argv[])
 
 	bool test_defaults = false;
 
+	bool enforce_regrid = false;
+	bool enforce_no_regrid = false;
+
 	const struct opt_s opts[] = {
 
 		OPTL_SET('i', "initialize", &initialize, "initialize weights"),
@@ -93,9 +96,14 @@ int main_nnmodl(int argc, char* argv[])
 		OPTL_SET('o', "one_iter", &one_iter, "only one iteration"),
 
 		OPTL_SET(0, "test_defaults", &test_defaults, "set defaults to small values (used for testing)"),
+
+		OPTL_SET(0, "enforce_regrid", &enforce_regrid, "grids fully sampled kspace by applying pattern"),
+		OPTL_SET(0, "enforce_no_regrid", &enforce_no_regrid, "train with gridded kspace instead of fully sampled"),
 	};
 
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	assert (!(enforce_no_regrid && enforce_regrid )); 
 
 	if (test_defaults) {
 
@@ -228,6 +236,10 @@ int main_nnmodl(int argc, char* argv[])
 
 	if (train) {
 
+		modl.regrid = true;
+		if (enforce_no_regrid)
+			modl.regrid = false;
+
 		if (initialize == (NULL != filename_weights_load))
 			error("For training, weights must be either initialized(-i) or loaded (-l)!\n");
 
@@ -260,6 +272,11 @@ int main_nnmodl(int argc, char* argv[])
 
 
 	if (apply) {
+
+
+		modl.regrid = false;
+		if (enforce_regrid)
+			modl.regrid = true;
 
 		nn_modl_load_weights(&modl, filename_weights, true);
 		nn_modl_move_gpucpu(&modl, use_gpu);

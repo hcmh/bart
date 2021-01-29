@@ -56,6 +56,9 @@ int main_nnvn(int argc, char* argv[])
 
 	bool test_defaults = false;
 
+	bool enforce_regrid = false;
+	bool enforce_no_regrid = false;
+
 	const struct opt_s opts[] = {
 
 		OPTL_SET('i', "initialize", &initialize, "initialize weights"),
@@ -78,6 +81,9 @@ int main_nnvn(int argc, char* argv[])
 		OPTL_SET('m', "load_data", &(load_mem), "load files int memory"),
 
 		OPTL_SET(0, "test_defaults", &test_defaults, "set defaults to small values (used for testing)"),
+
+		OPTL_SET(0, "enforce_regrid", &enforce_regrid, "grids fully sampled kspace by applying pattern"),
+		OPTL_SET(0, "enforce_no_regrid", &enforce_no_regrid, "train with gridded kspace instead of fully sampled"),
 	};
 
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -118,7 +124,6 @@ int main_nnvn(int argc, char* argv[])
 
 			JSON_BOOL(JSON_LABEL("network", "init_tickhonov"), &(vn_config.init_tickhonov), false,  ""),
 			JSON_FLOAT(JSON_LABEL("network", "init_tickhonov_lambda_fixed"), &(vn_config.lambda_fixed_tickhonov), false,  ""),
-			JSON_FLOAT(JSON_LABEL("network", "init_tickhonov_lambda_init"), &(vn_config.lambda_init_tickhonov), false,  ""),	
 
 		};
 		read_json(config_file, ARRAY_SIZE(opts_json), opts_json);
@@ -129,6 +134,8 @@ int main_nnvn(int argc, char* argv[])
 	//we only give K as commandline
 	train_conf.beta = train_conf.alpha;
 	train_conf.trivial_stepsize = true;
+
+	assert (!(enforce_no_regrid && enforce_regrid )); 
 
 
 	char* filename_kspace = argv[1];
@@ -197,6 +204,11 @@ int main_nnvn(int argc, char* argv[])
 
 	if (train){
 
+		vn_config.regrid = true;
+		if (enforce_no_regrid)
+			vn_config.regrid = false;
+		
+
 		if (initialize == (NULL != filename_weights_load))
 			error("For training, weights must be either initialized(-i) or loaded (-l)!\n");
 
@@ -230,6 +242,10 @@ int main_nnvn(int argc, char* argv[])
 
 
 	if (apply) {
+
+		vn_config.regrid = false;
+		if (enforce_regrid)
+			vn_config.regrid = true;
 
 		load_vn(&vn_config, filename_weights, true);
 		if (use_gpu)

@@ -97,6 +97,8 @@ const struct modl_s modl_default = {
 	.draw_graph_filename = NULL,
 
 	.low_mem = false,
+
+	.regrid = true,
 };
 
 const char* sorted_weight_names[] = {
@@ -229,6 +231,20 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
 	return nn_checkpoint_F(result, true, config->low_mem && (1 < config->Nt));
 }
 
+static struct conf_mri_dims get_modl_mri_conf(const struct modl_s* modl)
+{
+	struct conf_mri_dims conf = conf_nlop_mri_simple;
+	if (!modl->share_pattern)
+		conf.pattern_flags = ~MD_BIT(3);
+
+	conf.regrid = modl->regrid;
+
+	conf.iter_conf = CAST_DOWN(iter_conjgrad_conf, modl->normal_inversion_iter_conf);
+	conf.lambda_fixed = modl->lambda_fixed;
+
+	return conf;	
+}
+
 /**
  * Returns dataconsistency block (called DC in MoDL)
  *
@@ -246,11 +262,7 @@ static nn_t residual_create(const struct modl_s* config, const long udims[5], en
  */
 static nn_t data_consistency_modl_create(const struct modl_s* config,const long dims[5], const long udims[5])
 {
-	struct conf_mri_dims mri_conf = conf_nlop_mri_simple;
-	if (!config->share_pattern)
-		mri_conf.pattern_flags = ~MD_BIT(3);
-	mri_conf.iter_conf = CAST_DOWN(iter_conjgrad_conf, config->normal_inversion_iter_conf);
-	mri_conf.lambda_fixed = config->lambda_fixed;
+	struct conf_mri_dims mri_conf = get_modl_mri_conf(config);
 
 	auto nlop_dc = mri_normal_inversion_create(5, dims, udims, &mri_conf); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
 
@@ -337,9 +349,7 @@ static nn_t nn_modl_zf_create(const struct modl_s* config,const long dims[5], co
 {
 	UNUSED(status);
 	
-	struct conf_mri_dims mri_conf = conf_nlop_mri_simple;
-	if (!config->share_pattern)
-		mri_conf.pattern_flags = ~MD_BIT(3);
+	struct conf_mri_dims mri_conf = get_modl_mri_conf(config);
 
 	auto nlop_zf = nlop_mri_adjoint_create(5, dims, udims, &mri_conf);
 	auto nn_zf = nn_from_nlop_F(nlop_zf);
