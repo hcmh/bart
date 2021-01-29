@@ -28,6 +28,7 @@
 #include "simu/biot_savart_fft.h"
 #define N 4
 
+
 static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, unsigned int iter, float tol, const complex float *bc_mask)
 {
 	complex float *adj = md_alloc_sameplace(N, jdims, CFL_SIZE, j);
@@ -52,13 +53,33 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 	// lsqr2 does not use this as initial value!
 	md_zfill(N, jdims, j, 0);
 
-	struct iter_conjgrad_conf conf = iter_conjgrad_defaults;
-	conf.maxiter = iter;
-	conf.l2lambda = reg;
-	conf.tol = tol;
-
 	struct lsqr_conf lconf = lsqr_defaults;
-	lsqr2(N, &lconf, iter2_conjgrad, CAST_UP(&conf), bz_op, 0, NULL, NULL, jdims, j, bdims, bz, NULL, NULL);
+	iter_conf *iconf;
+	italgo_fun2_t ifun;
+
+	enum SOLVER { CG, ADMM } solver = ADMM;
+	struct iter_conjgrad_conf cg_conf = iter_conjgrad_defaults;
+	struct iter_admm_conf admm_conf = iter_admm_defaults;
+	switch (solver) {
+	case CG: ;
+		cg_conf.maxiter = iter;
+		cg_conf.l2lambda = reg;
+		cg_conf.tol = tol;
+		iconf = CAST_UP(&cg_conf);
+		ifun = iter2_conjgrad;
+	break;
+	case ADMM: ;
+		admm_conf.maxiter = 3;
+		admm_conf.maxitercg = iter;
+		lconf.lambda = reg;
+		iconf = CAST_UP(&admm_conf);
+		ifun = iter2_admm;
+	break;
+	default:
+		assert(false);
+	}
+
+	lsqr2(N, &lconf, ifun, iconf, bz_op, 0, NULL, NULL, jdims, j, bdims, bz, NULL, NULL);
 
 	linop_free(bz_op);
 	md_free(adj);
