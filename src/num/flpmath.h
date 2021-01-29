@@ -18,7 +18,7 @@
 
 #ifndef __BC_ENUMS
 #define __BC_ENUMS
-enum BOUNDARY_CONDITION {BC_PERIODIC, BC_ZERO};
+enum BOUNDARY_CONDITION {BC_PERIODIC, BC_ZERO, BC_SAME};
 #endif
 
 extern void md_mul2(unsigned int D, const long dim[__VLA(D)], const long ostr[__VLA(D)], float* optr, const long istr1[__VLA(D)], const float* iptr1, const long istr2[__VLA(D)], const float* iptr2);

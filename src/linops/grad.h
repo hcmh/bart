@@ -7,7 +7,7 @@
 
 #ifndef __BC_ENUMS
 #define __BC_ENUMS
-enum BOUNDARY_CONDITION {BC_PERIODIC, BC_ZERO};
+enum BOUNDARY_CONDITION {BC_PERIODIC, BC_ZERO, BC_SAME};
 #endif
 
 extern struct linop_s* linop_grad_create(long N, const long dims[__VLA(N)], int d, unsigned int flags);

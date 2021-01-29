@@ -3977,18 +3977,36 @@ void md_zsmin(unsigned int D, const long dim[D], complex float* optr, const comp
 #endif
 
 
-static void md_fdiff_core2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, bool dir, const long ostr[D], float *out, const long istr[D], const float *in)
+static void md_fdiff_core2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, bool dir, const long ostr[D], void *out, const long istr[D], const void *in, bool c)
 {
 	long pos[D];
 	md_set_dims(D, pos, 0);
 	pos[d] = dir ? 1 : -1;
+	md_circ_shift2(D, dims, pos, ostr, out, istr, in, c ? CFL_SIZE : FL_SIZE);
+	if (c)
+		md_zsub2(D, dims, ostr, out, istr, in, ostr, out);
+	else
+		md_sub2(D, dims, ostr, out, istr, in, ostr, out);
 
-	md_circ_shift2(D, dims, pos, ostr, out, istr, in, FL_SIZE);
-	md_sub2(D, dims, ostr, out, istr, in, ostr, out);
 	if (BC_ZERO == bc) {
 		// backward: out[0] = in[0]; (negative) forward: out[n-1] = in[n-1]
 		md_select_dims(D, ~MD_BIT(d), pos, dims);
-		md_smul2(D, pos, ostr, (void *)out + (dir ? 0 : (dims[d] - 1) * ostr[d]), istr, (void *)in + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
+		if (c)
+			md_zsmul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
+					  istr, in  + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
+		else
+			md_smul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
+					 istr, in  + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
+	}
+	if (BC_SAME == bc) {
+		// backward: out[0] = 0; (negative) forward: out[n-1] = 0
+		md_select_dims(D, ~MD_BIT(d), pos, dims);
+		if (c)
+			md_zsmul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
+					  istr, in  + (dir ? 0 : (dims[d] - 1) * istr[d]), 0);
+		else
+			md_smul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
+					  istr, in  + (dir ? 0 : (dims[d] - 1) * istr[d]), 0);
 	}
 	// default: periodic boundary condition
 }
@@ -4000,7 +4018,7 @@ static void md_fdiff_core2(unsigned int D, const long dims[D], unsigned int d, c
 void md_fdiff2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], float *out, const long istr[D], const float *in)
 {
 	//TODO this does finite backward differences!
-	md_fdiff_core2(D, dims, d, bc, true, ostr, out, istr, in);
+	md_fdiff_core2(D, dims, d, bc, true, ostr, out, istr, in, false);
 }
 
 
@@ -4026,7 +4044,7 @@ void md_fdiff(unsigned int D, const long dims[D], unsigned int d, const enum BOU
 void md_fdiff_backwards2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], float *out, const long istr[D], const float *in)
 {
 	//TODO this does finite forward differences * (-1)!
-	md_fdiff_core2(D, dims, d, bc, false, ostr, out, istr, in);
+	md_fdiff_core2(D, dims, d, bc, false, ostr, out, istr, in, false);
 }
 
 
@@ -4045,32 +4063,13 @@ void md_fdiff_backwards(unsigned int D, const long dims[D], unsigned int d, cons
 
 
 
-static void md_zfdiff_core2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, bool dir, const long ostr[D], complex float *out, const long istr[D], const complex float *in)
-{
-	// we could also implement in terms of md_fdiff2
-
-	long pos[D];
-	md_set_dims(D, pos, 0);
-	pos[d] = dir ? 1 : -1;
-
-	md_circ_shift2(D, dims, pos, ostr, out, istr, in, CFL_SIZE);
-	md_zsub2(D, dims, ostr, out, istr, in, ostr, out);
-
-	if (BC_ZERO == bc) {
-		// backward: out[0] = in[0]; (negative) forward: out[n-1] = in[n-1]
-		md_select_dims(D, ~MD_BIT(d), pos, dims);
-		md_zsmul2(D, pos, ostr, (void *)out + (dir ? 0 : (dims[d] - 1) * ostr[d]), istr, (void *)in + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
-	}
-	// default: periodic boundary condition
-}
-
 /**
  * Compute finite (forward) differences along selected dimensions.
  *
  */
 void md_zfdiff2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], complex float *out, const long istr[D], const complex float *in)
 {
-	md_zfdiff_core2(D, dims, d, bc, true, ostr, out, istr, in);
+	md_fdiff_core2(D, dims, d, bc, true, ostr, out, istr, in, true);
 }
 
 
@@ -4081,7 +4080,7 @@ void md_zfdiff2(unsigned int D, const long dims[D], unsigned int d, const enum B
  */
 void md_zfdiff_backwards2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], complex float *out, const long istr[D], const complex float *in)
 {
-	md_zfdiff_core2(D, dims, d, bc, false, ostr, out, istr, in);
+	md_fdiff_core2(D, dims, d, bc, false, ostr, out, istr, in, true);
 }
 
 
@@ -4135,25 +4134,43 @@ void md_zfdiff_central2(unsigned int D, const long dims[D], unsigned int d, cons
 	md_circ_shift2(D, dims, pos, ostr, out, ostr, out, CFL_SIZE);
 
 	if (BC_ZERO == bc) {
-
 		long odims[D];
 		md_select_dims(D, ~MD_BIT(d), odims, dims);
-
 		md_set_dims(D, pos, 0);
 
 		// out[0] = in[1];
-		md_zsmul2(D, odims, ostr, (void *)out + 0, istr, (void *)in + istr[d], reverse ? -1. : 1);
+		md_zsmul2(D, odims, ostr, (void *)out + 0, istr, (void *)in + istr[d], reverse ? -1. : 1.);
 
-		// out[n] = -in[n-1]
+		// out[n-1] = -in[n-2]
 		pos[d] = dims[d] - 1;
 		long ooffset = md_calc_offset(D, ostr, pos);
 
 		pos[d] = dims[d] - 2;
 		long ioffset = md_calc_offset(D, istr, pos);
 
-		md_zsmul2(D, odims, ostr, (void *)out + ooffset, istr, (void *)in + ioffset, reverse ? 1 : -1.);
+		md_zsmul2(D, odims, ostr, (void *)out + ooffset, istr, (void *)in + ioffset, reverse ? 1. : -1.);
 	}
+	if (BC_SAME == bc) {
+		long odims[D];
+		md_select_dims(D, ~MD_BIT(d), odims, dims);
+		md_set_dims(D, pos, 0);
 
+		// out[0] = in[1] - in[0];
+		md_zsmul2(D, odims, ostr, (void *)out + 0, istr, (void *)in + istr[d], reverse ? -1. : 1.);
+		md_zaxpy2(D, odims, ostr, (void *)out + 0, reverse ? 1. : -1., istr, (void *)in + 0);
+
+		// out[n-1] = in[n-1] - in[n-2];
+		pos[d] = dims[d] - 1;
+		long ooffset = md_calc_offset(D, ostr, pos);
+
+		pos[d] = dims[d] - 2;
+		long ioffset = md_calc_offset(D, istr, pos);
+		md_zsmul2(D, odims, ostr, (void *)out + ooffset, istr, (void *)in + ioffset, reverse ? 1. : -1.);
+
+		pos[d] = dims[d] - 1;
+		ioffset = md_calc_offset(D, istr, pos);
+		md_zaxpy2(D, odims, ostr, (void *)out + ooffset, reverse ? -1. : 1., istr, (void *)in + ioffset);
+	}
 	// default: periodic boundary condition
 }
 

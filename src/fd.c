@@ -54,7 +54,7 @@ int main_fd(int argc, char* argv[])
 		linop_adjoint(op, N, odims, out, N, dims, in);
 		linop_free(op);
 	} else {
-		auto d_op = linop_fd_create(N, dims, d, flags, 2, BC_ZERO, false);
+		auto d_op = linop_fd_create(N, dims, d, flags, 2, BC_SAME, false);
 		linop_forward(d_op, N, odims, out, N, dims, in);
 		linop_free(d_op);
 	}
