@@ -28,12 +28,19 @@ static const char help_str[] = "Calculate divergence or gradient along direction
 int main_fd(int argc, char* argv[])
 {
 	bool div = false;
+	int order=1;
+	enum BOUNDARY_CONDITION bc = BC_PERIODIC;
 	const struct opt_s opts[] = {
 		OPT_SET('d', &div, "Divergence"),
+		OPT_INT('o', &order, "order", "Order (1,2)"),
+		OPT_SELECT('P', enum BOUNDARY_CONDITION, &bc, BC_PERIODIC, "Boundary condition: Periodic (default)"),
+		OPT_SELECT('Z', enum BOUNDARY_CONDITION, &bc, BC_ZERO, "Boundary condition: Zero"),
+		OPT_SELECT('S', enum BOUNDARY_CONDITION, &bc, BC_SAME, "Boundary condition: Same"),
 	};
 
 	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 	num_init();
+	assert(1 == order || 2 == order);
 	long dims[N] = {}, odims[N];
 	unsigned int d = atoi(argv[1]);
 	long flags = atoi(argv[2]);
@@ -47,14 +54,11 @@ int main_fd(int argc, char* argv[])
 	complex float* out = create_cfl(argv[4], N, odims);
 
 	if (div) {
-		assert(dims[d] == num_dx);
-		long gdims[N];
-		md_select_dims(N, ~MD_BIT(d), gdims, dims);
-		auto op = linop_fd_create(N, gdims, d, flags, 1, BC_ZERO, true);
-		linop_adjoint(op, N, odims, out, N, dims, in);
+		auto op = linop_div_create(N, dims, d, flags, order, bc);
+		linop_forward(op, N, odims, out, N, dims, in);
 		linop_free(op);
 	} else {
-		auto d_op = linop_fd_create(N, dims, d, flags, 2, BC_SAME, false);
+		auto d_op = linop_fd_create(N, dims, d, flags, order, bc, false);
 		linop_forward(d_op, N, odims, out, N, dims, in);
 		linop_free(d_op);
 	}
