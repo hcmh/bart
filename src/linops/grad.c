@@ -164,7 +164,7 @@ static void grad_op_free(const linop_data_t *_data)
 }
 
 struct linop_s *linop_fd_create(long N, const long dims[N], int d, unsigned int flags, unsigned int order,
-				       const enum BOUNDARY_CONDITION bc, bool reverse)
+				const enum BOUNDARY_CONDITION bc, bool reverse)
 {
 	PTR_ALLOC(struct grad_s, data);
 	SET_TYPEID(grad_s, data);
@@ -217,7 +217,7 @@ struct linop_s *linop_div_create(long N, const long dims[N], int d, unsigned int
 	long gdims[N];
 	md_select_dims(N, ~MD_BIT(d), gdims, dims);
 
-	assert( 1 == order || 2 == order);
+	assert((1 == order) || (2 == order));
 
 	auto op = linop_fd_create(N, gdims, d, flags, order, bc, true);
 	op2 = (struct linop_s*)linop_get_adjoint(op); //FIXME: we should make linops consistently const

@@ -3993,20 +3993,20 @@ static void md_fdiff_core2(unsigned int D, const long dims[D], unsigned int d, c
 		md_select_dims(D, ~MD_BIT(d), pos, dims);
 		if (c)
 			md_zsmul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
-					  istr, in  + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
+				  istr, in + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
 		else
 			md_smul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
-					 istr, in  + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
+				 istr, in + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
 	}
 	if (BC_SAME == bc) {
 		// backward: out[0] = 0; (negative) forward: out[n-1] = 0
 		md_select_dims(D, ~MD_BIT(d), pos, dims);
 		if (c)
 			md_zsmul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
-					  istr, in  + (dir ? 0 : (dims[d] - 1) * istr[d]), 0);
+				  istr, in + (dir ? 0 : (dims[d] - 1) * istr[d]), 0);
 		else
 			md_smul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
-					  istr, in  + (dir ? 0 : (dims[d] - 1) * istr[d]), 0);
+				 istr, in + (dir ? 0 : (dims[d] - 1) * istr[d]), 0);
 	}
 	// default: periodic boundary condition
 }

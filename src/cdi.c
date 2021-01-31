@@ -21,8 +21,8 @@
 #include "iter/lsqr.h"
 #include "iter/prox.h"
 
-#include "misc/misc.h"
 #include "misc/debug.h"
+#include "misc/misc.h"
 #include "misc/mmio.h"
 #include "misc/mri.h"
 #include "misc/opts.h"
@@ -43,8 +43,8 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 		// Create multiplicative mask - to enforce 0 current outside
 		// FIXME: Don't copy; instead create modified cdiag operator?
 		complex float *bc_mask3 = md_alloc(N, jdims, CFL_SIZE);
-		long pos[N] = { 0 };
-		for(; pos[0]<3; pos[0]++)
+		long pos[N] = {0};
+		for (; pos[0] < 3; pos[0]++)
 			md_copy_block(N, pos, jdims, bc_mask3, bdims, bc_mask, CFL_SIZE);
 		bc_mask_op = linop_cdiag_create(N, jdims, 15, bc_mask3);
 		bz_op = linop_chain(bc_mask_op, bz_op);
@@ -56,7 +56,6 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 			auto d_op = linop_fd_create(N, bdims, 0, 14, 2, BC_SAME, false);
 			linop_forward(d_op, N, jdims, walls, N, bdims, bc_mask);
 			linop_free(d_op);
-			//dump_cfl("fdfd", N, jdims, bc_mask3);
 		}
 	}
 	if (NULL != mask) {
@@ -79,18 +78,15 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 	enum SOLVER { CG, ADMM } solver = ADMM;
 
 	switch (solver) {
-	case CG:
-	{
+	case CG: {
 		struct iter_conjgrad_conf conf = iter_conjgrad_defaults;
 		conf.maxiter = iter;
 		conf.l2lambda = reg;
 		conf.tol = tol;
 
 		lsqr2(N, &lconf, iter2_conjgrad, CAST_UP(&conf), bz_op, 0, NULL, NULL, jdims, j, bdims, bz, NULL, NULL);
-	}
-	break;
-	case ADMM:
-	{
+	} break;
+	case ADMM: {
 		struct iter_admm_conf conf = iter_admm_defaults;
 		conf.maxiter = 10;
 		conf.maxitercg = iter;
@@ -103,18 +99,19 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 		if (0 < bc_reg) {
 			assert(NULL != walls);
 			assert(NPROX >= ++nprox);
-			prox_funs[nprox-1] = prox_l2norm_create(N, jdims, bc_reg);
-			prox_linops[nprox-1] = linop_cdiag_create(N, jdims, 15, walls);
+			prox_funs[nprox - 1] = prox_l2norm_create(N, jdims, bc_reg);
+			prox_linops[nprox - 1] = linop_cdiag_create(N, jdims, 15, walls);
 		}
 
 		if (0 < div_reg) {
 			assert(NPROX >= ++nprox);
 			assert(NULL != bc_mask_op);
-
-			prox_funs[nprox-1] = prox_l2norm_create(N, bdims, div_reg);
+			//FIXME: Scale j with voxelsize before applying derivative
+			assert((vox[0] == vox[1]) && (vox[0] == vox[2]) && (vox[1] == vox[2]));
+			prox_funs[nprox - 1] = prox_l2norm_create(N, bdims, div_reg);
 
 			auto div_op = linop_div_create(N, jdims, 0, 14, 1, BC_SAME);
-			prox_linops[nprox-1] = linop_chain(bc_mask_op, div_op);
+			prox_linops[nprox - 1] = linop_chain(bc_mask_op, div_op);
 
 			linop_free(div_op);
 		}
@@ -125,8 +122,7 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 			linop_free(prox_linops[i]);
 			operator_p_free(prox_funs[i]);
 		}
-	}
-	break;
+	} break;
 	default:
 		assert(false);
 	}
@@ -140,8 +136,8 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 }
 
 
-static const char usage_str[] = "voxelsize(x) voxelsize(y) voxelsize(z) <bz> [<mask> [<boundary condition mask>]] <j>";
-static const char help_str[] = "Estimate the current density J (A/mm^2) that generates ΔB (Hz)\n";
+static const char usage_str[] = "voxelsize(x) voxelsize(y) voxelsize(z) <B_z> [<mask> [<boundary condition mask>]] <J>";
+static const char help_str[] = "Estimate the current density J (A/[voxelsize]^2) that generates B_z (Hz)\n";
 
 
 int main_cdi(int argc, char *argv[])
@@ -150,9 +146,9 @@ int main_cdi(int argc, char *argv[])
 	unsigned int iter = 100;
 	const struct opt_s opts[] = {
 	    OPT_FLOAT('l', &tik_reg, "lambda_1", "Tikhonov Regularization"),
-	    OPT_FLOAT('t', &tolerance, "t", "Stopping Tolerance"),
 	    OPT_FLOAT('b', &bc_reg, "b", "Boundary current penalty"),
 	    OPT_FLOAT('d', &div_reg, "d", "Divergence penalty"),
+	    OPT_FLOAT('t', &tolerance, "t", "Stopping Tolerance"),
 	    OPT_UINT('n', &iter, "Iterations", "Max. number of iterations"),
 	};
 	cmdline(&argc, argv, 5, 7, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -169,13 +165,13 @@ int main_cdi(int argc, char *argv[])
 
 	if (argc >= 7) {
 		mask = load_cfl(argv[5], N, mask_dims);
-		for (int i = 0; i<N; i++)
+		for (int i = 0; i < N; i++)
 			assert(mask_dims[i] == bdims[i]);
 	}
 
 	if (argc == 8) {
 		bc_mask = load_cfl(argv[6], N, mask_bc_dims);
-		for (int i = 0; i<N; i++)
+		for (int i = 0; i < N; i++)
 			assert(mask_bc_dims[i] == bdims[i]);
 	}
 
@@ -183,12 +179,9 @@ int main_cdi(int argc, char *argv[])
 	jdims[0] = 3;
 	complex float *j = create_cfl(argv[argc - 1], N, jdims);
 
-	//complex float *b_scaled = md_alloc(N, bdims, CFL_SIZE);
 	md_zsmul(4, bdims, b, b, 1. / Hz_per_Tesla / Mu_0);
 	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, tolerance, bc_mask, bc_reg, div_reg);
-	md_zsmul(4, jdims, j, j, 1./bz_unit(bdims+1, vox)/1.e6);
-
-	//md_free(b_scaled);
+	md_zsmul(4, jdims, j, j, 1. / bz_unit(bdims + 1, vox));
 
 	unmap_cfl(N, bdims, b);
 	unmap_cfl(N, jdims, j);

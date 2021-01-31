@@ -15,72 +15,68 @@
 
 #include "simu/biot_savart_fft.h"
 
+
 #include "utest.h"
 
+#define N 4
 
-
-static bool test_linop_bz(void)
+static bool test_biot_savart_fft(void)
 {
-	const long N = 4;
-	// create cylindric current density along y-axis
-	float center = 40, cylcenter = 20;
-	long dims[] = {3, 2 * center, 2 * cylcenter, 2 * center}, bdims[N], jdims[N];
-	md_select_dims(N, 14, bdims, dims);
+	// Geometry Settings
+	const float center_x = 50, center_y = 20, center_z = 30;
+	const long dims[N] = {3, 2 * center_x, 2 * center_y, 2 * center_z};
 	float fovscale = .1;
-	const float fov[] = {1 * fovscale, 10 * fovscale, 1 * fovscale};
+	const float fov[N] = {1 * fovscale, 10 * fovscale, 1 * fovscale};
+	long r = 12;
+	float h = 0.75;
+	int dmin = 15, dmax = center_z - 3;
+
+	// Setup FoV etc
+	long bdims[N], bstrs[N];
+	md_select_dims(N, 14, bdims, dims);
+	md_calc_strides(N, bstrs, bdims, CFL_SIZE);
 	float voxelsize[3];
-	fov_to_vox(voxelsize, dims+1, fov);
-	float r = voxelsize[0] * 12, h = fov[1] * 0.75;
-	complex float *jfull = md_alloc(N, dims, CFL_SIZE);
-	md_clear(N, dims, jfull, CFL_SIZE);
-	jcylinder(dims, fov, r, h, 1, jfull);
+	fov_to_vox(voxelsize, dims + 1, fov);
+	assert(2 * center_x > (int)(dmax * voxelsize[2] / voxelsize[0]) + center_x);
 
-	// take jx, jy
-	md_select_dims(N, 14, jdims, dims);
-	jdims[0] = 2;
+	// Create cylindric current density along y-axis
+	complex float *j = md_calloc(N, dims, CFL_SIZE);
 
-	complex float *j = md_alloc(N, jdims, CFL_SIZE);
-
-	md_resize(N, jdims, j, dims, jfull, CFL_SIZE);
-
-	md_free(jfull);
+	jcylinder(dims, fov, voxelsize[0] * r, fov[1] * h, 1, j);
 
 	// calculate B_z
 	complex float *b = md_alloc(N, bdims, CFL_SIZE);
-	auto bz = linop_bz_create(jdims, voxelsize);
+	biot_savart_fft(dims, voxelsize, b, j);
 
-	linop_forward(bz, N, bdims, b, N, jdims, j);
+	// scale: hz -> tesla
+	md_zsmul(N, bdims, b, b, 1. / Hz_per_Tesla);
 
-	linop_free(bz);
-	md_free(j);
-
-	// scale
-	complex float fov_factor = bz_unit(dims+1, voxelsize);
-	md_zsmul(N, bdims, b, b, fov_factor);
-
-	//apply amperes law to reconstruct the total current through the cylinder
+	// ∮_{square wireloop in xz-plane} ∇ x B
+	// = 4 * ∫_{one side of the square} B_z dz
+	// = µ_0 * I
 	float maxdev = 0;
-	int dmin = 20, dmax = center - 10;
 
 	// for different slices along the cylinder
-	for (int ysl = cylcenter - 3; ysl < cylcenter + 3; ysl++) {
-		// take a square with size 2*d
+	for (int ysl = center_y - 3; ysl < center_y + 3; ysl++) {
+		// take a _square_ with size 2*d
 		for (int d = dmin; d <= dmax; d++) {
 			float current = 0;
-			long start = (center + d) * bdims[0] + ysl * bdims[0] * bdims[1];
 			// integrate bz along one side of the square
-			for (int i = center - d + 1; i <= center + d; i++) {
-				current += *(b + start + i * bdims[0] * bdims[1] * bdims[2]) * voxelsize[2];
+			for (int z = center_z - d + 1; z <= center_z + d; z++) {
+				long pos[] = {0, (int)(d * voxelsize[2] / voxelsize[0] + center_x), ysl, z};
+				long offset = md_calc_offset(N, bstrs, pos);
+				current += *(complex float *)((void *)b + offset) * voxelsize[2] / Mu_0;
 			}
 			current *= 4;
 			maxdev = fabs(current + 1) > maxdev ? fabs(current + 1) : maxdev;
-			debug_printf(DP_DEBUG1, "Slice: %d; Distance: %d; Amps law: %f; Max. Dev: %f\n", ysl, d, current, maxdev);
+			debug_printf(DP_DEBUG1, "Slice: %d; Distance: %d; Amps law: %f\n", ysl, d, current);
 		}
 	}
-
+	debug_printf(DP_DEBUG1, "Maximal difference: %f\n", maxdev);
 	md_free(b);
+	md_free(j);
 
-	return maxdev < 0.1;
+	return maxdev < 0.02;
 }
 
-UT_REGISTER_TEST(test_linop_bz);
+UT_REGISTER_TEST(test_biot_savart_fft);

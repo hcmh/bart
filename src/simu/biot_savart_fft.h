@@ -5,8 +5,8 @@
 #define Hz_per_Tesla 42.577478518e6
 
 struct linop_s* linop_bz_create(const long idims[4], const float vox[3]);
-extern void biot_savart_fft(const long *dims, const float *vox, const _Complex float* j, _Complex float* b);
-extern void jcylinder(const long* dims, const float *fov, const float R, const float h, const long d, _Complex float* out);
+extern void biot_savart_fft(const long dims[4], const float vox[3], _Complex float* b, const _Complex float* j);
+extern void jcylinder(const long dims[4], const float fov[3], const float R, const float h, const long d, _Complex float* out);
 
 float bz_unit(const long dims[3], const float vox[3]);
 void vox_to_fov(float fov[3], const long dims[3], const float vox[3]);
