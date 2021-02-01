@@ -408,8 +408,8 @@ int main_moba(int argc, char* argv[argc])
 
 	if ((MDB_T1 == mode) || (MDB_T2 == mode)) {
 
-		double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);
-		double scaling_psf = 1000. / md_znorm(DIMS, pat_dims, pattern);
+		double scaling = ((ALGO_ADMM == conf.algo) ? 250. : 5000.) / md_znorm(DIMS, grid_dims, k_grid_data);
+		double scaling_psf = ((ALGO_ADMM == conf.algo) ? 500. : 1000.) / md_znorm(DIMS, pat_dims, pattern);
 
 		if (conf.sms) {
 
