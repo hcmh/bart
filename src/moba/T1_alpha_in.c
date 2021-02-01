@@ -284,16 +284,7 @@ struct nlop_s* nlop_T1_alpha_in_create(int N, const long map_dims[N], const long
 	data->alpha = my_alloc(N, map_dims, CFL_SIZE);
 	md_copy(N, map_dims, data->alpha, alpha, CFL_SIZE);
 
-
 	data->counter = 0;
-
-	// if (DP_DEBUG2 <= debug_level) {
-
-	// 	char name[255] = {'\0'};
-
-	// 	sprintf(name, "current_alpha");
-	// 	dump_cfl(name, data->N, data->map_dims, data->alpha);
-	// }
 
 	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
 }

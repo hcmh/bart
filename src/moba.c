@@ -414,6 +414,8 @@ int main_moba(int argc, char* argv[argc])
 
 	if (NULL != input_alpha) {
 
+		debug_printf(DP_DEBUG2, "Load FA map [deg]\n");
+
 		alpha = load_cfl(input_alpha, DIMS, input_alpha_dims);
 
 		conf.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
@@ -485,6 +487,8 @@ int main_moba(int argc, char* argv[argc])
 		}
 	}
 
+	unmap_cfl(DIMS, single_map_dims, single_map);
+
 #ifdef  USE_CUDA
 	if (use_gpu) {
 
@@ -547,8 +551,8 @@ int main_moba(int argc, char* argv[argc])
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, grid_dims, k_grid_data);
 	unmap_cfl(DIMS, img_dims, img);
-	unmap_cfl(DIMS, single_map_dims, single_map);
 	unmap_cfl(DIMS, TI_dims, TI);
+
 	if (conf.MOLLI)
 		unmap_cfl(DIMS, TI_t1relax_dims, TI_t1relax);
 
