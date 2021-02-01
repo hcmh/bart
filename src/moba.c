@@ -556,7 +556,7 @@ int main_moba(int argc, char* argv[argc])
 		unmap_cfl(DIMS, init_dims, init);
 
 	if (NULL != input_alpha)
-		unmap_cfl(DIMS, input_alpha_dims, conf.input_alpha);
+		md_free(conf.input_alpha);
 
 	double recosecs = timestamp() - start_time;
 
