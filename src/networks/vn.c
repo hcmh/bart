@@ -333,7 +333,7 @@ static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const lon
 
 		struct iter_conjgrad_conf def_conf = iter_conjgrad_defaults;
 		def_conf.l2lambda = 1.;
-		def_conf.maxiter = 10;
+		def_conf.maxiter = 20;
 
 		conf.iter_conf = &def_conf;
 		conf.lambda_fixed = vn->lambda_fixed_tickhonov;
@@ -685,6 +685,14 @@ static nn_t vn_valid_loss_create(struct vn_s* vn, const char**valid_files)
 	loss = nlop_dup_F(loss, 0, 2);
 	loss = nlop_dup_F(loss, 1, 2);
 
+	loss = nlop_combine_FF(loss, nlop_mpsnr_create(5, udims, MD_BIT(4)));
+	loss = nlop_dup_F(loss, 0, 2);
+	loss = nlop_dup_F(loss, 1, 2);
+
+	loss = nlop_combine_FF(loss, nlop_mssim_create(5, udims, MD_DIMS(7, 7, 1, 1, 1), 7));
+	loss = nlop_dup_F(loss, 0, 2);
+	loss = nlop_dup_F(loss, 1, 2);
+
 	if(vn->normalize) {
 
 		long sdims[5];
@@ -694,7 +702,7 @@ static nn_t vn_valid_loss_create(struct vn_s* vn, const char**valid_files)
 
 		valid_loss = nn_chain2_FF(valid_loss, 0, "normalize_scale", nn_norm_ref, 1, NULL);
 		valid_loss = nn_chain2_FF(valid_loss, 1, NULL, nn_from_nlop_F(loss), 1, NULL);
-		valid_loss = nn_link_F(valid_loss, 2, NULL, 0, NULL);
+		valid_loss = nn_link_F(valid_loss, 4, NULL, 0, NULL);
 		valid_loss = nn_set_out_type_F(valid_loss, 0, NULL, OUT_OPTIMIZE);
 
 	} else {
@@ -805,7 +813,7 @@ void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 	if (NULL != valid_files) {
 
 		auto nn_validation_loss = vn_valid_loss_create(vn, valid_files);
-		value_monitors[0] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, 2, (const char*[2]){"val loss (mag)", "val loss"});
+		value_monitors[0] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, 4, (const char*[4]){"val loss (mag)", "val loss", "mean PSNR", "ssim"});
 		nn_free(nn_validation_loss);
 	} else {
 
