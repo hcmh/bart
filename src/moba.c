@@ -117,6 +117,8 @@ int main_moba(int argc, char* argv[argc])
 
 	const char* input_alpha = NULL;
 
+	long spokes_per_tr = 1;
+
 	opt_reg_init(&ropts);
 
 	opt_reg_init(&ropts);
@@ -158,6 +160,7 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_SELECT(0, "kfilter-2", enum edge_filter_t, &k_filter_type, EF2, "k-space edge filter 2"),
 		OPT_SET('n', &conf.auto_norm_off, "disable normlization of parameter maps for thresholding"),
 		OPT_STRING('A',	&input_alpha, 		"", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
+		OPTL_LONG(0, "spokes-per-TR", &(spokes_per_tr), "sptr", "number of averaged spokes [default: 1]"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -420,8 +423,11 @@ int main_moba(int argc, char* argv[argc])
 
 		conf.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
 
-		//Assumption: ksp_dims[PHS2_DIM] == number of averaged spokes
-		fa_to_alpha(DIMS, input_alpha_dims, conf.input_alpha, alpha, get_tr_from_inversion(DIMS, TI_dims, TI, ksp_dims[PHS2_DIM]));
+		// ksp_dims[PHS2_DIM] needs to be multiple of spokes_per_tr
+		assert((ksp_dims[PHS2_DIM]/spokes_per_tr)*spokes_per_tr == ksp_dims[PHS2_DIM]);
+
+		fa_to_alpha(DIMS, input_alpha_dims, conf.input_alpha, alpha,
+				get_tr_from_inversion(DIMS, TI_dims, TI, ksp_dims[PHS2_DIM]/spokes_per_tr));
 
 		unmap_cfl(DIMS, input_alpha_dims, alpha);
 	}
