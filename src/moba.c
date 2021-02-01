@@ -417,8 +417,9 @@ int main_moba(int argc, char* argv[argc])
 		alpha = load_cfl(input_alpha, DIMS, input_alpha_dims);
 
 		conf.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
-		fa_to_alpha(DIMS, input_alpha_dims, conf.input_alpha, alpha, get_tr_from_inversion(DIMS, TI_dims, TI));
-		// md_copy(DIMS, input_alpha_dims, conf.input_alpha, alpha, CFL_SIZE);
+
+		//Assumption: ksp_dims[PHS2_DIM] == number of averaged spokes
+		fa_to_alpha(DIMS, input_alpha_dims, conf.input_alpha, alpha, get_tr_from_inversion(DIMS, TI_dims, TI, ksp_dims[PHS2_DIM]));
 
 		unmap_cfl(DIMS, input_alpha_dims, alpha);
 	}

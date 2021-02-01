@@ -199,7 +199,7 @@ void fa_to_alpha(unsigned int D, const long dims[D], void* optr, const void* ipt
 }
 
 // get TR from inversion time
-float get_tr_from_inversion(unsigned int D, const long dims[D], complex float* iptr)
+float get_tr_from_inversion(unsigned int D, const long dims[D], complex float* iptr, int spokes)
 {
 	// Find non trivial dimension
 	unsigned int nt_dim = 0;
@@ -246,7 +246,7 @@ float get_tr_from_inversion(unsigned int D, const long dims[D], complex float* i
 
 	debug_printf(DP_DEBUG2, "Min Timeinterval => TR = %f\n", min_time);
 
-	return min_time;
+	return min_time / (float) spokes;// Estimate true TR (independent from spoke averaging)
 }
 
 

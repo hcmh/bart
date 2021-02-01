@@ -8,4 +8,4 @@ void nlop_get_partial_ev(struct nlop_s* op, const long dims[DIMS], complex float
 void nlop_get_partial_scaling(struct nlop_s* op, const long dims[DIMS], complex float* scaling, complex float* maps, int ref);
 
 extern void fa_to_alpha(unsigned int D, const long dims[D], void* optr, const void* iptr, float tr);
-extern float get_tr_from_inversion(unsigned int D, const long dims[D], complex float* iptr);
+extern float get_tr_from_inversion(unsigned int D, const long dims[D], complex float* iptr, int spokes);

@@ -337,13 +337,15 @@ static bool test_get_tr_from_inversion(void)
 	enum { N = 16 };
 	long TI_dims[N] = { 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 
+	int averaged_spokes = 5;
+
 	complex float TI[4] = { 0., 0.005, 1., 1.003 };
 
-	float tr = get_tr_from_inversion(N, TI_dims, TI);
+	float tr = get_tr_from_inversion(N, TI_dims, TI, averaged_spokes);
 
 	// debug_printf(DP_INFO, "estimated TR: %f\n", tr);
 
-	UT_ASSERT(cabsf(TI[3]- TI[2]) == tr);
+	UT_ASSERT(cabsf(TI[3]- TI[2]) / (float)averaged_spokes == tr);
 }
 
 UT_REGISTER_TEST(test_get_tr_from_inversion);
