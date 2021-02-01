@@ -159,6 +159,280 @@ const struct nlop_s* nlop_mse_create(int N, const long dims[N], unsigned long me
 }
 
 
+struct mpsnr_s {
+
+	INTERFACE(nlop_data_t);
+
+	long N;
+	const long* dims;
+	unsigned long mean_flag;
+};
+
+DEF_TYPEID(mpsnr_s);
+
+static void mpsnr_fun(const nlop_data_t* _data, int D, complex float* args[D])
+{
+	const auto data = CAST_DOWN(mpsnr_s, _data);
+	assert(3 == D);
+
+	complex float* dst = args[0];
+	const complex float* src1 = args[1];
+	const complex float* src2 = args[2];
+
+#ifdef USE_CUDA
+	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
+#endif
+	int N = data->N;
+	const long* dims = data->dims;
+
+	complex float* tmp = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
+	complex float* tmp3 = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
+
+	md_zabs(N, dims, tmp, src1);
+	md_zabs(N, dims, tmp3, src2);
+	md_zsub(N, dims, tmp, tmp, tmp3);
+	md_free(tmp3);
+
+	long mdims[N];
+	md_select_dims(N, data->mean_flag, mdims, dims);
+
+	complex float* tmp2 = md_alloc_sameplace(N, mdims, CFL_SIZE, src1);
+
+	md_ztenmulc(N, mdims, tmp2, dims, tmp, dims, tmp);
+	md_zsmul(N, mdims, tmp2, tmp2, (float)(md_calc_size(N, mdims)) / (float)(md_calc_size(N, dims)));
+	md_zlog(N, mdims, tmp2, tmp2);
+
+	md_clear(1, MD_DIMS(1), dst, CFL_SIZE);
+	md_zadd2(N, mdims, MD_SINGLETON_STRS(N), dst, MD_SINGLETON_STRS(N), dst, MD_STRIDES(N, mdims, CFL_SIZE), tmp2);
+	md_zsmul(1, MD_DIMS(1), dst, dst, -0.5);
+
+	md_zabs(N, dims, tmp, src2);
+	md_clear(N, mdims, tmp2, CFL_SIZE);
+	md_zmax2(N, dims, MD_STRIDES(N, mdims, CFL_SIZE), tmp2, MD_STRIDES(N, mdims, CFL_SIZE), tmp2, MD_STRIDES(N, dims, CFL_SIZE), tmp);
+	md_zlog(N, mdims, tmp2, tmp2);
+
+	md_zadd2(N, mdims, MD_SINGLETON_STRS(N), dst, MD_SINGLETON_STRS(N), dst, MD_STRIDES(N, mdims, CFL_SIZE), tmp2);
+	md_zsmul(1, MD_DIMS(1), dst, dst, 20. / (clogf(10) * md_calc_size(N, mdims)));
+
+	md_free(tmp);
+	md_free(tmp2);
+}
+
+
+static void mpsnr_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(mpsnr_s, _data);
+
+	xfree(data->dims);
+	xfree(data);
+}
+
+const struct nlop_s* nlop_mpsnr_create(int N, const long dims[N], unsigned long mean_dims)
+{
+	PTR_ALLOC(struct mpsnr_s, data);
+	SET_TYPEID(mpsnr_s, data);
+
+	PTR_ALLOC(long[N], ndims);
+	md_copy_dims(N, *ndims, dims);
+
+	data->N = N;
+	data->dims = *PTR_PASS(ndims);
+	data->mean_flag = mean_dims;
+
+	long nl_odims[1][1];
+	md_copy_dims(1, nl_odims[0], MD_SINGLETON_DIMS(1));
+	long nl_idims[2][N];
+	md_copy_dims(N, nl_idims[0], dims);
+	md_copy_dims(N, nl_idims[1], dims);
+
+	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mpsnr_fun, (nlop_der_fun_t[2][1]){ { NULL }, { NULL } }, (nlop_der_fun_t[2][1]){ { NULL }, { NULL } }, NULL, NULL, mpsnr_del);
+}
+
+
+struct mssim_s {
+
+	INTERFACE(nlop_data_t);
+
+	long N;
+	const long* dims;
+	const long* kdims;
+	const long* odims;
+
+	unsigned long conv_flag;
+	unsigned long mean_flag;
+
+	float k1;
+	float k2;
+};
+
+DEF_TYPEID(mssim_s);
+
+static void mssim_fun(const nlop_data_t* _data, int D, complex float* args[D])
+{
+	const auto data = CAST_DOWN(mssim_s, _data);
+	assert(3 == D);
+
+	complex float* dst = args[0];
+	const complex float* src1 = args[1];
+	const complex float* src2 = args[2];
+
+#ifdef USE_CUDA
+	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
+#endif
+	int N = data->N;
+	const long* dims = data->dims;
+	const long* kdims = data->kdims;
+	const long* odims = data->odims;
+
+	long mdims[N];
+	md_select_dims(N, data->mean_flag, mdims, dims);
+
+	complex float* krn_mean = md_alloc_sameplace(N, kdims, CFL_SIZE, src1);
+	md_zfill(N, kdims, krn_mean, 1. / ((float)md_calc_size(N, kdims)));
+
+	complex float* tmp1 = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
+	complex float* tmp2 = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
+	
+	md_zabs(N, dims, tmp1, src1);
+	md_zabs(N, dims, tmp2, src2);
+
+
+	complex float* c1 = md_alloc_sameplace(N, mdims, CFL_SIZE, src1);
+	complex float* c2 = md_alloc_sameplace(N, mdims, CFL_SIZE, src2);
+	md_clear(N, mdims, c1, CFL_SIZE);
+	md_zmax2(N, dims, MD_STRIDES(N, mdims, CFL_SIZE), c1, MD_STRIDES(N, mdims, CFL_SIZE), c1, MD_STRIDES(N, dims, CFL_SIZE), tmp2);
+	md_zmul(N, mdims, c1, c1, c1);
+	md_zsmul(N, mdims, c2, c1, data->k2 * data->k2);
+	md_zsmul(N, mdims, c1, c1, data->k1 * data->k1);
+
+	complex float* mu_x = md_alloc_sameplace(N, odims, CFL_SIZE, src1);
+	complex float* mu_y = md_alloc_sameplace(N, odims, CFL_SIZE, src2);
+
+	md_zcorr(N, data->conv_flag, odims, mu_x, kdims, krn_mean, dims, tmp1);
+	md_zcorr(N, data->conv_flag, odims, mu_y, kdims, krn_mean, dims, tmp2);
+
+	md_zmul(N, dims, tmp1, tmp1, tmp1);
+	md_zmul(N, dims, tmp2, tmp2, tmp2);
+
+	complex float* s_xx = md_alloc_sameplace(N, odims, CFL_SIZE, src1);
+	complex float* s_yy = md_alloc_sameplace(N, odims, CFL_SIZE, src1);
+
+	md_zcorr(N, data->conv_flag, odims, s_xx, kdims, krn_mean, dims, tmp1);
+	md_zcorr(N, data->conv_flag, odims, s_yy, kdims, krn_mean, dims, tmp2);
+
+	complex float* s_xy = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
+	md_zabs(N, dims, tmp1, src1);
+	md_zabs(N, dims, tmp2, src2);
+	md_zmul(N, dims, tmp1, tmp1, tmp2);
+	md_zcorr(N, data->conv_flag, odims, s_xy, kdims, krn_mean, dims, tmp1);
+
+	md_free(tmp1);
+	md_free(tmp2);
+	md_free(krn_mean);
+
+	complex float* mu_xy = md_alloc_sameplace(N, odims, CFL_SIZE, src1);
+	md_zmul(N, odims, mu_xy, mu_x, mu_y);
+
+	md_zmul(N, odims, mu_x, mu_x, mu_x);
+	md_zmul(N, odims, mu_y, mu_y, mu_y);
+
+	md_zsub(N, odims, s_xx, s_xx, mu_x);
+	md_zsub(N, odims, s_yy, s_yy, mu_y);
+	md_zsub(N, odims, s_xy, s_xy, mu_xy);
+
+	md_zsmul(N, odims, mu_xy, mu_xy, 2);
+	md_zsmul(N, odims, s_xy, s_xy, 2);
+
+	md_zadd(N, odims, mu_x, mu_x, mu_y);
+	md_zadd(N, odims, s_xx, s_xx, s_yy);
+	md_free(mu_y);
+	md_free(s_yy);
+
+	complex float* c1_large = md_alloc_sameplace(N, odims, CFL_SIZE, c1);
+	complex float* c2_large = md_alloc_sameplace(N, odims, CFL_SIZE, c2);
+
+	md_copy2(N, odims, MD_STRIDES(N, odims, CFL_SIZE), c1_large, MD_STRIDES(N, mdims, CFL_SIZE), c1, CFL_SIZE);
+	md_copy2(N, odims, MD_STRIDES(N, odims, CFL_SIZE), c2_large, MD_STRIDES(N, mdims, CFL_SIZE), c2, CFL_SIZE);
+
+	md_free(c1);
+	md_free(c2);
+
+	md_zadd(N, odims, mu_xy, mu_xy, c1_large);
+	md_zadd(N, odims, s_xy, s_xy, c2_large);
+	md_zadd(N, odims, mu_x, mu_x, c1_large);
+	md_zadd(N, odims, s_xx, s_xx, c2_large);
+
+	md_free(c1_large);
+	md_free(c2_large);
+
+	md_zmul(N, odims, mu_xy, mu_xy, s_xy);
+	md_zmul(N, odims, mu_x, mu_x, s_xx);
+	md_free(s_xy);
+	md_free(s_xx);
+
+	md_zdiv(N, odims, mu_xy, mu_xy, mu_x);
+	md_free(mu_x);
+
+	md_zavg(N, odims, ~0, dst, mu_xy);
+	md_free(mu_xy);
+
+}
+
+
+static void mssim_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(mssim_s, _data);
+
+	xfree(data->dims);
+	xfree(data);
+}
+
+const struct nlop_s* nlop_mssim_create(int N, const long dims[N], const long kdims[N], unsigned long conv_dims)
+{
+	PTR_ALLOC(struct mssim_s, data);
+	SET_TYPEID(mssim_s, data);
+
+	assert(7 == conv_dims);
+	assert(3 <= N);
+
+	data->N = 6;
+
+	data->mean_flag = ~(MD_BIT(5) - 1);
+	data->conv_flag = 28;
+
+	PTR_ALLOC(long[data->N], ndims);
+	md_singleton_dims(data->N, *ndims);
+	md_copy_dims(3, (*ndims) + 2, dims);
+	(*ndims)[data->N - 1] = md_calc_size(N - 3, dims + 3);
+	data->dims = *PTR_PASS(ndims);
+
+	PTR_ALLOC(long[data->N], nkdims);
+	md_singleton_dims(data->N, *nkdims);
+	md_copy_dims(3, (*nkdims) + 2, kdims);
+	data->kdims = *PTR_PASS(nkdims);
+
+	PTR_ALLOC(long[data->N], odims);
+	for (int i = 0; i < data->N; i++)
+		if (MD_IS_SET(data->conv_flag, i))
+			(*odims)[i] = (data->dims)[i] + 1 - (data->kdims)[i];
+		else
+			(*odims)[i] = (data->dims)[i];
+	
+	data->odims = *PTR_PASS(odims);
+
+	data->k1 = 0.01;
+	data->k2 = 0.03;
+
+	long nl_odims[1][1];
+	md_copy_dims(1, nl_odims[0], MD_SINGLETON_DIMS(1));
+	long nl_idims[2][N];
+	md_copy_dims(N, nl_idims[0], dims);
+	md_copy_dims(N, nl_idims[1], dims);
+
+	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mssim_fun, (nlop_der_fun_t[2][1]){ { NULL }, { NULL } }, (nlop_der_fun_t[2][1]){ { NULL }, { NULL } }, NULL, NULL, mssim_del);
+}
+
+
 struct cce_s {
 
 	INTERFACE(nlop_data_t);
