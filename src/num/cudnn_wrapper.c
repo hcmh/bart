@@ -103,7 +103,10 @@ static void bart_real_kernel_to_cudnn_NHWC(int N, const long kdims[N], float* ds
 	long trans_strs_out[2] = {FL_SIZE, FL_SIZE * trans_dims[0]};
 	long trans_strs_in[2] = {FL_SIZE * trans_dims[1], FL_SIZE};
 
-	blas_smul_smatcopy(2, trans_dims, trans_strs_out, dst, trans_strs_in, src, 1.);
+	if ((1 == trans_dims[0]) || (1 == trans_dims[1]))
+		md_copy(2, trans_dims, dst, src, FL_SIZE);
+	else
+		blas_smul_smatcopy(2, trans_dims, trans_strs_out, dst, trans_strs_in, src, 1.);
 }
 
 //Convert kernel NHWC [in_channel, image_x, ..., out_channel] to bart channel first [out_channel, in_channel, imagex, ...]
@@ -113,7 +116,10 @@ static void cudnn_NHWC_to_bart_real_kernel(int N, const long kdims[N], float* ds
 	long trans_strs_out[2] = {FL_SIZE, FL_SIZE * trans_dims[0]};
 	long trans_strs_in[2] = {FL_SIZE * trans_dims[1], FL_SIZE};
 
-	blas_smul_smatcopy(2, trans_dims, trans_strs_out, dst, trans_strs_in, src, 1.);
+	if ((1 == trans_dims[0]) || (1 == trans_dims[1]))
+		md_copy(2, trans_dims, dst, src, FL_SIZE);
+	else
+		blas_smul_smatcopy(2, trans_dims, trans_strs_out, dst, trans_strs_in, src, 1.);
 }
 
 //Convert kernel bart channel first complex [out_channel, in_channel, imagex, ...] to NHWC real [2 * in_channel, image_x, ..., 2 * out_channel]
