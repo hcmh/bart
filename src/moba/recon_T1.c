@@ -96,7 +96,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		.step = conf->step,
 		.lower_bound = conf->lower_bound,
 		.constrained_maps = 4,
-		.not_wav_maps = (0. == conf->IR_phy) ? 0 : 1,
+		.not_wav_maps = (0. == conf->IR_phy || (NULL != conf->input_alpha)) ? 0 : 1,
 		.flags = FFT_FLAGS,
 		.usegpu = usegpu,
 		.algo = conf->algo,
