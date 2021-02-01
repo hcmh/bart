@@ -96,7 +96,7 @@ int main_moba(int argc, char* argv[argc])
 
 	unsigned int sample_size = 0;
 	unsigned int grid_size = 0;
-	unsigned int mgre_model = MECO_WFR2S;
+	unsigned int mgre_model = MECO_PI;
 
 	const char* psf = NULL;
 	const char* trajectory = NULL;
