@@ -22,6 +22,7 @@ typedef struct iter6_conf_s {
 	const struct iter_dump_s* dump;
 	const char* dump_filename;
 	long dump_mod;
+	unsigned long dump_flag;
 
 	enum BATCH_GEN_TYPE batchgen_type;
 	int batch_seed;

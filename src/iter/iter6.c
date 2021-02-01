@@ -55,7 +55,8 @@ DEF_TYPEID(iter6_iPALM_conf);
 	.INTERFACE.dump_mod = -1, \
 	.INTERFACE.batchnorm_momentum = .95, \
 	.INTERFACE.batchgen_type = BATCH_GEN_SAME, \
-	.INTERFACE.batch_seed = 123,
+	.INTERFACE.batch_seed = 123, \
+	.INTERFACE.dump_flag = 0,
 
 const struct iter6_sgd_conf iter6_sgd_conf_defaults = {
 
@@ -201,18 +202,19 @@ static void iter6_op_arr_fun_diag(iter_op_data* _o, int NO, unsigned long oflags
 			operator_apply_unchecked(data->ops[i * NI + i], (_Complex float*)dst[i], (_Complex float*)src[i]);
 }
 
-static const struct iter_dump_s* iter6_dump_default_create(const char* base_filename, long save_mod, const struct nlop_s* nlop, long NI, enum IN_TYPE in_type[NI])
+static const struct iter_dump_s* iter6_dump_default_create(const char* base_filename, long save_mod, const struct nlop_s* nlop, unsigned long save_flag, long NI, enum IN_TYPE in_type[NI])
 {
 
-	unsigned long save_flag = 0;
 	unsigned int D[NI];
 	const long* dims[NI];
 
+	bool guess_save_flag = (0 == save_flag);
+		
 	for (int i = 0; i < NI; i++) {
 
 		D[i] = nlop_generic_domain(nlop, i)->N;
 		dims[i] = nlop_generic_domain(nlop, i)->dims;
-		if ((IN_OPTIMIZE == in_type[i]) || (IN_BATCHNORM == in_type[i]))
+		if ((guess_save_flag) && ((IN_OPTIMIZE == in_type[i]) || (IN_BATCHNORM == in_type[i])))
 			save_flag = MD_SET(save_flag, i);
 	}
 
@@ -295,7 +297,7 @@ void iter6_sgd_like(	iter6_conf* conf,
 
 	bool free_dump = ((NULL == conf->dump) && (NULL != conf->dump_filename) && (0 < conf->dump_mod));
 	if (free_dump)
-		conf->dump = iter6_dump_default_create(conf->dump_filename, conf->dump_mod, nlop, NI, in_type);
+		conf->dump = iter6_dump_default_create(conf->dump_filename, conf->dump_mod, nlop, conf->dump_flag, NI, in_type);
 
 	sgd(	conf->epochs, conf->batchnorm_momentum,
 		NI, isize, in_type, dst,
@@ -436,7 +438,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 
 	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
 	if (free_dump)
-		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, NI, in_type);
+		conf->INTERFACE.dump = iter6_dump_default_create(conf->INTERFACE.dump_filename,conf->INTERFACE.dump_mod, nlop, conf->INTERFACE.dump_flag, NI, in_type);
 
 	iPALM(	NI, isize, in_type, dst, x_old,
 		NO, osize, out_type,

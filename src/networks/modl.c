@@ -629,6 +629,8 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 	debug_printf(DP_INFO, "Train MoDL\n");
 	nn_debug(DP_INFO, nn_train);
 
+	train_conf->dump_flag = ~15;
+
 	iter6_adam(train_conf, nn_get_nlop(nn_train), NI, in_type, projections, src, NO, out_type, Nb, Nt / Nb, batch_generator, monitor);
 
 	nn_free(nn_train);

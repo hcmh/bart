@@ -77,6 +77,8 @@ const struct iter_dump_s* iter_dump_default_create(const char* base_filename, lo
 	PTR_ALLOC(struct iter_dump_default_s, result);
 	SET_TYPEID(iter_dump_default_s, result);
 
+	save_flag = save_flag & (MD_BIT(NI) - 1);
+
 	result->INTERFACE.fun = iter_dump_default_fun;
 	result->INTERFACE.free = iter_dump_default_free;
 	result->INTERFACE.base_filename = base_filename;
