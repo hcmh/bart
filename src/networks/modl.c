@@ -464,6 +464,14 @@ static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
 	loss = nlop_dup_F(loss, 0, 2);
 	loss = nlop_dup_F(loss, 1, 2);
 
+	loss = nlop_combine_FF(loss, nlop_mpsnr_create(5, udims, MD_BIT(4)));
+	loss = nlop_dup_F(loss, 0, 2);
+	loss = nlop_dup_F(loss, 1, 2);
+
+	loss = nlop_combine_FF(loss, nlop_mssim_create(5, udims, MD_DIMS(7, 7, 1, 1, 1), 7));
+	loss = nlop_dup_F(loss, 0, 2);
+	loss = nlop_dup_F(loss, 1, 2);
+
 	if(modl->normalize) {
 
 		long sdims[5];
@@ -473,7 +481,7 @@ static nn_t create_modl_val_loss(struct modl_s* modl, const char**valid_files)
 
 		valid_loss = nn_chain2_FF(valid_loss, 0, "normalize_scale", nn_norm_ref, 1, NULL);
 		valid_loss = nn_chain2_FF(valid_loss, 0, NULL, nn_from_nlop_F(loss), 0, NULL);
-		valid_loss = nn_link_F(valid_loss, 2, NULL, 0, NULL);
+		valid_loss = nn_link_F(valid_loss, 4, NULL, 0, NULL);
 		valid_loss = nn_set_out_type_F(valid_loss, 0, NULL, OUT_OPTIMIZE);
 
 	} else {
@@ -617,7 +625,7 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 	if (NULL != valid_files) {
 
 		auto nn_validation_loss = create_modl_val_loss(modl, valid_files);
-		value_monitors[1] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, 2, (const char*[2]){"val loss (mag)", "val loss"});
+		value_monitors[1] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, 4, (const char*[4]){"val loss (mag)", "val loss", "mean PSNR", "ssim"});
 		nn_free(nn_validation_loss);
 	} else {
 
