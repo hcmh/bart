@@ -1298,6 +1298,30 @@ void md_zconv(int N, unsigned long flags,
 	md_zconv2(N, flags, odims, MD_STRIDES(N, odims, CFL_SIZE), out, kdims, MD_STRIDES(N, kdims, CFL_SIZE), krn, idims, MD_STRIDES(N, idims, CFL_SIZE), in);
 }
 
+void md_zcorr2(int N, unsigned long flags,
+	       const long odims[N], const long ostrs[N], complex float* out,
+	       const long kdims[N], const long kstrs[N], const complex float* krn,
+	       const long idims[N], const long istrs[N], const complex float* in)
+{
+	long mdims[2 * N];
+	long ostrs2[2 * N];
+	long kstrs2[2 * N];
+	long istrs2[2 * N];
+
+	krn += calc_convcorr_geom(N, flags, mdims, ostrs2, kstrs2, istrs2,
+				  odims, ostrs, kdims, kstrs, idims, istrs, false) / CFL_SIZE;
+
+	md_ztenmul2(2 * N, mdims, ostrs2, out, kstrs2, krn, istrs2, in);
+}
+
+void md_zcorr(int N, unsigned long flags,
+	      const long odims[N], complex float* out,
+	      const long kdims[N], const complex float* krn,
+	      const long idims[N], const complex float* in)
+{
+	md_zcorr2(N, flags, odims, MD_STRIDES(N, odims, CFL_SIZE), out, kdims, MD_STRIDES(N, kdims, CFL_SIZE), krn, idims, MD_STRIDES(N, idims, CFL_SIZE), in);
+}
+
 
 /*
  * matmul family of functions is deprecated - use tenmul instead
