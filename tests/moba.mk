@@ -249,6 +249,24 @@ tests/test-moba-meco-noncart-wfr2s: traj scale phantom signal fmac index extract
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-moba-t1-alpha-non-cartesian: traj repmat phantom signal fmac index scale moba slice spow nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
+	$(TOOLDIR)/traj -x12 -y12 _traj.ra                  ;\
+	$(TOOLDIR)/repmat 5 300 _traj.ra traj.ra					;\
+	$(TOOLDIR)/phantom -k -c -t traj.ra basis_geom.ra				;\
+	$(TOOLDIR)/signal -F -I -r0.005 -n300 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
+	$(TOOLDIR)/fmac basis_geom.ra signal.ra k_space.ra				;\
+	$(TOOLDIR)/index 5 300 tmp1.ra							;\
+	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra						;\
+	$(TOOLDIR)/moba -P5000 -L -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/slice 6 1 reco.ra r1map.ra						;\
+	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
+	$(TOOLDIR)/phantom -x12 -c circ.ra						;\
+	$(TOOLDIR)/fmac t1map.ra circ.ra masked.ra	    				;\
+	$(TOOLDIR)/scale -- 1.12 circ.ra ref.ra			    			;\
+	$(TOOLDIR)/nrmse -t 0.0005 masked.ra ref.ra			    		;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
 TESTS_SLOW += tests/test-moba-t1 tests/test-moba-t1-sms tests/test-moba-t1-no-IR
 TESTS_SLOW += tests/test-moba-t1-magn tests/test-moba-t1-nonCartesian tests/test-moba-t1-nufft
 TESTS_SLOW += tests/test-moba-t1-MOLLI
@@ -256,3 +274,4 @@ TESTS_SLOW += tests/test-moba-t1-IR_SS
 TESTS_SLOW += tests/test-moba-t1-irgnm-admm
 TESTS_SLOW += tests/test-moba-t2
 TESTS_SLOW += tests/test-moba-meco-noncart-r2s tests/test-moba-meco-noncart-wfr2s
+TESTS_SLOW += tests/test-moba-t1-alpha-non-cartesian
