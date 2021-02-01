@@ -352,7 +352,7 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 
 		case L1WAV:
 
-			regs[nr].lambda = 1. * lambda;
+			regs[nr].lambda = lambda;
 			debug_printf(DP_INFO, "l1-wavelet regularization: %f\n", regs[nr].lambda);
 
 			auto l1Wav_prox = create_wav_prox(img_dims, regs[nr].xflags, regs[nr].jflags, regs[nr].lambda);
@@ -365,7 +365,7 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 
 		case TV:
 		
-			regs[nr].lambda = 1. * lambda;
+			regs[nr].lambda = lambda;
 			debug_printf(DP_INFO, "TV regularization: %f\n", regs[nr].lambda);
 
 			auto extract = linop_extract_create(1, MD_DIMS(0), MD_DIMS(md_calc_size(DIMS, img_dims)), MD_DIMS(md_calc_size(DIMS, x_dims)));
@@ -382,19 +382,14 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 
 		case POS:
 
-			regs[nr].lambda = 0.3;
-
 			debug_printf(DP_INFO, "non-negative constraint: %f\n", regs[nr].lambda);
 
 			auto zsmax_prox = prox_zsmax_create(DIMS, map_dims, regs[nr].lambda);
 			auto zero_prox1 = prox_zero_create(DIMS, map2_dims);
-			
-			auto stack0 = operator_p_stack_FF(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox); 	
-			
-			auto zero_prox2 = prox_zero_create(DIMS, coil_dims);
-				
+										
 			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(stack0), operator_p_flatten_F(zero_prox2));
+			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(operator_p_stack_FF(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox)), 
+							operator_p_flatten_F(prox_zero_create(DIMS, coil_dims)));
 
 			break;
 
@@ -403,7 +398,8 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 			debug_printf(DP_INFO, "l2 regularization: %f\n", regs[nr].lambda);
 
 			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = prox_l2norm_create(DIMS, x_dims, regs[nr].lambda);
+			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(prox_zero_create(DIMS, img_dims)), 
+							operator_p_flatten_F(prox_l2norm_create(DIMS, coil_dims, regs[nr].lambda)));
 
 			break;
 
