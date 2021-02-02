@@ -46,7 +46,7 @@ int main_signal(int argc, char* argv[argc])
 	float time_T1relax = -1.; // second
 	long Hbeats = -1;
 
-	float off_reson[3] = { 0., 0., 1 };
+	float off_reson[3] = { 20., 20., 1 };
 	// TODO: this values look like in the unit of ms, while simu/signals has the unit of s
 	float T1[3] = { 500., 1500., 1 };
 	float T2[3] = { 50., 150., 1 };
