@@ -30,6 +30,7 @@
 #include "nlops/nlop.h"
 
 #include "moba/meco.h"
+#include "moba/T1fun.h"
 
 #ifndef CFL_SIZE
 #define CFL_SIZE sizeof(complex float)
@@ -43,7 +44,7 @@ int main_mobafit(int argc, char* argv[])
 {
 	double start_time = timestamp();
 
-	enum seq_type { BSSFP, FLASH, TSE, MOLLI, MGRE } seq = MGRE;
+	enum seq_type { BSSFP, IR_LL, FLASH, TSE, MOLLI, MGRE } seq = MGRE;
 
 	unsigned int mgre_model = MECO_WFR2S;
 
@@ -60,6 +61,7 @@ int main_mobafit(int argc, char* argv[])
 		OPT_SELECT('T', enum seq_type, &seq, TSE, "TSE"),
 		OPT_SELECT('M', enum seq_type, &seq, MOLLI, "MOLLI"),
 #endif
+		OPT_SELECT('L', enum seq_type, &seq, IR_LL, "Inversion Recovery Look-Locker"),
 		OPT_SELECT('G', enum seq_type, &seq, MGRE, "MGRE"),
 		OPT_UINT('m', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
 		OPT_UINT('i', &iter, "iter", "Number of IRGNM steps"),
@@ -82,11 +84,13 @@ int main_mobafit(int argc, char* argv[])
 
 	long x_dims[DIMS];
 	md_select_dims(DIMS, ~TE_FLAG, x_dims, y_dims);
-	x_dims[COEFF_DIM] = set_num_of_coeff(mgre_model);
+	x_dims[COEFF_DIM] = (IR_LL == seq) ? 3 : set_num_of_coeff(mgre_model);
 
 
 	complex float* x = create_cfl(argv[3], DIMS, x_dims);
 
+	if (IR_LL == seq)
+		md_zfill(DIMS, x_dims, x, 1.);
 
 
 	long y_patch_dims[DIMS];
@@ -97,11 +101,21 @@ int main_mobafit(int argc, char* argv[])
 	md_select_dims(DIMS, COEFF_FLAG, x_patch_dims, x_dims);
 	md_copy_dims(3, x_patch_dims, patch_size);
 
+	long map_patch_dims[DIMS];
+	md_copy_dims(DIMS, map_patch_dims, x_patch_dims);
+	map_patch_dims[COEFF_DIM] = 1;
+
 
 	// create signal model
 	struct nlop_s* nlop = NULL;
 
 	switch (seq) {
+
+	case IR_LL:  ;
+
+		nlop = nlop_T1_create(DIMS, map_patch_dims, y_patch_dims, x_patch_dims, y_patch_dims, TE, use_gpu);
+		break;
+
 
 	case MGRE:  ;
 
