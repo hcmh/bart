@@ -483,6 +483,7 @@ struct mri_normal_inversion_s {
 	struct iter_conjgrad_conf iter_conf;
 
 	const struct linop_s* lop_fft;
+	const struct linop_s* lop_fft_mod;
 
 	float lambda_fixed;
 };
@@ -496,7 +497,32 @@ static void mri_normal_inversion_alloc(struct mri_normal_inversion_s* d, const v
 	md_select_dims(d->N, ~(d->batch_flags), kdims_normal, d->kdims);
 
 	if (NULL == d->lop_fft)
-		d->lop_fft = linop_fftc_create(d->N, kdims_normal, d->fft_flags);
+		d->lop_fft = linop_fft_create(d->N, kdims_normal, d->fft_flags);
+
+	if (NULL == d->lop_fft_mod) {
+
+		long fft_dims[d->N];
+		md_select_dims(d->N, d->fft_flags, fft_dims, d->kdims);
+
+		long fft_idims[d->N];
+		md_select_dims(d->N, d->fft_flags, fft_idims, d->idims);
+
+		complex float* fftmod_k = md_alloc(d->N, fft_dims, CFL_SIZE);
+		md_zfill(d->N, fft_dims, fftmod_k, 1.);
+		fftmod(d->N, fft_dims, d->fft_flags, fftmod_k, fftmod_k);
+		fftscale(d->N, fft_dims, d->fft_flags, fftmod_k, fftmod_k);
+
+		complex float* fftmod_i = md_alloc(d->N, fft_idims, CFL_SIZE);
+		md_resize_center(d->N, fft_idims, fftmod_i, fft_dims, fftmod_k, CFL_SIZE);
+
+		long idims_normal[d->N];
+		md_select_dims(d->N, ~(d->batch_flags), idims_normal, d->idims);
+
+		d->lop_fft_mod = linop_cdiag_create(d->N, idims_normal, d->fft_flags, fftmod_i);
+		md_free(fftmod_k);
+		md_free(fftmod_i);
+	}
+		
 }
 
 static void mri_normal_inversion_set_normal_ops(struct mri_normal_inversion_s* d, const complex float* coil, const complex float* pattern, const complex float* lptr)
@@ -528,7 +554,7 @@ static void mri_normal_inversion_set_normal_ops(struct mri_normal_inversion_s* d
 		if (NULL != d->normal_op[md_calc_offset(d->N, MD_STRIDES(d->N, d->bdims, 1), pos)])
 			operator_free(d->normal_op[md_calc_offset(d->N, MD_STRIDES(d->N, d->bdims, 1), pos)]);
 		
-		auto linop_frw = linop_fmac_create(d->N, cdims_normal, 0, ~(d->image_flags), 0, &MD_ACCESS(d->N, d->cstrs, pos, d->coil));
+		auto linop_frw = linop_chain_FF(linop_clone(d->lop_fft_mod), linop_fmac_create(d->N, cdims_normal, 0, ~(d->image_flags), 0, &MD_ACCESS(d->N, d->cstrs, pos, d->coil)));
 		
 		if (!md_check_equal_dims(d->N, cdims_normal, kdims_normal, ~0))
 			linop_frw = linop_chain_FF(linop_frw, linop_resize_center_create(d->N, kdims_normal, cdims_normal));
@@ -720,6 +746,7 @@ static void mri_normal_inversion_del(const nlop_data_t* _data)
 	md_free(d->out);
 
 	linop_free(d->lop_fft);
+	linop_free(d->lop_fft_mod);
 
 	xfree(d);
 }
@@ -803,6 +830,7 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
 	data->normal_op = *PTR_PASS(normalops);
 
 	data->lop_fft = NULL;
+	data->lop_fft_mod = NULL;
 
 	if (NULL == conf->iter_conf) {
 
