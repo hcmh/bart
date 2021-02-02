@@ -138,6 +138,7 @@ int main_nnmodl(int argc, char* argv[])
 
 			JSON_BOOL(JSON_LABEL("network", "dc", "use_dc"), &(modl.use_dc), false,  ""),
 			JSON_BOOL(JSON_LABEL("network", "dc", "shared_lambda"), &(modl.shared_weights), false,  ""),
+			JSON_BOOL(JSON_LABEL("network", "dc", "diag_independent"), &(modl.batch_independent), false,  ""),
 			JSON_FLOAT(JSON_LABEL("network", "dc", "fixed_lambda"), &(modl.lambda_fixed), false,  ""),
 			JSON_FLOAT(JSON_LABEL("network", "dc", "lambda_init"), &(modl.lambda_init), false,  ""),
 			JSON_UINT(JSON_LABEL("network", "dc", "conjgrad_iterations"), &(def_conf.maxiter), false,  ""),

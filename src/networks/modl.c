@@ -236,6 +236,9 @@ static struct conf_mri_dims get_modl_mri_conf(const struct modl_s* modl)
 	struct conf_mri_dims conf = conf_nlop_mri_simple;
 	if (!modl->share_pattern)
 		conf.pattern_flags = ~MD_BIT(3);
+	
+	if (!modl->batch_independent)
+		conf.batch_flags = 0;
 
 	conf.regrid = modl->regrid;
 
