@@ -45,7 +45,7 @@ int main_signal(int argc, char* argv[argc])
 	float time_T1relax = -1.; // second
 	long Hbeats = -1;
 
-	float off_reson[3] = { 0., 0., 1 };
+	float off_reson[3] = { 20., 20., 1 };
 	float T1[3] = { 0.5, 1.5, 1 };
 	float T2[3] = { 0.05, 0.15, 1 };
 	float Ms[3] = { 0.05, 1.0, 1 };
