@@ -254,7 +254,7 @@ tests/test-moba-t1-alpha-non-cartesian: traj repmat phantom signal fmac index sc
 	$(TOOLDIR)/traj -x12 -y12 _traj.ra                  ;\
 	$(TOOLDIR)/repmat 5 300 _traj.ra traj.ra					;\
 	$(TOOLDIR)/phantom -k -c -t traj.ra basis_geom.ra				;\
-	$(TOOLDIR)/signal -F -I -r0.005 -n300 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
+	$(TOOLDIR)/signal -F -I -r0.005 -f8 -n300 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
 	$(TOOLDIR)/fmac basis_geom.ra signal.ra k_space.ra				;\
 	$(TOOLDIR)/index 5 300 tmp1.ra							;\
 	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra						;\
@@ -262,9 +262,13 @@ tests/test-moba-t1-alpha-non-cartesian: traj repmat phantom signal fmac index sc
 	$(TOOLDIR)/slice 6 1 reco.ra r1map.ra						;\
 	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
 	$(TOOLDIR)/phantom -x12 -c circ.ra						;\
-	$(TOOLDIR)/fmac t1map.ra circ.ra masked.ra	    				;\
-	$(TOOLDIR)/scale -- 1.12 circ.ra ref.ra			    			;\
-	$(TOOLDIR)/nrmse -t 0.0005 masked.ra ref.ra			    		;\
+	$(TOOLDIR)/fmac t1map.ra circ.ra t1masked.ra	    				;\
+	$(TOOLDIR)/scale -- 1.12 circ.ra t1ref.ra			    			;\
+	$(TOOLDIR)/nrmse -t 0.0005 t1masked.ra t1ref.ra			    		;\
+	$(TOOLDIR)/slice 6 2 reco.ra famap.ra						;\
+	$(TOOLDIR)/fmac famap.ra circ.ra famasked.ra	    				;\
+	$(TOOLDIR)/scale -- 8 circ.ra faref.ra			    			;\
+	$(TOOLDIR)/nrmse -t 0.0005 famasked.ra faref.ra			    		;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
