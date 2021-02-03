@@ -27,6 +27,8 @@ struct vn_s {
 	_Bool low_mem;
 
 	_Bool regrid;
+
+	_Bool monitor_lambda;
 };
 
 extern const struct vn_s vn_default;

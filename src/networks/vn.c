@@ -42,6 +42,7 @@
 #include "nlops/tenmul.h"
 #include "nlops/someops.h"
 #include "nlops/mri_ops.h"
+#include "nlops/stack.h"
 
 #include "nn/layers.h"
 #include "nn/losses.h"
@@ -106,6 +107,8 @@ const struct vn_s vn_default = {
 	.low_mem = false,
 
 	.regrid = true,
+
+	.monitor_lambda = false,
 };
 
 
@@ -809,17 +812,42 @@ void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 	auto lambda_iov = nn_generic_domain(nn_train, 0, "lambda_w");
 	projections[6] = operator_project_pos_real_create(lambda_iov->N, lambda_iov->dims);
 
-	const struct monitor_value_s* value_monitors[1];
+	const struct monitor_value_s* value_monitors[2];
+	int num_monitors = 0;
+
 	if (NULL != valid_files) {
 
 		auto nn_validation_loss = vn_valid_loss_create(vn, valid_files);
 		value_monitors[0] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, 4, (const char*[4]){"val loss (mag)", "val loss", "mean PSNR", "ssim"});
 		nn_free(nn_validation_loss);
+		num_monitors += 1;
+
 	} else {
 
 		value_monitors[0] = NULL;
 	}
-	struct monitor_iter6_s* monitor = monitor_iter6_create(true, true, (NULL != valid_files) ? 1 : 0, value_monitors);
+
+	if (vn->monitor_lambda){
+
+		const char* lam = "lam";
+		const char* lams[vn->Nl];
+		
+		for (int i = 0; i < vn->Nl; i++)
+			lams[i] = lam;
+		
+		auto destack_lambda = nlop_from_linop_F(linop_identity_create(2, MD_DIMS(1, vn->Nl)));
+		for (int i = vn->Nl - 1; 0 < i; i--)
+			destack_lambda = nlop_chain2_FF(destack_lambda, 0, nlop_destack_create(2, MD_DIMS(1, i), MD_DIMS(1, 1), MD_DIMS(1, i + 1), 1), 0);
+		for(int i = 0; i < 6; i++)
+			destack_lambda = nlop_combine_FF(nlop_del_out_create(1, MD_DIMS(1)), destack_lambda);
+
+
+		value_monitors[num_monitors] = monitor_iter6_nlop_create(destack_lambda, true, vn->Nl, lams);
+		num_monitors += 1;
+	}
+
+
+	struct monitor_iter6_s* monitor = monitor_iter6_create(true, true, num_monitors, value_monitors);
 
 	debug_printf(DP_INFO, "Train VarNet\n");
 	nn_debug(DP_INFO, nn_train);

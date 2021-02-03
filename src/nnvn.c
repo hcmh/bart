@@ -129,6 +129,8 @@ int main_nnvn(int argc, char* argv[])
 			JSON_BOOL(JSON_LABEL("network", "init_tickhonov"), &(vn_config.init_tickhonov), false,  ""),
 			JSON_FLOAT(JSON_LABEL("network", "init_tickhonov_lambda_fixed"), &(vn_config.lambda_fixed_tickhonov), false,  ""),
 
+			JSON_BOOL(JSON_LABEL("network", "monitor_lambda"), &(vn_config.monitor_lambda), false,  ""),
+
 		};
 		read_json(config_file, ARRAY_SIZE(opts_json), opts_json);
 	}
