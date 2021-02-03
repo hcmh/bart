@@ -1187,7 +1187,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 				r_lip_x += vops->dot(isize[i], grad[i], tmp[i]);
 				r_lip_x += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
 
-				if ((r_lip_z >= r_new) || (L[i] >= Lmax)) {
+				if ((r_lip_z * 1.001 >= r_new) || (L[i] >= Lmax)) { //1.001 for flp errors
 
 					lipshitz_condition = true;
 					if (L[i] > Lmin)
