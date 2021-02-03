@@ -333,14 +333,14 @@ ifeq ($(CUDA),1)
 CUDA_H := -I$(CUDA_BASE)/include
 CPPFLAGS += -DUSE_CUDA $(CUDA_H)
 ifeq ($(CUDNN),1)
-CUDNN_H := -I$(CUDA_BASE)/include
+CUDNN_H := -I$(CUDNN_BASE)/include
 CPPFLAGS += -DUSE_CUDNN $(CUDNN_H)
 endif
 ifeq ($(BUILDTYPE), MacOSX)
 CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -m64 -lstdc++
 else
 ifeq ($(CUDNN),1)
-CUDA_L := -L$(CUDA_BASE)/lib64 -lcudnn -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib64
+CUDA_L := -L$(CUDA_BASE)/lib64 -L$(CUDNN_BASE)/lib64 -lcudnn -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib64
 else
 CUDA_L := -L$(CUDA_BASE)/lib64 -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib64
 endif
