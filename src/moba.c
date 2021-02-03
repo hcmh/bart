@@ -143,6 +143,7 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_SELECT(0, "kfilter-1", enum edge_filter_t, &k_filter_type, EF1, "k-space edge filter 1"),
 		OPTL_SELECT(0, "kfilter-2", enum edge_filter_t, &k_filter_type, EF2, "k-space edge filter 2"),
 		OPT_SET('n', &conf.auto_norm_off, "disable normlization of parameter maps for thresholding"),
+		OPTL_FLOAT(0, "alphamin0", &conf.alpha_min0, "a0", "Set alpha_min0"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);

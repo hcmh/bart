@@ -9,6 +9,7 @@ struct moba_conf {
 	unsigned int opt_reg;
 	float alpha;
 	float alpha_min;
+	float alpha_min0;
 	float redu;
 	float step;
 	float lower_bound;
