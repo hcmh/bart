@@ -74,6 +74,8 @@ struct iter6_iPALM_conf {
 	float* alpha_arr;
 	float* beta_arr;
 	_Bool* convex_arr;
+
+	_Bool reduce_momentum;
 };
 
 extern const struct iter6_sgd_conf iter6_sgd_conf_defaults;

@@ -121,6 +121,8 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 	.beta_arr =NULL,
 	.convex_arr = NULL,
 
+	.reduce_momentum = false,
+
 };
 
 
@@ -444,7 +446,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 		NO, osize, out_type,
 		numbatches, 0, conf->INTERFACE.epochs,
        		select_vecops(gpu_ref),
-		alpha, beta, convex, conf->trivial_stepsize,
+		alpha, beta, convex, conf->trivial_stepsize, conf->reduce_momentum,
 		lipshitz_constants, conf->Lmin, conf->Lmax, conf->Lshrink, conf->Lincrease,
        		nlop_iter, adj_op_arr,
 		prox_iter,

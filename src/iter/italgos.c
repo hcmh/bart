@@ -1028,7 +1028,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 		long NO, long osize[NO], enum OUT_TYPE out_type[NO],
 		int N_batch, int epoch_start, int epoch_end,
 		const struct vec_iter_s* vops,
-		float alpha[NI], float beta[NI], bool convex[NI], bool trivial_stepsize,
+		float alpha[NI], float beta[NI], bool convex[NI], bool trivial_stepsize, bool reduce_momentum,
 		float L[NI], float Lmin, float Lmax, float Lshrink, float Lincrease,
 		struct iter_nlop_s nlop,
 		struct iter_op_arr_s adj,
@@ -1137,23 +1137,41 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			grad[i] = vops->allocate(isize[i]);
 			tmp[i] = vops->allocate(isize[i]);
 			y[i] = vops->allocate(isize[i]);
-			z[i] = vops->allocate(isize[i]);
 			x_new[i] = vops->allocate(isize[i]);
 
 			//determine current parameters
 			float betai = (-1. == beta[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : beta[i];
 			float alphai = (-1. == alpha[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : alpha[i];
 
-			//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
-			vops->axpbz(isize[i], z[i], 1 + betai, x[i], -betai, x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
-			args[NO + i] = z[i];
-			float r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, MD_BIT(i), vops);
-			vops->del(z[i]);
-			getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
+			float r_z = 0;
+
+			if (!reduce_momentum) {
+
+				//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
+				z[i] = vops->allocate(isize[i]);
+				vops->axpbz(isize[i], z[i], 1 + betai, x[i], -betai, x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
+				args[NO + i] = z[i];
+				r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, MD_BIT(i), vops);
+				vops->del(z[i]);
+				getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
+			}
 
 			//backtracking
 			bool lipshitz_condition = false;
+			float reduce_momentum_scale = 1;
 			while (!lipshitz_condition) {
+
+				if (reduce_momentum) {
+
+					//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
+					z[i] = vops->allocate(isize[i]);
+					vops->axpbz(isize[i], z[i], 1 + reduce_momentum_scale * betai, x[i], -(reduce_momentum_scale * betai), x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
+					args[NO + i] = z[i];
+					r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, MD_BIT(i), vops);
+					vops->del(z[i]);
+					getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
+				}
+
 
 				float tau = convex[i] ? (1. + 2. * betai) / (2. - 2. * alphai) * L[i] : (1. + 2. * betai) / (1. - 2. * alphai) * L[i];
 				if (trivial_stepsize || (-1. == beta[i]) || (-1. == alpha[i]))
@@ -1163,7 +1181,7 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 					error("invalid parameters alpha[%d]=%f, beta[%d]=%f, tau=%f\n", i, alphai, i, betai, tau);
 
 				//compute new weights
-				vops->axpbz(isize[i], y[i], 1 + alphai, x[i], -alphai, x_old[i]);
+				vops->axpbz(isize[i], y[i], 1 + reduce_momentum_scale * alphai, x[i], -(reduce_momentum_scale * alphai), x_old[i]);
 				vops->axpbz(isize[i], tmp[i], 1, y[i], -1./tau, grad[i]); //tmp2 = x^n + alpha*(x^n - x^n-1) - 1/tau grad
 
 				if (NULL != prox[i].fun)
@@ -1182,10 +1200,10 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 				r_lip_z += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
 
 				//compute Lipschitz condition at x
-				float r_lip_x = r_i;
-				vops->sub(isize[i], tmp[i], x_new[i], x[i]); // tmp = x^(n+1) - x^n
-				r_lip_x += vops->dot(isize[i], grad[i], tmp[i]);
-				r_lip_x += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
+				//float r_lip_x = r_i;
+				//vops->sub(isize[i], tmp[i], x_new[i], x[i]); // tmp = x^(n+1) - x^n
+				//r_lip_x += vops->dot(isize[i], grad[i], tmp[i]);
+				//r_lip_x += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
 
 				if ((r_lip_z * 1.001 >= r_new) || (L[i] >= Lmax)) { //1.001 for flp errors
 
@@ -1198,8 +1216,12 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 
 					r_i = r_new; //reuse the new residual within one batch (no update of training data)
 
-				} else
+				} else {
+
+					reduce_momentum_scale /= Lincrease;
 					L[i] *= Lincrease;
+				}
+
 
 			}
 

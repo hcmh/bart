@@ -229,7 +229,7 @@ void iPALM(	long NI, long isize[__VLA(NI)], enum IN_TYPE in_type[__VLA(NI)], flo
 		long NO, long osize[__VLA(NO)], enum OUT_TYPE out_type[__VLA(NO)],
 		int numbatches, int epoch_start, int epoch_end,
 		const struct vec_iter_s* vops,
-		float alpha[__VLA(NI)], float beta[__VLA(NI)], _Bool convex[__VLA(NI)], _Bool trivial_stepsize,
+		float alpha[__VLA(NI)], float beta[__VLA(NI)], _Bool convex[__VLA(NI)], _Bool trivial_stepsize, _Bool reduce_momentum,
 		float L[__VLA(NI)], float Lmin, float Lmax, float Lshrink, float Lincrease,
 		struct iter_nlop_s nlop,
 		struct iter_op_arr_s adj,
