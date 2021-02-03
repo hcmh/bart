@@ -12,6 +12,8 @@ struct vn_s {
 	float Imax;
 	float Imin;
 
+	_Bool share_weights;
+
 	struct nn_weights_s* weights;
 
 	float lambda_init;

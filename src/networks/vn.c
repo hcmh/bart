@@ -92,6 +92,8 @@ const struct vn_s vn_default = {
 	.Imax = 1.,
 	.Imin = -1.,
 
+	.share_weights = false,
+
 	.weights = NULL,
 
 	.lambda_init = .2,
@@ -395,9 +397,17 @@ static nn_t nn_vn_create(const struct vn_s* vn, const long dims[5], const long u
 		tmp = nn_mark_dup_F(tmp, "kspace");
 		tmp = nn_mark_dup_F(tmp, "coil");
 		tmp = nn_mark_dup_F(tmp, "pattern");
-		tmp = nn_mark_stack_input_F(tmp, "conv_w");
-		tmp = nn_mark_stack_input_F(tmp, "rbf_w");
-		tmp = nn_mark_stack_input_F(tmp, "lambda_w");
+		if (vn->share_weights) {
+
+			tmp = nn_mark_dup_F(tmp, "conv_w");
+			tmp = nn_mark_dup_F(tmp, "rbf_w");
+			tmp = nn_mark_dup_F(tmp, "lambda_w");
+		
+		} else {
+			tmp = nn_mark_stack_input_F(tmp, "conv_w");
+			tmp = nn_mark_stack_input_F(tmp, "rbf_w");
+			tmp = nn_mark_stack_input_F(tmp, "lambda_w");
+		}
 		tmp = nn_rename_input_F(tmp, "u_tmp", "u");
 
 		result = nn_chain2_FF(result, 0, NULL, tmp, 0, "u_tmp"); //in: kspace, coil, pattern, conv_w[l], rbf_w[l], lambda[l], u(0), kspace, coil, pattern, conv_w[0:l-1], rbf_w[0:l-1], lambda[0:l-1]
@@ -829,20 +839,22 @@ void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 
 	if (vn->monitor_lambda){
 
+		int num_lambda = vn->share_weights ? 1 : vn->Nl;
+
 		const char* lam = "lam";
-		const char* lams[vn->Nl];
-		
-		for (int i = 0; i < vn->Nl; i++)
+		const char* lams[num_lambda];
+
+		for (int i = 0; i < num_lambda; i++)
 			lams[i] = lam;
 		
-		auto destack_lambda = nlop_from_linop_F(linop_identity_create(2, MD_DIMS(1, vn->Nl)));
-		for (int i = vn->Nl - 1; 0 < i; i--)
+		auto destack_lambda = nlop_from_linop_F(linop_identity_create(2, MD_DIMS(1, num_lambda)));
+		for (int i = num_lambda - 1; 0 < i; i--)
 			destack_lambda = nlop_chain2_FF(destack_lambda, 0, nlop_destack_create(2, MD_DIMS(1, i), MD_DIMS(1, 1), MD_DIMS(1, i + 1), 1), 0);
 		for(int i = 0; i < 6; i++)
 			destack_lambda = nlop_combine_FF(nlop_del_out_create(1, MD_DIMS(1)), destack_lambda);
 
 
-		value_monitors[num_monitors] = monitor_iter6_nlop_create(destack_lambda, true, vn->Nl, lams);
+		value_monitors[num_monitors] = monitor_iter6_nlop_create(destack_lambda, true, num_lambda, lams);
 		num_monitors += 1;
 	}
 
@@ -887,7 +899,8 @@ void load_vn(struct vn_s* vn, const char* filename, bool overwrite_pars)
 		vn->Kx = vn->weights->iovs[0]->dims[1];
 		vn->Ky = vn->weights->iovs[0]->dims[2];
 		vn->Kz = vn->weights->iovs[0]->dims[3];
-		vn->Nl = vn->weights->iovs[0]->dims[4];
+		if (!vn->share_weights)
+			vn->Nl = vn->weights->iovs[0]->dims[4];
 		vn->Nw = vn->weights->iovs[1]->dims[1];
 	}
 }
