@@ -174,7 +174,7 @@ TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobafit cdi modbloch pixel n
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans convkern nlsa eof
 TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon synthesize fovshift
 TIO=toimg dcmread dcmtag
-TSIM=phantom phantom_json traj upat bloch sim signal
+TSIM=phantom phantom_json traj upat bloch sim tbasis signal
 TNN=mnist nn_segm nnvn nnmodl
 
 
