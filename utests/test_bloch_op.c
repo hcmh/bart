@@ -58,27 +58,23 @@ static bool test_bloch_irflash(void)
 
 	// IR FLASH characteristics
 	fit_para.sequence = 5;
-	fit_para.rfduration = 0.00001;
 	fit_para.tr = 0.003;
 	fit_para.te = 0.001;
-	fit_para.fa = 8.;
-	fit_para.inversion_pulse_length = 0.00001;
-	fit_para.prep_pulse_length = 0.00001;
+	fit_para.fa = 1.;
+	fit_para.rfduration = 0.00001;
+	fit_para.inversion_pulse_length = 0.;
+	fit_para.prep_pulse_length = 0.;
 
-	// fit_para.full_ode_sim = false;
-
-	// Correction for simulation to start with |Mxy|=1 (as for analytical model)
+	// Correction for simulation to start with |Mxy|(t=0)=1 (as for analytical model)
 	// assuming: M0 * sin(fa) = Mxy
+	// only holds for small FA if t!=0
 	fit_para.scale[1] = 1./sinf(fit_para.fa * M_PI/180.);
-
-	// Turn off T2 relaxation (IR FLASH insensitive to it)
-	fit_para.scale[2] = 0.0001;
 
 	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
 
 	nlop_apply(Bloch, N, out_dims, dst_bl, N, in_dims, src);
 
-	dump_cfl("_dst_bl", N, out_dims, dst_bl);
+	// dump_cfl("_dst_bl", N, out_dims, dst_bl);
 
 	nlop_free(Bloch);
 	md_free(src);
@@ -97,10 +93,9 @@ static bool test_bloch_irflash(void)
 	complex float* TI = md_alloc(N, TI_dims, CFL_SIZE);
 
 	for (int i = 0; i < rep; i++)
-		// TI[i] = fit_para.te + i * fit_para.tr;
-		TI[i] = i * fit_para.tr;	// FIXME: Adjust scaling to cover starting point at TE
+		TI[i] = fit_para.te + i * fit_para.tr;
 
-	// FA map
+	// alpha map
 	complex float* fa = md_alloc(N, map_dims, CFL_SIZE);
 	md_zfill(N, map_dims, fa, fit_para.fa);
 
@@ -114,7 +109,7 @@ static bool test_bloch_irflash(void)
 
 	nlop_apply(T1, N, out_dims, dst_ll, N, in_dims, src2);
 
-	dump_cfl("_dst_ll", N, out_dims, dst_ll);
+	// dump_cfl("_dst_ll", N, out_dims, dst_ll);
 
 	nlop_free(T1);
 	md_free(src2);
@@ -166,10 +161,6 @@ static bool test_bloch_ode_obs_flash(void)
 	fit_para.fa = 8.;
 	fit_para.inversion_pulse_length = 0.00001;
 	fit_para.prep_pulse_length = 0.00001;
-
-	// Correction for simulation to start with |Mxy|=1 (as for analytical model)
-	// assuming: M0 * sin(fa) = Mxy
-	fit_para.scale[1] = 1./sinf(fit_para.fa * M_PI/180.);
 
 	// Turn off T2 relaxation (IR FLASH insensitive to it)
 	fit_para.scale[2] = 0.0001;
