@@ -131,7 +131,7 @@ static bool test_bloch_irflash(void)
 UT_REGISTER_TEST(test_bloch_irflash);
 
 
-static bool test_bloch_ode_obs_flash(void)
+static bool test_bloch_ode_obs_irflash(void)
 {
 	enum { N = 16 };
 	enum { rep = 300 };
@@ -177,7 +177,7 @@ static bool test_bloch_ode_obs_flash(void)
 
 	nlop_apply(Bloch2, N, out_dims, dst2, N, in_dims, src);
 
-	// dump_cfl("_dst1", N, out_dims, dst1);
+	// dump_cfl("_dst2", N, out_dims, dst2);
 
 	// Compare operator outputs
 
@@ -193,4 +193,4 @@ static bool test_bloch_ode_obs_flash(void)
 
 	UT_ASSERT(err < 3.E-4);
 }
-UT_REGISTER_TEST(test_bloch_ode_obs_flash);
+UT_REGISTER_TEST(test_bloch_ode_obs_irflash);
