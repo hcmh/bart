@@ -194,3 +194,65 @@ static bool test_bloch_ode_obs_irflash(void)
 	UT_ASSERT(err < 3.E-4);
 }
 UT_REGISTER_TEST(test_bloch_ode_obs_irflash);
+
+
+static bool test_bloch_ode_obs_irbssfp(void)
+{
+	enum { N = 16 };
+	enum { rep = 300 };
+	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long out_dims[N] = { 16, 16, 1, 1, 1, rep, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long all_dims[N] = { 16, 16, 1, 1, 1, rep, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long input_dims[N];
+
+	bool gpu_use = false;
+
+	// Init and apply Bloch model operator
+
+	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
+	md_zfill(N, in_dims, src, 1.0);
+
+	complex float* dst1 = md_alloc(N, out_dims, CFL_SIZE);
+	complex float* dst2 = md_alloc(N, out_dims, CFL_SIZE);
+
+	struct modBlochFit fit_para = modBlochFit_defaults;
+
+	// IR FLASH characteristics
+	fit_para.sequence = 1;
+	fit_para.rfduration = 0.001;
+	fit_para.tr = 0.0045;
+	fit_para.te = 0.00225;
+	fit_para.fa = 45.;
+	fit_para.inversion_pulse_length = 0.001;
+	fit_para.prep_pulse_length = fit_para.te;
+
+	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
+
+	nlop_apply(Bloch, N, out_dims, dst1, N, in_dims, src);
+
+	// dump_cfl("_dst1", N, out_dims, dst1);
+
+	fit_para.full_ode_sim = true;
+
+	struct nlop_s* Bloch2 = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
+
+	nlop_apply(Bloch2, N, out_dims, dst2, N, in_dims, src);
+
+	// dump_cfl("_dst2", N, out_dims, dst2);
+
+	// Compare operator outputs
+
+	float err = md_znrmse(N, out_dims, dst2, dst1);
+
+	debug_printf(DP_INFO, "Error: %f\n", err);
+
+	nlop_free(Bloch);
+	nlop_free(Bloch2);
+	md_free(src);
+	md_free(dst1);
+	md_free(dst2);
+
+	UT_ASSERT(err < 3.E-3);
+}
+UT_REGISTER_TEST(test_bloch_ode_obs_irbssfp);
