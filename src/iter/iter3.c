@@ -33,12 +33,12 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 	.iter = 8,
 	.alpha = 1.,
 	.alpha_min = 0.,
+	.alpha_min0 = 0.,
 	.redu = 2.,
 
 	.cgiter = 100,
 	.cgtol = 0.1,
 
-	.alpha_min_exp_decay = true,
 	.nlinv_legacy = false,
 };
 

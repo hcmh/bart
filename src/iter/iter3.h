@@ -19,12 +19,12 @@ struct iter3_irgnm_conf {
 	int iter;
 	float alpha;
 	float alpha_min;
+	float alpha_min0;
 	float redu;
 
 	int cgiter;
 	float cgtol;
 
-	_Bool alpha_min_exp_decay;
 	_Bool nlinv_legacy;
 };
 

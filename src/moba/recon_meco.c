@@ -305,10 +305,10 @@ void meco_recon(struct moba_conf* moba_conf,
 		irgnm_conf.iter = moba_conf->iter;
 		irgnm_conf.alpha = moba_conf->alpha;
 		irgnm_conf.alpha_min = moba_conf->alpha_min;
+		irgnm_conf.alpha_min0 = moba_conf->alpha_min0;
 		irgnm_conf.redu = moba_conf->redu;
 		irgnm_conf.cgiter = moba_conf->inner_iter;
 		irgnm_conf.cgtol = 0.01;
-		irgnm_conf.alpha_min_exp_decay = moba_conf->alpha_min_exp_decay;
 		irgnm_conf.nlinv_legacy = false;
 
 		long x_dims[DIMS];

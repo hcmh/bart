@@ -78,9 +78,9 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
 	irgnm_conf.alpha_min = conf->alpha_min;
+	irgnm_conf.alpha_min0 = conf->alpha_min0;
 	irgnm_conf.cgtol = ((2 == conf->opt_reg) || (conf->auto_norm_off)) ? 1e-3 : conf->tolerance;
 	irgnm_conf.cgiter = conf->inner_iter;
-	irgnm_conf.alpha_min_exp_decay = conf->alpha_min_exp_decay;
 	irgnm_conf.nlinv_legacy = true;
 
 	struct mdb_irgnm_l1_conf conf2 = {

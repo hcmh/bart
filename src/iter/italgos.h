@@ -142,7 +142,7 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
 	struct iter_op_s callback,
 	struct iter_monitor_s* monitor);
 
-void irgnm2(unsigned int iter, float alpha, float alpha_min, bool alpha_min_exp_decay , float redu,
+void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha0, float redu,
 	long N, long M,
 	const struct vec_iter_s* vops,
 	struct iter_op_s op,
