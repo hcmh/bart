@@ -47,9 +47,8 @@ int main_signal(int argc, char* argv[argc])
 	long Hbeats = -1;
 
 	float off_reson[3] = { 20., 20., 1 };
-	// TODO: this values look like in the unit of ms, while simu/signals has the unit of s
-	float T1[3] = { 500., 1500., 1 };
-	float T2[3] = { 50., 150., 1 };
+	float T1[3] = { 0.5, 1.5, 1 };
+	float T2[3] = { 0.05, 0.15, 1 };
 	float Ms[3] = { 0.05, 1.0, 1 };
 
 	const struct opt_s opts[] = {
