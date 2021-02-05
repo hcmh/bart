@@ -144,8 +144,8 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_SELECT(0, "kfilter-2", enum edge_filter_t, &k_filter_type, EF2, "k-space edge filter 2"),
 		OPT_SET('n', &conf.auto_norm_off, "disable normlization of parameter maps for thresholding"),
 		OPTL_FLOAT(0, "alphamin0", &conf.alpha_min0, "a0", "Set alpha_min0"),
-		OPTL_FLOAT(0, "laplacea", &conf.laplace_a, "", "(a in 1 + a * \\Laplace^-b/2)"),
-		OPTL_FLOAT(0, "laplaceb", &conf.laplace_b, "", "(b in 1 + a * \\Laplace^-b/2)"),
+		OPTL_FLOAT(0, "sobolev_a", &conf.sobolev_a, "", "(a in 1 + a * \\Laplace^-b/2)"),
+		OPTL_FLOAT(0, "sobolev_b", &conf.sobolev_b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);

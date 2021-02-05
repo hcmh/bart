@@ -16,8 +16,8 @@ struct moba_conf {
 	float tolerance;
 	float damping;
 	unsigned int inner_iter;
-	float laplace_a;
-	float laplace_b;
+	float sobolev_a;
+	float sobolev_b;
 	bool noncartesian;
         bool sms;
 	bool k_filter;
