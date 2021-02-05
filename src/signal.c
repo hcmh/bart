@@ -45,8 +45,8 @@ int main_signal(int argc, char* argv[argc])
 	float time_T1relax = -1.; // second
 	long Hbeats = -1;
 
-	float T1[3] = { 500., 1500., 1 };
-	float T2[3] = { 50., 150., 1 };
+	float T1[3] = { 0.5, 1.5, 1 };
+	float T2[3] = { 0.05, 0.15, 1 };
 	float Ms[3] = { 0.05, 1.0, 1 };
 
 	const struct opt_s opts[] = {
