@@ -23,6 +23,7 @@
 #include "nn/weights.h"
 
 #include "networks/vn.h"
+#include "networks/misc.h"
 
 #ifndef DIMS
 #define DIMS 16
@@ -32,7 +33,7 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "<kspace> <sens> <pattern> <weights> <out/ref> <kspace_valid> <sens_valid> <pattern_valid> <ref_valid>";
+static const char usage_str[] = "<kspace> <sens> <weights> <out/ref>";
 static const char help_str[] = "Trains and appplies the Variational Network.";
 
 int main_nnvn(int argc, char* argv[])
@@ -56,8 +57,9 @@ int main_nnvn(int argc, char* argv[])
 
 	bool test_defaults = false;
 
-	bool enforce_regrid = false;
-	bool enforce_no_regrid = false;
+	struct network_data_s data = network_data_empty;
+	struct network_data_s valid_data = network_data_empty;
+
 
 	const struct opt_s opts[] = {
 
@@ -66,29 +68,36 @@ int main_nnvn(int argc, char* argv[])
 		OPTL_SET('g', "gpu", &use_gpu, "run on gpu"),
 		OPTL_SET('a', "apply", &apply, "apply variational network"),
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
-
 		OPTL_STRING('c', "config", &config_file, "file", "file for loading varnet configuration"),
+
+		OPTL_STRING(0, "trajectory", &(data.filename_trajectory), "file", "trajectory"),
+		OPTL_STRING(0, "pattern", &(data.filename_pattern), "file", "sampling pattern / psf in kspace"),
+
+		OPTL_STRING(0, "valid_trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
+		OPTL_STRING(0, "valid_pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
+		OPTL_STRING(0, "valid_kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
+		OPTL_STRING(0, "valid_coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
+		OPTL_STRING(0, "valid_ref", &(valid_data.filename_out), "file", "validation data reference"),
 
 		OPTL_FLOAT('r', "learning_rate", &(train_conf.INTERFACE.learning_rate), "lr", "learning rate"),
 		OPTL_INT('e', "epochs", &(train_conf.INTERFACE.epochs), "epochs", "number epochs to train"),
-		OPTL_STRING(0, "save_train_history", (const char**)(&(train_conf.INTERFACE.history_filename)), "file", "file for dumping train history"),
-		OPTL_STRING(0, "save_checkpoints_filename", (const char**)(&(train_conf.INTERFACE.dump_filename)), "file", "save intermediate weights during training (_epoch is attached to file)"),
-		OPTL_LONG(0, "save_checkpoints_interval", &(train_conf.INTERFACE.dump_mod), "int", "save weights every int epochs"),
 		OPTL_LONG('b', "batch_size", &(Nb), "Nb", "number epochs to train"),
 		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2= shuffle data, 3=randonly draw data"),
 
+		OPTL_STRING(0, "save_train_history", (const char**)(&(train_conf.INTERFACE.history_filename)), "file", "file for dumping train history"),
+		OPTL_LONG(0, "save_checkpoints_interval", &(train_conf.INTERFACE.dump_mod), "int", "save weights every int epochs"),
+		
+		
 		OPTL_SET('n', "normalize", &(vn_config.normalize), "normalize the input by maximum of zero-filled reconstruction"),
 		OPTL_SET('m', "load_data", &(load_mem), "load files int memory"),
+		OPTL_SET(0, "low_mem", &(vn_config.low_mem), "reduce memory usage by checkpointing"),
 
 		OPTL_SET(0, "test_defaults", &test_defaults, "set defaults to small values (used for testing)"),
 
-		OPTL_SET(0, "enforce_regrid", &enforce_regrid, "grids fully sampled kspace by applying pattern"),
-		OPTL_SET(0, "enforce_no_regrid", &enforce_no_regrid, "train with gridded kspace instead of fully sampled"),
+		OPTL_SET(0, "regrid", &(vn_config.regrid), "grids fully sampled kspace by applying pattern"),
 	};
 
-	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
-	if ((6 != argc) && (10 != argc))
-		error("wrong number of arguments\n");
+	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	if (test_defaults) {
 
@@ -100,19 +109,22 @@ int main_nnvn(int argc, char* argv[])
 
 		vn_config.Nw = 5;
 	}
-
-	if ((NULL != train_conf.INTERFACE.dump_filename) && (0 >= train_conf.INTERFACE.dump_mod))
-		train_conf.INTERFACE.dump_mod = 5;
-	if ((NULL == train_conf.INTERFACE.dump_filename) && (0 < train_conf.INTERFACE.dump_mod))
-		train_conf.INTERFACE.dump_filename = argv[4];
 	
 	if (NULL != config_file) {
 
 		const struct opt_json_s opts_json[] = {
 
-			JSON_BOOL(JSON_LABEL("general", "low_mem"), &(vn_config.low_mem), false,  ""),
-
 			JSON_BOOL(JSON_LABEL("data", "normalize"), &(vn_config.normalize), false,  ""),
+			JSON_BOOL(JSON_LABEL("data", "regrid"), &(vn_config.regrid), false,  ""),
+
+			JSON_BOOL(JSON_LABEL("training", "low_mem"), &(vn_config.low_mem), false,  ""),
+			JSON_INT(JSON_LABEL("training", "epochs"), &(train_conf.INTERFACE.epochs), false,  ""),
+			JSON_LONG(JSON_LABEL("training", "batch_size"), &(Nb), false,  ""),
+			JSON_FLOAT(JSON_LABEL("training", "learning_rate"), &(train_conf.INTERFACE.learning_rate), false,  ""),
+			JSON_INT(JSON_LABEL("training", "rand_batch_mode"), &(random_order), false,  ""),
+			JSON_STRING(JSON_LABEL("training", "history_file"), &(train_conf.INTERFACE.history_filename), false,  ""),
+			JSON_LONG(JSON_LABEL("training", "checkpoint_interval"), &(train_conf.INTERFACE.dump_mod), false,  ""),
+			JSON_BOOL(JSON_LABEL("training", "reduce_momentum"), &(train_conf.reduce_momentum), false,  ""),
 
 			JSON_LONG(JSON_LABEL("network", "iterations"), &(vn_config.Nl), true,  ""),
 			JSON_LONG(JSON_LABEL("network", "filter"), &(vn_config.Nf), true,  ""),
@@ -122,18 +134,14 @@ int main_nnvn(int argc, char* argv[])
 			JSON_LONG(JSON_LABEL("network", "kernels", "y"), &(vn_config.Ky), true,  ""),
 			JSON_LONG(JSON_LABEL("network", "kernels", "z"), &(vn_config.Kz), false,  ""),
 
-			JSON_BOOL(JSON_LABEL("network", "share_weights"), &(vn_config.share_weights), false,  ""),
-
+			JSON_BOOL(JSON_LABEL("network", "shared_weights"), &(vn_config.shared_weights), false,  ""),
 			JSON_FLOAT(JSON_LABEL("network", "init_lambda"), &(vn_config.lambda_init), false,  ""),
 			JSON_FLOAT(JSON_LABEL("network", "init_scale_mu"), &(vn_config.init_scale_mu), false,  ""),
 
-			JSON_FLOAT(JSON_LABEL("network", "learning_rate"), &(train_conf.INTERFACE.learning_rate), false,  ""),
-			JSON_BOOL(JSON_LABEL("network", "reduce_momentum"), &(train_conf.reduce_momentum), false,  ""),
-
 			JSON_BOOL(JSON_LABEL("network", "init_tickhonov"), &(vn_config.init_tickhonov), false,  ""),
-			JSON_FLOAT(JSON_LABEL("network", "init_tickhonov_lambda_fixed"), &(vn_config.lambda_fixed_tickhonov), false,  ""),
+			JSON_FLOAT(JSON_LABEL("network", "init_tickhonov_lambda"), &(vn_config.lambda_fixed_tickhonov), false,  ""),
 
-			JSON_BOOL(JSON_LABEL("network", "monitor_lambda"), &(vn_config.monitor_lambda), false,  ""),
+			JSON_BOOL(JSON_LABEL("train", "monitor_lambda"), &(vn_config.monitor_lambda), false,  ""),
 
 		};
 		read_json(config_file, ARRAY_SIZE(opts_json), opts_json);
@@ -145,14 +153,15 @@ int main_nnvn(int argc, char* argv[])
 	train_conf.beta = train_conf.alpha;
 	train_conf.trivial_stepsize = true;
 
-	assert (!(enforce_no_regrid && enforce_regrid )); 
 
 
-	char* filename_kspace = argv[1];
-	char* filename_coil = argv[2];
-	char* filename_pattern = argv[3];
-	char* filename_weights = argv[4];
-	char* filename_out = argv[5];
+	data.filename_kspace = argv[1];
+	data.filename_coil = argv[2];
+	const char* filename_weights = argv[3];
+	data.filename_out = argv[4];
+
+	if (0 < train_conf.INTERFACE.dump_mod)
+		train_conf.INTERFACE.dump_filename = filename_weights;
 
 	if (train && apply)
 		error("Train (-t) and apply(-a) would overwrite the reference!\n");
@@ -176,48 +185,16 @@ int main_nnvn(int argc, char* argv[])
 #endif
 		num_init();
 
-	long kdims[5]; 		//[Nkx, Nky, Nkz, Nc, Nt]
-	long cdims[5]; 		//[Ux,  Uy,  Uz,  Nc, Nt]
-	long pdims[5]; 		//[Nkx, Nky, Nkz, 1,  1 or Nb]
+	
+	
+	if (apply)
+		data.create_out = true;
+	load_network_data(&data);
+	bool use_valid_data = (NULL != valid_data.filename_coil) && (NULL != valid_data.filename_kspace) && (NULL != valid_data.filename_out);
+	network_data_check_simple_dims(&data);
 
-	complex float* kspace = load_cfl(filename_kspace, 5, kdims);
-	complex float* coil = load_cfl(filename_coil, 5, cdims);
-	complex float* pattern = load_cfl(filename_pattern, 5, pdims);
-
-	long udims[5];
-
-	if (load_mem) {
-
-		complex float* mem_kspace = md_alloc(5, kdims, CFL_SIZE);
-		complex float* mem_coil = md_alloc(5, cdims, CFL_SIZE);
-		complex float* mem_pattern = md_alloc(5, pdims, CFL_SIZE);
-
-		md_copy(5, kdims, mem_kspace, kspace, CFL_SIZE);
-		md_copy(5, cdims, mem_coil, coil, CFL_SIZE);
-		md_copy(5, pdims, mem_pattern, pattern, CFL_SIZE);
-
-		unmap_cfl(5, kdims, kspace);
-		unmap_cfl(5, cdims, coil);
-		unmap_cfl(5, pdims, pattern);
-
-		kspace = mem_kspace;
-		coil = mem_coil;
-		pattern = mem_pattern;
-	}
-
-	for (int i = 3; i < 5; i++)
-		assert(kdims[i] == cdims[i]);
-	for (int i = 0; i < 3; i++)
-		assert(kdims[i] == pdims[i]);
-	assert(1 == pdims[3]);
-	assert((1 == pdims[4]) || (kdims[4] == pdims[4]));
 
 	if (train){
-
-		vn_config.regrid = true;
-		if (enforce_no_regrid)
-			vn_config.regrid = false;
-		
 
 		if (initialize == (NULL != filename_weights_load))
 			error("For training, weights must be either initialized(-i) or loaded (-l)!\n");
@@ -230,59 +207,19 @@ int main_nnvn(int argc, char* argv[])
 		if (use_gpu)
 			move_gpu_nn_weights(vn_config.weights);
 
-		complex float* ref = load_cfl(filename_out, 5, udims);
-		assert(md_check_equal_dims(5, udims, cdims, ~COIL_FLAG));
-
-		if (load_mem) {
-
-			complex float* mem_ref = md_alloc(5, udims, CFL_SIZE);
-			md_copy(5, udims, mem_ref, ref, CFL_SIZE);
-			unmap_cfl(5, udims, ref);
-			ref = mem_ref;
-		}
-
-		train_vn(&vn_config, CAST_UP(&train_conf), udims, ref, kdims, kspace, cdims, coil, pdims, pattern, Nb, (10 == argc) ? (const char**)argv + 6: NULL);
+		train_vn(&vn_config, CAST_UP(&train_conf), data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb, use_valid_data ? &valid_data : NULL);
 		dump_nn_weights(filename_weights, vn_config.weights);
-
-		if (load_mem)
-			md_free(ref);
-		else
-			unmap_cfl(5, udims, ref);
 	}
 
 
 	if (apply) {
 
-		vn_config.regrid = false;
-		if (enforce_regrid)
-			vn_config.regrid = true;
-
 		load_vn(&vn_config, filename_weights, true);
 		if (use_gpu)
 			move_gpu_nn_weights(vn_config.weights);
-
-		md_select_dims(5, FFT_FLAGS | MD_BIT(4), udims, cdims);
-
-		complex float* file_out = create_cfl(filename_out, 5, udims);
-
-		apply_vn_batchwise(&vn_config, udims, file_out, kdims, kspace, cdims, coil, pdims, pattern, Nb);
-
-		unmap_cfl(5, udims, file_out);
+		apply_vn_batchwise(&vn_config, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb);
 	}
 
-	if (load_mem) {
-
-		md_free(pattern);
-		md_free(kspace);
-		md_free(coil);
-
-	} else {
-
-		unmap_cfl(5, pdims, pattern);
-		unmap_cfl(5, kdims, kspace);
-		unmap_cfl(5, cdims, coil);
-	}
-
-
+	free_network_data(&data);
 	exit(0);
 }
