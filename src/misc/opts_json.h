@@ -33,7 +33,7 @@ extern opt_json_f opt_json_string;
 #define JSON_INT(label, ptr, needed,  descr)	{ARRAY_SIZE((const char*[]){JSON_LABEL(label)}), (const char*[]){label}, opt_json_int, TYPE_CHECK(int*, (ptr)), descr, needed}
 #define JSON_LONG(label, ptr, needed,  descr)	{ARRAY_SIZE((const char*[]){JSON_LABEL(label)}), (const char*[]){label}, opt_json_long, TYPE_CHECK(long*, (ptr)), descr, needed}
 #define JSON_FLOAT(label, ptr, needed,  descr)	{ARRAY_SIZE((const char*[]){JSON_LABEL(label)}), (const char*[]){label}, opt_json_float, TYPE_CHECK(float*, (ptr)), descr, needed}
-#define JSON_STRING(label, ptr, needed,  descr)	{ARRAY_SIZE((const char*[]){JSON_LABEL(label)}), (const char*[]){label}, opt_json_string, TYPE_CHECK(const char*, (ptr)), descr, needed}
+#define JSON_STRING(label, ptr, needed,  descr)	{ARRAY_SIZE((const char*[]){JSON_LABEL(label)}), (const char*[]){label}, opt_json_string, TYPE_CHECK(const char**, (ptr)), descr, needed}
 
 extern void read_json(const char* filename, int n, const struct opt_json_s opts[n]);
 

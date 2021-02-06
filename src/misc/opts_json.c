@@ -106,7 +106,7 @@ static bool cJSON_get_bool(const cJSON* object, const char* key)
 
 static const char* cJSON_get_string(const cJSON* object, const char* key)
 {
-	if(!cJSON_IsString(cJSON_GetObjectItemCaseSensitive(object, key)) || (NULL != cJSON_GetObjectItemCaseSensitive(object, key)->valuestring))
+	if(!cJSON_IsString(cJSON_GetObjectItemCaseSensitive(object, key)) || (NULL == cJSON_GetObjectItemCaseSensitive(object, key)->valuestring))
 		error("cJSON: %s is not a string!\n");
 
 	const char* tmp = cJSON_GetObjectItemCaseSensitive(object, key)->valuestring;
