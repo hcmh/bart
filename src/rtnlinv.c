@@ -109,6 +109,7 @@ int main_rtnlinv(int argc, char* argv[argc])
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
 		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconstruction"),
+		OPTL_UINT(0, "cnstcoil_flags", &conf.cnstcoil_flags, "", "set constant coil flags for multi-contrast recon."),
 		OPT_CLEAR('U', &combine, "Do not combine ENLIVE maps in output"),
 		OPT_FLOAT('f', &restrict_fov, "FOV", "restrict FOV"),
 		OPT_STRING('p', &psf, "file", "pattern / transfer function"),
@@ -215,6 +216,11 @@ int main_rtnlinv(int argc, char* argv[argc])
 		error("Pass either trajectory (-t) or PSF (-p)!\n");
 	}
 
+	for (long d = 0; d < DIMS; d++) {
+
+		if (MD_IS_SET(conf.cnstcoil_flags, d))
+			sens_dims[d] = 1;
+	}
 
 	long sens1_dims[DIMS];
 	md_select_dims(DIMS, ~TIME_FLAG, sens1_dims, sens_dims);
@@ -231,6 +237,12 @@ int main_rtnlinv(int argc, char* argv[argc])
 
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, sens_dims);
+
+	for (long d = 0; d < DIMS; d++) {
+
+		if (MD_IS_SET(conf.cnstcoil_flags, d))
+			img_dims[d] = ksp_dims[d];
+	}
 
 	long img1_dims[DIMS];
 	md_select_dims(DIMS, ~TIME_FLAG, img1_dims, img_dims);
@@ -322,7 +334,7 @@ int main_rtnlinv(int argc, char* argv[argc])
 
 		debug_printf(DP_DEBUG3, "Start gridding psf ...");
 
-		md_select_dims(DIMS, ~(COIL_FLAG|MAPS_FLAG), pat_dims, sens_dims);
+		md_copy_dims(DIMS, pat_dims, img_dims);
 		pat_dims[TIME_DIM] = turns;
 
 
@@ -369,6 +381,12 @@ int main_rtnlinv(int argc, char* argv[argc])
 
 	long kgrid_dims[DIMS];
 	md_select_dims(DIMS, ~MAPS_FLAG, kgrid_dims, sens_dims);
+
+	for (long d = 0; d < DIMS; d++) {
+
+		if (MD_IS_SET(conf.cnstcoil_flags, d))
+			kgrid_dims[d] = img_dims[d];
+	}
 
 	long kgrid1_dims[DIMS];
 	md_select_dims(DIMS, ~TIME_FLAG, kgrid1_dims, kgrid_dims);
@@ -486,12 +504,12 @@ int main_rtnlinv(int argc, char* argv[argc])
 			complex float* kgrid1_gpu = md_alloc_gpu(DIMS, kgrid1_dims, CFL_SIZE);
 			md_copy(DIMS, kgrid1_dims, kgrid1_gpu, kgrid1, CFL_SIZE);
 
-			noir_recon(&conf, sens1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1_gpu);
+			noir_recon(&conf, kgrid1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1_gpu);
 			md_free(kgrid1_gpu);
 
 		} else
 #endif
-			noir_recon(&conf, sens1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1);
+			noir_recon(&conf, kgrid1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1);
 
 
 		// Temporal regularization
@@ -508,7 +526,7 @@ int main_rtnlinv(int argc, char* argv[argc])
 		md_calc_strides(DIMS, sens1_strs, sens1_dims, CFL_SIZE);
 
 
-		postprocess(sens1_dims, normalize,
+		postprocess(kgrid1_dims, normalize,
 				sens1_strs, sens1,
 				img1_strs, img1,
 				img_output1_dims, img_output1_strs, img_output1);
