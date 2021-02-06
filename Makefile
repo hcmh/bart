@@ -239,7 +239,7 @@ MODULES_eof = -lcalib
 MODULES_pol2mask = -lgeom
 MODULES_sudoku = -llinops -liter
 MODULES_nnvn = -lnetworks -lnn -lnlops -llinops -liter
-MODULES_nnmodl = -lnetworks -lnn -lnlops -llinops -liter
+MODULES_nnmodl = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_mnist = -lnetworks -lnn -lnlops -llinops -liter
 
 
