@@ -32,7 +32,7 @@
 #define N 4
 #define NPROX 2
 
-static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, unsigned int iter, float tol, const complex float *bc_mask, const float bc_reg, const float div_reg)
+static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, int iter, int admm_iter, float tol, const complex float *bc_mask, const float bc_reg, const float div_reg)
 {
 	complex float *adj = md_alloc_sameplace(N, jdims, CFL_SIZE, j);
 	auto bz_op = linop_bz_create(jdims, vox);
@@ -79,6 +79,7 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 
 	switch (solver) {
 	case CG: {
+		assert(iter > 0);
 		struct iter_conjgrad_conf conf = iter_conjgrad_defaults;
 		conf.maxiter = iter;
 		conf.l2lambda = reg;
@@ -88,8 +89,10 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 	} break;
 	case ADMM: {
 		struct iter_admm_conf conf = iter_admm_defaults;
-		conf.maxiter = 10;
-		conf.maxitercg = iter;
+		assert(admm_iter > 0);
+			conf.maxiter = admm_iter;
+		if (iter > 0)
+			conf.maxitercg = iter;
 		lconf.lambda = reg;
 
 		long nprox = 0;
@@ -143,13 +146,14 @@ static const char help_str[] = "Estimate the current density J (A/[voxelsize]^2)
 int main_cdi(int argc, char *argv[])
 {
 	float tik_reg = 0, tolerance = 1e-3, bc_reg = -1, div_reg = -1;
-	unsigned int iter = 100;
+	int iter = 100, admm_iter = 100;
 	const struct opt_s opts[] = {
 	    OPT_FLOAT('l', &tik_reg, "lambda_1", "Tikhonov Regularization"),
 	    OPT_FLOAT('b', &bc_reg, "b", "Boundary current penalty"),
 	    OPT_FLOAT('d', &div_reg, "d", "Divergence penalty"),
 	    OPT_FLOAT('t', &tolerance, "t", "Stopping Tolerance"),
-	    OPT_UINT('n', &iter, "Iterations", "Max. number of iterations"),
+	    OPT_INT('n', &iter, "Iterations", "Max. number of cg iterations"),
+	    OPT_INT('m', &admm_iter, "Iterations", "Max. number of ADMM iterations"),
 	};
 	cmdline(&argc, argv, 5, 7, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
@@ -180,7 +184,7 @@ int main_cdi(int argc, char *argv[])
 	complex float *j = create_cfl(argv[argc - 1], N, jdims);
 
 	md_zsmul(4, bdims, b, b, 1. / Hz_per_Tesla / Mu_0);
-	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, tolerance, bc_mask, bc_reg, div_reg);
+	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, admm_iter, tolerance, bc_mask, bc_reg, div_reg);
 	md_zsmul(4, jdims, j, j, 1. / bz_unit(bdims + 1, vox));
 
 	unmap_cfl(N, bdims, b);
