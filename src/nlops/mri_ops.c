@@ -59,15 +59,16 @@ static bool test_idims_compatible(int N, const long dims[N], const long idims[N]
  * Returns: MRI forward operator (SENSE Operator)
  *
  * @param N
- * @param dims (Nx, Ny, Nz, Nc,  Nb)
+ * @param dims 	kspace dimension (possibly oversampled)
+ * @param idims image dimensions
  * @param conf can be NULL to fallback on nlop_mri_simple
  * 
  *
  * for default dims:
  *
  * Input tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
+ * coil:	cdims:	(Ix, Iy, Iz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 )
  *
  * Output tensors:
@@ -110,19 +111,20 @@ const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], const lo
  * Returns: Adjoint MRI operator (SENSE Operator)
  *
  * @param N
- * @param dims (Nx, Ny, Nz, Nc,  Nb)
+ * @param dims 	kspace dimension (possibly oversampled)
+ * @param idims image dimensions
  * @param conf can be NULL to fallback on nlop_mri_simple
  * 
  *
  * for default dims:
  *
  * Input tensors:
- * kspace:	kdims: 	(Nx, Ny, Nz, 1,  Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
+ * kspace:	kdims: 	(Nx, Ny, Nz, Nc, Nb)
+ * coil:	cdims:	(Ix, Iy, Iz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1)
  *
  * Output tensors:
- * image:	idims: 	(Nx, Ny, Nz, Nc, Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1, Nb)
  */
 const struct nlop_s* nlop_mri_adjoint_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
@@ -311,19 +313,20 @@ static void mri_normal_del(const nlop_data_t* _data)
  * Returns: MRI normal operator
  *
  * @param N
- * @param dims (Nx, Ny, Nz, Nc,  Nb)
+ * @param dims 	kspace dimension (possibly oversampled)
+ * @param idims image dimensions
  * @param conf can be NULL to fallback on nlop_mri_simple
  * 
  *
  * for default dims:
  *
  * Input tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
+ * coil:	cdims:	(Ix, Iy, Iz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 )
  *
  * Output tensors:
- * image:	idims: 	(Nx, Ny, Nz, Nc, Nb)
+ * image:	idims: 	(Ix, Iy, Iz, Nc, Nb)
  */
 const struct nlop_s* nlop_mri_normal_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
@@ -409,20 +412,21 @@ static void mri_gradient_step_fun(const nlop_data_t* _data, int Narg, complex fl
  * In non-cartesian case, the kspace is assumed to be gridded
  *
  * @param N
- * @param dims (Nx, Ny, Nz, Nc,  Nb)
+ * @param dims 	kspace dimension (possibly oversampled)
+ * @param idims image dimensions
  * @param conf can be NULL to fallback on nlop_mri_simple
  * 
  *
  * for default dims:
  *
  * Input tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  * kspace:	kdims: 	(Nx, Ny, Nz, Nc, Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
+ * coil:	cdims:	(Ix, Iy, Iz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 )
  *
  * Output tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
 
  const struct nlop_s* nlop_mri_gradient_step_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
@@ -852,22 +856,19 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
  * out = (A^HA +l1)^-1 in
  * A = Pattern FFT Coils
  *
- * @param N # of dims (must be: 5)
- * @param dims dimensions [Nx, Ny, Nz, Nc, Nb]
- * @param share_pattern select if the same pattern is used for all eelements in the batch
- * @param lambda regularization value (-1) corresponds to additional operator input
- * @param batch_independent select if minimization is performed for each batch independently (for example useful for CG)
- * @param convergence_warn_limit warn if minimization is not converged (0 corresponds to no warnings)
- * @param conf pointer to configuration for iterative algorithm, NULL will create default conf using CG
+ * @param N
+ * @param dims 	kspace dimension (possibly oversampled)
+ * @param idims image dimensions
+ * @param conf can be NULL to fallback on nlop_mri_simple
  *
  * Input tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
+ * coil:	cdims:	(Ix, Iy, Iz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 / Nb)
  * [lambda:	ldims:	(1)]
  *
  * Output tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
 
 const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
@@ -986,18 +987,19 @@ static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* 
  * out = (id - (A^HA +l1)^-1A^HA) in
  * A = Pattern FFT Coils
  *
- * @param N # of dims
- * @param dims dimensions [Nx, Ny, Nz, Nc, Nb]
- * @param conf 
+ * @param N
+ * @param dims 	kspace dimension (possibly oversampled)
+ * @param idims image dimensions
+ * @param conf can be NULL to fallback on nlop_mri_simple
  *
  * Input tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
+ * coil:	cdims:	(Ix, Iy, Iz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 / Nb)
  * [lambda:	ldims:	(1)]
  *
  * Output tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
 const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
 {
@@ -1043,23 +1045,19 @@ const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const lo
  * out = [(1 + lambda)](A^HA +l1)^-1 A^Hin
  * A = Pattern FFT Coils
  *
- * @param N # of dims (must be: 5)
- * @param dims dimensions [Nx, Ny, Nz, Nc, Nb]
- * @param share_pattern select if the same pattern is used for all eelements in the batch
- * @param lambda regularization value (-1) corresponds to additional operator input
- * @param batch_independent select if minimization is performed for each batch independently (for example useful for CG)
- * @param convergence_warn_limit warn if minimization is not converged (0 corresponds to no warnings)
- * @param conf pointer to configuration for iterative algorithm, NULL will create default conf using CG
- * @param rescale rescale the result with (1 + lambda)
+ * @param N
+ * @param dims 	kspace dimension (possibly oversampled)
+ * @param idims image dimensions
+ * @param conf can be NULL to fallback on nlop_mri_simple
  *
  * Input tensors:
  * kspace:	kdims: 	(Nx, Ny, Nz, Nc, Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, Nb)
+ * coil:	cdims:	(Ix, Iy, Iz, Nc, Nb)
  * pattern:	pdims:	(Nx, Ny, Nz, 1,  1 )
  * [lambda:	ldims:	(1)]
  *
  * Output tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1,  Nb)
+ * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
 
 const struct nlop_s* mri_reg_pinv(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
