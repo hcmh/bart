@@ -12,6 +12,114 @@
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
+ * @param ker_name name for the kernel input
+ * @param conv_flag spatial dimensions which are convolved over
+ * @param channel_flag dimensions holding channels
+ * @param group_flag group dimensions, i.e. batch dimension with non-shared kernel
+ * @param kernel_dims kernel size (if conv_flag); out_channel(if channel_flag); idims (if group_flag); 1 else  
+ * @param strides of output (only for spatial dims)
+ * @param dilations of kernel (only for spatial dims)
+ * @param conv convolution if true, correlation else
+ * @param conv_pad padding for the convolution
+ */
+nn_t nn_append_convcorr_layer_generic(	
+				nn_t network, int o, const char* oname, const char* ker_name,
+				unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag,
+				unsigned int N, long const kernel_dims[N], const long strides[N], const long dilations[N],
+				bool conv, enum PADDING conv_pad, const struct initializer_s* init)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+
+	auto nlop = append_convcorr_layer_generic(nlop_clone(nn_get_nlop(network)), o, conv_flag, channel_flag, group_flag, N, kernel_dims, strides, dilations, conv, conv_pad);
+	auto result = nn_from_nlop_F(nlop);
+
+	nn_clone_args(result, network);
+
+	result = nn_set_in_type_F(result, -1, NULL, IN_OPTIMIZE);
+	
+	unsigned long in_flag = 0;
+	for (int i = N - 1; i >= 0; i--){
+
+		if (MD_IS_SET(conv_flag, i))
+			in_flag = MD_SET(in_flag, i);
+
+		if (MD_IS_SET(channel_flag, i)){
+
+			in_flag = MD_SET(in_flag, i);
+			in_flag *= 2;
+		}
+	}
+
+	result = nn_set_initializer_F(result, -1, NULL, (NULL != init) ? init : init_kaiming_create(in_flag, true, false, 0));
+
+	if (NULL != ker_name)
+		result = nn_set_input_name_F(result, -1, ker_name);
+
+	nn_free(network);
+
+	return result;
+}
+
+
+/**
+ * Append transposed convolution/correlation layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param oname 
+ * @param ker_name name for the kernel input
+ * @param conv_flag spatial dimensions which are convolved over
+ * @param channel_flag dimensions holding channels
+ * @param group_flag group dimensions, i.e. batch dimension with non-shared kernel
+ * @param kernel_dims kernel size (if conv_flag); out_channel(if channel_flag); idims (if group_flag); 1 else  
+ * @param strides of input (only for spatial dims)
+ * @param dilations of kernel (only for spatial dims)
+ * @param conv convolution if true, correlation else
+ * @param conv_pad padding for the convolution
+ * @param adjoint adjoint convolution if true, transposed else
+ */
+nn_t nn_append_transposed_convcorr_layer_generic(	
+				nn_t network, int o, const char* oname, const char* ker_name,
+				unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag,
+				unsigned int N, long const kernel_dims[N], const long strides[N], const long dilations[N],
+				bool conv, enum PADDING conv_pad, bool adjoint, const struct initializer_s* init)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto nlop = append_transposed_convcorr_layer_generic(nlop_clone(nn_get_nlop(network)), o, conv_flag, channel_flag, group_flag, N, kernel_dims, strides, dilations, conv, conv_pad, adjoint);
+	auto result = nn_from_nlop_F(nlop);
+	nn_clone_args(result, network);
+
+	result = nn_set_in_type_F(result, -1, NULL, IN_OPTIMIZE);
+	
+	unsigned long in_flag = 0;
+	for (int i = N - 1; i >= 0; i--){
+
+		if (MD_IS_SET(conv_flag, i))
+			in_flag = MD_SET(in_flag, i);
+
+		if (MD_IS_SET(channel_flag, i)){
+
+			in_flag *= 2;
+			in_flag = MD_SET(in_flag, i);
+		}
+	}
+
+	result = nn_set_initializer_F(result, -1, NULL, (NULL != init) ? init : init_kaiming_create(in_flag, true, false, 0));
+
+	if (NULL != ker_name)
+		result = nn_set_input_name_F(result, -1, ker_name);
+
+	nn_free(network);
+
+	return result;
+}
+
+/**
+ * Append convolution/correlation layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
  * @param filters number of output channels
  * @param kernel_size {kx, ky, kz} size of convolution kernel
  * @param conv convolution if true, correlation else

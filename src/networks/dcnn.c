@@ -77,6 +77,7 @@ extern void simple_dcnn(const long dims[6], const long krn_dims[6], const comple
         	long dilation[] = {1, 1, 1};
 
         	nl = append_convcorr_layer(nl, 0, filters, kernel_size, true, PAD_SAME, false, strides, dilation);
+		nl = nlop_chain2_FF(nlop_from_linop_F(linop_transpose_create(5, 3, 4, krn_dims)), 0, nl, nlop_get_nr_in_args(nl) - 1);
 		nl = append_activation_bias(nl, 0, (l < layers - 1) ? ACT_RELU : ACT_LIN, MD_BIT(3));
 
 		long bdims[] = {filters};

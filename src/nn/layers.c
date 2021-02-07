@@ -33,130 +33,363 @@
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
- * @param filters number of output channels
- * @param kernel_size {kx, ky, kz} size of convolution kernel
+ * @param conv_flag spatial dimensions which are convolved over
+ * @param channel_flag dimensions holding channels
+ * @param group_flag group dimensions, i.e. batch dimension with non-shared kernel
+ * @param kernel_dims kernel size (if conv_flag); out_channel(if channel_flag); idims (if group_flag); 1 else  
+ * @param strides of output (only for spatial dims)
+ * @param dilations of kernel (only for spatial dims)
  * @param conv convolution if true, correlation else
  * @param conv_pad padding for the convolution
- * @param channel_first data layout is {c, x, y, z}/{filter, channel, kx, ky, kz} if true, {x, y, z, c} {kx, ky, kz, channel, filter} else
- * @param strides only take into account convolutions separated by strides {sx, sy, sz} (0 == (idims_xyz[i] - dilations[i] * (kernel_size[i] - 1) - 1) % strides[i]))
- * @param dilations elements of kernel dilated by {dx, dy, dz}
+ * @param swap_kernel_matrix if true, the kernel has dims (IC, OC) instead of (OC, IC)
  */
-const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, int filters, long const kernel_size[3], bool conv, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3])
+const struct nlop_s* append_convcorr_layer_generic(	
+						const struct nlop_s* network, int o,
+						unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag,
+						unsigned int N, long const kernel_dims[N], const long strides[N], const long dilations[N],
+						bool conv, enum PADDING conv_pad
+					)
 {
-	const long ones[3] = {1, 1, 1};
+	int NO = nlop_get_nr_out_args(network);
+	int NI = nlop_get_nr_in_args(network);
+
+	assert(o < NO);
+	assert((nlop_generic_codomain(network, o))->N == N);
+
+	assert(0 == (conv_flag & channel_flag));
+	assert(0 == (conv_flag & group_flag));
+	assert(0 == (channel_flag & group_flag));
+
+	//set default dilation/strides
+	long ones[N];
+	for (unsigned int i = 0; i < N; i++)
+		ones[i] = 1;
+
 	if (NULL == strides)
 		strides = ones;
 	if (NULL == dilations)
 		dilations = ones;
 
+	long idims[N];
+	long kdims[2 * N];
+	long odims[N];
+
+	md_copy_dims(N, idims, nlop_generic_codomain(network, o)->dims);
+	md_singleton_dims(2 * N, kdims);
+	md_singleton_dims(N, odims);
+
+	long idims_op[2 * N];
+	long odims_op[2 * N];
+	long kdims_op[2 * N];
+
+	md_singleton_dims(2 * N, idims_op);
+	md_singleton_dims(2 * N, odims_op);
+	md_singleton_dims(2 * N, kdims_op);
+
+	long dil_op[2 * N];
+	long str_op[2 * N];
+
+	md_singleton_dims(2 * N, dil_op);
+	md_singleton_dims(2 * N, str_op);
+
+	unsigned long conv_op_flags = 0;
+
+	unsigned int ip = 0;
+	unsigned int ik = 0;
+
+	for (unsigned int i = 0; i < N; i++) {
+
+		if (MD_IS_SET(conv_flag, i)) {
+
+			if (conv_pad == PAD_VALID){
+
+				assert(0 == (idims[i] - dilations[i] * (kernel_dims[i] - 1) - 1) % strides[i]);
+				odims[i] = (idims[i] - dilations[i] * (kernel_dims[i] - 1) - 1) / strides[i] + 1;
+				odims_op[ip] = odims[i];
+			} else {
+
+				odims[i] = idims[i];
+				odims_op[ip] = odims[i];
+				
+				if (1 != strides[i]) {
+
+					debug_printf(DP_INFO, "convcorr strides: ");
+					debug_print_dims(DP_INFO, N, strides);
+					error("Strides are currently only supported for PAD_VALID\n");
+				}	
+			}
+
+			kdims_op[ip] = kernel_dims[i];
+			idims_op[ip] = idims[i];
+
+			str_op[ip] = strides[i];
+			dil_op[ip] = dilations[i];
+
+			kdims[ik] = kernel_dims[i];
+
+			conv_op_flags = MD_SET(conv_op_flags, ip);
+
+			ip++;
+			ik++;
+
+			continue;
+		}
+
+		if ((1 != dilations[i]) || (1 != strides[i])) {
+
+			debug_printf(DP_INFO, "convcorr strides: ");
+			debug_print_dims(DP_INFO, N, strides);
+			debug_printf(DP_INFO, "convcorr dilations: ");
+			debug_print_dims(DP_INFO, N, dilations);
+			error("Dilations and Strides are only involved in spatial dimensions!\n");
+		}
+
+		if (MD_IS_SET(channel_flag, i)) {
+
+			kdims_op[ip] = kernel_dims[i];
+			odims_op[ip] = kernel_dims[i];
+			ip++;
+			kdims_op[ip] = idims[i];
+			idims_op[ip] = idims[i];
+			
+			kdims[ik] = kernel_dims[i];
+			ik++;
+			kdims[ik] = idims[i];
+			odims[i] = kernel_dims[i];
+
+			ip++;
+			ik++;
+
+			continue;
+		}
+
+		if (MD_IS_SET(group_flag, i)) {
+
+			// batch dimensions
+			assert(kernel_dims[i] == idims[i]);
+			
+			kdims_op[ip] = kernel_dims[i];
+			odims_op[ip] = idims[i];
+			idims_op[ip] = idims[i];
+
+			kdims[ik] = kernel_dims[i];
+			odims[i] = idims[i];
+
+			ip++;
+			ik++;
+
+			continue;
+		}
+
+		// batch dimensions
+		assert(1 == kernel_dims[i]);
+		kdims_op[ip] = kernel_dims[i];
+		odims_op[ip] = idims[i];
+		idims_op[ip] = idims[i];
+
+		odims[i] = idims[i];
+
+		ip++;
+	}
+
+	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(	ip, conv_op_flags,
+									odims_op, idims_op, kdims_op,
+									conv_pad, conv,
+									str_op, dil_op,
+									'N'
+								);
+	
+	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, N, odims);
+	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, N, idims);
+	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, ik, kdims);
+
+	network = nlop_chain2_FF(network, o, nlop_conv, 0);
+
+	network = nlop_shift_input_F(network, NI, 0);
+	network = nlop_shift_output_F(network, o, 0);
+
+	return network;
+}
+
+
+
+/**
+ * Append transposed convolution/correlation layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param conv_flag spatial dimensions which are convolved over
+ * @param channel_flag dimensions holding channels
+ * @param group_flag group dimensions, i.e. batch dimension with non-shared kernel
+ * @param kernel_dims kernel size (if conv_flag); out_channel(if channel_flag); idims (if group_flag); 1 else  
+ * @param strides of input (only for spatial dims)
+ * @param dilations of kernel (only for spatial dims)
+ * @param conv convolution if true, correlation else
+ * @param conv_pad padding for the convolution
+ * @param adjoint adjoint convolution if true, transposed else
+ * @param swap_kernel_matrix if true, the kernel has dims (IC, OC) instead of (OC, IC)
+ */
+const struct nlop_s* append_transposed_convcorr_layer_generic(	
+						const struct nlop_s* network, int o,
+						unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag,
+						unsigned int N, long const kernel_dims[N], const long strides[N], const long dilations[N],
+						bool conv, enum PADDING conv_pad, bool adjoint
+					)
+{
 	int NO = nlop_get_nr_out_args(network);
 	int NI = nlop_get_nr_in_args(network);
 
 	assert(o < NO);
-	assert((nlop_generic_codomain(network, o))->N == 5);
+	assert((nlop_generic_codomain(network, o))->N == N);
 
-	long idims_layer[5]; //channel, x, y, z, batch		or x, y, z, channel, batch
-	long odims_layer[5]; //filters, ox, oy, oz, batch	or ox, oy, oz, filters, batch
-	long kdims_layer[5]; //filters, channel, kx, ky, kz	or x, y, z channel, filters
+	assert(0 == (conv_flag & channel_flag));
+	assert(0 == (conv_flag & group_flag));
+	assert(0 == (channel_flag & group_flag));
 
-	long istrs_layer[5];
+	//set default dilation/strides
+	long ones[N];
+	for (unsigned int i = 0; i < N; i++)
+		ones[i] = 1;
 
-	md_copy_dims(5, idims_layer, nlop_generic_codomain(network, o)->dims);
-	md_copy_strides(5, istrs_layer, nlop_generic_codomain(network, o)->strs);
+	if (NULL == strides)
+		strides = ones;
+	if (NULL == dilations)
+		dilations = ones;
 
-	long idims_xyz[3];
-	long odims_xyz[3];
-	long channels = 0;
-	long batch = idims_layer[4];
+	long idims[N];
+	long kdims[2 * N];
+	long odims[N];
 
-	if (channel_first){
+	md_copy_dims(N, odims, nlop_generic_codomain(network, o)->dims);
+	md_singleton_dims(2 * N, kdims);
+	md_singleton_dims(N, idims);
 
-		channels = idims_layer[0];
-		md_copy_dims(3, idims_xyz, idims_layer + 1);
-	} else {
+	long idims_op[2 * N];
+	long odims_op[2 * N];
+	long kdims_op[2 * N];
 
-		channels = idims_layer[3];
-		md_copy_dims(3, idims_xyz, idims_layer);
-	}
+	md_singleton_dims(2 * N, idims_op);
+	md_singleton_dims(2 * N, odims_op);
+	md_singleton_dims(2 * N, kdims_op);
 
-	//calculate output dimension based on kernel size, dilations and strides: odims[i] = (idims[i] - dil[i] * (kdims[i] - 1) - 1) / strs[i] + 1
-	if (conv_pad == PAD_VALID){
+	long dil_op[2 * N];
+	long str_op[2 * N];
 
-			for (int i = 0; i < 3; i++) {
+	md_singleton_dims(2 * N, dil_op);
+	md_singleton_dims(2 * N, str_op);
 
-				assert(0 == (idims_xyz[i] - dilations[i] * (kernel_size[i] - 1) - 1) % strides[i]);
-				odims_xyz[i] = (idims_xyz[i] - dilations[i] * (kernel_size[i] - 1) - 1) / strides[i] + 1;
+	unsigned long conv_op_flags = 0;
 
+	unsigned int ip = 0;
+	unsigned int ik = 0;
+
+	for (unsigned int i = 0; i < N; i++) {
+
+		if (MD_IS_SET(conv_flag, i)) {
+
+			if (conv_pad == PAD_VALID){
+
+				idims[i] = (odims[i] - 1) * strides[i] + 1 + dilations[i] * (kernel_dims[i] - 1);
+				idims_op[ip] = idims[i];
+			} else {
+
+				idims[i] = odims[i];
+				idims_op[ip] = idims[i];
+				
+				if (1 != strides[i]) {
+
+					debug_printf(DP_INFO, "convcorr dilations: ");
+					debug_print_dims(DP_INFO, N, dilations);
+					debug_printf(DP_INFO, "convcorr strides: ");
+					debug_print_dims(DP_INFO, N, strides);
+					error("Strides are currently only supported for PAD_VALID\n");
+				}	
 			}
-	} else
-		md_copy_dims(3, odims_xyz, idims_xyz);
 
-	long idims_working[6]; //1, channel, x, y, z, batch		or x, y, z, channel, 1, batch
-	long odims_working[6]; //filters, 1, ox, oy, oz, batch		or ox, oy, oz, 1, filters, batch
-	long kdims_working[6]; //filters, channel, kx, ky, kz, 1	or kx, ky, kz channel, filters, 1
-	long strides_working[6];
-	long dilations_working[6];
+			kdims_op[ip] = kernel_dims[i];
+			odims_op[ip] = odims[i];
 
-	for (int i = 0; i < 6; i++) {
+			str_op[ip] = strides[i];
+			dil_op[ip] = dilations[i];
 
-		strides_working[i] = 1;
-		dilations_working[i] = 1;
+			kdims[ik] = kernel_dims[i];
+
+			conv_op_flags = MD_SET(conv_op_flags, ip);
+
+			ip++;
+			ik++;
+
+			continue;
+		}
+
+		if ((1 != dilations[i]) || (1 != strides[i])) {
+
+			debug_printf(DP_INFO, "convcorr strides: ");
+			debug_print_dims(DP_INFO, N, strides);
+			debug_printf(DP_INFO, "convcorr dilations: ");
+			debug_print_dims(DP_INFO, N, dilations);
+			error("Dilations and Strides are only involved in spatial dimensions!\n");
+		}
+
+		if (MD_IS_SET(channel_flag, i)) {
+
+			kdims_op[ip] = odims[i];
+			odims_op[ip] = odims[i];
+			ip++;
+			kdims_op[ip] = kernel_dims[i];
+			idims_op[ip] = kernel_dims[i];
+			
+			kdims[ik] = odims[i];
+			ik++;
+			idims[i] = kernel_dims[i];
+			kdims[ik] = idims[i];
+
+			ip++;
+			ik++;
+
+			continue;
+		}
+
+		if (MD_IS_SET(group_flag, i)) {
+
+			// batch dimensions
+			assert(kernel_dims[i] == idims[i]);
+			
+			kdims_op[ip] = kernel_dims[i];
+			odims_op[ip] = idims[i];
+			idims_op[ip] = idims[i];
+
+			kdims[ik] = kernel_dims[i];
+			odims[i] = idims[i];
+
+			ip++;
+			ik++;
+
+			continue;
+		}
+
+		// batch dimensions
+		assert(1 == kernel_dims[i]);
+		kdims_op[ip] = kernel_dims[i];
+		odims_op[ip] = odims[i];
+		idims_op[ip] = odims[i];
+
+		idims[i] = odims[i];
+
+		ip++;
 	}
-	if (channel_first){
 
-		idims_working[0] = 1;
-		idims_working[1] = channels;
-		md_copy_dims(3, idims_working + 2, idims_xyz);
-		idims_working[5] = batch;
+	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(	ip, conv_op_flags,
+									odims_op, idims_op, kdims_op,
+									conv_pad, conv,
+									str_op, dil_op,
+									adjoint ? 'C' : 'T'
+								);
+	
+	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, N, idims);
+	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, N, odims);
+	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, ik, kdims);
 
-		odims_layer[0] = filters;
-		md_copy_dims(3, odims_layer + 1, odims_xyz);
-		odims_layer[4] = batch;
-		odims_working[0] = filters;
-		odims_working[1] = 1;
-		md_copy_dims(3, odims_working + 2, odims_xyz);
-		odims_working[5] = batch;
-
-		kdims_layer[0] = filters;
-		kdims_layer[1] = channels;
-		md_copy_dims(3, kdims_layer + 2, kernel_size);
-		md_copy_dims(5, kdims_working, kdims_layer);
-		kdims_working[5] = 1;
-
-		md_copy_dims(3, strides_working + 2, strides);
-		md_copy_dims(3, dilations_working + 2, dilations);
-	} else {
-
-		md_copy_dims(3, idims_working, idims_xyz);
-		idims_working[3] = channels;
-		idims_working[4] = 1;
-		idims_working[5] = batch;
-
-		md_copy_dims(3, odims_layer, odims_xyz);
-		odims_layer[3] = filters;
-		odims_layer[4] = batch;
-
-		md_copy_dims(3, odims_working, odims_xyz);
-		odims_working[3] = 1;
-		odims_working[4] = filters;
-		odims_working[5] = batch;
-
-		md_copy_dims(3, kdims_layer, kernel_size);
-		kdims_layer[3] = channels;
-		kdims_layer[4] = filters;
-		md_copy_dims(5, kdims_working, kdims_layer);
-		kdims_working[5] = 1;
-
-		md_copy_dims(3, strides_working, strides);
-		md_copy_dims(3, dilations_working, dilations);
-	}
-
-	//select x y z dimensions (channel_first ? 001110 : 111000)
-	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working,
-								conv_pad, conv, strides_working, dilations_working, 'N');
-	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, 5, odims_layer);
-	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, 5, idims_layer);
-	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, 5, kdims_layer);
 	network = nlop_chain2_FF(network, o, nlop_conv, 0);
 
 	network = nlop_shift_input_F(network, NI, 0);
@@ -166,141 +399,109 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 }
 
 /**
- * Append transposed convolution/correlation layer
+ * Append convolution/correlation layer
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
  * @param filters number of output channels
  * @param kernel_size {kx, ky, kz} size of convolution kernel
  * @param conv convolution if true, correlation else
+ * @param conv_pad padding for the convolution
+ * @param channel_first data layout is {c, x, y, z}/{filter, channel, kx, ky, kz} if true, {x, y, z, c} {kx, ky, kz, filter, channel} else
+ * @param strides only take into account convolutions separated by strides {sx, sy, sz} (0 == (idims_xyz[i] - dilations[i] * (kernel_size[i] - 1) - 1) % strides[i]))
+ * @param dilations elements of kernel dilated by {dx, dy, dz}
+ */
+const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, int filters, long const kernel_size[3], bool conv, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3])
+{
+	if (channel_first) {
+
+		long kernel[5] = {filters, kernel_size[0], kernel_size[1], kernel_size[2], 1};
+		long dil_tmp[5] = { 1, 1, 1, 1, 1};
+		long str_tmp[5] = { 1, 1, 1, 1, 1};
+
+		if (NULL != dilations)
+			md_copy_dims(3, dil_tmp + 1, dilations);
+		if (NULL != strides)
+			md_copy_dims(3, str_tmp + 1, strides);
+		
+		return append_convcorr_layer_generic(	
+						network, o,
+						14, 1, 0,
+						5, kernel, str_tmp, dil_tmp,
+						conv, conv_pad
+					);
+	} else {
+
+		long kernel[5] = {kernel_size[0], kernel_size[1], kernel_size[2], filters, 1};
+		long dil_tmp[5] = { 1, 1, 1, 1, 1};
+		long str_tmp[5] = { 1, 1, 1, 1, 1};
+
+		if (NULL != dilations)
+			md_copy_dims(3, dil_tmp, dilations);
+		if (NULL != strides)
+			md_copy_dims(3, str_tmp, strides);
+		
+		return append_convcorr_layer_generic(	
+						network, o,
+						7, 8, 0,
+						5, kernel, str_tmp, dil_tmp,
+						conv, conv_pad
+					);
+
+	}
+}
+
+/**
+ * Append transposed convolution/correlation layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param channels number of output channels (input channels of forward convolution)
+ * @param kernel_size {kx, ky, kz} size of convolution kernel
+ * @param conv convolution if true, correlation else
  * @param adjoint if true, the operator is a adjoint convolution, else it's a transposed one
  * @param conv_pad padding for the convolution
- * @param channel_first data layout is {c, x, y, z}/{filter, channel, kx, ky, kz} if true, {x, y, z, c} {kx, ky, kz, channel, filter} else
+ * @param channel_first data layout is {c, x, y, z}/{filter, channel, kx, ky, kz} if true, {x, y, z, c} {kx, ky, kz, filter, channel} else
  * @param strides only take into account convolutions seperated by strides {sx, sy, sz}
  * @param dilations elements of kernel dilated by {dx, dy, dz}
  */
 const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* network, int o, int channels, long const kernel_size[3], bool conv, bool adjoint, enum PADDING conv_pad, bool channel_first, const long strides[3], const long dilations[3])
 {
-	const long ones[3] = {1, 1, 1};
-	if (NULL == strides)
-		strides = ones;
-	if (NULL == dilations)
-		dilations = ones;
+	if (channel_first) {
 
-	int NO = nlop_get_nr_out_args(network);
-	int NI = nlop_get_nr_in_args(network);
+		long kernel[5] = {channels, kernel_size[0], kernel_size[1], kernel_size[2], 1};
+		long dil_tmp[5] = { 1, 1, 1, 1, 1};
+		long str_tmp[5] = { 1, 1, 1, 1, 1};
 
-	assert(o < NO);
-	assert((nlop_generic_codomain(network, o))->N == 5);
-
-	//note that idims, odims, kdims refer to the dimensions of the forward convolution, i.e. idims[i] = strs[i] * (odims[i] - 1) + 1 + dil[i] * (kernel[i] - 1)
-
-	long idims_layer[5]; //channel, x, y, z, batch		or x, y, z, channel, batch
-	long odims_layer[5]; //filters, ox, oy, oz, batch	or ox, oy, oz, filters, batch
-	long kdims_layer[5]; //filters, channel, kx, ky, kz	or x, y, z channel, filters
-
-	long ostrs_layer[5];
-
-	md_copy_dims(5, odims_layer, nlop_generic_codomain(network, o)->dims);
-	md_copy_strides(5, ostrs_layer, nlop_generic_codomain(network, o)->strs);
-
-	long idims_xyz[3];
-	long odims_xyz[3];
-	long filters = 0;
-	long batch = odims_layer[4];
-
-	if (channel_first){
-
-		filters = odims_layer[0];
-		md_copy_dims(3, odims_xyz, odims_layer + 1);
+		if (NULL != dilations)
+			md_copy_dims(3, dil_tmp + 1, dilations);
+		if (NULL != strides)
+			md_copy_dims(3, str_tmp + 1, strides);
+		
+		return append_transposed_convcorr_layer_generic(	
+						network, o,
+						14, 1, 0,
+						5, kernel, str_tmp, dil_tmp,
+						conv, conv_pad, adjoint
+					);
 	} else {
 
-		filters = odims_layer[3];
-		md_copy_dims(3, odims_xyz, odims_layer);
+		long kernel[5] = {kernel_size[0], kernel_size[1], kernel_size[2], channels, 1};
+		long dil_tmp[5] = { 1, 1, 1, 1, 1};
+		long str_tmp[5] = { 1, 1, 1, 1, 1};
+
+		if (NULL != dilations)
+			md_copy_dims(3, dil_tmp, dilations);
+		if (NULL != strides)
+			md_copy_dims(3, str_tmp, strides);
+		
+		return append_transposed_convcorr_layer_generic(	
+						network, o,
+						7, 8, 0,
+						5, kernel, str_tmp, dil_tmp,
+						conv, conv_pad, adjoint
+					);
 	}
-
-	//calculate input dimension based on kernel size, dilations and strides: idims[i] = strs[i] * (odims[i] - 1) + 1 + dil[i] * (kernel[i] - 1)
-	if (conv_pad == PAD_VALID)
-		for (int i = 0; i < 3; i++)
-			idims_xyz[i] = strides[i] * (odims_xyz[i] - 1) + 1 + dilations[i] * (kernel_size[i] - 1);
-	else
-		md_copy_dims(3, idims_xyz, odims_xyz);
-
-	long idims_working[6]; //1, channel, x, y, z, batch		or x, y, z, channel, 1, batch
-	long odims_working[6]; //filters, 1, ox, oy, oz, batch		or ox, oy, oz, 1, filters, batch
-	long kdims_working[6]; //filters, channel, kx, ky, kz, 1	or kx, ky, kz channel, filters, 1
-	long strides_working[6];
-	long dilations_working[6];
-
-	for (int i = 0; i < 6; i++) {
-
-		strides_working[i] = 1;
-		dilations_working[i] = 1;
-	}
-
-	if (channel_first){
-
-		idims_working[0] = 1;
-		idims_working[1] = channels;
-		md_copy_dims(3, idims_working + 2, idims_xyz);
-		idims_working[5] = batch;
-
-		idims_layer[0] = channels;
-		md_copy_dims(3, idims_layer + 1, idims_xyz);
-		idims_layer[4] = batch;
-
-
-		odims_working[0] = filters;
-		odims_working[1] = 1;
-		md_copy_dims(3, odims_working + 2, odims_xyz);
-		odims_working[5] = batch;
-
-		kdims_layer[0] = filters;
-		kdims_layer[1] = channels;
-		md_copy_dims(3, kdims_layer + 2, kernel_size);
-		md_copy_dims(5, kdims_working, kdims_layer);
-		kdims_working[5] = 1;
-
-		md_copy_dims(3, strides_working + 2, strides);
-		md_copy_dims(3, dilations_working + 2, strides);
-	} else {
-
-		md_copy_dims(3, idims_working, idims_xyz);
-		idims_working[3] = channels;
-		idims_working[4] = 1;
-		idims_working[5] = batch;
-
-		md_copy_dims(3, idims_layer, idims_xyz);
-		idims_layer[3] = channels;
-		idims_layer[4] = batch;
-
-		md_copy_dims(3, odims_working, odims_xyz);
-		odims_working[3] = 1;
-		odims_working[4] = filters;
-		odims_working[5] = batch;
-
-		md_copy_dims(3, kdims_layer, kernel_size);
-		kdims_layer[3] = channels;
-		kdims_layer[4] = filters;
-		md_copy_dims(5, kdims_working, kdims_layer);
-		kdims_working[5] = 1;
-
-		md_copy_dims(3, strides_working, strides);
-		md_copy_dims(3, dilations_working, strides);
-	}
-
-	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(6, (channel_first ? 28 : 7), odims_working, idims_working, kdims_working,
-									conv_pad, conv, strides_working, dilations_working, adjoint ? 'C' : 'T');
-
-	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, 5, idims_layer);
-	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, 5, odims_layer);
-	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, 5, kdims_layer);
-
-	network = nlop_chain2_FF(network, o, nlop_conv, 0);
-	network = nlop_shift_input_F(network, NI, 0);
-	network = nlop_shift_output_F(network, o, 0);
-
-	return network;
 }
 
 /**
