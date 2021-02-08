@@ -255,14 +255,18 @@ static bool test_nlop_op_ev(void)
 
 	nlop_get_partial_ev(test, in_dims, ev, src);
 
-	UT_ASSERT(crealf(ev[0]) == 1.);
+	if (crealf(ev[0]) != 1.)
+		return 0;
 
-	UT_ASSERT(crealf(ev[1]) == 4.);
+	if (crealf(ev[1]) != 4.)
+		return 0;
 
 	nlop_free(test);
 
 	md_free(src);
 	md_free(ev);
+
+	return 1;
 
 }
 UT_REGISTER_TEST(test_nlop_op_ev);
@@ -287,14 +291,19 @@ static bool test_nlop_op_scaling(void)
 	// Compare to reference 1
 	nlop_get_partial_scaling(test, in_dims, scaling, src, 1);
 
-	UT_ASSERT(crealf(scaling[0]) == 4.);
+	if (crealf(scaling[0]) != 4.)
+		return 0;
 
-	UT_ASSERT(crealf(scaling[1]) == 1.);
+	if (crealf(scaling[1]) != 1.)
+		return 0;
 
-	nlop_free(test);
+	// FIXME: Fix memory leak: What is the difference to code in "test_nlop_op_ev"?!
+	// nlop_free(test);
 
 	md_free(src);
 	md_free(scaling);
+
+	return 1;
 
 }
 UT_REGISTER_TEST(test_nlop_op_scaling);
