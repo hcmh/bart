@@ -107,18 +107,18 @@ static const char help_str[] = "Perform morphological operators on binary data."
 
 int main_morph(int argc, char* argv[])
 {
-	enum morph_type { NONE, EROSION, DILATION, OPENING, CLOSING } morph_type = NONE;
+	enum morph_type { EROSION, DILATION, OPENING, CLOSING } morph_type = EROSION;
 
 	enum mask_type { HLINE, VLINE, CROSS, BLOCK } mask_type = BLOCK;
 
 
 	const struct opt_s opts[] = {
 
-		OPT_SELECT('e', enum morph_type, &morph_type, EROSION, "EROSION"),
+		OPT_SELECT('e', enum morph_type, &morph_type, EROSION, "EROSION (default)"),
 		OPT_SELECT('d', enum morph_type, &morph_type, DILATION, "DILATION"),
 		OPT_SELECT('o', enum morph_type, &morph_type, OPENING, "OPENING"),
 		OPT_SELECT('c', enum morph_type, &morph_type, CLOSING, "CLOSING"),
-		OPT_SELECT('b', enum mask_type, &mask_type, BLOCK, "mask type: BLOCK (default"),
+		OPT_SELECT('b', enum mask_type, &mask_type, BLOCK, "mask type: BLOCK (default)"),
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
