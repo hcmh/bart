@@ -241,6 +241,7 @@ MODULES_sudoku = -llinops -liter
 MODULES_nnvn = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_nnmodl = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_mnist = -lnetworks -lnn -lnlops -llinops -liter
+MODULES_morph = -lnlops -llinops -lgeom
 
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
