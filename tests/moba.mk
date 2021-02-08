@@ -115,7 +115,7 @@ tests/test-moba-t1-nufft: traj transpose phantom signal nufft fft ones index sca
 	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                    	       		;\
 	$(TOOLDIR)/moba -L -l1 -i11 -C200 -j0.01 -p psf.ra k_space.ra TI.ra reco.ra	;\
 	$(TOOLDIR)/moba -L -l1 -i11 -C200 -j0.01 -o1.0 -t _traj2.ra data.ra TI.ra reco2.ra ;\
-	$(TOOLDIR)/nrmse -t 0.00003 reco.ra reco2.ra			    		;\
+	$(TOOLDIR)/nrmse -t 0.00004 reco.ra reco2.ra			    		;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
