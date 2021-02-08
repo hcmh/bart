@@ -48,6 +48,7 @@
 #include "moba/meco.h"
 #include "moba/recon_meco.h"
 
+#include "simu/signals.h"
 
 static const char usage_str[] = "<kspace> <TI/TE> <output> [<sensitivities>]";
 static const char help_str[] = "Model-based nonlinear inverse reconstruction\n";
@@ -119,6 +120,8 @@ int main_moba(int argc, char* argv[argc])
 
 	long spokes_per_tr = 1;
 
+	enum fat_spec fat_spec = FAT_SPEC_1;
+
 	opt_reg_init(&ropts);
 
 	opt_reg_init(&ropts);
@@ -161,6 +164,7 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SET('n', &conf.auto_norm_off, "disable normlization of parameter maps for thresholding"),
 		OPT_STRING('A',	&input_alpha, 		"", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
 		OPTL_LONG(0, "spokes-per-TR", &(spokes_per_tr), "sptr", "number of averaged spokes [default: 1]"),
+		OPTL_SELECT(0, "fat_spec_0", enum fat_spec, &fat_spec, FAT_SPEC_0, "select fat spectrum from ISMRM fat-water tool"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -527,7 +531,7 @@ int main_moba(int argc, char* argv[argc])
 			break;
 
 		case MDB_MGRE:
-			meco_recon(&conf, mgre_model, false, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, kspace_gpu);
+			meco_recon(&conf, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, kspace_gpu);
 			break;
 		};
 
@@ -547,7 +551,7 @@ int main_moba(int argc, char* argv[argc])
 		break;
 
 	case MDB_MGRE:
-		meco_recon(&conf, mgre_model, false, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, k_grid_data);
+		meco_recon(&conf, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, k_grid_data);
 		break;
 	};
 
