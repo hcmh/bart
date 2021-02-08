@@ -20,6 +20,7 @@
 #include "num/init.h"
 #include "num/multind.h"
 
+#include "simu/signals.h"
 
 #ifndef CFL_SIZE
 #define CFL_SIZE sizeof(complex float)
@@ -96,7 +97,7 @@ int main_tbasis(int argc, char* argv[])
 	}
 
 	complex float* cshift = md_alloc(N, dims_TE, CFL_SIZE);
-	meco_calc_fat_modu(N, dims_TE, TE, cshift);
+	meco_calc_fat_modu(N, dims_TE, TE, cshift, FAT_SPEC_1);
 
 
 	long p = 0;
