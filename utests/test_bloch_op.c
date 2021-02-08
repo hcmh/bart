@@ -34,7 +34,7 @@
 
 #include "utest.h"
 
-static bool test_bloch_irflash(void)
+static bool test_bloch_irflash_frw(void)
 {
 	enum { N = 16 };
 	enum { rep = 300 };
@@ -52,7 +52,8 @@ static bool test_bloch_irflash(void)
 	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
 	md_zfill(N, in_dims, src, 1.0);
 
-	complex float* dst_bl = md_alloc(N, out_dims, CFL_SIZE);
+	complex float* dst_frw_bloch = md_alloc(N, out_dims, CFL_SIZE);
+	complex float* dst_der_bloch = md_alloc(N, out_dims, CFL_SIZE);
 
 	struct modBlochFit fit_para = modBlochFit_defaults;
 
@@ -60,21 +61,30 @@ static bool test_bloch_irflash(void)
 	fit_para.sequence = 5;
 	fit_para.tr = 0.003;
 	fit_para.te = 0.001;
-	fit_para.fa = 1.;
+	fit_para.fa = 8.;
 	fit_para.rfduration = 0.00001;
 	fit_para.inversion_pulse_length = 0.;
 	fit_para.prep_pulse_length = 0.;
 
-	// Correction for simulation to start with |Mxy|(t=0)=1 (as for analytical model)
-	// assuming: M0 * sin(fa) = Mxy
-	// only holds for small FA if t!=0
-	fit_para.scale[1] = 1./sinf(fit_para.fa * M_PI/180.);
+	// Correct M0 to ensure same scaling between Bloch simulation and IR FLASH model
+	long pos[DIMS];
+	md_set_dims(DIMS, pos, 0);
+
+	complex float* tmp = md_alloc(DIMS, map_dims, CFL_SIZE);
+	md_zfill(DIMS, map_dims, tmp, 1./sinf(fit_para.fa * M_PI/180.));
+
+	pos[COEFF_DIM] = 1;
+	md_copy_block(DIMS, pos, in_dims, src, map_dims, tmp, CFL_SIZE);
+
+	md_free(tmp);
 
 	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
 
-	nlop_apply(Bloch, N, out_dims, dst_bl, N, in_dims, src);
+	nlop_apply(Bloch, N, out_dims, dst_frw_bloch, N, in_dims, src);
+	nlop_derivative(Bloch, N, out_dims, dst_der_bloch, N, in_dims, src);
 
-	// dump_cfl("_dst_bl", N, out_dims, dst_bl);
+	// dump_cfl("_dst_frw_bloch", N, out_dims, dst_frw_bloch);
+	// dump_cfl("_dst_der_bloch", N, out_dims, dst_der_bloch);
 
 	nlop_free(Bloch);
 	md_free(src);
@@ -87,13 +97,15 @@ static bool test_bloch_irflash(void)
 	complex float* src2 = md_alloc(N, in_dims, CFL_SIZE);
 	md_zfill(N, in_dims, src2, 1.0);
 
-	complex float* dst_ll = md_alloc(N, out_dims, CFL_SIZE);
+	complex float* dst_frw_irflash = md_alloc(N, out_dims, CFL_SIZE);
+	complex float* dst_der_irflash = md_alloc(N, out_dims, CFL_SIZE);
 
 	// Inversion times
 	complex float* TI = md_alloc(N, TI_dims, CFL_SIZE);
 
+	// ! Analytical Assumption: Mxy(t=TE) == Mz(t=0)
 	for (int i = 0; i < rep; i++)
-		TI[i] = fit_para.te + i * fit_para.tr;
+		TI[i] =  i * fit_para.tr;
 
 	// alpha map
 	complex float* fa = md_alloc(N, map_dims, CFL_SIZE);
@@ -107,9 +119,11 @@ static bool test_bloch_irflash(void)
 
 	struct nlop_s* T1 = nlop_T1_alpha_in_create(N, map_dims, out_dims, in_dims, TI_dims, TI, alpha, gpu_use);
 
-	nlop_apply(T1, N, out_dims, dst_ll, N, in_dims, src2);
+	nlop_apply(T1, N, out_dims, dst_frw_irflash, N, in_dims, src2);
+	nlop_derivative(T1, N, out_dims, dst_der_irflash, N, in_dims, src2);
 
-	// dump_cfl("_dst_ll", N, out_dims, dst_ll);
+	// dump_cfl("_dst_frw_irflash", N, out_dims, dst_frw_irflash);
+	// dump_cfl("_dst_der_irflash", N, out_dims, dst_der_irflash);
 
 	nlop_free(T1);
 	md_free(src2);
@@ -118,17 +132,25 @@ static bool test_bloch_irflash(void)
 
 	// Compare operator outputs
 
-	float err = md_znrmse(N, out_dims, dst_ll, dst_bl);
+	float err_frw = md_znrmse(N, out_dims, dst_frw_irflash, dst_frw_bloch);
+	// debug_printf(DP_INFO, "Error Forward: %f\n", err_frw);
 
-	// debug_printf(DP_INFO, "Error: %f\n", err);
+	float err_der = md_znrmse(N, out_dims, dst_der_irflash, dst_der_bloch);
+	// debug_printf(DP_INFO, "Error Derivative: %f\n", err_der);
 
-	md_free(dst_ll);
-	md_free(dst_bl);
 
-	UT_ASSERT(err < 0.003);
+	md_free(dst_frw_irflash);
+	md_free(dst_frw_bloch);
 
+	if (err_frw > 3.E-3)
+		return 0;
+
+	if (err_der > 5.E-3)
+		return 0;
+
+	return 1;
 }
-UT_REGISTER_TEST(test_bloch_irflash);
+UT_REGISTER_TEST(test_bloch_irflash_frw);
 
 
 static bool test_bloch_ode_obs_irflash(void)
@@ -245,7 +267,7 @@ static bool test_bloch_ode_obs_irbssfp(void)
 
 	float err = md_znrmse(N, out_dims, dst2, dst1);
 
-	debug_printf(DP_INFO, "Error: %f\n", err);
+	// debug_printf(DP_INFO, "Error: %f\n", err);
 
 	nlop_free(Bloch);
 	nlop_free(Bloch2);
