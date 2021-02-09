@@ -76,7 +76,7 @@ extern struct opt_conf_s opt_conf_s_defaults;
 
 
 
-typedef enum {IR, MOLLI, IR_SS, IR_phy, IR_phy_alpha_in, Bloch} moba_model;
+typedef enum {IR, MOLLI, IR_SS, IR_phy, IR_phy_alpha_in, T2, Bloch} moba_model;
 
 struct moba_conf_s {
 

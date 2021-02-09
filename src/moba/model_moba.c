@@ -29,6 +29,7 @@
 
 #include "moba/moba.h"
 #include "moba/T1fun.h"
+#include "moba/T2fun.h"
 #include "moba/IR_SS_fun.h"
 #include "moba/T1MOLLI.h"
 #include "moba/T1_alpha.h"
@@ -108,6 +109,11 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 	case IR_phy_alpha_in:
 
 		model = nlop_T1_alpha_in_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash.input_TI, conf_model->irflash.input_alpha, use_gpu);
+		break;
+
+	case T2:
+
+		model = nlop_T2_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash.input_TI, use_gpu);
 		break;
 
 	case Bloch:
