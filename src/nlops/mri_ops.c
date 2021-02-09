@@ -482,6 +482,11 @@ struct mri_normal_inversion_s {
 	complex float* coil;
 	complex float* out;
 
+	bool store_tmp_lambda;
+	complex float* dout;	//Adjoint lambda and adjoint in
+	complex float* AhAdout;	//share same intermediate result
+
+
 	const struct operator_s** normal_op;
 
 	struct iter_conjgrad_conf iter_conf;
@@ -621,6 +626,32 @@ static void mri_normal(const struct mri_normal_inversion_s* d, complex float* ds
 	} while (md_next(d->N, d->bdims, ~(0ul), pos));
 }
 
+static void mri_free_store_tmp_adj(struct mri_normal_inversion_s* d, const complex float* AhAdout, const complex float* dout)
+{
+	if (!d->store_tmp_lambda)
+		return;
+
+	if (NULL == d->dout)
+		d->dout = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dout);
+	if (NULL == d->AhAdout)
+		d->AhAdout = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, AhAdout);
+	
+	md_copy(d->N, d->idims, d->dout, dout, CFL_SIZE);
+	md_copy(d->N, d->idims, d->AhAdout, AhAdout, CFL_SIZE);
+}
+
+static bool mri_free_load_tmp_adj(struct mri_normal_inversion_s* d, complex float* AhAdout, const complex float* dout)
+{
+	if ((NULL == d->dout) || (NULL == d->AhAdout))
+		return false;
+	
+	if (0 != md_zrmse(d->N, d->idims, d->dout, dout))
+		return false;
+
+	md_copy(d->N, d->idims, AhAdout, d->AhAdout, CFL_SIZE);
+	return true;
+}
+
 static void mri_normal_inversion_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
 	UNUSED(o);
@@ -638,7 +669,12 @@ static void mri_normal_inversion_adj(const nlop_data_t* _data, unsigned int o, u
 
 	const auto d = CAST_DOWN(mri_normal_inversion_s, _data);
 
+	if (mri_free_load_tmp_adj(d, dst, src))
+		return;
+
 	mri_normal_inversion(d, dst, src);
+	mri_free_store_tmp_adj(d, dst, src);
+
 }
 
 static void mri_normal_inversion_der_lambda(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -666,10 +702,13 @@ static void mri_normal_inversion_adj_lambda(const nlop_data_t* _data, unsigned i
 
 	complex float* tmp = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
 
-	mri_normal_inversion(d, tmp, d->out);
+	if (!mri_free_load_tmp_adj(d, tmp, src)) {
 
-	md_zconj(d->N, d->idims, tmp, tmp);
-	md_ztenmul(d->N, MD_SINGLETON_DIMS(d->N), dst, d->idims, src, d->idims, tmp);
+		mri_normal_inversion(d, tmp, src);
+		mri_free_store_tmp_adj(d, tmp, src);
+	}
+
+	md_ztenmulc(d->N, MD_SINGLETON_DIMS(d->N), dst, d->idims, d->out, d->idims, tmp);
 	md_free(tmp);
 
 	md_zsmul(d->N, MD_SINGLETON_DIMS(d->N), dst, dst, -1);
@@ -694,6 +733,15 @@ static void mri_free_normal_ops(struct mri_normal_inversion_s* d)
 	} while (md_next(d->N, d->bdims, ~(0ul), pos));
 }
 
+static void mri_free_tmp_adj(struct mri_normal_inversion_s* d)
+{
+	md_free(d->dout);
+	d->dout = NULL;
+	md_free(d->AhAdout);
+	d->AhAdout = NULL;
+	d->store_tmp_lambda = false;
+}
+
 static void mri_normal_inversion_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
 {
 	const auto d = CAST_DOWN(mri_normal_inversion_s, _data);
@@ -708,6 +756,8 @@ static void mri_normal_inversion_fun(const nlop_data_t* _data, int Narg, complex
 	bool der_in = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
 	bool der_lam = !op_options_is_set_io(_data->options, 0, 3, OP_APP_NO_DER);
 	der_lam = der_lam && (-1 == d->lambda_fixed);
+
+	mri_free_tmp_adj(d);
 
 	mri_normal_inversion_set_normal_ops(d, coil, pattern, lptr);
 
@@ -726,6 +776,8 @@ static void mri_normal_inversion_fun(const nlop_data_t* _data, int Narg, complex
 		if (!der_in)
 			mri_free_normal_ops(d);
 	}
+
+	d->store_tmp_lambda = der_lam && der_in;
 }
 
 static void mri_normal_inversion_del(const nlop_data_t* _data)
@@ -748,6 +800,9 @@ static void mri_normal_inversion_del(const nlop_data_t* _data)
 	xfree(d->bdims);
 
 	md_free(d->out);
+
+	md_free(d->dout);
+	md_free(d->AhAdout);
 
 	linop_free(d->lop_fft);
 	linop_free(d->lop_fft_mod);
@@ -825,6 +880,10 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
 	// will be initialized later, to transparently support GPU
 	data->out= NULL;
 	data->coil = NULL;
+
+	data->dout = NULL;
+	data->AhAdout = NULL;
+	data->store_tmp_lambda = false;
 
 	data->lambda_fixed = conf->lambda_fixed;
 
@@ -935,7 +994,12 @@ static void mri_reg_proj_adj(const nlop_data_t* _data, unsigned int o, unsigned 
 
 	complex float* tmp = md_alloc_sameplace(d->N, d->idims, CFL_SIZE, dst);
 
-	mri_normal_inversion(d, tmp, src);
+	if (!mri_free_load_tmp_adj(d, tmp, src)) {
+
+		mri_normal_inversion(d, tmp, src);
+		mri_free_store_tmp_adj(d, tmp, src);
+	}
+
 	mri_normal(d, dst, tmp);
 
 	md_free(tmp);
@@ -956,6 +1020,8 @@ static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* 
 	bool der_in = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
 	bool der_lam = !op_options_is_set_io(_data->options, 0, 3, OP_APP_NO_DER);
 	der_lam = der_lam && (-1 == d->lambda_fixed);
+
+	mri_free_tmp_adj(d);
 
 	mri_normal_inversion_set_normal_ops(d, coil, pattern, lptr);
 
@@ -978,6 +1044,7 @@ static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* 
 		if (!der_in)
 			mri_free_normal_ops(d);
 	}
+	d->store_tmp_lambda = der_lam && der_in;
 }
 
 
