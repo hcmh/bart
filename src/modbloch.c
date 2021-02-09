@@ -349,6 +349,8 @@ int main_modbloch(int argc, char* argv[])
 
 		input_b1 = load_cfl(inputB1, DIMS, input_b1_dims);
 
+		assert(md_check_bounds(DIMS, FFT_FLAGS, grid_dims, input_b1_dims));
+
 		fit_para.input_b1 = md_alloc(DIMS, input_b1_dims, CFL_SIZE);
 		md_copy(DIMS, input_b1_dims, fit_para.input_b1, input_b1, CFL_SIZE);
 	}
