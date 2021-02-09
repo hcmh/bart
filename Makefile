@@ -174,7 +174,7 @@ TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobafit cdi modbloch pixel n
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans convkern nlsa eof
 TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon synthesize fovshift
 TIO=toimg dcmread dcmtag
-TSIM=phantom phantom_json traj upat bloch sim tbasis signal
+TSIM=phantom phantom_json traj upat bloch sim tbasis signal epg
 TNN=mnist nnsegm nnvn nnmodl
 
 
@@ -242,6 +242,7 @@ MODULES_nnvn = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_nnmodl = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_mnist = -lnetworks -lnn -lnlops -llinops -liter
 MODULES_morph = -lnlops -llinops -lgeom
+MODULES_epg = -lsimu
 
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
@@ -577,13 +578,14 @@ UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test
 UTARGETS_GPU += test_cuda_gpukrnls test_cudafft test_cuda_flpmath2 test_cuda_memcache_clear
 
 # lib simu
-UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_biot_savart_fft test_ode_simu test_signals
+UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_biot_savart_fft test_ode_simu test_signals test_epg
 MODULES_test_ode_bloch += -lsimu
 MODULES_test_tsegf += -lsimu
 MODULES_test_biot_savart += -lsimu
 MODULES_test_biot_savart_fft += -lsimu -llinops
 MODULES_test_ode_simu += -lsimu
 MODULES_test_signals += -lsimu
+MODULES_test_epg += -lsimu
 
 # lib slice profile
 UTARGETS +=test_slice_profile
