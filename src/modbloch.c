@@ -220,6 +220,10 @@ int main_modbloch(int argc, char* argv[])
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, coil_dims);
 	md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 
+	long dims[DIMS];
+	md_copy_dims(DIMS, dims, grid_dims);
+
+	dims[COEFF_DIM] = img_dims[COEFF_DIM];
 	
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, grid_dims);
@@ -446,7 +450,7 @@ int main_modbloch(int argc, char* argv[])
 		scaling = 500;
 
 #else	// full data based scaling of data
-	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data) * ksp_dims[2];
+	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);// * ksp_dims[2];
 #endif
 
 	debug_printf(DP_INFO, "Data Scaling: %f,\t Spokes: %ld\n", scaling, ksp_dims[PHS2_DIM]);
@@ -523,13 +527,13 @@ int main_modbloch(int argc, char* argv[])
 		md_copy(DIMS, grid_dims, kspace_gpu, k_grid_data, CFL_SIZE);
 
 
-		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
+		bloch_recon(&conf, &fit_para, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
 
 		md_free(kspace_gpu);
 	} else
 #endif
 
-		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, k_grid_data, use_gpu);
+		bloch_recon(&conf, &fit_para, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
 
 	// Rescale resulting PARAMETER maps
 

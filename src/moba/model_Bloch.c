@@ -69,28 +69,24 @@ const struct modBlochFit modBlochFit_defaults = {
 	.input_fa_profile = NULL,
 };
 
-
 struct modBloch_s bloch_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf, const struct modBlochFit* fit_para, _Bool usegpu)
 {
-	
-	struct noir_s nlinv = noir_create3(dims, mask, psf, conf);
+	long data_dims[DIMS];
+	md_select_dims(DIMS, ~COEFF_FLAG, data_dims, dims);
+
+	struct noir_s nlinv = noir_create3(data_dims, mask, psf, conf);
 	struct modBloch_s ret;
 
-	long all_dims[DIMS];
 	long map_dims[DIMS];
 	long out_dims[DIMS];
 	long in_dims[DIMS];
 
-	md_select_dims(DIMS, conf->fft_flags|TE_FLAG|COEFF_FLAG|TIME2_FLAG, all_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|TIME2_FLAG, map_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|TE_FLAG|TIME2_FLAG, out_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG|TIME2_FLAG, in_dims, dims);
-
-
-	in_dims[COEFF_DIM] = all_dims[COEFF_DIM] =  3;
 	
 #if 1
-	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, all_dims, map_dims, out_dims, in_dims, fit_para, usegpu);
+	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, dims, map_dims, out_dims, in_dims, fit_para, usegpu);
 
 	debug_printf(DP_INFO, "Bloch(.)\n");
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(Bloch, 0)->dims); 			//input-dims of Bloch operator

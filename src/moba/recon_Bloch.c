@@ -41,8 +41,6 @@ void bloch_recon(const struct moba_conf* conf, const struct modBlochFit* fit_par
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG, data_dims, dims);
 
-	imgs_dims[COEFF_DIM] = 3;
-
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);
 	long data_size = md_calc_size(DIMS, data_dims);
