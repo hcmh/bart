@@ -229,17 +229,18 @@ void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex floa
 	// 	conf_model.model = Bloch;
 
 
-	conf_model.irflash_conf = irflash_conf_s_defaults;
-	conf_model.bloch_conf = bloch_conf_s_defaults;
+	conf_model.irflash = irflash_conf_s_defaults;
+	conf_model.sim = sim_conf_s_defaults;
+	conf_model.opt = opt_conf_s_defaults;
 
 	if (NULL != TI) {
 
 		long TI_dims[DIMS];
 		md_select_dims(DIMS, TE_FLAG|TIME_FLAG|TIME2_FLAG, TI_dims, dims);
 
-		conf_model.irflash_conf.input_TI = md_alloc(DIMS, TI_dims, CFL_SIZE);
+		conf_model.irflash.input_TI = md_alloc(DIMS, TI_dims, CFL_SIZE);
 
-		md_copy(DIMS, TI_dims, conf_model.irflash_conf.input_TI, TI, CFL_SIZE);
+		md_copy(DIMS, TI_dims, conf_model.irflash.input_TI, TI, CFL_SIZE);
 	}
 
 	if (NULL != TI_t1relax) {
@@ -249,16 +250,16 @@ void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex floa
 
 		TI_T1relax_dims[READ_DIM] = 4;// FIXME: Resulting from only 5 heartbeats?!
 
-		conf_model.irflash_conf.input_TI_t1relax = md_alloc(DIMS, TI_T1relax_dims, CFL_SIZE);
+		conf_model.irflash.input_TI_t1relax = md_alloc(DIMS, TI_T1relax_dims, CFL_SIZE);
 
-		md_copy(DIMS, TI_T1relax_dims, conf_model.irflash_conf.input_TI_t1relax, TI_t1relax, CFL_SIZE);
+		md_copy(DIMS, TI_T1relax_dims, conf_model.irflash.input_TI_t1relax, TI_t1relax, CFL_SIZE);
 	}
 
 	if (NULL != conf->input_alpha) {
 		
-		conf_model.irflash_conf.input_alpha = md_alloc(DIMS, map_dims, CFL_SIZE);
+		conf_model.irflash.input_alpha = md_alloc(DIMS, map_dims, CFL_SIZE);
 
-		md_copy(DIMS, map_dims, conf_model.irflash_conf.input_alpha, conf->input_alpha, CFL_SIZE);
+		md_copy(DIMS, map_dims, conf_model.irflash.input_alpha, conf->input_alpha, CFL_SIZE);
 	}
 
 	struct moba_s nl = moba_create(dims, mask, pattern, &mconf, &conf_model, usegpu);
@@ -344,11 +345,11 @@ void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex floa
 	}
 
 	if (NULL != TI) 
-		md_free(conf_model.irflash_conf.input_TI);
+		md_free(conf_model.irflash.input_TI);
 	if (NULL != TI_t1relax)
-		md_free(conf_model.irflash_conf.input_TI_t1relax);
+		md_free(conf_model.irflash.input_TI_t1relax);
 	if (NULL != conf->input_alpha)
-		md_free(conf_model.irflash_conf.input_alpha);
+		md_free(conf_model.irflash.input_alpha);
 
 	nlop_free(nl.nlop);
 

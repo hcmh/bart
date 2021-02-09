@@ -27,49 +27,15 @@
 
 #include "noir/model.h"
 
+#include "moba/moba.h"
 #include "moba/T1fun.h"
 #include "moba/IR_SS_fun.h"
 #include "moba/T1MOLLI.h"
 #include "moba/T1_alpha.h"
 #include "moba/T1_alpha_in.h"
-#include "blochfun.h"
+#include "moba/blochfun.h"
 
 #include "model_moba.h"
-
-const struct bloch_conf_s bloch_conf_s_defaults = {
-
-	.sequence = 1, /*inv. bSSFP*/
-	.rfduration = 0.0009,
-	.bwtp = 4,
-	.tr = 0.0045,
-	.te = 0.00225,
-	.averaged_spokes = 1,
-	.sliceprofile_spins = 1,
-	.num_vfa = 1,
-	.fa = 45.,
-	.runs = 1,
-	.inversion_pulse_length = 0.01,
-	.prep_pulse_length = 0.00225,
-
-	.scale = {1., 1., 1., 1.},
-	.fov_reduction_factor = 1.,
-	.rm_no_echo = 0.,
-	.full_ode_sim = false,
-	.not_wav_maps = 0,
-
-	.input_b1 = NULL,
-	.input_sliceprofile = NULL,
-	.input_fa_profile = NULL,
-};
-
-const struct irflash_conf_s irflash_conf_s_defaults = {
-
-	.input_TI = NULL,
-
-	.input_TI_t1relax = NULL,
-
-	.input_alpha = NULL,
-};
 
 struct moba_s moba_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf, const struct moba_conf_s* conf_model, _Bool use_gpu)
 {
@@ -108,7 +74,7 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 
 	case IR:
 
-		model = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash_conf.input_TI, use_gpu);
+		model = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash.input_TI, use_gpu);
 		break;
 
 	case MOLLI:
@@ -120,10 +86,10 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 		complex float* TI1 = md_alloc(DIMS, TI_dims, CFL_SIZE);
 		complex float* TI2 = md_alloc(DIMS, TI_dims, CFL_SIZE);
 
-		md_copy(DIMS, TI_dims, TI1, conf_model->irflash_conf.input_TI, CFL_SIZE);
-		md_copy(DIMS, TI_dims, TI2, conf_model->irflash_conf.input_TI, CFL_SIZE);
+		md_copy(DIMS, TI_dims, TI1, conf_model->irflash.input_TI, CFL_SIZE);
+		md_copy(DIMS, TI_dims, TI2, conf_model->irflash.input_TI, CFL_SIZE);
 
-        	model = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI1, TI2, conf_model->irflash_conf.input_TI_t1relax, use_gpu);
+        	model = nlop_T1MOLLI_create(DIMS, map_dims, out_dims, TI_dims, TI1, TI2, conf_model->irflash.input_TI_t1relax, use_gpu);
 
         	md_free(TI1);
 		md_free(TI2);
@@ -131,17 +97,17 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 
 	case IR_SS:
 
-		model = nlop_IR_SS_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash_conf.input_TI, use_gpu);
+		model = nlop_IR_SS_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash.input_TI, use_gpu);
 		break;
 
 	case IR_phy:
 
-		model = nlop_T1_alpha_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash_conf.input_TI, use_gpu);
+		model = nlop_T1_alpha_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash.input_TI, use_gpu);
 		break;
 
 	case IR_phy_alpha_in:
 
-		model = nlop_T1_alpha_in_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash_conf.input_TI, conf_model->irflash_conf.input_alpha, use_gpu);
+		model = nlop_T1_alpha_in_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash.input_TI, conf_model->irflash.input_alpha, use_gpu);
 		break;
 
 	case Bloch:
