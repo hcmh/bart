@@ -292,7 +292,7 @@ static void mssim_fun(const nlop_data_t* _data, int D, complex float* args[D])
 
 	complex float* tmp1 = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
 	complex float* tmp2 = md_alloc_sameplace(N, dims, CFL_SIZE, src1);
-	
+
 	md_zabs(N, dims, tmp1, src1);
 	md_zabs(N, dims, tmp2, src2);
 
@@ -417,7 +417,7 @@ const struct nlop_s* nlop_mssim_create(int N, const long dims[N], const long kdi
 			(*odims)[i] = (data->dims)[i] + 1 - (data->kdims)[i];
 		else
 			(*odims)[i] = (data->dims)[i];
-	
+
 	data->odims = *PTR_PASS(odims);
 
 	data->k1 = 0.01;
@@ -438,6 +438,7 @@ struct cce_s {
 	INTERFACE(nlop_data_t);
 
 	unsigned long N;
+	float scaling;
 	complex float* tmp_log;
 	complex float* tmp_div;
 	const struct iovec_s* dom;
@@ -473,7 +474,8 @@ static void cce_fun(const nlop_data_t* _data, int D, complex float* args[D])
 
 	long odims[1];
 	md_singleton_dims(1, odims);
-	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
+
+	md_zsmul(1, odims, dst, dst, -1. / data->scaling);
 }
 
 
@@ -489,7 +491,7 @@ static void cce_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	long odims[1];
 	md_singleton_dims(1, odims);
 	md_ztenmul2(data->N, data->dom->dims, MD_SINGLETON_STRS(data->N), dst, data->dom->strs, src, data->dom->strs, data->tmp_div);
-	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
+	md_zsmul(1, odims, dst, dst, -1. / data->scaling);
 }
 
 static void cce_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -504,7 +506,7 @@ static void cce_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	long odims[1];
 	md_singleton_dims(1, odims);
 	md_ztenmul2(data->N, data->dom->dims, MD_SINGLETON_STRS(data->N), dst, data->dom->strs, src, data->dom->strs, data->tmp_log);
-	md_zsmul(1, odims, dst, dst, -1. / data->dom->dims[data->N-1]);
+	md_zsmul(1, odims, dst, dst, -1. / data->scaling);
 }
 
 static void cce_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -519,7 +521,7 @@ static void cce_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	long odims[1];
 	md_singleton_dims(1, odims);
 	complex float* tmp = md_alloc_sameplace(1, odims, CFL_SIZE, dst);
-	md_zsmul(1, odims,  tmp, src, (complex float)(-1) / data->dom->dims[data->N-1]);
+	md_zsmul(1, odims,  tmp, src, (complex float)(-1) / data->scaling);
 	md_ztenmulc2(data->N, data->dom->dims, data->dom->strs, dst, MD_SINGLETON_STRS(data->N), tmp, data->dom->strs, data->tmp_div);
 	md_free(tmp);
 }
@@ -536,7 +538,7 @@ static void cce_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	long odims[1];
 	md_singleton_dims(1, odims);
 	complex float* tmp = md_alloc_sameplace(1, odims, CFL_SIZE, dst);
-	md_zsmul(1, odims,  tmp, src, (complex float)(-1) / data->dom->dims[data->N-1]);
+	md_zsmul(1, odims,  tmp, src, (complex float)(-1) / data->scaling);
 	md_ztenmul2(data->N, data->dom->dims, data->dom->strs, dst, MD_SINGLETON_STRS(data->N), tmp, data->dom->strs, data->tmp_log);
 	md_free(tmp);
 }
@@ -552,7 +554,21 @@ static void cce_del(const nlop_data_t* _data)
 	xfree(data);
 }
 
-const struct nlop_s* nlop_cce_create(int N, const long dims[N])
+/**
+ * Categorical cross entropy
+ *
+ * calculate cce with channels in first dimension
+ *
+ * loss = - sum_i,j t_ij * log(p_ij(x))
+ * where:	i - batch index
+ *		j - label index
+ *		t_ij = target prediction, i.e. 0 or 1 and sum_j t_ij = 1
+ *		p_ij(x) = propability predicted by the network, i.e. p_i(x) in [0, 1] and sum_j p_ij(x) = 1 (softmax activation)
+ *
+ * @param N
+ * @param dims
+ **/
+const struct nlop_s* nlop_cce_create(int N, const long dims[N], unsigned long scaling_flag)
 {
 
 	PTR_ALLOC(struct cce_s, data);
@@ -564,6 +580,10 @@ const struct nlop_s* nlop_cce_create(int N, const long dims[N])
 	// will be initialized later, to transparently support GPU
 	data->tmp_div = NULL;
     	data->tmp_log = NULL;
+
+	long scale_dims[N];
+	md_select_dims(N, scaling_flag, scale_dims, dims);
+	data->scaling = md_calc_size(N, scale_dims);
 
 	long nl_odims[1][1];
 	md_copy_dims(1, nl_odims[0], MD_SINGLETON_DIMS(1));
@@ -696,5 +716,5 @@ const struct nlop_s* nlop_weighted_cce_create(int N, const long dims[N], unsigne
 	//FIXME: more flexible batchflags (scaling in cce and interface change for batch_flag needed)
 	assert(MD_BIT(N-1) == batch_flag);
 
-	return nlop_chain2_FF(nlop_frequency_compensation_create(N, dims, batch_flag), 0, nlop_cce_create(N, dims), 1);
+	return nlop_chain2_FF(nlop_frequency_compensation_create(N, dims, batch_flag), 0, nlop_cce_create(N, dims, ~MD_BIT(0)), 1);
 }

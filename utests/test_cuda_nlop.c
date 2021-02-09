@@ -231,8 +231,8 @@ static bool test_cce_layer_gpu(void)
 	long dims[] = {10, 128};
 
 
-	auto op_cpu = nlop_cce_create(N, dims);
-	auto op_gpu = nlop_cce_create(N, dims);
+	auto op_cpu = nlop_cce_create(N, dims, ~MD_BIT(0));
+	auto op_gpu = nlop_cce_create(N, dims, ~MD_BIT(0));
 
 	float err = compare_gpu(op_cpu, op_gpu);
 

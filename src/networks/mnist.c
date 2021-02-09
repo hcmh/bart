@@ -101,7 +101,7 @@ nn_weights_t init_nn_mnist(void)
 
 void train_nn_mnist(int N_batch, int N_total, nn_weights_t weights, const complex float* in, const complex float* out, long epochs)
 {
-	nn_t train = nn_loss_cce_append(get_nn_mnist(N_batch, STAT_TRAIN), 0, NULL);
+	nn_t train = nn_loss_cce_append(get_nn_mnist(N_batch, STAT_TRAIN), 0, NULL, ~MD_BIT(0));
 	nn_debug(DP_INFO, train);
 
 #ifdef USE_CUDA

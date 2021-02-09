@@ -33,13 +33,13 @@ nn_t nn_loss_mse_append(nn_t network, int o, const char* oname, unsigned long me
 	return result;
 }
 
-nn_t nn_loss_cce_append(nn_t network, int o, const char* oname)
+nn_t nn_loss_cce_append(nn_t network, int o, const char* oname, unsigned long scaling_flag)
 {
 	int nlop_o = nn_get_out_arg_index(network, o, oname);
 
 	auto nlop = nlop_clone(nn_get_nlop(network));
 	auto iov = nlop_generic_codomain(nlop, nlop_o);
-	nlop = nlop_chain2_swap_FF(nlop, nlop_o, nlop_cce_create(iov->N, iov->dims), 0);
+	nlop = nlop_chain2_swap_FF(nlop, nlop_o, nlop_cce_create(iov->N, iov->dims, scaling_flag), 0);
 	nlop = nlop_shift_output_F(nlop, nlop_o, 0);
 
 	auto result = nn_from_nlop_F(nlop);
