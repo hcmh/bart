@@ -43,7 +43,6 @@ struct blochFun_s {
 	const long* map_dims;
 	const long* in_dims;
 	const long* out_dims;
-	const long* input_dims;
 
 	const long* strs;
 	const long* map_strs;
@@ -164,8 +163,8 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 	if (NULL != data->input_b1) {
 
-		b1_cpu = md_alloc(data->N, data->input_dims, CFL_SIZE);
-		md_copy(data->N, data->input_dims, b1_cpu, data->input_b1, CFL_SIZE);
+		b1_cpu = md_alloc(data->N, data->map_dims, CFL_SIZE);
+		md_copy(data->N, data->map_dims, b1_cpu, data->input_b1, CFL_SIZE);
 	}
 
 
@@ -438,7 +437,6 @@ static void Bloch_del(const nlop_data_t* _data)
 	xfree(data->map_dims);
 	xfree(data->in_dims);
 	xfree(data->out_dims);
-	xfree(data->input_dims);
 
 	xfree(data->strs);
 	xfree(data->map_strs);
@@ -450,7 +448,7 @@ static void Bloch_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const struct modBlochFit* fit_para, bool use_gpu)
+struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[N], const long out_dims[N], const long in_dims[N], const struct modBlochFit* fit_para, bool use_gpu)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
@@ -506,21 +504,12 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 
 	if (NULL != fit_para->input_b1) {
 
-		PTR_ALLOC(long[N], nindims);
-		md_copy_dims(N, *nindims, input_dims);
-		data->input_dims = *PTR_PASS(nindims);
-
-		PTR_ALLOC(long[N], ninstr);
-		md_calc_strides(N, *ninstr, input_dims, CFL_SIZE);
-		data->input_strs = *PTR_PASS(ninstr);
-
-		data->input_b1 = my_alloc(N, input_dims, CFL_SIZE);
-		md_copy(N, input_dims, data->input_b1, fit_para->input_b1, CFL_SIZE);
+		data->input_b1 = my_alloc(N, data->map_dims, CFL_SIZE);
+		md_copy(N, data->map_dims, data->input_b1, fit_para->input_b1, CFL_SIZE);
 	}
 	else {
 
 		data->input_b1 = NULL;
-		data->input_dims = NULL;
 		data->input_strs = NULL;
 	}
 

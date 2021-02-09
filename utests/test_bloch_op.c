@@ -43,7 +43,6 @@ static bool test_bloch_irflash_frw(void)
 	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long all_dims[N] = { 16, 16, 1, 1, 1, rep, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long TI_dims[N] = { 1, 1, 1, 1, 1, rep, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-	long input_dims[N];
 
 	bool gpu_use = false;
 
@@ -78,7 +77,7 @@ static bool test_bloch_irflash_frw(void)
 
 	md_free(tmp);
 
-	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
+	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
 
 	nlop_apply(Bloch, N, out_dims, dst_frw_bloch, N, in_dims, src);
 	nlop_derivative(Bloch, N, out_dims, dst_der_bloch, N, in_dims, src);
@@ -161,7 +160,6 @@ static bool test_bloch_ode_obs_irflash(void)
 	long out_dims[N] = { 16, 16, 1, 1, 1, rep, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long all_dims[N] = { 16, 16, 1, 1, 1, rep, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-	long input_dims[N];
 
 	bool gpu_use = false;
 
@@ -187,7 +185,7 @@ static bool test_bloch_ode_obs_irflash(void)
 	// Turn off T2 relaxation (IR FLASH insensitive to it)
 	fit_para.scale[2] = 0.0001;
 
-	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
+	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
 
 	nlop_apply(Bloch, N, out_dims, dst1, N, in_dims, src);
 
@@ -195,7 +193,7 @@ static bool test_bloch_ode_obs_irflash(void)
 
 	fit_para.full_ode_sim = true;
 
-	struct nlop_s* Bloch2 = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
+	struct nlop_s* Bloch2 = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
 
 	nlop_apply(Bloch2, N, out_dims, dst2, N, in_dims, src);
 
@@ -249,7 +247,7 @@ static bool test_bloch_ode_obs_irbssfp(void)
 	fit_para.inversion_pulse_length = 0.001;
 	fit_para.prep_pulse_length = fit_para.te;
 
-	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
+	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
 
 	nlop_apply(Bloch, N, out_dims, dst1, N, in_dims, src);
 
@@ -257,7 +255,7 @@ static bool test_bloch_ode_obs_irbssfp(void)
 
 	fit_para.full_ode_sim = true;
 
-	struct nlop_s* Bloch2 = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, input_dims, &fit_para, gpu_use);
+	struct nlop_s* Bloch2 = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
 
 	nlop_apply(Bloch2, N, out_dims, dst2, N, in_dims, src);
 

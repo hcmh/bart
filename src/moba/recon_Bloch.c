@@ -34,14 +34,12 @@ void bloch_recon(const struct moba_conf* conf, const struct modBlochFit* fit_par
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
 	long data_dims[DIMS];
-	long img1_dims[DIMS];
 
 	unsigned int fft_flags = FFT_FLAGS; //SLICE_FLAG;
 
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG, data_dims, dims);
-	md_select_dims(DIMS, fft_flags|TIME2_FLAG, img1_dims, dims);
 
 	imgs_dims[COEFF_DIM] = 3;
 
