@@ -106,6 +106,7 @@ int main_moba(int argc, char* argv[argc])
 	const char* init_file = NULL;
 
 	struct moba_conf_s conf_model;
+	conf_model.model = IR;
 	conf_model.irflash = irflash_conf_s_defaults;
 	conf_model.sim = sim_conf_s_defaults;
 	conf_model.opt = moba_defaults;
@@ -117,6 +118,7 @@ int main_moba(int argc, char* argv[argc])
 	bool out_sens = false;
 	bool use_gpu = false;
 	bool unused = false;
+
 	enum mdb_t { MDB_T1, MDB_T2, MDB_MGRE } mode = { MDB_T1 };
 	enum edge_filter_t { EF1, EF2 } k_filter_type = EF1;
 
@@ -186,6 +188,24 @@ int main_moba(int argc, char* argv[argc])
 	cuda_use_global_memory();
 #endif
 
+	// FIXME: Add changes to CLI interface
+	assert(!(conf_model.opt.MOLLI && conf_model.opt.IR_SS));
+
+	if (MDB_T1 == mode && conf_model.opt.MOLLI)
+		conf_model.model = MOLLI;
+	else if (MDB_T1 == mode && conf_model.opt.IR_SS)
+		conf_model.model = IR_SS;
+	else if (MDB_T1 == mode && conf_model.opt.IR_phy)
+		conf_model.model = IR_phy;
+	else if (MDB_T1 == mode && NULL != input_alpha)
+		conf_model.model = IR_phy_alpha_in;
+	else if (MDB_T2 == mode)
+		conf_model.model = T2;
+	else if (MDB_MGRE == model)
+		conf_model.model = MGRE;
+	// else if (NULL != conf->input_alpha)
+	// 	conf_model.model = Bloch;
+
 
 	if (conf_model.opt.ropts->r > 0)
 		conf_model.opt.algo = ALGO_ADMM;
@@ -193,11 +213,18 @@ int main_moba(int argc, char* argv[argc])
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
 
+	// Pass inversion time
+
 	long TI_dims[DIMS];
 	complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
 
+	conf_model.irflash.input_TI = md_alloc(DIMS, TI_dims, CFL_SIZE);
+	md_copy(DIMS, TI_dims, conf_model.irflash.input_TI, TI, CFL_SIZE);
+
 	assert(TI_dims[TE_DIM] == ksp_dims[TE_DIM]);
 	assert(1 == ksp_dims[MAPS_DIM]);
+
+	// Relaxation time for MOLLI
 
 	complex float* TI_t1relax = NULL;
 	long TI_t1relax_dims[DIMS];
@@ -206,6 +233,36 @@ int main_moba(int argc, char* argv[argc])
 		
 		assert(NULL != time_T1relax);
 		TI_t1relax = load_cfl(time_T1relax, DIMS, TI_t1relax_dims);
+
+		conf_model.irflash.input_TI_t1relax = md_alloc(DIMS, TI_t1relax_dims, CFL_SIZE);
+		md_copy(DIMS, TI_t1relax_dims, conf_model.irflash.input_TI_t1relax, TI_t1relax, CFL_SIZE);
+	}
+
+	// Load passed alpha map
+
+	complex float* alpha = NULL;
+
+	long input_alpha_dims[DIMS];
+
+	if (NULL != input_alpha) {
+
+		debug_printf(DP_DEBUG2, "Load FA map [deg]\n");
+
+		alpha = load_cfl(input_alpha, DIMS, input_alpha_dims);
+
+		conf_model.irflash.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
+
+		// ksp_dims[PHS2_DIM] needs to be multiple of spokes_per_tr
+		assert((ksp_dims[PHS2_DIM]/spokes_per_tr)*spokes_per_tr == ksp_dims[PHS2_DIM]);
+
+		fa_to_alpha(DIMS, input_alpha_dims, conf_model.irflash.input_alpha, alpha,
+				get_tr_from_inversion(DIMS, TI_dims, conf_model.irflash.input_TI, ksp_dims[PHS2_DIM]/spokes_per_tr));
+
+		// FIXME: Remove because dublicated memory...
+		conf_model.opt.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
+		md_copy(DIMS, input_alpha_dims, conf_model.opt.input_alpha, conf_model.irflash.input_alpha, CFL_SIZE);
+
+		unmap_cfl(DIMS, input_alpha_dims, alpha);
 	}
 
 	if (conf_model.opt.sms) {
@@ -256,7 +313,6 @@ int main_moba(int argc, char* argv[argc])
 	
 	if (0. != conf_model.opt.IR_phy)
 		img_dims[COEFF_DIM] = 3;
-
 
 
 	long img_strs[DIMS];
@@ -414,29 +470,6 @@ int main_moba(int argc, char* argv[argc])
 
 	assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
 
-	// Load passed alpha map
-
-	complex float* alpha = NULL;
-
-	long input_alpha_dims[DIMS];
-
-	if (NULL != input_alpha) {
-
-		debug_printf(DP_DEBUG2, "Load FA map [deg]\n");
-
-		alpha = load_cfl(input_alpha, DIMS, input_alpha_dims);
-
-		conf_model.opt.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
-
-		// ksp_dims[PHS2_DIM] needs to be multiple of spokes_per_tr
-		assert((ksp_dims[PHS2_DIM]/spokes_per_tr)*spokes_per_tr == ksp_dims[PHS2_DIM]);
-
-		fa_to_alpha(DIMS, input_alpha_dims, conf_model.opt.input_alpha, alpha,
-				get_tr_from_inversion(DIMS, TI_dims, TI, ksp_dims[PHS2_DIM]/spokes_per_tr));
-
-		unmap_cfl(DIMS, input_alpha_dims, alpha);
-	}
-
 	// scaling
 
 	if ((MDB_T1 == mode) || (MDB_T2 == mode)) {
@@ -544,15 +577,15 @@ int main_moba(int argc, char* argv[argc])
 	switch (mode) {
 
 	case MDB_T1:
-		T1_recon(&conf_model.opt, dims, img, sens, pattern, mask, TI, TI_t1relax, k_grid_data, use_gpu);
+		T1_recon(&conf_model.opt, dims, img, sens, pattern, mask, conf_model.irflash.input_TI, conf_model.irflash.input_TI_t1relax, k_grid_data, use_gpu);
 		break;
 
 	case MDB_T2:
-		T2_recon(&conf_model.opt, dims, img, sens, pattern, mask, TI, k_grid_data, use_gpu);
+		T2_recon(&conf_model.opt, dims, img, sens, pattern, mask, conf_model.irflash.input_TI, k_grid_data, use_gpu);
 		break;
 
 	case MDB_MGRE:
-		meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, k_grid_data);
+		meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, conf_model.irflash.input_TI, pat_dims, pattern, grid_dims, k_grid_data);
 		break;
 	};
 
@@ -562,16 +595,24 @@ int main_moba(int argc, char* argv[argc])
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, grid_dims, k_grid_data);
 	unmap_cfl(DIMS, img_dims, img);
-	unmap_cfl(DIMS, TI_dims, TI);
 
-	if (conf_model.opt.MOLLI)
+	unmap_cfl(DIMS, TI_dims, TI);
+	md_free(conf_model.irflash.input_TI);
+
+	if (conf_model.opt.MOLLI) {
+
 		unmap_cfl(DIMS, TI_t1relax_dims, TI_t1relax);
+		md_free(conf_model.irflash.input_TI_t1relax);
+	}
 
 	if (NULL != init_file)
 		unmap_cfl(DIMS, init_dims, init);
 
-	if (NULL != input_alpha)
+	if (NULL != input_alpha) {
+
 		md_free(conf_model.opt.input_alpha);
+		md_free(conf_model.irflash.input_alpha);
+	}
 
 	double recosecs = timestamp() - start_time;
 
