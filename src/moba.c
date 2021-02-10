@@ -222,6 +222,7 @@ int main_moba(int argc, char* argv[argc])
 	long TI_dims[DIMS];
 	complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
 
+	// FIXME: Way to perform load_cfl directly on pointer in struct?!
 	conf_model.irflash.input_TI = md_alloc(DIMS, TI_dims, CFL_SIZE);
 	md_copy(DIMS, TI_dims, conf_model.irflash.input_TI, TI, CFL_SIZE);
 
@@ -261,10 +262,6 @@ int main_moba(int argc, char* argv[argc])
 
 		fa_to_alpha(DIMS, input_alpha_dims, conf_model.irflash.input_alpha, alpha,
 				get_tr_from_inversion(DIMS, TI_dims, conf_model.irflash.input_TI, ksp_dims[PHS2_DIM]/spokes_per_tr));
-
-		// FIXME: Remove because dublicated memory...
-		conf_model.opt.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
-		md_copy(DIMS, input_alpha_dims, conf_model.opt.input_alpha, conf_model.irflash.input_alpha, CFL_SIZE);
 
 		unmap_cfl(DIMS, input_alpha_dims, alpha);
 	}
@@ -588,11 +585,8 @@ int main_moba(int argc, char* argv[argc])
 	if (NULL != init_file)
 		unmap_cfl(DIMS, init_dims, init);
 
-	if (NULL != input_alpha) {
-
-		md_free(conf_model.opt.input_alpha);
+	if (NULL != input_alpha)
 		md_free(conf_model.irflash.input_alpha);
-	}
 
 	double recosecs = timestamp() - start_time;
 
