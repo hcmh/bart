@@ -451,7 +451,7 @@ static bool test_int_matrix_bloch_sa(void)
 	for (int i = 0; i < 3; i++)
 		err2 += powf(x1[i] - x2[i], 2.);
 
-	if (err2 > 1.E-7)
+	if (err2 > 1.E-6)
 		return false;
 
 	
@@ -460,7 +460,7 @@ static bool test_int_matrix_bloch_sa(void)
 
 		float err = fabsf(q * x1[3+i] - (x2r1[i] - x2[i]));
 
-		if (err > 1.E-7)
+		if (err > 1.E-6)
 			return false;
 	}
 	
@@ -469,7 +469,7 @@ static bool test_int_matrix_bloch_sa(void)
 
 		float err = fabsf(q * x1[6+i] - (x2r2[i] - x2[i]));
 
-		if (err > 1.E-7)
+		if (err > 1.E-6)
 			return false;
 	}
 
