@@ -169,7 +169,8 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 
 
 
-void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* TI_t1relax, const complex float* kspace_data, bool usegpu)
+void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask,
+		const complex float* TI, const complex float* TI_t1relax, const complex float* kspace_data, bool usegpu)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -231,7 +232,7 @@ void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex floa
 
 	conf_model.irflash = irflash_conf_s_defaults;
 	conf_model.sim = sim_conf_s_defaults;
-	conf_model.opt = opt_conf_s_defaults;
+	conf_model.opt = moba_defaults;
 
 	if (NULL != TI) {
 

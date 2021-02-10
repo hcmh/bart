@@ -75,27 +75,6 @@ struct opt_conf_s {
 extern struct opt_conf_s opt_conf_s_defaults;
 
 
-
-typedef enum {IR, MOLLI, IR_SS, IR_phy, IR_phy_alpha_in, T2, Bloch} moba_model;
-
-struct moba_conf_s {
-
-	/*All*/
-	moba_model model;
-
-	/*T1, FIXME: Make most unnecessary using simulation sim_conf_s*/
-	struct irflash_conf_s irflash;
-
-	/*Bloch*/
-	struct sim_conf_s sim;
-
-	/*Optimization*/
-	struct opt_conf_s opt;
-};
-// extern const struct moba_conf moba_conf_defaults;
-
-
-
 // FIXME: Remove and unify all moba function to support moba_conf_s
 struct moba_conf {
 
@@ -125,3 +104,25 @@ struct moba_conf {
 };
 
 extern struct moba_conf moba_defaults;
+
+
+
+typedef enum {IR, MOLLI, IR_SS, IR_phy, IR_phy_alpha_in, T2, Bloch} moba_model;
+
+struct moba_conf_s {
+
+	/*All*/
+	moba_model model;
+
+	/*T1, FIXME: Make most unnecessary using simulation sim_conf_s*/
+	struct irflash_conf_s irflash;
+
+	/*Bloch*/
+	struct sim_conf_s sim;
+
+	/*Optimization: FIXME: Replace by opt_conf_s*/
+	struct moba_conf opt;
+};
+// extern const struct moba_conf moba_conf_defaults;
+
+
