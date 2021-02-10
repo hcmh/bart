@@ -561,13 +561,11 @@ int main_moba(int argc, char* argv[argc])
 		switch (mode) {
 
 		case MDB_T1:
-			T1_recon(&conf_model.opt, dims, img, sens, pattern, mask, TI_gpu, TI_t1relax_gpu, kspace_gpu, use_gpu);
-			// moba_recon(&conf_model, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
+			moba_recon(&conf_model, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
 			break;
 
 		case MDB_T2:
-			T2_recon(&conf_model.opt, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu, use_gpu);
-			// moba_recon(&conf_model, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
+			moba_recon(&conf_model, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
 			break;
 
 		case MDB_MGRE:
@@ -583,13 +581,11 @@ int main_moba(int argc, char* argv[argc])
 	switch (mode) {
 
 	case MDB_T1:
-		T1_recon(&conf_model.opt, dims, img, sens, pattern, mask, conf_model.irflash.input_TI, conf_model.irflash.input_TI_t1relax, k_grid_data, use_gpu);
-		// moba_recon(&conf_model, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
+		moba_recon(&conf_model, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
 		break;
 
 	case MDB_T2:
-		T2_recon(&conf_model.opt, dims, img, sens, pattern, mask, conf_model.irflash.input_TI, k_grid_data, use_gpu);
-		// moba_recon(&conf_model, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
+		moba_recon(&conf_model, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
 		break;
 
 	case MDB_MGRE:
