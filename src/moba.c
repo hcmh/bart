@@ -105,9 +105,13 @@ int main_moba(int argc, char* argv[argc])
 	const char* time_T1relax = NULL;
 	const char* init_file = NULL;
 
-	struct moba_conf conf = moba_defaults;
+	struct moba_conf_s conf_model;
+	conf_model.irflash = irflash_conf_s_defaults;
+	conf_model.sim = sim_conf_s_defaults;
+	conf_model.opt = moba_defaults;
+
 	struct opt_reg_s ropts;
-	conf.ropts = &ropts;
+	conf_model.opt.ropts = &ropts;
 
 	bool out_origin_maps = false;
 	bool out_sens = false;
@@ -131,34 +135,34 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "T2 mapping using model-based Fast Spin Echo"),
 		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "T2* mapping using model-based multiple gradient echo"),
 		OPT_UINT('D', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
-		OPT_UINT('l', &conf.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
-		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
-		OPT_FLOAT('R', &conf.redu, "redu", "reduction factor"),
-		OPT_FLOAT('j', &conf.alpha_min, "minreg", "Minimum regu. parameter"),
-		OPT_FLOAT('u', &conf.rho, "rho", "ADMM rho [default: 0.01]"),
-		OPT_UINT('C', &conf.inner_iter, "iter", "inner iterations"),
-		OPT_FLOAT('s', &conf.step, "step", "step size"),
-		OPT_FLOAT('B', &conf.lower_bound, "bound", "lower bound for relaxivity"),
+		OPT_UINT('l', &conf_model.opt.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
+		OPT_UINT('i', &conf_model.opt.iter, "iter", "Number of Newton steps"),
+		OPT_FLOAT('R', &conf_model.opt.redu, "redu", "reduction factor"),
+		OPT_FLOAT('j', &conf_model.opt.alpha_min, "minreg", "Minimum regu. parameter"),
+		OPT_FLOAT('u', &conf_model.opt.rho, "rho", "ADMM rho [default: 0.01]"),
+		OPT_UINT('C', &conf_model.opt.inner_iter, "iter", "inner iterations"),
+		OPT_FLOAT('s', &conf_model.opt.step, "step", "step size"),
+		OPT_FLOAT('B', &conf_model.opt.lower_bound, "bound", "lower bound for relaxivity"),
 		OPT_FLVEC2('b', &scale_fB0, "SMO:SC", "B0 field: spatial smooth level; scaling [default: 222.; 1.]"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('N', &unused, "(normalize)"), // no-op
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
-		OPT_SET('J', &conf.stack_frames, "Stack frames for joint recon"),
-		OPT_SET('M', &conf.sms, "Simultaneous Multi-Slice reconstruction"),
+		OPT_SET('J', &conf_model.opt.stack_frames, "Stack frames for joint recon"),
+		OPT_SET('M', &conf_model.opt.sms, "Simultaneous Multi-Slice reconstruction"),
 		OPT_SET('O', &out_origin_maps, "(Output original maps from reconstruction without post processing)"),
 		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_STRING('I', &init_file, "init", "File for initialization"),
 		OPT_STRING('t', &trajectory, "Traj", ""),
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.25]"),
-		OPT_SET('m', &conf.MOLLI, "use MOLLI model"),
+		OPT_SET('m', &conf_model.opt.MOLLI, "use MOLLI model"),
 		OPT_STRING('T', &time_T1relax, "T1 relax time for MOLLI", ""),
-		OPT_SET('k', &conf.k_filter, "k-space edge filter for non-Cartesian trajectories"),
-		OPT_SET('S', &conf.IR_SS, "use the IR steady-state model"),
-		OPT_FLOAT('P', &conf.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
+		OPT_SET('k', &conf_model.opt.k_filter, "k-space edge filter for non-Cartesian trajectories"),
+		OPT_SET('S', &conf_model.opt.IR_SS, "use the IR steady-state model"),
+		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
 		OPTL_SELECT(0, "kfilter-1", enum edge_filter_t, &k_filter_type, EF1, "k-space edge filter 1"),
 		OPTL_SELECT(0, "kfilter-2", enum edge_filter_t, &k_filter_type, EF2, "k-space edge filter 2"),
-		OPT_SET('n', &conf.auto_norm_off, "disable normlization of parameter maps for thresholding"),
+		OPT_SET('n', &conf_model.opt.auto_norm_off, "disable normlization of parameter maps for thresholding"),
 		OPT_STRING('A',	&input_alpha, 		"", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
 		OPTL_LONG(0, "spokes-per-TR", &(spokes_per_tr), "sptr", "number of averaged spokes [default: 1]"),
 		OPTL_SELECT(0, "fat_spec_0", enum fat_spec, &fat_spec, FAT_SPEC_0, "select fat spectrum from ISMRM fat-water tool"),
@@ -172,10 +176,10 @@ int main_moba(int argc, char* argv[argc])
 
 	(use_gpu ? num_init_gpu_memopt : num_init)();
 	
-	conf.algo = ALGO_FISTA;
+	conf_model.opt.algo = ALGO_FISTA;
 
-	if (conf.ropts->r > 0)
-		conf.algo = ALGO_ADMM;
+	if (conf_model.opt.ropts->r > 0)
+		conf_model.opt.algo = ALGO_ADMM;
 		
 
 #ifdef USE_CUDA
@@ -183,8 +187,8 @@ int main_moba(int argc, char* argv[argc])
 #endif
 
 
-	if (conf.ropts->r > 0)
-		conf.algo = ALGO_ADMM;
+	if (conf_model.opt.ropts->r > 0)
+		conf_model.opt.algo = ALGO_ADMM;
 
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
@@ -198,13 +202,13 @@ int main_moba(int argc, char* argv[argc])
 	complex float* TI_t1relax = NULL;
 	long TI_t1relax_dims[DIMS];
 
-	if (conf.MOLLI) {
+	if (conf_model.opt.MOLLI) {
 		
 		assert(NULL != time_T1relax);
 		TI_t1relax = load_cfl(time_T1relax, DIMS, TI_t1relax_dims);
 	}
 
-	if (conf.sms) {
+	if (conf_model.opt.sms) {
 
 		debug_printf(DP_INFO, "SMS Model-based reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
 		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace_data, kspace_data); // fftmod to get correct slice order in output
@@ -224,7 +228,7 @@ int main_moba(int argc, char* argv[argc])
 		if (-1 == restrict_fov)
 			restrict_fov = 0.5;
 
-		conf.noncartesian = true;
+		conf_model.opt.noncartesian = true;
 	}
 
 	long img_dims[DIMS];
@@ -247,10 +251,10 @@ int main_moba(int argc, char* argv[argc])
 	}
 
 	// TODO: unify these two into switch(mode)
-	if (conf.IR_SS || (NULL != input_alpha))
+	if (conf_model.opt.IR_SS || (NULL != input_alpha))
 		img_dims[COEFF_DIM] = 2;
 	
-	if (0. != conf.IR_phy)
+	if (0. != conf_model.opt.IR_phy)
 		img_dims[COEFF_DIM] = 3;
 
 
@@ -315,7 +319,7 @@ int main_moba(int argc, char* argv[argc])
 		if (-1 == restrict_fov)
 			restrict_fov = 0.5;
 
-		conf.noncartesian = true;
+		conf_model.opt.noncartesian = true;
 
 	} else if (NULL != trajectory) {
 
@@ -374,7 +378,7 @@ int main_moba(int argc, char* argv[argc])
 	}
 
 
-	if (conf.k_filter) {
+	if (conf_model.opt.k_filter) {
 
 		long map_dims[DIMS];
 		md_select_dims(DIMS, FFT_FLAGS, map_dims, pat_dims);
@@ -422,12 +426,12 @@ int main_moba(int argc, char* argv[argc])
 
 		alpha = load_cfl(input_alpha, DIMS, input_alpha_dims);
 
-		conf.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
+		conf_model.opt.input_alpha = md_alloc(DIMS, input_alpha_dims, CFL_SIZE);
 
 		// ksp_dims[PHS2_DIM] needs to be multiple of spokes_per_tr
 		assert((ksp_dims[PHS2_DIM]/spokes_per_tr)*spokes_per_tr == ksp_dims[PHS2_DIM]);
 
-		fa_to_alpha(DIMS, input_alpha_dims, conf.input_alpha, alpha,
+		fa_to_alpha(DIMS, input_alpha_dims, conf_model.opt.input_alpha, alpha,
 				get_tr_from_inversion(DIMS, TI_dims, TI, ksp_dims[PHS2_DIM]/spokes_per_tr));
 
 		unmap_cfl(DIMS, input_alpha_dims, alpha);
@@ -437,10 +441,10 @@ int main_moba(int argc, char* argv[argc])
 
 	if ((MDB_T1 == mode) || (MDB_T2 == mode)) {
 
-		double scaling = ((ALGO_ADMM == conf.algo) ? 250. : 5000.) / md_znorm(DIMS, grid_dims, k_grid_data);
-		double scaling_psf = ((ALGO_ADMM == conf.algo) ? 500. : 1000.) / md_znorm(DIMS, pat_dims, pattern);
+		double scaling = ((ALGO_ADMM == conf_model.opt.algo) ? 250. : 5000.) / md_znorm(DIMS, grid_dims, k_grid_data);
+		double scaling_psf = ((ALGO_ADMM == conf_model.opt.algo) ? 500. : 1000.) / md_znorm(DIMS, pat_dims, pattern);
 
-		if (conf.sms) {
+		if (conf_model.opt.sms) {
 
 			scaling *= grid_dims[SLICE_DIM] / 5.0;
 			scaling_psf *= grid_dims[SLICE_DIM] / 5.0;
@@ -471,21 +475,21 @@ int main_moba(int argc, char* argv[argc])
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
-		if ((MDB_T1 == mode) || (MDB_T2 == mode) || (0. != conf.IR_phy) || (NULL != input_alpha) || (conf.IR_SS)) {
+		if ((MDB_T1 == mode) || (MDB_T2 == mode) || (0. != conf_model.opt.IR_phy) || (NULL != input_alpha) || (conf_model.opt.IR_SS)) {
 
 			// Choose a different initial guess for R1*
-			float init_param = (0. != conf.IR_phy || (NULL != input_alpha)) ? 3. : (conf.sms ? 2. : 1.5);
+			float init_param = (0. != conf_model.opt.IR_phy || (NULL != input_alpha)) ? 3. : (conf_model.opt.sms ? 2. : 1.5);
 
 			long pos[DIMS] = { 0 };
 
-			pos[COEFF_DIM] = ((conf.IR_SS) || (0. != conf.IR_phy) || (NULL != input_alpha) || (mode == MDB_T2)) ? 1 : 2;
+			pos[COEFF_DIM] = ((conf_model.opt.IR_SS) || (0. != conf_model.opt.IR_phy) || (NULL != input_alpha) || (mode == MDB_T2)) ? 1 : 2;
 
 			md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 			md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
 			md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
 
 			// Choose initial guess for alpha
-			if (0. != conf.IR_phy) {
+			if (0. != conf_model.opt.IR_phy) {
 
 				pos[COEFF_DIM] = 2;
 				md_zfill(DIMS, single_map_dims, single_map, 0.);
@@ -511,7 +515,7 @@ int main_moba(int argc, char* argv[argc])
 			
                 complex float* TI_t1relax_gpu = NULL; 
 
-		if (conf.MOLLI) {
+		if (conf_model.opt.MOLLI) {
 
 			TI_t1relax_gpu = md_alloc_gpu(DIMS, TI_t1relax_dims, CFL_SIZE);
 			md_copy(DIMS, TI_t1relax_dims, TI_t1relax_gpu, TI_t1relax, CFL_SIZE);
@@ -520,15 +524,15 @@ int main_moba(int argc, char* argv[argc])
 		switch (mode) {
 
 		case MDB_T1:
-			T1_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, TI_t1relax_gpu, kspace_gpu, use_gpu);
+			T1_recon(&conf_model.opt, dims, img, sens, pattern, mask, TI_gpu, TI_t1relax_gpu, kspace_gpu, use_gpu);
 			break;
 
 		case MDB_T2:
-			T2_recon(&conf, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu, use_gpu);
+			T2_recon(&conf_model.opt, dims, img, sens, pattern, mask, TI_gpu, kspace_gpu, use_gpu);
 			break;
 
 		case MDB_MGRE:
-			meco_recon(&conf, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, kspace_gpu);
+			meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, kspace_gpu);
 			break;
 		};
 
@@ -540,15 +544,15 @@ int main_moba(int argc, char* argv[argc])
 	switch (mode) {
 
 	case MDB_T1:
-		T1_recon(&conf, dims, img, sens, pattern, mask, TI, TI_t1relax, k_grid_data, use_gpu);
+		T1_recon(&conf_model.opt, dims, img, sens, pattern, mask, TI, TI_t1relax, k_grid_data, use_gpu);
 		break;
 
 	case MDB_T2:
-		T2_recon(&conf, dims, img, sens, pattern, mask, TI, k_grid_data, use_gpu);
+		T2_recon(&conf_model.opt, dims, img, sens, pattern, mask, TI, k_grid_data, use_gpu);
 		break;
 
 	case MDB_MGRE:
-		meco_recon(&conf, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, k_grid_data);
+		meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, k_grid_data);
 		break;
 	};
 
@@ -560,14 +564,14 @@ int main_moba(int argc, char* argv[argc])
 	unmap_cfl(DIMS, img_dims, img);
 	unmap_cfl(DIMS, TI_dims, TI);
 
-	if (conf.MOLLI)
+	if (conf_model.opt.MOLLI)
 		unmap_cfl(DIMS, TI_t1relax_dims, TI_t1relax);
 
 	if (NULL != init_file)
 		unmap_cfl(DIMS, init_dims, init);
 
 	if (NULL != input_alpha)
-		md_free(conf.input_alpha);
+		md_free(conf_model.opt.input_alpha);
 
 	double recosecs = timestamp() - start_time;
 
