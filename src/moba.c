@@ -189,8 +189,8 @@ int main_moba(int argc, char* argv[argc])
 	cuda_use_global_memory();
 #endif
 
-	// Convert old CLI to new struct
-	// FIXME: Add changes to CLI interface
+	// Convert old CLI to new struct interface
+	// FIXME: Update CLI interface
 	assert(!(conf_model.opt.MOLLI && conf_model.opt.IR_SS));
 
 	if (MDB_T1 == mode && conf_model.opt.MOLLI)
@@ -556,7 +556,7 @@ int main_moba(int argc, char* argv[argc])
 		md_copy(DIMS, grid_dims, kspace_gpu, k_grid_data, CFL_SIZE);
 
 		if (MDB_MGRE == mode)
-			meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, kspace_gpu);
+			meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, conf_model.irflash.input_TI, pat_dims, pattern, grid_dims, kspace_gpu);
 		else
 			moba_recon(&conf_model, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
 
