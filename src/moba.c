@@ -278,6 +278,8 @@ int main_moba(int argc, char* argv[argc])
 	long grid_dims[DIMS];
 	md_copy_dims(DIMS, grid_dims, ksp_dims);
 
+	// Oversample passed trajectory
+
 	if (NULL != trajectory) {
 
 		sample_size = ksp_dims[1];
@@ -296,27 +298,35 @@ int main_moba(int argc, char* argv[argc])
 
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|COEFF_FLAG|TIME_FLAG|SLICE_FLAG|TIME2_FLAG, img_dims, grid_dims);
 
-	switch (mode) {
+	// Select number of estimated parameters depending on model
+	// FIXME: Reorder models to allow for fall through cases?
+	switch (conf_model.model) {
 
-	case MDB_T1:
+	case IR:
+	case MOLLI:
 		img_dims[COEFF_DIM] = 3;
 		break;
 
-	case MDB_T2:
+	case IR_SS:
 		img_dims[COEFF_DIM] = 2;
 		break;
 
-	case MDB_MGRE:
+	case IR_phy:
+		img_dims[COEFF_DIM] = 3;
+		break;
+
+	case IR_phy_alpha_in:
+	case T2:
+		img_dims[COEFF_DIM] = 2;
+		break;
+
+	case MGRE:
 		img_dims[COEFF_DIM] = (MECO_PI != mgre_model) ? set_num_of_coeff(mgre_model) : grid_dims[TE_DIM];
 		break;
+	case Bloch:
+		error("Bloch model not supported yet.");
+		break;
 	}
-
-	// TODO: unify these two into switch(mode)
-	if (conf_model.opt.IR_SS || (NULL != input_alpha))
-		img_dims[COEFF_DIM] = 2;
-	
-	if (0. != conf_model.opt.IR_phy)
-		img_dims[COEFF_DIM] = 3;
 
 
 	long img_strs[DIMS];
@@ -495,7 +505,6 @@ int main_moba(int argc, char* argv[argc])
 	}
 
 	// mask
-
 
 	if (-1. == restrict_fov) {
 
