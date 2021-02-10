@@ -546,52 +546,19 @@ int main_moba(int argc, char* argv[argc])
 
 		md_copy(DIMS, grid_dims, kspace_gpu, k_grid_data, CFL_SIZE);
 
-		complex float* TI_gpu = md_alloc_gpu(DIMS, TI_dims, CFL_SIZE);
-
-		md_copy(DIMS, TI_dims, TI_gpu, TI, CFL_SIZE);
-			
-                complex float* TI_t1relax_gpu = NULL; 
-
-		if (conf_model.opt.MOLLI) {
-
-			TI_t1relax_gpu = md_alloc_gpu(DIMS, TI_t1relax_dims, CFL_SIZE);
-			md_copy(DIMS, TI_t1relax_dims, TI_t1relax_gpu, TI_t1relax, CFL_SIZE);
-		}
-
-		switch (mode) {
-
-		case MDB_T1:
-			moba_recon(&conf_model, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
-			break;
-
-		case MDB_T2:
-			moba_recon(&conf_model, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
-			break;
-
-		case MDB_MGRE:
+		if (MDB_MGRE == mode)
 			meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, TI, pat_dims, pattern, grid_dims, kspace_gpu);
-			break;
-		};
+		else
+			moba_recon(&conf_model, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
 
 		md_free(kspace_gpu);
-		md_free(TI_gpu);
 
 	} else
 #endif
-	switch (mode) {
-
-	case MDB_T1:
-		moba_recon(&conf_model, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
-		break;
-
-	case MDB_T2:
-		moba_recon(&conf_model, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
-		break;
-
-	case MDB_MGRE:
+	if (MDB_MGRE == mode)
 		meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, conf_model.irflash.input_TI, pat_dims, pattern, grid_dims, k_grid_data);
-		break;
-	};
+	else
+		moba_recon(&conf_model, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
 
 	md_free(mask);
 
