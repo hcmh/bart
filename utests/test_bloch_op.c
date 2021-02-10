@@ -179,8 +179,8 @@ static bool test_bloch_ode_obs_irflash(void)
 	fit_para.tr = 0.003;
 	fit_para.te = 0.001;
 	fit_para.fa = 8.;
-	fit_para.inversion_pulse_length = 0.00001;
-	fit_para.prep_pulse_length = 0.00001;
+	fit_para.inversion_pulse_length = 0.;
+	fit_para.prep_pulse_length = 0.;
 
 	// Turn off T2 relaxation (IR FLASH insensitive to it)
 	fit_para.scale[2] = 0.0001;
@@ -224,7 +224,6 @@ static bool test_bloch_ode_obs_irbssfp(void)
 	long out_dims[N] = { 16, 16, 1, 1, 1, rep, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 	long all_dims[N] = { 16, 16, 1, 1, 1, rep, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-	long input_dims[N];
 
 	bool gpu_use = false;
 
