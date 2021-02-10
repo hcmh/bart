@@ -84,15 +84,22 @@ static void sim_fun(const nlop_data_t* _data, complex float* dst, const complex 
 	// Run simulation
 	//-------------------------------------------------------------------
 
-	//...
-	// - choosing different sequence simulation types -> calling function
-
-	//creates
 	complex float* sig;
 	complex float* dr1;
 	complex float* dr2;
 	complex float* dm0;
 
+	/*
+	- choosing different sequence simulation types
+	-- call separate functions for each simulation
+	-- each function comes with its own struct to process all information it needs
+	--- example: ODE -> ode_data_s
+	-- one general simulation information struct is used to be passed to this simfun operator
+	--- example: moba_conf_s->sim
+	-- individual functions living in the same folders of the simulation types extract the required information to sim
+	--- example: void sim_to_ode_data()
+
+	*/
 	//-------------------------------------------------------------------
 	// Collect data of Signal
 	//-------------------------------------------------------------------
