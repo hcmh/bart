@@ -116,6 +116,11 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 		model = nlop_T2_create(DIMS, map_dims, out_dims, in_dims, TI_dims, conf_model->irflash.input_TI, use_gpu);
 		break;
 
+	case MGRE:
+
+		debug_printf(DP_ERROR, "Model not yet supported by moba/model_moba.c");
+		break;
+
 	case Bloch:
 
 		// FIXME: Cast struct types...not nice at least...creater wrapper later
