@@ -188,6 +188,7 @@ int main_moba(int argc, char* argv[argc])
 	cuda_use_global_memory();
 #endif
 
+	// Convert old CLI to new struct
 	// FIXME: Add changes to CLI interface
 	assert(!(conf_model.opt.MOLLI && conf_model.opt.IR_SS));
 
@@ -201,7 +202,7 @@ int main_moba(int argc, char* argv[argc])
 		conf_model.model = IR_phy_alpha_in;
 	else if (MDB_T2 == mode)
 		conf_model.model = T2;
-	else if (MDB_MGRE == model)
+	else if (MDB_MGRE == mode)
 		conf_model.model = MGRE;
 	// else if (NULL != conf->input_alpha)
 	// 	conf_model.model = Bloch;
