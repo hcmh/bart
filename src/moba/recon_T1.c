@@ -169,8 +169,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 
 
 
-void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask,
-		const complex float* TI, const complex float* TI_t1relax, const complex float* kspace_data, bool usegpu)
+void T1_recon2(const struct moba_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* kspace_data, bool usegpu)
 {
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
@@ -179,7 +178,7 @@ void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex floa
 
 	unsigned int fft_flags = FFT_FLAGS;
 
-	if (conf->sms)
+	if (conf->opt.sms)
 		fft_flags |= SLICE_FLAG;
 
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, imgs_dims, dims);
@@ -202,98 +201,43 @@ void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex floa
 
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = false;
-	mconf.noncart = conf->noncartesian;
+	mconf.noncart = conf->opt.noncartesian;
 	mconf.fft_flags = fft_flags;
 	mconf.a = 880.;
 	mconf.b = 32.;
 	mconf.cnstcoil_flags = TE_FLAG;
 
-
-	// Initialize and copy parts for wrapper
-
-	struct moba_conf_s conf_model;
-
-	assert(!(conf->MOLLI && conf->IR_SS));
-
-	// {IR, MOLLI, IR_SS, IR_phy, IR_phy_alpha_in, Bloch}
-	conf_model.model = IR;
-
-	if (conf->MOLLI)
-		conf_model.model = MOLLI;
-	else if (conf->IR_SS)
-		conf_model.model = IR_SS;
-	else if (conf->IR_phy)
-		conf_model.model = IR_phy;
-	else if (NULL != conf->input_alpha)
-		conf_model.model = IR_phy_alpha_in;
-	// else if (NULL != conf->input_alpha)
-	// 	conf_model.model = Bloch;
-
-
-	conf_model.irflash = irflash_conf_s_defaults;
-	conf_model.sim = sim_conf_s_defaults;
-	conf_model.opt = moba_defaults;
-
-	if (NULL != TI) {
-
-		long TI_dims[DIMS];
-		md_select_dims(DIMS, TE_FLAG|TIME_FLAG|TIME2_FLAG, TI_dims, dims);
-
-		conf_model.irflash.input_TI = md_alloc(DIMS, TI_dims, CFL_SIZE);
-
-		md_copy(DIMS, TI_dims, conf_model.irflash.input_TI, TI, CFL_SIZE);
-	}
-
-	if (NULL != TI_t1relax) {
-
-		long TI_T1relax_dims[DIMS];
-		md_singleton_dims(DIMS, TI_T1relax_dims);
-
-		TI_T1relax_dims[READ_DIM] = 4;// FIXME: Resulting from only 5 heartbeats?!
-
-		conf_model.irflash.input_TI_t1relax = md_alloc(DIMS, TI_T1relax_dims, CFL_SIZE);
-
-		md_copy(DIMS, TI_T1relax_dims, conf_model.irflash.input_TI_t1relax, TI_t1relax, CFL_SIZE);
-	}
-
-	if (NULL != conf->input_alpha) {
-		
-		conf_model.irflash.input_alpha = md_alloc(DIMS, map_dims, CFL_SIZE);
-
-		md_copy(DIMS, map_dims, conf_model.irflash.input_alpha, conf->input_alpha, CFL_SIZE);
-	}
-
-	struct moba_s nl = moba_create(dims, mask, pattern, &mconf, &conf_model, usegpu);
+	struct moba_s nl = moba_create(dims, mask, pattern, &mconf, conf, usegpu);
 
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
-	irgnm_conf.iter = conf->iter;
-	irgnm_conf.alpha = conf->alpha;
-	irgnm_conf.redu = conf->redu;
-	irgnm_conf.alpha_min = conf->alpha_min;
-	irgnm_conf.cgtol = ((2 == conf->opt_reg) || (conf->auto_norm_off)) ? 1e-3 : conf->tolerance;
-	irgnm_conf.cgiter = conf->inner_iter;
+	irgnm_conf.iter = conf->opt.iter;
+	irgnm_conf.alpha = conf->opt.alpha;
+	irgnm_conf.redu = conf->opt.redu;
+	irgnm_conf.alpha_min = conf->opt.alpha_min;
+	irgnm_conf.cgtol = ((2 == conf->opt.opt_reg) || (conf->opt.auto_norm_off)) ? 1e-3 : conf->opt.tolerance;
+	irgnm_conf.cgiter = conf->opt.inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct opt_reg_s* ropts = conf->ropts;
+	struct opt_reg_s* ropts = conf->opt.ropts;
 
 	struct mdb_irgnm_l1_conf conf2 = {
 		.c2 = &irgnm_conf,
-		.opt_reg = conf->opt_reg,
-		.step = conf->step,
-		.lower_bound = conf->lower_bound,
+		.opt_reg = conf->opt.opt_reg,
+		.step = conf->opt.step,
+		.lower_bound = conf->opt.lower_bound,
 		.constrained_maps = 4,
-		.not_wav_maps = (0. == conf->IR_phy || (NULL != conf->input_alpha)) ? 0 : 1,
+		.not_wav_maps = (IR_phy == conf->model) ? 1 : 0,
 		.flags = FFT_FLAGS,
 		.usegpu = usegpu,
-		.algo = conf->algo,
-		.rho = conf->rho,
+		.algo = conf->opt.algo,
+		.rho = conf->opt.rho,
 		.ropts = ropts,
-		.wav_reg = 1,
-		.auto_norm_off = conf->auto_norm_off };
+		.wav_reg = (T2 == conf->model) ? 0.1 : 1,
+		.auto_norm_off = conf->opt.auto_norm_off };
 
-	if (conf->MOLLI || (0. != conf->IR_phy) || (NULL != conf->input_alpha))
+	if (MOLLI == conf->model || IR_phy == conf->model || IR_phy_alpha_in == conf->model)
 		conf2.constrained_maps = 2;
 
 	long irgnm_conf_dims[DIMS];
@@ -323,7 +267,7 @@ void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex floa
 	}
 
 	// (M0, R1, alpha) model
-	if (0. != conf->IR_phy) {
+	if (IR_phy == conf->model) {
 
 		long pos[DIMS];
 
@@ -335,7 +279,7 @@ void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex floa
 		md_copy_block(DIMS, pos, map_dims, x, imgs_dims, img, CFL_SIZE);
 		T1_forw_alpha(nl.linop_alpha, x, x);
 		md_zreal(DIMS, map_dims, x, x);
-		md_zsmul(DIMS, map_dims, x, x, -conf->IR_phy * 1e-6 * 0.2);
+		md_zsmul(DIMS, map_dims, x, x, -conf->sim.tr * 1e-6 * 0.2);
 		md_smin(1, MD_DIMS(2 * map_size), (float*)x, (float*)x, 0.);
 		md_zexp(DIMS, map_dims, x, x);
 		md_zacos(DIMS, map_dims, x, x);
@@ -344,13 +288,6 @@ void T1_recon2(const struct moba_conf* conf, const long dims[DIMS], complex floa
 
 		linop_free(nl.linop_alpha);
 	}
-
-	if (NULL != TI) 
-		md_free(conf_model.irflash.input_TI);
-	if (NULL != TI_t1relax)
-		md_free(conf_model.irflash.input_TI_t1relax);
-	if (NULL != conf->input_alpha)
-		md_free(conf_model.irflash.input_alpha);
 
 	nlop_free(nl.nlop);
 
