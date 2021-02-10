@@ -208,7 +208,7 @@ int main_moba(int argc, char* argv[argc])
 	// else if (NULL != conf->input_alpha)
 	// 	conf_model.model = Bloch;
 
-	conf_model.sim.tr = conf_model.opt.IR_phy;
+	conf_model.sim.tr = 1e-6 * conf_model.opt.IR_phy; // [us] -> [s]
 
 
 	if (conf_model.opt.ropts->r > 0)

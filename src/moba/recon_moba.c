@@ -130,6 +130,7 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 	}
 
 	// (M0, R1, alpha) model
+	// FIXME: Move to separate function which can be tested by a unit test
 	if (IR_phy == conf->model) {
 
 		long pos[DIMS];
@@ -142,7 +143,7 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 		md_copy_block(DIMS, pos, map_dims, x, imgs_dims, img, CFL_SIZE);
 		T1_forw_alpha(nl.linop_alpha, x, x);
 		md_zreal(DIMS, map_dims, x, x);
-		md_zsmul(DIMS, map_dims, x, x, -conf->sim.tr * 1e-6 * 0.2);
+		md_zsmul(DIMS, map_dims, x, x, -conf->sim.tr * 0.2);
 		md_smin(1, MD_DIMS(2 * map_size), (float*)x, (float*)x, 0.);
 		md_zexp(DIMS, map_dims, x, x);
 		md_zacos(DIMS, map_dims, x, x);
