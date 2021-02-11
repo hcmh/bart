@@ -6,11 +6,11 @@
 #include "num/flpmath.h"
 #include "num/multind.h"
 #include "num/init.h"
+#include "num/conv.h"
 
 #include "misc/mri.h"
 
 #include "nlops/nlop.h"
-#include "nlops/conv.h"
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
@@ -23,36 +23,23 @@
 
 static void mask_conv(unsigned int D, const long mask_dims[D], complex float* mask, const long dims[D], complex float* out, const complex float* in)
 {
+	struct conv_plan* plan = conv_plan(D, FFT_FLAGS, CONV_CYCLIC, CONV_SYMMETRIC, dims, dims, mask_dims, mask);
 
-	const struct nlop_s* nlop_conv = nlop_convcorr_geom_create(D, (READ_FLAG|PHS1_FLAG|PHS2_FLAG), dims, dims, mask_dims,
-								PAD_SAME, false, NULL, NULL, 'N');
+	conv_exec(plan, out, in);
 
-	nlop_generic_apply_unchecked(nlop_conv, 3, (void*[3]){out, (void*)in, mask});
-
-	nlop_free(nlop_conv);
-}
-
-static void erosion2(unsigned int D, const long dims[D], float level, complex float* out, const complex float* in)
-{
-	long size = md_calc_size(DIMS, dims) * 2;
-
-	const float* inf = (const float*)in;
-	float* outf = (float*)out;
-
-	#pragma omp parallel for
-		for (long i = 0; i < size; i++)
-			outf[i] = inf[i] == level ? 1. : 0.;
+	conv_free(plan);
 }
 
 static void erosion(unsigned int D, const long mask_dims[D], complex float* mask, const long dims[D], complex float* out, const complex float* in)
 {
-	complex float* tmp_data = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
 
-	mask_conv(D, mask_dims, mask, dims, tmp_data, in);
+	mask_conv(D, mask_dims, mask, dims, tmp, in);
 
-	erosion2(D, dims,  md_zasum(D, mask_dims, mask), out, tmp_data);
+	// take relative error into account due to floating points
+	md_zsgreatequal(D, dims, out, tmp, (1 - 0.00001) * md_zasum(D, mask_dims, mask));
 
-	md_free(tmp_data);
+	md_free(tmp);
 }
 
 static void dilation2(unsigned int D, const long dims[D], complex float* out, const complex float* in)
