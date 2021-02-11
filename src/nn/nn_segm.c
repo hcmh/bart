@@ -53,6 +53,7 @@
 #include "nn/init.h"
 
 #include "nn_segm.h"
+
 const struct segm_s segm_default = {
 
 	.Nb = 5,
@@ -76,14 +77,15 @@ const struct segm_s segm_default = {
  */
 static void hotenc_to_index(int N_batch, long* prediction, const complex float* in, bool cfl, struct segm_s* segm)
 {
-
-	long dims[] = {segm->classes, (segm->imgx * segm->imgy * N_batch)};
+	long dims[] = { segm->classes, (segm->imgx * segm->imgy * N_batch) };
 	long strs[2];
+
 	md_calc_strides(2, strs, dims, CFL_SIZE);
 
-	for (long i_batch = 0; i_batch < (segm->imgx * segm->imgy * N_batch); i_batch++){
+	for (int i_batch = 0; i_batch < (segm->imgx * segm->imgy * N_batch); i_batch++) {
 
 		prediction[i_batch] = 0;
+
 		for (int mask_class = 1; mask_class < segm->classes; mask_class++){
 
 			long pos[] = {mask_class, i_batch};
@@ -96,25 +98,25 @@ static void hotenc_to_index(int N_batch, long* prediction, const complex float* 
 	}
 
 	if (cfl) {
-		long img_dims[] = {segm->imgx, segm->imgy, N_batch};
-		complex float* segm_gt;
-		segm_gt = create_cfl("segmentation_label", 3, img_dims);
-		md_copy(3, img_dims, segm_gt, prediction, CFL_SIZE);
-		unmap_cfl(3, img_dims, segm_gt);
+
+		long img_dims[] = { segm->imgx, segm->imgy, N_batch };
+
+		dump_cfl("segmentation_label", 3, img_dims, prediction);	// FIXME long to double?
 	}
 }
+
 static nn_t get_nn_segm_new(int N_batch, struct segm_s* segm, enum NETWORK_STATUS status)
 {
 	unsigned int N = 5;
-	long indims[] = {1, segm->imgx, segm->imgy, 1, N_batch}; // channel, x, y, z, batch
-	long expdims[] = {2, segm->imgx, segm->imgy, 1, N_batch}; // expand dimensions, channel, x, y, z, batch
+	long indims[] = { 1, segm->imgx, segm->imgy, 1, N_batch }; // channel, x, y, z, batch
+	long expdims[] = { 2, segm->imgx, segm->imgy, 1, N_batch }; // expand dimensions, channel, x, y, z, batch
 
 	nn_t network = nn_from_nlop_F(nlop_from_linop_F(linop_expand_create(N, expdims, indims)));
 	//nn_t network = nn_from_nlop_F(nlop_from_linop(linop_identity_create(N, indims)));
 
 	UNUSED(status);
-	long kernel_size[] = {3, 3, 1};
-	long pool_size[] = {2, 2, 1};
+	long kernel_size[] = { 3, 3, 1 };
+	long pool_size[] = { 2, 2, 1 };
 
 	bool conv = true;
 
@@ -208,14 +210,22 @@ static nn_t get_nn_segm_new(int N_batch, struct segm_s* segm, enum NETWORK_STATU
 
 	network = nn_append_convcorr_layer(network, 0, NULL, "conv_", segm->classes, MAKE_ARRAY(1l, 1l, 1l), conv, PAD_SAME, true, NULL, NULL, NULL);
 	// reshape dimensions to {label, x * y * z * batch_size} for softmax activation
+
 	long image_dims[N];
 	md_copy_dims(N, image_dims, nn_generic_codomain(network, 0, NULL)->dims);
-	long odims[] = {nn_generic_codomain(network, 0, NULL)->dims[0],
-			md_calc_size(nn_generic_codomain(network, 0, NULL)->N, nn_generic_codomain(network, 0, NULL)->dims)/nn_generic_codomain(network, 0, NULL)->dims[0]};
+
+	long odims[] = {
+
+		nn_generic_codomain(network, 0, NULL)->dims[0],
+		md_calc_size(nn_generic_codomain(network, 0, NULL)->N,
+		nn_generic_codomain(network, 0, NULL)->dims) / nn_generic_codomain(network, 0, NULL)->dims[0]
+	};
+
 	network = nn_reshape_out_F(network, 0, NULL, 2, odims);
 	network = nn_append_activation_bias(network, 0, NULL, "dense_bias_", ACT_SOFTMAX, ~MD_BIT(1));
 
 	network = nn_reshape_out_F(network, 0, NULL, N, image_dims);
+
 	return network;
 }
 
@@ -227,14 +237,14 @@ static nn_t get_nn_segm_new(int N_batch, struct segm_s* segm, enum NETWORK_STATU
 const struct nlop_s* get_nn_segm(int N_batch, struct segm_s* segm)
 {
 	unsigned int N = 5;
-	long indims[] = {1, segm->imgx, segm->imgy, 1, N_batch}; // channel, x, y, z, batch
-	long expdims[] = {2, segm->imgx, segm->imgy, 1, N_batch}; // expand dimensions, channel, x, y, z, batch
+	long indims[] = { 1, segm->imgx, segm->imgy, 1, N_batch }; // channel, x, y, z, batch
+	long expdims[] = { 2, segm->imgx, segm->imgy, 1, N_batch }; // expand dimensions, channel, x, y, z, batch
 
 	const struct nlop_s* network = NULL;
 	network = nlop_from_linop_F(linop_expand_create(N, expdims, indims));
 
-	long kernel_size[] = {3, 3, 1};
-	long pool_size[] = {2, 2, 1};
+	long kernel_size[] = { 3, 3, 1 };
+	long pool_size[] = { 2, 2, 1 };
 	UNUSED(pool_size);
 	bool conv = true;
 
@@ -372,9 +382,12 @@ int nn_segm_get_num_weights(struct segm_s* segm)
 	//const struct nlop_s* network = get_nn_segm_new(1, segm, STAT_TRAIN)->nlop;
 	int result = 0;
 	//auto network = get_nn_segm_new(1, segm, STAT_TRAIN);
+
 	network = deflatten_weightsF(network, 1);
-	result = (nlop_generic_domain(network, 1)->dims)[0];
+	result = nlop_generic_domain(network, 1)->dims[0];
+
 	nlop_free(network);
+
 	return result;
 }
 
@@ -382,8 +395,11 @@ nn_weights_t init_nn_segm_new(struct segm_s* segm)
 {
 	auto network = get_nn_segm_new(1, segm, STAT_TRAIN);
 	auto result = nn_weights_create_from_nn(network);
+
 	nn_init(network, result);
+
 	nn_free(network);
+
 	return result;
 }
 
@@ -396,9 +412,11 @@ void init_nn_segm(complex float* weights, struct segm_s* segm)
 {
 #if 1
 	const struct nlop_s* network = get_nn_segm(1, segm);
-	for (int i = 1; i < nlop_get_nr_in_args(network); i++){
+
+	for (int i = 1; i < nlop_get_nr_in_args(network); i++) {
 
 		const struct iovec_s* tmp = nlop_generic_domain(network, i);
+
 		weights = init_auto(tmp->N, tmp->dims, weights, true);
 	}
 
@@ -421,18 +439,23 @@ void train_nn_segm_new(int N_total, int N_batch, nn_weights_t weights,
 	nn_debug(DP_INFO, train);
 
 #ifdef USE_CUDA
-	if (nn_weights_on_gpu(weights)){
+	if (nn_weights_on_gpu(weights)) {
 
 		auto iov = nlop_generic_domain(nn_get_nlop(train), 0);
+
 		long odims[iov->N];
 		md_copy_dims(iov->N, odims, iov->dims);
+
 		odims[iov->N - 1] = N_total;
 		out = md_gpu_move(iov->N, odims, out, iov->size);
 
 		iov = nlop_generic_domain(nn_get_nlop(train), 1);
+
 		long idims[iov->N];
 		md_copy_dims(iov->N, idims, iov->dims);
+
 		idims[iov->N - 1] = N_total;
+
 		in = md_gpu_move(iov->N, idims, in, iov->size);
 	}
 #endif
@@ -445,13 +468,16 @@ void train_nn_segm_new(int N_total, int N_batch, nn_weights_t weights,
 	float* src[NI];
 	src[0] = (float*)out;
 	src[1] = (float*)in;
+
 	for (int i = 0; i < weights->N; i++)
 		src[i + 2] = (float*)weights->tensors[i];
 
 	enum IN_TYPE in_type[NI];
 	enum OUT_TYPE out_type[NO];
+
 	nn_get_in_types(train, NI, in_type);
 	nn_get_out_types(train, NO, out_type);
+
 	in_type[0] = IN_BATCH;
 	in_type[1] = IN_BATCH;
 
@@ -493,7 +519,9 @@ void train_nn_segm(int N_total, int N_batch, int N_total_val, complex float* wei
 	UNUSED(N_total_val);
 
 	const struct nlop_s* network = get_nn_segm(N_batch, segm);
+
 	nlop_debug(DP_INFO, network);
+
 	const struct nlop_s* loss = nlop_cce_create(nlop_generic_codomain(network, 0)->N, nlop_generic_codomain(network, 0)->dims, ~MD_BIT(0));
 
 
@@ -506,19 +534,22 @@ void train_nn_segm(int N_total, int N_batch, int N_total_val, complex float* wei
 	src[0] = (float*)out;
 	src[1] = (float*)in;
 
-	for (int i = 2; i < nlop_get_nr_in_args(nlop_train); i++){
+	for (int i = 2; i < nlop_get_nr_in_args(nlop_train); i++) {
 
 		src[i] = (float*)weights;
 		weights += md_calc_size(nlop_generic_domain(nlop_train, i)->N, nlop_generic_domain(nlop_train, i)->dims);
 	}
+
 	long NI = nlop_get_nr_in_args(nlop_train);
 	long NO = nlop_get_nr_out_args(nlop_train);
 
 	enum IN_TYPE in_type[NI];
+
 	for (int i = 0; i < NI; i++)
 		in_type[i] = IN_OPTIMIZE;
 
 	enum OUT_TYPE out_type[NO];
+
 	for (int o = 0; o < NO; o++)
 		out_type[o] = OUT_OPTIMIZE;
 
@@ -530,31 +561,39 @@ void train_nn_segm(int N_total, int N_batch, int N_total_val, complex float* wei
 	//struct iter6_sgd_conf _conf = iter6_sgd_conf_defaults;
 	struct iter6_adam_conf _conf = iter6_adam_conf_defaults;
 	_conf.INTERFACE.epochs = epochs;
-	if (NULL == segm->in_val){
+
+	if (NULL == segm->in_val) {
 
 		iter6_adam(CAST_UP(&_conf),
 				nlop_train,
 				NI, in_type, NULL, src,
 				NO, out_type,
 				N_batch, N_total / N_batch, NULL, NULL);
+
 	} else {
+
 		float* src_val[nlop_get_nr_in_args(nlop_train)];
 		src_val[0] = (float*)(segm->out_val);
 		src_val[1] = (float*)(segm->in_val);
+
 		auto nlop_validation = get_nn_segm(N_batch, segm);
+
 		nlop_validation = nlop_chain2_FF(nlop_validation, 0, nlop_cce_create(nlop_generic_codomain(nlop_validation, 0)->N, nlop_generic_codomain(nlop_validation, 0)->dims, ~MD_BIT(0)), 0);
 		auto iov0 = nlop_generic_domain(nlop_validation, 0);
 		auto iov1 = nlop_generic_domain(nlop_validation, 1);
 		auto del0 = nlop_del_out_create(iov0->N, iov0->dims);
 		auto del1 = nlop_del_out_create(iov1->N, iov1->dims);
+
 		nlop_validation = nlop_set_input_const_F(nlop_validation, 0, iov0->N, iov0->dims, true, (complex float*)src_val[0]);
 		nlop_validation = nlop_set_input_const_F(nlop_validation, 0, iov1->N, iov1->dims, true, (complex float*)src_val[1]);
 		nlop_validation = nlop_combine_FF(del1, nlop_validation);
 		nlop_validation = nlop_combine_FF(del0, nlop_validation);
 
-		auto monitor_validation_loss = monitor_iter6_nlop_create(nlop_validation, false, 1, (const char*[1]){"val loss"});
+		const struct monitor_value_s* monitor_validation_loss = monitor_iter6_nlop_create(nlop_validation, false, 1, (const char*[1]){"val loss"});
+
 		nlop_free(nlop_validation);
-		auto monitor = monitor_iter6_create(true, true, 1, &monitor_validation_loss);
+
+		auto monitor = monitor_iter6_create(true, true, 1, MAKE_ARRAY(monitor_validation_loss));
 
 		iter6_adam(CAST_UP(&_conf),
 				nlop_train,
@@ -565,10 +604,13 @@ void train_nn_segm(int N_total, int N_batch, int N_total_val, complex float* wei
 		monitor_iter6_dump_record(monitor, segm->val_loss);
 		monitor_iter6_free(monitor);
 	}
+
 	long dl_tmp = debug_level;
+
 	debug_level = MAX(DP_DEBUG1, debug_level);
 	PRINT_TIMER("Trainings");
 	debug_level = dl_tmp;
+
 	nlop_free(nlop_train);
 }
 
@@ -577,9 +619,10 @@ void predict_nn_segm_new(int N_total, int N_batch, long* prediction, nn_weights_
 	int loops = 0;
 	long N = 5;
 
-	long cfl_dims[] = {segm->imgx, segm->imgy, N_total};
-	long img_dims[] = {segm->imgx * segm->imgy * N_total};
+	long cfl_dims[] = { segm->imgx, segm->imgy, N_total };
+	long img_dims[] = { segm->imgx * segm->imgy * N_total };
 	complex float* segm_pred = md_alloc(1, img_dims, CFL_SIZE);
+
 	while (N_total > 0) {
 
 		N_batch = MIN(N_total, N_batch);
@@ -587,20 +630,27 @@ void predict_nn_segm_new(int N_total, int N_batch, long* prediction, nn_weights_
 		nn_t network = get_nn_segm_new(N_batch, segm, STAT_TEST);
 		long odims[N];
 		md_copy_dims(N, odims, nn_generic_codomain(network, 0, NULL)->dims);
-		long softmax_dims[] = {nn_generic_codomain(network, 0, NULL)->dims[0],
-				md_calc_size(nn_generic_codomain(network, 0, NULL)->N, nn_generic_codomain(network, 0, NULL)->dims)/nn_generic_codomain(network, 0, NULL)->dims[0]};
+
+		long softmax_dims[] = {
+
+			nn_generic_codomain(network, 0, NULL)->dims[0],
+			md_calc_size(nn_generic_codomain(network, 0, NULL)->N,
+			nn_generic_codomain(network, 0, NULL)->dims) / nn_generic_codomain(network, 0, NULL)->dims[0]
+		};
 
 		network = nn_reshape_out_F(network, 0, NULL, 2, softmax_dims);
+
 		while(1 < nn_get_nr_out_args(network))
 			network = nn_del_out_F(network, 1, NULL);
 
 		auto nlop_predict = nn_get_nlop_wo_weights(network, weights, false);
 
-		long indims[] = {1, segm->imgx, segm->imgy, 1, N_batch}; // channel, x, y, z, batch size
-		long outdims[] = {segm->classes, (segm->imgx * segm->imgy * N_batch)}; // mask_dim, x * y * z * batch size
+		long indims[] = { 1, segm->imgx, segm->imgy, 1, N_batch }; // channel, x, y, z, batch size
+		long outdims[] = { segm->classes, (segm->imgx * segm->imgy * N_batch) }; // mask_dim, x * y * z * batch size
 		const complex float* tmp_in = in;
+
 #ifdef USE_CUDA
-		if (nn_weights_on_gpu(weights)){
+		if (nn_weights_on_gpu(weights)) {
 
 			auto iov = nlop_generic_domain(nlop_predict, 0);
 			tmp_in = md_gpu_move(iov->N, iov->dims, in, iov->size);
@@ -618,28 +668,32 @@ void predict_nn_segm_new(int N_total, int N_batch, long* prediction, nn_weights_
 		md_copy(2, outdims, tmp_cpu, tmp_out, CFL_SIZE);
 
 		md_free(tmp_out);
+
 		if (nn_weights_on_gpu(weights))
 			md_free(tmp_in);
 
 		hotenc_to_index(N_batch, prediction, tmp_cpu, false, segm);
+
 		for (int i_batch = 0; i_batch < N_batch * segm->imgx * segm->imgy; i_batch++)
 			segm_pred[i_batch + loops * N_batch * segm->imgx * segm->imgy] = prediction[i_batch];
 
 		md_free(tmp_cpu);
 
 		prediction += (segm->imgx * segm->imgy * N_batch);
+
 		in += md_calc_size(N, indims);
+
 		N_total -= N_batch;
 		loops += 1;
 	}
+
 	// create cfl file with image dimensions
-	complex float* segm_cfl;
-	segm_cfl = create_cfl("segmentation_prediction", 3, cfl_dims);
-	md_copy(3, cfl_dims, segm_cfl, segm_pred, CFL_SIZE);
-	unmap_cfl(3, cfl_dims, segm_cfl);
+	dump_cfl("segmentation_prediction", 3, cfl_dims, segm_pred);
 
 	md_free(segm_pred);
 }
+
+
 
 /**
  * Creates predictions based on largest probability of encoded indices.
@@ -654,8 +708,8 @@ void predict_nn_segm(int N_total, int N_batch, long* prediction, const complex f
 	int loops = 0;
 	long N = 5;
 
-	long cfl_dims[] = {segm->imgx, segm->imgy, N_total};
-	long img_dims[] = {segm->imgx * segm->imgy * N_total};
+	long cfl_dims[] = { segm->imgx, segm->imgy, N_total };
+	long img_dims[] = { segm->imgx * segm->imgy * N_total };
 	complex float* segm_pred = md_alloc(1, img_dims, CFL_SIZE);
 
 	// iterate over each batch in N_total
@@ -668,8 +722,13 @@ void predict_nn_segm(int N_total, int N_batch, long* prediction, const complex f
 		// reshape dims from channel, x, y, z, batch to channel, x * y * z * batch_size for hot encoding
 		long odims[N];
 		md_copy_dims(N, odims, nlop_generic_codomain(network, 0)->dims);
-		long softmax_dims[] = {nlop_generic_codomain(network, 0)->dims[0],
-				md_calc_size(nlop_generic_codomain(network, 0)->N, nlop_generic_codomain(network, 0)->dims)/nlop_generic_codomain(network, 0)->dims[0]};
+
+		long softmax_dims[] = {
+
+			nlop_generic_codomain(network, 0)->dims[0],
+			md_calc_size(nlop_generic_codomain(network, 0)->N,
+			nlop_generic_codomain(network, 0)->dims) / nlop_generic_codomain(network, 0)->dims[0]
+		};
 
 		network = nlop_reshape_out_F(network, 0, 2, softmax_dims);
 
@@ -680,8 +739,8 @@ void predict_nn_segm(int N_total, int N_batch, long* prediction, const complex f
 		network = nlop_set_input_const_F(network, 1, 1, nlop_generic_domain(network, 1)->dims, true, weights);
 
 
-		long indims[] = {1, segm->imgx, segm->imgy, 1, N_batch}; // channel, x, y, z, batch size
-		long outdims[] = {segm->classes, (segm->imgx * segm->imgy * N_batch)}; // mask_dim, x * y * z * batch size
+		long indims[] = { 1, segm->imgx, segm->imgy, 1, N_batch }; // channel, x, y, z, batch size
+		long outdims[] = { segm->classes, (segm->imgx * segm->imgy * N_batch) }; // mask_dim, x * y * z * batch size
 
 		complex float* tmp = md_alloc_sameplace(2, outdims, CFL_SIZE, weights);
 
@@ -694,6 +753,7 @@ void predict_nn_segm(int N_total, int N_batch, long* prediction, const complex f
 		md_copy(2, outdims, tmp_cpu, tmp, CFL_SIZE);
 
 		hotenc_to_index(N_batch, prediction, tmp_cpu, false, segm);
+
 		for (int i_batch = 0; i_batch < N_batch * segm->imgx * segm->imgy; i_batch++)
 			segm_pred[i_batch + loops * N_batch * segm->imgx * segm->imgy] = prediction[i_batch];
 
@@ -701,18 +761,20 @@ void predict_nn_segm(int N_total, int N_batch, long* prediction, const complex f
 		md_free(tmp_cpu);
 
 		prediction += (segm->imgx * segm->imgy * N_batch);
+
 		in += md_calc_size(N, indims);
+
 		N_total -= N_batch;
 		loops += 1;
 	}
+
 	// create cfl file with image dimensions
-	complex float* segm_cfl;
-	segm_cfl = create_cfl("segmentation_prediction", 3, cfl_dims);
-	md_copy(3, cfl_dims, segm_cfl, segm_pred, CFL_SIZE);
-	unmap_cfl(3, cfl_dims, segm_cfl);
+	dump_cfl("segmentation_prediction", 3, cfl_dims, segm_pred);
 
 	md_free(segm_pred);
 }
+
+
 
 /**
  * Calculate accuracy of trained network
@@ -725,41 +787,55 @@ void predict_nn_segm(int N_total, int N_batch, long* prediction, const complex f
 float accuracy_nn_segm_new(int N_total, int N_batch, nn_weights_t weights, const complex float* in, const complex float* out, struct segm_s* segm)
 {
 	long* prediction = xmalloc(sizeof(long) * segm->imgx * segm->imgy * N_total);// account for stacksize
+
 	predict_nn_segm_new(N_total, N_batch, prediction, weights, in, segm);
 
-	long outdims[] = {segm->classes, segm->imgx, segm->imgy, N_total};
+	long outdims[] = { segm->classes, segm->imgx, segm->imgy, N_total };
+
 	complex float* tmp_cpu = md_alloc(4, outdims, CFL_SIZE);
+
 	md_copy(4, outdims, tmp_cpu, out, CFL_SIZE);
 
 	long* label = xmalloc(sizeof(long) * segm->imgx * segm->imgy * N_total);
+
 	hotenc_to_index(N_total, label, tmp_cpu, true, segm);
 
 	long* AoO = xmalloc(sizeof(long) * segm->classes);
 	long* AoU = xmalloc(sizeof(long) * segm->classes);
+
 	md_clear(1, MD_DIMS(segm->classes), AoO, sizeof(long));
 	md_clear(1, MD_DIMS(segm->classes), AoU, sizeof(long));
 
 	// calculate dice coefficient
 
-	for (int i = 0; i < (segm->imgx * segm->imgy * N_total); i++){
+	for (int i = 0; i < (segm->imgx * segm->imgy * N_total); i++) {
+
 		AoU[(int)label[i]] += 1;
 		AoU[(int)prediction[i]] += 1;
-		if ((prediction)[i] == (label)[i]){
+
+		if ((prediction)[i] == (label)[i]) {
+
 			AoO[(int)label[i]] += 1;
 			AoU[(int)label[i]] -= 1;
 		}
 	}
+
 	long* totalNumber = xmalloc(sizeof(long) * segm->classes);
+
 	md_clear(1, MD_DIMS(segm->classes), totalNumber, sizeof(long));
+
 	float dice_coefficient = 0.;
 
-	for (int i = 0; i < (segm->imgx * segm->imgy * N_total); i++){
-		totalNumber[(int)prediction[i]] +=1;
-		totalNumber[(int)label[i]] +=1;
+	for (int i = 0; i < (segm->imgx * segm->imgy * N_total); i++) {
+
+		totalNumber[(int)prediction[i]] += 1;
+		totalNumber[(int)label[i]] += 1;
 	}
 
-	for (int i = 0; i < segm->classes; i++){
+	for (int i = 0; i < segm->classes; i++) {
+
 		dice_coefficient += (float)AoO[i] * 2 / ((float) totalNumber[i] * segm->classes);
+
 		printf("Dice coefficient of mask %d = %.6f\n", i,((float)AoO[i] * 2 / (float) totalNumber[i]));
 	}
 
@@ -799,6 +875,9 @@ float accuracy_nn_segm_new(int N_total, int N_batch, nn_weights_t weights, const
 	return IoU;
 */
 }
+
+
+
 /**
  * Calculate accuracy of trained network
  *
@@ -810,41 +889,55 @@ float accuracy_nn_segm_new(int N_total, int N_batch, nn_weights_t weights, const
 float accuracy_nn_segm(int N_total, int N_batch, const complex float* weights, const complex float* in, const complex float* out, struct segm_s* segm)
 {
 	long* prediction = xmalloc(sizeof(long) * segm->imgx * segm->imgy * N_total);// account for stacksize
+
 	predict_nn_segm(N_total, N_batch, prediction, weights, in, segm);
 
-	long outdims[] = {segm->classes, segm->imgx, segm->imgy, N_total};
+	long outdims[] = { segm->classes, segm->imgx, segm->imgy, N_total };
+
 	complex float* tmp_cpu = md_alloc(4, outdims, CFL_SIZE);
+
 	md_copy(4, outdims, tmp_cpu, out, CFL_SIZE);
 
 	long* label = xmalloc(sizeof(long) * segm->imgx * segm->imgy * N_total);
+
 	hotenc_to_index(N_total, label, tmp_cpu, true, segm);
 
 	long* AoO = xmalloc(sizeof(long) * segm->classes);
 	long* AoU = xmalloc(sizeof(long) * segm->classes);
+
 	md_clear(1, MD_DIMS(segm->classes), AoO, sizeof(long));
 	md_clear(1, MD_DIMS(segm->classes), AoU, sizeof(long));
 
 	// calculate dice coefficient
 
-	for (int i = 0; i < (segm->imgx * segm->imgy * N_total); i++){
+	for (int i = 0; i < (segm->imgx * segm->imgy * N_total); i++) {
+
 		AoU[(int)label[i]] += 1;
 		AoU[(int)prediction[i]] += 1;
-		if ((prediction)[i] == (label)[i]){
+
+		if (prediction[i] == label[i]) {
+
 			AoO[(int)label[i]] += 1;
 			AoU[(int)label[i]] -= 1;
 		}
 	}
+
 	long* totalNumber = xmalloc(sizeof(long) * segm->classes);
+
 	md_clear(1, MD_DIMS(segm->classes), totalNumber, sizeof(long));
+
 	float dice_coefficient = 0.;
 
-	for (int i = 0; i < (segm->imgx * segm->imgy * N_total); i++){
-		totalNumber[(int)prediction[i]] +=1;
-		totalNumber[(int)label[i]] +=1;
+	for (int i = 0; i < (segm->imgx * segm->imgy * N_total); i++) {
+
+		totalNumber[(int)prediction[i]] += 1;
+		totalNumber[(int)label[i]] += 1;
 	}
 
-	for (int i = 0; i < segm->classes; i++){
+	for (int i = 0; i < segm->classes; i++) {
+
 		dice_coefficient += (float)AoO[i] * 2 / ((float) totalNumber[i] * segm->classes);
+
 		printf("Dice coefficient of mask %d = %.6f\n", i,((float)AoO[i] * 2 / (float) totalNumber[i]));
 	}
 
