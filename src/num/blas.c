@@ -131,7 +131,7 @@ void blas2_cgemm(char transa, char transb, long M, long N, long K, const complex
 
 		cublasCgemm(get_handle(), cublas_trans(transa), cublas_trans(transb), M, N, K, (const cuComplex*)alpha,
 			    (const cuComplex*)A, lda, (const cuComplex*)B, ldb, (const cuComplex*)beta, (cuComplex*)C, ldc);
-		
+
 		return;
 	}
 #endif
@@ -218,7 +218,7 @@ void blas2_cgeru(long M, long N, const complex float* alpha, long incx, const co
 
 		cublasCgeru(get_handle(), M, N, (const cuComplex*)alpha,
 			    (const cuComplex*)x, incx, (const cuComplex*)y, incy, (cuComplex*)A, lda);
-		
+
 		return;
 	}
 #endif
@@ -238,7 +238,7 @@ void blas_cgeru(long M, long N, complex float alpha, long incx, const complex fl
 
 		cublasCgeru(get_handle(), M, N, (const cuComplex*)&alpha,
 			    (const cuComplex*)x, incx, (const cuComplex*)y, incy, (cuComplex*)A, lda);
-		
+
 		return;
 	}
 #endif
@@ -257,7 +257,7 @@ void blas2_caxpy(long N, const complex float* alpha, long incx, const complex fl
 		cublas_set_pointer_device();
 
 		cublasCaxpy(get_handle(), N, (const cuComplex*)alpha, (const cuComplex*)x, incx, (cuComplex*)y, incy);
-		
+
 		return;
 	}
 #endif
@@ -297,7 +297,7 @@ void blas2_cscal(long N, const complex float* alpha, long incx, complex float* x
 		cublas_set_pointer_device();
 
 		cublasCscal(get_handle(), N, (const cuComplex*)alpha, (cuComplex*)x, incx);
-		
+
 		return;
 	}
 #endif
@@ -397,7 +397,7 @@ void blas2_sgemv(char trans, long M, long N, const float* alpha, long lda, const
 
 		cublasSgemv(get_handle(), cublas_trans(trans), M, N, alpha,
 			    (const float*)A, lda, x, incx, beta, y, incy);
-		
+
 		return;
 	}
 #endif
@@ -418,7 +418,7 @@ void blas_sgemv(char trans, long M, long N, const float alpha, long lda, const f
 
 		cublasSgemv(get_handle(), cublas_trans(trans), M, N, &alpha,
 			    (const float*)A, lda, x, incx, &beta, y, incy);
-		
+
 		return;
 	}
 #endif
@@ -438,7 +438,7 @@ void blas2_sger(long M, long N, const float* alpha, long incx, const float* x, l
 		cublas_set_pointer_device();
 
 		cublasSger(get_handle(), M, N, alpha, x, incx, y, incy, (float*)A, lda);
-		
+
 		return;
 	}
 #endif
