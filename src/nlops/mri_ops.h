@@ -16,7 +16,7 @@ struct conf_mri_dims {
 	struct iter_conjgrad_conf* iter_conf;
 };
 
-struct conf_mri_dims conf_nlop_mri_simple;
+extern struct conf_mri_dims conf_nlop_mri_simple;
 
 extern const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf);
 extern const struct nlop_s* nlop_mri_adjoint_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf);

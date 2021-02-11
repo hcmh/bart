@@ -23,7 +23,7 @@ struct network_data_s {
 	_Bool load_mem;
 };
 
-struct network_data_s network_data_empty;
+extern struct network_data_s network_data_empty;
 
 void load_network_data(struct network_data_s* network_data);
 void free_network_data(struct network_data_s* network_data);

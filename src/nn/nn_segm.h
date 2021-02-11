@@ -14,7 +14,7 @@ struct segm_s {
 
 };
 
-const struct segm_s segm_default;
+extern const struct segm_s segm_default;
 
 extern int nn_segm_get_num_weights(struct segm_s* segm);
 extern nn_weights_t init_nn_segm_new(struct segm_s* segm);
