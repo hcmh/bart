@@ -314,8 +314,11 @@ int main_rtnlinv(int argc, char* argv[argc])
 		if (!md_check_bounds(DIMS, 0, img1_dims, init_dims))
 			error("Image dimensions and init dimensions do not match!");
 
-		md_copy(DIMS, img1_dims, img1, init, CFL_SIZE);
-		md_copy(DIMS, sens1_dims, ksens1, init + skip, CFL_SIZE);
+		long pos[DIMS]  = { 0 };
+		md_copy_block(DIMS, pos, img1_dims, img1, init_dims, init, CFL_SIZE);
+
+		pos[COIL_DIM] = 1;
+		md_copy_block(DIMS, pos, sens1_dims, ksens1, init_dims, init, CFL_SIZE);
 
 		conf.img_space_coils = true;
 
