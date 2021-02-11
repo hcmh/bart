@@ -8,6 +8,15 @@ tests/test-morph-dilation-erosion: phantom morph nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-morph-dilation-erosion-large: phantom morph nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
+	$(TOOLDIR)/phantom -x128 -g 3 ori.ra					;\
+	$(TOOLDIR)/morph -e -b 51 ori.ra redu.ra					;\
+	$(TOOLDIR)/morph -d -b 51 redu.ra rec.ra					;\
+	$(TOOLDIR)/nrmse -t 0.000001 ori.ra rec.ra 				;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
 tests/test-morph-opening: phantom morph nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
 	$(TOOLDIR)/phantom -x64 -g 2 ori.ra					;\
@@ -28,5 +37,5 @@ tests/test-morph-closing: phantom morph nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-TESTS += tests/test-morph-dilation-erosion tests/test-morph-opening tests/test-morph-closing
+TESTS += tests/test-morph-dilation-erosion tests/test-morph-dilation-erosion-large tests/test-morph-opening tests/test-morph-closing
 
