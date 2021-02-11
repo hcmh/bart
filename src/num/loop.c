@@ -61,10 +61,12 @@ void md_zmap(unsigned int N, const long dims[N], complex float* out, const compl
 	long strs[N];
 	md_calc_strides(N, strs, dims, 1); // we use size = 1 here 
 
+	long* strsp = strs; // because of clang
+
 	NESTED(complex float, map_kernel, (const long pos[]))
 	{
-		return fun(in[md_calc_offset(N, strs, pos)]);
-	}
+		return fun(in[md_calc_offset(N, strsp, pos)]);
+	};
 
 	md_zsample(N, dims, out, map_kernel);
 }
@@ -77,15 +79,19 @@ void md_zmap(unsigned int N, const long dims[N], complex float* out, const compl
 
 void md_zgradient(unsigned int N, const long dims[N], complex float* out, const complex float grad[N])
 {
+#if 1
+	// clang
+	const complex float* grad2 = grad;
+#endif
 	NESTED(complex float, gradient_kernel, (const long pos[]))
 	{
 		complex float val = 0.;
 
 		for (int i = 0; i < (int)N; i++)
-			val += pos[i] * grad[i];
+			val += pos[i] * grad2[i];
 
 		return val;
-	}
+	};
 
 	md_zsample(N, dims, out, gradient_kernel);
 }
@@ -94,10 +100,19 @@ void md_zgradient(unsigned int N, const long dims[N], complex float* out, const 
 
 void md_zquadratic(unsigned int N, const long dims[N], complex float* out, float cnt, const float lin[N], const float mom[N][N])
 {
+#if 1
+	// clang
+	const void* mom_p = mom;
+	const void* lin_p = lin;
+#endif
 	NESTED(complex float, kern, (const long pos[]))
 	{
 		complex float val = cnt;
-
+#if 1
+	// clang
+		const float (*mom)[N] = mom_p;
+		const float* lin = lin_p;
+#endif
 		for (int i = 0; i < (int)N; i++) {
 
 			val += lin[i] * pos[i];
