@@ -114,7 +114,7 @@ static void openblas_set_threads(void)
 		return; //pthread version of openblas
 
 	#pragma omp critical
-	openblas_set_num_threads(omp_in_paralle() ? 1 : omp_get_max_threads());
+	openblas_set_num_threads(omp_in_parallel() ? 1 : omp_get_max_threads());
 #endif
 #endif
 }
