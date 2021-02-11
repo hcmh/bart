@@ -42,27 +42,17 @@ static void erosion(unsigned int D, const long mask_dims[D], complex float* mask
 	md_free(tmp);
 }
 
-static void dilation2(unsigned int D, const long dims[D], complex float* out, const complex float* in)
-{
-	long size = md_calc_size(DIMS, dims) * 2;
-
-	const float* inf = (const float*)in;
-	float* outf = (float*)out;
-
-	#pragma omp parallel for
-		for (long i = 0; i < size; i++)
-			outf[i] = inf[i] >= 1 ? 1. : 0.;
-}
 
 static void dilation(unsigned int D, const long mask_dims[D], complex float* mask, const long dims[D], complex float* out, const complex float* in)
 {
-	complex float* tmp_data = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
 
-	mask_conv(D, mask_dims, mask, dims, tmp_data, in);
+	mask_conv(D, mask_dims, mask, dims, tmp, in);
 
-	dilation2(D, dims, out, tmp_data);
+	// take relative error into account due to floating points
+	md_zsgreatequal(D, dims, out, tmp, (1 - md_zasum(D, mask_dims, mask) * 0.00001));
 
-	md_free(tmp_data);
+	md_free(tmp);
 }
 
 static void opening(unsigned int D, const long mask_dims[D], complex float* mask, const long dims[D], complex float* out, const complex float* in)
