@@ -135,7 +135,7 @@ endif
 
 # cuda
 
-CUDA_BASE ?= /usr/local/
+CUDA_BASE ?= /usr/
 CUDNN_BASE ?= $(CUDA_BASE)
 
 
@@ -342,9 +342,9 @@ ifeq ($(BUILDTYPE), MacOSX)
 CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -m64 -lstdc++
 else
 ifeq ($(CUDNN),1)
-CUDA_L := -L$(CUDA_BASE)/lib64 -L$(CUDNN_BASE)/lib64 -lcudnn -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib64
+CUDA_L := -L$(CUDA_BASE)/lib -L$(CUDNN_BASE)/lib64 -lcudnn -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib
 else
-CUDA_L := -L$(CUDA_BASE)/lib64 -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib64
+CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib
 endif
 endif
 else
