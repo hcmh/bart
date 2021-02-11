@@ -57,24 +57,24 @@ static void dilation(unsigned int D, const long mask_dims[D], complex float* mas
 
 static void opening(unsigned int D, const long mask_dims[D], complex float* mask, const long dims[D], complex float* out, const complex float* in)
 {
-	complex float* tmp_data = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
 
-	erosion(D, mask_dims, mask, dims, tmp_data, in);
+	erosion(D, mask_dims, mask, dims, tmp, in);
 
-	dilation(D, mask_dims, mask, dims, out, tmp_data);
+	dilation(D, mask_dims, mask, dims, out, tmp);
 
-	md_free(tmp_data);
+	md_free(tmp);
 }
 
 static void closing(unsigned int D, const long mask_dims[D], complex float* mask, const long dims[D], complex float* out, const complex float* in)
 {
-	complex float* tmp_data = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
 
-	dilation(D, mask_dims, mask, dims, tmp_data, in);
+	dilation(D, mask_dims, mask, dims, tmp, in);
 
-	erosion(D, mask_dims, mask, dims, out, tmp_data);
+	erosion(D, mask_dims, mask, dims, out, tmp);
 
-	md_free(tmp_data);
+	md_free(tmp);
 }
 
 static const char usage_str[] = "mask_size <binary input> <binary output>";
@@ -128,57 +128,57 @@ int main_morph(int argc, char* argv[])
 
 	switch (mask_type) {
 
-		case HLINE:
-			printf("Mask Type is not implemented yet.\n");
-			// mask = {{0, 0, 0},
-			// 	{1, 1, 1},
-			// 	{0, 0, 0}};
-			break;
+	case HLINE:
+		printf("Mask Type is not implemented yet.\n");
+		// mask = {{0, 0, 0},
+		// 	{1, 1, 1},
+		// 	{0, 0, 0}};
+		break;
 
-		case VLINE:
-			printf("Mask Type is not implemented yet.\n");
-			// mask = {{0, 1, 0},
-			// 	{0, 1, 0},
-			// 	{0, 1, 0}};
-			break;
+	case VLINE:
+		printf("Mask Type is not implemented yet.\n");
+		// mask = {{0, 1, 0},
+		// 	{0, 1, 0},
+		// 	{0, 1, 0}};
+		break;
 
-		case CROSS:
-			printf("Mask Type is not implemented yet.\n");
-			// mask = {{0, 1, 0},
-			// 	{1, 1, 1},
-			// 	{0, 1, 0}};
-			break;
+	case CROSS:
+		printf("Mask Type is not implemented yet.\n");
+		// mask = {{0, 1, 0},
+		// 	{1, 1, 1},
+		// 	{0, 1, 0}};
+		break;
 
-		case BLOCK:
-			md_zfill(N, mask_dims, mask, 1.);
-			break;
+	case BLOCK:
+		md_zfill(N, mask_dims, mask, 1.);
+		break;
 
-		default:
-			printf("Please choose a correct structural element/mask.\n");
-			break;
+	default:
+		printf("Please choose a correct structural element/mask.\n");
+		break;
 	}
 
 	switch (morph_type) {
 
-		case EROSION:
-			erosion(N, mask_dims, mask, dims, out, in);
-			break;
+	case EROSION:
+		erosion(N, mask_dims, mask, dims, out, in);
+		break;
 
-		case DILATION:
-			dilation(N, mask_dims, mask, dims, out, in);
-			break;
+	case DILATION:
+		dilation(N, mask_dims, mask, dims, out, in);
+		break;
 
-		case OPENING:
-			opening(N, mask_dims, mask, dims, out, in);
-			break;
+	case OPENING:
+		opening(N, mask_dims, mask, dims, out, in);
+		break;
 
-		case CLOSING:
-			closing(N, mask_dims, mask, dims, out, in);
-			break;
+	case CLOSING:
+		closing(N, mask_dims, mask, dims, out, in);
+		break;
 
-		default:
-			printf("Please choose a morphological operation.\n");
-			break;
+	default:
+		printf("Please choose a morphological operation.\n");
+		break;
 	}
 
 	md_free(mask);
