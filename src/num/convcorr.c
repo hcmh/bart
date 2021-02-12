@@ -80,7 +80,7 @@ zconvcorr_bwd_in_algo_f* algos_bwd_in_cpu[] = {	zconvcorr_bwd_in_inner_matmul_cf
 #ifdef USE_CUDA
 zconvcorr_bwd_krn_algo_f* algos_bwd_krn_gpu[] = {
 						#ifdef USE_CUDNN
-							zconvcorr_bwd_krn_cudnn_2d_cf,
+							zconvcorr_bwd_krn_cudnn,
 						#endif
 							zconvcorr_bwd_krn_im2col_cf_gpu,
 							zconvcorr_bwd_krn_direct_cf
@@ -88,14 +88,14 @@ zconvcorr_bwd_krn_algo_f* algos_bwd_krn_gpu[] = {
 
 zconvcorr_fwd_algo_f* algos_fwd_gpu[] = {
 					#ifdef USE_CUDNN
-						zconvcorr_fwd_cudnn_2d_cf,
+						zconvcorr_fwd_cudnn,
 					#endif
 						zconvcorr_fwd_im2col_cf_gpu,
 						zconvcorr_fwd_direct_cf};
 
 zconvcorr_bwd_in_algo_f* algos_bwd_in_gpu[] = {
 					#ifdef USE_CUDNN
-						zconvcorr_bwd_in_cudnn_2d_cf,
+						zconvcorr_bwd_in_cudnn,
 					#endif
 						zconvcorr_bwd_in_im2col_cf_gpu,
 						zconvcorr_bwd_in_direct_cf};
