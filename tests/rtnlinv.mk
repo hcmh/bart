@@ -67,7 +67,7 @@ tests/test-rtnlinv-cnstcoil: traj scale phantom repmat rtnlinv slice nrmse
 	$(TOOLDIR)/rtnlinv -N -i9 --cnstcoil_flags 32 -t traj2.ra ksp2.ra r2.ra	;\
 	$(TOOLDIR)/slice 5 0 r2.ra r_e1.ra					;\
 	$(TOOLDIR)/slice 5 1 r2.ra r_e2.ra					;\
-	OMP_NUM_THREADS=1 $(TOOLDIR)/nrmse -t 0.0000001 r_e1.ra r_e2.ra		;\
+	$(TOOLDIR)/nrmse -t 0.0005 r_e1.ra r_e2.ra				;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
