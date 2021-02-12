@@ -547,10 +547,11 @@ lib/libismrm.a: CPPFLAGS += $(ISMRM_H)
 
 
 # lib linop
-UTARGETS += test_linop_matrix test_linop test_linop_conv
+UTARGETS += test_linop_matrix test_linop test_linop_conv test_linop_fd
 MODULES_test_linop += -llinops
 MODULES_test_linop_matrix += -llinops
 MODULES_test_linop_conv += -llinops
+MODULES_test_linop_fd += -llinops
 
 # lib lowrank
 UTARGETS += test_batchsvd

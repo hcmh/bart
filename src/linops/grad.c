@@ -57,10 +57,41 @@ static void grad_op(unsigned int D, const long dims[D], int d, unsigned int flag
 
 		unsigned int lsb = ffs(flags2) - 1;
 		flags2 = MD_CLEAR(flags2, lsb);
-		if (1 == order)
+
+		if (1 == order) {
 			(reverse ? md_zfdiff_backwards2 : md_zfdiff2)(D, dims1, lsb, bc, strs, (void *)out + i * strs[d], strs1, in);
-		if (2 == order)
+
+			// For "SAME", zfdiff & zfdiff_backwards are not adjoint
+			// 'at the boundaries'
+			if ((BC_SAME == bc) && reverse) {
+				long pos[D];
+				md_select_dims(D, ~MD_BIT(lsb), pos, dims1);
+
+				long ioff = strs1[lsb], ooff = i * strs[d];
+				md_zsmul2(D, pos, strs, (void *)out + ooff, strs1, (void *)in + ioff, -1.);
+
+				ioff = (dims1[lsb] - 1) * strs1[lsb];
+				ooff = (dims1[lsb] - 1) * strs[lsb] + i * strs[d];
+				md_zsmul2(D, pos, strs, (void *)out + ooff, strs1, (void *)in + ioff, 1.);
+			}
+		}
+
+		if (2 == order) {
 			md_zfdiff_central2(D, dims1, lsb, bc, reverse, strs, (void *)out + i * strs[d], strs1, in);
+
+			if ((BC_SAME) == bc && reverse) {
+				long pos[D];
+				md_select_dims(D, ~MD_BIT(lsb), pos, dims1);
+
+				long ioff = 0, ooff = i * strs[d];
+				md_zaxpy2(D, pos, strs, (void *)out + ooff, -2., strs1, (void *)in + ioff);
+
+				ioff = (dims1[lsb] - 1) * strs1[lsb];
+				ooff = (dims1[lsb] - 1) * strs[lsb] + i * strs[d];
+				md_zaxpy2(D, pos, strs, (void *)out + ooff, 2., strs1, (void *)in + ioff);
+			}
+
+		}
 	}
 
 	assert(0 == flags2);
@@ -97,11 +128,38 @@ static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int
 		unsigned int lsb = ffs(flags2) - 1;
 		flags2 = MD_CLEAR(flags2, lsb);
 
-		if (1 == order)
+		if (1 == order) {
 			(reverse ? md_zfdiff2 : md_zfdiff_backwards2)(D, dims1, lsb, bc, strs1, tmp, strs,
 								      (void *)in + i * strs[d]);
-		if (2 == order)
+			//Special Case: For "SAME", zfdiff & zfdiff_backwards are not adjoint
+			//'at the boundaries'
+			if ((BC_SAME == bc) && !reverse) {
+				long pos[D];
+				md_select_dims(D, ~MD_BIT(lsb), pos, dims1);
+
+				long ioff = i * strs[d] + strs[lsb], ooff = 0;
+				md_zsmul2(D, pos, strs1, (void *)tmp + ooff, strs, (void *)in + ioff, -1.);
+
+				ioff = i * strs[d] + (dims1[lsb] - 1) * strs[lsb];
+				ooff = (dims1[lsb] - 1) * strs1[lsb];
+				md_zsmul2(D, pos, strs1, (void *)tmp + ooff, strs, (void *)in + ioff, 1.);
+			}
+		}
+		if (2 == order) {
 			md_zfdiff_central2(D, dims1, lsb, bc, !reverse, strs1, tmp, strs, (void *)in + i * strs[d]);
+
+			if ((BC_SAME == bc) && !reverse) {
+				long pos[D];
+				md_select_dims(D, ~MD_BIT(lsb), pos, dims1);
+
+				long ioff = i * strs[d], ooff = 0;
+				md_zaxpy2(D, pos, strs1, (void *)tmp + ooff, -2., strs, (void *)in + ioff);
+
+				ioff = i * strs[d] + (dims1[lsb] - 1) * strs[lsb];
+				ooff = (dims1[lsb] - 1) * strs1[lsb];
+				md_zaxpy2(D, pos, strs1, (void *)tmp + ooff, 2., strs, (void *)in + ioff);
+			}
+		}
 
 		md_zadd(D, dims1, out, out, tmp);
 	}
@@ -166,6 +224,8 @@ static void grad_op_free(const linop_data_t *_data)
 struct linop_s *linop_fd_create(long N, const long dims[N], int d, unsigned int flags, unsigned int order,
 				const enum BOUNDARY_CONDITION bc, bool reverse)
 {
+	assert((1 == order) || (2 == order));
+
 	PTR_ALLOC(struct grad_s, data);
 	SET_TYPEID(grad_s, data);
 
@@ -216,8 +276,6 @@ struct linop_s *linop_div_create(long N, const long dims[N], int d, unsigned int
 	assert(dims[d] == bitcount(flags));
 	long gdims[N];
 	md_select_dims(N, ~MD_BIT(d), gdims, dims);
-
-	assert((1 == order) || (2 == order));
 
 	auto op = linop_fd_create(N, gdims, d, flags, order, bc, true);
 	op2 = (struct linop_s*)linop_get_adjoint(op); //FIXME: we should make linops consistently const
