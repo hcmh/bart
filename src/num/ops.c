@@ -2632,7 +2632,6 @@ graph_t graph_default = {false, false, false};
 static const char* operator_graph_default(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
 {
 	UNUSED(opts);
-	size_t len_node = snprintf(NULL, 0, "operator_%p", _data);
 
 	for (uint i = 0; i < N; i++) {
 
@@ -2640,43 +2639,38 @@ static const char* operator_graph_default(const operator_data_t* _data, unsigned
 		PTR_ALLOC(const char*[D[i]], nodes_i);
 		arg_nodes[i] = *PTR_PASS(nodes_i);
 
-		PTR_ALLOC(char[len_node + 1], nname);
-		sprintf(*nname, "operator_%p", _data);
-		(arg_nodes[i])[0] = *PTR_PASS(nname);
+		(arg_nodes[i])[0] = ptr_printf("operator_%p", _data);
 	}
-	size_t len = snprintf(NULL, 0, "operator_%p [label=\"operator\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
-	PTR_ALLOC(char[len + 1], node);
+
 	if (opts.time)
-		sprintf(*node, "operator_%p [label=\"operator\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
+		return ptr_printf("operator_%p [label=\"operator\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
 	else
-		sprintf(*node, "operator_%p [label=\"operator\\n%s\"];\n", _data, _data->TYPEID->name);
-	return *PTR_PASS(node);
+		return ptr_printf("operator_%p [label=\"operator\\n%s\"];\n", _data, _data->TYPEID->name);
 }
 
 static const char* operator_graph_combine(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
 {
 	auto data = CAST_DOWN(operator_combi_s, _data);
 
-	size_t str_len = 0;
+	const char* result = ptr_printf("");
 
-	const char* strings[data->N];
 	for (int i = 0; i < data->N; i++) {
 
 		unsigned int n = data->x[i]->N;
-		strings[i] = operator_get_graph_string(data->x[i], n, D, arg_nodes, opts);
+
+		auto tresult = operator_get_graph_string(data->x[i], n, D, arg_nodes, opts);
+		auto nresult = ptr_printf("%s%s", tresult, result);
+
+		xfree(tresult);
+		xfree(result);
+
+		result = nresult;
+
 		D += n;
 		arg_nodes += n;
-		str_len += strlen(strings[i]);
-	}
-	PTR_ALLOC(char[str_len + 1], result);
-	(*result)[0] = '\0';
-	for (int i = data->N - 1; 0 <= i; i--) {
-
-		strcat(*result, strings[i]);
-		xfree(strings[i]);
 	}
 
-	return operator_graph_container(*PTR_PASS(result), _data->TYPEID->name, _data, opts.container);
+	return operator_graph_container(result, _data->TYPEID->name, _data, opts.container);
 }
 
 static const char* operator_graph_chain(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
@@ -2694,20 +2688,18 @@ static const char* operator_graph_chain(const operator_data_t* _data, unsigned i
 
 		const char* append_string = operator_get_graph_string(data->x[i], 2, d, arg_nodes_tmp, opts);
 
-		PTR_ALLOC(char[strlen(result) + strlen(append_string) + 1], nresult);
-		sprintf(*nresult, "%s%s", result, append_string);
+		const char* tresult = ptr_printf("%s%s", result, append_string);
+
 		xfree(result);
 		xfree(append_string);
-		result = *PTR_PASS(nresult);
+		result = tresult;
 
 		for (uint j = 0; j < d[1]; j++)
 			for (uint k = 0; k < D[0]; k++) {
 
-				size_t strlen = snprintf(NULL, 0, "%s%s -> %s;\n", result, arg_nodes[0][k], arg_nodes_tmp[1][j]);
-				PTR_ALLOC(char[strlen + 1], nresult);
-				sprintf(*nresult, "%s%s -> %s;\n", result, arg_nodes[0][k], arg_nodes_tmp[1][j]);
+				tresult = ptr_printf("%s%s -> %s;\n", result, arg_nodes[0][k], arg_nodes_tmp[1][j]);
 				xfree(result);
-				result = *PTR_PASS(nresult);
+				result = tresult;
 			}
 		for (uint j = 0; j < d[1]; j++)
 			xfree(arg_nodes_tmp[1][j]);
@@ -2766,7 +2758,7 @@ static const char* operator_graph_link(const operator_data_t* _data, unsigned in
 	unsigned int d[N + 2];
 	const char** nodes[N + 2];
 
-	const char* str = operator_get_graph_string(data->x, N + 2, d, nodes, opts);
+	const char* result = operator_get_graph_string(data->x, N + 2, d, nodes, opts);
 
 	for (uint i = 0, ip = 0; ip < N + 2; ip++) {
 
@@ -2778,21 +2770,12 @@ static const char* operator_graph_link(const operator_data_t* _data, unsigned in
 		i++;
 	}
 
-	assert(1 == d[data->b]);
-	size_t str_len = strlen(str);
-	for (uint i = 0; i < d[data->a]; i++)
-		str_len += strlen((nodes[data->b])[0]) + 6 + strlen((nodes[data->a])[i]);
-
-	PTR_ALLOC(char[str_len + 1], result);
-	(*result)[0] = '\0';
-	strcat(*result, str);
-	xfree(str);
-
 	for (uint i = 0; i < d[data->a]; i++) {
 
-		char tmp[strlen((nodes[data->b])[0]) + 7 + strlen((nodes[data->a])[i]) + 1];
-		sprintf(tmp, "%s -> %s;\n", (nodes[data->b])[0], (nodes[data->a])[i]);
-		strcat(*result, tmp);
+		auto tresult = ptr_printf("%s%s -> %s;\n", result, (nodes[data->b])[0], (nodes[data->a])[i]);
+		xfree(result);
+		result = tresult;
+
 		xfree((nodes[data->a])[i]);
 	}
 	xfree((nodes[data->b])[0]);
@@ -2800,7 +2783,7 @@ static const char* operator_graph_link(const operator_data_t* _data, unsigned in
 	xfree(nodes[data->a]);
 	xfree(nodes[data->b]);
 
-	return operator_graph_container(*PTR_PASS(result), _data->TYPEID->name, _data, opts.container);
+	return operator_graph_container(result, _data->TYPEID->name, _data, opts.container);
 }
 
 static const char* operator_graph_permute(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
@@ -2829,23 +2812,16 @@ static const char* operator_graph_reshape(const operator_data_t* _data, unsigned
 
 const char* operator_graph_container(const char* in_string, const char* container_name, const void* container_ptr, bool container)
 {
-	if (!container) {
-
-		size_t len = snprintf(NULL, 0, "subgraph {\n%s}\n", in_string);
-		PTR_ALLOC(char[len + 1], result);
-		sprintf((*result), "subgraph {\n%s}\n", in_string);
-		xfree(in_string);
-		return *PTR_PASS(result);
-
-	} else {
-
-		size_t len = snprintf(NULL, 0, "subgraph cluster_%s_%p {\n label = \"%s\";\n%s}\n", container_name, container_ptr, container_name, in_string);
-		PTR_ALLOC(char[len + 1], result);
-		sprintf((*result), "subgraph cluster_%s_%p {\n label = \"%s\";\n%s}\n", container_name, container_ptr, container_name, in_string);
-		xfree(in_string);
-
-		return *PTR_PASS(result);
-	}
+	const char* result = NULL;
+	
+	if (container)
+		result = ptr_printf("subgraph cluster_%s_%p {\n label = \"%s\";\n%s}\n", container_name, container_ptr, container_name, in_string);
+	else
+		result = ptr_printf("subgraph {\n%s}\n", in_string);
+		
+	xfree(in_string);
+	
+	return result;
 }
 
 const char* operator_get_graph_string(const struct operator_s* op, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)

@@ -100,7 +100,6 @@ static void sptr_del(const struct shared_ptr_s* p)
 static const char* linop_graph_default(linop_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
 {
 	UNUSED(opts);
-	size_t len_node = snprintf(NULL, 0, "linop_%p", _data);
 
 	for (uint i = 0; i < N; i++) {
 
@@ -108,17 +107,13 @@ static const char* linop_graph_default(linop_data_t* _data, unsigned int N, unsi
 		PTR_ALLOC(const char*[D[i]], nodes_i);
 		arg_nodes[i] = *PTR_PASS(nodes_i);
 
-		PTR_ALLOC(char[len_node + 1], nname);
-		sprintf(*nname, "linop_%p", _data);
-		(arg_nodes[i])[0] = *PTR_PASS(nname);
+		(arg_nodes[i])[0] = ptr_printf("linop_%p", _data);
 	}
-	size_t len = snprintf(NULL, 0, "linop_%p [label=\"linop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
-	PTR_ALLOC(char[len + 1], node);
+
 	if (opts.time)
-		sprintf(*node, "linop_%p [label=\"linop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
+		return ptr_printf("linop_%p [label=\"linop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
 	else
-		sprintf(*node, "linop_%p [label=\"linop\\n%s\"];\n", _data, _data->TYPEID->name);
-	return *PTR_PASS(node);
+		return ptr_printf("linop_%p [label=\"linop\\n%s\"];\n", _data, _data->TYPEID->name);
 }
 
 static const char* operator_graph_linop(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)

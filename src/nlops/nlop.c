@@ -292,7 +292,6 @@ static void lop_del(const linop_data_t* _data)
 static const char* nlop_graph_default(nlop_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
 {
 	UNUSED(opts);
-	size_t len_node = snprintf(NULL, 0, "nlop_%p", _data);
 
 	for (uint i = 0; i < N; i++) {
 
@@ -300,52 +299,42 @@ static const char* nlop_graph_default(nlop_data_t* _data, unsigned int N, unsign
 		PTR_ALLOC(const char*[D[i]], nodes_i);
 		arg_nodes[i] = *PTR_PASS(nodes_i);
 
-		PTR_ALLOC(char[len_node + 1], nname);
-		sprintf(*nname, "nlop_%p", _data);
-		(arg_nodes[i])[0] = *PTR_PASS(nname);
+		(arg_nodes[i])[0] = ptr_printf("nlop_%p", _data);
 	}
 
 	auto stats = _data->stats;
 
-	size_t len = snprintf(NULL, 0, "nlop_%p [label=\"nlop\\n%s\\ntime: %fs\"];\n", _data, _data->TYPEID->name, stats->run_time);
+
+	const char* tmp = ptr_printf("");
 
 	if (opts.calls) {
 
-		len += snprintf(NULL, 0, "\\n frw(%lu) %gs", stats->frw_calls, stats->frw_time);
+		auto tmp2 = ptr_printf("%s\\n frw(%lu) %gs", tmp, stats->frw_calls, stats->frw_time);
+		xfree(tmp);
+		tmp = tmp2;
 
 		for (uint i = 0; i < stats->II; i++)
-			for (uint o = 0; o < stats->OO; o++)
-				len += snprintf(NULL, 0, "\\n (%u, %u): der(%lu) %gs; adj(%lu) %gs", o, i,
+			for (uint o = 0; o < stats->OO; o++) {
+				
+				tmp2 = ptr_printf("%s\\n (%u, %u): der(%lu) %gs; adj(%lu) %gs", tmp,  o, i,
 						stats->der_calls[o + stats->OO * i], stats->der_time[o + stats->OO * i],
 						stats->adj_calls[o + stats->OO * i], stats->adj_time[o + stats->OO * i]
 					);
+				xfree(tmp);
+				tmp = tmp2;
+			}
 	}
 
-	PTR_ALLOC(char[len + 1], node);
-	char tmp[len + 1];
-
-	if (opts.calls) {
-
-		char* tmp2 = tmp;
-		tmp2 += snprintf(tmp2, len + 1, "\\n frw(%lu) %gs", stats->frw_calls, stats->frw_time);
-
-		for (uint i = 0; i < stats->II; i++)
-			for (uint o = 0; o < stats->OO; o++)
-				tmp2 += snprintf(tmp2, len + 1, "\\n (%u, %u): der(%lu) %gs; adj(%lu) %gs", o, i,
-						stats->der_calls[o + stats->OO * i], stats->der_time[o + stats->OO * i],
-						stats->adj_calls[o + stats->OO * i], stats->adj_time[o + stats->OO * i]
-					);
-	} else
-		tmp[0] = '\0';
-
+	const char* result = NULL;
 
 	if (opts.time)
-		sprintf(*node, "nlop_%p [label=\"nlop\\n%s\\ntime: %fs%s\"];\n", _data, _data->TYPEID->name, stats->run_time, tmp);
+		result = ptr_printf("nlop_%p [label=\"nlop\\n%s\\ntime: %fs%s\"];\n", _data, _data->TYPEID->name, stats->run_time, tmp);
 	else
-		sprintf(*node, "nlop_%p [label=\"nlop\\n%s%s\"];\n", _data, _data->TYPEID->name, tmp);
+		result = ptr_printf("nlop_%p [label=\"nlop\\n%s%s\"];\n", _data, _data->TYPEID->name, tmp);
 
+	xfree(tmp);
 
-	return *PTR_PASS(node);
+	return result;
 }
 
 static const char* operator_graph_nlop(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
