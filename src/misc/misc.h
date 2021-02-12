@@ -12,6 +12,7 @@
 
 #include <stdlib.h>
 #include <stddef.h>
+#include <stdarg.h>
 #include <stdnoreturn.h>
 
 #include "misc/nested.h"
@@ -106,6 +107,9 @@ extern void save_command_line(int argc, char* argv[__VLA(argc)]);
 
 extern _Bool safe_isnanf(float x);
 extern _Bool safe_isfinite(float x);
+
+extern const char* ptr_printf(const char* fmt, ...);
+extern const char* ptr_vprintf(const char* fmt, va_list ap);
 
 #include "misc/cppwrap.h"
 

@@ -603,4 +603,19 @@ bool safe_isfinite(float x)
 	// return isfinite(x); <- is sometimes true when x is NaN.
 }
 
+const char* ptr_vprintf(const char* fmt, va_list ap)
+{
+	size_t len = vsnprintf(NULL, 0, fmt, ap);
+	PTR_ALLOC(char[len + 1], result);
+	vsprintf((*result), fmt, ap);
+	return *PTR_PASS(result);
+}
 
+const char* ptr_printf(const char* fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	auto result = ptr_vprintf(fmt, ap);
+	va_end(ap);
+	return result;
+}
