@@ -114,16 +114,17 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 			assert(NULL != bc_mask_op);
 			//FIXME: Scale j with voxelsize before applying derivative
 			assert((vox[0] == vox[1]) && (vox[0] == vox[2]) && (vox[1] == vox[2]));
-			if (div_pf == PF_l2)
-				prox_funs[nprox - 1] = prox_l2norm_create(N, bdims, div_reg);
-			else if (div_pf == PF_thresh)
-				prox_funs[nprox - 1] = prox_thresh_create(N, bdims, div_reg, 0);
-			else
-				assert(false);
 
 			auto div_op = linop_div_create(N, jdims, 0, 14, 1, BC_SAME);
-			prox_linops[nprox - 1] = linop_chain(bc_mask_op, div_op);
-
+			if (div_pf == PF_l2) {
+				prox_funs[nprox - 1] = prox_l2norm_create(N, bdims, div_reg);
+				prox_linops[nprox - 1] = linop_chain(bc_mask_op, div_op);
+			} else if (div_pf == PF_thresh) {
+				prox_funs[nprox - 1] = prox_thresh_create(N, bdims, div_reg, 0);
+				prox_linops[nprox - 1] = linop_chain(bc_mask_op, div_op);
+			} else {
+				assert(false);
+			}
 			linop_free(div_op);
 		}
 
@@ -165,7 +166,14 @@ int main_cdi(int argc, char *argv[])
 	    OPT_INT('m', &admm_iter, "Iterations", "Max. number of ADMM iterations"),
 	};
 	cmdline(&argc, argv, 5, 7, usage_str, help_str, ARRAY_SIZE(opts), opts);
-	enum PROXFUN div_pf = div_pf_int == 1 ? PF_thresh : PF_l2;
+
+	enum PROXFUN div_pf;
+	if (div_pf_int == 0)
+		div_pf = PF_l2;
+	else if (div_pf_int == 1)
+		div_pf = PF_thresh;
+	else
+		assert(false);
 
 	num_init();
 
