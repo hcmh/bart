@@ -60,14 +60,14 @@ tests/test-rtnlinv-nlinv-pseudocart: scale phantom ones rtnlinv nlinv nrmse
 
 tests/test-rtnlinv-cnstcoil: traj scale phantom repmat rtnlinv slice nrmse
 	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
-	$(TOOLDIR)/traj -r -x128 -y21 traj.ra				;\
+	$(TOOLDIR)/traj -r -x128 -y21 traj.ra					;\
 	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra					;\
 	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra				;\
-	$(TOOLDIR)/repmat 5 2 ksp.ra ksp2.ra			;\
+	$(TOOLDIR)/repmat 5 2 ksp.ra ksp2.ra					;\
 	$(TOOLDIR)/rtnlinv -N -i9 --cnstcoil_flags 32 -t traj2.ra ksp2.ra r2.ra	;\
-	$(TOOLDIR)/slice 5 0 r2.ra r_e1.ra			;\
-	$(TOOLDIR)/slice 5 1 r2.ra r_e2.ra			;\
-	$(TOOLDIR)/nrmse -t 0.0003 r_e1.ra r_e2.ra					;\
+	$(TOOLDIR)/slice 5 0 r2.ra r_e1.ra					;\
+	$(TOOLDIR)/slice 5 1 r2.ra r_e2.ra					;\
+	OMP_NUM_THREADS=1 $(TOOLDIR)/nrmse -t 0.0000001 r_e1.ra r_e2.ra		;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
