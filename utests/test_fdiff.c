@@ -34,8 +34,12 @@ static bool test_md_zfdiff_generic(zfdiff_fun_t f, enum BOUNDARY_CONDITION bc, c
 
 	bool ok = true;
 	debug_printf(DP_DEBUG1, "zfdiff_generic test %d\n", test_no++);
+	debug_printf(DP_DEBUG1, "Expected: ");
+	for (int i = 0; i < N; i++)
+		debug_printf(DP_DEBUG1, "%.1f, ", crealf(expected[i]));
+	debug_printf(DP_DEBUG1, "\nOutput:   ");
 	for (int i = 0; i < N; i++) {
-		debug_printf(DP_DEBUG1, "Exp: %f, Out: %f;", crealf(expected[i]), crealf(out[i]));
+		debug_printf(DP_DEBUG1, "%.1f, ", crealf(out[i]));
 		ok &= (cabsf(expected[i] - out[i]) < TOL);
 	}
 	debug_printf(DP_DEBUG1, "\n");
@@ -94,16 +98,24 @@ static bool test_md_zfdiff_central(enum BOUNDARY_CONDITION bc, const complex flo
 
 	bool ok = true;
 	debug_printf(DP_DEBUG1, "zfdiff_central test %d - forward\n", test_no++);
+	debug_printf(DP_DEBUG1, "Expected: ");
+	for (int i = 0; i < N; i++)
+		debug_printf(DP_DEBUG1, "%.1f, ", crealf(expected[i]));
+	debug_printf(DP_DEBUG1, "\nOutput:   ");
 	for (int i = 0; i < N; i++) {
 		ok &= (cabsf(expected[i] - out[i]) < TOL);
-		debug_printf(DP_DEBUG1, "Exp: %f, Out: %f;", crealf(expected[i]), crealf(out[i]));
+		debug_printf(DP_DEBUG1, "%.1f, ", crealf(out[i]));
 	}
 
 	debug_printf(DP_DEBUG1, "\nzfdiff_central test %d - backward\n", test_no++);
+	debug_printf(DP_DEBUG1, "Expected: ");
+	for (int i = 0; i < N; i++)
+		debug_printf(DP_DEBUG1, "%.1f, ", -1. * crealf(expected[i]));
+	debug_printf(DP_DEBUG1, "\nOutput:   ");
 	md_zfdiff_central(1, dims, 0, bc, true, out, in);
 	for (int i = 0; i < N; i++) {
 		ok &= (cabsf(expected[i] + out[i]) < TOL);
-		debug_printf(DP_DEBUG1, "Exp: %f, Out: %f;", crealf(expected[i]), crealf(out[i]));
+		debug_printf(DP_DEBUG1, "%.1f, ", crealf(out[i]));
 	}
 	debug_printf(DP_DEBUG1, "\n");
 
