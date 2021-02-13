@@ -62,13 +62,13 @@ static void leray_apply(const linop_data_t *_data, complex float *dst, const com
 	md_zaxpy(data->N, data->dims, dst, 1., src);
 }
 
-// projection is self-adjoint
+// (this!) projection is self-adjoint
 static void leray_adjoint_apply(const linop_data_t *_data, complex float *dst, const complex float *src)
 {
 	leray_apply(_data, dst, src);
 }
 
-// and idempotent
+// projections are idempotent
 static void leray_normal_apply(const linop_data_t *_data, complex float *dst, const complex float *src)
 {
 	leray_apply(_data, dst, src);
@@ -93,7 +93,7 @@ static void leray_free(const linop_data_t *_data)
 
 
 
-struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_dim, const long flags, const unsigned int order, const enum BOUNDARY_CONDITION bc, const int iter)
+struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_dim, const long flags, const unsigned int order, const enum BOUNDARY_CONDITION bc, const int iter, const float lambda, const complex float* mask)
 {
 	PTR_ALLOC(struct leray_s, data);
 	SET_TYPEID(leray_s, data);
@@ -119,15 +119,24 @@ struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_di
 
 
 	data->cg_conf->maxiter = iter;
-	data->cg_conf->l2lambda = 1e-4;
+	data->cg_conf->l2lambda = lambda;
 
 	data->y = md_alloc(N, data->phi_dims, CFL_SIZE);
 	data->tmp = md_alloc(N, data->phi_dims, CFL_SIZE);
 
 	assert(dims[vec_dim] == bitcount(flags));
 
-	data->grad_op = linop_fd_create(N, data->phi_dims, vec_dim, flags, order, bc, false);
-	data->neg_laplace = linop_get_normal(data->grad_op);
+	if (NULL != mask) {
+		auto grad_op = linop_fd_create(N, data->phi_dims, vec_dim, flags, order, bc, false);
+		auto mask_op = linop_cdiag_create(N, data->dims, MD_BIT(N + 1) - 1, mask);
+		data->grad_op = linop_chain(grad_op, mask_op);
+		data->neg_laplace = linop_chain(data->grad_op, linop_get_adjoint(grad_op));
+		linop_free(mask_op);
+		linop_free(grad_op);
+	} else {
+		data->grad_op = linop_fd_create(N, data->phi_dims, vec_dim, flags, order, bc, false);
+		data->neg_laplace = linop_get_normal(data->grad_op);
+	}
 
 	return linop_create(N, dims2, N, dims, CAST_UP(PTR_PASS(data)), leray_apply, leray_adjoint_apply, leray_normal_apply, NULL, leray_free);
 

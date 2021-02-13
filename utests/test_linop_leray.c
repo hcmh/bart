@@ -22,6 +22,8 @@
 
 #define TOL 1e-1
 #define ITER 100
+#define masked true
+#define lambda 1e-3
 
 static struct linop_s * leray_create(const enum BOUNDARY_CONDITION bc, const long order)
 {
@@ -29,7 +31,29 @@ static struct linop_s * leray_create(const enum BOUNDARY_CONDITION bc, const lon
 	const long d = 0;
 	const long flags = 14;
 	const long dims[] = { 3, 10, 10, 10};
-	return linop_leray_create(N, dims, d, flags, order, bc, ITER);
+	complex float *mask = NULL;
+
+	if (masked) {
+		mask = md_alloc(N, dims, CFL_SIZE);
+		md_zfill(N, dims, mask, 1.);
+
+		long str[N], pos[N];
+		md_calc_strides(N, str, dims, CFL_SIZE);
+
+		md_select_dims(N, ~MD_BIT(1), pos, dims);
+		pos[1] = 2;
+		md_zfill2(N, pos, str, mask, 0.);
+
+		md_select_dims(N, ~MD_BIT(2), pos, dims);
+		pos[2] = 1;
+		md_zfill2(N, pos, str, (void *)mask + (dims[2] - 2)*str[2], 0.);
+
+	}
+
+	auto op = linop_leray_create(N, dims, d, flags, order, bc, ITER, lambda, mask);
+	if (masked)
+		md_free(mask);
+	return op;
 }
 
 

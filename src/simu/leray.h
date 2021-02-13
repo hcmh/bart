@@ -10,4 +10,4 @@ enum BOUNDARY_CONDITION {BC_PERIODIC, BC_ZERO, BC_SAME};
 #endif
 
 
-struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_dim, const long flags, const unsigned int order, const enum BOUNDARY_CONDITION bc, const int iter);
+struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_dim, const long flags, const unsigned int order, const enum BOUNDARY_CONDITION bc, const int iter, const float lambda, const _Complex float *mask);
