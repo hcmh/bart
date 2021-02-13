@@ -22,7 +22,9 @@
 #include "linops/linop.h"
 #include "linops/someops.h"
 #include "linops/grad.h"
-#include "num/fft.h"
+#include "num/ops_p.h"
+#include "num/ops.h"
+#include "num/iovec.h"
 #include "num/flpmath.h"
 #include "num/multind.h"
 #include <complex.h>
@@ -53,7 +55,10 @@ static void leray_apply(const linop_data_t *_data, complex float *dst, const com
 
 	linop_adjoint(data->grad_op, data->N, data->phi_dims, data->y, data->N, data->dims, src);
 
-	lsqr2(data->N, data->lconf, iter2_conjgrad, CAST_UP(data->cg_conf), data->neg_laplace, 0, NULL, NULL, data->phi_dims, data->tmp, data->phi_dims, data->y, NULL, NULL);
+	//lsqr2(data->N, data->lconf, iter2_conjgrad, CAST_UP(data->cg_conf), data->neg_laplace, 0, NULL, NULL, data->phi_dims, data->tmp, data->phi_dims, data->y, NULL, NULL);
+	// (masked) neg_laplace is already normal
+	long size = 2 * md_calc_size(data->N, data->phi_dims); // multiply by 2 for float size
+	iter_conjgrad(CAST_UP(data->cg_conf), data->neg_laplace->forward, NULL, size, (float*)data->tmp, (const float*)data->y, NULL);
 
 	linop_forward(data->grad_op, data->N, data->dims, dst, data->N, data->phi_dims, data->tmp);
 	md_zsmul(data->N, data->dims, dst, dst, -1.);
@@ -140,4 +145,49 @@ struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_di
 
 	return linop_create(N, dims2, N, dims, CAST_UP(PTR_PASS(data)), leray_apply, leray_adjoint_apply, leray_normal_apply, NULL, leray_free);
 
+}
+
+
+/**
+ * Data for computing prox_indicator_fun:
+ * Proximal function for f(z) = 1{ set }
+ * Solution is z = Projection of x onto the set
+ *
+ * @param op Projection operator
+ */
+struct prox_indicator_data {
+
+	INTERFACE(operator_data_t);
+
+	const struct linop_s* op;
+};
+
+static DEF_TYPEID(prox_indicator_data);
+
+static void prox_indicator_apply(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
+{
+	UNUSED(mu);
+	auto pdata = CAST_DOWN(prox_indicator_data, _data);
+
+	const struct linop_s* op = pdata->op;
+	linop_forward(op, linop_domain(op)->N, linop_domain(op)->dims, dst, linop_codomain(op)->N, linop_codomain(op)->dims, src);
+}
+
+static void prox_indicator_del(const operator_data_t* _data)
+{
+	auto pdata = CAST_DOWN(prox_indicator_data, _data);
+	xfree(pdata);
+}
+
+const struct operator_p_s* prox_indicator_create(const struct linop_s* op)
+{
+	PTR_ALLOC(struct prox_indicator_data, pdata);
+	SET_TYPEID(prox_indicator_data, pdata);
+
+	unsigned int N = linop_domain(op)->N;
+	const long* dims = linop_domain(op)->dims;
+
+	pdata->op = op;
+
+	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(pdata)), prox_indicator_apply, prox_indicator_del);
 }

@@ -20,10 +20,10 @@
 
 #include "utest.h"
 
-#define TOL 1e-1
+#define TOL 1e-4
 #define ITER 100
 #define masked true
-#define lambda 1e-3
+#define lambda 1e-5
 
 static struct linop_s * leray_create(const enum BOUNDARY_CONDITION bc, const long order)
 {
@@ -62,7 +62,7 @@ static bool test_leray_normal(const enum BOUNDARY_CONDITION bc, const long order
 	struct linop_s* op = leray_create(bc, order);
 
 	float nrmse = linop_test_normal(op);
-	debug_printf(DP_INFO, "BC: %d, Order: %d: normal nrmse: %f\n", bc, order, nrmse);
+	debug_printf(DP_DEBUG1, "BC: %d, Order: %d: normal nrmse: %f\n", bc, order, nrmse);
 	bool ret = (nrmse < TOL);
 
 	linop_free(op);
@@ -76,7 +76,7 @@ static bool test_leray_adjoint(const enum BOUNDARY_CONDITION bc, const long orde
 	struct linop_s* op = leray_create(bc, order);
 
 	float nrmse = linop_test_adjoint(op);
-	debug_printf(DP_INFO, "BC: %d, Order: %d: adjoint nrmse: %f\n", bc, order, nrmse);
+	debug_printf(DP_DEBUG1, "BC: %d, Order: %d: adjoint nrmse: %f\n", bc, order, nrmse);
 	bool ret = (nrmse < TOL);
 
 	linop_free(op);
