@@ -57,14 +57,16 @@ static void grad_op(unsigned int D, const long dims[D], int d, unsigned int flag
 
 		unsigned int lsb = ffs(flags2) - 1;
 		flags2 = MD_CLEAR(flags2, lsb);
-
+		long ooffset = i * strs[d];
 		if (1 == order)
-			(reverse ? md_zfdiff_backwards2 : md_zfdiff2)(D, dims1, lsb, bc, strs, (void *)out + i * strs[d], strs1, in);
+			(reverse ? md_zfdiff_backwards2 : md_zfdiff2)(D, dims1, lsb, bc, strs, (void *)out + ooffset, strs1, in);
 
-		if (2 == order)
-			md_zfdiff_central2(D, dims1, lsb, bc, reverse, strs, (void *)out + i * strs[d], strs1, in);
+		if (2 == order) {
+			md_zfdiff_central2(D, dims1, lsb, bc, reverse, strs, (void *)out + ooffset, strs1, in);
+			md_zsmul2(D, dims1, strs, (void *)out + ooffset, strs, (void *)out + ooffset, .5);
+
+		}
 	}
-
 	assert(0 == flags2);
 }
 
@@ -131,6 +133,8 @@ static void grad_adjoint(unsigned int D, const long dims[D], int d, unsigned int
 				ooff = (dims1[lsb] - 1) * strs1[lsb];
 				md_zaxpy2(D, pos, strs1, (void *)tmp + ooff, reverse ? -2. : 2., strs, (void *)in + ioff);
 			}
+
+			md_zsmul2(D, dims1, strs1, tmp, strs1, tmp, .5);
 		}
 
 		md_zadd(D, dims1, out, out, tmp);
