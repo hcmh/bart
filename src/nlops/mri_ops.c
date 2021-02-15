@@ -32,7 +32,7 @@
 #include "mri_ops.h"
 
 
-struct conf_mri_dims conf_nlop_mri_simple = {
+struct config_nlop_mri_s conf_nlop_mri_simple = {
 
 	.coil_flags = ~(0ul),
 	.image_flags = ~COIL_FLAG,
@@ -43,12 +43,33 @@ struct conf_mri_dims conf_nlop_mri_simple = {
 	.keep_lambda_input = false,
 
 	.lambda_fixed = -1,
+	.lambda_init = 0.05,
 	.iter_conf = NULL,
 
-	.regrid = true,
+	.regrid = false,
 };
 
-static bool test_idims_compatible(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+struct config_nlop_mri_s* config_nlop_mri_create(void)
+{
+	PTR_ALLOC(struct config_nlop_mri_s, result);
+	*result = conf_nlop_mri_simple;
+
+	PTR_ALLOC(struct iter_conjgrad_conf, iter_conf);
+	*iter_conf = iter_conjgrad_defaults;
+	iter_conf->l2lambda = 1.;
+	iter_conf->maxiter = 10;
+	result->iter_conf = PTR_PASS(iter_conf);
+
+	return PTR_PASS(result);
+}
+
+void config_nlop_mri_free(const struct config_nlop_mri_s* config)
+{
+	xfree(config->iter_conf);
+	xfree(config);
+}
+
+static bool test_idims_compatible(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 	long tdims[N];
 	md_select_dims(N, conf->image_flags, tdims, dims);
@@ -74,7 +95,7 @@ static bool test_idims_compatible(int N, const long dims[N], const long idims[N]
  * Output tensors:
  * kspace:	kdims: 	(Nx, Ny, Nz, Nc, Nb)
  */
-const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 	assert(test_idims_compatible(N, dims, idims, conf));
 
@@ -126,7 +147,7 @@ const struct nlop_s* nlop_mri_forward_create(int N, const long dims[N], const lo
  * Output tensors:
  * image:	idims: 	(Ix, Iy, Iz, 1, Nb)
  */
-const struct nlop_s* nlop_mri_adjoint_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* nlop_mri_adjoint_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 
 	assert(test_idims_compatible(N, dims, idims, conf));
@@ -184,7 +205,7 @@ struct mri_normal_s {
 
 DEF_TYPEID(mri_normal_s);
 
-static struct mri_normal_s* mri_normal_data_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+static struct mri_normal_s* mri_normal_data_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 	assert(test_idims_compatible(N, dims, idims, conf));
 	
@@ -328,7 +349,7 @@ static void mri_normal_del(const nlop_data_t* _data)
  * Output tensors:
  * image:	idims: 	(Ix, Iy, Iz, Nc, Nb)
  */
-const struct nlop_s* nlop_mri_normal_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* nlop_mri_normal_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 	auto data = mri_normal_data_create(N, dims, idims, conf);
 	
@@ -429,7 +450,7 @@ static void mri_gradient_step_fun(const nlop_data_t* _data, int Narg, complex fl
  * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
 
- const struct nlop_s* nlop_mri_gradient_step_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+ const struct nlop_s* nlop_mri_gradient_step_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 	auto data = mri_normal_data_create(N, dims, idims, conf);
 	
@@ -811,7 +832,7 @@ static void mri_normal_inversion_del(const nlop_data_t* _data)
 }
 
 
-static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 	assert(test_idims_compatible(N, dims, idims, conf));
 
@@ -930,7 +951,7 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
  * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
 
-const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 	auto data = mri_normal_inversion_data_create(N, dims, idims, conf);
 
@@ -1068,7 +1089,7 @@ static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* 
  * Output tensors:
  * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
-const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 	auto data = mri_normal_inversion_data_create(N, dims, idims, conf);
 
@@ -1127,7 +1148,7 @@ const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const lo
  * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
 
-const struct nlop_s* mri_reg_pinv(int N, const long dims[N], const long idims[N], const struct conf_mri_dims* conf)
+const struct nlop_s* mri_reg_pinv(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
 {
 	auto nlop_zf = nlop_mri_adjoint_create(N, dims, idims, conf);// in: kspace, coil, pattern; out: Atb
 	auto nlop_norm_inv = mri_normal_inversion_create(N, dims, idims, conf); // in: Atb, coil, pattern, [lambda]; out: A^+b

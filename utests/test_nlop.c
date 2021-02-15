@@ -876,7 +876,7 @@ static bool test_mriop_normalinv_config(bool batch_independent, bool share_patte
 	md_select_dims(N, share_pattern ? 7 : 23, pdims, dims);
 	md_select_dims(N, 23, idims, dims);
 
-	struct conf_mri_dims mri_conf = conf_nlop_mri_simple;
+	struct config_nlop_mri_s mri_conf = conf_nlop_mri_simple;
 	if (!share_pattern)
 		mri_conf.pattern_flags = ~MD_BIT(3);
 	if (!batch_independent)
@@ -965,7 +965,7 @@ static bool test_mriop_gradient_step(void)
 
 	md_select_dims(N, share_pattern ? 7 : 23, pdims, dims);
 
-	struct conf_mri_dims mri_conf = conf_nlop_mri_simple;
+	struct config_nlop_mri_s mri_conf = conf_nlop_mri_simple;
 	if (!share_pattern)
 		mri_conf.pattern_flags = ~MD_BIT(3);
 	if (!batch_independent)
@@ -1036,12 +1036,13 @@ static bool test_mriop_pinv_config(bool batch_independent, bool share_pattern)
 	md_zdiv2(5, kdims, MD_STRIDES(N, kdims, CFL_SIZE), coils, MD_STRIDES(N, kdims, CFL_SIZE), coils, MD_STRIDES(N, idims, CFL_SIZE), coils_scale);
 	md_free(coils_scale);
 
-	struct conf_mri_dims mri_conf = conf_nlop_mri_simple;
+	struct config_nlop_mri_s mri_conf = conf_nlop_mri_simple;
 	if (!share_pattern)
 		mri_conf.pattern_flags = ~MD_BIT(3);
 	if (!batch_independent)
 		mri_conf.batch_flags = 0;
 	mri_conf.lambda_fixed = 0.;
+	mri_conf.regrid = true;
 
 	complex float* image = md_alloc(N, idims, CFL_SIZE);
 	md_gaussian_rand(N, idims, image);

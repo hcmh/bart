@@ -115,9 +115,9 @@ const struct vn_s vn_default = {
 };
 
 
-static struct conf_mri_dims get_vn_mri_conf(const struct vn_s* vn)
+static struct config_nlop_mri_s get_vn_mri_conf(const struct vn_s* vn)
 {
-	struct conf_mri_dims conf = conf_nlop_mri_simple;
+	struct config_nlop_mri_s conf = conf_nlop_mri_simple;
 	if (!vn->share_pattern)
 		conf.pattern_flags = ~MD_BIT(3);
 
@@ -223,7 +223,7 @@ static nn_t nn_ru_create(const struct vn_s* vn, const long idims[5])
  */
 static nn_t nn_du_create(const struct vn_s* vn, const long dims[5], const long idims[5])
 {
-	struct conf_mri_dims conf = get_vn_mri_conf(vn);
+	struct config_nlop_mri_s conf = get_vn_mri_conf(vn);
 	
 	const struct nlop_s* nlop_result = nlop_mri_gradient_step_create(5, dims, idims, &conf);
 
@@ -327,7 +327,7 @@ static nn_t nn_vn_cell_create(const struct vn_s* vn, const long dims[5], const l
  */
 static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const long idims[5])
 {
-	struct conf_mri_dims conf = get_vn_mri_conf(vn);
+	struct config_nlop_mri_s conf = get_vn_mri_conf(vn);
 
 	auto nlop_zf = nlop_mri_adjoint_create(5, dims, idims, &conf);
 	auto nn_zf = nn_from_nlop_F(nlop_zf);
