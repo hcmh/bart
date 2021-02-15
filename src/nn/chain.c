@@ -1029,14 +1029,12 @@ nn_t nn_sort_outputs_by_list_F(nn_t x, unsigned int N, const char* sorted_names[
  * return op if name does not exist
  *
  * @param op nn_t struct (will be freed)
- * @param i input index (ignored if iname != NULL)
  * @param iname name of input
  *
  * @returns nn_t with reshaped input
  */
-nn_t nn_append_singleton_dim_in_if_exists_F(nn_t op, int i, const char* iname)
+nn_t nn_append_singleton_dim_in_if_exists_F(nn_t op, const char* iname)
 {
-	UNUSED(i);
 	assert(NULL != iname);
 	if (nn_is_name_in_in_args(op, iname))
 		return nn_append_singleton_dim_in_F(op, 0, iname);
@@ -1050,15 +1048,12 @@ nn_t nn_append_singleton_dim_in_if_exists_F(nn_t op, int i, const char* iname)
  * return op if name does not exist
  *
  * @param op nn_t struct (will be freed)
- * @param o input index (ignored if oname != NULL)
  * @param oname name of output
  *
  * @returns nn_t with reshaped output
  */
-nn_t nn_append_singleton_dim_out_if_exists_F(nn_t op, int o, const char* oname)
+nn_t nn_append_singleton_dim_out_if_exists_F(nn_t op, const char* oname)
 {
-	UNUSED(o);
-	assert(NULL != oname);
 	if (nn_is_name_in_out_args(op, oname))
 		return nn_append_singleton_dim_out_F(op, 0, oname);
 	else

@@ -43,8 +43,8 @@ extern nn_t nn_sort_inputs_by_list_F(nn_t x, unsigned int N, const char* sorted_
 extern nn_t nn_sort_outputs_by_list_F(nn_t x, unsigned int N, const char* sorted_names[N]);
 
 
-extern nn_t nn_append_singleton_dim_in_if_exists_F(nn_t op, int i, const char* iname);
-extern nn_t nn_append_singleton_dim_out_if_exists_F(nn_t op, int o, const char* oname);
+extern nn_t nn_append_singleton_dim_in_if_exists_F(nn_t op, const char* iname);
+extern nn_t nn_append_singleton_dim_out_if_exists_F(nn_t op, const char* oname);
 
 extern nn_t nn_stack_inputs_if_exists_F(nn_t x, int a, const char* aname, int b, const char* bname, int stack_dim);
 extern nn_t nn_stack_outputs_if_exists_F(nn_t x, int a, const char* aname, int b, const char* bname, int stack_dim);

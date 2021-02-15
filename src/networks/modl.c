@@ -221,11 +221,11 @@ static nn_t residual_create(const struct modl_s* config, const long idims[5], en
 
 	// Append dims for stacking over modl iterations (non-shared weights)
 	for (unsigned int i = 0; i < ARRAY_SIZE(sorted_weight_names); i++)
-		result = nn_append_singleton_dim_in_if_exists_F(result, 0, sorted_weight_names[i]);
+		result = nn_append_singleton_dim_in_if_exists_F(result, sorted_weight_names[i]);
 	
-	result = nn_append_singleton_dim_out_if_exists_F(result, 0, "bn_0");
-	result = nn_append_singleton_dim_out_if_exists_F(result, 0, "bn_i");
-	result = nn_append_singleton_dim_out_if_exists_F(result, 0, "bn_n");
+	result = nn_append_singleton_dim_out_if_exists_F(result, "bn_0");
+	result = nn_append_singleton_dim_out_if_exists_F(result, "bn_i");
+	result = nn_append_singleton_dim_out_if_exists_F(result, "bn_n");
 
 	// sort weight inputs as specified by list
 	result = nn_sort_inputs_by_list_F(result, ARRAY_SIZE(sorted_weight_names), sorted_weight_names);
