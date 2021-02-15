@@ -20,9 +20,10 @@ double get_flipanglescaling( enum eContrast contrast, long index, bool preppulse
 		break;
 
 	case CONTRAST_LOVABLE:
-		assert(index < N_ANGLES);
-		/* return fascalings1[index]; */
-		return 0.0;
+		if (index < N_ANGLES)
+			return fascalings1[index];
+		else
+			return 1.0;
 		break;
 
 	case CONTRAST_DABALANCED:
@@ -34,8 +35,8 @@ double get_flipanglescaling( enum eContrast contrast, long index, bool preppulse
 		else
 			switch (index%4) {
 
-			case 1: return 1.0 + beta; break;
-			case 3: return 1.0 - beta; break;
+			case 2: return 1.0 + beta; break;
+			case 0: return 1.0 - beta; break;
 			default: return 1.0; break;
 			}
 		break;
