@@ -175,7 +175,7 @@ TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ss
 TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon synthesize fovshift
 TIO=toimg dcmread dcmtag
 TSIM=phantom phantom_json traj upat bloch sim tbasis signal epg
-TNN=mnist nnsegm nnvn nnmodl
+TNN=mnist nnsegm nnvn nnmodl reconet
 
 
 
@@ -240,6 +240,7 @@ MODULES_pol2mask = -lgeom
 MODULES_sudoku = -llinops -liter
 MODULES_nnvn = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_nnmodl = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
+MODULES_reconet = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_mnist = -lnetworks -lnn -lnlops -llinops -liter
 MODULES_morph = -lnlops -llinops -lgeom
 MODULES_epg = -lsimu
@@ -354,7 +355,7 @@ endif
 
 # sm_20 no longer supported in CUDA 9
 GPUARCH_FLAGS ?= -arch=compute_50
-NVCCFLAGS = -DUSE_CUDA -Xcompiler -fPIC -Xcompiler -fopenmp -O3 $(GPUARCH_FLAGS) -I$(srcdir)/ -m64 -ccbin $(CC)
+NVCCFLAGS = -g -DUSE_CUDA -Xcompiler -fPIC -Xcompiler -fopenmp -O3 $(GPUARCH_FLAGS) -I$(srcdir)/ -m64 -ccbin $(CC)
 #NVCCFLAGS = -Xcompiler -fPIC -Xcompiler -fopenmp -O3  -I$(srcdir)/
 
 
