@@ -95,4 +95,6 @@ iter6_f iter6_sgd_like;
 
 iter6_f iter6_iPALM;
 
+iter6_f iter6_by_conf;
+
 #endif

@@ -469,3 +469,28 @@ void iter6_iPALM(	iter6_conf* _conf,
 		conf->INTERFACE.dump = NULL;
 	}
 }
+
+void iter6_by_conf(	iter6_conf* _conf,
+			const struct nlop_s* nlop,
+			long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI],
+			long NO, enum OUT_TYPE out_type[NO],
+			int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor)
+{
+	auto conf = CAST_MAYBE(iter6_iPALM_conf, _conf);
+	
+	if (NULL != conf) {
+	
+		iter6_iPALM(	_conf,
+				nlop,
+				NI, in_type, prox_ops, dst,
+				NO, out_type,
+				batchsize, numbatches, nlop_batch_gen, monitor);
+		return;
+	}
+
+	iter6_sgd_like(	_conf,
+			nlop,
+			NI, in_type, prox_ops, dst,
+			NO, out_type,
+			batchsize, numbatches, nlop_batch_gen, monitor);
+}
