@@ -613,7 +613,7 @@ struct linop_s* linop_loop(unsigned int D, const long dims[D], struct linop_s* o
 	op2->forward = operator_loop(D, dims, op->forward);
 	op2->adjoint = operator_loop(D, dims, op->adjoint);
 	op2->normal = (NULL == op->normal) ? NULL : operator_loop(D, dims, op->normal);
-	op2->norm_inv = NULL; // FIXME
+	op2->norm_inv = NULL; // FIXME: (NULL == op->norm_inv) ? NULL : operator_p_loop(D, dims, op->norm_inv);
 
 	return PTR_PASS(op2);
 }
