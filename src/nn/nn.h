@@ -7,6 +7,7 @@
 #include "iter/italgos.h"
 #include "nlops/nlop.h"
 
+struct operator_p_s;
 struct initializer_s;
 
 /*
@@ -44,6 +45,8 @@ struct nn_s {
 	const char**  in_names;
 
 	const struct initializer_s** initializers;
+
+	const struct operator_p_s** prox_ops;
 
 	enum IN_TYPE* in_types;
 	enum OUT_TYPE* out_types;
@@ -97,6 +100,10 @@ extern nn_t nn_unset_output_name_F(nn_t op, const char* oname);
 extern nn_t nn_set_initializer_F(nn_t op, int i, const char* iname, const struct initializer_s* ini);
 extern nn_t nn_set_in_type_F(nn_t op, int i, const char* iname, enum IN_TYPE in_type);
 extern nn_t nn_set_out_type_F(nn_t op, int o, const char* oname, enum OUT_TYPE out_type);
+
+extern nn_t nn_set_prox_op_F(nn_t op, int i, const char* iname, const struct operator_p_s* opp);
+extern const struct operator_p_s* nn_get_prox_op(nn_t op, int i, const char* iname);
+extern const struct operator_p_s* nn_get_prox_op_arg_index(nn_t op, int i);
 
 extern const char** nn_get_out_names(nn_t op);
 extern const char** nn_get_in_names(nn_t op);

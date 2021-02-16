@@ -4,6 +4,9 @@
 
 #include "misc/misc.h"
 
+#include "iter/prox.h"
+#include "num/ops_p.h"
+
 #include "nn/init.h"
 #include "num/iovec.h"
 #include "num/multind.h"
@@ -60,9 +63,13 @@ nn_t nn_reshape_in(nn_t op, int i, const char* iname, int N, const long idims[N]
 		nn_clone_arg_o_from_o(result, i, op, i);
 
 	auto iov = nlop_generic_domain(op->nlop, i);
+	
 	auto init_tmp = init_reshape_create(iov->N, iov->dims, result->initializers[i]);
 	initializer_free(result->initializers[i]);
 	result->initializers[i] = init_tmp;
+
+	if (NULL != result->prox_ops[i])
+		result->prox_ops[i] = operator_p_reshape_out_F(operator_p_reshape_in_F(result->prox_ops[i], N, idims), N, idims);
 
 	return result;
 }
@@ -524,6 +531,13 @@ nn_t nn_dup(nn_t op, int a, const char* aname, int b, const char* bname)
 
 	auto init_tmp = init_dup_create(op->initializers[a], op->initializers[b]);
 
+	const struct operator_p_s* prox_tmp = NULL;
+	if (NULL != op->prox_ops[a])
+		prox_tmp = operator_p_ref(op->prox_ops[a]);
+	else
+		if (NULL != op->prox_ops[b])
+			prox_tmp = operator_p_ref(op->prox_ops[b]);
+
 	auto nlop = nlop_dup(nn_get_nlop(op), MIN(a , b), MAX(a, b));
 	if (a > b)
 		nlop = nlop_shift_input_F(nlop, a - 1, b);
@@ -540,6 +554,9 @@ nn_t nn_dup(nn_t op, int a, const char* aname, int b, const char* bname)
 
 	initializer_free(result->initializers[(a > b) ? a - 1 : a]);
 	result->initializers[(a > b) ? a - 1 : a] = init_tmp;
+
+	operator_p_free(result->prox_ops[(a > b) ? a - 1 : a]);
+	result->prox_ops[(a > b) ? a - 1 : a] = prox_tmp;
 
 	return result;
 }
@@ -600,6 +617,17 @@ nn_t nn_stack_inputs(nn_t op, int a, const char* aname, int b, const char* bname
 	assert(iova->N == iovb->N);
 	auto init_tmp = init_stack_create(iova->N, stack_dim, iova->dims, op->initializers[a], iovb->dims, op->initializers[b]);
 
+	if (0 > stack_dim)
+		stack_dim += iova->N;
+
+	const struct operator_p_s* prox_tmp = NULL;
+	if ((NULL != op->prox_ops[a]) || (NULL != op->prox_ops[b])) {
+
+		auto prox_a = (NULL == op->prox_ops[a]) ? prox_zero_create(iova->N, iova->dims) : operator_p_ref(op->prox_ops[a]);
+		auto prox_b = (NULL == op->prox_ops[b]) ? prox_zero_create(iovb->N, iovb->dims) : operator_p_ref(op->prox_ops[b]);
+		prox_tmp = operator_p_stack_FF(stack_dim, stack_dim, prox_a, prox_b);
+	}
+
 	auto nlop = nlop_stack_inputs(nn_get_nlop(op), a, b, stack_dim);
 	if (a > b)
 		nlop = nlop_shift_input_F(nlop, a - 1, b);
@@ -615,6 +643,9 @@ nn_t nn_stack_inputs(nn_t op, int a, const char* aname, int b, const char* bname
 
 	initializer_free(result->initializers[(a > b) ? a - 1 : a]);
 	result->initializers[(a > b) ? a - 1 : a] = init_tmp;
+
+	operator_p_free(result->prox_ops[(a > b) ? a - 1 : a]);
+	result->prox_ops[(a > b) ? a - 1 : a] = prox_tmp;
 
 	return result;
 }

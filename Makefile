@@ -602,8 +602,8 @@ MODULES_test_prox += -liter -lnlops -llinops
 
 # lib nn
 UTARGETS += test_nn_ops test_nn
-MODULES_test_nn_ops += -lnn -lnlops -llinops
-MODULES_test_nn += -lnn -lnlops -llinops
+MODULES_test_nn_ops += -lnn -lnlops -llinops -liter
+MODULES_test_nn += -lnn -lnlops -llinops -liter
 
 UTARGETS_GPU += test_cuda_nlop
 MODULES_test_cuda_nlop += -lnn -lnlops -llinops -lnum
