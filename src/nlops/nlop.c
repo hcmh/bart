@@ -583,6 +583,29 @@ const struct nlop_s* nlop_clone(const struct nlop_s* op)
 
 
 
+const struct nlop_s* nlop_loop(int D, const long dims[D], const struct nlop_s* op)
+{
+	PTR_ALLOC(struct nlop_s, n);
+
+	int II = nlop_get_nr_in_args(op);
+	int OO = nlop_get_nr_out_args(op);
+
+	n->op = operator_loop(D, dims, op->op);
+
+	const struct linop_s* (*der)[II][OO] = (void*)op->derivative;
+
+	PTR_ALLOC(const struct linop_s*[II][OO], nder);
+
+	for (int i = 0; i < II; i++)
+		for (int o = 0; o < OO; o++)
+			(*nder)[i][o] = linop_loop(D, dims, (*der)[i][o]);
+
+	n->derivative = &(*PTR_PASS(nder))[0][0];
+	return PTR_PASS(n);
+}
+
+
+
 nlop_data_t* nlop_get_data(struct nlop_s* op)
 {
 	auto data2 = CAST_MAYBE(nlop_op_data_s, operator_get_data(op->op));

@@ -62,6 +62,7 @@ extern struct nlop_s* nlop_create2(	unsigned int ON, const long odims[__VLA(ON)]
 extern const struct nlop_s* nlop_clone(const struct nlop_s* op);
 extern void nlop_free(const struct nlop_s* op);
 
+
 extern nlop_data_t* nlop_get_data(struct nlop_s* op);
 
 extern int nlop_get_nr_in_args(const struct nlop_s* op);
@@ -88,6 +89,8 @@ struct iovec_s;
 extern const struct iovec_s* nlop_domain(const struct nlop_s* op);
 extern const struct iovec_s* nlop_codomain(const struct nlop_s* op);
 
+
+extern const struct nlop_s* nlop_loop(int D, const long dims[D], const struct nlop_s* op);
 
 extern struct nlop_s* nlop_flatten(const struct nlop_s* op);
 extern const struct nlop_s* nlop_flatten_get_op(struct nlop_s* op);
