@@ -137,7 +137,6 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
 		OPT_SET('m', &conf_model.opt.MOLLI, "use MOLLI model"),
 		OPT_STRING('T', &time_T1relax, "T1 relax time for MOLLI", ""),
-		OPT_SET('M', &conf_model.opt.sms, "Simultaneous Multi-Slice reconstruction"),
 		OPT_SET('S', &conf_model.opt.IR_SS, "use the IR steady-state model"),
 		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
 		OPT_STRING('A',	&input_alpha, 		"", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
@@ -159,6 +158,7 @@ int main_moba(int argc, char* argv[argc])
 		OPT_FLOAT('B', &conf_model.opt.lower_bound, "bound", "lower bound for relaxivity"),
 		OPT_SET('n', &conf_model.opt.auto_norm_off, "disable normlization of parameter maps for thresholding"),
 		OPT_SET('J', &conf_model.opt.stack_frames, "Stack frames for joint recon"),
+		OPT_SET('M', &conf_model.opt.sms, "Simultaneous Multi-Slice reconstruction"),
 
 		OPT_SET('k', &conf_model.opt.k_filter, "k-space edge filter for non-Cartesian trajectories"),
 		OPTL_SELECT(0, "kfilter-1", enum edge_filter_t, &k_filter_type, EF1, "k-space edge filter 1"),
