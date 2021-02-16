@@ -179,6 +179,7 @@ int main_moba(int argc, char* argv[argc])
 		// Multi-GRE hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
 		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "(T2* mapping using model-based multiple gradient echo)"),
 
+		// optimization options
 		OPT_UINT('l', &conf_model.opt.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
 		OPT_UINT('i', &conf_model.opt.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf_model.opt.redu, "redu", "reduction factor"),
@@ -191,10 +192,12 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SET('J', &conf_model.opt.stack_frames, "Stack frames for joint recon"),
 		OPT_SET('M', &conf_model.opt.sms, "Simultaneous Multi-Slice reconstruction"),
 
+		// k-space filter
 		OPT_SET('k', &conf_model.opt.k_filter, "k-space edge filter for non-Cartesian trajectories"),
 		OPTL_SELECT(0, "kfilter-1", enum edge_filter_t, &k_filter_type, EF1, "k-space edge filter 1"),
 		OPTL_SELECT(0, "kfilter-2", enum edge_filter_t, &k_filter_type, EF2, "k-space edge filter 2"),
 
+		// others
 		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('N', &unused, "(normalize)"), // no-op
