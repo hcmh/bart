@@ -139,6 +139,11 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SELECT(	'A', enum moba_t, &conf_model.model, IR_phy_alpha_in, "select the (M0, R1) model, input alpha needed"),
 	};
 
+	struct opt_s spin_echo_opt[] = {
+
+		OPT_SELECT(	'F', enum moba_t, &conf_model.model, T2, "T2 mapping using model-based Fast Spin Echo"),
+	};
+
 	opt_reg_init(&ropts);
 
 	const struct opt_s opts[] = {
@@ -155,6 +160,9 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SET('S', &conf_model.opt.IR_SS, "(use the IR steady-state model)"),
 		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "(select the (M0, R1, alpha) model and input TR)"),
 
+		// Spin-Echo options
+		OPTL_SUBOPT(0, "spin-echo" ,"interface", "Spin-Echo options. `--spin-echo h` for help.", ARRAY_SIZE(spin_echo_opt), spin_echo_opt),
+		// Spin-Echo hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
 		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "T2 mapping using model-based Fast Spin Echo"),
 
 		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "T2* mapping using model-based multiple gradient echo"),
