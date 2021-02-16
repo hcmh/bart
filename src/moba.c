@@ -150,10 +150,10 @@ int main_moba(int argc, char* argv[argc])
 		OPT_STRING('T', &time_T1relax, "", "T1 relax time for MOLLI"),
 		OPT_STRING('A',	&input_alpha, "", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
 		// IR FLASH hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
-		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
-		OPT_SET('m', &conf_model.opt.MOLLI, "use MOLLI model"),
-		OPT_SET('S', &conf_model.opt.IR_SS, "use the IR steady-state model"),
-		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
+		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "(T1 mapping using model-based look-locker)"),
+		OPT_SET('m', &conf_model.opt.MOLLI, "(use MOLLI model)"),
+		OPT_SET('S', &conf_model.opt.IR_SS, "(use the IR steady-state model)"),
+		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "(select the (M0, R1, alpha) model and input TR)"),
 
 		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "T2 mapping using model-based Fast Spin Echo"),
 
