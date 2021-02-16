@@ -135,9 +135,20 @@ int main_moba(int argc, char* argv[argc])
 
 		{ 'r', NULL, true, opt_reg_moba, &ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
+		OPT_SET('m', &conf_model.opt.MOLLI, "use MOLLI model"),
+		OPT_STRING('T', &time_T1relax, "T1 relax time for MOLLI", ""),
+		OPT_SET('M', &conf_model.opt.sms, "Simultaneous Multi-Slice reconstruction"),
+		OPT_SET('S', &conf_model.opt.IR_SS, "use the IR steady-state model"),
+		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
+		OPT_STRING('A',	&input_alpha, 		"", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
+
 		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "T2 mapping using model-based Fast Spin Echo"),
+
 		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "T2* mapping using model-based multiple gradient echo"),
 		OPT_UINT('D', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
+		OPT_FLVEC2('b', &scale_fB0, "SMO:SC", "B0 field: spatial smooth level; scaling [default: 222.; 1.]"),
+		OPTL_SELECT(0, "fat_spec_0", enum fat_spec, &fat_spec, FAT_SPEC_0, "select fat spectrum from ISMRM fat-water tool"),
+
 		OPT_UINT('l', &conf_model.opt.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
 		OPT_UINT('i', &conf_model.opt.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf_model.opt.redu, "redu", "reduction factor"),
@@ -146,29 +157,24 @@ int main_moba(int argc, char* argv[argc])
 		OPT_UINT('C', &conf_model.opt.inner_iter, "iter", "inner iterations"),
 		OPT_FLOAT('s', &conf_model.opt.step, "step", "step size"),
 		OPT_FLOAT('B', &conf_model.opt.lower_bound, "bound", "lower bound for relaxivity"),
-		OPT_FLVEC2('b', &scale_fB0, "SMO:SC", "B0 field: spatial smooth level; scaling [default: 222.; 1.]"),
+		OPT_SET('n', &conf_model.opt.auto_norm_off, "disable normlization of parameter maps for thresholding"),
+		OPT_SET('J', &conf_model.opt.stack_frames, "Stack frames for joint recon"),
+
+		OPT_SET('k', &conf_model.opt.k_filter, "k-space edge filter for non-Cartesian trajectories"),
+		OPTL_SELECT(0, "kfilter-1", enum edge_filter_t, &k_filter_type, EF1, "k-space edge filter 1"),
+		OPTL_SELECT(0, "kfilter-2", enum edge_filter_t, &k_filter_type, EF2, "k-space edge filter 2"),
+
+		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('N', &unused, "(normalize)"), // no-op
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
-		OPT_STRING('p', &psf, "PSF", ""),
-		OPT_SET('J', &conf_model.opt.stack_frames, "Stack frames for joint recon"),
-		OPT_SET('M', &conf_model.opt.sms, "Simultaneous Multi-Slice reconstruction"),
-		OPT_SET('O', &out_origin_maps, "(Output original maps from reconstruction without post processing)"),
-		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_STRING('I', &init_file, "init", "File for initialization"),
 		OPT_STRING('t', &trajectory, "Traj", ""),
+		OPT_STRING('p', &psf, "PSF", ""),
+
+		OPT_SET('O', &out_origin_maps, "(Output original maps from reconstruction without post processing)"),
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.25]"),
-		OPT_SET('m', &conf_model.opt.MOLLI, "use MOLLI model"),
-		OPT_STRING('T', &time_T1relax, "T1 relax time for MOLLI", ""),
-		OPT_SET('k', &conf_model.opt.k_filter, "k-space edge filter for non-Cartesian trajectories"),
-		OPT_SET('S', &conf_model.opt.IR_SS, "use the IR steady-state model"),
-		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
-		OPTL_SELECT(0, "kfilter-1", enum edge_filter_t, &k_filter_type, EF1, "k-space edge filter 1"),
-		OPTL_SELECT(0, "kfilter-2", enum edge_filter_t, &k_filter_type, EF2, "k-space edge filter 2"),
-		OPT_SET('n', &conf_model.opt.auto_norm_off, "disable normlization of parameter maps for thresholding"),
-		OPT_STRING('A',	&input_alpha, 		"", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
 		OPTL_LONG(0, "spokes-per-TR", &(spokes_per_tr), "sptr", "number of averaged spokes [default: 1]"),
-		OPTL_SELECT(0, "fat_spec_0", enum fat_spec, &fat_spec, FAT_SPEC_0, "select fat spectrum from ISMRM fat-water tool"),
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
