@@ -107,7 +107,7 @@ extern struct moba_conf moba_defaults;
 
 
 
-typedef enum {IR, MOLLI, IR_SS, IR_phy, IR_phy_alpha_in, T2, MGRE, Bloch} moba_model;
+typedef enum moba_t {IR, MOLLI, IR_SS, IR_phy, IR_phy_alpha_in, T2, MGRE, Bloch} moba_model;
 
 struct moba_conf_s {
 
