@@ -179,6 +179,8 @@ int main_moba(int argc, char* argv[argc])
 		// Multi-GRE hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
 		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "(T2* mapping using model-based multiple gradient echo)"),
 
+		// Sequence parameter
+		OPTL_FLOAT(0, "seq.TR", &(conf_model.sim.tr), "[s]", "repetition time in seconds"),
 		// optimization options
 		OPT_UINT('l', &conf_model.opt.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
 		OPT_UINT('i', &conf_model.opt.iter, "iter", "Number of Newton steps"),
