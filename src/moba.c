@@ -120,7 +120,7 @@ int main_moba(int argc, char* argv[argc])
 	bool use_gpu = false;
 	bool unused = false;
 
-	enum mdb_t { MDB_T1, MDB_T2, MDB_MGRE } mode = { MDB_T1 };
+	enum mdb_t { DEFAULT, MDB_T1, MDB_T2, MDB_MGRE } mode = { DEFAULT };
 	enum edge_filter_t { EF1, EF2 } k_filter_type = EF1;
 
 	const char* input_alpha = NULL;
@@ -129,17 +129,31 @@ int main_moba(int argc, char* argv[argc])
 
 	enum fat_spec fat_spec = FAT_SPEC_1;
 
+	// FIXME: parser limits suboptions to OPT_SELECT and OPT_SET
+	struct opt_s irflash_opt[] = {
+
+		OPT_SELECT(	'L', enum moba_t, &conf_model.model, IR, "T1 mapping using model-based look-locker"),
+		OPT_SELECT(	'M', enum moba_t, &conf_model.model, MOLLI, "use MOLLI model"),
+		OPT_SELECT(	'S', enum moba_t, &conf_model.model, IR_SS, "use the IR steady-state model"),
+		OPT_SELECT(	'P', enum moba_t, &conf_model.model, IR_phy, "select the (M0, R1, alpha) model"),
+		OPT_SELECT(	'A', enum moba_t, &conf_model.model, IR_phy_alpha_in, "select the (M0, R1) model, input alpha needed"),
+	};
+
 	opt_reg_init(&ropts);
 
 	const struct opt_s opts[] = {
 
 		{ 'r', NULL, true, opt_reg_moba, &ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
+
+		// IR FLASH options
+		OPTL_SUBOPT(0, "irflash" ,"interface", "IR FLASH options. `--irflash h` for help.", ARRAY_SIZE(irflash_opt), irflash_opt),
+		OPT_STRING('T', &time_T1relax, "", "T1 relax time for MOLLI"),
+		OPT_STRING('A',	&input_alpha, "", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
+		// IR FLASH hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
 		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "T1 mapping using model-based look-locker"),
 		OPT_SET('m', &conf_model.opt.MOLLI, "use MOLLI model"),
-		OPT_STRING('T', &time_T1relax, "T1 relax time for MOLLI", ""),
 		OPT_SET('S', &conf_model.opt.IR_SS, "use the IR steady-state model"),
 		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "select the (M0, R1, alpha) model and input TR"),
-		OPT_STRING('A',	&input_alpha, 		"", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
 
 		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "T2 mapping using model-based Fast Spin Echo"),
 
@@ -199,20 +213,23 @@ int main_moba(int argc, char* argv[argc])
 	// FIXME: Update CLI interface
 	assert(!(conf_model.opt.MOLLI && conf_model.opt.IR_SS));
 
-	if (MDB_T1 == mode && conf_model.opt.MOLLI)
-		conf_model.model = MOLLI;
-	else if (MDB_T1 == mode && conf_model.opt.IR_SS)
-		conf_model.model = IR_SS;
-	else if (MDB_T1 == mode && conf_model.opt.IR_phy)
-		conf_model.model = IR_phy;
-	else if (MDB_T1 == mode && NULL != input_alpha)
-		conf_model.model = IR_phy_alpha_in;
-	else if (MDB_T2 == mode)
-		conf_model.model = T2;
-	else if (MDB_MGRE == mode)
-		conf_model.model = MGRE;
-	// else if (NULL != conf->input_alpha)
-	// 	conf_model.model = Bloch;
+	if (DEFAULT != mode) {
+
+		if (MDB_T1 == mode && conf_model.opt.MOLLI)
+			conf_model.model = MOLLI;
+		else if (MDB_T1 == mode && conf_model.opt.IR_SS)
+			conf_model.model = IR_SS;
+		else if (MDB_T1 == mode && conf_model.opt.IR_phy)
+			conf_model.model = IR_phy;
+		else if (MDB_T1 == mode && NULL != input_alpha)
+			conf_model.model = IR_phy_alpha_in;
+		else if (MDB_T2 == mode)
+			conf_model.model = T2;
+		else if (MDB_MGRE == mode)
+			conf_model.model = MGRE;
+		// else if (NULL != conf->input_alpha)
+		// 	conf_model.model = Bloch;
+	}
 
 	conf_model.sim.tr = 1e-6 * conf_model.opt.IR_phy; // [us] -> [s]
 
