@@ -371,7 +371,7 @@ static struct cudnn_tensor_s get_tensor_descriptor(struct conv_desc_s conv_desc,
 
 	assert(1 >= bitcount(channel_flags));
 	assert(1 <= bitcount(conv_desc.conv_flags));
-	assert(1 <= bitcount(conv_desc.batch_flags));
+	assert(1 >= bitcount(conv_desc.batch_flags));
 
 	int channel_index = -1;
 	int batch_index = -1;
