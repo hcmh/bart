@@ -181,6 +181,7 @@ int main_moba(int argc, char* argv[argc])
 
 		// Sequence parameter
 		OPTL_FLOAT(0, "seq.TR", &(conf_model.sim.tr), "[s]", "repetition time in seconds"),
+
 		// optimization options
 		OPT_UINT('l', &conf_model.opt.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
 		OPT_UINT('i', &conf_model.opt.iter, "iter", "Number of Newton steps"),
@@ -231,8 +232,9 @@ int main_moba(int argc, char* argv[argc])
 	cuda_use_global_memory();
 #endif
 
-	// Convert old CLI to new struct interface
-	// FIXME: Update CLI interface
+	// Conversion of interfaces
+	// FIXME: get rid of or simplify it...
+
 	assert(!(conf_model.opt.MOLLI && conf_model.opt.IR_SS));
 
 	if (DEFAULT != mode) {
@@ -241,7 +243,7 @@ int main_moba(int argc, char* argv[argc])
 			conf_model.model = MOLLI;
 		else if (MDB_T1 == mode && conf_model.opt.IR_SS)
 			conf_model.model = IR_SS;
-		else if (MDB_T1 == mode && conf_model.opt.IR_phy)
+		else if (MDB_T1 == mode && 0. != conf_model.opt.IR_phy)
 			conf_model.model = IR_phy;
 		else if (MDB_T1 == mode && NULL != input_alpha)
 			conf_model.model = IR_phy_alpha_in;
@@ -251,10 +253,48 @@ int main_moba(int argc, char* argv[argc])
 			conf_model.model = MGRE;
 		// else if (NULL != conf->input_alpha)
 		// 	conf_model.model = Bloch;
+
+		conf_model.sim.tr = 1e-6 * conf_model.opt.IR_phy; // [us] -> [s]
 	}
+	else {
+		switch(conf_model.model) {
 
-	conf_model.sim.tr = 1e-6 * conf_model.opt.IR_phy; // [us] -> [s]
+		case IR:
+			mode = MDB_T1;
+			break;
 
+		case MOLLI:
+			mode = MDB_T1;
+			conf_model.opt.MOLLI = true;
+			break;
+
+		case IR_SS:
+			mode = MDB_T1;
+			conf_model.opt.IR_SS = true;
+			break;
+
+		case IR_phy:
+			mode = MDB_T1;
+			conf_model.opt.IR_phy = 1e6 * conf_model.sim.tr;
+			break;
+
+		case IR_phy_alpha_in:
+			mode = MDB_T1;
+			break;
+
+		case T2:
+			mode = MDB_T2;
+			break;
+
+		case MGRE:
+			mode = MDB_MGRE;
+			break;
+
+		case Bloch:
+			error("Bloch model not supported yet.");
+			break;
+		}
+	}
 
 	if (conf_model.opt.ropts->r > 0)
 		conf_model.opt.algo = ALGO_ADMM;
