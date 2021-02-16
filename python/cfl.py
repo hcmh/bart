@@ -6,10 +6,13 @@
 # 2013 Martin Uecker <uecker@eecs.berkeley.edu>
 # 2015 Jonathan Tamir <jtamir@eecs.berkeley.edu>
 
+from __future__ import print_function
+from __future__ import with_statement
 
 import numpy as np
 import mmap
 import os
+
 
 def readcfl(name):
     # get dims from .hdr
@@ -66,6 +69,9 @@ def writecfl(name, array):
     size = np.prod(array.shape) * np.dtype(np.complex64).itemsize
 
     with open(name + ".cfl", "a+b") as d:
-        os.truncate(d.fileno(), size)
-        with mmap.mmap(d.fileno(), size, flags=mmap.MAP_SHARED, prot=mmap.PROT_WRITE) as mm:
-            mm.write(array.astype(np.complex64).tobytes(order='F'))
+        os.ftruncate(d.fileno(), size)
+        mm = mmap.mmap(d.fileno(), size, flags=mmap.MAP_SHARED, prot=mmap.PROT_WRITE)
+        mm.write(array.astype(np.complex64).tobytes(order='F'))
+        mm.close()
+        #with mmap.mmap(d.fileno(), size, flags=mmap.MAP_SHARED, prot=mmap.PROT_WRITE) as mm:
+        #    mm.write(array.astype(np.complex64).tobytes(order='F'))
