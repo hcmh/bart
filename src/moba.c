@@ -144,6 +144,12 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SELECT(	'F', enum moba_t, &conf_model.model, T2, "T2 mapping using model-based Fast Spin Echo"),
 	};
 
+	struct opt_s multi_gre_opt[] = {
+
+		OPT_SELECT(	'M', enum moba_t, &conf_model.model, MGRE, "T2* mapping using model-based multiple gradient echo"),
+		// FIXME: Integrate MGRE models here
+	};
+
 	opt_reg_init(&ropts);
 
 	const struct opt_s opts[] = {
@@ -165,10 +171,13 @@ int main_moba(int argc, char* argv[argc])
 		// Spin-Echo hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
 		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "(T2 mapping using model-based Fast Spin Echo)"),
 
-		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "T2* mapping using model-based multiple gradient echo"),
+		// Multi GRE options
+		OPTL_SUBOPT(0, "multi-gre" ,"interface", "Multi-GRE options. `--multi-gre h` for help.", ARRAY_SIZE(multi_gre_opt), multi_gre_opt),
 		OPT_UINT('D', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
 		OPT_FLVEC2('b', &scale_fB0, "SMO:SC", "B0 field: spatial smooth level; scaling [default: 222.; 1.]"),
 		OPTL_SELECT(0, "fat_spec_0", enum fat_spec, &fat_spec, FAT_SPEC_0, "select fat spectrum from ISMRM fat-water tool"),
+		// Multi-GRE hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
+		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "(T2* mapping using model-based multiple gradient echo)"),
 
 		OPT_UINT('l', &conf_model.opt.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
 		OPT_UINT('i', &conf_model.opt.iter, "iter", "Number of Newton steps"),
