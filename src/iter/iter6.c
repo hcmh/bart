@@ -121,7 +121,7 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 	.beta_arr =NULL,
 	.convex_arr = NULL,
 
-	.reduce_momentum = false,
+	.reduce_momentum = true,
 
 };
 
