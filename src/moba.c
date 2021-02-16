@@ -163,7 +163,7 @@ int main_moba(int argc, char* argv[argc])
 		// Spin-Echo options
 		OPTL_SUBOPT(0, "spin-echo" ,"interface", "Spin-Echo options. `--spin-echo h` for help.", ARRAY_SIZE(spin_echo_opt), spin_echo_opt),
 		// Spin-Echo hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
-		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "T2 mapping using model-based Fast Spin Echo"),
+		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "(T2 mapping using model-based Fast Spin Echo)"),
 
 		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "T2* mapping using model-based multiple gradient echo"),
 		OPT_UINT('D', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
