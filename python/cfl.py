@@ -30,9 +30,8 @@ def readcfl(name):
 
 def readmulticfl(name):
     # get dims from .hdr
-    h = open(name + ".hdr", "r")
-    lines = h.read().splitlines()
-    h.close()
+    with open(name + ".hdr", "rt") as h:
+        lines = h.read().splitlines()
 
     index_dim = 1 + lines.index('# Dimensions')
     total_size = int(lines[index_dim])
@@ -40,9 +39,8 @@ def readmulticfl(name):
     sizes = [int(i) for i in lines[index_sizes].split()]
     index_dims = 1 + lines.index('# MultiDimensions')
 
-    d = open(name + ".cfl", "r")
-    a = np.fromfile(d, dtype=np.complex64, count=total_size)
-    d.close()
+    with open(name + ".cfl", "rb") as d:
+        a = np.fromfile(d, dtype=np.complex64, count=total_size)
 
     offset = 0
     result = []
@@ -52,8 +50,7 @@ def readmulticfl(name):
         result.append(a[offset:offset+n].reshape(dims, order='F'))
         offset += n
 
-    if(total_size != offset):
-        #raise RuntimeError
+    if total_size != offset:
         print("Error")
 
     return result
