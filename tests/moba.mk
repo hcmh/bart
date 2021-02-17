@@ -315,7 +315,7 @@ tests/test-moba-t1-alpha-non-cartesian: traj repmat phantom signal fmac index sc
 	$(TOOLDIR)/index 5 300 tmp1.ra							;\
 	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra						;\
 	$(TOOLDIR)/moba -P5000 -L -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
-	$(TOOLDIR)/moba --irflash P --seq.TR 0.005 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -t traj.ra k_space.ra TI.ra reco2.ra sens.ra	;\
+	$(TOOLDIR)/moba --irflash P --seq.tr 0.005 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -t traj.ra k_space.ra TI.ra reco2.ra sens.ra	;\
 	$(TOOLDIR)/nrmse -t 0.0005 reco2.ra reco.ra			  		;\
 	$(TOOLDIR)/slice 6 1 reco.ra r1map.ra						;\
 	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
