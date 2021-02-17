@@ -90,7 +90,7 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 		.opt_reg = conf->opt.opt_reg,
 		.step = conf->opt.step,
 		.lower_bound = conf->opt.lower_bound,
-		.constrained_maps = 4,
+		.constrained_maps = (Bloch == conf->model) ? 5 : 4,
 		.not_wav_maps = (IR_phy == conf->model) ? 1 : 0,
 		.flags = FFT_FLAGS,
 		.usegpu = usegpu,
