@@ -170,8 +170,16 @@ int main_moba(int argc, char* argv[argc])
 		OPT_FLVEC2('b', &scale_fB0, "SMO:SC", "B0 field: spatial smooth level; scaling [default: 222.; 1.]"),
 		OPTL_SELECT(0, "fat_spec_0", enum fat_spec, &fat_spec, FAT_SPEC_0, "select fat spectrum from ISMRM fat-water tool"),
 
-		// Sequence parameter
-		OPTL_FLOAT(0, "seq.TR", &(conf_model.sim.tr), "[s]", "repetition time in seconds"),
+		// Sequence parameters
+		OPTL_FLOAT(0, "seq.TR", &(conf_model.sim.tr), "[s]", "repetition time"),
+		OPTL_FLOAT(0, "seq.TE", &(conf_model.sim.te), "[s]", "echo time"),
+		OPTL_FLOAT(0, "seq.FA", &(conf_model.sim.fa), "[deg]", "flip angle"),
+		OPTL_FLOAT(0, "seq.rf_duration", &(conf_model.sim.rfduration), "[s]", "RF pulse duration"),
+		OPTL_FLOAT(0, "seq.bwtp", &(conf_model.sim.bwtp), "[a.u.]", "Bandwidth-Time-Product"),
+		OPTL_FLOAT(0, "seq.inv-pulse-length", &(conf_model.sim.inversion_pulse_length), "[s]", "length of inversion pulse"),
+		OPTL_FLOAT(0, "seq.prep-pulse-length", &(conf_model.sim.prep_pulse_length), "[s]", "length of preparation pulse"),
+
+
 
 		// optimization options
 		OPT_UINT('l', &conf_model.opt.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
