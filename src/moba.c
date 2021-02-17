@@ -219,7 +219,7 @@ int main_moba(int argc, char* argv[argc])
 		OPT_UINT('C', &conf_model.opt.inner_iter, "iter", "inner iterations"),
 		OPT_FLOAT('s', &conf_model.opt.step, "step", "step size"),
 		OPT_FLOAT('B', &conf_model.opt.lower_bound, "bound", "lower bound for relaxivity"),
-		OPT_SET('n', &conf_model.opt.auto_norm_off, "disable normlization of parameter maps for thresholding"),
+		OPT_SET('n', &conf_model.opt.auto_norm_off, "disable normalization of parameter maps for thresholding"),
 		OPT_SET('J', &conf_model.opt.stack_frames, "Stack frames for joint recon"),
 		OPT_SET('M', &conf_model.opt.sms, "Simultaneous Multi-Slice reconstruction"),
 
