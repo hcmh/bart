@@ -27,7 +27,7 @@ const struct sim_conf_s sim_conf_s_defaults = {
 	.scale = {1., 1., 1., 1.},
 	.fov_reduction_factor = 1.,
 	.rm_no_echo = 0.,
-	.full_ode_sim = false,
+	.sim_type = OBS,
 	.not_wav_maps = 0,
 
 	.input_b1 = NULL,

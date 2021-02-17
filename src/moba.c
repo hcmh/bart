@@ -163,6 +163,12 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_SELECT(	'F', "IRFLASH", 	enum sim_seq_t, &conf_model.sim.sequence, IRFLASH, 	"Inversion-recovery FLASH"),
 		OPTL_SELECT(	'P', "IRpcbSSFP", 	enum sim_seq_t, &conf_model.sim.sequence, IRpcbSSFP, 	"Inversion-recovery phase-cycled bSSFP"),
 	};
+	struct opt_s sim_type_opt[] = {
+
+		OPTL_SELECT(	'O', "OBS", enum sim_type_t, &conf_model.sim.sim_type, OBS, "Bloch eq solved with ODE-based matrix approximation"),
+		OPTL_SELECT(	'o', "ODE", enum sim_type_t, &conf_model.sim.sim_type, ODE, "Bloch eq solved fully by ODE solver"),
+	};
+
 	opt_reg_init(&ropts);
 
 	const struct opt_s opts[] = {
@@ -185,7 +191,9 @@ int main_moba(int argc, char* argv[argc])
 
 		// Simulation-based Model
 		OPTL_SUBOPT(0, "sim.seq" ,"interface", "Simulated sequence. `--sim.seq h` for help.", ARRAY_SIZE(sim_seq_opt), sim_seq_opt),
+		OPTL_SUBOPT(0, "sim.type" ,"interface", "Simulation type used in model. `--sim.type h` for help.", ARRAY_SIZE(sim_type_opt), sim_type_opt),
 		OPTL_SET(0, "sim.slice-profile", &(use_slice_profile), "repetition time in seconds"),
+
 		// Sequence parameters
 		OPTL_FLOAT(0, "seq.TR", &(conf_model.sim.tr), "[s]", "repetition time"),
 		OPTL_FLOAT(0, "seq.TE", &(conf_model.sim.te), "[s]", "echo time"),

@@ -19,6 +19,7 @@ struct irflash_conf_s {
 extern const struct irflash_conf_s irflash_conf_s_defaults;
 
 typedef enum sim_seq_t {bSSFP, IRbSSFP, FLASH, pcbSSFP, IRbSSFP_wo_prep, IRFLASH, IRpcbSSFP} moba_sim_seq;
+typedef enum sim_type_t {OBS, ODE} moba_sim_type;
 
 struct sim_conf_s {
 
@@ -40,7 +41,7 @@ struct sim_conf_s {
 	float scale[4];
 	float fov_reduction_factor;
 	int rm_no_echo;
-	bool full_ode_sim;
+	moba_sim_type sim_type;
 	int not_wav_maps;
 
 	/*Input Calibrations*/
