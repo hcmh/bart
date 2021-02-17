@@ -260,12 +260,8 @@ int main_moba(int argc, char* argv[argc])
 		switch(conf_model.model) {
 
 		case IR:
-			mode = MDB_T1;
-			break;
-
 		case MOLLI:
 			mode = MDB_T1;
-			conf_model.opt.MOLLI = true;
 			break;
 
 		case IR_SS:
@@ -319,7 +315,7 @@ int main_moba(int argc, char* argv[argc])
 	complex float* TI_t1relax = NULL;
 	long TI_t1relax_dims[DIMS];
 
-	if (conf_model.opt.MOLLI) {
+	if (MOLLI == conf_model.model) {
 		
 		assert(NULL != time_T1relax);
 		TI_t1relax = load_cfl(time_T1relax, DIMS, TI_t1relax_dims);
@@ -661,7 +657,7 @@ int main_moba(int argc, char* argv[argc])
 	unmap_cfl(DIMS, TI_dims, TI);
 	md_free(conf_model.irflash.input_TI);
 
-	if (conf_model.opt.MOLLI) {
+	if (MOLLI == conf_model.model) {
 
 		unmap_cfl(DIMS, TI_t1relax_dims, TI_t1relax);
 		md_free(conf_model.irflash.input_TI_t1relax);
