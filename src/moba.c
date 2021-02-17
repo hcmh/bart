@@ -259,30 +259,6 @@ int main_moba(int argc, char* argv[argc])
 
 		conf_model.sim.tr = 1e-6 * conf_model.opt.IR_phy; // [us] -> [s]
 	}
-	else {
-		switch(conf_model.model) {
-
-		case IR:
-		case MOLLI:
-		case IR_SS:
-		case IR_phy:
-		case IR_phy_alpha_in:
-			// mode = MDB_T1;
-			break;
-
-		case T2:
-			// mode = MDB_T2;
-			break;
-
-		case MGRE:
-			// mode = MDB_MGRE;
-			break;
-
-		case Bloch:
-			error("Bloch model not supported yet.");
-			break;
-		}
-	}
 
 	if (conf_model.opt.ropts->r > 0)
 		conf_model.opt.algo = ALGO_ADMM;
