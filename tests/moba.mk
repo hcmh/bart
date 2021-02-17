@@ -246,8 +246,6 @@ tests/test-moba-meco-noncart-wfr2s: traj scale phantom signal fmac index extract
 	$(TOOLDIR)/scale 1.6 tmp1.ra tmp2.ra                              ;\
 	$(TOOLDIR)/extract 5 1 8 tmp2.ra TE.ra                            ;\
 	$(TOOLDIR)/moba -G -D1 -rQ:1 -rS:0 -rW:3:64:1 -i10 -C100 -u0.0001 -R3 -o1.5 -k --kfilter-2 -t _traj.ra data.ra TE.ra reco.ra   ;\
-	$(TOOLDIR)/moba --multi-gre M -D1 -rQ:1 -rS:0 -rW:3:64:1 -i10 -C100 -u0.0001 -R3 -o1.5 -k --kfilter-2 -t _traj.ra data.ra TE.ra reco2.ra   ;\
-	$(TOOLDIR)/nrmse -t 0.008 reco2.ra reco.ra			  ;\
 	$(TOOLDIR)/resize -c 0 8 1 8 reco.ra reco_crop.ra                 ;\
 	$(TOOLDIR)/slice 6 0 reco_crop.ra W.ra                            ;\
 	$(TOOLDIR)/slice 6 1 reco_crop.ra F.ra                            ;\
