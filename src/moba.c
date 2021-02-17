@@ -231,9 +231,6 @@ int main_moba(int argc, char* argv[argc])
 	cuda_use_global_memory();
 #endif
 
-	if (IR_phy_alpha_in == conf_model.model)
-		assert(NULL != input_alpha);
-
 	// Conversion of interfaces
 	// FIXME: get rid of or simplify it...
 
@@ -261,6 +258,17 @@ int main_moba(int argc, char* argv[argc])
 
 	if (conf_model.opt.ropts->r > 0)
 		conf_model.opt.algo = ALGO_ADMM;
+
+
+	// Check dependencies
+
+	if (IR_phy_alpha_in == conf_model.model)
+		assert(NULL != input_alpha);
+
+	if (NULL != input_alpha)
+		assert(IR_phy_alpha_in == conf_model.model);
+
+
 
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
