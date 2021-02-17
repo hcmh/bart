@@ -75,3 +75,37 @@ def writecfl(name, array):
         mm.close()
         #with mmap.mmap(d.fileno(), size, flags=mmap.MAP_SHARED, prot=mmap.PROT_WRITE) as mm:
         #    mm.write(array.astype(np.complex64).tobytes(order='F'))
+
+def writemulticfl(name, arrays):
+    size = 0
+    dims = []
+
+    for array in arrays:
+        size += array.size
+        dims.append(array.shape)
+
+    with open(name + ".hdr", "wt") as h:
+        h.write('# Dimensions\n')
+        h.write("%d\n" % size)
+
+        h.write('# SizesDimensions\n')
+        for dim in dims:
+            h.write("%d " % len(dim))
+        h.write('\n')
+
+        h.write('# MultiDimensions\n')
+        for dim in dims:
+            for i in dim:
+                h.write("%d " % i)
+            h.write('\n')
+            
+    size = size * np.dtype(np.complex64).itemsize
+
+    with open(name + ".cfl", "a+b") as d:
+        os.ftruncate(d.fileno(), size)
+        mm = mmap.mmap(d.fileno(), size, flags=mmap.MAP_SHARED, prot=mmap.PROT_WRITE)
+        for array in arrays:
+            mm.write(array.astype(np.complex64).tobytes(order='F'))
+        mm.close()
+        #with mmap.mmap(d.fileno(), size, flags=mmap.MAP_SHARED, prot=mmap.PROT_WRITE) as mm:
+        #    mm.write(array.astype(np.complex64).tobytes(order='F'))
