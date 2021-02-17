@@ -57,16 +57,19 @@ static void bloch_struct_conversion(const long dims[DIMS], struct modBlochFit* o
 	out->full_ode_sim = (int)in->sim_type;
 	out->not_wav_maps = in->not_wav_maps;
 
-	out->input_b1 = md_alloc(DIMS, map_dims, CFL_SIZE);
-	md_copy(DIMS, map_dims, out->input_b1, in->input_b1, CFL_SIZE);
+	if (NULL != in->input_b1) {
+		out->input_b1 = md_alloc(DIMS, map_dims, CFL_SIZE);
+		md_copy(DIMS, map_dims, out->input_b1, in->input_b1, CFL_SIZE);
+	}
 
 	long sp_dims[DIMS];
 	md_set_dims(DIMS, sp_dims, 1);
 	sp_dims[READ_DIM] = in->sliceprofile_spins;
 
-	out->input_sliceprofile = md_alloc(DIMS, sp_dims, CFL_SIZE);
-	md_copy(DIMS, sp_dims, out->input_sliceprofile, in->input_sliceprofile, CFL_SIZE);
-
+	if (NULL != in->input_sliceprofile) {
+		out->input_sliceprofile = md_alloc(DIMS, sp_dims, CFL_SIZE);
+		md_copy(DIMS, sp_dims, out->input_sliceprofile, in->input_sliceprofile, CFL_SIZE);
+	}
 	// FIXME: Add later
 	// out->input_fa_profile = NULL;
 }
