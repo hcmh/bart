@@ -262,14 +262,7 @@ int main_moba(int argc, char* argv[argc])
 		case IR:
 		case MOLLI:
 		case IR_SS:
-			mode = MDB_T1;
-			break;
-
 		case IR_phy:
-			mode = MDB_T1;
-			conf_model.opt.IR_phy = 1e6 * conf_model.sim.tr;
-			break;
-
 		case IR_phy_alpha_in:
 			mode = MDB_T1;
 			break;
@@ -595,21 +588,21 @@ int main_moba(int argc, char* argv[argc])
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
-		if ((MDB_T1 == mode) || (MDB_T2 == mode) || (0. != conf_model.opt.IR_phy) || (NULL != input_alpha) || (IR_SS == conf_model.model)) {
+		if ((MDB_T1 == mode) || (MDB_T2 == mode) || (IR_phy == conf_model.model) || (NULL != input_alpha) || (IR_SS == conf_model.model)) {
 
 			// Choose a different initial guess for R1*
-			float init_param = (0. != conf_model.opt.IR_phy || (NULL != input_alpha)) ? 3. : (conf_model.opt.sms ? 2. : 1.5);
+			float init_param = (IR_phy == conf_model.model || (NULL != input_alpha)) ? 3. : (conf_model.opt.sms ? 2. : 1.5);
 
 			long pos[DIMS] = { 0 };
 
-			pos[COEFF_DIM] = ((IR_SS == conf_model.model) || (0. != conf_model.opt.IR_phy) || (NULL != input_alpha) || (mode == MDB_T2)) ? 1 : 2;
+			pos[COEFF_DIM] = ((IR_SS == conf_model.model) || (IR_phy == conf_model.model) || (NULL != input_alpha) || (mode == MDB_T2)) ? 1 : 2;
 
 			md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 			md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
 			md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
 
 			// Choose initial guess for alpha
-			if (0. != conf_model.opt.IR_phy) {
+			if (IR_phy == conf_model.model) {
 
 				pos[COEFF_DIM] = 2;
 				md_zfill(DIMS, single_map_dims, single_map, 0.);
