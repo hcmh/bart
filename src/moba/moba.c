@@ -11,7 +11,7 @@
 
 const struct sim_conf_s sim_conf_s_defaults = {
 
-	.sequence = 1, /*inv. bSSFP*/
+	.sequence = IRbSSFP, /*inv. bSSFP*/
 	.rfduration = 0.0009,
 	.bwtp = 4,
 	.tr = 0.0045,
