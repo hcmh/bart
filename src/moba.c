@@ -147,7 +147,7 @@ int main_moba(int argc, char* argv[argc])
 	struct opt_s multi_gre_opt[] = {
 
 		OPT_SELECT(	'M', enum moba_t, &conf_model.model, MGRE, "T2* mapping using model-based multiple gradient echo"),
-		// FIXME: Integrate MGRE models here
+		// FIXME: Integrate MGRE models from mgre_model here
 	};
 
 	opt_reg_init(&ropts);
@@ -159,25 +159,16 @@ int main_moba(int argc, char* argv[argc])
 		// IR FLASH options
 		OPTL_SUBOPT(0, "irflash" ,"interface", "IR FLASH options. `--irflash h` for help.", ARRAY_SIZE(irflash_opt), irflash_opt),
 		OPT_STRING('T', &time_T1relax, "", "T1 relax time for MOLLI"),
-		OPT_STRING('A',	&input_alpha, "", "Input alpha map (automatically selects (M0, R1) IR FLASH model!)"),
-		// IR FLASH hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
-		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "(T1 mapping using model-based look-locker)"),
-		OPT_SET('m', &conf_model.opt.MOLLI, "(use MOLLI model)"),
-		OPT_SET('S', &conf_model.opt.IR_SS, "(use the IR steady-state model)"),
-		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "(select the (M0, R1, alpha) model and input TR)"),
+		OPT_STRING('A',	&input_alpha, "", "Input alpha map required by (M0, R1) IR FLASH model "),
 
 		// Spin-Echo options
 		OPTL_SUBOPT(0, "spin-echo" ,"interface", "Spin-Echo options. `--spin-echo h` for help.", ARRAY_SIZE(spin_echo_opt), spin_echo_opt),
-		// Spin-Echo hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
-		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "(T2 mapping using model-based Fast Spin Echo)"),
 
 		// Multi GRE options
 		OPTL_SUBOPT(0, "multi-gre" ,"interface", "Multi-GRE options. `--multi-gre h` for help.", ARRAY_SIZE(multi_gre_opt), multi_gre_opt),
 		OPT_UINT('D', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
 		OPT_FLVEC2('b', &scale_fB0, "SMO:SC", "B0 field: spatial smooth level; scaling [default: 222.; 1.]"),
 		OPTL_SELECT(0, "fat_spec_0", enum fat_spec, &fat_spec, FAT_SPEC_0, "select fat spectrum from ISMRM fat-water tool"),
-		// Multi-GRE hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
-		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "(T2* mapping using model-based multiple gradient echo)"),
 
 		// Sequence parameter
 		OPTL_FLOAT(0, "seq.TR", &(conf_model.sim.tr), "[s]", "repetition time in seconds"),
@@ -203,15 +194,23 @@ int main_moba(int argc, char* argv[argc])
 		// others
 		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
-		OPT_SET('N', &unused, "(normalize)"), // no-op
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
 		OPT_STRING('I', &init_file, "init", "File for initialization"),
 		OPT_STRING('t', &trajectory, "Traj", ""),
 		OPT_STRING('p', &psf, "PSF", ""),
 
-		OPT_SET('O', &out_origin_maps, "(Output original maps from reconstruction without post processing)"),
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.25]"),
 		OPTL_LONG(0, "spokes-per-TR", &(spokes_per_tr), "sptr", "number of averaged spokes [default: 1]"),
+
+		// hidden options (kept for reproducibility, NOT RECOMMENDED to use!)
+		OPT_SELECT('L', enum mdb_t, &mode, MDB_T1, "(T1 mapping using model-based look-locker)"),
+		OPT_SET('m', &conf_model.opt.MOLLI, "(use MOLLI model)"),
+		OPT_SET('S', &conf_model.opt.IR_SS, "(use the IR steady-state model)"),
+		OPT_FLOAT('P', &conf_model.opt.IR_phy, "", "(select the (M0, R1, alpha) model and input TR)"),
+		OPT_SELECT('F', enum mdb_t, &mode, MDB_T2, "(T2 mapping using model-based Fast Spin Echo)"),
+		OPT_SELECT('G', enum mdb_t, &mode, MDB_MGRE, "(T2* mapping using model-based multiple gradient echo)"),
+		OPT_SET('O', &out_origin_maps, "(Output original maps from reconstruction without post processing)"),
+		OPT_SET('N', &unused, "(normalize)"), // no-op
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
