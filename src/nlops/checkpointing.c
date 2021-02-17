@@ -49,6 +49,20 @@ struct checkpoint_s {
 
 DEF_TYPEID(checkpoint_s);
 
+static void checkpoint_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
+{
+	const auto data = CAST_DOWN(checkpoint_s, _data);
+
+	bool clear_ders = true;
+
+	for (unsigned int i = 0; i < data->II; i++)
+		for (unsigned int o = 0; o < data->OO; o++)
+			clear_ders = clear_ders && op_options_is_set_io(opts, o, i, OP_APP_CLEAR_DER);
+
+	if (clear_ders)
+		nlop_clear_derivative(data->nlop);
+}
+
 static void checkpoint_free_der(struct checkpoint_s* d)
 {
 	for (uint i = 0; i < d->II * d->OO; i++) {
@@ -455,7 +469,7 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 		}
 
 	const struct nlop_s* result = nlop_generic_with_props_create(	OO, max_DO, nl_odims, II, max_DI, nl_idims, CAST_UP(PTR_PASS(d)),
-							checkpoint_fun, der_funs, adj_funs, NULL, NULL, checkpoint_del, NULL, props, nlop_graph_checkpointing);
+							checkpoint_fun, der_funs, adj_funs, NULL, NULL, checkpoint_del, checkpoint_set_opts, props, nlop_graph_checkpointing);
 
 	for (uint i = 0; i < II; i++) {
 
