@@ -257,6 +257,11 @@ int main_moba(int argc, char* argv[argc])
 
 
 	(use_gpu ? num_init_gpu_memopt : num_init)();
+
+
+	// FIXME: Create unified nlop for all simulation-based models
+	if (NONE != conf_model.sim.sequence)
+		conf_model.model = Bloch;
 	
 	conf_model.opt.algo = ALGO_FISTA;
 
@@ -439,6 +444,7 @@ int main_moba(int argc, char* argv[argc])
 	case IR:
 	case MOLLI:
 	case IR_phy:
+	case Bloch:
 		img_dims[COEFF_DIM] = 3;
 		break;
 
@@ -450,10 +456,6 @@ int main_moba(int argc, char* argv[argc])
 
 	case MGRE:
 		img_dims[COEFF_DIM] = (MECO_PI != mgre_model) ? set_num_of_coeff(mgre_model) : grid_dims[TE_DIM];
-		break;
-
-	case Bloch:
-		error("Bloch model not supported yet.");
 		break;
 	}
 

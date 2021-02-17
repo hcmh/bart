@@ -18,7 +18,7 @@ struct irflash_conf_s {
 };
 extern const struct irflash_conf_s irflash_conf_s_defaults;
 
-typedef enum sim_seq_t {bSSFP, IRbSSFP, FLASH, pcbSSFP, IRbSSFP_wo_prep, IRFLASH, IRpcbSSFP} moba_sim_seq;
+typedef enum sim_seq_t {bSSFP, IRbSSFP, FLASH, pcbSSFP, IRbSSFP_wo_prep, IRFLASH, IRpcbSSFP, NONE} moba_sim_seq;
 typedef enum sim_type_t {OBS, ODE} moba_sim_type;
 
 struct sim_conf_s {

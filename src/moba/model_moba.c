@@ -104,6 +104,7 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 #if 1
 
 	struct nlop_s* model = NULL;
+	struct modBlochFit fitpara = modBlochFit_defaults;
 
 	switch (conf_model->model) {
 
@@ -157,10 +158,9 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 
 	case Bloch:
 
-		// FIXME: Cast struct types...not nice at least...creater wrapper later
-		// model = nlop_Bloch_create(DIMS, dims, map_dims, out_dims, in_dims, fit_para, usegpu);
+		bloch_struct_conversion(dims, &fitpara, &(conf_model->sim));
+		model = nlop_Bloch_create(DIMS, dims, map_dims, out_dims, in_dims, &fitpara, use_gpu);
 		break;
-
 	}
 
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(model, 0)->dims);
