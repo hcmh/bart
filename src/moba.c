@@ -350,17 +350,11 @@ int main_moba(int argc, char* argv[argc])
 
 	case IR:
 	case MOLLI:
-		img_dims[COEFF_DIM] = 3;
-		break;
-
-	case IR_SS:
-		img_dims[COEFF_DIM] = 2;
-		break;
-
 	case IR_phy:
 		img_dims[COEFF_DIM] = 3;
 		break;
 
+	case IR_SS:
 	case IR_phy_alpha_in:
 	case T2:
 		img_dims[COEFF_DIM] = 2;
@@ -369,6 +363,7 @@ int main_moba(int argc, char* argv[argc])
 	case MGRE:
 		img_dims[COEFF_DIM] = (MECO_PI != mgre_model) ? set_num_of_coeff(mgre_model) : grid_dims[TE_DIM];
 		break;
+
 	case Bloch:
 		error("Bloch model not supported yet.");
 		break;
