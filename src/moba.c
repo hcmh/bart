@@ -126,6 +126,7 @@ int main_moba(int argc, char* argv[argc])
 	enum edge_filter_t { EF1, EF2 } k_filter_type = EF1;
 
 	const char* input_alpha = NULL;
+	const char* input_b1 = NULL;
 	bool use_slice_profile = false;
 
 	long spokes_per_tr = 1;
@@ -165,6 +166,7 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_SELECT(	'F', "IRFLASH", 	enum sim_seq_t, &conf_model.sim.sequence, IRFLASH, 	"Inversion-recovery FLASH"),
 		OPTL_SELECT(	'P', "IRpcbSSFP", 	enum sim_seq_t, &conf_model.sim.sequence, IRpcbSSFP, 	"Inversion-recovery phase-cycled bSSFP"),
 	};
+
 	struct opt_s sim_type_opt[] = {
 
 		OPTL_SELECT(	'O', "OBS", enum sim_type_t, &conf_model.sim.sim_type, OBS, "Bloch eq solved with ODE-based matrix approximation"),
@@ -195,6 +197,7 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_SUBOPT(0, "sim.seq" ,"interface", "Simulated sequence. `--sim.seq h` for help.", ARRAY_SIZE(sim_seq_opt), sim_seq_opt),
 		OPTL_SUBOPT(0, "sim.type" ,"interface", "Simulation type used in model. `--sim.type h` for help.", ARRAY_SIZE(sim_type_opt), sim_type_opt),
 		OPTL_SET(0, "sim.slice-profile", &(use_slice_profile), "repetition time in seconds"),
+		OPTL_STRING(0, "sim.b1map", &input_b1, "[deg]", "Input B1 map."),
 
 		// Sequence parameters
 		OPTL_FLOAT(0, "seq.TR", &(conf_model.sim.tr), "[s]", "repetition time"),
@@ -379,6 +382,23 @@ int main_moba(int argc, char* argv[argc])
 			restrict_fov = 0.5;
 
 		conf_model.opt.noncartesian = true;
+	}
+
+	// Load passed B1
+
+	complex float* b1 = NULL;
+	long b1_dims[DIMS];
+
+	if (NULL != input_b1) {
+
+		b1 = load_cfl(input_b1, DIMS, b1_dims);
+
+		assert(md_check_bounds(DIMS, FFT_FLAGS, grid_dims, b1_dims));
+
+		conf_model.sim.input_b1 = md_alloc(DIMS, b1_dims, CFL_SIZE);
+		md_copy(DIMS, b1_dims, conf_model.sim.input_b1, b1, CFL_SIZE);
+
+		unmap_cfl(DIMS, b1_dims, b1);
 	}
 
 	// Load slice profile
@@ -714,6 +734,10 @@ int main_moba(int argc, char* argv[argc])
 
 	if (use_slice_profile)
 		md_free(conf_model.sim.input_sliceprofile);
+
+	if(NULL != input_b1)
+		md_free(conf_model.sim.input_b1);
+
 	double recosecs = timestamp() - start_time;
 
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
