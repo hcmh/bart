@@ -353,6 +353,30 @@ tests/test-moba-t1-alpha-in-non-cartesian: traj repmat phantom signal fmac ones 
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-moba-bloch-t1-alpha-in-comparison: traj repmat phantom signal fmac ones index scale moba slice spow nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
+	$(TOOLDIR)/traj -x12 -y12 _traj.ra                  ;\
+	$(TOOLDIR)/repmat 5 300 _traj.ra traj.ra					;\
+	$(TOOLDIR)/phantom -k -c -t traj.ra basis_geom.ra				;\
+	$(TOOLDIR)/signal -F -I -r0.005 -n300 -f8. -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
+	$(TOOLDIR)/fmac basis_geom.ra signal.ra k_space.ra				;\
+	$(TOOLDIR)/ones 2 12 12 _famap.ra				;\
+	$(TOOLDIR)/scale 8. _famap.ra famap.ra						;\
+	$(TOOLDIR)/index 5 300 tmp1.ra							;\
+	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra						;\
+	$(TOOLDIR)/moba -A famap.ra -L -i11 --spokes-per-TR 12 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 -i11 --spokes-per-TR 12 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco2.ra sens2.ra	;\
+	$(TOOLDIR)/slice 6 1 reco.ra r1map.ra						;\
+	$(TOOLDIR)/slice 6 0 reco2.ra r1map2.ra						;\
+	$(TOOLDIR)/nrmse -t 0.006 r1map2.ra r1map.ra			  		;\
+	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
+	$(TOOLDIR)/phantom -x12 -c circ.ra						;\
+	$(TOOLDIR)/fmac t1map.ra circ.ra masked.ra	    				;\
+	$(TOOLDIR)/scale -- 1.12 circ.ra ref.ra			    			;\
+	$(TOOLDIR)/nrmse -t 0.0005 masked.ra ref.ra			    		;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
 tests/test-moba-bloch-irflash: traj repmat phantom signal fmac ones scale index moba slice spow looklocker fmac nrmse
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
 	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
@@ -381,4 +405,4 @@ TESTS_SLOW += tests/test-moba-t2
 TESTS_SLOW += tests/test-moba-meco-noncart-r2s tests/test-moba-meco-noncart-wfr2s
 TESTS_SLOW += tests/test-moba-t1-alpha-non-cartesian
 TESTS_SLOW += tests/test-moba-t1-alpha-in-non-cartesian
-TESTS_SLOW += tests/test-moba-bloch-irflash
+TESTS_SLOW += tests/test-moba-bloch-irflash tests/test-moba-bloch-t1-alpha-in-comparison
