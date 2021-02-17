@@ -208,8 +208,6 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_FLOAT(0, "seq.inv-pulse-length", &(conf_model.sim.inversion_pulse_length), "[s]", "length of inversion pulse"),
 		OPTL_FLOAT(0, "seq.prep-pulse-length", &(conf_model.sim.prep_pulse_length), "[s]", "length of preparation pulse"),
 
-
-
 		// optimization options
 		OPT_UINT('l', &conf_model.opt.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
 		OPT_UINT('i', &conf_model.opt.iter, "iter", "Number of Newton steps"),
@@ -669,7 +667,10 @@ int main_moba(int argc, char* argv[argc])
 
 			long pos[DIMS] = { 0 };
 
-			pos[COEFF_DIM] = ((IR_SS == conf_model.model) || (IR_phy == conf_model.model) || (IR_phy_alpha_in == conf_model.model) || (T2 == conf_model.model)) ? 1 : 2;
+			pos[COEFF_DIM] = (	(IR_SS == conf_model.model) ||
+						(IR_phy == conf_model.model) ||
+						(IR_phy_alpha_in == conf_model.model) ||
+						(T2 == conf_model.model)) ? 1 : 2;
 
 			md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 			md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
