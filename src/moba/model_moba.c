@@ -28,8 +28,49 @@
 #include "moba/T1_alpha.h"
 #include "moba/T1_alpha_in.h"
 #include "moba/blochfun.h"
+#include "moba/model_Bloch.h"
 
 #include "model_moba.h"
+
+
+static void bloch_struct_conversion(const long dims[DIMS], struct modBlochFit* out, const struct sim_conf_s* in)
+{
+	long map_dims[DIMS];
+	md_select_dims(DIMS, (READ_DIM|PHS1_DIM), map_dims, dims);
+
+	out->sequence = (int)in->sequence;
+	out->rfduration = in->rfduration;
+	out->bwtp = in->bwtp;
+	out->tr = in->tr;
+	out->te = in->te;
+	out->averaged_spokes = in->averaged_spokes;
+	out->sliceprofile_spins = in->sliceprofile_spins;
+	out->num_vfa = in->num_vfa;
+	out->fa = in->fa;
+	out->runs = in->runs;
+	out->inversion_pulse_length = in->inversion_pulse_length;
+	out->prep_pulse_length = in->prep_pulse_length;
+
+	memcpy(out->scale, in->scale, sizeof(in->scale));
+	out->fov_reduction_factor = in->fov_reduction_factor;
+	out->rm_no_echo = in->rm_no_echo;
+	out->full_ode_sim = (int)in->sim_type;
+	out->not_wav_maps = in->not_wav_maps;
+
+	out->input_b1 = md_alloc(DIMS, map_dims, CFL_SIZE);
+	md_copy(DIMS, map_dims, out->input_b1, in->input_b1, CFL_SIZE);
+
+	long sp_dims[DIMS];
+	md_set_dims(DIMS, sp_dims, 1);
+	sp_dims[READ_DIM] = in->sliceprofile_spins;
+
+	out->input_sliceprofile = md_alloc(DIMS, sp_dims, CFL_SIZE);
+	md_copy(DIMS, sp_dims, out->input_sliceprofile, in->input_sliceprofile, CFL_SIZE);
+
+	// FIXME: Add later
+	// out->input_fa_profile = NULL;
+}
+
 
 struct moba_s moba_create(const long dims[DIMS], const complex float* mask, const complex float* psf, const struct noir_model_conf_s* conf, const struct moba_conf_s* conf_model, _Bool use_gpu)
 {
