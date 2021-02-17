@@ -275,7 +275,7 @@ int main_moba(int argc, char* argv[argc])
 			break;
 
 		case MGRE:
-			mode = MDB_MGRE;
+			// mode = MDB_MGRE;
 			break;
 
 		case Bloch:
@@ -635,7 +635,7 @@ int main_moba(int argc, char* argv[argc])
 
 		md_copy(DIMS, grid_dims, kspace_gpu, k_grid_data, CFL_SIZE);
 
-		if (MDB_MGRE == mode)
+		if (MGRE == conf_model.model)
 			meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, conf_model.irflash.input_TI, pat_dims, pattern, grid_dims, kspace_gpu);
 		else
 			moba_recon(&conf_model, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
@@ -644,7 +644,7 @@ int main_moba(int argc, char* argv[argc])
 
 	} else
 #endif
-	if (MDB_MGRE == mode)
+	if (MGRE == conf_model.model)
 		meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, conf_model.irflash.input_TI, pat_dims, pattern, grid_dims, k_grid_data);
 	else
 		moba_recon(&conf_model, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
