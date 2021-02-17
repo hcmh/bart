@@ -130,7 +130,8 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 	}
 
 	// (M0, R1, alpha) model
-	// FIXME: Move to separate function which can be tested by a unit test
+	// FIXME: Move to separate function which can be tested with a unit test
+	// see utests/test_fa_to_scale as opposite function
 	if (IR_phy == conf->model) {
 
 		long pos[DIMS];

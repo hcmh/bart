@@ -40,7 +40,7 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 	// function receiving B1 and outputting alpha
 	//...complex float* alpha = NULL;
 
-	// fucntion calculating the slice profile if desired
+	// function calculating the slice profile if desired
 
 
 	long data_dims[DIMS];
@@ -111,7 +111,7 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 
 	case MGRE:
 
-		debug_printf(DP_ERROR, "Model not yet supported by moba/model_moba.c");
+		error("Model not yet supported by moba/model_moba.c");
 		break;
 
 	case Bloch:

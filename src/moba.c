@@ -200,10 +200,10 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_STRING(0, "sim.b1map", &input_b1, "[deg]", "Input B1 map."),
 
 		// Sequence parameters
-		OPTL_FLOAT(0, "seq.TR", &(conf_model.sim.tr), "[s]", "repetition time"),
-		OPTL_FLOAT(0, "seq.TE", &(conf_model.sim.te), "[s]", "echo time"),
-		OPTL_FLOAT(0, "seq.FA", &(conf_model.sim.fa), "[deg]", "flip angle"),
-		OPTL_FLOAT(0, "seq.rf_duration", &(conf_model.sim.rfduration), "[s]", "RF pulse duration"),
+		OPTL_FLOAT(0, "seq.tr", &(conf_model.sim.tr), "[s]", "repetition time"),
+		OPTL_FLOAT(0, "seq.te", &(conf_model.sim.te), "[s]", "echo time"),
+		OPTL_FLOAT(0, "seq.fa", &(conf_model.sim.fa), "[deg]", "flip angle"),
+		OPTL_FLOAT(0, "seq.rf-duration", &(conf_model.sim.rfduration), "[s]", "RF pulse duration"),
 		OPTL_FLOAT(0, "seq.bwtp", &(conf_model.sim.bwtp), "[a.u.]", "Bandwidth-Time-Product"),
 		OPTL_FLOAT(0, "seq.inv-pulse-length", &(conf_model.sim.inversion_pulse_length), "[s]", "length of inversion pulse"),
 		OPTL_FLOAT(0, "seq.prep-pulse-length", &(conf_model.sim.prep_pulse_length), "[s]", "length of preparation pulse"),
@@ -287,8 +287,6 @@ int main_moba(int argc, char* argv[argc])
 			conf_model.model = T2;
 		else if (MDB_MGRE == mode)
 			conf_model.model = MGRE;
-		// else if (NULL != conf->input_alpha)
-		// 	conf_model.model = Bloch;
 
 		conf_model.sim.tr = 1e-6 * conf_model.opt.IR_phy; // [us] -> [s]
 	}
