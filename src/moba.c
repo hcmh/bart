@@ -50,6 +50,8 @@
 #include "moba/recon_meco.h"
 
 #include "simu/signals.h"
+#include "simu/simulation.h"
+#include "simu/slice_profile.h"
 
 static const char usage_str[] = "<kspace> <TI/TE> <output> [<sensitivities>]";
 static const char help_str[] = "Model-based nonlinear inverse reconstruction\n";
@@ -379,6 +381,35 @@ int main_moba(int argc, char* argv[argc])
 		conf_model.opt.noncartesian = true;
 	}
 
+	// Load slice profile
+
+	complex float* sliceprofile = NULL;
+	long sp_dims[DIMS];
+
+	if (use_slice_profile) {
+
+		struct simdata_pulse pulse = simdata_pulse_defaults;
+
+		pulse.rf_end = conf_model.sim.rfduration;
+		pulse.flipangle = conf_model.sim.fa;
+		pulse.bwtp = conf_model.sim.bwtp;
+
+		md_set_dims(DIMS, sp_dims, 1);
+		sp_dims[READ_DIM] = 10;	// Currently 10 spins along slice profile are assumed (Can be changed freely)
+
+		sliceprofile = md_alloc(DIMS, sp_dims, CFL_SIZE);
+
+		estimate_slice_profile(DIMS, sp_dims, sliceprofile, &pulse);
+
+		conf_model.sim.sliceprofile_spins = sp_dims[READ_DIM];
+
+		conf_model.sim.input_sliceprofile = md_alloc(DIMS, sp_dims, CFL_SIZE);
+
+		md_copy(DIMS, sp_dims, conf_model.sim.input_sliceprofile, sliceprofile, CFL_SIZE);
+
+		md_free(sliceprofile);
+	}
+
 	long img_dims[DIMS];
 
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|COEFF_FLAG|TIME_FLAG|SLICE_FLAG|TIME2_FLAG, img_dims, grid_dims);
@@ -681,6 +712,8 @@ int main_moba(int argc, char* argv[argc])
 	if (NULL != input_alpha)
 		md_free(conf_model.irflash.input_alpha);
 
+	if (use_slice_profile)
+		md_free(conf_model.sim.input_sliceprofile);
 	double recosecs = timestamp() - start_time;
 
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);
