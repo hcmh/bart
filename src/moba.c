@@ -232,6 +232,9 @@ int main_moba(int argc, char* argv[argc])
 	cuda_use_global_memory();
 #endif
 
+	if (IR_phy_alpha_in == conf_model.model)
+		assert(NULL != input_alpha);
+
 	// Conversion of interfaces
 	// FIXME: get rid of or simplify it...
 
@@ -264,11 +267,11 @@ int main_moba(int argc, char* argv[argc])
 		case IR_SS:
 		case IR_phy:
 		case IR_phy_alpha_in:
-			mode = MDB_T1;
+			// mode = MDB_T1;
 			break;
 
 		case T2:
-			mode = MDB_T2;
+			// mode = MDB_T2;
 			break;
 
 		case MGRE:
@@ -553,7 +556,12 @@ int main_moba(int argc, char* argv[argc])
 
 	// scaling
 
-	if ((MDB_T1 == mode) || (MDB_T2 == mode)) {
+	if (	(IR == conf_model.model) ||
+		(MOLLI == conf_model.model) ||
+		(IR_SS == conf_model.model) ||
+		(IR_phy == conf_model.model) ||
+		(IR_phy_alpha_in == conf_model.model) ||
+		(T2 == conf_model.model) ) {
 
 		double scaling = ((ALGO_ADMM == conf_model.opt.algo) ? 250. : 5000.) / md_znorm(DIMS, grid_dims, k_grid_data);
 		double scaling_psf = ((ALGO_ADMM == conf_model.opt.algo) ? 500. : 1000.) / md_znorm(DIMS, pat_dims, pattern);
@@ -588,14 +596,19 @@ int main_moba(int argc, char* argv[argc])
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
-		if ((MDB_T1 == mode) || (MDB_T2 == mode) || (IR_phy == conf_model.model) || (NULL != input_alpha) || (IR_SS == conf_model.model)) {
+		if (	(IR == conf_model.model) ||
+			(MOLLI == conf_model.model) ||
+			(IR_SS == conf_model.model) ||
+			(IR_phy == conf_model.model) ||
+			(IR_phy_alpha_in == conf_model.model) ||
+			(T2 == conf_model.model) ) {
 
 			// Choose a different initial guess for R1*
-			float init_param = (IR_phy == conf_model.model || (NULL != input_alpha)) ? 3. : (conf_model.opt.sms ? 2. : 1.5);
+			float init_param = (IR_phy == conf_model.model || (IR_phy_alpha_in == conf_model.model)) ? 3. : (conf_model.opt.sms ? 2. : 1.5);
 
 			long pos[DIMS] = { 0 };
 
-			pos[COEFF_DIM] = ((IR_SS == conf_model.model) || (IR_phy == conf_model.model) || (NULL != input_alpha) || (mode == MDB_T2)) ? 1 : 2;
+			pos[COEFF_DIM] = ((IR_SS == conf_model.model) || (IR_phy == conf_model.model) || (IR_phy_alpha_in == conf_model.model) || (T2 == conf_model.model)) ? 1 : 2;
 
 			md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
 			md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
