@@ -18,11 +18,12 @@ struct irflash_conf_s {
 };
 extern const struct irflash_conf_s irflash_conf_s_defaults;
 
+typedef enum sim_seq_t {bSSFP, IRbSSFP, FLASH, pcbSSFP, IRbSSFP_wo_prep, IRFLASH, IRpcbSSFP} moba_sim_seq;
 
 struct sim_conf_s {
 
 	/*Simulation Parameter*/
-	int sequence;
+	moba_sim_seq sequence;
 	float rfduration;
 	float bwtp;
 	float tr;

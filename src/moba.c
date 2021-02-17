@@ -124,6 +124,7 @@ int main_moba(int argc, char* argv[argc])
 	enum edge_filter_t { EF1, EF2 } k_filter_type = EF1;
 
 	const char* input_alpha = NULL;
+	bool use_slice_profile = false;
 
 	long spokes_per_tr = 1;
 
@@ -150,6 +151,18 @@ int main_moba(int argc, char* argv[argc])
 		// FIXME: Integrate MGRE models from mgre_model here
 	};
 
+	// capital character for inversion-recovery type of sequence
+	// FIXME: More module based implementation -> requires unified seq description
+	struct opt_s sim_seq_opt[] = {
+
+		OPTL_SELECT(	'b', "bSSFP", 		enum sim_seq_t, &conf_model.sim.sequence, bSSFP, 	"bSSFP"),
+		OPTL_SELECT(	'B', "IRbSSFP", 	enum sim_seq_t, &conf_model.sim.sequence, IRbSSFP, 	"Inversion-recovery bSSFP"),
+		OPTL_SELECT(	'f', "FLASH", 		enum sim_seq_t, &conf_model.sim.sequence, FLASH, 	"FLASH"),
+		OPTL_SELECT(	'p', "pcbSSFP", 	enum sim_seq_t, &conf_model.sim.sequence, pcbSSFP, 	"phase-cycled bSSFP"),
+		OPTL_SELECT(	'w', "IRbSSFPwop", 	enum sim_seq_t, &conf_model.sim.sequence, IRbSSFP_wo_prep, "Inversion-recovery bSSFP without preparation"),
+		OPTL_SELECT(	'F', "IRFLASH", 	enum sim_seq_t, &conf_model.sim.sequence, IRFLASH, 	"Inversion-recovery FLASH"),
+		OPTL_SELECT(	'P', "IRpcbSSFP", 	enum sim_seq_t, &conf_model.sim.sequence, IRpcbSSFP, 	"Inversion-recovery phase-cycled bSSFP"),
+	};
 	opt_reg_init(&ropts);
 
 	const struct opt_s opts[] = {
@@ -170,6 +183,9 @@ int main_moba(int argc, char* argv[argc])
 		OPT_FLVEC2('b', &scale_fB0, "SMO:SC", "B0 field: spatial smooth level; scaling [default: 222.; 1.]"),
 		OPTL_SELECT(0, "fat_spec_0", enum fat_spec, &fat_spec, FAT_SPEC_0, "select fat spectrum from ISMRM fat-water tool"),
 
+		// Simulation-based Model
+		OPTL_SUBOPT(0, "sim.seq" ,"interface", "Simulated sequence. `--sim.seq h` for help.", ARRAY_SIZE(sim_seq_opt), sim_seq_opt),
+		OPTL_SET(0, "sim.slice-profile", &(use_slice_profile), "repetition time in seconds"),
 		// Sequence parameters
 		OPTL_FLOAT(0, "seq.TR", &(conf_model.sim.tr), "[s]", "repetition time"),
 		OPTL_FLOAT(0, "seq.TE", &(conf_model.sim.te), "[s]", "echo time"),
