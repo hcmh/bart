@@ -77,12 +77,13 @@ const struct segm_s segm_default = {
  */
 static void hotenc_to_index(int N_batch, long* prediction, const complex float* in, bool cfl, struct segm_s* segm)
 {
-	long dims[] = { segm->classes, (segm->imgx * segm->imgy * N_batch) };
+
+	long dims[] = {segm->classes, (segm->imgx * segm->imgy * N_batch)};
 	long strs[2];
 
 	md_calc_strides(2, strs, dims, CFL_SIZE);
 
-	for (int i_batch = 0; i_batch < (segm->imgx * segm->imgy * N_batch); i_batch++) {
+	for (long i_batch = 0; i_batch < (segm->imgx * segm->imgy * N_batch); i_batch++){
 
 		prediction[i_batch] = 0;
 
@@ -90,7 +91,6 @@ static void hotenc_to_index(int N_batch, long* prediction, const complex float* 
 
 			long pos[] = {mask_class, i_batch};
 			long pos_max[] = {prediction[i_batch], i_batch};
-			//md_max maximum suchen, maximum auf 1 gemappt, anderes auf 0, md_zequal
 
 			if ((float)MD_ACCESS(2, strs, pos, in) > (float)MD_ACCESS(2, strs, pos_max, in))
 				prediction[i_batch] = mask_class;
@@ -98,10 +98,11 @@ static void hotenc_to_index(int N_batch, long* prediction, const complex float* 
 	}
 
 	if (cfl) {
-
-		long img_dims[] = { segm->imgx, segm->imgy, N_batch };
-
-		dump_cfl("segmentation_label", 3, img_dims, prediction);	// FIXME long to double?
+		long img_dims[] = {segm->imgx, segm->imgy, N_batch};
+		complex float* segm_gt;
+		segm_gt = create_cfl("segmentation_label", 3, img_dims);
+		md_copy(3, img_dims, segm_gt, prediction, CFL_SIZE);
+		unmap_cfl(3, img_dims, segm_gt);
 	}
 }
 
