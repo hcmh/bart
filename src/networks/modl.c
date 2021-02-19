@@ -241,8 +241,16 @@ static struct config_nlop_mri_s get_modl_mri_conf(const struct modl_s* modl)
 
 	conf.regrid = modl->regrid;
 
+	return conf;	
+}
+
+static struct config_nlop_mri_dc_s get_modl_mri_dc_conf(const struct modl_s* modl)
+{
+	struct config_nlop_mri_dc_s conf = conf_nlop_mri_dc_simple;
+
 	conf.iter_conf = CAST_DOWN(iter_conjgrad_conf, modl->normal_inversion_iter_conf);
 	conf.lambda_fixed = modl->lambda_fixed;
+	conf.lambda_init = modl->lambda_init;
 
 	return conf;	
 }
@@ -265,8 +273,9 @@ static struct config_nlop_mri_s get_modl_mri_conf(const struct modl_s* modl)
 static nn_t data_consistency_modl_create(const struct modl_s* config,const long dims[5], const long idims[5])
 {
 	struct config_nlop_mri_s mri_conf = get_modl_mri_conf(config);
+	struct config_nlop_mri_dc_s mri_conf_dc = get_modl_mri_dc_conf(config);
 
-	auto nlop_dc = mri_normal_inversion_create(5, dims, idims, &mri_conf); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
+	auto nlop_dc = mri_normal_inversion_create(5, dims, idims, &mri_conf, &mri_conf_dc); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
 
 	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(5, idims, 1., 1.), 0, nlop_dc, 0); // in: lambda * zn, zero_filled, coil, pattern[, lambda]; out: x(n+1)
 

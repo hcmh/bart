@@ -40,19 +40,29 @@ struct config_nlop_mri_s conf_nlop_mri_simple = {
 	.batch_flags = MD_BIT(4), 
 	.fft_flags = FFT_FLAGS,
 
+	.regrid = false,
+};
+
+struct config_nlop_mri_dc_s conf_nlop_mri_dc_simple = {
+
 	.keep_lambda_input = false,
 
 	.lambda_fixed = -1,
 	.lambda_init = 0.05,
 	.iter_conf = NULL,
-
-	.regrid = false,
 };
 
 struct config_nlop_mri_s* config_nlop_mri_create(void)
 {
 	PTR_ALLOC(struct config_nlop_mri_s, result);
 	*result = conf_nlop_mri_simple;
+	return PTR_PASS(result);
+}
+
+struct config_nlop_mri_dc_s* config_nlop_mri_dc_create(void)
+{
+	PTR_ALLOC(struct config_nlop_mri_dc_s, result);
+	*result = conf_nlop_mri_dc_simple;
 
 	PTR_ALLOC(struct iter_conjgrad_conf, iter_conf);
 	*iter_conf = iter_conjgrad_defaults;
@@ -64,6 +74,11 @@ struct config_nlop_mri_s* config_nlop_mri_create(void)
 }
 
 void config_nlop_mri_free(const struct config_nlop_mri_s* config)
+{
+	xfree(config);
+}
+
+void config_nlop_mri_dc_free(const struct config_nlop_mri_dc_s* config)
 {
 	xfree(config->iter_conf);
 	xfree(config);
@@ -832,7 +847,7 @@ static void mri_normal_inversion_del(const nlop_data_t* _data)
 }
 
 
-static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
+static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf, const struct config_nlop_mri_dc_s* conf_inv)
 {
 	assert(test_idims_compatible(N, dims, idims, conf));
 
@@ -906,7 +921,7 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
 	data->AhAdout = NULL;
 	data->store_tmp_lambda = false;
 
-	data->lambda_fixed = conf->lambda_fixed;
+	data->lambda_fixed = conf_inv->lambda_fixed;
 
 	PTR_ALLOC(const struct operator_s*[md_calc_size(N, data->bdims)], normalops);
 	for (int i = 0; i < md_calc_size(N, data->bdims); i++)
@@ -916,14 +931,14 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
 	data->lop_fft = NULL;
 	data->lop_fft_mod = NULL;
 
-	if (NULL == conf->iter_conf) {
+	if (NULL == conf_inv->iter_conf) {
 
 		data->iter_conf = iter_conjgrad_defaults;
 		data->iter_conf.l2lambda = 1.;
 		data->iter_conf.maxiter = 50;
 	} else {
 
-		data->iter_conf = *(conf->iter_conf);
+		data->iter_conf = *(conf_inv->iter_conf);
 	}
 
 	return PTR_PASS(data);
@@ -951,9 +966,9 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
  * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
 
-const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
+const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf, const struct config_nlop_mri_dc_s* conf_inv)
 {
-	auto data = mri_normal_inversion_data_create(N, dims, idims, conf);
+	auto data = mri_normal_inversion_data_create(N, dims, idims, conf, conf_inv);
 
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], data->idims);
@@ -973,9 +988,9 @@ const struct nlop_s* mri_normal_inversion_create(int N, const long dims[N], cons
 									NULL, NULL, mri_normal_inversion_del, NULL, props, NULL
 								);
 
-	if ((-1. != conf->lambda_fixed) && (!conf->keep_lambda_input)) {
+	if ((-1. != conf_inv->lambda_fixed) && (!conf_inv->keep_lambda_input)) {
 
-		complex float lambdac = conf->lambda_fixed;
+		complex float lambdac = conf_inv->lambda_fixed;
 		result = nlop_set_input_const_F(result, 3, N, MD_SINGLETON_DIMS(N), true, &lambdac);
 	} else {
 
@@ -1089,9 +1104,9 @@ static void mri_reg_proj_fun(const nlop_data_t* _data, int Narg, complex float* 
  * Output tensors:
  * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
-const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
+const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf, const struct config_nlop_mri_dc_s* conf_inv)
 {
-	auto data = mri_normal_inversion_data_create(N, dims, idims, conf);
+	auto data = mri_normal_inversion_data_create(N, dims, idims, conf, conf_inv);
 
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], data->idims);
@@ -1114,9 +1129,9 @@ const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const lo
 	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(N, nl_idims[0], -1., 1.), 0);
 	result = nlop_dup_F(result, 0, 1);
 
-	if ((-1. != conf->lambda_fixed) && (!conf->keep_lambda_input)) {
+	if ((-1. != conf_inv->lambda_fixed) && (!conf_inv->keep_lambda_input)) {
 
-		complex float lambdac = conf->lambda_fixed;
+		complex float lambdac = conf_inv->lambda_fixed;
 		result = nlop_set_input_const_F(result, 3, N, MD_SINGLETON_DIMS(N), true, &lambdac);
 	} else {
 
@@ -1148,10 +1163,10 @@ const struct nlop_s* mri_reg_proj_ker_create(int N, const long dims[N], const lo
  * image:	idims: 	(Ix, Iy, Iz, 1,  Nb)
  */
 
-const struct nlop_s* mri_reg_pinv(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf)
+const struct nlop_s* mri_reg_pinv(int N, const long dims[N], const long idims[N], const struct config_nlop_mri_s* conf, const struct config_nlop_mri_dc_s* conf_inv)
 {
 	auto nlop_zf = nlop_mri_adjoint_create(N, dims, idims, conf);// in: kspace, coil, pattern; out: Atb
-	auto nlop_norm_inv = mri_normal_inversion_create(N, dims, idims, conf); // in: Atb, coil, pattern, [lambda]; out: A^+b
+	auto nlop_norm_inv = mri_normal_inversion_create(N, dims, idims, conf, conf_inv); // in: Atb, coil, pattern, [lambda]; out: A^+b
 
 	auto nlop_pseudo_inv = nlop_chain2_swap_FF(nlop_zf, 0, nlop_norm_inv, 0); // in: kspace, coil, pattern, coil, pattern, [lambda]; out: A^+b
 	nlop_pseudo_inv = nlop_dup_F(nlop_pseudo_inv, 1, 3);

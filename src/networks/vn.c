@@ -341,11 +341,13 @@ static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const lon
 		def_conf.l2lambda = 1.;
 		def_conf.maxiter = 20;
 
-		conf.iter_conf = &def_conf;
-		conf.lambda_fixed = vn->lambda_fixed_tickhonov;
-		assert(0 <= conf.lambda_fixed);
+		struct config_nlop_mri_dc_s dc_conf;
 
-		auto nlop_dc = mri_normal_inversion_create(5, dims, idims, &conf);
+		dc_conf.iter_conf = &def_conf;
+		dc_conf.lambda_fixed = vn->lambda_fixed_tickhonov;
+		assert(0 <= dc_conf.lambda_fixed);
+
+		auto nlop_dc = mri_normal_inversion_create(5, dims, idims, &conf, &dc_conf);
 		
 		auto nn_dc = nn_from_nlop_F(nlop_dc);
 		nn_dc = nn_set_input_name_F(nn_dc, 1, "coil");
