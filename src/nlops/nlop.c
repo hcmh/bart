@@ -585,6 +585,13 @@ const struct nlop_s* nlop_clone(const struct nlop_s* op)
 
 const struct nlop_s* nlop_loop(int D, const long dims[D], const struct nlop_s* op)
 {
+#if 1
+	assert(0);
+#else
+	/* ok, this does not work, we need to store the input for the
+	 * forward operator and call it when looping over derivative
+	 * so that each point is set to the right position */
+
 	PTR_ALLOC(struct nlop_s, n);
 
 	int II = nlop_get_nr_in_args(op);
@@ -602,6 +609,7 @@ const struct nlop_s* nlop_loop(int D, const long dims[D], const struct nlop_s* o
 
 	n->derivative = &(*PTR_PASS(nder))[0][0];
 	return PTR_PASS(n);
+#endif
 }
 
 
