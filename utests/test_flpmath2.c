@@ -10,11 +10,14 @@
 
 #include "utest.h"
 
-
+#ifdef _OPENMP
 #ifdef BLAS_THREADSAFE
 bool blas_threadsafe2 = true;
 #else
 bool blas_threadsafe2 = false;
+#endif
+#else
+bool blas_threadsafe2 = true;
 #endif
 
 
