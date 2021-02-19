@@ -90,7 +90,6 @@ static void hotenc_to_index(int N_batch, long* prediction, const complex float* 
 
 			long pos[] = {mask_class, i_batch};
 			long pos_max[] = {prediction[i_batch], i_batch};
-			//md_max maximum suchen, maximum auf 1 gemappt, anderes auf 0, md_zequal
 
 			if ((float)MD_ACCESS(2, strs, pos, in) > (float)MD_ACCESS(2, strs, pos_max, in))
 				prediction[i_batch] = mask_class;
@@ -99,9 +98,15 @@ static void hotenc_to_index(int N_batch, long* prediction, const complex float* 
 
 	if (cfl) {
 
-		long img_dims[] = { segm->imgx, segm->imgy, N_batch };
+		complex float* zsegm = xmalloc(sizeof(complex float) * segm->imgx * segm->imgy * N_batch);
+		for (int i_batch = 0; i_batch < (segm->imgx * segm->imgy * N_batch); i_batch++)
+			zsegm[i_batch] = prediction[i_batch];
 
-		dump_cfl("segmentation_label", 3, img_dims, prediction);	// FIXME long to double?
+		long img_dims[] = {segm->imgx, segm->imgy, N_batch};
+
+		dump_cfl("segmentation_label", 3, img_dims, zsegm);
+
+		xfree(zsegm);
 	}
 }
 
