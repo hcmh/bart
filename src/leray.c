@@ -67,7 +67,7 @@ int main_leray(int argc, char* argv[])
 	}
 
 
-	auto op = linop_leray_create(N, dims, d, flags, order, bc, n, lambda, mask);
+	auto op = linop_leray_create(N, dims, d, flags, n, lambda, mask);
 	linop_forward(op, N, dims, out, N, dims, in);
 	linop_free(op);
 

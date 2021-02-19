@@ -30,16 +30,17 @@
 #include "misc/types.h"
 
 #include "simu/biot_savart_fft.h"
+#include "simu/leray.h"
 #define N 4
 #define NPROX 2
 
-enum PROXFUN { PF_l2, PF_thresh };
+enum PROXFUN { PF_l2, PF_thresh, PF_ind };
 
-static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, int iter, int admm_iter, float tol, const complex float *bc_mask, const float bc_reg, const float div_reg, const enum PROXFUN div_pf)
+static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, int iter, int admm_iter, float tol, const complex float *bc_mask, const float bc_reg, const float div_reg, const enum PROXFUN div_pf, const int div_order, const int leray_iter)
 {
 	complex float *adj = md_alloc_sameplace(N, jdims, CFL_SIZE, j);
 	auto bz_op = linop_bz_create(jdims, vox);
-	const struct linop_s *bc_mask_op = NULL;
+	const struct linop_s *bc_mask_op = NULL, *leray_op = NULL;
 
 	complex float *walls = NULL;
 	if (NULL != bc_mask) {
@@ -51,6 +52,10 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 			md_copy_block(N, pos, jdims, bc_mask3, bdims, bc_mask, CFL_SIZE);
 		bc_mask_op = linop_cdiag_create(N, jdims, 15, bc_mask3);
 		bz_op = linop_chain(bc_mask_op, bz_op);
+
+		if (PF_ind == div_pf) {
+			leray_op = linop_leray_create(N, jdims, 0, 14, leray_iter, div_reg, bc_mask3);
+		}
 		md_free(bc_mask3);
 
 		if (0 < bc_reg) {
@@ -115,13 +120,18 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 			//FIXME: Scale j with voxelsize before applying derivative
 			assert((vox[0] == vox[1]) && (vox[0] == vox[2]) && (vox[1] == vox[2]));
 
-			auto div_op = linop_div_create(N, jdims, 0, 14, 1, BC_SAME);
+			auto div_op = linop_div_create(N, jdims, 0, 14, div_order, BC_SAME);
 			if (div_pf == PF_l2) {
 				prox_funs[nprox - 1] = prox_l2norm_create(N, bdims, div_reg);
 				prox_linops[nprox - 1] = linop_chain(bc_mask_op, div_op);
 			} else if (div_pf == PF_thresh) {
 				prox_funs[nprox - 1] = prox_thresh_create(N, bdims, div_reg, 0);
 				prox_linops[nprox - 1] = linop_chain(bc_mask_op, div_op);
+			} else if (div_pf == PF_ind) {
+				assert(NULL != leray_op);
+				prox_funs[nprox - 1] = prox_indicator_create(leray_op);
+				complex float one[1] = { 1. };
+				prox_linops[nprox - 1] = linop_cdiag_create(N, jdims, 0, one);
 			} else {
 				assert(false);
 			}
@@ -144,6 +154,8 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 		linop_free(bc_mask_op);
 	if (walls != NULL)
 		md_free(walls);
+	if (NULL != leray_op)
+		linop_free(leray_op);
 	md_free(adj);
 }
 
@@ -155,12 +167,14 @@ static const char help_str[] = "Estimate the current density J (A/[voxelsize]^2)
 int main_cdi(int argc, char *argv[])
 {
 	float tik_reg = 0, tolerance = 1e-3, bc_reg = -1, div_reg = -1;
-	int iter = 100, admm_iter = 100, div_pf_int = 0;
+	int iter = 100, admm_iter = 100, div_pf_int = 0, div_order = 1, leray_iter = 20;
 	const struct opt_s opts[] = {
 	    OPT_FLOAT('l', &tik_reg, "lambda_1", "Tikhonov Regularization"),
 	    OPT_FLOAT('b', &bc_reg, "b", "Boundary current penalty"),
-	    OPT_FLOAT('d', &div_reg, "d", "Divergence penalty"),
-	    OPT_INT('D', &div_pf_int, "D", "Divergence Prox function: 0 -> l2norm, 1->thresh"),
+	    OPT_FLOAT('d', &div_reg, "d", "Divergence penalty or LeRay Regularization"),
+	    OPT_INT('D', &div_pf_int, "D", "Divergence Prox function: 0 -> l2norm, 1->thresh, 2->div=0 equality constraint"),
+	    OPT_INT('o', &div_order, "", "Finite difference order for divergence calculation (1,2)"),
+	    OPT_INT('p', &leray_iter, "", "Number of Iterations for LeRay Projection"),
 	    OPT_FLOAT('t', &tolerance, "t", "Stopping Tolerance"),
 	    OPT_INT('n', &iter, "Iterations", "Max. number of cg iterations"),
 	    OPT_INT('m', &admm_iter, "Iterations", "Max. number of ADMM iterations"),
@@ -172,6 +186,8 @@ int main_cdi(int argc, char *argv[])
 		div_pf = PF_l2;
 	else if (div_pf_int == 1)
 		div_pf = PF_thresh;
+	else if (div_pf_int == 2)
+		div_pf = PF_ind;
 	else
 		assert(false);
 
@@ -202,7 +218,7 @@ int main_cdi(int argc, char *argv[])
 	complex float *j = create_cfl(argv[argc - 1], N, jdims);
 
 	md_zsmul(4, bdims, b, b, 1. / Hz_per_Tesla / Mu_0);
-	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, admm_iter, tolerance, bc_mask, bc_reg, div_reg, div_pf);
+	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, admm_iter, tolerance, bc_mask, bc_reg, div_reg, div_pf, div_order, leray_iter);
 	md_zsmul(4, jdims, j, j, 1. / bz_unit(bdims + 1, vox));
 
 	unmap_cfl(N, bdims, b);

@@ -21,11 +21,11 @@
 #include "utest.h"
 
 #define TOL 1e-4
-#define ITER 100
+#define ITER 10000
 #define masked true
-#define lambda 1e-5
+#define lambda 1e-3
 
-static struct linop_s * leray_create(const enum BOUNDARY_CONDITION bc, const long order)
+static struct linop_s * leray_create()
 {
 	const long N = 4;
 	const long d = 0;
@@ -50,19 +50,19 @@ static struct linop_s * leray_create(const enum BOUNDARY_CONDITION bc, const lon
 
 	}
 
-	auto op = linop_leray_create(N, dims, d, flags, order, bc, ITER, lambda, mask);
+	auto op = linop_leray_create(N, dims, d, flags, ITER, lambda, mask);
 	if (masked)
 		md_free(mask);
 	return op;
 }
 
 
-static bool test_leray_normal(const enum BOUNDARY_CONDITION bc, const long order)
+static bool test_leray_normal()
 {
-	struct linop_s* op = leray_create(bc, order);
+	struct linop_s* op = leray_create();
 
 	float nrmse = linop_test_normal(op);
-	debug_printf(DP_DEBUG1, "BC: %d, Order: %d: normal nrmse: %f\n", bc, order, nrmse);
+	debug_printf(DP_DEBUG1, "normal nrmse: %f\n",nrmse);
 	bool ret = (nrmse < TOL);
 
 	linop_free(op);
@@ -71,12 +71,12 @@ static bool test_leray_normal(const enum BOUNDARY_CONDITION bc, const long order
 }
 
 
-static bool test_leray_adjoint(const enum BOUNDARY_CONDITION bc, const long order)
+static bool test_leray_adjoint()
 {
-	struct linop_s* op = leray_create(bc, order);
+	struct linop_s* op = leray_create();
 
 	float nrmse = linop_test_adjoint(op);
-	debug_printf(DP_DEBUG1, "BC: %d, Order: %d: adjoint nrmse: %f\n", bc, order, nrmse);
+	debug_printf(DP_DEBUG1, "adjoint nrmse: %f\n", nrmse);
 	bool ret = (nrmse < TOL);
 
 	linop_free(op);
@@ -89,12 +89,8 @@ static bool test_leray(void)
 {
 	const enum BOUNDARY_CONDITION bcs[3] = {BC_PERIODIC, BC_ZERO, BC_SAME};
 	bool ok = true;
-	for (int i=0; i<3; i++) {
-		for (int order=1; order<3; order++) {
-			ok &= test_leray_adjoint(bcs[i], order);
-			ok &= test_leray_normal(bcs[i], order);
-		}
-	}
+	ok &= test_leray_adjoint();
+	ok &= test_leray_normal();
 	return ok;
 }
 UT_REGISTER_TEST(test_leray);

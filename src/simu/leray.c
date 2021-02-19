@@ -41,7 +41,7 @@ struct leray_s
 	struct lsqr_conf *lconf;
 	struct iter_conjgrad_conf *cg_conf;
 	complex float *y, *tmp;
-	struct linop_s *grad_op, *neg_laplace;
+	struct linop_s *grad_op, *neg_laplace, *div_op;
 };
 
 static DEF_TYPEID(leray_s);
@@ -53,10 +53,8 @@ static void leray_apply(const linop_data_t *_data, complex float *dst, const com
 	const auto data = CAST_DOWN(leray_s, _data);
 	md_clear(data->N, data->phi_dims, data->tmp, CFL_SIZE);
 
-	linop_adjoint(data->grad_op, data->N, data->phi_dims, data->y, data->N, data->dims, src);
+	linop_forward(data->div_op, data->N, data->phi_dims, data->y, data->N, data->dims, src);
 
-	//lsqr2(data->N, data->lconf, iter2_conjgrad, CAST_UP(data->cg_conf), data->neg_laplace, 0, NULL, NULL, data->phi_dims, data->tmp, data->phi_dims, data->y, NULL, NULL);
-	// (masked) neg_laplace is already normal
 	long size = 2 * md_calc_size(data->N, data->phi_dims); // multiply by 2 for float size
 	iter_conjgrad(CAST_UP(data->cg_conf), data->neg_laplace->forward, NULL, size, (float*)data->tmp, (const float*)data->y, NULL);
 
@@ -77,6 +75,7 @@ static void leray_adjoint_apply(const linop_data_t *_data, complex float *dst, c
 static void leray_normal_apply(const linop_data_t *_data, complex float *dst, const complex float *src)
 {
 	leray_apply(_data, dst, src);
+	leray_adjoint_apply(_data, dst, dst);
 }
 
 
@@ -89,6 +88,7 @@ static void leray_free(const linop_data_t *_data)
 	md_free(data->tmp);
 	linop_free(data->neg_laplace);
 	linop_free(data->grad_op);
+	linop_free(data->div_op);
 	xfree(data->dims);
 	xfree(data->phi_dims);
 	xfree(data->lconf);
@@ -98,7 +98,7 @@ static void leray_free(const linop_data_t *_data)
 
 
 
-struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_dim, const long flags, const unsigned int order, const enum BOUNDARY_CONDITION bc, const int iter, const float lambda, const complex float* mask)
+struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_dim, const long flags, const int iter, const float lambda, const complex float* mask)
 {
 	PTR_ALLOC(struct leray_s, data);
 	SET_TYPEID(leray_s, data);
@@ -131,17 +131,46 @@ struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_di
 
 	assert(dims[vec_dim] == bitcount(flags));
 
-	if (NULL != mask) {
-		auto grad_op = linop_fd_create(N, data->phi_dims, vec_dim, flags, order, bc, false);
+	assert (NULL != mask);
+		//"Inner" space
+		complex float *boundaries = md_calloc(N, data->phi_dims, CFL_SIZE);
+
+		long inner_dims[N], pos[N], strs[N], strs3[N];
+		inner_dims[0] = 1; pos[0] = 0;
+		for (int i = 1; i < N; i++) {
+			inner_dims[i] = data->phi_dims[i] - 2;
+			pos[i] = 1;
+		}
+		md_calc_strides(N, strs, data->phi_dims, CFL_SIZE);
+		md_zfill2(N, inner_dims, strs, (void *)boundaries + md_calc_offset(N, strs, pos), 1);
+
+		md_calc_strides(N, strs3, data->dims, CFL_SIZE);
+		md_zmul2(N, data->phi_dims, strs, boundaries, strs, boundaries, strs3, mask);
+		auto boundary_mask_op = linop_cdiag_create(N, data->phi_dims, MD_BIT(N + 1) - 1, boundaries);
+
+		md_free(boundaries);
+
+
+		// Create laplace operator
+		auto grad_op = linop_fd_create(N, data->phi_dims, vec_dim, flags, 1, BC_SAME, false);
 		auto mask_op = linop_cdiag_create(N, data->dims, MD_BIT(N + 1) - 1, mask);
-		data->grad_op = linop_chain(grad_op, mask_op);
-		data->neg_laplace = linop_chain(data->grad_op, linop_get_adjoint(grad_op));
-		linop_free(mask_op);
+		grad_op = linop_chain(grad_op, mask_op);
+		data->neg_laplace = linop_chain(grad_op, linop_get_adjoint(grad_op));
 		linop_free(grad_op);
-	} else {
-		data->grad_op = linop_fd_create(N, data->phi_dims, vec_dim, flags, order, bc, false);
-		data->neg_laplace = linop_get_normal(data->grad_op);
-	}
+
+
+		// grad operator
+		grad_op = linop_fd_create(N, data->phi_dims, vec_dim, flags, 2, BC_ZERO, false);
+		data->grad_op = linop_chain(linop_chain(boundary_mask_op, grad_op), mask_op);
+		linop_free(grad_op);
+
+		// div operator
+		auto div_op = linop_fd_create(N, data->phi_dims, vec_dim, flags, 2, BC_ZERO, true);
+		data->div_op = linop_chain(linop_get_adjoint(linop_chain(div_op, mask_op)), boundary_mask_op);
+		linop_free(mask_op);
+		linop_free(boundary_mask_op);
+		linop_free(div_op);
+
 
 	return linop_create(N, dims2, N, dims, CAST_UP(PTR_PASS(data)), leray_apply, leray_adjoint_apply, leray_normal_apply, NULL, leray_free);
 
