@@ -124,9 +124,6 @@ int main_moba(int argc, char* argv[argc])
 
 	opt_reg_init(&ropts);
 
-	opt_reg_init(&ropts);
-
-
 	const struct opt_s opts[] = {
 
 		{ 'r', NULL, true, opt_reg_moba, &ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
