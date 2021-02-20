@@ -581,7 +581,7 @@ UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test
 UTARGETS_GPU += test_cuda_gpukrnls test_cudafft test_cuda_flpmath2 test_cuda_memcache_clear
 
 # lib simu
-UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_biot_savart_fft test_ode_simu test_signals test_epg test_linop_leray
+UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_biot_savart_fft test_ode_simu test_signals test_epg test_fd_geometry
 MODULES_test_ode_bloch += -lsimu
 MODULES_test_tsegf += -lsimu
 MODULES_test_biot_savart += -lsimu
@@ -589,7 +589,8 @@ MODULES_test_biot_savart_fft += -lsimu -llinops
 MODULES_test_ode_simu += -lsimu
 MODULES_test_signals += -lsimu
 MODULES_test_epg += -lsimu
-MODULES_test_linop_leray += -lsimu -liter -llinops
+#MODULES_test_linop_leray += -lsimu -liter -llinops
+MODULES_test_fd_geometry += -lsimu -llinops
 
 # lib slice profile
 UTARGETS +=test_slice_profile
