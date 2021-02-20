@@ -47,14 +47,11 @@
 #include "linops/linop.h"
 #include "linops/someops.h"
 #include "linops/grad.h"
+#include "moba/T1fun.h"
 
 
 
 #include "iter_l1.h"
-
-// TODO: "10" stands for the enum of the signal model
-#define T1_MODEL 10
-
 
 
 struct T1inv_s {
@@ -342,7 +339,7 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 
 	struct optreg_conf optreg_conf = optreg_defaults;
 
-	optreg_conf.moba_model = T1_MODEL;
+	optreg_conf.moba_model = IRLL;
 
 	opt_reg_moba_configure(DIMS, data->dims, data->conf->ropts, thresh_ops, trafos, &optreg_conf);
 

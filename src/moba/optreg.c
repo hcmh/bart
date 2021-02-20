@@ -280,7 +280,7 @@ bool opt_reg_moba(void* ptr, char c, const char* optarg)
 
 
 
-static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], struct optreg_conf* optreg_conf)
+static void opt_reg_IRLL_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], struct optreg_conf* optreg_conf)
 {
 	UNUSED(optreg_conf);
 
@@ -539,7 +539,7 @@ void opt_reg_moba_configure(unsigned int N, const long dims[N], struct opt_reg_s
 
 	default:
 
-		opt_reg_T1_configure(N, dims, ropts, prox_ops, trafos, optreg_conf);
+		opt_reg_IRLL_configure(N, dims, ropts, prox_ops, trafos, optreg_conf);
 
 		break;
 
