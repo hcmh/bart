@@ -5,6 +5,7 @@
 
 #include <complex.h>
 #include <assert.h>
+#include <math.h>
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -22,6 +23,13 @@
 static const long dims_a[N_a] = { 10, 1 };
 static const complex float mask_a[10] =       { 0,  1,  1,  1,  0,  1,  1,  0,  0,  0 };
 static const complex float normal_a[10] =     { 0, -1,  0,  1,  0, -1,  1,  0,  0,  0 };
+static const long n_points_a = 4;
+static const struct boundary_point_s boundary_a[] = {
+	{ .index = { 1, 0, 0 }, .dir = { -1, 0, 0 } },
+	{ .index = { 3, 0, 0 }, .dir = { 1, 0, 0 } },
+	{ .index = { 5, 0, 0 }, .dir = { -1, 0, 0 } },
+	{ .index = { 6, 0, 0 }, .dir = { 1, 0, 0 } }
+	};
 
 // fortran order
 #define N_b 3
@@ -49,6 +57,18 @@ static const complex float normal_b[] = {
 					};
 
 
+static complex float *get_normal(const long N, const long dims[N], const complex float *mask)
+{
+	long grad_dims[N];
+	md_copy_dims(N, grad_dims, dims);
+	grad_dims[grad_dim] = N - 1;
+
+	complex float *normal = md_alloc(N, grad_dims, CFL_SIZE);
+	calc_outward_normal(N, grad_dims, normal, grad_dim, dims, mask);
+
+	return normal;
+}
+
 static bool generic_outward_normal(const long N, const long dims[N], const complex float *mask, const complex float *reference)
 {
 	long pos[N];
@@ -60,8 +80,7 @@ static bool generic_outward_normal(const long N, const long dims[N], const compl
 	grad_dims[grad_dim] = N - 1;
 	bool ok = true;
 
-	complex float *normal = md_alloc(N, grad_dims, CFL_SIZE);
-	calc_outward_normal(N, grad_dims, normal, grad_dim, dims, mask);
+	complex float *normal = get_normal(N, dims, mask);
 
 	do {
 		long offset = md_calc_offset(N_a, strs, pos);
@@ -70,6 +89,44 @@ static bool generic_outward_normal(const long N, const long dims[N], const compl
 
 	md_free(normal);
 
+	return ok;
+}
+
+
+static bool generic_boundary(const long N, const long dims[N], const complex float *mask,
+			     const long n_points_ref, const struct boundary_point_s boundary_ref[n_points_ref])
+{
+	complex float *normal = get_normal(N,dims, mask);
+
+	const long boundary_dimensions[] =  { md_calc_size(N, dims) };
+	struct boundary_point_s *boundary = md_alloc(1, boundary_dimensions, sizeof(struct boundary_point_s));
+
+
+	long grad_dims[N];
+	md_copy_dims(N, grad_dims, dims);
+	grad_dims[grad_dim] = N-1;
+
+
+	long n_points = calc_boundary_points(N, grad_dims, boundary, grad_dim, normal);
+
+	md_free(normal);
+
+	debug_printf(DP_DEBUG1, "Number of points - Ref: %d, Calc.:%d\n", n_points_ref, n_points);
+	if (n_points != n_points_ref) {
+		return false;
+	}
+
+	bool ok = true;
+	for (int i = 0; i < n_points; i++) {
+		for(int j = 0; j < N - 1; j++) {
+			const struct boundary_point_s *ref = (boundary_ref + i);
+			struct boundary_point_s *point = (boundary + i);
+
+			ok &= (ref->index[j] == point->index[j]);
+			ok &= fabs(ref->dir[j] - point->dir[j]) < 1e-7;
+		}
+		debug_printf(DP_DEBUG1, "Point %d : %s\n", i, ok ? "OK" : "FAIL");
+	}
 	return ok;
 }
 
@@ -85,4 +142,16 @@ static bool test_calc_outward_normal(void)
 
 	return ok;
 }
+static bool test_calc_boundary_points(void)
+{
+	bool ok = true;
+
+	ok &= generic_boundary(N_a, dims_a, mask_a, n_points_a , boundary_a);
+	debug_printf(DP_INFO, "Boundary 1D : %s\n", ok ? "OK" : "FAIL");
+
+	return ok;
+}
+
+
 UT_REGISTER_TEST(test_calc_outward_normal);
+UT_REGISTER_TEST(test_calc_boundary_points);
