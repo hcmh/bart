@@ -1,4 +1,4 @@
-#define N_boundary_point_s 3
+#define N_boundary_point_s 4
 
 struct boundary_point_s {
 	long index[N_boundary_point_s];
