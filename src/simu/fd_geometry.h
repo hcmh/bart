@@ -7,4 +7,4 @@ struct boundary_point_s {
 };
 
 
-_Complex float *calc_outward_normal(const long N, const long dims[N], const _Complex float *mask);
+void calc_outward_normal(const long N, const long grad_dims[N], _Complex float *grad, const long grad_dim, const long dims[N], const _Complex float *mask);

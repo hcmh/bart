@@ -16,6 +16,69 @@
 #include "simu/fd_geometry.h"
 
 
+
+/*
+ * Calculate normal vector field from a mask (1 inside, 0 outside)
+ * output has N+1 dimensions, output_dims[N] = N;
+ *
+ * @param N 		number of dimensions
+ * @param grad_dims 	dimensions of normal
+ * @param grad		Output (normal vectors)
+ * @param grad_dim 	dimension which will hold normal direction
+ * @param dims		Mask dimensions
+ * @param mask mask     Input (Mask)
+ *
+ */
+void calc_outward_normal(const long N, const long grad_dims[N], complex float *grad, const long grad_dim, const long dims[N], const complex float *mask)
+{
+	assert(N > 1);
+	assert(dims[grad_dim] == 1);
+
+	const long flags = (MD_BIT(N) - 1) & (~MD_BIT(grad_dim));
+	assert(grad_dims[grad_dim] == bitcount(flags));
+
+	long grad_strs[N], strs[N];
+	md_calc_strides(N, grad_strs, grad_dims, CFL_SIZE);
+	md_calc_strides(N, strs, dims, CFL_SIZE);
+
+	complex float* grad_bw = md_alloc(N, grad_dims, CFL_SIZE);
+
+	auto grad_op = linop_fd_create(N, dims, grad_dim, flags, 1, BC_ZERO, false);
+	linop_forward(grad_op, N, grad_dims, grad_bw, N, dims, mask);
+	linop_free(grad_op);
+	// Mask:
+	//  0  1  1  0  1  1  1 ->
+	// grad_bw:
+	//  0  1  0 -1  1  0  0
+	md_zmul2(N, grad_dims, grad_strs, grad_bw, grad_strs, grad_bw, strs, mask);
+	//  0  1  0  0  1  0  0
+
+	grad_op = linop_fd_create(N, dims, grad_dim, flags, 1, BC_ZERO, true);
+	linop_forward(grad_op, N, grad_dims, grad, N, dims, mask);
+	linop_free(grad_op);
+	// Mask:
+	//  0  1  1  0  1  1  1 ->
+	// grad_fw:
+	// -1  0  1 -1  0  0  1
+	md_zmul2(N, grad_dims, grad_strs, grad, grad_strs, grad, strs, mask);
+	//  0  0  1  0  0  0  1
+
+	// every voxel is either interior, front xor backwall
+	assert(md_zscalar_real(N, grad_dims, grad, grad_bw) < 1e-16);
+	md_zaxpy(N, grad_dims, grad, -1, grad_bw);
+	md_free(grad_bw);
+	//  0 -1  1  0 -1  0  1
+
+	// normalize
+	complex float *norm = md_alloc(N, dims, CFL_SIZE);
+	md_zrss(N, grad_dims, MD_BIT(grad_dim), norm, grad);
+	md_zdiv_reg2(N, grad_dims, grad_strs, grad, grad_strs, grad, strs, norm, 0);
+	// Outward normal field.
+	md_free(norm);
+}
+
+
+
 /*
  * Calculate list of points neighbouring the mask
  * @param N number of dimensions
@@ -28,74 +91,6 @@
 
 
 
-/*
- * Calculate normal vector field from a mask (1 inside, 0 outside)
- * output has N+1 dimensions, output_dims[N] = N;
- *
- * @param N number of dimensions
- * @param dims dimensions of mask
- * @param mask mask
- *
- * @returns pointer to newly allocated outward normal vector field
- */
-
-complex float *calc_outward_normal(const long N, const long dims[N], const complex float *mask)
-{
-	assert(N > 0);
-
-	const long grad_dim = N;
-	const long flags = MD_BIT(N) - 1;
-	long grad_dims[N+1], extended_dims[N+1];
-	md_copy_dims(N, grad_dims, dims);
-	md_copy_dims(N, extended_dims, dims);
-	grad_dims[grad_dim] = N;
-	extended_dims[grad_dim] = 1;
-
-	assert(grad_dims[grad_dim] == bitcount(flags));
-
-	long grad_strs[N+1], strs[N];
-	md_calc_strides(N+1, grad_strs, grad_dims, CFL_SIZE);
-	md_calc_strides(N, strs, dims, CFL_SIZE);
-
-	complex float* grad_bw = md_alloc(N+1, grad_dims, CFL_SIZE);
-	complex float* grad = md_alloc(N+1, grad_dims, CFL_SIZE);
-
-	auto grad_op = linop_fd_create(N+1, extended_dims, N, flags, 1, BC_ZERO, false);
-	linop_forward(grad_op, N+1, grad_dims, grad_bw, N+1, extended_dims, mask);
-	linop_free(grad_op);
-	// Mask:
-	//  0  1  1  0  1  1  1 ->
-	// grad_bw:
-	//  0  1  0 -1  1  0  0
-	md_zmul2(N+1, grad_dims, grad_strs, grad_bw, grad_strs, grad_bw, strs, mask);
-	//  0  1  0  0  1  0  0
-
-	grad_op = linop_fd_create(N+1, extended_dims, N, flags, 1, BC_ZERO, true);
-	linop_forward(grad_op, N+1, grad_dims, grad, N+1, extended_dims, mask);
-	linop_free(grad_op);
-	// Mask:
-	//  0  1  1  0  1  1  1 ->
-	// grad_fw:
-	// -1  0  1 -1  0  0  1
-	md_zmul2(N+1, grad_dims, grad_strs, grad, grad_strs, grad, strs, mask);
-	//  0  0  1  0  0  0  1
-
-	// every voxel is either interior, front xor backwall
-	assert(md_zscalar_real(N+1, grad_dims, grad, grad_bw) < 1e-16);
-	md_zaxpy(N+1, grad_dims, grad, -1, grad_bw);
-	md_free(grad_bw);
-	//  0 -1  1  0 -1  0  1
-
-	// normalize
-	complex float *norm = md_alloc(N, dims, CFL_SIZE);
-	md_zmul2(N+1, grad_dims, strs, norm, grad_strs, grad, grad_strs, grad);
-	md_zsqrt(N, dims, norm, norm);
-
-	md_zdiv_reg2(N+1, grad_dims, grad_strs, grad, grad_strs, grad, strs, norm, 0);
-	// Outward normal field.
-	md_free(norm);
-	return grad;
-}
 /*
 	long pos[N+1];
 	long offset = 0;
