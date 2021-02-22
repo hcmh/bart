@@ -37,10 +37,10 @@ struct sparse_diag_s* sparse_diag_alloc(const long N, const long len, const long
 	mat->N_diags = N_diags;
 
 	// allocate
-	mat->offsets = (long **)malloc(sizeof(long *) * N_diags + sizeof(long) * N);
+	mat->offsets = (long **)malloc(sizeof(long *) * N_diags + sizeof(long) * N * N_diags);
 	for (int i = 0; i < N_diags; i++)
 		mat->offsets[i] = ((long *)(mat->offsets + N_diags)) + i * N;
-	mat->dims = (long *)calloc(N_diags, sizeof(long));
+	mat->dims = (long *)malloc(N_diags * sizeof(long));
 
 	long elements = 0;
 	for (long i = 0; i < N_diags; i++) {
@@ -67,7 +67,7 @@ struct sparse_diag_s* sparse_diag_alloc(const long N, const long len, const long
 		elements += mat->dims[i];
 	}
 
-	mat->diags = malloc(sizeof(float *) * N_diags + sizeof(float) * elements);
+	mat->diags = (float **)malloc(sizeof(float *) * N_diags + sizeof(float) * elements);
 	long offset = 0;
 	for (int i = 0; i < N_diags; i++) {
 		mat->diags[i] = ((float *)(mat->diags + N_diags)) + offset;
@@ -80,10 +80,10 @@ struct sparse_diag_s* sparse_diag_alloc(const long N, const long len, const long
 
 void sparse_diag_free(struct sparse_diag_s *mat)
 {
-	free(mat->diags);
-	free(mat->dims);
-	free(mat->offsets);
-	free(mat);
+	xfree(mat->diags);
+	xfree(mat->dims);
+	xfree(mat->offsets);
+	xfree(mat);
 }
 
 /*
@@ -134,4 +134,62 @@ void sparse_diag_to_dense(const long N, const long dims[N], float *out, const st
 		for(int j = 0; j < mat->dims[i]; j++)
 			*((float *)( (void *)out + offset + j * diag_str)) = mat->diags[i][j];
 	}
+}
+
+
+struct sparse_diag_s* sd_laplace_create(long N, const long dims[N])
+{
+	long len = 1, N_mat = 2, N_diags = N*2 + 1, offsets[N_diags][N_mat];
+	float values[N_diags];
+
+	//main diagonal
+	offsets[0][0] = 0;
+	offsets[0][1] = 0;
+	values [0]    = 2 * N;
+
+	//off diagonals
+	int n = 1;
+	for (int i = 0; i < N; i++) {
+		offsets[n][0] = 0;
+		offsets[n][1] = len;
+		values [n++]    = -1;
+		offsets[n][0] = 0;
+		offsets[n][1] = -len;
+		values [n++]    = -1;
+		len *= dims[i];
+	}
+
+	struct sparse_diag_s* mat = sparse_cdiags_create(N_mat, len, N_diags, offsets, values);
+
+	//correct boundaries
+	n = 1;
+	long str = 1;
+	long len_ones, len_zeros;
+	for (int i = 0; i < N; i++) {
+		len_ones  = (dims[i] - 1)*str;
+		len_zeros = str;
+		long j = len_ones;
+		while (j + len_zeros -1 < mat->dims[n]) {
+			for (long k = 0; k < len_zeros; k++) {
+				mat->diags[n    ][j + k] = 0;
+				mat->diags[n + 1][j + k] = 0;
+			}
+			j += len_zeros + len_ones;
+		}
+		n += 2;
+
+		str *= dims[i];
+	}
+
+	return mat;
+}
+
+void sd_matvec(long N, long dims[N], float *out, float *vec, const struct sparse_diag_s *mat)
+{
+	assert(N == 1);
+	assert(mat->len == dims[0]);
+	md_clear(N, dims, out, sizeof(float));
+
+	for (int i = 0; i < mat->N_diags; i++)
+		md_fmac(1, &mat->dims[i], out + mat->offsets[i][0], mat->diags[i], vec + mat->offsets[i][1]);
 }

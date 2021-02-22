@@ -591,7 +591,7 @@ MODULES_test_signals += -lsimu
 MODULES_test_epg += -lsimu
 #MODULES_test_linop_leray += -lsimu -liter -llinops
 MODULES_test_fd_geometry += -lsimu -llinops
-MODULES_test_sparse += -lsimu
+MODULES_test_sparse += -lsimu -llinops
 
 # lib slice profile
 UTARGETS +=test_slice_profile

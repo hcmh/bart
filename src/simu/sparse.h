@@ -17,3 +17,7 @@ struct sparse_diag_s * sparse_cdiags_create(const long N, const long len, const 
 				const long (*offsets)[N], const float values[N_diags]);
 
 void sparse_diag_to_dense(const long N, const long dims[N], float *out, const struct sparse_diag_s *mat);
+
+struct sparse_diag_s* sd_laplace_create(long N, const long dims[N]);
+
+void sd_matvec(long N, long dims[N], float *out, float *vec, const struct sparse_diag_s *mat);
