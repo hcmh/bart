@@ -1060,7 +1060,7 @@ void nlop_export_graph(const char* filename, const struct nlop_s* op, graph_t op
 		fprintf(fp, "Output_%d;\n", i);
 	if(0 < OO)
 		fprintf(fp, "edge[ style=invis];\nOutput_0");
-	for (int i = 1; i < II; i++)
+	for (int i = 1; i < OO; i++)
 		fprintf(fp, " -> Output_%d", i);
 	fprintf(fp, "}\n%s", str);
 
