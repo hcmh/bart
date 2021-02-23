@@ -66,8 +66,9 @@ void calc_outward_normal(const long N, const long grad_dims[N], complex float *g
 	// every voxel is either interior, front xor backwall
 	assert(md_zscalar_real(N, grad_dims, grad, grad_bw) < 1e-16);
 	md_zaxpy(N, grad_dims, grad, -1, grad_bw);
-	md_free(grad_bw);
 	//  0 -1  1  0 -1  0  1
+
+	md_free(grad_bw);
 
 	// normalize
 	complex float *norm = md_alloc(N, dims, CFL_SIZE);

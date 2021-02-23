@@ -9,6 +9,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "simu/sparse.h"
+#include "simu/fd_geometry.h"
 #include <math.h>
 
 
@@ -66,6 +67,8 @@ struct sparse_diag_s* sparse_diag_alloc(const long N, const long len, const long
 		mat->dims[i] = len - max_offset;
 		elements += mat->dims[i];
 	}
+
+	mat->offsets_normal = true;
 
 	mat->diags = (float **)malloc(sizeof(float *) * N_diags + sizeof(float) * elements);
 	long offset = 0;
@@ -152,10 +155,12 @@ struct sparse_diag_s* sd_laplace_create(long N, const long dims[N])
 	for (int i = 0; i < N; i++) {
 		offsets[n][0] = 0;
 		offsets[n][1] = len;
-		values [n++]    = -1;
+		values [n++]  = -1;
+
 		offsets[n][0] = 0;
 		offsets[n][1] = -len;
-		values [n++]    = -1;
+		values [n++]  = -1;
+
 		len *= dims[i];
 	}
 
@@ -183,6 +188,64 @@ struct sparse_diag_s* sd_laplace_create(long N, const long dims[N])
 
 	return mat;
 }
+
+
+long calc_index_strides(const long N, long index_strides[N], const long dims[N])
+{
+	index_strides[0] = 1;
+	for (int i = 1; i < N; i++)
+		index_strides[i] = index_strides[i-1] * dims[i-1];
+}
+
+
+long calc_index_size(const long N, const long index_strides[N], const long dims[N])
+{
+	long size = 1;
+	for (int i = 0; i < N; i++)
+		size += (dims[i] - 1) * index_strides[i];
+	return size;
+}
+
+
+long calc_index(const long N, const long index_strides[N], const long pos[N])
+{
+	long index = 0;
+	for (int i = 0; i < N; i++)
+		index += pos[i] * index_strides[i];
+	return index;
+}
+
+
+void laplace_dirichlet(struct sparse_diag_s *mat, const long N, const long dims[N], const long n_points, struct boundary_point_s points[n_points])
+{
+	assert(2 == mat->N);
+
+	long str[N];
+	calc_index_strides(N, str, dims);
+	assert(mat->len == calc_index_size(N, str, dims));
+
+	assert(mat->offsets_normal);
+
+	//for each point on a boundary
+	for (long i = 0; i < n_points; i++) {
+		long mat_index = calc_index(N, str, points[i].index);
+
+		// set main diagonal to 1
+		mat->diags[0][mat_index] = 1;
+
+		// set off-diagonals to 0
+		for (long j = 1; j < mat->N_diags; j++) {
+			const long *offsets = mat->offsets[j];
+			// lower diagonals
+			if ((offsets[0] > 0) && (mat_index >= offsets[0]))
+				mat->diags[j][mat_index - offsets[0]] = 0;
+			// upper diagonals
+			if ((offsets[1] > 0) && (mat_index < mat->dims[j]))
+				mat->diags[j][mat_index] = 0;
+		}
+	}
+}
+
 
 void sd_matvec(long N, long dims[N], float *out, float *vec, const struct sparse_diag_s *mat)
 {

@@ -3,11 +3,11 @@
 #include "num/flpmath.h"
 #include "num/rand.h"
 #include "simu/sparse.h"
+#include "simu/fd_geometry.h"
 
 
 #include <complex.h>
-#include "linops/linop.h"
-#include "linops/grad.h"
+#include <math.h>
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -160,7 +160,85 @@ static bool test_sd_laplace_3d(void)
 
 
 
+static bool test_laplace_dirichlet(void)
+{
+	const long N = 3;
+	const long dims[3] = { 15, 8, 17 };
+	long strs[3];
+	md_calc_strides(N, strs, dims, CFL_SIZE);
+	const long island_pos[3] = { 5, 4, 7 };
+	const long island_dims[3] ={ 4, 1, 3 };
+
+	//create mask
+	complex float *mask = md_alloc(N, dims, CFL_SIZE);
+
+	md_zfill(N, dims, mask, 1);
+	md_zfill2(N, island_dims, strs, (void *)mask + md_calc_offset(N, strs, island_pos), 0);
+
+	//calculate boundary
+	long grad_dim = N;
+	long grad_dims[N + 1];
+	long grad_dims1[N + 1];
+	md_copy_dims(N, grad_dims, dims);
+	md_copy_dims(N, grad_dims1, dims);
+	grad_dims[grad_dim] = N;
+	grad_dims1[grad_dim] = 1;
+
+	complex float *normal = md_alloc(N+1, grad_dims, CFL_SIZE);
+	calc_outward_normal(N+1, grad_dims, normal, grad_dim, grad_dims1, mask);
+	const long boundary_dimensions[] =  { md_calc_size(N, dims) };
+
+	struct boundary_point_s *boundary = md_alloc(1, boundary_dimensions, sizeof(struct boundary_point_s));
+
+	long n_points = calc_boundary_points(N+1, grad_dims, boundary, grad_dim, normal);
+
+	md_free(normal);
+
+	//create laplace
+	struct sparse_diag_s *mat = sd_laplace_create(N, dims);
+
+	//apply boundary
+	laplace_dirichlet(mat, N, dims, n_points, boundary);
+
+	//verify dense matrix
+	long mat_dims[2] = { mat->len, mat->len }, dense_str[2];
+	md_calc_strides(2, dense_str, mat_dims, FL_SIZE);
+	float *dense = md_calloc(2, mat_dims, sizeof(float));
+	sparse_diag_to_dense(2, mat_dims, dense, mat);
+	complex float *zdense = md_calloc(2, mat_dims, sizeof(complex float));
+	md_zcmpl_real(2, mat_dims, zdense, dense);
+
+	long index_strides[N];
+	calc_index_strides(N, index_strides, dims);
+
+	long errs = 0;
+	for(int i = 0; i < n_points; i++) {
+		bool ok = true;
+		long mat_ind = calc_index(N, index_strides, boundary[i].index);
+		long offset = mat_ind * dense_str[0];
+		float row_sum = 0;
+		for(int j=0; j<mat_dims[0]; j++) {
+			row_sum += *(float *)((void *)dense + offset);
+			offset += dense_str[1];
+		}
+		ok &= fabs( 1 - row_sum ) < 1e-16;
+		ok &= fabs( 1 - *(float *)((void*)dense + dense_str[0]*mat_ind + dense_str[1]*mat_ind)) < 1e-16;
+		errs += ok ? 0 : 1;
+	}
+
+	//dump_cfl("masked_dense", 2, mat_dims, zdense);
+
+	md_free(mask);
+	md_free(zdense);
+	md_free(dense);
+	md_free(boundary);
+	sparse_diag_free(mat);
+
+	debug_printf(DP_DEBUG1, "%d errors", errs);
+	return errs == 0;
+}
 UT_REGISTER_TEST(test_sparse_cdiags_create);
 UT_REGISTER_TEST(test_sd_laplace_create);
 UT_REGISTER_TEST(test_sd_matvec);
 UT_REGISTER_TEST(test_sd_laplace_3d);
+UT_REGISTER_TEST(test_laplace_dirichlet);
