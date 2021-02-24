@@ -93,11 +93,14 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 	struct noir_s nlinv = noir_create3(data_dims, mask, psf, conf);
 	struct moba_s ret;
 
+	// FIXME: unify them more
+	long der_dims[DIMS];
 	long map_dims[DIMS];
 	long out_dims[DIMS];
 	long in_dims[DIMS];
 	long TI_dims[DIMS];
 
+	md_select_dims(DIMS, conf->fft_flags|TE_FLAG|COEFF_FLAG|TIME2_FLAG, der_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|TIME_FLAG|TIME2_FLAG, map_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|TE_FLAG|TIME_FLAG|TIME2_FLAG, out_dims, dims);
 	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, in_dims, dims);
@@ -162,7 +165,7 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 	case Bloch:
 
 		bloch_struct_conversion(dims, &fitpara, &(conf_model->sim));
-		model = nlop_Bloch_create(DIMS, dims, map_dims, out_dims, in_dims, &fitpara, use_gpu);
+		model = nlop_Bloch_create(DIMS, der_dims, map_dims, out_dims, in_dims, &fitpara, use_gpu);
 		break;
 	}
 
