@@ -39,12 +39,12 @@ struct blochFun_s {
 
 	int N;
 
-	const long* dims;
+	const long* der_dims;
 	const long* map_dims;
 	const long* in_dims;
 	const long* out_dims;
 
-	const long* strs;
+	const long* der_strs;
 	const long* map_strs;
 	const long* in_strs;
 	const long* out_strs;
@@ -355,18 +355,18 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	// Collect data of derivatives in single arrray
 	//-------------------------------------------------------------------
 
-	md_clear(data->N, data->dims, data->derivatives, CFL_SIZE);
+	md_clear(data->N, data->der_dims, data->derivatives, CFL_SIZE);
 
 	md_set_dims(data->N, pos, 0);
 
 	pos[COEFF_DIM] = 0; // R1
-	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dr1_cpu, CFL_SIZE);
+	md_copy_block(data->N, pos, data->der_dims, data->derivatives, data->out_dims, dr1_cpu, CFL_SIZE);
 
 	pos[COEFF_DIM] = 2; // R2
-	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dr2_cpu, CFL_SIZE);
+	md_copy_block(data->N, pos, data->der_dims, data->derivatives, data->out_dims, dr2_cpu, CFL_SIZE);
 
 	pos[COEFF_DIM] = 1; // M0
-	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dm0_cpu, CFL_SIZE);
+	md_copy_block(data->N, pos, data->der_dims, data->derivatives, data->out_dims, dm0_cpu, CFL_SIZE);
 
 
 	md_free(dr1_cpu);
@@ -399,7 +399,7 @@ static void Bloch_der(const nlop_data_t* _data, unsigned int o, unsigned int i, 
 
 	md_clear(data->N, data->out_dims, dst, CFL_SIZE);
 
-	md_ztenmul(data->N, data->out_dims, dst, data->dims, data->derivatives, data->in_dims, src);
+	md_ztenmul(data->N, data->out_dims, dst, data->der_dims, data->derivatives, data->in_dims, src);
 
 	// PRINT_TIMER("BLOCH: Time of Derivative\n");
 }
@@ -417,7 +417,7 @@ static void Bloch_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, 
 
 	md_clear(data->N, data->in_dims, dst, CFL_SIZE);
 
-	md_zfmacc2(data->N, data->dims, data->in_strs, dst, data->out_strs, src, data->strs, data->derivatives);
+	md_zfmacc2(data->N, data->der_dims, data->in_strs, dst, data->out_strs, src, data->der_strs, data->derivatives);
 
 	// PRINT_TIMER("BLOCH: Time of Adjoint\n");
 }
@@ -433,12 +433,12 @@ static void Bloch_del(const nlop_data_t* _data)
 	md_free(data->input_sliceprofile);
 	md_free(data->input_fa_profile);
 
-	xfree(data->dims);
+	xfree(data->der_dims);
 	xfree(data->map_dims);
 	xfree(data->in_dims);
 	xfree(data->out_dims);
 
-	xfree(data->strs);
+	xfree(data->der_strs);
 	xfree(data->map_strs);
 	xfree(data->in_strs);
 	xfree(data->out_strs);
@@ -448,7 +448,7 @@ static void Bloch_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[N], const long out_dims[N], const long in_dims[N], const struct modBlochFit* fit_para, bool use_gpu)
+struct nlop_s* nlop_Bloch_create(int N, const long der_dims[N], const long map_dims[N], const long out_dims[N], const long in_dims[N], const struct modBlochFit* fit_para, bool use_gpu)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
@@ -460,13 +460,13 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	PTR_ALLOC(struct blochFun_s, data);
 	SET_TYPEID(blochFun_s, data);
 
-	PTR_ALLOC(long[N], alldims);
-	md_copy_dims(N, *alldims, dims);
-	data->dims = *PTR_PASS(alldims);
+	PTR_ALLOC(long[N], derdims);
+	md_copy_dims(N, *derdims, der_dims);
+	data->der_dims = *PTR_PASS(derdims);
 
 	PTR_ALLOC(long[N], allstr);
-	md_calc_strides(N, *allstr, dims, CFL_SIZE);
-	data->strs = *PTR_PASS(allstr);
+	md_calc_strides(N, *allstr, der_dims, CFL_SIZE);
+	data->der_strs = *PTR_PASS(allstr);
 
 	PTR_ALLOC(long[N], ndims);
 	md_copy_dims(N, *ndims, map_dims);
@@ -499,7 +499,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	data->scale[2] = fit_para->scale[2];	// dR2 scaling
 	data->scale[3] = fit_para->scale[3];	// signal scaling
 
-	data->derivatives = my_alloc(N, dims, CFL_SIZE);
+	data->derivatives = my_alloc(N, der_dims, CFL_SIZE);
 
 
 	if (NULL != fit_para->input_b1) {
