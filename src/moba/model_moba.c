@@ -36,7 +36,7 @@
 static void bloch_struct_conversion(const long dims[DIMS], struct modBlochFit* out, const struct sim_conf_s* in)
 {
 	long map_dims[DIMS];
-	md_select_dims(DIMS, (READ_DIM|PHS1_DIM), map_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS, map_dims, dims);
 
 	out->sequence = (int)in->sequence;
 	out->rfduration = in->rfduration;
