@@ -5,6 +5,8 @@
 #include "simu/sparse.h"
 #include "simu/fd_geometry.h"
 
+#include "linops/linop.h"
+#include "linops/lintest.h"
 
 #include <complex.h>
 #include <math.h>
@@ -18,14 +20,14 @@
 static const long N_a   = 2;
 static const long len_a = 4;
 // fortran order! lower diagonal
-static const float dense_a[] = { 1, 2, 0, 0,
-				 0, 1, 2, 0,
-				 0, 0, 1, 2,
-				 0, 0, 0, 1 };
+static const complex float dense_a[] = { 1, 2, 0, 0,
+					 0, 1, 2, 0,
+					 0, 0, 1, 2,
+					 0, 0, 0, 1 };
 static const long N_diags_a = 2;
 static const long offsets_a[2][2] = {{0, 0}, {0, -1}};
 static const long offsets_a_norm[2][2] = {{0, 0}, {1, 0}};
-static const float vals_a[] =  { 1, 2};
+static const complex float vals_a[] =  { 1, 2};
 
 
 #define N_d 3
@@ -37,7 +39,7 @@ static const complex float mask_d[] = 	 	{ 0, 0, 0, 0, 0,
 						  0, 0, 0, 0, 0 };
 
 // remember the holy order of fortran
-static const float laplace_neumann_d[] =
+static const complex float laplace_neumann_d[] =
 	{ 0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
 	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
 	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
@@ -72,17 +74,18 @@ static const float laplace_neumann_d[] =
 
 
 
-static bool generic_sparse_cdiags_create(const long N, const long len, const long N_diags, const long (*offsets)[N], const float values[N_diags], const float *ref)
+static bool generic_sparse_cdiags_create(const long N, const long len, const long N_diags, const long (*offsets)[N], const complex float values[N_diags], const complex float *ref)
 {
 	long dims[N];
 	for(int i = 0; i < N; i++)
 		dims[i] = len;
-	float *out = md_calloc(N, dims, sizeof(float));
+	complex float *out = md_calloc(N, dims, CFL_SIZE);
 	struct sparse_diag_s *mat = sparse_cdiags_create(N, len, N_diags, offsets, values);
 	sparse_diag_to_dense(N, dims, out, mat);
 	sparse_diag_free(mat);
-	float err =  md_rmse(N, dims, out, ref);
+	float err =  md_zrmse(N, dims, out, ref);
 	md_free(out);
+	debug_printf(DP_DEBUG1, "sparse_cdiags_create rmse: %f\n", err);
 	return err < 1e-16;
 }
 
@@ -96,20 +99,21 @@ static bool test_sparse_cdiags_create(void)
 	return ok;
 }
 
-static const float dense_laplace1[] = {  2,-1, 0, 0,
-				 	-1, 2,-1, 0,
-				 	 0,-1, 2,-1,
-				 	 0, 0,-1, 2 };
+static const complex float dense_laplace1[] = {  2,-1, 0, 0,
+					 	-1, 2,-1, 0,
+					 	 0,-1, 2,-1,
+					 	 0, 0,-1, 2 };
 static bool test_sd_laplace_create(void)
 {
 	long vec_dims[1] = { 4 };
 	long mat_dims[2] = { 4, 4 };
 	struct sparse_diag_s *mat = sd_laplace_create(1, vec_dims);
-	float *out = md_calloc(2, mat_dims, sizeof(float));
+	complex float *out = md_calloc(2, mat_dims, CFL_SIZE);
 	sparse_diag_to_dense(2, mat_dims, out, mat);
 	sparse_diag_free(mat);
-	float err =  md_rmse(2, mat_dims, out, dense_laplace1);
+	float err =  md_zrmse(2, mat_dims, out, dense_laplace1);
 	md_free(out);
+	debug_printf(DP_DEBUG1, "sd_laplace_create rmse: %f\n", err);
 	return err < 1e-16;
 }
 
@@ -120,8 +124,8 @@ static bool test_sd_matvec(void)
 	long N = N_a - 1;
 	long dims[] = { len_a };
 
-	float *vec = md_alloc (N, dims, sizeof(float));
-	float *ref = md_calloc(N, dims, sizeof(float));
+	complex float *vec = md_alloc (N, dims,CFL_SIZE);
+	complex float *ref = md_calloc(N, dims,CFL_SIZE);
 
 	for (int i = 0; i < *dims; i++)
 		vec[i] = gaussian_rand();
@@ -130,17 +134,18 @@ static bool test_sd_matvec(void)
 		for (int j = 0; j < *dims; j++)
 			ref[i] += dense_a[i + *dims * j] * vec[j];
 
-	float *out = md_calloc(1, dims, sizeof(float));
+	complex float *out = md_calloc(1, dims, CFL_SIZE);
 
 	sd_matvec(N, dims, out, vec, mat);
 
-	float err =  md_rmse(N, dims, out, ref);
+	float err =  md_zrmse(N, dims, out, ref);
 
 	md_free(out);
 	md_free(ref);
 	md_free(vec);
 	sparse_diag_free(mat);
 
+	debug_printf(DP_DEBUG1, "sd_matvec rmse: %f\n", err);
 	return err < 1e-16;
 }
 
@@ -150,29 +155,27 @@ static bool test_sd_laplace_3d(void)
 	const long N = 3;
 	const long dims[3] = { 11, 32, 87 };
 
-	float *rref = md_alloc(N, dims, sizeof(float));
-	complex float *vec = md_alloc(N, dims, sizeof(complex float));
-	float *rvec = md_alloc(N, dims, sizeof(float));
+	complex float *ref = md_alloc(N, dims, CFL_SIZE);
+	complex float *vec = md_alloc(N, dims, CFL_SIZE);
 
 	md_gaussian_rand(N, dims, vec);
-	md_real(N, dims, rvec, vec);
 
 	long strs[N], pos[N];
 	md_set_dims(N, pos, 0);
-	md_calc_strides(N, strs, dims, sizeof(float));
+	md_calc_strides(N, strs, dims, CFL_SIZE);
 
 	do {
 		long offset = md_calc_offset(N, strs, pos);
-		*( (float *)( ((void*)rref) + offset ) ) =  6 * *( (float *)( ((void*)rvec) + offset) );
+		*( (complex float *)( ((void*)ref) + offset ) ) =  6 * *( (complex float *)( ((void*)vec) + offset) );
 		for(int i = 0; i < N; i++) {
 			if(pos[i] < dims[i] - 1)
-				*( (float *)( ((void*)rref) + offset ) ) -=  *( (float *)( ((void*)rvec) + offset + strs[i]) );
+				*( (complex float *)( ((void*)ref) + offset ) ) -=  *( (complex float *)( ((void*)vec) + offset + strs[i]) );
 			if(pos[i] > 0)
-				*( (float *)( ((void*)rref) + offset ) ) -=  *( (float *)( ((void*)rvec) + offset - strs[i]) );
+				*( (complex float *)( ((void*)ref) + offset ) ) -=  *( (complex float *)( ((void*)vec) + offset - strs[i]) );
 		}
 	} while(md_next(N, dims, 7, pos));
 
-	float *out = md_alloc(N, dims, sizeof(float));
+	complex float *out = md_alloc(N, dims, CFL_SIZE);
 
 	long flatdims[1] = { 1 };
 	for (int i = 0; i < N; i++)
@@ -180,25 +183,22 @@ static bool test_sd_laplace_3d(void)
 
 	struct sparse_diag_s *mat = sd_laplace_create(N, dims);
 
-	sd_matvec(1, flatdims, out, rvec, mat);
+	sd_matvec(1, flatdims, out, vec, mat);
 
-	float err =  md_rmse(N, dims, out, rref);
+	float err =  md_zrmse(N, dims, out, ref);
 #if 0
 	long mat_dims[2] = { mat->len, mat->len };
-	float *dense = md_calloc(2, mat_dims, sizeof(float));
+	complex float *dense = md_calloc(2, mat_dims, sizeof(complex float));
 	sparse_diag_to_dense(2, mat_dims, dense, mat);
-	complex float *zdense = md_calloc(2, mat_dims, sizeof(complex float));
-	md_zcmpl_real(2, mat_dims, zdense, dense);
-	dump_cfl("dense", 2, mat_dims, zdense);
-	md_free(zdense);
+	dump_cfl("dense", 2, mat_dims, dense);
 	md_free(dense);
 #endif
 	sparse_diag_free(mat);
-	md_free(rref);
+	md_free(ref);
 	md_free(vec);
-	md_free(rvec);
 	md_free(out);
 
+	debug_printf(DP_DEBUG1, "sd_laplace_3d rmse: %f\n", err);
 	return err < 1e-16;
 
 }
@@ -247,11 +247,9 @@ static bool test_laplace_dirichlet(void)
 
 	//verify dense matrix
 	long mat_dims[2] = { mat->len, mat->len }, dense_str[2];
-	md_calc_strides(2, dense_str, mat_dims, FL_SIZE);
-	float *dense = md_calloc(2, mat_dims, sizeof(float));
+	md_calc_strides(2, dense_str, mat_dims, CFL_SIZE);
+	complex float *dense = md_calloc(2, mat_dims, CFL_SIZE);
 	sparse_diag_to_dense(2, mat_dims, dense, mat);
-	complex float *zdense = md_calloc(2, mat_dims, sizeof(complex float));
-	md_zcmpl_real(2, mat_dims, zdense, dense);
 
 	long index_strides[N];
 	calc_index_strides(N, index_strides, dims);
@@ -263,29 +261,28 @@ static bool test_laplace_dirichlet(void)
 		long offset = mat_ind * dense_str[0];
 		float row_sum = 0;
 		for(int j=0; j<mat_dims[0]; j++) {
-			row_sum += *(float *)((void *)dense + offset);
+			row_sum += *(complex float *)((void *)dense + offset);
 			offset += dense_str[1];
 		}
 		ok &= fabs( 1 - row_sum ) < 1e-16;
-		ok &= fabs( 1 - *(float *)((void*)dense + dense_str[0]*mat_ind + dense_str[1]*mat_ind)) < 1e-16;
+		ok &= cabsf( 1 - *(complex float *)((void*)dense + dense_str[0]*mat_ind + dense_str[1]*mat_ind)) < 1e-16;
 		errs += ok ? 0 : 1;
 	}
 
 	//dump_cfl("masked_dense", 2, mat_dims, zdense);
 
 	md_free(mask);
-	md_free(zdense);
 	md_free(dense);
 	md_free(boundary);
 	sparse_diag_free(mat);
 
-	debug_printf(DP_DEBUG1, "%d errors", errs);
+	debug_printf(DP_DEBUG1, "laplace_dirichlet: %d errors\n", errs);
 	return errs == 0;
 }
 
 
 
-static bool generic_laplace_neumann(const long N, const long dims[N], const complex float *mask, const float *ref)
+static bool generic_laplace_neumann(const long N, const long dims[N], const complex float *mask, const complex float *ref)
 {
 	//calculate normal
 	long grad_dim = N - 1;
@@ -314,24 +311,18 @@ static bool generic_laplace_neumann(const long N, const long dims[N], const comp
 
 	//verify dense matrix
 	long mat_dims[2] = { mat->len, mat->len }, dense_str[2];
-	md_calc_strides(2, dense_str, mat_dims, FL_SIZE);
-	float *dense = md_calloc(2, mat_dims, sizeof(float));
+	md_calc_strides(2, dense_str, mat_dims, CFL_SIZE);
+	complex float *dense = md_calloc(2, mat_dims, CFL_SIZE);
 	sparse_diag_to_dense(2, mat_dims, dense, mat);
 
-	float err = md_rmse(2, mat_dims, ref, dense);
-
-	complex float *zref = md_calloc(2, mat_dims, sizeof(complex float));
-	md_zcmpl_real(2, mat_dims, zref, ref);
-	complex float *zdense = md_calloc(2, mat_dims, sizeof(complex float));
-	md_zcmpl_real(2, mat_dims, zdense, dense);
-	md_free(zdense);
-	md_free(zref);
+	float err = md_zrmse(2, mat_dims, ref, dense);
 
 	md_free(normal);
 	md_free(boundary);
 	sparse_diag_free(mat);
 	md_free(dense);
 
+	debug_printf(DP_DEBUG1, "laplace_neumann rmse: %f\n", err);
 	return err < 1e-16;
 }
 
@@ -341,6 +332,52 @@ static bool test_laplace_neumann(void)
 	return generic_laplace_neumann(N_d, dims_d, mask_d, laplace_neumann_d);
 }
 
+static bool test_linop_sd_matvec(void)
+{
+	struct sparse_diag_s *mat = sparse_cdiags_create(N_a, len_a, N_diags_a, offsets_a, vals_a);
+
+	long N = N_a - 1;
+	long dims[] = { len_a };
+
+	complex float *vec = md_alloc (N, dims,CFL_SIZE );
+	complex float *ref = md_calloc(N, dims,CFL_SIZE );
+
+	for (int i = 0; i < *dims; i++)
+		vec[i] = gaussian_rand();
+
+	for (int i = 0; i < *dims; i++)
+		for (int j = 0; j < *dims; j++)
+			ref[i] += dense_a[i + *dims * j] * vec[j];
+
+	complex float *out = md_calloc(1, dims, CFL_SIZE);
+
+	auto op = linop_sd_matvec_create(N, dims, mat);
+
+	bool ok = true;
+
+	linop_forward(op, N, dims, out, N, dims, vec);
+
+	float err =  md_zrmse(N, dims, out, ref);
+	debug_printf(DP_DEBUG1, "forward rmse: %f\n", err);
+	ok &= (err < 1e-8);
+
+	err = linop_test_normal(op);
+	debug_printf(DP_DEBUG1, "normal rmse: %f\n", err);
+	ok &= (err < 1e-5);
+
+	err = linop_test_adjoint(op);
+	debug_printf(DP_DEBUG1, "adjoint rmse: %f\n", err);
+	ok &= (err < 1e-5);
+
+	linop_free(op);
+	// sparse_diag_free(mat);
+	md_free(out);
+	md_free(ref);
+	md_free(vec);
+
+	return ok;
+}
+
 
 UT_REGISTER_TEST(test_sparse_cdiags_create);
 UT_REGISTER_TEST(test_sd_laplace_create);
@@ -348,3 +385,4 @@ UT_REGISTER_TEST(test_sd_matvec);
 UT_REGISTER_TEST(test_sd_laplace_3d);
 UT_REGISTER_TEST(test_laplace_dirichlet);
 UT_REGISTER_TEST(test_laplace_neumann);
+UT_REGISTER_TEST(test_linop_sd_matvec);
