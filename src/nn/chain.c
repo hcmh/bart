@@ -526,6 +526,8 @@ nn_t nn_dup(nn_t op, int a, const char* aname, int b, const char* bname)
 	a = nn_get_in_arg_index(op, a, aname);
 	b = nn_get_in_arg_index(op, b, bname);
 
+	assert(op->dup[a] == op->dup[b]);
+
 	unsigned int II = nn_get_nr_in_args(op);
 	unsigned int OO = nn_get_nr_out_args(op);
 
@@ -608,6 +610,8 @@ nn_t nn_stack_inputs(nn_t op, int a, const char* aname, int b, const char* bname
 {
 	a = nn_get_in_arg_index(op, a, aname);
 	b = nn_get_in_arg_index(op, b, bname);
+
+	assert(op->dup[a] == op->dup[b]);
 
 	unsigned int II = nn_get_nr_in_args(op);
 	unsigned int OO = nn_get_nr_out_args(op);

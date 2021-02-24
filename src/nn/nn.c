@@ -65,6 +65,7 @@ nn_t nn_from_nlop(const struct nlop_s* op)
 
 	PTR_ALLOC(const struct initializer_s*[NI], initializers);
 	PTR_ALLOC(const struct operator_p_s*[NI], prox_ops);
+	PTR_ALLOC(bool[NI], dup);
 	PTR_ALLOC(enum IN_TYPE[NI], in_types);
 	PTR_ALLOC(enum OUT_TYPE[NO], out_types);
 
@@ -74,6 +75,7 @@ nn_t nn_from_nlop(const struct nlop_s* op)
 		(*in_names)[i] = NULL;
 		(*initializers)[i] = NULL;
 		(*in_types)[i] = IN_UNDEFINED;
+		(*dup)[i] = true;
 	}
 
 	for (uint o = 0; o < NO; o++) {
@@ -87,6 +89,7 @@ nn_t nn_from_nlop(const struct nlop_s* op)
 
 	nn->initializers = *PTR_PASS(initializers);
 	nn->prox_ops = *PTR_PASS(prox_ops);
+	nn->dup = *PTR_PASS(dup);
 	nn->in_types = *PTR_PASS(in_types);
 	nn->out_types = *PTR_PASS(out_types);
 
@@ -114,6 +117,7 @@ void nn_free(nn_t op)
 
 	xfree(op->initializers);
 	xfree(op->prox_ops);
+	xfree(op->dup);
 	xfree(op->in_types);
 	xfree(op->out_types);
 
@@ -155,6 +159,8 @@ void nn_clone_arg_i_from_i(nn_t nn1, uint i1, nn_t nn2, uint i2)
 
 	operator_p_free(nn1->prox_ops[i1]);
 	nn1->prox_ops[i1] = operator_p_ref(nn2->prox_ops[i2]);
+
+	nn1->dup[i1] = nn2->dup[i2];
 }
 
 void nn_clone_arg_o_from_o(nn_t nn1, uint o1, nn_t nn2, uint o2)
@@ -546,6 +552,20 @@ const struct operator_p_s* nn_get_prox_op_arg_index(nn_t op, int i)
 {
 	return op->prox_ops[i];
 }
+
+nn_t nn_set_dup_F(nn_t op, int i, const char* iname, bool dup)
+{
+	i = nn_get_in_arg_index(op, i, iname);
+	op->dup[i] = dup;
+	return op;
+}
+
+bool nn_get_dup(nn_t op, int i, const char* iname)
+{
+	i = nn_get_in_arg_index(op, i, iname);
+	return op->dup[i];
+}
+
 
 nn_t nn_set_in_type_F(nn_t op, int i, const char* iname, enum IN_TYPE in_type)
 {

@@ -48,6 +48,8 @@ struct nn_s {
 
 	const struct operator_p_s** prox_ops;
 
+	bool* dup; // can the input be duplicated, i.e. can it be used for shared weights
+
 	enum IN_TYPE* in_types;
 	enum OUT_TYPE* out_types;
 };
@@ -104,6 +106,9 @@ extern nn_t nn_set_out_type_F(nn_t op, int o, const char* oname, enum OUT_TYPE o
 extern nn_t nn_set_prox_op_F(nn_t op, int i, const char* iname, const struct operator_p_s* opp);
 extern const struct operator_p_s* nn_get_prox_op(nn_t op, int i, const char* iname);
 extern const struct operator_p_s* nn_get_prox_op_arg_index(nn_t op, int i);
+
+extern nn_t nn_set_dup_F(nn_t op, int i, const char* iname, bool dup);
+extern _Bool nn_get_dup(nn_t op, int i, const char* iname);
 
 extern const char** nn_get_out_names(nn_t op);
 extern const char** nn_get_in_names(nn_t op);
