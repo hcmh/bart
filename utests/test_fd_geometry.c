@@ -60,11 +60,11 @@ static const complex float normal_b[] = {
 
 static const long n_points_b = 20;
 static const struct boundary_point_s boundary_b[] = {
-	{ .index = { 1, 0 }, .dir = { -w2,-w2 } },
+	{ .index = { 1, 0 }, .dir = { -1 , -1 } },
 	{ .index = { 2, 0 }, .dir = {   0, -1 } },
 	{ .index = { 3, 0 }, .dir = {   0, -1 } },
 	{ .index = { 4, 0 }, .dir = {   0, -1 } },
-	{ .index = { 5, 0 }, .dir = {  w2,-w2 } },
+	{ .index = { 5, 0 }, .dir = {  1, -1 } },
 
 	{ .index = { 1, 1 }, .dir = {  -1,  0 } },
 	{ .index = { 3, 1 }, .dir = {   0,  1 } },
@@ -79,14 +79,32 @@ static const struct boundary_point_s boundary_b[] = {
 	{ .index = { 3, 3 }, .dir = {   0, -1 } },
 	{ .index = { 5, 3 }, .dir = {   1,  0 } },
 
-	{ .index = { 1, 4 }, .dir = { -w2, w2 } },
+	{ .index = { 1, 4 }, .dir = {  -1,  1 } },
 	{ .index = { 2, 4 }, .dir = {   0,  1 } },
 	{ .index = { 3, 4 }, .dir = {   0,  1 } },
 	{ .index = { 4, 4 }, .dir = {   0,  1 } },
-	{ .index = { 5, 4 }, .dir = {  w2, w2 } },
+	{ .index = { 5, 4 }, .dir = {   1,  1 } },
 	};
 
 
+
+#define N_c 3
+static const long dims_c[N_c] = { 7, 7, 1 };
+static const complex float mask_c[] = 	 	{ 0,  0,  0,  0,  0,  0,  0,
+					   	  0,  1,  1,  1,  1,  1,  0,
+					   	  0,  1,  1,  1,  1,  1,  0,
+					   	  0,  1,  1,  0,  1,  1,  0,
+					   	  0,  1,  1,  1,  1,  1,  0,
+					   	  0,  1,  1,  1,  1,  1,  0,
+					   	  0,  0,  0,  0,  0,  0,  0 };
+
+static const complex float mask_c_forward[] = 	{ 0,  0,  0,  0,  0,  0,  0,
+					   	  0,  1,  1,  1,  1,  1,  1,
+					   	  0,  1,  1,  1,  1,  1,  1,
+					   	  0,  1,  1,  1,  1,  1,  1,
+					   	  0,  1,  1,  1,  1,  1,  1,
+					   	  0,  1,  1,  1,  1,  1,  1,
+					   	  0,  1,  1,  1,  1,  1,  0 };
 
 
 static complex float *get_normal(const long N, const long dims[N], const complex float *mask)
@@ -157,14 +175,37 @@ static bool generic_boundary(const long N, const long dims[N], const complex flo
 
 		for(int j = 0; j < N - 1; j++) {
 			ok &= (ref->index[j] == point->index[j]);
-			ok &= fabs(ref->dir[j] - point->dir[j]) < 1e-7;
+			ok &= abs(ref->dir[j] - point->dir[j]) < 1e-7;
 		}
 		debug_printf(DP_DEBUG1, "Point %d:\t %s\n", i, ok ? "OK" : "FAIL");
 	}
 	return ok;
 }
 
+static bool generic_clear_mask_forward(const long N, const long dims[N], const complex float *mask, const complex float *ref)
+{
+	complex float *normal = get_normal(N,dims, mask);
 
+	const long boundary_dimensions[] =  { md_calc_size(N, dims) };
+	struct boundary_point_s *boundary = md_alloc(1, boundary_dimensions, sizeof(struct boundary_point_s));
+
+	long grad_dims[N];
+	md_copy_dims(N, grad_dims, dims);
+	grad_dims[grad_dim] = N-1;
+
+	long n_points = calc_boundary_points(N, grad_dims, boundary, grad_dim, normal);
+
+	complex float *out = md_alloc(N, dims, CFL_SIZE);
+
+	clear_mask_forward(N-1, dims, out, n_points, boundary, mask);
+
+	float err = md_zrmse(N-1, dims, out, ref);
+
+	md_free(normal);
+	md_free(out);
+	md_free(boundary);
+	return err < 1e-16;
+}
 
 static bool test_calc_outward_normal(void)
 {
@@ -195,3 +236,14 @@ static bool test_calc_boundary_points(void)
 	return ok;
 }
 UT_REGISTER_TEST(test_calc_boundary_points);
+
+static bool test_clear_mask_forward(void)
+{
+	bool ok = true;
+
+	ok &= generic_clear_mask_forward(N_c, dims_c, mask_c, mask_c_forward);
+
+	return ok;
+}
+UT_REGISTER_TEST(test_clear_mask_forward);
+

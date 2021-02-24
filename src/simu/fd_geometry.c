@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <complex.h>
+#include <math.h>
 #include "num/flpmath.h"
 #include "num/multind.h"
 #include "misc/misc.h"
@@ -92,7 +93,7 @@ void calc_outward_normal(const long N, const long grad_dims[N], complex float *g
  */
 long calc_boundary_points(const long N, const long dims[N], struct boundary_point_s *boundary, const long grad_dim, const complex float *normal)
 {
-	assert(N  <= N_boundary_point_s);
+	assert(N <= N_boundary_point_s);
 	assert(N - 1 == grad_dim);
 
 	long pos[N], strs[N], n_points = 0, offset = 0;
@@ -106,19 +107,44 @@ long calc_boundary_points(const long N, const long dims[N], struct boundary_poin
 
 	do {
 		offset = md_calc_offset(N, strs, pos);
+		struct boundary_point_s *point = boundary + n_points;
 
 		bool is_boundary = false;
-		for ( int i = 0; (i < dims[grad_dim]) && (!is_boundary); i++)
-			is_boundary  |= (*((complex float *) ((void *)normal + offset + i*strs[grad_dim])) != 0);
+		float val = 0;
+		for ( int i = 0; i < dims[grad_dim]; i++) {
+			val = *((complex float *) ((void *)normal + offset + i*strs[grad_dim]));
+			point->dir[i] = (fabsf(val) > 1e-16) ? (long)(val / fabsf(val)) : 0;
+			is_boundary  |= (fabsf(val) > 1e-16);
 
+		}
 
 		if (is_boundary) {
-			struct boundary_point_s *point = boundary + n_points++;
 			md_select_dims(N, flags, point->index, pos);
-			for (int i = 0; i < dims[grad_dim]; i++)
-				point->dir[i] = creal(*((complex float *) ((void *)normal + offset + i*strs[grad_dim])));
+			n_points++;
 		}
 
 	} while (md_next(N, dims, flags, pos));
 	return n_points;
+}
+
+/*
+ * eat away one pixel in forward direction
+ */
+void clear_mask_forward(const long N, const long dims[N], complex float *out, const long n_points, const struct boundary_point_s *boundary, const complex float *mask)
+{
+	md_copy(N, dims, out, mask, CFL_SIZE);
+	long offset = 0, pos[N], strs[N];
+	md_calc_strides(N, strs, dims, CFL_SIZE);
+
+	for (long i = 0; i < n_points; i++) {
+		for (long j = 0; j < N; j++) {
+			if (boundary[i].dir[j] > 0) {
+				md_copy_dims(N, pos, boundary[i].index);
+				pos[j] += 1;
+				assert(pos[j] < dims[j]);
+				offset = md_calc_offset(N, strs, pos);
+				*(complex float *)((void *)out + offset) = 1;
+			}
+		}
+	}
 }

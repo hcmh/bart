@@ -11,6 +11,7 @@
 #include "simu/sparse.h"
 #include "simu/fd_geometry.h"
 #include <math.h>
+#include <complex.h>
 
 
 
@@ -174,7 +175,7 @@ struct sparse_diag_s* sd_laplace_create(long N, const long dims[N])
 		len_ones  = (dims[i] - 1)*str;
 		len_zeros = str;
 		long j = len_ones;
-		while (j + len_zeros -1 < mat->dims[n]) {
+		while (j + len_zeros - 1 < mat->dims[n]) {
 			for (long k = 0; k < len_zeros; k++) {
 				mat->diags[n    ][j + k] = 0;
 				mat->diags[n + 1][j + k] = 0;
@@ -190,7 +191,7 @@ struct sparse_diag_s* sd_laplace_create(long N, const long dims[N])
 }
 
 
-long calc_index_strides(const long N, long index_strides[N], const long dims[N])
+void calc_index_strides(const long N, long index_strides[N], const long dims[N])
 {
 	index_strides[0] = 1;
 	for (int i = 1; i < N; i++)
@@ -215,6 +216,21 @@ long calc_index(const long N, const long index_strides[N], const long pos[N])
 	return index;
 }
 
+
+static void clear_row(const long mat_index, struct sparse_diag_s *mat)
+{
+	assert(mat->N == 2);
+	assert(mat_index < mat->len);
+	for (long j = 0; j < mat->N_diags; j++) {
+		const long *offsets = mat->offsets[j];
+		// lower diagonals
+		if ((offsets[0] > 0) && (mat_index >= offsets[0]))
+			mat->diags[j][mat_index - offsets[0]] = 0;
+		// upper and main diagonals
+		if ((offsets[1] >= 0) && (mat_index < mat->dims[j]))
+			mat->diags[j][mat_index] = 0;
+	}
+}
 
 void laplace_dirichlet(struct sparse_diag_s *mat, const long N, const long dims[N], const long n_points, struct boundary_point_s points[n_points])
 {
@@ -244,6 +260,66 @@ void laplace_dirichlet(struct sparse_diag_s *mat, const long N, const long dims[
 				mat->diags[j][mat_index] = 0;
 		}
 	}
+}
+
+
+
+void laplace_neumann(struct sparse_diag_s *mat, const long N, const long dims[N], const long n_points, struct boundary_point_s boundary[n_points])
+{
+	assert(2 == mat->N);
+
+	long str[N];
+	calc_index_strides(N, str, dims);
+	assert(mat->len == calc_index_size(N, str, dims));
+
+	assert(mat->offsets_normal);
+
+	for (long i = 0; i < n_points; i++) {
+		struct boundary_point_s *point = boundary + i;
+		long mat_index = calc_index(N, str, point->index);
+		long diag_index = 0;
+		long  ext_neighbours = 0;
+		for (long j = 0; j < N; j++)
+			ext_neighbours += abs(point->dir[j]);
+
+		mat->diags[diag_index][mat_index] -= ext_neighbours;
+
+		// set this row in the off-diagonals
+		for (long j = 0; j < N; j++) {
+			// upper diagonal
+			const long *offsets = mat->offsets[++diag_index];
+			assert(offsets[0] == 0);
+			if (point->dir[j] == 1)
+				mat->diags[diag_index][mat_index] = 0;
+
+			// lower diagonal
+			offsets = mat->offsets[++diag_index];
+			assert(offsets[0] > 0);
+			if (point->dir[j] == -1)
+				mat->diags[diag_index][mat_index - offsets[0]] = 0;
+
+		}
+	}
+}
+
+
+void sd_mask(const long N, const long dims[N], struct sparse_diag_s *mat, const complex float *mask)
+{
+	long pos[N], strs[N], index_strs[N];
+	const long flags = (MD_BIT(N) - 1);
+
+	md_set_dims(N, pos, 0);
+	md_calc_strides(N, strs, dims, CFL_SIZE);
+	calc_index_strides(N, index_strs, dims);
+
+	do {
+		long offset = md_calc_offset(N, strs, pos);
+		long mat_index = calc_index(N, index_strs, pos);
+		if ( creal(*((complex float *) ((void *)mask + offset))) < 1)
+			clear_row(mat_index, mat);
+
+	} while (md_next(N, dims, flags, pos));
+
 }
 
 

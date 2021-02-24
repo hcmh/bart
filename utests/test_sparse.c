@@ -27,6 +27,51 @@ static const long offsets_a[2][2] = {{0, 0}, {0, -1}};
 static const long offsets_a_norm[2][2] = {{0, 0}, {1, 0}};
 static const float vals_a[] =  { 1, 2};
 
+
+#define N_d 3
+static const long dims_d[N_d] = { 5, 5, 1 };
+static const complex float mask_d[] = 	 	{ 0, 0, 0, 0, 0,
+						  0, 1, 1, 1, 0,
+						  0, 1, 1, 1, 0,
+						  0, 1, 1, 1, 0,
+						  0, 0, 0, 0, 0 };
+
+// remember the holy order of fortran
+static const float laplace_neumann_d[] =
+	{ 0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 2,-1, 0, 0,    0,-1, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0,-1, 3,-1, 0,    0, 0,-1, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0,-1, 2, 0,    0, 0, 0,-1, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0,-1, 0, 0, 0,    0, 3,-1, 0, 0,    0,-1, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0,-1, 0, 0,    0,-1, 4,-1, 0,    0, 0,-1, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0,-1, 0,    0, 0,-1, 3, 0,    0, 0, 0,-1, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0,-1, 0, 0, 0,    0, 2,-1, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0,-1, 0, 0,    0,-1, 3,-1, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0,-1, 0,    0, 0,-1, 2, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0  };
+
+
+
+
+
 static bool generic_sparse_cdiags_create(const long N, const long len, const long N_diags, const long (*offsets)[N], const float values[N_diags], const float *ref)
 {
 	long dims[N];
@@ -237,8 +282,69 @@ static bool test_laplace_dirichlet(void)
 	debug_printf(DP_DEBUG1, "%d errors", errs);
 	return errs == 0;
 }
+
+
+
+static bool generic_laplace_neumann(const long N, const long dims[N], const complex float *mask, const float *ref)
+{
+	//calculate normal
+	long grad_dim = N - 1;
+	long grad_dims[N];
+	md_copy_dims(N, grad_dims, dims);
+	grad_dims[grad_dim] = N - 1;
+
+	complex float *normal = md_alloc(N, grad_dims, CFL_SIZE);
+	calc_outward_normal(N, grad_dims, normal, grad_dim, dims, mask);
+
+	//calculate list of points on the border
+	const long boundary_dimensions[] =  { md_calc_size(N, dims) };
+
+	struct boundary_point_s *boundary = md_alloc(1, boundary_dimensions, sizeof(struct boundary_point_s));
+
+	long n_points = calc_boundary_points(N, grad_dims, boundary, grad_dim, normal);
+
+	//create laplace
+	struct sparse_diag_s *mat = sd_laplace_create(N - 1, dims);
+
+	//apply boundary
+	laplace_neumann(mat, N - 1, dims, n_points, boundary);
+
+	//mask outside points
+	sd_mask(N-1, dims, mat, mask);
+
+	//verify dense matrix
+	long mat_dims[2] = { mat->len, mat->len }, dense_str[2];
+	md_calc_strides(2, dense_str, mat_dims, FL_SIZE);
+	float *dense = md_calloc(2, mat_dims, sizeof(float));
+	sparse_diag_to_dense(2, mat_dims, dense, mat);
+
+	float err = md_rmse(2, mat_dims, ref, dense);
+
+	complex float *zref = md_calloc(2, mat_dims, sizeof(complex float));
+	md_zcmpl_real(2, mat_dims, zref, ref);
+	complex float *zdense = md_calloc(2, mat_dims, sizeof(complex float));
+	md_zcmpl_real(2, mat_dims, zdense, dense);
+	md_free(zdense);
+	md_free(zref);
+
+	md_free(normal);
+	md_free(boundary);
+	sparse_diag_free(mat);
+	md_free(dense);
+
+	return err < 1e-16;
+}
+
+
+static bool test_laplace_neumann(void)
+{
+	return generic_laplace_neumann(N_d, dims_d, mask_d, laplace_neumann_d);
+}
+
+
 UT_REGISTER_TEST(test_sparse_cdiags_create);
 UT_REGISTER_TEST(test_sd_laplace_create);
 UT_REGISTER_TEST(test_sd_matvec);
 UT_REGISTER_TEST(test_sd_laplace_3d);
 UT_REGISTER_TEST(test_laplace_dirichlet);
+UT_REGISTER_TEST(test_laplace_neumann);
