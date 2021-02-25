@@ -143,7 +143,7 @@ tests/test-reconet-nnvn-train: nrmse $(TESTS_OUT)/pattern.ra reconet \
 	rm *.ra ; rm *.hdr ; rm *.cfl ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-reconet-nnmodl-train: nrmse $(TESTS_OUT)/pattern.ra nnmodl \
+tests/test-reconet-nnmodl-train: nrmse $(TESTS_OUT)/pattern.ra reconet \
 	$(TESTS_OUT)/train_kspace.ra $(TESTS_OUT)/train_ref.ra $(TESTS_OUT)/train_sens.ra \
 	$(TESTS_OUT)/test_kspace.ra $(TESTS_OUT)/test_ref.ra $(TESTS_OUT)/test_sens.ra
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP); export OMP_NUM_THREADS=2 													;\
@@ -208,7 +208,7 @@ tests/test-reconet-nnvn-train-gpu: nrmse $(TESTS_OUT)/pattern.ra reconet \
 	rm *.ra ; rm *.hdr ; rm *.cfl ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-tests/test-reconet-nnmodl-train-gpu: nrmse $(TESTS_OUT)/pattern.ra nnmodl \
+tests/test-reconet-nnmodl-train-gpu: nrmse $(TESTS_OUT)/pattern.ra reconet \
 	$(TESTS_OUT)/train_kspace.ra $(TESTS_OUT)/train_ref.ra $(TESTS_OUT)/train_sens.ra \
 	$(TESTS_OUT)/test_kspace.ra $(TESTS_OUT)/test_ref.ra $(TESTS_OUT)/test_sens.ra
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP); export OMP_NUM_THREADS=2 													;\
