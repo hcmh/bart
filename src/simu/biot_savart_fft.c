@@ -84,9 +84,8 @@ static complex float *biot_savart_kernel(const long dims[4], const float fov_in[
 			x[i] = (pos[i + 1] + 1) * voxelsize[i] - fov[i];
 		b = pow(vec3_sdot(x, x), 1.5);
 		bool mask = true;
-		for (int i = 0; i < 3; i++) {
-			mask = mask & (abs(kdims[i + 1] / 2 - pos[i + 1]) <= center_mask);
-		}
+		for (int i = 0; i < 3; i++)
+			mask = mask && (labs(kdims[i + 1] / 2 - pos[i + 1]) <= center_mask);
 		*(kern + p) = mask ? 0 : x[1] / b * scaling;
 		*(kern + p + 1) = mask ? 0 : -x[0] / b * scaling;
 		p += dims[0];
