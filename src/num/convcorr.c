@@ -987,12 +987,19 @@ bool zconvcorr_fwd_im2col_cf_gpu(int N,
 	long mdims[N - 5];
 	md_tenmul_dims(N - 5, mdims, odims + 5, idims + 5, kdims + 5);
 
+	//clang
+	const long* odimsp = odims;
+	const long* idimsp = idims;
+	const long* kdimsp = kdims;
+	const long* dilationp = dilation;
+	const long* stridesp = strides;
+
 	NESTED(void, nary_zconvcorr_im2col, (struct nary_opt_data_s* data, void* ptr[]))
 	{
 		for (long i = 0; i < data->size; i++){
 
 			complex float* imat_tmp = md_alloc_gpu(1, &imat_size, size);
-			cuda_im2col(imat_tmp, (const complex float*)ptr[1] + i * isize, odims, idims, kdims, dilation, strides);
+			cuda_im2col(imat_tmp, (const complex float*)ptr[1] + i * isize, odimsp, idimsp, kdimsp, dilationp, stridesp);
 
 			blas_matrix_zfmac(	M1, N1, K1,
 						(complex float*)ptr[0] + i * osize,
@@ -1050,12 +1057,19 @@ bool zconvcorr_bwd_krn_im2col_cf_gpu(int N,
 	long mdims[N - 5];
 	md_tenmul_dims(N - 5, mdims, odims + 5, idims + 5, kdims + 5);
 
+		//clang
+	const long* odimsp = odims;
+	const long* idimsp = idims;
+	const long* kdimsp = kdims;
+	const long* dilationp = dilation;
+	const long* stridesp = strides;
+
 	NESTED(void, nary_zconvcorr_im2col, (struct nary_opt_data_s* data, void* ptr[]))
 	{
 		for (long i = 0; i < data->size; i++){
 
 			complex float* imat_tmp = md_alloc_gpu(1, &imat_size, size);
-			cuda_im2col(imat_tmp, (const complex float*)ptr[1] + i * isize, odims, idims, kdims, dilation,strides);
+			cuda_im2col(imat_tmp, (const complex float*)ptr[1] + i * isize, odimsp, idimsp, kdimsp, dilationp, stridesp);
 
 			blas_matrix_zfmac(	M1, K1, N1,
 						(complex float*)ptr[0] + i * ksize,
@@ -1111,6 +1125,13 @@ bool zconvcorr_bwd_in_im2col_cf_gpu(int N,
 	long mdims[N - 5];
 	md_tenmul_dims(N - 5, mdims, odims + 5, idims + 5, kdims + 5);
 
+	//clang
+	const long* odimsp = odims;
+	const long* idimsp = idims;
+	const long* kdimsp = kdims;
+	const long* dilationp = dilation;
+	const long* stridesp = strides;
+
 	NESTED(void, nary_zconvcorr_im2col, (struct nary_opt_data_s* data, void* ptr[]))
 	{
 		for (long i = 0; i < data->size; i++){
@@ -1125,7 +1146,7 @@ bool zconvcorr_bwd_in_im2col_cf_gpu(int N,
 						);
 
 
-			cuda_im2col_transp((complex float*)ptr[0] + i * isize, imat_tmp , odims, idims, kdims, dilation, strides);
+			cuda_im2col_transp((complex float*)ptr[0] + i * isize, imat_tmp , odimsp, idimsp, kdimsp, dilationp, stridesp);
 
 			md_free(imat_tmp);
 		}
