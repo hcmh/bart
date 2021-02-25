@@ -586,6 +586,8 @@ const struct nlop_s* nlop_clone(const struct nlop_s* op)
 const struct nlop_s* nlop_loop(int D, const long dims[D], const struct nlop_s* op)
 {
 #if 1
+	UNUSED(dims);
+	UNUSED(op);
 	assert(0);
 #else
 	/* ok, this does not work, we need to store the input for the
