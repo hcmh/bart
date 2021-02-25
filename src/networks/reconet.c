@@ -28,6 +28,7 @@
 
 #include "iter/proj.h"
 #include <math.h>
+#include <string.h>
 
 #ifdef USE_CUDA
 #include "num/gpuops.h"
@@ -426,7 +427,32 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 	}
 
 	result = nn_reshape_out_F(result, 0, NULL, 5, idims);
+
+
+
 	
+	unsigned int N_in_names = nn_get_nr_named_in_args(result);
+	unsigned int N_out_names = nn_get_nr_named_out_args(result);
+
+	const char* in_names[N_in_names];
+	const char* out_names[N_out_names];
+
+	nn_get_in_names_copy(N_in_names, in_names, result);
+	nn_get_out_names_copy(N_out_names, out_names, result);
+
+	for (unsigned int i = 0; i < N_in_names; i++) {
+
+		if (0 != strcmp("reinsert", in_names[i]))
+			result = nn_append_singleton_dim_in_F(result, 0, in_names[i]);
+		xfree(in_names[i]);
+	}
+
+	for (unsigned int i = 0; i < N_out_names; i++) {
+
+		result = nn_append_singleton_dim_out_F(result, 0, out_names[i]);
+		xfree(out_names[i]);
+	}
+
 	return nn_checkpoint_F(result, true, (1 < config->Nt) && config->low_mem);
 }
 
@@ -452,6 +478,20 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 static nn_t reconet_cell_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N], enum NETWORK_STATUS status)
 {
 	auto result = network_block_create(config, N, idims, status);
+	
+	unsigned int N_in_names = nn_get_nr_named_in_args(result);
+	unsigned int N_out_names = nn_get_nr_named_out_args(result);
+
+	const char* sorted_in_names[5 + N_in_names];
+	const char* sorted_out_names[N_out_names];
+	
+	sorted_in_names[0] = "kspace";
+	sorted_in_names[1] = "adjoint";
+	sorted_in_names[2] = "coils";
+	sorted_in_names[3] = "pattern";
+	sorted_in_names[4] = "lambda";
+	nn_get_in_names_copy(N_in_names, sorted_in_names + 5, result);
+	nn_get_out_names_copy(N_out_names, sorted_out_names, result);
 
 	if (config->dc_tickhonov) {
 
@@ -469,14 +509,13 @@ static nn_t reconet_cell_create(const struct reconet_s* config, unsigned int N, 
 		result = nn_link_F(result, 1, NULL, 0, NULL);
 	}
 
-	for (unsigned int i = 0; i < config->network->no_stack_weight_names; i++) {
+	result = nn_sort_inputs_by_list_F(result, N_in_names + 5, sorted_in_names);
+	result = nn_sort_outputs_by_list_F(result, N_out_names, sorted_out_names);
 
-		result = nn_append_singleton_dim_in_if_exists_F(result, config->network->stack_weight_names[i]);
-		result = nn_append_singleton_dim_out_if_exists_F(result, config->network->stack_weight_names[i]);
-	}
-
-	for (unsigned int i = 0; i < config->network->no_weight_names; i++)
-		result = nn_append_singleton_dim_in_if_exists_F(result, config->network->weight_names[i]);
+	for (unsigned int i = 5; i < N_in_names + 5; i++)
+		xfree(sorted_in_names[i]);
+	for (unsigned int i = 0; i < N_out_names; i++)
+		xfree(sorted_out_names[i]);
 
 	return result;
 }
@@ -486,20 +525,18 @@ static nn_t reconet_iterations_create(const struct reconet_s* config, unsigned i
 {
 	auto result = reconet_cell_create(config, N, dims, idims, status);
 
+	unsigned int N_in_names = nn_get_nr_named_in_args(result);
+	unsigned int N_out_names = nn_get_nr_named_out_args(result);
+
+	const char* in_names[N_in_names];
+	const char* out_names[N_out_names];
+	
+	nn_get_in_names_copy(N_in_names, in_names, result);
+	nn_get_out_names_copy(N_out_names, out_names, result);
+
 	for (int i = 1; i < config->Nt; i++) {
 
 		auto tmp = reconet_cell_create(config, N, dims, idims, status);
-
-		// batchnorm weights are always stacked
-		for (unsigned int i = 0; i < config->network->no_stack_weight_names; i++) {
-
-			tmp = nn_mark_stack_input_if_exists_F(tmp, config->network->stack_weight_names[i]);
-			tmp = nn_mark_stack_output_if_exists_F(tmp, config->network->stack_weight_names[i]);
-		}
-		
-		// Dup or Stack other weights
-		for (unsigned int i = 0; i < config->network->no_weight_names; i++)
-			tmp = (config->share_weights ? nn_mark_dup_if_exists_F : nn_mark_stack_input_if_exists_F)(tmp, config->network->weight_names[i]);
 
 		tmp = nn_mark_dup_if_exists_F(tmp, "adjoint");
 		tmp = nn_mark_dup_if_exists_F(tmp, "coil");
@@ -508,20 +545,62 @@ static nn_t reconet_iterations_create(const struct reconet_s* config, unsigned i
 
 		tmp = (config->share_lambda ? nn_mark_dup_if_exists_F : nn_mark_stack_input_if_exists_F)(tmp, "lambda");
 
+		// batchnorm weights are always stacked
+		for (unsigned int i = 0; i < N_in_names; i++) {
+
+			if (nn_is_name_in_in_args(tmp, in_names[i])) {
+
+				if (nn_get_dup(tmp, 0, in_names[i]) && config->share_weights)
+					tmp = nn_mark_dup_F(tmp, in_names[i]);
+				else
+					tmp = nn_mark_stack_input_F(tmp, in_names[i]);
+			}
+		}
+
+		for (unsigned int i = 0; i < N_out_names; i++)	
+			tmp = nn_mark_stack_output_if_exists_F(tmp, out_names[i]);
+
 		result = nn_chain2_FF(result, 0, NULL, tmp, 0, NULL);
 		result = nn_stack_dup_by_name_F(result);
 	}
+
+	if (nn_is_name_in_in_args(result, "reinsert"))
+		result = nn_dup_F(result, 0, NULL, 0, "reinsert");
+
+	result = nn_sort_inputs_by_list_F(result, N_in_names, in_names);
+	result = nn_sort_outputs_by_list_F(result, N_out_names, out_names);
+
+	for (unsigned int i = 0; i < N_in_names; i++)
+		xfree(in_names[i]);
+	for (unsigned int i = 0; i < N_out_names; i++)
+		xfree(out_names[i]);
+
 	return result;
 }
 
 static nn_t reconet_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N], enum NETWORK_STATUS status)
 {
 	auto network = reconet_iterations_create(config, N, dims, idims, status);
+	
+	unsigned int N_in_names = nn_get_nr_named_in_args(network);
+	const char* in_names[N_in_names + 5];
+
+	unsigned int N_extra_in_names = 0;
+	if (!nn_is_name_in_in_args(network, "kspace"))
+		in_names[N_extra_in_names++] = "kspace";
+	if (!nn_is_name_in_in_args(network, "adjoint"))
+		in_names[N_extra_in_names++] = "adjoint";
+	if (!nn_is_name_in_in_args(network, "coil"))
+		in_names[N_extra_in_names++] = "coil";
+	if (!nn_is_name_in_in_args(network, "pattern"))
+		in_names[N_extra_in_names++] = "pattern";
+	if (!nn_is_name_in_in_args(network, "lambda"))
+		in_names[N_extra_in_names++] = "lambda";
+	
+	nn_get_in_names_copy(N_in_names, in_names + N_extra_in_names, network);
+
 	network = nn_mark_dup_if_exists_F(network, "coil");
 	network = nn_mark_dup_if_exists_F(network, "pattern");
-
-	if (nn_is_name_in_in_args(network, "reinsert"))
-		network = nn_dup_F(network, 0, NULL, 0, "reinsert");
 
 	auto init = nn_init_create(config, N, dims, idims);
 	if (nn_is_name_in_in_args(init, "lambda"))
@@ -541,7 +620,9 @@ static nn_t reconet_create(const struct reconet_s* config, unsigned int N, const
 
 	result = nn_stack_dup_by_name_F(result);
 
-	result = nn_sort_inputs_by_list_F(result, 4, (const char*[4]){"kspace", "coil", "pattern", "lambda"});
+	result = nn_sort_inputs_by_list_F(result, N_extra_in_names + N_in_names, in_names);
+	for (unsigned int i = 0; i < N_in_names; i++)
+		xfree(in_names[i + N_extra_in_names]);
 
 	return result;
 }
