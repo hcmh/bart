@@ -133,7 +133,7 @@ static bool test_linop_stack(void)
 	md_free(in);
 	md_free(out);
 
-	return ok;
+	UT_ASSERT(ok);
 }
 
 
@@ -154,7 +154,7 @@ static bool test_linop_null(void)
 
 	linop_free(l);
 
-	return ok;
+	UT_ASSERT(ok);
 }
 
 
@@ -194,7 +194,7 @@ static bool test_linop_extract(void)
 	err = fabs(n - n2);
 
 #ifdef  __clang__
-	ok &= (err < 100. * UT_TOL);
+	ok &= (err / n < UT_TOL); //compare relative error
 #else
 	ok &= (err < UT_TOL);
 #endif
@@ -207,7 +207,7 @@ static bool test_linop_extract(void)
 	err = fabs(n - n2);
 
 #ifdef  __clang__
-	ok &= (err < 100. * UT_TOL);
+	ok &= (err / n < 100. * UT_TOL); //compare relative error
 #else
 	ok &= (err < UT_TOL);
 #endif
@@ -220,13 +220,12 @@ static bool test_linop_extract(void)
 	err = fabs(n - n2);
 
 	ok &= (err < 1.E-3);
-
 	linop_free(diaga1);
 
 	md_free(in);
 	md_free(out);
 
-	return ok;
+	UT_ASSERT(ok);
 }
 
 
