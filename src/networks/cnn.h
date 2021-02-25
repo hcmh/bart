@@ -17,13 +17,6 @@ typedef struct network_s {
 	TYPEID* TYPEID;
 
 	network_create_t create;
-
-	unsigned int no_stack_weight_names;
-	const char** stack_weight_names;
-
-	unsigned int no_weight_names;
-	const char** weight_names;
-
 	_Bool low_mem;
 
 } network_t;

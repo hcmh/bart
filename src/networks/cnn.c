@@ -33,11 +33,9 @@
 
 DEF_TYPEID(network_resnet_s);
 
-const char* resnet_weight_names[] = {
+const char* resnet_sorted_weight_names[] = {
 					"conv_0", "conv_i", "conv_n",
-					"bias_0", "bias_i", "bias_n"
-				};
-const char* resnet_stack_weight_names[] = {
+					"bias_0", "bias_i", "bias_n",
 					"gamma",
 					"bn_0", "bn_i", "bn_n"
 				};
@@ -48,11 +46,6 @@ struct network_resnet_s network_resnet_default = {
 	.INTERFACE.TYPEID = &TYPEID2(network_resnet_s),
 	
 	.INTERFACE.create = network_resnet_create,
-
-	.INTERFACE.no_weight_names = ARRAY_SIZE(resnet_weight_names),
-	.INTERFACE.weight_names = resnet_weight_names,
-	.INTERFACE.no_stack_weight_names = ARRAY_SIZE(resnet_stack_weight_names),
-	.INTERFACE.stack_weight_names = resnet_stack_weight_names,
 
 	.INTERFACE.low_mem = false,
 
@@ -252,16 +245,9 @@ nn_t network_resnet_create(const struct network_s* _config, unsigned int N, cons
 
 	result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_sum), 1, NULL);
 	result = nn_dup_F(result, 0, NULL, 1, NULL);
-
-	int num_names = ARRAY_SIZE(resnet_weight_names) + ARRAY_SIZE(resnet_stack_weight_names);
-	const char* names[num_names];
-	for (unsigned int i = 0; i < ARRAY_SIZE(resnet_weight_names); i++)
-		names[i] = resnet_weight_names[i];
-	for (unsigned int i = 0; i < ARRAY_SIZE(resnet_stack_weight_names); i++)
-		names[i + ARRAY_SIZE(resnet_weight_names)] = resnet_stack_weight_names[i];
-
 	
-	result = nn_sort_inputs_by_list_F(result, num_names, names);
+	result = nn_sort_inputs_by_list_F(result, ARRAY_SIZE(resnet_sorted_weight_names), resnet_sorted_weight_names);
+	result = nn_sort_outputs_by_list_F(result, ARRAY_SIZE(resnet_sorted_weight_names), resnet_sorted_weight_names);
 
 	return nn_checkpoint_F(result, true, config->INTERFACE.low_mem);
 }
@@ -270,19 +256,13 @@ nn_t network_resnet_create(const struct network_s* _config, unsigned int N, cons
 
 DEF_TYPEID(network_varnet_s);
 
-const char* varnet_weight_names[] = {"conv", "rbf"};
-const char* varnet_stack_weight_names[] = {"none"};
+const char* varnet_sorted_weight_names[] = {"conv", "rbf"};
 
 struct network_varnet_s network_varnet_default = {
 
 	.INTERFACE.TYPEID = &TYPEID2(network_varnet_s),
 	
 	.INTERFACE.create = network_varnet_create,
-
-	.INTERFACE.no_weight_names = ARRAY_SIZE(varnet_weight_names),
-	.INTERFACE.weight_names = varnet_weight_names,
-	.INTERFACE.no_stack_weight_names = ARRAY_SIZE(varnet_stack_weight_names),
-	.INTERFACE.stack_weight_names = varnet_stack_weight_names,
 
 	.INTERFACE.low_mem = false,
 
@@ -374,6 +354,8 @@ nn_t network_varnet_create(const struct network_s* _config, unsigned int N, cons
 		nn_result = nn_chain2_FF(nn_result, 0, NULL, nn_from_nlop_F(nlop_zaxpbz_create(N, idims, 1., -1.)), 1, NULL);
 		nn_result = nn_dup_F(nn_result, 0, NULL, 1, NULL);
 	}
+
+	nn_result = nn_sort_inputs_by_list_F(nn_result, ARRAY_SIZE(varnet_sorted_weight_names), varnet_sorted_weight_names);
 
 	nn_debug(DP_DEBUG3, nn_result);
 
