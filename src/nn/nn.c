@@ -521,6 +521,26 @@ nn_t nn_rename_output_F(nn_t op, const char* nname, const char* oname)
 	return result;
 }
 
+void nn_get_in_names_copy(unsigned int N, const char* names[N], nn_t op)
+{
+	assert(nn_get_nr_named_in_args(op) == N);
+
+	for (unsigned int i = 0, i_name= 0; i_name < N; i++)
+		if (NULL != op->in_names[i])
+			names[i_name++] = ptr_printf("%s", op->in_names[i]);
+
+}
+
+void nn_get_out_names_copy(unsigned int N, const char* names[N], nn_t op)
+{
+	assert(nn_get_nr_named_out_args(op) == N);
+
+	for (unsigned int i = 0, i_name= 0; i_name < N; i++)
+		if (NULL != op->out_names[i])
+			names[i_name++] = ptr_printf("%s", op->out_names[i]);
+
+}
+
 nn_t nn_set_initializer_F(nn_t op, int i, const char* iname, const struct initializer_s* ini)
 {
 	auto result = nn_clone(op);

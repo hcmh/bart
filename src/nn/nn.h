@@ -112,6 +112,8 @@ extern _Bool nn_get_dup(nn_t op, int i, const char* iname);
 
 extern const char** nn_get_out_names(nn_t op);
 extern const char** nn_get_in_names(nn_t op);
+extern void nn_get_in_names_copy(unsigned int N, const char* names[N], nn_t op);
+extern void nn_get_out_names_copy(unsigned int N, const char* names[N], nn_t op);
 
 extern int nn_get_nr_weights(nn_t op);
 extern void nn_get_in_types(nn_t op, unsigned int N, enum IN_TYPE in_types[N]);
