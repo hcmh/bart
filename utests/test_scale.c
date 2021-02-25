@@ -45,7 +45,6 @@ struct testFun_s {
 	const long* in_dims;
 	const long* out_dims;
 
-	const long* strs;
 	const long* map_strs;
 	const long* in_strs;
 	const long* out_strs;
@@ -150,7 +149,6 @@ static void test_del(const nlop_data_t* _data)
 	xfree(data->in_dims);
 	xfree(data->out_dims);
 
-	xfree(data->strs);
 	xfree(data->map_strs);
 	xfree(data->in_strs);
 	xfree(data->out_strs);
@@ -256,10 +254,10 @@ static bool test_nlop_op_ev(void)
 	nlop_get_partial_ev(test, in_dims, ev, src);
 
 	if (crealf(ev[0]) != 1.)
-		return 0;
+		UT_ASSERT(0);
 
 	if (crealf(ev[1]) != 4.)
-		return 0;
+		UT_ASSERT(0);
 
 	nlop_free(test);
 
@@ -291,14 +289,13 @@ static bool test_nlop_op_scaling(void)
 	// Compare to reference 1
 	nlop_get_partial_scaling(test, in_dims, scaling, src, 1);
 
-	if (crealf(scaling[0]) != 4.)
-		return 0;
+	if (crealf(scaling[0]) - 4. > UT_TOL)
+		UT_ASSERT(0);
 
-	if (crealf(scaling[1]) != 1.)
-		return 0;
+	if (crealf(scaling[1]) - 1. > UT_TOL)
+		UT_ASSERT(0);
 
-	// FIXME: Fix memory leak: What is the difference to code in "test_nlop_op_ev"?!
-	// nlop_free(test);
+	nlop_free(test);
 
 	md_free(src);
 	md_free(scaling);
