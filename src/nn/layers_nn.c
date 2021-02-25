@@ -227,6 +227,7 @@ nn_t nn_append_batchnorm_layer(nn_t network, int o, const char* oname, const cha
 	nn_clone_args(result, network);
 
 	result = nn_set_in_type_F(result, -1, NULL, IN_BATCHNORM);
+	result = nn_set_dup_F(result, -1, NULL, false);
 	result = nn_set_out_type_F(result, -1, NULL, OUT_BATCHNORM);
 	result = nn_set_initializer_F(result, -1, NULL, (NULL != init) ? init : init_const_create(0.));
 

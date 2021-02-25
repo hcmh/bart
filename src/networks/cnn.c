@@ -238,6 +238,7 @@ nn_t network_resnet_create(const struct network_s* _config, unsigned int N, cons
 		result = nn_set_input_name_F(result, -1, "gamma");
 		result = nn_set_initializer_F(result, 0, "gamma", init_const_create(0));
 		result = nn_set_in_type_F(result, 0, "gamma", IN_OPTIMIZE);
+		result = nn_set_dup_F(result, 0, "gamma", false);
 	}
 	
 	if (config->bias)
