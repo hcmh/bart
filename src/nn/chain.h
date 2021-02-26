@@ -53,4 +53,9 @@ extern nn_t nn_mark_dup_if_exists_F(nn_t x, const char* name);
 extern nn_t nn_mark_stack_input_if_exists_F(nn_t x, const char* name);
 extern nn_t nn_mark_stack_output_if_exists_F(nn_t x, const char* name);
 
+extern nn_t nn_real_input(nn_t op, int i, const char* iname);
+extern nn_t nn_real_output(nn_t op, int o, const char* oname);
+extern nn_t nn_real_input_F(nn_t op, int i, const char* iname);
+extern nn_t nn_real_output_F(nn_t op, int o, const char* oname);
+
 #endif

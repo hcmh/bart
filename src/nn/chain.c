@@ -11,11 +11,101 @@
 #include "num/iovec.h"
 #include "num/multind.h"
 
+#include "linops/someops.h"
+
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
+#include "nlops/cast.h"
 
 #include "nn/nn.h"
 #include "chain.h"
+
+/**
+ * Add real value constraint to intput of nn_t
+ *
+ * @param op nn_t struct
+ * @param i input index (ignored if iname != NULL)
+ * @param iname name of input
+ * @returns nn_t with real input
+ */
+nn_t nn_real_input(nn_t op, int i, const char* iname)
+{
+	auto iov = nn_generic_domain(op, i, iname);
+
+	i = nn_get_in_arg_index(op, i, iname);
+
+	auto rvc = nlop_from_linop_F(linop_zreal_create(iov->N, iov->dims));
+	auto nlop_result = nlop_chain2(rvc, 0, nn_get_nlop(op), i);
+	nlop_free(rvc);
+	nlop_result = nlop_shift_input_F(nlop_result, i, nlop_get_nr_in_args(nlop_result) - 1);
+
+	auto result = nn_from_nlop_F(nlop_result);
+
+	for (unsigned int i = 0; i < nn_get_nr_in_args(result); i++)
+		nn_clone_arg_i_from_i(result, i, op, i);
+	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
+		nn_clone_arg_o_from_o(result, i, op, i);
+	return result;
+}
+
+/**
+ * Add real value constraint to outtput of nn_t
+ *
+ * @param op nn_t struct
+ * @param o output index (ignored if oname != NULL)
+ * @param oname name of output
+ * @returns nn_t with real input
+ */
+nn_t nn_real_output(nn_t op, int o, const char* oname)
+{
+	auto iov = nn_generic_codomain(op, o, oname);
+
+	o = nn_get_out_arg_index(op, o, oname);
+
+	auto rvc = nlop_from_linop_F(linop_zreal_create(iov->N, iov->dims));
+	auto nlop_result = nlop_chain2(nn_get_nlop(op), o, rvc, 0);
+	nlop_free(rvc);
+	nlop_result = nlop_shift_output_F(nlop_result, o, 0);
+
+	auto result = nn_from_nlop_F(nlop_result);
+
+	for (unsigned int i = 0; i < nn_get_nr_in_args(result); i++)
+		nn_clone_arg_i_from_i(result, i, op, i);
+	for (unsigned int i = 0; i < nn_get_nr_out_args(result); i++)
+		nn_clone_arg_o_from_o(result, i, op, i);
+	return result;
+}
+
+/**
+ * Add real value constraint to intput of nn_t
+ *
+ * @param op nn_t struct
+ * @param i input index (ignored if iname != NULL)
+ * @param iname name of input
+ * @returns nn_t with real input
+ */
+nn_t nn_real_input_F(nn_t op, int i, const char* iname)
+{
+	auto result = nn_real_input(op, i, iname);
+	nn_free(op);
+	return result;
+}
+
+/**
+ * Add real value constraint to outtput of nn_t
+ *
+ * @param op nn_t struct
+ * @param o output index (ignored if oname != NULL)
+ * @param oname name of output
+ * @returns nn_t with real input
+ */
+nn_t nn_real_output_F(nn_t op, int o, const char* oname)
+{
+	auto result = nn_real_output(op, o, oname);
+	nn_free(op);
+	return result;
+}
+
 
 /**
  * Reshape output of nn_t
