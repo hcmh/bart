@@ -15,6 +15,9 @@ extern const struct initializer_s* init_dup_create(const struct initializer_s* i
 extern unsigned long in_flag_conv(_Bool c1);
 extern unsigned long out_flag_conv(_Bool c1);
 
+extern unsigned long in_flag_conv_generic(int N, unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag);
+extern unsigned long out_flag_conv_generic(int N, unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag);
+
 extern const struct initializer_s* init_const_create(_Complex float val);
 extern const struct initializer_s* init_xavier_create(unsigned long in_flags, unsigned long out_flags, _Bool real, _Bool uniform);
 extern const struct initializer_s* init_kaiming_create(unsigned long in_flags, _Bool real, _Bool uniform, float leaky_val);

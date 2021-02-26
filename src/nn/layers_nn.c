@@ -38,18 +38,7 @@ nn_t nn_append_convcorr_layer_generic(
 
 	result = nn_set_in_type_F(result, -1, NULL, IN_OPTIMIZE);
 	
-	unsigned long in_flag = 0;
-	for (int i = N - 1; i >= 0; i--){
-
-		if (MD_IS_SET(conv_flag, i))
-			in_flag = MD_SET(in_flag, i);
-
-		if (MD_IS_SET(channel_flag, i)){
-
-			in_flag = MD_SET(in_flag, i);
-			in_flag *= 2;
-		}
-	}
+	unsigned long in_flag = in_flag_conv_generic(N, conv_flag, channel_flag, group_flag);
 
 	result = nn_set_initializer_F(result, -1, NULL, (NULL != init) ? init : init_kaiming_create(in_flag, true, false, 0));
 
@@ -92,18 +81,7 @@ nn_t nn_append_transposed_convcorr_layer_generic(
 
 	result = nn_set_in_type_F(result, -1, NULL, IN_OPTIMIZE);
 	
-	unsigned long in_flag = 0;
-	for (int i = N - 1; i >= 0; i--){
-
-		if (MD_IS_SET(conv_flag, i))
-			in_flag = MD_SET(in_flag, i);
-
-		if (MD_IS_SET(channel_flag, i)){
-
-			in_flag *= 2;
-			in_flag = MD_SET(in_flag, i);
-		}
-	}
+	unsigned long in_flag = out_flag_conv_generic(N, conv_flag, channel_flag, group_flag); //input of conv is output of transposed conv
 
 	result = nn_set_initializer_F(result, -1, NULL, (NULL != init) ? init : init_kaiming_create(in_flag, true, false, 0));
 

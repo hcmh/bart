@@ -53,6 +53,59 @@ void initializer_apply(const struct initializer_s* x, long N, const long dims[N]
 	x->fun(x, N, dims, weights);
 }
 
+unsigned long in_flag_conv_generic(int N, unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag)
+{
+	unsigned long in_flag = 0;
+	for (int i = N - 1; i >= 0; i--){
+
+		if (MD_IS_SET(conv_flag, i)) {
+
+			in_flag = MD_SET(in_flag, i);
+			continue;
+		}
+
+		if (MD_IS_SET(channel_flag, i)){
+
+			in_flag = MD_SET(in_flag, i);
+			in_flag *= 2;
+			continue;
+		}
+
+		if (MD_IS_SET(group_flag, i))
+			continue;
+		
+		in_flag /= 2;
+	}
+
+	return in_flag;
+}
+
+unsigned long out_flag_conv_generic(int N, unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag)
+{
+	unsigned long out_flag = 0;
+	for (int i = N - 1; i >= 0; i--){
+
+		if (MD_IS_SET(conv_flag, i)) {
+
+			out_flag = MD_SET(out_flag, i);
+			continue;
+		}
+
+		if (MD_IS_SET(channel_flag, i)){
+
+			out_flag *= 2;
+			out_flag = MD_SET(out_flag, i);
+		continue;
+		}
+
+		if (MD_IS_SET(group_flag, i))
+			continue;
+		
+		out_flag /= 2;
+	}
+
+	return out_flag;
+}
 
 unsigned long in_flag_conv(bool c1)
 {
