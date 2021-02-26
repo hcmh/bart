@@ -38,6 +38,18 @@ static const complex float mask_d[] = 	 	{ 0, 0, 0, 0, 0,
 						  0, 1, 1, 1, 0,
 						  0, 0, 0, 0, 0 };
 
+static const complex float vals_d[] = 	 	{ 0, 0, 0, 0, 0,
+						  0, 0, 0, 0, 0,
+						  1, 0, 0, 0,-1,
+						  0, 0, 0, 0, 0,
+						  0, 0, 0, 0, 0 };
+
+static const complex float rhs_d[] = 	 	{ 0, 0, 0, 0, 0,
+						  0, 0, 0, 0, 0,
+						  0,-1, 0, 1, 0,
+						  0, 0, 0, 0, 0,
+						  0, 0, 0, 0, 0 };
+// remember the holy order of fortran
 // remember the holy order of fortran
 static const complex float laplace_neumann_d[] =
 	{ 0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,    0, 0, 0, 0, 0,
@@ -235,7 +247,7 @@ static bool test_laplace_dirichlet(void)
 
 	struct boundary_point_s *boundary = md_alloc(1, boundary_dimensions, sizeof(struct boundary_point_s));
 
-	long n_points = calc_boundary_points(N+1, grad_dims, boundary, grad_dim, normal);
+	long n_points = calc_boundary_points(N+1, grad_dims, boundary, grad_dim, normal, NULL);
 
 	md_free(normal);
 
@@ -282,7 +294,7 @@ static bool test_laplace_dirichlet(void)
 
 
 
-static bool generic_laplace_neumann(const long N, const long dims[N], const complex float *mask, const complex float *ref)
+static bool generic_laplace_neumann(const long N, const long dims[N], const complex float *mask, const complex float *boundary_values, const complex float *ref, const complex float *rhs_ref)
 {
 	//calculate normal
 	long grad_dim = N - 1;
@@ -298,7 +310,7 @@ static bool generic_laplace_neumann(const long N, const long dims[N], const comp
 
 	struct boundary_point_s *boundary = md_alloc(1, boundary_dimensions, sizeof(struct boundary_point_s));
 
-	long n_points = calc_boundary_points(N, grad_dims, boundary, grad_dim, normal);
+	long n_points = calc_boundary_points(N, grad_dims, boundary, grad_dim, normal, boundary_values);
 
 	//create laplace
 	struct sparse_diag_s *mat = sd_laplace_create(N - 1, dims);
@@ -316,11 +328,19 @@ static bool generic_laplace_neumann(const long N, const long dims[N], const comp
 	sparse_diag_to_dense(2, mat_dims, dense, mat);
 
 	float err = md_zrmse(2, mat_dims, ref, dense);
+	bool ok = (err < 1e-6);
+
+	//verify rhs
+	complex float *rhs = md_calloc(N - 1, dims, CFL_SIZE);
+	set_laplace_neumann_rhs(N-1, dims, rhs,	n_points, boundary);
+	err = md_zrmse(N - 1, dims, rhs, rhs_ref);
+	ok &= (err < 1e-6);
 
 	md_free(normal);
 	md_free(boundary);
 	sparse_diag_free(mat);
 	md_free(dense);
+	md_free(rhs);
 
 	debug_printf(DP_DEBUG1, "laplace_neumann rmse: %f\n", err);
 	return err < 1e-16;
@@ -329,7 +349,7 @@ static bool generic_laplace_neumann(const long N, const long dims[N], const comp
 
 static bool test_laplace_neumann(void)
 {
-	return generic_laplace_neumann(N_d, dims_d, mask_d, laplace_neumann_d);
+	return generic_laplace_neumann(N_d, dims_d, mask_d, vals_d, laplace_neumann_d, rhs_d);
 }
 
 static bool test_linop_sd_matvec(void)

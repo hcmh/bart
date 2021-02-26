@@ -91,18 +91,19 @@ void calc_outward_normal(const long N, const long grad_dims[N], complex float *g
  *
  * @returns 		number of points on the boundary
  */
-long calc_boundary_points(const long N, const long dims[N], struct boundary_point_s *boundary, const long grad_dim, const complex float *normal)
+long calc_boundary_points(const long N, const long dims[N], struct boundary_point_s *boundary, const long grad_dim, const complex float *normal, const complex float *values)
 {
 	assert(N <= N_boundary_point_s);
 	assert(N - 1 == grad_dim);
 
-	long pos[N], strs[N], n_points = 0, offset = 0;
+	long pos[N], strs[N], boundary_pos[N], n_points = 0, offset = 0;
 	const long flags = (MD_BIT(N) - 1) & (~MD_BIT(grad_dim));
 
 	assert(dims[grad_dim] == bitcount(flags));
 	assert(!MD_IS_SET(flags, grad_dim));
 
 	md_set_dims(N, pos, 0);
+	md_set_dims(N, boundary_pos, 0);
 	md_calc_strides(N, strs, dims, CFL_SIZE);
 
 	do {
@@ -111,7 +112,7 @@ long calc_boundary_points(const long N, const long dims[N], struct boundary_poin
 
 		bool is_boundary = false;
 		float val = 0;
-		for ( int i = 0; i < dims[grad_dim]; i++) {
+		for (int i = 0; i < dims[grad_dim]; i++) {
 			val = *((complex float *) ((void *)normal + offset + i*strs[grad_dim]));
 			point->dir[i] = (fabsf(val) > 1e-16) ? (long)(val / fabsf(val)) : 0;
 			is_boundary  |= (fabsf(val) > 1e-16);
@@ -120,6 +121,16 @@ long calc_boundary_points(const long N, const long dims[N], struct boundary_poin
 
 		if (is_boundary) {
 			md_select_dims(N, flags, point->index, pos);
+			if (NULL != values) {
+				for (int j = 0; j < N; j++)
+					if(j != grad_dim)
+						boundary_pos[j] = point->index[j] + point->dir[j];
+				long offset = md_calc_offset(N, strs, boundary_pos);
+				complex float val = *(complex float *)((void *)values + offset);
+				point->val = val;
+			} else {
+				point->val = 0;
+			}
 			n_points++;
 		}
 
@@ -146,5 +157,20 @@ void clear_mask_forward(const long N, const long dims[N], complex float *out, co
 				*(complex float *)((void *)out + offset) = 1;
 			}
 		}
+	}
+}
+
+
+void shrink_wrap(const long N, const long dims[N], complex float *out, const long n_points, const struct boundary_point_s *boundary, const complex float *mask)
+{
+	if (out != mask)
+		md_copy(N, dims, out, mask, CFL_SIZE);
+
+	long offset = 0, strs[N];
+	md_calc_strides(N, strs, dims, CFL_SIZE);
+
+	for (long i = 0; i < n_points; i++) {
+		offset = md_calc_offset(N, strs, boundary[i].index);
+		*(complex float *)((void *)out + offset) = 0;
 	}
 }

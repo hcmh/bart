@@ -39,6 +39,8 @@ void laplace_dirichlet(struct sparse_diag_s *mat, const long N, const long dims[
 
 void laplace_neumann(struct sparse_diag_s *mat, const long N, const long dims[N], const long n_points, struct boundary_point_s boundary[n_points]);
 
+void set_laplace_neumann_rhs(const long N, const long dims[N], _Complex float *rhs, const long n_points, const struct boundary_point_s boundary[n_points]);
+
 void sd_matvec(long N, long dims[N], _Complex float *out, const _Complex float *vec, const struct sparse_diag_s *mat);
 
 void sd_mask(const long N, const long dims[N], struct sparse_diag_s *mat, const _Complex float *mask);

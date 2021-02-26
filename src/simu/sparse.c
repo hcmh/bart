@@ -302,6 +302,21 @@ void laplace_neumann(struct sparse_diag_s *mat, const long N, const long dims[N]
 }
 
 
+void set_laplace_neumann_rhs(const long N, const long dims[N], complex float *rhs, const long n_points, const struct boundary_point_s boundary[n_points])
+{
+	long index_strides[N], strs[N], pos[N];
+	md_set_dims(N, pos, 0);
+	calc_index_strides(N, index_strides, dims);
+	md_calc_strides(N, strs, dims, CFL_SIZE);
+	for (long i = 0; i < n_points; i++) {
+		if ( cabsf(boundary[i].val) > 0 ) {
+			long offset = md_calc_offset(N, strs, boundary[i].index);
+			*(complex float *)((void *)rhs + offset) -= boundary[i].val;
+		}
+
+	}
+}
+
 void sd_mask(const long N, const long dims[N], struct sparse_diag_s *mat, const complex float *mask)
 {
 	long pos[N], strs[N], index_strs[N];
