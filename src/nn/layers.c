@@ -141,7 +141,7 @@ const struct nlop_s* append_convcorr_layer_generic(
 			debug_print_dims(DP_INFO, N, strides);
 			debug_printf(DP_INFO, "convcorr dilations: ");
 			debug_print_dims(DP_INFO, N, dilations);
-			error("Dilations and Strides are only involved in spatial dimensions!\n");
+			error("Dilations and Strides are only allowed in spatial dimensions!\n");
 		}
 
 		if (MD_IS_SET(channel_flag, i)) {
@@ -328,7 +328,7 @@ const struct nlop_s* append_transposed_convcorr_layer_generic(
 			debug_print_dims(DP_INFO, N, strides);
 			debug_printf(DP_INFO, "convcorr dilations: ");
 			debug_print_dims(DP_INFO, N, dilations);
-			error("Dilations and Strides are only involved in spatial dimensions!\n");
+			error("Dilations and Strides are only allowed in spatial dimensions!\n");
 		}
 
 		if (MD_IS_SET(channel_flag, i)) {
