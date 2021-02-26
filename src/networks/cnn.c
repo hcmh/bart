@@ -3,14 +3,13 @@
 
 #include "misc/debug.h"
 #include "misc/types.h"
-#include "nn/activation.h"
+#include "misc/mri.h"
+#include "misc/misc.h"
+
 #include "num/multind.h"
 #include "num/iovec.h"
 
 #include "iter/proj.h"
-
-#include "misc/mri.h"
-#include "misc/misc.h"
 
 #include "linops/linop.h"
 #include "linops/someops.h"
@@ -22,6 +21,7 @@
 #include "nlops/someops.h"
 
 #include "nn/activation_nn.h"
+#include "nn/activation.h"
 #include "nn/rbf.h"
 #include "nn/chain.h"
 #include "nn/nn.h"
@@ -202,7 +202,7 @@ nn_t network_resnet_create(const struct network_s* _config, unsigned int N, cons
 		if (MD_IS_SET(tgroup_flag, i) && (ldims[i] != odims[i])) {
 
 			tgroup_flag = MD_CLEAR(tgroup_flag, i);
-			tchannel_flag = MD_CLEAR(tchannel_flag, i);
+			tchannel_flag = MD_SET(tchannel_flag, i);
 		}
 	}
 
