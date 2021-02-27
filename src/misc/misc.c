@@ -619,3 +619,19 @@ const char* ptr_printf(const char* fmt, ...)
 	va_end(ap);
 	return result;
 }
+
+const char* ptr_print_dims(int D, const long dims[D])
+{
+	const char* result = ptr_printf("[");
+	
+	for (int i = 0; i < D; i++) {
+
+		const char* tmp = ptr_printf("%s%3ld ", result, dims[i]);
+		xfree(result);
+		result = tmp;
+	}
+
+	const char* tmp = ptr_printf("%s]", result);
+	xfree(result);
+	return tmp;
+}
