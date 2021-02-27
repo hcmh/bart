@@ -132,7 +132,7 @@ int main_pde(int argc, char* argv[])
 	{
 		UNUSED(x);
 		UNUSED(_data);
-		return hist > 0 ? ( 0 == iter % 30 ) : false;
+		return hist > 0 ? ( 0 == iter % hist ) : false;
 	};
 	auto mon = create_monitor_recorder(N, grad_dims, "j_step", (void *)&j_dat, selector, j_wrapper);
 
