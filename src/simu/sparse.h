@@ -1,13 +1,3 @@
-#ifndef N_boundary_point_s
-#define N_boundary_point_s 4
-struct boundary_point_s {
-	long index[N_boundary_point_s];
-	_Complex float val;
-	int dir[N_boundary_point_s];
-};
-#endif
-
-
 struct sparse_diag_s {
 	long N;
 	long len;
@@ -32,14 +22,6 @@ void sparse_diag_to_dense(const long N, const long dims[N], _Complex float *out,
 void calc_index_strides(const long N, long index_strides[N], const long dims[N]);
 long calc_index_size(const long N, const long index_strides[N], const long dims[N]);
 long calc_index(const long N, const long index_strides[N], const long pos[N]);
-
-struct sparse_diag_s* sd_laplace_create(long N, const long dims[N]);
-
-void laplace_dirichlet(struct sparse_diag_s *mat, const long N, const long dims[N], const long n_points, struct boundary_point_s points[n_points]);
-
-void laplace_neumann(struct sparse_diag_s *mat, const long N, const long dims[N], const long n_points, struct boundary_point_s boundary[n_points]);
-
-void set_laplace_neumann_rhs(const long N, const long dims[N], _Complex float *rhs, const long n_points, const struct boundary_point_s boundary[n_points]);
 
 void sd_matvec(long N, long dims[N], _Complex float *out, const _Complex float *vec, const struct sparse_diag_s *mat);
 

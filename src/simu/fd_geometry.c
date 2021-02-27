@@ -1,6 +1,6 @@
 /*
- * Poisson Equation with Neuman Boundary Conditions
- * on non-rectangular domain
+ * Finite difference geometry helper functions
+ *
  */
 
 #include <assert.h>
@@ -25,7 +25,7 @@
  * @param N 		number of dimensions
  * @param grad_dims 	dimensions of normal
  * @param grad		Output (normal vectors)
- * @param grad_dim 	dimension which will hold normal direction
+ * @param grad_dim 	normal vector dimension
  * @param dims		Mask dimensions
  * @param mask mask     Input (Mask)
  *
@@ -86,7 +86,7 @@ void calc_outward_normal(const long N, const long grad_dims[N], complex float *g
  * @param N 		number of dimensions
  * @param dims 		dimensions
  * @param boundary	sufficiently large allocation to store boundary points
- * @param grad_dim	vector component index dimension
+ * @param grad_dim	normal vector dimension
  * @param normal	outward normal
  *
  * @returns 		number of points on the boundary
@@ -94,9 +94,8 @@ void calc_outward_normal(const long N, const long grad_dims[N], complex float *g
 long calc_boundary_points(const long N, const long dims[N], struct boundary_point_s *boundary, const long grad_dim, const complex float *normal, const complex float *values)
 {
 	assert(N <= N_boundary_point_s);
-	assert(N - 1 == grad_dim);
 
-	long pos[N], strs[N], boundary_pos[N], n_points = 0, offset = 0;
+	long pos[N], strs[N], value_dims[N], value_strs[N], boundary_pos[N], n_points = 0, offset = 0;
 	const long flags = (MD_BIT(N) - 1) & (~MD_BIT(grad_dim));
 
 	assert(dims[grad_dim] == bitcount(flags));
@@ -104,7 +103,10 @@ long calc_boundary_points(const long N, const long dims[N], struct boundary_poin
 
 	md_set_dims(N, pos, 0);
 	md_set_dims(N, boundary_pos, 0);
+	md_select_dims(N, flags, value_dims, dims);
+
 	md_calc_strides(N, strs, dims, CFL_SIZE);
+	md_calc_strides(N, value_strs, value_dims, CFL_SIZE);
 
 	do {
 		offset = md_calc_offset(N, strs, pos);
@@ -120,13 +122,18 @@ long calc_boundary_points(const long N, const long dims[N], struct boundary_poin
 		}
 
 		if (is_boundary) {
-			md_select_dims(N, flags, point->index, pos);
+			int k = 0;
+			for (int j = 0; j < N; j++) {
+				if(j != grad_dim) {
+					// grad_dim is not relevant for list of boundary points
+					point->index[k] = pos[j];
+					boundary_pos[j] = point->index[k] + point->dir[k];
+					k++;
+				}
+			}
 			if (NULL != values) {
-				for (int j = 0; j < N; j++)
-					if(j != grad_dim)
-						boundary_pos[j] = point->index[j] + point->dir[j];
-				long offset = md_calc_offset(N, strs, boundary_pos);
-				complex float val = *(complex float *)((void *)values + offset);
+				long value_offset = md_calc_offset(N, value_strs, boundary_pos);
+				complex float val = *(complex float *)((void *)values + value_offset);
 				point->val = val;
 			} else {
 				point->val = 0;
@@ -161,16 +168,25 @@ void clear_mask_forward(const long N, const long dims[N], complex float *out, co
 }
 
 
-void shrink_wrap(const long N, const long dims[N], complex float *out, const long n_points, const struct boundary_point_s *boundary, const complex float *mask)
+/*
+ * Shrink a mask by setting the pixels on the boundary to 0.
+ * @param N		number of dimensions
+ * @param dims		dimensions
+ * @param dst		new mask
+ * @param n_points	number of points on the boundary
+ * @param boundary	list of boundary points
+ * @param src		old mask
+ */
+void shrink_wrap(const long N, const long dims[N], complex float *dst, const long n_points, const struct boundary_point_s *boundary, const complex float *src)
 {
-	if (out != mask)
-		md_copy(N, dims, out, mask, CFL_SIZE);
+	if (dst != src)
+		md_copy(N, dims, dst, src, CFL_SIZE);
 
 	long offset = 0, strs[N];
 	md_calc_strides(N, strs, dims, CFL_SIZE);
 
 	for (long i = 0; i < n_points; i++) {
 		offset = md_calc_offset(N, strs, boundary[i].index);
-		*(complex float *)((void *)out + offset) = 0;
+		*(complex float *)((void *)dst + offset) = 0;
 	}
 }
