@@ -722,7 +722,7 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 
 	assert(0 != fp);
 
-	fprintf(fp, "digraph { \n");
+	fprintf(fp, "digraph {\nnewrank=true;\n");
 
 	fprintf(fp, "{\n%s}\n", str);
 
@@ -763,15 +763,23 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 	int index = 0;
 	if (0 < counter_input) {
 
-		fprintf(fp, "subgraph cluster_inputs{ label = \"Inputs\";\n rank = source;\n");
+		fprintf(fp, "subgraph cluster_inputs{ label = \"Inputs\";\nrank=source;\n");
 		for (int i = 0; i < counter_input; i++, index ++) {
 
 			while ((IN_OPTIMIZE == op->in_types[index]) || (IN_BATCHNORM == op->in_types[index]))
 				index++;
+
+			auto iov = nlop_generic_domain(nn_get_nlop(op), index);
+			const char* tmp = ptr_print_dims(iov->N, iov->dims);
+			const char* str_dims = ptr_printf("\\n%s", tmp);
+			xfree(tmp);
+		
 			if (NULL != op->in_names[index])
-				fprintf(fp, "Input_%d [shape = diamond, label = \"%s\"];\n", i, op->in_names[index]);
+				fprintf(fp, "Input_%d [shape = diamond, label = \"%s%s\"];\n", i, op->in_names[index], str_dims);
 			else
-				fprintf(fp, "Input_%d [shape = diamond];\n", i);
+				fprintf(fp, "Input_%d [shape = diamond, label = \"Input_%d%s\"];\n", i, i, str_dims);
+			
+			xfree(str_dims);
 		}
 
 		fprintf(fp, "\n}\n");
@@ -779,13 +787,20 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 
 	if (0 < OO) {
 
-		fprintf(fp, "subgraph cluster_outputs{ label = \"Outputs\";\n rank = sink;\n");
+		fprintf(fp, "subgraph cluster_outputs{ label = \"Outputs\";\nrank=sink;\n");
 		for (int i = 0; i < OO; i++) {
 
+			auto iov = nlop_generic_codomain(nn_get_nlop(op), i);
+			const char* tmp = ptr_print_dims(iov->N, iov->dims);
+			const char* str_dims = ptr_printf("\\n%s", tmp);
+			xfree(tmp);
+
 			if (NULL != op->out_names[i])
-				fprintf(fp, "Output_%d [shape = diamond, label = \"%s\"];\n", i, op->out_names[i]);
+				fprintf(fp, "Output_%d [shape = diamond, label = \"%s%s\"];\n", i, op->out_names[i], str_dims);
 			else
-				fprintf(fp, "Output_%d [shape = diamond];\n", i);
+				fprintf(fp, "Output_%d [shape = diamond, label = \"Output_%d%s\"];\n", i, i, str_dims);
+			
+			xfree(str_dims);
 		}
 		fprintf(fp, "edge[ style=invis];\nOutput_0");
 		for (int i = 1; i < OO; i++)
@@ -798,16 +813,24 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 	index = 0;
 	if (0 < counter_weight) {
 
-		fprintf(fp, "subgraph cluster_weights{\n label = \"Weights\";\n rank = source;\n");
+		fprintf(fp, "subgraph cluster_weights{\n label = \"Weights\";\n rank=source;\n");
 
 		for (int i = 0; i < counter_weight; i++, index ++) {
 
 			while (!((IN_OPTIMIZE == op->in_types[index]) || (IN_BATCHNORM == op->in_types[index])))
 				index++;
+			
+			auto iov = nlop_generic_domain(nn_get_nlop(op), index);
+			const char* tmp = ptr_print_dims(iov->N, iov->dims);
+			const char* str_dims = ptr_printf("\\n%s", tmp);
+			xfree(tmp);
+
 			if (NULL != op->in_names[index])
-				fprintf(fp, "Weight_%d [shape = diamond, label = \"%s\"];\n", i, op->in_names[index]);
+				fprintf(fp, "Weight_%d [shape = diamond, label = \"%s%s\"];\n", i, op->in_names[index], str_dims);
 			else
-				fprintf(fp, "Weight_%d [shape = diamond];\n", i);
+				fprintf(fp, "Weight_%d [shape = diamond, label = \"Weight_%d%s\"];\n", i, i, str_dims);
+			
+			xfree(str_dims);
 		}
 		fprintf(fp, "edge[ style=invis];\nWeight_0");
 		for (int i = 1; i < counter_weight; i++)
