@@ -102,7 +102,7 @@ const struct nlop_s* append_activation(const struct nlop_s* network, int o, enum
  * @param network operator to append the activation (this operator is freed)
  * @param o output index of network, the layer is appended
  * @param activation type of activation
- * @param bflags select the dims of the bias, i.e. the dims which are not shared
+ * @param bflags select the dims of the bias, i.e. the dims which are not shared. In case of ACT_SOFTMAX, ~bflags is interpreted as batchflags.
  */
 const struct nlop_s* append_activation_bias(const struct nlop_s* network, int o, enum ACTIVATION activation, unsigned long bflags)
 {
@@ -132,7 +132,7 @@ const struct nlop_s* append_activation_bias(const struct nlop_s* network, int o,
 
 		case ACT_SOFTMAX:
 
-			nlop_act = nlop_softmax_bias_create(N, dims, MD_BIT(N-1), bdims);
+			nlop_act = nlop_softmax_bias_create(N, dims, ~bflags, bdims);
 			break;
 
 		case ACT_SIGMOID:
@@ -713,7 +713,7 @@ const struct nlop_s* nlop_softmax_bias_create(unsigned int N, const long dims[N]
 {
 	const struct nlop_s* act = nlop_softmax_create(N, dims, batch_flag);
 	const struct nlop_s* bias = nlop_bias_create(N, dims, bdims);
-	const struct nlop_s*  result = nlop_chain2(bias, 0, act, 0);
+	const struct nlop_s* result = nlop_chain2(bias, 0, act, 0);
 	nlop_free(bias);
 	nlop_free(act);
 	return result;
