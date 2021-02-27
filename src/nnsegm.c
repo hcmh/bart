@@ -19,7 +19,7 @@
 #include "misc/opts.h"
 #include "misc/mmio.h"
 
-#include "nn/nn_segm.h"
+#include "networks/nn_segm.h"
 
 #ifndef CFL_SIZE
 #define CFL_SIZE sizeof(complex float)
@@ -78,7 +78,7 @@ int main_nnsegm(int argc, char* argv[])
 	segm.imgx = dims_in[0];
 	segm.imgy = dims_in[1];
 	segm.classes = dims_out[0];
-#if 0
+#if 1
 	nn_weights_t weights;
 	if (initialize)
 		weights = init_nn_segm_new(&segm);
@@ -133,9 +133,9 @@ int main_nnsegm(int argc, char* argv[])
 		N_batch = (dims_in[2] >= 5) ? 5 : dims_in[2];
 
 	complex float* in_gpu  = NULL;
-	complex float* weights_gpu = NULL;
 	complex float* out_gpu = NULL;
-#if 0
+#if 1
+	nn_weights_t weights_gpu = NULL;
 	if (train){
 
 		printf("Train\n");
@@ -159,6 +159,7 @@ int main_nnsegm(int argc, char* argv[])
 	}
 	nn_weights_free(weights);
 #else
+	complex float* weights_gpu = NULL;
 	if (train){
 
 		printf("Train\n");
@@ -180,10 +181,10 @@ int main_nnsegm(int argc, char* argv[])
 								(NULL == in_gpu) ? in : in_gpu, (NULL == out_gpu) ? out : out_gpu, &segm));
 	}
 	unmap_cfl(1, dims_weights, weights);
+	md_free(weights_gpu);
 #endif
 	md_free(out_gpu);
 	md_free(in_gpu);
-	md_free(weights_gpu);
 
 	unmap_cfl(4, dims_out, out);
 	unmap_cfl(3, dims_in, in);

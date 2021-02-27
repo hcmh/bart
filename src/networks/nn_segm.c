@@ -54,6 +54,8 @@
 
 #include "nn_segm.h"
 
+#include "networks/unet.h"
+
 const struct segm_s segm_default = {
 
 	.Nb = 5,
@@ -112,6 +114,11 @@ static void hotenc_to_index(int N_batch, long* prediction, const complex float* 
 
 static nn_t get_nn_segm_new(int N_batch, struct segm_s* segm, enum NETWORK_STATUS status)
 {
+	long idims[] = { 1, segm->imgx, segm->imgy, 1, N_batch }; // channel, x, y, z, batch
+	long outdims[] = { segm->classes, segm->imgx, segm->imgy, 1, N_batch }; // channel, x, y, z, batch
+
+	return network_unet_create(CAST_UP(&network_unet_default_segm), 5, outdims, 5, idims, status);
+
 	unsigned int N = 5;
 	long indims[] = { 1, segm->imgx, segm->imgy, 1, N_batch }; // channel, x, y, z, batch
 	long expdims[] = { 2, segm->imgx, segm->imgy, 1, N_batch }; // expand dimensions, channel, x, y, z, batch
@@ -663,6 +670,8 @@ void predict_nn_segm_new(int N_total, int N_batch, long* prediction, nn_weights_
 #endif
 
 		complex float* tmp_out = md_alloc_sameplace(2, outdims, CFL_SIZE, tmp_in);
+
+		nlop_debug(DP_INFO, nlop_predict);
 
 		nlop_apply(nlop_predict, 2, outdims, tmp_out, N, indims, tmp_in);
 
