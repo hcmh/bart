@@ -283,8 +283,8 @@ struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long 
 					enum PADDING conv_pad, bool conv, const long strides[N], const long dilations[N], char transpc)
 {
 	long ones[N];
-	for (int i = 0; i < N; i++)
-		ones[i] = 1.;
+	md_singleton_dims(N, ones);
+
 	if (NULL == strides)
 		strides = ones;
 	if (NULL == dilations)
@@ -296,27 +296,37 @@ struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long 
 
 	bool transp = ('N' != transpc);
 
+	long pad_for[N];
+	long pad_after[N];
+	md_singleton_strides(N, pad_for);
+	md_singleton_strides(N, pad_after);
+
 	if (PAD_VALID == conv_pad) {
 
 		result = nlop_convcorr_geom_valid_create(N, flags, odims, idims, kdims, conv, strides, dilations, transp);
 	} else {
 
-		long pad[N];
 		long nidims[N];
 		for (int i = 0; i < N; i++) {
 
-				if(MD_IS_SET(flags, i))
-					pad[i] = kdims[i] / 2 * dilations[i];
+			if(MD_IS_SET(flags, i)) {
 
-				else
-					pad[i] = 0;
+				assert(idims[i] == strides[i] * odims[i]);
+				nidims[i] = strides[i] * (odims[i] - 1) + 1 + (kdims[i] - 1) * dilations[i];
+			} else {
 
-			nidims[i] = idims[i] + 2 * pad[i];
+				nidims[i] = idims[i];
+			}
+
+			assert(idims[i] <= nidims[i]);
+
+			pad_for[i] = labs((nidims[i] / 2) - (idims[i] / 2)); // center corresponds to resize_center/ceter of fft
+			pad_after[i] = nidims[i] - idims[i] - pad_for[i];
 		}
 
 		result = nlop_convcorr_geom_valid_create(N, flags, odims, nidims, kdims, conv, strides, dilations, transp);
 
-		struct linop_s* pad_op = linop_padding_create(N, idims, conv_pad, pad, pad);
+		struct linop_s* pad_op = linop_padding_create(N, idims, conv_pad, pad_for, pad_after);
 
 		if (transp) {
 
