@@ -94,10 +94,91 @@ nn_t nn_append_transposed_convcorr_layer_generic(
 }
 
 /**
+ * Append max-pooling layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param oname 
+ * @param N
+ * @param pool_size size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ */
+nn_t nn_append_maxpool_layer_generic(nn_t network, int o, const char* oname, unsigned int N, const long pool_size[N], enum PADDING conv_pad)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_maxpool_layer_generic(nlop_clone(nn_get_nlop(network)), o, N, pool_size, conv_pad));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+/**
+ * Append blur-pooling layer
+ *
+ * Adapted from "Making Convolutional Networks Shift-Invariant Again"
+ * Richard Zhang
+ * arXiv:1904.11486v2
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param oname 
+ * @param N
+ * @param pool_size size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ */
+nn_t nn_append_blurpool_layer_generic(nn_t network, int o, const char* oname, unsigned int N, const long pool_size[N], enum PADDING conv_pad)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_blurpool_layer_generic(nlop_clone(nn_get_nlop(network)), o, N, pool_size, conv_pad));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+/**
+ * Append average pooling layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param oname 
+ * @param N
+ * @param pool_size size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ */
+nn_t nn_append_avgpool_layer_generic(nn_t network, int o, const char* oname, unsigned int N, const long pool_size[N], enum PADDING conv_pad)
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_avgpool_layer_generic(nlop_clone(nn_get_nlop(network)), o, N, pool_size, conv_pad));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+/**
+ * Append scaled nearest-neighbor upsampling layer (adjoint of average pooling)
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param oname 
+ * @param N
+ * @param pool_size size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ */
+nn_t nn_append_upsampl_layer_generic(nn_t network, int o, const char* oname, unsigned int N, const long pool_size[N])
+{
+	o = nn_get_out_arg_index(network, o, oname);
+	auto result = nn_from_nlop_F(append_upsampl_layer_generic(nlop_clone(nn_get_nlop(network)), o, N, pool_size));
+	nn_clone_args(result, network);
+	nn_free(network);
+	return result;
+}
+
+/**
  * Append convolution/correlation layer
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  * @param filters number of output channels
  * @param kernel_size {kx, ky, kz} size of convolution kernel
  * @param conv convolution if true, correlation else
@@ -132,6 +213,7 @@ nn_t nn_append_convcorr_layer(nn_t network, int o, const char* oname, const char
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  * @param filters number of output channels
  * @param kernel_size {kx, ky, kz} size of convolution kernel
  * @param conv convolution if true, correlation else
@@ -166,6 +248,7 @@ nn_t nn_append_transposed_convcorr_layer(nn_t network, int o, const char* oname,
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  * @param neurons number of output neurons
  * @param initializer (NULL falls back to default)
  */
@@ -193,6 +276,7 @@ nn_t nn_append_dense_layer(nn_t network, int o, const char* oname, const char* w
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  * @param norm_flags select dimension over which we normalize
  * @param initializer (NULL falls back to default)
  */
@@ -220,6 +304,16 @@ nn_t nn_append_batchnorm_layer(nn_t network, int o, const char* oname, const cha
 	return result;
 }
 
+/**
+ * Append max-pooling layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param oname 
+ * @param pool_size {px, py, pz} size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c} else
+ */
 nn_t nn_append_maxpool_layer(nn_t network, int o, const char* oname, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
 {
 	o = nn_get_out_arg_index(network, o, oname);
@@ -238,6 +332,7 @@ nn_t nn_append_maxpool_layer(nn_t network, int o, const char* oname, const long 
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  * @param pool_size {px, py, pz} size of pooling
  * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
  * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c} else
@@ -256,6 +351,7 @@ nn_t nn_append_blurpool_layer(nn_t network, int o, const char* oname, const long
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  * @param pool_size {px, py, pz} size of pooling
  * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
  * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c}else
@@ -270,10 +366,11 @@ nn_t nn_append_avgpool_layer(nn_t network, int o, const char* oname, const long 
 }
 
 /**
- * Append nearest-neighbor upsampling layer
+ * Append scaled nearest-neighbor upsampling layer (adjoint of average pooling)
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  * @param pool_size {px, py, pz} size of pooling
  * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
  * @param channel_first data layout is {c, x, y, z} if true, {x, y, z, c}else
@@ -293,6 +390,7 @@ nn_t nn_append_upsampl_layer(nn_t network, int o, const char* oname, const long 
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  * @param p procentage of outputs dropt out
  */
 nn_t nn_append_dropout_layer(nn_t network, int o, const char* oname, float p, enum NETWORK_STATUS status)
@@ -310,6 +408,7 @@ nn_t nn_append_dropout_layer(nn_t network, int o, const char* oname, float p, en
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  */
 nn_t nn_append_flatten_layer(nn_t network, int o, const char* oname)
 {
@@ -325,6 +424,7 @@ nn_t nn_append_flatten_layer(nn_t network, int o, const char* oname)
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
+ * @param oname 
  * @param N number of dimensions
  * @param padd_for
  * @param padd_after
