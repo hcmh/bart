@@ -16,27 +16,26 @@
 #include "misc/mmio.h"
 #include <stdio.h>
 
+#include "simu/fd_geometry.h"
 #include "simu/leray.h"
 #include "simu/pde_laplace.h"
-#include "simu/fd_geometry.h"
 
+#include "iter/iter.h"
+#include "iter/monitor.h"
 #include "linops/fmac.h"
+#include "linops/grad.h"
 #include "linops/linop.h"
 #include "linops/someops.h"
-#include "linops/grad.h"
-#include "num/ops_p.h"
-#include "num/ops.h"
-#include "num/iovec.h"
 #include "num/flpmath.h"
+#include "num/iovec.h"
 #include "num/multind.h"
+#include "num/ops.h"
+#include "num/ops_p.h"
 #include <complex.h>
-#include "iter/monitor.h"
-#include "iter/iter.h"
 
 #include "misc/debug.h"
 
-struct leray_s
-{
+struct leray_s {
 	INTERFACE(linop_data_t);
 	long N;
 	long *dims;
@@ -64,7 +63,7 @@ static void leray_apply(const linop_data_t *_data, complex float *dst, const com
 	laplace_neumann_update_rhs(data->N - 1, data->phi_dims + 1, data->y, data->n_points, data->boundary);
 
 	long size = 2 * md_calc_size(data->N, data->phi_dims); // multiply by 2 for float size
-	iter_conjgrad(CAST_UP(data->cg_conf), data->neg_laplace->forward, NULL, size, (float*)data->tmp, (const float*)data->y, data->mon);
+	iter_conjgrad(CAST_UP(data->cg_conf), data->neg_laplace->forward, NULL, size, (float *)data->tmp, (const float *)data->y, data->mon);
 
 	linop_forward(data->grad_op, data->N, data->dims, dst, data->N, data->phi_dims, data->tmp);
 	//md_zsmul(data->N, data->dims, dst, dst, -1.);
@@ -107,7 +106,7 @@ static void leray_free(const linop_data_t *_data)
 
 
 
-struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_dim, const int iter, const float lambda, const complex float* mask, struct iter_monitor_s *mon)
+struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_dim, const int iter, const float lambda, const complex float *mask, struct iter_monitor_s *mon)
 {
 	PTR_ALLOC(struct leray_s, data);
 	SET_TYPEID(leray_s, data);
@@ -152,7 +151,7 @@ struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_di
 	for (; pos[vec_dim] < N - 1; pos[vec_dim]++)
 		md_copy_block(N, pos, dims, mask3, data->phi_dims, mask2, CFL_SIZE);
 
-	auto mask_op = linop_cdiag_create(N, dims,((MD_BIT(N) - 1)), mask3);
+	auto mask_op = linop_cdiag_create(N, dims, ((MD_BIT(N) - 1)), mask3);
 	auto div_mask_op = linop_cdiag_create(N, data->phi_dims, ~0U, mask2);
 
 
@@ -191,33 +190,33 @@ struct prox_indicator_data {
 
 	INTERFACE(operator_data_t);
 
-	const struct linop_s* op;
+	const struct linop_s *op;
 };
 
 static DEF_TYPEID(prox_indicator_data);
 
-static void prox_indicator_apply(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
+static void prox_indicator_apply(const operator_data_t *_data, float mu, complex float *dst, const complex float *src)
 {
 	UNUSED(mu);
 	auto pdata = CAST_DOWN(prox_indicator_data, _data);
 
-	const struct linop_s* op = pdata->op;
+	const struct linop_s *op = pdata->op;
 	linop_forward(op, linop_domain(op)->N, linop_domain(op)->dims, dst, linop_codomain(op)->N, linop_codomain(op)->dims, src);
 }
 
-static void prox_indicator_del(const operator_data_t* _data)
+static void prox_indicator_del(const operator_data_t *_data)
 {
 	auto pdata = CAST_DOWN(prox_indicator_data, _data);
 	xfree(pdata);
 }
 
-const struct operator_p_s* prox_indicator_create(const struct linop_s* op)
+const struct operator_p_s *prox_indicator_create(const struct linop_s *op)
 {
 	PTR_ALLOC(struct prox_indicator_data, pdata);
 	SET_TYPEID(prox_indicator_data, pdata);
 
 	unsigned int N = linop_domain(op)->N;
-	const long* dims = linop_domain(op)->dims;
+	const long *dims = linop_domain(op)->dims;
 
 	pdata->op = op;
 

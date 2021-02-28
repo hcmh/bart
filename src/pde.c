@@ -1,17 +1,17 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
 #include <complex.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/init.h"
+#include "num/multind.h"
 
-#include "simu/fd_geometry.h"
-#include "simu/sparse.h"
-#include "simu/pde_laplace.h"
 #include "linops/grad.h"
+#include "simu/fd_geometry.h"
+#include "simu/pde_laplace.h"
+#include "simu/sparse.h"
 
 #include "iter/lsqr.h"
 
@@ -20,19 +20,19 @@
 
 #include "linops/linop.h"
 
-#include "misc/mmio.h"
 #include "misc/io.h"
 #include "misc/misc.h"
-#include "misc/opts.h"
+#include "misc/mmio.h"
 #include "misc/nested.h"
+#include "misc/opts.h"
 
 #include <math.h>
 
 
 static void calc_j(const long N, const struct linop_s *d_op,
-			const long j_dims[N],  complex float* j,
-			const long   dims[N], const complex float* mask2,
-			const complex float* phi)
+		   const long j_dims[N], complex float *j,
+		   const long dims[N], const complex float *mask2,
+		   const complex float *phi)
 {
 	long mask_strs[N], j_strs[N];
 	md_calc_strides(N, j_strs, j_dims, CFL_SIZE);
@@ -49,15 +49,15 @@ struct process_dat {
 	const long N;
 	const long *dims;
 	const long *j_dims;
-	complex float* mask2;
-	struct linop_s * op;
+	complex float *mask2;
+	struct linop_s *op;
 };
 
 
-static complex float *j_wrapper(void *_data, const float* phi)
+static complex float *j_wrapper(void *_data, const float *phi)
 {
-	auto data = (struct process_dat*)_data;
-	calc_j(data->N, data->op, data->j_dims, data->j, data->dims, data->mask2, (complex float*)phi);
+	auto data = (struct process_dat *)_data;
+	calc_j(data->N, data->op, data->j_dims, data->j, data->dims, data->mask2, (complex float *)phi);
 	return data->j;
 }
 
@@ -65,14 +65,14 @@ static complex float *j_wrapper(void *_data, const float* phi)
 static const char usage_str[] = "<boundary> <electrodes> <output_phi> <output_j>";
 static const char help_str[] = "Solve 3D Laplace equation with Neumann Boundary Conditions";
 
-int main_pde(int argc, char* argv[])
+int main_pde(int argc, char *argv[])
 {
 	long N = 4;
-	int iter=100;
+	int iter = 100;
 	int hist = -1;
 	const struct opt_s opts[] = {
-		OPT_INT('n', &iter, "n", "Iterations"),
-		OPT_INT('p', &hist, "n", "Save ∇ɸ every n iterations"),
+	    OPT_INT('n', &iter, "n", "Iterations"),
+	    OPT_INT('p', &hist, "n", "Save ∇ɸ every n iterations"),
 	};
 
 	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -80,10 +80,10 @@ int main_pde(int argc, char* argv[])
 	long dims_in1[N], dims_in2[N];
 	const long vec_dim = 0;
 
-	complex float* mask = load_cfl(argv[1], N, dims_in1);
-	complex float* electrodes = load_cfl(argv[2], N, dims_in2);
+	complex float *mask = load_cfl(argv[1], N, dims_in1);
+	complex float *electrodes = load_cfl(argv[2], N, dims_in2);
 
-	for(int i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 		assert(dims_in2[i] == dims_in1[i]);
 
 	assert(1 == dims_in1[vec_dim]);
@@ -110,13 +110,13 @@ int main_pde(int argc, char* argv[])
 	complex float *j_hist = md_calloc(N, vec3_dims, CFL_SIZE);
 	auto d_op = linop_fd_create(N, vec1_dims, vec_dim, ((MD_BIT(N) - 1) & ~MD_BIT(vec_dim)), 2, BC_ZERO, false);
 
-	struct process_dat j_dat = { .N=N, .j_dims = vec3_dims, .j = j_hist, .dims = vec1_dims, .mask2 = mask2, .op = d_op };
+	struct process_dat j_dat = {.N = N, .j_dims = vec3_dims, .j = j_hist, .dims = vec1_dims, .mask2 = mask2, .op = d_op};
 
 	NESTED(bool, selector, (const unsigned long iter, const float *x, void *_data))
 	{
 		UNUSED(x);
 		UNUSED(_data);
-		return hist > 0 ? ( 0 == iter % hist ) : false;
+		return hist > 0 ? (0 == iter % hist) : false;
 	};
 	auto mon = create_monitor_recorder(N, vec3_dims, "j_step", (void *)&j_dat, selector, j_wrapper);
 
@@ -137,13 +137,13 @@ int main_pde(int argc, char* argv[])
 	laplace_neumann_update_rhs(scalar_N, scalar_dims, rhs, n_points, boundary);
 
 	//solve
-	iter_conjgrad(CAST_UP(&conf), diff_op->forward, NULL, size, (float*)phi, (const float*)rhs, mon);
+	iter_conjgrad(CAST_UP(&conf), diff_op->forward, NULL, size, (float *)phi, (const float *)rhs, mon);
 
 	//save
-	complex float* out = create_cfl(argv[3], scalar_N, scalar_dims);
+	complex float *out = create_cfl(argv[3], scalar_N, scalar_dims);
 	md_copy(scalar_N, scalar_dims, out, phi, CFL_SIZE);
 
-	complex float* j_out = create_cfl(argv[4], N, vec3_dims);
+	complex float *j_out = create_cfl(argv[4], N, vec3_dims);
 	calc_j(N, d_op, vec3_dims, j_out, vec1_dims, mask2, phi);
 
 	md_free(normal);
@@ -163,5 +163,4 @@ int main_pde(int argc, char* argv[])
 	unmap_cfl(N, vec3_dims, j_out);
 	return 0;
 }
-
 

@@ -5,14 +5,14 @@
  * 2021 Philip Schaten <philip.schaten@med.uni-goettingen.de>
  */
 
-#include "misc/misc.h"
-#include "num/multind.h"
-#include "num/flpmath.h"
 #include "simu/sparse.h"
 #include "linops/linop.h"
+#include "misc/misc.h"
+#include "num/flpmath.h"
+#include "num/multind.h"
 #include "simu/fd_geometry.h"
-#include <math.h>
 #include <complex.h>
+#include <math.h>
 
 
 
@@ -26,14 +26,14 @@
  *
  * @returns 		Pointer to sparse tensor struct
  */
-struct sparse_diag_s* sparse_diag_alloc(const long N, const long len, const long N_diags,
-				const long (*offsets)[N])
+struct sparse_diag_s *sparse_diag_alloc(const long N, const long len, const long N_diags,
+					const long (*offsets)[N])
 {
 	PTR_ALLOC(struct sparse_diag_s, mat);
 
 	assert(N >= 1);
 	assert(len >= 1);
-	assert((N_diags >= 1) && (N_diags <= pow(2*len - 1, N - 1)));
+	assert((N_diags >= 1) && (N_diags <= pow(2 * len - 1, N - 1)));
 
 	mat->N = N;
 	mat->len = len;
@@ -61,7 +61,7 @@ struct sparse_diag_s* sparse_diag_alloc(const long N, const long len, const long
 		max_offset = 0;
 		for (long j = 0; j < N; j++) {
 			mat->offsets[i][j] -= min_offset;
-			min_check =  MIN(mat->offsets[i][j], min_check);
+			min_check = MIN(mat->offsets[i][j], min_check);
 			max_offset = MAX(mat->offsets[i][j], max_offset);
 		}
 		assert(min_check == 0);
@@ -100,14 +100,14 @@ void sparse_diag_free(struct sparse_diag_s *mat)
  * @param offsets	offsets
  * @param values	values on th (off-)diagonals
  */
-struct sparse_diag_s * sparse_cdiags_create(const long N, const long len, const long N_diags,
-				const long (*offsets)[N], const complex float values[N_diags])
+struct sparse_diag_s *sparse_cdiags_create(const long N, const long len, const long N_diags,
+					   const long (*offsets)[N], const complex float values[N_diags])
 {
 	struct sparse_diag_s *mat = sparse_diag_alloc(N, len, N_diags, offsets);
 
 	for (int i = 0; i < N_diags; i++) {
 		// keep const qualifier
-		md_zfill(1, mat->dims + i,  mat->diags[i], values[i]);
+		md_zfill(1, mat->dims + i, mat->diags[i], values[i]);
 	}
 
 	return mat;
@@ -121,9 +121,9 @@ void sparse_diag_to_dense(const long N, const long dims[N], complex float *out, 
 		assert(dims[i] == mat->len);
 
 	long strs[N];
-	md_calc_strides(N,strs, dims, CFL_SIZE);
+	md_calc_strides(N, strs, dims, CFL_SIZE);
 	long diag_str = 0;
-	for(int i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 		diag_str += strs[i];
 
 	md_zfill(N, dims, out, 0);
@@ -131,11 +131,11 @@ void sparse_diag_to_dense(const long N, const long dims[N], complex float *out, 
 	for (int i = 0; i < mat->N_diags; i++) {
 		long offset = 0;
 
-		for(int k = 0; k < N; k++)
-			offset += mat->offsets[i][k]*strs[k];
+		for (int k = 0; k < N; k++)
+			offset += mat->offsets[i][k] * strs[k];
 
-		for(int j = 0; j < mat->dims[i]; j++)
-			*((complex float *)( (void *)out + offset + j * diag_str)) = mat->diags[i][j];
+		for (int j = 0; j < mat->dims[i]; j++)
+			*((complex float *)((void *)out + offset + j * diag_str)) = mat->diags[i][j];
 	}
 }
 
@@ -145,7 +145,7 @@ void calc_index_strides(const long N, long index_strides[N], const long dims[N])
 {
 	index_strides[0] = 1;
 	for (int i = 1; i < N; i++)
-		index_strides[i] = index_strides[i-1] * dims[i-1];
+		index_strides[i] = index_strides[i - 1] * dims[i - 1];
 }
 
 
@@ -196,11 +196,10 @@ void sd_mask(const long N, const long dims[N], struct sparse_diag_s *mat, const 
 	do {
 		long offset = md_calc_offset(N, strs, pos);
 		long mat_index = calc_index(N, index_strs, pos);
-		if ( creal(*((complex float *) ((void *)mask + offset))) < 1)
+		if (creal(*((complex float *)((void *)mask + offset))) < 1)
 			clear_row(mat_index, mat);
 
 	} while (md_next(N, dims, flags, pos));
-
 }
 
 
@@ -225,8 +224,7 @@ static void sd_matTvec(long N, long dims[N], complex float *out, const complex f
 		md_zfmacc(1, &mat->dims[i], out + mat->offsets[i][1], vec + mat->offsets[i][0], mat->diags[i]);
 }
 
-struct sd_matvec_s
-{
+struct sd_matvec_s {
 	INTERFACE(linop_data_t);
 	long *dims;
 	long N;
@@ -276,7 +274,7 @@ static void sd_matvec_free(const linop_data_t *_data)
 
 
 
-struct linop_s *linop_sd_matvec_create(const long N, const long dims[N], struct sparse_diag_s* mat)
+struct linop_s *linop_sd_matvec_create(const long N, const long dims[N], struct sparse_diag_s *mat)
 {
 	PTR_ALLOC(struct sd_matvec_s, data);
 	SET_TYPEID(sd_matvec_s, data);
@@ -294,5 +292,4 @@ struct linop_s *linop_sd_matvec_create(const long N, const long dims[N], struct 
 	data->tmp = md_alloc(N, dims, CFL_SIZE);
 
 	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), sd_matvec_apply, sd_matvec_adjoint_apply, sd_matvec_normal_apply, NULL, sd_matvec_free);
-
 }

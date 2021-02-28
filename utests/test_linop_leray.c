@@ -3,11 +3,11 @@
  * 2021  Philip Schaten <philip.schaten@med.uni-goettingen.de>
  */
 
-#include <complex.h>
 #include <assert.h>
+#include <complex.h>
 
-#include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/multind.h"
 #include "num/rand.h"
 
 #include "linops/linop.h"
@@ -15,8 +15,8 @@
 
 #include "simu/leray.h"
 
-#include "misc/misc.h"
 #include "misc/debug.h"
+#include "misc/misc.h"
 
 #include "utest.h"
 
@@ -24,11 +24,11 @@
 #define ITER 300
 #define lambda 1e-1
 
-static struct linop_s * leray_create()
+static struct linop_s *leray_create()
 {
 	const long N = 4;
 	const long d = 0;
-	const long dims[] = { 3, 25, 25, 25};
+	const long dims[] = {3, 25, 25, 25};
 	const long scalar_N = N - 1;
 	const long *scalar_dims = dims + 1;
 	complex float *mask = NULL;
@@ -39,7 +39,7 @@ static struct linop_s * leray_create()
 	long str[scalar_N], pos[scalar_N];
 	md_calc_strides(scalar_N, str, scalar_dims, CFL_SIZE);
 	long margin = 2;
-	long inner_dims[] = { dims[1] - 2*margin, dims[2] - 2*margin, dims[3] - 2*margin };
+	long inner_dims[] = {dims[1] - 2 * margin, dims[2] - 2 * margin, dims[3] - 2 * margin};
 	md_set_dims(scalar_N, pos, margin);
 	long offset = md_calc_offset(scalar_N, str, pos);
 	md_zfill2(scalar_N, inner_dims, str, (void *)mask + offset, 1.);
@@ -54,10 +54,10 @@ static struct linop_s * leray_create()
 
 static bool test_leray_normal()
 {
-	struct linop_s* op = leray_create();
+	struct linop_s *op = leray_create();
 
 	float nrmse = linop_test_normal(op);
-	debug_printf(DP_DEBUG1, "normal nrmse: %f\n",nrmse);
+	debug_printf(DP_DEBUG1, "normal nrmse: %f\n", nrmse);
 	bool ret = (nrmse < TOL);
 
 	linop_free(op);
@@ -68,7 +68,7 @@ static bool test_leray_normal()
 
 static bool test_leray_adjoint()
 {
-	struct linop_s* op = leray_create();
+	struct linop_s *op = leray_create();
 
 	float nrmse = linop_test_adjoint_real(op);
 	debug_printf(DP_DEBUG1, "adjoint nrmse: %f\n", nrmse);

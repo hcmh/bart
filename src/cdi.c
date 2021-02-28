@@ -34,7 +34,9 @@
 #define N 4
 #define NPROX 2
 
-enum PROXFUN { PF_l2, PF_thresh, PF_ind };
+enum PROXFUN { PF_l2,
+	       PF_thresh,
+	       PF_ind };
 
 static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, int iter, int admm_iter, float tol, const complex float *bc_mask, const float bc_reg, const float div_reg, const enum PROXFUN div_pf, const int div_order, const int leray_iter)
 {
@@ -86,7 +88,8 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 
 	struct lsqr_conf lconf = lsqr_defaults;
 
-	enum SOLVER { CG, ADMM } solver = ADMM;
+	enum SOLVER { CG,
+		      ADMM } solver = ADMM;
 
 	switch (solver) {
 	case CG: {
@@ -101,7 +104,7 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 	case ADMM: {
 		struct iter_admm_conf conf = iter_admm_defaults;
 		assert(admm_iter > 0);
-			conf.maxiter = admm_iter;
+		conf.maxiter = admm_iter;
 		if (iter > 0)
 			conf.maxitercg = iter;
 		lconf.lambda = reg;
@@ -133,7 +136,7 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 			} else if (div_pf == PF_ind) {
 				assert(NULL != leray_op);
 				prox_funs[nprox - 1] = prox_indicator_create(leray_op);
-				complex float one[1] = { 1. };
+				complex float one[1] = {1.};
 				prox_linops[nprox - 1] = linop_cdiag_create(N, jdims, 0, one);
 			} else {
 				assert(false);

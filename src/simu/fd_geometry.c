@@ -3,16 +3,16 @@
  *
  */
 
+#include "misc/misc.h"
+#include "num/flpmath.h"
+#include "num/multind.h"
 #include <assert.h>
 #include <complex.h>
 #include <math.h>
-#include "num/flpmath.h"
-#include "num/multind.h"
-#include "misc/misc.h"
 
+#include "linops/grad.h"
 #include "linops/linop.h"
 #include "linops/someops.h"
-#include "linops/grad.h"
 
 #include "simu/fd_geometry.h"
 
@@ -42,7 +42,7 @@ void calc_outward_normal(const long N, const long grad_dims[N], complex float *g
 	md_calc_strides(N, grad_strs, grad_dims, CFL_SIZE);
 	md_calc_strides(N, strs, dims, CFL_SIZE);
 
-	complex float* grad_bw = md_alloc(N, grad_dims, CFL_SIZE);
+	complex float *grad_bw = md_alloc(N, grad_dims, CFL_SIZE);
 
 	auto grad_op = linop_fd_create(N, dims, grad_dim, flags, 1, BC_ZERO, false);
 	linop_forward(grad_op, N, grad_dims, grad_bw, N, dims, mask);
@@ -116,17 +116,16 @@ long calc_boundary_points(const long N, const long dims[N], struct boundary_poin
 		float val = 0;
 		md_set_dims(N, point->dir, 0);
 		for (int i = 0; i < dims[grad_dim]; i++) {
-			val = *((complex float *) ((void *)normal + offset + i*strs[grad_dim]));
+			val = *((complex float *)((void *)normal + offset + i * strs[grad_dim]));
 			point->dir[i] = (fabsf(val) > 1e-16) ? (long)(val / fabsf(val)) : 0;
-			is_boundary  |= (fabsf(val) > 1e-16);
-
+			is_boundary |= (fabsf(val) > 1e-16);
 		}
 
 		if (is_boundary) {
 			int k = 0;
 			md_set_dims(N, point->index, 0);
 			for (int j = 0; j < N; j++) {
-				if(j != grad_dim) {
+				if (j != grad_dim) {
 					// grad_dim is not relevant for list of boundary points
 					point->index[k] = pos[j];
 					boundary_pos[j] = point->index[k] + point->dir[k];
