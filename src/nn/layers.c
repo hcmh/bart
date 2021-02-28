@@ -108,15 +108,9 @@ const struct nlop_s* append_convcorr_layer_generic(
 				odims_op[ip] = odims[i];
 			} else {
 
-				odims[i] = idims[i];
+				assert(0 == idims[i] % strides[i]);
+				odims[i] = idims[i] / strides[i];
 				odims_op[ip] = odims[i];
-				
-				if (1 != strides[i]) {
-
-					debug_printf(DP_INFO, "convcorr strides: ");
-					debug_print_dims(DP_INFO, N, strides);
-					error("Strides are currently only supported for PAD_VALID\n");
-				}	
 			}
 
 			kdims_op[ip] = kernel_dims[i];
@@ -293,17 +287,8 @@ const struct nlop_s* append_transposed_convcorr_layer_generic(
 				idims_op[ip] = idims[i];
 			} else {
 
-				idims[i] = odims[i];
+				idims[i] = odims[i] * strides[i];
 				idims_op[ip] = idims[i];
-				
-				if (1 != strides[i]) {
-
-					debug_printf(DP_INFO, "convcorr dilations: ");
-					debug_print_dims(DP_INFO, N, dilations);
-					debug_printf(DP_INFO, "convcorr strides: ");
-					debug_print_dims(DP_INFO, N, strides);
-					error("Strides are currently only supported for PAD_VALID\n");
-				}	
 			}
 
 			kdims_op[ip] = kernel_dims[i];
