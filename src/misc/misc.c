@@ -605,7 +605,10 @@ bool safe_isfinite(float x)
 
 const char* ptr_vprintf(const char* fmt, va_list ap)
 {
-	size_t len = vsnprintf(NULL, 0, fmt, ap);
+	va_list ap1;
+	va_copy(ap1, ap);
+	size_t len = vsnprintf(NULL, 0, fmt, ap1);
+	va_end(ap1);
 	PTR_ALLOC(char[len + 1], result);
 	vsprintf((*result), fmt, ap);
 	return *PTR_PASS(result);
