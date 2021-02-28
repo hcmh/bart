@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <complex.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,7 +21,7 @@
 #include "simu/fd_geometry.h"
 #include "simu/leray.h"
 
-#include <math.h>
+
 
 #define N 4
 
@@ -32,8 +33,8 @@ struct process_dat {
 	const long *j_dims;
 	complex float *mask2;
 	struct linop_s *op;
+	unsigned long hist;
 };
-
 
 static complex float *j_wrapper(void *_data, const float *phi)
 {
@@ -51,6 +52,15 @@ static complex float *j_wrapper(void *_data, const float *phi)
 
 	return data->j_hist;
 }
+
+static bool selector(const unsigned long iter, const float *x, void *_data)
+{
+		UNUSED(x);
+		struct process_dat *data = _data;
+		return data->hist > 0 ? (0 == iter % data->hist) : false;
+}
+
+
 
 static const char usage_str[] = "vectordimension <mask> <input> <output>";
 static const char help_str[] = "Project a vectorfield onto it's divergence free component\n";
@@ -95,14 +105,8 @@ int main_leray(int argc, char *argv[])
 	complex float *mask2 = md_calloc(N, vec1_dims, CFL_SIZE);
 	shrink_wrap(N - 1, dims + 1, mask2, n_points, boundary, mask);
 
-	struct process_dat j_dat = {.j_dims = dims, .j = in, .j_hist = j_hist, .dims = vec1_dims, .mask2 = mask2, .op = d_op};
+	struct process_dat j_dat = {.j_dims = dims, .j = in, .j_hist = j_hist, .dims = vec1_dims, .mask2 = mask2, .op = d_op, .hist = hist};
 
-	NESTED(bool, selector, (const unsigned long iter, const float *x, void *_data))
-	{
-		UNUSED(x);
-		UNUSED(_data);
-		return hist > 0 ? (0 == iter % hist) : false;
-	};
 	auto mon = create_monitor_recorder(N, dims, "j_step", (void *)&j_dat, selector, j_wrapper);
 
 

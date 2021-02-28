@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <complex.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +27,6 @@
 #include "misc/nested.h"
 #include "misc/opts.h"
 
-#include <math.h>
 
 
 static void calc_j(const long N, const struct linop_s *d_op,
@@ -43,7 +43,6 @@ static void calc_j(const long N, const struct linop_s *d_op,
 	md_zmul2(N, j_dims, j_strs, j, mask_strs, mask2, j_strs, j);
 }
 
-
 struct process_dat {
 	complex float *j;
 	const long N;
@@ -51,8 +50,8 @@ struct process_dat {
 	const long *j_dims;
 	complex float *mask2;
 	struct linop_s *op;
+	unsigned long hist;
 };
-
 
 static complex float *j_wrapper(void *_data, const float *phi)
 {
@@ -60,6 +59,14 @@ static complex float *j_wrapper(void *_data, const float *phi)
 	calc_j(data->N, data->op, data->j_dims, data->j, data->dims, data->mask2, (complex float *)phi);
 	return data->j;
 }
+
+static bool selector(const unsigned long iter, const float *x, void *_data)
+{
+		UNUSED(x);
+		struct process_dat *data = _data;
+		return data->hist > 0 ? (0 == iter % data->hist) : false;
+}
+
 
 
 static const char usage_str[] = "<boundary> <electrodes> <output_phi> <output_j>";
@@ -110,14 +117,8 @@ int main_pde(int argc, char *argv[])
 	complex float *j_hist = md_calloc(N, vec3_dims, CFL_SIZE);
 	auto d_op = linop_fd_create(N, vec1_dims, vec_dim, ((MD_BIT(N) - 1) & ~MD_BIT(vec_dim)), 2, BC_ZERO, false);
 
-	struct process_dat j_dat = {.N = N, .j_dims = vec3_dims, .j = j_hist, .dims = vec1_dims, .mask2 = mask2, .op = d_op};
+	struct process_dat j_dat = {.N = N, .j_dims = vec3_dims, .j = j_hist, .dims = vec1_dims, .mask2 = mask2, .op = d_op, .hist = hist};
 
-	NESTED(bool, selector, (const unsigned long iter, const float *x, void *_data))
-	{
-		UNUSED(x);
-		UNUSED(_data);
-		return hist > 0 ? (0 == iter % hist) : false;
-	};
 	auto mon = create_monitor_recorder(N, vec3_dims, "j_step", (void *)&j_dat, selector, j_wrapper);
 
 	struct iter_conjgrad_conf conf = iter_conjgrad_defaults;

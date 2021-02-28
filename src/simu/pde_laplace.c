@@ -115,7 +115,7 @@ void laplace_neumann(struct sparse_diag_s *mat, const long N, const long dims[N]
 		long diag_index = 0;
 		long ext_neighbours = 0;
 		for (long j = 0; j < N; j++)
-			ext_neighbours += abs(point->dir[j]);
+			ext_neighbours += labs(point->dir[j]);
 
 		mat->diags[diag_index][mat_index] -= ext_neighbours;
 
