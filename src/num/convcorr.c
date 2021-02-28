@@ -430,7 +430,7 @@ static bool simple_zconvcorr_bwd_in(	unsigned int N, const long dims[N],
 							nodims, nostrs, out,
 							nidims, nistrs, in,
 							nkdims, nkstrs, krn,
-							flags, NULL, NULL, conv))
+							flags, dilation, strides, conv))
 				return true;
 
 	if(!cuda_ondevice(out))
@@ -440,7 +440,7 @@ static bool simple_zconvcorr_bwd_in(	unsigned int N, const long dims[N],
 						nodims, nostrs, out,
 						nidims, nistrs, in,
 						nkdims, nkstrs, krn,
-						flags, NULL, NULL, conv))
+						flags, dilation, strides, conv))
 			return true;
 
 	return false;
