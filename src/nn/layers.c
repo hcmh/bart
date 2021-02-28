@@ -489,6 +489,73 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 	}
 }
 
+static bool calc_pooling_working_dims(unsigned int N, long dims_working[N], const long dims[N], const long pool_size[N], enum PADDING conv_pad)
+{
+	md_copy_dims(N, dims_working, dims);
+	bool resize_needed = false;
+
+	for (unsigned int i = 0; i < N; i++){
+
+		if (dims_working[i] % pool_size[i] == 0)
+			continue;
+
+		resize_needed = true;
+
+		if (conv_pad == PAD_VALID){
+
+			dims_working[i] -= (dims_working[i] % pool_size[i]);
+			continue;
+		}
+
+		if (conv_pad == PAD_SAME){
+
+			dims_working[i] += pool_size[i] - (dims_working[i] % pool_size[i]);
+			continue;
+		}
+
+		assert(0);
+	}
+
+	return resize_needed;
+}
+
+/**
+ * Append maxpooling layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param N
+ * @param pool_size {px, py, pz} size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ */
+const struct nlop_s* append_maxpool_layer_generic(const struct nlop_s* network, int o, unsigned int N, const long pool_size[N], enum PADDING conv_pad)
+{
+	//Fixme: we should adapt to tf convention (include strides)
+
+	int NO = nlop_get_nr_out_args(network);
+	assert(o < NO);
+
+	assert((PAD_VALID == conv_pad) || (PAD_SAME == conv_pad));
+
+	assert((nlop_generic_codomain(network, o))->N == N);
+
+	long idims_layer[N];
+	long idims_working[N];
+	md_copy_dims(N, idims_layer, nlop_generic_codomain(network, o)->dims);
+
+	bool resize_needed = calc_pooling_working_dims(N, idims_working, idims_layer, pool_size, conv_pad);
+
+	const struct nlop_s* pool_op = nlop_maxpool_create(N, idims_working, pool_size);
+
+	if (resize_needed)
+		pool_op = nlop_chain_FF(nlop_from_linop_F(linop_expand_create(N, idims_layer, idims_working)), pool_op);
+
+	network = nlop_chain2_FF(network, o, pool_op, 0);
+	network = nlop_shift_output_F(network, o, 0);
+
+	return network;
+}
+
 /**
  * Append maxpooling layer
  *
@@ -501,55 +568,47 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
 {
 	//Fixme: we should adapt to tf convention (include strides)
+	long npool_size[5];
+	md_singleton_dims(5, npool_size);
+	md_copy_dims(3, channel_first ? npool_size + 1 : npool_size, pool_size);
+
+	return append_maxpool_layer_generic(network, o, 5, npool_size, conv_pad);
+}
+
+/**
+ * Append blur-pooling layer
+ *
+ * Adapted from "Making Convolutional Networks Shift-Invariant Again"
+ * Richard Zhang
+ * arXiv:1904.11486v2
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param N
+ * @param pool_size size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ */
+const struct nlop_s* append_blurpool_layer_generic(const struct nlop_s* network, int o, unsigned int N, const long pool_size[N], enum PADDING conv_pad)
+{
+	//Fixme: we should adapt to tf convention (include strides)
 
 	int NO = nlop_get_nr_out_args(network);
 	assert(o < NO);
 
 	assert((PAD_VALID == conv_pad) || (PAD_SAME == conv_pad));
 
-	assert((nlop_generic_codomain(network, o))->N == 5);
+	assert((nlop_generic_codomain(network, o))->N == N);
 
-	long idims_layer[5];
-	long idims_working[5];
-	long pool_size_working[5];
+	long idims_layer[N];
+	long idims_working[N];
+	md_copy_dims(N, idims_layer, nlop_generic_codomain(network, o)->dims);
 
-	long idims_xyz[3];
+	bool resize_needed = calc_pooling_working_dims(N, idims_working, idims_layer, pool_size, conv_pad);
 
-	md_copy_dims(5, idims_layer, nlop_generic_codomain(network, o)->dims);
-	md_copy_dims(5, idims_working, nlop_generic_codomain(network, o)->dims);
-	md_singleton_dims(5, pool_size_working);
-	md_copy_dims(3, pool_size_working + (channel_first ? 1 : 0), pool_size);
-
-	md_copy_dims(3, idims_xyz, idims_layer + (channel_first ? 1 : 0));
-
-	bool resize_needed = false;
-
-	for (int i = (channel_first ? 1 : 0); i < 3 + (channel_first ? 1 : 0); i++){
-
-		if (idims_working[i] % pool_size_working[i]== 0)
-			continue;
-
-		resize_needed = true;
-
-		if (conv_pad == PAD_VALID){
-
-			idims_working[i] -= (idims_working[i] % pool_size_working[i]);
-			continue;
-		}
-
-		if (conv_pad == PAD_SAME){
-
-			idims_working[i] += pool_size_working[i] - (idims_working[i] % pool_size_working[i]);
-			continue;
-		}
-
-		assert(0);
-	}
-
-	const struct nlop_s* pool_op = nlop_maxpool_create(5, idims_working, pool_size_working);
+	const struct nlop_s* pool_op = nlop_blurpool_create(5, idims_working, pool_size);
 
 	if (resize_needed)
-		pool_op = nlop_chain_FF(nlop_from_linop_F(linop_expand_create(5, idims_layer, idims_working)), pool_op);
+		pool_op = nlop_chain_FF(nlop_from_linop_F(linop_expand_create(N, idims_layer, idims_working)), pool_op);
 
 	network = nlop_chain2_FF(network, o, pool_op, 0);
 	network = nlop_shift_output_F(network, o, 0);
@@ -573,55 +632,45 @@ const struct nlop_s* append_maxpool_layer(const struct nlop_s* network, int o, c
 const struct nlop_s* append_blurpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
 {
 	//Fixme: we should adapt to tf convention (include strides)
+	long npool_size[5];
+	md_singleton_dims(5, npool_size);
+	md_copy_dims(3, channel_first ? npool_size + 1 : npool_size, pool_size);
+
+	return append_blurpool_layer_generic(network, o, 5, npool_size, conv_pad);
+}
+
+
+/**
+ * Append average pooling layer
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param N
+ * @param pool_size size of pooling
+ * @param conv_pad must be PAD_VALID/PAD_SAME if image size is not a multiple of padding size, the image is shrinked/expanded to a multiple
+ */
+const struct nlop_s* append_avgpool_layer_generic(const struct nlop_s* network, int o, unsigned int N, const long pool_size[N], enum PADDING conv_pad)
+{
+	//Fixme: we should adapt to tf convention (include strides)
 
 	int NO = nlop_get_nr_out_args(network);
 	assert(o < NO);
 
 	assert((PAD_VALID == conv_pad) || (PAD_SAME == conv_pad));
 
-	assert((nlop_generic_codomain(network, o))->N == 5);
+	assert((nlop_generic_codomain(network, o))->N == N);
 
-	long idims_layer[5]; //channel, x, y, z, batch	or x, y, z, channel, batch
-	long idims_working[5];
-	long pool_size_working[5]; //1, px, py, pz, 1	or px, py, pz, 1, 1 depending on channel_first
+	long idims_layer[N];
+	long idims_working[N];
+	md_copy_dims(N, idims_layer, nlop_generic_codomain(network, o)->dims);
 
-	long idims_xyz[3];
+	bool resize_needed = calc_pooling_working_dims(N, idims_working, idims_layer, pool_size, conv_pad);
 
-	md_copy_dims(5, idims_layer, nlop_generic_codomain(network, o)->dims);
-	md_copy_dims(5, idims_working, nlop_generic_codomain(network, o)->dims);
-	md_singleton_dims(5, pool_size_working);
-	md_copy_dims(3, pool_size_working + (channel_first ? 1 : 0), pool_size);
-
-	md_copy_dims(3, idims_xyz, idims_layer + (channel_first ? 1 : 0));
-
-	bool resize_needed = false;
-
-	for (int i = (channel_first ? 1 : 0); i < 3 + (channel_first ? 1 : 0); i++){
-
-		if (idims_working[i] % pool_size_working[i]== 0)
-			continue;
-
-		resize_needed = true;
-
-		if (conv_pad == PAD_VALID){
-
-			idims_working[i] -= (idims_working[i] % pool_size_working[i]);
-			continue;
-		}
-
-		if (conv_pad == PAD_SAME){
-
-			idims_working[i] += pool_size_working[i] - (idims_working[i] % pool_size_working[i]);
-			continue;
-		}
-
-		assert(0);
-	}
-
-	const struct nlop_s* pool_op = nlop_blurpool_create(5, idims_working, pool_size_working);
+	const struct linop_s* lin_pool_op = linop_avgpool_create(5, idims_working, pool_size);
+	struct nlop_s* pool_op = nlop_from_linop_F(lin_pool_op);
 
 	if (resize_needed)
-		pool_op = nlop_chain_FF(nlop_from_linop_F(linop_expand_create(5, idims_layer, idims_working)), pool_op);
+		pool_op = nlop_chain_FF(nlop_from_linop_F(linop_expand_create(N, idims_layer, idims_working)), pool_op);
 
 	network = nlop_chain2_FF(network, o, pool_op, 0);
 	network = nlop_shift_output_F(network, o, 0);
@@ -640,62 +689,48 @@ const struct nlop_s* append_blurpool_layer(const struct nlop_s* network, int o, 
  */
 const struct nlop_s* append_avgpool_layer(const struct nlop_s* network, int o, const long pool_size[3], enum PADDING conv_pad, bool channel_first)
 {
+	//Fixme: we should adapt to tf convention (include strides)
+	long npool_size[5];
+	md_singleton_dims(5, npool_size);
+	md_copy_dims(3, channel_first ? npool_size + 1 : npool_size, pool_size);
+
+	return append_avgpool_layer_generic(network, o, 5, npool_size, conv_pad);
+}
+
+/**
+ * Append scaled nearest-neighbor upsampling layer (adjoint of average pooling)
+ *
+ * @param network operator to append the layer (the operator is freed)
+ * @param o output index of network, the layer is appended
+ * @param N
+ * @param pool_size size of pooling
+ */
+const struct nlop_s* append_upsampl_layer_generic(const struct nlop_s* network, int o, unsigned int N, const long pool_size[N])
+{
 	int NO = nlop_get_nr_out_args(network);
 	assert(o < NO);
 
-	assert((nlop_generic_codomain(network, o))->N == 5);
+	assert((nlop_generic_codomain(network, o))->N == N);
 
-	long idims_layer[5]; //channel, x, y, z, batch	or x, y, z, channel, batch
-	long idims_working[5];
-	long pool_size_working[5]; //1, px, py, pz, 1	or px, py, pz, 1, 1
+	long idims[N];
+	long odims[N];
 
-	long idims_xyz[3];
+	md_copy_dims(5, idims, nlop_generic_codomain(network, o)->dims);
+	for (unsigned int i = 0; i < N; i++)
+		odims[i] = idims[i] * pool_size[i];
 
-	md_copy_dims(5, idims_layer, nlop_generic_codomain(network, o)->dims);
-	md_copy_dims(5, idims_working, nlop_generic_codomain(network, o)->dims);
-	md_singleton_dims(5, pool_size_working);
-	md_copy_dims(3, pool_size_working + (channel_first ? 1 : 0), pool_size);
+	auto pool = linop_avgpool_create(N, odims, pool_size);
+	const struct nlop_s* upsampl_op = nlop_from_linop_F(linop_get_adjoint(pool));
+	linop_free(pool);
 
-	md_copy_dims(3, idims_xyz, idims_layer + (channel_first ? 1 : 0));
-
-	bool resize_needed = false;
-
-	for (int i = (channel_first ? 1 : 0); i < 3 + (channel_first ? 1 : 0); i++){
-
-		if (idims_working[i] % pool_size_working[i]== 0)
-			continue;
-
-		resize_needed = true;
-
-		if (conv_pad == PAD_VALID){
-
-			idims_working[i] -= (idims_working[i] % pool_size_working[i]);
-			continue;
-		}
-
-		if (conv_pad == PAD_SAME){
-
-			idims_working[i] += pool_size_working[i] - (idims_working[i] % pool_size_working[i]);
-			continue;
-		}
-
-		assert(0);
-	}
-
-	const struct linop_s* lin_pool_op = linop_avgpool_create(5, idims_working, pool_size_working);
-	struct nlop_s* pool_op = nlop_from_linop_F(lin_pool_op);
-
-	if (resize_needed)
-		pool_op = nlop_chain_FF(nlop_from_linop_F(linop_expand_create(5, idims_layer, idims_working)), pool_op);
-
-	network = nlop_chain2_FF(network, o, pool_op, 0);
+	network = nlop_chain2_FF(network, o, upsampl_op, 0);
 	network = nlop_shift_output_F(network, o, 0);
 
 	return network;
 }
 
 /**
- * Append nearest-neighbor upsampling layer
+ * Append scaled nearest-neighbor upsampling layer (adjoint of average pooling)
  *
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
@@ -705,34 +740,12 @@ const struct nlop_s* append_avgpool_layer(const struct nlop_s* network, int o, c
  */
 const struct nlop_s* append_upsampl_layer(const struct nlop_s* network, int o, const long pool_size[3], bool channel_first)
 {
-	int NO = nlop_get_nr_out_args(network);
-	assert(o < NO);
+	//Fixme: we should adapt to tf convention (include strides)
+	long npool_size[5];
+	md_singleton_dims(5, npool_size);
+	md_copy_dims(3, channel_first ? npool_size + 1 : npool_size, pool_size);
 
-	assert((nlop_generic_codomain(network, o))->N == 5);
-
-	long idims_layer[5]; //channel, x, y, z, batch	or x, y, z, channel, batch
-	long idims_working[5];
-	long pool_size_working[5]; //1, px, py, pz, 1	or px, py, pz, 1, 1 depending on channel_first
-
-	long idims_xyz[3];
-
-	md_copy_dims(5, idims_layer, nlop_generic_codomain(network, o)->dims);
-	md_copy_dims(5, idims_working, nlop_generic_codomain(network, o)->dims);
-	md_singleton_dims(5, pool_size_working);
-	md_copy_dims(3, pool_size_working + (channel_first ? 1 : 0), pool_size);
-	md_copy_dims(3, idims_xyz, idims_layer + (channel_first ? 1 : 0));
-
-	for (int i = 0; i< 3; i++)
-		idims_working[i+1] = idims_layer[i+1] * pool_size[i];
-
-	auto pool = linop_avgpool_create(5, idims_working, pool_size_working);
-	const struct nlop_s* upsampl_op = nlop_from_linop_F(linop_get_adjoint(pool));
-	linop_free(pool);
-
-	network = nlop_chain2_FF(network, o, upsampl_op, 0);
-	network = nlop_shift_output_F(network, o, 0);
-
-	return network;
+	return append_upsampl_layer_generic(network, o, 5, npool_size);
 }
 
 /**
