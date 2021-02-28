@@ -114,6 +114,7 @@ long calc_boundary_points(const long N, const long dims[N], struct boundary_poin
 
 		bool is_boundary = false;
 		float val = 0;
+		md_set_dims(N, point->dir, 0);
 		for (int i = 0; i < dims[grad_dim]; i++) {
 			val = *((complex float *) ((void *)normal + offset + i*strs[grad_dim]));
 			point->dir[i] = (fabsf(val) > 1e-16) ? (long)(val / fabsf(val)) : 0;
@@ -123,6 +124,7 @@ long calc_boundary_points(const long N, const long dims[N], struct boundary_poin
 
 		if (is_boundary) {
 			int k = 0;
+			md_set_dims(N, point->index, 0);
 			for (int j = 0; j < N; j++) {
 				if(j != grad_dim) {
 					// grad_dim is not relevant for list of boundary points
