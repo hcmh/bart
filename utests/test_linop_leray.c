@@ -20,39 +20,34 @@
 
 #include "utest.h"
 
-#define TOL 1e-4
-#define ITER 10000
-#define masked true
-#define lambda 1e-3
+#define TOL 1e-1
+#define ITER 300
+#define lambda 1e-1
 
 static struct linop_s * leray_create()
 {
 	const long N = 4;
 	const long d = 0;
-	const long flags = 14;
-	const long dims[] = { 3, 10, 10, 10};
+	const long dims[] = { 3, 25, 25, 25};
+	const long scalar_N = N - 1;
+	const long *scalar_dims = dims + 1;
 	complex float *mask = NULL;
 
-	if (masked) {
-		mask = md_alloc(N, dims, CFL_SIZE);
-		md_zfill(N, dims, mask, 1.);
+	mask = md_alloc(scalar_N, scalar_dims, CFL_SIZE);
+	md_zfill(scalar_N, scalar_dims, mask, 0);
 
-		long str[N], pos[N];
-		md_calc_strides(N, str, dims, CFL_SIZE);
+	long str[scalar_N], pos[scalar_N];
+	md_calc_strides(scalar_N, str, scalar_dims, CFL_SIZE);
+	long margin = 2;
+	long inner_dims[] = { dims[1] - 2*margin, dims[2] - 2*margin, dims[3] - 2*margin };
+	md_set_dims(scalar_N, pos, margin);
+	long offset = md_calc_offset(scalar_N, str, pos);
+	md_zfill2(scalar_N, inner_dims, str, (void *)mask + offset, 1.);
 
-		md_select_dims(N, ~MD_BIT(1), pos, dims);
-		pos[1] = 2;
-		md_zfill2(N, pos, str, mask, 0.);
+	auto op = linop_leray_create(N, dims, d, ITER, lambda, mask, NULL);
 
-		md_select_dims(N, ~MD_BIT(2), pos, dims);
-		pos[2] = 1;
-		md_zfill2(N, pos, str, (void *)mask + (dims[2] - 2)*str[2], 0.);
+	md_free(mask);
 
-	}
-
-	auto op = linop_leray_create(N, dims, d, flags, ITER, lambda, mask);
-	if (masked)
-		md_free(mask);
 	return op;
 }
 
@@ -75,7 +70,7 @@ static bool test_leray_adjoint()
 {
 	struct linop_s* op = leray_create();
 
-	float nrmse = linop_test_adjoint(op);
+	float nrmse = linop_test_adjoint_real(op);
 	debug_printf(DP_DEBUG1, "adjoint nrmse: %f\n", nrmse);
 	bool ret = (nrmse < TOL);
 
@@ -87,7 +82,6 @@ static bool test_leray_adjoint()
 
 static bool test_leray(void)
 {
-	const enum BOUNDARY_CONDITION bcs[3] = {BC_PERIODIC, BC_ZERO, BC_SAME};
 	bool ok = true;
 	ok &= test_leray_adjoint();
 	ok &= test_leray_normal();

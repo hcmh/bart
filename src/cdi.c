@@ -47,16 +47,19 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 		// Create multiplicative mask - to enforce 0 current outside
 		// FIXME: Don't copy; instead create modified cdiag operator?
 		complex float *bc_mask3 = md_alloc(N, jdims, CFL_SIZE);
+
 		long pos[N] = {0};
 		for (; pos[0] < 3; pos[0]++)
 			md_copy_block(N, pos, jdims, bc_mask3, bdims, bc_mask, CFL_SIZE);
 		bc_mask_op = linop_cdiag_create(N, jdims, 15, bc_mask3);
+
+		md_free(bc_mask3);
+
 		bz_op = linop_chain(bc_mask_op, bz_op);
 
 		if (PF_ind == div_pf) {
-			leray_op = linop_leray_create(N, jdims, 0, 14, leray_iter, div_reg, bc_mask3);
+			leray_op = linop_leray_create(N, jdims, 0, leray_iter, div_reg, bc_mask, NULL);
 		}
-		md_free(bc_mask3);
 
 		if (0 < bc_reg) {
 			// Create "walls" - enforce 0 current through the walls
