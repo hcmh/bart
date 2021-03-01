@@ -407,3 +407,103 @@ const struct nlop_s* nlop_zinv_create(int N, const long dims[N])
 
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), zinv_reg_fun, zinv_reg_der, zinv_reg_adj, NULL, NULL, zinv_reg_del);
 }
+
+struct zmax_s {
+
+	INTERFACE(nlop_data_t);
+
+	unsigned long N;
+	unsigned long flags;
+	const long* outdims;
+	const long* dims;
+	const long* strides;
+	const long* outstrides;
+
+	complex float* max_index;
+};
+
+DEF_TYPEID(zmax_s);
+
+static void zmax_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(zmax_s, _data);
+
+	if (NULL == data->max_index)
+		data->max_index = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
+
+	md_copy2(data->N, data->outdims, data->outstrides, dst, data->strides, src, CFL_SIZE);
+
+	md_zmax2(data->N, data->dims, data->outstrides, dst, data->outstrides, dst, data->strides, src);
+	
+	md_zgreatequal2(data->N, data->dims, data->strides, data->max_index, data->strides, src, data->outstrides, dst);
+}
+
+static void zmax_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	const auto data = CAST_DOWN(zmax_s, _data);
+
+	md_ztenmul(data->N, data->outdims, dst, data->dims, src, data->dims, data->max_index);
+	md_zreal(data->N, data->outdims, dst, dst);
+}
+
+static void zmax_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	const auto data = CAST_DOWN(zmax_s, _data);
+
+	md_zmul2(data->N, data->dims, data->strides, dst, data->outstrides, src, data->strides, data->max_index);
+	md_zreal(data->N, data->dims, dst, dst);
+}
+
+static void zmax_del(const struct nlop_data_s* _data)
+{
+	const auto data = CAST_DOWN(zmax_s, _data);
+
+	md_free(data->max_index);
+
+	xfree(data->outdims);
+	xfree(data->dims);
+	xfree(data->strides);
+	xfree(data->outstrides);
+
+	xfree(data);
+}
+
+
+/**
+ * Returns maximum value of array along specified flags.
+ **/
+const struct nlop_s* nlop_zmax_create(int N, const long dims[N], unsigned long flags)
+{
+	PTR_ALLOC(struct zmax_s, data);
+	SET_TYPEID(zmax_s, data);
+
+	PTR_ALLOC(long[N], outdims);
+	md_select_dims(N, ~flags, *outdims, dims);
+	PTR_ALLOC(long[N], dims_tmp);
+	md_copy_dims(N, *dims_tmp, dims);
+
+	PTR_ALLOC(long[N], strides);
+	md_calc_strides(N, *strides, dims, CFL_SIZE);
+	PTR_ALLOC(long[N], out_strides);
+	md_calc_strides(N, *out_strides, *outdims, CFL_SIZE);
+
+	data->N = N;
+	data->flags = flags;
+	data->strides = *PTR_PASS(strides);
+	data->dims = *PTR_PASS(dims_tmp);
+	data->outdims = *PTR_PASS(outdims);
+	data->outstrides = *PTR_PASS(out_strides);
+
+	data->max_index = NULL;
+
+	long odims[N];
+	md_select_dims(N, ~flags, odims, dims);
+
+	return nlop_create(N, odims, N, dims, CAST_UP(PTR_PASS(data)), zmax_fun, zmax_der, zmax_adj, NULL, NULL, zmax_del);
+}

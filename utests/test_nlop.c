@@ -1402,3 +1402,30 @@ static bool test_nlop_checkpointing(void)
 }
 
 UT_REGISTER_TEST(test_nlop_checkpointing);
+
+
+static bool test_zmax(void)
+{
+	unsigned int N = 3;
+
+	long indims[] = {2, 2, 1};
+	long outdims[] = {2, 2, 4};
+
+	complex float stacked[] = {	1., 2., 3., 3.,
+					2., 2., 4., 2.,
+					2., 1., 4., 3.,
+					1., 1., 1., 1.};
+	complex float zmax[] = {2., 2., 4., 3.};
+
+	const struct nlop_s* zmax_op = nlop_zmax_create(N, outdims, 4);
+	complex float* output_zmax = md_alloc(N, indims, CFL_SIZE);
+	nlop_generic_apply_unchecked(zmax_op, 2, (void*[]){output_zmax, stacked}); //output, in, mask
+	nlop_free(zmax_op);
+
+	float err =  md_zrmse(N, indims, output_zmax, zmax);
+	md_free(output_zmax);
+
+	UT_ASSERT(0.01 > err);
+}
+
+UT_REGISTER_TEST(test_zmax);
