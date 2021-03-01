@@ -81,6 +81,66 @@ void calc_outward_normal(const long N, const long grad_dims[N], complex float *g
 
 
 
+void fill_holes(const long N, const long vec3_dims[N],const long grad_dim, const long dims[N], complex float* out, const complex float *mask)
+{
+	assert(N > 1);
+	assert(dims[grad_dim] == 1);
+
+	const long flags = (MD_BIT(N) - 1) & (~MD_BIT(grad_dim));
+	assert(vec3_dims[grad_dim] == bitcount(flags));
+
+	long grad_strs[N], strs[N];
+	md_calc_strides(N, grad_strs, vec3_dims, CFL_SIZE);
+	md_calc_strides(N, strs, dims, CFL_SIZE);
+
+	complex float *grad = md_alloc(N, vec3_dims, CFL_SIZE);
+	complex float *grad_bw = md_alloc(N, vec3_dims, CFL_SIZE);
+	complex float *holes = md_alloc(N, vec3_dims, CFL_SIZE);
+	complex float *holes1 = md_calloc(N, dims, CFL_SIZE);
+	auto grad_op1 = linop_fd_create(N, dims, grad_dim, flags, 1, BC_ZERO, false);
+	auto grad_op2 = linop_fd_create(N, dims, grad_dim, flags, 1, BC_ZERO, true);
+
+	if (mask != out)
+		md_copy(N, dims, out, mask, CFL_SIZE);
+
+	bool filled = false;
+
+	while (!filled) {
+
+		linop_forward(grad_op1, N, vec3_dims, grad_bw, N, dims, out);
+		// Mask:
+		//  0  1  0  0  1  1  1 ->
+		// grad_bw:
+		//  0  1 -1  0  1  0  0
+		md_zmul2(N, vec3_dims, grad_strs, grad_bw, grad_strs, grad_bw, strs, out);
+		//  0  1  0  0  1  0  0
+
+		linop_forward(grad_op2, N, vec3_dims, grad, N, dims, out);
+		// Mask:
+		//  0  1  0  0  1  1  1 ->
+		// grad_fw:
+		// -1  1  0 -1  0  0  1
+		md_zmul2(N, vec3_dims, grad_strs, grad, grad_strs, grad, strs, out);
+		//  0  1  0  0  0  0  1
+
+		md_zmul2(N, vec3_dims, grad_strs, holes, grad_strs, grad, grad_strs, grad_bw);
+		//  0  1  0  0  0  0  0
+
+		md_zss(N, vec3_dims, MD_BIT(grad_dim), holes1, holes);
+		md_zsgreatequal(N, dims, holes1, holes1, 1);
+
+		md_zaxpy(N, dims, out, -1, holes1);
+		filled = ( md_znorm(N, dims, holes1) < 1 );
+	}
+
+	md_free(grad_bw);
+	md_free(grad);
+	md_free(holes);
+	md_free(holes1);
+	linop_free(grad_op1);
+	linop_free(grad_op2);
+}
+
 /*
  * Calculate list of points neighbouring the mask
  * @param N 		number of dimensions

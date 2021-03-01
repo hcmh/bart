@@ -177,7 +177,7 @@ TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobafit cdi modbloch pixel n
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans convkern nlsa eof
 TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon synthesize fovshift
 TIO=toimg dcmread dcmtag
-TSIM=phantom phantom_json traj upat bloch sim tbasis signal epg leray pde
+TSIM=phantom phantom_json traj upat bloch sim tbasis signal epg leray pde pde_mask
 TNN=mnist nnsegm nnvn nnmodl reconet nnet onehotenc
 
 
@@ -250,6 +250,7 @@ MODULES_epg = -lsimu
 MODULES_fd = -lnum
 MODULES_leray = -lnum -llinops
 MODULES_pde = -lsim -llinops -liter
+MODULES_pde_mask = -lsim -llinops
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
