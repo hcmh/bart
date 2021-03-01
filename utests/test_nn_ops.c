@@ -741,13 +741,12 @@ static bool test_avgpool(void)
 	nlop_adjoint(network, N, indims, adj, N, avg_dims, avg);	// check adjoint of average pooling layer
 
 	nlop_free(network);
-
-	float err = md_zrmse(N, avg_dims, avg, avg_exp) + md_zrmse(N, indims, adj, adj_exp);
+	float err = md_znrmse(N, avg_dims, avg, avg_exp) + md_znrmse(N, indims, adj, adj_exp);
 
 	md_free(avg);
 	md_free(adj);
 
-	UT_ASSERT(1.e-8 > err);
+	UT_ASSERT(UT_TOL > err);
 }
 
 UT_REGISTER_TEST(test_avgpool);
@@ -777,12 +776,12 @@ static bool test_upsampl(void)
 
 	nlop_free(network);
 
-	float err = md_zrmse(N, odims, upsampl, upsampl_exp)+ md_zrmse(N, idims, upsampl_adj, upsampl_adj_exp);
+	float err = md_znrmse(N, odims, upsampl, upsampl_exp)+ md_znrmse(N, idims, upsampl_adj, upsampl_adj_exp);
 
 	md_free(upsampl);
 	md_free(upsampl_adj);
 
-	UT_ASSERT(1.e-8 > err);
+	UT_ASSERT(UT_TOL > err);
 }
 
 UT_REGISTER_TEST(test_upsampl);

@@ -7,6 +7,7 @@
  */
 
 #include <complex.h>
+#include <math.h>
 
 #include "misc/types.h"
 #include "misc/misc.h"
@@ -22,6 +23,7 @@
 #endif
 
 #include "linops/someops.h"
+#include "linops/sum.h"
 
 #include "nlops/nlop.h"
 #include "nlops/stack.h"
@@ -34,147 +36,37 @@
 
 #include "nn_ops.h"
 
-struct maxpool_s {
 
-	INTERFACE(nlop_data_t);
 
-	unsigned long N;
-	const long* pool_dims;
-	const long* pool_strs;
-
-	complex float* pool;
-};
-
-DEF_TYPEID(maxpool_s);
-
-static void maxpool_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
-{
-	const auto data = CAST_DOWN(maxpool_s, _data);
-
-	unsigned long N = data->N;
-
-#ifdef USE_CUDA
-	assert((cuda_ondevice(dst) == cuda_ondevice(src)));
-#endif
-	if (NULL == data->pool)
-		data->pool = md_alloc_sameplace(2 * data->N, data->pool_dims, CFL_SIZE, dst);
-
-	complex float* tmp = md_alloc_sameplace(2 * N,  data->pool_dims, CFL_SIZE, dst);
-
-	md_copy2(2 * N, data->pool_dims, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, data->pool_strs, src, CFL_SIZE);
-
-	long tdims[2] = {md_calc_size(N, data->pool_dims), md_calc_size(N, data->pool_dims + N)};
-	long tstrs[2] = {CFL_SIZE, tdims[0] * CFL_SIZE};
-	long tstrs0[2] = {CFL_SIZE, 0};
-
-	md_copy(1, tdims, dst, tmp, CFL_SIZE); //dst[i] = tmp[i], saved in tdims[1]
-
-	for (long i = 1; i < tdims[1]; i++)
-		md_zmax(1, tdims, dst, dst, tmp + tdims[0] * i); //writes max of dst and tmp + compared value to destination
-
-	md_zgreatequal2(2, tdims, tstrs, data->pool, tstrs, tmp, tstrs0, dst);
-
-	md_free(tmp);
-}
-
-static void maxpool_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto data = CAST_DOWN(maxpool_s, _data);
-
-	long N = data->N;
-	long tdims[2] = {md_calc_size(N, data->pool_dims), md_calc_size(N, data->pool_dims + N)};
-	long tstrs[2] = {CFL_SIZE, tdims[0] * CFL_SIZE};
-	long tstrs0[2] = {CFL_SIZE, 0};
-
-	complex float* tmp = md_alloc_sameplace(2 * N,  data->pool_dims, CFL_SIZE, dst);
-	md_copy2(2 * N, data->pool_dims, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, data->pool_strs, src, CFL_SIZE);
-
-	md_ztenmul2(2, tdims, tstrs0, dst, tstrs, tmp, tstrs, data->pool);
-
-	md_zreal(N, data->pool_dims, dst, dst);
-
-	md_free(tmp);
-}
-
-static void maxpool_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto data = CAST_DOWN(maxpool_s, _data);
-
-	long N = data->N;
-	long tdims[2] = {md_calc_size(N, data->pool_dims), md_calc_size(N, data->pool_dims + N)};
-	long tstrs[2] = {CFL_SIZE, tdims[0] * CFL_SIZE};
-	long tstrs0[2] = {CFL_SIZE, 0};
-
-	complex float* tmp = md_alloc_sameplace(2 * N,  data->pool_dims, CFL_SIZE, dst);
-	md_ztenmul2(2, tdims, tstrs ,tmp, tstrs0, src, tstrs, data->pool);
-
-	md_copy2(2 * N, data->pool_dims, data->pool_strs, dst, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, CFL_SIZE);
-
-	md_zreal(2 * N, data->pool_dims, dst, dst);
-
-	md_free(tmp);
-}
-
-static void maxpool_del(const struct nlop_data_s* _data)
-{
-	const auto data = CAST_DOWN(maxpool_s, _data);
-
-	md_free(data->pool);
-
-	xfree(data->pool_dims);
-	xfree(data->pool_strs);
-
-	xfree(data);
-}
-
-/**
- * pool_size //1, px, py, pz, 1	or px, py, pz, 1, 1 depending on channel_first
-*/
 const struct nlop_s* nlop_maxpool_create(int N, const long dims[N], const long pool_size[N])
-{
-	PTR_ALLOC(struct maxpool_s, data);
-	SET_TYPEID(maxpool_s, data);
+{	
+	long ndims[2 * N];
+	long odims[2 * N];
 
-	for (int i = 0; i< N; i++)
-		assert(dims[i] % pool_size[i] == 0);
+	unsigned int perm[2 * N];
 
-	long strs[N];
-	md_calc_strides(N, strs, dims, CFL_SIZE);
+	
 
-	long pool_dims_tmp[2 * N];	//img_out_dims, pool_dims
-	long pool_strs_tmp[2 * N];	//img_out_str, pool_str
-	long compare_strs_tmp[2 * N];
+	for (int i = 0; i < N; i++) {
+		
+		assert(0 == dims[i] % pool_size[i]);
 
-    	for (int i = 0; i< N; i++){
+		odims[i] = dims[i] / pool_size[i];
+		odims[i + N] = pool_size[i];
 
-		pool_dims_tmp[i] = dims[i] / pool_size[i];
-		pool_dims_tmp[i + N] = pool_size[i];
-		pool_strs_tmp[i] = strs[i] * pool_size[i];
-		pool_strs_tmp[i + N] = (pool_dims_tmp[i + N] > 1) ? strs[i] : 0;
+		ndims[2 * i] = pool_size[i];
+		ndims[2 * i + 1] = odims[i];
+
+		perm[i] = 2 * i + 1;
+		perm[i + N] = 2 * i;
 	}
 
-	md_singleton_strides(2 * N, compare_strs_tmp);
-	md_calc_strides(N, compare_strs_tmp, pool_dims_tmp, CFL_SIZE);
+	auto result = nlop_zmax_create(2 * N, odims, (MD_BIT(2 * N) - 1) & ~(MD_BIT(N) - 1));
+	result = nlop_chain_FF(nlop_from_linop_F(linop_permute_create(2 * N, perm, ndims)), result);
+	result = nlop_reshape_in_F(result, 0, N, dims);
+	result = nlop_reshape_out_F(result, 0, N, odims);
 
-	PTR_ALLOC(long[2 * N], pool_dims);
-	md_copy_dims(2 * N, *pool_dims, pool_dims_tmp);
-	PTR_ALLOC(long[2 * N], pool_strs);
-	md_copy_dims(2 * N, *pool_strs, pool_strs_tmp);
-
-	data->N = N;
-	data->pool_dims = *PTR_PASS(pool_dims);
-	data->pool_strs = *PTR_PASS(pool_strs);
-
-	// will be initialized later, to transparently support GPU
-	data->pool = NULL;
-
-	return nlop_create(N, pool_dims_tmp, N, dims, CAST_UP(PTR_PASS(data)), maxpool_fun, maxpool_der, maxpool_adj, NULL, NULL, maxpool_del);
+	return result;
 }
 
 
@@ -268,113 +160,35 @@ const struct nlop_s* nlop_dropout_create(int N, const long dims[N], float p, uns
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), dropout_fun, dropout_der, dropout_adj, NULL, NULL, dropout_del);
 }
 
-struct avgpool_s {
-
-	INTERFACE(linop_data_t);
-
-	unsigned long N;
-	const long* pool_dims;
-	const long* pool_strs;
-
-};
-
-DEF_TYPEID(avgpool_s);
-
-static void avgpool_fun(const linop_data_t* _data, complex float* dst, const complex float* src)
-{
-	const auto data = CAST_DOWN(avgpool_s, _data);
-
-	unsigned long N = data->N;
-
-	complex float* tmp = md_alloc_sameplace(2 * N,  data->pool_dims, CFL_SIZE, dst);
-	md_copy2(2 * N, data->pool_dims, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, data->pool_strs, src, CFL_SIZE);
-
-	long tdims[2] = {md_calc_size(N, data->pool_dims), md_calc_size(N, data->pool_dims + N)};
-	md_copy(1, tdims, dst, tmp, CFL_SIZE); //dst[i] = tmp[i], saved in tdims[1]
-
-	for (long i = 1; i < tdims[1]; i++)
-		md_zadd(1, tdims, dst, dst, tmp + tdims[0] * i); //adds all values along dimension
-
-	md_zsmul(1, tdims, dst, dst, 1. / tdims[1]); //divide by pool dim to gain average
-
-	md_free(tmp);
-}
-
-/**
- * Calculate adjoint to average pooling layer
- * adjoint has entries in form of Average/pooling size
- */
-static void avgpool_adj(const linop_data_t* _data, complex float* dst, const complex float* src)
-{
-	const auto data = CAST_DOWN(avgpool_s, _data);
-	long N = data->N;
-
-	complex float* tmp_adj= md_alloc_sameplace(2 * data->N, data->pool_dims, CFL_SIZE, dst);
-	complex float* ones = md_alloc_sameplace(2 * data->N, data->pool_dims, CFL_SIZE, dst);
-
-	long tdims[2] = { md_calc_size(N, data->pool_dims), md_calc_size(N, data->pool_dims + N)}; // number of outputs, pooling size
-	long tstrs[2] = {CFL_SIZE, tdims[0] * CFL_SIZE};
-	long tstrs0[2] = {CFL_SIZE, 0};
-
-	long tdims_adj[2] = {md_calc_size(N, data->pool_dims), md_calc_size(N, data->pool_dims + N)}; // number of inputs, pooling size
-	md_zsmul(1, tdims_adj, tmp_adj, src, 1. / tdims[1]); // divide average A by pooling size p to gain A/p as entries for adjoint
-	md_zfill(2, tdims, ones, 1);
-
-	complex float* tmp = md_alloc_sameplace(2 * N,  data->pool_dims, CFL_SIZE, dst);
-	md_ztenmul2(2, tdims, tstrs ,tmp, tstrs0, tmp_adj, tstrs, ones);
-	md_copy2(2 * N, data->pool_dims, data->pool_strs, dst, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, CFL_SIZE);
-
-	md_free(ones);
-	md_free(tmp_adj);
-	md_free(tmp);
-}
-
-static void avgpool_del(const struct linop_data_s* _data)
-{
-	const auto data = CAST_DOWN(avgpool_s, _data);
-
-	xfree(data->pool_dims);
-	xfree(data->pool_strs);
-
-	xfree(data);
-}
 
 const struct linop_s* linop_avgpool_create(int N, const long dims[N], const long pool_size[N])
 {
-	PTR_ALLOC(struct avgpool_s, data);
-	SET_TYPEID(avgpool_s, data);
+	long ndims[2 * N];
+	long odims[2 * N];
 
-	for (int i = 0; i< N; i++)
-		assert(dims[i] % pool_size[i] == 0);
+	unsigned int perm[2 * N];
 
-	long strs[N];
-	md_calc_strides(N, strs, dims, CFL_SIZE);
+	for (int i = 0; i < N; i++) {
+		
+		assert(0 == dims[i] % pool_size[i]);
 
-	long pool_dims_tmp[2 * N];	//img_out_dims, pool_dims
-	long pool_strs_tmp[2 * N];	//img_out_str, pool_str
-	long compare_strs_tmp[2 * N];
+		odims[i] = dims[i] / pool_size[i];
+		odims[i + N] = pool_size[i];
 
-    	for (int i = 0; i< N; i++){
+		ndims[2 * i] = pool_size[i];
+		ndims[2 * i + 1] = odims[i];
 
-		pool_dims_tmp[i] = dims[i] / pool_size[i];
-		pool_dims_tmp[i + N] = pool_size[i];
-		pool_strs_tmp[i] = strs[i] * pool_size[i];
-		pool_strs_tmp[i + N] = (pool_dims_tmp[i + N] > 1) ? strs[i] : 0;
+		perm[i] = 2 * i + 1;
+		perm[i + N] = 2 * i;
 	}
 
-	md_singleton_strides(2 * N, compare_strs_tmp);
-	md_calc_strides(N, compare_strs_tmp, pool_dims_tmp, CFL_SIZE);
+	auto result = linop_avg_create(2 * N, odims, (MD_BIT(2 * N) - 1) & ~(MD_BIT(N) - 1));
+	result = linop_chain_FF(linop_scale_create(2 * N, odims, 1. / sqrtf(md_calc_size(N, pool_size))), result); //linop avg does not average
+	result = linop_chain_FF(linop_permute_create(2 * N, perm, ndims), result);
+	result = linop_reshape_in_F(result, N, dims);
+	result = linop_reshape_out_F(result, N, odims);
 
-	PTR_ALLOC(long[2 * N], pool_dims);
-	md_copy_dims(2 * N, *pool_dims, pool_dims_tmp);
-	PTR_ALLOC(long[2 * N], pool_strs);
-	md_copy_dims(2 * N, *pool_strs, pool_strs_tmp);
-
-	data->N = N;
-	data->pool_dims = *PTR_PASS(pool_dims);
-	data->pool_strs = *PTR_PASS(pool_strs);
-
-	return linop_create(N, pool_dims_tmp, N, dims, CAST_UP(PTR_PASS(data)), avgpool_fun, avgpool_adj, NULL, NULL, avgpool_del);
+	return result;
 }
 
 
