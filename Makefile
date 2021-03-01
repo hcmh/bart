@@ -21,6 +21,9 @@ AR=./ar_lock.sh
 # allow blas calls within omp regions (fails on Debian 9, openblas)
 BLAS_THREADSAFE?=
 
+# some operations might still be non deterministic 
+NON_DETERMINISTIC?=0
+
 OPENBLAS?=0
 MKL?=0
 CUDA?=0
@@ -418,6 +421,11 @@ BLAS_THREADSAFE?=0
 ifeq ($(BLAS_THREADSAFE),1)
 CPPFLAGS += -DBLAS_THREADSAFE
 CFLAGS += -DBLAS_THREADSAFE
+endif
+
+ifeq ($(NON_DETERMINISTIC),1)
+CPPFLAGS += -DNON_DETERMINISTIC
+CFLAGS += -DNON_DETERMINISTIC
 endif
 
 

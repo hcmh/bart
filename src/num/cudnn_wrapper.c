@@ -9,8 +9,6 @@
 #ifdef USE_CUDA
 #ifdef USE_CUDNN
 
-#define DEMAND_CUDNN_DETERMINISTIC
-
 #include <complex.h>
 #include <stdbool.h>
 #include <cudnn.h>
@@ -516,8 +514,8 @@ static bool cudnn_convcorr_fwd_int(	float alpha,
 
 		bool applicable= 8 * (in_size + out_size) > algos[i].memory;
 		applicable = applicable && (algos[i].status == CUDNN_STATUS_SUCCESS);
-		#ifdef CUDNN_DETERMINISTIC
-		applicable = applicable && algos[i].determinism == DEMAND_CUDNN_DETERMINISTIC;
+		#ifndef NON_DETERMINISTIC
+		applicable = applicable && algos[i].determinism == CUDNN_DETERMINISTIC;
 		#endif
 
 		if (applicable){
@@ -526,7 +524,7 @@ static bool cudnn_convcorr_fwd_int(	float alpha,
 		}
 
 		if (i == N_algos - 1)
-		return false;
+			return false;
 	}			
 
 	size_t ws_size = algo->memory;
@@ -567,8 +565,8 @@ static bool cudnn_convcorr_bwd_krn_int(	float alpha,
 
 		bool applicable= 8 * (in_size + out_size) > algos[i].memory;
 		applicable = applicable && (algos[i].status == CUDNN_STATUS_SUCCESS);
-		#ifdef CUDNN_DETERMINISTIC
-		applicable = applicable && algos[i].determinism == DEMAND_CUDNN_DETERMINISTIC;
+		#ifndef NON_DETERMINISTIC
+		applicable = applicable && algos[i].determinism == CUDNN_DETERMINISTIC;
 		#endif
 
 		if (applicable){
@@ -577,7 +575,7 @@ static bool cudnn_convcorr_bwd_krn_int(	float alpha,
 		}
 
 		if (i == N_algos - 1)
-		return false;
+			return false;
 	}
 
 	size_t ws_size = algo->memory;
@@ -618,8 +616,8 @@ static bool cudnn_convcorr_bwd_in_int(	float alpha,
 
 		bool applicable= 8 * (in_size + out_size) > algos[i].memory;
 		applicable = applicable && (algos[i].status == CUDNN_STATUS_SUCCESS);
-		#ifdef CUDNN_DETERMINISTIC
-		applicable = applicable && algos[i].determinism == DEMAND_CUDNN_DETERMINISTIC;
+		#ifndef NON_DETERMINISTIC
+		applicable = applicable && algos[i].determinism == CUDNN_DETERMINISTIC;
 		#endif
 
 		if (applicable){
@@ -628,9 +626,8 @@ static bool cudnn_convcorr_bwd_in_int(	float alpha,
 		}
 
 		if (i == N_algos - 1)
-		return false;
+			return false;
 	}
-
 
 	size_t ws_size = algo->memory;
 	void* workspace = (0 < ws_size) ? md_alloc_gpu(1, MD_DIMS(1), ws_size) : NULL;
