@@ -1484,6 +1484,9 @@ bool zconvcorr_bwd_in_cudnn(	int N,
 								dilation, strides,
 								flags, conv);
 	
+	if (!check_cudnn_convcorr(bart_conv_desc))
+		return false;
+	
 	if (cudnn_zconvcorr_bwd_in_kernel(bart_conv_desc, in, krn, out, CUDNN_TENSOR_NCHW)) {
 
 		debug_printf(DP_DEBUG3, "conv by %s -> 1\n", __func__);
