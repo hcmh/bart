@@ -93,6 +93,8 @@ static void maxpool_der(const nlop_data_t* _data, unsigned int o, unsigned int i
 
 	md_ztenmul2(2, tdims, tstrs0, dst, tstrs, tmp, tstrs, data->pool);
 
+	md_zreal(N, data->pool_dims, dst, dst);
+
 	md_free(tmp);
 }
 
@@ -112,6 +114,8 @@ static void maxpool_adj(const nlop_data_t* _data, unsigned int o, unsigned int i
 	md_ztenmul2(2, tdims, tstrs ,tmp, tstrs0, src, tstrs, data->pool);
 
 	md_copy2(2 * N, data->pool_dims, data->pool_strs, dst, MD_STRIDES(2 * N, data->pool_dims, CFL_SIZE), tmp, CFL_SIZE);
+
+	md_zreal(2 * N, data->pool_dims, dst, dst);
 
 	md_free(tmp);
 }
@@ -384,26 +388,23 @@ struct zmax_s {
 	const long* strides;
 	const long* outstrides;
 
-	complex float* pool;
+	complex float* max_index;
 };
 
 DEF_TYPEID(zmax_s);
 
-static void zmax_fun(const nlop_data_t* _data, complex float* dst, const complex float* src) {
+static void zmax_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
 	const auto data = CAST_DOWN(zmax_s, _data);
 
-	if (NULL == data->pool)
-		data->pool = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
+	if (NULL == data->max_index)
+		data->max_index = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
 
 	md_copy2(data->N, data->outdims, data->outstrides, dst, data->strides, src, CFL_SIZE);
 
-	long pos[data->N];
-	md_set_dims(data->N, pos, 0);
+	md_zmax2(data->N, data->dims, data->outstrides, dst, data->outstrides, dst, data->strides, src);
 
-	do{
-		md_zmax2(data->N, data->outdims, data->outstrides, dst, data->outstrides, dst, data->strides, &MD_ACCESS(data->N, data->strides, pos, src));
-	}while(md_next(data->N, data->dims, data->flags, pos));
-	md_zgreatequal2(data->N, data->dims, data->strides, data->pool, data->strides, src, data->outstrides, dst);
+	md_zgreatequal2(data->N, data->dims, data->strides, data->max_index, data->strides, src, data->outstrides, dst);
 }
 
 static void zmax_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -413,7 +414,8 @@ static void zmax_der(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 
 	const auto data = CAST_DOWN(zmax_s, _data);
 
-	md_ztenmul(data->N, data->outdims, dst, data->dims, src, data->dims, data->pool);
+	md_ztenmul(data->N, data->outdims, dst, data->dims, src, data->dims, data->max_index);
+	md_zreal(data->N, data->outdims, dst, dst);
 }
 
 static void zmax_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -423,16 +425,15 @@ static void zmax_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 
 	const auto data = CAST_DOWN(zmax_s, _data);
 
-	//md_ztenmul(data->N, data->dims, dst, data->outdims, src, data->dims, data->pool); //alternative
-	md_zmul2(data->N, data->dims, data->strides, dst, data->outstrides, src, data->strides, data->pool);
-
+	md_zmul2(data->N, data->dims, data->strides, dst, data->outstrides, src, data->strides, data->max_index);
+	md_zreal(data->N, data->dims, dst, dst);
 }
 
 static void zmax_del(const struct nlop_data_s* _data)
 {
 	const auto data = CAST_DOWN(zmax_s, _data);
 
-	md_free(data->pool);
+	md_free(data->max_index);
 
 	xfree(data->outdims);
 	xfree(data->dims);
@@ -467,7 +468,7 @@ const struct nlop_s* nlop_zmax_create(int N, const long dims[N], unsigned long f
 	data->outdims = *PTR_PASS(outdims);
 	data->outstrides = *PTR_PASS(out_strides);
 
-	data->pool = NULL;
+	data->max_index = NULL;
 
 	long odims[N];
 	md_select_dims(N, ~flags, odims, dims);
