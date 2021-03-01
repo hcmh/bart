@@ -204,7 +204,7 @@ static void dropout_fun(const nlop_data_t* _data, complex float* dst, const comp
 	assert((cuda_ondevice(dst) == cuda_ondevice(src)));
 #endif
 	if (NULL == data->tmp)
-	data->tmp = md_alloc_sameplace(data->N, data->tmpdom->dims, CFL_SIZE, dst);
+		data->tmp = md_alloc_sameplace(data->N, data->tmpdom->dims, CFL_SIZE, dst);
 
 	md_rand_one(data->N, data->tmpdom->dims, data->tmp, (1. - data->p));
 
@@ -403,7 +403,7 @@ static void zmax_fun(const nlop_data_t* _data, complex float* dst, const complex
 	md_copy2(data->N, data->outdims, data->outstrides, dst, data->strides, src, CFL_SIZE);
 
 	md_zmax2(data->N, data->dims, data->outstrides, dst, data->outstrides, dst, data->strides, src);
-
+	
 	md_zgreatequal2(data->N, data->dims, data->strides, data->max_index, data->strides, src, data->outstrides, dst);
 }
 
@@ -622,28 +622,25 @@ const struct nlop_s* nlop_blurpool_create(int N, const long dims[N], const long 
 	return blurpool_op;
 }
 
-struct norm_zmax_s {
+struct norm_max_abs_s {
 
 	INTERFACE(nlop_data_t);
 
 	unsigned long N;
 	const long* dims;
 	const long* sdims;
-
-	bool abs_max;
-
 };
 
-DEF_TYPEID(norm_zmax_s);
+DEF_TYPEID(norm_max_abs_s);
 
-static void norm_zmax_fun(const nlop_data_t* _data, int D, complex float* args[D])
+static void norm_max_abs_fun(const nlop_data_t* _data, int D, complex float* args[D])
 {
 	assert(3 == D);
 	complex float* dst = args[0];
 	complex float* scale = args[1];
 	complex float* src = args[2];
 
-	const auto data = CAST_DOWN(norm_zmax_s, _data);
+	const auto data = CAST_DOWN(norm_max_abs_s, _data);
 
 	unsigned long N = data->N;
 	const long* dims = data->dims;
@@ -653,35 +650,28 @@ static void norm_zmax_fun(const nlop_data_t* _data, int D, complex float* args[D
 	assert((cuda_ondevice(dst) == cuda_ondevice(src)));
 #endif
 
-	complex float* tmp = NULL;
-	if (data->abs_max) {
+	complex float* tmp = md_alloc_sameplace(N, dims, CFL_SIZE, dst);
+	md_zabs(N, dims, tmp, src);
 
-		tmp = md_alloc_sameplace(N, dims, CFL_SIZE, dst);
-		md_zabs(N, dims, tmp, src);
-		src = tmp;
-	}
+	md_copy2(N, sdims, MD_STRIDES(N, sdims, CFL_SIZE), scale, MD_STRIDES(N, dims, CFL_SIZE), tmp, CFL_SIZE);
+	md_zmax2(N, dims, MD_STRIDES(N, sdims, CFL_SIZE), scale, MD_STRIDES(N, sdims, CFL_SIZE), scale, MD_STRIDES(N, dims, CFL_SIZE), tmp);
 
-	md_copy2(N, sdims, MD_STRIDES(N, sdims, CFL_SIZE), scale, MD_STRIDES(N, dims, CFL_SIZE), src, CFL_SIZE);
-	md_zmax2(N, dims, MD_STRIDES(N, sdims, CFL_SIZE), scale, MD_STRIDES(N, sdims, CFL_SIZE), scale, MD_STRIDES(N, dims, CFL_SIZE), src);
-
-	if(NULL == tmp)
-		tmp = md_alloc_sameplace(N, sdims, CFL_SIZE, dst);
 	complex float* ones = md_alloc_sameplace(N, sdims, CFL_SIZE, dst);
 	md_zfill(N, sdims, ones, 1.);
 	md_zdiv(N, sdims, tmp, ones, scale);
 
 	md_zmul2(N, dims,
 		MD_STRIDES(N, dims, CFL_SIZE), dst,
-		MD_STRIDES(N, dims, CFL_SIZE), args[2],
+		MD_STRIDES(N, dims, CFL_SIZE), src,
 		MD_STRIDES(N, sdims, CFL_SIZE), tmp);
 
 	md_free(ones);
 	md_free(tmp);
 }
 
-static void norm_zmax_del(const struct nlop_data_s* _data)
+static void norm_max_abs_del(const struct nlop_data_s* _data)
 {
-	const auto data = CAST_DOWN(norm_zmax_s, _data);
+	const auto data = CAST_DOWN(norm_max_abs_s, _data);
 
 	xfree(data->dims);
 	xfree(data->sdims);
@@ -689,10 +679,10 @@ static void norm_zmax_del(const struct nlop_data_s* _data)
 	xfree(data);
 }
 
-const struct nlop_s* nlop_norm_zmax_create(int N, const long dims[N], unsigned long batch_flag, bool abs)
+const struct nlop_s* nlop_norm_max_abs_create(int N, const long dims[N], unsigned long batch_flag)
 {
-	PTR_ALLOC(struct norm_zmax_s, data);
-	SET_TYPEID(norm_zmax_s, data);
+	PTR_ALLOC(struct norm_max_abs_s, data);
+	SET_TYPEID(norm_max_abs_s, data);
 
 	PTR_ALLOC(long[N], ndims);
 	md_copy_dims(N, *ndims, dims);
@@ -702,7 +692,6 @@ const struct nlop_s* nlop_norm_zmax_create(int N, const long dims[N], unsigned l
 	data->N = N;
 	data->dims = *PTR_PASS(ndims);
 	data->sdims = *PTR_PASS(sdims);
-	data->abs_max = abs;
 
 	long nl_odims[2][N];
 	md_copy_dims(N, nl_odims[0], dims);
@@ -711,6 +700,6 @@ const struct nlop_s* nlop_norm_zmax_create(int N, const long dims[N], unsigned l
 	long nl_idims[1][N];
 	md_copy_dims(N, nl_idims[0], dims);
 
-	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), norm_zmax_fun, NULL, NULL, NULL, NULL, norm_zmax_del);
+	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), norm_max_abs_fun, NULL, NULL, NULL, NULL, norm_max_abs_del);
 
 }

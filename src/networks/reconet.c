@@ -323,7 +323,7 @@ static nn_t nn_init_create(const struct reconet_s* config, unsigned int N, const
 	// normalization based on tickhonov regularized input only makes sense if lambda is fixed
 	if (config->normalize && !(config->tickhonov_init && (-1 != config->mri_config_dc_init->lambda_fixed))) {
 
-		auto nn_normalize = nn_from_nlop_F(nlop_norm_zmax_create(N, idims, config->normalize, true));
+		auto nn_normalize = nn_from_nlop_F(nlop_norm_max_abs_create(N, idims, config->normalize));
 		nn_normalize = nn_set_output_name_F(nn_normalize, 1, "scale");
 		result = nn_chain2_FF(result, 0, NULL, nn_normalize, 0, NULL);
 	}
@@ -337,7 +337,7 @@ static nn_t nn_init_create(const struct reconet_s* config, unsigned int N, const
 			long sdims[N];
 			md_select_dims(5, config->normalize, sdims, idims);
 
-			nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_norm_zmax_create(N, idims, config->normalize, true), 0);
+			nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_norm_max_abs_create(N, idims, config->normalize), 0);
 
 			const struct nlop_s* scale = nlop_tenmul_create(N, idims, idims, sdims);
 			scale = nlop_chain2_FF(nlop_zinv_create(N, sdims), 0, scale, 1);

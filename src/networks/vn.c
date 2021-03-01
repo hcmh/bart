@@ -361,7 +361,7 @@ static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const lon
 
 	if (vn->normalize) {
 
-		auto nn_normalize = nn_from_nlop_F(nlop_norm_zmax_create(5, idims, MD_BIT(4), true));
+		auto nn_normalize = nn_from_nlop_F(nlop_norm_max_abs_create(5, idims, MD_BIT(4)));
 		nn_normalize = nn_set_output_name_F(nn_normalize, 1, "normalize_scale");
 		nn_zf = nn_chain2_FF(nn_zf, 0, NULL, nn_normalize, 0, NULL);
 	}
