@@ -1628,7 +1628,7 @@ void md_min2(unsigned int D, const long dims[D], const long ostr[D], float* optr
 /**
  * Max of inputs (without strides)
  *
- * optr = max(iptr1, iptr2)
+ * optr = max(iptr1, iptr2) + 0i
  */
 void md_zmax(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr1, const complex float* iptr2)
 {
@@ -1642,7 +1642,7 @@ void md_zmax(unsigned int D, const long dims[D], complex float* optr, const comp
 /**
  * Max of inputs (with strides)
  *
- * optr = max(iptr1, iptr2)
+ * optr = max(iptr1, iptr2) + 0i
  */
 void md_zmax2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {

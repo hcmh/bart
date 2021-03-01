@@ -409,7 +409,7 @@ static void zacos(long N, complex float* dst, const complex float* src)
 static void zmax(long N, complex float* dst, const complex float* src1, const complex float* src2)
 {
 	for (long i = 0; i < N; i++)
-		dst[i] = (crealf(src1[i]) > crealf(src2[i])) ? src1[i] : src2[i];
+		dst[i] = MAX(crealf(src1[i]), crealf(src2[i]));
 }
 
 

@@ -914,14 +914,20 @@ extern "C" void cuda_zfftmod(long N, _Complex float* dst, const _Complex float* 
 }
 
 
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
 
 __global__ void kern_zmax(long N, cuFloatComplex* dst, const cuFloatComplex* src1, const cuFloatComplex* src2)
 {
 	int start = threadIdx.x + blockDim.x * blockIdx.x;
 	int stride = blockDim.x * gridDim.x;
 
-	for (long i = start; i < N; i += stride)
-		dst[i] = (cuCrealf(src1[i]) > cuCrealf(src2[i])) ? src1[i] : src2[i];
+	for (long i = start; i < N; i += stride) {
+
+		dst[i].x = MAX(src1[i].x, src2[i].x);
+		dst[i].y = 0.0;
+	}
 }
 
 
@@ -930,10 +936,6 @@ extern "C" void cuda_zmax(long N, _Complex float* dst, const _Complex float* src
 	kern_zmax<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src1, (const cuFloatComplex*)src2);
 }
 
-
-
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 
 __global__ void kern_smax(long N, float val, float* dst, const float* src1)

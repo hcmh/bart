@@ -24,6 +24,7 @@ static unsigned int gridsizeY(long N, unsigned int blocksize)
 }
 
 #define MIN(a, b) ((a < b) ? a : b)
+#define MAX(a, b) ((a > b) ? a : b)
 
 __device__ static __inline__ cuFloatComplex dev_zadd(cuFloatComplex arg1, cuFloatComplex arg2)
 {
@@ -258,7 +259,7 @@ extern "C" void cuda_reduce_add_inner(long dim_reduce, long dim_batch, float* ds
 
 __device__ static __inline__ cuFloatComplex dev_zmax(cuFloatComplex arg1, cuFloatComplex arg2)
 {
-	return (cuCrealf(arg1) > cuCrealf(arg2)) ? arg1 : arg2;
+	return make_cuFloatComplex(MAX(cuCrealf(arg1), cuCrealf(arg2)), 0.);
 }
 
 __device__ static __inline__ void dev_atomic_zmax(cuFloatComplex* arg, cuFloatComplex val)
