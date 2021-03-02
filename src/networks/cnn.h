@@ -11,7 +11,7 @@
 
 struct network_s;
 
-typedef nn_t (*network_create_t)(const struct network_s* config, unsigned int N, const long odims[N], const long idims[N], enum NETWORK_STATUS status);
+typedef nn_t (*network_create_t)(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 
 typedef struct network_s {
 
@@ -22,7 +22,7 @@ typedef struct network_s {
 
 } network_t;
 
-extern nn_t network_create(const struct network_s* config, unsigned int N, const long odims[N], const long idims[N], enum NETWORK_STATUS status);
+extern nn_t network_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
  
 struct network_resnet_s {
 
@@ -53,7 +53,7 @@ struct network_resnet_s {
 	enum ACTIVATION last_activation;	
 };
 extern struct network_resnet_s network_resnet_default;
-extern nn_t network_resnet_create(const struct network_s* config, unsigned int N, const long odims[N], const long idims[N], enum NETWORK_STATUS status);
+extern nn_t network_resnet_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 
 
 struct network_varnet_s {
@@ -76,7 +76,7 @@ struct network_varnet_s {
 };
 
 extern struct network_varnet_s network_varnet_default;
-extern nn_t network_varnet_create(const struct network_s* config, unsigned int N, const long odims[N], const long idims[N], enum NETWORK_STATUS status);
+extern nn_t network_varnet_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 
 
 #endif

@@ -418,11 +418,11 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 		result = nn_from_nlop_F(nlop_init);
 		result = nn_set_input_name_F(result, 1, "reinsert");
 
-		result = nn_chain2_FF(result, 0, NULL, config->network->create(config->network, N, odims_w, idims_w2, status), 0, NULL);
+		result = nn_chain2_FF(result, 0, NULL, config->network->create(config->network, N, odims_w, N, idims_w2, status), 0, NULL);
 
 	} else {
 
-		result = config->network->create(config->network, N, odims_w, idims_w, status);
+		result = config->network->create(config->network, N, odims_w, N, idims_w, status);
 		result = nn_reshape_in_F(result, 0, NULL, 5, idims);
 	}
 

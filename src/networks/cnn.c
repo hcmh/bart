@@ -122,8 +122,11 @@ static void network_resnet_get_kdims(const struct network_resnet_s* config, unsi
  * INDEX_0:	odims
  * batchnorm
  */
-nn_t network_resnet_create(const struct network_s* _config, unsigned int N, const long odims[N], const long idims[N], enum NETWORK_STATUS status)
+nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
 {
+	assert(NO == NI);
+	unsigned int N = NO;
+
 	auto config = CAST_DOWN(network_resnet_s, _config);
 	assert(config->N == N);
 
@@ -283,8 +286,11 @@ struct network_varnet_s network_varnet_default = {
 
 
 
-nn_t network_varnet_create(const struct network_s* _config, unsigned int N, const long odims[N], const long idims[N], enum NETWORK_STATUS status)
+nn_t network_varnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
 {
+	assert(NO == NI);
+	unsigned int N = NO;
+
 	UNUSED(status);
 
 	auto config = CAST_DOWN(network_varnet_s, _config);
