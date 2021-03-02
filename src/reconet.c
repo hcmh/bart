@@ -27,6 +27,8 @@
 #include "misc/opts_json.h"
 #include "misc/mmio.h"
 
+#include "nn/weights.h"
+
 #include "networks/reconet.h"
 #include "networks/misc.h"
 

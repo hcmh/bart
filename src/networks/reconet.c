@@ -65,24 +65,10 @@
 #include "nn/nn_ops.h"
 
 #include "networks/misc.h"
+#include "networks/losses.h"
 
 #include "reconet.h"
 
-#define loss_init {			\
-					\
-	.weighting_mse_sa = 0,		\
-	.weighting_mse = 0,		\
-	.weighting_psnr = 0,		\
-	.weighting_ssim = 0,		\
-}
-
-#define val_loss_init {			\
-					\
-	.weighting_mse_sa = 1,		\
-	.weighting_mse = 1,		\
-	.weighting_psnr = 1,		\
-	.weighting_ssim = 1,		\
-}
 
 struct reconet_s reconet_init = {
 
@@ -106,8 +92,8 @@ struct reconet_s reconet_init = {
 	.weights = NULL,
 	.train_conf = NULL,
 
-	.train_loss = loss_init,
-	.valid_loss = val_loss_init,
+	.train_loss = NULL,
+	.valid_loss = NULL,
 
 	.gpu = false,
 
@@ -133,7 +119,8 @@ void reconet_init_modl_default(struct reconet_s* reconet)
 	*network = network_resnet_default;
 	reconet->network = CAST_UP(PTR_PASS(network));
 
-	reconet->train_loss.weighting_mse = 1.;
+	reconet->train_loss = &loss_mse;
+	reconet->valid_loss = &loss_image_valid;
 }
 
 void reconet_init_modl_test_default(struct reconet_s* reconet)
@@ -165,7 +152,8 @@ void reconet_init_varnet_default(struct reconet_s* reconet)
 	*network = network_varnet_default;
 	reconet->network = CAST_UP(PTR_PASS(network));
 
-	reconet->train_loss.weighting_mse_sa = 1.;
+	reconet->train_loss = &loss_mse_sa;
+	reconet->valid_loss = &loss_image_valid;
 }
 
 void reconet_init_varnet_test_default(struct reconet_s* reconet)
@@ -630,90 +618,13 @@ static nn_t reconet_create(const struct reconet_s* config, unsigned int N, const
 static nn_t reconet_loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N], const long idims[N]) 
 {
 	UNUSED(dims);
-
-	nn_t result = NULL;
-
-	if (0 != config->weighting_mse_sa) {
-
-		const struct nlop_s* tmp_loss_nlop = nlop_mse_create(N, idims, ~0ul);
-		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, idims, 1.e-12), 0, tmp_loss_nlop, 0);
-		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, idims, 1.e-12), 0, tmp_loss_nlop, 0);
-
-		auto tmp_loss = nn_from_nlop_F(nlop_chain2_FF(tmp_loss_nlop, 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_mse_sa)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mse_sa");
-
-		if (NULL == result) {
-			
-			result = tmp_loss;
-		} else {
-
-			result = nn_combine_FF(result, tmp_loss);
-			result = nn_dup_F(result, 0, NULL, 2, NULL);
-			result = nn_dup_F(result, 1, NULL, 2, NULL);
-		}
-	}
-
-	if (0 != config->weighting_mse) {
-
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_mse_create(N, idims, ~0ul), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_mse)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mse");
-
-		if (NULL == result) {
-			
-			result = tmp_loss;
-		} else {
-
-			result = nn_combine_FF(result, tmp_loss);
-			result = nn_dup_F(result, 0, NULL, 2, NULL);
-			result = nn_dup_F(result, 1, NULL, 2, NULL);
-		}
-	}
-
-	if (0 != config->weighting_psnr) {
-
-		assert(5 == N); //FIXME: should be more general
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_mpsnr_create(N, idims, MD_BIT(4)), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_psnr)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mpsnr");
-
-		if (NULL == result) {
-			
-			result = tmp_loss;
-		} else {
-
-			result = nn_combine_FF(result, tmp_loss);
-			result = nn_dup_F(result, 0, NULL, 2, NULL);
-			result = nn_dup_F(result, 1, NULL, 2, NULL);
-		}
-	}
-
-	if (0 != config->weighting_ssim) {
-
-		assert(5 == N); //FIXME: should be more general
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_mssim_create(N, idims, MD_DIMS(7, 7, 1, 1, 1), FFT_FLAGS), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_ssim)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mssim");
-
-		if (NULL == result) {
-			
-			result = tmp_loss;
-		} else {
-
-			result = nn_combine_FF(result, tmp_loss);
-			result = nn_dup_F(result, 0, NULL, 2, NULL);
-			result = nn_dup_F(result, 1, NULL, 2, NULL);
-		}
-	}
-
-	return result;
+	return loss_create(config, N, idims);
 }
 
 static nn_t reconet_train_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N], bool valid)
 {
 	auto train_op = reconet_create(config, N, dims, idims, STAT_TRAIN);
-	auto loss = reconet_loss_create(valid ? &(config->valid_loss) : &(config->train_loss), N, dims, idims); 
+	auto loss = reconet_loss_create(valid ? config->valid_loss : config->train_loss, N, dims, idims); 
 	
 	if(config->normalize) {
 

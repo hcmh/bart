@@ -1,15 +1,7 @@
 
 
-#include "nn/weights.h"
-
-struct loss_config_s {
-
-	float weighting_mse_sa;
-	float weighting_mse;
-	float weighting_psnr;
-	float weighting_ssim;
-};
-
+struct nn_weights_s;
+struct loss_config_s;
 struct reconet_s {
 
 	struct network_s* network;
@@ -25,15 +17,15 @@ struct reconet_s {
 	_Bool dc_tickhonov;
 	_Bool dc_gradient;
 
-	bool tickhonov_init;
+	_Bool tickhonov_init;
 	unsigned long normalize;
 	struct config_nlop_mri_dc_s* mri_config_dc_init;
 
-	nn_weights_t weights;
+	struct nn_weights_s* weights;
 	struct iter6_conf_s* train_conf;
 
-	struct loss_config_s train_loss;
-	struct loss_config_s valid_loss;
+	struct loss_config_s* train_loss;
+	struct loss_config_s* valid_loss;
 
 	_Bool low_mem;
 	_Bool gpu;
