@@ -129,8 +129,10 @@ static bool test_bloch_irflash_frw_der(void)
 	// debug_printf(DP_INFO, "Error Derivative: %f\n", err_der);
 
 
-	md_free(dst_frw_irflash);
 	md_free(dst_frw_bloch);
+	md_free(dst_der_bloch);
+	md_free(dst_frw_irflash);
+	md_free(dst_der_irflash);
 
 	if (err_frw > 3.E-3)
 		return 0;
