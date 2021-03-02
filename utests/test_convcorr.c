@@ -321,7 +321,7 @@ static bool test_convcorr_bwd_in_cf_dil_strs(void)
 					idims, MD_STRIDES(N, idims, CFL_SIZE),
 					kdims, MD_STRIDES(N, kdims, CFL_SIZE),
 					28, dilation, strides, false,
-					1.e-6, 0, 1 + cudnn_imple);
+					1.e-6, 0, 1); //no deterministic cudnn algorithm
 
 	UT_ASSERT(test);
 }
