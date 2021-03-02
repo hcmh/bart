@@ -38,28 +38,10 @@
 
 #include "nn/nn.h"
 
+#include "nn/misc.h"
+
 #include "mnist.h"
 
-static void hotenc_to_index(int N_batch, long prediction[N_batch], int N_hotenc, const complex float* in)
-{
-
-	long dims[] = {N_hotenc, N_batch};
-	long strs[2];
-	md_calc_strides(2, strs, dims, CFL_SIZE);
-
-	for (int i_batch = 0; i_batch < N_batch; i_batch++){
-
-		prediction[i_batch] = 0;
-		for (int i = 1; i < N_hotenc; i++){
-
-			long pos[] = {i, i_batch};
-			long pos_max[] = {prediction[i_batch], i_batch};
-
-			if ((float)MD_ACCESS(2, strs, pos, in) > (float)MD_ACCESS(2, strs, pos_max, in))
-				prediction[i_batch] = i;
-		}
-	}
-}
 
 static nn_t get_nn_mnist(int N_batch, enum NETWORK_STATUS status)
 {
@@ -159,7 +141,7 @@ void train_nn_mnist(int N_batch, int N_total, nn_weights_t weights, const comple
 #endif
 }
 
-void predict_nn_mnist(int N_total, int N_batch, long prediction[N_total], nn_weights_t weights, const complex float* in)
+void predict_nn_mnist(int N_total, int N_batch, complex float prediction[N_total], nn_weights_t weights, const complex float* in)
 {
 	while (N_total > 0) {
 
@@ -195,7 +177,7 @@ void predict_nn_mnist(int N_total, int N_batch, long prediction[N_total], nn_wei
 		if (nn_weights_on_gpu(weights))
 			md_free(tmp_in);
 
-		hotenc_to_index(N_batch, prediction, 10, tmp_cpu);
+		onehotenc_to_index(2, MD_DIMS(1, N_batch), prediction, MD_DIMS(10, N_batch), tmp_cpu);
 		md_free(tmp_cpu);
 
 		prediction += N_batch;
@@ -206,15 +188,18 @@ void predict_nn_mnist(int N_total, int N_batch, long prediction[N_total], nn_wei
 
 float accuracy_nn_mnist(int N_total, int N_batch, nn_weights_t weights, const complex float* in, const complex float* out)
 {
-	long prediction[N_total];
+	long dims[2] = {10, N_total};
+
+	complex float prediction[N_total];
 	predict_nn_mnist(N_total, N_batch, prediction, weights, in);
 
-	long label[N_total];
-	hotenc_to_index(N_total, label, 10, out);
+	complex float* tmp = md_alloc(2, dims, CFL_SIZE);
 
-	long num_correct = 0;
-	for (int i = 0; i < N_total; i++)
-		num_correct += (long)(prediction[i] == label[i]);
+	index_to_onehotenc(2, dims, tmp, MD_DIMS(1, N_total), prediction);
 
-	return (float)num_correct / (float)N_total;
+	float result = onehotenc_accuracy(2, dims, 0, tmp, out);
+
+	md_free(tmp);
+
+	return result;
 }

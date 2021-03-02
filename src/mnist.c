@@ -98,11 +98,11 @@ int main_mnist(int argc, char* argv[])
 
 	if (predict){
 
-		long prediction[N_batch];
+		complex float prediction[N_batch];
 
 		printf("Predict first %ld numbers:\n", N_batch);
 		predict_nn_mnist(N_batch, N_batch, prediction, weights, in);
-		print_long(N_batch, prediction);
+		print_complex(N_batch, prediction);
 	}
 
 	if (accuracy)
