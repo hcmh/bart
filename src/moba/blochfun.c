@@ -328,9 +328,9 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 					//Scaling: dB/dRi = dB/dRis * dRis/dRi
 					//Write to possible GPU memory
-					dr1_cpu[position] = data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
-					dr2_cpu[position] = data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
-					dm0_cpu[position] = data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
+					dr1_cpu[position] = data->scale[3] * data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
+					dr2_cpu[position] = data->scale[3] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
+					dm0_cpu[position] = data->scale[3] * data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
 					sig_cpu[position] = data->scale[3] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
 
 					i++;
