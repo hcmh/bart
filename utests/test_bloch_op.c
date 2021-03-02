@@ -34,7 +34,7 @@
 
 #include "utest.h"
 
-static bool test_bloch_irflash_frw(void)
+static bool test_bloch_irflash_frw_der(void)
 {
 	enum { N = 16 };
 	enum { rep = 300 };
@@ -140,7 +140,7 @@ static bool test_bloch_irflash_frw(void)
 
 	return 1;
 }
-UT_REGISTER_TEST(test_bloch_irflash_frw);
+UT_REGISTER_TEST(test_bloch_irflash_frw_der);
 
 
 static bool test_bloch_ode_obs_irflash(void)
