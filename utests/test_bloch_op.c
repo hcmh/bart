@@ -66,16 +66,7 @@ static bool test_bloch_irflash_frw(void)
 	fit_para.prep_pulse_length = 0.;
 
 	// Correct M0 to ensure same scaling between Bloch simulation and IR FLASH model
-	long pos[DIMS];
-	md_set_dims(DIMS, pos, 0);
-
-	complex float* tmp = md_alloc(DIMS, map_dims, CFL_SIZE);
-	md_zfill(DIMS, map_dims, tmp, 1./sinf(fit_para.fa * M_PI/180.));
-
-	pos[COEFF_DIM] = 1;
-	md_copy_block(DIMS, pos, in_dims, src, map_dims, tmp, CFL_SIZE);
-
-	md_free(tmp);
+	fit_para.scale[3] = 1./sinf(fit_para.fa * M_PI/180.);
 
 	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
 
