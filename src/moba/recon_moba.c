@@ -103,6 +103,12 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 	if (MOLLI == conf->model || IR_phy == conf->model || IR_phy_alpha_in == conf->model)
 		conf2.constrained_maps = 2;
 
+	// T2 estimation turned off for IR FLASH Simulation
+	if (Bloch == conf->model && IRFLASH == conf->sim.sequence) {
+
+		conf2.constrained_maps = 1;
+		conf2.not_wav_maps = 1;
+	}
 	long irgnm_conf_dims[DIMS];
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
 

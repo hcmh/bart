@@ -165,6 +165,16 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 	case Bloch:
 
 		bloch_struct_conversion(dims, &fitpara, &(conf_model->sim));
+
+		if (5 == fitpara.sequence) {
+
+			// Turn of matching of T2 for IR FLASH
+			fitpara.scale[2] = 0.0001;
+
+			// Compensate different signal strength: Look-Locker vs. Simulation
+			fitpara.scale[3] = 1./sinf(fitpara.fa * M_PI/180.);
+		}
+
 		model = nlop_Bloch_create(DIMS, der_dims, map_dims, out_dims, in_dims, &fitpara, use_gpu);
 		break;
 	}
