@@ -368,7 +368,7 @@ tests/test-moba-bloch-t1-alpha-in-comparison: traj repmat phantom signal fmac on
 	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 -i11 --spokes-per-TR 12 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco2.ra sens2.ra	;\
 	$(TOOLDIR)/slice 6 1 reco.ra r1map.ra						;\
 	$(TOOLDIR)/slice 6 0 reco2.ra r1map2.ra						;\
-	$(TOOLDIR)/nrmse -t 0.006 r1map2.ra r1map.ra			  		;\
+	$(TOOLDIR)/nrmse -t 0.007 r1map2.ra r1map.ra			  		;\
 	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
 	$(TOOLDIR)/phantom -x12 -c circ.ra						;\
 	$(TOOLDIR)/fmac t1map.ra circ.ra masked.ra	    				;\
