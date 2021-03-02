@@ -409,13 +409,12 @@ tests/test-moba-bloch-b1-input: traj repmat phantom signal fmac ones scale index
 	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                    	       		;\
 	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
 	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 1 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 --sim.b1map b1map.ra -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco2.ra sens2.ra	;\
-	$(TOOLDIR)/nrmse -t 0.0001 reco.ra reco2.ra			  		;\
 	$(TOOLDIR)/slice 6 0 reco.ra r1map.ra						;\
-	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
 	$(TOOLDIR)/phantom -x16 -c circ.ra						;\
-	$(TOOLDIR)/fmac t1map.ra circ.ra masked.ra	    				;\
-	$(TOOLDIR)/scale -- 1.12 circ.ra ref.ra			    			;\
-	$(TOOLDIR)/nrmse -t 0.007 masked.ra ref.ra			    		;\
+	$(TOOLDIR)/fmac r1map.ra circ.ra masked.ra	    				;\
+	$(TOOLDIR)/slice 6 0 reco2.ra r1map2.ra						;\
+	$(TOOLDIR)/fmac r1map2.ra circ.ra masked2.ra	    				;\
+	$(TOOLDIR)/nrmse -t 0.0003 masked.ra masked2.ra			  		;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
