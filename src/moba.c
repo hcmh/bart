@@ -461,12 +461,6 @@ int main_moba(int argc, char* argv[argc])
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
-	long single_map_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|TIME_FLAG|SLICE_FLAG|TIME2_FLAG, single_map_dims, grid_dims);
-
-	long single_map_strs[DIMS];
-	md_calc_strides(DIMS, single_map_strs, single_map_dims, CFL_SIZE);
-
 	long coil_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|COIL_FLAG|MAPS_FLAG|TIME_FLAG|SLICE_FLAG|TIME2_FLAG, coil_dims, grid_dims);
 
@@ -474,7 +468,6 @@ int main_moba(int argc, char* argv[argc])
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
 	complex float* img = create_cfl(argv[3], DIMS, img_dims);
-	complex float* single_map = anon_cfl("", DIMS, single_map_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, grid_dims);
@@ -657,7 +650,7 @@ int main_moba(int argc, char* argv[argc])
 	}
 	md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
-	// Initialize Parameter maps
+	// Initialize Parameter maps, FIXME: Move to external function
 
 	// FIXME: Integrate MGRE into new framework
 	if (MGRE != conf_model.model)
@@ -698,16 +691,23 @@ int main_moba(int argc, char* argv[argc])
 	// Set parameter
 	long pos[DIMS] = { [0 ... DIMS - 1] = 0. };
 
+	long tmp_dims[DIMS];
+	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|TIME_FLAG|SLICE_FLAG|TIME2_FLAG, tmp_dims, grid_dims);
+
+	complex float* tmp = md_alloc(DIMS, tmp_dims, CFL_SIZE);
+
 	for (int i = 0; i < img_dims[COEFF_DIM]; i++) {
 
 		pos[COEFF_DIM] = i;
 
-		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
-		md_zsmul(DIMS, single_map_dims, single_map, single_map, initval[i]);
-		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
+		md_copy_block(DIMS, pos, tmp_dims, tmp, img_dims, img, CFL_SIZE);
+		md_zsmul(DIMS, tmp_dims, tmp, tmp, initval[i]);
+		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp, CFL_SIZE);
 	}
 
-	unmap_cfl(DIMS, single_map_dims, single_map);
+	md_free(tmp);
+
+	// Start reconstruction
 
 #ifdef  USE_CUDA
 	if (use_gpu) {
