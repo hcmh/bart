@@ -27,29 +27,20 @@
 
 
 struct process_dat {
-	const complex float *j;
 	complex float *j_hist;
-	const long *dims;
-	const long *j_dims;
-	complex float *mask2;
-	struct linop_s *op;
 	unsigned long hist;
+
+	const struct linop_s *leray_op;
 };
 
 static complex float *j_wrapper(void *_data, const float *phi)
 {
 	auto data = (struct process_dat *)_data;
 
-	long mask_strs[N], j_strs[N];
-	md_calc_strides(N, j_strs, data->j_dims, CFL_SIZE);
-	md_calc_strides(N, mask_strs, data->dims, CFL_SIZE);
+	assert(NULL != data->leray_op);
+	auto leray_data = linop_get_data((data->leray_op));
 
-	linop_forward(data->op, N, data->j_dims, data->j_hist, N, data->dims, (const complex float *)phi);
-
-	md_zmul2(N, data->j_dims, j_strs, data->j_hist, mask_strs, data->mask2, j_strs, data->j_hist);
-
-	md_zaxpy(N, data->j_dims, data->j_hist, 1, data->j);
-
+	linop_leray_calc_projection(leray_data, data->j_hist, (const complex float*)phi);
 	return data->j_hist;
 }
 
@@ -90,34 +81,16 @@ int main_leray(int argc, char *argv[])
 		assert(i == d ? mask_dims[i] == 1 : mask_dims[i] == dims[i]);
 
 	// setup monitoring
-	long vec1_dims[N];
-	md_copy_dims(N, vec1_dims, dims);
-	vec1_dims[d] = 1;
 	complex float *j_hist = md_calloc(N, dims, CFL_SIZE);
-	auto d_op = linop_fd_create(N, vec1_dims, d, ((MD_BIT(N) - 1) & ~MD_BIT(d)), 2, BC_ZERO, false);
-
-	complex float *normal = md_alloc(N, dims, CFL_SIZE);
-	calc_outward_normal(N, dims, normal, d, vec1_dims, mask);
-
-	struct boundary_point_s *boundary = md_alloc(N, vec1_dims, sizeof(struct boundary_point_s));
-	long n_points = calc_boundary_points(N, dims, boundary, d, normal, NULL);
-
-	complex float *mask2 = md_calloc(N, vec1_dims, CFL_SIZE);
-	shrink_wrap(N - 1, dims + 1, mask2, n_points, boundary, mask);
-
-	struct process_dat j_dat = {.j_dims = dims, .j = in, .j_hist = j_hist, .dims = vec1_dims, .mask2 = mask2, .op = d_op, .hist = hist};
+	struct process_dat j_dat = { .j_hist = j_hist, .hist = hist, .leray_op = NULL};
 
 	auto mon = create_monitor_recorder(N, dims, "j_step", (void *)&j_dat, selector, j_wrapper);
-
-
-
 	auto op = linop_leray_create(N, dims, d, n, lambda, mask, mon);
+	j_dat.leray_op = op;
+
 	linop_forward(op, N, dims, out, N, dims, in);
 	linop_free(op);
 
-	md_free(normal);
-	md_free(boundary);
-	md_free(mask2);
 	md_free(j_hist);
 
 	unmap_cfl(N, dims, in);

@@ -24,7 +24,6 @@
 #include "iter/monitor.h"
 #include "linops/fmac.h"
 #include "linops/grad.h"
-#include "linops/linop.h"
 #include "linops/someops.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
@@ -40,36 +39,48 @@ struct leray_s {
 	long N;
 	long *dims;
 	long *phi_dims;
-	struct lsqr_conf *lconf;
 	struct iter_conjgrad_conf *cg_conf;
-	complex float *y, *tmp;
+	_Complex float *y, *tmp;
 	struct linop_s *grad_op, *neg_laplace, *div_op;
 	struct boundary_point_s *boundary;
 	long n_points;
 	struct iter_monitor_s *mon;
+	const complex float* src;
 };
-
 static DEF_TYPEID(leray_s);
 
 
 
+void linop_leray_calc_rhs(const linop_data_t *_data, complex float *y, const complex float *src)
+{
+	const auto data = CAST_DOWN(leray_s, _data);
+	linop_forward(data->div_op, data->N, data->phi_dims, y, data->N, data->dims, src);
+	laplace_neumann_update_rhs(data->N - 1, data->phi_dims + 1, y, data->n_points, data->boundary);
+}
+
+void linop_leray_calc_projection(const linop_data_t *_data, complex float *dst, const complex float *tmp)
+{
+	const auto data = CAST_DOWN(leray_s, _data);
+	linop_forward(data->grad_op, data->N, data->dims, dst, data->N, data->phi_dims, tmp);
+	md_zaxpy(data->N, data->dims, dst, 1., data->src);
+}
+
+
+
+// dst = src - grad (laplace^(-1) (div (src)))
 static void leray_apply(const linop_data_t *_data, complex float *dst, const complex float *src)
 {
 	const auto data = CAST_DOWN(leray_s, _data);
 	md_clear(data->N, data->phi_dims, data->tmp, CFL_SIZE);
 
-	linop_forward(data->div_op, data->N, data->phi_dims, data->y, data->N, data->dims, src);
+	data->src = src;
 
-	laplace_neumann_update_rhs(data->N - 1, data->phi_dims + 1, data->y, data->n_points, data->boundary);
+	linop_leray_calc_rhs(_data, data->y, src);
 
 	long size = 2 * md_calc_size(data->N, data->phi_dims); // multiply by 2 for float size
 	iter_conjgrad(CAST_UP(data->cg_conf), data->neg_laplace->forward, NULL, size, (float *)data->tmp, (const float *)data->y, data->mon);
 
-	linop_forward(data->grad_op, data->N, data->dims, dst, data->N, data->phi_dims, data->tmp);
-	//md_zsmul(data->N, data->dims, dst, dst, -1.);
-
-	// dst = src - grad (laplace^(-1) (div (src)))
-	md_zaxpy(data->N, data->dims, dst, 1., src);
+	linop_leray_calc_projection(_data, dst, data->tmp);
 }
 
 // (this!) projection is self-adjoint
@@ -99,7 +110,6 @@ static void leray_free(const linop_data_t *_data)
 	linop_free(data->div_op);
 	xfree(data->dims);
 	xfree(data->phi_dims);
-	xfree(data->lconf);
 	xfree(data->cg_conf);
 	xfree(data);
 }
