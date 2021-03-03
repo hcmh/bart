@@ -5,6 +5,7 @@
 
 struct iovec_s;
 struct nlop_s;
+struct nn_s;
 
 struct nn_weights_s {
 
@@ -27,6 +28,9 @@ _Bool nn_weights_on_gpu(nn_weights_t weights);
 void nn_weights_free(nn_weights_t weights);
 
 void nn_init(nn_t op, nn_weights_t weights);
+
+const struct nn_s* nn_get_wo_weights(nn_t op, nn_weights_t weights, _Bool copy);
+const struct nn_s* nn_get_wo_weights_F(nn_t op, nn_weights_t weights, _Bool copy);
 
 const struct nlop_s* nn_get_nlop_wo_weights(nn_t op, nn_weights_t weights, _Bool copy);
 const struct nlop_s* nn_get_nlop_wo_weights_F(nn_t op, nn_weights_t weights, _Bool copy);

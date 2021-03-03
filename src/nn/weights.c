@@ -206,6 +206,71 @@ nn_weights_t nn_weights_create_from_nn(nn_t x)
 	return nn_weights_create(N, iovs);
 }
 
+/**
+ * Create a nn_t whose inputs corresponding to weights are set to the weights provided
+ *
+ * This function can be used to create a nlop which can be used for inference
+ *
+ * @param op nn_t struct
+ * @param weights
+ * @param copy if true: weights are copied into nlop; else: only pointer is stored
+ *
+ * @returns nn_t used for inference
+ */
+nn_t nn_get_wo_weights(nn_t op, nn_weights_t weights, bool copy)
+{
+	assert(weights->N == nn_get_nr_weights(op));
+
+	auto nlop_result = nlop_clone(op->nlop);
+
+	for (int i = (int)nn_get_nr_out_args(op) - 1; i >= 0; i--)
+		if (OUT_BATCHNORM == op->out_types[i])
+			nlop_result = nlop_del_out_F(nlop_result, i);
+
+	for (int i = (int)nn_get_nr_in_args(op) - 1, ip = weights->N - 1; i >= 0; i--)
+		if ((IN_OPTIMIZE == op->in_types[i]) || (IN_BATCHNORM == op->in_types[i])) {
+
+			auto iov = weights->iovs[ip];
+			nlop_result = nlop_set_input_const_F(nlop_result, i, iov->N, iov->dims, copy, weights->tensors[ip--]);
+		}
+	
+	auto result = nn_from_nlop_F(nlop_result);
+
+	for (unsigned int i = 0, j = 0; i < nn_get_nr_in_args(result); i++, j++) {
+
+		while ((IN_OPTIMIZE == op->in_types[i]) || (IN_BATCHNORM == op->in_types[i]))
+			j++;
+		nn_clone_arg_i_from_i(result, i, op, j);
+	}
+
+	for (unsigned int i = 0, j = 0; i < nn_get_nr_out_args(result); i++, j++) {
+
+		while (OUT_BATCHNORM == op->out_types[i])
+			j++;
+		nn_clone_arg_o_from_o(result, i, op, j);
+	}
+
+	return result;
+}
+
+/**
+ * Create a nn_t whose inputs corresponding to weights are set to the weights provided and free nn_t
+ *
+ * This function can be used to create a nlop which can be used for inference
+ *
+ * @param op nn_t struct
+ * @param weights
+ * @param copy if true: weights are copied into nlop; else: only pointer is stored
+ *
+ * @returns nn_t used for inference
+ */
+nn_t nn_get_wo_weights_F(nn_t op, nn_weights_t weights, bool copy)
+{
+	auto result = nn_get_wo_weights(op, weights, copy);
+	nn_free(op);
+
+	return result;
+}
 
 /**
  * Create a nlop whose inputs corresponding to weights are set to the weights provided
@@ -220,20 +285,9 @@ nn_weights_t nn_weights_create_from_nn(nn_t x)
  */
 const struct nlop_s* nn_get_nlop_wo_weights(nn_t op, nn_weights_t weights, bool copy)
 {
-	assert(weights->N == nn_get_nr_weights(op));
-
-	auto result = nlop_clone(op->nlop);
-
-	for (int i = (int)nn_get_nr_out_args(op) - 1; i >= 0; i--)
-		if (OUT_BATCHNORM == op->out_types[i])
-			result = nlop_del_out_F(result, i);
-
-	for (int i = (int)nn_get_nr_in_args(op) - 1, ip = weights->N - 1; i >= 0; i--)
-		if ((IN_OPTIMIZE == op->in_types[i]) || (IN_BATCHNORM == op->in_types[i])) {
-
-			auto iov = weights->iovs[ip];
-			result = nlop_set_input_const_F(result, i, iov->N, iov->dims, copy, weights->tensors[ip--]);
-		}
+	auto nn_result = nn_get_wo_weights(op, weights, copy);
+	auto result = nlop_clone(nn_get_nlop(nn_result));
+	nn_free(nn_result);
 
 	return result;
 }
@@ -251,8 +305,9 @@ const struct nlop_s* nn_get_nlop_wo_weights(nn_t op, nn_weights_t weights, bool 
  */
 const struct nlop_s* nn_get_nlop_wo_weights_F(nn_t op, nn_weights_t weights, bool copy)
 {
-	auto result = nn_get_nlop_wo_weights(op, weights, copy);
-	nn_free(op);
+	auto nn_result = nn_get_wo_weights_F(op, weights, copy);
+	auto result = nlop_clone(nn_get_nlop(nn_result));
+	nn_free(nn_result);
 
 	return result;
 }

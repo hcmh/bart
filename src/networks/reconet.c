@@ -665,7 +665,7 @@ static nn_t reconet_valid_create(const struct reconet_s* config, unsigned int N,
 }
 
 
-static const struct nlop_s* reconet_apply_op_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N])
+static nn_t reconet_apply_op_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N])
 {
 	auto nn_apply = reconet_create(config, N, dims, idims, STAT_TEST);
 
@@ -681,7 +681,7 @@ static const struct nlop_s* reconet_apply_op_create(const struct reconet_s* conf
 	debug_printf(DP_INFO, "Apply RecoNet\n");
 	nn_debug(DP_INFO, nn_apply);
 
-	return nn_get_nlop_wo_weights_F(nn_apply, config->weights, false);
+	return nn_get_wo_weights_F(nn_apply, config->weights, false);
 }
 
 
@@ -836,7 +836,7 @@ void apply_reconet(	const struct reconet_s* config, unsigned int N,
 	if (1 != pdims[4])
 		config->mri_config->pattern_flags |= MD_BIT(4);
 
-	auto nlop_reconet = reconet_apply_op_create(config, N, kdims, idims);
+	auto reconet = reconet_apply_op_create(config, N, kdims, idims);
 
 	complex float* out_tmp = md_alloc_sameplace(N, idims, CFL_SIZE, config->weights->tensors[0]);
 	complex float* kspace_tmp = md_alloc_sameplace(N, kdims, CFL_SIZE, config->weights->tensors[0]);
@@ -854,11 +854,11 @@ void apply_reconet(	const struct reconet_s* config, unsigned int N,
 	args[2] = coil_tmp;
 	args[3] = pattern_tmp;
 
-	nlop_generic_apply_select_derivative_unchecked(nlop_reconet, 4, (void**)args, 0, 0);
+	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(reconet), 4, (void**)args, 0, 0);
 
 	md_copy(5, idims, out, out_tmp, CFL_SIZE);
 
-	nlop_free(nlop_reconet);
+	nn_free(reconet);
 
 	md_free(out_tmp);
 	md_free(kspace_tmp);

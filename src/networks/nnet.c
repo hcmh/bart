@@ -103,10 +103,10 @@ static nn_t nnet_train_create(const struct nnet_s* config, unsigned int NO, cons
 	return train_op;
 }
 
-static const struct nlop_s* nnet_apply_op_create(const struct nnet_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI])
+static nn_t nnet_apply_op_create(const struct nnet_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI])
 {
 	auto nn_apply = nnet_network_create(config, NO, odims, NI, idims, STAT_TEST);
-	return nn_get_nlop_wo_weights_F(nn_apply, config->weights, false);
+	return nn_get_wo_weights_F(nn_apply, config->weights, false);
 }
 
 
@@ -205,7 +205,7 @@ void apply_nnet(	const struct nnet_s* config,
 	if (config->gpu)
 		move_gpu_nn_weights(config->weights);
 
-	auto nlop_reconet = nnet_apply_op_create(config, NO, odims, NI, idims);
+	auto nnet = nnet_apply_op_create(config, NO, odims, NI, idims);
 
 	complex float* out_tmp = md_alloc_sameplace(NO, odims, CFL_SIZE, config->weights->tensors[0]);
 	complex float* in_tmp = md_alloc_sameplace(NI, idims, CFL_SIZE, config->weights->tensors[0]);
@@ -217,11 +217,11 @@ void apply_nnet(	const struct nnet_s* config,
 	args[0] = out_tmp;
 	args[1] = in_tmp;
 
-	nlop_generic_apply_select_derivative_unchecked(nlop_reconet, 2, (void**)args, 0, 0);
+	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(nnet), 2, (void**)args, 0, 0);
 
 	md_copy(NO, odims, out, out_tmp, CFL_SIZE);
 
-	nlop_free(nlop_reconet);
+	nn_free(nnet);
 
 	md_free(out_tmp);
 }
