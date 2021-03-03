@@ -49,6 +49,7 @@ const struct simdata_seq simdata_seq_defaults = {
 	.prep_pulse_length = 0.001,
 	.molli_break = 0,
 	.molli_measure = 0,
+	.look_locker_assumptions = false,
 	
 	.slice_profile = NULL,
 	.variable_fa = NULL,
@@ -244,11 +245,14 @@ void create_sim_block(struct sim_data* data)
 
 void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* saM0Signal, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal)
 {
+	if (get_signal && data->seq.look_locker_assumptions)
+		collect_signal(data, N, P, mxy, sa_r1, sa_r2, saM0Signal, xp);
+
 	start_rf_pulse(data, h, tol, N, P, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->pulse.rf_end, data->seq.te);
 
-	if (get_signal)
+	if (get_signal && !data->seq.look_locker_assumptions)
 		collect_signal(data, N, P, mxy, sa_r1, sa_r2, saM0Signal, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->seq.te, data->seq.tr);

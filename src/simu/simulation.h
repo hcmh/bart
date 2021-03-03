@@ -33,6 +33,7 @@ struct simdata_seq {
 	float prep_pulse_length;
 	int molli_break;
 	int molli_measure;
+	bool look_locker_assumptions;
 	
 	complex float* slice_profile;
 	complex float* variable_fa;

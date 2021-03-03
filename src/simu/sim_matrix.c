@@ -416,6 +416,8 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		}
 
 		while (data->tmp.rep_counter < data->seq.rep_num) { 
+			if (data->seq.look_locker_assumptions)
+				collect_data( N, xp, mxy, sa_r1, sa_r2, data);
 			
 			if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
 
@@ -428,7 +430,8 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 			else
 				apply_sim_matrix( N, xp, ( ( data->tmp.rep_counter % 2 == 0 ) ? matrix_to_te : matrix_to_te_PI) );
 
-			collect_data( N, xp, mxy, sa_r1, sa_r2, data);
+			if (!data->seq.look_locker_assumptions)
+				collect_data( N, xp, mxy, sa_r1, sa_r2, data);
 
 			apply_sim_matrix( N, xp, matrix_to_tr );
 
