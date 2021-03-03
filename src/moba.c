@@ -311,7 +311,7 @@ int main_moba(int argc, char* argv[argc])
 	long ksp_dims[DIMS];
 	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
 
-	// Pass inversion time
+	// Pass inversion time, FIXME: Make optional. Not needed for simulation type models
 
 	long TI_dims[DIMS];
 	complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
@@ -656,6 +656,7 @@ int main_moba(int argc, char* argv[argc])
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
+		// Config variable in model function
 		if (	(IR == conf_model.model) ||
 			(MOLLI == conf_model.model) ||
 			(IR_SS == conf_model.model) ||

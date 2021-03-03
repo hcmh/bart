@@ -100,6 +100,8 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 		.wav_reg = (T2 == conf->model) ? 0.1 : 1,
 		.auto_norm_off = conf->opt.auto_norm_off };
 
+	// FIXME: Move all special cases to separate function
+	//		- model based switch case inside for better overview
 	if ((MOLLI == conf->model) || (IR_phy == conf->model) || (IR_phy_alpha_in == conf->model))
 		conf2.constrained_maps = 2;
 
