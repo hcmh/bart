@@ -175,5 +175,22 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 		}
 	}
 
+	if (0 != config->weighting_cce) {
+
+		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_cce_create(N, dims, ~MD_BIT(config->label_index)), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_cce)), 0));
+		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
+		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "cce");
+
+		if (NULL == result) {
+			
+			result = tmp_loss;
+		} else {
+
+			result = nn_combine_FF(result, tmp_loss);
+			result = nn_dup_F(result, 0, NULL, 2, NULL);
+			result = nn_dup_F(result, 1, NULL, 2, NULL);
+		}
+	}
+
 	return result;
 }
