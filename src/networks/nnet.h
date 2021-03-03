@@ -48,3 +48,8 @@ extern void train_nnet(	struct nnet_s* nnet,
 			unsigned int NO, const long odims[NO], const _Complex float* out,
 			unsigned int NI, const long idims[NI], const _Complex float* in,
 			long Nb);
+
+extern void eval_nnet(	struct nnet_s* nnet,
+			unsigned int NO, const long odims[NO], const _Complex float* out,
+			unsigned int NI, const long idims[NI], const _Complex float* in,
+			long Nb);

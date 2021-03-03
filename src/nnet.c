@@ -34,6 +34,7 @@ int main_nnet(int argc, char* argv[])
 {
 	bool apply = false;
 	bool train = false;
+	bool eval = false;
 
 	long N_batch = 0;
 
@@ -52,7 +53,8 @@ int main_nnet(int argc, char* argv[])
 
 	const struct opt_s opts[] = {
 
-		OPTL_SET('a', "apply", &apply, "apply reconet"),
+		OPTL_SET('a', "apply", &apply, "apply nnet"),
+		OPTL_SET( 0, "eval", &eval, "evaluate nnet"),
 
 		OPTL_SET('t', "train", &train, "trains network"),
 		OPTL_LONG('e', "epochs", &(epochs), "epochs", "number epochs to train"),
@@ -92,7 +94,7 @@ int main_nnet(int argc, char* argv[])
 #else
 	num_init();		
 #endif
-	if (apply && train)
+	if (apply && (train || eval))
 		error("Application would overwrite training data! Either train or apply!");
 
 	if (NULL != filename_weights_load) {
@@ -134,6 +136,20 @@ int main_nnet(int argc, char* argv[])
 		unmap_cfl(NO, dims_out, out);
 	}
 
+	if (eval){
+		
+		long NO = config.get_no_odims(&config, NI, dims_in);
+		long dims_out[NO];
+		complex float* out = load_cfl(filename_out, NO, dims_out);
+
+		if (NULL == config.weights)
+			config.weights = load_nn_weights(filename_weights);
+
+		eval_nnet(&config, NO, dims_out, out, NI, dims_in, in,  N_batch);
+
+		unmap_cfl(NO, dims_out, out);
+	}
+
 	if (apply){
 
 		long NO = config.get_no_odims(&config, NI, dims_in);
@@ -145,9 +161,11 @@ int main_nnet(int argc, char* argv[])
 
 		apply_nnet_batchwise(&config, NO, dims_out, out, NI, dims_in, in,  N_batch);
 
-		nn_weights_free(config.weights);
 		unmap_cfl(NO, dims_out, out);
 	}
+
+	if (NULL != config.weights)
+		nn_weights_free(config.weights);
 
 	unmap_cfl(NI, dims_in, in);
 
