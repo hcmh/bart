@@ -178,7 +178,7 @@ TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ss
 TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon synthesize fovshift
 TIO=toimg dcmread dcmtag
 TSIM=phantom phantom_json traj upat bloch sim tbasis signal epg leray pde
-TNN=mnist nnsegm nnvn nnmodl reconet nnet
+TNN=mnist nnsegm nnvn nnmodl reconet nnet onehotenc
 
 
 
