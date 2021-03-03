@@ -38,6 +38,7 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 	long coil_dims[DIMS];
 	long data_dims[DIMS];
 	long map_dims[DIMS];
+	long irgnm_conf_dims[DIMS];
 
 	unsigned int fft_flags = FFT_FLAGS;
 
@@ -48,7 +49,10 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME_FLAG|TIME2_FLAG, coil_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|MAPS_FLAG|TIME_FLAG|TIME2_FLAG, data_dims, dims);
 	md_select_dims(DIMS, fft_flags|TIME_FLAG|TIME2_FLAG, map_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, irgnm_conf_dims, dims);
 
+	debug_printf(DP_INFO, "imgs_dims:\n\t");
+	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
 
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);
@@ -111,14 +115,6 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 		conf2.constrained_maps = 1;
 		conf2.not_wav_maps = 1;
 	}
-	long irgnm_conf_dims[DIMS];
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
-
-	irgnm_conf_dims[COIL_DIM] = coil_dims[COIL_DIM];
-
-	debug_printf(DP_INFO, "imgs_dims:\n\t");
-	debug_print_dims(DP_INFO, DIMS, irgnm_conf_dims);
-
 
 	mdb_irgnm_l1(&conf2,
 			irgnm_conf_dims,
