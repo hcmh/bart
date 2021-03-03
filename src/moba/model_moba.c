@@ -50,6 +50,7 @@ static void bloch_struct_conversion(const long dims[DIMS], struct modBlochFit* o
 	out->runs = in->runs;
 	out->inversion_pulse_length = in->inversion_pulse_length;
 	out->prep_pulse_length = in->prep_pulse_length;
+	out->look_locker_assumptions = in->look_locker_assumptions;
 
 	memcpy(out->scale, in->scale, sizeof(in->scale));
 	out->fov_reduction_factor = in->fov_reduction_factor;
@@ -171,8 +172,8 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 			// Turn of matching of T2 for IR FLASH
 			fitpara.scale[2] = 0.0001;
 
-			// Compensate different signal strength: Look-Locker vs. Simulation
-			fitpara.scale[3] = 1./sinf(fitpara.fa * M_PI/180.);
+			// Simulate Look-Locker assumption: Echo(t=TE) == Mz(t=0)
+			fitpara.look_locker_assumptions = true;
 		}
 
 		model = nlop_Bloch_create(DIMS, der_dims, map_dims, out_dims, in_dims, &fitpara, use_gpu);

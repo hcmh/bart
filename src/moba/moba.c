@@ -23,6 +23,7 @@ const struct sim_conf_s sim_conf_s_defaults = {
 	.runs = 1,
 	.inversion_pulse_length = 0.01,
 	.prep_pulse_length = 0.00225,
+	.look_locker_assumptions = false,
 
 	.scale = {1., 1., 1., 1.},
 	.fov_reduction_factor = 1.,

@@ -274,6 +274,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				sim_data.seq.run_num = data->fitParameter.runs;
 				sim_data.seq.inversion_pulse_length = data->fitParameter.inversion_pulse_length;
 				sim_data.seq.prep_pulse_length = data->fitParameter.prep_pulse_length;
+				sim_data.seq.look_locker_assumptions = data->fitParameter.look_locker_assumptions;
 
 				sim_data.voxel = simdata_voxel_defaults;
 				sim_data.voxel.r1 = crealf(r1scale[spa_ind]);
@@ -328,10 +329,19 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 					//Scaling: dB/dRi = dB/dRis * dRis/dRi
 					//Write to possible GPU memory
-					dr1_cpu[position] = data->scale[3] * data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
-					dr2_cpu[position] = data->scale[3] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
-					dm0_cpu[position] = data->scale[3] * data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
-					sig_cpu[position] = data->scale[3] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
+					if (sim_data.seq.look_locker_assumptions) {
+
+						dr1_cpu[position] = data->scale[3] * data->scale[0] * sa_r1_sig[j+rm_first_echo][2];
+						dr2_cpu[position] = data->scale[3] * data->scale[2] * sa_r2_sig[j+rm_first_echo][2];
+						dm0_cpu[position] = data->scale[3] * data->scale[1] * sa_m0_sig[j+rm_first_echo][2];
+						sig_cpu[position] = data->scale[3] * mxy_sig[j+rm_first_echo][2];
+					}
+					else {
+						dr1_cpu[position] = data->scale[3] * data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
+						dr2_cpu[position] = data->scale[3] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
+						dm0_cpu[position] = data->scale[3] * data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
+						sig_cpu[position] = data->scale[3] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
+					}
 
 					i++;
 				}
@@ -563,6 +573,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long der_dims[N], const long map_d
 	data->fitParameter.full_ode_sim = fit_para->full_ode_sim;
 	data->fitParameter.inversion_pulse_length = fit_para->inversion_pulse_length;
 	data->fitParameter.prep_pulse_length = fit_para->prep_pulse_length;
+	data->fitParameter.look_locker_assumptions = fit_para->look_locker_assumptions;
 	data->use_gpu = use_gpu;
 
 	data->counter = 0;
