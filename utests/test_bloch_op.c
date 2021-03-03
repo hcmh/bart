@@ -145,6 +145,125 @@ static bool test_bloch_irflash_frw_der(void)
 UT_REGISTER_TEST(test_bloch_irflash_frw_der);
 
 
+static bool test_bloch_irflash_adj(void)
+{
+	enum { N = 16 };
+	enum { rep = 300 };
+	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long out_dims[N] = { 16, 16, 1, 1, 1, rep, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long all_dims[N] = { 16, 16, 1, 1, 1, rep, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long TI_dims[N] = { 1, 1, 1, 1, 1, rep, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+	bool gpu_use = false;
+
+	// Init and apply Bloch model operator
+
+	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
+	md_zfill(N, in_dims, src, 1.0);
+	complex float* dst_frw_bloch = md_alloc(N, out_dims, CFL_SIZE);
+
+	complex float* src1 = md_alloc(N, out_dims, CFL_SIZE);
+	md_zfill(N, out_dims, src1, 1.0);
+	complex float* dst_adj_bloch = md_alloc(N, in_dims, CFL_SIZE);
+
+	struct modBlochFit fit_para = modBlochFit_defaults;
+
+	// IR FLASH characteristics
+	fit_para.sequence = 5;
+	fit_para.tr = 0.003;
+	fit_para.te = 0.001;
+	fit_para.fa = 8.;
+	fit_para.rfduration = 0.00001;
+	fit_para.inversion_pulse_length = 0.;
+	fit_para.prep_pulse_length = 0.;
+
+	// Correct M0 to ensure same scaling between Bloch simulation and IR FLASH model
+	fit_para.scale[3] = 1./sinf(fit_para.fa * M_PI/180.);
+
+	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
+
+	nlop_apply(Bloch, N, out_dims, dst_frw_bloch, N, in_dims, src);
+	nlop_adjoint(Bloch, N, in_dims, dst_adj_bloch, N, out_dims, src1);
+
+	nlop_free(Bloch);
+	md_free(src);
+	md_free(src1);
+
+
+	// Init and apply IR FLASH model operator
+
+	in_dims[COEFF_DIM] = 2;
+
+	complex float* src2 = md_alloc(N, in_dims, CFL_SIZE);
+	md_zfill(N, in_dims, src2, 1.0);
+	complex float* dst_frw_irflash = md_alloc(N, out_dims, CFL_SIZE);
+
+	complex float* src3 = md_alloc(N, out_dims, CFL_SIZE);
+	md_zfill(N, out_dims, src3, 1.0);
+	complex float* dst_adj_irflash = md_alloc(N, in_dims, CFL_SIZE);
+
+	// Inversion times
+	complex float* TI = md_alloc(N, TI_dims, CFL_SIZE);
+
+	// ! Analytical Assumption: Mxy(t=TE) == Mz(t=0)
+	for (int i = 0; i < rep; i++)
+		TI[i] =  i * fit_para.tr;
+
+	// alpha map
+	complex float* fa = md_alloc(N, map_dims, CFL_SIZE);
+	md_zfill(N, map_dims, fa, fit_para.fa);
+
+	complex float* alpha = md_alloc(N, map_dims, CFL_SIZE);
+
+	fa_to_alpha(DIMS, map_dims, alpha, fa, fit_para.tr);
+
+	md_free(fa);
+
+	struct nlop_s* T1 = nlop_T1_alpha_in_create(N, map_dims, out_dims, in_dims, TI_dims, TI, alpha, gpu_use);
+
+	nlop_apply(T1, N, out_dims, dst_frw_irflash, N, in_dims, src2);
+	nlop_adjoint(T1, N, in_dims, dst_adj_irflash, N, out_dims, src3);
+
+	nlop_free(T1);
+	md_free(src2);
+	md_free(src3);
+	md_free(TI);
+	md_free(alpha);
+
+	// Compare operator outputs
+
+	long pos[N] = { [0 ... N - 1] = 0 };
+
+	complex float* map_update_bloch = md_alloc(N, map_dims, CFL_SIZE);
+	md_copy_block(N, pos, map_dims, map_update_bloch, in_dims, dst_adj_bloch, CFL_SIZE);
+
+	pos[COEFF_DIM] = 1;
+	complex float* map_update_irflash = md_alloc(N, map_dims, CFL_SIZE);
+	md_copy_block(N, pos, map_dims, map_update_irflash, in_dims, dst_adj_irflash, CFL_SIZE);
+
+	// dump_cfl("_dst_update_irflash", N, map_dims, map_update_irflash);
+	// dump_cfl("_dst_update_bloch", N, map_dims, map_update_bloch);
+
+	float err_adj = md_znrmse(N, map_dims, map_update_bloch, map_update_irflash);
+	// debug_printf(DP_INFO, "Error Adjoint (R1 map update): %f\n", err_adj);
+
+	md_free(dst_frw_bloch);
+	md_free(dst_adj_bloch);
+	md_free(map_update_bloch);
+
+	md_free(dst_frw_irflash);
+	md_free(dst_adj_irflash);
+	md_free(map_update_irflash);
+
+	if (err_adj > 4.E-3)
+		return 0;
+
+	return 1;
+}
+UT_REGISTER_TEST(test_bloch_irflash_adj);
+
+
 static bool test_bloch_ode_obs_irflash(void)
 {
 	enum { N = 16 };
