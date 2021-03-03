@@ -27,6 +27,8 @@
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 
+#include "nn/misc.h"
+
 #include "losses.h"
 
 struct mse_s {
@@ -598,6 +600,86 @@ const struct nlop_s* nlop_cce_create(int N, const long dims[N], unsigned long sc
 	md_copy_strides(N, nl_istr[1], MD_STRIDES(N, dims, CFL_SIZE));
 
 	return nlop_generic_create2(1, 1, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), cce_fun, (nlop_der_fun_t[2][1]){ { cce_der1 }, { cce_der2 } }, (nlop_der_fun_t[2][1]){ { cce_adj1 }, { cce_adj2 } }, NULL, NULL, cce_del);
+}
+
+struct accuracy_s {
+
+	INTERFACE(nlop_data_t);
+
+	unsigned long N;
+	const struct iovec_s* dom;
+	int class_index;
+};
+
+DEF_TYPEID(accuracy_s);
+
+static void accuracy_fun(const nlop_data_t* _data, int D, complex float* args[D])
+{
+	const auto data = CAST_DOWN(accuracy_s, _data);
+	assert(3 == D);
+
+	complex float* dst = args[0];
+	const complex float* src_pred = args[1];
+	const complex float* src_true = args[2];
+
+#ifdef USE_CUDA
+	assert((cuda_ondevice(dst) == cuda_ondevice(src_pred)) && (cuda_ondevice(src_pred) == cuda_ondevice(src_true)));
+#endif
+
+	complex float dst_t = 0;
+	complex float* src_pred_t = md_alloc(data->dom->N, data->dom->dims, data->dom->size);
+	complex float* src_true_t = md_alloc(data->dom->N, data->dom->dims, data->dom->size);
+
+	md_copy(data->dom->N, data->dom->dims, src_pred_t, src_pred, data->dom->size);
+	md_copy(data->dom->N, data->dom->dims, src_true_t, src_true, data->dom->size);
+
+	dst_t = onehotenc_accuracy(data->dom->N, data->dom->dims, data->class_index, src_pred_t, src_true_t);
+
+	md_copy(1, MD_DIMS(1), dst, &dst_t, CFL_SIZE);
+
+	md_free(src_pred_t);
+	md_free(src_true_t);
+}
+
+static void accuracy_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(accuracy_s, _data);
+
+    	iovec_free(data->dom);
+
+	xfree(data);
+}
+
+/**
+ * Accuracy
+ *
+ * @param N
+ * @param dims
+ * @
+ **/
+const struct nlop_s* nlop_accuracy_create(int N, const long dims[N], int class_index)
+{
+
+	PTR_ALLOC(struct accuracy_s, data);
+	SET_TYPEID(accuracy_s, data);
+
+	data->N = N;
+ 	data->dom = iovec_create(N, dims, CFL_SIZE);
+	data->class_index = class_index;
+
+	long nl_odims[1][1];
+	md_copy_dims(1, nl_odims[0], MD_SINGLETON_DIMS(1));
+	long nl_ostr[1][1];
+	md_copy_strides(1, nl_ostr[0], MD_SINGLETON_STRS(1));
+
+	long nl_idims[2][N];
+	md_copy_dims(N, nl_idims[0], dims);
+	md_copy_dims(N, nl_idims[1], dims);
+	long nl_istr[2][N];
+	md_copy_strides(N, nl_istr[0], MD_STRIDES(N, dims, CFL_SIZE));
+	md_copy_strides(N, nl_istr[1], MD_STRIDES(N, dims, CFL_SIZE));
+
+	return nlop_generic_create2(1, 1, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), accuracy_fun, (nlop_der_fun_t[2][1]){ { NULL }, { NULL } }, (nlop_der_fun_t[2][1]){ { NULL }, { NULL } }, NULL, NULL, accuracy_del);
 }
 
 
