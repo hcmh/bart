@@ -78,5 +78,6 @@ struct network_varnet_s {
 extern struct network_varnet_s network_varnet_default;
 extern nn_t network_varnet_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 
+nn_t network_mnist_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 
 #endif

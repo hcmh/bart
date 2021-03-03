@@ -367,3 +367,39 @@ nn_t network_varnet_create(const struct network_s* _config, unsigned int NO, con
 
 	return nn_checkpoint_F(nn_result, true, config->INTERFACE.low_mem);
 }
+
+
+nn_t network_mnist_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
+{
+	UNUSED(_config);
+
+	assert(2 == NO);
+	assert(10 == odims[0]);
+	assert(idims[2] == odims[1]);
+	assert(3 == NI);
+
+	long dims[5] = {1, idims[0], idims[1], 1, idims[2]};
+
+	nn_t network = nn_from_nlop_F(nlop_from_linop(linop_reshape_create(5, dims, NI, idims)));
+
+	long kernel_size[] = {3, 3, 1};
+	long pool_size[] = {2, 2, 1};
+
+	bool conv = false;
+
+	network = nn_append_convcorr_layer(network, 0, NULL, "conv_", 32, kernel_size, conv, PAD_VALID, true, NULL, NULL, NULL);
+	network = nn_append_activation_bias(network, 0, NULL, "conv_bias_", ACT_RELU, MD_BIT(0));
+	network = nn_append_convcorr_layer(network, 0, NULL, "conv_", 64, kernel_size, conv, PAD_VALID, true, NULL, NULL, NULL);
+	network = nn_append_activation_bias(network, 0, NULL, "conv_bias_", ACT_RELU, MD_BIT(0));
+	network = nn_append_maxpool_layer(network, 0, NULL, pool_size, PAD_VALID, true);
+
+	network = nn_append_flatten_layer(network, 0, NULL);
+	network = nn_append_dropout_layer(network, 0, NULL, 0.25, status);
+	network = nn_append_dense_layer(network, 0, NULL, "dense_", 128, NULL);
+	network = nn_append_activation_bias(network, 0, NULL, "dense_bias_", ACT_RELU, MD_BIT(0));
+	network = nn_append_dropout_layer(network, 0, NULL, 0.5, status);
+	network = nn_append_dense_layer(network, 0, NULL, "dense_", 10, NULL);
+	network = nn_append_activation_bias(network, 0, NULL, "dense_bias_", ACT_SOFTMAX, MD_BIT(0));
+
+	return network;
+}
