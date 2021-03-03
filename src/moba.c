@@ -657,37 +657,54 @@ int main_moba(int argc, char* argv[argc])
 	}
 	md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
-	// Set inital Map values
+	// Initialize Parameter maps
 
-	// Config variable in model function
-	if (	(IR == conf_model.model) ||
-		(MOLLI == conf_model.model) ||
-		(IR_SS == conf_model.model) ||
-		(IR_phy == conf_model.model) ||
-		(IR_phy_alpha_in == conf_model.model) ||
-		(T2 == conf_model.model) ) {
+	// FIXME: Integrate MGRE into new framework
+	if (MGRE != conf_model.model)
+		assert (3 >= img_dims[COEFF_DIM]); // Otherwise init array need to be larger
 
-		// Choose a different initial guess for R1*
-		float init_param = (IR_phy == conf_model.model || (IR_phy_alpha_in == conf_model.model)) ? 3. : (conf_model.opt.sms ? 2. : 1.5);
+	complex float initval[3] = {1., 1., 1.}; // last dim skipped if img_dims[COEFF_DIM] < 3
 
-		long pos[DIMS] = { 0 };
+	// Define values depending on model
+	switch (conf_model.model) {
 
-		pos[COEFF_DIM] = (	(IR_SS == conf_model.model) ||
-					(IR_phy == conf_model.model) ||
-					(IR_phy_alpha_in == conf_model.model) ||
-					(T2 == conf_model.model)) ? 1 : 2;
+	case IR:
+	case MOLLI:
+		initval[2] = (conf_model.opt.sms ? 2. : 1.5);
+		break;
+
+	case IR_phy:
+		initval[1] = 3.;
+		initval[2] = 0.;
+		break;
+
+	case IR_SS:
+	case T2:
+		initval[1] = (conf_model.opt.sms ? 2. : 1.5);
+		break;
+
+	case IR_phy_alpha_in:
+		initval[1] = 3.;
+		break;
+
+	case Bloch:
+		initval[0] = 3.;
+		break;
+
+	case MGRE:
+		break;
+	}
+
+	// Set parameter
+	long pos[DIMS] = { [0 ... DIMS - 1] = 0. };
+
+	for (int i = 0; i < img_dims[COEFF_DIM]; i++) {
+
+		pos[COEFF_DIM] = i;
 
 		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
-		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
+		md_zsmul(DIMS, single_map_dims, single_map, single_map, initval[i]);
 		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
-
-		// Choose initial guess for alpha
-		if (IR_phy == conf_model.model) {
-
-			pos[COEFF_DIM] = 2;
-			md_zfill(DIMS, single_map_dims, single_map, 0.);
-			md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
-		}
 	}
 
 	unmap_cfl(DIMS, single_map_dims, single_map);
