@@ -64,9 +64,8 @@ static bool test_bloch_irflash_frw_der(void)
 	fit_para.rfduration = 0.00001;
 	fit_para.inversion_pulse_length = 0.;
 	fit_para.prep_pulse_length = 0.;
+	fit_para.look_locker_assumptions = true; // ! Analytical Assumption: Mxy(t=TE) == Mz(t=0)
 
-	// Correct M0 to ensure same scaling between Bloch simulation and IR FLASH model
-	fit_para.scale[3] = 1./sinf(fit_para.fa * M_PI/180.);
 
 	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
 
@@ -93,7 +92,6 @@ static bool test_bloch_irflash_frw_der(void)
 	// Inversion times
 	complex float* TI = md_alloc(N, TI_dims, CFL_SIZE);
 
-	// ! Analytical Assumption: Mxy(t=TE) == Mz(t=0)
 	for (int i = 0; i < rep; i++)
 		TI[i] =  i * fit_para.tr;
 
@@ -144,7 +142,6 @@ static bool test_bloch_irflash_frw_der(void)
 }
 UT_REGISTER_TEST(test_bloch_irflash_frw_der);
 
-
 static bool test_bloch_irflash_adj(void)
 {
 	enum { N = 16 };
@@ -177,9 +174,7 @@ static bool test_bloch_irflash_adj(void)
 	fit_para.rfduration = 0.00001;
 	fit_para.inversion_pulse_length = 0.;
 	fit_para.prep_pulse_length = 0.;
-
-	// Correct M0 to ensure same scaling between Bloch simulation and IR FLASH model
-	fit_para.scale[3] = 1./sinf(fit_para.fa * M_PI/180.);
+	fit_para.look_locker_assumptions = true; // ! Analytical Assumption: Mxy(t=TE) == Mz(t=0)
 
 	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
 
@@ -206,7 +201,6 @@ static bool test_bloch_irflash_adj(void)
 	// Inversion times
 	complex float* TI = md_alloc(N, TI_dims, CFL_SIZE);
 
-	// ! Analytical Assumption: Mxy(t=TE) == Mz(t=0)
 	for (int i = 0; i < rep; i++)
 		TI[i] =  i * fit_para.tr;
 
@@ -293,6 +287,7 @@ static bool test_bloch_ode_obs_irflash(void)
 	fit_para.fa = 8.;
 	fit_para.inversion_pulse_length = 0.;
 	fit_para.prep_pulse_length = 0.;
+	fit_para.look_locker_assumptions = true; // ! Analytical Assumption: Mxy(t=TE) == Mz(t=0)
 
 	// Turn off T2 relaxation (IR FLASH insensitive to it)
 	fit_para.scale[2] = 0.0001;
