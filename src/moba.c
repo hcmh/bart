@@ -654,37 +654,39 @@ int main_moba(int argc, char* argv[argc])
 		restrict_dims[2] = restrict_fov;
 
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
-		md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
+	}
+	md_zmul2(DIMS, img_dims, img_strs, img, img_strs, img, msk_strs, mask);
 
-		// Config variable in model function
-		if (	(IR == conf_model.model) ||
-			(MOLLI == conf_model.model) ||
-			(IR_SS == conf_model.model) ||
-			(IR_phy == conf_model.model) ||
-			(IR_phy_alpha_in == conf_model.model) ||
-			(T2 == conf_model.model) ) {
+	// Set inital Map values
 
-			// Choose a different initial guess for R1*
-			float init_param = (IR_phy == conf_model.model || (IR_phy_alpha_in == conf_model.model)) ? 3. : (conf_model.opt.sms ? 2. : 1.5);
+	// Config variable in model function
+	if (	(IR == conf_model.model) ||
+		(MOLLI == conf_model.model) ||
+		(IR_SS == conf_model.model) ||
+		(IR_phy == conf_model.model) ||
+		(IR_phy_alpha_in == conf_model.model) ||
+		(T2 == conf_model.model) ) {
 
-			long pos[DIMS] = { 0 };
+		// Choose a different initial guess for R1*
+		float init_param = (IR_phy == conf_model.model || (IR_phy_alpha_in == conf_model.model)) ? 3. : (conf_model.opt.sms ? 2. : 1.5);
 
-			pos[COEFF_DIM] = (	(IR_SS == conf_model.model) ||
-						(IR_phy == conf_model.model) ||
-						(IR_phy_alpha_in == conf_model.model) ||
-						(T2 == conf_model.model)) ? 1 : 2;
+		long pos[DIMS] = { 0 };
 
-			md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
-			md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
+		pos[COEFF_DIM] = (	(IR_SS == conf_model.model) ||
+					(IR_phy == conf_model.model) ||
+					(IR_phy_alpha_in == conf_model.model) ||
+					(T2 == conf_model.model)) ? 1 : 2;
+
+		md_copy_block(DIMS, pos, single_map_dims, single_map, img_dims, img, CFL_SIZE);
+		md_zsmul2(DIMS, single_map_dims, single_map_strs, single_map, single_map_strs, single_map, init_param);
+		md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
+
+		// Choose initial guess for alpha
+		if (IR_phy == conf_model.model) {
+
+			pos[COEFF_DIM] = 2;
+			md_zfill(DIMS, single_map_dims, single_map, 0.);
 			md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
-
-			// Choose initial guess for alpha
-			if (IR_phy == conf_model.model) {
-
-				pos[COEFF_DIM] = 2;
-				md_zfill(DIMS, single_map_dims, single_map, 0.);
-				md_copy_block(DIMS, pos, img_dims, img, single_map_dims, single_map, CFL_SIZE);
-			}
 		}
 	}
 
