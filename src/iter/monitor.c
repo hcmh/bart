@@ -123,6 +123,8 @@ struct monitor_recorder_s {
 	int strlen;
 	int max_decimals;
 
+	unsigned long iter;
+
 	void *data;
 	complex float *(*process)(void *data, const float *x);
 	_Bool (*select)(const unsigned long iter, const float *x, void *data);
@@ -133,17 +135,16 @@ static DEF_TYPEID(monitor_recorder_s);
 
 static void monitor_recorder_fun(struct iter_monitor_s *_data, const struct vec_iter_s *vops, const float *x)
 {
-	static unsigned int iter = 0;
 	UNUSED(vops);
-
-	iter++;
 
 	auto data = CAST_DOWN(monitor_recorder_s, _data);
 
-	if (data->select(iter, x, data->data)) {
-		assert(pow(10, data->max_decimals) > iter);
+	data->iter++;
+
+	if (data->select(data->iter, x, data->data)) {
+		assert(pow(10, data->max_decimals) > data->iter);
 		strcpy(data->out_name, data->name);
-		sprintf(data->out_name + data->strlen, "_%d", iter);
+		sprintf(data->out_name + data->strlen, "_%lu", data->iter);
 		if (data->process == NULL)
 			dump_cfl(data->out_name, data->N, data->dims, (complex float *)x);
 		else
@@ -180,6 +181,9 @@ struct iter_monitor_s *create_monitor_recorder(const long N, const long dims[N],
 	monitor->select = NULL == select ? default_monitor_select : select;
 
 	monitor->INTERFACE.fun = monitor_recorder_fun;
+	monitor->INTERFACE.record = NULL;
+
+	monitor->iter = 0;
 
 	return CAST_UP(PTR_PASS(monitor));
 }
