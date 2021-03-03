@@ -188,7 +188,7 @@ TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ss
 TMRI=homodyne poisson twixread fakeksp looklocker upat
 TSIM=phantom traj signal
 TIO=toimg
-TNN=reconet nnet
+TNN=reconet nnet onehotenc
 
 
 
