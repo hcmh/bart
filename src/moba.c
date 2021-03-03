@@ -608,16 +608,21 @@ int main_moba(int argc, char* argv[argc])
 
 	// scaling
 
-	if (	(IR == conf_model.model) ||
-		(MOLLI == conf_model.model) ||
-		(IR_SS == conf_model.model) ||
-		(IR_phy == conf_model.model) ||
-		(IR_phy_alpha_in == conf_model.model) ||
-		(T2 == conf_model.model) ||
-		(Bloch == conf_model.model) ) {
+	double scaling = 0.;
+	double scaling_psf = 0.;
 
-		double scaling = ((ALGO_ADMM == conf_model.opt.algo) ? 250. : 5000.) / md_znorm(DIMS, grid_dims, k_grid_data);
-		double scaling_psf = ((ALGO_ADMM == conf_model.opt.algo) ? 500. : 1000.) / md_znorm(DIMS, pat_dims, pattern);
+	switch (conf_model.model) {
+
+	case IR:
+	case MOLLI:
+	case IR_SS:
+	case IR_phy:
+	case IR_phy_alpha_in:
+	case T2:
+	case Bloch:
+
+		scaling = ((ALGO_ADMM == conf_model.opt.algo) ? 250. : 5000.) / md_znorm(DIMS, grid_dims, k_grid_data);
+		scaling_psf = ((ALGO_ADMM == conf_model.opt.algo) ? 500. : 1000.) / md_znorm(DIMS, pat_dims, pattern);
 
 		if (conf_model.opt.sms) {
 
@@ -630,6 +635,10 @@ int main_moba(int argc, char* argv[argc])
 
 		debug_printf(DP_INFO, "Scaling_psf: %f\n", scaling_psf);
 		md_zsmul(DIMS, pat_dims, pattern, pattern, scaling_psf);
+		break;
+
+	case MGRE:
+		break;
 	}
 
 	// mask
