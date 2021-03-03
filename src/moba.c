@@ -278,13 +278,13 @@ int main_moba(int argc, char* argv[argc])
 
 	if (DEFAULT != mode) {
 
-		if (MDB_T1 == mode && conf_model.opt.MOLLI)
+		if ((MDB_T1 == mode) && conf_model.opt.MOLLI)
 			conf_model.model = MOLLI;
-		else if (MDB_T1 == mode && conf_model.opt.IR_SS)
+		else if ((MDB_T1 == mode) && conf_model.opt.IR_SS)
 			conf_model.model = IR_SS;
-		else if (MDB_T1 == mode && 0. != conf_model.opt.IR_phy)
+		else if ((MDB_T1 == mode) && (0. != conf_model.opt.IR_phy))
 			conf_model.model = IR_phy;
-		else if (MDB_T1 == mode && NULL != input_alpha)
+		else if ((MDB_T1 == mode) && (NULL != input_alpha))
 			conf_model.model = IR_phy_alpha_in;
 		else if (MDB_T2 == mode)
 			conf_model.model = T2;
