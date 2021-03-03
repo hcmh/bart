@@ -342,7 +342,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		isochrom_distribution( data, isochromats);
 
 	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows 
-	float *mxy = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
+	float *mxy = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) ); // [Mx, My, Mz], FIXME: better name
 	float *sa_r1 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
 	float *sa_r2 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
     
@@ -415,7 +415,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 			data->pulse.flipangle /= 2;
 		}
 
-		while (data->tmp.rep_counter < data->seq.rep_num) { 
+		while (data->tmp.rep_counter < data->seq.rep_num) {
 			if (data->seq.look_locker_assumptions)
 				collect_data( N, xp, mxy, sa_r1, sa_r2, data);
 			

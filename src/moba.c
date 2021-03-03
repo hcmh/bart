@@ -699,7 +699,7 @@ int main_moba(int argc, char* argv[argc])
 	}
 
 	// Set parameter
-	long pos[DIMS] = { [0 ... DIMS - 1] = 0. };
+	long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
 
 	long tmp_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS|MAPS_FLAG|TIME_FLAG|SLICE_FLAG|TIME2_FLAG, tmp_dims, grid_dims);
