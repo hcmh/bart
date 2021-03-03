@@ -198,6 +198,7 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_SUBOPT(0, "sim.type" ,"interface", "Simulation type used in model. `--sim.type h` for help.", ARRAY_SIZE(sim_type_opt), sim_type_opt),
 		OPTL_SET(0, "sim.slice-profile", &(use_slice_profile), "repetition time in seconds"),
 		OPTL_STRING(0, "sim.b1map", &input_b1, "[deg]", "Input B1 map."),
+		OPTL_INT(0, "sim.num-av-spokes", &(conf_model.sim.averaged_spokes), "", "Number of averaged spokes"),
 
 		// Sequence parameters
 		OPTL_FLOAT(0, "seq.tr", &(conf_model.sim.tr), "[s]", "repetition time"),
