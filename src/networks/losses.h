@@ -7,6 +7,7 @@ struct loss_config_s {
 	float weighting_ssim;
 
 	float weighting_cce;
+	float weighting_accuracy;
 
 	unsigned int label_index;
 };
