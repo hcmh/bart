@@ -51,6 +51,7 @@ int main_reconet(int argc, char* argv[])
 
 	bool train = false;
 	bool apply = false;
+	bool eval = false;
 
 	char* filename_weights_load = NULL;
 
@@ -84,6 +85,7 @@ int main_reconet(int argc, char* argv[])
 	const struct opt_s opts[] = {
 
 		OPTL_SET('t', "train", &train, "train reconet"),
+		OPTL_SET(0, "eval", &eval, "evaluate reconet"),
 		OPTL_SET('g', "gpu", &(config.gpu), "run on gpu"),
 		OPTL_SET('a', "apply", &apply, "apply reconet"),
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
@@ -231,7 +233,7 @@ int main_reconet(int argc, char* argv[])
 		config.train_conf->dump_filename = filename_weights;
 
 
-	if ((train && apply) || (!train && !apply))
+	if (((train || eval) && apply) || (!train && !apply && ! eval))
 		error("Network must be either trained (-t) or applied(-a)!\n");
 
 #ifdef USE_CUDA
@@ -258,6 +260,13 @@ int main_reconet(int argc, char* argv[])
 
 		train_reconet(&config, 5, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb, use_valid_data ? &valid_data : NULL);
 		dump_nn_weights(filename_weights, config.weights);
+	}
+
+	if (eval) {
+
+		if (NULL == config.weights)
+			config.weights = load_nn_weights(filename_weights);
+		eval_reconet(&config, 5, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb);
 	}
 
 	if (apply) {

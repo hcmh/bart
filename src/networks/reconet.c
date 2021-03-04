@@ -904,3 +904,34 @@ void apply_reconet_batchwise(	const struct reconet_s* config, unsigned int N,
 		Nt -= Nb_tmp;
 	}
 }
+
+void eval_reconet(	const struct reconet_s* config, unsigned int N,
+			const long idims[N], const _Complex float* out,
+			const long kdims[N], const _Complex float* kspace,
+			const long cdims[N], const _Complex float* coil,
+			const long pdims[N], const _Complex float* pattern,
+			long Nb)
+{
+	complex float* tmp_out = md_alloc(N, idims, CFL_SIZE);
+
+	auto loss = loss_create(config->valid_loss, N, idims); 
+	unsigned int NL = nn_get_nr_out_args(loss);
+	complex float losses[NL];
+	md_clear(1, MD_DIMS(NL), losses, CFL_SIZE);
+
+	apply_reconet_batchwise( config, N, idims, tmp_out, kdims, kspace, cdims, coil, pdims, pattern, Nb);
+
+	complex float* args[NL + 2];
+	for (unsigned int i = 0; i < NL; i++)
+		args[i] = losses + i;
+	
+	args[NL] = tmp_out;
+	args[NL + 1] = (complex float*)out;
+
+	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(loss), NL + 2, (void**)args, 0, 0);
+	for (unsigned int i = 0; i < NL ; i++)
+		debug_printf(DP_INFO, "%s: %e\n", nn_get_out_name_from_arg_index(loss, i), crealf(losses[i]));
+	
+	nn_free(loss);
+	md_free(tmp_out);
+}

@@ -60,3 +60,10 @@ extern void train_reconet(	struct reconet_s* reconet, unsigned int N,
 				const long cdims[N], const _Complex float* coil,
 				const long pdims[N], const _Complex float* pattern,
 				long Nb, struct network_data_s* valid_files);
+
+extern void eval_reconet(	const struct reconet_s* reconet, unsigned int N,
+				const long idims[N], const _Complex float* ref,
+				const long kdims[N], const _Complex float* kspace,
+				const long cdims[N], const _Complex float* coil,
+				const long pdims[N], const _Complex float* pattern,
+				long Nb);
