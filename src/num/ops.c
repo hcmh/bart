@@ -2628,6 +2628,7 @@ void operator_apply_parallel_unchecked(unsigned int N, const struct operator_s* 
 }
 
 graph_t graph_default = {false, false, false};
+graph_t graph_stats = {false, true, true};
 
 static const char* operator_graph_default(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
 {

@@ -22,6 +22,7 @@ typedef void (*operator_del_t)(const operator_data_t* _data);
 typedef struct graph_settings {_Bool container; _Bool time; _Bool calls; } graph_t;
 typedef const char* (*operator_graph_t)(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
 extern graph_t graph_default;
+extern graph_t graph_stats;
 
 struct operator_s;
 
