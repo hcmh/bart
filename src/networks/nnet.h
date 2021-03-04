@@ -24,6 +24,8 @@ struct nnet_s {
 
 	nnet_get_no_odims_t get_no_odims;
 	nnet_get_odims_t get_odims;
+
+	const char* graph_file;
 };
 
 extern struct nnet_s nnet_init;

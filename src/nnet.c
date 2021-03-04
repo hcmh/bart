@@ -38,6 +38,8 @@ int main_nnet(int argc, char* argv[])
 
 	long N_batch = 0;
 
+	const char* graph_filename = NULL;
+
 	const char* filename_weights_load = NULL;
 	const char* filename_train_history = NULL;
 	long dump_mod = 0;
@@ -66,6 +68,8 @@ int main_nnet(int argc, char* argv[])
 		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2=shuffle data, 3=randomly draw data"),
 		
 		OPTL_SET('g', "gpu", &(config.gpu), "run on gpu"),
+
+		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
 		
 		OPTL_SET(0, "mnist_default", &(mnist_default), "use basic MNIST Network"),
 	};
@@ -104,6 +108,8 @@ int main_nnet(int argc, char* argv[])
 		
 		config.weights = load_nn_weights(filename_weights_load);
 	}
+
+	config.graph_file = graph_filename;
 
 
 	long dims_in[DIMS];

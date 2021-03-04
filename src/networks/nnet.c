@@ -40,6 +40,7 @@
 
 
 #include "nnet.h"
+#include "num/ops.h"
 
 struct nnet_s nnet_init = {
 
@@ -56,6 +57,8 @@ struct nnet_s nnet_init = {
 
 	.get_no_odims = NULL,
 	.get_odims = NULL,
+
+	.graph_file = NULL,
 };
 
 static unsigned int get_no_odims_mnist(const struct nnet_s* config, unsigned int NI, const long idims[NI])
@@ -192,6 +195,9 @@ void train_nnet(struct nnet_s* config,
 
 	iter6_by_conf(config->train_conf, nn_get_nlop(nn_train), II, in_type, projections, src, OO, out_type, Nb, Nt / Nb, batch_generator, NULL);
 
+	if (NULL != config->graph_file)
+		nn_export_graph(config->graph_file, nn_train, graph_stats);
+	
 	nn_free(nn_train);
 	nlop_free(batch_generator);
 }
@@ -205,6 +211,13 @@ void apply_nnet(	const struct nnet_s* config,
 		move_gpu_nn_weights(config->weights);
 
 	auto nnet = nnet_apply_op_create(config, NO, odims, NI, idims);
+
+	static bool export = true;
+	if (export && NULL != config->graph_file) {
+
+		nn_export_graph(config->graph_file, nnet, graph_default);
+		export = false;
+	}
 
 	complex float* out_tmp = md_alloc_sameplace(NO, odims, CFL_SIZE, config->weights->tensors[0]);
 	complex float* in_tmp = md_alloc_sameplace(NI, idims, CFL_SIZE, config->weights->tensors[0]);
