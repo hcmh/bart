@@ -110,15 +110,6 @@ static nn_t nnet_apply_op_create(const struct nnet_s* config, unsigned int NO, c
 	return nn_get_wo_weights_F(nn_apply, config->weights, false);
 }
 
-static nn_t nnet_eval_create(const struct nnet_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI])
-{
-	auto train_op = nnet_network_create(config, NO, odims, NI, idims, STAT_TEST);
-	auto loss = loss_create(config->valid_loss, NO, odims); 
-	train_op = nn_chain2_FF(train_op, 0, NULL, loss, 0, NULL);
-
-	return nn_get_wo_weights_F(train_op, config->weights, false);
-}
-
 void train_nnet(struct nnet_s* config,
 		unsigned int NO, const long odims[NO], const complex float* out,
 		unsigned int NI, const long idims[NI], const complex float* in,
@@ -263,82 +254,32 @@ void apply_nnet_batchwise(	const struct nnet_s* config,
 	}
 }
 
-static void eval_nnet_int(	const struct nnet_s* config,
-				unsigned int N, complex float losses[N],
-				unsigned int NO, const long odims[NO], const complex float* out,
-				unsigned int NI, const long idims[NI], const complex float* in)
-{
-	if (config->gpu)
-		move_gpu_nn_weights(config->weights);
-
-	auto nnet = nnet_eval_create(config, NO, odims, NI, idims);
-	
-	assert(N == nn_get_nr_out_args(nnet));
-
-	complex float* out_tmp = md_alloc_sameplace(NO, odims, CFL_SIZE, config->weights->tensors[0]);
-	complex float* in_tmp = md_alloc_sameplace(NI, idims, CFL_SIZE, config->weights->tensors[0]);
-	complex float* losses_tmp = md_alloc_sameplace(NI, idims, CFL_SIZE, config->weights->tensors[0]);
-
-	md_copy(NI, idims, in_tmp, in, CFL_SIZE);
-	md_copy(NO, odims, out_tmp, out, CFL_SIZE);
-
-	complex float* args[2 + N];
-
-	args[N] = out_tmp;
-	args[N + 1] = in_tmp;
-	for (unsigned int i = 0; i < N; i++)
-		args[i] = losses_tmp + i;
-
-	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(nnet), 2 + N, (void**)args, 0, 0);
-
-	md_copy(1, MD_DIMS(N), losses, losses_tmp, CFL_SIZE);
-
-	nn_free(nnet);
-
-	md_free(out_tmp);
-	md_free(in_tmp);
-	md_free(losses_tmp);
-}
 
 extern void eval_nnet(	struct nnet_s* nnet,
 			unsigned int NO, const long odims[NO], const _Complex float* out,
 			unsigned int NI, const long idims[NI], const _Complex float* in,
 			long Nb)
 {
-	long Nt = odims[NO - 1];
-	long Nt_fixed = odims[NO - 1];
+	complex float* tmp_out = md_alloc(NO, odims, CFL_SIZE);
 
 	auto loss = loss_create(nnet->valid_loss, NO, odims); 
 	unsigned int N = nn_get_nr_out_args(loss);
 	complex float losses[N];
 	md_clear(1, MD_DIMS(N), losses, CFL_SIZE);
 
-	while (0 < Nt) {
+	apply_nnet_batchwise(nnet, NO, odims, tmp_out, NI, idims, in, Nb);
 
-		long odims1[NO];
-		long idims1[NI];
+	complex float* args[N + 2];
+	for (unsigned int i = 0; i < N; i++)
+		args[i] = losses + i;
+	
+	args[N] = tmp_out;
+	args[N + 1] = (complex float*)out;
 
-		md_copy_dims(NI, idims1, idims);
-		md_copy_dims(NO, odims1, odims);
-
-		long Nb_tmp = MIN(Nt, Nb);
-
-		odims1[NO - 1] = Nb_tmp;
-		idims1[NI - 1] = Nb_tmp;
-		
-		complex float tmp_losses[N];
-		eval_nnet_int(nnet, N, tmp_losses, NO, odims1, out, NI, idims1, in);
-
-		md_zaxpy(1, MD_DIMS(N), losses, ((float)(Nb_tmp)) / (Nt_fixed), tmp_losses);
-
-		out += md_calc_size(NO, odims1);
-		in += md_calc_size(NI, idims1);
-
-		Nt -= Nb_tmp;
-	}
-
+	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(loss), N + 2, (void**)args, 0, 0);
 	for (unsigned int i = 0; i < N ; i++)
 		debug_printf(DP_INFO, "%s: %e\n", nn_get_out_name_from_arg_index(loss, i), crealf(losses[i]));
 	
 	nn_free(loss);
+	md_free(tmp_out);
 }
