@@ -811,6 +811,7 @@ void train_reconet(	struct reconet_s* config, unsigned int N,
 			destack_lambda = nlop_combine_FF(destack_lambda, nlop_del_out_create(1, MD_DIMS(1)));
 
 		value_monitors[num_monitors] = monitor_iter6_nlop_create(destack_lambda, true, num_lambda, lams);
+		nlop_free(destack_lambda);
 		num_monitors += 1;
 	}
 
