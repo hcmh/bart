@@ -79,6 +79,8 @@ int main_reconet(int argc, char* argv[])
 
 	long cg_iter = 0;
 
+	const char* graph_filename = NULL;
+
 	struct network_data_s data = network_data_empty;
 	struct network_data_s valid_data = network_data_empty;
 
@@ -119,6 +121,9 @@ int main_reconet(int argc, char* argv[])
 
 		OPTL_LONG('T', "num_net_iter", &(config.Nt), "", "number of iterations of reconet"),
 		OPTL_LONG(0, "num_cg_iter", &(cg_iter), "", "number of conjugate gradient iterations"),
+	
+		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
+		
 
 		OPTL_SET(0, "test", &(test_defaults), "very small network for tests"),
 	};
@@ -252,6 +257,8 @@ int main_reconet(int argc, char* argv[])
 	load_network_data(&data);
 	bool use_valid_data = (NULL != valid_data.filename_coil) && (NULL != valid_data.filename_kspace) && (NULL != valid_data.filename_out);
 	network_data_check_simple_dims(&data);
+
+	config.graph_file = graph_filename;
 
 	if (NULL != filename_weights_load)
 		config.weights = load_nn_weights(filename_weights_load);

@@ -29,6 +29,8 @@ struct reconet_s {
 
 	_Bool low_mem;
 	_Bool gpu;
+
+	const char* graph_file;
 };
 
 extern struct reconet_s reconet_init;

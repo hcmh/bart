@@ -98,6 +98,8 @@ struct reconet_s reconet_init = {
 	.gpu = false,
 
 	.low_mem = false,
+
+	.graph_file = 0,
 };
 
 void reconet_init_modl_default(struct reconet_s* reconet)
@@ -816,6 +818,9 @@ void train_reconet(	struct reconet_s* config, unsigned int N,
 
 	iter6_by_conf(config->train_conf, nn_get_nlop(nn_train), NI, in_type, projections, src, NO, out_type, Nb, Nt / Nb, batch_generator, monitor);
 
+	if (NULL != config->graph_file)
+		nn_export_graph(config->graph_file, nn_train, graph_stats);
+
 	nn_free(nn_train);
 	nlop_free(batch_generator);
 
@@ -837,6 +842,13 @@ void apply_reconet(	const struct reconet_s* config, unsigned int N,
 		config->mri_config->pattern_flags |= MD_BIT(4);
 
 	auto reconet = reconet_apply_op_create(config, N, kdims, idims);
+
+	static bool export = true;
+	if (export && NULL != config->graph_file) {
+
+		nn_export_graph(config->graph_file, reconet, graph_default);
+		export = false;
+	}
 
 	complex float* out_tmp = md_alloc_sameplace(N, idims, CFL_SIZE, config->weights->tensors[0]);
 	complex float* kspace_tmp = md_alloc_sameplace(N, kdims, CFL_SIZE, config->weights->tensors[0]);
