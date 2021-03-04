@@ -32,7 +32,7 @@ typedef struct monitor_iter6_value_data_s {
 
 typedef void (*monitor_iter6_value_fun_t)(const monitor_iter6_value_data_t* data, unsigned int N, complex float vals[N], long NI, const float* args[NI]);
 typedef bool (*monitor_iter6_value_eval_t)(const monitor_iter6_value_data_t* data, long epoch, long batch, long numbatches);
-typedef void (*monitor_iter6_value_print_string_t)(const monitor_iter6_value_data_t* data, int N, char log_str[N]);
+typedef const char* (*monitor_iter6_value_print_string_t)(const monitor_iter6_value_data_t* data);
 typedef void (*monitor_iter6_value_free_t)(const monitor_iter6_value_data_t* data);
 
 struct monitor_value_s {
@@ -72,26 +72,27 @@ struct monitor_iter6_default_s {
 
 static DEF_TYPEID(monitor_iter6_default_s);
 
-static void print_progress_bar(int length, char progress[length + 5], int done, int total)
+static const char* print_progress_bar(int length, int done, int total)
 {
-	progress[0] = ' ';
-	progress[1] = '[';
+	const char* result = ptr_printf(" [");
 
-	for (int i = 0; i < length; i++)
-		if ((float)i <= (float)(done * length) / (float)(total))
-			progress[i + 2] = '=';
-		else
-			progress[i + 2] = ' ';
+	for (int i = 0; i < length; i++) {
 
-	progress[length + 2] = ']';
-	progress[length + 3] = ';';
-	progress[length + 4] = '\0';
+		auto tmp = result;
+		result = ptr_printf("%s%c", tmp, ((float)i <= (float)(done * length) / (float)(total)) ? '=' : ' ');
+		xfree(tmp);
+	}
+
+	auto tmp = result;
+	result = ptr_printf("%s];", tmp);
+	xfree(tmp);
+
+	return result;
 }
 
-static void print_time_string(int length, char str_time[length], double time, double est_time)
+static const char* print_time_string(double time, double est_time)
 {
-	sprintf(str_time,
-		" time: %d:%02d:%02d/%d:%02d:%02d;",
+	return ptr_printf(" time: %d:%02d:%02d/%d:%02d:%02d;",
 		(int)time / 3600, ((int)time %3600)/60, ((int)time % 3600) % 60,
 		(int)est_time / 3600, ((int)est_time %3600)/60, ((int)est_time % 3600) % 60);
 }
@@ -149,10 +150,11 @@ void monitor_iter6_dump_record(struct monitor_iter6_s* _monitor, const char* fil
 	unmap_cfl(4, rdims_write, file);
 }
 
-static void compute_val_monitors(struct monitor_iter6_default_s* monitor, int N, char str[N], long epoch, long batch, long num_batches, long NI, const float* x[NI])
+static const char* compute_val_monitors(struct monitor_iter6_default_s* monitor, long epoch, long batch, long num_batches, long NI, const float* x[NI])
 {
 	create_record(monitor, epoch, num_batches);
-	str[0] = '\0';
+
+	const char* result = ptr_printf("");
 
 	long rpos[4] = { epoch, batch, 0, 2 };
 
@@ -175,11 +177,15 @@ static void compute_val_monitors(struct monitor_iter6_default_s* monitor, int N,
 				eval[i] = 1;
 
 			monitor->val_monitors[i]->fun(monitor->val_monitors[i]->data, N_vals, vals, NI, x);
-			monitor->val_monitors[i]->print(monitor->val_monitors[i]->data, N, str);
+			const char* tmp = monitor->val_monitors[i]->print(monitor->val_monitors[i]->data);
 
-			long len = strlen(str);
-			str += len;
-			N -= len;
+			if (NULL != tmp) {
+
+				const char* tmp2 = result;
+				result = ptr_printf("%s%s", tmp2, tmp);
+				xfree(tmp);
+				xfree(tmp2);
+			}
 		}
 
 		if (NULL != monitor->record) {
@@ -196,6 +202,8 @@ static void compute_val_monitors(struct monitor_iter6_default_s* monitor, int N,
 			rpos[3] += N_vals;
 		}		
 	}
+
+	return result;
 }
 
 
@@ -209,63 +217,31 @@ static void monitor6_default_fun(struct monitor_iter6_s* _monitor, long epoch, l
 	bool print_loss = true;
 	bool print_overwrite = true;
 
-	char str_progress[15];
-
-	if (print_progress)
-		print_progress_bar(10, str_progress, batch, numbatches);
-	else
-		str_progress[0] = '\0';
+	const char* str_progress = (print_progress) ? print_progress_bar(10, batch, numbatches) :  ptr_printf("");	
 
 	double time = timestamp() - monitor->start_time;
 	double est_time = time + (double)(numbatches - batch - 1) * time / (double)(batch + 1);
-	char str_time[50];
+	const char* str_time = (print_time) ? print_time_string(time, est_time) : ptr_printf("");
 
-	if (print_time)
-		print_time_string(30, str_time, time, est_time);
-	else
-		str_time[0] = '\0';
+	monitor->average_obj = ((batch) * monitor->average_obj + objective) / (batch + 1);
+	const char* str_loss = (print_loss) ? ptr_printf(" loss: %f;", monitor->print_average_obj ? monitor->average_obj: objective) :  ptr_printf("");	
 
-	char str_loss[30];
+	const char* str_val_monitor = compute_val_monitors(monitor, epoch, batch, numbatches, NI, x);
 
-	monitor->average_obj = ((batch - 1) * monitor->average_obj + objective) / batch;
+	const char* str_overwrite = (print_overwrite) ? ptr_printf("\33[2K\r") : ptr_printf("");
 
-	if (print_loss)
-		sprintf(str_loss, " loss: %f;", monitor->print_average_obj ? monitor->average_obj: objective);
-	else
-		str_loss[0] = '\0';
 
-	char str_val_monitor[100 * monitor->num_val_monitors];
-	str_val_monitor[0] = '\0';
+	debug_printf(DP_INFO, "%s#%d->%d/%d;%s%s%s%s%s", str_overwrite, epoch + 1, batch + 1, numbatches,
+		     str_progress, str_time, str_loss, str_val_monitor, (NULL == post_string) ? "" : post_string);
 
-	compute_val_monitors(monitor, 100 * monitor->num_val_monitors, str_val_monitor, epoch, batch, numbatches, NI, x);
+	xfree(str_progress);
+	xfree(str_time);
+	xfree(str_loss);
+	xfree(str_val_monitor);
+	xfree(str_overwrite);
 
-	if (print_overwrite) {
-
-		debug_printf(DP_INFO, "\33[2K\r#%d->%d/%d;%s%s%s", epoch + 1, batch + 1, numbatches,
-			     str_progress, str_time, str_loss);
-
-		if ('\0' != str_val_monitor[0])
-			debug_printf(DP_INFO, "%s", str_val_monitor);
-
-		if (NULL != post_string)
-			debug_printf(DP_INFO, "%s", post_string);
-
-		if (batch + 1 == numbatches)
-			debug_printf(DP_INFO, "\n");
-
-	} else {
-
-		debug_printf(DP_INFO, "#%d->%d/%d;%s%s%s%s", epoch, batch + 1, numbatches,
-			     str_progress, str_time, str_loss, str_val_monitor);
-
-		if ('\0' != str_val_monitor[0])
-			debug_printf(DP_INFO, "%s", str_val_monitor);
-
-		if (NULL != post_string)
-			debug_printf(DP_INFO, "%s", post_string);
-
+	if (!print_overwrite || batch + 1 == numbatches)
 		debug_printf(DP_INFO, "\n");
-	}
 
 	if (NULL != monitor->record) {
 
@@ -408,30 +384,28 @@ static bool monitor_iter6_nlop_eval(const monitor_iter6_value_data_t* _data, lon
 	return d->eval_each_batch || (num_batches == batch + 1);
 }
 
-static void monitor_iter6_nlop_print(const monitor_iter6_value_data_t* _data, int N, char log_str[N])
+static const char* monitor_iter6_nlop_print(const monitor_iter6_value_data_t* _data)
 {
 	const auto d = CAST_DOWN(monitor_iter6_nlop_s, _data);
 
-	if (NULL == d->names) {
+	const char* result = ptr_printf("");
 
-		log_str[0] = '\0';
-		return;
-	}
+	if (NULL == d->names)
+		return result;
 
 	for (unsigned int i = 0; i < d->INTERFACE.N_vals; i++) {
 	
-		int len = 0;
+		auto tmp = result;
 
 		if (0. == cimagf(d->last_result[i]))
-			len = snprintf(log_str, N, " %s: %.3e;", d->names[i], crealf(d->last_result[i]));
+			result = ptr_printf("%s %s: %.3e;", tmp, d->names[i], crealf(d->last_result[i]));
 		else
-			len = snprintf(log_str, N, " %s: %.3e + %.3ei;", d->names[i], crealf(d->last_result[i]), cimagf(d->last_result[i]));
+			result = ptr_printf("%s %s: %.3e + %.3ei;", tmp, d->names[i], crealf(d->last_result[i]), cimagf(d->last_result[i]));
 		
-		len = MIN(len, N);
-
-		log_str += len;
-		N -= len;
+		xfree(tmp);
 	}
+
+	return result;
 }
 
 static void monitor_iter6_nlop_free(const monitor_iter6_value_data_t* _data)
@@ -514,7 +488,7 @@ static DEF_TYPEID(monitor_iter6_function_s);
 
 static void monitor_iter6_function_fun(const monitor_iter6_value_data_t* data, unsigned int N, complex float vals[N], long NI, const float* args[NI])
 {
-        const auto d = CAST_DOWN(monitor_iter6_function_s, data);
+    const auto d = CAST_DOWN(monitor_iter6_function_s, data);
 	assert(1 == N);
 
 	d->last_result = d->fun(NI, args);
@@ -530,20 +504,17 @@ static bool monitor_iter6_function_eval(const monitor_iter6_value_data_t* _data,
 	return d->eval_each_batch || (num_batches == batch + 1);
 }
 
-static void monitor_iter6_function_print(const monitor_iter6_value_data_t* _data, int N, char log_str[N])
+static const char* monitor_iter6_function_print(const monitor_iter6_value_data_t* _data)
 {
 	const auto d = CAST_DOWN(monitor_iter6_function_s, _data);
 
-	if (NULL == d->name) {
-
-		log_str[0] = '\0';
-		return;
-	}
+	if (NULL == d->name)
+		return ptr_printf("");
 
 	if (0. == cimagf(d->last_result))
-		sprintf(log_str, " %s: %.3e;", d->name, crealf(d->last_result));
+		return ptr_printf(" %s: %.3e;", d->name, crealf(d->last_result));
 	else
-		sprintf(log_str, " %s: %.3e + %.3ei;", d->name, crealf(d->last_result), cimagf(d->last_result));
+		return ptr_printf(" %s: %.3e + %.3ei;", d->name, crealf(d->last_result), cimagf(d->last_result));
 }
 
 static void monitor_iter6_function_free(const monitor_iter6_value_data_t* _data)
