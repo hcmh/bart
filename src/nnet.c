@@ -45,6 +45,7 @@ int main_nnet(int argc, char* argv[])
 	long dump_mod = 0;
 	long epochs = 1;
 	int random_order = 0;
+	float learning_rate = 0;
 
 	int NI = -1;
 	bool single_batch = false;
@@ -61,6 +62,8 @@ int main_nnet(int argc, char* argv[])
 		OPTL_SET('t', "train", &train, "trains network"),
 		OPTL_LONG('e', "epochs", &(epochs), "epochs", "number epochs to train"),
 		OPTL_LONG('b', "batch_size", &(N_batch), "batchsize", "size of mini batches"),
+
+		OPTL_FLOAT('r', "learning_rate", &(learning_rate), "lr", "learning rate"),
 
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
 		OPTL_STRING(0, "save_train_history", (const char**)(&(filename_train_history)), "file", "file for dumping train history"),
@@ -91,6 +94,10 @@ int main_nnet(int argc, char* argv[])
 		config.train_conf->dump_filename = filename_weights;
 	}
 	config.train_conf->batchgen_type = random_order;
+	if (0 != learning_rate)
+		config.train_conf->learning_rate = learning_rate;
+
+
 
 
 #ifdef USE_CUDA
