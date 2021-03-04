@@ -386,6 +386,8 @@ static void mssim_del(const nlop_data_t* _data)
 	const auto data = CAST_DOWN(mssim_s, _data);
 
 	xfree(data->dims);
+	xfree(data->kdims);
+	xfree(data->odims);
 	xfree(data);
 }
 
