@@ -692,21 +692,12 @@ struct frequency_compensation_s {
 
 	unsigned long N;
 	unsigned long batch_flag;
-	complex float* in;
-	complex float* sum;
+
 	const struct iovec_s* dom;
 	const struct iovec_s* sum_dom;
 };
 
 DEF_TYPEID(frequency_compensation_s);
-
-static void frequency_compensation_initialize(struct frequency_compensation_s* data, const complex float* arg)
-{
-	if (NULL == data->in)
-		data->in = md_alloc_sameplace(data->dom->N, data->dom->dims, CFL_SIZE, arg);
-	if (NULL == data->sum)
-		data->sum = md_alloc_sameplace(data->dom->N, data->sum_dom->dims, CFL_SIZE, arg);
-}
 
 static void frequency_compensation_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
@@ -715,54 +706,40 @@ static void frequency_compensation_fun(const nlop_data_t* _data, complex float* 
 #ifdef USE_CUDA
 	assert(cuda_ondevice(dst) == cuda_ondevice(src));
 #endif
-	frequency_compensation_initialize(data, dst);
 
-	md_copy(data->N, data->dom->dims, data->in, src, data->dom->size);
-	md_zsum(data->N, data->dom->dims, data->batch_flag, data->sum, src);
-	md_zsmul(data->N, data->sum_dom->dims, data->sum, data->sum, 1. / md_calc_size(data->N, data->sum_dom->dims));
-	md_zdiv2(data->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->sum_dom->strs, data->sum);
+	complex float* sum = md_alloc_sameplace(data->sum_dom->N, data->sum_dom->dims, CFL_SIZE, src);
+	md_zsum(data->N, data->dom->dims, data->batch_flag, sum, src);
 
-}
+	complex float* empty_labels = md_alloc_sameplace(data->sum_dom->N, data->sum_dom->dims, CFL_SIZE, src);
+	md_zslessequal(data->sum_dom->N, data->sum_dom->dims, empty_labels, sum, 0);
+	float N_empty_labels = roundf(powf(md_znorm(data->sum_dom->N, data->sum_dom->dims, empty_labels), 2));
+	md_free(empty_labels);
 
+	float N_batch_dims = (float)md_calc_size(data->N, data->dom->dims) / (float)md_calc_size(data->N, data->sum_dom->dims);
+	float N_labels = (float)md_calc_size(data->N, data->sum_dom->dims) - N_empty_labels;
 
-static void frequency_compensation_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
+	md_zsmul(data->sum_dom->N, data->sum_dom->dims, sum, sum, N_labels / N_batch_dims);
 
-	UNUSED(dst);
-	UNUSED(src);
-	UNUSED(_data);
-	error("loss frequency compensation derivative not implemented");
-}
+	md_zdiv2(data->N, data->dom->dims, data->dom->strs, dst, data->dom->strs, src, data->sum_dom->strs, sum);
 
-static void frequency_compensation_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	UNUSED(dst);
-	UNUSED(src);
-	UNUSED(_data);
-	error("loss frequency compensation derivative not implemented");
+	md_free(sum);
 }
 
 static void frequency_compensation_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(frequency_compensation_s, _data);
 
-	md_free(data->in);
-	md_free(data->sum);
-    	iovec_free(data->dom);
+	iovec_free(data->dom);
 	iovec_free(data->sum_dom);
 
 	xfree(data);
 }
 
-// dst_ij = src_ij / sum_j src_ij, where j corresponds to dimensions selected with batch_flag
+// dst_ij = src_ij / sum_j src_ij * (N_batch / N__non_empty_labels), where j corresponds to dimensions selected with batch_flag
+// scaling is such that sum_ij dst_ij = sum_ij src_ij = N_batch
+// usually batch_flag = ~MD_BIT(label_dim);
 static const struct nlop_s* nlop_frequency_compensation_create(int N, const long dims[N], unsigned long batch_flag)
 {
-
 	PTR_ALLOC(struct frequency_compensation_s, data);
 	SET_TYPEID(frequency_compensation_s, data);
 
@@ -770,15 +747,11 @@ static const struct nlop_s* nlop_frequency_compensation_create(int N, const long
 	md_select_dims(N, ~batch_flag, sum_dims, dims);
 
 	data->N = N;
- 	data->dom = iovec_create(N, dims, CFL_SIZE);
+	data->dom = iovec_create(N, dims, CFL_SIZE);
 	data->sum_dom = iovec_create(N, sum_dims, CFL_SIZE);
 	data->batch_flag = batch_flag;
 
-	// will be initialized later, to transparently support GPU
-	data->sum = NULL;
-    	data->in = NULL;
-
-	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), frequency_compensation_fun, frequency_compensation_der, frequency_compensation_adj, NULL, NULL, frequency_compensation_del);
+	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), frequency_compensation_fun, NULL, NULL, NULL, NULL, frequency_compensation_del);
 }
 
 /**
