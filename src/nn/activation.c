@@ -81,7 +81,7 @@ const struct nlop_s* append_activation(const struct nlop_s* network, int o, enum
 
 		case ACT_SOFTMAX:
 
-			network = nlop_chain2_FF(network, o, nlop_softmax_create(N, dims, MD_BIT(N - 1)), 0);
+			network = nlop_chain2_FF(network, o, nlop_softmax_create(N, dims, ~MD_BIT(0)), 0);
 			network = nlop_permute_outputs_F(network, NO, perm_out);
 			break;
 
@@ -610,7 +610,7 @@ struct softmax_s {
 	INTERFACE(nlop_data_t);
 
 	complex float* tmp;
-	unsigned int flag;
+	unsigned long batch_flag;
 
 	unsigned long N;
 
@@ -642,7 +642,7 @@ static void softmax_apply(const nlop_data_t* _data, complex float* dst, const co
 	md_free(tmp_real);
 
 	complex float* scale = md_alloc_sameplace(d->N, d->batchdom->dims, CFL_SIZE, src);
-	md_zsum(d->N, d->dom->dims, ~d->flag, scale, tmp_exp);
+	md_zsum(d->N, d->dom->dims, ~d->batch_flag, scale, tmp_exp);
 	md_zdiv2(d->N, d->dom->dims, d->dom->strs, d->tmp, d->dom->strs, tmp_exp, d->batchdom->strs, scale);
 	md_free(scale);
 	md_free(tmp_exp);
@@ -668,7 +668,7 @@ static void softmax_der(const nlop_data_t* _data, unsigned int o, unsigned int i
 
 	//\sum_i S_ia_i
 	complex float* tmp1 = md_alloc_sameplace(d->N, d->batchdom->dims, CFL_SIZE, src);
-	md_zsum(d->N, d->dom->dims, ~d->flag, tmp1, dst);
+	md_zsum(d->N, d->dom->dims, ~d->batch_flag, tmp1, dst);
 
 	//S_j\sum_i D_jS_ia_i
 	complex float* tmp2 = md_alloc_sameplace(d->N, d->dom->dims, CFL_SIZE, src);
@@ -692,7 +692,7 @@ static void softmax_free(const nlop_data_t* _data)
 	xfree(d);
 }
 
-const struct nlop_s* nlop_softmax_create(unsigned int N, const long dims[N], unsigned int batch_flag)
+const struct nlop_s* nlop_softmax_create(unsigned int N, const long dims[N], unsigned long batch_flag)
 {
 	PTR_ALLOC(struct softmax_s, data);
 	SET_TYPEID(softmax_s, data);
@@ -704,12 +704,12 @@ const struct nlop_s* nlop_softmax_create(unsigned int N, const long dims[N], uns
 	md_select_dims(N, batch_flag, batchdims, dims);
 	data->dom = iovec_create(N, dims, CFL_SIZE);
 	data->batchdom = iovec_create(N, batchdims, CFL_SIZE);
-	data->flag = batch_flag;
+	data->batch_flag = batch_flag;
 
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), softmax_apply, softmax_der, softmax_der, NULL, NULL, softmax_free);
 }
 
-const struct nlop_s* nlop_softmax_bias_create(unsigned int N, const long dims[N], unsigned int batch_flag, const long bdims[N])
+const struct nlop_s* nlop_softmax_bias_create(unsigned int N, const long dims[N], unsigned long batch_flag, const long bdims[N])
 {
 	const struct nlop_s* act = nlop_softmax_create(N, dims, batch_flag);
 	const struct nlop_s* bias = nlop_bias_create(N, dims, bdims);
