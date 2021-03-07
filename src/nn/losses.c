@@ -525,7 +525,7 @@ static void cce_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	long odims[1];
 	md_singleton_dims(1, odims);
 	complex float* tmp = md_alloc_sameplace(1, odims, CFL_SIZE, dst);
-	md_zsmul(1, odims,  tmp, src, (complex float)(-1) / data->scaling);
+	md_zsmul(1, odims, tmp, src, (complex float)(-1) / data->scaling);
 	md_ztenmulc2(data->N, data->dom->dims, data->dom->strs, dst, MD_SINGLETON_STRS(data->N), tmp, data->dom->strs, data->tmp_div);
 	md_free(tmp);
 }
@@ -542,7 +542,7 @@ static void cce_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	long odims[1];
 	md_singleton_dims(1, odims);
 	complex float* tmp = md_alloc_sameplace(1, odims, CFL_SIZE, dst);
-	md_zsmul(1, odims,  tmp, src, (complex float)(-1) / data->scaling);
+	md_zsmul(1, odims, tmp, src, (complex float)(-1) / data->scaling);
 	md_ztenmul2(data->N, data->dom->dims, data->dom->strs, dst, MD_SINGLETON_STRS(data->N), tmp, data->dom->strs, data->tmp_log);
 	md_free(tmp);
 }
@@ -553,7 +553,7 @@ static void cce_del(const nlop_data_t* _data)
 
 	md_free(data->tmp_div);
 	md_free(data->tmp_log);
-    	iovec_free(data->dom);
+	iovec_free(data->dom);
 
 	xfree(data);
 }
@@ -563,7 +563,7 @@ static void cce_del(const nlop_data_t* _data)
  *
  * calculate cce with channels in first dimension
  *
- * loss = - sum_i,j t_ij * log(p_ij(x))
+ * loss = - sum_i,j t_ij * log(p_ij(x)) / sum_i,j t_ij
  * where:	i - batch index
  *		j - label index
  *		t_ij = target prediction, i.e. 0 or 1 and sum_j t_ij = 1
@@ -572,7 +572,7 @@ static void cce_del(const nlop_data_t* _data)
  * @param N
  * @param dims
  **/
-const struct nlop_s* nlop_cce_create(int N, const long dims[N], unsigned long scaling_flag)
+const struct nlop_s* nlop_cce_create(int N, const long dims[N], unsigned long batch_flag)
 {
 
 	PTR_ALLOC(struct cce_s, data);
@@ -583,10 +583,10 @@ const struct nlop_s* nlop_cce_create(int N, const long dims[N], unsigned long sc
 
 	// will be initialized later, to transparently support GPU
 	data->tmp_div = NULL;
-    	data->tmp_log = NULL;
+	data->tmp_log = NULL;
 
 	long scale_dims[N];
-	md_select_dims(N, scaling_flag, scale_dims, dims);
+	md_select_dims(N, batch_flag, scale_dims, dims);
 	data->scaling = md_calc_size(N, scale_dims);
 
 	long nl_odims[1][1];
@@ -647,7 +647,7 @@ static void accuracy_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(accuracy_s, _data);
 
-    	iovec_free(data->dom);
+	iovec_free(data->dom);
 
 	xfree(data);
 }
