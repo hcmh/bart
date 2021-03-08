@@ -241,7 +241,7 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 
 	if (0 != config->weighting_dice0) {
 
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, 0., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_cce)), 0));
+		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, 0., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_dice0)), 0));
 		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice0");
 
@@ -258,7 +258,7 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 
 	if (0 != config->weighting_dice1) {
 
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -1., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_cce)), 0));
+		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -1., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_dice1)), 0));
 		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice1");
 
@@ -275,7 +275,7 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 
 	if (0 != config->weighting_dice2) {
 
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -2., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_cce)), 0));
+		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -2., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_dice2)), 0));
 		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice2");
 
