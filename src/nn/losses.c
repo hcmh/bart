@@ -841,10 +841,10 @@ static void dice_compute_weights(struct dice_s* d, const complex float* ref)
 	md_zadd2(d->dom->N, d->dom->dims, d->weight_dom->strs, d->weight, d->weight_dom->strs, d->weight, d->dom->strs, ref);
 	md_zreal(d->dom->N, d->weight_dom->dims, d->weight, d->weight);
 
-	complex float* tmp = md_alloc_sameplace(d->dom->N, d->weight_dom->dims, d->dom->size, ref);;
-	md_zfill(d->dom->N, d->weight_dom->dims, tmp, 1);
+	complex float* tmp = md_alloc_sameplace(d->dom->N, d->weight_dom->dims, d->dom->size, ref);
+	md_zfill(d->dom->N, d->weight_dom->dims, tmp, (float)md_calc_size(d->dom->N, d->dom->dims) / md_calc_size(d->weight_dom->N, d->weight_dom->dims));
 
-	md_zdiv(d->dom->N, d->weight_dom->dims, d->weight, d->weight, tmp);
+	md_zdiv(d->dom->N, d->weight_dom->dims, d->weight, tmp, d->weight);
 	md_zspow(d->dom->N, d->weight_dom->dims, d->weight, d->weight, -1. * d->weighting_exponent);
 
 	md_free(tmp);
