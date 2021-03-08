@@ -962,13 +962,13 @@ static bool test_dice(void)
 	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
 	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
 
-	float der_err = nlop_test_derivatives(nlop);
+	bool der = nlop_test_derivatives_reduce(nlop, 10, 5, 0.01);
 	float adj_err = nlop_test_adj_derivatives(nlop, true);
 
 	nlop_free(nlop);
 
-	debug_printf(DP_DEBUG1, "%f %f\n", der_err, adj_err);
-	UT_ASSERT((0.01 > der_err) && (UT_TOL > adj_err));
+	debug_printf(DP_DEBUG1, "%d %f\n", der, adj_err);
+	UT_ASSERT(der && (UT_TOL > adj_err));
 }
 
 UT_REGISTER_TEST(test_dice);
@@ -981,13 +981,13 @@ static bool test_dice2(void)
 	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
 	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
 
-	float der_err = nlop_test_derivatives(nlop);
+	bool der = nlop_test_derivatives_reduce(nlop, 10, 5, 0.01);
 	float adj_err = nlop_test_adj_derivatives(nlop, true);
 
 	nlop_free(nlop);
 
-	debug_printf(DP_DEBUG1, "%f %f\n", der_err, adj_err);
-	UT_ASSERT((0.01 > der_err) && (UT_TOL > adj_err));
+	debug_printf(DP_DEBUG1, "%d %f\n", der, adj_err);
+	UT_ASSERT(der && (UT_TOL > adj_err));
 }
 
 UT_REGISTER_TEST(test_dice2);
@@ -1000,13 +1000,13 @@ static bool test_dice3(void)
 	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
 	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
 
-	float der_err = nlop_test_derivatives(nlop);
+	bool der = nlop_test_derivatives_reduce(nlop, 10, 5, 0.01);
 	float adj_err = nlop_test_adj_derivatives(nlop, true);
 
 	nlop_free(nlop);
 
-	debug_printf(DP_DEBUG1, "%f %f\n", der_err, adj_err);
-	UT_ASSERT((0.01 > der_err) && (UT_TOL > adj_err));
+	debug_printf(DP_DEBUG1, "%d %f\n", der, adj_err);
+	UT_ASSERT(der && (UT_TOL > adj_err));
 }
 
 UT_REGISTER_TEST(test_dice3);
