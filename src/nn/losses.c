@@ -811,7 +811,7 @@ struct dice_s {
 
 DEF_TYPEID(dice_s);
 
-void dice_initialize(struct dice_s* d, const void* arg)
+static void dice_initialize(struct dice_s* d, const void* arg)
 {
 	if (NULL == d->weight)
 		d->weight = md_alloc_sameplace(d->dom->N, d->weight_dom->dims, d->dom->size, arg);
@@ -829,7 +829,7 @@ void dice_initialize(struct dice_s* d, const void* arg)
 		d->denominator_sum = md_alloc_sameplace(d->cod->N, d->cod->dims, d->cod->size, arg);
 }
 
-void dice_compute_weights(struct dice_s* d, const complex float* ref)
+static void dice_compute_weights(struct dice_s* d, const complex float* ref)
 {
 	if (0. == d->weighting_exponent) {
 
