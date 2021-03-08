@@ -39,16 +39,16 @@
 
 
 const struct nlop_s* nlop_maxpool_create(int N, const long dims[N], const long pool_size[N])
-{	
+{
 	long ndims[2 * N];
 	long odims[2 * N];
 
 	unsigned int perm[2 * N];
 
-	
+
 
 	for (int i = 0; i < N; i++) {
-		
+
 		assert(0 == dims[i] % pool_size[i]);
 
 		odims[i] = dims[i] / pool_size[i];
@@ -169,7 +169,7 @@ const struct linop_s* linop_avgpool_create(int N, const long dims[N], const long
 	unsigned int perm[2 * N];
 
 	for (int i = 0; i < N; i++) {
-		
+
 		assert(0 == dims[i] % pool_size[i]);
 
 		odims[i] = dims[i] / pool_size[i];
@@ -308,7 +308,7 @@ const struct nlop_s* nlop_blurpool_create(int N, const long dims[N], const long 
 
 			extract = nlop_combine_FF(extract, tmp_op);
 			extract = nlop_dup_F(extract, 0, 1); // in: ipad_out; out: extr1, extr2, ...
-			extract = nlop_stack_outputs(extract, 0, 1, N); //in: pad_out; out: stack_out
+			extract = nlop_stack_outputs_F(extract, 0, 1, N); //in: pad_out; out: stack_out
 		}
 	}while(md_next(N, pool_size, ~0, pos));
 	extract = nlop_chain2_swap_FF(pad_op, 0, extract, 0); // in: indims; out: stack_out
