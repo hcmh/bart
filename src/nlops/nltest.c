@@ -235,7 +235,7 @@ static bool nlop_test_derivative_priv_reduce(const struct nlop_s* op, bool lin, 
 		return false;
 
 	auto nlop_square = nlop_tenmul_create(N_cod, dims_cod, dims_cod, dims_cod);
-	nlop_square = nlop_dup_F(nlop_square, 0, 0);
+	nlop_square = nlop_dup_F(nlop_square, 0, 1);
 	auto nlop_tmp = nlop_chain(op, nlop_square);
 	nlop_free(nlop_square);
 
