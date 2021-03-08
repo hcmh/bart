@@ -147,7 +147,7 @@ static bool detect_convcorr(	int N,
 		if ((1 != dims[i]) && (1 != dims[N + i])) {
 
 			*ptr_flag = MD_SET(*ptr_flag, i);
-			
+
 			nodims[i] = dims[0 + i];
 			nkdims[i] = dims[N + i];
 
@@ -158,7 +158,7 @@ static bool detect_convcorr(	int N,
 			if (0 != ostrs[N + i])
 				return false;
 			nostrs[i] = ostrs[i];
-			
+
 			long test_strides[] = {istrs[i] / istrs_triv, 1, 2, 3, 4, 5, 6, 7, 8};
 			bool found = false;
 
@@ -172,7 +172,7 @@ static bool detect_convcorr(	int N,
 					continue;
 
 				nistrs[i] = istrs[i] / strides[i];
-				
+
 				if ((0 == nistrs[i]) || (0 != istrs[N + i] % nistrs[i]))
 					continue;
 
@@ -207,7 +207,7 @@ static bool detect_convcorr(	int N,
 				istrs_triv *= nidims[i];
 		}
 	}
-	
+
 	for (int i = 0; i < N; i++)
 		if (MD_IS_SET(*ptr_flag, i))
 			if (*ptr_conv)
@@ -555,7 +555,7 @@ static bool check_trivial_cf(	int N,
 {
 	//Check conv dims
 	for (int i = 2; i < N; i++)
-		if ((!MD_IS_SET(flags, i)) && ((1 != odims[i]) || (1 != odims[i]) || (1 != odims[i])))
+		if ((!MD_IS_SET(flags, i)) && ((1 != odims[i]) || (1 != idims[i]) || (1 != kdims[i])))
 			return false;
 
 	//Check matmul dims
@@ -591,6 +591,8 @@ bool zconvcorr_fwd_direct_cf(	int N,
 {
 	size_t size = CFL_SIZE;
 
+	if (5 > N)
+		return false;
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 	if (!check_trivial_strs_dil(5, dilation, strides))
@@ -637,6 +639,8 @@ bool zconvcorr_bwd_in_direct_cf(	int N,
 {
 	size_t size = CFL_SIZE;
 
+	if (5 > N)
+		return false;
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 	if (!check_trivial_strs_dil(5, dilation, strides))
@@ -682,6 +686,8 @@ bool zconvcorr_bwd_krn_direct_cf(	int N,
 {
 	size_t size = CFL_SIZE;
 
+	if (5 > N)
+		return false;
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 	if (!check_trivial_strs_dil(5, dilation, strides))
@@ -732,6 +738,8 @@ bool zconvcorr_fwd_im2col_cf_cpu(int N,
 #endif
 	size_t size = CFL_SIZE;
 
+	if (5 > N)
+		return false;
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 	if (!check_trivial_strs_dil(5, dilation, strides))
@@ -809,6 +817,8 @@ bool zconvcorr_bwd_krn_im2col_cf_cpu(int N,
 #endif
 	size_t size = CFL_SIZE;
 
+	if (5 > N)
+		return false;
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 	if (!check_trivial_strs_dil(5, dilation, strides))
@@ -886,6 +896,8 @@ bool zconvcorr_bwd_in_im2col_cf_cpu(int N,
 #endif
 	size_t size = CFL_SIZE;
 
+	if (5 > N)
+		return false;
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 	if (!check_trivial_strs_dil(5, dilation, strides))
@@ -964,6 +976,8 @@ bool zconvcorr_fwd_im2col_cf_gpu(int N,
 
 	size_t size = CFL_SIZE;
 
+	if (5 > N)
+		return false;
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 	if (conv)
@@ -1034,6 +1048,8 @@ bool zconvcorr_bwd_krn_im2col_cf_gpu(int N,
 
 	size_t size = CFL_SIZE;
 
+	if (5 > N)
+		return false;
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 	if (conv)
@@ -1102,6 +1118,8 @@ bool zconvcorr_bwd_in_im2col_cf_gpu(int N,
 
 	size_t size = CFL_SIZE;
 
+	if (5 > N)
+		return false;
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 	if (conv)
@@ -1467,7 +1485,7 @@ bool zconvcorr_fwd_inner_matmul_cf(	int N,
 #endif
 	size_t size = CFL_SIZE;
 
-	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
+	if (!check_trivial_cf(MIN(5, N), odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 
 	long tdims[2 * N];
@@ -1500,7 +1518,7 @@ bool zconvcorr_bwd_in_inner_matmul_cf	(int N,
 #endif
 	size_t size = CFL_SIZE;
 
-	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
+	if (!check_trivial_cf(MIN(5, N), odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 
 	long tdims[2 * N];
@@ -1533,7 +1551,7 @@ bool zconvcorr_bwd_krn_inner_matmul_cf(	int N,
 #endif
 	size_t size = CFL_SIZE;
 
-	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
+	if (!check_trivial_cf(MIN(5, N), odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 
 	long tdims[2 * N];
@@ -1571,7 +1589,7 @@ bool md_next_stepsize(unsigned int D, const long dims[D], unsigned long flags, l
 	if (MD_IS_SET(flags, D)) {
 
 		assert((0 <= pos[D]) && (pos[D] < dims[D]));
-		
+
 		pos[D] += stepsize[D];
 
 		if (pos[D] < dims[D])
@@ -1646,21 +1664,21 @@ static void convcorr_frw_im2col_cf(	int N,
 	long N1 = md_calc_size(N - 1, odims + 1);
 
 	assert(!conv);
-	
+
 	bool out_buffer_needed = !md_check_equal_dims(N, ostrs, MD_STRIDES(N, odims, CFL_SIZE), md_nontriv_dims(N, odims));
 	complex float* out_buffer = out;
-	
+
 	if (out_buffer_needed) {
-	
+
 		out_buffer = md_alloc(N, odims, CFL_SIZE);
 		md_copy2(N, odims, MD_STRIDES(N, odims, CFL_SIZE), out_buffer, ostrs, out, CFL_SIZE);
 	}
 
 	bool krn_buffer_needed = !md_check_equal_dims(N, kstrs, MD_STRIDES(N, kdims, CFL_SIZE), md_nontriv_dims(N, kdims));
 	const complex float* krn_buffer = krn;
-	
+
 	if (krn_buffer_needed) {
-	
+
 		complex float* tmp = md_alloc(N, kdims, CFL_SIZE);
 		md_copy2(N, kdims, MD_STRIDES(N, kdims, CFL_SIZE), tmp, kstrs, krn, CFL_SIZE);
 		krn_buffer = tmp;
@@ -1668,7 +1686,7 @@ static void convcorr_frw_im2col_cf(	int N,
 
 	complex float* in_buffer = md_alloc(2, (long[2]){K1, N1}, CFL_SIZE);
 	convcorr_im2col_in_cf(N, in_buffer, odims, kdims, idims, istrs, dilation, strides, in, false);
-	
+
 	blas_matrix_zfmac(	M1, N1, K1,
 				out_buffer,
 				krn, 'N',
@@ -1678,7 +1696,7 @@ static void convcorr_frw_im2col_cf(	int N,
 	md_free(in_buffer);
 
 	if (out_buffer_needed) {
-	
+
 		md_copy2(N, odims, ostrs, out, MD_STRIDES(N, odims, CFL_SIZE), out_buffer, CFL_SIZE);
 		md_free(out_buffer);
 	}
@@ -1700,9 +1718,9 @@ static void conv_frw_im2col_tiling(	int N,
 	long max_tiles[N];
 	for (int i = 0; i < N; i++)
 		max_tiles[i] = 8;
-	
+
 	if (6 != N) {
-	
+
 		long pos[N];
 		for (int i = 0; i < N; i++)
 			pos[i] = 0;
@@ -1713,7 +1731,7 @@ static void conv_frw_im2col_tiling(	int N,
 
 			for (int i = 2; i < N; i++)
 				odims_tmp[i] = MIN(max_tiles[i], odims[i] - pos[i]);
-			
+
 			for (int i = 2; i < N - 1; i++)
 				idims_tmp[i] = ((NULL == strides) ? 1 : strides[i]) * (odims_tmp[i] - 1) + 1 + (kdims[i] - 1) * ((NULL == dilation) ? 1 : dilation[i]);
 
@@ -1723,7 +1741,7 @@ static void conv_frw_im2col_tiling(	int N,
 			idims_tmp[1] = idims[1];
 			idims_tmp[0] = idims[0];
 
-			idims_tmp[N - 1] = odims_tmp[N - 1]; 
+			idims_tmp[N - 1] = odims_tmp[N - 1];
 
 			long ipos[N];
 			ipos[0] = 0;
@@ -1755,7 +1773,7 @@ static void conv_frw_im2col_tiling(	int N,
 
 			for (int i = 2; i < N; i++)
 				odims_tmp[i] = MIN(max_tiles[i], odims[i] - pos[i]);
-			
+
 			for (int i = 2; i < N - 1; i++)
 				idims_tmp[i] = ((NULL == strides) ? 1 : strides[i]) * (odims_tmp[i] - 1) + 1 + (kdims[i] - 1) * ((NULL == dilation) ? 1 : dilation[i]);
 
@@ -1765,7 +1783,7 @@ static void conv_frw_im2col_tiling(	int N,
 			idims_tmp[1] = idims[1];
 			idims_tmp[0] = idims[0];
 
-			idims_tmp[N - 1] = odims_tmp[N - 1]; 
+			idims_tmp[N - 1] = odims_tmp[N - 1];
 
 			long ipos[N];
 			ipos[0] = 0;
