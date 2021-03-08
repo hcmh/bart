@@ -24,7 +24,12 @@
 #include "num/gpuops.h"
 #endif
 
+#include "linops/linop.h"
+#include "linops/someops.h"
+#include "linops/sum.h"
+
 #include "nlops/nlop.h"
+#include "nlops/cast.h"
 #include "nlops/chain.h"
 
 #include "nn/misc.h"
@@ -774,4 +779,314 @@ const struct nlop_s* nlop_weighted_cce_create(int N, const long dims[N], unsigne
 	assert(MD_BIT(N-1) == batch_flag);
 
 	return nlop_chain2_FF(nlop_frequency_compensation_create(N, dims, batch_flag), 0, nlop_cce_create(N, dims, ~MD_BIT(0)), 1);
+}
+
+
+struct dice_s {
+
+	INTERFACE(nlop_data_t);
+
+	long N;
+
+	const struct iovec_s* weight_dom;
+	const struct iovec_s* dom;
+	const struct iovec_s* cod;
+
+	unsigned long mean_flag;
+
+	complex float* weight;
+	float weighting_exponent;
+
+	complex float* min_src1;
+	complex float* min_src2;
+
+	complex float* src1_t2;
+	complex float* src2_t2;
+
+	bool square_denominator;
+	complex float* numerator_sum;
+	complex float* denominator_sum;
+
+};
+
+DEF_TYPEID(dice_s);
+
+void dice_initialize(struct dice_s* d, const void* arg)
+{
+	if (NULL == d->weight)
+		d->weight = md_alloc_sameplace(d->dom->N, d->weight_dom->dims, d->dom->size, arg);
+	if (NULL == d->min_src1)
+		d->min_src1 = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, arg);
+	if (NULL == d->min_src2)
+		d->min_src2 = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, arg);
+	if (d->square_denominator && (NULL == d->src1_t2))
+		d->src1_t2 = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, arg);
+	if (d->square_denominator && (NULL == d->src2_t2))
+		d->src2_t2 = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, arg);
+	if (NULL == d->numerator_sum)
+		d->numerator_sum = md_alloc_sameplace(d->cod->N, d->cod->dims, d->cod->size, arg);
+	if (NULL == d->denominator_sum)
+		d->denominator_sum = md_alloc_sameplace(d->cod->N, d->cod->dims, d->cod->size, arg);
+}
+
+void dice_compute_weights(struct dice_s* d, const complex float* ref)
+{
+	if (0. == d->weighting_exponent) {
+
+		md_zfill(d->dom->N, d->weight_dom->dims, d->weight, 1);
+		return;
+	}
+
+	md_clear(d->dom->N, d->weight_dom->dims, d->weight, d->dom->size);
+	md_zadd2(d->dom->N, d->dom->dims, d->weight_dom->strs, d->weight, d->weight_dom->strs, d->weight, d->dom->strs, ref);
+	md_zreal(d->dom->N, d->weight_dom->dims, d->weight, d->weight);
+
+	complex float* tmp = md_alloc_sameplace(d->dom->N, d->weight_dom->dims, d->dom->size, ref);;
+	md_zfill(d->dom->N, d->weight_dom->dims, tmp, 1);
+
+	md_zdiv(d->dom->N, d->weight_dom->dims, d->weight, d->weight, tmp);
+	md_zspow(d->dom->N, d->weight_dom->dims, d->weight, d->weight, -1. * d->weighting_exponent);
+
+	md_free(tmp);
+}
+
+static void dice_red_der(const struct dice_s* d, complex float* dst, const complex float* src, const complex float* factor)
+{
+	complex float* tmp = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
+
+	md_zreal(d->dom->N, d->dom->dims, tmp, src);
+
+	if (NULL != factor)
+		md_zmul(d->dom->N, d->dom->dims, tmp, tmp, factor);
+
+	if (NULL != d->weight)
+		md_zmul2(d->N, d->dom->dims, d->dom->strs, tmp, d->dom->strs, tmp, d->weight_dom->strs, d->weight);
+
+	md_zsum(d->dom->N, d->dom->dims, ~d->mean_flag, dst, tmp);
+
+	md_free(tmp);
+}
+
+static void dice_red_adj(const struct dice_s* d, complex float* dst, const complex float* src, const complex float* factor)
+{
+	md_copy2(d->dom->N, d->dom->dims, d->dom->strs, dst, d->cod->strs, src, CFL_SIZE);
+
+	md_zreal(d->dom->N, d->dom->dims, dst, dst);
+
+	if (NULL != factor)
+		md_zmul(d->dom->N, d->dom->dims, dst, dst, factor);
+
+	if (NULL != d->weight)
+		md_zmul2(d->N, d->dom->dims, d->dom->strs, dst, d->dom->strs, dst, d->weight_dom->strs, d->weight);
+
+}
+
+static void dice_fun(const nlop_data_t* _data, int D, complex float* args[D])
+{
+	auto d = CAST_DOWN(dice_s, _data);
+	assert(3 == D);
+
+	//debug_print_dims(DP_INFO, data->N, data->rdims);
+
+	complex float* dst = args[0];
+	const _Complex float* src_pred = args[1];
+	const _Complex float* src_true = args[2];
+
+#ifdef USE_CUDA
+	assert((cuda_ondevice(dst) == cuda_ondevice(src_pred)) && (cuda_ondevice(src_pred) == cuda_ondevice(src_true)));
+#endif
+	int N = d->N;
+
+	dice_initialize(d, src_true);
+	dice_compute_weights(d, src_true);
+
+	md_zlessequal(N, d->dom->dims, d->min_src1, src_pred, src_true);
+	md_zlessequal(N, d->dom->dims, d->min_src2, src_true, src_pred);
+
+	complex float* tmp = md_alloc_sameplace(N, d->dom->dims, d->dom->size, dst);
+	md_zmul(N, d->dom->dims, tmp, d->min_src1, d->min_src2);
+	md_zsmul(N, d->dom->dims, tmp, tmp, 0.5);
+	md_zsub(N, d->dom->dims, d->min_src1, d->min_src1, tmp);
+	md_zsub(N, d->dom->dims, d->min_src2, d->min_src2, tmp);
+
+	complex float* numerator = md_alloc_sameplace(N, d->dom->dims, d->dom->size, dst);
+	complex float* denominator = md_alloc_sameplace(N, d->dom->dims, d->dom->size, dst);
+
+	md_zmul(N, d->dom->dims, numerator, src_pred, d->min_src1);
+	md_zfmac(N, d->dom->dims, numerator, src_true, d->min_src2);
+
+	if (d->square_denominator) {
+
+		md_zmul(N, d->dom->dims, denominator, src_true, src_true);
+		md_zfmac(N, d->dom->dims, denominator, src_pred, src_pred);
+
+		md_zsmul(N, d->dom->dims, d->src1_t2, src_pred, 2);
+		md_zsmul(N, d->dom->dims, d->src2_t2, src_true, 2);
+
+		md_zreal(N, d->dom->dims, d->src1_t2, d->src1_t2);
+		md_zreal(N, d->dom->dims, d->src2_t2, d->src2_t2);
+
+	} else {
+
+		md_zadd(N, d->dom->dims, denominator, src_true, src_pred);
+	}
+
+
+	dice_red_der(d, d->numerator_sum, numerator, NULL);
+	dice_red_der(d, d->denominator_sum, denominator, NULL);
+
+	complex float* tmp_sum = md_alloc_sameplace(d->cod->N, d->cod->dims, CFL_SIZE, dst);
+	md_zdiv(d->cod->N, d->cod->dims, tmp_sum, d->numerator_sum, d->denominator_sum);
+
+	md_zfill(d->cod->N, d->cod->dims, dst, 1.);
+	md_zaxpy(d->cod->N, d->cod->dims, dst, -2., tmp_sum);
+
+	md_free(tmp_sum);
+
+	md_free(numerator);
+	md_free(denominator);
+
+	//for derivative
+	md_zadd(N, d->dom->dims, d->min_src1, d->min_src1, tmp);
+	md_zadd(N, d->dom->dims, d->min_src2, d->min_src2, tmp);
+	md_free(tmp);
+}
+
+static void dice_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	const struct dice_s* d = CAST_DOWN(dice_s, _data);
+
+	complex float* tmp_sum = md_alloc_sameplace(d->cod->N, d->cod->dims, CFL_SIZE, dst);
+
+	dice_red_der(d, dst, src, (0 == i) ? d->min_src1 : d->min_src2);
+	dice_red_der(d, tmp_sum, src, (0 == i) ? d->src1_t2 : d->src2_t2);
+
+	md_zdiv(d->cod->N, d->cod->dims, tmp_sum, tmp_sum, d->denominator_sum);
+	md_zmul(d->cod->N, d->cod->dims, tmp_sum, tmp_sum, d->numerator_sum);
+	md_zaxpy(d->cod->N, d->cod->dims, dst, -1, tmp_sum);
+
+	md_free(tmp_sum);
+
+	md_zdiv(d->cod->N, d->cod->dims, dst, dst, d->denominator_sum);
+
+	md_zsmul(d->cod->N, d->cod->dims, dst, dst, -2.);
+}
+
+static void dice_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	const struct dice_s* d = CAST_DOWN(dice_s, _data);
+	int N = d->N;
+
+	complex float* tmp_src = md_alloc_sameplace(d->cod->N, d->cod->dims, CFL_SIZE, dst);
+	md_zdiv(d->cod->N, d->cod->dims, tmp_src, src, d->denominator_sum);
+	md_zsmul(d->cod->N, d->cod->dims, tmp_src, tmp_src, -2);
+
+	dice_red_adj(d, dst, tmp_src, (0 == i) ? d->min_src1 : d->min_src2);
+
+	md_zmul(d->cod->N, d->cod->dims, tmp_src, tmp_src, d->numerator_sum);
+	md_zdiv(d->cod->N, d->cod->dims, tmp_src, tmp_src, d->denominator_sum);
+
+	complex float* tmp = md_alloc_sameplace(N, d->dom->dims, d->dom->size, dst);
+	dice_red_adj(d, tmp, tmp_src, (0 == i) ? d->src1_t2 : d->src2_t2);
+
+	md_zaxpy(N, d->dom->dims, dst, -1, tmp);
+	md_free(tmp);
+	md_free(tmp_src);
+}
+
+static void dice_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(dice_s, _data);
+
+	md_free(data->weight);
+	md_free(data->min_src1);
+	md_free(data->min_src2);
+	md_free(data->numerator_sum);
+	md_free(data->denominator_sum);
+
+	md_free(data->src1_t2);
+	md_free(data->src2_t2);
+
+	iovec_free(data->weight_dom);
+	iovec_free(data->dom);
+	iovec_free(data->cod);
+
+	xfree(data);
+}
+
+/**
+ * Generic Dice loss D
+ *
+ * Crum WR, Camara O, Hill DL. Generalized overlap measures for evaluation and validation in medical image analysis. IEEE Trans Med Imaging. 2006 Nov;25(11):1451-61. doi: 10.1109/TMI.2006.880587. PMID: 17117774.
+ *
+ * D = 1 - 2 * [sum_l w_l sum_i MIN(p_li, t_li)] / [sum_l w_l sum_i (p_li + t_li)]
+ * where:	i - batch index
+ *		l - label index
+ *		w_l - wighting factor
+ *		t_ij = target prediction (usually 0 or 1 and sum_j t_ij = 1)
+ *		p_ij = propability predicted by the network (usually p_i(x) in [0, 1] and sum_j p_ij(x) = 1 (softmax activation))
+ *
+ * For t_ij in {0, 1}, MIN(p_li, t_li) = p_li * t_li resulting in the form presented in
+ * Sudre C.H., Li W., Vercauteren T., Ourselin S., Jorge Cardoso M. (2017) Generalised Dice Overlap as a Deep Learning Loss Function for Highly Unbalanced Segmentations. In: Cardoso M. et al. (eds) Deep Learning in Medical Image Analysis and Multimodal Learning for Clinical Decision Support. DLMIA 2017, ML-CDS 2017. Lecture Notes in Computer Science, vol 10553. Springer, Cham. https://doi.org/10.1007/978-3-319-67558-9_28
+ *
+ * @param N
+ * @param dims
+ * @param label_flag select the label dimension
+ * @param mean_flag computes dice loss over selected dimensions independently and averages afterwards (0 recommended)
+ * @param weighting_exponent w_l = (V_l^wighting_exponent); should be in {0, -1, -2}; -2 corresponds to Sudre et.al.
+ * @param square_denominator replace p_li by p_li^2 and t_li by t_li^2 in denominator
+ **/
+const struct nlop_s* nlop_dice_create(int N, const long dims[N], unsigned long label_flag, unsigned long mean_flag, float weighting_exponent, bool square_denominator)
+{
+	PTR_ALLOC(struct dice_s, data);
+	SET_TYPEID(dice_s, data);
+
+	data->N = N;
+
+	long weight_dims[N];
+	md_select_dims(N, label_flag, weight_dims, dims);
+
+	long out_dims[N];
+	md_select_dims(N, mean_flag, out_dims, dims);
+
+	data->weight_dom = iovec_create(N, weight_dims, CFL_SIZE);
+	data->dom = iovec_create(N, dims, CFL_SIZE);
+	data->cod = iovec_create(N, out_dims, CFL_SIZE);
+
+	data->mean_flag = mean_flag;
+
+	data->weighting_exponent = weighting_exponent;
+
+	data->weight = NULL;
+
+	data->min_src1 = NULL;
+	data->min_src2 = NULL;
+
+	data->square_denominator = square_denominator;
+	data->src1_t2 = NULL;
+	data->src2_t2 = NULL;
+
+	data->numerator_sum = NULL;
+	data->denominator_sum = NULL;
+
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], out_dims);
+	long nl_idims[2][N];
+	md_copy_dims(N, nl_idims[0], dims);
+	md_copy_dims(N, nl_idims[1], dims);
+
+
+	auto dice = nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), dice_fun, (nlop_der_fun_t[2][1]){ { dice_der }, { dice_der } }, (nlop_der_fun_t[2][1]){ { dice_adj }, { dice_adj } }, NULL, NULL, dice_del);
+
+	if (1 != md_calc_size(N, out_dims)) {
+
+		auto linop_avg = linop_avg_create(N, out_dims, ~0);
+		linop_avg = linop_chain_FF(linop_avg, linop_scale_create(N, MD_SINGLETON_DIMS(N), 1. / sqrtf(md_calc_size(N, out_dims))));//linop avg does not average
+
+		dice = nlop_chain2_FF(dice, 0, nlop_from_linop_F(linop_avg), 0);
+	}
+
+	return nlop_reshape_out_F(dice, 0, 1, MD_DIMS(1));
 }

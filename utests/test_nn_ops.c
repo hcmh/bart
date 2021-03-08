@@ -31,6 +31,7 @@
 #include "nn/batchnorm.h"
 #include "nn/layers.h"
 #include "nn/nn_ops.h"
+#include "nn/losses.h"
 
 #include "utest.h"
 
@@ -951,3 +952,61 @@ static bool test_nlop_conv_strs_dil(void)
 	UT_ASSERT(err < 1.e-2);
 }
 UT_REGISTER_TEST(test_nlop_conv_strs_dil);
+
+
+static bool test_dice(void)
+{
+	long dims[] = {4, 12};
+
+	auto nlop = nlop_dice_create(ARRAY_SIZE(dims), dims, MD_BIT(0), 0, -1., false);
+	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
+	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
+
+	float der_err = nlop_test_derivatives(nlop);
+	float adj_err = nlop_test_adj_derivatives(nlop, true);
+
+	nlop_free(nlop);
+
+	debug_printf(DP_DEBUG1, "%f %f\n", der_err, adj_err);
+	UT_ASSERT((0.01 > der_err) && (UT_TOL > adj_err));
+}
+
+UT_REGISTER_TEST(test_dice);
+
+static bool test_dice2(void)
+{
+	long dims[] = {4, 12, 5};
+
+	auto nlop = nlop_dice_create(ARRAY_SIZE(dims), dims, MD_BIT(0), MD_BIT(2), -2., false);
+	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
+	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
+
+	float der_err = nlop_test_derivatives(nlop);
+	float adj_err = nlop_test_adj_derivatives(nlop, true);
+
+	nlop_free(nlop);
+
+	debug_printf(DP_DEBUG1, "%f %f\n", der_err, adj_err);
+	UT_ASSERT((0.01 > der_err) && (UT_TOL > adj_err));
+}
+
+UT_REGISTER_TEST(test_dice2);
+
+static bool test_dice3(void)
+{
+	long dims[] = {4, 12, 5};
+
+	auto nlop = nlop_dice_create(ARRAY_SIZE(dims), dims, MD_BIT(0), 0, 0, true);
+	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
+	nlop = nlop_chain2_FF(nlop_softmax_create(ARRAY_SIZE(dims), dims, 1) , 0, nlop, 0);
+
+	float der_err = nlop_test_derivatives(nlop);
+	float adj_err = nlop_test_adj_derivatives(nlop, true);
+
+	nlop_free(nlop);
+
+	debug_printf(DP_DEBUG1, "%f %f\n", der_err, adj_err);
+	UT_ASSERT((0.01 > der_err) && (UT_TOL > adj_err));
+}
+
+UT_REGISTER_TEST(test_dice3);
