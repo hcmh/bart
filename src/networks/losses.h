@@ -9,6 +9,10 @@ struct loss_config_s {
 	float weighting_cce;
 	float weighting_accuracy;
 
+	float weighting_dice0;
+	float weighting_dice1;
+	float weighting_dice2;
+
 	unsigned int label_index;
 };
 

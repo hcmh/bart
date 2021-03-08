@@ -31,6 +31,10 @@ struct loss_config_s loss_empty = {
 	.weighting_cce = 0.,
 	.weighting_accuracy = 0.,
 
+	.weighting_dice0 = 0.,
+	.weighting_dice1 = 0.,
+	.weighting_dice2 = 0.,
+
 	.label_index = 0,
 };
 
@@ -43,6 +47,10 @@ struct loss_config_s loss_mse = {
 
 	.weighting_cce = 0.,
 	.weighting_accuracy = 0.,
+
+	.weighting_dice0 = 0.,
+	.weighting_dice1 = 0.,
+	.weighting_dice2 = 0.,
 
 	.label_index = 0,
 };
@@ -57,6 +65,10 @@ struct loss_config_s loss_mse_sa = {
 	.weighting_cce = 0.,
 	.weighting_accuracy = 0.,
 
+	.weighting_dice0 = 0.,
+	.weighting_dice1 = 0.,
+	.weighting_dice2 = 0.,
+
 	.label_index = 0,
 };
 
@@ -70,6 +82,10 @@ struct loss_config_s loss_image_valid = {
 	.weighting_cce = 0.,
 	.weighting_accuracy = 0.,
 
+	.weighting_dice0 = 0.,
+	.weighting_dice1 = 0.,
+	.weighting_dice2 = 0.,
+
 	.label_index = 0,
 };
 
@@ -82,6 +98,10 @@ struct loss_config_s loss_classification = {
 
 	.weighting_cce = 1.,
 	.weighting_accuracy = 0.,
+
+	.weighting_dice0 = 0.,
+	.weighting_dice1 = 0.,
+	.weighting_dice2 = 0.,
 
 	.label_index = 0,
 };
@@ -97,11 +117,15 @@ struct loss_config_s loss_classification_valid = {
 	.weighting_cce = 1.,
 	.weighting_accuracy = 1.,
 
+	.weighting_dice0 = 1.,
+	.weighting_dice1 = 1.,
+	.weighting_dice2 = 1.,
+
 	.label_index = 0,
 };
 
 
-nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N]) 
+nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N])
 {
 	UNUSED(dims);
 
@@ -118,7 +142,7 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mse_sa");
 
 		if (NULL == result) {
-			
+
 			result = tmp_loss;
 		} else {
 
@@ -135,7 +159,7 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mse");
 
 		if (NULL == result) {
-			
+
 			result = tmp_loss;
 		} else {
 
@@ -153,7 +177,7 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mpsnr");
 
 		if (NULL == result) {
-			
+
 			result = tmp_loss;
 		} else {
 
@@ -171,7 +195,7 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mssim");
 
 		if (NULL == result) {
-			
+
 			result = tmp_loss;
 		} else {
 
@@ -188,7 +212,7 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "cce");
 
 		if (NULL == result) {
-			
+
 			result = tmp_loss;
 		} else {
 
@@ -205,7 +229,58 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "accuracy");
 
 		if (NULL == result) {
-			
+
+			result = tmp_loss;
+		} else {
+
+			result = nn_combine_FF(result, tmp_loss);
+			result = nn_dup_F(result, 0, NULL, 2, NULL);
+			result = nn_dup_F(result, 1, NULL, 2, NULL);
+		}
+	}
+
+	if (0 != config->weighting_dice0) {
+
+		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, 0., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_cce)), 0));
+		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
+		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice0");
+
+		if (NULL == result) {
+
+			result = tmp_loss;
+		} else {
+
+			result = nn_combine_FF(result, tmp_loss);
+			result = nn_dup_F(result, 0, NULL, 2, NULL);
+			result = nn_dup_F(result, 1, NULL, 2, NULL);
+		}
+	}
+
+	if (0 != config->weighting_dice1) {
+
+		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -1., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_cce)), 0));
+		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
+		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice1");
+
+		if (NULL == result) {
+
+			result = tmp_loss;
+		} else {
+
+			result = nn_combine_FF(result, tmp_loss);
+			result = nn_dup_F(result, 0, NULL, 2, NULL);
+			result = nn_dup_F(result, 1, NULL, 2, NULL);
+		}
+	}
+
+	if (0 != config->weighting_dice2) {
+
+		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -2., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_cce)), 0));
+		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
+		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice2");
+
+		if (NULL == result) {
+
 			result = tmp_loss;
 		} else {
 
