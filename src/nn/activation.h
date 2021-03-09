@@ -7,6 +7,7 @@ extern const struct nlop_s* append_activation_bias(const struct nlop_s* network,
 extern const struct nlop_s* nlop_bias_create(unsigned int N, const long dims[__VLA(N)], const long bdims[__VLA(N)]);
 
 extern const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[__VLA(N)], const long ostrs[__VLA(N)], const long istrs[__VLA(N)]);
+extern const struct nlop_s* nlop_leaky_relu_create2(unsigned int N, const long dims[__VLA(N)], const long ostrs[__VLA(N)], const long istrs[__VLA(N)], float slope_parameter);
 extern const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[__VLA(N)]);
 extern const struct nlop_s* nlop_relu_bias_create(unsigned int N, const long dims[__VLA(N)], const long bdims[__VLA(N)]);
 

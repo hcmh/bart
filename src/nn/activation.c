@@ -298,7 +298,8 @@ struct relu_s {
 
 	INTERFACE(nlop_data_t);
 
-	complex float* tmp;
+	complex float* der;
+	float slope_param;
 
 	const struct iovec_s* tmpdom;
 	const struct iovec_s* dom;
@@ -313,8 +314,8 @@ static void relu_set_opts(const nlop_data_t* _data, const struct op_options_s* o
 
 	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
 
-		md_free(data->tmp);
-		data->tmp = NULL;
+		md_free(data->der);
+		data->der = NULL;
 	}
 }
 
@@ -327,16 +328,36 @@ static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N])
 
 	struct relu_s* d = CAST_DOWN(relu_s, _data);
 
-	if (NULL == d->tmp)
-		d->tmp = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
+	if (NULL == d->der)
+		d->der = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
 
 	md_smax2(d->dom->N, d->dom->dims, d->codom->strs, (float*)dst, d->codom->strs, (float*)src, 0.);
-	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->der, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+
+	// leaky RELU if slope parameter has been set
+	if (0 != d->slope_param) {
+
+		complex float* tmp = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
+		complex float* tmp2 = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
+
+		// eliminate ones in derivative, where input is zero to calculate tmp(x) = (0, if x >= 0; 1, if x < 0)
+		md_lessequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)tmp2, (float*)d->der, (float*)tmp);
+		md_sub(d->tmpdom->N, d->tmpdom->dims, (float*)tmp, (float*)tmp, (float*)tmp2);
+
+		// derivative der(x) = {1, if x >= 0; d->slope_param if x < 0}
+		md_axpy(d->tmpdom->N, d->tmpdom->dims, (float*)d->der, d->slope_param, (float*)tmp);
+
+		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)dst, (float*)d->der, (float*)src);
+
+		md_free(tmp);
+		md_free(tmp2);
+	}
 
 	if (op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER)) {
 
-		md_free(d->tmp);
-		d->tmp = NULL;
+		md_free(d->der);
+		d->der = NULL;
 	}
 
 }
@@ -348,9 +369,9 @@ static void relu_deriv(const nlop_data_t* _data, unsigned int o, unsigned int i,
 	UNUSED(i);
 
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-	assert(NULL != d->tmp);
+	assert(NULL != d->der);
 
-	md_mul2(d->codom->N, d->dom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src);
+	md_mul2(d->codom->N, d->dom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->der, d->dom->strs, (float*)src);
 }
 
 static void relu_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -359,16 +380,16 @@ static void relu_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(i);
 
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-	assert(NULL != d->tmp);
+	assert(NULL != d->der);
 
-	md_mul2(d->dom->N, d->dom->dims, d->dom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, d->codom->strs, (float*)src);
+	md_mul2(d->dom->N, d->dom->dims, d->dom->strs, (float*)dst, d->tmpdom->strs, (float*)d->der, d->codom->strs, (float*)src);
 }
 
 static void relu_free(const nlop_data_t* _data)
 {
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
 
-	md_free(d->tmp);
+	md_free(d->der);
 
 	iovec_free(d->tmpdom);
 	iovec_free(d->dom);
@@ -377,8 +398,20 @@ static void relu_free(const nlop_data_t* _data)
 	xfree(d);
 }
 
-
+/**
+ * Create RELU nlop
+ * f(x) = {x, if x >= 0; 0, if x < 0}
+ */
 const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const long ostrs[N], const long istrs[N])
+{
+	return nlop_leaky_relu_create2(N, dims, ostrs, istrs, 0.);
+}
+
+/**
+ * Create leaky RELU nlop with slope control parameter a
+ * f(x) = {x, if x >= 0; ax, if x < 0}
+ */
+const struct nlop_s* nlop_leaky_relu_create2(unsigned int N, const long dims[N], const long ostrs[N], const long istrs[N], float slope_parameter)
 {
 	PTR_ALLOC(struct relu_s, data);
 	SET_TYPEID(relu_s, data);
@@ -398,7 +431,8 @@ const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const
 	long tstrs[N + 1];
 	md_calc_strides(N + 1, tstrs, r_dims, FL_SIZE);
 
-	data->tmp = NULL;
+	data->der = NULL;
+	data->slope_param = slope_parameter;
 
 	data->tmpdom = iovec_create2(N + 1, r_dims, tstrs, FL_SIZE);
 	data->dom = iovec_create2(N + 1, r_dims, r_istrs, FL_SIZE);
