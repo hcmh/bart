@@ -85,6 +85,7 @@ int main_leray(int argc, char *argv[])
 	struct process_dat j_dat = { .j_hist = j_hist, .hist = hist, .leray_op = NULL};
 
 	auto mon = create_monitor_recorder(N, dims, "j_step", (void *)&j_dat, selector, j_wrapper);
+	//auto mon = create_monitor_recorder(N, mask_dims, "phi_step", (void *)&j_dat, selector, NULL);
 	auto op = linop_leray_create(N, dims, d, n, lambda, mask, mon);
 	j_dat.leray_op = op;
 

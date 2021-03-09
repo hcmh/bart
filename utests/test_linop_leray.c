@@ -22,7 +22,7 @@
 
 #define TOL 1e-1
 #define ITER 300
-#define lambda 1e-1
+#define lambda 1e-5
 
 static struct linop_s *leray_create()
 {
