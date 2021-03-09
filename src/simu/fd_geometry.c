@@ -251,3 +251,40 @@ void shrink_wrap(const long N, const long dims[N], complex float *dst, const lon
 		*(complex float *)((void *)dst + offset) = 0;
 	}
 }
+
+
+
+void neumann_set_boundary(const long N, const long dims[N], const long vecdim, complex float *dst, const long n_points, const struct boundary_point_s *boundary, const complex float *src)
+{
+	assert(dims[vecdim] == N - 1);
+	if (dst != src)
+		md_copy(N, dims, dst, src, CFL_SIZE);
+
+	long offset = 0, strs[N], pos[N];
+	md_calc_strides(N, strs, dims, CFL_SIZE);
+
+	for (long i = 0; i < n_points; i++) {
+		md_set_dims(N, pos, 0);
+		int components = 0, k = 0;
+		for (int j = 0; j < N; j++) {
+			if (j != vecdim) {
+				pos[j] = boundary[i].index[k];
+				if (boundary[i].dir[k] != 0)
+					components++;
+				k++;
+			}
+		}
+
+		k = 0;
+		for (int j = 0; j < N; j++) {
+			if (j != vecdim) {
+				if (boundary[i].dir[k] != 0) {
+					pos[vecdim] = k;
+					offset = md_calc_offset(N, strs, pos);
+					*(complex float *)((void *)dst + offset) = -1 * boundary[i].dir[k] * boundary[i].val / sqrtf(components);
+				}
+				k++;
+			}
+		}
+	}
+}

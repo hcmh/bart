@@ -120,13 +120,29 @@ static const complex float mask_c_forward[] = {0, 0, 0, 0, 0, 0, 0,
 					       0, 1, 1, 1, 1, 1, 1,
 					       0, 1, 1, 1, 1, 1, 0};
 
-static const complex float vals_c[] = {-1, 0, -1, 0, 1, 0, 1,
-				       0, 1, 1, 1, 1, 1, 0,
-				       0, 1, 1, 1, 1, 1, 0,
-				       2, 1, 1, 2, 1, 1, 2,
-				       0, 1, 1, 1, 1, 1, 0,
-				       0, 1, 1, 1, 1, 1, 0,
-				       -1, 0, 0, 0, 0, 0, -1};
+static const complex float vals_c[] = {-1, 0,-1, 0, 1, 0, 1,
+				        0, 1, 1, 1, 1, 1, 0,
+				        0, 1, 1, 1, 1, 1, 0,
+				        2, 1, 1, 2, 1, 1, 2,
+				        0, 1, 1, 1, 1, 1, 0,
+				        0, 1, 1, 1, 1, 1, 0,
+				       -1, 0, 0, 0, 0, 0,-1};
+
+static const complex float neumann_c[] = { 0,  0, 0, 0, 0,  0, 0,
+				           0,-w2, 0, 0, 0,-w2, 0,
+				           0,  0, 0, 0, 0,  0, 0,
+				           0,  2,-2, 0, 2, -2, 0,
+				           0,  0, 0, 0, 0,  0, 0,
+				           0,-w2, 0, 0, 0, w2, 0,
+				           0,  0, 0, 0, 0,  0, 0,
+
+					   0,  0, 0, 0, 0,  0, 0,
+				           0,-w2,-1, 0, 1, w2, 0,
+				           0,  0, 0,-2, 0,  0, 0,
+				           0,  0, 0, 0, 0,  0, 0,
+				           0,  0, 0, 2, 0,  0, 0,
+				           0, w2, 0, 0, 0, w2, 0,
+				           0,  0, 0, 0, 0,  0, 0};
 
 static const long n_points_c = 20;
 static const struct boundary_point_s boundary_c[] = {
@@ -332,3 +348,41 @@ static bool test_shrink_wrap(void)
 	return ok;
 }
 UT_REGISTER_TEST(test_shrink_wrap);
+
+static bool test_neumann_set_boundary(void)
+{
+	const long vecdim = 2;
+	const long N = N_c;
+	const long *dims = dims_c;
+	const complex float *mask = mask_c;
+	const complex float *boundary_values = vals_c;
+
+	long vec2_dims[N];
+	md_copy_dims(N, vec2_dims, dims);
+	vec2_dims[vecdim] = 2;
+
+	const complex float *ref = neumann_c;
+
+	complex float *normal = get_normal(N, dims, mask);
+
+	const long boundary_dimensions[] = {md_calc_size(N, dims)};
+	struct boundary_point_s *boundary = md_alloc(1, boundary_dimensions, sizeof(struct boundary_point_s));
+
+	long grad_dims[N];
+	md_copy_dims(N, grad_dims, dims);
+	grad_dims[grad_dim] = N - 1;
+
+	long n_points = calc_boundary_points(N, grad_dims, boundary, grad_dim, normal, boundary_values);
+
+	complex float *j = md_calloc(N, vec2_dims, CFL_SIZE);
+	neumann_set_boundary(N, vec2_dims, 2, j, n_points, boundary, j);
+
+	bool ok = md_zrmse(N, vec2_dims, ref, j) < 1e-6;
+
+	md_free(normal);
+	md_free(boundary);
+	md_free(j);
+
+	return ok;
+}
+UT_REGISTER_TEST(test_neumann_set_boundary);
