@@ -46,6 +46,7 @@ struct leray_s {
 	long n_points;
 	struct iter_monitor_s *mon;
 	const complex float* src;
+	complex float* mask;
 };
 static DEF_TYPEID(leray_s);
 
@@ -55,6 +56,12 @@ void linop_leray_calc_rhs(const linop_data_t *_data, complex float *y, const com
 {
 	const auto data = CAST_DOWN(leray_s, _data);
 	linop_forward(data->div_op, data->N, data->phi_dims, y, data->N, data->dims, src);
+
+			char* str = getenv("DEBUG_LEVEL");
+			debug_level = (NULL != str) ? atoi(str) : DP_INFO;
+			if (5 <= debug_level)
+			dump_cfl("DEBUG_leray_phi", data->N, data->phi_dims, y);
+
 	laplace_neumann_update_rhs(data->N - 1, data->phi_dims + 1, y, data->n_points, data->boundary);
 }
 
@@ -62,6 +69,14 @@ void linop_leray_calc_projection(const linop_data_t *_data, complex float *dst, 
 {
 	const auto data = CAST_DOWN(leray_s, _data);
 	linop_forward(data->grad_op, data->N, data->dims, dst, data->N, data->phi_dims, tmp);
+
+	long j_strs[data->N], mask_strs[data->N];
+	md_calc_strides(data->N, j_strs, data->dims, CFL_SIZE);
+	md_calc_strides(data->N, mask_strs, data->phi_dims, CFL_SIZE);
+
+	md_zmul2(data->N, data->dims, j_strs, dst, j_strs, dst, mask_strs, data->mask);
+	neumann_set_boundary(data->N, data->dims, 0, dst, data->n_points, data->boundary, dst);
+
 	md_zaxpy(data->N, data->dims, dst, 1., data->src);
 }
 
@@ -105,6 +120,7 @@ static void leray_free(const linop_data_t *_data)
 	md_free(data->y);
 	md_free(data->tmp);
 	md_free(data->boundary);
+	md_free(data->mask);
 	linop_free(data->neg_laplace);
 	linop_free(data->grad_op);
 	linop_free(data->div_op);
@@ -146,42 +162,25 @@ struct linop_s *linop_leray_create(const long N, const long dims[N], long vec_di
 	const long scalar_N = N - 1, *scalar_dims = dims + 1;
 
 	// setup boundary conditions
-	complex float *normal = md_alloc(N, dims, CFL_SIZE);
-	calc_outward_normal(N, dims, normal, vec_dim, data->phi_dims, mask);
-
+	data->mask = md_calloc(scalar_N, scalar_dims, CFL_SIZE);
 	data->boundary = md_alloc(N, data->phi_dims, sizeof(struct boundary_point_s));
+	complex float *normal = md_alloc(N, dims, CFL_SIZE);
+
+	calc_outward_normal(N, dims, normal, vec_dim, data->phi_dims, mask);
 	data->n_points = calc_boundary_points(N, dims, data->boundary, vec_dim, normal, NULL);
-
-	complex float *mask2 = md_calloc(scalar_N, scalar_dims, CFL_SIZE);
-	shrink_wrap(scalar_N, scalar_dims, mask2, data->n_points, data->boundary, mask);
-
-	complex float *mask3 = md_calloc(N, dims, CFL_SIZE);
-	long pos[N];
-	md_set_dims(N, pos, 0);
-	for (; pos[vec_dim] < N - 1; pos[vec_dim]++)
-		md_copy_block(N, pos, dims, mask3, data->phi_dims, mask2, CFL_SIZE);
-
-	auto mask_op = linop_cdiag_create(N, dims, ((MD_BIT(N) - 1)), mask3);
-	auto div_mask_op = linop_cdiag_create(N, data->phi_dims, ~0U, mask2);
-
-
+	shrink_wrap(scalar_N, scalar_dims, data->mask, data->n_points, data->boundary, mask);
 
 	data->neg_laplace = linop_laplace_neumann_create(scalar_N, scalar_dims, mask, data->n_points, data->boundary);
 
-	auto grad_op = linop_fd_create(N, data->phi_dims, vec_dim, ((MD_BIT(N) - 1) & ~MD_BIT(vec_dim)), 2, BC_ZERO, false);
-	data->grad_op = linop_chain(grad_op, mask_op);
+	data->grad_op = linop_fd_create(N, data->phi_dims, vec_dim, ((MD_BIT(N) - 1) & ~MD_BIT(vec_dim)), 2, BC_ZERO, false);
 
 	auto div_op = linop_fd_create(N, data->phi_dims, vec_dim, ((MD_BIT(N) - 1) & ~MD_BIT(vec_dim)), 2, BC_ZERO, true);
+	auto div_mask_op = linop_cdiag_create(N, data->phi_dims, ((MD_BIT(N) - 1) & ~MD_BIT(vec_dim)), data->mask);
 	data->div_op = linop_chain(linop_get_adjoint(div_op), div_mask_op);
 
 
-
 	md_free(normal);
-	md_free(mask2);
-	md_free(mask3);
-	linop_free(mask_op);
 	linop_free(div_mask_op);
-	linop_free(grad_op);
 	linop_free(div_op);
 
 
