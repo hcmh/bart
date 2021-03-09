@@ -700,7 +700,7 @@ __global__ void kern_zcosh(long N, cuFloatComplex* dst, const cuFloatComplex* sr
 
 extern "C" void cuda_zcosh(long N, _Complex float* dst, const _Complex float* src)
 {
-	kern_zcos<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
+	kern_zcosh<<<gridsize(N), blocksize(N)>>>(N, (cuFloatComplex*)dst, (const cuFloatComplex*)src);
 }
 
 
