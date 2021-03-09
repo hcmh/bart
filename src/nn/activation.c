@@ -626,7 +626,7 @@ static void softmax_apply(const nlop_data_t* _data, complex float* dst, const co
 	struct softmax_s* d = CAST_DOWN(softmax_s, _data);
 
 	if (NULL == d->tmp)
-	d->tmp = md_alloc_sameplace(d->N, d->dom->dims, d->dom->size, dst);
+		d->tmp = md_alloc_sameplace(d->N, d->dom->dims, d->dom->size, dst);
 
 	complex float* tmp_real = md_alloc_sameplace(d->N, d->dom->dims, CFL_SIZE, src);
 	md_zreal(d->N, d->dom->dims, tmp_real, src);
@@ -634,7 +634,14 @@ static void softmax_apply(const nlop_data_t* _data, complex float* dst, const co
 	complex float* max = md_alloc_sameplace(d->N, d->batchdom->dims, CFL_SIZE, src);
 	md_zfill(d->N, d->batchdom->dims, max, (complex float)(-INFINITY));
 	md_zmax2(d->N, d->dom->dims, d->batchdom->strs, max, d->batchdom->strs, max, d->dom->strs, tmp_real);
+
+#if 1	//FIXME: Optimize md functions for these cases!!!
+	complex float* tmp_gpu = md_alloc_sameplace(d->N, d->dom->dims, d->dom->size, dst);
+	md_copy2(d->N, d->dom->dims, d->dom->strs, tmp_gpu, d->batchdom->strs, max, CFL_SIZE);
+	md_zsub(d->N, d->dom->dims, tmp_real, tmp_real, tmp_gpu);
+#else
 	md_zsub2(d->N, d->dom->dims, d->dom->strs, tmp_real, d->dom->strs, tmp_real, d->batchdom->strs, max);
+#endif
 	md_free(max);
 
 	complex float* tmp_exp = md_alloc_sameplace(d->dom->N, d->dom->dims, CFL_SIZE, src);
@@ -643,7 +650,13 @@ static void softmax_apply(const nlop_data_t* _data, complex float* dst, const co
 
 	complex float* scale = md_alloc_sameplace(d->N, d->batchdom->dims, CFL_SIZE, src);
 	md_zsum(d->N, d->dom->dims, ~d->batch_flag, scale, tmp_exp);
+#if 1
+	md_copy2(d->N, d->dom->dims, d->dom->strs, tmp_gpu, d->batchdom->strs, scale, CFL_SIZE);
+	md_zdiv(d->N, d->dom->dims, d->tmp, tmp_exp, tmp_gpu);
+	md_free(tmp_gpu);
+#else
 	md_zdiv2(d->N, d->dom->dims, d->dom->strs, d->tmp, d->dom->strs, tmp_exp, d->batchdom->strs, scale);
+#endif
 	md_free(scale);
 	md_free(tmp_exp);
 
@@ -672,7 +685,14 @@ static void softmax_der(const nlop_data_t* _data, unsigned int o, unsigned int i
 
 	//S_j\sum_i D_jS_ia_i
 	complex float* tmp2 = md_alloc_sameplace(d->N, d->dom->dims, CFL_SIZE, src);
+#if 1
+	complex float* tmp_gpu = md_alloc_sameplace(d->N, d->dom->dims, d->dom->size, dst);
+	md_copy2(d->N, d->dom->dims, d->dom->strs, tmp_gpu, d->batchdom->strs, tmp1, CFL_SIZE);
+	md_ztenmul(d->N, d->dom->dims, tmp2, d->dom->dims, d->tmp, d->dom->dims, tmp_gpu);
+	md_free(tmp_gpu);
+#else
 	md_ztenmul(d->N, d->dom->dims, tmp2, d->dom->dims, d->tmp, d->batchdom->dims, tmp1);
+#endif
 	md_free(tmp1);
 
 	md_zsub(d->N, d->dom->dims, dst, dst, tmp2);
