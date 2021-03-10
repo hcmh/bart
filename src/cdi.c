@@ -174,15 +174,20 @@ static struct linop_s *make_cmask_op(const long jdims[N], const long bdims[N], c
 
 }
 
-static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, int iter, int admm_iter, float tol, const complex float *bc_mask, const complex float* electrodes, const float bc_reg, const float div_reg, const enum PROXFUN div_pf, const int div_order, const int leray_iter, const unsigned long outer_hist, const unsigned long leray_hist, const enum SOLVER solver, const complex float* l2weights)
+static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, int iter, int admm_iter, float tol, const complex float *bc_mask, const complex float* electrodes, const float bc_reg, const float div_reg, const enum PROXFUN div_pf, const int div_order, const int leray_iter, const unsigned long outer_hist, const unsigned long leray_hist, const enum SOLVER solver, const complex float* l2weights, const char *outname)
 {
 
 	//Monitoring
-	complex float *j_hist = md_calloc(N, jdims, CFL_SIZE);
+	long name_len = strlen(outname);
+	char mon1_name[name_len + 6];
+	sprintf(mon1_name, "%s_step", outname);
+	char mon2_name[name_len + 12];
+	sprintf(mon2_name, "%s_leray_step", outname);
 
+	complex float *j_hist = md_calloc(N, jdims, CFL_SIZE);
 	struct history_data_s history_data = { .hist_1 = outer_hist, .hist_2 = leray_hist, .j_hist = j_hist, .j_dims = jdims, .leray_data = NULL, .post_j_op = NULL };
-	auto mon1 = create_monitor_recorder(N, jdims, "j_step", (void *)&history_data, history_select_1, history_save_1);
-	auto mon2 = create_monitor_recorder(N, jdims, "leray_step", (void *)&history_data, history_select_2, history_save_2);
+	auto mon1 = create_monitor_recorder(N, jdims, mon1_name, (void *)&history_data, history_select_1, history_save_1);
+	auto mon2 = create_monitor_recorder(N, jdims, mon2_name, (void *)&history_data, history_select_2, history_save_2);
 
 	//forward operator
 	auto bz_op = linop_bz_create(jdims, vox);
@@ -437,7 +442,7 @@ int main_cdi(int argc, char *argv[])
 	complex float *j = create_cfl(argv[argc - 1], N, jdims);
 
 	md_zsmul(4, bdims, b, b, 1. / Hz_per_Tesla / Mu_0);
-	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, admm_iter, tolerance, bc_mask, electrodes, bc_reg, div_reg, div_pf, div_order, leray_iter, outer_hist, leray_hist, solver, l2weights);
+	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, admm_iter, tolerance, bc_mask, electrodes, bc_reg, div_reg, div_pf, div_order, leray_iter, outer_hist, leray_hist, solver, l2weights, argv[argc - 1]);
 	md_zsmul(4, jdims, j, j, 1. / bz_unit(bdims + 1, vox));
 
 	unmap_cfl(N, bdims, b);
