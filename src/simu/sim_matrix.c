@@ -263,7 +263,7 @@ static void apply_relaxation(int N, float m[N], void* _data )// provides alpha/2
 	apply_sim_matrix(N, m, matrix);
 }
 
-static void apply_inv_relaxation(int N, float m[N], void* _data )// provides alpha/2. preparation only
+static void apply_inv_relaxation(int N, float m[N], void* _data )
 {
 	struct sim_data* simdata = _data;
 	struct sim_data tmp_data = *simdata;
@@ -372,7 +372,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		if (data->seq.seq_type == 1 || data->seq.seq_type == 8  || data->seq.seq_type == 5 || data->seq.seq_type == 7) {
 
 		// 	apply_inversion(N, xp, data->seq.inversion_pulse_length, data);
-			xp[2] = -1;
+			xp[2] = -1.;
 			apply_inv_relaxation(N, xp, data);
 		}
 
