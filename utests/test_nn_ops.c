@@ -1006,7 +1006,7 @@ static bool test_dice3(void)
 	nlop_free(nlop);
 
 	debug_printf(DP_DEBUG1, "%d %f\n", der, adj_err);
-	UT_ASSERT(der && (UT_TOL > adj_err));
+	UT_ASSERT(der && (5.E-6 > adj_err));
 }
 
 UT_REGISTER_TEST(test_dice3);
