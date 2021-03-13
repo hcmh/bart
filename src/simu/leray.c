@@ -56,12 +56,12 @@ void linop_leray_calc_rhs(const linop_data_t *_data, complex float *y, const com
 {
 	const auto data = CAST_DOWN(leray_s, _data);
 	linop_forward(data->div_op, data->N, data->phi_dims, y, data->N, data->dims, src);
-
+	#if 0
 			char* str = getenv("DEBUG_LEVEL");
 			debug_level = (NULL != str) ? atoi(str) : DP_INFO;
 			if (5 <= debug_level)
 			dump_cfl("DEBUG_leray_phi", data->N, data->phi_dims, y);
-
+	#endif
 	laplace_neumann_update_rhs(data->N - 1, data->phi_dims + 1, y, data->n_points, data->boundary);
 }
 

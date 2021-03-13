@@ -34,7 +34,7 @@
 #include "simu/leray.h"
 #include "simu/fd_geometry.h"
 #define N 4
-#define NPROX 2
+#define NPROX 3
 
 enum PROXFUN { PF_l2,
 	       PF_thresh,
@@ -97,33 +97,33 @@ static complex float *history_save_1(void *_data, const float *phi)
 
 
 
-static void get_nc_boundaries(const long bdims[N], complex float* out,  const complex float *boundaries, const complex float *electrodes)
+static void get_conductive_volume(const long bdims[N], complex float* out,  const complex float *interior, const complex float *electrodes)
 {
 	complex float *electrodes_indicator = md_alloc(N, bdims, CFL_SIZE);
 	md_zabs(N, bdims, electrodes_indicator, electrodes);
 	md_zsgreatequal(N, bdims, electrodes_indicator, electrodes_indicator, .9);
 
-	assert(md_zscalar_real(N, bdims, electrodes_indicator, boundaries) < 1e-8);
+	assert(md_zscalar_real(N, bdims, electrodes_indicator, interior) < 1e-8);
 
-	md_zadd(N, bdims, out, boundaries, electrodes_indicator);
+	md_zadd(N, bdims, out, interior, electrodes_indicator);
 }
 
 //Remove normal component of the current where no electrodes are attached
-static struct linop_s *make_wall_op(const long jdims[N], const long bdims[N], const complex float *boundaries, const complex float *electrodes)
+static struct linop_s *make_wall_op(const long jdims[N], const long bdims[N], const complex float *interior, const complex float *electrodes)
 {
 
 		long bstrs[N], jstrs[N];
 		md_calc_strides(N, bstrs, bdims, CFL_SIZE);
 		md_calc_strides(N, jstrs, jdims, CFL_SIZE);
 
-		complex float *nc_boundaries = md_alloc(N, bdims, CFL_SIZE);
-		get_nc_boundaries(bdims, nc_boundaries, boundaries, electrodes);
+		complex float *conductive_volume = md_alloc(N, bdims, CFL_SIZE);
+		get_conductive_volume(bdims, conductive_volume, interior, electrodes);
 
 		complex float *walls = md_alloc(N, jdims, CFL_SIZE);
-		calc_outward_normal(N, jdims, walls, 0, bdims, nc_boundaries);
+		calc_outward_normal(N, jdims, walls, 0, bdims, conductive_volume);
 
 		for (int i = 0; i < 3; i++)
-			md_zmul2(N, bdims, jstrs, (void *)walls + i * jstrs[0], jstrs, (void *)walls + i * jstrs[0] , bstrs, boundaries);
+			md_zmul2(N, bdims, jstrs, (void *)walls + i * jstrs[0], jstrs, (void *)walls + i * jstrs[0] , bstrs, interior);
 
 		md_zabs(N, jdims, walls, walls);
 		md_zsgreatequal(N, jdims, walls, walls, 0.1);
@@ -137,7 +137,7 @@ static struct linop_s *make_wall_op(const long jdims[N], const long bdims[N], co
 			if (5 <= debug_level)
 				dump_cfl("DEBUG_walls", N, jdims, walls);
 
-		md_free(nc_boundaries);
+		md_free(conductive_volume);
 		md_free(walls);
 		return wall_op;
 
@@ -145,36 +145,29 @@ static struct linop_s *make_wall_op(const long jdims[N], const long bdims[N], co
 
 
 //Remove current outside the conductive domain
-static struct linop_s *make_cmask_op(const long jdims[N], const long bdims[N], const complex float *boundaries, const complex float *electrodes)
+static struct linop_s *make_mask_c_op(const long jdims[N], const long bdims[N], const complex float *interior, const complex float *electrodes)
 {
 
 		long bstrs[N], jstrs[N];
 		md_calc_strides(N, bstrs, bdims, CFL_SIZE);
 		md_calc_strides(N, jstrs, jdims, CFL_SIZE);
 
-		complex float *nc_boundaries = md_alloc(N, bdims, CFL_SIZE);
-		get_nc_boundaries(bdims, nc_boundaries, boundaries, electrodes);
+		complex float *conductive_volume = md_alloc(N, bdims, CFL_SIZE);
+		get_conductive_volume(bdims, conductive_volume, interior, electrodes);
 
-		complex float *nc_boundaries3 = md_alloc(N, jdims, CFL_SIZE);
-
-		long pos[N] = {0};
-		for (; pos[0] < 3; pos[0]++)
-			md_copy_block(N, pos, jdims, nc_boundaries3, bdims, nc_boundaries, CFL_SIZE);
-
-		auto wall_op = linop_cdiag_create(N, jdims, 15, nc_boundaries3);
+		auto wall_op = linop_cdiag_create(N, jdims, 14, conductive_volume);
 
 			char* str = getenv("DEBUG_LEVEL");
 			debug_level = (NULL != str) ? atoi(str) : DP_INFO;
 			if (5 <= debug_level)
-				dump_cfl("DEBUG_conductive", N, jdims, nc_boundaries3);
+				dump_cfl("DEBUG_conductive", N, bdims, conductive_volume);
 
-		md_free(nc_boundaries);
-		md_free(nc_boundaries3);
+		md_free(conductive_volume);
 		return wall_op;
 
 }
 
-static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, int iter, int admm_iter, float tol, const complex float *bc_mask, const complex float* electrodes, const float bc_reg, const float div_reg, const enum PROXFUN div_pf, const int div_order, const int leray_iter, const unsigned long outer_hist, const unsigned long leray_hist, const enum SOLVER solver, const complex float* l2weights, const char *outname)
+static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, const long bdims[N], const complex float *bz, const complex float *mask, const float reg, int iter, int admm_iter, float tol, const complex float *interior, const complex float* electrodes, const float bc_reg, const float div_reg, const enum PROXFUN div_pf, const int div_order, const int leray_iter, const unsigned long outer_hist, const unsigned long leray_hist, const enum SOLVER solver, const complex float* l2_weights, const char *outname)
 {
 
 	//Monitoring
@@ -191,28 +184,29 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 
 	//forward operator
 	auto bz_op = linop_bz_create(jdims, vox);
-	const struct linop_s *bc_mask_op = NULL, *wall_op = NULL, *leray_op = NULL;
+	const struct linop_s *mask_c_op = NULL, *leray_op = NULL;
 
 	//Mask regions with low signal
 	if (NULL != mask) {
-		auto mask_op = linop_cdiag_create(N, bdims, 15, mask);
-		bz_op = linop_chain_FF(bz_op, mask_op);
+		auto mask_s_op = linop_cdiag_create(N, bdims, 15, mask);
+		bz_op = linop_chain_FF(bz_op, mask_s_op);
 	}
 
 	//Mask current density
-	if (NULL != bc_mask) {
-		bc_mask_op = make_cmask_op(jdims, bdims, bc_mask, electrodes);
+	if (NULL != interior) {
+		mask_c_op = make_mask_c_op(jdims, bdims, interior, electrodes);
 
 		if (PF_ind == div_pf) {
-			complex float *nc_boundaries = md_alloc(N, bdims, CFL_SIZE);
-			get_nc_boundaries(bdims, nc_boundaries, bc_mask, electrodes);
-			leray_op = linop_leray_create(N, jdims, 0, leray_iter, div_reg, nc_boundaries, mon2);
+			complex float *conductive_volume = md_alloc(N, bdims, CFL_SIZE);
+			get_conductive_volume(bdims, conductive_volume, interior, electrodes);
+			leray_op = linop_leray_create(N, jdims, 0, leray_iter, div_reg, conductive_volume, mon2);
 			history_data.leray_data = linop_get_data(leray_op);
-			md_free(nc_boundaries);
+			md_free(conductive_volume);
 		}
 
 		if (0 < bc_reg)
-			wall_op = make_wall_op(jdims, bdims, bc_mask, electrodes);
+			mask_c_op = linop_chain_FF(mask_c_op, make_wall_op(jdims, bdims, interior, electrodes));
+
 	}
 
 	md_zfill(N, jdims, j, 0);
@@ -228,44 +222,23 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 
 		assert(div_pf != PF_thresh);
 
-		complex float unity[] = { 1 };
-		auto post_j_op = linop_cdiag_create(N, jdims, 0, unity);
+		auto projection_op = linop_identity_create(N, jdims);
+		if (NULL != mask_c_op)
+			projection_op = linop_chain(projection_op, mask_c_op);
 
-		if (NULL != bc_mask_op)
-			post_j_op = linop_chain(post_j_op, bc_mask_op);
-
-		if (0 < bc_reg)
-			post_j_op = linop_chain(post_j_op, wall_op);
-
-		if ((0 < div_reg) && (div_pf == PF_ind))
-			post_j_op = linop_chain(post_j_op, leray_op);
+		if ((0 < div_reg) && (div_pf == PF_ind)) {
+			projection_op = linop_chain(projection_op, leray_op);
+			projection_op = linop_chain(projection_op, mask_c_op); //keep symmetric!
+		}
 
 		complex float *adj = md_calloc(N, jdims, CFL_SIZE);
-		auto adj_op = linop_chain(post_j_op, bz_op);
+		auto adj_op = linop_chain(projection_op, bz_op);
 		linop_adjoint(adj_op, N, jdims, adj, N, bdims, bz);
 		linop_free(adj_op);
 
 		auto normal_op = linop_get_normal(bz_op);
 
-		complex float* l2_diag = md_alloc(N, jdims, CFL_SIZE);
-
-		if (NULL == l2weights) {
-			md_zfill(N, jdims, l2_diag, 1);
-		} else {
-			long bstrs[N], jstrs[N];
-			md_calc_strides(N, bstrs, bdims, CFL_SIZE);
-			md_calc_strides(N, jstrs, jdims, CFL_SIZE);
-			md_copy2(N, jdims, jstrs, l2_diag, bstrs, l2weights, CFL_SIZE);
-		}
-
-		md_zsmul(N, jdims, l2_diag, l2_diag, reg);
-		auto l2_op = linop_cdiag_create(N, jdims, 15, l2_diag);
-
-		normal_op = linop_plus_FF(normal_op, l2_op);
-
-
 		if ((0 < div_reg) && (div_pf == PF_l2)) {
-			assert(NULL != bc_mask_op);
 			assert((vox[0] == vox[1]) && (vox[0] == vox[2]) && (vox[1] == vox[2]));
 
 			auto div_op = linop_div_create(N, jdims, 0, 14, div_order, BC_SAME);
@@ -280,13 +253,19 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 			linop_free(scale_op);
 		}
 
-		//history_data.post_j_op = post_j_op;
-		normal_op = linop_chain_FF(normal_op, linop_get_adjoint(post_j_op));
+		normal_op = linop_chain_FF(normal_op, linop_get_adjoint(projection_op));
+
+		complex float* l2_diag = md_alloc(N, bdims, CFL_SIZE);
+		if (NULL == l2_weights)
+			md_zfill(N, jdims, l2_diag, reg);
+		else
+			md_zsmul(N, bdims, l2_diag, l2_weights, reg);
+		auto l2_op = linop_cdiag_create(N, jdims, 14, l2_diag);
+
+		normal_op = linop_plus_FF(normal_op, l2_op);
 
 		long size = 2 * md_calc_size(N, jdims); // multiply by 2 for float size
 		iter_conjgrad(CAST_UP(&conf), normal_op->forward, NULL, size, (float *)j, (const float *)adj, mon1);
-
-		//linop_forward(post_j_op, N, jdims, j, N, jdims, j);
 
 		md_free(adj);
 		md_free(l2_diag);
@@ -299,7 +278,6 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 		conf.maxiter = admm_iter;
 		if (iter > 0)
 			conf.maxitercg = iter;
-		lconf.lambda = reg;
 
 		long nprox = 0;
 		const struct operator_p_s *prox_funs[NPROX] = {NULL};
@@ -307,35 +285,46 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 
 		if (0 < bc_reg) {
 			assert(NPROX >= ++nprox);
-			assert(NULL != wall_op);
-			prox_funs[nprox - 1] = prox_indicator_create(wall_op);
+			assert(NULL != mask_c_op);
+			prox_funs[nprox - 1] = prox_indicator_create(mask_c_op);
 			complex float one[1] = {1.};
 			prox_linops[nprox - 1] = linop_cdiag_create(N, jdims, 0, one);
 		}
 
 		if (0 < div_reg) {
 			assert(NPROX >= ++nprox);
-			assert(NULL != bc_mask_op);
+
 			//FIXME: Scale j with voxelsize before applying derivative
 			assert((vox[0] == vox[1]) && (vox[0] == vox[2]) && (vox[1] == vox[2]));
-
 			auto div_op = linop_div_create(N, jdims, 0, 14, div_order, BC_SAME);
+
 			if (div_pf == PF_l2) {
 				prox_funs[nprox - 1] = prox_l2norm_create(N, bdims, div_reg);
-				prox_linops[nprox - 1] = linop_chain(bc_mask_op, div_op);
+				prox_linops[nprox - 1] = linop_clone(div_op);
 			} else if (div_pf == PF_thresh) {
 				prox_funs[nprox - 1] = prox_thresh_create(N, bdims, div_reg, 0);
-				prox_linops[nprox - 1] = linop_chain(bc_mask_op, div_op);
+				prox_linops[nprox - 1] = linop_clone(div_op);
 			} else if (div_pf == PF_ind) {
 				assert(NULL != leray_op);
 				prox_funs[nprox - 1] = prox_indicator_create(leray_op);
-				complex float one[1] = {1.};
-				prox_linops[nprox - 1] = linop_cdiag_create(N, jdims, 0, one);
+				prox_linops[nprox - 1] = linop_identity_create(N, jdims);
 			} else {
 				assert(false);
 			}
 			linop_free(div_op);
 		}
+
+		if (NULL == l2_weights) {
+			lconf.lambda = reg;
+		} else {
+			assert(NPROX >= ++nprox);
+			prox_funs[nprox - 1] = prox_l2norm_create(N, jdims, div_reg);
+			complex float* l2_diag = md_alloc(N, bdims, CFL_SIZE);
+			md_zsmul(N, bdims, l2_diag, l2_weights, reg);
+			prox_linops[nprox - 1] =linop_cdiag_create(N, jdims, 14, l2_diag);
+			md_free(l2_diag);
+		}
+
 
 		lsqr2(N, &lconf, iter2_admm, CAST_UP(&conf), bz_op, nprox, prox_funs, prox_linops, jdims, j, bdims, bz, NULL, mon1);
 
@@ -349,70 +338,61 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 	}
 
 	linop_free(bz_op);
-	if (NULL != bc_mask_op)
-		linop_free(bc_mask_op);
+	if (NULL != mask_c_op)
+		linop_free(mask_c_op);
 	if (NULL != leray_op)
 		linop_free(leray_op);
-	if (NULL != wall_op)
-		linop_free(wall_op);
 	md_free(j_hist);
 }
 
 
-static const char usage_str[] = "voxelsize(x) voxelsize(y) voxelsize(z) <B_z> [<mask_signal> [<mask_interior> <electrodes> [<l2_weighting>]]] <J>";
+static const char usage_str[] = "voxelsize(x) voxelsize(y) voxelsize(z) <B_z> [<mask_signal> [<interior> <electrodes> [<l2_weighting>]]] <J>";
 static const char help_str[] = "Estimate the current density J (A/[voxelsize]^2) that generates B_z (Hz)\n";
 
 
 int main_cdi(int argc, char *argv[])
 {
 	float tik_reg = 0, tolerance = 1e-3, bc_reg = -1, div_reg = -1;
-	int iter = 100, admm_iter = 100, div_pf_int = 0, div_order = 1, leray_iter = 20;
+	int iter = 100, admm_iter = 100, div_order = 1, leray_iter = 20;
 	long leray_hist = -1, outer_hist = -1;
-	bool cg = false;
-	enum SOLVER solver;
+	enum SOLVER solver = CG;
+	enum PROXFUN div_pf = PF_ind;
 
-	struct opt_s hist_opt[] = {
-		OPT_LONG('a', &outer_hist, "n_1", "Save J every n_1 steps (outer iteration)"),
-		OPT_LONG('b', &leray_hist, "n_2", "Save J every n_2 LeRay-Steps (outer iteration)"),
-	}; //FIXME
+	struct opt_s solveropt[] = {
+		OPT_SELECT('c', enum SOLVER, &solver, CG, 	"Use Conjugate Gradient Solver"),
+		OPT_SELECT('a', enum SOLVER, &solver, ADMM,  	"Use ADMM")
+	};
+
+	struct opt_s divopt[] = {
+		OPT_SELECT('0', enum PROXFUN, &div_pf, PF_l2, 		"Solve ||Ax - y||_2^2 + d||∇x||_2^2"),
+		OPT_SELECT('1', enum PROXFUN, &div_pf, PF_thresh,  	"Solve ||Ax - y||_2^2 + d||∇x||_1"),
+		OPT_SELECT('2', enum PROXFUN, &div_pf, PF_ind,  	"Solve ||Ax - y||_2^2 \n s.t. ∇x = 0")
+	};
 
 	const struct opt_s opts[] = {
 	    OPT_FLOAT('l', &tik_reg, "lambda_1", "Tikhonov Regularization"),
 	    OPT_FLOAT('b', &bc_reg, "b", "Boundary current penalty"),
 	    OPT_FLOAT('d', &div_reg, "d", "Divergence penalty or LeRay Regularization"),
-	    OPT_INT('D', &div_pf_int, "D", "Divergence Prox function: 0 -> l2norm, 1->thresh, 2->div=0 equality constraint"),
-	    OPT_INT('o', &div_order, "", "Finite difference order for divergence calculation (1,2)"),
+
+	    OPT_SUBOPT('D', "", "How to enforce Divergence Freeness, -Dh for help", ARRAY_SIZE(divopt), divopt),
+	    OPT_SUBOPT('S', "", "Solver/Strategy, -Sh for help", ARRAY_SIZE(solveropt), solveropt),
+
+	    OPT_INT('o', &div_order, "", "Finite difference order for divergence calculation (1,2) (only -D0, -D1)"),
 	    OPT_INT('p', &leray_iter, "", "Number of Iterations for LeRay Projection"),
 	    OPT_FLOAT('t', &tolerance, "t", "Stopping Tolerance"),
 	    OPT_INT('n', &iter, "Iterations", "Max. number of cg iterations"),
 	    OPT_INT('m', &admm_iter, "Iterations", "Max. number of ADMM iterations"),
-	    //OPT_SUBOPT('H', "n", "Convergence recording options. -Hh for help.", ARRAY_SIZE(hist_opt), hist_opt),
 	    OPT_LONG('A', &outer_hist, "n_1", "Save J every n_1 steps (outer iteration)"),
-	    OPT_LONG('B', &leray_hist, "n_2", "Save J every n_2 LeRay-Steps (outer iteration)"),
-	    OPT_SET('C', &cg, "Use CG"),
+	    OPT_LONG('B', &leray_hist, "n_2", "Save J every n_2 LeRay-Steps (inner iteration)"),
 	};
 	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
-
-	enum PROXFUN div_pf;
-	if (div_pf_int == 0)
-		div_pf = PF_l2;
-	else if (div_pf_int == 1)
-		div_pf = PF_thresh;
-	else if (div_pf_int == 2)
-		div_pf = PF_ind;
-	else
-		assert(false);
-
-	if (cg)
-		solver = CG;
-
 
 	num_init();
 
 	const int vox_ind = 1;
 	float vox[3] = {strtof(argv[vox_ind], NULL), strtof(argv[vox_ind + 1], NULL), strtof(argv[vox_ind + 2], NULL)};
-	long bdims[N], jdims[N], mask_dims[N], mask_bc_dims[N], mask_electrodes_dims[N], l2weights_dims[N];
-	complex float *mask = NULL, *bc_mask = NULL, *electrodes = NULL, *l2weights = NULL;
+	long bdims[N], jdims[N], mask_dims[N], mask_bc_dims[N], mask_electrodes_dims[N], l2_weights_dims[N];
+	complex float *mask = NULL, *interior = NULL, *electrodes = NULL, *l2_weights = NULL;
 
 	complex float *b = load_cfl(argv[4], N, bdims);
 	assert(bdims[0] == 1);
@@ -424,7 +404,7 @@ int main_cdi(int argc, char *argv[])
 	}
 
 	if (argc >= 8) {
-		bc_mask = load_cfl(argv[6], N, mask_bc_dims);
+		interior = load_cfl(argv[6], N, mask_bc_dims);
 		for (int i = 0; i < N; i++)
 			assert(mask_bc_dims[i] == bdims[i]);
 		assert(argc >= 9);
@@ -433,23 +413,23 @@ int main_cdi(int argc, char *argv[])
 			assert(mask_electrodes_dims[i] == bdims[i]);
 	}
 	if (argc >= 10) {
-		l2weights = load_cfl(argv[8], N, l2weights_dims);
+		l2_weights = load_cfl(argv[8], N, l2_weights_dims);
 		for (int i = 0; i < N; i++)
-			assert(l2weights_dims[i] == bdims[i]);
+			assert(l2_weights_dims[i] == bdims[i]);
 	}
 	md_copy_dims(N, jdims, bdims);
 	jdims[0] = 3;
 	complex float *j = create_cfl(argv[argc - 1], N, jdims);
 
 	md_zsmul(4, bdims, b, b, 1. / Hz_per_Tesla / Mu_0);
-	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, admm_iter, tolerance, bc_mask, electrodes, bc_reg, div_reg, div_pf, div_order, leray_iter, outer_hist, leray_hist, solver, l2weights, argv[argc - 1]);
+	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, admm_iter, tolerance, interior, electrodes, bc_reg, div_reg, div_pf, div_order, leray_iter, outer_hist, leray_hist, solver, l2_weights, argv[argc - 1]);
 	md_zsmul(4, jdims, j, j, 1. / bz_unit(bdims + 1, vox));
 
 	unmap_cfl(N, bdims, b);
 	unmap_cfl(N, jdims, j);
 	if (mask != NULL)
 		unmap_cfl(N, bdims, mask);
-	if (bc_mask != NULL)
-		unmap_cfl(N, jdims, bc_mask);
+	if (interior != NULL)
+		unmap_cfl(N, jdims, interior);
 	return 0;
 }
