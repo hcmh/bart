@@ -53,3 +53,22 @@ nn_t nn_loss_cce_append(nn_t network, int o, const char* oname, unsigned long sc
 	return result;
 }
 
+nn_t nn_loss_dice_append(nn_t network, int o, const char* oname, unsigned long label_flag, unsigned long mean_flag, float weighting_exponent, bool square_denominator)
+{
+	int nlop_o = nn_get_out_arg_index(network, o, oname);
+
+	auto nlop = nlop_clone(nn_get_nlop(network));
+	auto iov = nlop_generic_codomain(nlop, nlop_o);
+	nlop = nlop_chain2_swap_FF(nlop, nlop_o, nlop_dice_create(iov->N, iov->dims, label_flag, mean_flag, weighting_exponent, square_denominator), 0);
+	nlop = nlop_shift_output_F(nlop, nlop_o, 0);
+
+	auto result = nn_from_nlop_F(nlop);
+
+	nn_clone_args(result, network);
+	nn_free(network);
+
+	result = nn_shift_input_index_F(result, 0, nn_get_nr_in_args(result) - 1);
+
+	result = nn_set_out_type_F(result, o, oname, OUT_OPTIMIZE);
+	return result;
+}
