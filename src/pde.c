@@ -32,7 +32,7 @@
 
 static void calc_j(const long N, const struct linop_s *d_op,
 		   const long j_dims[N], complex float *j,
-		   const long dims[N], const complex float* mask,
+		   const long dims[N], const complex float *mask,
 		   const long n_points, const struct boundary_point_s boundary[n_points],
 		   const complex float *phi)
 {
@@ -163,4 +163,3 @@ int main_pde(int argc, char *argv[])
 	unmap_cfl(N, vec3_dims, j_out);
 	return 0;
 }
-

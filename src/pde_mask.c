@@ -73,8 +73,7 @@ int main_pde_mask(int argc, char *argv[])
 
 		md_free(normal);
 		md_free(boundary);
-	}
-	else if (FILL_HOLES == mode) {
+	} else if (FILL_HOLES == mode) {
 		fill_holes(N, vec3_dims, vec_dim, vec1_dims, out, in);
 	}
 

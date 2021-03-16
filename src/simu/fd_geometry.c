@@ -81,7 +81,7 @@ void calc_outward_normal(const long N, const long grad_dims[N], complex float *g
 
 
 
-void fill_holes(const long N, const long vec3_dims[N],const long grad_dim, const long dims[N], complex float* out, const complex float *mask)
+void fill_holes(const long N, const long vec3_dims[N], const long grad_dim, const long dims[N], complex float *out, const complex float *mask)
 {
 	assert(N > 1);
 	assert(dims[grad_dim] == 1);
@@ -130,7 +130,7 @@ void fill_holes(const long N, const long vec3_dims[N],const long grad_dim, const
 		md_zsgreatequal(N, dims, holes1, holes1, 1);
 
 		md_zaxpy(N, dims, out, -1, holes1);
-		filled = ( md_znorm(N, dims, holes1) < 1 );
+		filled = (md_znorm(N, dims, holes1) < 1);
 	}
 
 	md_free(grad_bw);

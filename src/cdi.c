@@ -18,8 +18,8 @@
 #include "num/gpuops.h"
 
 #include "iter/iter.h"
-#include "iter/monitor.h"
 #include "iter/lsqr.h"
+#include "iter/monitor.h"
 #include "iter/prox.h"
 #include "iter/thresh.h"
 
@@ -31,8 +31,8 @@
 #include "misc/types.h"
 
 #include "simu/biot_savart_fft.h"
-#include "simu/leray.h"
 #include "simu/fd_geometry.h"
+#include "simu/leray.h"
 #define N 4
 #define NPROX 3
 
@@ -60,16 +60,16 @@ struct history_data_s {
 
 static bool history_select_1(const unsigned long iter, const float *x, void *_data)
 {
-		UNUSED(x);
-		struct history_data_s *data = _data;
-		return data->hist_1 > 0 ? (0 == iter % data->hist_1) : false;
+	UNUSED(x);
+	struct history_data_s *data = _data;
+	return data->hist_1 > 0 ? (0 == iter % data->hist_1) : false;
 }
 
 static bool history_select_2(const unsigned long iter, const float *x, void *_data)
 {
-		UNUSED(x);
-		struct history_data_s *data = _data;
-		return data->hist_2 > 0 ? (0 == iter % data->hist_2) : false;
+	UNUSED(x);
+	struct history_data_s *data = _data;
+	return data->hist_2 > 0 ? (0 == iter % data->hist_2) : false;
 }
 
 static complex float *history_save_2(void *_data, const float *phi)
@@ -77,7 +77,7 @@ static complex float *history_save_2(void *_data, const float *phi)
 	auto data = (struct history_data_s *)_data;
 	assert(NULL != data->leray_data);
 
-	linop_leray_calc_projection(data->leray_data, data->j_hist, (const complex float*)phi);
+	linop_leray_calc_projection(data->leray_data, data->j_hist, (const complex float *)phi);
 
 	return data->j_hist;
 	//return phi;
@@ -91,13 +91,13 @@ static complex float *history_save_1(void *_data, const float *phi)
 		linop_forward(data->post_j_op, N, data->j_dims, data->j_hist, N, data->j_dims, (const complex float *)phi);
 		return data->j_hist;
 	} else {
-		return (complex float*) phi;
+		return (complex float *)phi;
 	}
 }
 
 
 
-static void get_conductive_volume(const long bdims[N], complex float* out,  const complex float *interior, const complex float *electrodes)
+static void get_conductive_volume(const long bdims[N], complex float *out, const complex float *interior, const complex float *electrodes)
 {
 	complex float *electrodes_indicator = md_alloc(N, bdims, CFL_SIZE);
 	md_zabs(N, bdims, electrodes_indicator, electrodes);
@@ -112,35 +112,34 @@ static void get_conductive_volume(const long bdims[N], complex float* out,  cons
 static struct linop_s *make_wall_op(const long jdims[N], const long bdims[N], const complex float *interior, const complex float *electrodes)
 {
 
-		long bstrs[N], jstrs[N];
-		md_calc_strides(N, bstrs, bdims, CFL_SIZE);
-		md_calc_strides(N, jstrs, jdims, CFL_SIZE);
+	long bstrs[N], jstrs[N];
+	md_calc_strides(N, bstrs, bdims, CFL_SIZE);
+	md_calc_strides(N, jstrs, jdims, CFL_SIZE);
 
-		complex float *conductive_volume = md_alloc(N, bdims, CFL_SIZE);
-		get_conductive_volume(bdims, conductive_volume, interior, electrodes);
+	complex float *conductive_volume = md_alloc(N, bdims, CFL_SIZE);
+	get_conductive_volume(bdims, conductive_volume, interior, electrodes);
 
-		complex float *walls = md_alloc(N, jdims, CFL_SIZE);
-		calc_outward_normal(N, jdims, walls, 0, bdims, conductive_volume);
+	complex float *walls = md_alloc(N, jdims, CFL_SIZE);
+	calc_outward_normal(N, jdims, walls, 0, bdims, conductive_volume);
 
-		for (int i = 0; i < 3; i++)
-			md_zmul2(N, bdims, jstrs, (void *)walls + i * jstrs[0], jstrs, (void *)walls + i * jstrs[0] , bstrs, interior);
+	for (int i = 0; i < 3; i++)
+		md_zmul2(N, bdims, jstrs, (void *)walls + i * jstrs[0], jstrs, (void *)walls + i * jstrs[0], bstrs, interior);
 
-		md_zabs(N, jdims, walls, walls);
-		md_zsgreatequal(N, jdims, walls, walls, 0.1);
+	md_zabs(N, jdims, walls, walls);
+	md_zsgreatequal(N, jdims, walls, walls, 0.1);
 
-		md_zsmul(N, jdims, walls, walls, -1);
-		md_zsadd(N, jdims, walls, walls, 1);
-		auto wall_op = linop_cdiag_create(N, jdims, 15, walls);
+	md_zsmul(N, jdims, walls, walls, -1);
+	md_zsadd(N, jdims, walls, walls, 1);
+	auto wall_op = linop_cdiag_create(N, jdims, 15, walls);
 
-			char* str = getenv("DEBUG_LEVEL");
-			debug_level = (NULL != str) ? atoi(str) : DP_INFO;
-			if (5 <= debug_level)
-				dump_cfl("DEBUG_walls", N, jdims, walls);
+		char *str = getenv("DEBUG_LEVEL");
+		debug_level = (NULL != str) ? atoi(str) : DP_INFO;
+		if (5 <= debug_level)
+			dump_cfl("DEBUG_walls", N, jdims, walls);
 
-		md_free(conductive_volume);
-		md_free(walls);
-		return wall_op;
-
+	md_free(conductive_volume);
+	md_free(walls);
+	return wall_op;
 }
 
 
@@ -148,22 +147,22 @@ static struct linop_s *make_wall_op(const long jdims[N], const long bdims[N], co
 static struct linop_s *make_mask_c_op(const long jdims[N], const long bdims[N], const complex float *interior, const complex float *electrodes)
 {
 
-		long bstrs[N], jstrs[N];
-		md_calc_strides(N, bstrs, bdims, CFL_SIZE);
-		md_calc_strides(N, jstrs, jdims, CFL_SIZE);
+	long bstrs[N], jstrs[N];
+	md_calc_strides(N, bstrs, bdims, CFL_SIZE);
+	md_calc_strides(N, jstrs, jdims, CFL_SIZE);
 
-		complex float *conductive_volume = md_alloc(N, bdims, CFL_SIZE);
-		get_conductive_volume(bdims, conductive_volume, interior, electrodes);
+	complex float *conductive_volume = md_alloc(N, bdims, CFL_SIZE);
+	get_conductive_volume(bdims, conductive_volume, interior, electrodes);
 
-		auto wall_op = linop_cdiag_create(N, jdims, 14, conductive_volume);
+	auto wall_op = linop_cdiag_create(N, jdims, 14, conductive_volume);
 
-			char* str = getenv("DEBUG_LEVEL");
-			debug_level = (NULL != str) ? atoi(str) : DP_INFO;
-			if (5 <= debug_level)
-				dump_cfl("DEBUG_conductive", N, bdims, conductive_volume);
+		char *str = getenv("DEBUG_LEVEL");
+		debug_level = (NULL != str) ? atoi(str) : DP_INFO;
+		if (5 <= debug_level)
+			dump_cfl("DEBUG_conductive", N, bdims, conductive_volume);
 
-		md_free(conductive_volume);
-		return wall_op;
+	md_free(conductive_volume);
+	return wall_op;
 
 }
 
@@ -178,7 +177,7 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 	sprintf(mon2_name, "%s_leray_step", outname);
 
 	complex float *j_hist = md_calloc(N, jdims, CFL_SIZE);
-	struct history_data_s history_data = { .hist_1 = outer_hist, .hist_2 = leray_hist, .j_hist = j_hist, .j_dims = jdims, .leray_data = NULL, .post_j_op = NULL };
+	struct history_data_s history_data = {.hist_1 = outer_hist, .hist_2 = leray_hist, .j_hist = j_hist, .j_dims = jdims, .leray_data = NULL, .post_j_op = NULL};
 	auto mon1 = create_monitor_recorder(N, jdims, mon1_name, (void *)&history_data, history_select_1, history_save_1);
 	auto mon2 = create_monitor_recorder(N, jdims, mon2_name, (void *)&history_data, history_select_2, history_save_2);
 
@@ -206,7 +205,6 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 
 		if (0 < bc_reg)
 			mask_c_op = linop_chain_FF(mask_c_op, make_wall_op(jdims, bdims, interior, electrodes));
-
 	}
 
 	md_zfill(N, jdims, j, 0);
@@ -255,7 +253,7 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 
 		normal_op = linop_chain_FF(normal_op, linop_get_adjoint(projection_op));
 
-		complex float* l2_diag = md_alloc(N, bdims, CFL_SIZE);
+		complex float *l2_diag = md_alloc(N, bdims, CFL_SIZE);
 		if (NULL == l2_weights)
 			md_zfill(N, jdims, l2_diag, reg);
 		else
@@ -319,9 +317,9 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 		} else {
 			assert(NPROX >= ++nprox);
 			prox_funs[nprox - 1] = prox_l2norm_create(N, jdims, div_reg);
-			complex float* l2_diag = md_alloc(N, bdims, CFL_SIZE);
+			complex float *l2_diag = md_alloc(N, bdims, CFL_SIZE);
 			md_zsmul(N, bdims, l2_diag, l2_weights, reg);
-			prox_linops[nprox - 1] =linop_cdiag_create(N, jdims, 14, l2_diag);
+			prox_linops[nprox - 1] = linop_cdiag_create(N, jdims, 14, l2_diag);
 			md_free(l2_diag);
 		}
 

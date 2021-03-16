@@ -45,8 +45,8 @@ struct leray_s {
 	struct boundary_point_s *boundary;
 	long n_points;
 	struct iter_monitor_s *mon;
-	const complex float* src;
-	complex float* mask;
+	const complex float *src;
+	complex float *mask;
 };
 static DEF_TYPEID(leray_s);
 

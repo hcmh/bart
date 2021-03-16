@@ -40,7 +40,7 @@ static complex float *j_wrapper(void *_data, const float *phi)
 	assert(NULL != data->leray_op);
 	auto leray_data = linop_get_data((data->leray_op));
 
-	linop_leray_calc_projection(leray_data, data->j_hist, (const complex float*)phi);
+	linop_leray_calc_projection(leray_data, data->j_hist, (const complex float *)phi);
 	return data->j_hist;
 }
 
@@ -82,7 +82,7 @@ int main_leray(int argc, char *argv[])
 
 	// setup monitoring
 	complex float *j_hist = md_calloc(N, dims, CFL_SIZE);
-	struct process_dat j_dat = { .j_hist = j_hist, .hist = hist, .leray_op = NULL};
+	struct process_dat j_dat = {.j_hist = j_hist, .hist = hist, .leray_op = NULL};
 
 	auto mon = create_monitor_recorder(N, dims, "j_step", (void *)&j_dat, selector, j_wrapper);
 	//auto mon = create_monitor_recorder(N, mask_dims, "phi_step", (void *)&j_dat, selector, NULL);
@@ -100,4 +100,3 @@ int main_leray(int argc, char *argv[])
 
 	return 0;
 }
-

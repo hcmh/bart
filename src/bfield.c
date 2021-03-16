@@ -50,4 +50,3 @@ int main_bfield(int argc, char *argv[])
 	unmap_cfl(N, bdims, b);
 	return 0;
 }
-
