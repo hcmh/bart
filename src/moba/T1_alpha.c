@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <complex.h>
 
 #include "misc/types.h"
@@ -53,6 +54,8 @@ struct T1_alpha_s {
 	const struct linop_s* linop_alpha;
 
 	float scaling_alpha;
+
+	int counter;
 };
 
 DEF_TYPEID(T1_alpha_s);
@@ -94,6 +97,17 @@ void T1_back_alpha(const struct linop_s* op, complex float* dst, const complex f
 static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	struct T1_alpha_s* data = CAST_DOWN(T1_alpha_s, _data);
+
+	if (DP_DEBUG2 <= debug_level) {
+
+		char name[255] = {'\0'};
+
+		sprintf(name, "current_map_%02d", data->counter);
+		dump_cfl(name, data->N, data->in_dims, src);
+
+		data->counter++;
+	}
+
 	long pos[data->N];
 
 	for (int i = 0; i < data->N; i++)
@@ -356,5 +370,6 @@ struct nlop_s* nlop_T1_alpha_create(int N, const long map_dims[N], const long ou
 
 	data->scaling_alpha = 0.2;
 
+	data->counter = 0;
 	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
 }
