@@ -56,7 +56,7 @@ DEF_TYPEID(T1_alpha_in_s);
 
 
 // Calculate Model: M0 * (R1/(R1 + alpha) - (1 + R1/(R1 + alpha)) * exp(-t.*(R1 + alpha)))
-static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void T1_alpha_in_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	struct T1_alpha_in_s* data = CAST_DOWN(T1_alpha_in_s, _data);
 
@@ -130,7 +130,7 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	md_zsub(data->N, data->out_dims, data->tmp_dR1, data->tmp_dalpha, data->tmp_dR1);
 }
 
-static void T1_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void T1_alpha_in_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
 	UNUSED(o);
 	UNUSED(i);
@@ -156,7 +156,7 @@ static void T1_der(const nlop_data_t* _data, unsigned int o, unsigned int i, com
 	md_zfmac2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->tmp_map, data->out_strs, data->tmp_dM0);
 }
 
-static void T1_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void T1_alpha_in_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
 	UNUSED(o);
 	UNUSED(i);
@@ -185,7 +185,7 @@ static void T1_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, com
 	md_copy_block(data->N, pos, data->in_dims, dst, data->map_dims, data->tmp_map, CFL_SIZE);
 }
 
-static void T1_del(const nlop_data_t* _data)
+static void T1_alpha_in_del(const nlop_data_t* _data)
 {
 	struct T1_alpha_in_s* data = CAST_DOWN(T1_alpha_in_s, _data);
 
@@ -286,5 +286,5 @@ struct nlop_s* nlop_T1_alpha_in_create(int N, const long map_dims[N], const long
 
 	data->counter = 0;
 
-	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
+	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_alpha_in_fun, T1_alpha_in_der, T1_alpha_in_adj, NULL, NULL, T1_alpha_in_del);
 }

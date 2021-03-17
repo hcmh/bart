@@ -169,7 +169,7 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 
 		if (5 == fitpara.sequence) {
 
-			// Turn of matching of T2 for IR FLASH
+			// Turn off matching of T2 for IR FLASH
 			fitpara.scale[2] = 0.0001;
 
 			// Simulate Look-Locker assumption: Echo(t=TE) == Mz(t=0)
