@@ -1034,11 +1034,11 @@ static void dice_del(const nlop_data_t* _data)
  * @param N
  * @param dims
  * @param label_flag select the label dimension
- * @param mean_flag computes dice loss over selected dimensions independently and averages afterwards (0 recommended)
+ * @param independent_flag computes dice loss over selected dimensions independently
  * @param weighting_exponent w_l = (V_l^wighting_exponent); should be in {0, -1, -2}; -2 corresponds to Sudre et.al.
  * @param square_denominator replace p_li by p_li^2 and t_li by t_li^2 in denominator
  **/
-const struct nlop_s* nlop_dice_create(int N, const long dims[N], unsigned long label_flag, unsigned long mean_flag, float weighting_exponent, bool square_denominator)
+const struct nlop_s* nlop_dice_generic_create(int N, const long dims[N], unsigned long label_flag, unsigned long independent_flag, float weighting_exponent, bool square_denominator)
 {
 	PTR_ALLOC(struct dice_s, data);
 	SET_TYPEID(dice_s, data);
@@ -1049,13 +1049,13 @@ const struct nlop_s* nlop_dice_create(int N, const long dims[N], unsigned long l
 	md_select_dims(N, label_flag, weight_dims, dims);
 
 	long out_dims[N];
-	md_select_dims(N, mean_flag, out_dims, dims);
+	md_select_dims(N, independent_flag, out_dims, dims);
 
 	data->weight_dom = iovec_create(N, weight_dims, CFL_SIZE);
 	data->dom = iovec_create(N, dims, CFL_SIZE);
 	data->cod = iovec_create(N, out_dims, CFL_SIZE);
 
-	data->mean_flag = mean_flag;
+	data->mean_flag = independent_flag;
 
 	data->weighting_exponent = weighting_exponent;
 
@@ -1078,7 +1078,37 @@ const struct nlop_s* nlop_dice_create(int N, const long dims[N], unsigned long l
 	md_copy_dims(N, nl_idims[1], dims);
 
 
-	auto dice = nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), dice_fun, (nlop_der_fun_t[2][1]){ { dice_der }, { dice_der } }, (nlop_der_fun_t[2][1]){ { dice_adj }, { dice_adj } }, NULL, NULL, dice_del);
+	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), dice_fun, (nlop_der_fun_t[2][1]){ { dice_der }, { dice_der } }, (nlop_der_fun_t[2][1]){ { dice_adj }, { dice_adj } }, NULL, NULL, dice_del);
+}
+
+/**
+ * Generic Dice loss D
+ *
+ * Crum WR, Camara O, Hill DL. Generalized overlap measures for evaluation and validation in medical image analysis. IEEE Trans Med Imaging. 2006 Nov;25(11):1451-61. doi: 10.1109/TMI.2006.880587. PMID: 17117774.
+ *
+ * D = 1 - 2 * [sum_l w_l sum_i MIN(p_li, t_li)] / [sum_l w_l sum_i (p_li + t_li)]
+ * where:	i - batch index
+ *		l - label index
+ *		w_l - wighting factor
+ *		t_ij = target prediction (usually 0 or 1 and sum_j t_ij = 1)
+ *		p_ij = propability predicted by the network (usually p_i(x) in [0, 1] and sum_j p_ij(x) = 1 (softmax activation))
+ *
+ * For t_ij in {0, 1}, MIN(p_li, t_li) = p_li * t_li resulting in the form presented in
+ * Sudre C.H., Li W., Vercauteren T., Ourselin S., Jorge Cardoso M. (2017) Generalised Dice Overlap as a Deep Learning Loss Function for Highly Unbalanced Segmentations. In: Cardoso M. et al. (eds) Deep Learning in Medical Image Analysis and Multimodal Learning for Clinical Decision Support. DLMIA 2017, ML-CDS 2017. Lecture Notes in Computer Science, vol 10553. Springer, Cham. https://doi.org/10.1007/978-3-319-67558-9_28
+ *
+ * @param N
+ * @param dims
+ * @param label_flag select the label dimension
+ * @param mean_flag computes dice loss over selected dimensions independently and averages afterwards (0 recommended)
+ * @param weighting_exponent w_l = (V_l^wighting_exponent); should be in {0, -1, -2}; -2 corresponds to Sudre et.al.
+ * @param square_denominator replace p_li by p_li^2 and t_li by t_li^2 in denominator
+ **/
+const struct nlop_s* nlop_dice_create(int N, const long dims[N], unsigned long label_flag, unsigned long mean_flag, float weighting_exponent, bool square_denominator)
+{
+	auto dice = nlop_dice_generic_create(N, dims, label_flag, mean_flag, weighting_exponent, square_denominator);
+
+	long out_dims[N];
+	md_copy_dims(N, out_dims, nlop_generic_codomain(dice, 0)->dims);
 
 	if (1 != md_calc_size(N, out_dims)) {
 
