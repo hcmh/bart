@@ -14,6 +14,8 @@ struct loss_config_s {
 	float weighting_dice1;
 	float weighting_dice2;
 
+	float weighting_dice_labels;
+
 	unsigned int label_index;
 };
 

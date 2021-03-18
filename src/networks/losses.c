@@ -15,6 +15,7 @@
 #include "nlops/cast.h"
 #include "nlops/const.h"
 #include "nlops/someops.h"
+#include "nlops/stack.h"
 
 #include "nn/nn.h"
 #include "nn/losses.h"
@@ -141,6 +142,8 @@ struct loss_config_s loss_empty = {
 	.weighting_dice1 = 0.,
 	.weighting_dice2 = 0.,
 
+	.weighting_dice_labels = 0.,
+
 	.label_index = 0,
 };
 
@@ -157,6 +160,8 @@ struct loss_config_s loss_mse = {
 	.weighting_dice0 = 0.,
 	.weighting_dice1 = 0.,
 	.weighting_dice2 = 0.,
+
+	.weighting_dice_labels = 0.,
 
 	.label_index = 0,
 };
@@ -175,6 +180,8 @@ struct loss_config_s loss_mse_sa = {
 	.weighting_dice1 = 0.,
 	.weighting_dice2 = 0.,
 
+	.weighting_dice_labels = 0.,
+
 	.label_index = 0,
 };
 
@@ -191,6 +198,8 @@ struct loss_config_s loss_image_valid = {
 	.weighting_dice0 = 0.,
 	.weighting_dice1 = 0.,
 	.weighting_dice2 = 0.,
+
+	.weighting_dice_labels = 0.,
 
 	.label_index = 0,
 };
@@ -209,6 +218,8 @@ struct loss_config_s loss_classification = {
 	.weighting_dice1 = 0.,
 	.weighting_dice2 = 0.,
 
+	.weighting_dice_labels = 0.,
+
 	.label_index = 0,
 };
 
@@ -226,6 +237,8 @@ struct loss_config_s loss_classification_valid = {
 	.weighting_dice0 = 1.,
 	.weighting_dice1 = 1.,
 	.weighting_dice2 = 1.,
+
+	.weighting_dice_labels = 1.,
 
 	.label_index = 0,
 };
@@ -385,6 +398,35 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -2., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_dice2)), 0));
 		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
 		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice2");
+
+		result = add_loss(result, tmp_loss, combine);
+	}
+
+
+	if (0 != config->weighting_dice_labels) {
+
+		long labels = dims[config->label_index];
+
+		auto dice = nlop_dice_generic_create(N, dims, MD_BIT(config->label_index), MD_BIT(config->label_index), 0., false);
+		dice = nlop_reshape_out_F(dice, 0, 1, MD_DIMS(md_calc_size(N, nlop_generic_codomain(dice, 0)->dims)));
+
+		dice = nlop_chain2_FF(dice, 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(labels), config->weighting_dice_labels)), 0);
+		while (labels > 1) {
+
+			dice = nlop_chain2_FF(dice, 0, nlop_destack_create(1, MD_DIMS(labels - 1), MD_DIMS(1), MD_DIMS(labels), 0), 0);
+			labels--;
+		}
+		labels = 0;
+
+		nn_t tmp_loss = nn_from_nlop_F(dice);
+
+		while (0 < nn_get_nr_unnamed_out_args(tmp_loss)) {
+
+			auto name = ptr_printf("dice_label_%d", labels++);
+			tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
+			tmp_loss = nn_set_output_name_F(tmp_loss, 0, name);
+			xfree(name);
+		}
 
 		result = add_loss(result, tmp_loss, combine);
 	}
