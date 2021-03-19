@@ -442,7 +442,65 @@ bool opt_subopt(void* _ptr, char c, const char* optarg)
 	UNUSED(c);
 	struct opt_subopt_s* ptr = _ptr;
 
-	process_option(optarg[0], optarg + 1, "", "", "", ptr->n, ptr->opts);
+	int n = ptr->n;
+	auto opts = ptr->opts;
+
+	struct opt_s wopts[n ?: 1];
+
+	if (NULL != opts)
+		memcpy(wopts, opts, sizeof wopts);
+
+	char lc = 1;
+	for (int i = 0; i < n; i++) {
+
+		if (NULL != wopts[i].s) {
+
+			// if it is only longopt, overwrite c with an unprintable char
+			if (0 == wopts[i].c)
+				wopts[i].c = lc++;
+
+			assert(lc < ' ');
+		}
+	}
+
+	const char* tokens[2 * ptr->n + 2];
+	for (int i = 0; i < ptr->n; i++) {
+
+		tokens[2 * i] = ptr_printf("%c", wopts[i].c);
+		if (NULL == wopts[i].s)
+			tokens[2 * i + 1] = ptr_printf("char_only_token_%c", wopts[i].c);
+		else
+			tokens[2 * i + 1] = ptr_printf("%s", wopts[i].s);
+	}
+
+	tokens[2 * ptr->n] = ptr_printf("h");
+	tokens[2 * ptr->n + 1] = NULL;
+
+
+	char* tmpoptionp = strdup(optarg);
+	char* option = tmpoptionp;
+	char* value = NULL;
+
+	int i = -1;
+	while('\0' != *option) {
+
+		i = getsubopt(&option, (char *const *)tokens, &value);
+		if ((i == 2 * n) || (-1 == i))
+			print_help("Suboptions can be passed as a comma separated list. Values are passed by '='. Example: x,str=HALLO,f=.5", ptr->n, ptr->opts);
+
+		if (-1 == i)
+			error("Suboption could not be parsed: %s", value);
+
+		if (i < 2 * n)
+			process_option(wopts[i / 2].c, value, "", "", "", n, wopts);
+		else
+			exit(0);
+	}
+
+	for (int i = 0; i < 2 * n + 1; i++)
+		xfree(tokens[i]);
+
+
 	return false;
 }
 
