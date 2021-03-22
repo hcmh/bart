@@ -104,6 +104,7 @@ typedef float opt_fvec3_t[3];
 #define OPTL_VEC3(c, s, ptr, argname, descr)	OPTL_ARG(c, s, opt_vec3, opt_vec3_t, ptr, argname, descr)
 #define OPTL_FLVEC3(c, s, ptr, argname, descr)	OPTL_ARG(c, s, opt_float_vec3, opt_fvec3_t, ptr, argname, descr)
 #define OPTL_SELECT(c, s, T, ptr, value, descr)	{ (c), (s), false, opt_select, OPT_SEL(T, TYPE_CHECK(T*, ptr), value), "\t" descr }
+#define OPTL_SELECT_DEF(c, s, T, ptr, value, def, descr)	{ (c), (s), false, opt_select, &(struct opt_select_s){ (TYPE_CHECK(T*, ptr)), &(T){ TYPE_CHECK(T, value) }, &(T){ (TYPE_CHECK(T, def)) }, sizeof(T) }, "\t" descr }
 #define OPTL_SUBOPT(c, s, argname, descr, NR, opts)	OPTL_ARG(c, s, opt_subopt, struct opt_subopt_s, OPT_SUB(NR, opts), argname, descr)
 
 extern void cmdline(int* argc, char* argv[], int min_args, int max_args, const char* usage_str, const char* help_str, int n, const struct opt_s opts[n]);
