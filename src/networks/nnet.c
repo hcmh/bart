@@ -76,9 +76,12 @@ static void get_odims_mnist(const struct nnet_s* config, unsigned int NO, long o
 
 void nnet_init_mnist_default(struct nnet_s* nnet)
 {
-	PTR_ALLOC(struct iter6_adadelta_conf, train_conf);
-	*train_conf = iter6_adadelta_conf_defaults;
-	nnet->train_conf = CAST_UP(PTR_PASS(train_conf));
+	if (NULL == nnet->train_conf) {
+
+		PTR_ALLOC(struct iter6_adadelta_conf, train_conf);
+		*train_conf = iter6_adadelta_conf_defaults;
+		nnet->train_conf = CAST_UP(PTR_PASS(train_conf));
+	}
 
 	PTR_ALLOC(struct network_s, network);
 	network->create = network_mnist_create;
@@ -87,8 +90,8 @@ void nnet_init_mnist_default(struct nnet_s* nnet)
 	nnet->get_no_odims = get_no_odims_mnist;
 	nnet->get_odims = get_odims_mnist;
 
-	nnet->train_loss = &loss_classification;
-	nnet->valid_loss = &loss_classification_valid;
+	nnet->train_loss = loss_option_changed(&loss_option) ? &loss_option : &loss_classification;
+	nnet->valid_loss = loss_option_changed(&val_loss_option) ? &val_loss_option : &loss_classification_valid;
 }
 
 
@@ -197,7 +200,7 @@ void train_nnet(struct nnet_s* config,
 
 	if (NULL != config->graph_file)
 		nn_export_graph(config->graph_file, nn_train, graph_stats);
-	
+
 	nn_free(nn_train);
 	nlop_free(batch_generator);
 }
@@ -257,7 +260,7 @@ void apply_nnet_batchwise(	const struct nnet_s* config,
 
 		odims1[NO - 1] = Nb_tmp;
 		idims1[NI - 1] = Nb_tmp;
-		
+
 		apply_nnet(config, NO, odims1, out, NI, idims1, in);
 
 		out += md_calc_size(NO, odims1);
@@ -285,7 +288,7 @@ extern void eval_nnet(	struct nnet_s* nnet,
 	complex float* args[N + 2];
 	for (unsigned int i = 0; i < N; i++)
 		args[i] = losses + i;
-	
+
 	args[N] = tmp_out;
 	args[N + 1] = (complex float*)out;
 

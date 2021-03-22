@@ -15,7 +15,7 @@
 #include "misc/misc.h"
 
 #include "networks/nnet.h"
-#include "networks/mnist.h"
+#include "networks/losses.h"
 
 #ifndef DIMS
 #define DIMS 16
@@ -39,16 +39,9 @@ int main_nnet(int argc, char* argv[])
 	long N_batch = 0;
 
 	const char* graph_filename = NULL;
-
 	const char* filename_weights_load = NULL;
-	const char* filename_train_history = NULL;
-	long dump_mod = 0;
-	long epochs = 1;
-	int random_order = 0;
-	float learning_rate = 0;
 
 	int NI = -1;
-	bool single_batch = false;
 
 	bool mnist_default = false;
 
@@ -57,24 +50,26 @@ int main_nnet(int argc, char* argv[])
 	const struct opt_s opts[] = {
 
 		OPTL_SET('a', "apply", &apply, "apply nnet"),
-		OPTL_SET( 0, "eval", &eval, "evaluate nnet"),
-
+		OPTL_SET( 'e', "eval", &eval, "evaluate nnet"),
 		OPTL_SET('t', "train", &train, "trains network"),
-		OPTL_LONG('e', "epochs", &(epochs), "epochs", "number epochs to train"),
-		OPTL_LONG('b', "batch_size", &(N_batch), "batchsize", "size of mini batches"),
-
-		OPTL_FLOAT('r', "learning_rate", &(learning_rate), "lr", "learning rate"),
-
-		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
-		OPTL_STRING(0, "save_train_history", (const char**)(&(filename_train_history)), "file", "file for dumping train history"),
-		OPTL_LONG(0, "save_checkpoints_interval", &(dump_mod), "int", "save weights every int epochs"),
-		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2=shuffle data, 3=randomly draw data"),
 
 		OPTL_SET('g', "gpu", &(config.gpu), "run on gpu"),
 
-		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
+		OPTL_LONG('b', "batch-size", &(N_batch), "batchsize", "size of mini batches"),
 
-		OPTL_SET(0, "mnist_default", &(mnist_default), "use basic MNIST Network"),
+		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
+
+
+		OPTL_STRING(0, "export-graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
+
+		OPTL_SET(0, "mnist-default", &(mnist_default), "use basic MNIST Network"),
+
+		OPTL_SUBOPT(0, "loss", "subopts", "configure the training loss", N_loss_opts, loss_opts),
+		OPTL_SUBOPT(0, "validation-loss", "subopts", "configure the validation loss", N_val_loss_opts, val_loss_opts),
+
+		OPTL_SUBOPT(0, "train-config", "subopts", "configure general training parmeters", N_iter6_opts, iter6_opts),
+		OPTL_SUBOPT(0, "train-config-adam", "subopts", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
+		OPTL_SUBOPT(0, "train-config-iPALM", "subopts", "configure iPALM", N_iter6_ipalm_opts, iter6_ipalm_opts),
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -83,19 +78,15 @@ int main_nnet(int argc, char* argv[])
 	const char* filename_weights = argv[2];
 	const char* filename_out = argv[3];
 
+	config.train_conf = iter6_get_conf_from_opts();
+
 	if (mnist_default)
 		nnet_init_mnist_default(&config);
 
-	config.train_conf->epochs = epochs;
-	config.train_conf->history_filename = filename_train_history;
-	if (0 < dump_mod) {
+	iter6_copy_config_from_opts(config.train_conf);
 
-		config.train_conf->dump_mod = dump_mod;
+	if ((0 < config.train_conf->dump_mod) && (NULL == config.train_conf->dump_filename))
 		config.train_conf->dump_filename = filename_weights;
-	}
-	config.train_conf->batchgen_type = random_order;
-	if (0 != learning_rate)
-		config.train_conf->learning_rate = learning_rate;
 
 
 #ifdef USE_CUDA
@@ -132,8 +123,6 @@ int main_nnet(int argc, char* argv[])
 		NI = DIMS;
 		while ((NI > 0) && (1 == dims_in[NI - 1]))
 			NI--;
-		if (single_batch)
-			NI++;
 	}
 
 
