@@ -1,3 +1,5 @@
+#ifndef OPTS_H
+#define OPTS_H
 
 #include <stdbool.h>
 
@@ -108,4 +110,6 @@ extern void cmdline(int* argc, char* argv[], int min_args, int max_args, const c
 
 
 #include "misc/cppwrap.h"
+
+#endif //OPTS_H
 
