@@ -70,16 +70,18 @@
 
 #include "reconet.h"
 
-
-struct reconet_s reconet_init = {
+struct reconet_s reconet_config_opts = {
 
 	.network = NULL,
 
 	.Nt = 10,
 
-	.reinsert = false,
+	.share_weights_select = BOOL_DEFAULT,
+	.share_lambda_select = BOOL_DEFAULT,
 	.share_weights = false,
 	.share_lambda = false,
+
+	.reinsert = false,
 
 	.mri_config = NULL,
 
@@ -93,8 +95,8 @@ struct reconet_s reconet_init = {
 	//network initialization
 	.normalize = false,
 	.tickhonov_init = false,
-	.init_max_iter = 10,
-	.init_lambda_fixed = -1,
+	.init_max_iter = -1,
+	.init_lambda_fixed = -2,
 	.init_lambda_init = -1,
 
 	.weights = NULL,
@@ -109,27 +111,72 @@ struct reconet_s reconet_init = {
 	.graph_file = NULL,
 };
 
+static void reconet_init_default(struct reconet_s* reconet) {
+
+	//network initialization
+	reconet->init_max_iter = (-1 == reconet->init_max_iter) ? (reconet->dc_tickhonov ? reconet->dc_max_iter : 30) : reconet->init_max_iter;
+	reconet->init_lambda_fixed = (-2 == reconet->init_lambda_fixed) ? (reconet->dc_tickhonov ? reconet->dc_lambda_fixed : 0) : reconet->init_lambda_fixed;
+	reconet->init_lambda_init = (-1 == reconet->init_lambda_init) ? (reconet->dc_tickhonov ? reconet->dc_lambda_init : 0.1) : reconet->init_lambda_init;
+}
+
 void reconet_init_modl_default(struct reconet_s* reconet)
 {
-	reconet->mri_config = &conf_nlop_mri_simple;
+	if (NULL == reconet->train_conf) {
 
-	reconet->dc_lambda_init = 0.05,
-	reconet->init_lambda_init = 0.05,
-	reconet->dc_tickhonov = true,
+		PTR_ALLOC(struct iter6_adam_conf, train_conf);
+		*train_conf = iter6_adam_conf_defaults;
+		reconet->train_conf = CAST_UP(PTR_PASS(train_conf));
+	}
 
-	reconet->share_weights = true;
-	reconet->share_lambda = true;
+	if (NULL == reconet->network)
+		reconet->network = CAST_UP(&network_resnet_default);
 
-	PTR_ALLOC(struct iter6_adam_conf, train_conf);
-	*train_conf = iter6_adam_conf_defaults;
-	reconet->train_conf = CAST_UP(PTR_PASS(train_conf));
+	reconet->share_weights = (reconet->share_weights_select == BOOL_DEFAULT) || (reconet->share_weights_select == BOOL_TRUE);
+	reconet->share_lambda = (reconet->share_lambda_select == BOOL_DEFAULT) || (reconet->share_lambda_select == BOOL_TRUE);
 
-	PTR_ALLOC(struct network_resnet_s, network);
-	*network = network_resnet_default;
-	reconet->network = CAST_UP(PTR_PASS(network));
+	reconet->mri_config = (NULL == reconet->mri_config) ? &conf_nlop_mri_simple: reconet->mri_config;
 
-	reconet->train_loss = &loss_mse;
-	reconet->valid_loss = &loss_image_valid;
+	//data consistency config
+	reconet->dc_lambda_init = (-1 == reconet->dc_lambda_init) ? 0.05 : reconet->dc_lambda_init;
+	if (!reconet->dc_tickhonov && !reconet->dc_gradient)
+		reconet->dc_tickhonov = true;
+
+	reconet->train_loss = &loss_option;
+	if (!loss_option_changed(&loss_option))
+		reconet->train_loss->weighting_mse = 1.;
+	reconet->valid_loss = loss_option_changed(&val_loss_option) ? &val_loss_option : &loss_classification_valid;
+
+	reconet_init_default(reconet);
+}
+
+void reconet_init_varnet_default(struct reconet_s* reconet)
+{
+	if (NULL == reconet->train_conf) {
+
+		PTR_ALLOC(struct iter6_iPALM_conf, train_conf);
+		*train_conf = iter6_iPALM_conf_defaults;
+		reconet->train_conf = CAST_UP(PTR_PASS(train_conf));
+	}
+
+	if (NULL == reconet->network)
+		reconet->network = CAST_UP(&network_varnet_default);
+
+	reconet->share_weights = reconet->share_weights_select == BOOL_TRUE;
+	reconet->share_lambda = reconet->share_lambda_select == BOOL_TRUE;
+
+	reconet->mri_config = (NULL == reconet->mri_config) ? &conf_nlop_mri_simple: reconet->mri_config;
+
+	//data consistency config
+	reconet->dc_lambda_init = (-1 == reconet->dc_lambda_init) ? 0.2 : reconet->dc_lambda_init;
+	if (!reconet->dc_tickhonov && !reconet->dc_gradient)
+		reconet->dc_gradient = true;
+
+	reconet->train_loss = &loss_option;
+	if (!loss_option_changed(&loss_option))
+		reconet->train_loss->weighting_mse_sa = 1.;
+	reconet->valid_loss = loss_option_changed(&val_loss_option) ? &val_loss_option : &loss_classification_valid;
+
+	reconet_init_default(reconet);
 }
 
 void reconet_init_modl_test_default(struct reconet_s* reconet)
@@ -139,30 +186,6 @@ void reconet_init_modl_test_default(struct reconet_s* reconet)
 	reconet->Nt = 2;
 	CAST_DOWN(network_resnet_s, reconet->network)->Nl = 3;
 	CAST_DOWN(network_resnet_s, reconet->network)->Nf = 8;
-}
-
-void reconet_init_varnet_default(struct reconet_s* reconet)
-{
-	reconet->mri_config = &conf_nlop_mri_simple;
-
-	reconet->dc_lambda_init = 0.2,
-	reconet->init_lambda_fixed = 0.,
-	reconet->init_lambda_init = 0.,
-
-	reconet->share_weights = false;
-	reconet->share_lambda = false;
-	reconet->dc_gradient = true;
-
-	PTR_ALLOC(struct iter6_iPALM_conf, train_conf);
-	*train_conf = iter6_iPALM_conf_defaults;
-	reconet->train_conf = CAST_UP(PTR_PASS(train_conf));
-
-	PTR_ALLOC(struct network_varnet_s, network);
-	*network = network_varnet_default;
-	reconet->network = CAST_UP(PTR_PASS(network));
-
-	reconet->train_loss = &loss_mse_sa;
-	reconet->valid_loss = &loss_image_valid;
 }
 
 void reconet_init_varnet_test_default(struct reconet_s* reconet)

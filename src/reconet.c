@@ -29,7 +29,9 @@
 
 #include "nn/weights.h"
 
+#include "networks/cnn.h"
 #include "networks/reconet.h"
+#include "networks/losses.h"
 #include "networks/misc.h"
 
 #include "nlops/mri_ops.h"
@@ -47,7 +49,7 @@ static const char help_str[] = "Trains or appplies MoDL.";
 
 int main_reconet(int argc, char* argv[])
 {
-	struct reconet_s config = reconet_init;
+	struct reconet_s config = reconet_config_opts;
 
 	bool train = false;
 	bool apply = false;
@@ -56,17 +58,10 @@ int main_reconet(int argc, char* argv[])
 	char* filename_weights_load = NULL;
 
 	long Nb = 0;
-	float learning_rate = 0.;
-	long epochs = 0;
-	int random_order = 0;
-	const char* history_file = NULL;
-	long dump_mod = -1;
 
 	bool one_iter = false;
-
-	const char* config_file = NULL;
 	bool load_mem = false;
-	
+
 	bool normalize = false;
 	bool regrid = false;
 
@@ -75,14 +70,44 @@ int main_reconet(int argc, char* argv[])
 
 	bool test_defaults = false;
 
-	float lambda_init = 0;
-
-	long cg_iter = 0;
+	enum NETWORK_SELECT net = NETWORK_NONE;
 
 	const char* graph_filename = NULL;
 
 	struct network_data_s data = network_data_empty;
 	struct network_data_s valid_data = network_data_empty;
+
+	struct opt_s dc_opts[] = {
+
+		OPTL_FLOAT(0, "fix-lambda", &(config.dc_lambda_fixed), "float", "fix lambda to specified value (-1 means train lambda)"),
+		OPTL_FLOAT(0, "lambda-init", &(config.dc_lambda_init), "float", "initialize lambda eith specified value"),
+		OPTL_SET(0, "dc-gradient-step", &(config.dc_gradient), "use gradient steps for data-consistency"),
+		OPTL_SET(0, "dc-proximal-mapping", &(config.dc_tickhonov), "use proximal mapping for data-consistency"),
+		OPTL_INT(0, "dc-max-cg-iter", &(config.dc_max_iter), "int", "number of cg steps for proximal mapping"),
+
+		OPTL_SET(0, "init-tickhonov", &(config.tickhonov_init), "init network with Tickhonov regularized reconstruction instead of adjoint reconstruction"),
+		OPTL_INT(0, "init-max-cg-iter", &(config.init_max_iter), "int", "number of cg steps for initialization"),
+		OPTL_FLOAT(0, "init-fix-lambda", &(config.init_lambda_fixed), "float", "fix lambda for initialization to specified value (-1 means train lambda)"),
+		OPTL_FLOAT(0, "init-lambda-init", &(config.init_lambda_init), "float", "initialize lambda for initialization with specified value"),
+	};
+
+	struct opt_s valid_opts[] = {
+
+		OPTL_STRING(0, "trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
+		OPTL_STRING(0, "pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
+		OPTL_STRING(0, "kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
+		OPTL_STRING(0, "coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
+		OPTL_STRING(0, "ref", &(valid_data.filename_out), "file", "validation data reference"),
+	};
+
+	struct opt_s network_opts[] = {
+
+		OPTL_SET(0, "modl", &(modl_default), "use MoDL Network (also sets train and data-consistency default values)"),
+		OPTL_SET(0, "varnet", &(varnet_default), "use Variational Network (also sets train and data-consistency default values)"),
+
+		OPTL_SELECT(0, "residual-block", enum NETWORK_SELECT, &net, NETWORK_RESBLOCK, "use residual block"),
+		OPTL_SELECT(0, "variational-block", enum NETWORK_SELECT, &net, NETWORK_VARNET, "use variational block"),
+	};
 
 	const struct opt_s opts[] = {
 
@@ -91,44 +116,55 @@ int main_reconet(int argc, char* argv[])
 		OPTL_SET('g', "gpu", &(config.gpu), "run on gpu"),
 		OPTL_SET('a', "apply", &apply, "apply reconet"),
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
-		OPTL_STRING('c', "config", &config_file, "file", "file for loading modl configuration"),
-		OPTL_SET('o', "one_iter", &one_iter, "only one iteration for initialization"),
+		OPTL_LONG('b', "batch_size", &(Nb), "Nb", "size of mini batches"),
+		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
 
-		OPTL_SET(0, "modl_default", &(modl_default), "use MoDL Network"),
-		OPTL_SET(0, "varnet_default", &(varnet_default), "use Variational Network"),
+		OPTL_LONG('T', "iterations", &(config.Nt), "int", "number of unrolled iterations"),
+
+		OPTL_SET('n', "normalize", &(config.normalize), "normalize data with maximum magnitude of adjoint reconstruction"),
+
+		OPTL_SUBOPT(0, "network", "subopts", "neural network configurations", ARRAY_SIZE(network_opts), network_opts),
+
+		OPTL_SUBOPT(0, "dc-config", "subopts", "configure data-consistency methode", ARRAY_SIZE(dc_opts), dc_opts),
+
+		OPTL_SELECT(0, "shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_TRUE, "share weights across iterations"),
+		OPTL_SELECT(0, "no-shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_FALSE, "share weights across iterations"),
+		OPTL_SELECT(0, "shared-lambda", enum BOOL_SELECT, &(config.share_lambda_select), BOOL_TRUE, "share lambda across iterations"),
+		OPTL_SELECT(0, "no-shared-lambda", enum BOOL_SELECT, &(config.share_lambda_select), BOOL_FALSE, "share lambda across iterations"),
+
 
 		OPTL_STRING(0, "trajectory", &(data.filename_trajectory), "file", "trajectory"),
 		OPTL_STRING(0, "pattern", &(data.filename_pattern), "file", "sampling pattern / psf in kspace"),
 
-		OPTL_STRING(0, "valid_trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
-		OPTL_STRING(0, "valid_pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
-		OPTL_STRING(0, "valid_kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
-		OPTL_STRING(0, "valid_coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
-		OPTL_STRING(0, "valid_ref", &(valid_data.filename_out), "file", "validation data reference"),
+		OPTL_SUBOPT(0, "validation-data", "subopts", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
 
-		OPTL_FLOAT('r', "learning_rate", &(learning_rate), "lr", "learning rate"),
-		OPTL_LONG('e', "epochs", &(epochs), "epochs", "number epochs to train"),
-		OPTL_LONG('b', "batch_size", &(Nb), "Nb", "size of mini batches"),
-		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2= shuffle data, 3=randonly draw data"),		
-		
-		OPTL_STRING(0, "save_train_history", (const char**)(&(history_file)), "file", "file for dumping train history"),
-		OPTL_LONG(0, "save_checkpoints_interval", &(dump_mod), "int", "save weights every int epochs"),
-		
-		OPTL_SET('n', "normalize", &(normalize), "normalize the input by maximum of zero-filled reconstruction"),
-		OPTL_SET('m', "load_data", &(load_mem), "load files int memory"),
-		OPTL_SET(0, "low_mem", &(config.low_mem), "reduce memory usage by checkpointing"),
+		OPTL_SUBOPT(0, "loss", "subopts", "configure the training loss", N_loss_opts, loss_opts),
+		OPTL_SUBOPT(0, "validation-loss", "subopts", "configure the validation loss", N_val_loss_opts, val_loss_opts),
+
+		OPTL_SUBOPT(0, "train-config", "subopts", "configure general training parmeters", N_iter6_opts, iter6_opts),
+		OPTL_SUBOPT(0, "train-config-adam", "subopts", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
+		OPTL_SUBOPT(0, "train-config-iPALM", "subopts", "configure iPALM", N_iter6_ipalm_opts, iter6_ipalm_opts),
+
+		OPTL_SET('o', "one_iter", &one_iter, "only one iteration for initialization"),
+
 		OPTL_SET(0, "regrid", &(regrid), "grids fully sampled kspace by applying pattern"),
 
-		OPTL_LONG('T', "num_net_iter", &(config.Nt), "", "number of iterations of reconet"),
-		OPTL_LONG(0, "num_cg_iter", &(cg_iter), "", "number of conjugate gradient iterations"),
-	
-		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
-		
+		OPTL_SET('m', "load_data", &(load_mem), "load files int memory"),
+		OPTL_SET(0, "low_mem", &(config.low_mem), "reduce memory usage by checkpointing"),
 
 		OPTL_SET(0, "test", &(test_defaults), "very small network for tests"),
 	};
 
 	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	data.filename_kspace = argv[1];
+	data.filename_coil = argv[2];
+	const char* filename_weights = argv[3];
+	data.filename_out = argv[4];
+
+	config.train_conf = iter6_get_conf_from_opts();
+
+	config.network = get_default_network(net);
 
 	if (test_defaults) {
 
@@ -138,101 +174,29 @@ int main_reconet(int argc, char* argv[])
 			reconet_init_varnet_test_default(&config);
 
 	} else {
-	
+
 		if (modl_default)
 			reconet_init_modl_default(&config);
 		if (varnet_default)
 			reconet_init_varnet_default(&config);
 	}
 
-	long epochs1 = epochs;
-	long epochs2 = epochs;
+	iter6_copy_config_from_opts(config.train_conf);
 
-	const char* history1 = NULL;
-	const char* history2 = NULL;
+	if ((0 < config.train_conf->dump_mod) && (NULL == config.train_conf->dump_filename))
+		config.train_conf->dump_filename = filename_weights;
 
-	if (NULL != config_file) {
-
-		const struct opt_json_s opts_json[] = {
-
-			JSON_BOOL(JSON_LABEL("data", "normalize"), &(normalize), false,  ""),
-			JSON_BOOL(JSON_LABEL("data", "regrid"), &(regrid), false,  ""),
-
-			JSON_BOOL(JSON_LABEL("training", "low_mem"), &(config.low_mem), false,  ""),
-			JSON_LONG(JSON_LABEL("training", "epochs"), &(epochs2), false,  ""),
-			JSON_LONG(JSON_LABEL("training", "epochs1"), &(epochs1), false,  ""),
-			JSON_LONG(JSON_LABEL("training", "epochs2"), &(epochs2), false,  ""),
-			JSON_LONG(JSON_LABEL("training", "batch_size"), &(Nb), false,  ""),
-			JSON_FLOAT(JSON_LABEL("training", "learning_rate"), &(learning_rate), false,  ""),
-			JSON_INT(JSON_LABEL("training", "rand_batch_mode"), &(random_order), false,  ""),
-			JSON_STRING(JSON_LABEL("training", "history_file"), &(history2), false,  ""),
-			JSON_STRING(JSON_LABEL("training", "history_file1"), &(history1), false,  ""),
-			JSON_STRING(JSON_LABEL("training", "history_file2"), &(history2), false,  ""),
-			JSON_LONG(JSON_LABEL("training", "checkpoint_interval"), &(dump_mod), false,  ""),
-
-			JSON_LONG(JSON_LABEL("reconet", "iterations"), &(config.Nt), false,  ""),
-			JSON_BOOL(JSON_LABEL("reconet", "share_weights"), &(config.share_weights), false,  ""),
-			JSON_BOOL(JSON_LABEL("reconet", "share_lambda"), &(config.share_lambda), false,  ""),
-			JSON_BOOL(JSON_LABEL("reconet", "init_tickhonov"), &(config.tickhonov_init), false,  ""),
-			JSON_BOOL(JSON_LABEL("reconet", "reinsert_init"), &(config.reinsert), false,  ""),
-
-			JSON_LONG(JSON_LABEL("reconet", "dc", "cg_iter"), &(cg_iter), false,  ""),
-			JSON_FLOAT(JSON_LABEL("reconet", "dc", "lambda_init"), &(lambda_init), false,  ""),
-		};
-		read_json(config_file, ARRAY_SIZE(opts_json), opts_json);
-	}
-
-	if (0 < learning_rate)
-		config.train_conf->learning_rate = learning_rate;
-
-	if (one_iter) {
-
+	if (one_iter)
 		config.Nt = 1;
-
-		if (0 < epochs1)
-			config.train_conf->epochs = epochs1;
-		if (NULL != history1)
-			config.train_conf->history_filename = history1;
-	} else {
-
-		if (0 < epochs2)
-			config.train_conf->epochs = epochs2;
-		if (NULL != history2)
-			config.train_conf->history_filename = history2;
-	}
 
 	if (regrid)
 		config.mri_config->regrid = true;
 
 	if (0 == Nb)
 		Nb = 10;
-	
-	if (0 != cg_iter) {
-
-		config.dc_max_iter = cg_iter;
-		config.init_max_iter = cg_iter;
-	}
-
-	if (0 < lambda_init) {
-
-		config.dc_lambda_init = lambda_init;
-		config.init_lambda_init = lambda_init;
-	}
 
 	if (normalize)
 		config.normalize = true;
-
-	if (0 < dump_mod)
-		config.train_conf->dump_mod = dump_mod;
-
-
-	config.train_conf->batchgen_type = random_order;
-
-
-	data.filename_kspace = argv[1];
-	data.filename_coil = argv[2];
-	const char* filename_weights = argv[3];
-	data.filename_out = argv[4];
 
 	if (0 < config.train_conf->dump_mod)
 		config.train_conf->dump_filename = filename_weights;
@@ -254,6 +218,7 @@ int main_reconet(int argc, char* argv[])
 
 	if (apply)
 		data.create_out = true;
+
 	load_network_data(&data);
 	bool use_valid_data = (NULL != valid_data.filename_coil) && (NULL != valid_data.filename_kspace) && (NULL != valid_data.filename_out);
 	network_data_check_simple_dims(&data);

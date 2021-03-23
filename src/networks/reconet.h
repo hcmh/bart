@@ -2,15 +2,21 @@
 
 struct nn_weights_s;
 struct loss_config_s;
+
+enum BOOL_SELECT {BOOL_DEFAULT, BOOL_TRUE, BOOL_FALSE};
+
 struct reconet_s {
 
 	struct network_s* network;
 
 	long Nt;
 
-	_Bool reinsert;
+	enum BOOL_SELECT share_weights_select;
+	enum BOOL_SELECT share_lambda_select;
 	_Bool share_weights;
 	_Bool share_lambda;
+
+	_Bool reinsert;
 
 	struct config_nlop_mri_s* mri_config;
 
@@ -40,7 +46,7 @@ struct reconet_s {
 	const char* graph_file;
 };
 
-extern struct reconet_s reconet_init;
+extern struct reconet_s reconet_config_opts;
 
 struct network_data_s;
 
