@@ -69,11 +69,11 @@ int main_nnet(int argc, char* argv[])
 		OPTL_STRING(0, "save_train_history", (const char**)(&(filename_train_history)), "file", "file for dumping train history"),
 		OPTL_LONG(0, "save_checkpoints_interval", &(dump_mod), "int", "save weights every int epochs"),
 		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2=shuffle data, 3=randomly draw data"),
-		
+
 		OPTL_SET('g', "gpu", &(config.gpu), "run on gpu"),
 
 		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
-		
+
 		OPTL_SET(0, "mnist_default", &(mnist_default), "use basic MNIST Network"),
 	};
 
@@ -85,7 +85,7 @@ int main_nnet(int argc, char* argv[])
 
 	if (mnist_default)
 		nnet_init_mnist_default(&config);
-	
+
 	config.train_conf->epochs = epochs;
 	config.train_conf->history_filename = filename_train_history;
 	if (0 < dump_mod) {
@@ -98,13 +98,18 @@ int main_nnet(int argc, char* argv[])
 		config.train_conf->learning_rate = learning_rate;
 
 
-
-
 #ifdef USE_CUDA
-	num_init_gpu();
-#else
-	num_init();		
+	if (config.gpu) {
+
+		num_init_gpu();
+		cuda_use_global_memory();
+	}
+
+	else
 #endif
+		num_init();
+
+
 	if (apply && (train || eval))
 		error("Application would overwrite training data! Either train or apply!");
 
@@ -112,7 +117,7 @@ int main_nnet(int argc, char* argv[])
 
 		if (apply)
 			error("Weights should only be loaded for trining using -l option!");
-		
+
 		config.weights = load_nn_weights(filename_weights_load);
 	}
 
@@ -134,10 +139,10 @@ int main_nnet(int argc, char* argv[])
 
 	if (N_batch == 0)
 		N_batch = MIN(128, dims_in[NI - 1]);
-	
+
 
 	if (train){
-		
+
 		long NO = config.get_no_odims(&config, NI, dims_in);
 		long dims_out[NO];
 		complex float* out = load_cfl(filename_out, NO, dims_out);
@@ -150,7 +155,7 @@ int main_nnet(int argc, char* argv[])
 	}
 
 	if (eval){
-		
+
 		long NO = config.get_no_odims(&config, NI, dims_in);
 		long dims_out[NO];
 		complex float* out = load_cfl(filename_out, NO, dims_out);
