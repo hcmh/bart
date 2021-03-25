@@ -645,8 +645,7 @@ static int number_of_kernels(const struct ecalib_conf* conf, int N, const float 
 
 	} else if (conf->percentsv != -1.) {
 
-		n = (int)(N * conf->percentsv / 100.);
-
+		n = N * conf->percentsv / 100.;
 		assert(-1 == conf->numsv);
 		assert(-1. == conf->threshold);
 

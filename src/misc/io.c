@@ -199,11 +199,11 @@ void io_unlink_if_opened(const char* name)
 }
 
 
-int write_cfl_header(int fd, unsigned int n, const long dimensions[n])
+int write_cfl_header(int fd, int n, const long dimensions[n])
 {
 	xdprintf(fd, "# Dimensions\n");
 
-	for (unsigned int i = 0; i < n; i++)
+	for (int i = 0; i < n; i++)
 		xdprintf(fd, "%ld ", dimensions[i]);
 
 	xdprintf(fd, "\n");
@@ -236,7 +236,7 @@ int write_cfl_header(int fd, unsigned int n, const long dimensions[n])
 
 
 
-int read_cfl_header(int fd, unsigned int n, long dimensions[n])
+int read_cfl_header(int fd, int n, long dimensions[n])
 {
 	char header[4097];
 	memset(header, 0, 4097);
@@ -275,11 +275,11 @@ int read_cfl_header(int fd, unsigned int n, long dimensions[n])
 
 			if (0 == strcmp(keyword, "Dimensions")) {
 
-				for (unsigned int i = 0; i < n; i++)
+				for (int i = 0; i < n; i++)
 					dimensions[i] = 1;
 
 				long val;
-				unsigned int i = 0;
+				int i = 0;
 
 				while (1 == sscanf(header + pos, "%ld%n", &val, &delta)) {
 
@@ -542,7 +542,7 @@ out:
 
 
 
-int write_coo(int fd, unsigned int n, const long dimensions[n])
+int write_coo(int fd, int n, const long dimensions[n])
 {
 	char header[4096];
 	size_t len = ARRAY_SIZE(header);
@@ -553,7 +553,7 @@ int write_coo(int fd, unsigned int n, const long dimensions[n])
 
 	ret = snprintf(header + pos, len, "Type: float\nDimensions: %d\n", n);
 
-	if ((ret < 0) || ((unsigned int)ret >= len))
+	if ((ret < 0) || (ret >= (int)len))
 		return -1;
 
 	pos += ret;
@@ -562,13 +562,13 @@ int write_coo(int fd, unsigned int n, const long dimensions[n])
 	long start = 0;
 	long stride = 1;
 
-	for (unsigned int i = 0; i < n; i++) {
+	for (int i = 0; i < n; i++) {
 
 		long size = dimensions[i];
 
 		ret = snprintf(header + pos, len, "[%ld\t%ld\t%ld\t%ld]\n", start, stride * size, size, stride);
 
-		if ((ret < 0) || ((unsigned int)ret >= len))
+		if ((ret < 0) || (ret >= (int)len))
 			return -1;
 
 		pos += ret;
@@ -584,7 +584,7 @@ int write_coo(int fd, unsigned int n, const long dimensions[n])
 }
 
 
-int read_coo(int fd, unsigned int n, long dimensions[n])
+int read_coo(int fd, int n, long dimensions[n])
 {
 	char header[4096];
 
@@ -602,7 +602,7 @@ int read_coo(int fd, unsigned int n, long dimensions[n])
 
 	pos += delta;
 
-	unsigned int dim;
+	int dim;
 
 	if (1 != sscanf(header + pos, "Dimensions: %d\n%n", &dim, &delta))
 		return -1;
@@ -612,10 +612,10 @@ int read_coo(int fd, unsigned int n, long dimensions[n])
 //	if (n != dim)
 //		return -1;
 
-	for (unsigned int i = 0; i < n; i++)
+	for (int i = 0; i < n; i++)
 		dimensions[i] = 1;
 
-	for (unsigned int i = 0; i < dim; i++) {
+	for (int i = 0; i < dim; i++) {
 
 		long val;
 
@@ -664,7 +664,7 @@ enum ra_types {
 #define err_assert(x)	({ if (!(x)) { debug_printf(DP_ERROR, "%s", #x); return -1; } })
 
 
-int read_ra(int fd, unsigned int n, long dimensions[n])
+int read_ra(int fd, int n, long dimensions[n])
 {
 	struct ra_hdr_s header;
 
@@ -700,7 +700,7 @@ int read_ra(int fd, unsigned int n, long dimensions[n])
 
 
 
-int write_ra(int fd, unsigned int n, const long dimensions[n])
+int write_ra(int fd, int n, const long dimensions[n])
 {
 	struct ra_hdr_s header = {
 
@@ -717,7 +717,7 @@ int write_ra(int fd, unsigned int n, const long dimensions[n])
 
 	uint64_t dims[n];
 
-	for (unsigned int i = 0; i < n; i++)
+	for (int i = 0; i < n; i++)
 		dims[i] = dimensions[i];
 
 	if ((int)sizeof(dims) != write(fd, &dims, sizeof(dims)))
