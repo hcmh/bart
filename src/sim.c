@@ -136,6 +136,7 @@ int main_sim(int argc, char* argv[])
 		OPT_FLVEC3(	'2',	&T2, 			"min:max:N", "range of T2s"),
 		OPT_STRING(	'z',	&z_component,		"", "Output z component"),
 		OPT_STRING(	'r',	&radial_component,	"", "Output radial component"),
+		OPTL_SET(0, "look-locker-assumption", &sim_data.seq.look_locker_assumptions, "Turn on Look-Locker Assumption?"),
 		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H:I:J\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw:Dinv:BWTP> (-Ph for help)" },
 	};
 
