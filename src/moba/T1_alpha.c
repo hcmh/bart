@@ -70,9 +70,9 @@ static void moba_calc_weights(const long dims[3], complex float* dst)
 
 
 	klaplace(3, dims, dims, flags, dst);
-	md_zsmul(3, dims, dst, dst, 440.);
+	md_zsmul(3, dims, dst, dst, 44.);
 	md_zsadd(3, dims, dst, dst, 1.);
-	md_zspow(3, dims, dst, dst, -10.);
+	md_zspow(3, dims, dst, dst, -5.);
 }
 
 const struct linop_s* T1_get_alpha_trafo(struct nlop_s* op)
