@@ -643,16 +643,11 @@ static nn_t reconet_create(const struct reconet_s* config, unsigned int N, const
 	return result;
 }
 
-static nn_t reconet_loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N], const long idims[N])
-{
-	UNUSED(dims);
-	return loss_create(config, N, idims);
-}
 
 static nn_t reconet_train_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N], bool valid)
 {
 	auto train_op = reconet_create(config, N, dims, idims, STAT_TRAIN);
-	auto loss = reconet_loss_create(valid ? config->valid_loss : config->train_loss, N, dims, idims);
+	auto loss = loss_create(valid ? config->valid_loss : config->train_loss, N, idims, !valid);
 
 	if(config->normalize) {
 
@@ -953,7 +948,7 @@ void eval_reconet(	const struct reconet_s* config, unsigned int N,
 {
 	complex float* tmp_out = md_alloc(N, idims, CFL_SIZE);
 
-	auto loss = loss_create(config->valid_loss, N, idims);
+	auto loss = loss_create(config->valid_loss, N, idims, false);
 	unsigned int NL = nn_get_nr_out_args(loss);
 	complex float losses[NL];
 	md_clear(1, MD_DIMS(NL), losses, CFL_SIZE);

@@ -101,7 +101,7 @@ static nn_t nnet_network_create(const struct nnet_s* config, unsigned int NO, co
 static nn_t nnet_train_create(const struct nnet_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI])
 {
 	auto train_op = nnet_network_create(config, NO, odims, NI, idims, STAT_TRAIN);
-	auto loss = loss_create(config->train_loss, NO, odims); 
+	auto loss = loss_create(config->train_loss, NO, odims, true);
 	train_op = nn_chain2_FF(train_op, 0, NULL, loss, 0, NULL);
 
 	return train_op;
@@ -275,7 +275,7 @@ extern void eval_nnet(	struct nnet_s* nnet,
 {
 	complex float* tmp_out = md_alloc(NO, odims, CFL_SIZE);
 
-	auto loss = loss_create(nnet->valid_loss, NO, odims); 
+	auto loss = loss_create(nnet->valid_loss, NO, odims, false);
 	unsigned int N = nn_get_nr_out_args(loss);
 	complex float losses[N];
 	md_clear(1, MD_DIMS(N), losses, CFL_SIZE);

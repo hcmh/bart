@@ -25,4 +25,4 @@ extern struct loss_config_s loss_image_valid;
 extern struct loss_config_s loss_classification;
 extern struct loss_config_s loss_classification_valid;
 
-extern const struct nn_s* loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N]);
+extern const struct nn_s* loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N], _Bool combine);
