@@ -291,8 +291,8 @@ extern void eval_nnet(	struct nnet_s* nnet,
 
 	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(loss), N + 2, (void**)args, 0, 0);
 	for (unsigned int i = 0; i < N ; i++)
-		debug_printf(DP_INFO, "%s: %e\n", nn_get_out_name_from_arg_index(loss, i), crealf(losses[i]));
-	
+		debug_printf(DP_INFO, "%s: %e\n", nn_get_out_name_from_arg_index(loss, i, false), crealf(losses[i]));
+
 	nn_free(loss);
 	md_free(tmp_out);
 }

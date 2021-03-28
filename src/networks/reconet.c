@@ -783,7 +783,7 @@ void train_reconet(	struct reconet_s* config, unsigned int N,
 		auto nn_validation_loss = reconet_valid_create(config, N, valid_files);
 		const char* val_names[nn_get_nr_out_args(nn_validation_loss)];
 		for (unsigned int i = 0; i < nn_get_nr_out_args(nn_validation_loss); i++)
-			val_names[i] = nn_get_out_name_from_arg_index(nn_validation_loss, i);
+			val_names[i] = nn_get_out_name_from_arg_index(nn_validation_loss, i, false);
 		value_monitors[num_monitors] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, nn_get_nr_out_args(nn_validation_loss), val_names);
 		nn_free(nn_validation_loss);
 		num_monitors += 1;
@@ -943,8 +943,8 @@ void eval_reconet(	const struct reconet_s* config, unsigned int N,
 
 	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(loss), NL + 2, (void**)args, 0, 0);
 	for (unsigned int i = 0; i < NL ; i++)
-		debug_printf(DP_INFO, "%s: %e\n", nn_get_out_name_from_arg_index(loss, i), crealf(losses[i]));
-	
+		debug_printf(DP_INFO, "%s: %e\n", nn_get_out_name_from_arg_index(loss, i, false), crealf(losses[i]));
+
 	nn_free(loss);
 	md_free(tmp_out);
 }
