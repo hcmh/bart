@@ -123,7 +123,7 @@ static struct config_nlop_mri_s get_vn_mri_conf(const struct vn_s* vn)
 
 	conf.regrid = vn->regrid;
 
-	return conf;	
+	return conf;
 }
 
 /**
@@ -224,7 +224,7 @@ static nn_t nn_ru_create(const struct vn_s* vn, const long idims[5])
 static nn_t nn_du_create(const struct vn_s* vn, const long dims[5], const long idims[5])
 {
 	struct config_nlop_mri_s conf = get_vn_mri_conf(vn);
-	
+
 	const struct nlop_s* nlop_result = nlop_mri_gradient_step_create(5, dims, idims, &conf);
 
 	nlop_result = nlop_chain2_swap_FF(nlop_result, 0, nlop_tenmul_create(5, idims, idims, MD_SINGLETON_DIMS(5)), 0);
@@ -341,14 +341,8 @@ static nn_t nn_vn_zf_create(const struct vn_s* vn, const long dims[5], const lon
 		def_conf.l2lambda = 1.;
 		def_conf.maxiter = 20;
 
-		struct config_nlop_mri_dc_s dc_conf;
+		auto nlop_dc = mri_normal_inversion_create(5, dims, idims, &conf, &def_conf, vn->lambda_fixed_tickhonov);
 
-		dc_conf.iter_conf = &def_conf;
-		dc_conf.lambda_fixed = vn->lambda_fixed_tickhonov;
-		assert(0 <= dc_conf.lambda_fixed);
-
-		auto nlop_dc = mri_normal_inversion_create(5, dims, idims, &conf, &dc_conf);
-		
 		auto nn_dc = nn_from_nlop_F(nlop_dc);
 		nn_dc = nn_set_input_name_F(nn_dc, 1, "coil");
 		nn_dc = nn_set_input_name_F(nn_dc, 1, "pattern");
@@ -405,7 +399,7 @@ static nn_t nn_vn_create(const struct vn_s* vn, const long dims[5], const long i
 			tmp = nn_mark_dup_F(tmp, "conv_w");
 			tmp = nn_mark_dup_F(tmp, "rbf_w");
 			tmp = nn_mark_dup_F(tmp, "lambda_w");
-		
+
 		} else {
 			tmp = nn_mark_stack_input_F(tmp, "conv_w");
 			tmp = nn_mark_stack_input_F(tmp, "rbf_w");
@@ -664,7 +658,7 @@ static nn_t vn_train_op_create(const struct vn_s* vn, const long dims[5], const 
  * Returns operator computing the validation loss
  *
  * @param vn structure describing the variational network
- * @param valid_files struct holding validation data 
+ * @param valid_files struct holding validation data
  *
  * Input tensors:
  * u_ref:	idims:	(Ux, Uy, Uz, 1,  Nb) [ignored]
@@ -745,7 +739,7 @@ static nn_t vn_valid_loss_create(struct vn_s* vn, struct network_data_s* vf)
  * @param pdims (Nx, Ny, Nz, 1, 1 / Nb) - dims of pattern
  * @param pattern pointer to pattern data
  * @param Nb batch size for training
- * @param valid_files struct holding validation data 
+ * @param valid_files struct holding validation data
  */
 void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 			const long idims[5], complex float* ref,
@@ -778,7 +772,7 @@ void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 					nn_generic_domain(nn_train, 0, "kspace")->dims,
 					nn_generic_domain(nn_train, 0, "coil")->dims,
 					nn_generic_domain(nn_train, 0, "pattern")->dims};
-	
+
 	assert(md_check_equal_dims(5, ncdims, train_dims[2], ~0));
 
 	auto batch_generator = batch_gen_create_from_iter(train_conf, 4, 5, train_dims, train_data, Nt, 0);
@@ -838,7 +832,7 @@ void train_vn(	struct vn_s* vn, struct iter6_conf_s* train_conf,
 
 		for (int i = 0; i < num_lambda; i++)
 			lams[i] = lam;
-		
+
 		auto destack_lambda = nlop_from_linop_F(linop_identity_create(2, MD_DIMS(1, num_lambda)));
 		for (int i = num_lambda - 1; 0 < i; i--)
 			destack_lambda = nlop_chain2_FF(destack_lambda, 0, nlop_destack_create(2, MD_DIMS(1, i), MD_DIMS(1, 1), MD_DIMS(1, i + 1), 1), 0);

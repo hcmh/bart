@@ -222,7 +222,7 @@ static nn_t residual_create(const struct modl_s* config, const long idims[5], en
 	// Append dims for stacking over modl iterations (non-shared weights)
 	for (unsigned int i = 0; i < ARRAY_SIZE(sorted_weight_names); i++)
 		result = nn_append_singleton_dim_in_if_exists_F(result, sorted_weight_names[i]);
-	
+
 	result = nn_append_singleton_dim_out_if_exists_F(result, "bn_0");
 	result = nn_append_singleton_dim_out_if_exists_F(result, "bn_i");
 	result = nn_append_singleton_dim_out_if_exists_F(result, "bn_n");
@@ -241,18 +241,7 @@ static struct config_nlop_mri_s get_modl_mri_conf(const struct modl_s* modl)
 
 	conf.regrid = modl->regrid;
 
-	return conf;	
-}
-
-static struct config_nlop_mri_dc_s get_modl_mri_dc_conf(const struct modl_s* modl)
-{
-	struct config_nlop_mri_dc_s conf = conf_nlop_mri_dc_simple;
-
-	conf.iter_conf = CAST_DOWN(iter_conjgrad_conf, modl->normal_inversion_iter_conf);
-	conf.lambda_fixed = modl->lambda_fixed;
-	conf.lambda_init = modl->lambda_init;
-
-	return conf;	
+	return conf;
 }
 
 /**
@@ -273,9 +262,8 @@ static struct config_nlop_mri_dc_s get_modl_mri_dc_conf(const struct modl_s* mod
 static nn_t data_consistency_modl_create(const struct modl_s* config,const long dims[5], const long idims[5])
 {
 	struct config_nlop_mri_s mri_conf = get_modl_mri_conf(config);
-	struct config_nlop_mri_dc_s mri_conf_dc = get_modl_mri_dc_conf(config);
 
-	auto nlop_dc = mri_normal_inversion_create(5, dims, idims, &mri_conf, &mri_conf_dc); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
+	auto nlop_dc = mri_normal_inversion_create(5, dims, idims, &mri_conf, CAST_DOWN(iter_conjgrad_conf, config->normal_inversion_iter_conf), config->lambda_fixed); // in: lambda * zn + zero_filled, coil, pattern[, lambda]; out: x(n+1)
 
 	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(5, idims, 1., 1.), 0, nlop_dc, 0); // in: lambda * zn, zero_filled, coil, pattern[, lambda]; out: x(n+1)
 
@@ -284,14 +272,14 @@ static nn_t data_consistency_modl_create(const struct modl_s* config,const long 
 	nlop_scale_lambda = nlop_reshape_in_F(nlop_scale_lambda, 1, 1, MD_SINGLETON_DIMS(1)); // in: zn, lambda; out: lambda * zn
 
 	nlop_dc = nlop_chain2_FF(nlop_scale_lambda, 0, nlop_dc, 0); // in: zero_filled, coil, pattern[, lambda], zn, lambda; out: x(n+1)
-	
+
 	if (-1. == config->lambda_fixed) {
-	
+
 		nlop_dc = nlop_dup_F(nlop_dc, 3, 5);
 		nlop_dc = nlop_shift_input_F(nlop_dc, 0, 4);
 	} else {
 
-		nlop_dc = nlop_shift_input_F(nlop_dc, 0, 3);		
+		nlop_dc = nlop_shift_input_F(nlop_dc, 0, 3);
 	}
 
 	auto result = nn_from_nlop_F(nlop_dc);
@@ -359,7 +347,7 @@ static nn_t nn_modl_cell_create(const struct modl_s* config, const long dims[5],
 static nn_t nn_modl_zf_create(const struct modl_s* config,const long dims[5], const long idims[5], enum NETWORK_STATUS status)
 {
 	UNUSED(status);
-	
+
 	struct config_nlop_mri_s mri_conf = get_modl_mri_conf(config);
 
 	auto nlop_zf = nlop_mri_adjoint_create(5, dims, idims, &mri_conf);
@@ -394,7 +382,7 @@ static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const
 		tmp = nn_mark_stack_output_if_exists_F(tmp, "bn_0");
 		tmp = nn_mark_stack_output_if_exists_F(tmp, "bn_i");
 		tmp = nn_mark_stack_output_if_exists_F(tmp, "bn_n");
-		
+
 		// Dup or Stack other weights
 		for (unsigned int i = 0; i < ARRAY_SIZE(sorted_weight_names); i++)
 			tmp = (config->shared_weights ? nn_mark_dup_if_exists_F : nn_mark_stack_input_if_exists_F)(tmp, sorted_weight_names[i]);
@@ -427,8 +415,8 @@ static nn_t nn_modl_create(const struct modl_s* config,const long dims[5], const
 		if (nn_is_name_in_in_args(result, "zero_filled"))
 			result = nn_dup_F(result, 0, "zero_filled", 0, NULL);
 		else
-			result = nn_set_input_name_F(result, 0, "zero_filled"); 
-	}	
+			result = nn_set_input_name_F(result, 0, "zero_filled");
+	}
 
 	auto nn_zf = nn_modl_zf_create(config, dims, idims, status);
 
@@ -510,7 +498,7 @@ static nn_t create_modl_val_loss(struct modl_s* modl, struct network_data_s* vf)
 static nn_t nn_modl_train_op_create(const struct modl_s* modl, const long dims[5], const long idims[5])
 {
 	auto nn_train = nn_modl_create(modl, dims, idims, STAT_TRAIN);
-	
+
 	if(modl->normalize) {
 
 		long sdims[5];
@@ -585,7 +573,7 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 					nn_generic_domain(nn_train, 0, "kspace")->dims,
 					nn_generic_domain(nn_train, 0, "coil")->dims,
 					nn_generic_domain(nn_train, 0, "pattern")->dims};
-	
+
 	assert(md_check_equal_dims(5, ncdims, train_dims[2], ~0));
 
 	auto batch_generator = batch_gen_create_from_iter(train_conf, 4, 5, train_dims, train_data, Nt, 0);
@@ -649,7 +637,7 @@ void train_nn_modl(	struct modl_s* modl, struct iter6_conf_s* train_conf,
 
 void apply_nn_modl(	struct modl_s* modl,
 			const long idims[5], complex float* out,
-			const long kdims[5], const complex float* kspace, 
+			const long kdims[5], const complex float* kspace,
 			const long cdims[5], const complex float* coil,
 			const long pdims[5], const complex float* pattern)
 {
@@ -688,7 +676,7 @@ void apply_nn_modl(	struct modl_s* modl,
 
 void apply_nn_modl_batchwise(	struct modl_s* modl,
 				const long idims[5], complex float * out,
-				const long kdims[5], const complex float* kspace, 
+				const long kdims[5], const complex float* kspace,
 				const long cdims[5], const complex float* coil,
 				const long pdims[5], const complex float* pattern,
 				long Nb)
