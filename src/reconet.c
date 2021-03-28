@@ -209,18 +209,18 @@ int main_reconet(int argc, char* argv[])
 	
 	if (0 != cg_iter) {
 
-		config.mri_config_dc_init->iter_conf->maxiter = cg_iter;
-		config.mri_config_dc->iter_conf->maxiter = cg_iter;
+		config.dc_max_iter = cg_iter;
+		config.init_max_iter = cg_iter;
 	}
 
 	if (0 < lambda_init) {
 
-		config.mri_config_dc_init->lambda_init = lambda_init;
-		config.mri_config_dc->lambda_init = lambda_init;
+		config.dc_lambda_init = lambda_init;
+		config.init_lambda_init = lambda_init;
 	}
 
 	if (normalize)
-		config.normalize = MD_BIT(4);
+		config.normalize = true;
 
 	if (0 < dump_mod)
 		config.train_conf->dump_mod = dump_mod;

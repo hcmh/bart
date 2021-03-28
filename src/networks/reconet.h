@@ -13,13 +13,20 @@ struct reconet_s {
 	_Bool share_lambda;
 
 	struct config_nlop_mri_s* mri_config;
-	struct config_nlop_mri_dc_s* mri_config_dc;
-	_Bool dc_tickhonov;
-	_Bool dc_gradient;
 
+	//data consistency config
+	float dc_lambda_fixed;
+	float dc_lambda_init;
+	_Bool dc_gradient;
+	_Bool dc_tickhonov;
+	int dc_max_iter;
+
+	//network initialization
+	_Bool normalize;
 	_Bool tickhonov_init;
-	unsigned long normalize;
-	struct config_nlop_mri_dc_s* mri_config_dc_init;
+	int init_max_iter;
+	float init_lambda_fixed;
+	float init_lambda_init;
 
 	struct nn_weights_s* weights;
 	struct iter6_conf_s* train_conf;

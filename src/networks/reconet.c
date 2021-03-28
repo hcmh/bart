@@ -37,6 +37,7 @@
 #include "linops/linop.h"
 #include "linops/someops.h"
 
+#include "iter/iter.h"
 #include "iter/iter6.h"
 #include "iter/monitor_iter6.h"
 #include "iter/batch_gen.h"
@@ -81,13 +82,20 @@ struct reconet_s reconet_init = {
 	.share_lambda = false,
 
 	.mri_config = NULL,
-	.mri_config_dc = NULL,
-	.dc_tickhonov = false,
-	.dc_gradient = false,
 
+	//data consistency config
+	.dc_lambda_fixed = -1.,
+	.dc_lambda_init = -1.,
+	.dc_gradient = false,
+	.dc_tickhonov = false,
+	.dc_max_iter = 10,
+
+	//network initialization
+	.normalize = false,
 	.tickhonov_init = false,
-	.normalize = 0,
-	.mri_config_dc_init = NULL,
+	.init_max_iter = 10,
+	.init_lambda_fixed = -1,
+	.init_lambda_init = -1,
 
 	.weights = NULL,
 	.train_conf = NULL,
@@ -96,22 +104,21 @@ struct reconet_s reconet_init = {
 	.valid_loss = NULL,
 
 	.gpu = false,
-
 	.low_mem = false,
 
-	.graph_file = 0,
+	.graph_file = NULL,
 };
 
 void reconet_init_modl_default(struct reconet_s* reconet)
 {
-	reconet->mri_config = config_nlop_mri_create();
-	
-	reconet->mri_config_dc_init = config_nlop_mri_dc_create();
-	reconet->mri_config_dc = config_nlop_mri_dc_create();
+	reconet->mri_config = &conf_nlop_mri_simple;
+
+	reconet->dc_lambda_init = 0.05,
+	reconet->init_lambda_init = 0.05,
+	reconet->dc_tickhonov = true,
 
 	reconet->share_weights = true;
 	reconet->share_lambda = true;
-	reconet->dc_tickhonov = true;
 
 	PTR_ALLOC(struct iter6_adam_conf, train_conf);
 	*train_conf = iter6_adam_conf_defaults;
@@ -136,11 +143,11 @@ void reconet_init_modl_test_default(struct reconet_s* reconet)
 
 void reconet_init_varnet_default(struct reconet_s* reconet)
 {
-	reconet->mri_config = config_nlop_mri_create();
-	reconet->mri_config_dc_init = config_nlop_mri_dc_create();
-	reconet->mri_config_dc = config_nlop_mri_dc_create();
-	reconet->mri_config_dc->lambda_init = 0.2;
-	reconet->mri_config_dc_init->lambda_fixed = 0.;
+	reconet->mri_config = &conf_nlop_mri_simple;
+
+	reconet->dc_lambda_init = 0.2,
+	reconet->init_lambda_fixed = 0.,
+	reconet->init_lambda_init = 0.,
 
 	reconet->share_weights = false;
 	reconet->share_lambda = false;
@@ -187,13 +194,16 @@ void reconet_init_varnet_test_default(struct reconet_s* reconet)
  *
  * INDEX_0:	idims
  */
-static nn_t data_consistency_tickhonov_create(struct config_nlop_mri_s* mri_conf, struct config_nlop_mri_dc_s* dc_conf, unsigned int N, const long dims[N], const long idims[N])
+static nn_t data_consistency_tickhonov_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N])
 {
+	struct iter_conjgrad_conf iter_conf = iter_conjgrad_defaults;
+	iter_conf.l2lambda = 1.;
+	iter_conf.maxiter = config->dc_max_iter;
 
-	auto nlop_dc = mri_normal_inversion_create(N, dims, idims, mri_conf, dc_conf); // in: lambda * input + adjoint, coil, pattern[, lambda]; out: output
-	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(N, idims, (-1. != dc_conf->lambda_fixed) ?  dc_conf->lambda_fixed : 1., 1.), 0, nlop_dc, 0); // in: lambda * input, adjoint, coil, pattern[, lambda]; out: output
+	auto nlop_dc = mri_normal_inversion_create(N, dims, idims, config->mri_config, &iter_conf, config->dc_lambda_fixed); // in: lambda * input + adjoint, coil, pattern[, lambda]; out: output
+	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(N, idims, (-1. != config->dc_lambda_fixed) ?  config->dc_lambda_fixed : 1., 1.), 0, nlop_dc, 0); // in: lambda * input, adjoint, coil, pattern[, lambda]; out: output
 
-	if (-1. == dc_conf->lambda_fixed) {
+	if (-1. == config->dc_lambda_fixed) {
 
 		const struct nlop_s* nlop_scale_lambda = nlop_tenmul_create(N, idims, idims, MD_SINGLETON_DIMS(N));
 		nlop_scale_lambda = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(5, MD_SINGLETON_DIMS(N))), 0, nlop_scale_lambda, 1);
@@ -211,11 +221,11 @@ static nn_t data_consistency_tickhonov_create(struct config_nlop_mri_s* mri_conf
 	result = nn_set_input_name_F(result, 1, "coil");
 	result = nn_set_input_name_F(result, 1, "pattern");
 
-	if (-1. == dc_conf->lambda_fixed) {
-	
+	if (-1. == config->dc_lambda_fixed) {
+
 		result = nn_set_input_name_F(result, 1, "lambda");
 		result = nn_set_in_type_F(result, 0, "lambda", IN_OPTIMIZE);
-		result = nn_set_initializer_F(result, 0, "lambda", init_const_create(dc_conf->lambda_init));
+		result = nn_set_initializer_F(result, 0, "lambda", init_const_create(config->dc_lambda_init));
 
 		auto iov = nn_generic_domain(result, 0, "lambda");
 		auto prox_conv = operator_project_pos_real_create(iov->N, iov->dims);
@@ -244,14 +254,14 @@ static nn_t data_consistency_tickhonov_create(struct config_nlop_mri_s* mri_conf
  *
  * INDEX_0	idims
  */
-static nn_t data_consistency_gradientstep_create(struct config_nlop_mri_s* mri_conf, struct config_nlop_mri_dc_s* dc_conf, unsigned int N, const long dims[N], const long idims[N])
+static nn_t data_consistency_gradientstep_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N])
 {
-	const struct nlop_s* nlop_result = nlop_mri_normal_create(N, dims, idims, mri_conf);
+	const struct nlop_s* nlop_result = nlop_mri_normal_create(N, dims, idims, config->mri_config);
 	nlop_result = nlop_chain2(nlop_result, 0, nlop_zaxpbz_create(N, idims, 1, -1.), 0);
 
-	if (-1. != dc_conf->lambda_fixed) {
+	if (-1. != config->dc_lambda_fixed) {
 
-		nlop_result = nlop_chain2_FF(nlop_result, 0, nlop_from_linop_F(linop_scale_create(N, idims, dc_conf->lambda_fixed)), 0);
+		nlop_result = nlop_chain2_FF(nlop_result, 0, nlop_from_linop_F(linop_scale_create(N, idims, config->dc_lambda_fixed)), 0);
 	} else {
 
 		const struct nlop_s* nlop_scale = nlop_tenmul_create(N, idims, idims, MD_SINGLETON_DIMS(N));
@@ -265,10 +275,10 @@ static nn_t data_consistency_gradientstep_create(struct config_nlop_mri_s* mri_c
 	result = nn_set_input_name_F(result, 1, "coil");
 	result = nn_set_input_name_F(result, 1, "pattern");
 
-	if (-1. == dc_conf->lambda_fixed) {
+	if (-1. == config->dc_lambda_fixed) {
 
 		result = nn_set_input_name_F(result, 1, "lambda");
-		result = nn_set_initializer_F(result, 0, "lambda", init_const_create(dc_conf->lambda_init));
+		result = nn_set_initializer_F(result, 0, "lambda", init_const_create(config->dc_lambda_init));
 		result = nn_set_in_type_F(result, 0, "lambda", IN_OPTIMIZE);
 
 		auto iov = nn_generic_domain(result, 0, "lambda");
@@ -287,7 +297,7 @@ static nn_t data_consistency_gradientstep_create(struct config_nlop_mri_s* mri_c
  * [and normalization scale]
  *
  * @param mri_init
- * @param N 
+ * @param N
  * @param dims
  * @param idims
  *
@@ -311,23 +321,27 @@ static nn_t nn_init_create(const struct reconet_s* config, unsigned int N, const
 	result = nn_set_input_name_F(result, 0, "pattern");
 
 	// normalization based on tickhonov regularized input only makes sense if lambda is fixed
-	if (config->normalize && !(config->tickhonov_init && (-1 != config->mri_config_dc_init->lambda_fixed))) {
+	if (config->normalize && !(config->tickhonov_init && (-1 != config->init_lambda_fixed))) {
 
-		auto nn_normalize = nn_from_nlop_F(nlop_norm_max_abs_create(N, idims, config->normalize));
+		auto nn_normalize = nn_from_nlop_F(nlop_norm_max_abs_create(N, idims, config->mri_config->batch_flags));
 		nn_normalize = nn_set_output_name_F(nn_normalize, 1, "scale");
 		result = nn_chain2_FF(result, 0, NULL, nn_normalize, 0, NULL);
 	}
 
 	if (config->tickhonov_init) {
 
-		auto nlop_dc = mri_normal_inversion_create(N, dims, idims, config->mri_config, config->mri_config_dc_init);
+		struct iter_conjgrad_conf iter_conf = iter_conjgrad_defaults;
+		iter_conf.l2lambda = 1.;
+		iter_conf.maxiter = config->init_max_iter;
 
-		if (config->normalize && (-1 != config->mri_config_dc_init->lambda_fixed)) {
+		auto nlop_dc = mri_normal_inversion_create(N, dims, idims, config->mri_config, &iter_conf, config->init_lambda_fixed);
+
+		if (config->normalize && (-1 != config->init_lambda_fixed)) {
 
 			long sdims[N];
-			md_select_dims(5, config->normalize, sdims, idims);
+			md_select_dims(5, config->mri_config->batch_flags, sdims, idims);
 
-			nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_norm_max_abs_create(N, idims, config->normalize), 0);
+			nlop_dc = nlop_chain2_FF(nlop_dc, 0, nlop_norm_max_abs_create(N, idims, config->mri_config->batch_flags), 0);
 
 			const struct nlop_s* scale = nlop_tenmul_create(N, idims, idims, sdims);
 			scale = nlop_chain2_FF(nlop_zinv_create(N, sdims), 0, scale, 1);
@@ -349,19 +363,27 @@ static nn_t nn_init_create(const struct reconet_s* config, unsigned int N, const
 		nn_dc = nn_mark_dup_F(nn_dc, "coil");
 		nn_dc = nn_mark_dup_F(nn_dc, "pattern");
 
-		if (-1 == config->mri_config_dc_init->lambda_fixed) {
+		if (-1 == config->init_lambda_fixed) {
 
-			nn_dc = nn_set_input_name_F(nn_dc, 1, "lambda");
-			nn_dc = nn_set_in_type_F(nn_dc, 0, "lambda", IN_OPTIMIZE);
+			bool same_lambda = config->dc_tickhonov;
+			same_lambda = same_lambda && (config->dc_lambda_init == config->init_lambda_init);
+			same_lambda = same_lambda && (config->dc_lambda_fixed == config->init_lambda_fixed);
+			same_lambda = same_lambda && (config->dc_max_iter == config->init_max_iter);
 
-			auto iov = nn_generic_domain(nn_dc, 0, "lambda");
+			const char* name = (same_lambda && config->share_lambda) ? "lambda" : "lambda_init";
+
+			nn_dc = nn_set_input_name_F(nn_dc, 1, name);
+			nn_dc = nn_set_in_type_F(nn_dc, 0, name, IN_OPTIMIZE);
+			nn_dc = nn_set_initializer_F(nn_dc, 0, name, init_const_create(config->dc_lambda_init));
+
+			auto iov = nn_generic_domain(nn_dc, 0, name);
 			auto prox_conv = operator_project_pos_real_create(iov->N, iov->dims);
-			nn_dc = nn_set_prox_op_F(nn_dc, 0, "lambda", prox_conv);
+			nn_dc = nn_set_prox_op_F(nn_dc, 0, name, prox_conv);
 		}
 
-		if (config->normalize && (-1 != config->mri_config_dc_init->lambda_fixed))
+		if (config->normalize && (-1 != config->init_lambda_fixed))
 			nn_dc = nn_set_output_name_F(nn_dc, 2, "scale");
-		
+
 		nn_dc = nn_set_output_name_F(nn_dc, 0, "adjoint");
 
 		result = nn_chain2_FF(result, 0, NULL, nn_dc, 0, NULL);
@@ -420,7 +442,7 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 
 
 
-	
+
 	unsigned int N_in_names = nn_get_nr_named_in_args(result);
 	unsigned int N_out_names = nn_get_nr_named_out_args(result);
 
@@ -468,30 +490,31 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 static nn_t reconet_cell_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N], enum NETWORK_STATUS status)
 {
 	auto result = network_block_create(config, N, idims, status);
-	
+
 	unsigned int N_in_names = nn_get_nr_named_in_args(result);
 	unsigned int N_out_names = nn_get_nr_named_out_args(result);
 
-	const char* sorted_in_names[5 + N_in_names];
+	const char* sorted_in_names[6 + N_in_names];
 	const char* sorted_out_names[N_out_names];
-	
+
 	sorted_in_names[0] = "kspace";
 	sorted_in_names[1] = "adjoint";
 	sorted_in_names[2] = "coils";
 	sorted_in_names[3] = "pattern";
-	sorted_in_names[4] = "lambda";
-	nn_get_in_names_copy(N_in_names, sorted_in_names + 5, result);
+	sorted_in_names[4] = "lambda_init";
+	sorted_in_names[5] = "lambda";
+	nn_get_in_names_copy(N_in_names, sorted_in_names + 6, result);
 	nn_get_out_names_copy(N_out_names, sorted_out_names, result);
 
 	if (config->dc_tickhonov) {
 
-		auto dc = data_consistency_tickhonov_create(config->mri_config, config->mri_config_dc, N, dims, idims);
+		auto dc = data_consistency_tickhonov_create(config, N, dims, idims);
 		result = nn_chain2_FF(result, 0, NULL, dc, 0, NULL);
 	}
 
 	if (config->dc_gradient) {
 
-		auto dc = data_consistency_gradientstep_create(config->mri_config, config->mri_config_dc, N, dims, idims);
+		auto dc = data_consistency_gradientstep_create(config, N, dims, idims);
 		result = nn_combine_FF(dc, result);
 		result = nn_dup_F(result, 0, NULL, 1, NULL);
 		result = nn_combine_FF(nn_from_nlop_F(nlop_zaxpbz_create(N, idims, -1., 1)),result);
@@ -499,10 +522,10 @@ static nn_t reconet_cell_create(const struct reconet_s* config, unsigned int N, 
 		result = nn_link_F(result, 1, NULL, 0, NULL);
 	}
 
-	result = nn_sort_inputs_by_list_F(result, N_in_names + 5, sorted_in_names);
+	result = nn_sort_inputs_by_list_F(result, N_in_names + 6, sorted_in_names);
 	result = nn_sort_outputs_by_list_F(result, N_out_names, sorted_out_names);
 
-	for (unsigned int i = 5; i < N_in_names + 5; i++)
+	for (unsigned int i = 6; i < N_in_names + 6; i++)
 		xfree(sorted_in_names[i]);
 	for (unsigned int i = 0; i < N_out_names; i++)
 		xfree(sorted_out_names[i]);
@@ -520,7 +543,7 @@ static nn_t reconet_iterations_create(const struct reconet_s* config, unsigned i
 
 	const char* in_names[N_in_names];
 	const char* out_names[N_out_names];
-	
+
 	nn_get_in_names_copy(N_in_names, in_names, result);
 	nn_get_out_names_copy(N_out_names, out_names, result);
 
@@ -547,7 +570,7 @@ static nn_t reconet_iterations_create(const struct reconet_s* config, unsigned i
 			}
 		}
 
-		for (unsigned int i = 0; i < N_out_names; i++)	
+		for (unsigned int i = 0; i < N_out_names; i++)
 			tmp = nn_mark_stack_output_if_exists_F(tmp, out_names[i]);
 
 		result = nn_chain2_FF(result, 0, NULL, tmp, 0, NULL);
@@ -571,9 +594,9 @@ static nn_t reconet_iterations_create(const struct reconet_s* config, unsigned i
 static nn_t reconet_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N], enum NETWORK_STATUS status)
 {
 	auto network = reconet_iterations_create(config, N, dims, idims, status);
-	
+
 	unsigned int N_in_names = nn_get_nr_named_in_args(network);
-	const char* in_names[N_in_names + 5];
+	const char* in_names[N_in_names + 6];
 
 	unsigned int N_extra_in_names = 0;
 	if (!nn_is_name_in_in_args(network, "kspace"))
@@ -584,18 +607,21 @@ static nn_t reconet_create(const struct reconet_s* config, unsigned int N, const
 		in_names[N_extra_in_names++] = "coil";
 	if (!nn_is_name_in_in_args(network, "pattern"))
 		in_names[N_extra_in_names++] = "pattern";
+	if (!nn_is_name_in_in_args(network, "lambda_init"))
+		in_names[N_extra_in_names++] = "lambda_init";
 	if (!nn_is_name_in_in_args(network, "lambda"))
 		in_names[N_extra_in_names++] = "lambda";
-	
+
 	nn_get_in_names_copy(N_in_names, in_names + N_extra_in_names, network);
 
 	network = nn_mark_dup_if_exists_F(network, "coil");
 	network = nn_mark_dup_if_exists_F(network, "pattern");
+	network = nn_mark_dup_if_exists_F(network, "lambda_init");
 
 	auto init = nn_init_create(config, N, dims, idims);
 	if (nn_is_name_in_in_args(init, "lambda"))
 		network = ((config->share_lambda) ? nn_mark_dup_if_exists_F : nn_mark_stack_input_if_exists_F)(network, "lambda");
-	
+
 	nn_t result = NULL;
 
 	if (nn_is_name_in_out_args(init, "adjoint")) {
@@ -617,7 +643,7 @@ static nn_t reconet_create(const struct reconet_s* config, unsigned int N, const
 	return result;
 }
 
-static nn_t reconet_loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N], const long idims[N]) 
+static nn_t reconet_loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N], const long idims[N])
 {
 	UNUSED(dims);
 	return loss_create(config, N, idims);
@@ -626,12 +652,12 @@ static nn_t reconet_loss_create(const struct loss_config_s* config, unsigned int
 static nn_t reconet_train_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N], bool valid)
 {
 	auto train_op = reconet_create(config, N, dims, idims, STAT_TRAIN);
-	auto loss = reconet_loss_create(valid ? config->valid_loss : config->train_loss, N, dims, idims); 
-	
+	auto loss = reconet_loss_create(valid ? config->valid_loss : config->train_loss, N, dims, idims);
+
 	if(config->normalize) {
 
 		long sdims[N];
-		md_select_dims(N, config->normalize, sdims, dims);
+		md_select_dims(N, config->mri_config->batch_flags, sdims, dims);
 
 		auto nn_norm_ref = nn_from_nlop_F(nlop_chain2_FF(nlop_zinv_create(N, sdims), 0, nlop_tenmul_create(N, idims, idims, sdims), 1));
 
@@ -653,7 +679,7 @@ static nn_t reconet_train_create(const struct reconet_s* config, unsigned int N,
 static nn_t reconet_valid_create(const struct reconet_s* config, unsigned int N, struct network_data_s* vf)
 {
 	load_network_data(vf);
-	
+
 	auto valid_loss = reconet_train_create(config, N, vf->kdims, vf->idims, true);
 
 	valid_loss = nn_ignore_input_F(valid_loss, 0, NULL, N, vf->idims, true, vf->out);
@@ -674,7 +700,7 @@ static nn_t reconet_apply_op_create(const struct reconet_s* config, unsigned int
 	if(config->normalize) {
 
 		long sdims[N];
-		md_select_dims(N, config->normalize, sdims, dims);
+		md_select_dims(N, config->mri_config->batch_flags, sdims, dims);
 		auto nn_norm_ref = nn_from_nlop_F(nlop_tenmul_create(N, idims, idims, sdims));
 
 		nn_apply = nn_chain2_FF(nn_apply, 0, NULL, nn_norm_ref, 0, NULL);
@@ -740,7 +766,7 @@ void train_reconet(	struct reconet_s* config, unsigned int N,
 					nn_generic_domain(nn_train, 0, "kspace")->dims,
 					nn_generic_domain(nn_train, 0, "coil")->dims,
 					nn_generic_domain(nn_train, 0, "pattern")->dims};
-	
+
 	assert(md_check_equal_dims(N, ncdims, train_dims[2], ~0));
 
 	auto batch_generator = batch_gen_create_from_iter(config->train_conf, 4, N, train_dims, train_data, Nt, 0);
@@ -800,11 +826,11 @@ void train_reconet(	struct reconet_s* config, unsigned int N,
 
 		for (int i = 0; i < num_lambda; i++)
 			lams[i] = lam;
-		
+
 		auto destack_lambda = nlop_from_linop_F(linop_identity_create(2, MD_DIMS(1, num_lambda)));
 		for (int i = num_lambda - 1; 0 < i; i--)
 			destack_lambda = nlop_chain2_FF(destack_lambda, 0, nlop_destack_create(2, MD_DIMS(1, i), MD_DIMS(1, 1), MD_DIMS(1, i + 1), 1), 0);
-		
+
 		for(int i = 0; i < index_lambda; i++)
 			destack_lambda = nlop_combine_FF(nlop_del_out_create(1, MD_DIMS(1)), destack_lambda);
 		for(int i = index_lambda + 1; i < NI; i++)
@@ -927,7 +953,7 @@ void eval_reconet(	const struct reconet_s* config, unsigned int N,
 {
 	complex float* tmp_out = md_alloc(N, idims, CFL_SIZE);
 
-	auto loss = loss_create(config->valid_loss, N, idims); 
+	auto loss = loss_create(config->valid_loss, N, idims);
 	unsigned int NL = nn_get_nr_out_args(loss);
 	complex float losses[NL];
 	md_clear(1, MD_DIMS(NL), losses, CFL_SIZE);
@@ -937,7 +963,7 @@ void eval_reconet(	const struct reconet_s* config, unsigned int N,
 	complex float* args[NL + 2];
 	for (unsigned int i = 0; i < NL; i++)
 		args[i] = losses + i;
-	
+
 	args[NL] = tmp_out;
 	args[NL + 1] = (complex float*)out;
 
