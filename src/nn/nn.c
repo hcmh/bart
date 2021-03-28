@@ -143,15 +143,10 @@ void nn_clone_arg_i_from_i(nn_t nn1, uint i1, nn_t nn2, uint i2)
 	if (NULL != nn1->in_names[i1])
 		xfree(nn1->in_names[i1]);
 
-	if (NULL != nn2->in_names[i2]) {
-
-		PTR_ALLOC(char[strlen(nn2->in_names[i2]) + 1], name);
-		strcpy(*name, nn2->in_names[i2]);
-		nn1->in_names[i1] = *PTR_PASS(name);
-	} else {
-
+	if (NULL != nn2->in_names[i2])
+		nn1->in_names[i1] = strdup(nn2->in_names[i2]);
+	else
 		nn1->in_names[i1] = NULL;
-	}
 
 	initializer_free(nn1->initializers[i1]);
 	nn1->initializers[i1] = initializer_clone(nn2->initializers[i2]);
@@ -168,15 +163,10 @@ void nn_clone_arg_o_from_o(nn_t nn1, uint o1, nn_t nn2, uint o2)
 	if (NULL != nn1->out_names[o1])
 		xfree(nn1->out_names[o1]);
 
-	if (NULL != nn2->out_names[o2]) {
-
-		PTR_ALLOC(char[strlen(nn2->out_names[o2]) + 1], name);
-		strcpy(*name, nn2->out_names[o2]);
-		nn1->out_names[o1] = *PTR_PASS(name);
-	} else {
-
+	if (NULL != nn2->out_names[o2])
+		nn1->out_names[o1] = strdup(nn2->out_names[o2]);
+	else
 		nn1->out_names[o1] = NULL;
-	}
 
 	nn1->out_types[o1] = nn2->out_types[o2];
 }
@@ -307,16 +297,20 @@ int nn_get_in_arg_index(nn_t op, int i, const char* iname)
 }
 
 
-const char* nn_get_in_name_from_arg_index(nn_t op, int i)
+const char* nn_get_in_name_from_arg_index(nn_t op, int i, bool clone)
 {
 	assert(i < nlop_get_nr_in_args(op->nlop));
-	return op->in_names[i];
+	if (NULL == op->in_names[i])
+		return NULL;
+	return clone ? strdup(op->in_names[i]) : op->in_names[i];
 }
 
-const char* nn_get_out_name_from_arg_index(nn_t op, int o)
+const char* nn_get_out_name_from_arg_index(nn_t op, int o, bool clone)
 {
 	assert(o < nlop_get_nr_out_args(op->nlop));
-	return op->out_names[o];
+	if (NULL == op->out_names[o])
+		return NULL;
+	return clone ? strdup(op->out_names[o]) : op->out_names[o];
 }
 
 int nn_get_in_index_from_arg_index(nn_t op, int i)
@@ -568,7 +562,7 @@ const struct operator_p_s* nn_get_prox_op(nn_t op, int i, const char* iname)
 	return nn_get_prox_op_arg_index(op, i);
 
 }
-const struct operator_p_s* nn_get_prox_op_arg_index(nn_t op, int i) 
+const struct operator_p_s* nn_get_prox_op_arg_index(nn_t op, int i)
 {
 	return op->prox_ops[i];
 }
@@ -773,12 +767,12 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 			const char* tmp = ptr_print_dims(iov->N, iov->dims);
 			const char* str_dims = ptr_printf("\\n%s", tmp);
 			xfree(tmp);
-		
+
 			if (NULL != op->in_names[index])
 				fprintf(fp, "Input_%d [shape = diamond, label = \"%s%s\"];\n", i, op->in_names[index], str_dims);
 			else
 				fprintf(fp, "Input_%d [shape = diamond, label = \"Input_%d%s\"];\n", i, i, str_dims);
-			
+
 			xfree(str_dims);
 		}
 
@@ -799,7 +793,7 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 				fprintf(fp, "Output_%d [shape = diamond, label = \"%s%s\"];\n", i, op->out_names[i], str_dims);
 			else
 				fprintf(fp, "Output_%d [shape = diamond, label = \"Output_%d%s\"];\n", i, i, str_dims);
-			
+
 			xfree(str_dims);
 		}
 		fprintf(fp, "edge[ style=invis];\nOutput_0");
@@ -819,7 +813,7 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 
 			while (!((IN_OPTIMIZE == op->in_types[index]) || (IN_BATCHNORM == op->in_types[index])))
 				index++;
-			
+
 			auto iov = nlop_generic_domain(nn_get_nlop(op), index);
 			const char* tmp = ptr_print_dims(iov->N, iov->dims);
 			const char* str_dims = ptr_printf("\\n%s", tmp);
@@ -829,7 +823,7 @@ void nn_export_graph(const char* filename, nn_t op, graph_t opts)
 				fprintf(fp, "Weight_%d [shape = diamond, label = \"%s%s\"];\n", i, op->in_names[index], str_dims);
 			else
 				fprintf(fp, "Weight_%d [shape = diamond, label = \"Weight_%d%s\"];\n", i, i, str_dims);
-			
+
 			xfree(str_dims);
 		}
 		fprintf(fp, "edge[ style=invis];\nWeight_0");

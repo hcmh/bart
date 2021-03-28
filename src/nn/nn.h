@@ -83,8 +83,8 @@ extern _Bool nn_is_num_out_index(nn_t op, unsigned int o);
 extern void nn_get_in_args_names(nn_t op, int nII, const char* inames[nII]);
 extern void nn_get_out_args_names(nn_t op, int nOO, const char* onames[nOO]);
 
-extern const char* nn_get_in_name_from_arg_index(nn_t op, int i);
-extern const char* nn_get_out_name_from_arg_index(nn_t op, int o);
+extern const char* nn_get_in_name_from_arg_index(nn_t op, int i, _Bool clone);
+extern const char* nn_get_out_name_from_arg_index(nn_t op, int o, _Bool clone);
 
 extern int nn_get_in_index_from_arg_index(nn_t op, int i);
 extern int nn_get_out_index_from_arg_index(nn_t op, int o);

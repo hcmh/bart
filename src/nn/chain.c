@@ -63,7 +63,7 @@ nn_t nn_reshape_in(nn_t op, int i, const char* iname, int N, const long idims[N]
 		nn_clone_arg_o_from_o(result, i, op, i);
 
 	auto iov = nlop_generic_domain(op->nlop, i);
-	
+
 	auto init_tmp = init_reshape_create(iov->N, iov->dims, result->initializers[i]);
 	initializer_free(result->initializers[i]);
 	result->initializers[i] = init_tmp;
@@ -1005,7 +1005,7 @@ nn_t nn_sort_inputs_by_list_F(nn_t x, unsigned int N, const char* sorted_names[N
 
 	for (uint i = 0; i < II; i++){
 
-		if (is_name_in_list(N, sorted_names, nn_get_in_name_from_arg_index(x, i))) {
+		if (is_name_in_list(N, sorted_names, nn_get_in_name_from_arg_index(x, i, false))) {
 
 			while (! nn_is_name_in_in_args(x, sorted_names[index]))
 				index++;
@@ -1041,7 +1041,7 @@ nn_t nn_sort_outputs_by_list_F(nn_t x, unsigned int N, const char* sorted_names[
 
 	for (uint i = 0; i < OO; i++){
 
-		if (is_name_in_list(N, sorted_names, nn_get_out_name_from_arg_index(x, i))) {
+		if (is_name_in_list(N, sorted_names, nn_get_out_name_from_arg_index(x, i, false))) {
 
 			while (! nn_is_name_in_out_args(x, sorted_names[index]))
 				index++;

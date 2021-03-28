@@ -91,7 +91,7 @@ nn_t nn_del_out_bn_F(nn_t op)
 	auto result = op;
 	for (int o = nn_get_nr_out_args(op) - 1; o >= 0; o--)
 		if (OUT_BATCHNORM == result->out_types[o])
-			result = nn_del_out_F(result, nn_get_out_index_from_arg_index(result, o), nn_get_out_name_from_arg_index(result, o));
+			result = nn_del_out_F(result, nn_get_out_index_from_arg_index(result, o), nn_get_out_name_from_arg_index(result, o, false));
 
 	return result;
 }
