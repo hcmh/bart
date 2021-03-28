@@ -1,8 +1,25 @@
 #ifndef ITER6_H
 #define ITER6_H
-#include "italgos.h"
+
+#include "misc/opts.h"
+#include "iter/italgos.h"
 #include "iter/iter_dump.h"
-#include "batch_gen.h"
+#include "iter/batch_gen.h"
+
+extern struct opt_s iter6_opts[];
+extern struct opt_s iter6_sgd_opts[];
+extern struct opt_s iter6_adadelta_opts[];
+extern struct opt_s iter6_adam_opts[];
+extern struct opt_s iter6_ipalm_opts[];
+
+extern const int N_iter6_opts;
+extern const int N_iter6_sgd_opts;
+extern const int N_iter6_adadelta_opts;
+extern const int N_iter6_adam_opts;
+extern const int N_iter6_ipalm_opts;
+
+extern void iter6_copy_config_from_opts(struct iter6_conf_s* result);
+extern struct iter6_conf_s* iter6_get_conf_from_opts(void);
 
 struct iter_dump_s;
 typedef struct iter6_conf_s {
@@ -28,6 +45,8 @@ typedef struct iter6_conf_s {
 	int batch_seed;
 
 } iter6_conf;
+
+extern struct iter6_conf_s iter6_conf_opts;
 
 struct iter_op_s;
 
@@ -88,13 +107,14 @@ struct iter_nlop_s;
 struct nlop_s;
 struct operator_p_s;
 typedef void iter6_f(iter6_conf* _conf, const struct nlop_s* nlop, long NI, enum IN_TYPE in_type[NI], const struct operator_p_s* prox_ops[NI], float* dst[NI], long NO, enum OUT_TYPE out_type[NO], int batchsize, int numbatches, const struct nlop_s* nlop_batch_gen, struct monitor_iter6_s* monitor);
-iter6_f iter6_adadelta;
-iter6_f iter6_adam;
-iter6_f iter6_sgd;
-iter6_f iter6_sgd_like;
 
-iter6_f iter6_iPALM;
+extern iter6_f iter6_adadelta;
+extern iter6_f iter6_adam;
+extern iter6_f iter6_sgd;
+extern iter6_f iter6_sgd_like;
 
-iter6_f iter6_by_conf;
+extern iter6_f iter6_iPALM;
+
+extern iter6_f iter6_by_conf;
 
 #endif
