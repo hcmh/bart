@@ -1,3 +1,4 @@
+#include "misc/opts.h"
 
 struct loss_config_s {
 
@@ -15,6 +16,18 @@ struct loss_config_s {
 
 	unsigned int label_index;
 };
+
+
+extern struct loss_config_s loss_option;
+extern struct loss_config_s val_loss_option;
+
+extern struct opt_s loss_opts[];
+extern struct opt_s val_loss_opts[];
+
+extern const int N_loss_opts;
+extern const int N_val_loss_opts;
+
+extern _Bool loss_option_changed(struct loss_config_s* loss_option);
 
 extern struct loss_config_s loss_empty;
 

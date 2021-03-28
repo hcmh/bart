@@ -1,5 +1,6 @@
 
 #include "misc/misc.h"
+#include "misc/opts.h"
 #include "misc/mri.h"
 
 #include "num/multind.h"
@@ -20,6 +21,111 @@
 #include "nn/chain.h"
 
 #include "networks/losses.h"
+
+struct loss_config_s loss_option = {
+
+	.weighting_mse_sa = 0.,
+	.weighting_mse = 0.,
+	.weighting_psnr = 0.,
+	.weighting_ssim = 0.,
+
+	.weighting_cce = 0.,
+	.weighting_accuracy = 0.,
+
+	.weighting_dice0 = 0.,
+	.weighting_dice1 = 0.,
+	.weighting_dice2 = 0.,
+
+	.label_index = 0,
+};
+
+bool loss_option_changed(struct loss_config_s* loss_option)
+{
+	if (0 != loss_option->weighting_mse_sa)
+		return true;
+	if (0 != loss_option->weighting_mse)
+		return true;
+	if (0 != loss_option->weighting_psnr)
+		return true;
+	if (0 != loss_option->weighting_ssim)
+		return true;
+
+	if (0 != loss_option->weighting_cce)
+		return true;
+	if (0 != loss_option->weighting_accuracy)
+		return true;
+
+	if (0 != loss_option->weighting_dice0)
+		return true;
+	if (0 != loss_option->weighting_dice1)
+		return true;
+	if (0 != loss_option->weighting_dice2)
+		return true;
+
+	return false;
+}
+
+struct opt_s loss_opts[] = {
+
+	OPTL_FLOAT(0, "mse", &(loss_option.weighting_mse), "weighting", "weighting for mean squared error"),
+	OPTL_FLOAT(0, "mse_sa", &(loss_option.weighting_mse_sa), "weighting", "weighting for smoothed mean squared error of magnitude"),
+	//OPTL_FLOAT(0, "psnr", &(loss_option.weighting_psnr), "weighting", "weighting for peak signal to noise ratio (no training)"),
+	//OPTL_FLOAT(0, "ssim", &(loss_option.weighting_ssim), "weighting", "weighting for structural similarity index measure (no training)"),
+
+	OPTL_FLOAT(0, "cce", &(loss_option.weighting_cce), "weighting", "weighting for categorical cross entropy"),
+	//OPTL_FLOAT(0, "acc", &(loss_option.weighting_accuracy), "weighting", "weighting for accuracy (no training)"),
+
+	OPTL_FLOAT(0, "dice0", &(loss_option.weighting_dice0), "weighting", "weighting for unbalanced dice loss"),
+	OPTL_FLOAT(0, "dice1", &(loss_option.weighting_dice1), "weighting", "weighting for dice loss weighted with inverse frequency of label"),
+	OPTL_FLOAT(0, "dice2", &(loss_option.weighting_dice2), "weighting", "weighting for dice loss weighted with inverse square frequency of label"),
+
+	//OPTL_FLOAT(0, "dicel", &(loss_option.weighting_dice2), "weighting", "weighting for per lable dice loss"),
+
+	OPTL_UINT(0, "label_dim", &(loss_option.label_index), "index", "label dimension"),
+};
+
+const int N_loss_opts = ARRAY_SIZE(loss_opts);
+
+
+struct loss_config_s val_loss_option = {
+
+	.weighting_mse_sa = 0.,
+	.weighting_mse = 0.,
+	.weighting_psnr = 0.,
+	.weighting_ssim = 0.,
+
+	.weighting_cce = 0.,
+	.weighting_accuracy = 0.,
+
+	.weighting_dice0 = 0.,
+	.weighting_dice1 = 0.,
+	.weighting_dice2 = 0.,
+
+	.label_index = 0,
+};
+
+
+struct opt_s val_loss_opts[] = {
+
+	OPTL_FLOAT(0, "mse", &(val_loss_option.weighting_mse), "weighting", "weighting for mean squared error"),
+	OPTL_FLOAT(0, "mse_sa", &(val_loss_option.weighting_mse_sa), "weighting", "weighting for smoothed mean squared error of magnitude"),
+	OPTL_FLOAT(0, "psnr", &(val_loss_option.weighting_psnr), "weighting", "weighting for peak signal to noise ratio (no training)"),
+	OPTL_FLOAT(0, "ssim", &(val_loss_option.weighting_ssim), "weighting", "weighting for structural similarity index measure (no training)"),
+
+	OPTL_FLOAT(0, "cce", &(val_loss_option.weighting_cce), "weighting", "weighting for categorical cross entropy"),
+	OPTL_FLOAT(0, "acc", &(val_loss_option.weighting_accuracy), "weighting", "weighting for accuracy (no training)"),
+
+	OPTL_FLOAT(0, "dice0", &(val_loss_option.weighting_dice0), "weighting", "weighting for unbalanced dice loss"),
+	OPTL_FLOAT(0, "dice1", &(val_loss_option.weighting_dice1), "weighting", "weighting for dice loss weighted with inverse frequency of label"),
+	OPTL_FLOAT(0, "dice2", &(val_loss_option.weighting_dice2), "weighting", "weighting for dice loss weighted with inverse square frequency of label"),
+
+	OPTL_FLOAT(0, "dicel", &(val_loss_option.weighting_dice2), "weighting", "weighting for per lable dice loss"),
+
+	OPTL_UINT(0, "label_dim", &(val_loss_option.label_index), "index", "label dimension"),
+};
+
+const int N_val_loss_opts = ARRAY_SIZE(val_loss_opts);
+
 
 struct loss_config_s loss_empty = {
 
