@@ -67,6 +67,7 @@ int main_reconet(int argc, char* argv[])
 
 	bool varnet_default = false;
 	bool modl_default = false;
+	bool unet_default = false;
 
 	bool test_defaults = false;
 
@@ -104,6 +105,7 @@ int main_reconet(int argc, char* argv[])
 
 		OPTL_SET(0, "modl", &(modl_default), "use MoDL Network (also sets train and data-consistency default values)"),
 		OPTL_SET(0, "varnet", &(varnet_default), "use Variational Network (also sets train and data-consistency default values)"),
+		OPTL_SET(0, "unet", &(unet_default), "use U-Net (also sets train and data-consistency default values)"),
 
 		OPTL_SELECT(0, "residual-block", enum NETWORK_SELECT, &net, NETWORK_RESBLOCK, "use residual block"),
 		OPTL_SELECT(0, "variational-block", enum NETWORK_SELECT, &net, NETWORK_VARNET, "use variational block"),
@@ -172,6 +174,8 @@ int main_reconet(int argc, char* argv[])
 			reconet_init_modl_test_default(&config);
 		if (varnet_default)
 			reconet_init_varnet_test_default(&config);
+		if (unet_default)
+			reconet_init_unet_test_default(&config);
 
 	} else {
 
@@ -179,6 +183,8 @@ int main_reconet(int argc, char* argv[])
 			reconet_init_modl_default(&config);
 		if (varnet_default)
 			reconet_init_varnet_default(&config);
+		if (unet_default)
+			reconet_init_unet_default(&config);
 	}
 
 	iter6_copy_config_from_opts(config.train_conf);

@@ -52,9 +52,11 @@ struct network_data_s;
 
 extern void reconet_init_modl_default(struct reconet_s* reconet);
 extern void reconet_init_varnet_default(struct reconet_s* reconet);
+extern void reconet_init_unet_default(struct reconet_s* reconet);
 
 extern void reconet_init_modl_test_default(struct reconet_s* reconet);
 extern void reconet_init_varnet_test_default(struct reconet_s* reconet);
+extern void reconet_init_unet_test_default(struct reconet_s* reconet);
 
 extern void apply_reconet(	const struct reconet_s* reconet, unsigned int N,
 				const long idims[N], _Complex float* out,

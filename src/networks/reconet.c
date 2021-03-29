@@ -14,7 +14,6 @@
 #include "misc/mmio.h"
 #include "misc/types.h"
 
-#include "networks/cnn.h"
 #include "nn/const.h"
 #include "nn/losses_nn.h"
 #include "nn/weights.h"
@@ -67,6 +66,8 @@
 
 #include "networks/misc.h"
 #include "networks/losses.h"
+#include "networks/cnn.h"
+#include "networks/unet.h"
 
 #include "reconet.h"
 
@@ -197,6 +198,23 @@ void reconet_init_varnet_test_default(struct reconet_s* reconet)
 	CAST_DOWN(network_varnet_s, reconet->network)->Kx = 3;
 	CAST_DOWN(network_varnet_s, reconet->network)->Ky = 3;
 	CAST_DOWN(network_varnet_s, reconet->network)->Nw = 5;
+}
+
+void reconet_init_unet_default(struct reconet_s* reconet)
+{
+	if (NULL == reconet->network)
+		reconet->network = CAST_UP(&network_unet_default_reco);
+
+	reconet_init_modl_default(reconet);
+}
+
+void reconet_init_unet_test_default(struct reconet_s* reconet)
+{
+	reconet_init_unet_default(reconet);
+
+	reconet->Nt = 2;
+	CAST_DOWN(network_unet_s, reconet->network)->Nf = 4;
+	CAST_DOWN(network_unet_s, reconet->network)->N_level = 2;
 }
 
 /**
