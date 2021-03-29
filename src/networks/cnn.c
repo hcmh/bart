@@ -101,8 +101,8 @@ struct opt_s res_block_opts[] = {
 	OPTL_LONG('F', "filters", &(network_resnet_default.Nf), "int", "number of filters in residual block (default: 32)"),
 
 	OPTL_LONG('X', "filter-size-x", &(network_resnet_default.Kx), "int", "filter sze in x-dimension (default: 3)"),
-	OPTL_LONG('Y', "filter-size-y", &(network_resnet_default.Kx), "int", "filter sze in y-dimension (default: 3)"),
-	OPTL_LONG('Z', "filter-size-z", &(network_resnet_default.Kx), "int", "filter sze in z-dimension (default: 1)"),
+	OPTL_LONG('Y', "filter-size-y", &(network_resnet_default.Ky), "int", "filter sze in y-dimension (default: 3)"),
+	OPTL_LONG('Z', "filter-size-z", &(network_resnet_default.Kz), "int", "filter sze in z-dimension (default: 1)"),
 
 	OPTL_CLEAR(0, "no-batch-normalization", &(network_resnet_default.batch_norm), "do not use batch normalization"),
 	OPTL_CLEAR(0, "no-bias", &(network_resnet_default.bias), "do not use bias"),
@@ -324,8 +324,8 @@ struct opt_s variational_block_opts[] = {
 	OPTL_LONG('F', "filters", &(network_varnet_default.Nf), "int", "number of filters in residual block (default: 24)"),
 
 	OPTL_LONG('X', "filter-size-x", &(network_varnet_default.Kx), "int", "filter sze in x-dimension (default: 3)"),
-	OPTL_LONG('Y', "filter-size-y", &(network_varnet_default.Kx), "int", "filter sze in y-dimension (default: 3)"),
-	OPTL_LONG('Z', "filter-size-z", &(network_varnet_default.Kx), "int", "filter sze in z-dimension (default: 1)"),
+	OPTL_LONG('Y', "filter-size-y", &(network_varnet_default.Ky), "int", "filter sze in y-dimension (default: 3)"),
+	OPTL_LONG('Z', "filter-size-z", &(network_varnet_default.Kz), "int", "filter sze in z-dimension (default: 1)"),
 
 };
 const int N_variational_block_opts = ARRAY_SIZE(variational_block_opts);
