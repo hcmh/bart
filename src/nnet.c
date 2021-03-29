@@ -15,6 +15,7 @@
 #include "misc/misc.h"
 
 #include "networks/nnet.h"
+#include "networks/unet.h"
 #include "networks/losses.h"
 
 #ifndef DIMS
@@ -67,6 +68,7 @@ int main_nnet(int argc, char* argv[])
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
 
 		OPTL_SUBOPT(0, "network", "subopts", "select neural network", ARRAY_SIZE(network_opts), network_opts),
+		OPTL_SUBOPT(0, "configure-unet-segm", "subopts", "configure U-Net for segmentation", N_unet_segm_opts, unet_segm_opts),
 
 		OPTL_SUBOPT(0, "loss", "subopts", "configure the training loss", N_loss_opts, loss_opts),
 		OPTL_SUBOPT(0, "validation-loss", "subopts", "configure the validation loss", N_val_loss_opts, val_loss_opts),
