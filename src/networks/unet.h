@@ -66,4 +66,10 @@ struct network_unet_s {
 extern struct network_unet_s network_unet_default_reco;
 extern struct network_unet_s network_unet_default_segm;
 
+extern struct opt_s unet_reco_opts[];
+extern struct opt_s unet_segm_opts[];
+
+extern const int N_unet_reco_opts;
+extern const int N_unet_segm_opts;
+
 extern nn_t network_unet_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
