@@ -30,6 +30,7 @@
 #include "nn/weights.h"
 
 #include "networks/cnn.h"
+#include "networks/unet.h"
 #include "networks/reconet.h"
 #include "networks/losses.h"
 #include "networks/misc.h"
@@ -125,7 +126,10 @@ int main_reconet(int argc, char* argv[])
 
 		OPTL_SET('n', "normalize", &(config.normalize), "normalize data with maximum magnitude of adjoint reconstruction"),
 
-		OPTL_SUBOPT(0, "network", "subopts", "neural network configurations", ARRAY_SIZE(network_opts), network_opts),
+		OPTL_SUBOPT(0, "network", "subopts", "select neural network", ARRAY_SIZE(network_opts), network_opts),
+		OPTL_SUBOPT(0, "configure-residual-block", "subopts", "configure residual block", N_res_block_opts, res_block_opts),
+		OPTL_SUBOPT(0, "configure-variational-block", "subopts", "configure variational block", N_variational_block_opts, variational_block_opts),
+		OPTL_SUBOPT(0, "configure-unet", "subopts", "configure U-Net block", N_unet_reco_opts, unet_reco_opts),
 
 		OPTL_SUBOPT(0, "dc-config", "subopts", "configure data-consistency methode", ARRAY_SIZE(dc_opts), dc_opts),
 
