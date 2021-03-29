@@ -34,7 +34,7 @@
 #include "nn/chain.h"
 #include "nn/weights.h"
 
-
+#include "networks/unet.h"
 #include "networks/losses.h"
 #include "networks/cnn.h"
 
@@ -59,6 +59,8 @@ struct nnet_s nnet_init = {
 	.get_odims = NULL,
 
 	.graph_file = NULL,
+
+	.N_segm_labels = -1,
 };
 
 static unsigned int get_no_odims_mnist(const struct nnet_s* config, unsigned int NI, const long idims[NI])
@@ -92,6 +94,40 @@ void nnet_init_mnist_default(struct nnet_s* nnet)
 
 	nnet->train_loss = loss_option_changed(&loss_option) ? &loss_option : &loss_classification;
 	nnet->valid_loss = loss_option_changed(&val_loss_option) ? &val_loss_option : &loss_classification_valid;
+}
+
+static unsigned int get_no_odims_segm(const struct nnet_s* config, unsigned int NI, const long idims[NI])
+{
+	UNUSED(config);
+	UNUSED(idims);
+	return NI;
+}
+
+static void get_odims_segm(const struct nnet_s* config, unsigned int NO, long odims[NO], unsigned int NI, const long idims[NI])
+{
+	UNUSED(config);
+	assert(NO == NI);
+	md_copy_dims(NO, odims, idims);
+	odims[0] = config->N_segm_labels;
+}
+
+void nnet_init_unet_segm_default(struct nnet_s* nnet, long N_segm_labels)
+{
+	PTR_ALLOC(struct iter6_adam_conf, train_conf);
+	*train_conf = iter6_adam_conf_defaults;
+	nnet->train_conf = CAST_UP(PTR_PASS(train_conf));
+
+	PTR_ALLOC(struct network_unet_s, network);
+	*network = network_unet_default_segm;
+	nnet->network = CAST_UP(PTR_PASS(network));
+
+	nnet->get_no_odims = get_no_odims_segm;
+	nnet->get_odims = get_odims_segm;
+
+	nnet->train_loss = &loss_classification;
+	nnet->valid_loss = &loss_classification_valid;
+
+	nnet->N_segm_labels = N_segm_labels;
 }
 
 

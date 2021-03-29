@@ -44,8 +44,15 @@ int main_nnet(int argc, char* argv[])
 	int NI = -1;
 
 	bool mnist_default = false;
+	long N_segm_labels = -1;
 
 	struct nnet_s config = nnet_init;
+
+	struct opt_s network_opts[] = {
+
+		OPTL_SET(0, "mnist", &(mnist_default), "use basic MNIST Network"),
+		OPTL_LONG(0, "segm-unet", &(N_segm_labels), "labels", "use U-Net for segmentation"),
+	};
 
 	const struct opt_s opts[] = {
 
@@ -59,10 +66,7 @@ int main_nnet(int argc, char* argv[])
 
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
 
-
-		OPTL_STRING(0, "export-graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
-
-		OPTL_SET(0, "mnist-default", &(mnist_default), "use basic MNIST Network"),
+		OPTL_SUBOPT(0, "network", "subopts", "select neural network", ARRAY_SIZE(network_opts), network_opts),
 
 		OPTL_SUBOPT(0, "loss", "subopts", "configure the training loss", N_loss_opts, loss_opts),
 		OPTL_SUBOPT(0, "validation-loss", "subopts", "configure the validation loss", N_val_loss_opts, val_loss_opts),
@@ -70,6 +74,8 @@ int main_nnet(int argc, char* argv[])
 		OPTL_SUBOPT(0, "train-config", "subopts", "configure general training parmeters", N_iter6_opts, iter6_opts),
 		OPTL_SUBOPT(0, "train-config-adam", "subopts", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
 		OPTL_SUBOPT(0, "train-config-iPALM", "subopts", "configure iPALM", N_iter6_ipalm_opts, iter6_ipalm_opts),
+
+		OPTL_STRING(0, "export-graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -82,6 +88,14 @@ int main_nnet(int argc, char* argv[])
 
 	if (mnist_default)
 		nnet_init_mnist_default(&config);
+
+	if (-1 != N_segm_labels) {
+
+		nnet_init_unet_segm_default(&config, N_segm_labels);
+
+		if (-1 == NI)
+			NI = 5;
+	}
 
 	iter6_copy_config_from_opts(config.train_conf);
 
