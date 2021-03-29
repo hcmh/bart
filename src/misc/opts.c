@@ -497,6 +497,8 @@ bool opt_subopt(void* _ptr, char c, const char* optarg)
 			exit(0);
 	}
 
+	xfree(tmpoptionp);
+
 	for (int i = 0; i < 2 * n + 1; i++)
 		xfree(tokens[i]);
 
