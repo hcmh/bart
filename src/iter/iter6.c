@@ -229,7 +229,7 @@ static enum ITER6_TRAIN_ALGORITHM iter_6_select_algo = ITER6_NONE;
 
 struct opt_s iter6_opts[] = {
 
-	OPTL_FLOAT(0, "learning-rate", &(iter6_conf_opts.learning_rate), "float", "learning rate"),
+	OPTL_FLOAT('r', "learning-rate", &(iter6_conf_opts.learning_rate), "float", "learning rate"),
 	OPTL_INT('e', "epochs", &(iter6_conf_opts.epochs), "int", "number of epochs to train"),
 
 	OPTL_SELECT_DEF(0, "sgd", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_SGD, ITER6_NONE, "select stochastic gradient descent"),
@@ -237,34 +237,36 @@ struct opt_s iter6_opts[] = {
 	OPTL_SELECT_DEF(0, "adam", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_ADAM, ITER6_NONE, "select Adam"),
 	OPTL_SELECT_DEF(0, "ipalm", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_IPALM, ITER6_NONE, "select iPALM"),
 
-	OPTL_FLOAT(0, "clip-norm", &(iter6_conf_opts.clip_norm), "float", "clip norm of gradients"),
-	OPTL_FLOAT(0, "clip-value", &(iter6_conf_opts.clip_val), "float", "clip value of gradients"),
+	OPTL_FLOAT(0, "clip-norm", &(iter6_conf_opts.clip_norm), "f", "clip norm of gradients"),
+	OPTL_FLOAT(0, "clip-value", &(iter6_conf_opts.clip_val), "f", "clip value of gradients"),
 
-	OPTL_STRING(0, "dump-filename", &(iter6_conf_opts.dump_filename), "name", "dump weights to file"),
-	OPTL_LONG(0, "dump-mod", &(iter6_conf_opts.dump_mod), "int", "dump weights to file every \"mod\" epochs"),
+	OPTL_LONG(0, "dump-mod", &(iter6_conf_opts.dump_mod), "mod", "dump weights to file every \"mod\" epochs"),
 
-	OPTL_FLOAT(0, "batchnorm-momentum", &(iter6_conf_opts.batchnorm_momentum), "float", "momentum for bastch normalization (default: 0.95)"),
+	OPTL_FLOAT(0, "batchnorm-momentum", &(iter6_conf_opts.batchnorm_momentum), "f", "momentum for bastch normalization (default: 0.95)"),
 
-	OPTL_SELECT_DEF(0, "batch-generator-same", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SAME, BATCH_GEN_SAME, "use the same batches in the same order for each epoch"),
-	OPTL_SELECT_DEF(0, "batch-generator-shuffel-batches", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_BATCHES, BATCH_GEN_SAME, "use the same batches in random order for each epoch"),
-	OPTL_SELECT_DEF(0, "batch-generator-shuffel-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_DATA, BATCH_GEN_SAME, "shuffle data to form batches"),
-	OPTL_SELECT_DEF(0, "batch-generator-draw-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_BATCHES, BATCH_GEN_SAME, "randomly draw data to form batches"),
-	OPTL_INT(0, "batch-generator-seed", &(iter6_conf_opts.batch_seed), "int", "seed for batch-generator (default: 123)"),
+	OPTL_SELECT_DEF(0, "batchgen-same", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SAME, BATCH_GEN_SAME, "use the same batches in the same order for each epoch"),
+	OPTL_SELECT_DEF(0, "batchgen-shuffel-batches", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_BATCHES, BATCH_GEN_SAME, "use the same batches in random order for each epoch"),
+	OPTL_SELECT_DEF(0, "batchgen-shuffel-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_DATA, BATCH_GEN_SAME, "shuffle data to form batches"),
+	OPTL_SELECT_DEF(0, "batchgen-draw-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_BATCHES, BATCH_GEN_SAME, "randomly draw data to form batches"),
+	OPTL_INT(0, "batchgen-seed", &(iter6_conf_opts.batch_seed), "d", "seed for batch-generator (default: 123)"),
 };
 
 struct opt_s iter6_sgd_opts[] = {
 
-	OPTL_FLOAT(0, "momentum", &(iter6_sgd_conf_opts.momentum), "float", "momentum (default: 0.)"),
+	OPTL_SELECT_DEF('s', "sgd", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_SGD, ITER6_NONE, "select stochastic gradient descent"),
+	OPTL_FLOAT(0, "momentum", &(iter6_sgd_conf_opts.momentum), "f", "momentum (default: 0.)"),
 };
 const int N_iter6_sgd_opts = ARRAY_SIZE(iter6_sgd_opts);
 
 struct opt_s iter6_adadelta_opts[] = {
 
-	OPTL_FLOAT(0, "rho", &(iter6_adadelta_conf_opts.rho), "float", "rho (default: 0.95"),
+	OPTL_SELECT_DEF('s', "adadelta", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_ADADELTA, ITER6_NONE, "select AdaDelta"),
+	OPTL_FLOAT(0, "rho", &(iter6_adadelta_conf_opts.rho), "f", "rho (default: 0.95"),
 };
 
 struct opt_s iter6_adam_opts[] = {
 
+	OPTL_SELECT_DEF('s', "adam", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_ADAM, ITER6_NONE, "select Adam"),
 	OPTL_FLOAT(0, "epsilon", &(iter6_adam_conf_opts.epsilon), "float", "epsilon (default: 1.e-7"),
 	OPTL_FLOAT(0, "beta1", &(iter6_adam_conf_opts.beta1), "float", "beta1 (default: 0.9"),
 	OPTL_FLOAT(0, "beta2", &(iter6_adam_conf_opts.beta2), "float", "beta2 (default: 0.999"),
@@ -274,10 +276,12 @@ struct opt_s iter6_adam_opts[] = {
 
 struct opt_s iter6_ipalm_opts[] = {
 
-	OPTL_FLOAT(0, "lipshitz-min", &(iter6_iPALM_conf_opts.Lmin), "float", "minimum Lipshitz constant for backtracking (default: 1.e-10"),
-	OPTL_FLOAT(0, "lipshitz-max", &(iter6_iPALM_conf_opts.Lmax), "float", "maximum Lipshitz constant for backtracking (default: 1.e10"),
-	OPTL_FLOAT(0, "lipshitz-reduce", &(iter6_iPALM_conf_opts.Lshrink), "float", "factor toi reduce Lipshitz constant in backtracking (default: 1.2"),
-	OPTL_FLOAT(0, "lipshitz-increase", &(iter6_iPALM_conf_opts.Lincrease), "float", "factor to increase Lipshitz constant in backtracking (default: 2"),
+	OPTL_SELECT_DEF('s', "ipalm", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_IPALM, ITER6_NONE, "select iPALM"),
+
+	OPTL_FLOAT(0, "L-min", &(iter6_iPALM_conf_opts.Lmin), "float", "minimum Lipshitz constant for backtracking (default: 1.e-10"),
+	OPTL_FLOAT(0, "L-max", &(iter6_iPALM_conf_opts.Lmax), "float", "maximum Lipshitz constant for backtracking (default: 1.e10"),
+	OPTL_FLOAT(0, "L-reduce", &(iter6_iPALM_conf_opts.Lshrink), "float", "factor toi reduce Lipshitz constant in backtracking (default: 1.2"),
+	OPTL_FLOAT(0, "L-increase", &(iter6_iPALM_conf_opts.Lincrease), "float", "factor to increase Lipshitz constant in backtracking (default: 2"),
 
 	OPTL_FLOAT(0, "alpha", &(iter6_iPALM_conf_opts.alpha), "float", "alpha factor (default: -1. = \"dynamic case\")"),
 	OPTL_FLOAT(0, "beta", &(iter6_iPALM_conf_opts.beta), "float", "beta factor (default: -1. = \"dynamic case\")"),
