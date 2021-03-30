@@ -46,7 +46,7 @@
 #endif
 
 static const char usage_str[] = "<kspace> <sens> <weights> <out/ref>";
-static const char help_str[] = "Trains or appplies MoDL.";
+static const char help_str[] = "Trains or appplies a neural network for reconstruction.";
 
 int main_reconet(int argc, char* argv[])
 {
@@ -95,11 +95,11 @@ int main_reconet(int argc, char* argv[])
 
 	struct opt_s valid_opts[] = {
 
-		OPTL_STRING(0, "trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
-		OPTL_STRING(0, "pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
-		OPTL_STRING(0, "kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
-		OPTL_STRING(0, "coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
-		OPTL_STRING(0, "ref", &(valid_data.filename_out), "file", "validation data reference"),
+		OPTL_STRING('t', "trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
+		OPTL_STRING('p', "pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
+		OPTL_STRING('k', "kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
+		OPTL_STRING('c', "coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
+		OPTL_STRING('r', "ref", &(valid_data.filename_out), "file", "validation data reference"),
 	};
 
 	struct opt_s network_opts[] = {
@@ -108,30 +108,32 @@ int main_reconet(int argc, char* argv[])
 		OPTL_SET(0, "varnet", &(varnet_default), "use Variational Network (also sets train and data-consistency default values)"),
 		OPTL_SET(0, "unet", &(unet_default), "use U-Net (also sets train and data-consistency default values)"),
 
-		OPTL_SELECT(0, "residual-block", enum NETWORK_SELECT, &net, NETWORK_RESBLOCK, "use residual block"),
-		OPTL_SELECT(0, "variational-block", enum NETWORK_SELECT, &net, NETWORK_VARNET, "use variational block"),
+		OPTL_SELECT(0, "resnet-block", enum NETWORK_SELECT, &net, NETWORK_RESBLOCK, "use residual block (overwrite default)"),
+		OPTL_SELECT(0, "varnet-block", enum NETWORK_SELECT, &net, NETWORK_VARNET, "use variational block (overwrite default)"),
 	};
 
 	const struct opt_s opts[] = {
 
 		OPTL_SET('t', "train", &train, "train reconet"),
-		OPTL_SET(0, "eval", &eval, "evaluate reconet"),
-		OPTL_SET('g', "gpu", &(config.gpu), "run on gpu"),
+		OPTL_SET('e', "eval", &eval, "evaluate reconet"),
 		OPTL_SET('a', "apply", &apply, "apply reconet"),
-		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
-		OPTL_LONG('b', "batch_size", &(Nb), "Nb", "size of mini batches"),
-		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
 
-		OPTL_LONG('T', "iterations", &(config.Nt), "int", "number of unrolled iterations"),
+		OPTL_SET('g', "gpu", &(config.gpu), "run on gpu"),
+
+		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "file", "load weights for continuing training"),
+		OPTL_LONG('b', "batch-size", &(Nb), "d", "size of mini batches"),
+
+		OPTL_LONG('I', "iterations", &(config.Nt), "d", "number of unrolled iterations"),
 
 		OPTL_SET('n', "normalize", &(config.normalize), "normalize data with maximum magnitude of adjoint reconstruction"),
+		OPTL_SET(0, "regrid", &(regrid), "grids fully sampled kspace by applying pattern"),
 
-		OPTL_SUBOPT(0, "network", "subopts", "select neural network", ARRAY_SIZE(network_opts), network_opts),
-		OPTL_SUBOPT(0, "configure-residual-block", "subopts", "configure residual block", N_res_block_opts, res_block_opts),
-		OPTL_SUBOPT(0, "configure-variational-block", "subopts", "configure variational block", N_variational_block_opts, variational_block_opts),
-		OPTL_SUBOPT(0, "configure-unet", "subopts", "configure U-Net block", N_unet_reco_opts, unet_reco_opts),
+		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
+		OPTL_SUBOPT(0, "config-resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
+		OPTL_SUBOPT(0, "config-varnet-block", "...", "configure variational block", N_variational_block_opts, variational_block_opts),
+		OPTL_SUBOPT(0, "config-unet", "...", "configure U-Net block", N_unet_reco_opts, unet_reco_opts),
 
-		OPTL_SUBOPT(0, "dc-config", "subopts", "configure data-consistency methode", ARRAY_SIZE(dc_opts), dc_opts),
+		OPTL_SUBOPT(0, "config-dc", "...", "configure data-consistency methode", ARRAY_SIZE(dc_opts), dc_opts),
 
 		OPTL_SELECT(0, "shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_TRUE, "share weights across iterations"),
 		OPTL_SELECT(0, "no-shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_FALSE, "share weights across iterations"),
@@ -142,23 +144,22 @@ int main_reconet(int argc, char* argv[])
 		OPTL_STRING(0, "trajectory", &(data.filename_trajectory), "file", "trajectory"),
 		OPTL_STRING(0, "pattern", &(data.filename_pattern), "file", "sampling pattern / psf in kspace"),
 
-		OPTL_SUBOPT(0, "validation-data", "subopts", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
+		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
 
-		OPTL_SUBOPT(0, "loss", "subopts", "configure the training loss", N_loss_opts, loss_opts),
-		OPTL_SUBOPT(0, "validation-loss", "subopts", "configure the validation loss", N_val_loss_opts, val_loss_opts),
+		OPTL_SUBOPT(0, "loss", "...", "configure the training loss", N_loss_opts, loss_opts),
+		OPTL_SUBOPT(0, "valid-loss", "...", "configure the validation loss", N_val_loss_opts, val_loss_opts),
 
-		OPTL_SUBOPT(0, "train-config", "subopts", "configure general training parmeters", N_iter6_opts, iter6_opts),
-		OPTL_SUBOPT(0, "train-config-adam", "subopts", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
-		OPTL_SUBOPT(0, "train-config-iPALM", "subopts", "configure iPALM", N_iter6_ipalm_opts, iter6_ipalm_opts),
+		OPTL_SUBOPT('T', "train-config", "...", "configure general training parmeters", N_iter6_opts, iter6_opts),
+		OPTL_SUBOPT(0, "adam", "...", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
+		OPTL_SUBOPT(0, "iPALM", "...", "configure iPALM", N_iter6_ipalm_opts, iter6_ipalm_opts),
 
-		OPTL_SET('o', "one_iter", &one_iter, "only one iteration for initialization"),
+		OPTL_SET('o', "one-iter", &one_iter, "only one iteration for initialization"),
 
-		OPTL_SET(0, "regrid", &(regrid), "grids fully sampled kspace by applying pattern"),
-
-		OPTL_SET('m', "load_data", &(load_mem), "load files int memory"),
-		OPTL_SET(0, "low_mem", &(config.low_mem), "reduce memory usage by checkpointing"),
+		OPTL_SET('m', "load-data", &(load_mem), "load files int memory"),
+		OPTL_SET(0, "low-mem", &(config.low_mem), "reduce memory usage by checkpointing"),
 
 		OPTL_SET(0, "test", &(test_defaults), "very small network for tests"),
+		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
 	};
 
 	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);

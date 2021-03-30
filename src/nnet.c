@@ -27,7 +27,7 @@
 #endif
 
 static const char usage_str[] = "<input> <weights> <output>";
-static const char help_str[] = "Trains or applies Neural Network";
+static const char help_str[] = "Trains or applies a neural network.";
 
 
 
@@ -51,8 +51,8 @@ int main_nnet(int argc, char* argv[])
 
 	struct opt_s network_opts[] = {
 
-		OPTL_SET(0, "mnist", &(mnist_default), "use basic MNIST Network"),
-		OPTL_LONG(0, "segm-unet", &(N_segm_labels), "labels", "use U-Net for segmentation"),
+		OPTL_SET('M', "mnist", &(mnist_default), "use basic MNIST Network"),
+		OPTL_LONG('U', "unet-segm", &(N_segm_labels), "labels", "use U-Net for segmentation"),
 	};
 
 	const struct opt_s opts[] = {
@@ -67,15 +67,15 @@ int main_nnet(int argc, char* argv[])
 
 		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
 
-		OPTL_SUBOPT(0, "network", "subopts", "select neural network", ARRAY_SIZE(network_opts), network_opts),
-		OPTL_SUBOPT(0, "configure-unet-segm", "subopts", "configure U-Net for segmentation", N_unet_segm_opts, unet_segm_opts),
+		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
+		OPTL_SUBOPT('U', "config-unet-segm", "...", "configure U-Net for segmentation", N_unet_segm_opts, unet_segm_opts),
 
-		OPTL_SUBOPT(0, "loss", "subopts", "configure the training loss", N_loss_opts, loss_opts),
-		OPTL_SUBOPT(0, "validation-loss", "subopts", "configure the validation loss", N_val_loss_opts, val_loss_opts),
+		OPTL_SUBOPT('L', "loss", "...", "configure the training loss", N_loss_opts, loss_opts),
+		OPTL_SUBOPT(0, "validation-loss", "...", "configure the validation loss", N_val_loss_opts, val_loss_opts),
 
-		OPTL_SUBOPT(0, "train-config", "subopts", "configure general training parmeters", N_iter6_opts, iter6_opts),
-		OPTL_SUBOPT(0, "train-config-adam", "subopts", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
-		OPTL_SUBOPT(0, "train-config-iPALM", "subopts", "configure iPALM", N_iter6_ipalm_opts, iter6_ipalm_opts),
+		OPTL_SUBOPT('T', "train-config", "...", "configure general training parmeters", N_iter6_opts, iter6_opts),
+		OPTL_SUBOPT(0, "adam", "...", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
+		//OPTL_SUBOPT(0, "iPALM", "...", "configure iPALM", N_iter6_ipalm_opts, iter6_ipalm_opts),
 
 		OPTL_STRING(0, "export-graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
 	};
@@ -132,7 +132,7 @@ int main_nnet(int argc, char* argv[])
 
 
 	long dims_in[DIMS];
-	complex float* in = load_cfl(filename_in, (-1 == NI) ? DIMS : NI, dims_in);
+	complex float* in = load_cfl(filename_in, (-1 == NI) ? (int)DIMS : NI, dims_in);
 
 	if (-1 == NI) {
 

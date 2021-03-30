@@ -10,20 +10,11 @@
 #include "misc/mri.h"
 #include "misc/misc.h"
 
-#include "nn/activation_nn.h"
-#include "nn/chain.h"
-#include "nn/layers_nn.h"
-#include "nn/nn.h"
 #include "num/multind.h"
 #include "num/iovec.h"
 #include "num/fft.h"
 #include "num/flpmath.h"
-
-#include "iter/proj.h"
-#include "iter/italgos.h"
-
-#include "nn/nn_ops.h"
-
+#include "num/ops.h"
 
 #include "linops/linop.h"
 #include "linops/someops.h"
@@ -35,14 +26,19 @@
 #include "nlops/stack.h"
 #include "nlops/tenmul.h"
 
+#include "nn/nn.h"
+#include "nn/activation_nn.h"
+#include "nn/chain.h"
+#include "nn/layers_nn.h"
+#include "nn/nn_ops.h"
 #include "nn/activation.h"
 #include "nn/layers.h"
 #include "nn/weights.h"
 #include "nn/init.h"
 
+#include "networks/cnn.h"
+#include "unet.h"
 
-#include "networks/unet.h"
-#include "num/ops.h"
 
 DEF_TYPEID(network_unet_s);
 
@@ -111,9 +107,9 @@ struct opt_s unet_reco_opts[] = {
 	OPTL_LONG('a', "layers-after", &(network_unet_default_reco.Nl_after), "int", "number of layers after down-sampling (default: 2)"),
 	OPTL_LONG('l', "layers-lowest", &(network_unet_default_reco.Nl_lowest), "int", "number of layers in lowest level (default: 4)"),
 
-	OPTL_LONG('X', "filter-size-x", &(network_unet_default_reco.Kx), "int", "filter sze in x-dimension (default: 3)"),
-	OPTL_LONG('Y', "filter-size-y", &(network_unet_default_reco.Ky), "int", "filter sze in y-dimension (default: 3)"),
-	OPTL_LONG('Z', "filter-size-z", &(network_unet_default_reco.Kz), "int", "filter sze in z-dimension (default: 1)"),
+	OPTL_LONG('X', "filter-x", &(network_unet_default_reco.Kx), "int", "filter sze in x-dimension (default: 3)"),
+	OPTL_LONG('Y', "filter-y", &(network_unet_default_reco.Ky), "int", "filter sze in y-dimension (default: 3)"),
+	OPTL_LONG('Z', "filter-z", &(network_unet_default_reco.Kz), "int", "filter sze in z-dimension (default: 1)"),
 
 	OPTL_SET(0, "init-real", &(network_unet_default_reco.init_real), "initialize weights with real values"),
 	OPTL_SET(0, "init-zeros", &(network_unet_default_reco.init_zeros_residual), "initialize weights such that the output of each level is zero"),
@@ -190,9 +186,9 @@ struct opt_s unet_segm_opts[] = {
 	OPTL_LONG('a', "layers-after", &(network_unet_default_segm.Nl_after), "int", "number of layers after down-sampling (default: 1)"),
 	OPTL_LONG('l', "layers-lowest", &(network_unet_default_segm.Nl_lowest), "int", "number of layers in lowest level (default: 2)"),
 
-	OPTL_LONG('X', "filter-size-x", &(network_unet_default_segm.Kx), "int", "filter sze in x-dimension (default: 3)"),
-	OPTL_LONG('Y', "filter-size-y", &(network_unet_default_segm.Ky), "int", "filter sze in y-dimension (default: 3)"),
-	OPTL_LONG('Z', "filter-size-z", &(network_unet_default_segm.Kz), "int", "filter sze in z-dimension (default: 1)"),
+	OPTL_LONG('X', "filter-x", &(network_unet_default_segm.Kx), "int", "filter sze in x-dimension (default: 3)"),
+	OPTL_LONG('Y', "filter-y", &(network_unet_default_segm.Ky), "int", "filter sze in y-dimension (default: 3)"),
+	OPTL_LONG('Z', "filter-z", &(network_unet_default_segm.Kz), "int", "filter sze in z-dimension (default: 1)"),
 
 	OPTL_CLEAR(0, "no-real-constraint", &(network_unet_default_segm.real_constraint), "allow complex numbers in network"),
 	OPTL_SET(0, "init-real", &(network_unet_default_segm.init_real), "initialize weights with real values (if no real constraint)"),
@@ -240,21 +236,21 @@ struct nn_conv_block_s {
 	unsigned long channel_flag;
 	unsigned long group_flag;
 
-	_Bool adjoint;
-	_Bool conv;
+	bool adjoint;
+	bool conv;
 
 	enum PADDING padding;
 	enum ACTIVATION activation;
 
-	_Bool use_bias;
-	_Bool use_bn;
-	_Bool use_bn_gamma;
+	bool use_bias;
+	bool use_bn;
+	bool use_bn_gamma;
 
-	_Bool stack;
+	bool stack;
 	const char* name_prefix;
 
-	_Bool init_real;
-	_Bool init_zero;
+	bool init_real;
+	bool init_zero;
 };
 
 static nn_t nn_unet_append_conv_block(	nn_t network, int o, const char* oname,

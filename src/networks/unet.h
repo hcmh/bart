@@ -1,4 +1,4 @@
-#include "cnn.h"
+#include "networks/cnn.h"
 
 
 enum UNET_DOWNSAMPLING_METHOD {
