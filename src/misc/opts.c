@@ -29,6 +29,7 @@
 enum OPT_ARG_TYPE { OPT_SPECIAL, OPT_SET, OPT_CLEAR, OPT_INT, OPT_UINT, OPT_LONG, OPT_FLOAT, OPT_CFLOAT, OPT_STRING };
 
 static const char* opt_arg_types[] = { " ...", "", "", " d", " d", " d", " f", " cf", " <string>" };
+static const char* opt_arg_types_subopts[] = { "=...", "", "", "=d", "=d", "=d", "=f", "=cf", "=<string>" };
 
 static enum OPT_ARG_TYPE opt_arg_type(opt_conv_f fun)
 {
@@ -90,6 +91,28 @@ static void print_usage(FILE* fp, const char* name, const char* usage_str, int n
 					fprintf(fp, "[--%s%s] ", opts[i].s, opt_arg_types[opt_arg_type(opts[i].conv)]);
 				else
 					fprintf(fp, "[-%c,--%s%s] ", opts[i].c, opts[i].s, opt_arg_types[opt_arg_type(opts[i].conv)]);
+			}
+		}
+
+	fprintf(fp, "%s\n", usage_str);
+}
+
+static void print_usage_subopts(FILE* fp, const char* name, const char* usage_str, int n, const struct opt_s opts[static n ?: 1])
+{
+	fprintf(fp, "Usage: %s ", name);
+
+	for (int i = 0; i < n; i++)
+		if (show_option_p(opts[i])) {
+
+			if (NULL == opts[i].s) {
+
+				fprintf(fp, "[%c%s]%s", opts[i].c, opt_arg_types_subopts[opt_arg_type(opts[i].conv)], i < (n - 1) ? "," : "");
+			} else {
+
+				if (opts[i].c < (int) ' ')
+					fprintf(fp, "[%s%s]%s", opts[i].s, opt_arg_types_subopts[opt_arg_type(opts[i].conv)], i < (n - 1) ? "," : "");
+				else
+					fprintf(fp, "[%c,%s%s]%s", opts[i].c, opts[i].s, opt_arg_types_subopts[opt_arg_type(opts[i].conv)], i < (n - 1) ? "," : "");
 			}
 		}
 
@@ -485,8 +508,11 @@ bool opt_subopt(void* _ptr, char c, const char* optarg)
 	while('\0' != *option) {
 
 		i = getsubopt(&option, (char *const *)tokens, &value);
-		if ((i == 2 * n) || (-1 == i))
-			print_help("Suboptions can be passed as a comma separated list. Values are passed by '='. Example: x,str=HALLO,f=.5", ptr->n, ptr->opts);
+		if ((i == 2 * n) || (-1 == i)) {
+
+			print_usage_subopts(stdout, "", "", n, opts);
+			print_help("Suboptions can be passed as a comma separated list. Values are passed by '='. Example: x,str=Hello,f=.5", ptr->n, ptr->opts);
+		}
 
 		if (-1 == i)
 			error("Suboption could not be parsed: %s", value);
