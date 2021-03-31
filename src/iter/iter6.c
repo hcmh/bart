@@ -229,8 +229,8 @@ static enum ITER6_TRAIN_ALGORITHM iter_6_select_algo = ITER6_NONE;
 
 struct opt_s iter6_opts[] = {
 
-	OPTL_FLOAT('r', "learning-rate", &(iter6_conf_opts.learning_rate), "float", "learning rate"),
-	OPTL_INT('e', "epochs", &(iter6_conf_opts.epochs), "int", "number of epochs to train"),
+	OPTL_FLOAT('r', "learning-rate", &(iter6_conf_opts.learning_rate), "f", "learning rate"),
+	OPTL_INT('e', "epochs", &(iter6_conf_opts.epochs), "d", "number of epochs to train"),
 
 	OPTL_SELECT_DEF(0, "sgd", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_SGD, ITER6_NONE, "select stochastic gradient descent"),
 	OPTL_SELECT_DEF(0, "adadelta", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_ADADELTA, ITER6_NONE, "select AdaDelta"),
@@ -242,12 +242,12 @@ struct opt_s iter6_opts[] = {
 
 	OPTL_LONG(0, "dump-mod", &(iter6_conf_opts.dump_mod), "mod", "dump weights to file every \"mod\" epochs"),
 
-	OPTL_FLOAT(0, "batchnorm-momentum", &(iter6_conf_opts.batchnorm_momentum), "f", "momentum for bastch normalization (default: 0.95)"),
+	OPTL_FLOAT(0, "batchnorm-momentum", &(iter6_conf_opts.batchnorm_momentum), "f", "momentum for batch normalization (default: 0.95)"),
 
 	OPTL_SELECT_DEF(0, "batchgen-same", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SAME, BATCH_GEN_SAME, "use the same batches in the same order for each epoch"),
-	OPTL_SELECT_DEF(0, "batchgen-shuffel-batches", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_BATCHES, BATCH_GEN_SAME, "use the same batches in random order for each epoch"),
-	OPTL_SELECT_DEF(0, "batchgen-shuffel-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_DATA, BATCH_GEN_SAME, "shuffle data to form batches"),
-	OPTL_SELECT_DEF(0, "batchgen-draw-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_BATCHES, BATCH_GEN_SAME, "randomly draw data to form batches"),
+	OPTL_SELECT_DEF(0, "batchgen-shuffle-batches", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_BATCHES, BATCH_GEN_SAME, "use the same batches in random order for each epoch"),
+	OPTL_SELECT_DEF(0, "batchgen-shuffle-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_DATA, BATCH_GEN_SAME, "shuffle data to form batches"),
+	OPTL_SELECT_DEF(0, "batchgen-draw-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_RANDOM_DATA, BATCH_GEN_SAME, "randomly draw data to form batches"),
 	OPTL_INT(0, "batchgen-seed", &(iter6_conf_opts.batch_seed), "d", "seed for batch-generator (default: 123)"),
 };
 
@@ -267,9 +267,9 @@ struct opt_s iter6_adadelta_opts[] = {
 struct opt_s iter6_adam_opts[] = {
 
 	OPTL_SELECT_DEF('s', "adam", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_ADAM, ITER6_NONE, "select Adam"),
-	OPTL_FLOAT(0, "epsilon", &(iter6_adam_conf_opts.epsilon), "float", "epsilon (default: 1.e-7"),
-	OPTL_FLOAT(0, "beta1", &(iter6_adam_conf_opts.beta1), "float", "beta1 (default: 0.9"),
-	OPTL_FLOAT(0, "beta2", &(iter6_adam_conf_opts.beta2), "float", "beta2 (default: 0.999"),
+	OPTL_FLOAT(0, "epsilon", &(iter6_adam_conf_opts.epsilon), "f", "epsilon (default: 1.e-7"),
+	OPTL_FLOAT(0, "beta1", &(iter6_adam_conf_opts.beta1), "f", "beta1 (default: 0.9"),
+	OPTL_FLOAT(0, "beta2", &(iter6_adam_conf_opts.beta2), "f", "beta2 (default: 0.999"),
 
 	OPTL_LONG(0, "reset-momentum", &(iter6_adam_conf_opts.reset_epoch), "n", "reset momentum every nth epoch (default: -1=never"),
 };
@@ -278,13 +278,13 @@ struct opt_s iter6_ipalm_opts[] = {
 
 	OPTL_SELECT_DEF('s', "ipalm", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_IPALM, ITER6_NONE, "select iPALM"),
 
-	OPTL_FLOAT(0, "L-min", &(iter6_iPALM_conf_opts.Lmin), "float", "minimum Lipshitz constant for backtracking (default: 1.e-10"),
-	OPTL_FLOAT(0, "L-max", &(iter6_iPALM_conf_opts.Lmax), "float", "maximum Lipshitz constant for backtracking (default: 1.e10"),
-	OPTL_FLOAT(0, "L-reduce", &(iter6_iPALM_conf_opts.Lshrink), "float", "factor toi reduce Lipshitz constant in backtracking (default: 1.2"),
-	OPTL_FLOAT(0, "L-increase", &(iter6_iPALM_conf_opts.Lincrease), "float", "factor to increase Lipshitz constant in backtracking (default: 2"),
+	OPTL_FLOAT(0, "L-min", &(iter6_iPALM_conf_opts.Lmin), "f", "minimum Lipshitz constant for backtracking (default: 1.e-10"),
+	OPTL_FLOAT(0, "L-max", &(iter6_iPALM_conf_opts.Lmax), "f", "maximum Lipshitz constant for backtracking (default: 1.e10"),
+	OPTL_FLOAT(0, "L-reduce", &(iter6_iPALM_conf_opts.Lshrink), "f", "factor to reduce Lipshitz constant in backtracking (default: 1.2"),
+	OPTL_FLOAT(0, "L-increase", &(iter6_iPALM_conf_opts.Lincrease), "f", "factor to increase Lipshitz constant in backtracking (default: 2"),
 
-	OPTL_FLOAT(0, "alpha", &(iter6_iPALM_conf_opts.alpha), "float", "alpha factor (default: -1. = \"dynamic case\")"),
-	OPTL_FLOAT(0, "beta", &(iter6_iPALM_conf_opts.beta), "float", "beta factor (default: -1. = \"dynamic case\")"),
+	OPTL_FLOAT(0, "alpha", &(iter6_iPALM_conf_opts.alpha), "f", "alpha factor (default: -1. = \"dynamic case\")"),
+	OPTL_FLOAT(0, "beta", &(iter6_iPALM_conf_opts.beta), "f", "beta factor (default: -1. = \"dynamic case\")"),
 	OPTL_SET(0, "convex", &(iter6_iPALM_conf_opts.convex), "convex constraints (higher learning rate possible)"),
 
 	OPTL_CLEAR(0, "non-trivial-step-size", &(iter6_iPALM_conf_opts.convex), "set stepsize based on alpha and beta, not simply Lipshitz constant^-1"),
