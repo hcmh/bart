@@ -562,7 +562,7 @@ static bool check_trivial_cf(	int N,
 	if ( MD_IS_SET(flags, 0) || MD_IS_SET(flags, 1) || (1 != idims[0]) || (1 != odims[1]))
 		return false;
 
-	//check contigous memory
+	//check contiguous memory
 	if ((uint)N > md_calc_blockdim(N, odims, ostrs, size))
 		return false;
 	if ((uint)N > md_calc_blockdim(N, idims, istrs, size))
