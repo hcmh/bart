@@ -49,7 +49,7 @@ nn_t nn_real_input(nn_t op, int i, const char* iname)
 }
 
 /**
- * Add real value constraint to outtput of nn_t
+ * Add real value constraint to output of nn_t
  *
  * @param op nn_t struct
  * @param o output index (ignored if oname != NULL)
@@ -92,7 +92,7 @@ nn_t nn_real_input_F(nn_t op, int i, const char* iname)
 }
 
 /**
- * Add real value constraint to outtput of nn_t
+ * Add real value constraint to output of nn_t
  *
  * @param op nn_t struct
  * @param o output index (ignored if oname != NULL)
@@ -1030,7 +1030,7 @@ static nn_t dup_by_name(nn_t x) {
 }
 
 /**
- * Search for input/oputput names #DUP_%s or #STACK_%s. If such names are found, a nn_t with stacked (#STACK_%s on %s) and dupped inputs/outputs is returned
+ * Search for input/output names #DUP_%s or #STACK_%s. If such names are found, a nn_t with stacked (#STACK_%s on %s) and dupped inputs/outputs is returned
  *
  * @param op nn_t struct (will be freed)
  *

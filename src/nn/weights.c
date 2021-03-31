@@ -129,7 +129,7 @@ void move_gpu_nn_weights(nn_weights_t weights){
 }
 
 /**
- * Check if weigts are copied to gpu
+ * Check if weights are copied to gpu
  *
  * @param weights pointer to struct holding the weights
  *
@@ -233,7 +233,7 @@ nn_t nn_get_wo_weights(nn_t op, nn_weights_t weights, bool copy)
 			auto iov = weights->iovs[ip];
 			nlop_result = nlop_set_input_const_F(nlop_result, i, iov->N, iov->dims, copy, weights->tensors[ip--]);
 		}
-	
+
 	auto result = nn_from_nlop_F(nlop_result);
 
 	for (unsigned int i = 0, j = 0; i < nn_get_nr_in_args(result); i++, j++) {

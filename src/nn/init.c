@@ -73,7 +73,7 @@ unsigned long in_flag_conv_generic(int N, unsigned long conv_flag, unsigned long
 
 		if (MD_IS_SET(group_flag, i))
 			continue;
-		
+
 		in_flag /= 2;
 	}
 
@@ -100,7 +100,7 @@ unsigned long out_flag_conv_generic(int N, unsigned long conv_flag, unsigned lon
 
 		if (MD_IS_SET(group_flag, i))
 			continue;
-		
+
 		out_flag /= 2;
 	}
 
@@ -142,9 +142,9 @@ static void init_const_fun(const init_t* conf_, long N, const long dims[N], comp
 }
 
 /**
- * Create a constant intializer
+ * Create a constant initializer
  *
- * @param val value to intialize weights with
+ * @param val value to initialize weights with
  *
  * @returns Constant initializer
  */
@@ -250,7 +250,7 @@ static void init_kaiming_fun(const init_t* conf_, long N, const long dims[N], co
 
 
 /**
- * Create a Xavier (Glorot) intializer
+ * Create a Xavier (Glorot) initializer
  *
  * Xavier Glorot, Yoshua Bengio ; Proceedings of the Thirteenth International Conference on Artificial Intelligence and Statistics, JMLR Workshop and Conference Proceedings 9:249-256, 2010.
  * Glorot, X. & Bengio, Y.. (2010). Understanding the difficulty of training deep feedforward neural networks. Proceedings of the Thirteenth International Conference on Artificial Intelligence and Statistics, in PMLR 9:249-256
@@ -283,7 +283,7 @@ const struct initializer_s* init_xavier_create(unsigned long in_flags, unsigned 
 }
 
 /**
- * Create a Kaiming intializer
+ * Create a Kaiming initializer
  *
  * He, K.; Zhang, X.; Ren, S. & Sun, J. (2015). Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification
  *

@@ -112,14 +112,14 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 
 	for (int j = 0; j < Nw; j++) {
 
-		md_pdf_gauss(2, data->zdom->dims, tmp1, data->z, (mumin + j * dmu), data->sigma); //tmp1 = 1/sqrt(2pi simga^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+		md_pdf_gauss(2, data->zdom->dims, tmp1, data->z, (mumin + j * dmu), data->sigma); //tmp1 = 1/sqrt(2pi sigma^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 
 		long wpos[3] = {0, 0, j};
 		const float* wtmp = data->w + md_calc_offset(data->N, data->wdom->strs, wpos) / FL_SIZE;
 
 	#ifndef STRIDED_MUL
 		md_copy2(2, data->dom->dims, data->zdom->strs, tmp2, data->wdom->strs, wtmp, FL_SIZE); // tmp3 = w_ik
-		md_fmac(2, data->zdom->dims, real_dst, tmp1, tmp2); //real_dst = sum_j w_ij 1/sqrt(2pi simga^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+		md_fmac(2, data->zdom->dims, real_dst, tmp1, tmp2); //real_dst = sum_j w_ij 1/sqrt(2pi sigma^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 	#else
 		md_mul2(2, data->dom->dims, data->zdom->strs, tmp1, data->wdom->strs, wtmp, data->zdom->strs, tmp1);
 		md_add(2, data->zdom->dims, real_dst, real_dst, tmp1);
@@ -127,8 +127,8 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 
 		if (der1) {
 	#ifndef STRIDED_MUL
-			md_smul(2, data->zdom->dims, tmp1, tmp1, -(mumin + j * dmu)); //tmp1 = - sum_j w_ij 1/sqrt(2pi simga^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
-			md_fmac(2, data->zdom->dims, data->dz, tmp1, tmp2); //data->dz = - sum_j w_ij 1/sqrt(2pi simga^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+			md_smul(2, data->zdom->dims, tmp1, tmp1, -(mumin + j * dmu)); //tmp1 = - sum_j w_ij 1/sqrt(2pi sigma^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+			md_fmac(2, data->zdom->dims, data->dz, tmp1, tmp2); //data->dz = - sum_j w_ij 1/sqrt(2pi sigma^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 	#else
 			float scale = -(mumin + j * dmu);
 			md_copy(1, MAKE_ARRAY(1l), tmp2, &scale, FL_SIZE);
@@ -139,7 +139,7 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 
 	if (der1) {
 
-		md_fmac(3, data->zdom->dims, data->dz, real_dst, data->z); //data->dz = sum_j w_ij 1/sqrt(2pi simga^2) * (z_ik - mu_j) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+		md_fmac(3, data->zdom->dims, data->dz, real_dst, data->z); //data->dz = sum_j w_ij 1/sqrt(2pi sigma^2) * (z_ik - mu_j) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 		md_smul(3, data->zdom->dims, data->dz, data->dz, (- sqrtf(2. * M_PI) / data->sigma)); // zdst_ik = -1/sigma^2 sum_k (z_ik-mu_j) * w_ij * exp[-(z_ik-mu_j)²/(2*sigma²)]
 	}
 
@@ -230,7 +230,7 @@ static void rbf_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 
 	for (int j = 0; j < Nw; j++) {
 
-		md_pdf_gauss(2, data->zdom->dims, tmp1, data->z, (mumin + j * dmu), data->sigma);//tmp1 = 1/sqrt(2pi simga^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+		md_pdf_gauss(2, data->zdom->dims, tmp1, data->z, (mumin + j * dmu), data->sigma);//tmp1 = 1/sqrt(2pi sigma^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 		long wpos[3] = {0, 0, j};
 		float* wtmp = real_dst + md_calc_offset(data->N, data->wdom->strs, wpos) / FL_SIZE;
 

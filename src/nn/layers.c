@@ -36,14 +36,14 @@
  * @param conv_flag spatial dimensions which are convolved over
  * @param channel_flag dimensions holding channels
  * @param group_flag group dimensions, i.e. batch dimension with non-shared kernel
- * @param kernel_dims kernel size (if conv_flag); out_channel(if channel_flag); idims (if group_flag); 1 else  
+ * @param kernel_dims kernel size (if conv_flag); out_channel(if channel_flag); idims (if group_flag); 1 else
  * @param strides of output (only for spatial dims)
  * @param dilations of kernel (only for spatial dims)
  * @param conv convolution if true, correlation else
  * @param conv_pad padding for the convolution
  * @param swap_kernel_matrix if true, the kernel has dims (IC, OC) instead of (OC, IC)
  */
-const struct nlop_s* append_convcorr_layer_generic(	
+const struct nlop_s* append_convcorr_layer_generic(
 						const struct nlop_s* network, int o,
 						unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag,
 						unsigned int N, long const kernel_dims[N], const long strides[N], const long dilations[N],
@@ -145,7 +145,7 @@ const struct nlop_s* append_convcorr_layer_generic(
 			ip++;
 			kdims_op[ip] = idims[i];
 			idims_op[ip] = idims[i];
-			
+
 			kdims[ik] = kernel_dims[i];
 			ik++;
 			kdims[ik] = idims[i];
@@ -161,7 +161,7 @@ const struct nlop_s* append_convcorr_layer_generic(
 
 			// batch dimensions
 			assert(kernel_dims[i] == idims[i]);
-			
+
 			kdims_op[ip] = kernel_dims[i];
 			odims_op[ip] = idims[i];
 			idims_op[ip] = idims[i];
@@ -192,7 +192,7 @@ const struct nlop_s* append_convcorr_layer_generic(
 									str_op, dil_op,
 									'N'
 								);
-	
+
 	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, N, odims);
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, N, idims);
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, ik, kdims);
@@ -215,7 +215,7 @@ const struct nlop_s* append_convcorr_layer_generic(
  * @param conv_flag spatial dimensions which are convolved over
  * @param channel_flag dimensions holding channels
  * @param group_flag group dimensions, i.e. batch dimension with non-shared kernel
- * @param kernel_dims kernel size (if conv_flag); out_channel(if channel_flag); idims (if group_flag); 1 else  
+ * @param kernel_dims kernel size (if conv_flag); out_channel(if channel_flag); idims (if group_flag); 1 else
  * @param strides of input (only for spatial dims)
  * @param dilations of kernel (only for spatial dims)
  * @param conv convolution if true, correlation else
@@ -223,7 +223,7 @@ const struct nlop_s* append_convcorr_layer_generic(
  * @param adjoint adjoint convolution if true, transposed else
  * @param swap_kernel_matrix if true, the kernel has dims (IC, OC) instead of (OC, IC)
  */
-const struct nlop_s* append_transposed_convcorr_layer_generic(	
+const struct nlop_s* append_transposed_convcorr_layer_generic(
 						const struct nlop_s* network, int o,
 						unsigned long conv_flag, unsigned long channel_flag, unsigned long group_flag,
 						unsigned int N, long const kernel_dims[N], const long strides[N], const long dilations[N],
@@ -323,7 +323,7 @@ const struct nlop_s* append_transposed_convcorr_layer_generic(
 			ip++;
 			kdims_op[ip] = kernel_dims[i];
 			idims_op[ip] = kernel_dims[i];
-			
+
 			kdims[ik] = odims[i];
 			ik++;
 			idims[i] = kernel_dims[i];
@@ -339,7 +339,7 @@ const struct nlop_s* append_transposed_convcorr_layer_generic(
 
 			// batch dimensions
 			assert(kernel_dims[i] == idims[i]);
-			
+
 			kdims_op[ip] = kernel_dims[i];
 			odims_op[ip] = idims[i];
 			idims_op[ip] = idims[i];
@@ -370,7 +370,7 @@ const struct nlop_s* append_transposed_convcorr_layer_generic(
 									str_op, dil_op,
 									adjoint ? 'C' : 'T'
 								);
-	
+
 	nlop_conv = nlop_reshape_out_F(nlop_conv, 0, N, idims);
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 0, N, odims);
 	nlop_conv = nlop_reshape_in_F(nlop_conv, 1, ik, kdims);
@@ -408,8 +408,8 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 			md_copy_dims(3, dil_tmp + 1, dilations);
 		if (NULL != strides)
 			md_copy_dims(3, str_tmp + 1, strides);
-		
-		return append_convcorr_layer_generic(	
+
+		return append_convcorr_layer_generic(
 						network, o,
 						14, 1, 0,
 						5, kernel, str_tmp, dil_tmp,
@@ -425,8 +425,8 @@ const struct nlop_s* append_convcorr_layer(const struct nlop_s* network, int o, 
 			md_copy_dims(3, dil_tmp, dilations);
 		if (NULL != strides)
 			md_copy_dims(3, str_tmp, strides);
-		
-		return append_convcorr_layer_generic(	
+
+		return append_convcorr_layer_generic(
 						network, o,
 						7, 8, 0,
 						5, kernel, str_tmp, dil_tmp,
@@ -462,8 +462,8 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 			md_copy_dims(3, dil_tmp + 1, dilations);
 		if (NULL != strides)
 			md_copy_dims(3, str_tmp + 1, strides);
-		
-		return append_transposed_convcorr_layer_generic(	
+
+		return append_transposed_convcorr_layer_generic(
 						network, o,
 						14, 1, 0,
 						5, kernel, str_tmp, dil_tmp,
@@ -479,8 +479,8 @@ const struct nlop_s* append_transposed_convcorr_layer(const struct nlop_s* netwo
 			md_copy_dims(3, dil_tmp, dilations);
 		if (NULL != strides)
 			md_copy_dims(3, str_tmp, strides);
-		
-		return append_transposed_convcorr_layer_generic(	
+
+		return append_transposed_convcorr_layer_generic(
 						network, o,
 						7, 8, 0,
 						5, kernel, str_tmp, dil_tmp,
@@ -851,8 +851,8 @@ const struct nlop_s* append_flatten_layer(const struct nlop_s* network, int o)
  * @param network operator to append the layer (the operator is freed)
  * @param o output index of network, the layer is appended
  * @param N number of dimensions
- * @param padd_for
- * @param padd_after
+ * @param pad_for
+ * @param pad_after
  * @param pad_type
  */
 const struct nlop_s* append_padding_layer(const struct nlop_s* network, int o, long N, long pad_for[N], long pad_after[N], enum PADDING pad_type)
