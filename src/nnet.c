@@ -99,7 +99,19 @@ int main_nnet(int argc, char* argv[])
 			NI = 5;
 	}
 
-	iter6_copy_config_from_opts(config.train_conf);
+	if (train) {
+
+		if (NULL == config.train_conf) {
+
+			debug_printf(DP_WARN, "No training algorithm selected. Fallback to Adam!");
+			config.train_conf = CAST_UP(&iter6_adam_conf_opts);
+		}
+
+		iter6_copy_config_from_opts(config.train_conf);
+	}
+
+	if (NULL == config.network)
+		error("No network selected!");
 
 	if ((0 < config.train_conf->dump_mod) && (NULL == config.train_conf->dump_filename))
 		config.train_conf->dump_filename = filename_weights;

@@ -234,7 +234,7 @@ nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, con
 		if (MD_IS_SET(config->channel_flag, i) || MD_IS_SET(config->group_flag, i))
 			ldims[i] = odims[i];
 
-	//if dim for group index are not equal in the last layer, we make it a chennl dim
+	//if dim for group index are not equal in the last layer, we make it a channel dim
 	tchannel_flag = config->channel_flag;
 	tgroup_flag = config->group_flag;
 	for (unsigned int i = 0; i < N; i++){
@@ -376,7 +376,6 @@ nn_t network_varnet_create(const struct network_s* _config, unsigned int NO, con
 	nlop_result = nlop_chain2_FF(nlop_result, 0, rbf, 0); //in: rbf_w, in, conv_w
 
 	nlop_result = append_transposed_convcorr_layer(nlop_result, 0, 1, ker_size, false, true, PAD_SAME, true, NULL, NULL); //in: rbf_w, u, conv_w, conv_w
-	//nlop_result = nlop_chain2_FF(nlop_result, 0, padd, 0); //in: rbf_w, u, conv_w, conv_w
 	nlop_result = append_padding_layer(nlop_result, 0, 5, pad_down, pad_down, PAD_VALID);
 	nlop_result = nlop_dup_F(nlop_result, 2, 3); //in: rbf_w, u, conv_w
 

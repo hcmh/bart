@@ -80,7 +80,7 @@ struct opt_s loss_opts[] = {
 	OPTL_FLOAT(0, "dice1", &(loss_option.weighting_dice1), "weighting", "weighting for dice loss weighted with inverse frequency of label"),
 	OPTL_FLOAT(0, "dice2", &(loss_option.weighting_dice2), "weighting", "weighting for dice loss weighted with inverse square frequency of label"),
 
-	//OPTL_FLOAT(0, "dicel", &(loss_option.weighting_dice2), "weighting", "weighting for per lable dice loss"),
+	//OPTL_FLOAT(0, "dicel", &(loss_option.weighting_dice2), "weighting", "weighting for per label dice loss"),
 
 	OPTL_UINT(0, "label_dim", &(loss_option.label_index), "index", "label dimension"),
 };
@@ -120,7 +120,7 @@ struct opt_s val_loss_opts[] = {
 	OPTL_FLOAT(0, "dice1", &(val_loss_option.weighting_dice1), "weighting", "weighting for dice loss weighted with inverse frequency of label"),
 	OPTL_FLOAT(0, "dice2", &(val_loss_option.weighting_dice2), "weighting", "weighting for dice loss weighted with inverse square frequency of label"),
 
-	OPTL_FLOAT(0, "dicel", &(val_loss_option.weighting_dice2), "weighting", "weighting for per lable dice loss"),
+	OPTL_FLOAT(0, "dicel", &(val_loss_option.weighting_dice2), "weighting", "weighting for per label dice loss"),
 
 	OPTL_UINT(0, "label_dim", &(val_loss_option.label_index), "index", "label dimension"),
 };

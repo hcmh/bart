@@ -44,7 +44,7 @@ void load_network_data(struct network_data_s* nd) {
 
 
 	nd->coil = load_cfl(nd->filename_coil, DIMS, nd->cdims);
-	
+
 	if (nd->load_mem) {
 
 		complex float* tmp = anon_cfl("", DIMS, nd->cdims);
@@ -52,7 +52,7 @@ void load_network_data(struct network_data_s* nd) {
 		unmap_cfl(DIMS, nd->cdims, nd->coil);
 		nd->coil = tmp;
 	}
-	
+
 	md_copy_dims(DIMS, nd->kdims, nd->cdims);
 	md_select_dims(DIMS, ~COIL_FLAG, nd->idims, nd->cdims);
 
@@ -76,7 +76,7 @@ void load_network_data(struct network_data_s* nd) {
 
 	long kdims_file[DIMS];
 	complex float* kspace_file = load_cfl(nd->filename_kspace, DIMS, kdims_file);
-	
+
 	complex float* pattern_file = NULL;
 	long pdims_file[DIMS];
 
@@ -108,14 +108,14 @@ void load_network_data(struct network_data_s* nd) {
 		md_copy_dims(DIMS - 3, nd->pdims + 3, trj_dims + 3);
 
 		unsigned int cmp_flag = md_nontriv_dims(DIMS, pdims_file) & md_nontriv_dims(DIMS, kdims_file);
-		
+
 		if (!md_check_equal_dims(DIMS, pdims_file, kdims_file, cmp_flag)) {
-			
+
 			debug_printf(DP_WARN, "pdims: ");
 			debug_print_dims(DP_INFO, DIMS, pdims_file);
 			debug_printf(DP_WARN, "kdims: ");
 			debug_print_dims(DP_INFO, DIMS, kdims_file);
-			error("Incosistent dimensions of kspace and pattern!");
+			error("Inconsistent dimensions of kspace and pattern!");
 		}
 
 		//compute psf
@@ -138,7 +138,7 @@ void load_network_data(struct network_data_s* nd) {
 		//grid kspace
 
 		nd->kspace = anon_cfl("", DIMS, nd->kdims);
-	
+
 		struct nufft_conf_s nufft_conf = nufft_conf_defaults;
 		nufft_conf.toeplitz = false;
 		nufft_conf.lowmem = true;
@@ -155,7 +155,7 @@ void load_network_data(struct network_data_s* nd) {
 	} else {
 
 		md_copy_dims(DIMS, nd->kdims, kdims_file);
-		
+
 		if (nd->load_mem) {
 
 			nd->kspace = anon_cfl("", DIMS, nd->kdims);
@@ -193,7 +193,7 @@ void network_data_check_simple_dims(struct network_data_s* network_data)
 	consistent_dims = consistent_dims && ((1 == network_data->pdims[4]) || (network_data->kdims[4] == network_data->pdims[4]));
 
 	if (!consistent_dims) {
-			
+
 		debug_printf(DP_WARN, "kdims: ");
 		debug_print_dims(DP_INFO, DIMS, network_data->kdims);
 		debug_printf(DP_WARN, "cdims: ");
@@ -203,6 +203,6 @@ void network_data_check_simple_dims(struct network_data_s* network_data)
 		debug_printf(DP_WARN, "idims: ");
 		debug_print_dims(DP_INFO, DIMS, network_data->idims);
 
-		error("Incosistent dimensions!");
+		error("Inconsistent dimensions!");
 	}
 }

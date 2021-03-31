@@ -709,7 +709,7 @@ static nn_t unet_level_create(struct network_unet_s* unet, unsigned int N, const
 			okdims[i] = odims[i];
 	}
 
-	//if dim for group index are not equal in the last layer, we make it a chennl dim
+	//if dim for group index are not equal in the last layer, we make it a channel dim
 	unsigned long ichannel_flag = unet->channel_flag;
 	unsigned long igroup_flag = unet->group_flag;
 	unsigned long ochannel_flag = unet->channel_flag;
@@ -776,7 +776,7 @@ static nn_t unet_level_create(struct network_unet_s* unet, unsigned int N, const
 	long down_dims_out[N];
 	auto nn_us = unet_upsample_create(unet, N, nn_generic_codomain(result, 0, NULL)->dims, down_dims_out, level, status);
 	//FIXME: currently, a level is not allowed to change spatial dimensions (valid convolution)
-	//While the upsampling opperator should define the channel dimensions, the lowr level sould define the spatial dims
+	//While the upsampling opperator should define the channel dimensions, the lower level should define the spatial dims
 
 	auto lower_level = unet_level_create(unet, N, down_dims_out, down_dims_in, level + 1, status);
 	lower_level = nn_chain2_swap_FF(nn_ds, 0, NULL, lower_level, 0, NULL);

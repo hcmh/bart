@@ -82,7 +82,7 @@ int main_reconet(int argc, char* argv[])
 	struct opt_s dc_opts[] = {
 
 		OPTL_FLOAT(0, "fix-lambda", &(config.dc_lambda_fixed), "float", "fix lambda to specified value (-1 means train lambda)"),
-		OPTL_FLOAT(0, "lambda-init", &(config.dc_lambda_init), "float", "initialize lambda eith specified value"),
+		OPTL_FLOAT(0, "lambda-init", &(config.dc_lambda_init), "float", "initialize lambda with specified value"),
 		OPTL_SET(0, "dc-gradient-step", &(config.dc_gradient), "use gradient steps for data-consistency"),
 		OPTL_SET(0, "dc-proximal-mapping", &(config.dc_tickhonov), "use proximal mapping for data-consistency"),
 		OPTL_INT(0, "dc-max-cg-iter", &(config.dc_max_iter), "int", "number of cg steps for proximal mapping"),
@@ -192,7 +192,21 @@ int main_reconet(int argc, char* argv[])
 			reconet_init_unet_default(&config);
 	}
 
-	iter6_copy_config_from_opts(config.train_conf);
+	if (train) {
+
+		if (NULL == config.train_conf) {
+
+			debug_printf(DP_WARN, "No training algorithm selected. Fallback to Adam!");
+			config.train_conf = CAST_UP(&iter6_adam_conf_opts);
+		}
+
+		iter6_copy_config_from_opts(config.train_conf);
+	}
+
+	if (NULL == config.network)
+		error("No network selected!");
+
+
 
 	if ((0 < config.train_conf->dump_mod) && (NULL == config.train_conf->dump_filename))
 		config.train_conf->dump_filename = filename_weights;
