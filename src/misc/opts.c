@@ -97,9 +97,15 @@ static void print_usage(FILE* fp, const char* name, const char* usage_str, int n
 	fprintf(fp, "%s\n", usage_str);
 }
 
-static void print_usage_subopts(FILE* fp, const char* name, const char* usage_str, int n, const struct opt_s opts[static n ?: 1])
+static void print_usage_subopts(FILE* fp, char c, const char* arg_name, const char* usage_str, int n, const struct opt_s opts[static n ?: 1])
 {
-	fprintf(fp, "Usage: %s ", name);
+	fprintf(fp, "Usage of sub-option: ");
+
+	if (0 != c)
+		fprintf(fp, "-%c", c);
+
+	if (NULL != arg_name)
+		fprintf(fp, (0 == c) ? "--%s " : ",--%s ", arg_name);
 
 	for (int i = 0; i < n; i++)
 		if (show_option_p(opts[i])) {
@@ -112,7 +118,7 @@ static void print_usage_subopts(FILE* fp, const char* name, const char* usage_st
 				if (opts[i].c < (int) ' ')
 					fprintf(fp, "[%s%s]%s", opts[i].s, opt_arg_types_subopts[opt_arg_type(opts[i].conv)], i < (n - 1) ? "," : "");
 				else
-					fprintf(fp, "[%c,%s%s]%s", opts[i].c, opts[i].s, opt_arg_types_subopts[opt_arg_type(opts[i].conv)], i < (n - 1) ? "," : "");
+					fprintf(fp, "[%c%s,%s%s]%s", opts[i].c, opt_arg_types_subopts[opt_arg_type(opts[i].conv)], opts[i].s, opt_arg_types_subopts[opt_arg_type(opts[i].conv)], i < (n - 1) ? "," : "");
 			}
 		}
 
@@ -161,6 +167,38 @@ static void print_help(const char* help_str, int n, const struct opt_s opts[n ?:
 
 
 	printf("-h\t\thelp\n");
+}
+
+static void print_help_subopts(const char* descr, int n, const struct opt_s opts[n ?: 1])
+{
+
+	if (NULL != descr)
+		printf("\nSub-options: %s\n\n",  descr);
+	else
+		printf("\n");
+
+	for (int i = 0; i < n; i++)
+		if (show_option_p(opts[i])) {
+
+			if (NULL == opts[i].s) {
+
+
+				printf("%c%s%s\n", opts[i].c,
+					add_space(opts[i].arg, isspace(opts[i].descr[0])),
+					trim_space(opts[i].descr));
+			} else {
+				if (opts[i].c < (int) ' ')
+					printf("%s%s%s\n", opts[i].s,
+						add_space(opts[i].arg, isspace(opts[i].descr[0])),
+						trim_space(opts[i].descr));
+				else
+					printf("%c,%s%s%s\n", opts[i].c, opts[i].s,
+					       add_space(opts[i].arg, isspace(opts[i].descr[0])),
+					       trim_space(opts[i].descr));
+			}
+		}
+
+	printf("h\t\thelp\n");
 }
 
 
@@ -510,12 +548,12 @@ bool opt_subopt(void* _ptr, char c, const char* optarg)
 		i = getsubopt(&option, (char *const *)tokens, &value);
 		if ((i == 2 * n) || (-1 == i)) {
 
-			print_usage_subopts(stdout, "", "", n, opts);
-			print_help("Suboptions can be passed as a comma separated list. Values are passed by '='. Example: x,str=Hello,f=.5", ptr->n, ptr->opts);
+			print_usage_subopts(stdout, ptr->calling_c, ptr->calling_s, "", n, opts);
+			print_help_subopts(ptr->calling_desc, ptr->n, ptr->opts);
 		}
 
 		if (-1 == i)
-			error("Suboption could not be parsed: %s", value);
+			error("Sub-option could not be parsed: %s", value);
 
 		if (i < 2 * n)
 			process_option(wopts[i / 2].c, value, "", "", "", n, wopts);
