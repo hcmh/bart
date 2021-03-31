@@ -49,7 +49,7 @@
 
 #include "vecops_strided.h"
 
-//not all BLAS libraries seem to be safe when called from omp region 
+//not all BLAS libraries seem to be safe when called from omp region
 #ifdef BLAS_THREADSAFE
 bool blas_threadsafe = true;
 #else
@@ -161,7 +161,7 @@ static bool is_matrix(const long dims[3], const long strs[3], int i1, int i2, lo
  * nistrs1: (s, ndim[0]*s, 0) or (ndim[1]*s, s, 0)
  * nistrs2: (0, s, ndim[1]*s) or (0, ndim[2]*s, s)
  *
- * Fixme: we could loose restriction for matrix lying contingously in memory
+ * Fixme: we could loose restriction for matrix lying contiguously in memory
  */
 static long check_gemm(unsigned long N, long ndims[N], long nostrs[N], long nistrs1[N], long nistrs2[N], const long dims[N], const long ostrs[N], const long istrs1[N], const long istrs2[N], long size)
 {
@@ -216,7 +216,7 @@ static long check_gemm(unsigned long N, long ndims[N], long nostrs[N], long nist
                        && (ipos1 != ipos2)
                        && (3 == opos + ipos1 + ipos2));
 
-	// Check if matrix dims are continous in memory
+	// Check if matrix dims are continuos in memory
 	matrix = matrix && is_matrix(tdims, tostrs, (opos + 1) % 3, (opos + 2) % 3, size);
 	matrix = matrix && is_matrix(tdims, tistrs1, (ipos1 + 1) % 3, (ipos1 + 2) % 3, size);
 	matrix = matrix && is_matrix(tdims, tistrs2, (ipos2 + 1) % 3, (ipos2 + 2) % 3, size);
@@ -516,7 +516,7 @@ static long check_dgmm(unsigned long N, long ndims[N], long nostrs[N], long nist
 }
 
 /**
- * Output: 2 if inner matrix can be reduced over non-contingous dimension and istrs1 == ostsrs, -1, else
+ * Output: 2 if inner matrix can be reduced over non-continuous dimension and istrs1 == ostsrs, -1, else
  *
  * if successful, the out strides have the form:
  * nostrs: (s, 0, ...)
@@ -569,7 +569,7 @@ static long check_reduce_outer(unsigned long N, long ndims[N], long nostrs[N], l
 }
 
 /**
- * Output: 2 or 1 if inner matrix can be reduced over contingous dimension and istrs1 == ostsrs, -1, else
+ * Output: 2 or 1 if inner matrix can be reduced over contiguous dimension and istrs1 == ostsrs, -1, else
  *
  * if successful, the out strides have the form:
  * nostrs: (0) or (0, s)
@@ -627,7 +627,7 @@ static long check_reduce_inner(unsigned long N, long ndims[N], long nostrs[N], l
 
 
 // computes the size of an array with strides ignoring dims with 0 strides
-// returns zero if block is not continous in memory
+// returns zero if block is not contiguous in memory
 static size_t get_block_size(unsigned int N, const long dims[N], const long strs[N], size_t size)
 {
 	long tdims[N];
@@ -640,7 +640,7 @@ static size_t get_block_size(unsigned int N, const long dims[N], const long strs
 	unsigned int NN = optimize_dims_gpu(1, N, tdims, nstr); // sorting of dims
 	if (md_calc_blockdim(NN, tdims, tstrs, size) != NN)
 		return 0;
-	
+
 	return md_calc_size(NN, tdims) * size;
 }
 
@@ -670,7 +670,7 @@ static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_c
 #endif
 
 	if (conj && (0 == get_block_size(N, dims, istrs2, size)))
-		return false; //the conjugated input is not a continous memory block
+		return false; //the conjugated input is not a continuos memory block
 
 	struct simple_z3op_check strided_call;
 
@@ -688,7 +688,7 @@ static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_c
 			continue;
 
 		N_in = strided_call.check_fun(N, ndims, nostrs, nistrs1, nistrs2, dims, ostrs, istrs1, istrs2, size);
-		
+
 		if ((strided_call.reduction) && (out != in1))
 			N_in = -1;
 
@@ -751,7 +751,7 @@ static bool simple_z3op(int N_checks, struct simple_z3op_check strided_calls[N_c
 	if ((0 == osize) || (0 == isize1) || (0 == isize2))
 	{
 		md_free(conj_in);
-		return false; //cross check: data for inner kernel is contingous in memory
+		return false; //cross check: data for inner kernel is contiguous in memory
 	}
 
 	// clang
@@ -817,7 +817,7 @@ static bool simple_3op(int N_checks, struct simple_3op_check strided_calls[N_che
 			continue;
 
 		N_in = strided_call.check_fun(N, ndims, nostrs, nistrs1, nistrs2, dims, ostrs, istrs1, istrs2, size);
-		
+
 		if ((strided_call.reduction) && (out != in1))
 			N_in = -1;
 
@@ -855,7 +855,7 @@ static bool simple_3op(int N_checks, struct simple_3op_check strided_calls[N_che
 	size_t isize2 = get_block_size(N_in, ndims, nistrs2, size);
 
 	if ((0 == osize) || (0 == isize1) || (0 == isize2))
-		return false; //cross check: data for inner kernel is contingous in memory
+		return false; //cross check: data for inner kernel is contiguous in memory
 
 	// clang
 	long* ndims_ptr = &ndims[0];
