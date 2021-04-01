@@ -294,6 +294,7 @@ TARGETS = bart $(XTARGETS)
 ifeq ($(DEBUG),1)
 CPPFLAGS += -g
 CFLAGS += -g
+NVCCFLAGS += -g
 endif
 
 ifeq ($(NOEXEC_STACK),1)
@@ -362,7 +363,7 @@ endif
 
 # sm_20 no longer supported in CUDA 9
 GPUARCH_FLAGS ?= -arch=compute_50
-NVCCFLAGS = -g -DUSE_CUDA -Xcompiler -fPIC -Xcompiler -fopenmp -O3 $(GPUARCH_FLAGS) -I$(srcdir)/ -m64 -ccbin $(CC)
+NVCCFLAGS += -DUSE_CUDA -Xcompiler -fPIC -Xcompiler -fopenmp -O3 $(GPUARCH_FLAGS) -I$(srcdir)/ -m64 -ccbin $(CC)
 #NVCCFLAGS = -Xcompiler -fPIC -Xcompiler -fopenmp -O3  -I$(srcdir)/
 
 
@@ -428,6 +429,7 @@ endif
 ifeq ($(NON_DETERMINISTIC),1)
 CPPFLAGS += -DNON_DETERMINISTIC
 CFLAGS += -DNON_DETERMINISTIC
+NVCCFLAGS += -DNON_DETERMINISTIC
 endif
 
 

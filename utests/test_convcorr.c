@@ -316,12 +316,19 @@ static bool test_convcorr_bwd_in_cf_dil_strs(void)
 	long dilation[N] =	{1, 1, 2, 1, 1, 1};
 	long strides[N] =	{1, 1, 1, 2, 1, 1};
 
+#ifdef NON_DETERMINISTIC
+	int gpu_count = 1;
+#else
+	int gpu_count = 0;
+#endif
+
+
 	bool test = test_zconvcorr_bwd_in(	N,
 					odims, MD_STRIDES(N, odims, CFL_SIZE),
 					idims, MD_STRIDES(N, idims, CFL_SIZE),
 					kdims, MD_STRIDES(N, kdims, CFL_SIZE),
 					28, dilation, strides, false,
-					1.e-6, 0, 1); //no deterministic cudnn algorithm
+					1.e-6, 0, gpu_count); //no deterministic cudnn algorithm
 
 	UT_ASSERT(test);
 }

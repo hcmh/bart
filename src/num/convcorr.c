@@ -1125,6 +1125,13 @@ bool zconvcorr_bwd_in_im2col_cf_gpu(int N,
 	if (conv)
 		return false;
 
+#ifndef NON_DETERMINISTIC
+	if ((NULL != dilation) && 1 != md_calc_size(N, dilation))
+		return false;
+	if ((NULL != strides) && 1 != md_calc_size(N, strides))
+		return false;
+#endif
+
 	// mim2col dims (nr_out_channel | nr_in_channel, kx, ky, kz | outx, outy, outz)
 	// kernel	(nr_filter | nr_in_channel, kx, ky, kz | 1, 1, 1 )
 	// image	(1 | nr_in_channel, kx, ky, kz | outx, outy, outz | ... )

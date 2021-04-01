@@ -111,7 +111,7 @@ __global__ void kern_zconvcorr_3D_CF(cuFloatComplex* dst, const cuFloatComplex* 
 	for(int k1 = 0; k1 < NK1; k1++)
 	for(int k0 = 0; k0 < NK0; k0++)
 	for(int km = 0; km < NKm; km++){
-		
+
 		int kind = om + NOm * km; // matrix index
 		if (conv)
 			kind += (NOm * NKm) * ((NK0 - k0 - 1) + NK0 * (NK1 - k1 - 1) + NK0 * NK1 * (NK2 - k2 - 1));
@@ -168,7 +168,7 @@ __global__ void kern_zconvcorr_3D_CF_TK(cuFloatComplex* krn, const cuFloatComple
 	for(int o2 = 0; o2 < NO2; o2++)
 	for(int o1 = 0; o1 < NO1; o1++)
 	for(int o0 = 0; o0 < NO0; o0++){
-	
+
 		int oind = om + NOm * o0 + NOm * NO0 * o1 + NOm * NO0 * NO1 * o2;
 		int iind = km + NKm * (o0 + k0) + NKm * NI0 * (o1 + k1) + NKm * NI0 * NI1 * (o2 + k2);
 		result = cuCaddf(result, cuCmulf(src[iind], out[oind]));
@@ -217,11 +217,11 @@ __global__ void kern_zconvcorr_3D_CF_TI(cuFloatComplex* im, const cuFloatComplex
 	for(int k1 = 0; k1 < NK1; k1++)
 	for(int k0 = 0; k0 < NK0; k0++)
 	for(int om = 0; om < NOm; om++){
-	
+
 		int o0 = i0 - k0;
 		int o1 = i1 - k1;
 		int o2 = i2 - k2;
-		
+
 		int oind = om + NOm * o0 + NOm * NO0 * o1 + NOm * NO0 * NO1 * o2;
 		int kind = om + NOm * km; // matrix index
 		if (conv)
@@ -249,7 +249,7 @@ extern "C" void cuda_zconvcorr_3D_CF_TI(_Complex float* im, const _Complex float
 
 #define MAX_CONV_DIMS 3
 struct im2col_descriptor_uint64 {
-	
+
 	uint64_t NC;		// number channels
 	long istrs_NC;		// 1
 	long ostrs_NC;		// 1
@@ -259,7 +259,7 @@ struct im2col_descriptor_uint64 {
 	uint64_t odims[MAX_CONV_DIMS];	// dimensions of the convolution (not including channel)
 	uint64_t kdims[MAX_CONV_DIMS];
 	uint64_t idims[MAX_CONV_DIMS];
-	
+
 	long istrs_odims[MAX_CONV_DIMS];	// input strides of im2col (in elements)
 	long istrs_kdims[MAX_CONV_DIMS];
 	long ostrs_kdims[MAX_CONV_DIMS];	// output strides of im2col (in elements)
@@ -280,9 +280,9 @@ struct im2col_descriptor_uint64 {
 	bool triv_strides_dilation;	// trivial dilation and strides
 };
 
-// same struct as im2col_descriptor_uint64 but with uint32_t for faster divisons 
+// same struct as im2col_descriptor_uint64 but with uint32_t for faster divisons
 struct im2col_descriptor_uint32 {
-	
+
 	uint32_t NC;		// number channels
 	long istrs_NC;		// 1
 	long ostrs_NC;		// 1
@@ -292,7 +292,7 @@ struct im2col_descriptor_uint32 {
 	uint32_t odims[MAX_CONV_DIMS];	// dimensions of the convolution (not including channel)
 	uint32_t kdims[MAX_CONV_DIMS];
 	uint32_t idims[MAX_CONV_DIMS];
-	
+
 	long istrs_odims[MAX_CONV_DIMS];	// input strides of im2col (in elements)
 	long istrs_kdims[MAX_CONV_DIMS];
 	long ostrs_kdims[MAX_CONV_DIMS];	// output strides of im2col (in elements)
@@ -317,7 +317,7 @@ struct im2col_descriptor_uint32 {
 static struct im2col_descriptor_uint64 get_im2col_descriptor_uint64(const long odims[5], const long idims[5], const long kdims[5], const long dilation[5], const long strides[5])
 {
 	struct im2col_descriptor_uint64 config;
-	
+
 	config.NC = idims[1];
 	config.istrs_NC = 1;
 	config.ostrs_NC = 1;
@@ -331,7 +331,7 @@ static struct im2col_descriptor_uint64 get_im2col_descriptor_uint64(const long o
 	config.N_out_elements_k_only = idims[1];
 
 	config.triv_strides_dilation = true;
-	
+
 	long istrs[5];
 	md_calc_strides(5, istrs, idims, 1);
 
@@ -366,7 +366,7 @@ static struct im2col_descriptor_uint64 get_im2col_descriptor_uint64(const long o
 
 		config.istrs_odims[j] = istrs[i] * (NULL == strides ? 1 : strides[i]);
 		config.istrs_kdims[j] = istrs[i] * (NULL == dilation ? 1 : dilation[i]);
-		
+
 		#ifdef USE_FXDIV
 			config.div_odims[j] = fxdiv_init_uint64_t(odims[i]);
 			config.div_kdims[j] = fxdiv_init_uint64_t(kdims[i]);
@@ -397,7 +397,7 @@ static struct im2col_descriptor_uint64 get_im2col_descriptor_uint64(const long o
 static struct im2col_descriptor_uint32 get_im2col_descriptor_uint32(const long odims[5], const long idims[5], const long kdims[5], const long dilation[5], const long strides[5])
 {
 	struct im2col_descriptor_uint32 config;
-	
+
 	config.NC = idims[1];
 	config.istrs_NC = 1;
 	config.ostrs_NC = 1;
@@ -411,7 +411,7 @@ static struct im2col_descriptor_uint32 get_im2col_descriptor_uint32(const long o
 	config.N_out_elements_k_only = idims[1];
 
 	config.triv_strides_dilation = true;
-	
+
 	long istrs[5];
 	md_calc_strides(5, istrs, idims, 1);
 
@@ -485,13 +485,13 @@ __global__ static void kern_im2col_valid(struct im2col_descriptor_uint64 config,
 		uint64_t i_cur = i;
 		uint64_t i_new = i;
 		long in_index = 0;
-		
+
 		if (1 < config.NC) {
 
 			#ifdef USE_FXDIV
 				i_new = cuda_fxdiv_quotient_uint64_t(i_cur, config.div_NC);
 			#else
-				i_new = i_cur / config.NC; 
+				i_new = i_cur / config.NC;
 			#endif
 			in_index = (i_cur - config.NC * i_new) * config.istrs_NC;
 			i_cur = i_new;
@@ -502,7 +502,7 @@ __global__ static void kern_im2col_valid(struct im2col_descriptor_uint64 config,
 			#ifdef USE_FXDIV
 				i_new = cuda_fxdiv_quotient_uint64_t(i_cur, config.div_kdims[j]);
 			#else
-				i_new = i_cur / config.kdims[j]; 
+				i_new = i_cur / config.kdims[j];
 			#endif
 			in_index += config.istrs_kdims[j] * (i_cur - config.kdims[j] * i_new);
 			i_cur = i_new;
@@ -513,7 +513,7 @@ __global__ static void kern_im2col_valid(struct im2col_descriptor_uint64 config,
 			#ifdef USE_FXDIV
 				i_new = cuda_fxdiv_quotient_uint64_t(i_cur, config.div_odims[j]);
 			#else
-				i_new = i_cur / config.odims[j]; 
+				i_new = i_cur / config.odims[j];
 			#endif
 			in_index += config.istrs_odims[j] * (i_cur - config.odims[j] * i_new);
 			i_cur = i_new;
@@ -521,7 +521,7 @@ __global__ static void kern_im2col_valid(struct im2col_descriptor_uint64 config,
 
 		in_index += i_cur * config.istrs_odims[config.N_conv_dims - 1];
 
-		dst[i] = src[in_index]; 
+		dst[i] = src[in_index];
 	}
 }
 
@@ -537,13 +537,13 @@ __global__ static void kern_im2col_valid(struct im2col_descriptor_uint32 config,
 		uint32_t i_cur = i;
 		uint32_t i_new = i;
 		long in_index = 0;
-		
+
 		if (1 < config.NC) {
 
 			#ifdef USE_FXDIV
 				i_new = cuda_fxdiv_quotient_uint32_t(i_cur, config.div_NC);
 			#else
-				i_new = i_cur / config.NC; 
+				i_new = i_cur / config.NC;
 			#endif
 			in_index = (i_cur - config.NC * i_new) * config.istrs_NC;
 			i_cur = i_new;
@@ -554,7 +554,7 @@ __global__ static void kern_im2col_valid(struct im2col_descriptor_uint32 config,
 			#ifdef USE_FXDIV
 				i_new = cuda_fxdiv_quotient_uint32_t(i_cur, config.div_kdims[j]);
 			#else
-				i_new = i_cur / config.kdims[j]; 
+				i_new = i_cur / config.kdims[j];
 			#endif
 			in_index += config.istrs_kdims[j] * (i_cur - config.kdims[j] * i_new);
 			i_cur = i_new;
@@ -565,7 +565,7 @@ __global__ static void kern_im2col_valid(struct im2col_descriptor_uint32 config,
 			#ifdef USE_FXDIV
 				i_new = cuda_fxdiv_quotient_uint32_t(i_cur, config.div_odims[j]);
 			#else
-				i_new = i_cur / config.odims[j]; 
+				i_new = i_cur / config.odims[j];
 			#endif
 			in_index += config.istrs_odims[j] * (i_cur - config.odims[j] * i_new);
 			i_cur = i_new;
@@ -573,7 +573,7 @@ __global__ static void kern_im2col_valid(struct im2col_descriptor_uint32 config,
 
 		in_index += i_cur * config.istrs_odims[config.N_conv_dims - 1];
 
-		dst[i] = src[in_index]; 
+		dst[i] = src[in_index];
 	}
 }
 
@@ -601,15 +601,15 @@ __global__ static void kern_im2col_valid_no_dil_str(struct im2col_descriptor_uin
 			uint64_t iz = i_new;
 		#else
 			uint64_t i_cur = i;
-			uint64_t i_new = i_cur / config.NC; 
+			uint64_t i_new = i_cur / config.NC;
 			uint64_t c = i_cur - i_new * config.NC;
 			i_cur = i_new;
 
-			i_new = i_cur / config.idims[0]; 
+			i_new = i_cur / config.idims[0];
 			uint64_t ix = i_cur - i_new * config.idims[0];
 			i_cur = i_new;
 
-			i_new = i_cur / config.idims[1]; 
+			i_new = i_cur / config.idims[1];
 			uint64_t iy = i_cur - i_new * config.idims[1];
 			uint64_t iz = i_new;
 		#endif
@@ -663,15 +663,15 @@ __global__ static void kern_im2col_valid_no_dil_str(struct im2col_descriptor_uin
 			uint32_t iz = i_new;
 		#else
 			uint32_t i_cur = i;
-			uint32_t i_new = i_cur / config.NC; 
+			uint32_t i_new = i_cur / config.NC;
 			uint32_t c = i_cur - i_new * config.NC;
 			i_cur = i_new;
 
-			i_new = i_cur / config.idims[0]; 
+			i_new = i_cur / config.idims[0];
 			uint32_t ix = i_cur - i_new * config.idims[0];
 			i_cur = i_new;
 
-			i_new = i_cur / config.idims[1]; 
+			i_new = i_cur / config.idims[1];
 			uint32_t iy = i_cur - i_new * config.idims[1];
 			uint32_t iz = i_new;
 		#endif
@@ -748,11 +748,11 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 
 		uint64_t i_cur = i;
 		uint64_t i_new;
-		
+
 	#ifdef USE_FXDIV
 		i_new = cuda_fxdiv_quotient_uint64_t(i_cur, config.div_NC);
 	#else
-		i_new = i_cur / config.NC; 
+		i_new = i_cur / config.NC;
 	#endif
 		uint64_t c = i_cur - i_new * config.NC;
 		i_cur = i_new;
@@ -760,7 +760,7 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 	#ifdef USE_FXDIV
 		i_new = cuda_fxdiv_quotient_uint64_t(i_cur, config.div_idims[0]);
 	#else
-		i_new = i_cur / config.idims[0]; 
+		i_new = i_cur / config.idims[0];
 	#endif
 		uint64_t ix = i_cur - i_new * config.idims[0];
 		i_cur = i_new;
@@ -768,7 +768,7 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 	#ifdef USE_FXDIV
 		i_new = cuda_fxdiv_quotient_uint64_t(i_cur, config.div_idims[1]);
 	#else
-		i_new = i_cur / config.idims[1]; 
+		i_new = i_cur / config.idims[1];
 	#endif
 		uint64_t iy = i_cur - i_new * config.idims[1];
 		uint64_t iz = i_new;
@@ -780,15 +780,15 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 			int oz = iz - kz;
 			if ((0 > oz) || ((int)config.odims[2] <= oz))
 				continue;
-			
+
 			long offset_z = config.N_out_elements_k_only * config.odims[0] * config.odims[1] * oz + config.NC * config.kdims[0] * config.kdims[1] * kz;
-		
+
 			for(uint ky = 0; ky < config.kdims[1]; ky++) {
 
 				int oy = iy - ky;
 				if ((0 > oy) || ((int)config.odims[1] <= oy))
 					continue;
-				
+
 				long offset_y = config.N_out_elements_k_only * config.odims[0] * oy + config.NC * config.kdims[0] * ky;
 
 				for(uint kx = 0; kx < config.kdims[0]; kx++) {
@@ -817,11 +817,11 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 
 		uint32_t i_cur = i;
 		uint32_t i_new;
-		
+
 	#ifdef USE_FXDIV
 		i_new = cuda_fxdiv_quotient_uint32_t(i_cur, config.div_NC);
 	#else
-		i_new = i_cur / config.NC; 
+		i_new = i_cur / config.NC;
 	#endif
 		uint32_t c = i_cur - i_new * config.NC;
 		i_cur = i_new;
@@ -829,7 +829,7 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 	#ifdef USE_FXDIV
 		i_new = cuda_fxdiv_quotient_uint32_t(i_cur, config.div_idims[0]);
 	#else
-		i_new = i_cur / config.idims[0]; 
+		i_new = i_cur / config.idims[0];
 	#endif
 		uint32_t ix = i_cur - i_new * config.idims[0];
 		i_cur = i_new;
@@ -837,7 +837,7 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 	#ifdef USE_FXDIV
 		i_new = cuda_fxdiv_quotient_uint32_t(i_cur, config.div_idims[1]);
 	#else
-		i_new = i_cur / config.idims[1]; 
+		i_new = i_cur / config.idims[1];
 	#endif
 		uint32_t iy = i_cur - i_new * config.idims[1];
 		uint32_t iz = i_new;
@@ -849,15 +849,15 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 			int oz = iz - kz;
 			if ((0 > oz) || ((int)config.odims[2] <= oz))
 				continue;
-			
+
 			long offset_z = config.N_out_elements_k_only * config.odims[0] * config.odims[1] * oz + config.NC * config.kdims[0] * config.kdims[1] * kz;
-		
+
 			for(uint ky = 0; ky < config.kdims[1]; ky++) {
 
 				int oy = iy - ky;
 				if ((0 > oy) || ((int)config.odims[1] <= oy))
 					continue;
-				
+
 				long offset_y = config.N_out_elements_k_only * config.odims[0] * oy + config.NC * config.kdims[0] * ky;
 
 				for(uint kx = 0; kx < config.kdims[0]; kx++) {
@@ -877,6 +877,8 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 	}
 }
 
+#ifdef NON_DETERMINISTIC
+
 __global__ static void kern_im2col_valid_transp(struct im2col_descriptor_uint32 config, cuFloatComplex* dst, const cuFloatComplex* src)
 {
 	int start = threadIdx.x + blockDim.x * blockIdx.x;
@@ -888,13 +890,13 @@ __global__ static void kern_im2col_valid_transp(struct im2col_descriptor_uint32 
 		uint32_t i0 = i;
 		uint32_t i_new = i;
 		long in_index = 0;
-	
+
 		if (1 < config.NC) {
-	
+
 			#ifdef USE_FXDIV
 				i_new = cuda_fxdiv_quotient_uint32_t(i0, config.div_NC);
 			#else
-				i_new = i0 / config.NC; 
+				i_new = i0 / config.NC;
 			#endif
 			in_index = (i0 - config.NC * i_new) * config.istrs_NC;
 			i0 = i_new;
@@ -905,7 +907,7 @@ __global__ static void kern_im2col_valid_transp(struct im2col_descriptor_uint32 
 		#ifdef USE_FXDIV
 			i_new = cuda_fxdiv_quotient_uint32_t(i0, config.div_kdims[j]);
 		#else
-			i_new = i0 / config.kdims[j]; 
+			i_new = i0 / config.kdims[j];
 		#endif
 			in_index += config.istrs_kdims[j] * (i0 - config.kdims[j] * i_new);
 			i0 = i_new;
@@ -916,7 +918,7 @@ __global__ static void kern_im2col_valid_transp(struct im2col_descriptor_uint32 
 		#ifdef USE_FXDIV
 			i_new = cuda_fxdiv_quotient_uint32_t(i0, config.div_odims[j]);
 		#else
-			i_new = i0 / config.odims[j]; 
+			i_new = i0 / config.odims[j];
 		#endif
 			in_index += config.istrs_odims[j] * (i0 - config.odims[j] * i_new);
 			i0 = i_new;
@@ -925,7 +927,7 @@ __global__ static void kern_im2col_valid_transp(struct im2col_descriptor_uint32 
 		in_index += i0 * config.istrs_odims[config.N_conv_dims - 1];
 
 		atomicAdd(&(dst[in_index].x), src[i].x);
-		atomicAdd(&(dst[in_index].y), src[i].y); 
+		atomicAdd(&(dst[in_index].y), src[i].y);
 	}
 }
 
@@ -940,13 +942,13 @@ __global__ static void kern_im2col_valid_transp(struct im2col_descriptor_uint64 
 		uint64_t i0 = i;
 		uint64_t i_new = i;
 		long in_index = 0;
-	
+
 		if (1 < config.NC) {
-	
+
 			#ifdef USE_FXDIV
 				i_new = cuda_fxdiv_quotient_uint64_t(i0, config.div_NC);
 			#else
-				i_new = i0 / config.NC; 
+				i_new = i0 / config.NC;
 			#endif
 			in_index = (i0 - config.NC * i_new) * config.istrs_NC;
 			i0 = i_new;
@@ -957,7 +959,7 @@ __global__ static void kern_im2col_valid_transp(struct im2col_descriptor_uint64 
 		#ifdef USE_FXDIV
 			i_new = cuda_fxdiv_quotient_uint64_t(i0, config.div_kdims[j]);
 		#else
-			i_new = i0 / config.kdims[j]; 
+			i_new = i0 / config.kdims[j];
 		#endif
 			in_index += config.istrs_kdims[j] * (i0 - config.kdims[j] * i_new);
 			i0 = i_new;
@@ -968,7 +970,7 @@ __global__ static void kern_im2col_valid_transp(struct im2col_descriptor_uint64 
 		#ifdef USE_FXDIV
 			i_new = cuda_fxdiv_quotient_uint64_t(i0, config.div_odims[j]);
 		#else
-			i_new = i0 / config.odims[j]; 
+			i_new = i0 / config.odims[j];
 		#endif
 			in_index += config.istrs_odims[j] * (i0 - config.odims[j] * i_new);
 			i0 = i_new;
@@ -977,9 +979,11 @@ __global__ static void kern_im2col_valid_transp(struct im2col_descriptor_uint64 
 		in_index += i0 * config.istrs_odims[config.N_conv_dims - 1];
 
 		atomicAdd(&(dst[in_index].x), src[i].x);
-		atomicAdd(&(dst[in_index].y), src[i].y); 
+		atomicAdd(&(dst[in_index].y), src[i].y);
 	}
 }
+
+#endif
 
 /* *
  * Transposed/adjoint of cuda im2col
@@ -1004,6 +1008,8 @@ extern "C" void cuda_im2col_transp(_Complex float* dst, const _Complex float* sr
 	struct im2col_descriptor_uint64 config64 = get_im2col_descriptor_uint64(odims, idims, kdims, dilation, strides);
 	struct im2col_descriptor_uint32 config32 = get_im2col_descriptor_uint32(odims, idims, kdims, dilation, strides);
 
+#ifdef NON_DETERMINISTIC
+
 	if ((1 < config32.NC) && (config64.triv_strides_dilation)) {
 
 		if (config32.N_out_elements < INT32_MAX)
@@ -1017,4 +1023,14 @@ extern "C" void cuda_im2col_transp(_Complex float* dst, const _Complex float* sr
 		else
 			kern_im2col_valid_transp<<<gridsize(config64.N_out_elements), blocksize(config64.N_out_elements)>>>(config64, (cuFloatComplex*) dst, (cuFloatComplex*) src);
 	}
+
+#else
+	assert(config64.triv_strides_dilation);
+
+	if (config32.N_out_elements < INT32_MAX)
+		kern_im2col_valid_no_dil_str_transp<<<gridsize(config32.N_in_elements), blocksize(config32.N_in_elements)>>>(config32, (cuFloatComplex*) dst, (cuFloatComplex*) src);
+	else
+ 		kern_im2col_valid_no_dil_str_transp<<<gridsize(config64.N_in_elements), blocksize(config32.N_in_elements)>>>(config64, (cuFloatComplex*) dst, (cuFloatComplex*) src);
+
+#endif
 }
