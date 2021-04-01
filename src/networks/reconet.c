@@ -145,7 +145,7 @@ void reconet_init_modl_default(struct reconet_s* reconet)
 	reconet->train_loss = &loss_option;
 	if (!loss_option_changed(&loss_option))
 		reconet->train_loss->weighting_mse = 1.;
-	reconet->valid_loss = loss_option_changed(&val_loss_option) ? &val_loss_option : &loss_classification_valid;
+	reconet->valid_loss = loss_option_changed(&val_loss_option) ? &val_loss_option : &loss_image_valid;
 
 	reconet_init_default(reconet);
 }
@@ -175,7 +175,7 @@ void reconet_init_varnet_default(struct reconet_s* reconet)
 	reconet->train_loss = &loss_option;
 	if (!loss_option_changed(&loss_option))
 		reconet->train_loss->weighting_mse_sa = 1.;
-	reconet->valid_loss = loss_option_changed(&val_loss_option) ? &val_loss_option : &loss_classification_valid;
+	reconet->valid_loss = loss_option_changed(&val_loss_option) ? &val_loss_option : &loss_image_valid;
 
 	reconet_init_default(reconet);
 }
@@ -298,7 +298,7 @@ static nn_t data_consistency_tickhonov_create(const struct reconet_s* config, un
 static nn_t data_consistency_gradientstep_create(const struct reconet_s* config, unsigned int N, const long dims[N], const long idims[N])
 {
 	const struct nlop_s* nlop_result = nlop_mri_normal_create(N, dims, idims, config->mri_config);
-	nlop_result = nlop_chain2(nlop_result, 0, nlop_zaxpbz_create(N, idims, 1, -1.), 0);
+	nlop_result = nlop_chain2_FF(nlop_result, 0, nlop_zaxpbz_create(N, idims, 1, -1.), 0);
 
 	if (-1. != config->dc_lambda_fixed) {
 
@@ -715,6 +715,10 @@ static nn_t reconet_train_create(const struct reconet_s* config, unsigned int N,
 static nn_t reconet_valid_create(const struct reconet_s* config, unsigned int N, struct network_data_s* vf)
 {
 	load_network_data(vf);
+
+	config->mri_config->pattern_flags = FFT_FLAGS;
+	if (1 != vf->pdims[4])
+		config->mri_config->pattern_flags |= MD_BIT(4);
 
 	auto valid_loss = reconet_train_create(config, N, vf->kdims, vf->idims, true);
 
