@@ -337,10 +337,15 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 						sig_cpu[position] = data->scale[3] * mxy_sig[j+rm_first_echo][2];
 					}
 					else {
-						dr1_cpu[position] = data->scale[3] * data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
-						dr2_cpu[position] = data->scale[3] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
-						dm0_cpu[position] = data->scale[3] * data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
-						sig_cpu[position] = data->scale[3] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
+						float a = 1.;
+
+						if (5 == sim_data.seq.seq_type && 0 != sim_data.pulse.flipangle)
+							a = 1./(sinf(sim_data.pulse.flipangle * M_PI/180.) * expf(-sim_data.voxel.r2 * sim_data.seq.te));
+
+						dr1_cpu[position] = a * data->scale[3] * data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
+						dr2_cpu[position] = a * data->scale[3] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
+						dm0_cpu[position] = a * data->scale[3] * data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
+						sig_cpu[position] = a * data->scale[3] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
 					}
 
 					i++;
