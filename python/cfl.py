@@ -14,7 +14,7 @@ import mmap
 import os
 
 
-def readcfl(name):
+def readcfl(name, mmapped=False):
     # get dims from .hdr
     with open(name + ".hdr", "rt") as h:
         h.readline() # skip
@@ -26,10 +26,13 @@ def readcfl(name):
     dims_prod = np.cumprod(dims)
     dims = dims[:np.searchsorted(dims_prod, n)+1]
 
-    # load data and reshape into dims
-    with open(name + ".cfl", "rb") as d:
-        a = np.fromfile(d, dtype=np.complex64, count=n);
-    return a.reshape(dims, order='F') # column-major
+    if mmapped:
+        return np.memmap(name + ".cfl", dtype=np.complex64, shape=tuple(dims), order='F', mode='c')
+    else:
+        # load data and reshape into dims
+        with open(name + ".cfl", "rb") as d:
+            a = np.fromfile(d, dtype=np.complex64, count=n);
+        return a.reshape(dims, order='F') # column-major
 
 def readmulticfl(name):
     # get dims from .hdr
