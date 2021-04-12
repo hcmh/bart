@@ -61,4 +61,3 @@ tests/test-traj-custom: traj poly nrmse
 TESTS += tests/test-traj-custom
 TESTS += tests/test-traj-zusamp tests/test-traj-rot
 
-

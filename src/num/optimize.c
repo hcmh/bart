@@ -176,15 +176,18 @@ unsigned int remove_empty_dims(unsigned int D, unsigned int N, long dims[N], lon
 
 static void compute_permutation(unsigned int N, int ord[N], const long strs[N])
 {
+	__block const long* strsp = strs; // clang workaround
+
 	for (unsigned int i = 0; i < N; i++)
 		ord[i] = i;
 
 	NESTED(int, cmp_strides, (int a, int b))
 	{
-		long d = strs[a] - strs[b];
+		long d = strsp[a] - strsp[b];
 
 		if (d > 0)
 			return 1;
+
 		if (d < 0)
 			return -1;
 
@@ -549,10 +552,10 @@ static bool use_gpu(int p, void* ptr[p])
 	bool gpu = false;
 
 	for (int i = 0; !gpu && (i < p); i++)
-		gpu |= cuda_ondevice(ptr[i]);
+		gpu = gpu || cuda_ondevice(ptr[i]);
 
 	for (int i = 0; gpu && (i < p); i++)
-		gpu &= cuda_accessible(ptr[i]);
+		gpu = gpu && cuda_accessible(ptr[i]);
 
 #if 0
 	// FIXME: fails for copy

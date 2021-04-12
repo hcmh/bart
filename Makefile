@@ -25,6 +25,8 @@ BLAS_THREADSAFE?=
 NON_DETERMINISTIC?=0
 
 OPENBLAS?=0
+
+# use for ppc64le HPC
 MKL?=0
 CUDA?=0
 CUDNN?=0
@@ -33,7 +35,9 @@ UUID?=0
 OMP?=1
 SLINK?=0
 DEBUG?=0
+UBSAN?=0
 FFTWTHREADS?=1
+SCALAPACK?=0
 ISMRMRD?=0
 NOEXEC_STACK?=0
 PARALLEL?=0
@@ -55,6 +59,7 @@ UNAME = $(shell uname -s)
 NNAME = $(shell uname -n)
 
 MYLINK=ln
+
 
 ifeq ($(UNAME),Darwin)
 	BUILDTYPE = MacOSX
@@ -172,7 +177,7 @@ ISMRM_BASE ?= /usr/local/ismrmrd/
 #
 TBASE=show slice crop resize join transpose squeeze flatten zeros ones flip circshift extract repmat bitmask reshape version delta copy casorati vec poly index linspace pad morph multicfl fd
 TFLP=scale invert conj fmac saxpy sdot spow cpyphs creal carg normalize cdf97 pattern nrmse mip avg cabs zexp
-TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavelet window var std fftrot roistat pol2mask
+TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavelet window var std fftrot roistat pol2mask conway
 TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobafit cdi modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv sudoku
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans convkern nlsa eof
 TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon synthesize fovshift
@@ -297,6 +302,10 @@ CFLAGS += -g
 NVCCFLAGS += -g
 endif
 
+ifeq ($(UBSAN),1)
+CFLAGS += -fsanitize=undefined -fsanitize-undefined-trap-on-error
+endif
+
 ifeq ($(NOEXEC_STACK),1)
 CPPFLAGS += -DNOEXEC_STACK
 endif
@@ -386,7 +395,9 @@ endif
 
 
 # BLAS/LAPACK
-
+ifeq ($(SCALAPACK),1)
+BLAS_L :=  -lopenblas -lscalapack
+else
 ifeq ($(ACML),1)
 BLAS_H := -I$(ACML_BASE)/include
 BLAS_L := -L$(ACML_BASE)/lib -lgfortran -lacml_mp -Wl,-rpath $(ACML_BASE)/lib
@@ -407,6 +418,7 @@ CFLAGS += -DUSE_OPENBLAS
 BLAS_THREADSAFE?=1
 else
 BLAS_L := -L$(BLAS_BASE)/lib -llapacke -lblas
+endif
 endif
 endif
 endif
@@ -513,10 +525,14 @@ endif
 # change for static linking
 
 ifeq ($(SLINK),1)
+ifeq ($(SCALAPACK),1)
+BLAS_L += -lgfortran -lquadmath
+else
 # work around fortran problems with static linking
 LDFLAGS += -static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -Wl,--allow-multiple-definition
 LIBS += -lmvec
 BLAS_L += -llapack -lblas -lgfortran -lquadmath
+endif
 endif
 
 
@@ -547,6 +563,10 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 endef
 
 ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom rkhs na networks nn manifold seq
+ifeq ($(ISMRMRD),1)
+ALIBS += ismrm
+endif
+
 $(eval $(foreach t,$(ALIBS),$(eval $(call alib,$(t)))))
 
 
@@ -589,8 +609,8 @@ UTARGETS += test_nufft
 MODULES_test_nufft += -lnoncart -llinops
 
 # lib num
-UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2 test_flpmath2 test_fdiff
-UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test_ops_p test_specfun test_convcorr
+UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2 test_fdiff
+UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test_ops_p test_specfun test_convcorr test_flpmath2
 UTARGETS_GPU += test_cuda_gpukrnls test_cudafft test_cuda_flpmath2 test_cuda_memcache_clear test_cuda_flpmath
 
 # lib simu

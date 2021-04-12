@@ -290,8 +290,8 @@ void meco_recon(struct moba_conf* moba_conf,
 		struct noir_model_conf_s mconf = noir_model_conf_defaults;
 		mconf.noncart = moba_conf->noncartesian;
 		mconf.fft_flags = fft_flags;
-		mconf.a = 880;
-		mconf.b = 32.;
+		mconf.a = moba_conf->sobolev_a;
+		mconf.b = moba_conf->sobolev_b;
 		mconf.cnstcoil_flags = TE_FLAG;
 
 		struct meco_s nl = meco_create(Y_1s_dims, meco_1s_dims, maps_1s_dims, mask, TE, P_ptr, sel_model, real_pd, fat_spec, scale_fB0, use_gpu, &mconf);
@@ -300,7 +300,10 @@ void meco_recon(struct moba_conf* moba_conf,
 		struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 		irgnm_conf.iter = moba_conf->iter;
 		irgnm_conf.alpha = moba_conf->alpha;
-		irgnm_conf.alpha_min = moba_conf->alpha_min;
+		if (moba_conf->alpha_min_exp_decay)
+			irgnm_conf.alpha_min = moba_conf->alpha_min;
+		else
+			irgnm_conf.alpha_min0 = moba_conf->alpha_min;
 		irgnm_conf.redu = moba_conf->redu;
 		irgnm_conf.cgiter = moba_conf->inner_iter;
 		irgnm_conf.cgtol = 0.01;

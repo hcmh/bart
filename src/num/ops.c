@@ -1499,7 +1499,7 @@ static void link_apply(const operator_data_t* _data, unsigned int N, void* args[
 	bool gpu = false;
 
 	for (unsigned int i = 0; !gpu && i < N; i++)
-		gpu |= cuda_ondevice(args[i]);
+		gpu = gpu || cuda_ondevice(args[i]);
 
 	if (gpu)
 		tmp = md_alloc_gpu(iov->N, iov->dims, iov->size);

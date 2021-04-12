@@ -220,6 +220,7 @@ complex float* create_zra(const char* name, int D, const long dims[D])
 	if (-1 == (ofd = open(name, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR)))
 		io_error("Creating ra file %s\n", name);
 
+
 	return create_zra_internal(ofd, name, D, dims);
 }
 

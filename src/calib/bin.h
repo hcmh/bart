@@ -28,3 +28,4 @@ extern int bin_quadrature(const long bins_dims[DIMS], float* bins, float* weight
 			const long labels_dims[DIMS], complex float* labels,
 			const struct bin_conf_s conf);
 
+

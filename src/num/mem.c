@@ -144,8 +144,11 @@ static struct mem_s* search(const void* ptr, bool remove)
 
 static bool free_check_p(const struct mem_s* rptr, size_t size, int dev, int tid)
 {
-	return (rptr->free && (rptr->device_id == dev) && (rptr->len >= size) && (( 0 == size) || (rptr->len <= 4 * size))
-			&& ((-1 == tid) || (rptr->thread_id == tid)));
+	return (rptr->free
+		&& (rptr->device_id == dev)
+		&& (rptr->len >= size)
+		&& (( 0 == size) || (rptr->len <= 4 * size)) // small allocations shall not occupy large memory areas (turned of if requested size is 0)
+		&& ((-1 == tid) || (rptr->thread_id == tid)));
 }
 
 static struct mem_s** find_free_unsafe(size_t size, int dev, int tid)

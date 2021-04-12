@@ -71,8 +71,8 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	mconf.rvc = false;
 	mconf.noncart = conf->noncartesian;
 	mconf.fft_flags = fft_flags;
-	mconf.a = 880.;
-	mconf.b = 32.;
+	mconf.a = conf->sobolev_a;
+	mconf.b = conf->sobolev_b;
 	mconf.cnstcoil_flags = TE_FLAG;
 
 	// FIXME: Move all function arguments to struct to simplify adding new ones
@@ -83,14 +83,16 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.iter = conf->iter;
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
-	irgnm_conf.alpha_min = conf->alpha_min;
+	if (conf->alpha_min_exp_decay)
+		irgnm_conf.alpha_min = conf->alpha_min;
+	else
+		irgnm_conf.alpha_min0 = conf->alpha_min;
 	irgnm_conf.cgtol = ((2 == conf->opt_reg) || (conf->auto_norm_off)) ? 1e-3 : conf->tolerance;
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct opt_reg_s* ropts = conf->ropts;
-
 	struct mdb_irgnm_l1_conf conf2 = {
+
 		.c2 = &irgnm_conf,
 		.opt_reg = conf->opt_reg,
 		.step = conf->step,
@@ -101,9 +103,10 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		.usegpu = usegpu,
 		.algo = conf->algo,
 		.rho = conf->rho,
-		.ropts = ropts,
+		.ropts = conf->ropts,
 		.wav_reg = 1,
-		.auto_norm_off = conf->auto_norm_off };
+		.auto_norm_off = conf->auto_norm_off
+	};
 
 	if (conf->MOLLI || (0. != conf->IR_phy) || (NULL != conf->input_alpha))
 		conf2.constrained_maps = 2;

@@ -34,6 +34,8 @@
 
 #include "simu/signals.h"
 
+#include "simu/signals.h"
+
 #ifndef CFL_SIZE
 #define CFL_SIZE sizeof(complex float)
 #endif
