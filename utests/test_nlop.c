@@ -521,7 +521,7 @@ static bool test_nlop_comb_flat_der(void)
 	complex float* dst = md_alloc(N, dims, CFL_SIZE);
 
 
-	md_gaussian_rand(N, dims, in);
+	md_gaussian_rand(iov->N, iov->dims, in);
 
 	nlop_derivative(zexp1, N, dims, dst, N, dims, in);
 
@@ -990,6 +990,24 @@ static bool test_nlop_select_derivatives_link(void)
 UT_REGISTER_TEST(test_nlop_select_derivatives_link);
 
 
+static bool test_nlop_zinv(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 5, 1, 3 };
+
+	auto nlop = nlop_zinv_create(N, dims);
+
+
+	float err_adj = nlop_test_adj_derivatives(nlop, false);
+	float err_der = nlop_test_derivatives(nlop);
+
+	nlop_free(nlop);
+
+	debug_printf(DP_DEBUG1, "zinv errors:, adj: %.8f, %.8f\n", err_der, err_adj);
+	UT_ASSERT((err_adj < UT_TOL) && (err_der < 2.E-2));
+}
+
+UT_REGISTER_TEST(test_nlop_zinv);
 
 static bool test_zmax(void)
 {
@@ -1016,4 +1034,3 @@ static bool test_zmax(void)
 }
 
 UT_REGISTER_TEST(test_zmax);
-

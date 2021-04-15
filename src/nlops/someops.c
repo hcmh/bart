@@ -1,9 +1,8 @@
-/* Copyright 2018. Martin Uecker.
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2017-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * Authors: Moritz Blumenthal
  */
 
 #include <complex.h>
@@ -34,7 +33,7 @@
 
 struct zaxpbz_s {
 
-	INTERFACE(operator_data_t);
+	INTERFACE(nlop_data_t);
 
 	int N;
 	const long* dims;
@@ -45,9 +44,9 @@ struct zaxpbz_s {
 
 DEF_TYPEID(zaxpbz_s);
 
-static void zaxpbz_fun(const operator_data_t* _data, unsigned int N, void* args[N])
+static void zaxpbz_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
-		const auto data = CAST_DOWN(zaxpbz_s, _data);
+	const auto data = CAST_DOWN(zaxpbz_s, _data);
 	assert(3 == N);
 
 	complex float* dst = args[0];
@@ -80,7 +79,24 @@ static void zaxpbz_fun(const operator_data_t* _data, unsigned int N, void* args[
 	md_zaxpy(data->N, data->dims, dst, data->scale2, src2);
 }
 
-static void zaxpbz_del(const operator_data_t* _data)
+static void scale_apply(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	assert(0 == o);
+	const auto data = CAST_DOWN(zaxpbz_s, _data);
+	const complex float scale = (i == 0) ? data->scale1 : data->scale2;
+	md_zsmul(data->N, data->dims, dst, src, scale);
+}
+
+static void scale_adjoint(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	assert(0 == o);
+	const auto data = CAST_DOWN(zaxpbz_s, _data);
+	const complex float scale = (i == 0) ? data->scale1 : data->scale2;
+	md_zsmul(data->N, data->dims, dst, src, conjf(scale));
+}
+
+
+static void zaxpbz_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(zaxpbz_s, _data);
 
@@ -89,7 +105,7 @@ static void zaxpbz_del(const operator_data_t* _data)
 	xfree(data);
 }
 
-static const struct operator_s* operator_zaxpbz_create(int N, const long dims[N], complex float scale1, complex float scale2)
+const struct nlop_s* nlop_zaxpbz_create(int N, const long dims[N], complex float scale1, complex float scale2)
 {
 
 	PTR_ALLOC(struct zaxpbz_s, data);
@@ -104,25 +120,17 @@ static const struct operator_s* operator_zaxpbz_create(int N, const long dims[N]
 	data->scale1 = scale1;
 	data->scale2 = scale2;
 
-	const long* op_dims[3] = {dims, dims, dims};
-
-	unsigned int Ns[3] = {N, N, N};
-
-	return operator_generic_create(3, (bool[3]){true, false, false}, Ns, op_dims, CAST_UP(PTR_PASS(data)), zaxpbz_fun, zaxpbz_del);
-}
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], dims);
 
 
-const struct nlop_s* nlop_zaxpbz_create(int N, const long dims[N], complex float scale1, complex float scale2)
-{
-	PTR_ALLOC(struct nlop_s, n);
-	const struct linop_s* (*der)[2][1] = TYPE_ALLOC(const struct linop_s*[2][1]);
-	n->derivative = &(*der)[0][0];
+	long nl_idims[2][N];
+	md_copy_dims(N, nl_idims[0], dims);
+	md_copy_dims(N, nl_idims[1], dims);
 
-	n->op = operator_zaxpbz_create(N, dims, scale1, scale2);
-	(*der)[0][0] = linop_scale_create(N, dims, scale1);
-	(*der)[1][0] = linop_scale_create(N, dims, scale2);
 
-	return PTR_PASS(n);
+	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)),
+		zaxpbz_fun, (nlop_der_fun_t[2][1]){ { scale_apply }, { scale_apply } }, (nlop_der_fun_t[2][1]){ { scale_adjoint }, { scale_adjoint } }, NULL, NULL, zaxpbz_del);
 }
 
 struct smo_abs_s {
@@ -434,7 +442,14 @@ static void zmax_fun(const nlop_data_t* _data, complex float* dst, const complex
 	md_copy2(data->N, data->outdims, data->outstrides, dst, data->strides, src, CFL_SIZE);
 
 	md_zmax2(data->N, data->dims, data->outstrides, dst, data->outstrides, dst, data->strides, src);
-	
+
+#ifdef USE_CUDA
+	if (cuda_ondevice(dst)) {
+
+		md_copy2(data->N, data->dims, data->strides, data->max_index, data->outstrides, dst, CFL_SIZE);
+		md_zgreatequal(data->N, data->dims, data->max_index, src, data->max_index);
+	} else
+#endif
 	md_zgreatequal2(data->N, data->dims, data->strides, data->max_index, data->strides, src, data->outstrides, dst);
 }
 

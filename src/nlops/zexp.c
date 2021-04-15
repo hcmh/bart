@@ -34,11 +34,12 @@ DEF_TYPEID(zexp_s);
 static void zexp_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(zexp_s, _data);
+
 	if (NULL == data->xn)
 		data->xn = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
+
 	md_zexp(data->N, data->dims, data->xn, src);
 	md_copy(data->N, data->dims, dst, data->xn, CFL_SIZE);
-
 }
 
 static void zexp_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
