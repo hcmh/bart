@@ -20,6 +20,7 @@ struct const_s {
 
 	int N;
 	const long* dims;
+	const long* strs;
 	const complex float* xn;
 
 	bool copied;
@@ -32,7 +33,7 @@ static void const_fun(const nlop_data_t* _data, int N, complex float** dst)
 	UNUSED(N);
 	const auto data = CAST_DOWN(const_s, _data);
 
-	md_copy(data->N, data->dims, dst[0], data->xn, CFL_SIZE);
+	md_copy2(data->N, data->dims, MD_STRIDES(data->N, data->dims, CFL_SIZE), dst[0], data->strs, data->xn, CFL_SIZE);
 }
 
 static void const_del(const nlop_data_t* _data)
@@ -42,6 +43,7 @@ static void const_del(const nlop_data_t* _data)
 	if (data->copied)
 		md_free(data->xn);
 	xfree(data->dims);
+	xfree(data->strs);
 	xfree(data);
 }
 
@@ -66,15 +68,21 @@ struct nlop_s* nlop_const_create2(int N, const long dims[N], const long strs[N],
 	data->dims = *PTR_PASS(ndims);
 
 	data->copied = copy;
+
+	PTR_ALLOC(long[N], nstrs);
 	if (copy) {
 
 		complex float* tmp = md_alloc(N, dims, CFL_SIZE);
 		md_copy2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), tmp, strs, in, CFL_SIZE);
 		data->xn = tmp;
+		md_calc_strides(N, *nstrs, dims, CFL_SIZE);
 	} else {
 
 		data->xn = in;
+		md_copy_dims(N, *nstrs, strs);
 	}
+
+	data->strs = *PTR_PASS(nstrs);
 
 
 	long ostrs[N];
