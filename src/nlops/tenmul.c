@@ -36,51 +36,9 @@ struct tenmul_s {
 	const long* ostr;
 	const long* istr1;
 	const long* istr2;
-
-	complex float* x1;
-	complex float* x2;
 };
 
 DEF_TYPEID(tenmul_s);
-
-
-static void tenmul_initialize(struct tenmul_s* data, const complex float* arg, bool der1, bool der2)
-{
-	if (der2 && (NULL == data->x1))
-		data->x1 = md_alloc_sameplace(data->N, data->dims1, CFL_SIZE, arg);
-
-	if (!der2 && (NULL != data->x1)) {
-
-		md_free(data->x1);
-		data->x1 = NULL;
-	}
-
-	if (der1 && (NULL == data->x2))
-		data->x2 = md_alloc_sameplace(data->N, data->dims2, CFL_SIZE, arg);
-
-	if (!der1 && (NULL != data->x2)) {
-
-		md_free(data->x2);
-		data->x2 = NULL;
-	}
-}
-
-static void tenmul_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
-{
-	const auto data = CAST_DOWN(tenmul_s, _data);
-
-	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
-
-		md_free(data->x2);
-		data->x2 = NULL;
-	}
-	if(op_options_is_set_io(opts, 0, 1, OP_APP_CLEAR_DER)){
-
-		md_free(data->x1);
-		data->x1 = NULL;
-	}
-}
-
 
 static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
@@ -91,18 +49,23 @@ static void tenmul_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	const complex float* src1 = args[1];
 	const complex float* src2 = args[2];
 
+	nlop_data_der_alloc_memory(_data, dst);
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	complex float* x1 = der_data[0];
+	complex float* x2 = der_data[1];
+
 #ifdef USE_CUDA
 	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
 #endif
-	bool der1 = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
-	bool der2 = !op_options_is_set_io(_data->options, 0, 1, OP_APP_NO_DER);
 
-	tenmul_initialize(data, dst, der1, der2);
+	bool der1 = nlop_der_requested(_data, 0, 0);
+	bool der2 = nlop_der_requested(_data, 1, 0);
 
 	if (der2)
-		md_copy2(data->N, data->dims1, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1, data->istr1, src1, CFL_SIZE);
+		md_copy2(data->N, data->dims1, MD_STRIDES(data->N, data->dims1, CFL_SIZE), x1, data->istr1, src1, CFL_SIZE);
 	if (der1)
-		md_copy2(data->N, data->dims2, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2, data->istr2, src2, CFL_SIZE);
+		md_copy2(data->N, data->dims2, MD_STRIDES(data->N, data->dims2, CFL_SIZE), x2, data->istr2, src2, CFL_SIZE);
 
 	md_ztenmul2(data->N, data->dims, data->ostr, dst, data->istr1, src1, data->istr2, src2);
 }
@@ -112,12 +75,17 @@ static void tenmul_der2(const nlop_data_t* _data, unsigned int o, unsigned int i
 	UNUSED(o);
 	UNUSED(i);
 
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	complex float* x1 = der_data[0];
+	//complex float* x2 = der_data[1];
+
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
-	if (NULL == data->x1)
+	if (NULL == x1)
 		error("Tenmul %x derivative not available\n", data);
 
-	md_ztenmul2(data->N, data->dims, data->ostr, dst, data->istr2, src, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1);
+	md_ztenmul2(data->N, data->dims, data->ostr, dst, data->istr2, src, MD_STRIDES(data->N, data->dims1, CFL_SIZE), x1);
 }
 
 static void tenmul_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -125,13 +93,18 @@ static void tenmul_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i
 	UNUSED(o);
 	UNUSED(i);
 
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	complex float* x1 = der_data[0];
+	//complex float* x2 = der_data[1];
+
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
-	if (NULL == data->x1)
+	if (NULL == x1)
 		error("Tenmul %x derivative not available\n", data);
 
 
-	md_ztenmulc2(data->N, data->dims, data->istr2, dst, data->ostr, src, MD_STRIDES(data->N, data->dims1, CFL_SIZE), data->x1);
+	md_ztenmulc2(data->N, data->dims, data->istr2, dst, data->ostr, src, MD_STRIDES(data->N, data->dims1, CFL_SIZE), x1);
 }
 
 static void tenmul_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -139,12 +112,17 @@ static void tenmul_der1(const nlop_data_t* _data, unsigned int o, unsigned int i
 	UNUSED(o);
 	UNUSED(i);
 
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	//complex float* x1 = der_data[0];
+	complex float* x2 = der_data[1];
+
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
-	if (NULL == data->x2)
+	if (NULL == x2)
 		error("Tenmul %x derivative not available\n", data);
 
-	md_ztenmul2(data->N, data->dims, data->ostr, dst, data->istr1, src, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2);
+	md_ztenmul2(data->N, data->dims, data->ostr, dst, data->istr1, src, MD_STRIDES(data->N, data->dims2, CFL_SIZE), x2);
 }
 
 static void tenmul_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -152,21 +130,23 @@ static void tenmul_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i
 	UNUSED(o);
 	UNUSED(i);
 
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	//complex float* x1 = der_data[0];
+	complex float* x2 = der_data[1];
+
 	const auto data = CAST_DOWN(tenmul_s, _data);
 
-	if (NULL == data->x2)
+	if (NULL == x2)
 		error("Tenmul %x derivative not available\n", data);
 
-	md_ztenmulc2(data->N, data->dims, data->istr1, dst, data->ostr, src, MD_STRIDES(data->N, data->dims2, CFL_SIZE), data->x2);
+	md_ztenmulc2(data->N, data->dims, data->istr1, dst, data->ostr, src, MD_STRIDES(data->N, data->dims2, CFL_SIZE), x2);
 }
 
 
 static void tenmul_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(tenmul_s, _data);
-
-	md_free(data->x1);
-	md_free(data->x2);
 
 	xfree(data->dims);
 	xfree(data->ostr);
@@ -181,7 +161,6 @@ static void tenmul_del(const nlop_data_t* _data)
 struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N],
 		const long istr1[N], const long istr2[N])
 {
-
 	PTR_ALLOC(struct tenmul_s, data);
 	SET_TYPEID(tenmul_s, data);
 
@@ -201,7 +180,6 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 	md_select_dims(N, md_nontriv_strides(N, istr2), *ndims2, dims);
 	md_copy_strides(N, *nistr2, istr2);
 
-
 	data->N = N;
 	data->dims = *PTR_PASS(ndims);
 	data->ostr = *PTR_PASS(nostr);
@@ -209,10 +187,6 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 	data->istr1 = *PTR_PASS(nistr1);
 	data->dims2 = *PTR_PASS(ndims2);
 	data->istr2 = *PTR_PASS(nistr2);
-
-	// will be initialized later, to transparently support GPU
-	data->x1 = NULL;
-	data->x2 = NULL;
 
 	long nl_odims[1][N];
 	md_select_dims(N, md_nontriv_strides(N, ostr), nl_odims[0], dims);
@@ -228,10 +202,12 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 	md_copy_strides(N, nl_istr[0], istr1);
 	md_copy_strides(N, nl_istr[1], istr2);
 
-	operator_property_flags_t props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
+	struct nlop_der_array_s* tenmul_der_arrays[2];
+	tenmul_der_arrays[0] = nlop_der_array_create(N, nl_idims[0], CFL_SIZE, 2, 1, (bool[2][1]){{ false }, { true }});
+	tenmul_der_arrays[1] = nlop_der_array_create(N, nl_idims[1], CFL_SIZE, 2, 1, (bool[2][1]){{ true }, { false }});
 
-	return nlop_generic_with_props_create2(1, N, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-		tenmul_fun, (nlop_der_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_der_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, tenmul_set_opts, props, NULL);
+	return nlop_generic_managed_create2(1, N, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
+		tenmul_fun, (nlop_der_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_der_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, 2, tenmul_der_arrays, NULL);
 }
 
 
@@ -250,10 +226,15 @@ bool nlop_tenmul_der_available(const struct nlop_s* op, int index)
 	auto data = CAST_MAYBE(tenmul_s, nlop_get_data((struct nlop_s*)op));
 	assert(NULL != data);
 
+	void* der_data[2];
+	nlop_get_der_array(nlop_get_data((struct nlop_s*)op), 2, (void**)der_data);
+	complex float* x1 = der_data[0];
+	complex float* x2 = der_data[1];
+
 	if (0 == index)
-		return (NULL != data->x2);
+		return (NULL != x2);
 	if (1 == index)
-		return (NULL != data->x1);
+		return (NULL != x1);
 	assert(0);
 	return false;
 }
