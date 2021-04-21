@@ -159,13 +159,23 @@ const struct linop_s* linop_sum_create(int N, const long imgd_dims[N], unsigned 
 			sum_apply_pinverse, sum_free_data);
 }
 
-const struct linop_s* linop_avg_create(int N, const long imgd_dims[N], unsigned long flags)
+const struct linop_s* linop_scaled_sum_create(int N, const long imgd_dims[N], unsigned long flags)
 {
 	struct sum_data* data = sum_create_data(N, imgd_dims, flags);
 
 	return linop_create(N, data->img_dims, N, data->imgd_dims,
 			CAST_UP(data), sum_apply, sum_apply_adjoint, sum_apply_normal,
 			sum_apply_pinverse, sum_free_data);
+}
+
+const struct linop_s* linop_avg_create(int N, const long imgd_dims[N], unsigned long flags)
+{
+	struct sum_data* data = sum_create_data(N, imgd_dims, flags);
+	data->levels = data->levels * data->levels;
+
+	return linop_create(N, data->img_dims, N, data->imgd_dims,
+			CAST_UP(data), sum_apply, sum_apply_adjoint, sum_apply_normal,
+			NULL, sum_free_data);
 }
 
 

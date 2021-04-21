@@ -1,7 +1,7 @@
 /* Copyright 2020. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
- * 
+ *
  * Authors:
  * 2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
@@ -63,7 +63,7 @@ static void print_board(const complex float b[9][9])
 			bart_printf("+-------+-------+-------+\n");
 
 		for (int j = 0; j < 9; j++) {
-			
+
 			if (0 == j % 3)
 				bart_printf("| ");
 
@@ -97,7 +97,7 @@ int main_sudoku(int argc, char* argv[argc])
 	const struct opt_s opts[] = {
 
 		OPT_FLOAT('l', &lambda, "l", "lambda"),
-		OPT_FLOAT('r', &rho, "r", "rho"),		
+		OPT_FLOAT('r', &rho, "r", "rho"),
 		OPT_INT('i', &iter, "i", "iter"),
 	};
 
@@ -148,10 +148,10 @@ int main_sudoku(int argc, char* argv[argc])
 	const struct operator_p_s* prox[] = {
 
 		prox_lineq_create(linop_cdiag_create(5, dims, 30u, &pattern[0][0]), &sudoku[0][0][0]),
-		prox_lineq_create(linop_avg_create(5, dims, MD_BIT(3)|MD_BIT(4)), &cn[0][0]),
-		prox_lineq_create(linop_avg_create(5, dims, MD_BIT(1)|MD_BIT(2)), &cn[0][0]),
-		prox_lineq_create(linop_avg_create(5, dims, MD_BIT(1)|MD_BIT(3)), &cn[0][0]),
-		prox_lineq_create(linop_avg_create(5, dims, MD_BIT(0)), &cn[0][0]),
+		prox_lineq_create(linop_scaled_sum_create(5, dims, MD_BIT(3)|MD_BIT(4)), &cn[0][0]),
+		prox_lineq_create(linop_scaled_sum_create(5, dims, MD_BIT(1)|MD_BIT(2)), &cn[0][0]),
+		prox_lineq_create(linop_scaled_sum_create(5, dims, MD_BIT(1)|MD_BIT(3)), &cn[0][0]),
+		prox_lineq_create(linop_scaled_sum_create(5, dims, MD_BIT(0)), &cn[0][0]),
 		prox_nonneg_create(5, dims),
 		prox_thresh_create(5, dims, lambda, 0LU),
 	};
@@ -179,7 +179,7 @@ int main_sudoku(int argc, char* argv[argc])
 	long odims[2] = { 9, 9 };
 	complex float* out = create_cfl(solution_file, 2, odims);
 
-	solution(MD_CAST_ARRAY2(complex float, 2, odims, out, 0, 1), 
+	solution(MD_CAST_ARRAY2(complex float, 2, odims, out, 0, 1),
 		 MD_CAST_ARRAY3(complex float, 3, bdims, x, 0, 1, 2));
 
 	md_free(x);

@@ -1110,13 +1110,8 @@ const struct nlop_s* nlop_dice_create(int N, const long dims[N], unsigned long l
 	long out_dims[N];
 	md_copy_dims(N, out_dims, nlop_generic_codomain(dice, 0)->dims);
 
-	if (1 != md_calc_size(N, out_dims)) {
-
-		auto linop_avg = linop_avg_create(N, out_dims, ~0);
-		linop_avg = linop_chain_FF(linop_avg, linop_scale_create(N, MD_SINGLETON_DIMS(N), 1. / sqrtf(md_calc_size(N, out_dims))));//linop avg does not average
-
-		dice = nlop_chain2_FF(dice, 0, nlop_from_linop_F(linop_avg), 0);
-	}
+	if (1 != md_calc_size(N, out_dims))
+		dice = nlop_chain2_FF(dice, 0, nlop_from_linop_F(linop_avg_create(N, out_dims, ~0)), 0);
 
 	return nlop_reshape_out_F(dice, 0, 1, MD_DIMS(1));
 }

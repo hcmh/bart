@@ -183,7 +183,6 @@ const struct linop_s* linop_avgpool_create(int N, const long dims[N], const long
 	}
 
 	auto result = linop_avg_create(2 * N, odims, (MD_BIT(2 * N) - 1) & ~(MD_BIT(N) - 1));
-	result = linop_chain_FF(linop_scale_create(2 * N, odims, 1. / sqrtf(md_calc_size(N, pool_size))), result); //linop avg does not average
 	result = linop_chain_FF(linop_permute_create(2 * N, perm, ndims), result);
 	result = linop_reshape_in_F(result, N, dims);
 	result = linop_reshape_out_F(result, N, odims);

@@ -182,7 +182,7 @@ int main_lrmatrix(int argc, char* argv[argc])
 
 	// Initialize operators
 
-	const struct linop_s* sum_op = linop_avg_create(DIMS, odims, LEVEL_FLAG);
+	const struct linop_s* sum_op = linop_scaled_sum_create(DIMS, odims, LEVEL_FLAG);
 	const struct linop_s* sampling_op = NULL;
 
         if (!decom) {
@@ -225,7 +225,6 @@ int main_lrmatrix(int argc, char* argv[argc])
 		    sum_xupdate_op,
 		    size, (float*) odata, NULL,
 		    NULL);
-
 
 
 	// Sum
