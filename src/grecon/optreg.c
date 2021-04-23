@@ -68,7 +68,7 @@ void help_reg(void)
 			"-R T:7:0:.01\t3D isotropic total variation with 0.01 regularization.\n"
 			"-R L:7:7:.02\tLocally low rank with spatial decimation and 0.02 regularization.\n"
 			"-R M:7:7:.03\tMulti-scale low rank with spatial decimation and 0.03 regularization.\n"
-			"-R LP:{graph_path}:C:p:steps\tpixel-cnn based prior in image domain\n"
+			"-R LP:{graph_path}:C:p:steps\t neural network-based log prior \n"
 	      );
 }
 
@@ -599,7 +599,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 		case LOGP:
 		{
 			
-			debug_printf(DP_INFO, "pixel-cnn based prior located at %s.\nlambda: %f\npercentage: %f\nsteps: %u\n", 
+			debug_printf(DP_INFO, "neural-net based prior located at %s.\nlambda: %f\npercentage: %f\nsteps: %u\n", 
 						regs[nr].graph_file, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file);

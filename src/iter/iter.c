@@ -44,6 +44,7 @@ DEF_TYPEID(iter_chambolle_pock_conf);
 DEF_TYPEID(iter_pocs_conf);
 DEF_TYPEID(iter_admm_conf);
 DEF_TYPEID(iter_niht_conf);
+DEF_TYPEID(iter_mcmc_conf);
 DEF_TYPEID(iter_call_s);
 
 const struct iter_conjgrad_conf iter_conjgrad_defaults = {
@@ -157,6 +158,20 @@ const struct iter_chambolle_pock_conf iter_chambolle_pock_defaults = {
 	.fast = false,
 };
 
+const struct iter_mcmc_conf iter_mcmc_defaults = {
+
+	.INTERFACE.TYPEID = &TYPEID2(iter_mcmc_conf),
+	.INTERFACE.alpha = 1.,
+
+	.maxiter = 10,
+	.sigma_begin = 0.3,
+	.sigma_end = 0.01,
+	.redu = 2,
+	
+	.lambda = 0.2,
+	.inner_iter = 50,
+};
+
 typedef void (*thresh_fun_t)(void* data, float lambda, float* dst, const float* src);
 
 
@@ -250,6 +265,14 @@ void iter_admm(iter_conf* _conf,
 	linop_free(eye[0]);
 }
 
+void iter_mcmc(iter_conf* _conf,
+		const struct operator_s* normaleq_op,
+		const struct operator_p_s* thresh_prox,
+		long size, float* image, const float* image_adj,
+		struct iter_monitor_s* monitor)
+{
+	iter2_mcmc(_conf, normaleq_op, 1, &thresh_prox, NULL, NULL, NULL, size, image, image_adj, monitor);
+}
 
 void iter_call_iter2(iter_conf* _conf,
 		const struct operator_s* normaleq_op,

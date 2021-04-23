@@ -597,7 +597,7 @@ int main_pics(int argc, char* argv[])
 
 	// choose step size
 
-	if ((ALGO_IST == algo) || (ALGO_FISTA == algo) || (ALGO_PRIDU == algo)) {
+	if ((ALGO_IST == algo) || (ALGO_FISTA == algo) || (ALGO_PRIDU == algo) || (ALGO_MCMC == algo)) {
 
 		// For non-Cartesian trajectories, the default
 		// will usually not work. TODO: The same is true

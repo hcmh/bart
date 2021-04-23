@@ -172,6 +172,13 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
+void langevin_dynamics(unsigned int maxiter, unsigned int inner_iter, float sigma_begin, float sigma_end, float redu, float lambda,
+					   long N,
+					   const struct vec_iter_s *vops,
+					   struct iter_op_s op,
+					   struct iter_op_p_s thresh,
+					   float* x, const float* b,
+					   struct iter_monitor_s* monitor);
 
 void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
 	long N, long M,

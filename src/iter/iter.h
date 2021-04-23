@@ -139,6 +139,18 @@ struct iter_niht_conf {
 	_Bool do_warmstart;
 };
 
+struct iter_mcmc_conf{
+	
+	INTERFACE(iter_conf);
+
+	unsigned int maxiter;
+	float sigma_begin;
+	float sigma_end;
+	float redu;
+
+	float lambda;
+	int inner_iter;
+};
 
 extern const struct iter_conjgrad_conf iter_conjgrad_defaults;
 extern const struct iter_landweber_conf iter_landweber_defaults;
@@ -148,6 +160,7 @@ extern const struct iter_admm_conf iter_admm_defaults;
 extern const struct iter_pocs_conf iter_pocs_defaults;
 extern const struct iter_niht_conf iter_niht_defaults;
 extern const struct iter_chambolle_pock_conf iter_chambolle_pock_defaults;
+extern const struct iter_mcmc_conf iter_mcmc_defaults;
 
 
 italgo_fun_f iter_conjgrad;
@@ -155,6 +168,7 @@ italgo_fun_f iter_landweber;
 italgo_fun_f iter_ist;
 italgo_fun_f iter_fista;
 italgo_fun_f iter_admm;
+italgo_fun_f iter_mcmc;
 
 // use with iter2_call_s from iter2.h as _conf
 italgo_fun_f iter_call_iter2;

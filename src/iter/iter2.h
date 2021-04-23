@@ -68,6 +68,8 @@ italgo_fun2_f iter2_chambolle_pock;
 italgo_fun2_f iter2_admm;
 italgo_fun2_f iter2_pocs;
 italgo_fun2_f iter2_niht;
+italgo_fun2_f iter2_mcmc;
+
 
 
 // use with iter_call_s from iter.h as _conf

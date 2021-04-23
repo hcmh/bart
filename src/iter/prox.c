@@ -527,9 +527,7 @@ static void prox_logp_nlinv_fun(const operator_data_t* data, float lambda, compl
 		u_resized = md_alloc(DIMS, pdata->dims, CFL_SIZE);
 		md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
 	}
-	char tmp_path[100];
-	sprintf(tmp_path, "/scratch/gluo/tmp_%d", pdata->k);
-	dump_cfl(tmp_path, pdata->N, pdata->dims, src);
+	
 	
 	// slice FOV
 	long slice_dims[DIMS];

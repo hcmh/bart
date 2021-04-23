@@ -53,6 +53,9 @@ enum algo_t italgo_choose(int nr_penalties, const struct reg_s regs[nr_penalties
 			algo = ALGO_ADMM;
 			break;
 		case LOGP:
+
+			algo = ALGO_MCMC;
+			break;
 		default:
 			if (0 == i)
 				algo = ALGO_FISTA;
@@ -214,6 +217,29 @@ struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s
 			break;
 		}
 
+		case ALGO_MCMC: {
+
+			debug_printf(DP_INFO, "MCMC\n");
+			assert(1 == nr_penalties);
+
+			PTR_ALLOC(struct iter_mcmc_conf, mcconf);
+
+			*mcconf = iter_mcmc_defaults;
+
+			mcconf->maxiter = maxiter;
+			mcconf->lambda = step;
+			
+			PTR_ALLOC(struct iter_call_s, iter2_mcmc_data);
+			SET_TYPEID(iter_call_s, iter2_mcmc_data);
+
+			iter2_mcmc_data->fun = iter_mcmc; 
+			iter2_mcmc_data->_conf = CAST_UP(PTR_PASS(mcconf));
+
+			italgo = iter2_call_iter;
+			iconf = CAST_UP(PTR_PASS(iter2_mcmc_data));
+
+			break;
+		}
 		default:
 			error("Selected algorithm not implemented\n");
 	}

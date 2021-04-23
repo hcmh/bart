@@ -456,6 +456,50 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
 
 
 /**
+* @param maxiter maximum number of iterations
+* @param sigma_begin, beginning noise level
+* @param sigma_end, end noise level
+* @param redu, reduction factor
+* @param lambda (step size) weighting on the residual term, A^H (b - Ax)
+* @param N size of input x
+* @param vops vector ops definition
+* @param op linear operator, e.g. A
+* @param x intial estimate
+* @param b observations
+*/
+void langevin_dynamics(unsigned int maxiter, unsigned int inner_iter, float sigma_begin, float sigma_end, float redu, float lambda,
+					   long N,
+					   const struct vec_iter_s *vops,
+					   struct iter_op_s op,
+					   struct iter_op_p_s thresh,
+					   float* x, const float* b,
+					   struct iter_monitor_s* monitor)
+{
+
+	float* r = vops->allocate(N);
+	
+	for (unsigned int i = 0; i < maxiter; i++){
+		
+		for (unsigned int n = 0; n < inner_iter; n++){
+
+			iter_monitor(monitor, vops,  x);
+			
+			iter_op_p_call(thresh, lambda, x, x); // call prox
+			
+			iter_op_call(op, r, x);  // r = Ax
+			
+			vops->xpay(N, -1., r, b); // r = b - r = b - Ax gradient
+
+			vops->axpy(N, x, lambda, r); // update x with gradient
+			
+		}
+		
+	}
+
+	vops->del(r);
+}
+
+/**
  * Iteratively Regularized Gauss-Newton Method
  * (Bakushinsky 1993)
  *

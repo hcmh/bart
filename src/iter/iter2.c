@@ -477,7 +477,38 @@ void iter2_niht(iter_conf* _conf,
 cleanup:
 	;
 }
-  
+
+void iter2_mcmc(iter_conf* _conf,
+		const struct operator_s* normaleq_op,
+		unsigned int D,
+		const struct operator_p_s* prox_ops[D],
+		const struct linop_s* ops[D],
+		const float* biases[D],
+		const struct operator_p_s* xupdate_op,
+		long size, float* image, const float* image_adj,
+		struct iter_monitor_s* monitor)
+{
+	assert(D == 1);
+	assert(NULL == biases);
+#if 0
+	assert(NULL == ops);
+#else
+	UNUSED(ops);
+#endif
+	UNUSED(xupdate_op);
+
+	auto conf = CAST_DOWN(iter_mcmc_conf, _conf);
+
+	float eps = md_norm(1, MD_DIMS(size), image_adj);
+
+	if (checkeps(eps))
+		return;
+
+	langevin_dynamics(conf->maxiter, conf->inner_iter, conf->sigma_begin, conf->sigma_end, conf->redu, conf->lambda, size,
+	                 select_vecops(image_adj), OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
+
+}
+
 void iter2_call_iter(iter_conf* _conf,
 		const struct operator_s* normaleq_op,
 		unsigned int D,
