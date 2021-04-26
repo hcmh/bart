@@ -146,6 +146,7 @@ endif
 # cuda
 
 CUDA_BASE ?= /usr/
+CUDA_LIB ?= lib
 CUDNN_BASE ?= $(CUDA_BASE)
 
 # tensorflow
@@ -370,12 +371,12 @@ CUDNN_H := -I$(CUDNN_BASE)/include
 CPPFLAGS += -DUSE_CUDNN $(CUDNN_H)
 endif
 ifeq ($(BUILDTYPE), MacOSX)
-CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -m64 -lstdc++
+CUDA_L := -L$(CUDA_BASE)/$(CUDA_LIB) -lcufft -lcudart -lcublas -m64 -lstdc++
 else
 ifeq ($(CUDNN),1)
-CUDA_L := -L$(CUDA_BASE)/lib -L$(CUDNN_BASE)/lib64 -lcudnn -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib
+CUDA_L := -L$(CUDA_BASE)/$(CUDA_LIB) -L$(CUDNN_BASE)/lib64 -lcudnn -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/$(CUDA_LIB)
 else
-CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib
+CUDA_L := -L$(CUDA_BASE)/$(CUDA_LIB) -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/$(CUDA_LIB)
 endif
 endif
 else
