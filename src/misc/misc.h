@@ -111,6 +111,8 @@ extern const char* ptr_printf(const char* fmt, ...);
 extern const char* ptr_vprintf(const char* fmt, va_list ap);
 extern const char* ptr_print_dims(int D, const long dims[__VLA(D)]);
 
+extern void md_unravel_index(unsigned int D, long pos[__VLA(D)], const long dims[__VLA(D)], const long index);
+
 #include "misc/cppwrap.h"
 
 #endif // __MISC_H

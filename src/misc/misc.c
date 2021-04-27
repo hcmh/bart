@@ -638,3 +638,20 @@ const char* ptr_print_dims(int D, const long dims[D])
 	xfree(result);
 	return tmp;
 }
+
+/**
+ * Convert flat index to pos
+ *
+ */
+void md_unravel_index(unsigned int D, long pos[D], const long dims[D], const long index)
+{
+	long ind = index;
+	for (unsigned int d = 0; d < D; ++d) {
+
+		if (1 == dims[d])
+			continue;
+
+		pos[d] = ind % dims[d];
+		ind /= dims[d];
+	}
+}
