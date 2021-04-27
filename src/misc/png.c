@@ -105,3 +105,23 @@ int png_write_bgr32(const char* name, int w, int h, long inum, const unsigned ch
 	UNUSED(inum);
 	return png_write_anyrgb(name, w, h, 4, false, buf);
 }
+
+
+
+static const char* spec = "xyzcmnopqsfrtuvw";
+
+void construct_filename(unsigned int bufsize, char* name, unsigned int D, const long loopdims[D], const long pos[D], const char* prefix, const char* ext)
+{
+
+	// Prepare output filename
+	char* cur = name;
+	const char* end = name + bufsize;
+
+	cur += snprintf(cur, end - cur, "%s", prefix);
+
+	for (int i = 0; i < D; i++)
+		if (1 != loopdims[i])
+			cur += snprintf(cur, end - cur, "_%c%04ld", spec[i], pos[i]);
+
+	cur += snprintf(cur, end - cur, ".%s", ext);
+}
