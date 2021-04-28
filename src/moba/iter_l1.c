@@ -487,7 +487,7 @@ const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, 
 	debug_print_dims(DP_INFO, DIMS, img_dims);
 
 	auto prox1 = create_prox(img_dims, COEFF_FLAG, conf->wav_reg);
-	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | TIME_FLAG | TIME2_FLAG | SLICE_FLAG));
+	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | TIME_FLAG | TIME2_FLAG | SLICE_FLAG), NORM_L2);
 
 	if (1 == conf->not_wav_maps) {
 
@@ -498,7 +498,7 @@ const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, 
 		// auto prox3 = create_prox(map_dims, 0, 0.05);
 		auto prox3 = prox_zero_create(DIMS, map_dims);
 		auto prox4 = operator_p_stack(COEFF_DIM, COEFF_DIM, prox1, prox3);
-		prox2 = op_p_auto_normalize(prox4, ~(COEFF_FLAG | TIME_FLAG | TIME2_FLAG | SLICE_FLAG));
+		prox2 = op_p_auto_normalize(prox4, ~(COEFF_FLAG | TIME_FLAG | TIME2_FLAG | SLICE_FLAG), NORM_L2);
 
 		operator_p_free(prox3);
 		operator_p_free(prox4);
