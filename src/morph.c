@@ -78,7 +78,7 @@ static void closing(unsigned int D, const long mask_dims[D], complex float* mask
 }
 
 static const char usage_str[] = "mask_size <binary input> <binary output>";
-static const char help_str[] = "Perform morphological operators on binary data.";
+static const char help_str[] = "Perform morphological operators on binary data with odd mask sizes.";
 
 
 
@@ -95,7 +95,6 @@ int main_morph(int argc, char* argv[])
 		OPT_SELECT('d', enum morph_type, &morph_type, DILATION, "DILATION"),
 		OPT_SELECT('o', enum morph_type, &morph_type, OPENING, "OPENING"),
 		OPT_SELECT('c', enum morph_type, &morph_type, CLOSING, "CLOSING"),
-		OPT_SELECT('b', enum mask_type, &mask_type, BLOCK, "mask type: BLOCK (default)"),
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -112,10 +111,10 @@ int main_morph(int argc, char* argv[])
 
 	int mask_size = atoi(argv[1]);
 
-	// Only odd mask size values are supportet for the convolution
-	assert(1 == mask_size%2);
+	// Only odd mask size values are supported by the convolution
+	assert(1 == mask_size % 2);
 
-	// FIXME: Check if data is binary else Raise
+	// FIXME: Check if data is binary else raise
 	// ...
 
 	long mask_dims[N];
@@ -129,21 +128,21 @@ int main_morph(int argc, char* argv[])
 	switch (mask_type) {
 
 	case HLINE:
-		printf("Mask Type is not implemented yet.\n");
+		error("Mask Type is not implemented yet.\n");
 		// mask = {{0, 0, 0},
 		// 	{1, 1, 1},
 		// 	{0, 0, 0}};
 		break;
 
 	case VLINE:
-		printf("Mask Type is not implemented yet.\n");
+		error("Mask Type is not implemented yet.\n");
 		// mask = {{0, 1, 0},
 		// 	{0, 1, 0},
 		// 	{0, 1, 0}};
 		break;
 
 	case CROSS:
-		printf("Mask Type is not implemented yet.\n");
+		error("Mask Type is not implemented yet.\n");
 		// mask = {{0, 1, 0},
 		// 	{1, 1, 1},
 		// 	{0, 1, 0}};
@@ -154,7 +153,7 @@ int main_morph(int argc, char* argv[])
 		break;
 
 	default:
-		printf("Please choose a correct structural element/mask.\n");
+		error("Please choose a correct structural element/mask.\n");
 		break;
 	}
 
@@ -177,7 +176,7 @@ int main_morph(int argc, char* argv[])
 		break;
 
 	default:
-		printf("Please choose a morphological operation.\n");
+		error("Please choose a morphological operation.\n");
 		break;
 	}
 
