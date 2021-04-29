@@ -23,8 +23,9 @@ extern const struct operator_p_s* prox_greq_create(unsigned int N, const long di
 extern const struct operator_p_s* prox_rvc_create(unsigned int N, const long dims[__VLA(N)]);
 extern const struct operator_p_s* prox_nonneg_create(unsigned int N, const long dims[__VLA(N)]);
 extern const struct operator_p_s* prox_zsmax_create(unsigned int N, const long dims[__VLA(N)], float a);
-extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float lambda, float p, unsigned int steps);
-extern const struct operator_p_s* prox_logp_nlinv_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float lambda, float p, unsigned int steps, float base, unsigned int irgnm_steps, float rho);
+extern const struct operator_p_s* prox_logp_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float lambda, float p, unsigned int steps, unsigned int prior_dim);
+extern const struct operator_p_s* prox_logp_nlinv_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float lambda, float p, unsigned int steps, float base, unsigned int irgnm_steps, float rho, unsigned int prior_dim);
+extern const struct operator_p_s* prox_logp_ncsn_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float step_size, unsigned int steps, unsigned int nr_noise_level, float begin_sigma, float end_sigma, unsigned int prior_dim);
 extern const struct operator_p_s* op_p_auto_normalize(const struct operator_p_s*, long flags);
 
 #include "misc/cppwrap.h"

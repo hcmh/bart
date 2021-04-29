@@ -32,6 +32,9 @@ struct vec_iter_s {
 
 	void (*zmul)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2);
 	void (*zsmax)(long N, float val, _Complex float* dst, const _Complex float* src1);
+	void (*zgaussian_rand)(long N, _Complex float* dst);
+	void (*get_max)(long N, float* dst, const float* src);
+	void (*zfill)(long N, _Complex float val, _Complex float* dst);
 };
 
 #ifdef USE_CUDA

@@ -132,6 +132,8 @@ int main_pics(int argc, char* argv[])
 
 	struct admm_conf admm = { false, false, false, iter_admm_defaults.rho, iter_admm_defaults.maxitercg };
 
+	struct mcmc_conf mcmc = {iter_mcmc_defaults.sigma_begin, iter_mcmc_defaults.sigma_end, iter_mcmc_defaults.maxiter, iter_mcmc_defaults.inner_iter};
+
 	enum algo_t algo = ALGO_DEFAULT;
 
 	bool hogwild = false;
@@ -591,6 +593,13 @@ int main_pics(int argc, char* argv[])
 	if (ALGO_DEFAULT == algo)
 		algo = italgo_choose(nr_penalties, regs);
 
+	// if log prior is chosen
+	if (ALGO_MCMC == algo){
+		mcmc.sigma_begin = regs[0].sigma_begin;
+		mcmc.sigma_end = regs[0].sigma_end;
+		mcmc.inner_iter = regs[0].inner_iter;
+	}
+
 	if (conf.bpsense)
 		assert((ALGO_ADMM == algo) || (ALGO_PRIDU == algo));
 
@@ -620,7 +629,7 @@ int main_pics(int argc, char* argv[])
 
 	// initialize algorithm
 
-	struct iter it = italgo_config(algo, nr_penalties, regs, maxiter, step, hogwild, fast, admm, scaling, warm_start);
+	struct iter it = italgo_config(algo, nr_penalties, regs, maxiter, step, hogwild, fast, admm, scaling, warm_start, mcmc);
 
 	if (ALGO_CG == algo)
 		nr_penalties = 0;

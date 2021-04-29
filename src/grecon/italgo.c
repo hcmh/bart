@@ -56,6 +56,10 @@ enum algo_t italgo_choose(int nr_penalties, const struct reg_s regs[nr_penalties
 
 			algo = ALGO_MCMC;
 			break;
+		case LOGPS:
+		
+			algo = ALGO_MCMC;
+			break;
 		default:
 			if (0 == i)
 				algo = ALGO_FISTA;
@@ -70,7 +74,7 @@ enum algo_t italgo_choose(int nr_penalties, const struct reg_s regs[nr_penalties
 }
 
 
-struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s* regs, unsigned int maxiter, float step, bool hogwild, bool fast, const struct admm_conf admm, float scaling, bool warm_start)
+struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s* regs, unsigned int maxiter, float step, bool hogwild, bool fast, const struct admm_conf admm, float scaling, bool warm_start, const struct mcmc_conf mcmc)
 {
 	italgo_fun2_t italgo = NULL;
 	iter_conf* iconf = NULL;
@@ -228,6 +232,9 @@ struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s
 
 			mcconf->maxiter = maxiter;
 			mcconf->lambda = step;
+			mcconf->inner_iter = mcmc.inner_iter;
+			mcconf->sigma_begin = mcmc.sigma_begin;
+			mcconf->sigma_end = mcmc.sigma_end;
 			
 			PTR_ALLOC(struct iter_call_s, iter2_mcmc_data);
 			SET_TYPEID(iter_call_s, iter2_mcmc_data);

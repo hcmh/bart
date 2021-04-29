@@ -10,6 +10,14 @@ struct admm_conf {
 	unsigned int maxitercg;
 };
 
+struct mcmc_conf {
+
+	float sigma_begin;
+	float sigma_end;
+
+	unsigned int nr_noise_level;
+	unsigned int inner_iter;
+};
 
 struct iter {
 
@@ -22,7 +30,7 @@ enum algo_t;
 
 extern enum algo_t italgo_choose(int nr_penalties, const struct reg_s regs[nr_penalties]);
 
-extern struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s* regs, unsigned int maxiter, float step, bool hogwild, bool fast, const struct admm_conf admm, float scaling, bool warm_start);
+extern struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s* regs, unsigned int maxiter, float step, bool hogwild, bool fast, const struct admm_conf admm, float scaling, bool warm_start, const struct mcmc_conf mcmc);
 
 extern void italgo_config_free(struct iter it);
 

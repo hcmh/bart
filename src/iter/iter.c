@@ -164,10 +164,9 @@ const struct iter_mcmc_conf iter_mcmc_defaults = {
 	.INTERFACE.alpha = 1.,
 
 	.maxiter = 10,
-	.sigma_begin = 0.3,
+	.sigma_begin = 1.,
 	.sigma_end = 0.01,
-	.redu = 2,
-	
+
 	.lambda = 0.2,
 	.inner_iter = 50,
 };

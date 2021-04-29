@@ -504,7 +504,7 @@ void iter2_mcmc(iter_conf* _conf,
 	if (checkeps(eps))
 		return;
 
-	langevin_dynamics(conf->maxiter, conf->inner_iter, conf->sigma_begin, conf->sigma_end, conf->redu, conf->lambda, size,
+	langevin_dynamics(conf->maxiter, conf->inner_iter, conf->sigma_begin, conf->sigma_end, conf->lambda, size,
 	                 select_vecops(image_adj), OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
 
 }

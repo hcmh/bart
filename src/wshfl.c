@@ -914,6 +914,7 @@ int main_wshfl(int argc, char* argv[])
 	cmdline(&argc, argv, 6, 6, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	struct admm_conf admm = { false, false, false, rho, cgiter };
+	struct mcmc_conf mcmc = {iter_mcmc_defaults.sigma_begin, iter_mcmc_defaults.sigma_end, iter_mcmc_defaults.maxiter, iter_mcmc_defaults.inner_iter}; // just to circumvent  error when compiling, it's not used (gluo)
 
 	debug_printf(DP_INFO, "Loading data... ");
 
@@ -1102,7 +1103,7 @@ int main_wshfl(int argc, char* argv[])
 	struct reg_s* regs = ropts.regs;
 
 	enum algo_t algo = ALGO_ADMM;
-	struct iter it = italgo_config(algo, nr_penalties, regs, maxiter, -1, hgwld, false, admm, 1, false);
+	struct iter it = italgo_config(algo, nr_penalties, regs, maxiter, -1, hgwld, false, admm, 1, false, mcmc);
 	debug_printf(DP_INFO, "Done.\n");
 
 	complex float* init = NULL;

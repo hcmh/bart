@@ -22,6 +22,7 @@ struct reg_s
 	char *graph_file;
 	double pct;	
 	unsigned int steps;
+    unsigned int prior_dim;
 
     unsigned int irgnm_steps;
     float base;
