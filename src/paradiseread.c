@@ -425,14 +425,24 @@ static void philips_adc_skip(int ifd, char* line, const int n_coils)
 
 }
 
-static const char usage_str[] = "<filename> <output> [<idx>]";
-//	fprintf(fd, "Usage: %s [...] [-a A] <dat file> <output>\n", name);
-
 static const char help_str[] = "Read data from Philips Paradise (.data/.list) files.";
 
 
 int main_paradiseread(int argc, char* argv[argc])
 {
+	const char* file = NULL;
+	const char* out_file = NULL;
+	const char* idx_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &file, "filename"),
+		ARG_OUTFILE(true, &out_file, "output"),
+		ARG_OUTFILE(false, &idx_file, "idx"),
+	};
+
+
+
 	long dims[DIMS];
 	md_singleton_dims(DIMS, dims);
 	
@@ -455,31 +465,31 @@ int main_paradiseread(int argc, char* argv[argc])
 
 	};
 
-	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 	
 	
-    // Create filenames
-    int filename_length = strlen(argv[1]) + 5; // add 5 characters (.list/.data)
+	// Create filenames
+	int filename_length = strlen(file) + 5; // add 5 characters (.list/.data)
 
-    char _data[] = ".data";
-    char _list[] = ".list";
-    
-    char name_data[filename_length];
-    char name_list[filename_length];
+	char _data[] = ".data";
+	char _list[] = ".list";
 
-    
-    strcpy(name_data, argv[1]);
-    strcat(name_data, _data);
+	char name_data[filename_length];
+	char name_list[filename_length];
 
-    strcpy(name_list, argv[1]);
-    strcat(name_list, _list);
 
-    // Read list-file line-by-line
-    FILE* fp;
-    char* line = NULL;
-    size_t len = 0;
+	strcpy(name_data, file);
+	strcat(name_data, _data);
 
-    fp = fopen(name_list, "r");
+	strcpy(name_list, file);
+	strcat(name_list, _list);
+
+	// Read list-file line-by-line
+	FILE* fp;
+	char* line = NULL;
+	size_t len = 0;
+
+	fp = fopen(name_list, "r");
 	
     if (fp == NULL) 
 		error("List-file!");
@@ -489,7 +499,7 @@ int main_paradiseread(int argc, char* argv[argc])
 	long n_coils = 0;
 	
 	//// First, determine number of coils only
-    while ((-1 != getline(&line, &len, fp)) && !n_coils) { // Iterate through all lines
+	while ((-1 != getline(&line, &len, fp)) && !n_coils) { // Iterate through all lines
 		
 		if (strstr(line, P_START)) // Skip general information
 			params.data_vector = true;
@@ -534,7 +544,7 @@ int main_paradiseread(int argc, char* argv[argc])
 	//// Bounds
 	int adcs = 0; 	// Total number of ADCs
 	int line_count = 0; 		
-    while ((-1 != getline(&line, &len, fp))) { // Iterate through all lines
+	while ((-1 != getline(&line, &len, fp))) { // Iterate through all lines
 		
 		if (strstr(line, P_START)) { // Skip general information
 			params.data_vector = true;
@@ -618,10 +628,10 @@ int main_paradiseread(int argc, char* argv[argc])
 	idx_dims[TIME2_DIM] = P_DIMS;
 	
 	complex float* idx = NULL;
-	if (argc == 4)
-		idx = create_cfl(argv[3], DIMS, idx_dims);
+	if (NULL != idx_file)
+		idx = create_cfl(idx_file, DIMS, idx_dims);
 	
-	complex float* out = create_cfl(argv[2], DIMS, dims);
+	complex float* out = create_cfl(out_file, DIMS, dims);
 	md_clear(DIMS, dims, out, CFL_SIZE);
 
 	long adc_dims[DIMS];
@@ -636,9 +646,9 @@ int main_paradiseread(int argc, char* argv[argc])
 		
 		// Generate name
 		char nav_postfix[] = "_nav";
-		long name_length = strlen(argv[2]) + 4; // "_nav"
+		long name_length = strlen(out_file) + 4; // "_nav"
 		char name_nav[name_length];
-		strcpy(name_nav, argv[2]);
+		strcpy(name_nav, out_file);
 		strcat(name_nav, nav_postfix);
 		
 		md_copy_dims(DIMS, nav_dims, adc_dims);
@@ -650,7 +660,7 @@ int main_paradiseread(int argc, char* argv[argc])
 	
 
 	int ifd;
-    if (-1 == (ifd = open(name_data, O_RDONLY)))
+	if (-1 == (ifd = open(name_data, O_RDONLY)))
 		error("error opening file.");
 	
 	xseek(ifd, start);
@@ -690,12 +700,12 @@ int main_paradiseread(int argc, char* argv[argc])
 	
 	
 	fclose(fp);
-    if (line)
+	if (line)
 		free(line);
 
 	unmap_cfl(DIMS, dims, out);
 	
-	if (argc == 4)
+	if (NULL != idx_file)
 		unmap_cfl(DIMS, idx_dims, idx);
 	
 	if (params.nav)

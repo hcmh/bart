@@ -25,7 +25,11 @@ extern int read_multi_cfl_header(int fd, unsigned int D_max, unsigned int n_max,
 
 extern void io_register_input(const char* name);
 extern void io_register_output(const char* name);
+extern void io_reserve_input(const char* name);
+extern void io_reserve_output(const char* name);
+extern void io_reserve_inout(const char* name);
 extern void io_unregister(const char* name);
+extern void io_close(const char* name);
 
 extern void io_unlink_if_opened(const char* name);
 

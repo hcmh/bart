@@ -24,7 +24,6 @@
 #include "calib/ssa.h"
 
 
-static const char usage_str[] = "<src> <EOF> [<S>] [<backprojection>]";
 static const char help_str[] =
 		"Perform SSA-FARY or Singular Spectrum Analysis. <src>: [samples, coordinates]\n";
 
@@ -32,6 +31,17 @@ static const char help_str[] =
 int main_ssa(int argc, char* argv[argc])
 {
 	struct delay_conf conf = ssa_conf_default;
+
+	const char* src_file = NULL;
+	const char* EOF_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &src_file, "src"),
+		ARG_OUTFILE(true, &EOF_file, "EOF"),
+		ARG_OUTFILE(false, (const char**) &conf.name_S, "S"),
+		ARG_OUTFILE(false, (const char**) &conf.backproj, "backprojection"),
+	};
 
 	const struct opt_s opts[] = {
 
@@ -45,7 +55,7 @@ int main_ssa(int argc, char* argv[argc])
 		OPT_FLOAT('e', &conf.weight, "exp", "Soft delay-embedding"),
 	};
 
-	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -54,23 +64,17 @@ int main_ssa(int argc, char* argv[argc])
 
 	conf.kernel_dims[0] = conf.window;
 
-	char* name_EOF = argv[2];
-
-	if (4 <= argc)
-		conf.name_S = argv[3];
-
-	if (5 == argc) {
+	if (NULL != conf.backproj) {
 
 		if (conf.EOF_info)
 			conf.rank = 1;
 
 		check_bp(&conf);
-		conf.backproj = argv[4];
 	}
 
 
 	long in_dims[DIMS];
-	complex float* in = load_cfl(argv[1], DIMS, in_dims);
+	complex float* in = load_cfl(src_file, DIMS, in_dims);
 
 	if (!md_check_dimensions(DIMS, in_dims, ~(READ_FLAG|PHS1_FLAG)))
 		error("Only first two dimensions must be filled!");
@@ -105,7 +109,7 @@ int main_ssa(int argc, char* argv[argc])
 	long N = A_dims[0];
 
 	long U_dims[2] = { N, N };
-	complex float* U = create_cfl(name_EOF, 2, U_dims);
+	complex float* U = create_cfl(EOF_file, 2, U_dims);
 
 	complex float* back = NULL;
 

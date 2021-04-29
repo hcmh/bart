@@ -23,8 +23,7 @@
 #endif
 
 
-static const char usage_str[] = "<input maps> <input alpha> <output>";
-static const char help_str[] = "Compute T1 and T2 maps from M_0, M_ss, R_1* and alpha.\n";
+static const char help_str[] = "Compute T1 and T2 maps from M_0, M_ss, R_1* and alpha.";
 
 // Schmitt, P., Griswold, M.A., Jakob, P.M., Kotas, M., Gulani, V., Flentje, M. and Haase, A. (2004),
 // Inversion recovery TrueFISP: Quantification of T 1, T 2, and spin density.
@@ -32,6 +31,17 @@ static const char help_str[] = "Compute T1 and T2 maps from M_0, M_ss, R_1* and 
 
 int main_schmitt(int argc, char* argv[argc])
 {
+	const char* maps_file = NULL;
+	const char* alpha_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &maps_file, "trajectory"),
+		ARG_INFILE(true, &alpha_file, "dat file"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	float threshold = 0.;
 	float scaling_M0 = 2.0;
 
@@ -40,24 +50,24 @@ int main_schmitt(int argc, char* argv[argc])
 		OPT_FLOAT('t', &threshold, "threshold", "Pixels with M0 values smaller than {threshold} are set to zero."),
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
 	long idims[DIMS];
 
-	complex float* in_data = load_cfl(argv[1], DIMS, idims);
+	complex float* in_data = load_cfl(maps_file, DIMS, idims);
 
 	long i2dims[DIMS];
 
-	complex float* in_alpha = load_cfl(argv[2], DIMS, i2dims);
+	complex float* in_alpha = load_cfl(alpha_file, DIMS, i2dims);
 
 	assert(md_check_equal_dims(DIMS, idims, i2dims, FFT_FLAGS));
 
 	long odims[DIMS];
 	md_copy_dims(DIMS, odims, idims);
 
-	complex float* out_data = create_cfl(argv[3], DIMS, odims);
+	complex float* out_data = create_cfl(out_file, DIMS, odims);
 
 	long istrs[DIMS];
 	md_calc_strides(DIMS, istrs, idims, CFL_SIZE);

@@ -33,6 +33,7 @@
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
+#include "misc/opts.h"
 #include "misc/debug.h"
 
 #ifndef DIMS
@@ -40,26 +41,38 @@
 #endif
 
 
-static const char usage_str[] = "<lambda> <flags> <tdim> <input> <output>";
-static const char help_str[] = "Estimate optical flow along dims <flags>.\n";
+static const char help_str[] = "Estimate optical flow along dims <flags>.";
 
 	
-int main_hornschunck(int argc, char* argv[])
+int main_hornschunck(int argc, char* argv[argc])
 {
-	mini_cmdline(&argc, argv, 5, usage_str, help_str);
+	float lambda = 0.f;
+	int flags = -1;
+	int tdim = -1;
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_FLOAT(true, &lambda, "lambda"),
+		ARG_INT(true, &flags, "flags"),
+		ARG_INT(true, &tdim, "tdim"),
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
+	const struct opt_s opts[] = {};
+
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
 	long dims[DIMS];
 
-	float lambda = atof(argv[1]);
-	int flags = atoi(argv[2]);
-	int tdim = atoi(argv[3]);
-
 	assert((0 <= tdim) && (tdim < DIMS));
 	assert(!MD_IS_SET(flags, tdim));
 	
-	complex float* in_data = load_cfl(argv[4], DIMS, dims);
+	complex float* in_data = load_cfl(in_file, DIMS, dims);
 
 
 	const struct linop_s* grad_op = linop_grad_create(DIMS, dims, DIMS, flags);
@@ -129,7 +142,7 @@ int main_hornschunck(int argc, char* argv[])
 	md_copy_dims(DIMS, dims2, dims);
 	dims2[DIMS] = 1;
 
-	complex float* out_data = create_cfl(argv[5], DIMS + 1, odims);
+	complex float* out_data = create_cfl(out_file, DIMS + 1, odims);
 	md_clear(DIMS + 1, odims, out_data, CFL_SIZE);
 
 

@@ -45,11 +45,24 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "<kspace> <sens> <weights> <out/ref>";
 static const char help_str[] = "Trains or appplies a neural network for reconstruction.";
 
 int main_reconet(int argc, char* argv[])
 {
+	const char* kspace_file = NULL;
+	const char* sens_file = NULL;
+	const char* weights_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &kspace_file, "kspace"),
+		ARG_INFILE(true, &sens_file, "sens"),
+		ARG_INOUTFILE(true, &weights_file, "weights"),
+		ARG_INOUTFILE(true, &out_file, "out/ref"),
+	};
+
+
 	struct reconet_s config = reconet_config_opts;
 
 	bool train = false;
@@ -95,11 +108,11 @@ int main_reconet(int argc, char* argv[])
 
 	struct opt_s valid_opts[] = {
 
-		OPTL_STRING('t', "trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
-		OPTL_STRING('p', "pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
-		OPTL_STRING('k', "kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
-		OPTL_STRING('c', "coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
-		OPTL_STRING('r', "ref", &(valid_data.filename_out), "file", "validation data reference"),
+		OPTL_INFILE('t', "trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
+		OPTL_INFILE('p', "pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
+		OPTL_INFILE('k', "kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
+		OPTL_INFILE('c', "coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
+		OPTL_INFILE('r', "ref", &(valid_data.filename_out), "file", "validation data reference"),
 	};
 
 	struct opt_s network_opts[] = {
@@ -120,7 +133,7 @@ int main_reconet(int argc, char* argv[])
 
 		OPTL_SET('g', "gpu", &(config.gpu), "run on gpu"),
 
-		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "file", "load weights for continuing training"),
+		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "file", "load weights for continuing training"),
 		OPTL_LONG('b', "batch-size", &(Nb), "d", "size of mini batches"),
 
 		OPTL_LONG('I', "iterations", &(config.Nt), "d", "number of unrolled iterations"),
@@ -141,8 +154,8 @@ int main_reconet(int argc, char* argv[])
 		OPTL_SELECT(0, "no-shared-lambda", enum BOOL_SELECT, &(config.share_lambda_select), BOOL_FALSE, "share lambda across iterations"),
 
 
-		OPTL_STRING(0, "trajectory", &(data.filename_trajectory), "file", "trajectory"),
-		OPTL_STRING(0, "pattern", &(data.filename_pattern), "file", "sampling pattern / psf in kspace"),
+		OPTL_INFILE(0, "trajectory", &(data.filename_trajectory), "file", "trajectory"),
+		OPTL_INFILE(0, "pattern", &(data.filename_pattern), "file", "sampling pattern / psf in kspace"),
 
 		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
 
@@ -162,12 +175,11 @@ int main_reconet(int argc, char* argv[])
 		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
 	};
 
-	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
-	data.filename_kspace = argv[1];
-	data.filename_coil = argv[2];
-	const char* filename_weights = argv[3];
-	data.filename_out = argv[4];
+	data.filename_kspace = kspace_file;
+	data.filename_coil = sens_file;
+	data.filename_out = out_file;
 
 	config.train_conf = iter6_get_conf_from_opts();
 
@@ -209,7 +221,7 @@ int main_reconet(int argc, char* argv[])
 
 
 	if ((0 < config.train_conf->dump_mod) && (NULL == config.train_conf->dump_filename))
-		config.train_conf->dump_filename = filename_weights;
+		config.train_conf->dump_filename = weights_file;
 
 	if (one_iter)
 		config.Nt = 1;
@@ -224,7 +236,7 @@ int main_reconet(int argc, char* argv[])
 		config.normalize = true;
 
 	if (0 < config.train_conf->dump_mod)
-		config.train_conf->dump_filename = filename_weights;
+		config.train_conf->dump_filename = weights_file;
 
 
 	if (((train || eval) && apply) || (!train && !apply && ! eval))
@@ -256,19 +268,19 @@ int main_reconet(int argc, char* argv[])
 	if (train) {
 
 		train_reconet(&config, 5, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb, use_valid_data ? &valid_data : NULL);
-		dump_nn_weights(filename_weights, config.weights);
+		dump_nn_weights(weights_file, config.weights);
 	}
 
 	if (eval) {
 
 		if (NULL == config.weights)
-			config.weights = load_nn_weights(filename_weights);
+			config.weights = load_nn_weights(weights_file);
 		eval_reconet(&config, 5, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb);
 	}
 
 	if (apply) {
 
-		config.weights = load_nn_weights(filename_weights);
+		config.weights = load_nn_weights(weights_file);
 		apply_reconet_batchwise(&config, 5, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb);
 	}
 

@@ -34,14 +34,24 @@
 #define DIMS 16
 #endif
 
-static const char usage_str[] = "<TE> <multi-echo images> <W/F>";
-static const char help_str[] =
-		"Perfoms simple 3-pt Dixon water/fat separation.";
+static const char help_str[] = "Perfoms simple 3-pt Dixon water/fat separation.";
 
 
-int main_dixon(int argc, char* argv[])
+int main_dixon(int argc, char* argv[argc])
 {
-	mini_cmdline(&argc, argv, 3, usage_str, help_str);
+	const char* TE_file = NULL;
+	const char* ME_file = NULL;
+	const char* WF_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &TE_file, "TE"),
+		ARG_INFILE(true, &ME_file, "multi-echo images"),
+		ARG_OUTFILE(true, &WF_file, "W/F"),
+	};
+
+	const struct opt_s opts[] = {};
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -49,10 +59,10 @@ int main_dixon(int argc, char* argv[])
 
 
 	long dims_TE[N];
-	complex float* TE = load_cfl(argv[1], N, dims_TE);
+	complex float* TE = load_cfl(TE_file, N, dims_TE);
 
 	long dims_in[N];
-	complex float* in = load_cfl(argv[2], N, dims_in);
+	complex float* in = load_cfl(ME_file, N, dims_in);
 
 	long strs_in[N];
 	md_calc_strides(N, strs_in, dims_in, CFL_SIZE);
@@ -118,7 +128,7 @@ int main_dixon(int argc, char* argv[])
 	long strs_out[N];
 	md_calc_strides(N, strs_out, dims_out, CFL_SIZE);
 
-	complex float* out = create_cfl(argv[3], N, dims_out);
+	complex float* out = create_cfl(WF_file, N, dims_out);
 
 	for (int D = 0; D < N; D++)
 		pos[D] = 0;

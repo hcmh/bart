@@ -30,15 +30,25 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "<input> <weights> <output>";
 static const char help_str[] = "Trains or applies nn for recognizing handwritten digits.";
 
 
 
 
 
-int main_mnist(int argc, char* argv[])
+int main_mnist(int argc, char* argv[argc])
 {
+	const char* in_file = NULL;
+	const char* weights_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_INFILE(true, &weights_file, "weights"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	bool train = false;
 	bool initialize = false;
 	bool predict = false;
@@ -59,41 +69,40 @@ int main_mnist(int argc, char* argv[])
 		OPT_SET('g', &use_gpu, "run on gpu")
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
-
-	complex float* in;
-	complex float* out;
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	nn_weights_t weights;
 
 	if (initialize)
 		weights = init_nn_mnist();
 	else
-		weights = load_nn_weights(argv[2]);
+		weights = load_nn_weights(weights_file);
 
-	#ifdef USE_CUDA
+#ifdef USE_CUDA
 	if (use_gpu) {
+
 		num_init_gpu();
 		move_gpu_nn_weights(weights);
 	}
 	else
 #endif
-	num_init();		
+	num_init();
 
 	long dims_in[3];
 	long dims_out[2];
-	in = load_cfl(argv[1], 3, dims_in);
-	out = load_cfl(argv[3], 2, dims_out);
+	complex float* in = load_cfl(in_file, 3, dims_in);
+	complex float* out = load_cfl(out_file, 2, dims_out);
 	assert(dims_in[2] == dims_out[1]);
 
 	if (N_batch == 0)
 		N_batch = MIN(128, dims_in[2]);
 
 
-	if (train){
+	if (train) {
+
 		printf("Train\n");
 		train_nn_mnist(N_batch, dims_in[2], weights, in, out, epochs);
-		dump_nn_weights(argv[2], weights);
+		dump_nn_weights(weights_file, weights);
 	}
 
 	if (predict){

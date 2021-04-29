@@ -73,14 +73,20 @@ static int adc_read(int fd, const long dims[DIMS], long pos[DIMS], complex float
 
 
 
-static const char usage_str[] = "<dat file> <output>";
-//	fprintf(fd, "Usage: %s [...] [-a A] <dat file> <output>\n", name);
-
 static const char help_str[] = "Read data from Siemens twix (.dat) files.";
 
 
 int main_umgread(int argc, char* argv[argc])
 {
+	const char* dat_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &dat_file, "dat file"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	long adcs = 0;
 
 	long dims[DIMS];
@@ -100,7 +106,7 @@ int main_umgread(int argc, char* argv[argc])
 		OPT_LONG('a', &adcs, "A", "total number of ADCs"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 
 	if (0 == adcs)
@@ -109,13 +115,13 @@ int main_umgread(int argc, char* argv[argc])
 	debug_print_dims(DP_DEBUG1, DIMS, dims);
 
         int ifd;
-        if (-1 == (ifd = open(argv[1], O_RDONLY)))
+	if (-1 == (ifd = open(dat_file, O_RDONLY)))
                 error("error opening file.");
 
 	meas_setup(ifd);
 
 
-	complex float* out = create_cfl(argv[2], DIMS, dims);
+	complex float* out = create_cfl(out_file, DIMS, dims);
 	md_clear(DIMS, dims, out, CFL_SIZE);
 
 

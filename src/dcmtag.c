@@ -12,11 +12,21 @@
 #include "misc/opts.h"
 
 
-static const char* usage_str = "0000,0000 <dcm> [<out>]";
 static const char* help_str = "";
 
 int main_dcmtag(int argc, char* argv[])
 {
+	const char* xy_str = NULL;
+	const char* dcm_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_STRING(true, &xy_str, "0000,0000"),
+		ARG_STRING(true, &dcm_file, "<dmc>"),
+		ARG_STRING(false, &out_file, "<out>"),
+	};
+
 	const char* repr = NULL;
 
 	const struct opt_s opts[] = {
@@ -24,22 +34,22 @@ int main_dcmtag(int argc, char* argv[])
 		OPT_STRING('r', &repr, "XX", "value representation"),
 	};
 
-	cmdline(&argc, argv, 2, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	
 	int x, y, n;
-	int ret = sscanf(argv[1], "%x,%x%n", &x, &y, &n);
+	int ret = sscanf(xy_str, "%x,%x%n", &x, &y, &n);
 
-	if (   (ret != 2) || (n != (int)strlen(argv[1]))
+	if (   (ret != 2) || (n != (int)strlen(xy_str))
 	    || (0 > x) || (x > 0xFFFF)
 	    || (0 > y) || (y > 0xFFFF))
 		error("invalid dicom tag\n");
 
 
-	struct dicom_obj_s* dobj = dicom_open(argv[2]);
+	struct dicom_obj_s* dobj = dicom_open(dcm_file);
 
 	if (NULL == dobj)
-		error("reading dicom file '%s'\n", argv[2]);
+		error("reading dicom file '%s'\n", dcm_file);
 
 
 	struct element el = { .tag = { (uint16_t)x, (uint16_t)y }, .vr = "--" };
@@ -58,12 +68,12 @@ int main_dcmtag(int argc, char* argv[])
 	if (NULL == el.data)
 		error("tag not found\n");
 
-	if (NULL != argv[3]) {
+	if (NULL != out_file) {
 
-		int fd = open(argv[3], O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);
+		int fd = open(out_file, O_WRONLY|O_CREAT, S_IRUSR|S_IWUSR);
 
 		if (-1 == fd)
-			error("error opening file '%s'\n", argv[3]);
+			error("error opening file '%s'\n", out_file);
 
 		if (el.len != write(fd, el.data, el.len))
 			error("error writing\n");

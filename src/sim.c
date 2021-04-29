@@ -25,10 +25,6 @@
 #include "simu/variable_flipangles.h"
 
 
-static const char usage_str[] = "<OUT:basis-functions>";
-static const char help_str[] = "Basis function based simulation tool.";
-
-
 static void help_seq(void)
 {
 	printf( "Sequence Simulation Parameter\n\n"
@@ -111,8 +107,17 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 }
 
 
+static const char help_str[] = "Basis function based simulation tool.";
+
 int main_sim(int argc, char* argv[])
 {
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_OUTFILE(true, &out_file, "OUT:basis-functions"),
+	};
+
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 
 	bool ode = false;
@@ -136,14 +141,14 @@ int main_sim(int argc, char* argv[])
 		OPT_SET(	'o', 	&ode, 			"ODE based simulation [Default: OBS]"),
 		OPT_FLVEC3(	'1',	&T1, 			"min:max:N", "range of T1s"),
 		OPT_FLVEC3(	'2',	&T2, 			"min:max:N", "range of T2s"),
-		OPT_STRING(	'z',	&z_component,		"", "Output z component"),
-		OPT_STRING(	'r',	&radial_component,	"", "Output radial component"),
+		OPT_OUTFILE(	'z',	&z_component,		"", "Output z component"),
+		OPT_OUTFILE(	'r',	&radial_component,	"", "Output radial component"),
 		OPTL_SET(0, "look-locker-assumption", &sim_data.seq.look_locker_assumptions, "Turn on Look-Locker Assumption?"),
-		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H:I:J:K\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw:Dinv:Dprep:BWTP> (-Ph for help)" },
+		{ 'P', NULL, true, OPT_SPECIAL, opt_seq, &sim_data, "A:B:C:D:E:F:G:H:I:J:K", "Parameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw:Dinv:Dprep:BWTP> (-Ph for help)" },
 	};
 
 
-	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -270,7 +275,7 @@ int main_sim(int argc, char* argv[])
 
 	// Determine signal
 
-	complex float* signals = create_cfl(argv[1], DIMS, dims);
+	complex float* signals = create_cfl(out_file, DIMS, dims);
 
 	if (sim_data.seq.analytical)
 

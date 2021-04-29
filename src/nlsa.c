@@ -57,18 +57,27 @@
 #include "calib/ssa.h"
 
 
-static const char usage_str[] = "<src> <EOF> [<S>] [<backprojection>]";
-static const char help_str[] =
-		"Perform NLSA-FARY or Nonlinear Laplacian Spectral Analysis. <src>: [samples, coordinates]\n";
+static const char help_str[] = "Perform NLSA-FARY or Nonlinear Laplacian Spectral Analysis. <src>: [samples, coordinates]";
 
 
-int main_nlsa(int argc, char* argv[])
+int main_nlsa(int argc, char* argv[argc])
 {
+	const char* src_file = NULL;
+	struct delay_conf nlsa_conf = nlsa_conf_default;
+
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &src_file, "src"),
+		ARG_OUTFILE(true, (const char **) &nlsa_conf.name_tbasis, "EOF"),
+		ARG_OUTFILE(false, (const char **) &nlsa_conf.name_S, "S"),
+		ARG_OUTFILE(false, (const char **) &nlsa_conf.backproj, "backprojection"),
+
+	};
 
 	struct laplace_conf conf = laplace_conf_default;
 	conf.dmap = true;
 
-	struct delay_conf nlsa_conf = nlsa_conf_default;
 
 
 	const struct opt_s opts[] = {
@@ -95,7 +104,7 @@ int main_nlsa(int argc, char* argv[])
 		OPT_SET('R', &nlsa_conf.riemann, "Include Riemann measure"),
 	};
 
-	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -107,24 +116,15 @@ int main_nlsa(int argc, char* argv[])
 	
 	nlsa_conf.kernel_dims[0] = nlsa_conf.window;
 
-	nlsa_conf.name_tbasis = argv[2];
-
-	if (4 <= argc)
-		nlsa_conf.name_S = argv[3];
-
-	if (5 == argc) { 
+	if (NULL != nlsa_conf.backproj) {
 
 		check_bp(&nlsa_conf);
-		nlsa_conf.backproj = argv[4];
-
-	}
-
-	if(nlsa_conf.backproj)
 		assert(!nlsa_conf.basis_out);
+	}
 	
 
 	long in_dims[DIMS];
-	complex float* in = load_cfl(argv[1], DIMS, in_dims);
+	complex float* in = load_cfl(src_file, DIMS, in_dims);
 
 	if (!md_check_dimensions(DIMS, in_dims, ~(READ_FLAG|PHS1_FLAG)))
 		error("Only first two dimensions must be filled!");

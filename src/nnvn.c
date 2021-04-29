@@ -33,11 +33,23 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "<kspace> <sens> <weights> <out/ref>";
 static const char help_str[] = "Trains and appplies the Variational Network.";
 
-int main_nnvn(int argc, char* argv[])
+int main_nnvn(int argc, char* argv[argc])
 {
+	const char* ksp_file = NULL;
+	const char* sens_file = NULL;
+	const char* weights_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &ksp_file, "kspace"),
+		ARG_INFILE(true, &sens_file, "sens"),
+		ARG_INOUTFILE(true, &weights_file, "weights"),
+		ARG_INOUTFILE(true, &out_file, "out/ref"),
+	};
+
 	struct vn_s vn_config = vn_default;
 	struct iter6_iPALM_conf train_conf = iter6_iPALM_conf_defaults;
 
@@ -67,24 +79,24 @@ int main_nnvn(int argc, char* argv[])
 		OPTL_SET('t', "train", &train, "train variational network"),
 		OPTL_SET('g', "gpu", &use_gpu, "run on gpu"),
 		OPTL_SET('a', "apply", &apply, "apply variational network"),
-		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
+		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
 		OPTL_STRING('c', "config", &config_file, "file", "file for loading varnet configuration"),
 
-		OPTL_STRING(0, "trajectory", &(data.filename_trajectory), "file", "trajectory"),
-		OPTL_STRING(0, "pattern", &(data.filename_pattern), "file", "sampling pattern / psf in kspace"),
+		OPTL_INFILE(0, "trajectory", &(data.filename_trajectory), "file", "trajectory"),
+		OPTL_INFILE(0, "pattern", &(data.filename_pattern), "file", "sampling pattern / psf in kspace"),
 
-		OPTL_STRING(0, "valid_trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
-		OPTL_STRING(0, "valid_pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
-		OPTL_STRING(0, "valid_kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
-		OPTL_STRING(0, "valid_coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
-		OPTL_STRING(0, "valid_ref", &(valid_data.filename_out), "file", "validation data reference"),
+		OPTL_INFILE(0, "valid_trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
+		OPTL_INFILE(0, "valid_pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
+		OPTL_INFILE(0, "valid_kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
+		OPTL_INFILE(0, "valid_coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
+		OPTL_INFILE(0, "valid_ref", &(valid_data.filename_out), "file", "validation data reference"),
 
 		OPTL_FLOAT('r', "learning_rate", &(train_conf.INTERFACE.learning_rate), "lr", "learning rate"),
 		OPTL_INT('e', "epochs", &(train_conf.INTERFACE.epochs), "epochs", "number epochs to train"),
 		OPTL_LONG('b', "batch_size", &(Nb), "Nb", "number epochs to train"),
 		OPTL_INT(0, "randomize_batches", &(random_order), "", "0=no shuffle, 1=shuffle batches, 2= shuffle data, 3=randonly draw data"),
 
-		OPTL_STRING(0, "save_train_history", (const char**)(&(train_conf.INTERFACE.history_filename)), "file", "file for dumping train history"),
+		OPTL_OUTFILE(0, "save_train_history", (const char**)(&(train_conf.INTERFACE.history_filename)), "file", "file for dumping train history"),
 		OPTL_LONG(0, "save_checkpoints_interval", &(train_conf.INTERFACE.dump_mod), "int", "save weights every int epochs"),
 		
 		
@@ -97,7 +109,7 @@ int main_nnvn(int argc, char* argv[])
 		OPTL_SET(0, "regrid", &(vn_config.regrid), "grids fully sampled kspace by applying pattern"),
 	};
 
-	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	if (test_defaults) {
 
@@ -155,13 +167,12 @@ int main_nnvn(int argc, char* argv[])
 
 
 
-	data.filename_kspace = argv[1];
-	data.filename_coil = argv[2];
-	const char* filename_weights = argv[3];
-	data.filename_out = argv[4];
+	data.filename_kspace = ksp_file;
+	data.filename_coil = sens_file;
+	data.filename_out = out_file;
 
 	if (0 < train_conf.INTERFACE.dump_mod)
-		train_conf.INTERFACE.dump_filename = filename_weights;
+		train_conf.INTERFACE.dump_filename = weights_file;
 
 	if (train && apply)
 		error("Train (-t) and apply(-a) would overwrite the reference!\n");
@@ -171,7 +182,7 @@ int main_nnvn(int argc, char* argv[])
 		if(initialize) {
 
 			init_vn(&vn_config);
-			dump_nn_weights(filename_weights, vn_config.weights);
+			dump_nn_weights(weights_file, vn_config.weights);
 		} else
 			error("Network needs to be either trained (-t) or applied (-a)!\n");
 	}
@@ -208,13 +219,13 @@ int main_nnvn(int argc, char* argv[])
 			move_gpu_nn_weights(vn_config.weights);
 
 		train_vn(&vn_config, CAST_UP(&train_conf), data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb, use_valid_data ? &valid_data : NULL);
-		dump_nn_weights(filename_weights, vn_config.weights);
+		dump_nn_weights(weights_file, vn_config.weights);
 	}
 
 
 	if (apply) {
 
-		load_vn(&vn_config, filename_weights, true);
+		load_vn(&vn_config, weights_file, true);
 		if (use_gpu)
 			move_gpu_nn_weights(vn_config.weights);
 		apply_vn_batchwise(&vn_config, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb);

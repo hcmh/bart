@@ -27,26 +27,42 @@
 #include "rkhs/rkhs.h"
 
 
-static const char* usage_str = "<kern> <traj> <kmat> <power> <stability> [<cardinal>]";
 static const char* help_str = "";
 
 
 
-int main_power(int argc, char* argv[])
+int main_power(int argc, char* argv[argc])
 {
-	const struct opt_s opts[1] = { 0 };
+	const char* kern_file = NULL;
+	const char* traj_file = NULL;
+	const char* kmat_file = NULL;
+	const char* power_file = NULL;
+	const char* stab_file = NULL;
+	const char* card_file = NULL;
 
-	cmdline(&argc, argv, 5, 6, usage_str, help_str, 0, opts);
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &kern_file, "kern"),
+		ARG_INFILE(true, &traj_file, "traj"),
+		ARG_INFILE(true, &kmat_file, "kmat"),
+		ARG_OUTFILE(true, &power_file, "power"),
+		ARG_OUTFILE(true, &stab_file, "stability"),
+		ARG_OUTFILE(false, &card_file, "cardinal"),
+	};
+
+	const struct opt_s opts[] = { };
+
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 
 	long dims[5];
-	complex float* kern = load_cfl(argv[1], 5, dims);
+	complex float* kern = load_cfl(kern_file, 5, dims);
 
 	long sdims[3];
-	complex float* samples = load_cfl(argv[2], 3, sdims);
+	complex float* samples = load_cfl(traj_file, 3, sdims);
 
 	long kdims[8];
-	complex float* kmat = load_cfl(argv[3], 8, kdims);
+	complex float* kmat = load_cfl(kmat_file, 8, kdims);
 
 	assert(kdims[0] == kdims[4]);
 	assert(kdims[3] == kdims[7]);
@@ -70,18 +86,18 @@ int main_power(int argc, char* argv[])
 	int Z = 1;
 	long odims[8] = { X, Y, Z, C, 1, 1, 1, 1 }; // smaller for now
 
-	complex float* odata = create_cfl(argv[4], 8, odims);
+	complex float* odata = create_cfl(power_file, 8, odims);
 	md_clear(8, odims, odata, CFL_SIZE);
 
-	complex float* leb = create_cfl(argv[5], 8, odims);
+	complex float* leb = create_cfl(stab_file, 8, odims);
 	md_clear(8, odims, leb, CFL_SIZE);
 
 	long cdims[8] = { X, Y, Z, 1, 1, N, C, C };
 	complex float* cardinal = NULL;
 
-	if (7 == argc) {
+	if (NULL != card_file) {
 
-		cardinal = create_cfl(argv[6], 8, cdims);
+		cardinal = create_cfl(card_file, 8, cdims);
 		md_clear(8, cdims, cardinal, CFL_SIZE);
 	}
 

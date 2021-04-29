@@ -75,11 +75,24 @@ static bool selector(const unsigned long iter, const float *x, void *_data)
 
 
 
-static const char usage_str[] = "<boundary> <electrodes> <output_phi> <output_j>";
 static const char help_str[] = "Solve 3D Laplace equation with Neumann Boundary Conditions";
 
-int main_pde(int argc, char *argv[])
+int main_pde(int argc, char *argv[argc])
 {
+	const char* boundary_file = NULL;
+	const char* electrodes_file = NULL;
+	const char* out_phi_file = NULL;
+	const char* out_J_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &boundary_file, "boundary"),
+		ARG_INFILE(true, &electrodes_file, "electrodes"),
+		ARG_OUTFILE(true, &out_phi_file, "output_phi"),
+		ARG_OUTFILE(true, &out_J_file, "output_j"),
+	};
+
+
 	long N = 4;
 	int iter = 100;
 	int hist = -1;
@@ -88,12 +101,12 @@ int main_pde(int argc, char *argv[])
 	    OPT_INT('p', &hist, "n", "Save ∇ɸ every n iterations"),
 	};
 
-	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 	num_init();
 	long dims_in1[N], dims_in2[N];
 
-	complex float *mask = load_cfl(argv[1], N, dims_in1);
-	complex float *electrodes = load_cfl(argv[2], N, dims_in2);
+	complex float *mask = load_cfl(boundary_file, N, dims_in1);
+	complex float *electrodes = load_cfl(electrodes_file, N, dims_in2);
 
 	for (int i = 0; i < N; i++)
 		assert(dims_in2[i] == dims_in1[i]);
@@ -142,10 +155,10 @@ int main_pde(int argc, char *argv[])
 	iter_conjgrad(CAST_UP(&conf), diff_op->forward, NULL, size, (float *)phi, (const float *)rhs, mon);
 
 	//save
-	complex float *out = create_cfl(argv[3], scalar_N, scalar_dims);
+	complex float *out = create_cfl(out_J_file, scalar_N, scalar_dims);
 	md_copy(scalar_N, scalar_dims, out, phi, CFL_SIZE);
 
-	complex float *j_out = create_cfl(argv[4], N, vec3_dims);
+	complex float *j_out = create_cfl(out_J_file, N, vec3_dims);
 	calc_j(N, d_op, vec3_dims, j_out, vec1_dims, mask, n_points, boundary, phi);
 
 	md_free(normal);

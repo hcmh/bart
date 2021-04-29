@@ -22,13 +22,23 @@
 #include "misc/mri.h"
 
 
-static const char usage_str[] = "<input R> <input C> <output>";
-static const char help_str[] = "Compute phase-difference maps from R and C.\n";
+static const char help_str[] = "Compute phase-difference maps from R and C.";
 
 
 
 int main_phasediff(int argc, char* argv[argc])
 {
+	const char* R_file = NULL;
+	const char* C_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &R_file, "R"),
+		ARG_INFILE(true, &C_file, "C"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	enum venc_mode { ONE_SIDE, HADAMARD } venc_mode = ONE_SIDE;
 
 	const struct opt_s opts[] = {
@@ -37,14 +47,14 @@ int main_phasediff(int argc, char* argv[argc])
 		OPT_SELECT('H', enum venc_mode, &venc_mode, HADAMARD, "Hadamard encoding"),
 	};
 
-	cmdline(&argc, argv, 3, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
 	long r_dims[DIMS];
 	long c_dims[DIMS];
-	complex float* r_data = load_cfl(argv[1], DIMS, r_dims);
-	complex float* c_data = load_cfl(argv[2], DIMS, c_dims);
+	complex float* r_data = load_cfl(R_file, DIMS, r_dims);
+	complex float* c_data = load_cfl(C_file, DIMS, c_dims);
 
 	assert(r_dims[0]==c_dims[0]); 
 	assert(r_dims[1]==c_dims[1]);
@@ -107,7 +117,7 @@ int main_phasediff(int argc, char* argv[argc])
 	md_select_dims(DIMS, ~CSHIFT_FLAG, o_dims, r_dims);
 	o_dims[CSHIFT_DIM] = velocities;
 
-	complex float* o_data = create_cfl(argv[3], DIMS, o_dims);
+	complex float* o_data = create_cfl(out_file, DIMS, o_dims);
 
 
 	debug_printf(DP_DEBUG1, "o_dims:\t");

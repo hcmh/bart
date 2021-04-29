@@ -101,13 +101,22 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 }
 
 
-static const char usage_str[] = "<kspace> <output> [<sensitivities>]";
-static const char help_str[] = 
-		"Model-based nonlinear inverse reconstructionus using Bloch equations as signal model.\n";
+static const char help_str[] = "Model-based nonlinear inverse reconstructionus using Bloch equations as signal model.";
 
-int main_modbloch(int argc, char* argv[])
+int main_modbloch(int argc, char* argv[argc])
 {
 	double start_time = timestamp();
+
+	const char* ksp_file = NULL;
+	const char* out_file = NULL;
+	const char* sens_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &ksp_file, "kspace"),
+		ARG_OUTFILE(true, &out_file, "output"),
+		ARG_OUTFILE(false, &sens_file, "sensitivities"),
+	};
 
 	float restrict_fov = -1.;
 	float scalingR1 = -1.;
@@ -121,7 +130,6 @@ int main_modbloch(int argc, char* argv[])
 
 	float k_filter = -1.;	// typically 5e-3
 
-	bool out_sens = false;
 	bool inputSP = false;
 	bool use_gpu = false;
 
@@ -138,9 +146,9 @@ int main_modbloch(int argc, char* argv[])
 		OPT_UINT(	'o', 	&conf.opt_reg, 		"", "regularization option (0: l2, 1: l1-wav)"),
 		OPT_INT(	'd', 	&debug_level, 		"", "Debug level"),
 		OPT_FLOAT(	'f', 	&restrict_fov, 		"", "FoV scaling factor"),
-		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
-		OPT_STRING(	't',	&trajectory,		"", "Input Trajectory"),
-		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
+		OPT_INFILE(	'p',	&psf, 			"", "Include Point-Spread-Function"),
+		OPT_INFILE(	't',	&trajectory,		"", "Input Trajectory"),
+		OPT_INFILE(	'I',	&inputB1, 		"", "Input B1 image"),
 		OPT_INT(	'n', 	&fit_para.not_wav_maps, "", "# Removed Maps from Wav.Denoisng"),
 		OPT_SET(	'O', 	&fit_para.full_ode_sim	,  "Apply full ODE simulation"),
 		OPT_FLOAT(	'k', 	&k_filter,		"",  "Smooth pattern edges wit filter?"),
@@ -149,14 +157,11 @@ int main_modbloch(int argc, char* argv[])
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'w', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
 		OPT_SET(	'g', 	&use_gpu			,  "use gpu"),
-		{ 'P', NULL, true, opt_seq, &fit_para, "\tA:B:C:D:E:F:G:H\tSequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep:BWTP> (-Ph for help)" },
+		{ 'P', NULL, true, OPT_SPECIAL, opt_seq, &fit_para, "A:B:C:D:E:F:G:H", "Sequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep:BWTP> (-Ph for help)" },
 	};
 
-	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
-	if (4 == argc)
-		out_sens = true;
-	
 
 	// assert(fit_para.rfduration <= fit_para.prep_pulse_length);
 
@@ -164,7 +169,7 @@ int main_modbloch(int argc, char* argv[])
 	
 	// Load k-space data
 	long ksp_dims[DIMS];
-	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
+	complex float* kspace_data = load_cfl(ksp_file, DIMS, ksp_dims);
 
 	assert(1 == ksp_dims[MAPS_DIM]);
 
@@ -175,8 +180,8 @@ int main_modbloch(int argc, char* argv[])
 	long grid_dims[DIMS];
 	md_copy_dims(DIMS, grid_dims, ksp_dims);
 
-	if (NULL != trajectory)
-	{
+	if (NULL != trajectory) {
+
 		sample_size = ksp_dims[1];
 		grid_size = sample_size;
 		grid_dims[READ_DIM] = grid_size;
@@ -206,7 +211,7 @@ int main_modbloch(int argc, char* argv[])
 	
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
-	complex float* img = create_cfl(argv[2], DIMS, img_dims);
+	complex float* img = create_cfl(out_file, DIMS, img_dims);
 	md_zfill(DIMS, img_dims, img, 1.0);
 	
 	//Create coil output
@@ -217,7 +222,7 @@ int main_modbloch(int argc, char* argv[])
 	
 	// Create sensitivity output
 
-	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, coil_dims);
+	complex float* sens = ((NULL != sens_file) ? create_cfl : anon_cfl)((NULL != sens_file) ? sens_file : "", DIMS, coil_dims);
 	md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 
 	long dims[DIMS];

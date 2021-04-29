@@ -28,11 +28,19 @@
 
 
 
-static const char usage_str[] = "<src> <L>";
-static const char help_str[] = "Calculate Laplacian Matrix. <src>: [samples, coordinates]\n";
+static const char help_str[] = "Calculate Laplacian Matrix. <src>: [samples, coordinates]";
 
-int main_laplace(int argc, char* argv[])
+int main_laplace(int argc, char* argv[argc])
 {
+	const char* src_file = NULL;
+	const char* L_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &src_file, "src"),
+		ARG_OUTFILE(true, &L_file, "L"),
+	};
+
 	struct laplace_conf conf = laplace_conf_default;
 
 	const struct opt_s opts[] = {
@@ -50,7 +58,7 @@ int main_laplace(int argc, char* argv[])
 		OPT_SET('v', &conf.local_v, "Local velocity weighting"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -58,11 +66,11 @@ int main_laplace(int argc, char* argv[])
 
 
 	long src_dims[DIMS];
-	complex float* src = load_cfl(argv[1], DIMS, src_dims);
+	complex float* src = load_cfl(src_file, DIMS, src_dims);
 
 	long L_dims[2] = {src_dims[0], src_dims[0]};
 
-	complex float* L = create_cfl(argv[2], 2, L_dims);
+	complex float* L = create_cfl(L_file, 2, L_dims);
 
 	calc_laplace(&conf, L_dims, L, src_dims, src);
 

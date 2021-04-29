@@ -7,23 +7,35 @@
 #include "misc/dicom.h"
 #include "misc/mmio.h"
 #include "misc/misc.h"
+#include "misc/opts.h"
 
+static const char help_str[] = "";
 
-
-int main_dcmread(int argc, char* argv[])
+int main_dcmread(int argc, char* argv[argc])
 {
-	mini_cmdline(&argc, argv, 2, "", "");
+	const char* dcm_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &dcm_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
+	const struct opt_s opts[] = { };
+
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	int dims[2];
-	unsigned char* img = dicom_read(argv[1], dims);
+	unsigned char* img = dicom_read(dcm_file, dims);
 
 	if (NULL == img)
-		error("reading dicom file '%s'", argv[1]);
+		error("reading dicom file '%s'", dcm_file);
 
 	printf("Size: %d-%d\n", dims[0], dims[1]);
 
 	long d[2] = { dims[0], dims[1] };
-	complex float* out = create_cfl(argv[2], 2, d);
+	complex float* out = create_cfl(out_file, 2, d);
 	
 	for (int j = 0; j < dims[1]; j++)
 		for (int i = 0; i < dims[0]; i++)

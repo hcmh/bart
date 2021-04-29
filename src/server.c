@@ -80,12 +80,18 @@ err:	return errno;
 }
 
 
-static const char usage_str[] = "<output>";
 static const char help_str[] = "Wait for a connection on <port> and update file.";
 
 
 int main_server(int argc, char* argv[])
 {
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	int port = 2121;
 	int errno = 1;
 	
@@ -94,7 +100,7 @@ int main_server(int argc, char* argv[])
 		OPT_INT('p', &port, "p", "port"),
 	};
 
-	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 
 	int fd;
@@ -130,7 +136,7 @@ int main_server(int argc, char* argv[])
 		debug_printf(DP_INFO, "\n");
 		debug_print_dims(DP_INFO, N, dims);
 
-		data = create_cfl(argv[1], N, dims);
+		data = create_cfl(out_file, N, dims);
 
 		size_t dsize = md_calc_size(N, dims) * sizeof(complex float);
 

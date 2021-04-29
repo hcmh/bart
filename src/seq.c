@@ -3,16 +3,22 @@
 
 #include "seq/seq.h"
 
-static const char usage_str[] = "<outfile>";
 static const char help_str[] = "Computes sequence.";
 
 
 int main_seq(int argc, char* argv[])
 {
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	const struct opt_s opts[] = {
 	};
 
-	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	struct seq_flash_conf fl = seq_flash_defaults;
 

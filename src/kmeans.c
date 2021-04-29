@@ -29,12 +29,22 @@
 #define DIMS 16
 #endif
 
-static const char usage_str[] = "<input> <centroids> <lables>";
-static const char help_str[] =	"k-means clustering. <input>: [coordinates, samples]\n";
+static const char help_str[] =	"k-means clustering. <input>: [coordinates, samples]";
 
 
 int main_kmeans(int argc, char* argv[])
 {
+	const char* in_file = NULL;
+	const char* centroids_file = NULL;
+	const char* labels_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &centroids_file, "centroids"),
+		ARG_OUTFILE(true, &labels_file, "labels"),
+	};
+
 	long k = 0; 	// Number of clusters. (Please note that "k" is not the k-space here!)
 	float eps = 0.001; // Error tolerance
 	long update_max = 10000;
@@ -46,7 +56,7 @@ int main_kmeans(int argc, char* argv[])
 	        OPT_FLOAT('e', &eps, "eps", "(Error tolerance)"),
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -54,18 +64,18 @@ int main_kmeans(int argc, char* argv[])
 		error("Please specify 'k'!\n");
 
 	long src_dims[2]; 	// [coordinates, samples]
-	complex float* src = load_cfl(argv[1], 2, src_dims);
+	complex float* src = load_cfl(in_file, 2, src_dims);
 
 	// Coordinates for each centroid
 	long centroids_dims[2];
 	centroids_dims[0] = src_dims[0];
 	centroids_dims[1] = k;		// Centroid index
 
-	complex float* centroids = create_cfl(argv[2], 2, centroids_dims);
+	complex float* centroids = create_cfl(centroids_file, 2, centroids_dims);
 
 	// Contains the assigned centroid for each sample
 	long lables_dims[1] = { src_dims[1] };
-	complex float* lables = create_cfl(argv[3], 1, lables_dims);
+	complex float* lables = create_cfl(labels_file, 1, lables_dims);
 
 	kmeans(centroids_dims, centroids, src_dims, src, lables, eps, update_max);
 

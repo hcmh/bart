@@ -16,28 +16,38 @@
 #include "misc/mmio.h"
 #include "misc/misc.h"
 #include "misc/lang.h"
+#include "misc/opts.h"
 
 
 #define DIMS 16
 
-static const char usage_str[] = "dimension repetitions <input> <output>";
-static const char help_str[] = "Repeat input array multiple times along a certain dimension.\n";
+static const char help_str[] = "Repeat input array multiple times along a certain dimension.";
 
 
 int main_repmat(int argc, char* argv[argc])
 {
-	mini_cmdline(&argc, argv, 4, usage_str, help_str);
+	int dim = -1;
+	int rep = -1;
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INT(true, &dim, "dimension"),
+		ARG_INT(true, &rep, "repetitions"),
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+	const struct opt_s opts[] = {};
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
 	long in_dims[DIMS];
 	long out_dims[DIMS];
 	
-	with (complex float* in_data = load_cfl(argv[3], DIMS, in_dims)
+	with (complex float* in_data = load_cfl(in_file, DIMS, in_dims)
 		;; unmap_cfl(DIMS, in_dims, in_data)) {
-
-		int dim = atoi(argv[1]);
-		int rep = atoi(argv[2]);
 
 		assert(dim < DIMS);
 		assert(rep >= 0);
@@ -47,7 +57,7 @@ int main_repmat(int argc, char* argv[argc])
 
 		out_dims[dim] = rep;
 
-		with (complex float* out_data = create_cfl(argv[4], DIMS, out_dims)
+		with (complex float* out_data = create_cfl(out_file, DIMS, out_dims)
 			;; unmap_cfl(DIMS, in_dims, out_data)) {
 
 			long in_strs[DIMS];

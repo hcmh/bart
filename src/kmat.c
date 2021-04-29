@@ -27,13 +27,22 @@
 #include "rkhs/rkhs.h"
 
 
-static const char* usage_str = "<kern> <traj> <kmat>";
-static const char* help_str ="\tComputes kernel matrix.\n"
-		"\t-c alpha\tcompute Cholesky factorization with shift\n";
+static const char* help_str ="Computes kernel matrix.";
 
 
-int main_kmat(int argc, char* argv[])
+int main_kmat(int argc, char* argv[argc])
 {
+	const char* kern_file = NULL;
+	const char* traj_file = NULL;
+	const char* kmat_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &kern_file, "kern"),
+		ARG_INFILE(true, &traj_file, "traj"),
+		ARG_OUTFILE(true, &kmat_file, "kmat"),
+	};
+
 	bool do_cholesky = false;
 	float alpha = 0.;
 
@@ -43,15 +52,15 @@ int main_kmat(int argc, char* argv[])
 		OPT_FLOAT('a', &alpha, "a", "alpha"),
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 
 	const int D = 5;
 	long dims[D];
-	complex float* kern = load_cfl(argv[1], D, dims);
+	complex float* kern = load_cfl(kern_file, D, dims);
 
 	long sdims[3];
-	complex float* samples = load_cfl(argv[2], 3, sdims);
+	complex float* samples = load_cfl(traj_file, 3, sdims);
 	int N = sdims[1] * sdims[2];
 	assert(3 == sdims[0]);
 
@@ -61,7 +70,7 @@ int main_kmat(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Generate kernel matrix\n");
 
-	complex float* kmat = create_cfl(argv[3], 8, kdims);
+	complex float* kmat = create_cfl(kmat_file, 8, kdims);
 	calculate_kernelmatrix(kdims, kmat, N, samples, dims, kern);
 
 	if (do_cholesky) {

@@ -30,11 +30,19 @@
 
 enum mode_t { SHRINK, FILL_HOLES };
 
-static const char usage_str[] = "<input> <output>";
 static const char help_str[] = "Various transformations for masks";
 
 int main_pde_mask(int argc, char *argv[])
 {
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	enum mode_t mode = SHRINK;
 	struct opt_s modeopt[] = {
 		OPT_SELECT('s', enum mode_t, &mode, SHRINK, 		"shrink the interior of the image by one pixel at each border"),
@@ -45,12 +53,12 @@ int main_pde_mask(int argc, char *argv[])
 		OPT_SUBOPT('C', "cmd", "Transformation. -Ch for help.", ARRAY_SIZE(modeopt), modeopt),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 	num_init();
 
 	long dims[N];
-	const complex float *in = load_cfl(argv[1], N, dims);
-	complex float *out = create_cfl(argv[2], N, dims);
+	const complex float *in = load_cfl(in_file, N, dims);
+	complex float *out = create_cfl(out_file, N, dims);
 
 	assert(1 == dims[0]);
 

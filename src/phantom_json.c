@@ -67,11 +67,19 @@
 
 
 
-static const char usage_str[] = "<geometry.json> <output>";
 static const char help_str[] = "Image and k-space domain phantoms.";
 
 int main_phantom_json(int argc, char* argv[])
 {
+	const char* geom_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &geom_file, "geometry.json"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	bool kspace = false;
 	int sens = 0;
 	int osens = -1;
@@ -93,16 +101,17 @@ int main_phantom_json(int argc, char* argv[])
 		OPT_INT('s', &sens, "nc", "nc sensitivities"),
 		OPT_INT('S', &osens, "nc", "Output nc sensitivities"),
 		OPT_SET('k', &kspace, "k-space"),
-		OPT_STRING('t', &traj, "file", "trajectory"),
+		OPT_INFILE('t', &traj, "file", "trajectory"),
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_SET('b', &base, "create basis geometry"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 	
 	if (-1 != osens) {
+
 		sens = osens;
 		sens_out = true;
 	}
@@ -136,7 +145,7 @@ int main_phantom_json(int argc, char* argv[])
 	
 	
 	// Import json geometry to ellipsis_e struct
-	char* file = readfile(argv[1]);
+	char* file = readfile(geom_file);
 	
 	cJSON* json_data = cJSON_Parse(file);
 	check_json_file(json_data);
@@ -165,7 +174,7 @@ int main_phantom_json(int argc, char* argv[])
 	
 	// Initalize output
 	complex float* out;
-	out = create_cfl(argv[2], DIMS, dims);
+	out = create_cfl(out_file, DIMS, dims);
 
 	md_zfill(DIMS, dims, out, 0.);
 	md_clear(DIMS, dims, out, sizeof(complex float));
@@ -178,9 +187,10 @@ int main_phantom_json(int argc, char* argv[])
 		assert(!kspace);
 
 		calc_sens(dims, out);
-	}
-	else 
+	} else {
+
 		calc_phantom_arb(N, phantom_data, dims, out, kspace, sstrs, samples);
+	}
 
 	
 	// Clean up

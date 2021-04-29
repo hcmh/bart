@@ -28,12 +28,18 @@
 
 #include "noncart/traj.h"
 
-static const char usage_str[] = "<output>";
 static const char help_str[] = "Computes k-space trajectories.";
 
 
 int main_traj(int argc, char* argv[argc])
 {
+	const char* out_file= NULL;
+
+	struct arg_s args[] = {
+
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	int X = 128;
 	int Y = 128;
 	int D = -1;
@@ -54,8 +60,8 @@ int main_traj(int argc, char* argv[argc])
 
 	long zusamp[2] = { 0, 1 }; // { reference Lines, acceleration }
 
-	const char* custom_angle = NULL;
-	const char* custom_gdelays = NULL;
+	const char* custom_angle_file = NULL;
+	const char* custom_gdelays_file = NULL;
 
 
 	const struct opt_s opts[] = {
@@ -85,14 +91,14 @@ int main_traj(int argc, char* argv[argc])
 		OPT_SET('c', &conf.asym_traj, "asymmetric trajectory"),
 		OPT_SET('E', &conf.mems_traj, "multi-echo multi-spoke trajectory"),
 		OPT_VEC2('z', &zusamp, "Ref:Acel", "Undersampling in z-direction."),
-		OPT_STRING('C', &custom_angle, "file", "custom_angle file [phi + i * psi]"),
-		OPT_STRING('V', &custom_gdelays, "file", "custom_gdelays"),
+		OPT_INFILE('C', &custom_angle_file, "file", "custom_angle file [phi + i * psi]"),
+		OPT_INFILE('V', &custom_gdelays_file, "file", "custom_gdelays"),
 		OPT_SET('T', &conf.sms_turns, "(Modified SMS Turn Scheme)"),
 		OPT_SET('f', &force_grid, "Force trajectory samples on Cartesian grid."),
 		OPT_SET('S', &conf.spiral, "Archimedean spiral readout"),
 	};
 
-	cmdline(&argc, argv, 1, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -100,11 +106,11 @@ int main_traj(int argc, char* argv[argc])
 	long sdims[DIMS];
 	complex float* custom_angle_val = NULL;
 
-	if ((NULL != custom_angle) && conf.radial) {
+	if ((NULL != custom_angle_file) && conf.radial) {
 
 		debug_printf(DP_INFO, "custom_angle file is used \n");
 
-		custom_angle_val = load_cfl(custom_angle, DIMS, sdims);
+		custom_angle_val = load_cfl(custom_angle_file, DIMS, sdims);
 
 		if (Y != sdims[0]) {
 
@@ -217,11 +223,11 @@ int main_traj(int argc, char* argv[argc])
 
 
 	long gdims[DIMS] = { 0 };
-	complex float* custom_gdelays_val = (NULL!=custom_gdelays) ? load_cfl(custom_gdelays, DIMS, gdims) : NULL;
+	complex float* custom_gdelays_val = (NULL!=custom_gdelays_file) ? load_cfl(custom_gdelays_file, DIMS, gdims) : NULL;
 
 
 
-	complex float* samples = (z_acc > 1) ? anon_cfl(NULL, DIMS, dims) : create_cfl(argv[1], DIMS, dims);
+	complex float* samples = (z_acc > 1) ? anon_cfl(NULL, DIMS, dims) : create_cfl(out_file, DIMS, dims);
 
 	md_clear(DIMS, dims, samples, CFL_SIZE);
 
@@ -279,16 +285,16 @@ int main_traj(int argc, char* argv[argc])
 				int split = sqrt(Y);
 				angle2 = s * M_PI / Y * (conf.full_circle ? 2 : 1) * split;
 
-				if (NULL != custom_angle)
+				if (NULL != custom_angle_file)
 					angle2 = cimag(custom_angle_val[j]);
 			}
 
 
-			if (NULL != custom_angle)
+			if (NULL != custom_angle_file)
 				angle = creal(custom_angle_val[j]);
 
 
-			if (NULL != custom_gdelays) {
+			if (NULL != custom_gdelays_file) {
 
 				long eind = e * 3;
 
@@ -355,7 +361,7 @@ int main_traj(int argc, char* argv[argc])
 
 	assert(p == N - 0);
 
-	if (NULL != custom_gdelays)
+	if (NULL != custom_gdelays_file)
 		unmap_cfl(DIMS, gdims, custom_gdelays_val);
 
 
@@ -376,7 +382,7 @@ int main_traj(int argc, char* argv[argc])
 		long z_strs[DIMS];
 		md_calc_strides(DIMS, z_strs, z_dims, CFL_SIZE); 
 
-		complex float* traj = create_cfl(argv[1], DIMS, z_dims);
+		complex float* traj = create_cfl(out_file, DIMS, z_dims);
 		md_clear(DIMS, z_dims, traj, CFL_SIZE);
 
 		// initialize lookup table which contains the indices of the partitions/slices to be sampled

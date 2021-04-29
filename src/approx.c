@@ -23,33 +23,50 @@
 
 #include "misc/mmio.h"
 #include "misc/misc.h"
+#include "misc/opts.h"
 
 #include "rkhs/rkhs.h"
 
 
 
-static const char* usage_str = "<kern> <traj> <kmat> <data> <output>\n";
-static const char* help_str = "\n";
+static const char help_str[] = "";
 
 
 
-int main_approx(int argc, char* argv[])
+int main_approx(int argc, char* argv[argc])
 {
-	mini_cmdline(&argc, argv, 5, usage_str, help_str);
+	const char* kern_file = NULL;
+	const char* traj_file = NULL;
+	const char* kmat_file = NULL;
+	const char* data_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &kern_file, "kern"),
+		ARG_INFILE(true, &traj_file, "traj"),
+		ARG_INFILE(true, &kmat_file, "kmat"),
+		ARG_INFILE(true, &data_file, "data"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
+	const struct opt_s opts[] = {};
+
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	const int D = 5;
 	long dims[D];
-	complex float* kern = load_cfl(argv[1], D, dims);
+	complex float* kern = load_cfl(kern_file, D, dims);
 
 	long sdims[3];
-	complex float* samples = load_cfl(argv[2], 3, sdims);
+	complex float* samples = load_cfl(traj_file, 3, sdims);
 
 //	long ddims[8];
 //	complex float* data = load_cfl(argv[4], 8, ddims);
 
 
 	long kdims[8];
-	complex float* kmat = load_cfl(argv[3], 8, kdims);
+	complex float* kmat = load_cfl(kmat_file, 8, kdims);
 
 	assert(kdims[0] == kdims[4]);
 	assert(kdims[3] == kdims[7]);
@@ -66,14 +83,14 @@ int main_approx(int argc, char* argv[])
 	int N = kdims[0];
 
 	long sample_dims[8];
-	complex float* sample_data = load_cfl(argv[4], 8, sample_dims);
+	complex float* sample_data = load_cfl(data_file, 8, sample_dims);
 
 	int X = 64; // 128;
 	int Y = 64; // 128;
 	int Z = 1;
 	long odims[8] = { X, Y, Z, C, 1, 1, 1, 1 }; // smaller for now
 
-	complex float* odata = create_cfl(argv[5], 8, odims);
+	complex float* odata = create_cfl(out_file, 8, odims);
 	md_clear(8, odims, odata, CFL_SIZE);
 
 

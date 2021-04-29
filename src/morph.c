@@ -77,13 +77,24 @@ static void closing(unsigned int D, const long mask_dims[D], complex float* mask
 	md_free(tmp);
 }
 
-static const char usage_str[] = "mask_size <binary input> <binary output>";
 static const char help_str[] = "Perform morphological operators on binary data with odd mask sizes.";
 
 
 
-int main_morph(int argc, char* argv[])
+int main_morph(int argc, char* argv[argc])
 {
+	int mask_size = -1;
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INT(true, &mask_size, "mask_size"),
+		ARG_INFILE(true, &in_file, "binary input"),
+		ARG_OUTFILE(false, &out_file, "binary output"),
+	};
+
+
 	enum morph_type { EROSION, DILATION, OPENING, CLOSING } morph_type = EROSION;
 
 	enum mask_type { HLINE, VLINE, CROSS, BLOCK } mask_type = BLOCK;
@@ -97,7 +108,7 @@ int main_morph(int argc, char* argv[])
 		OPT_SELECT('c', enum morph_type, &morph_type, CLOSING, "CLOSING"),
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
@@ -105,11 +116,9 @@ int main_morph(int argc, char* argv[])
 
 	long dims[N];
 
-	complex float* in = load_cfl(argv[2], N, dims);
+	complex float* in = load_cfl(in_file, N, dims);
 
-	complex float* out = create_cfl(argv[3], N, dims);
-
-	int mask_size = atoi(argv[1]);
+	complex float* out = create_cfl(out_file, N, dims);
 
 	// Only odd mask size values are supported by the convolution
 	assert(1 == mask_size % 2);

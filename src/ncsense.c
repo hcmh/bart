@@ -58,12 +58,29 @@ static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long
 }
 
 
-static const char usage_str[] = "<traj> <kspace> <sens> <ref> <output>";
-static const char help_str[] = "Real-time SENSE.\n";
+static const char help_str[] = "Real-time SENSE.";
 
 	
-int main_ncsense(int argc, char* argv[])
+int main_ncsense(int argc, char* argv[argc])
 {
+	const char* traj_file = NULL;
+	const char* ksp_file = NULL;
+	const char* sens_file = NULL;
+	const char* ref_file = NULL;
+	const char* out_file = NULL;
+
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &traj_file, "traj"),
+		ARG_INFILE(true, &ksp_file, "kspace"),
+		ARG_INFILE(true, &sens_file, "sens"),
+		ARG_INFILE(true, &ref_file, "ref"),
+		ARG_OUTFILE(true, &out_file, "output"),
+
+	};
+
+
 	struct nufft_conf_s nuconf = nufft_conf_defaults;
 	nuconf.toeplitz = false;
 
@@ -76,7 +93,7 @@ int main_ncsense(int argc, char* argv[])
 		OPT_FLOAT('r', &cgconf.l2lambda, "lambda", "regularization"),
 	};
 
-	cmdline(&argc, argv, 5, 5, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 
 	num_init();
@@ -92,8 +109,8 @@ int main_ncsense(int argc, char* argv[])
 
 	// load kspace and maps and get dimensions
 
-	complex float* kspace_in = load_cfl(argv[2], DIMS, ksp_dims);
-	complex float* maps = load_cfl(argv[3], DIMS, map_dims);
+	complex float* kspace_in = load_cfl(ksp_file, DIMS, ksp_dims);
+	complex float* maps = load_cfl(sens_file, DIMS, map_dims);
 
 	unsigned int map_flags = FFT_FLAGS | SENS_FLAGS;
 	for (unsigned int d = 0; d < DIMS; d++)
@@ -101,7 +118,7 @@ int main_ncsense(int argc, char* argv[])
 			map_flags = MD_SET(map_flags, d);
 
 
-	complex float* traj = load_cfl(argv[1], DIMS, traj_dims);
+	complex float* traj = load_cfl(traj_file, DIMS, traj_dims);
 
 
 	md_copy_dims(DIMS, max_dims, ksp_dims);
@@ -118,9 +135,9 @@ int main_ncsense(int argc, char* argv[])
 
 
 	long idims[DIMS];
-	complex float* ref_data = load_cfl(argv[4], DIMS, idims);
+	complex float* ref_data = load_cfl(ref_file, DIMS, idims);
 
-	complex float* out_data = create_cfl(argv[5], DIMS, idims);
+	complex float* out_data = create_cfl(out_file, DIMS, idims);
 	md_clear(DIMS, idims, out_data, CFL_SIZE);
 
 

@@ -19,7 +19,6 @@
 
 
 
-static const char usage_str[] = "bitmask <input> <output>";
 static const char help_str[] = "Performs a fast Fourier transform (FFT) along selected dimensions.";
 
 
@@ -27,6 +26,17 @@ static const char help_str[] = "Performs a fast Fourier transform (FFT) along se
 
 int main_fft(int argc, char* argv[argc])
 {
+	unsigned long flags = 0;
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_ULONG(true, &flags, "bitmask"),
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	bool unitary = false;
 	bool inv = false;
 	bool center = true;
@@ -38,14 +48,12 @@ int main_fft(int argc, char* argv[argc])
 		OPT_CLEAR('n', &center, "un-centered"),
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
-	with (na in = na_load(argv[2]) ;; na_free(in))
-	with (na out = na_create(argv[3], na_type(in)) ;; na_free(out)) {
-
-		unsigned long flags = labs(atol(argv[1]));
+	with (na in = na_load(in_file) ;; na_free(in))
+	with (na out = na_create(out_file, na_type(in)) ;; na_free(out)) {
 
 		na_copy(out, in);
 

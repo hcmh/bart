@@ -28,9 +28,6 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "dims <output>";
-static const char help_str[] = "Compute convolution kernel";
-
 typedef enum {SOBEL, GAUSS} kernel_type;
 
 struct kernel_conf {
@@ -153,13 +150,25 @@ static void kernelgrid(long mesh_dims[3], complex float* mesh, kernel_type type,
 }
 
 
+static const char help_str[] = "Compute convolution kernel";
 
-int main_convkern(int argc, char* argv[])
+
+int main_convkern(int argc, char* argv[argc])
 {
+
+	const char* out_file = NULL;
+
+	struct kernel_conf conf = kernel_conf_default;
+
+	struct arg_s args[] = {
+
+		ARG_LONG(true, &conf.N, "dims"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
 
 	float gauss[2] = { 0, 1};
 	bool sobel = false;
-	struct kernel_conf conf = kernel_conf_default;
+
 
 	const struct opt_s opts[] = {
 
@@ -167,11 +176,10 @@ int main_convkern(int argc, char* argv[])
 		OPT_FLVEC2('g', &gauss, "len:sigma", "Gaussian kernel"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
-	conf.N = (long)atoi(argv[1]); // kernel dimensions
 	long dims[3] = { 1, 1, 1};
 	
 	enum { SOBEL, GAUSS } type = SOBEL;
@@ -192,7 +200,7 @@ int main_convkern(int argc, char* argv[])
 		
 	}
 	
-	complex float* kernel = create_cfl(argv[2], 3, dims);
+	complex float* kernel = create_cfl(out_file, 3, dims);
 
 	switch (type) {
 

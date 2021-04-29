@@ -34,7 +34,6 @@
 #include "noncart/precond.h"
 
 
-static const char usage_str[] = "<traj> <input> <output>";
 static const char help_str[] = "Perform non-uniform Fast Fourier Transform.";
 
 
@@ -43,6 +42,17 @@ static const char help_str[] = "Perform non-uniform Fast Fourier Transform.";
 
 int main_nufft(int argc, char* argv[argc])
 {
+	const char* traj_file = NULL;
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &traj_file, "traj"),
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	bool adjoint = false;
 	bool inverse = false;
 	bool precond = false;
@@ -76,7 +86,7 @@ int main_nufft(int argc, char* argv[argc])
 		OPTL_SET(0, "lowmem", &conf.lowmem, "Use low-mem mode of the nuFFT"),
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	// avoid computing PSF if not necessary
 	if (!inverse)
@@ -87,7 +97,7 @@ int main_nufft(int argc, char* argv[argc])
 
 	// Read trajectory
 	long traj_dims[DIMS];
-	complex float* traj = load_cfl(argv[1], DIMS, traj_dims);
+	complex float* traj = load_cfl(traj_file, DIMS, traj_dims);
 
 	int T = 3;
 
@@ -102,7 +112,7 @@ int main_nufft(int argc, char* argv[argc])
 	if (inverse || adjoint) {
 
 		long ksp_dims[DIMS];
-		const complex float* ksp = load_cfl(argv[2], DIMS, ksp_dims);
+		const complex float* ksp = load_cfl(in_file, DIMS, ksp_dims);
 
 		assert(1 == ksp_dims[0]);
 		assert(md_check_compat(DIMS, ~(PHS1_FLAG|PHS2_FLAG), ksp_dims, traj_dims));
@@ -122,7 +132,7 @@ int main_nufft(int argc, char* argv[argc])
 
 		md_copy_dims(DIMS - 3, coilim_dims + 3, ksp_dims + 3);
 
-		complex float* img = create_cfl(argv[3], DIMS, coilim_dims);
+		complex float* img = create_cfl(out_file, DIMS, coilim_dims);
 
 		md_clear(DIMS, coilim_dims, img, CFL_SIZE);
 
@@ -166,14 +176,14 @@ int main_nufft(int argc, char* argv[argc])
 	} else {
 
 		// Read image data
-		const complex float* img = load_cfl(argv[2], DIMS, coilim_dims);
+		const complex float* img = load_cfl(in_file, DIMS, coilim_dims);
 
 		// Initialize kspace data
 		long ksp_dims[DIMS];
 		md_select_dims(DIMS, PHS1_FLAG|PHS2_FLAG, ksp_dims, traj_dims);
 		md_copy_dims(DIMS - 3, ksp_dims + 3, coilim_dims + 3);
 
-		complex float* ksp = create_cfl(argv[3], DIMS, ksp_dims);
+		complex float* ksp = create_cfl(out_file, DIMS, ksp_dims);
 
 		const struct linop_s* nufft_op;
 

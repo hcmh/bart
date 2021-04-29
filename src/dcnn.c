@@ -27,15 +27,29 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "<input> <kernel> <bias> <output>";
 static const char help_str[] = "Applies a pre-trained convolutional neural network.";
 
 
 
 
 
-int main_dcnn(int argc, char* argv[])
+int main_dcnn(int argc, char* argv[argc])
 {
+
+	const char* in_file = NULL;
+	const char* kernel_file = NULL;
+	const char* bias_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_INFILE(true, &kernel_file, "kernel"),
+		ARG_INFILE(true, &bias_file, "bias"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
+
 	bool subinp = false;
 	bool use_gpu = false;
 
@@ -45,22 +59,22 @@ int main_dcnn(int argc, char* argv[])
 		OPT_SET('g', &use_gpu, "run on gpu"),
 	};
 
-	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
 
 	unsigned int N = DIMS;
 	long dims[N];
-	const complex float* in = load_cfl(argv[1], N, dims);
+	const complex float* in = load_cfl(in_file, N, dims);
 
 	long krn_dims[N];
-	const complex float* krn = load_cfl(argv[2], N, krn_dims);
+	const complex float* krn = load_cfl(kernel_file, N, krn_dims);
 
 	long bias_dims[N];
-	const complex float* bias = load_cfl(argv[3], N, bias_dims);
+	const complex float* bias = load_cfl(bias_file, N, bias_dims);
 
-	complex float* out = create_cfl(argv[4], N, dims);
+	complex float* out = create_cfl(out_file, N, dims);
 
 	if (use_gpu){
 

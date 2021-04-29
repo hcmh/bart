@@ -30,12 +30,6 @@
 #include "misc/types.h"
 
 
-static const char usage_str[] = "<board> <solution>";
-static const char help_str[] = "Experimental optimization-based sudoku solver (may produce incorrect solutions).\n";
-
-
-
-
 static void solution(complex float out[9][9], const complex float x[9][9][9])
 {
 	for (int i = 0; i < 9; i++) {
@@ -82,8 +76,20 @@ static void print_board(const complex float b[9][9])
 	bart_printf("+-------+-------+-------+\n");
 }
 
+
+static const char help_str[] = "Experimental optimization-based sudoku solver (may produce incorrect solutions).";
+
 int main_sudoku(int argc, char* argv[argc])
 {
+	const char* board_file = NULL;
+	const char* solution_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &board_file, "board"),
+		ARG_OUTFILE(true, &solution_file, "solution"),
+	};
+
 	float lambda = 0.001;
 	float rho = 0.01;
 	int iter = 100;
@@ -95,12 +101,12 @@ int main_sudoku(int argc, char* argv[argc])
 		OPT_INT('i', &iter, "i", "iter"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
 	long idims[2];
-	complex float* in = load_cfl(argv[1], 2, idims);
+	complex float* in = load_cfl(board_file, 2, idims);
 
 	//print_board(MD_CAST_ARRAY2(complex float, 2, odims, in, 0, 1));
 
@@ -171,7 +177,7 @@ int main_sudoku(int argc, char* argv[argc])
 
 
 	long odims[2] = { 9, 9 };
-	complex float* out = create_cfl(argv[2], 2, odims);
+	complex float* out = create_cfl(solution_file, 2, odims);
 
 	solution(MD_CAST_ARRAY2(complex float, 2, odims, out, 0, 1), 
 		 MD_CAST_ARRAY3(complex float, 3, bdims, x, 0, 1, 2));

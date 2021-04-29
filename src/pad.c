@@ -27,12 +27,27 @@
 #endif
 
 
-static const char usage_str[] = "dim len [val] <input> <output>";
 static const char help_str[] = "Pad an array along dimension by value [val] or by edge values.";
 
 
 int main_pad(int argc, char* argv[])
 {
+	int dim = -1;
+	int len = -1;
+	complex float val = 0.;
+
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INT(true, &dim, "dim"),
+		ARG_INT(true, &len, "len"),
+		ARG_CFL(false, &val, "val"),
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	bool asym = false;
 	bool pad_by_value = false;
 
@@ -42,33 +57,28 @@ int main_pad(int argc, char* argv[])
 
 	};
 
-	cmdline(&argc, argv, 4, 5, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
-	int dim = atoi(argv[1]);
-	assert((dim >= 0) && (dim < DIMS));
 
-	int len = atoi(argv[2]);
+	assert((dim >= 0) && (dim < DIMS));
 	assert(len > 0);
 
-	complex float val = 0.;
-
-	if (6 == argc) {
-
-		parse_cfl(&val, argv[3]);
+	if (0 != val)
 		pad_by_value = true;
-	}
+
+
 
 	long in_dims[DIMS];
 	long out_dims[DIMS];
 
-	void* in_data = load_cfl(argv[argc - 2], DIMS, in_dims);
+	void* in_data = load_cfl(in_file, DIMS, in_dims);
 	md_copy_dims(DIMS, out_dims, in_dims);
 
 	out_dims[dim] = in_dims[dim] + (asym ? len : (2 * len)); // padding on one end or both
 
-	void* out_data = create_cfl(argv[argc - 1], DIMS, out_dims);
+	void* out_data = create_cfl(out_file, DIMS, out_dims);
 
 	// Assign position of in_data and pad by value
 	if (asym)

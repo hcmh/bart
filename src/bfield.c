@@ -20,25 +20,34 @@
 #define N 4
 #define VECDIM 0
 
-static const char usage_str[] = "voxelsize(x) voxelsize(y) voxelsize(z) <input> <output>";
-static const char help_str[] = "Given a current density, calculate the BZ-Component of the magnetic induction\n";
+static const char help_str[] = "Given a current density, calculate the BZ-Component of the magnetic induction";
 
-int main_bfield(int argc, char *argv[])
+int main_bfield(int argc, char *argv[argc])
 {
-	cmdline(&argc, argv, 5, 5, usage_str, help_str, 0, NULL);
+	float vox[3] = { 0. };
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_FLVEC3(true, &vox, "voxelsize_x:voxelsize_y:voxelsize_z"),
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
+	const struct opt_s opts[] = {};
+
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 	num_init();
 
 	long jdims[N] = {}, bdims[N];
 
-	complex float *j = load_cfl(argv[4], N, jdims);
+	complex float *j = load_cfl(in_file, N, jdims);
 	assert(jdims[VECDIM] == N - 1);
 
 	md_copy_dims(N, bdims, jdims);
 	bdims[VECDIM] = 1;
-	complex float *b = create_cfl(argv[5], N, bdims);
-
-	const int vox_ind = 1;
-	float vox[3] = {strtof(argv[vox_ind], NULL), strtof(argv[vox_ind + 1], NULL), strtof(argv[vox_ind + 2], NULL)};
+	complex float *b = create_cfl(out_file, N, bdims);
 
 	auto bz_op = linop_bz_create(jdims, vox);
 

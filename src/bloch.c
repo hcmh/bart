@@ -23,21 +23,31 @@
 #include "num/fft.h"
 
 
-//static const char usage_str[] = "<info-filename> <save-filename [*.txt]>";
-static const char usage_str[] = "<out:signal> <out:sensT1> <out:sensT2> <out:sensDens>";
-static const char help_str[] =
-		"Creating simulated phantom and sens. maps.\n";
+static const char help_str[] = "Creating simulated phantom and sens. maps.";
 
 
 __attribute__((optimize("-fno-finite-math-only")))
 int main_bloch(int argc, char* argv[argc])
-{   
+{
 	
 	//Measure time elapse
 	struct timeval t_start, t_end;
 	double elapsedTime;
 	gettimeofday(&t_start, NULL);
-	
+
+
+	const char* signal_file = NULL;
+	const char* sensT1_file = NULL;
+	const char* sensT2_file = NULL;
+	const char* sensDens_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_OUTFILE(true, &signal_file, "signal"),
+		ARG_OUTFILE(true, &sensT1_file, "sensT1"),
+		ARG_OUTFILE(true, &sensT2_file, "sensT2"),
+		ARG_OUTFILE(true, &sensDens_file, "sensDens"),
+	};
 	
 	
 	int seq = 0;
@@ -89,9 +99,9 @@ int main_bloch(int argc, char* argv[argc])
 		OPT_INT('X', &runs, "", "runs of sequence"),
 
 		/* Input Maps */
-		OPT_STRING('I', &inputRel1, "Input Rel1", "Input relaxation parameter 1."),
-		OPT_STRING('i', &inputRel2, "Input Rel2", "Input relaxation parameter 2."),
-		OPT_STRING('M', &inputM0, "Input M0", "Input M0."),
+		OPT_INFILE('I', &inputRel1, "Input Rel1", "Input relaxation parameter 1."),
+		OPT_INFILE('i', &inputRel2, "Input Rel2", "Input relaxation parameter 2."),
+		OPT_INFILE('M', &inputM0, "Input M0", "Input M0."),
 
 		/*for x == 1 && y == 1 */
 		OPT_FLOAT('m', &m0i, "M0 [s]", "for x & y == 1"),
@@ -105,11 +115,11 @@ int main_bloch(int argc, char* argv[argc])
 		OPT_INT('k', &kspace, "d", "kspace output? default:0=no"),
 		OPT_SET('L', &linear_offset, "Add linear distribution of off-set freq."),
 		OPT_SET('O', &operator_sim, "Simulate using operator based simulation."),
-		OPT_STRING('F', &fa_file, "", "Variable flipangle file"),
-		OPT_STRING('c', &spherical_coord, "", "Output spherical coordinates: r "),
+		OPT_INFILE('F', &fa_file, "", "Variable flipangle file"),
+		OPT_OUTFILE('c', &spherical_coord, "", "Output spherical coordinates: r "),
 	};
 	
-	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 	num_init();
 	
 	/* --------------------------------------------------------------
@@ -235,10 +245,10 @@ int main_bloch(int argc, char* argv[argc])
 	dim_phantom[1] = dim_map[1];
 	dim_phantom[TE_DIM] = repetition / aver_num ;
 
-	complex float* phantom = create_cfl(argv[1], DIMS, dim_phantom);
-	complex float* sensitivities_t1 = create_cfl(argv[2], DIMS, dim_phantom);
-	complex float* sensitivities_t2 = create_cfl(argv[3], DIMS, dim_phantom);
-	complex float* sensitivities_dens = create_cfl(argv[4], DIMS, dim_phantom);
+	complex float* phantom = create_cfl(signal_file, DIMS, dim_phantom);
+	complex float* sensitivities_t1 = create_cfl(sensT1_file, DIMS, dim_phantom);
+	complex float* sensitivities_t2 = create_cfl(sensT2_file, DIMS, dim_phantom);
+	complex float* sensitivities_dens = create_cfl(sensDens_file, DIMS, dim_phantom);
 	complex float* r_out = NULL;
 	
 	if (NULL != spherical_coord)

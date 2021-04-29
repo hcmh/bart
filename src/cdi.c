@@ -344,12 +344,32 @@ static void cdi_reco(const float vox[3], const long jdims[N], complex float *j, 
 }
 
 
-static const char usage_str[] = "voxelsize(x) voxelsize(y) voxelsize(z) <B_z> [<mask_signal> [<interior> <electrodes> [<l2_weighting>]]] <J>";
-static const char help_str[] = "Estimate the current density J (A/[voxelsize]^2) that generates B_z (Hz)\n";
+static const char help_str[] = "Estimate the current density J (A/[voxelsize]^2) that generates B_z (Hz)";
 
 
-int main_cdi(int argc, char *argv[])
+int main_cdi(int argc, char *argv[argc])
 {
+	float vox[3] = { 0. };
+	const char* B_z_file = NULL;
+	const char* mask_file = NULL;
+	const char* interior_file = NULL;
+	const char* electrodes_file = NULL;
+	const char* l2_weighting_file = NULL;
+	const char* J_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_FLVEC3(true, &vox, "voxelsize"),
+		ARG_INFILE(true, &B_z_file, "B_z"),
+		ARG_INFILE(false, &mask_file, "mask_signal"),
+		ARG_INFILE(false, &interior_file, "interior"),
+		ARG_INFILE(false, &electrodes_file, "electrodes"),
+		ARG_INFILE(false, &l2_weighting_file, "l2_weighting"),
+		ARG_OUTFILE(true, &J_file, "J"),
+	};
+
+
+
 	float tik_reg = 0, tolerance = 1e-3, bc_reg = -1, div_reg = -1;
 	int iter = 100, admm_iter = 100, div_order = 1, leray_iter = 20;
 	long leray_hist = -1, outer_hist = -1;
@@ -383,44 +403,47 @@ int main_cdi(int argc, char *argv[])
 	    OPT_LONG('A', &outer_hist, "n_1", "Save J every n_1 steps (outer iteration)"),
 	    OPT_LONG('B', &leray_hist, "n_2", "Save J every n_2 LeRay-Steps (inner iteration)"),
 	};
-	cmdline(&argc, argv, 5, 9, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
-	const int vox_ind = 1;
-	float vox[3] = {strtof(argv[vox_ind], NULL), strtof(argv[vox_ind + 1], NULL), strtof(argv[vox_ind + 2], NULL)};
 	long bdims[N], jdims[N], mask_dims[N], mask_bc_dims[N], mask_electrodes_dims[N], l2_weights_dims[N];
 	complex float *mask = NULL, *interior = NULL, *electrodes = NULL, *l2_weights = NULL;
 
-	complex float *b = load_cfl(argv[4], N, bdims);
+	complex float *b = load_cfl(B_z_file, N, bdims);
 	assert(bdims[0] == 1);
 
-	if (argc >= 7) {
-		mask = load_cfl(argv[5], N, mask_dims);
+	if (NULL != mask_file) {
+
+		mask = load_cfl(mask_file, N, mask_dims);
 		for (int i = 0; i < N; i++)
 			assert(mask_dims[i] == bdims[i]);
 	}
 
-	if (argc >= 8) {
-		interior = load_cfl(argv[6], N, mask_bc_dims);
+	if (NULL != interior_file) {
+
+		interior = load_cfl(interior_file, N, mask_bc_dims);
 		for (int i = 0; i < N; i++)
 			assert(mask_bc_dims[i] == bdims[i]);
-		assert(argc >= 9);
-		electrodes = load_cfl(argv[7], N, mask_electrodes_dims);
+		if (NULL == electrodes_file)
+			error("Both interior and electrodes are needed if either are given\n");
+		electrodes = load_cfl(electrodes_file, N, mask_electrodes_dims);
 		for (int i = 0; i < N; i++)
 			assert(mask_electrodes_dims[i] == bdims[i]);
 	}
-	if (argc >= 10) {
-		l2_weights = load_cfl(argv[8], N, l2_weights_dims);
+	if (NULL != l2_weighting_file) {
+
+		l2_weights = load_cfl(l2_weighting_file, N, l2_weights_dims);
 		for (int i = 0; i < N; i++)
 			assert(l2_weights_dims[i] == bdims[i]);
 	}
 	md_copy_dims(N, jdims, bdims);
 	jdims[0] = 3;
-	complex float *j = create_cfl(argv[argc - 1], N, jdims);
+	complex float *j = create_cfl(J_file, N, jdims);
 
 	md_zsmul(4, bdims, b, b, 1. / Hz_per_Tesla / Mu_0);
-	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, admm_iter, tolerance, interior, electrodes, bc_reg, div_reg, div_pf, div_order, leray_iter, outer_hist, leray_hist, solver, l2_weights, argv[argc - 1]);
+	cdi_reco(vox, jdims, j, bdims, b, mask, tik_reg, iter, admm_iter, tolerance, interior, electrodes, bc_reg, div_reg, div_pf, div_order, leray_iter, outer_hist, leray_hist, solver, l2_weights, J_file);
 	md_zsmul(4, jdims, j, j, 1. / bz_unit(bdims + 1, vox));
 
 	unmap_cfl(N, bdims, b);

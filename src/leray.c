@@ -53,11 +53,24 @@ static bool selector(const unsigned long iter, const float *x, void *_data)
 
 
 
-static const char usage_str[] = "vectordimension <mask> <input> <output>";
-static const char help_str[] = "Project a vectorfield onto it's divergence free component\n";
+static const char help_str[] = "Project a vectorfield onto it's divergence free component";
 
-int main_leray(int argc, char *argv[])
+int main_leray(int argc, char *argv[argc])
 {
+	unsigned int d = 0;
+	const char* mask_file = NULL;
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_UINT(true, &d, "vectordimension"),
+		ARG_INFILE(true, &mask_file, "mask"),
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
+
 	int n = 30;
 	float lambda = 1e-3;
 	long hist = -1;
@@ -67,16 +80,15 @@ int main_leray(int argc, char *argv[])
 	    OPT_FLOAT('l', &lambda, "lambda", "Inversion l2 regularization"),
 	};
 
-	cmdline(&argc, argv, 4, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 	num_init();
 
 	long dims[N] = {}, mask_dims[N] = {};
-	unsigned int d = atoi(argv[1]);
 
-	complex float *in = load_cfl(argv[3], N, dims);
-	complex float *out = create_cfl(argv[4], N, dims);
+	complex float *in = load_cfl(in_file, N, dims);
+	complex float *out = create_cfl(out_file, N, dims);
 
-	complex float *mask = load_cfl(argv[2], N, mask_dims);
+	complex float *mask = load_cfl(mask_file, N, mask_dims);
 	for (unsigned int i = 0; i < N; i++)
 		assert(i == d ? mask_dims[i] == 1 : mask_dims[i] == dims[i]);
 

@@ -54,8 +54,7 @@
 #include "simu/simulation.h"
 #include "simu/slice_profile.h"
 
-static const char usage_str[] = "<kspace> <TI/TE> <output> [<sensitivities>]";
-static const char help_str[] = "Model-based nonlinear inverse reconstruction\n";
+static const char help_str[] = "Model-based nonlinear inverse reconstruction";
 
 
 static void edge_filter1(const long map_dims[DIMS], complex float* dst)
@@ -95,6 +94,19 @@ int main_moba(int argc, char* argv[argc])
 {
 	double start_time = timestamp();
 
+	const char* ksp_file = NULL;
+	const char* TI_file = NULL;
+	const char* out_file = NULL;
+	const char* sens_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &ksp_file, "kspace"),
+		ARG_INFILE(true, &TI_file, "TI/TE"),
+		ARG_OUTFILE(true, &out_file, "output"),
+		ARG_OUTFILE(false, &sens_file, "sensitivities"),
+	};
+
 	float restrict_fov = -1.;
 	float oversampling = 1.25f;
 
@@ -119,7 +131,6 @@ int main_moba(int argc, char* argv[argc])
 	conf_model.opt.ropts = &ropts;
 
 	bool out_origin_maps = false;
-	bool out_sens = false;
 	bool use_gpu = false;
 	bool unused = false;
 
@@ -178,12 +189,12 @@ int main_moba(int argc, char* argv[argc])
 
 	const struct opt_s opts[] = {
 
-		{ 'r', NULL, true, opt_reg_moba, &ropts, " <T>:A:B:C\tgeneralized regularization options (-rh for help)" },
+		{ 'r', NULL, true, OPT_SPECIAL, opt_reg_moba, &ropts, "<T>:A:B:C", "generalized regularization options (-rh for help)" },
 
 		// IR FLASH options
 		OPTL_SUBOPT(0, "irflash" ,"interface", "IR FLASH options. `--irflash h` for help.", ARRAY_SIZE(irflash_opt), irflash_opt),
-		OPT_STRING('T', &time_T1relax, "", "T1 relax time for MOLLI"),
-		OPT_STRING('A',	&input_alpha, "", "Input alpha map required by (M0, R1) IR FLASH model "),
+		OPT_INFILE('T', &time_T1relax, "", "T1 relax time for MOLLI"),
+		OPT_INFILE('A',	&input_alpha, "", "Input alpha map required by (M0, R1) IR FLASH model "),
 
 		// Spin-Echo options
 		OPTL_SUBOPT(0, "spin-echo" ,"interface", "Spin-Echo options. `--spin-echo h` for help.", ARRAY_SIZE(spin_echo_opt), spin_echo_opt),
@@ -191,6 +202,7 @@ int main_moba(int argc, char* argv[argc])
 		// Multi GRE options
 		OPTL_SUBOPT(0, "multi-gre" ,"interface", "Multi-GRE options. `--multi-gre h` for help.", ARRAY_SIZE(multi_gre_opt), multi_gre_opt),
 		OPT_UINT('D', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
+
 		OPT_FLVEC2('b', &scale_fB0, "SMO:SC", "B0 field: spatial smooth level; scaling [default: 222.; 1.]"),
 		OPTL_SELECT(0, "fat_spec_0", enum fat_spec, &fat_spec, FAT_SPEC_0, "select fat spectrum from ISMRM fat-water tool"),
 
@@ -198,7 +210,7 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_SUBOPT(0, "sim.seq" ,"interface", "Simulated sequence. `--sim.seq h` for help.", ARRAY_SIZE(sim_seq_opt), sim_seq_opt),
 		OPTL_SUBOPT(0, "sim.type" ,"interface", "Simulation type used in model. `--sim.type h` for help.", ARRAY_SIZE(sim_type_opt), sim_type_opt),
 		OPTL_SET(0, "sim.slice-profile", &(use_slice_profile), "repetition time in seconds"),
-		OPTL_STRING(0, "sim.b1map", &input_b1, "[deg]", "Input B1 map."),
+		OPTL_INFILE(0, "sim.b1map", &input_b1, "[deg]", "Input B1 map."),
 		OPTL_INT(0, "sim.num-av-spokes", &(conf_model.sim.averaged_spokes), "", "Number of averaged spokes"),
 
 		// Sequence parameters
@@ -233,9 +245,9 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_FLOAT('f', &restrict_fov, "FOV", ""),
-		OPT_STRING('I', &init_file, "init", "File for initialization"),
-		OPT_STRING('t', &trajectory, "Traj", ""),
-		OPT_STRING('p', &psf, "PSF", ""),
+		OPT_INFILE('I', &init_file, "init", "File for initialization"),
+		OPT_INFILE('t', &trajectory, "Traj", ""),
+		OPT_INFILE('p', &psf, "PSF", ""),
 
 		OPT_FLOAT('o', &oversampling, "os", "Oversampling factor for gridding [default: 1.25]"),
 		OPTL_LONG(0, "spokes-per-TR", &(spokes_per_tr), "sptr", "number of averaged spokes [default: 1]"),
@@ -251,10 +263,7 @@ int main_moba(int argc, char* argv[argc])
 		OPT_SET('N', &unused, "(normalize)"), // no-op
 	};
 
-	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
-
-	if (5 == argc)
-		out_sens = true;
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	(use_gpu ? num_init_gpu_memopt : num_init)();
 
@@ -310,12 +319,12 @@ int main_moba(int argc, char* argv[argc])
 
 
 	long ksp_dims[DIMS];
-	complex float* kspace_data = load_cfl(argv[1], DIMS, ksp_dims);
+	complex float* kspace_data = load_cfl(ksp_file, DIMS, ksp_dims);
 
 	// Pass inversion time, FIXME: Make optional. Not needed for simulation type models
 
 	long TI_dims[DIMS];
-	complex float* TI = load_cfl(argv[2], DIMS, TI_dims);
+	complex float* TI = load_cfl(TI_file, DIMS, TI_dims);
 
 	// FIXME: Way to perform load_cfl directly on pointer in struct?!
 	conf_model.irflash.input_TI = md_alloc(DIMS, TI_dims, CFL_SIZE);
@@ -471,7 +480,7 @@ int main_moba(int argc, char* argv[argc])
 	long coil_strs[DIMS];
 	md_calc_strides(DIMS, coil_strs, coil_dims, CFL_SIZE);
 
-	complex float* img = create_cfl(argv[3], DIMS, img_dims);
+	complex float* img = create_cfl(out_file, DIMS, img_dims);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, grid_dims);
@@ -485,7 +494,8 @@ int main_moba(int argc, char* argv[argc])
 	md_calc_strides(DIMS, msk_strs, msk_dims, CFL_SIZE);
 
 	complex float* mask = NULL;
-	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[4] : "", DIMS, coil_dims);
+	bool sensout = (NULL != sens_file);
+	complex float* sens = (sensout ? create_cfl : anon_cfl)(sensout ? sens_file : "", DIMS, coil_dims);
 
 
 	md_zfill(DIMS, img_dims, img, 1.0);

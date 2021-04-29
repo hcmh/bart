@@ -20,6 +20,7 @@
 #include "misc/mmio.h"
 #include "misc/misc.h"
 #include "misc/mri.h"
+#include "misc/opts.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -31,17 +32,27 @@
 #include "noncart/grid.h"
 #endif
 
-static const char* usage_str = "<input> <output>";
 static const char* help_str = "";
 
 
-int main_kernel(int argc, char* argv[])
+int main_kernel(int argc, char* argv[argc])
 {
-	mini_cmdline(&argc, argv, 2, usage_str, help_str);
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
+	const struct opt_s opts[] = {};
+
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	const int N = DIMS;
 	long idims[N];
-	complex float* sens = load_cfl(argv[1], N, idims);
+	complex float* sens = load_cfl(in_file, N, idims);
 
 	assert(1 == idims[5]);
 	idims[5] = idims[MAPS_DIM];
@@ -79,7 +90,7 @@ int main_kernel(int argc, char* argv[])
 		if (odims[i] > 1)
 			dims2[i] = odims[i] * KERNEL_OVERSAMPLING;
 
-	complex float* data = create_cfl(argv[2], N, dims2);
+	complex float* data = create_cfl(out_file, N, dims2);
 
 	md_resize_center(N, dims2, data, odims, sens2, CFL_SIZE);
 

@@ -30,14 +30,21 @@
 
 
 
-static const char usage_str[] = "<data> <output>";
-static const char help_str[] = 
-		"fit Bloch equations pixel-wisely to data and return relaxation parameters.\n";
+static const char help_str[] = "fit Bloch equations pixel-wisely to data and return relaxation parameters.";
 
 
-int main_pixel(int argc, char* argv[])
+int main_pixel(int argc, char* argv[argc])
 {
 	double start_time = timestamp();
+
+	const char* data_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &data_file, "data"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
 
 	struct noir_conf_s conf = noir_defaults;
 	struct modBlochFit fit_para = modBlochFit_defaults;
@@ -63,20 +70,20 @@ int main_pixel(int argc, char* argv[])
 		OPT_FLOAT(	'S', 	&data_scale, 		"", 		"Raw data scaling"),
 		OPT_SET(	'O', 	&fit_para.full_ode_sim	, 		"Apply full ODE simulation"),
 		OPT_INT(	'X', 	&fit_para.runs, 		"", 		"Number of applied whole sequence trains."),
-		OPT_STRING(	'I',	&inputB1, 		"", 		"Input B1 image"),
-		OPT_STRING(	'P',	&inputSP, 		"", 		"Input Slice Profile image"),
-		OPT_STRING(	'V', 	&fa_file, 		"", 		"Variable flipangle file"),
+		OPT_INFILE(	'I',	&inputB1, 		"", 		"Input B1 image"),
+		OPT_INFILE(	'P',	&inputSP, 		"", 		"Input Slice Profile image"),
+		OPT_INFILE(	'V', 	&fa_file, 		"", 		"Variable flipangle file"),
 		OPT_SET(	'g', 	&use_gpu, 				"use gpu"),
 	};
 
-	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 	
 	(use_gpu ? num_init_gpu_memopt : num_init)();
 	
 	// Load k-space data
 	long dims[DIMS];
 	
-	complex float* data = load_cfl(argv[1], DIMS, dims);
+	complex float* data = load_cfl(data_file, DIMS, dims);
 	assert(1 == dims[MAPS_DIM]);	
 	
 	// Create image output
@@ -88,7 +95,7 @@ int main_pixel(int argc, char* argv[])
 	long img_strs[DIMS];
 	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
-	complex float* img = create_cfl(argv[2], DIMS, img_dims);
+	complex float* img = create_cfl(out_file, DIMS, img_dims);
 	md_zfill(DIMS, img_dims, img, 1.);
 	
 	

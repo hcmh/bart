@@ -770,13 +770,19 @@ const struct benchmark_s {
 };
 
 
-static const char usage_str[] = "[<output>]";
 static const char help_str[] = "Performs a series of micro-benchmarks.";
 
 
 
 int main_bench(int argc, char* argv[argc])
 {
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_OUTFILE(false, &out_file, "output"),
+	};
+
 	bool threads = false;
 	bool scaling = false;
 	long flags = ~0l;
@@ -788,7 +794,7 @@ int main_bench(int argc, char* argv[argc])
 		OPT_LONG('s', &flags, "flags", "select benchmarks"),
 	};
 
-	cmdline(&argc, argv, 0, 1, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	long dims[BENCH_DIMS] = MD_INIT_ARRAY(BENCH_DIMS, 1);
 	long strs[BENCH_DIMS];
@@ -801,8 +807,8 @@ int main_bench(int argc, char* argv[argc])
 
 	md_calc_strides(BENCH_DIMS, strs, dims, CFL_SIZE);
 
-	bool outp = (2 == argc);
-	complex float* out = (outp ? create_cfl : anon_cfl)(outp ? argv[1] : "", BENCH_DIMS, dims);
+	bool outp = (NULL != out_file);
+	complex float* out = (outp ? create_cfl : anon_cfl)(outp ? out_file : "", BENCH_DIMS, dims);
 
 	num_init();
 

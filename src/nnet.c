@@ -26,13 +26,23 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "<input> <weights> <output>";
 static const char help_str[] = "Trains or applies a neural network.";
 
 
 
 int main_nnet(int argc, char* argv[])
 {
+	const char* in_file = NULL;
+	const char* weights_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_INOUTFILE(true, &weights_file, "weights"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	bool apply = false;
 	bool train = false;
 	bool eval = false;
@@ -65,7 +75,7 @@ int main_nnet(int argc, char* argv[])
 
 		OPTL_LONG('b', "batch-size", &(N_batch), "batchsize", "size of mini batches"),
 
-		OPTL_STRING('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
+		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "weights", "load weights for continuing training"),
 
 		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
 		OPTL_SUBOPT('U', "config-unet-segm", "...", "configure U-Net for segmentation", N_unet_segm_opts, unet_segm_opts),
@@ -80,11 +90,7 @@ int main_nnet(int argc, char* argv[])
 		OPTL_STRING(0, "export-graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
-
-	const char* filename_in = argv[1];
-	const char* filename_weights = argv[2];
-	const char* filename_out = argv[3];
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	config.train_conf = iter6_get_conf_from_opts();
 
@@ -114,7 +120,7 @@ int main_nnet(int argc, char* argv[])
 		error("No network selected!");
 
 	if ((0 < config.train_conf->dump_mod) && (NULL == config.train_conf->dump_filename))
-		config.train_conf->dump_filename = filename_weights;
+		config.train_conf->dump_filename = weights_file;
 
 
 #ifdef USE_CUDA
@@ -144,7 +150,7 @@ int main_nnet(int argc, char* argv[])
 
 
 	long dims_in[DIMS];
-	complex float* in = load_cfl(filename_in, (-1 == NI) ? (int)DIMS : NI, dims_in);
+	complex float* in = load_cfl(in_file, (-1 == NI) ? (int)DIMS : NI, dims_in);
 
 	if (-1 == NI) {
 
@@ -162,11 +168,11 @@ int main_nnet(int argc, char* argv[])
 
 		long NO = config.get_no_odims(&config, NI, dims_in);
 		long dims_out[NO];
-		complex float* out = load_cfl(filename_out, NO, dims_out);
+		complex float* out = load_cfl(out_file, NO, dims_out);
 
 		train_nnet(&config, NO, dims_out, out, NI, dims_in, in,  N_batch);
 
-		dump_nn_weights(filename_weights, config.weights);
+		dump_nn_weights(weights_file, config.weights);
 
 		unmap_cfl(NO, dims_out, out);
 	}
@@ -175,10 +181,10 @@ int main_nnet(int argc, char* argv[])
 
 		long NO = config.get_no_odims(&config, NI, dims_in);
 		long dims_out[NO];
-		complex float* out = load_cfl(filename_out, NO, dims_out);
+		complex float* out = load_cfl(out_file, NO, dims_out);
 
 		if (NULL == config.weights)
-			config.weights = load_nn_weights(filename_weights);
+			config.weights = load_nn_weights(weights_file);
 
 		eval_nnet(&config, NO, dims_out, out, NI, dims_in, in,  N_batch);
 
@@ -190,9 +196,9 @@ int main_nnet(int argc, char* argv[])
 		long NO = config.get_no_odims(&config, NI, dims_in);
 		long dims_out[NO];
 		config.get_odims(&config, NO, dims_out, NO, dims_in);
-		complex float* out = create_cfl(filename_out, NO, dims_out);
+		complex float* out = create_cfl(out_file, NO, dims_out);
 
-		config.weights = load_nn_weights(filename_weights);
+		config.weights = load_nn_weights(weights_file);
 
 		apply_nnet_batchwise(&config, NO, dims_out, out, NI, dims_in, in,  N_batch);
 

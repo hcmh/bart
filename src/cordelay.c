@@ -27,33 +27,43 @@
 
 
 
-static const char usage_str[] = "<traj> <k> <output> ";
-static const char help_str[] = "Gradient Delay correction on data\n";
+static const char help_str[] = "Gradient Delay correction on data";
 
-int main_cordelay(int argc, char* argv[])
+int main_cordelay(int argc, char* argv[argc])
 {
+	const char* traj_file = NULL;
+	const char* k_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &traj_file, "traj"),
+		ARG_INFILE(true, &k_file, "k"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	float gdelays[3] = { 0., 0., 0. };
 	const char* b0_file = NULL;
 
 	const struct opt_s opts[] = {
 
 		OPT_FLVEC3('q', &gdelays, "delays", "gradient delays: x, y, xy"),
-		OPT_STRING('B', &b0_file, "B0", "B0 correction file"),
+		OPT_INFILE('B', &b0_file, "B0", "B0 correction file"),
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 
 	num_init();
 
 	long k_dims[DIMS];
-	complex float* k = load_cfl(argv[2], DIMS, k_dims);
+	complex float* k = load_cfl(k_file, DIMS, k_dims);
 
 	assert((k_dims[TIME_DIM] == 1) && (k_dims[SLICE_DIM] == 1));
 
 
 	long traj_dims[DIMS];
-	complex float* traj = load_cfl(argv[1], DIMS, traj_dims);
+	complex float* traj = load_cfl(traj_file, DIMS, traj_dims);
 
 	md_check_compat(DIMS, ~(READ_FLAG|COIL_FLAG), k_dims, traj_dims);
 
@@ -76,7 +86,7 @@ int main_cordelay(int argc, char* argv[])
 	for (int i = 0; i < N; i++)
 		angles[i] = M_PI + atan2f(crealf(traj_red[3 * i + 0]), crealf(traj_red[3 * i + 1]));
 
-	complex float* k_cor = create_cfl(argv[3], DIMS, k_dims);
+	complex float* k_cor = create_cfl(out_file, DIMS, k_dims);
 
 	if (NULL != b0_file) { // 0th order gradient delay correction
 

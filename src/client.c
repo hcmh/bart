@@ -24,27 +24,35 @@ static size_t xwrite(int fd, size_t len, const void* buf)
 }
 
 
-static const char usage_str[] = "<input> <host:port>";
 static const char help_str[] = "Send file to host on port.";
 
 
-int main_client(int argc, char* argv[])
+int main_client(int argc, char* argv[argc])
 {
+	const char* input_file = NULL;
+	const char* host_port = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &input_file, "input"),
+		ARG_STRING(true, &host_port, "host:port"),
+	};
+
 	int port = 2121;
 	int errno = 1;
 	
 	const struct opt_s opts[] = { 
 	};
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	long dims[DIMS];
-	complex float* data = load_cfl(argv[1], DIMS, dims);
+	complex float* data = load_cfl(input_file, DIMS, dims);
 
 	char host[128];
-	if (2 != sscanf(argv[2], "%128[^:]:%d", host, &port))
+	if (2 != sscanf(host_port, "%128[^:]:%d", host, &port))
 		goto err1;
 
-	debug_printf(DP_INFO, "Sending %s to %s:%d\n", argv[1], host, port);
+	debug_printf(DP_INFO, "Sending %s to %s:%d\n", input_file, host, port);
 
 	int fd;
 

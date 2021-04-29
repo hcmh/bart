@@ -22,11 +22,6 @@
 
 
 
-static const char usage_str[] = "<input> <output>";
-static const char help_str[] = "Shifts FOV.";
-
-
-
 static complex float* noncart_shift(const float shift[3], const long tdims[DIMS], const complex float* tdata)
 {
 	long odims[DIMS];
@@ -50,25 +45,36 @@ static complex float* noncart_shift(const float shift[3], const long tdims[DIMS]
 }
 
 
+static const char help_str[] = "Shifts FOV.";
 
-int main_fovshift(int argc, char* argv[])
+
+int main_fovshift(int argc, char* argv[argc])
 {
+	const char* in_file = NULL;
+	const char* out_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &in_file, "input"),
+		ARG_OUTFILE(true, &out_file, "output"),
+	};
+
 	float shift[3] = { 0., 0., 0. };
 	const char* traj_file = NULL;
 
 	const struct opt_s opts[] = {
 
-		OPT_STRING('t', &traj_file, "file", "k-space trajectory"),
+		OPT_INFILE('t', &traj_file, "file", "k-space trajectory"),
 		OPT_FLVEC3('s', &shift, "X:Y:Z", "FOV shift"),
 	};
 
-	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
 
 	long idims[DIMS];
-	complex float* idata = load_cfl(argv[1], DIMS, idims);
+	complex float* idata = load_cfl(in_file, DIMS, idims);
 
 	long pdims[DIMS];
 	complex float* phase;
@@ -96,7 +102,7 @@ int main_fovshift(int argc, char* argv[])
 		linear_phase(3, pdims, shift, phase);
 	}
 
-	complex float* odata = create_cfl(argv[2], DIMS, idims);
+	complex float* odata = create_cfl(out_file, DIMS, idims);
 
 	md_zmul2(DIMS, idims, MD_STRIDES(DIMS, idims, CFL_SIZE), odata,
 			MD_STRIDES(DIMS, idims, CFL_SIZE), idata,

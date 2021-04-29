@@ -316,16 +316,24 @@ static char* create_bc_name(const char* name)
 }
 
 
-
-
-static const char usage_str[] = "<dat file> <output> [<pmu>]";
-//	fprintf(fd, "Usage: %s [...] [-a A] <dat file> <output>\n", name);
-
 static const char help_str[] = "Read data from Siemens twix (.dat) files.";
 
 
 int main_twixread(int argc, char* argv[argc])
 {
+	const char* dat_file = NULL;
+	const char* out_file = NULL;
+	const char* pmu_file = NULL;
+	const char* timestamp_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &dat_file, "dat file"),
+		ARG_OUTFILE(true, &out_file, "output"),
+		ARG_OUTFILE(false, &pmu_file, "pmu"),
+		ARG_OUTFILE(false, &timestamp_file, "timestamp")
+	};
+
 	long adcs = 0;
 	long radial_lines = -1;
 	long bc_scans = 0;
@@ -335,8 +343,6 @@ int main_twixread(int argc, char* argv[argc])
 	bool linectr = false;
 	bool partctr = false;
 	bool mpi = false;
-	bool out_pmu = false;
-	bool out_timestamp = false;
 
 	long dims[DIMS];
 	md_singleton_dims(DIMS, dims);
@@ -362,7 +368,7 @@ int main_twixread(int argc, char* argv[argc])
 		OPT_SET('M', &mpi, "MPI mode"),
 	};
 
-	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	if (-1 != radial_lines)
 		dims[PHS1_DIM] = radial_lines;
@@ -398,7 +404,7 @@ int main_twixread(int argc, char* argv[argc])
 
 
 	int ifd;
-	if (-1 == (ifd = open(argv[1], O_RDONLY)))
+	if (-1 == (ifd = open(dat_file, O_RDONLY)))
 		error("error opening file.");
 
 	struct hdr_s hdr;
@@ -453,7 +459,7 @@ int main_twixread(int argc, char* argv[argc])
 
 
 
-	complex float* out = create_cfl(argv[2], DIMS, odims);
+	complex float* out = create_cfl(out_file, DIMS, odims);
 	md_clear(DIMS, odims, out, CFL_SIZE);
 
 
@@ -464,7 +470,7 @@ int main_twixread(int argc, char* argv[argc])
 	complex float* bc_out = NULL;
 
 	if (0 < bc_scans)
-		bc_out = create_cfl(create_bc_name(argv[2]), DIMS, bc_odims);
+		bc_out = create_cfl(create_bc_name(out_file), DIMS, bc_odims);
 
 
 	long pmu_dims[DIMS];
@@ -473,19 +479,15 @@ int main_twixread(int argc, char* argv[argc])
 	complex float* pmu;
 	complex float* timestamp;
 
-	if (argc > 3) {
+	if (NULL != pmu_file) {
 
-		out_pmu = true;
-
-		pmu = create_cfl(argv[3], DIMS, pmu_dims);
+		pmu = create_cfl(pmu_file, DIMS, pmu_dims);
 		md_clear(DIMS, pmu_dims, pmu, CFL_SIZE);
 	}
 
-	if (argc > 4) {
+	if (NULL != timestamp_file) {
 
-		out_timestamp = true;
-
-		timestamp = create_cfl(argv[4], DIMS, pmu_dims);
+		timestamp = create_cfl(timestamp_file, DIMS, pmu_dims);
 		md_clear(DIMS, pmu_dims, timestamp, CFL_SIZE);
 	}
 
@@ -495,14 +497,14 @@ int main_twixread(int argc, char* argv[argc])
 	complex float* val_pmu;
 	long val_pmu_dims[DIMS] = { [0 ... DIMS - 1] = 1};
 
-	if (out_pmu)
+	if (NULL != pmu_file)
 		val_pmu = md_alloc(DIMS, val_pmu_dims, CFL_SIZE);
 
 	uint32_t buf_timestamp;
 	complex float* val_timestamp;
 	long val_timestamp_dims[DIMS] = { [0 ... DIMS - 1] = 1};
 
-	if (out_timestamp)
+	if (NULL != timestamp_file)
 		val_timestamp = md_alloc(DIMS, val_timestamp_dims, CFL_SIZE);
 
 
@@ -604,7 +606,7 @@ int main_twixread(int argc, char* argv[argc])
 
 		md_copy_block(DIMS, pos, dims, out, adc_dims, buf, CFL_SIZE); 
 
-		if (out_pmu) {
+		if (NULL != pmu_file) {
 
 			*val_pmu = (complex float) buf_pmu + 0 * 1i;
 
@@ -612,7 +614,7 @@ int main_twixread(int argc, char* argv[argc])
 			md_copy_block(DIMS, pos, pmu_dims, pmu, val_pmu_dims, val_pmu, CFL_SIZE);
 		}
 
-		if (out_timestamp) {
+		if (NULL != timestamp_file) {
 
 			*val_timestamp = (complex float) buf_timestamp + 0 * 1i;
 
@@ -625,13 +627,13 @@ int main_twixread(int argc, char* argv[argc])
 	md_free(buf);
 	unmap_cfl(DIMS, odims, out);
 
-	if (out_pmu) {
+	if (NULL != pmu_file) {
 
 		unmap_cfl(DIMS, pmu_dims, pmu);
 		md_free(val_pmu);
 	}
 
-	if (out_timestamp) {
+	if (NULL != timestamp_file) {
 
 		unmap_cfl(DIMS, pmu_dims, timestamp);
 		md_free(val_timestamp);

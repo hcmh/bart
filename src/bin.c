@@ -130,13 +130,31 @@ static int find_dim(int N, long dims[N])
 
 
 
-static const char usage_str[] = "<label> <src> <dst>";
-static const char help_str[] = "Binning\n";
+static const char help_str[] = "Binning";
 
 
 
 int main_bin(int argc, char* argv[argc])
 {
+	const char* label_file = NULL;
+	const char* src_file = NULL;
+	const char* dst_file = NULL;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &label_file, "label"),
+		ARG_INFILE(true, &src_file, "src"),
+		ARG_OUTFILE(true, &dst_file, "dst"),
+	};
+
+	unsigned int n_resp = 0;
+	unsigned int n_card = 0;
+	unsigned int mavg_window = 0;
+	unsigned int mavg_window_card = 0;
+	int cluster_dim = -1;
+
+	long resp_labels_idx[2] = { 0, 1 };
+	long card_labels_idx[2] = { 2, 3 };
 
 	bool reorder = false;
 	bool amplitude = false;
@@ -154,22 +172,21 @@ int main_bin(int argc, char* argv[argc])
 		OPT_UINT('a', &conf.mavg_window, "window", "Quadrature Binning: Moving average"),
 		OPT_UINT('A', &conf.mavg_window_card, "window", "(Quadrature Binning: Cardiac moving average window)"),
 		OPT_FLVEC2('O', &conf.offset_angle, "[r:c]deg", "Quadrature Binning: Angle offset for resp and card."),
-		OPT_STRING('x', &conf.card_out, "file", "(Output filtered cardiac EOFs)"), // To reproduce SSA-FARY paper
+		OPT_OUTFILE('x', &conf.card_out, "file", "(Output filtered cardiac EOFs)"), // To reproduce SSA-FARY paper
 		OPT_SET('M', &conf.amplitude, "Amplitude binning"),
 		OPT_SET('w', &conf.weight, "Soft-Gating"),
-
 	};
 
-	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 	num_init();
 
 	// Input
 	long labels_dims[DIMS];
-	complex float* labels = load_cfl(argv[1], DIMS, labels_dims);
+	complex float* labels = load_cfl(label_file, DIMS, labels_dims);
 
 	long src_dims[DIMS];
-	complex float* src = load_cfl(argv[2], DIMS, src_dims);
+	complex float* src = load_cfl(src_file, DIMS, src_dims);
 
 	enum { BIN_QUADRATURE, BIN_LABEL, BIN_REORDER } bin_type;
 
@@ -251,7 +268,7 @@ int main_bin(int argc, char* argv[argc])
 		binned_dims[TIME2_DIM] = conf.n_resp;
 		binned_dims[PHS2_DIM] = binsize_max;
 
-		complex float* binned = create_cfl(argv[3], DIMS, binned_dims);
+		complex float* binned = create_cfl(dst_file, DIMS, binned_dims);
 		md_clear(DIMS, binned_dims, binned, CFL_SIZE);
 
 		asgn_bins(bins_dims, bins, weights, binned_dims, binned, src_dims, src, conf.n_card, conf.n_resp);
@@ -319,7 +336,7 @@ int main_bin(int argc, char* argv[argc])
 		}
 
 
-		complex float* dst = create_cfl(argv[3], DIMS, dst_dims);
+		complex float* dst = create_cfl(dst_file, DIMS, dst_dims);
 
 		md_clear(DIMS, dst_dims, dst, CFL_SIZE);
 
