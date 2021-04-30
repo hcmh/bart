@@ -914,7 +914,7 @@ int main_wshfl(int argc, char* argv[])
 	cmdline(&argc, argv, 6, 6, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
 	struct admm_conf admm = { false, false, false, rho, cgiter };
-	struct mcmc_conf mcmc = {iter_mcmc_defaults.sigma_begin, iter_mcmc_defaults.sigma_end, iter_mcmc_defaults.maxiter, iter_mcmc_defaults.inner_iter}; // just to circumvent  error when compiling, it's not used (gluo)
+	struct mcmc_conf mcmc = {iter_mcmc_defaults.sigma_begin, iter_mcmc_defaults.sigma_end, iter_mcmc_defaults.nr_noise_level, iter_mcmc_defaults.inner_iter}; // just to circumvent  error when compiling, it's not used (gluo)
 
 	debug_printf(DP_INFO, "Loading data... ");
 

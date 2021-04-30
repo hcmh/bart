@@ -163,12 +163,16 @@ const struct iter_mcmc_conf iter_mcmc_defaults = {
 	.INTERFACE.TYPEID = &TYPEID2(iter_mcmc_conf),
 	.INTERFACE.alpha = 1.,
 
-	.maxiter = 10,
+	.nr_noise_level = 10,
 	.sigma_begin = 1.,
 	.sigma_end = 0.01,
 
-	.lambda = 0.2,
+	.lambda = 0.00002,
 	.inner_iter = 50,
+
+	.burn_in = true,
+	.nr_samples = 10,
+	.nr_burn_phase = 8,
 };
 
 typedef void (*thresh_fun_t)(void* data, float lambda, float* dst, const float* src);

@@ -69,18 +69,16 @@ void help_reg(void)
 			"-R L:7:7:.02\tLocally low rank with spatial decimation and 0.02 regularization.\n"
 			"-R M:7:7:.03\tMulti-scale low rank with spatial decimation and 0.03 regularization.\n\n"
 			"Neural Network-based Priors: \n"
-			"-R TFL:{graph_path}:C:pct:steps:prior_dim:inner_iter\n"
+			"-R TFL:{graph_path}:C:pct:steps:prior_dim\n"
 			"            \tC, regularization value\n"
 			"            \tpct, the percentage of mask applied to logp gradient\n"
-			"            \tstepsm, the number of inferences on prior\n"
+			"            \tsteps, the number of inferences on prior\n"
 			"            \tprior_dim, the dimension of the prior\n"
-			"            \tinner_iter, set to 1\n"
-			"-R LP:{graph_path}:C:pct:steps:prior_dim:inner_iter\n"
+			"-R LP:{graph_path}:C:pct:steps:prior_dim\n"
 			"            \tC, regularization value\n"
 			"            \tpct, the percentage of mask applied to logp gradient\n"
-			"            \tstepsm, the number of inferences on prior\n"
+			"            \tsteps, the number of inferences on prior for each prox operation\n"
 			"            \tprior_dim, the dimension of the prior\n"
-			"            \tinner_iter, the number of inner iteration\n"
 			"-R LPS:{graph_path}:C:steps:nr_noise_level:sigma_0:sigma_1:prior_dim:inner_iter\n"
 			"            \tC, regularization value\n"
 			"            \tsteps, the number of model inferences\n"
@@ -225,8 +223,8 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			
 			regs[r].xform = LOGP;
 			regs[r].graph_file = (char *)malloc(100*sizeof(char));
-			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].prior_dim, &regs[r].inner_iter);
-			assert(6 == ret);
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].prior_dim);
+			assert(5 == ret);
 			regs[r].sigma_begin=1.0;
 			regs[r].sigma_end=0.01;
 			regs[r].xflags = 0u;
@@ -249,8 +247,8 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			
 			regs[r].xform = TFL2;
 			regs[r].graph_file = (char *)malloc(100*sizeof(char));
-			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].prior_dim, &regs[r].inner_iter);
-			assert(6 == ret);
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].prior_dim);
+			assert(5 == ret);
 			regs[r].sigma_begin=1.0;
 			regs[r].sigma_end=0.01;
 			regs[r].xflags = 0u;

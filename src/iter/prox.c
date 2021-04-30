@@ -489,7 +489,7 @@ struct prox_logp_ncsn_data
 	unsigned int N;
 	const long *dims;
 
-	float step_size; // epsilon
+	float epsilon; // epsilon
 	unsigned int steps;
 
 	unsigned int nr_noise_level;
@@ -567,7 +567,7 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 	nlop_generic_apply_unchecked(pdata->tf_ops, 3, (void*[3]){grad, slices, &h});
 
 	// scale gradient
-	float step_size = pdata->step_size * (current_sigma*current_sigma/pdata->end_sigma/pdata->end_sigma);
+	float step_size = pdata->epsilon * (current_sigma*current_sigma/pdata->end_sigma/pdata->end_sigma);
 	md_zsmul(dom->N, dom->dims, grad, grad, step_size);
 
 	// generate noise
@@ -638,13 +638,13 @@ static void prox_logp_ncsn_del(const operator_data_t* _data)
 	xfree(CAST_DOWN(prox_logp_ncsn_data, _data));
 }
 
-extern const struct operator_p_s* prox_logp_ncsn_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float step_size, unsigned int steps, unsigned int nr_noise_level, float begin_sigma, float end_sigma, unsigned int prior_dim)
+extern const struct operator_p_s* prox_logp_ncsn_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float epsilon, unsigned int steps, unsigned int nr_noise_level, float begin_sigma, float end_sigma, unsigned int prior_dim)
 {
 	PTR_ALLOC(struct prox_logp_ncsn_data, pdata);
 	SET_TYPEID(prox_logp_ncsn_data, pdata);
 
 	pdata->tf_ops = tf_ops;
-	pdata->step_size = step_size;
+	pdata->epsilon = epsilon;
 	pdata->nr_noise_level = nr_noise_level;
 
 	pdata->begin_sigma = begin_sigma;

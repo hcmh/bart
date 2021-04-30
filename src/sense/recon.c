@@ -60,7 +60,7 @@ const struct sense_conf sense_defaults = {
 	.gamma = -1.,
 	.cclambda = 0.,
 	.bpsense = false,
-	.sampling = false
+	.samples = 1
 };
 
 

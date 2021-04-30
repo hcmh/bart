@@ -17,6 +17,8 @@ struct mcmc_conf {
 
 	unsigned int nr_noise_level;
 	unsigned int inner_iter;
+
+	unsigned int nr_samples;
 };
 
 struct iter {

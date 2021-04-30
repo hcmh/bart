@@ -172,7 +172,7 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
-void langevin_dynamics(unsigned int maxiter, unsigned int inner_iter, float sigma_begin, float sigma_end, float lambda,
+void langevin_dynamics(unsigned int inner_iter, float sigma, float lambda,
 					   long N,
 					   const struct vec_iter_s *vops,
 					   struct iter_op_s op,

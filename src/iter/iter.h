@@ -143,13 +143,16 @@ struct iter_mcmc_conf{
 	
 	INTERFACE(iter_conf);
 
-	unsigned int maxiter;
+	unsigned int nr_noise_level;
 	float sigma_begin;
 	float sigma_end;
-	float redu;
 
 	float lambda;
 	int inner_iter;
+
+	bool burn_in;
+	unsigned int nr_samples;
+	unsigned int nr_burn_phase;
 };
 
 extern const struct iter_conjgrad_conf iter_conjgrad_defaults;

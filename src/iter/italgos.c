@@ -467,7 +467,7 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
 * @param x intial estimate
 * @param b observations
 */
-void langevin_dynamics(unsigned int maxiter, unsigned int inner_iter, float sigma_begin, float sigma_end, float lambda,
+void langevin_dynamics(unsigned int inner_iter, float sigma, float lambda,
 					   long N,
 					   const struct vec_iter_s *vops,
 					   struct iter_op_s op,
@@ -475,58 +475,22 @@ void langevin_dynamics(unsigned int maxiter, unsigned int inner_iter, float sigm
 					   float* x, const float* b,
 					   struct iter_monitor_s* monitor)
 {
-
-	float maximum = 1;
 	
-	float* r       = vops->allocate(N);
-	float* noise   = vops->allocate(N);
-	float* noise_b = vops->allocate(N);
-	float* scale_b = vops->allocate(N);
+	float* r = vops->allocate(N);
 
-	if(maxiter>1){
-		vops->get_max(N, &maximum, b);
-		vops->smul(N, 1./maximum, scale_b, b);
-		//lambda = lambda / maximum;
-	}
+	for (unsigned int n = 0; n < inner_iter; n++){
 		
-	printf("lambda %f \n", lambda);
-	float step_size = 0.;
-	float sigma = 1.;
-	
-	if(maxiter > 1)
-		step_size = (log(sigma_begin) - log(sigma_end))/(maxiter-1);
-	
-	for (unsigned int i = 0; i < maxiter; i++){
+		iter_monitor(monitor, vops,  x);
 
-		if(maxiter > 1){
-
-			sigma = exp(log(sigma_begin) - i*step_size);
-
-			vops->zgaussian_rand(N/2, (_Complex float*)noise); // generate noise
-			vops->smul(N, sigma, noise, noise); // scale noise
-
-			iter_op_call(op, noise, noise); // A^HA * noise
-			vops->axpbz(N, noise_b, 1., scale_b, 1., noise); // A^HA * noise + A^Hy
-		}
-
-		for (unsigned int n = 0; n < inner_iter; n++){
-			
-			iter_monitor(monitor, vops,  x);
-
-			iter_op_call(op, r, x);  // r = Ax
-			
-			if(maxiter>1)
-				vops->xpay(N, -1., r, noise_b); // r = b - r = b - Ax gradient
-			else
-				vops->xpay(N, -1., r, b); // r = b - r = b - Ax gradient
-
-			vops->axpy(N, x, lambda*sigma, r); // update x with gradient
-
-			iter_op_p_call(thresh, lambda*sigma, x, x); // call prox
-			
-		}
+		iter_op_call(op, r, x);  // r = Ax
 		
-	}
+		vops->xpay(N, -1., r, b); // r = b - r = b - Ax gradient
+
+		vops->axpy(N, x, lambda*sigma, r); // update x with gradient
+
+		iter_op_p_call(thresh, lambda*sigma, x, x); // call prox
+		
+}
 
 	vops->del(r);
 }

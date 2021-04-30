@@ -52,12 +52,8 @@ enum algo_t italgo_choose(int nr_penalties, const struct reg_s regs[nr_penalties
 
 			algo = ALGO_ADMM;
 			break;
-		case LOGP:
 
-			algo = ALGO_MCMC;
-			break;
 		case LOGPS:
-		
 			algo = ALGO_MCMC;
 			break;
 		default:
@@ -230,11 +226,12 @@ struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s
 
 			*mcconf = iter_mcmc_defaults;
 
-			mcconf->maxiter = maxiter;
+			mcconf->nr_noise_level = mcmc.nr_noise_level;
 			mcconf->lambda = step;
 			mcconf->inner_iter = mcmc.inner_iter;
 			mcconf->sigma_begin = mcmc.sigma_begin;
 			mcconf->sigma_end = mcmc.sigma_end;
+			mcconf->nr_samples = mcmc.nr_samples;
 			
 			PTR_ALLOC(struct iter_call_s, iter2_mcmc_data);
 			SET_TYPEID(iter_call_s, iter2_mcmc_data);

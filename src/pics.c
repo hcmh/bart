@@ -132,8 +132,6 @@ int main_pics(int argc, char* argv[])
 
 	struct admm_conf admm = { false, false, false, iter_admm_defaults.rho, iter_admm_defaults.maxitercg };
 
-	struct mcmc_conf mcmc = {iter_mcmc_defaults.sigma_begin, iter_mcmc_defaults.sigma_end, iter_mcmc_defaults.maxiter, iter_mcmc_defaults.inner_iter};
-
 	enum algo_t algo = ALGO_DEFAULT;
 
 	bool hogwild = false;
@@ -187,10 +185,17 @@ int main_pics(int argc, char* argv[])
 		OPTL_SET('M', "sms", &sms, "Simultaneous Multi-Slice reconstruction"),
 		OPT_SET('U', &nuconf.lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_STRING('Q', &Q_file, "file", "Q. Laplace L = QQH."),
+		OPT_UINT('j', &conf.samples, "sampling mode", "MCMC sampling"),
 	};
 
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
+
+	struct mcmc_conf mcmc = {iter_mcmc_defaults.sigma_begin,
+							iter_mcmc_defaults.sigma_end,
+							iter_mcmc_defaults.nr_noise_level,
+							iter_mcmc_defaults.inner_iter,
+							conf.samples};
 
 	if (NULL != image_truth_file)
 		im_truth = true;
@@ -469,9 +474,20 @@ int main_pics(int argc, char* argv[])
 	}
 
 
-	complex float* image = create_cfl(argv[3], DIMS, img_dims);
-	md_clear(DIMS, img_dims, image, CFL_SIZE);
+	complex float* image = NULL;
 
+	if(conf.samples == 1){
+
+		image = create_cfl(argv[3], DIMS, img_dims);
+		md_clear(DIMS, img_dims, image, CFL_SIZE);
+	}
+	else{
+
+		long samples_dims[DIMS];
+		md_copy_dims(DIMS, samples_dims, img_dims);
+		samples_dims[ITER_DIM] = mcmc.nr_samples;		
+		image = create_cfl(argv[3], DIMS, samples_dims);
+	}
 
 	long img_truth_dims[DIMS];
 	complex float* image_truth = NULL;
@@ -595,9 +611,12 @@ int main_pics(int argc, char* argv[])
 
 	// if log prior is chosen
 	if (ALGO_MCMC == algo){
+
 		mcmc.sigma_begin = regs[0].sigma_begin;
 		mcmc.sigma_end = regs[0].sigma_end;
 		mcmc.inner_iter = regs[0].inner_iter;
+		mcmc.nr_noise_level = regs[0].nr_noise_level;
+		
 	}
 
 	if (conf.bpsense)

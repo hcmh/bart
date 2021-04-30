@@ -499,13 +499,58 @@ void iter2_mcmc(iter_conf* _conf,
 
 	auto conf = CAST_DOWN(iter_mcmc_conf, _conf);
 
-	float eps = md_norm(1, MD_DIMS(size), image_adj);
+	const struct vec_iter_s *vops = select_vecops(image_adj);
 
-	if (checkeps(eps))
-		return;
+	float maximum = 1;
 
-	langevin_dynamics(conf->maxiter, conf->inner_iter, conf->sigma_begin, conf->sigma_end, conf->lambda, size,
-	                 select_vecops(image_adj), OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
+	float* noise   = vops->allocate(size);
+	float* noise_b = vops->allocate(size);
+	float* scale_b = vops->allocate(size);
+	float* samples = vops->allocate(size*conf->nr_samples);
+
+	vops->get_max(size, &maximum, image_adj);
+	vops->smul(size, 1./maximum, scale_b, image_adj);
+	//lambda = lambda / maximum;
+
+	printf("lambda %f \n", conf->lambda);
+	float step_size = 0.;
+	float sigma = 1.;
+	unsigned int nr_samples = 1;
+
+	vops->copy(size, samples, image);
+
+	for(unsigned int i = 0; i < conf->nr_noise_level; i++)
+	{
+
+		step_size = (log(conf->sigma_begin) - log(conf->sigma_end))/(conf->nr_noise_level-1);
+			
+		sigma = exp(log(conf->sigma_begin) - i*step_size);
+
+		vops->zgaussian_rand(size/2, (_Complex float*)noise); // generate noise
+		vops->smul(size, sigma, noise, noise); // scale noise
+
+		iter_op_call(OPERATOR2ITOP(normaleq_op), noise, noise); // A^HA * noise
+		vops->axpbz(size, noise_b, 1., scale_b, 1., noise); // A^HA * noise + A^Hy
+
+		if (i > (conf->nr_burn_phase-1)){
+
+			nr_samples = conf->nr_samples;
+			for(unsigned int s = 0; s < nr_samples; s++)
+				vops->copy(size, samples+s*size, image);
+		}
+
+		for(unsigned int s = 0; s < nr_samples; s++){
+			
+			vops->copy(size, image, samples+s*size);
+
+			langevin_dynamics(conf->inner_iter, sigma, conf->lambda, size,
+	                 select_vecops(image_adj), OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, scale_b, monitor);
+
+			vops->copy(size, samples+s*size, image);
+		}
+	}
+	
+	vops->copy(conf->nr_samples*size, image, samples);
 
 }
 
