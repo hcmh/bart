@@ -486,10 +486,10 @@ void langevin_dynamics(unsigned int maxiter, unsigned int inner_iter, float sigm
 	if(maxiter>1){
 		vops->get_max(N, &maximum, b);
 		vops->smul(N, 1./maximum, scale_b, b);
-		lambda = lambda / maximum;
+		//lambda = lambda / maximum;
 	}
 		
-
+	printf("lambda %f \n", lambda);
 	float step_size = 0.;
 	float sigma = 1.;
 	
@@ -499,11 +499,14 @@ void langevin_dynamics(unsigned int maxiter, unsigned int inner_iter, float sigm
 	for (unsigned int i = 0; i < maxiter; i++){
 
 		if(maxiter > 1){
+
 			sigma = exp(log(sigma_begin) - i*step_size);
-			vops->zgaussian_rand(N/2, (_Complex float*)noise);
-			vops->smul(N, sigma, noise, noise);
-			iter_op_call(op, noise, noise);
-			vops->axpbz(N, noise_b, 1., scale_b, 1, noise);
+
+			vops->zgaussian_rand(N/2, (_Complex float*)noise); // generate noise
+			vops->smul(N, sigma, noise, noise); // scale noise
+
+			iter_op_call(op, noise, noise); // A^HA * noise
+			vops->axpbz(N, noise_b, 1., scale_b, 1., noise); // A^HA * noise + A^Hy
 		}
 
 		for (unsigned int n = 0; n < inner_iter; n++){
@@ -517,7 +520,7 @@ void langevin_dynamics(unsigned int maxiter, unsigned int inner_iter, float sigm
 			else
 				vops->xpay(N, -1., r, b); // r = b - r = b - Ax gradient
 
-			vops->axpy(N, x, lambda, r); // update x with gradient
+			vops->axpy(N, x, lambda*sigma, r); // update x with gradient
 
 			iter_op_p_call(thresh, lambda*sigma, x, x); // call prox
 			

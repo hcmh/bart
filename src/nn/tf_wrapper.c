@@ -394,7 +394,7 @@ static void tf_del(const nlop_data_t* _data)
 		TF_DeleteTensor(data->input_tensors[i]);
 }
 
-const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* path, bool use_adjoint)
+const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* path, bool use_adjoint, bool to_restore)
 {
 	PTR_ALLOC(struct tf_s, data);
 	SET_TYPEID(tf_s, data);
@@ -417,7 +417,8 @@ const struct nlop_s* nlop_tf_create(int nr_outputs, int nr_inputs, const char* p
 	read_gpu_config(gpu_config_path, config_char);
 
 	TF_Session* sess = create_session(graph, status, config_char, false);
-	restore_sess(graph, status, sess, cpkt_path);
+	if(to_restore)
+		restore_sess(graph, status, sess, cpkt_path);
 
 	free(config_char);
 

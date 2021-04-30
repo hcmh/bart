@@ -393,7 +393,7 @@ static void prox_logp_fun(const operator_data_t* data, float lambda, complex flo
 	complex float* out = md_alloc(cod->N, cod->dims, cod->size);
 
 	nlop_apply(pdata->tf_ops, cod->N, cod->dims, out, dom->N, dom->dims, slices);
-	debug_printf(DP_DEBUG3, "\tLog P: %f  Scalor: %f  Step size: %f  lambda: %f\n ", creal(*out), scalor, pdata->step_size, lambda);
+	debug_printf(DP_DEBUG3, "\tR(x): %f  Scalor: %f  Step size: %f  lambda: %f\n ", creal(*out), scalor, pdata->step_size, lambda);
 
 	//copy slices to feed tensor
 	struct TF_Tensor ** input_tensor = get_input_tensor(pdata->tf_ops);
@@ -517,24 +517,9 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 	complex float* u_resized = NULL;
 
 	// hard code below crop FOV 
-	if(pdata->dims[0]>pdata->prior_dim)
-	{
-
-		resized_dims[0] = pdata->dims[0]/2;
-		resized_dims[1] = pdata->dims[1]/2;
-
-		u_resized = md_alloc(DIMS, resized_dims, CFL_SIZE);
-
-		long pos[2];
-		for (unsigned int i = 0; i < 2; i++)
-			pos[i] = labs((resized_dims[i] / 2) - (pdata->dims[i] / 2));
-
-		md_copy_block(2, pos, resized_dims, u_resized, pdata->dims, (const complex float*)src, CFL_SIZE);
-	}
-	else{
-		u_resized = md_alloc(DIMS, pdata->dims, CFL_SIZE);
-		md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
-	}
+	u_resized = md_alloc(DIMS, pdata->dims, CFL_SIZE);
+	md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
+	
 	
 	// slice FOV
 	long slice_dims[DIMS];
@@ -554,10 +539,10 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 	complex float* slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
 	complex float* tmp_slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
 	
-	float scalor = calculate_max(DIMS, resized_dims, u_resized);
+	float scalor = calculate_max(DIMS, pdata->dims, src);
 	
-	scalor = scalor + 1e-06;
-	md_zsmul(DIMS, resized_dims, u_resized, u_resized, 1. / scalor);
+	//scalor = scalor + 1e-06;
+	//md_zsmul(DIMS, resized_dims, u_resized, u_resized, 1. / scalor);
 
 	int offset = 0;
 	for (size_t i = 0; i < nx; i++)
@@ -609,7 +594,7 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 			md_copy_block(2, pos, resized_dims, tmp, slice_dims, slices+offset, CFL_SIZE);
 		}
 	}
-	md_zsmul(DIMS, resized_dims, tmp, tmp, scalor);
+	//md_zsmul(DIMS, resized_dims, tmp, tmp, scalor);
 
 	md_transpose(DIMS, 1, 0, resized_dims, tmp1, resized_dims, tmp, CFL_SIZE);
 	
@@ -667,6 +652,7 @@ extern const struct operator_p_s* prox_logp_ncsn_create(unsigned int N, const lo
 	pdata->steps = steps;
 	pdata->N = N;
 	pdata->dims = (long*)malloc(sizeof(long)*pdata->N);
+	pdata->get_lambda = true;
 	md_copy_dims(pdata->N, pdata->dims, dims);
 	
 	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(pdata)), prox_logp_ncsn_apply, prox_logp_ncsn_del);

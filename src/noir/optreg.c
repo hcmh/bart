@@ -281,7 +281,7 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 			
 			trafos[nr] = linop_identity_create(DIMS, x_dims);
 
-			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true);
+			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true, true);
 
 			auto prox_img = prox_logp_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].prior_dim);
 
@@ -297,7 +297,7 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 					
 			trafos[nr] = linop_identity_create(DIMS, x_dims);
 
-			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true);
+			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true, true);
 
 			auto prox_img = prox_logp_nlinv_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].base, regs[nr].irgnm_steps, regs[nr].rho, regs[nr].prior_dim);
 
