@@ -643,12 +643,12 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 		case LOGP:
 		{
 			
-			debug_printf(DP_INFO, "neural-net based prior located at %s.\nlambda: %f\npercentage: %f\nsteps: %u\n", 
+			debug_printf(DP_DEBUG3, "neural-net based prior located at %s.\nlambda: %f\npercentage: %f\nsteps: %u\n", 
 						regs[nr].graph_file, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true, true);
 			prox_ops[nr] = prox_logp_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].prior_dim);
-			debug_print_dims(DP_INFO, DIMS, img_dims);
+			debug_print_dims(DP_DEBUG3, DIMS, img_dims);
 			break;
 		}
 

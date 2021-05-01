@@ -487,6 +487,7 @@ int main_pics(int argc, char* argv[])
 		md_copy_dims(DIMS, samples_dims, img_dims);
 		samples_dims[ITER_DIM] = mcmc.nr_samples;		
 		image = create_cfl(argv[3], DIMS, samples_dims);
+		md_clear(DIMS, samples_dims, image, CFL_SIZE);
 	}
 
 	long img_truth_dims[DIMS];

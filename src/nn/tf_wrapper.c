@@ -113,9 +113,9 @@ static void load_graph(TF_Buffer* graph_def, TF_Graph* graph, TF_Status* status)
 	TF_DeleteImportGraphDefOptions(opts);
 
 	if (TF_GetCode(status) != TF_OK)
-		error("ERROR: Loading graph failed: %s\n", TF_Message(status));
+		error("Loading graph failed: %s\n", TF_Message(status));
 
-	debug_printf(DP_INFO, "Graph loaded!\n");
+	debug_printf(DP_DEBUG3, "Graph loaded!\n");
 }
 
 // function to create session
@@ -127,15 +127,15 @@ static TF_Session* create_session(TF_Graph* graph, TF_Status* status, uint8_t* c
 	TF_SetConfig(opt, (void*)config, strlen(config), status);
 	
 	if (TF_GetCode(status) != TF_OK)
-		debug_printf(DP_INFO, "GPU selection failed\n");
+		debug_printf(DP_DEBUG3, "GPU selection failed\n");
 		
 	TF_Session* sess = TF_NewSession(graph, opt, status);
 	
 	TF_DeleteSessionOptions(opt);
 	if (TF_GetCode(status) != TF_OK)
-		error("ERROR: Unable to create session %s\n", TF_Message(status));
+		error("Unable to create session %s\n", TF_Message(status));
 
-	debug_printf(DP_INFO, "Session created.\n");
+	debug_printf(DP_DEBUG3, "Session created.\n");
 
 	if(test){
 		const TF_Operation* init_op = TF_GraphOperationByName(graph, "init");
@@ -148,23 +148,23 @@ static TF_Session* create_session(TF_Graph* graph, TF_Status* status, uint8_t* c
 				/* RunMetadata */ NULL,
 				/* Output status */ status);
 		if (TF_GetCode(status) != TF_OK)
-			error("ERROR: Unable to run init_op: %s\n", TF_Message(status));
+			error("Unable to run init_op: %s\n", TF_Message(status));
 
 
-		debug_printf(DP_INFO, "Session initialized.\n");
+		debug_printf(DP_DEBUG3, "Session initialized.\n");
 	}
 
 	TF_DeviceList *devices= TF_SessionListDevices(sess, status);
 
 	int nr_gpus = TF_DeviceListCount(devices);
-	debug_printf(DP_INFO, "====num of devices: %d  ====\n", nr_gpus);
+	debug_printf(DP_DEBUG3, "====num of devices: %d  ====\n", nr_gpus);
 	for (int i=0; i<nr_gpus; i++)
 	{
 		char *info = TF_DeviceListName(devices, i, status);
 		char *type = TF_DeviceListType(devices, i, status);
-		debug_printf(DP_INFO, "DEVICE %d: %s |", i, type);
-		debug_printf(DP_INFO, info);
-		debug_printf(DP_INFO, "\n");
+		debug_printf(DP_DEBUG3, "DEVICE %d: %s |", i, type);
+		debug_printf(DP_DEBUG3, info);
+		debug_printf(DP_DEBUG3, "\n");
 	}
 	
 	return sess;
@@ -186,7 +186,7 @@ static void restore_sess(TF_Graph* graph, TF_Status *status, TF_Session *sess, c
 	TF_StringEncode(ckpt_path, checkpoint_path_str_len, input_encoded + sizeof(int64_t), encoded_size, status);
 
 	if (TF_GetCode(status) != TF_OK)
-		error("ERROR: something wrong with encoding: %s", TF_Message(status));
+		error("Something wrong with encoding: %s", TF_Message(status));
 
 	TF_Tensor* path_tensor = TF_NewTensor(TF_STRING, NULL, 0, input_encoded, total_size, &deallocator, 0);
 
@@ -207,7 +207,7 @@ static void restore_sess(TF_Graph* graph, TF_Status *status, TF_Session *sess, c
 	if (TF_GetCode(status) != TF_OK)
 		error("ERROR: Unable to run restore_op: %s\n", TF_Message(status));
 
-	debug_printf(DP_INFO, "Session restored.\n");
+	debug_printf(DP_DEBUG3, "Session restored.\n");
 
 }
 

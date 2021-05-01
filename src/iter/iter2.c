@@ -510,9 +510,7 @@ void iter2_mcmc(iter_conf* _conf,
 
 	vops->get_max(size, &maximum, image_adj);
 	vops->smul(size, 1./maximum, scale_b, image_adj);
-	//lambda = lambda / maximum;
 
-	printf("lambda %f \n", conf->lambda);
 	float step_size = 0.;
 	float sigma = 1.;
 	unsigned int nr_samples = 1;
