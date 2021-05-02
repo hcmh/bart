@@ -29,7 +29,8 @@ struct reg_s {
 	char *graph_file;
 	double pct;	
 	unsigned int steps;
-	unsigned int prior_dim;
+	unsigned int prior_dimx;
+	unsigned int prior_dimy;
 
 	unsigned int nr_noise_level;
 	unsigned int inner_iter;

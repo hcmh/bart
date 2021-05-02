@@ -498,7 +498,8 @@ struct prox_logp_ncsn_data
 	float lambda;
 	
 	bool get_lambda;
-	unsigned int prior_dim;
+	unsigned int prior_dimx;
+	unsigned int prior_dimy;
 };
 
 DEF_TYPEID(prox_logp_ncsn_data);
@@ -512,51 +513,18 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 	auto dom1 = nlop_generic_domain(pdata->tf_ops, 1);
 	auto cod = nlop_generic_codomain(pdata->tf_ops, 0); // grad_ys
 
-	long resized_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, resized_dims, pdata->dims);
-	complex float* u_resized = NULL;
+	long batch_dims[DIMS];
+	md_select_dims(DIMS, ~COIL_FLAG, batch_dims, pdata->dims);
 
-	// hard code below crop FOV 
-	u_resized = md_alloc(DIMS, pdata->dims, CFL_SIZE);
-	md_copy(DIMS, resized_dims, u_resized, (const complex float*)src, CFL_SIZE);
-	
-	
-	// slice FOV
-	long slice_dims[DIMS];
-	md_set_dims(DIMS, slice_dims, 1);
+	complex float* batch = NULL;
+	complex float* tmp_batch = NULL;
 
-	slice_dims[0] = dom->dims[1];
-	slice_dims[1] = dom->dims[2];
+	batch = md_alloc(DIMS, batch_dims, CFL_SIZE);
+	tmp_batch = md_alloc(DIMS, batch_dims, CFL_SIZE);
 
-	unsigned int nx = (resized_dims[0] + slice_dims[0] - 1)/slice_dims[0];
-	unsigned int ny = (resized_dims[1] + slice_dims[1] - 1)/slice_dims[1];
+	md_copy(DIMS, batch_dims, tmp_batch, (const complex float*)src, CFL_SIZE);
 
-	slice_dims[2] = nx*ny;
-
-	long pos[DIMS];
-	md_set_dims(DIMS, pos, 0);
-	
-	complex float* slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
-	complex float* tmp_slices = md_alloc(DIMS, slice_dims, CFL_SIZE);
-	
-	float scalor = calculate_max(DIMS, pdata->dims, src);
-	
-	//scalor = scalor + 1e-06;
-	//md_zsmul(DIMS, resized_dims, u_resized, u_resized, 1. / scalor);
-
-	int offset = 0;
-	for (size_t i = 0; i < nx; i++)
-	{
-		for (size_t j = 0; j < ny; j++)
-		{
-			pos[0] = j*slice_dims[1];
-			pos[1] = i*slice_dims[0];
-			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
-			md_copy_block(2, pos, slice_dims, tmp_slices + offset, resized_dims, u_resized, CFL_SIZE);
-		}
-	}
-	
-	md_transpose(pdata->N, 1, 0, slice_dims, slices, slice_dims, tmp_slices, CFL_SIZE);
+	md_transpose(pdata->N, 1, 0, batch_dims, batch, batch_dims, tmp_batch, CFL_SIZE); // change to C order
 
 	// get current noise level
 	float current_sigma = lambda/pdata->lambda;
@@ -564,7 +532,7 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 
 	// get the gradient of logp 
 	complex float* grad = md_alloc(cod->N, cod->dims, cod->size);	
-	nlop_generic_apply_unchecked(pdata->tf_ops, 3, (void*[3]){grad, slices, &h});
+	nlop_generic_apply_unchecked(pdata->tf_ops, 3, (void*[3]){grad, batch, &h});
 
 	// scale gradient
 	float step_size = pdata->epsilon * (current_sigma*current_sigma/pdata->end_sigma/pdata->end_sigma);
@@ -576,38 +544,18 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 	md_zsmul(dom->N, dom->dims, noise, noise, sqrt(step_size * 2));
 
 	// update
-	md_zadd(dom->N, dom->dims, slices, slices, grad);   // dst(src+1) = src - grad
-	md_zadd(dom->N, dom->dims, slices, slices, noise);   // dst(src+1) = src - grad
+	md_zadd(dom->N, dom->dims, batch, batch, grad);   // dst(src+1) = src - grad
+	md_zadd(dom->N, dom->dims, batch, batch, noise);   // dst(src+1) = src - grad
 
+	float scalor = calculate_max(DIMS, pdata->dims, src);
 	debug_printf(DP_DEBUG3, "\tScalor: %f  Step size: %f  level: %f\n ", scalor, step_size, h);
 
 	// back to fortran arrays
-	complex float* tmp = md_alloc(DIMS, resized_dims, CFL_SIZE);
-	complex float* tmp1 = md_alloc(DIMS, resized_dims, CFL_SIZE);
-	for(size_t i=0; i < nx; i++)
-	{
-		for (size_t j=0; j < ny; j++)
-		{
-			pos[0] = i*slice_dims[0];
-			pos[1] = j*slice_dims[1];
-			offset = (i*nx + j) * slice_dims[0]*slice_dims[1];
-			md_copy_block(2, pos, resized_dims, tmp, slice_dims, slices+offset, CFL_SIZE);
-		}
-	}
-	//md_zsmul(DIMS, resized_dims, tmp, tmp, scalor);
-
-	md_transpose(DIMS, 1, 0, resized_dims, tmp1, resized_dims, tmp, CFL_SIZE);
+	md_transpose(DIMS, 1, 0, batch_dims, tmp_batch, batch_dims, batch, CFL_SIZE);
+	md_copy(DIMS, batch_dims, (const complex float*)dst, tmp_batch, CFL_SIZE);
 	
-	for (unsigned int i = 0; i < 2; i++)
-		pos[i] = labs((resized_dims[i] / 2) - (pdata->dims[i] / 2));
-
-	md_copy_block(2, pos, pdata->dims, (complex float*)dst, resized_dims, (const complex float*)tmp1, CFL_SIZE);
-
-	md_free(u_resized);
-	md_free(slices);
-	md_free(tmp_slices);
-	md_free(tmp);
-	md_free(tmp1);
+	md_free(batch);
+	md_free(tmp_batch);
 }
 
 static void prox_logp_ncsn_apply(const operator_data_t* data, float lambda, complex float *dst, const complex float* src)
@@ -638,7 +586,7 @@ static void prox_logp_ncsn_del(const operator_data_t* _data)
 	xfree(CAST_DOWN(prox_logp_ncsn_data, _data));
 }
 
-extern const struct operator_p_s* prox_logp_ncsn_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float epsilon, unsigned int steps, unsigned int nr_noise_level, float begin_sigma, float end_sigma, unsigned int prior_dim)
+extern const struct operator_p_s* prox_logp_ncsn_create(unsigned int N, const long dims[__VLA(N)], const struct nlop_s * tf_ops, float epsilon, unsigned int steps, unsigned int nr_noise_level, float begin_sigma, float end_sigma, unsigned int prior_dimx, unsigned int prior_dimy)
 {
 	PTR_ALLOC(struct prox_logp_ncsn_data, pdata);
 	SET_TYPEID(prox_logp_ncsn_data, pdata);
@@ -655,6 +603,9 @@ extern const struct operator_p_s* prox_logp_ncsn_create(unsigned int N, const lo
 	pdata->get_lambda = true;
 	md_copy_dims(pdata->N, pdata->dims, dims);
 	
+	pdata->prior_dimx = prior_dimx;
+	pdata->prior_dimy = prior_dimy;
+
 	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(pdata)), prox_logp_ncsn_apply, prox_logp_ncsn_del);
 }
 

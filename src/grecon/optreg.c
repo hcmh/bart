@@ -79,7 +79,7 @@ void help_reg(void)
 			"            \tpct, the percentage of mask applied to logp gradient\n"
 			"            \tsteps, the number of inferences on prior for each prox operation\n"
 			"            \tprior_dim, the dimension of the prior\n"
-			"-R LPS:{graph_path}:C:steps:nr_noise_level:sigma_0:sigma_1:prior_dim:inner_iter\n"
+			"-R LPS:{graph_path}:C:steps:nr_noise_level:sigma_0:sigma_1:prior_dimx:prior_dimy:inner_iter\n"
 			"            \tC, regularization value\n"
 			"            \tsteps, the number of model inferences\n"
 			"            \tsigma_0, beginning noise level\n"
@@ -223,7 +223,7 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			
 			regs[r].xform = LOGP;
 			regs[r].graph_file = (char *)malloc(100*sizeof(char));
-			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].prior_dim);
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].prior_dimx);
 			assert(5 == ret);
 			regs[r].sigma_begin=1.0;
 			regs[r].sigma_end=0.01;
@@ -236,8 +236,8 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 
 			regs[r].xform = LOGPS;
 			regs[r].graph_file = (char *)malloc(100*sizeof(char));
-			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%u:%u:%f:%f:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].steps, &regs[r].nr_noise_level, &regs[r].sigma_begin, &regs[r].sigma_end, &regs[r].prior_dim, &regs[r].inner_iter);
-			assert(8 == ret);
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%u:%u:%f:%f:%u:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].steps, &regs[r].nr_noise_level, &regs[r].sigma_begin, &regs[r].sigma_end, &regs[r].prior_dimx, &regs[r].prior_dimy, &regs[r].inner_iter);
+			assert(9 == ret);
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
 		}
@@ -247,7 +247,7 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			
 			regs[r].xform = TFL2;
 			regs[r].graph_file = (char *)malloc(100*sizeof(char));
-			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].prior_dim);
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].prior_dimx);
 			assert(5 == ret);
 			regs[r].sigma_begin=1.0;
 			regs[r].sigma_end=0.01;
@@ -643,12 +643,11 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 		case LOGP:
 		{
 			
-			debug_printf(DP_DEBUG3, "neural-net based prior located at %s.\nlambda: %f\npercentage: %f\nsteps: %u\n", 
+			debug_printf(DP_INFO, "neural-net based prior located at %s.\nlambda: %f\npercentage: %f\nsteps: %u\n", 
 						regs[nr].graph_file, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true, true);
-			prox_ops[nr] = prox_logp_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].prior_dim);
-			debug_print_dims(DP_DEBUG3, DIMS, img_dims);
+			prox_ops[nr] = prox_logp_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].prior_dimx);
 			break;
 		}
 
@@ -658,9 +657,10 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 			debug_printf(DP_INFO, "neural-net based prior located at %s.\nlambda: %f\nnr noise level: %u\nsteps: %u\n", 
 						regs[nr].graph_file, regs[nr].lambda, regs[nr].nr_noise_level, regs[nr].steps);
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
+			if(img_dims[0] != regs[nr].prior_dimx || img_dims[1] != regs[nr].prior_dimy)
+				error("Image dims doesn't match with prior");
 			const struct nlop_s * tf_ops = nlop_tf_create(1, 2, regs[nr].graph_file, false, true);
-			prox_ops[nr] = prox_logp_ncsn_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].steps, regs[nr].nr_noise_level, regs[nr].sigma_begin, regs[nr].sigma_end, regs[nr].prior_dim);
-			debug_print_dims(DP_INFO, DIMS, img_dims);
+			prox_ops[nr] = prox_logp_ncsn_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].steps, regs[nr].nr_noise_level, regs[nr].sigma_begin, regs[nr].sigma_end, regs[nr].prior_dimx, regs[nr].prior_dimy);
 			break;
 		}
 
@@ -670,8 +670,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 						regs[nr].graph_file, regs[nr].lambda, regs[nr].pct, regs[nr].steps);
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true, false);
-			prox_ops[nr] = prox_logp_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].prior_dim);
-			debug_print_dims(DP_INFO, DIMS, img_dims);
+			prox_ops[nr] = prox_logp_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].prior_dimx);
 			break;
 		}
 		}

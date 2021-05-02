@@ -185,7 +185,7 @@ int main_pics(int argc, char* argv[])
 		OPTL_SET('M', "sms", &sms, "Simultaneous Multi-Slice reconstruction"),
 		OPT_SET('U', &nuconf.lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_STRING('Q', &Q_file, "file", "Q. Laplace L = QQH."),
-		OPT_UINT('j', &conf.samples, "sampling mode", "MCMC sampling"),
+		OPT_UINT('j', &conf.samples, "samples", "MCMC sampling (spreco)"),
 	};
 
 
