@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include <png.h>
 
@@ -118,6 +119,8 @@ void construct_filename(unsigned int bufsize, char* name, unsigned int D, const 
 	const char* end = name + bufsize;
 
 	cur += snprintf(cur, end - cur, "%s", prefix);
+
+	assert(D <= strlen(spec));
 
 	for (int i = 0; i < D; i++)
 		if (1 != loopdims[i])
