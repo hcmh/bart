@@ -27,6 +27,7 @@ SLINK?=0
 DEBUG?=0
 FFTWTHREADS?=1
 ISMRMRD?=0
+TENSORFLOW?=0
 NOEXEC_STACK?=0
 PARALLEL?=0
 PARALLEL_NJOBS?=
@@ -132,6 +133,8 @@ endif
 
 CUDA_BASE ?= /usr/local/
 
+# tensorflow
+TENSORFLOW_BASE ?= /usr/local/
 
 # acml
 
@@ -175,7 +178,7 @@ TNN=mnist nn_segm nnvn nnmodl
 
 MODULES = -lnum -lmisc -lnum -lmisc -lna
 
-MODULES_pics = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart -lmanifold
+MODULES_pics = -lgrecon -liter -lsense -llinops -lwavelet -llowrank -lnoncart -lmanifold
 MODULES_sqpics = -lsense -liter -llinops -lwavelet -llowrank -lnoncart
 MODULES_pocsense = -lsense -liter -llinops -lwavelet
 MODULES_nlinv = -lnoir -lmoba -lwavelet -lnoncart  -llowrank -lsimu -lgrecon  -liter -lnlops -llinops -lnn
@@ -262,6 +265,11 @@ CPPFLAGS += -DNOLAPACKE
 MODULES += -llapacke
 endif
 
+
+ifeq ($(TENSORFLOW),1)
+CPPFLAGS += -DTENSORFLOW -I$(TENSORFLOW_BASE)/include
+LIBS += -L$(TENSORFLOW_BASE)/lib -Wl,-rpath $(TENSORFLOW_BASE)/lib -ltensorflow -ltensorflow_framework
+endif
 
 
 XTARGETS += $(TBASE) $(TFLP) $(TNUM) $(TIO) $(TRECO) $(TCALIB) $(TMRI) $(TSIM) $(TNN)
