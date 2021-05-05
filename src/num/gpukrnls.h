@@ -75,7 +75,8 @@ extern void cuda_zcmpl_real(long N, _Complex float* dst, const float* src);
 extern void cuda_zcmpl_imag(long N, _Complex float* dst, const float* src);
 extern void cuda_zcmpl(long N, _Complex float* dst, const float* real_src, const float* imag_src);
 extern void cuda_zfill(long N, _Complex float val, _Complex float* dst);
-
+extern void cuda_zgaussian_rand(long N, _Complex float* dst);
+extern void cuda_get_max(long N, float* dst, const float* src);
 #ifdef __cplusplus
 }
 #endif

@@ -20,6 +20,10 @@ struct vec_iter_s {
 	void (*xpay)(long N, float alpha, float* a, const float* x);
 	void (*axpy)(long N, float* a, float alpha, const float* x);
 	void (*axpbz)(long N, float* out, const float a, const float* x, const float b, const float* z);
+	void (*zmul)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2);
+	void (*zgaussian_rand)(long N, _Complex float* dst);
+	void (*get_max)(long N, float* dst, const float* src);
+	void (*zfill)(long N, _Complex float val, _Complex float* dst);
 	void (*fmac)(long N, float* a, const float* x, const float* y);
 
 	void (*div)(long N, float* a, const float* x, const float* y);
@@ -30,11 +34,7 @@ struct vec_iter_s {
 	void (*sadd)(long N, float* x, float y);
 	void (*sdiv)(long N, float* a, float x, const float* y);
 
-	void (*zmul)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2);
 	void (*zsmax)(long N, float val, _Complex float* dst, const _Complex float* src1);
-	void (*zgaussian_rand)(long N, _Complex float* dst);
-	void (*get_max)(long N, float* dst, const float* src);
-	void (*zfill)(long N, _Complex float val, _Complex float* dst);
 };
 
 #ifdef USE_CUDA

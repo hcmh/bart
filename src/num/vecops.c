@@ -817,7 +817,7 @@ static int compare_cmpl_magn(const void* a, const void* b)
 static float calculate_max(unsigned int N, const float* src)
 {	
 	
-	_Complex float* tmp =  (_Complex float*)xmalloc(N * sizeof(_Complex float));
+	_Complex float* tmp =  (_Complex float*)xmalloc((N/2) * sizeof(_Complex float));
 	copy(N, (float*)tmp, (float*)src);
 	qsort(tmp, (size_t)(N/2), sizeof(_Complex float), compare_cmpl_magn);
 	return cabsf(tmp[N/2-1]);
@@ -921,6 +921,8 @@ const struct vec_ops cpu_ops = {
 	.zcmpl = vec_zcmpl,
 
 	.zfill = vec_zfill,
+	.zgaussian_rand = vec_gaussian_rand,
+	.get_max = vec_get_max,
 };
 
 
@@ -944,6 +946,10 @@ struct vec_iter_s {
 	void (*xpay)(long N, float alpha, float* a, const float* x);
 	void (*axpy)(long N, float* a, float alpha, const float* x);
 	void (*axpbz)(long N, float* out, const float a, const float* x, const float b, const float* z);
+	void (*zmul)(long N, complex float* dst, const complex float* src1, const complex float* src2);
+	void (*zgaussian_rand)(long N, _Complex float* dst);
+	void (*get_max)(long N, float* dst, const float* src);
+	void (*zfill)(long N, _Complex float val, _Complex float* dst);
 	void (*fmac)(long N, float* a, const float* x, const float* y);
 
 	void (*div)(long N, float* a, const float* x, const float* y);
@@ -953,11 +959,7 @@ struct vec_iter_s {
 	void (*smin)(long N, float alpha, float* a, const float* x);
 	void (*sadd)(long N, float* x, float y);
 	void (*sdiv)(long N, float* a, float x, const float* y);
-
-	void (*zmul)(long N, complex float* dst, const complex float* src1, const complex float* src2);
  	void (*zsmax)(long N, complex float val, complex float* dst, const complex float* src1);
-	void (*zgaussian_rand)(long N, _Complex float* dst);
-	void (*get_max)(long N, float* dst, const float* src);
 };
 
 

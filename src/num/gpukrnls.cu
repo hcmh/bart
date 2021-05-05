@@ -20,6 +20,7 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cuComplex.h>
+#include <curand_kernel.h>
 
 #include "num/gpukrnls.h"
 
@@ -27,6 +28,18 @@
 // see Dara's src/calib/calibcu.cu for how to get
 // runtime info
 
+
+
+#define CHECK(call)                                                            
+{                                                                              
+    const cudaError_t error = call;                                            
+    if (error != cudaSuccess)                                                  
+    {                                                                          
+        fprintf(stderr, "Error: %s:%d, ", __FILE__, __LINE__);                 
+        fprintf(stderr, "code: %d, reason: %s\n", error,                       
+                cudaGetErrorString(error));                                    
+    }                                                                          
+}
 
 // limited by hardware to 1024 on most devices
 // should be a multiple of 32 (warp size)
@@ -1484,3 +1497,55 @@ extern "C" void cuda_zfill(long N, _Complex float val, _Complex float* dst)
 	kern_zfill<<<gridsize(N), blocksize(N)>>>(N, make_cuFloatComplex(__real(val), __imag(val)), (cuFloatComplex*)dst);
 }
 
+
+__global__ void kern_gaussian_rand(long N, curandState *states, cuFloatComplex* dst)
+{
+	int start = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	curandState *state = states + start;
+
+	curand_init(1234, start, 0, state);
+	
+	for (int i = start; i < N; i += stride)
+	{
+		float rand_real = curand_normal(state);
+		float rand_imag = curand_normal(state);
+		dst[i] = make_cuFloatComplex(rand_real, rand_imag);
+	}
+
+}
+
+extern "C" void cuda_zgaussian_rand(long N, _Complex float* dst)
+{
+	curandState *states = NULL;
+	
+	CHECK(cudaMalloc((void **)&states, sizeof(curandState) * gridsize(N) * blocksize(N)));
+	kern_gaussian_rand<<<gridsize(N), blocksize(N)>>>(N, states, (cuFloatComplex*)dst);
+	
+	CHECK(cudaFree(states));
+}
+
+__global__ void kern_get_max(long N, float* dst, cuFloatComplex* src){
+	
+	int start = threadIdx.x + (blockDim.x * blockIdx.x);
+	int stride = blockDim.x * gridDim.x;
+	
+	for (int i = start; i < N; i += stride)
+	{
+		if(cuCabsf(src[i]) > dst[0])
+			dst[0] = cuCabsf(src[i]);
+	}
+}
+
+
+extern "C" void cuda_get_max(long N, float* dst, const float* src)
+{
+	float* temp=NULL;
+	CHECK(cudaMalloc((void **)&temp, sizeof(float)));
+	CHECK(cudaMemset((void*)temp, 0, sizeof(float)));
+
+	kern_get_max <<<1, 1>>> (N/2, temp, (cuFloatComplex*)src);
+
+	CHECK(cudaMemcpy((void*)dst, (void*)temp, sizeof(float), cudaMemcpyDeviceToHost));
+	CHECK(cudaFree(temp));
+}

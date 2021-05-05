@@ -556,6 +556,9 @@ const struct vec_ops gpu_ops = {
 	.zsmax = cuda_zsmax,
 
 	.zmul = cuda_zmul,
+	.zgaussian_rand = cuda_zgaussian_rand,
+	.get_max = cuda_get_max,
+	.zfill = cuda_zfill,
 	.zdiv = cuda_zdiv,
 	.zfmac = cuda_zfmac,
 	.zfmac2 = cuda_zfmac2,
@@ -611,7 +614,7 @@ const struct vec_ops gpu_ops = {
 	.zcmpl_imag = cuda_zcmpl_imag,
 	.zcmpl = cuda_zcmpl,
 
-	.zfill = cuda_zfill,
+	
 };
 
 
@@ -636,6 +639,9 @@ struct vec_iter_s {
 	void (*axpbz)(long N, float* out, const float a, const float* x, const float b, const float* z);
 
 	void (*zmul)(long N, complex float* dst, const complex float* src1, const complex float* src2);
+	void (*zgaussian_rand)(long N, _Complex float* dst);
+	void (*get_max)(long N, float* dst, const float* src);
+	void (*zfill)(long N, _Complex float val, _Complex float* dst);
 };
 
 extern const struct vec_iter_s gpu_iter_ops;
@@ -655,6 +661,9 @@ const struct vec_iter_s gpu_iter_ops = {
 	.sub = cuda_sub,
 	.swap = cuda_swap,
 	.zmul = cuda_zmul,
+	.zgaussian_rand = cuda_zgaussian_rand,
+	.get_max = cuda_get_max,
+	.zfill = cuda_zfill,
 };
 
 

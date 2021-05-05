@@ -501,7 +501,7 @@ void iter2_mcmc(iter_conf* _conf,
 
 	const struct vec_iter_s *vops = select_vecops(image_adj);
 
-	float maximum = 1;
+	float maximum = 0.0001;
 
 	float* noise   = vops->allocate(size);
 	float* noise_b = vops->allocate(size);

@@ -37,6 +37,9 @@
 #include "prox.h"
 #include "stdio.h"
 
+#include <cuda.h>
+#include <cuda_runtime.h>
+
 /**
  * Proximal function of f is defined as
  * (prox_f)(z) = arg min_x 0.5 || z - x ||_2^2 + f(x)
@@ -514,8 +517,12 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 	auto cod = nlop_generic_codomain(pdata->tf_ops, 0); // grad_ys
 
 	long batch_dims[DIMS];
+	long batch_dims_t[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, batch_dims, pdata->dims);
-
+	md_select_dims(DIMS, ~COIL_FLAG, batch_dims_t, pdata->dims);
+	batch_dims_t[0] = batch_dims[1];
+	batch_dims_t[1] = batch_dims[0];
+	
 	complex float* batch = NULL;
 	complex float* tmp_batch = NULL;
 
@@ -524,15 +531,30 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 
 	md_copy(DIMS, batch_dims, tmp_batch, (const complex float*)src, CFL_SIZE);
 
-	md_transpose(pdata->N, 1, 0, batch_dims, batch, batch_dims, tmp_batch, CFL_SIZE); // change to C order
+	md_transpose(pdata->N, 1, 0, batch_dims_t, batch, batch_dims, tmp_batch, CFL_SIZE); // change to C order
 
 	// get current noise level
 	float current_sigma = lambda/pdata->lambda;
 	float h = compute_h(current_sigma, pdata->begin_sigma, pdata->end_sigma, pdata->nr_noise_level);
 
+	// push current cuda context
+	
+	//int device = -1;
+	//cudaGetDevice(&device);
+	//cuCtxGetDevice ( &device );
+	//printf("current device %d \n", device);
+	//CUcontext ctx;
+	//printf("current CUcontext %d \n", ctx);
+	//cuCtxGetCurrent(&ctx);
+	//printf("current CUcontext %d \n", ctx);
+	//cuCtxPushCurrent(ctx);
+	
 	// get the gradient of logp 
 	complex float* grad = md_alloc(cod->N, cod->dims, cod->size);	
 	nlop_generic_apply_unchecked(pdata->tf_ops, 3, (void*[3]){grad, batch, &h});
+
+	// pop current cuda context
+
 
 	// scale gradient
 	float step_size = pdata->epsilon * (current_sigma*current_sigma/pdata->end_sigma/pdata->end_sigma);
@@ -551,7 +573,7 @@ static void prox_logp_ncsn_fun(const operator_data_t* data, float lambda, comple
 	debug_printf(DP_DEBUG3, "\tScalor: %f  Step size: %f  level: %f\n ", scalor, step_size, h);
 
 	// back to fortran arrays
-	md_transpose(DIMS, 1, 0, batch_dims, tmp_batch, batch_dims, batch, CFL_SIZE);
+	md_transpose(DIMS, 1, 0, batch_dims, tmp_batch, batch_dims_t, batch, CFL_SIZE);
 	md_copy(DIMS, batch_dims, (const complex float*)dst, tmp_batch, CFL_SIZE);
 	
 	md_free(batch);
