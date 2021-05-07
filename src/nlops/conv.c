@@ -1,9 +1,8 @@
-/* Copyright 2018. Martin Uecker.
+/* Copyright 2020. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors:
- * 2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * Authors: Moritz Blumenthal
  */
 
 #include <stdbool.h>
@@ -51,48 +50,9 @@ struct convcorr_geom_s {
 	unsigned int flags;
 
 	long shift;
-	complex float* src1;
-	complex float* src2;
 };
 
 DEF_TYPEID(convcorr_geom_s);
-
-static void convcorr_initialize(struct convcorr_geom_s* data, const complex float* arg, bool der1, bool der2)
-{
-	if (der2 && (NULL == data->src1))
-		data->src1 = md_alloc_sameplace(data->N, data->idims1, CFL_SIZE, arg);
-
-	if (!der2 && (NULL != data->src1)) {
-
-		md_free(data->src1);
-		data->src1 = NULL;
-	}
-
-	if (der1 && (NULL == data->src2))
-		data->src2 = md_alloc_sameplace(data->N, data->idims2, CFL_SIZE, arg);
-
-	if (!der1 && (NULL != data->src2)) {
-
-		md_free(data->src2);
-		data->src2 = NULL;
-	}
-}
-
-static void convcorr_geom_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
-{
-	const auto data = CAST_DOWN(convcorr_geom_s, _data);
-
-	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
-
-		md_free(data->src2);
-		data->src2 = NULL;
-	}
-	if(op_options_is_set_io(opts, 0, 1, OP_APP_CLEAR_DER)){
-
-		md_free(data->src1);
-		data->src1 = NULL;
-	}
-}
 
 static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
@@ -104,20 +64,23 @@ static void convcorr_geom_fun(const nlop_data_t* _data, int N, complex float* ar
 	const complex float* src1 = args[1];
 	const complex float* src2 = args[2];
 
+	nlop_data_der_alloc_memory(_data, dst);
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	complex float* x1 = der_data[0];
+	complex float* x2 = der_data[1];
+	bool der1 = nlop_der_requested(_data, 0, 0);
+	bool der2 = nlop_der_requested(_data, 1, 0);
+
 #ifdef USE_CUDA
 	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
 #endif
 
-	bool der1 = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
-	bool der2 = !op_options_is_set_io(_data->options, 0, 1, OP_APP_NO_DER);
-
-	convcorr_initialize(data, dst, der1, der2);
-
 	//conj to have benefits of fmac optimization in adjoints
 	if(der2)
-		md_zconj(data->N, data->idims1, data->src1, src1);
+		md_zconj(data->N, data->idims1, x1, src1);
 	if(der1)
-		md_zconj(data->N, data->idims2, data->src2, src2);
+		md_zconj(data->N, data->idims2, x2, src2);
 
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
 	md_zfmac2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs1, src1, data->istrs2, src2 + data->shift);
@@ -130,14 +93,18 @@ static void convcorr_geom_der2(const nlop_data_t* _data, unsigned int o, unsigne
 	UNUSED(o);
 	UNUSED(i);
 
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	complex float* x1 = der_data[0];
+	//complex float* x2 = der_data[1];
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
-	if (NULL == data->src1)
+	if (NULL == x1)
 		error("Convcorr %x derivative not available\n", data);
 
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
-	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs2, src + data->shift, data->istrs1, data->src1);
+	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs2, src + data->shift, data->istrs1, x1);
 
 }
 
@@ -146,14 +113,18 @@ static void convcorr_geom_adj2(const nlop_data_t* _data, unsigned int o, unsigne
 	UNUSED(o);
 	UNUSED(i);
 
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	complex float* x1 = der_data[0];
+	//complex float* x2 = der_data[1];
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
-	if (NULL == data->src1)
+	if (NULL == x1)
 		error("Convcorr %x derivative not available\n", data);
 
 	md_clear(data->N, data->idims2, dst, CFL_SIZE);
-	md_zfmac2(2 * data->N, data->mdims, data->istrs2, dst + data->shift, data->ostrs, src, data->istrs1, data->src1);
+	md_zfmac2(2 * data->N, data->mdims, data->istrs2, dst + data->shift, data->ostrs, src, data->istrs1, x1);
 
 }
 
@@ -162,14 +133,18 @@ static void convcorr_geom_der1(const nlop_data_t* _data, unsigned int o, unsigne
 	UNUSED(o);
 	UNUSED(i);
 
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	//complex float* x1 = der_data[0];
+	complex float* x2 = der_data[1];
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
-	if (NULL == data->src2)
+	if (NULL == x2)
 		error("Convcorr %x derivative not available\n", data);
 
 	md_clear(data->N, data->odims, dst, CFL_SIZE);
-	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs1, src, data->istrs2, data->src2 + data->shift);
+	md_zfmacc2(2 * data->N, data->mdims, data->ostrs, dst, data->istrs1, src, data->istrs2, x2 + data->shift);
 
 }
 
@@ -178,14 +153,18 @@ static void convcorr_geom_adj1(const nlop_data_t* _data, unsigned int o, unsigne
 	UNUSED(o);
 	UNUSED(i);
 
+	void* der_data[2];
+	nlop_get_der_array(_data, 2, (void**)der_data);
+	//complex float* x1 = der_data[0];
+	complex float* x2 = der_data[1];
 
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
 
-	if (NULL == data->src2)
+	if (NULL == x2)
 		error("Convcorr %x derivative not available\n", data);
 
 	md_clear(data->N, data->idims1, dst, CFL_SIZE);
-	md_zfmac2(2 * data->N, data->mdims, data->istrs1, dst, data->ostrs, src, data->istrs2, data->src2 + data->shift);
+	md_zfmac2(2 * data->N, data->mdims, data->istrs1, dst, data->ostrs, src, data->istrs2, x2 + data->shift);
 
 }
 
@@ -193,9 +172,6 @@ static void convcorr_geom_adj1(const nlop_data_t* _data, unsigned int o, unsigne
 static void convcorr_geom_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(convcorr_geom_s, _data);
-
-	md_free(data->src1);
-	md_free(data->src2);
 
 	xfree(data->odims);
 	xfree(data->idims1);
@@ -220,10 +196,6 @@ static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags
 	SET_TYPEID(convcorr_geom_s, data);
 
 	data->flags = flags;
-
-	// will be initialized later, to transparently support GPU
-	data->src1 = NULL;
-	data->src2 = NULL;
 
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], transp ? idims : odims);
@@ -271,11 +243,13 @@ static struct nlop_s* nlop_convcorr_geom_valid_create(long N, unsigned int flags
 	data->istrs1 = *PTR_PASS(nistrs1);
 	data->istrs2 = *PTR_PASS(nistrs2);
 
-	operator_property_flags_t props[2][1] = {{MD_BIT(OP_PROP_C_LIN)}, {MD_BIT(OP_PROP_C_LIN)}};
+	struct nlop_der_array_s* der_arrays[2];
+	der_arrays[0] = nlop_der_array_create(N, nl_idims[0], CFL_SIZE, 2, 1, (bool[2][1]){{ false }, { true }});
+	der_arrays[1] = nlop_der_array_create(N, nl_idims[1], CFL_SIZE, 2, 1, (bool[2][1]){{ true }, { false }});
 
-	return nlop_generic_with_props_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
-				    (nlop_der_fun_t[2][1]){ { convcorr_geom_der1 }, { convcorr_geom_der2 } },
-				    (nlop_der_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, convcorr_geom_set_opts, props, NULL);
+	return nlop_generic_managed_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), convcorr_geom_fun,
+					   (nlop_der_fun_t[2][1]){ { convcorr_geom_der1 }, { convcorr_geom_der2 } },
+					   (nlop_der_fun_t[2][1]){ { convcorr_geom_adj1 }, { convcorr_geom_adj2 } }, NULL, NULL, convcorr_geom_del, 2, der_arrays, NULL);
 }
 
 
@@ -318,9 +292,13 @@ struct nlop_s* nlop_convcorr_geom_create(long N, unsigned int flags, const long 
 				nidims[i] = idims[i];
 			}
 
-			assert(idims[i] <= nidims[i]);
+			long pos = labs((nidims[i] / 2) - (idims[i] / 2)); // center corresponds to resize_center/ceter of fft
 
-			pad_for[i] = labs((nidims[i] / 2) - (idims[i] / 2)); // center corresponds to resize_center/ceter of fft
+			// from md_resize_center:
+			// if idim[d] > nidim[d], then optr[i] = iptr[pos + i] for 0 <= i < nidim[d]
+			// if idim[d] < nidim[d], then optr[pos + i] = iptr[i] for 0 <= i < idim[d]
+
+			pad_for[i] = (nidims[i] > idims[i]) ? pos : -pos;
 			pad_after[i] = nidims[i] - idims[i] - pad_for[i];
 		}
 
