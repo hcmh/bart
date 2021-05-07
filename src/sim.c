@@ -48,6 +48,7 @@ static void help_seq(void)
 		"#tr:\t Number of repetitions\n"
 		"dw:\t off-resonance\n"
 		"Dinv:\t inversion time\n"
+		"Dprep:\t magnetization preparation time\n"
 		"BWTP:\t BandWidth Time Product of pulses\n"
 	);
 }
@@ -76,7 +77,7 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 
 	case 'P': {
 		
-		int ret = sscanf(optarg, "%10[^:]", rt);
+		int ret = sscanf(optarg, "%11[^:]", rt);
 		assert(1 == ret);
 
 		if (strcmp(rt, "h") == 0) {
@@ -89,7 +90,7 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 			// Collect simulation data
 			struct sim_data* sim_data = ptr;
 
-			ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d:%f:%f:%f",
+			ret = sscanf(optarg, "%d:%d:%f:%f:%f:%f:%d:%f:%f:%f:%f",
 									&sim_data->seq.analytical,
 									&sim_data->seq.seq_type, 
 									&sim_data->seq.tr, 
@@ -99,8 +100,9 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 									&sim_data->seq.rep_num,
 									&sim_data->voxel.w,
 									&sim_data->seq.inversion_pulse_length,
+									&sim_data->seq.prep_pulse_length,
 									&sim_data->pulse.bwtp);
-			assert(10 == ret);
+			assert(11 == ret);
 		}
 		break;
 	}
@@ -137,7 +139,7 @@ int main_sim(int argc, char* argv[])
 		OPT_STRING(	'z',	&z_component,		"", "Output z component"),
 		OPT_STRING(	'r',	&radial_component,	"", "Output radial component"),
 		OPTL_SET(0, "look-locker-assumption", &sim_data.seq.look_locker_assumptions, "Turn on Look-Locker Assumption?"),
-		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H:I:J\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw:Dinv:BWTP> (-Ph for help)" },
+		{ 'P', NULL, true, opt_seq, &sim_data, "\tA:B:C:D:E:F:G:H:I:J:K\tParameters for Simulation <Typ:Seq:tr:te:Drf:FA:#tr:dw:Dinv:Dprep:BWTP> (-Ph for help)" },
 	};
 
 
@@ -163,12 +165,6 @@ int main_sim(int argc, char* argv[])
 	// Pass pre defined data
 
 	dims[TE_DIM] = sim_data.seq.rep_num;
-
-	// TODO: Fix pass preperation time to sim tool
-	if (5 == sim_data.seq.seq_type)
-		sim_data.seq.prep_pulse_length = 0.0001;	// match analytical Look-Locker model
-	else
-		sim_data.seq.prep_pulse_length = sim_data.pulse.rf_end;
 
 	// Prepare analytical case
 
