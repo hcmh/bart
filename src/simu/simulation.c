@@ -366,6 +366,9 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 				prep_data.seq.te = data->seq.prep_pulse_length;
 				prep_data.seq.tr = data->seq.prep_pulse_length;
 
+				if (prep_data.pulse.rf_end > data->seq.prep_pulse_length)
+					prep_data.pulse.rf_end = data->seq.prep_pulse_length;
+
 				create_sim_block(&prep_data);
 
 				run_sim_block(&prep_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
