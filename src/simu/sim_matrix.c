@@ -217,7 +217,7 @@ static void apply_signal_preparation(int N, float m[N], void* _data )// provides
 
 	// Special case for simulation of finit RF-pulse effect on T2 for IR bSSFP
 	if (tmp_data.pulse.pulse_length > simdata->seq.prep_pulse_length)
-		tmp_data.pulse.pulse_length = simdata->seq.prep_pulse_length;
+		tmp_data.pulse.rf_end = simdata->seq.prep_pulse_length;
 
 	float matrix[N][N];
 
