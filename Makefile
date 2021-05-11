@@ -189,7 +189,7 @@ TNN=mnist nnvn nnmodl reconet nnet onehotenc
 
 MODULES = -lnum -lmisc -lnum -lmisc -lna
 
-MODULES_pics = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart -lmanifold
+MODULES_pics = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart -lnlops -lnn -lmanifold
 MODULES_sqpics = -lsense -liter -llinops -lwavelet -llowrank -lnoncart
 MODULES_pocsense = -lsense -liter -llinops -lwavelet
 MODULES_nlinv = -lnoir -liter -lnlops -llinops -lnoncart
@@ -224,7 +224,7 @@ MODULES_lrmatrix = -llowrank -liter -llinops -lnlops
 MODULES_estdims = -lnoncart -llinops
 MODULES_ismrmrd = -lismrm
 MODULES_wavelet = -llinops -lwavelet
-MODULES_wshfl = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart
+MODULES_wshfl = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart -lnlops -lnn
 MODULES_hornschunck = -liter -llinops
 MODULES_ncsense = -liter -llinops -lnoncart -lsense
 MODULES_kernel = -lrkhs -lnoncart

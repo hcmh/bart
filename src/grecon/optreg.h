@@ -18,13 +18,14 @@ struct linop_s;
 
 struct reg_s {
 
-	enum { L1WAV, NIHTWAV, NIHTIM, TV, LLR, MLR, IMAGL1, IMAGL2, L1IMG, L2IMG, FTL1, LAPLACE, POS, L2MAN, L1MAN } xform;
+	enum { L1WAV, NIHTWAV, NIHTIM, TV, LLR, MLR, IMAGL1, IMAGL2, L1IMG, L2IMG, FTL1, LAPLACE, POS, TENFL L2MAN, L1MAN } xform;
 
 	unsigned int xflags;
 	unsigned int jflags;
 
 	float lambda;
 	unsigned int k;
+	char* graph_file;
 };
 
 
