@@ -182,7 +182,7 @@ TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobafit cdi modbloch pixel n
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans convkern nlsa eof
 TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon synthesize fovshift
 TIO=toimg dcmread dcmtag
-TSIM=phantom phantom_json traj upat bloch sim tbasis signal epg leray pde pde_mask bfield
+TSIM=phantom phantom_json traj upat bloch sim signal epg leray pde pde_mask bfield
 TNN=mnist nnvn nnmodl reconet nnet onehotenc
 
 
@@ -259,7 +259,6 @@ MODULES_leray = -lsimu -llinops -liter
 MODULES_pde = -lsimu -liter -llinops
 MODULES_pde_mask = -lsimu -llinops
 MODULES_bfield = -lsimu -llinops
-MODULES_tbasis = -lmoba -lnlops -llinops -lsimu
 MODULES_dixon = -lmoba -lnlops -llinops -lsimu
 MODULES_pixel = -lmoba -lnoir -liter -lsimu -lnlops -lwavelet -lgrecon -lnoncart -llinops -llowrank
 MODULES_rtreco = -lcalib -lnoncart -llinops
