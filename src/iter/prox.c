@@ -491,6 +491,18 @@ const struct operator_p_s* prox_zsmax_create(unsigned int N, const long dims[N],
 	return operator_p_pst_chain_FF(op_p_ineq, op_rvc);
 }
 
+/*
+ * Proximal function for smaller than or equal to a scalar:
+ * f(z) = 1{z <= a}
+ */
+const struct operator_p_s* prox_zsmin_create(unsigned int N, const long dims[N], float a)
+{
+	auto op_rvc = operator_p_bind_F(prox_rvc_create(N, dims), 0);
+	auto op_p_ineq = prox_ineq_create(N, dims, NULL, a, false);
+
+	return operator_p_pst_chain_FF(op_p_ineq, op_rvc);
+}
+
 
 struct prox_rvc_data {
 

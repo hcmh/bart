@@ -14,6 +14,7 @@ extern const struct operator_p_s* prox_greq_create(unsigned int N, const long di
 extern const struct operator_p_s* prox_rvc_create(unsigned int N, const long dims[__VLA(N)]);
 extern const struct operator_p_s* prox_nonneg_create(unsigned int N, const long dims[__VLA(N)]);
 extern const struct operator_p_s* prox_zsmax_create(unsigned int N, const long dims[__VLA(N)], float a);
+extern const struct operator_p_s* prox_zsmin_create(unsigned int N, const long dims[__VLA(N)], float a);
 
 #include "misc/cppwrap.h"
 #endif
