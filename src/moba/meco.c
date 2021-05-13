@@ -80,6 +80,7 @@ int set_num_of_coeff(enum meco_model sel_model)
 	case MECO_WF2R2S:	ncoeff = 5; break;
 	case MECO_R2S:		ncoeff = 3; break;
 	case MECO_PHASEDIFF:	ncoeff = 2; break;
+	case MECO_2R2S:		ncoeff = 5; break;
 	}
 
 	return ncoeff;
@@ -108,6 +109,7 @@ long set_PD_flag(enum meco_model sel_model)
 		break;
 
 	case MECO_WF2R2S:
+	case MECO_2R2S:
 
 		PD_flag = MD_SET(PD_flag, 0);
 		PD_flag = MD_SET(PD_flag, 2);
@@ -147,6 +149,7 @@ long set_R2S_flag(enum meco_model sel_model)
 		break;
 
 	case MECO_WF2R2S:
+	case MECO_2R2S:
 
 		R2S_flag = MD_SET(R2S_flag, 1);
 		R2S_flag = MD_SET(R2S_flag, 3);
@@ -645,78 +648,126 @@ static void meco_fun_r2s(const nlop_data_t* _data, complex float* dst, const com
 		x_pos[i] = 0;
 
 
-	enum { PIND_RHO = 0, PIND_R2S = 1, PIND_FB0 = 2 };
+	long pind_fB0 = set_num_of_coeff(data->model) - 1;
+
+	long nr_R2s = pind_fB0 / 2;
+
 
 	complex float* tmp_exp = md_alloc_sameplace(data->N, data->y_dims, CFL_SIZE, dst);
+	complex float* tmp_exp_fB0 = md_alloc_sameplace(data->N, data->y_dims, CFL_SIZE, dst);
 	complex float* tmp_eco = md_alloc_sameplace(data->N, data->y_dims, CFL_SIZE, dst);
+
+	complex float* rho = md_alloc_sameplace(data->N, data->map_dims, CFL_SIZE, dst);
+	complex float* R2s = md_alloc_sameplace(data->N, data->map_dims, CFL_SIZE, dst);
+	complex float* fB0 = md_alloc_sameplace(data->N, data->map_dims, CFL_SIZE, dst);
 
 	// =============================== //
 	//  forward operator
 	// =============================== //
 
-	// R2s and fB0
-	x_pos[COEFF_DIM] = PIND_R2S;
+	md_clear(data->N, data->y_dims, dst, CFL_SIZE);
 
-	complex float* R2s = md_alloc_sameplace(data->N, data->map_dims, CFL_SIZE, dst);
+	for (long ind = 0; ind < nr_R2s; ind++) {
 
-	md_copy_block(data->N, x_pos, data->map_dims, R2s, data->x_dims, src, CFL_SIZE);
+		long pind_rho = ind * 2;
+		long pind_R2s = pind_rho + 1;
 
-	md_zsmul(data->N, data->map_dims, R2s, R2s, -1. * data->scaling[PIND_R2S]);
+		// R2s
+		x_pos[COEFF_DIM] = pind_R2s;
+
+		md_copy_block(data->N, x_pos, data->map_dims, R2s, data->x_dims, src, CFL_SIZE);
+
+		md_zsmul(data->N, data->map_dims, R2s, R2s, -1. * data->scaling[pind_R2s]);
+
+		md_zmul2(data->N, data->y_dims, data->y_strs, tmp_exp, data->map_strs, R2s, data->TE_strs, data->TE);
+
+		md_zexp(data->N, data->y_dims, tmp_exp, tmp_exp);
+
+		// rho
+		x_pos[COEFF_DIM] = pind_rho;
+
+		md_copy_block(data->N, x_pos, data->map_dims, rho, data->x_dims, src, CFL_SIZE);
+
+		md_zsmul(data->N, data->map_dims, rho, rho, data->scaling[pind_rho]);
+
+		// dst = dst + tmp_exp .* rho
+		md_zfmac2(data->N, data->y_dims, data->y_strs, dst, data->y_strs, tmp_exp, data->map_strs, rho);
+
+	}
 
 
-	x_pos[COEFF_DIM] = PIND_FB0;
-
-	complex float* fB0 = md_alloc_sameplace(data->N, data->map_dims, CFL_SIZE, dst);
+	x_pos[COEFF_DIM] = pind_fB0;
 
 	md_copy_block(data->N, x_pos, data->map_dims, fB0, data->x_dims, src, CFL_SIZE);
 
 	meco_forw_fB0(data->linop_fB0, fB0, fB0);
 
-	md_zaxpy2(data->N, data->map_dims, data->map_strs, R2s, 2.i * M_PI * data->scaling[PIND_FB0], data->map_strs, fB0);
+	md_zsmul(data->N, data->map_dims, fB0, fB0, data->scaling[pind_fB0]);
 
-	md_zmul2(data->N, data->y_dims, data->y_strs, tmp_exp, data->map_strs, R2s, data->TE_strs, data->TE);
+	md_zmul2(data->N, data->y_dims, data->y_strs, tmp_exp_fB0, data->map_strs, fB0, data->TE_strs, data->TE);
 
-	// tmp_exp = exp(z TE)
-	md_zexp(data->N, data->y_dims, tmp_exp, tmp_exp);
+	md_zexp(data->N, data->y_dims, tmp_exp_fB0, tmp_exp_fB0);
 
 
-	// rho
-	x_pos[COEFF_DIM] = PIND_RHO;
-
-	complex float* rho = md_alloc_sameplace(data->N, data->map_dims, CFL_SIZE, dst);
-
-	md_copy_block(data->N, x_pos, data->map_dims, rho, data->x_dims, src, CFL_SIZE);
-
-	// dst = tmp_exp .* rho
-	md_zmul2(data->N, data->y_dims, data->y_strs, dst, data->y_strs, tmp_exp, data->map_strs, rho);
+	md_zmul(data->N, data->y_dims, dst, dst, tmp_exp_fB0);
 
 
 	// =============================== //
 	//  partial derivative operator
 	// =============================== //
-	// der_rho
-	x_pos[COEFF_DIM] = PIND_RHO;
 
-	md_copy_block(data->N, x_pos, data->der_dims, data->der_x, data->y_dims, tmp_exp, CFL_SIZE);
+	for (long ind = 0; ind < nr_R2s; ind++) {
+
+		long pind_rho = ind * 2;
+		long pind_R2s = pind_rho + 1;
+
+		// R2s
+		x_pos[COEFF_DIM] = pind_R2s;
+
+		R2s = md_alloc_sameplace(data->N, data->map_dims, CFL_SIZE, dst);
+
+		md_copy_block(data->N, x_pos, data->map_dims, R2s, data->x_dims, src, CFL_SIZE);
+
+		md_zsmul(data->N, data->map_dims, R2s, R2s, -1. * data->scaling[pind_R2s]);
+
+		md_zmul2(data->N, data->y_dims, data->y_strs, tmp_exp, data->map_strs, R2s, data->TE_strs, data->TE);
+
+		md_zexp(data->N, data->y_dims, tmp_exp, tmp_exp);
+
+		md_zmul(data->N, data->y_dims, tmp_exp, tmp_exp, tmp_exp_fB0);
 
 
-	// der_R2s
-	x_pos[COEFF_DIM] = PIND_R2S;
+		// der_rho
+		x_pos[COEFF_DIM] = pind_rho;
 
-	md_zmul2(data->N, data->y_dims, data->y_strs, tmp_eco, data->y_strs, dst, data->TE_strs, data->TE);
-	md_zsmul(data->N, data->y_dims, tmp_eco, tmp_eco, -1. * data->scaling[PIND_R2S]);
+		md_copy_block(data->N, x_pos, data->map_dims, rho, data->x_dims, src, CFL_SIZE);
 
-	md_copy_block(data->N, x_pos, data->der_dims, data->der_x, data->y_dims, tmp_eco, CFL_SIZE);
+		md_zsmul(data->N, data->map_dims, rho, rho, data->scaling[pind_rho]);
+
+		md_copy_block(data->N, x_pos, data->der_dims, data->der_x, data->y_dims, tmp_exp, CFL_SIZE);
+
+		// der_R2s
+		x_pos[COEFF_DIM] = pind_R2s;
+
+		md_zmul2(data->N, data->y_dims, data->y_strs, tmp_eco, data->y_strs, tmp_exp, data->map_strs, rho);
+
+		md_zmul2(data->N, data->y_dims, data->y_strs, tmp_eco, data->y_strs, dst, data->TE_strs, data->TE);
+		md_zsmul(data->N, data->y_dims, tmp_eco, tmp_eco, -1. * data->scaling[pind_R2s]);
+
+		md_copy_block(data->N, x_pos, data->der_dims, data->der_x, data->y_dims, tmp_eco, CFL_SIZE);
+	}
+
 
 	// der_fB0
-	x_pos[COEFF_DIM] = PIND_FB0;
+	x_pos[COEFF_DIM] = pind_fB0;
 
 	md_zmul2(data->N, data->y_dims, data->y_strs, tmp_eco, data->y_strs, dst, data->TE_strs, data->TE);
-	md_zsmul(data->N, data->y_dims, tmp_eco, tmp_eco, 2.i * M_PI * data->scaling[PIND_FB0]);
+	md_zsmul(data->N, data->y_dims, tmp_eco, tmp_eco, 2.i * M_PI * data->scaling[pind_fB0]);
 
 	md_copy_block(data->N, x_pos, data->der_dims, data->der_x, data->y_dims, tmp_eco, CFL_SIZE);
 
 	md_free(tmp_exp);
+	md_free(tmp_exp_fB0);
 	md_free(tmp_eco);
 	md_free(rho);
 	md_free(R2s);
@@ -1028,6 +1079,7 @@ struct nlop_s* nlop_meco_create(const int N, const long y_dims[N], const long x_
 		[MECO_WF2R2S] = meco_fun_wf2r2s,
 		[MECO_R2S] = meco_fun_r2s,
 		[MECO_PHASEDIFF] = meco_fun_phasediff,
+		[MECO_2R2S] = meco_fun_r2s,
 	};
 
 	data->real_pd = real_pd;
