@@ -614,6 +614,10 @@ MODULES_test_moba += -lmoba -lnoir -llowrank -lwavelet -liter -lnlops -llinops -
 MODULES_test_scale += -lmoba -lnoir -llowrank -liter -lnlops -llinops -lsimu
 MODULES_test_bloch_op += -lmoba -lnoir -llowrank -lwavelet -liter -lnlops -llinops -lsimu
 
+# lib mobafit
+UTARGETS += test_mobafit
+MODULES_test_mobafit += -lmoba -liter -lnlops -llinops -lsimu
+
 # lib nlop
 UTARGETS += test_nlop
 MODULES_test_nlop += -lnlops -llinops  -liter
