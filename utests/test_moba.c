@@ -45,6 +45,8 @@
 #include "moba/meco.h"
 #include "moba/optreg.h"
 
+#include "simu/signals.h"
+
 #include "utest.h"
 
 
@@ -881,7 +883,7 @@ static bool test_nlop_meco(void)
 
 	bool curr_res = false;
 
-	for (unsigned int m = 0; m < 4; m++) {
+	for (unsigned int m = 0; m < 6; m++) {
 
 		long NCOEFF = set_num_of_coeff(m);
 
@@ -895,7 +897,8 @@ static bool test_nlop_meco(void)
 
 		md_zfill(N, x_dims, src, 1.0);
 
-		struct nlop_s* meco = nlop_meco_create(N, y_dims, x_dims, TE, m, false, MECO_IDENTITY, 1., false);
+		float scale_fB0[2] = { 0., 1. };
+		struct nlop_s* meco = nlop_meco_create(N, y_dims, x_dims, TE, m, false, FAT_SPEC_1, scale_fB0, false);
 
 		nlop_apply(meco, N, y_dims, dst, N, x_dims, src);
 		
