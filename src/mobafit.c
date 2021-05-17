@@ -1,10 +1,10 @@
-/* Copyright 2020. Uecker Lab, University Medical Center Goettingen.
+/* Copyright 2021. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  * 
  * Authors:
  * 2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
+ * 2020-2021 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
  */
 
 #include <stdbool.h>
@@ -68,6 +68,8 @@ int main_mobafit(int argc, char* argv[])
 
 	unsigned int iter = 5;
 
+	const char* init_file = NULL;
+
 	const struct opt_s opts[] = {
 
 #if 0
@@ -81,6 +83,7 @@ int main_mobafit(int argc, char* argv[])
 		OPT_UINT('m', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
 		OPT_UINT('i', &iter, "iter", "Number of IRGNM steps"),
 		OPT_VEC3('p', &patch_size, "x:y:z", "(patch size) [default: 1:1:1]"),
+		OPT_STRING('I', &init_file, "init", "File for initialization"),
 		OPT_SET('g', &use_gpu, "use gpu"),
 	};
 
@@ -108,6 +111,21 @@ int main_mobafit(int argc, char* argv[])
 
 	if (IR_LL == seq)
 		md_zfill(DIMS, x_dims, x, 1.);
+
+
+	complex float* xref = create_cfl(argv[3], DIMS, x_dims);
+
+	md_clear(DIMS, x_dims, xref, CFL_SIZE);
+
+	long init_dims[DIMS] = { [0 ... DIMS-1 ] = 1 };
+	complex float* init = (NULL != init_file) ? load_cfl(init_file, DIMS, init_dims) : NULL;
+
+	if (NULL != init) {
+
+		assert(md_check_bounds(DIMS, 0, x_dims, init_dims));
+
+		md_copy(DIMS, x_dims, xref, init, CFL_SIZE);
+	}
 
 
 	long y_patch_dims[DIMS];
@@ -158,25 +176,27 @@ int main_mobafit(int argc, char* argv[])
 	irgnm_conf.iter = iter;
 
 
-	complex float* y_patch = md_alloc(DIMS, y_patch_dims, CFL_SIZE);
-	complex float* x_patch = md_alloc(DIMS, x_patch_dims, CFL_SIZE);
-
+	complex float* y_patch    = md_alloc(DIMS, y_patch_dims, CFL_SIZE);
+	complex float* x_patch    = md_alloc(DIMS, x_patch_dims, CFL_SIZE);
+	complex float* xref_patch = md_alloc(DIMS, x_patch_dims, CFL_SIZE);
 
 	long pos[DIMS] = { 0 };
 
 	do {
 
-		md_copy_block(DIMS, pos, y_patch_dims, y_patch, y_dims, y, CFL_SIZE);
-		md_copy_block(DIMS, pos, x_patch_dims, x_patch, x_dims, x, CFL_SIZE);
+		md_copy_block(DIMS, pos, y_patch_dims,    y_patch, y_dims, y   , CFL_SIZE);
+		md_copy_block(DIMS, pos, x_patch_dims,    x_patch, x_dims, x   , CFL_SIZE);
+		md_copy_block(DIMS, pos, x_patch_dims, xref_patch, x_dims, xref, CFL_SIZE);
 
 		if (0. == md_znorm(DIMS, y_patch_dims, y_patch)) {
 
+			debug_printf(DP_WARN, "source images are zero!");
 			md_zfill(DIMS, x_patch_dims, x_patch, 0.);
 			continue;
 		}
 
 		iter4_irgnm2(CAST_UP(&irgnm_conf), nlop,
-				2 * md_calc_size(DIMS, x_patch_dims), (float*)x_patch, NULL,
+				2 * md_calc_size(DIMS, x_patch_dims), (float*)x_patch, (float*)xref_patch,
 				2 * md_calc_size(DIMS, y_patch_dims), (const float*)y_patch, lsqr,
 				(struct iter_op_s){ NULL, NULL });
 
