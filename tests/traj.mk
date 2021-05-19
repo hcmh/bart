@@ -1,24 +1,23 @@
 T_TOL=1e-5
 
 TRAJ_TURNS=/home/ague/data/traj_tests/t_turns.cfl
-O_TRAJ_TURNS="-x128 -y73 -t5 -D"
+O_TRAJ_TURNS=-x128 -y73 -t5 -D
 
 TRAJ_GA_c=/home/ague/data/traj_tests/t_GA_c.cfl
-O_TRAJ_GA_c="-x128 -y51 -r -G -c"
+O_TRAJ_GA_c=-x128 -y51 -r -G -c
 
 TRAJ_GA_H=/home/ague/data/traj_tests/t_GA_H.cfl
-O_TRAJ_GA_H="-x128 -y53 -r -H"
+O_TRAJ_GA_H=-x128 -y53 -r -H
 
 TRAJ_tiny_GA=/home/ague/data/traj_tests/t_tiny_GA.cfl
-O_TRAJ_tiny_GA="-x128 -y127 -s11 -G -t10 -D -r"
+O_TRAJ_tiny_GA=-x128 -y127 -s11 -G -t10 -D -r
 
 TRAJ_MEMS=/home/ague/data/traj_tests/t_MEMS.cfl
-O_TRAJ_MEMS="-x128 -y31 -t7 -r -s3 -D -E -e5 -c"
+O_TRAJ_MEMS=-x128 -y31 -t7 -r -s3 -D -E -e5 -c
  
 TRAJ_MEMS_ASYM=/home/ague/data/traj_tests/t_MEMS_asym.cfl
-O_TRAJ_MEMS_ASYM="-x128 -d192 -y31 -t7 -r -s3 -D -E -e5 -c"
+O_TRAJ_MEMS_ASYM=-x128 -d192 -y31 -t7 -r -s3 -D -E -e5 -c
  
-tests/test-traj_turns: traj nrmse ${TRAJ_TURNS}
 tests/test-traj_turns: traj nrmse ${TRAJ_TURNS}
 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
 	$(TOOLDIR)/traj ${O_TRAJ_TURNS} t_turns.ra					;\
