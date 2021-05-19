@@ -65,6 +65,9 @@ struct vec_ops {
 	void (*zcos)(long N, _Complex float* dst, const _Complex float* src);
 	void (*zacos)(long N, _Complex float* dst, const _Complex float* src);
 
+	void (*zsinh)(long N, _Complex float* dst, const _Complex float* src);
+	void (*zcosh)(long N, _Complex float* dst, const _Complex float* src);
+
 	void (*zcmp)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2);
 	void (*zdiv_reg)(long N, _Complex float* dst, const _Complex float* src1, const _Complex float* src2, _Complex float lambda);
 	void (*zfftmod)(long N, _Complex float* dst, const _Complex float* src, unsigned int n, _Bool inv, double phase);
@@ -89,9 +92,9 @@ struct vec_ops {
 	void (*zconvcorr_3D_CF_TK)(_Complex float* krn, const _Complex float* src, const _Complex float* out, long odims[5], long idims[5], long kdims[5], _Bool conv);
 	void (*zconvcorr_3D_CF_TI)(_Complex float* im, const _Complex float* out, const _Complex float* krn, long odims[5], long idims[5], long kdims[5], _Bool conv);
 
-	void (*pdf_gauss)(long N, float mu, float sig, float* dst, const float* src);
-
 	void (*smul_ptr)(long N, const float* alpha, float* dst, const float* src);
+
+	void (*pdf_gauss)(long N, float mu, float sig, float* dst, const float* src);
 
 	void (*real)(long N, float* dst, const _Complex float* src);
 	void (*imag)(long N, float* dst, const _Complex float* src);

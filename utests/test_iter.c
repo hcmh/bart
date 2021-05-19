@@ -103,7 +103,7 @@ static bool test_iter_irgnm_lsqr0(bool ref)
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_conjgrad, CAST_UP(&conf),
-				NULL, false, &zexp->derivative[0][0], NULL,
+				NULL, &zexp->derivative[0][0], NULL,
 				0, NULL, NULL, NULL);
 
 	iter4_irgnm2(CAST_UP(&iter3_irgnm_defaults), zexp,
@@ -160,7 +160,7 @@ static bool test_iter_irgnm_lsqr1(bool ref, bool regu)
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_admm, CAST_UP(&conf),
-				NULL, false, &zexp->derivative[0][0], NULL,
+				NULL, &zexp->derivative[0][0], NULL,
 				regu ? 1 : 0,
 				regu ? prox_ops : NULL,
 				regu ? trafos : NULL,
@@ -262,7 +262,7 @@ static bool test_iter_irgnm_l1(void)
 
 	lsqr = lsqr2_create(&lsqr_defaults,
 				iter2_fista, CAST_UP(&conf),
-				NULL, false, &nlid->derivative[0][0], NULL,
+				NULL, &nlid->derivative[0][0], NULL,
 				1, prox_ops, trafos, NULL);
 
 	struct iter3_irgnm_conf conf2 = iter3_irgnm_defaults;
@@ -293,3 +293,45 @@ static bool test_iter_irgnm_l1(void)
 
 UT_REGISTER_TEST(test_iter_irgnm_l1);
 
+
+static bool test_iter_lsqr_warmstart(void)
+{
+	enum { N = 3 };
+	long dims[N] = { 4, 2, 3 };
+
+	complex float* src = md_alloc(N, dims, CFL_SIZE);
+	complex float* dst = md_alloc(N, dims, CFL_SIZE);
+
+	md_zfill(N, dims, src, 1.66);
+	md_zfill(N, dims, dst, 0.66);
+
+	const struct linop_s* id = linop_identity_create(3, dims);
+
+	struct lsqr_conf conf = lsqr_defaults;
+	conf.warmstart = true;
+
+	struct iter_conjgrad_conf cg_conf = iter_conjgrad_defaults;
+	cg_conf.maxiter = 0;
+
+	const struct operator_p_s* lsqr = lsqr2_create(&conf,
+						iter2_conjgrad, CAST_UP(&cg_conf),
+						NULL, id, NULL,
+						0, NULL, NULL, NULL);
+
+	operator_p_apply(lsqr, 0.3, N, dims, dst, N, dims, src);
+
+	md_zfill(N, dims, src, 0.66);
+
+	double err = md_znrmse(N, dims, src, dst);
+
+	linop_free(id);
+
+	md_free(src);
+	md_free(dst);
+
+	operator_p_free(lsqr);
+
+	UT_ASSERT(err < UT_TOL);
+}
+
+UT_REGISTER_TEST(test_iter_lsqr_warmstart);

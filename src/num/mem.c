@@ -3,9 +3,9 @@
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors: 
+ * Authors:
  * 2012-2016	Martin Uecker <martin.uecker@med.uni-goettingen.de>
- * 
+ *
 */
 
 #include <stdbool.h>
@@ -45,12 +45,19 @@ struct mem_s {
 
 static struct mem_s* mem_list = NULL;
 
+//sorted list of free memory->use smallest possible mem_s for new allocation
+static struct mem_s* mem_list_free = NULL;
+
+// search can stop early if not min_ptr<=ptr<=max_ptr
+void* min_ptr = NULL;
+void* max_ptr = NULL;
+
 bool memcache_is_empty(void)
 {
 	if (!memcache)
 		return true;
 
-	return NULL == mem_list;
+	return (NULL == mem_list) && (NULL == mem_list_free);
 }
 
 long unused_memory = 0;
@@ -101,6 +108,8 @@ static bool inside_p(const struct mem_s* rptr, const void* ptr)
 static struct mem_s* search(const void* ptr, bool remove)
 {
 	struct mem_s* rptr = NULL;
+	if ((NULL == min_ptr) || (ptr < min_ptr) || (ptr > max_ptr))
+		return rptr;
 
 	#pragma omp critical
 	{
@@ -115,13 +124,18 @@ static struct mem_s* search(const void* ptr, bool remove)
 
 			if (inside_p(rptr, ptr)) {
 
-				if (remove)
-					*nptr = rptr->next;
+				*nptr = rptr->next;
 
 				break;
 			}
 
 			nptr = &(rptr->next);
+		}
+
+		if ((NULL != rptr) && (!remove)) {
+
+			rptr->next = mem_list;
+			mem_list = rptr;
 		}
 	}
 
@@ -130,14 +144,17 @@ static struct mem_s* search(const void* ptr, bool remove)
 
 static bool free_check_p(const struct mem_s* rptr, size_t size, int dev, int tid)
 {
-	return (rptr->free && (rptr->device_id == dev) && (rptr->len >= size) && (( 0 == size) || (rptr->len <= 4 * size))
-			&& ((-1 == tid) || (rptr->thread_id == tid)));
+	return (rptr->free
+		&& (rptr->device_id == dev)
+		&& (rptr->len >= size)
+		&& (( 0 == size) || (rptr->len <= 4 * size)) // small allocations shall not occupy large memory areas (turned of if requested size is 0)
+		&& ((-1 == tid) || (rptr->thread_id == tid)));
 }
 
 static struct mem_s** find_free_unsafe(size_t size, int dev, int tid)
 {
 	struct mem_s* rptr = NULL;
-	struct mem_s** nptr = &mem_list;
+	struct mem_s** nptr = &mem_list_free;
 
 	while (true) {
 
@@ -161,10 +178,15 @@ static struct mem_s* find_free(size_t size, int dev)
 
 	#pragma omp critical
 	{
-		rptr = *find_free_unsafe(size, dev, -1);
+		struct mem_s** nrptr = find_free_unsafe(size, dev, -1);
 
-		if (NULL != rptr)
+		if (NULL != *nrptr) {
+
+			rptr = *nrptr;
+			*nrptr = rptr->next;
+
 			rptr->free = false;
+		}
 	}
 
 	return rptr;
@@ -260,7 +282,7 @@ bool mem_ondevice_num(const void* ptr, const int device)
 
 bool mem_device_accessible(const void* ptr)
 {
-	struct mem_s* p = search(ptr, false);	
+	struct mem_s* p = search(ptr, false);
 	return (NULL != p);
 }
 
@@ -268,7 +290,7 @@ bool mem_device_accessible(const void* ptr)
 
 void mem_device_free(void* ptr, void (*device_free)(const void* ptr))
 {
-	struct mem_s* nptr = search(ptr, !memcache);
+	struct mem_s* nptr = search(ptr, true);
 
 	assert(NULL != nptr);
 	assert(nptr->ptr == ptr);
@@ -281,6 +303,15 @@ void mem_device_free(void* ptr, void (*device_free)(const void* ptr))
 		add_unused(nptr->len_used);
 		add_used(-nptr->len_used);
 		nptr->len_used = 0;
+
+		#pragma omp critical
+		{
+			struct mem_s** pos_ins = &mem_list_free;
+			while ((NULL != *pos_ins) && (nptr->len > (*pos_ins)->len))
+				pos_ins = &((*pos_ins)->next);
+			nptr->next = *pos_ins;
+			*pos_ins = nptr;
+		}
 
 	} else {
 
@@ -310,11 +341,21 @@ void* mem_device_malloc(int device, long size, void* (*device_alloc)(size_t))
 			add_unused(-size);
 			nptr->len_used = size;
 
+			#pragma omp critical
+			{
+				nptr->next = mem_list;
+				mem_list = nptr;
+			}
 			return (void*)(nptr->ptr);
 		}
 	}
 
 	void* ptr = device_alloc(size);
+
+	if ((NULL == min_ptr) || (ptr < min_ptr))
+		min_ptr = ptr;
+	if ((NULL == max_ptr) || (ptr + size > max_ptr))
+		max_ptr = ptr + size;
 
 	insert(ptr, size, true, device);
 

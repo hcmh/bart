@@ -36,11 +36,11 @@ extern void debug_vprintf(int level, const char* fmt, va_list ap);
 
 extern void debug_printf_trace(const char* func_name,
 			       const char* file,
-			       unsigned int line,
+			       int line,
 			       int level, const char* fmt, ...);
 extern void debug_vprintf_trace(const char* func_name,
 				const char* file,
-				unsigned int line,
+				int line,
 				int level, const char* fmt, va_list ap);
 
 

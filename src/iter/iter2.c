@@ -124,7 +124,7 @@ static bool check_ops(long size,
 
 
 
-void iter2_conjgrad(iter_conf* _conf,
+void iter2_conjgrad(const iter_conf* _conf,
 		const struct operator_s* normaleq_op,
 		unsigned int D,
 		const struct operator_p_s* prox_ops[D],
@@ -157,7 +157,7 @@ cleanup:
 }
 
 
-void iter2_ist(iter_conf* _conf,
+void iter2_ist(const iter_conf* _conf,
 		const struct operator_s* normaleq_op,
 		unsigned int D,
 		const struct operator_p_s* prox_ops[D],
@@ -201,7 +201,7 @@ cleanup:
 }
 
 
-void iter2_fista(iter_conf* _conf,
+void iter2_fista(const iter_conf* _conf,
 		const struct operator_s* normaleq_op,
 		unsigned int D,
 		const struct operator_p_s* prox_ops[D],
@@ -268,7 +268,7 @@ void iter2_fista(iter_conf* _conf,
 /* Chambolle Pock Primal Dual algorithm. Solves G(x) + F(Ax)
  * Assumes that G is in prox_ops[0], F is in prox_ops[1], A is in ops[1]
  */
-void iter2_chambolle_pock(iter_conf* _conf,
+void iter2_chambolle_pock(const iter_conf* _conf,
 		const struct operator_s* normaleq_op,
 		unsigned int D,
 		const struct operator_p_s* prox_ops[D],
@@ -315,7 +315,7 @@ void iter2_chambolle_pock(iter_conf* _conf,
 
 
 
-void iter2_admm(iter_conf* _conf,
+void iter2_admm(const iter_conf* _conf,
 		const struct operator_s* normaleq_op,
 		unsigned int D,
 		const struct operator_p_s* prox_ops[D],
@@ -328,13 +328,6 @@ void iter2_admm(iter_conf* _conf,
 	auto conf = CAST_DOWN(iter_admm_conf, _conf);
 
 	assert(check_ops(size, normaleq_op, D, prox_ops, ops));
-
-	if ( conf->use_interface_alpha ) {
-
-		conf->maxiter = MIN(conf->maxiter, 10 * powf(2, logf(1./conf->INTERFACE.alpha)));
-		conf->cg_eps = conf->cg_eps * conf->INTERFACE.alpha;
-
-	}
 
 	struct admm_plan_s admm_plan = {
 
@@ -395,11 +388,10 @@ void iter2_admm(iter_conf* _conf,
 
 cleanup:
 	;
-
 }
 
 
-void iter2_pocs(iter_conf* _conf,
+void iter2_pocs(const iter_conf* _conf,
 		const struct operator_s* normaleq_op,
 		unsigned int D,
 		const struct operator_p_s* prox_ops[D],
@@ -430,7 +422,7 @@ void iter2_pocs(iter_conf* _conf,
 }
 
 
-void iter2_niht(iter_conf* _conf,
+void iter2_niht(const iter_conf* _conf,
 		const struct operator_s* normaleq_op,
 		unsigned int D,
 		const struct operator_p_s* prox_ops[D],
@@ -478,7 +470,7 @@ cleanup:
 	;
 }
   
-void iter2_call_iter(iter_conf* _conf,
+void iter2_call_iter(const iter_conf* _conf,
 		const struct operator_s* normaleq_op,
 		unsigned int D,
 		const struct operator_p_s* prox_ops[D],

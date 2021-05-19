@@ -39,13 +39,12 @@ struct blochFun_s {
 
 	int N;
 
-	const long* dims;
+	const long* der_dims;
 	const long* map_dims;
 	const long* in_dims;
 	const long* out_dims;
-	const long* input_dims;
 
-	const long* strs;
+	const long* der_strs;
 	const long* map_strs;
 	const long* in_strs;
 	const long* out_strs;
@@ -54,8 +53,6 @@ struct blochFun_s {
 	float scale[4];
 
 	//derivatives
-	complex float* Sig;
-
 	complex float* derivatives;
 
 	complex float* input_b1;
@@ -71,6 +68,13 @@ struct blochFun_s {
 };
 
 DEF_TYPEID(blochFun_s);
+
+complex float* blochfun_get_derivatives(struct nlop_s* op)
+{
+	const nlop_data_t* _data = nlop_get_data(op);
+	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
+	return data->derivatives;
+}
 
 
 static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -159,8 +163,8 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 	if (NULL != data->input_b1) {
 
-		b1_cpu = md_alloc(data->N, data->input_dims, CFL_SIZE);
-		md_copy(data->N, data->input_dims, b1_cpu, data->input_b1, CFL_SIZE);
+		b1_cpu = md_alloc(data->N, data->map_dims, CFL_SIZE);
+		md_copy(data->N, data->map_dims, b1_cpu, data->input_b1, CFL_SIZE);
 	}
 
 
@@ -270,6 +274,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				sim_data.seq.run_num = data->fitParameter.runs;
 				sim_data.seq.inversion_pulse_length = data->fitParameter.inversion_pulse_length;
 				sim_data.seq.prep_pulse_length = data->fitParameter.prep_pulse_length;
+				sim_data.seq.look_locker_assumptions = data->fitParameter.look_locker_assumptions;
 
 				sim_data.voxel = simdata_voxel_defaults;
 				sim_data.voxel.r1 = crealf(r1scale[spa_ind]);
@@ -280,6 +285,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				sim_data.pulse = simdata_pulse_defaults;
 				sim_data.pulse.flipangle = angle * b1;
 				sim_data.pulse.rf_end = data->fitParameter.rfduration;
+				sim_data.pulse.bwtp = data->fitParameter.bwtp;
 				sim_data.grad = simdata_grad_defaults;
 				sim_data.tmp = simdata_tmp_defaults;
 
@@ -313,15 +319,8 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 				long position = 0;
 
-				for (int i = 0, j = 0; j < sim_data.seq.rep_num - rm_first_echo; j++) {
+				for (int i = 0, j = 0; j < (sim_data.seq.rep_num - rm_first_echo) / sim_data.seq.num_average_rep; j++) {
 
-					// 1.2 deg is threshold to keep 601 data points
-					// ->	see: J. Asslaender et al.
-					//		Hybrid-State Free Precession in Nuclear Magnetic Resonance
-					//		arXiv:1807.03424
-					if (NULL != data->input_fa_profile)
-						if (cabsf(var_fa_cpu[j]) <= 1.2)
-							continue;
 
 					assert(i <= data->out_dims[TE_DIM]);
 
@@ -330,10 +329,24 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 					//Scaling: dB/dRi = dB/dRis * dRis/dRi
 					//Write to possible GPU memory
-					dr1_cpu[position] = data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
-					dr2_cpu[position] = data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
-					dm0_cpu[position] = data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
-					sig_cpu[position] = data->scale[3] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
+					if (sim_data.seq.look_locker_assumptions) {
+
+						dr1_cpu[position] = data->scale[3] * data->scale[0] * sa_r1_sig[j+rm_first_echo][2];
+						dr2_cpu[position] = data->scale[3] * data->scale[2] * sa_r2_sig[j+rm_first_echo][2];
+						dm0_cpu[position] = data->scale[3] * data->scale[1] * sa_m0_sig[j+rm_first_echo][2];
+						sig_cpu[position] = data->scale[3] * mxy_sig[j+rm_first_echo][2];
+					}
+					else {
+						float a = 1.;
+
+						if (5 == sim_data.seq.seq_type && 0 != sim_data.pulse.flipangle)
+							a = 1./(sinf(sim_data.pulse.flipangle * M_PI/180.) * expf(-sim_data.voxel.r2 * sim_data.seq.te));
+
+						dr1_cpu[position] = a * data->scale[3] * data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
+						dr2_cpu[position] = a * data->scale[3] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
+						dm0_cpu[position] = a * data->scale[3] * data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
+						sig_cpu[position] = a * data->scale[3] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
+					}
 
 					i++;
 				}
@@ -357,18 +370,18 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 	// Collect data of derivatives in single arrray
 	//-------------------------------------------------------------------
 
-	md_clear(data->N, data->dims, data->derivatives, CFL_SIZE);
+	md_clear(data->N, data->der_dims, data->derivatives, CFL_SIZE);
 
 	md_set_dims(data->N, pos, 0);
 
 	pos[COEFF_DIM] = 0; // R1
-	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dr1_cpu, CFL_SIZE);
+	md_copy_block(data->N, pos, data->der_dims, data->derivatives, data->out_dims, dr1_cpu, CFL_SIZE);
 
 	pos[COEFF_DIM] = 2; // R2
-	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dr2_cpu, CFL_SIZE);
+	md_copy_block(data->N, pos, data->der_dims, data->derivatives, data->out_dims, dr2_cpu, CFL_SIZE);
 
 	pos[COEFF_DIM] = 1; // M0
-	md_copy_block(data->N, pos, data->dims, data->derivatives, data->out_dims, dm0_cpu, CFL_SIZE);
+	md_copy_block(data->N, pos, data->der_dims, data->derivatives, data->out_dims, dm0_cpu, CFL_SIZE);
 
 
 	md_free(dr1_cpu);
@@ -401,7 +414,7 @@ static void Bloch_der(const nlop_data_t* _data, unsigned int o, unsigned int i, 
 
 	md_clear(data->N, data->out_dims, dst, CFL_SIZE);
 
-	md_ztenmul(data->N, data->out_dims, dst, data->dims, data->derivatives, data->in_dims, src);
+	md_ztenmul(data->N, data->out_dims, dst, data->der_dims, data->derivatives, data->in_dims, src);
 
 	// PRINT_TIMER("BLOCH: Time of Derivative\n");
 }
@@ -419,7 +432,7 @@ static void Bloch_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, 
 
 	md_clear(data->N, data->in_dims, dst, CFL_SIZE);
 
-	md_zfmacc2(data->N, data->dims, data->in_strs, dst, data->out_strs, src, data->strs, data->derivatives);
+	md_zfmacc2(data->N, data->der_dims, data->in_strs, dst, data->out_strs, src, data->der_strs, data->derivatives);
 
 	// PRINT_TIMER("BLOCH: Time of Adjoint\n");
 }
@@ -429,21 +442,18 @@ static void Bloch_del(const nlop_data_t* _data)
 {
 	struct blochFun_s* data = CAST_DOWN(blochFun_s, _data);
 
-	md_free(data->Sig);
-
 	md_free(data->derivatives);
 
 	md_free(data->input_b1);
 	md_free(data->input_sliceprofile);
 	md_free(data->input_fa_profile);
 
-	xfree(data->dims);
+	xfree(data->der_dims);
 	xfree(data->map_dims);
 	xfree(data->in_dims);
 	xfree(data->out_dims);
-	xfree(data->input_dims);
 
-	xfree(data->strs);
+	xfree(data->der_strs);
 	xfree(data->map_strs);
 	xfree(data->in_strs);
 	xfree(data->out_strs);
@@ -453,7 +463,7 @@ static void Bloch_del(const nlop_data_t* _data)
 }
 
 
-struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[N], const long out_dims[N], const long in_dims[N], const long input_dims[N], const struct modBlochFit* fit_para, bool use_gpu)
+struct nlop_s* nlop_Bloch_create(int N, const long der_dims[N], const long map_dims[N], const long out_dims[N], const long in_dims[N], const struct modBlochFit* fit_para, bool use_gpu)
 {
 #ifdef USE_CUDA
 	md_alloc_fun_t my_alloc = use_gpu ? md_alloc_gpu : md_alloc;
@@ -465,13 +475,13 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	PTR_ALLOC(struct blochFun_s, data);
 	SET_TYPEID(blochFun_s, data);
 
-	PTR_ALLOC(long[N], alldims);
-	md_copy_dims(N, *alldims, dims);
-	data->dims = *PTR_PASS(alldims);
+	PTR_ALLOC(long[N], derdims);
+	md_copy_dims(N, *derdims, der_dims);
+	data->der_dims = *PTR_PASS(derdims);
 
 	PTR_ALLOC(long[N], allstr);
-	md_calc_strides(N, *allstr, dims, CFL_SIZE);
-	data->strs = *PTR_PASS(allstr);
+	md_calc_strides(N, *allstr, der_dims, CFL_SIZE);
+	data->der_strs = *PTR_PASS(allstr);
 
 	PTR_ALLOC(long[N], ndims);
 	md_copy_dims(N, *ndims, map_dims);
@@ -504,28 +514,17 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	data->scale[2] = fit_para->scale[2];	// dR2 scaling
 	data->scale[3] = fit_para->scale[3];	// signal scaling
 
-	data->Sig = my_alloc(N, out_dims, CFL_SIZE);
-
-	data->derivatives = my_alloc(N, dims, CFL_SIZE);
+	data->derivatives = my_alloc(N, der_dims, CFL_SIZE);
 
 
 	if (NULL != fit_para->input_b1) {
 
-		PTR_ALLOC(long[N], nindims);
-		md_copy_dims(N, *nindims, input_dims);
-		data->input_dims = *PTR_PASS(nindims);
-
-		PTR_ALLOC(long[N], ninstr);
-		md_calc_strides(N, *ninstr, input_dims, CFL_SIZE);
-		data->input_strs = *PTR_PASS(ninstr);
-
-		data->input_b1 = my_alloc(N, input_dims, CFL_SIZE);
-		md_copy(N, input_dims, data->input_b1, fit_para->input_b1, CFL_SIZE);
+		data->input_b1 = my_alloc(N, data->map_dims, CFL_SIZE);
+		md_copy(N, data->map_dims, data->input_b1, fit_para->input_b1, CFL_SIZE);
 	}
 	else {
 
 		data->input_b1 = NULL;
-		data->input_dims = NULL;
 		data->input_strs = NULL;
 	}
 
@@ -536,7 +535,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 		md_set_dims(DIMS, sliceprofile_dims, 1);
 		sliceprofile_dims[READ_DIM] = fit_para->sliceprofile_spins;
 
-		data->input_sliceprofile = my_alloc(N, sliceprofile_dims, CFL_SIZE);
+		data->input_sliceprofile = md_alloc(N, sliceprofile_dims, CFL_SIZE);	// Works just on CPU yet
 
 		md_copy(N, sliceprofile_dims, data->input_sliceprofile, fit_para->input_sliceprofile, CFL_SIZE);
 	}
@@ -562,6 +561,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	//Set fitting parameter
 	data->fitParameter.sequence = fit_para->sequence;
 	data->fitParameter.rfduration = fit_para->rfduration;
+	data->fitParameter.bwtp = fit_para->bwtp;
 	data->fitParameter.tr = fit_para->tr;
 	data->fitParameter.te = fit_para->te;
 	data->fitParameter.fa = fit_para->fa;
@@ -578,6 +578,7 @@ struct nlop_s* nlop_Bloch_create(int N, const long dims[N], const long map_dims[
 	data->fitParameter.full_ode_sim = fit_para->full_ode_sim;
 	data->fitParameter.inversion_pulse_length = fit_para->inversion_pulse_length;
 	data->fitParameter.prep_pulse_length = fit_para->prep_pulse_length;
+	data->fitParameter.look_locker_assumptions = fit_para->look_locker_assumptions;
 	data->use_gpu = use_gpu;
 
 	data->counter = 0;

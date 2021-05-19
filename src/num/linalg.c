@@ -141,35 +141,32 @@ bool (mat_inverse)(unsigned int N, complex float out[N][N], const complex float 
 #else
 	// ATTENTION: slow and inaccurate
 
-	complex float* tmp = malloc(sizeof(complex float) * (2 * N) * N);
-	mat_transpose(N, N, (complex float (*)[N])tmp, in);
-	mat_identity(N, N, (complex float (*)[N])tmp + N);
+	complex float tmp[2 * N][N];
+	mat_transpose(N, N, tmp, in);
+	mat_identity(N, N, tmp + N);
 
-	complex float* tmp2 = malloc(sizeof(complex float) * N * (2 * N));
-	mat_transpose(2 * N, N, (complex float (*)[N])tmp2, (complex float (*)[2 * N])tmp);
+	complex float tmp2[N][2 * N];
+	mat_transpose(2 * N, N, tmp2, tmp);
 
 	for (unsigned int i = 0; i < N; i++) {
 
-		complex float diag = tmp2[2 * N * i + i];
+		complex float diag = tmp2[i][i];
 
 		if (0. == diag)
 			return false;
 
 		for (unsigned int j = 0; j < 2 * N; j++)
-			tmp2[2 * N * i + j] /= diag;
+			tmp2[i][j] /= diag;
 
 		for (unsigned int j = 0; j < N; j++) {
 
 			if (i != j)
-				vec_saxpy(2 * N, &tmp2[2 * N * j], -tmp2[2 * N * j + i], &tmp2[2 * N * i]);
+				vec_saxpy(2 * N, tmp2[j], -tmp2[j][i], tmp2[i]);
 		}
 	}
 
-	mat_transpose(N, 2 * N, (complex float (*)[N])tmp, (complex float (*)[N])tmp2);
-	mat_transpose(N, N, out, (complex float (*)[N])tmp + N);
-
-	free(tmp);
-	free(tmp2);
+	mat_transpose(N, 2 * N, tmp, tmp2);
+	mat_transpose(N, N, out, tmp + N);
 
 	return true;
 #endif

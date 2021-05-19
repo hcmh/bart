@@ -9,8 +9,8 @@
 
 #include "misc/cppwrap.h"
 
-enum IN_TYPE {IN_STATIC, IN_BATCH, IN_OPTIMIZE, IN_BATCH_GENERATOR, IN_BATCHNORM};
-enum OUT_TYPE {OUT_STATIC, OUT_OPTIMIZE, OUT_BATCHNORM};
+enum IN_TYPE {IN_UNDEFINED, IN_STATIC, IN_BATCH, IN_OPTIMIZE, IN_BATCH_GENERATOR, IN_BATCHNORM};
+enum OUT_TYPE {OUT_UNDEFINED, OUT_STATIC, OUT_OPTIMIZE, OUT_BATCHNORM};
 #ifndef NUM_INTERNAL
 // #warning "Use of private interfaces"
 #endif
@@ -90,6 +90,7 @@ inline void iter_op_arr_call(struct iter_op_arr_s op, int NO, unsigned long ofla
 
 struct iter_monitor_s;
 struct monitor_iter6_s;
+
 float conjgrad(unsigned int maxiter, float l2lambda, float epsilon,
 	long N,
 	const struct vec_iter_s* vops,
@@ -228,7 +229,7 @@ void iPALM(	long NI, long isize[__VLA(NI)], enum IN_TYPE in_type[__VLA(NI)], flo
 		long NO, long osize[__VLA(NO)], enum OUT_TYPE out_type[__VLA(NO)],
 		int numbatches, int epoch_start, int epoch_end,
 		const struct vec_iter_s* vops,
-		float alpha[__VLA(NI)], float beta[__VLA(NI)], _Bool convex[__VLA(NI)], _Bool trivial_stepsize,
+		float alpha[__VLA(NI)], float beta[__VLA(NI)], _Bool convex[__VLA(NI)], _Bool trivial_stepsize, _Bool reduce_momentum,
 		float L[__VLA(NI)], float Lmin, float Lmax, float Lshrink, float Lincrease,
 		struct iter_nlop_s nlop,
 		struct iter_op_arr_s adj,
@@ -239,3 +240,4 @@ void iPALM(	long NI, long isize[__VLA(NI)], enum IN_TYPE in_type[__VLA(NI)], flo
 #include "misc/cppwrap.h"
 
 #endif // __ITALGOS_H
+

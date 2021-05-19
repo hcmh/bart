@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <complex.h>
 
+#include "nn/weights.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/init.h"
@@ -19,7 +20,7 @@
 #include "misc/mmio.h"
 #include "misc/misc.h"
 
-#include "nn/mnist.h"
+#include "networks/mnist.h"
 
 #ifndef DIMS
 #define DIMS 16
@@ -60,88 +61,58 @@ int main_mnist(int argc, char* argv[])
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
 
-	long dims_weights[] = {nn_mnist_get_num_weights()};
-
-	complex float* weights;
 	complex float* in;
 	complex float* out;
 
-	if (initialize){
+	nn_weights_t weights;
 
-		printf("Init weights\n");
-		weights = create_cfl(argv[2], 1, dims_weights);
-		init_nn_mnist(weights);
-		unmap_cfl(1, dims_weights, weights);
+	if (initialize)
+		weights = init_nn_mnist();
+	else
+		weights = load_nn_weights(argv[2]);
+
+	#ifdef USE_CUDA
+	if (use_gpu) {
+		num_init_gpu();
+		move_gpu_nn_weights(weights);
 	}
-
-	weights = load_shared_cfl(argv[2], 1, dims_weights);
-	if (dims_weights[0] != nn_mnist_get_num_weights())
-		error("Dimensions of weights do not fit to the network!\n");
+	else
+#endif
+	num_init();		
 
 	long dims_in[3];
 	long dims_out[2];
-
 	in = load_cfl(argv[1], 3, dims_in);
 	out = load_cfl(argv[3], 2, dims_out);
-
 	assert(dims_in[2] == dims_out[1]);
 
 	if (N_batch == 0)
-		N_batch = 128;
-
-	complex float* in_gpu  = NULL;
-	complex float* weights_gpu = NULL;
-	complex float* out_gpu = NULL;
-
-#ifdef  USE_CUDA
-	if (use_gpu) {
-
-		num_init_gpu();
-
-		in_gpu = md_alloc_gpu(3, dims_in, CFL_SIZE);
-		md_copy(3, dims_in, in_gpu, in, CFL_SIZE);
-
-		weights_gpu = md_alloc_gpu(1, dims_weights, CFL_SIZE);
-		md_copy(1, dims_weights, weights_gpu, weights, CFL_SIZE);
-
-		out_gpu = md_alloc_gpu(2, dims_out, CFL_SIZE);
-		md_copy(2, dims_out, out_gpu, out, CFL_SIZE);
-	} else
-#else
-	if(use_gpu)
-		error("Compiled without gpu support!\n");
-	else
-#endif
-	num_init();
-
+		N_batch = MIN(128, dims_in[2]);
 
 
 	if (train){
 		printf("Train\n");
-		train_nn_mnist(N_batch, dims_in[2], (NULL == weights_gpu) ? weights : weights_gpu, (NULL == in_gpu) ? in : in_gpu, (NULL == out_gpu) ? out : out_gpu, epochs);
-		if (use_gpu)
-			md_copy(1, dims_weights, weights, weights_gpu, CFL_SIZE);
+		train_nn_mnist(N_batch, dims_in[2], weights, in, out, epochs);
+		dump_nn_weights(argv[2], weights);
 	}
 
-
-	long prediction[N_batch];
 	if (predict){
+
+		complex float prediction[N_batch];
 
 		printf("Predict first %ld numbers:\n", N_batch);
 		predict_nn_mnist(N_batch, N_batch, prediction, weights, in);
-		print_long(N_batch, prediction);
+		print_complex(N_batch, prediction);
 	}
 
 	if (accuracy)
-		printf("Accuracy = %f\n", accuracy_nn_mnist(dims_in[2], N_batch,  (NULL == weights_gpu) ? weights : weights_gpu, (NULL == in_gpu) ? in : in_gpu, out));
+		printf("Accuracy = %f\n", accuracy_nn_mnist(dims_in[2], N_batch, weights, in, out));
 
-	md_free(out_gpu);
-	md_free(in_gpu);
-	md_free(weights_gpu);
+
+	nn_weights_free(weights);
 
 	unmap_cfl(2, dims_out, out);
 	unmap_cfl(3, dims_in, in);
-	unmap_cfl(1, dims_weights, weights);
 
 	exit(0);
 }

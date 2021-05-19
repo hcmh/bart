@@ -12,10 +12,18 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "nlops/nlop.h"
+
 #include "num/multind.h"
 #include "num/loop.h"
 #include "num/flpmath.h"
+#include "num/rand.h"
+#include "num/gpuops.h"
 
+#include "iter/italgos.h"
+#include "iter/vec.h"
+
+#include "misc/types.h"
 #include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/debug.h"
@@ -28,7 +36,219 @@
 #include "recon_Bloch.h"
 #include "model_Bloch.h"
 
+#include "blochfun.h"
+
 #include "scale.h"
+
+struct op_test_s {
+
+	INTERFACE(iter_op_data);
+
+	const struct nlop_s* nlop;
+
+	const long* in_dims;
+
+	complex float* tmp;
+	complex float* tmp2;
+
+	complex float* projection;
+};
+
+DEF_TYPEID(op_test_s);
+
+// Apply normal operator
+static void normal(iter_op_data* _data, float* dst, const float* src)
+{
+	auto data = CAST_DOWN(op_test_s, _data);
+
+	// Apply normal operator
+
+	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), data->tmp, (const complex float*)src);
+
+	// Perform ortogonal projection onto desired parameter
+
+	md_clear(DIMS, data->in_dims, data->tmp2, CFL_SIZE);
+	md_zfmac(DIMS, data->in_dims, data->tmp2, data->projection, data->tmp);
+
+	// Copy to output
+
+	md_copy(DIMS, data->in_dims, (complex float*) dst, data->tmp2, CFL_SIZE);
+}
+
+
+void nlop_get_partial_ev(struct nlop_s* op, const long dims[DIMS], complex float* ev, complex float* maps)
+{
+
+	debug_printf(DP_INFO, "\n# Calculate Eigenvalues from Normal Operator\n");
+
+	// Extract dimensions
+
+	long map_dims[DIMS];
+	long out_dims[DIMS];
+	long in_dims[DIMS];
+
+	md_select_dims(DIMS, FFT_FLAGS, map_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|TE_FLAG, out_dims, dims);
+	md_select_dims(DIMS, FFT_FLAGS|COEFF_FLAG, in_dims, dims);
+
+	// Allocate storage for...
+
+	// ...randomly initialized parameter maps for power method
+	complex float* para = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_gaussian_rand(DIMS, in_dims, para);
+
+	// ...forward operator output
+	complex float* time_evolution = md_alloc_sameplace(DIMS, out_dims, CFL_SIZE, maps);
+
+	// ...ones initialization for projection
+	complex float* ones = md_alloc_sameplace(DIMS, map_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, map_dims, ones, 1.);
+
+	struct op_test_s op_data = {{ &TYPEID(op_test_s) }, op, in_dims, NULL, NULL, NULL};
+
+	// ...the projection itself
+	op_data.projection = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, in_dims, op_data.projection, 0.);
+
+	//...some temporary files
+	op_data.tmp = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, in_dims, op_data.tmp, 0.);
+
+	//...some temporary files
+	op_data.tmp2 = md_alloc_sameplace(DIMS, in_dims, CFL_SIZE, maps);
+	md_zfill(DIMS, in_dims, op_data.tmp2, 0.);
+
+
+	// Run forward operator
+
+	nlop_apply(op, DIMS, out_dims, time_evolution, DIMS, in_dims, maps);
+
+
+	// Prepare looping through coefficient dimension
+
+	long N = md_calc_size(DIMS, in_dims);
+
+	void* x = md_alloc_sameplace(1, MD_DIMS(N), CFL_SIZE, maps);
+
+	long pos[DIMS];
+	md_set_dims(DIMS, pos, 0);
+
+	double maxeigen = 0.;
+
+	// Maximum eigenvalue for R1
+	for (int i = 0; i < in_dims[COEFF_DIM]; i++) {
+
+		pos[COEFF_DIM] = i;
+
+		// Create desired orthogonal projection
+		md_zfill(DIMS, in_dims, op_data.projection, 0.);
+		md_copy_block(DIMS, pos, in_dims, op_data.projection, map_dims, ones, CFL_SIZE);
+
+		// Copy randomly initialized parameter to float
+		md_copy(DIMS, in_dims, x, para, CFL_SIZE);
+
+		// Estimate eigenvalue
+		maxeigen = power(20, 2*N, select_vecops(x),
+						(struct iter_op_s){ normal, CAST_UP(&op_data) }, (float*)x);
+
+		debug_printf(DP_DEBUG2, "## max. eigenvalue Component %d: = %f\n", i, maxeigen);
+
+		ev[i] = maxeigen + 0*I;
+	}
+
+	md_free(x);
+	md_free(para);
+	md_free(ones);
+	md_free(time_evolution);
+	md_free(op_data.tmp);
+	md_free(op_data.tmp2);
+	md_free(op_data.projection);
+}
+
+void nlop_get_partial_scaling(struct nlop_s* op, const long dims[DIMS], complex float* scaling, complex float* maps, int ref)
+{
+	assert(ref < dims[COEFF_DIM]);
+
+	complex float* ev = md_alloc(1, MD_DIMS(dims[COEFF_DIM]), CFL_SIZE);
+
+	nlop_get_partial_ev(op, dims, ev, maps);
+
+	for (int i = 0; i < dims[COEFF_DIM]; i++)
+		scaling[i] = (ref == i) ? 1. : ev[ref] / ev[i];
+
+	md_free(ev);
+}
+
+// takes FA map (iptr) in degree!
+void fa_to_alpha(unsigned int D, const long dims[D], void* optr, const void* iptr, float tr)
+{
+
+#ifdef  USE_CUDA
+	assert(cuda_ondevice(optr) == cuda_ondevice(iptr));
+#endif
+
+	complex float* tmp = md_alloc_sameplace(D, dims, CFL_SIZE, iptr);
+
+	md_zsmul(D, dims, tmp, iptr, M_PI/180.);
+	md_zcos(D, dims, tmp, tmp);
+	md_zlog(D, dims, tmp, tmp);
+
+	md_zsmul(D, dims, optr, tmp, -1./tr);
+
+	md_free(tmp);
+}
+
+// get TR from inversion time
+float get_tr_from_inversion(unsigned int D, const long dims[D], complex float* iptr, int spokes)
+{
+	// Find non trivial dimension
+	unsigned int nt_dim = 0;
+	unsigned int num = 0;
+
+	for (unsigned int i = 0; i < DIMS; i++) {
+
+		if (1 < dims[i]) {
+			nt_dim = i;
+			num++;
+		}
+	}
+	// Otherwise either to few or too many dimensions
+	// Only supports 1 D arrays atm
+	assert(num == 1);
+
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	long pos[D];
+	md_set_dims(D, pos, 0);
+
+	// find minimum difference between timesteps
+	float min_time = 100.;
+	long ind = 0;
+	long prev_ind = 0;
+
+	float diff = 0;
+
+	for (unsigned int i = 0; i < dims[nt_dim]; i++) {
+
+		pos[nt_dim] = i;
+
+		prev_ind = ind;
+		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+		if (0 == i)
+			continue;
+
+		diff = cabsf(iptr[ind]-iptr[prev_ind]);
+
+		min_time = (min_time > diff) ? diff : min_time;
+	}
+
+	debug_printf(DP_DEBUG2, "Min Timeinterval => TR = %f\n", min_time);
+
+	return min_time / (float) spokes;// Estimate true TR (independent from spoke averaging)
+}
+
 
 // Automatically estimate partial derivative scaling
 // Idea:
@@ -52,6 +272,9 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[4], const long k
 
 	float lim_T1[2] = {0.3, 4.};
 	float lim_T2[2] = {0.01, 1.5};
+
+	if (4 == fit_para->sequence)
+		assert(fit_para->num_vfa >= dims[TE_DIM] * fit_para->averaged_spokes);
 	
 	#pragma omp parallel for collapse(2)
 	for (int x = 0; x < dims[0]; x++) {
@@ -64,11 +287,8 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[4], const long k
 			sim_data.seq.seq_type = fit_para->sequence;
 			sim_data.seq.tr = fit_para->tr;
 			sim_data.seq.te = fit_para->te;
-			
-			if (4 == sim_data.seq.seq_type)
-				sim_data.seq.rep_num = fit_para->num_vfa;
-			else
-				sim_data.seq.rep_num = dims[TE_DIM];
+
+			sim_data.seq.rep_num = dims[TE_DIM] * fit_para->averaged_spokes;
 			
 			sim_data.seq.spin_num = 1;
 			sim_data.seq.num_average_rep = fit_para->averaged_spokes;

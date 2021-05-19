@@ -25,12 +25,10 @@
 #include "linops/someops.h"
 
 #include "misc/debug.h"
-#include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/opts.h"
 #include "misc/utils.h"
 
-#include "num/flpmath.h"
 #include "num/multind.h"
 #include "num/iovec.h"
 #include "num/ops_p.h"
@@ -39,11 +37,18 @@
 #include "wavelet/wavthresh.h"
 #include "lowrank/lrthresh.h"
 
-#include "meco.h"
+#include "moba/meco.h"
+
 #include "optreg.h"
 
+struct optreg_conf optreg_defaults = {
 
-static const struct operator_p_s* create_wav_prox(const long img_dims[DIMS], unsigned int jt_flag, float lambda)
+	.moba_model = MECO_WFR2S,
+	.weight_fB0_type = MECO_SOBOLEV,
+};
+
+
+static const struct operator_p_s* create_wav_prox(const long img_dims[DIMS], unsigned int x_flags, unsigned int jt_flag, float lambda)
 {
 	bool randshift = true;
 	long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
@@ -51,7 +56,7 @@ static const struct operator_p_s* create_wav_prox(const long img_dims[DIMS], uns
 
 	for (unsigned int i = 0; i < DIMS; i++) {
 
-		if ((1 < img_dims[i]) && MD_IS_SET(FFT_FLAGS, i)) {
+		if ((1 < img_dims[i]) && MD_IS_SET(x_flags, i)) {
 
 			wflags = MD_SET(wflags, i);
 			minsize[i] = MIN(img_dims[i], DIMS);
@@ -61,44 +66,107 @@ static const struct operator_p_s* create_wav_prox(const long img_dims[DIMS], uns
 	return prox_wavelet_thresh_create(DIMS, img_dims, wflags, jt_flag, minsize, lambda, randshift);
 }
 
-static const struct operator_p_s* create_llr_prox(const long img_dims[DIMS], unsigned int jt_flag, float lambda)
+
+static const struct operator_p_s* ops_p_stack_higher_dims(unsigned int N, const long maps_dims[N], unsigned int coeff_dim, long higher_flag, const struct operator_p_s* src)
 {
-	bool randshift = true;
-	long blk_dims[MAX_LEV][DIMS];
-	int blk_size = 16;
+	const struct operator_p_s* tmp = operator_p_ref(src);
+	const struct operator_p_s* dst = operator_p_ref(src);
 
-	int levels = llr_blkdims(blk_dims, ~jt_flag, img_dims, blk_size);
-	UNUSED(levels);
+	for (long d = coeff_dim+1; d < N; d++) {
 
-	return lrthresh_create(img_dims, randshift, ~jt_flag, (const long (*)[])blk_dims, lambda, false, false, false);
+		if (MD_IS_SET(higher_flag, d)) {
+
+			for (long p = 1; p < maps_dims[d]; p++)
+				dst = operator_p_stack(d, d, dst, tmp);
+			
+			tmp = operator_p_ref(dst);
+		}
+	}
+
+	operator_p_free(tmp);
+
+	return dst;
 }
 
-const struct operator_p_s* create_moba_nonneg_prox(unsigned int N, const long maps_dims[N], unsigned int coeff_dim, unsigned int coeff_flag, float lambda)
+static const struct operator_p_s* moba_joint_wavthresh_prox_create(unsigned int N, const long maps_dims[N], long coeff_dim, long x_flags, long jflag, float lambda, long nr_joint_maps)
 {
+	// higher dimensions
+	long higher_flag = 0;
+	for (long d = coeff_dim+1; d < N; d++) {
+
+		if (1 < maps_dims[d])
+			higher_flag = MD_SET(higher_flag, d);
+	}
+
+	long maps_j_dims[N];
+	md_select_dims(N, ~(MD_BIT(coeff_dim)|higher_flag), maps_j_dims, maps_dims);
+	maps_j_dims[coeff_dim] = nr_joint_maps;
+
+	auto prox_j = create_wav_prox(maps_j_dims, x_flags, jflag, lambda);
+
+	if (nr_joint_maps < maps_dims[coeff_dim]) {
+
+		long maps_z_dims[N];
+		md_select_dims(N, ~(MD_BIT(coeff_dim)|higher_flag), maps_z_dims, maps_dims);
+		maps_z_dims[coeff_dim] = maps_dims[coeff_dim] - nr_joint_maps;
+
+		auto prox_z = prox_zero_create(N, maps_z_dims);
+
+		prox_j = operator_p_stack(coeff_dim, coeff_dim, prox_j, prox_z);
+
+		operator_p_free(prox_z);
+
+	}
+
+	// stack higher dimensions
+	auto prox_s = ops_p_stack_higher_dims(N, maps_dims, coeff_dim, higher_flag, prox_j);
+
+	operator_p_free(prox_j);
+
+	return prox_s;
+}
+
+
+const struct operator_p_s* moba_nonneg_prox_create(unsigned int N, const long maps_dims[N], unsigned int coeff_dim, long nonneg_flag, float lambda)
+{
+	// higher dimensions
+	long higher_flag = 0;
+	for (long d = coeff_dim+1; d < N; d++) {
+
+		if (1 < maps_dims[d])
+			higher_flag = MD_SET(higher_flag, d);
+	}
+
 	// single map dimensions
 	long map_dims[N];
-	md_select_dims(N, ~MD_BIT(coeff_dim), map_dims, maps_dims);
+	md_select_dims(N, ~(MD_BIT(coeff_dim)|higher_flag), map_dims, maps_dims);
 
 	const struct operator_p_s* p1 = prox_zsmax_create(N, map_dims, lambda);
 	const struct operator_p_s* p2 = prox_zero_create(N, map_dims);
 	const struct operator_p_s* p3 = NULL;
 
-	const struct operator_p_s* p_dst = NULL;
+	const struct operator_p_s* prox_j = NULL;
 
 	for (long m = 0; m < maps_dims[coeff_dim]; m++) {
 
-		p3 = MD_IS_SET(coeff_flag, m) ? p1 : p2;
-		p_dst = (NULL == p_dst) ? p3 : operator_p_stack(coeff_dim, coeff_dim, p_dst, p3);
+		p3 = MD_IS_SET(nonneg_flag, m) ? p1 : p2;
+		prox_j = (NULL == prox_j) ? p3 : operator_p_stack(coeff_dim, coeff_dim, prox_j, p3);
 	}
 
 	operator_p_free(p1);
 	operator_p_free(p2);
 	operator_p_free(p3);
 
-	return p_dst;
+	// stack higher dimensions
+	auto prox_s = ops_p_stack_higher_dims(N, maps_dims, coeff_dim, higher_flag, prox_j);
+
+	operator_p_free(prox_j);
+
+	return prox_s;
 }
 
-static const struct operator_p_s* create_moba_sens_prox(unsigned int N, const long sens_dims[N])
+
+static const struct operator_p_s* moba_sens_prox_create(unsigned int N, const long sens_dims[N])
 {
 	const struct operator_p_s* p = prox_zero_create(N, sens_dims);
 	return p;
@@ -126,64 +194,6 @@ static const struct operator_p_s* stack_flatten_prox(const struct operator_p_s* 
 	return prox3;
 }
 
-static const struct operator_p_s* create_stack_spatial_thresh_prox(unsigned int N, const long x_dims[N], long js_dim, unsigned int regu, float lambda, unsigned int model)
-{
-	assert(MECO_PI != model);
-
-	unsigned int wgh_fB0 = (MECO_PHASEDIFF == model) ? MECO_IDENTITY : MECO_SOBOLEV; // FIXME: this is hard-coded
-
-	long nr_coeff = set_num_of_coeff(model);
-	long D = x_dims[js_dim];
-
-	long x_prox1_dims[N];
-	md_copy_dims(N, x_prox1_dims, x_dims);
-	x_prox1_dims[js_dim] = nr_coeff - 1; // exclude fB0
-
-	long x_prox3_dims[N];
-	md_copy_dims(N, x_prox3_dims, x_dims);
-	x_prox3_dims[js_dim] = 1; // fB0
-
-	long x_prox4_dims[N];
-	md_copy_dims(N, x_prox4_dims, x_dims);
-	x_prox4_dims[js_dim] = D - nr_coeff;
-
-	debug_printf(DP_DEBUG4, " >> x_prox1_dims: ");
-	debug_print_dims(DP_DEBUG4, N, x_prox1_dims);
-
-	debug_printf(DP_DEBUG4, " >> x_prox3_dims: ");
-	debug_print_dims(DP_DEBUG4, N, x_prox3_dims);
-
-	const struct operator_p_s* pcurr = NULL;
-
-	auto prox1 = ((L1WAV==regu) ? create_wav_prox : create_llr_prox)(x_prox1_dims, MD_BIT(js_dim), lambda);
-
-	auto prox3 = prox_zero_create(N, x_prox3_dims);
-
-	if (MECO_IDENTITY == wgh_fB0) {
-		prox3 = ((L1WAV==regu) ? create_wav_prox : create_llr_prox)(x_prox3_dims, MD_BIT(js_dim), lambda);
-	}
-
-	auto prox4 = prox_zero_create(N, x_prox4_dims);
-#if 0
-	audo prox2 = op_p_auto_normalize(prox1, ~MD_BIT(js_dim));
-	pcurr = operator_p_stack(js_dim, js_dim, prox2, prox3);
-
-	operator_p_free(prox2);
-	operator_p_free(prox3);
-#else
-	pcurr = operator_p_stack(js_dim, js_dim, prox1, prox3);
-
-	operator_p_free(prox1);
-	operator_p_free(prox3);
-#endif
-
-	pcurr = operator_p_stack(js_dim, js_dim, pcurr, prox4);
-
-	operator_p_free(prox4);
-
-	return pcurr;
-}
-
 
 void help_reg_moba(void)
 {
@@ -193,12 +203,10 @@ void help_reg_moba(void)
 			"\t\tB is joint threshold flags,\n"
 			"\t\tC is regularization value.\n"
 			"\t\tSpecify any number of regularization terms.\n\n"
-			"-R W:0:0:C\tl1-wavelet (A and B are internally determined by moba models)\n"
-			"-R L:0:0:C\tlocally low rank (A and B are internally determined by moba models)\n"
+			"-R W:A:B:C\tl1-wavelet\n"
 			"-R Q:C\tl2 regularization\n"
 			"-R S:C\tnon-negative constraint\n"
-			"-R T:A:B:C\ttotal variation\n"
-		  );
+			"-R T:A:B:C\ttotal variation\n");
 }
 
 bool opt_reg_moba(void* ptr, char c, const char* optarg)
@@ -228,13 +236,6 @@ bool opt_reg_moba(void* ptr, char c, const char* optarg)
 			assert(3 == ret);
 
 		} else 
-		if (strcmp(rt, "L") == 0) {
-
-			regs[r].xform = LLR;
-			int ret = sscanf(optarg, "%*[^:]:%d:%d:%f", &regs[r].xflags, &regs[r].jflags, &regs[r].lambda);
-			assert(3 == ret);
-
-		} else 
 		if (strcmp(rt, "Q") == 0) {
 
 			regs[r].xform = L2IMG;
@@ -247,6 +248,10 @@ bool opt_reg_moba(void* ptr, char c, const char* optarg)
 		if (strcmp(rt, "S") == 0) {
 
 			regs[r].xform = POS;
+			int ret = sscanf(optarg, "%*[^:]:%f", &regs[r].lambda);
+			assert(1 == ret);
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
 
 		} else 
 		if (strcmp(rt, "T") == 0) {
@@ -268,21 +273,21 @@ bool opt_reg_moba(void* ptr, char c, const char* optarg)
 
 		p->r++;
 		break;
-
 	}
 
 	return false;
 }
 
 
-static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int model)
+
+static void opt_reg_IRLL_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], struct optreg_conf* optreg_conf)
 {
-	UNUSED(model);
+	UNUSED(optreg_conf);
 
 	float lambda = ropts->lambda;
+#if 0
 	unsigned int shift_model = 1;
 	bool randshift = shift_model == 1;
-#if 0
 	bool overlapping_blocks = shift_mode == 2;
 #endif
 
@@ -298,7 +303,7 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 
 	long coil_dims[DIMS];
 	md_copy_dims(DIMS, coil_dims, x_dims);
-	coil_dims[COEFF_DIM] = x_dims[COIL_DIM];
+	coil_dims[COEFF_DIM] = dims[COIL_DIM];
 
 	long map_dims[DIMS];
 	md_copy_dims(DIMS, map_dims, img_dims);
@@ -307,6 +312,13 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 	long map2_dims[DIMS];
 	md_copy_dims(DIMS, map2_dims, img_dims);
 	map2_dims[COEFF_DIM] = map2_dims[COEFF_DIM] - 1L;
+
+	// print out all the dims
+	debug_print_dims(DP_INFO, DIMS, img_dims);
+	debug_print_dims(DP_INFO, DIMS, coil_dims);
+	debug_print_dims(DP_INFO, DIMS, x_dims);
+	debug_print_dims(DP_INFO, DIMS, map_dims);
+	debug_print_dims(DP_INFO, DIMS, map2_dims);
 
 	// if no penalities specified but regularization
 	// parameter is given, add a l2 penalty
@@ -343,34 +355,11 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 			regs[nr].lambda = lambda;
 			debug_printf(DP_INFO, "l1-wavelet regularization: %f\n", regs[nr].lambda);
 
-			randshift = true;
-			long minsize[DIMS] = { [0 ... DIMS - 1] = 1 };
-			minsize[0] = MIN(img_dims[0], 16);
-			minsize[1] = MIN(img_dims[1], 16);
-			minsize[2] = MIN(img_dims[2], 16);
-
-
-			unsigned int wflags = 0;
-			for (unsigned int i = 0; i < DIMS; i++) {
-
-				if ((1 < img_dims[i]) && MD_IS_SET(regs[nr].xflags, i)) {
-
-					wflags = MD_SET(wflags, i);
-					minsize[i] = MIN(img_dims[i], 16);
-				}
-			}
-
-			auto l1Wav_prox = prox_wavelet_thresh_create(DIMS, img_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, randshift);
-			l1Wav_prox = operator_p_reshape_in_F(l1Wav_prox, 1, MD_DIMS(md_calc_size(operator_p_domain(l1Wav_prox)->N, operator_p_domain(l1Wav_prox)->dims)));
-			l1Wav_prox = operator_p_reshape_out_F(l1Wav_prox, 1, MD_DIMS(md_calc_size(operator_p_codomain(l1Wav_prox)->N, operator_p_codomain(l1Wav_prox)->dims)));
-			
+			auto l1Wav_prox = create_wav_prox(img_dims, regs[nr].xflags, regs[nr].jflags, regs[nr].lambda);
 			auto zero_prox = prox_zero_create(DIMS, coil_dims);
 
-			zero_prox = operator_p_reshape_in_F(zero_prox, 1, MD_DIMS(md_calc_size(operator_p_domain(zero_prox)->N, operator_p_domain(zero_prox)->dims)));
-			zero_prox = operator_p_reshape_out_F(zero_prox, 1, MD_DIMS(md_calc_size(operator_p_codomain(zero_prox)->N, operator_p_codomain(zero_prox)->dims)));
-
-			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = operator_p_stack_FF(0, 0, l1Wav_prox, zero_prox);;
+			trafos[nr] = linop_identity_create(DIMS, x_dims);
+			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(l1Wav_prox), operator_p_flatten_F(zero_prox));
 
 			break;
 
@@ -379,33 +368,28 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 			regs[nr].lambda = lambda;
 			debug_printf(DP_INFO, "TV regularization: %f\n", regs[nr].lambda);
 
-			trafos[nr] = linop_grad_create(DIMS, x_dims, DIMS, regs[nr].xflags);
+			auto extract = linop_extract_create(1, MD_DIMS(0), MD_DIMS(md_calc_size(DIMS, img_dims)), MD_DIMS(md_calc_size(DIMS, x_dims)));
+			extract = linop_reshape_out_F(extract, DIMS, img_dims);
+			
+                        auto grad = linop_grad_create(DIMS, img_dims, DIMS, regs[nr].xflags);
+
+			trafos[nr] = linop_chain_FF(extract, grad);
 			prox_ops[nr] = prox_thresh_create(DIMS + 1,
 					linop_codomain(trafos[nr])->dims,
 					regs[nr].lambda, regs[nr].jflags | MD_BIT(DIMS));
+	
 			break;
 
 		case POS:
-
-			regs[nr].lambda = 0.3;
 
 			debug_printf(DP_INFO, "non-negative constraint: %f\n", regs[nr].lambda);
 
 			auto zsmax_prox = prox_zsmax_create(DIMS, map_dims, regs[nr].lambda);
 			auto zero_prox1 = prox_zero_create(DIMS, map2_dims);
-			
-			auto stack0 = operator_p_stack_FF(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox); 	
-			
-			stack0 = operator_p_reshape_in_F(stack0, 1, MD_DIMS(md_calc_size(operator_p_domain(stack0)->N, operator_p_domain(stack0)->dims)));
-			stack0 = operator_p_reshape_out_F(stack0, 1, MD_DIMS(md_calc_size(operator_p_codomain(stack0)->N, operator_p_codomain(stack0)->dims)));
-			
-			auto zero_prox2 = prox_zero_create(DIMS, coil_dims);
-
-			zero_prox2 = operator_p_reshape_in_F(zero_prox2, 1, MD_DIMS(md_calc_size(operator_p_domain(zero_prox2)->N, operator_p_domain(zero_prox2)->dims)));
-			zero_prox2 = operator_p_reshape_out_F(zero_prox2, 1, MD_DIMS(md_calc_size(operator_p_codomain(zero_prox2)->N, operator_p_codomain(zero_prox2)->dims)));
-				
+										
 			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = operator_p_stack_FF(0, 0, stack0, zero_prox2); ;
+			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(operator_p_stack_FF(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox)), 
+							operator_p_flatten_F(prox_zero_create(DIMS, coil_dims)));
 
 			break;
 
@@ -414,7 +398,8 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 			debug_printf(DP_INFO, "l2 regularization: %f\n", regs[nr].lambda);
 
 			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = prox_l2norm_create(DIMS, x_dims, regs[nr].lambda);
+			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(prox_zero_create(DIMS, img_dims)), 
+							operator_p_flatten_F(prox_l2norm_create(DIMS, coil_dims, regs[nr].lambda)));
 
 			break;
 
@@ -430,86 +415,101 @@ static void opt_reg_T1_configure(unsigned int N, const long dims[N], struct opt_
 }
 
 
-static void opt_reg_meco_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int model)
+
+static void opt_reg_meco_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], struct optreg_conf* optreg_conf)
 {
 	long maps_dims[N];
 	md_select_dims(N, ~COIL_FLAG, maps_dims, dims);
 
+	long maps_size = md_calc_size(N, maps_dims);
+
 	long sens_dims[N];
 	md_select_dims(N, ~COEFF_FLAG, sens_dims, dims);
 
-	long js_dim = COEFF_DIM; // joint spatial dim
-	long nr_coeff = maps_dims[js_dim];
+	long sens_size = md_calc_size(N, sens_dims);
 
-	long jt_dim = TIME_DIM;  // joint temporal dim
-	long nr_time = maps_dims[jt_dim];
-	UNUSED(nr_time);
+	long x_size = maps_size + sens_size;
 
 
-	// flatten number of maps and coils
-	long x_dims[N];
-	md_select_dims(N, ~(COIL_FLAG|TE_FLAG|COEFF_FLAG), x_dims, maps_dims);
-	x_dims[js_dim] = nr_coeff + sens_dims[COIL_DIM];
+	// set number of coefficients for joint regularization
+	long nr_joint_coeff = (MECO_PI == optreg_conf->moba_model) ? maps_dims[COEFF_DIM] : set_num_of_coeff(optreg_conf->moba_model);
+
+	if (MECO_SOBOLEV == optreg_conf->weight_fB0_type) {
+
+		nr_joint_coeff -= 1;
+	}
+
+	// set the flag for the position of the coefficient 
+	// which needs non-negativity constraint
+	long nonneg_flag = (MECO_PI == optreg_conf->moba_model) ? 0L : set_R2S_flag(optreg_conf->moba_model);
+
 
 	struct reg_s* regs = ropts->regs;
 	int nr_penalties = ropts->r;
 
-	debug_printf(DP_INFO, " > in total %1d regularizations:\n", nr_penalties);
+	debug_printf(DP_INFO, " >> in total %1d regularizations:\n", nr_penalties);
 
 	for (int nr = 0; nr < nr_penalties; nr++) {
 
 		switch (regs[nr].xform) {
 
 		case L1WAV:
+		{
+			debug_printf(DP_INFO, "  > l1-wavelet regularization with parameters %d:%d:%.3f\n", regs[nr].xflags, regs[nr].jflags, regs[nr].lambda);
 
-			debug_printf(DP_INFO, " > l1-wavelet regularization\n");
+			auto prox_maps = moba_joint_wavthresh_prox_create(N, maps_dims, COEFF_DIM, regs[nr].xflags, regs[nr].jflags, regs[nr].lambda, nr_joint_coeff);
 
-			prox_ops[nr] = create_stack_spatial_thresh_prox(N, x_dims, js_dim, L1WAV, regs[nr].lambda, model);
-			trafos[nr] = linop_identity_create(DIMS, x_dims);
-
-			break;
-
-		case LLR:
-
-			debug_printf(DP_INFO, " > lowrank regularization\n");
-
-			prox_ops[nr] = create_stack_spatial_thresh_prox(N, x_dims, js_dim, LLR, regs[nr].lambda, model);
-			trafos[nr] = linop_identity_create(DIMS, x_dims);
-
-			break;
-
-		case L2IMG:
-
-			debug_printf(DP_INFO, " > l2 regularization\n");
-
-			prox_ops[nr] = prox_l2norm_create(N, x_dims, regs[nr].lambda);
-			trafos[nr] = linop_identity_create(N, x_dims);
-
-			break;
-
-		case POS:
-
-			debug_printf(DP_INFO, " > non-negative constraint\n");
-
-			auto prox_maps = create_moba_nonneg_prox(N, maps_dims, js_dim, jt_dim, set_R2S_flag(model));
-			auto prox_sens = create_moba_sens_prox(N, sens_dims);
+			auto prox_sens = moba_sens_prox_create(N, sens_dims);
 
 			prox_ops[nr] = stack_flatten_prox(prox_maps, prox_sens);
 
-			trafos[nr] = linop_identity_create(1, MD_DIMS(md_calc_size(N, x_dims)));
+			trafos[nr] = linop_identity_create(1, MD_DIMS(x_size));
 
 			break;
+		}
 
-		case TV: // spatial or temporal
+		case L2IMG:
+		{
+			debug_printf(DP_INFO, "  > l2 regularization\n");
 
-			debug_printf(DP_INFO, " > TV regularization\n");
+			prox_ops[nr] = prox_l2norm_create(1, MD_DIMS(x_size), regs[nr].lambda);
+			trafos[nr] = linop_identity_create(1, MD_DIMS(x_size));
 
-			trafos[nr] = linop_grad_create(N, x_dims, N, regs[nr].xflags);
+			break;
+		}
+
+		case POS:
+		{
+			debug_printf(DP_INFO, "  > non-negative constraint with lambda %f\n", regs[nr].lambda);
+
+			auto prox_maps = moba_nonneg_prox_create(N, maps_dims, COEFF_DIM, nonneg_flag, regs[nr].lambda);
+
+			auto prox_sens = moba_sens_prox_create(N, sens_dims);
+
+			prox_ops[nr] = stack_flatten_prox(prox_maps, prox_sens);
+
+			trafos[nr] = linop_identity_create(1, MD_DIMS(x_size));
+
+			break;
+		}
+
+		case TV: // temporal dimension
+		{
+			debug_printf(DP_INFO, "  > TV regularization with parameters %d:%d:%.3f\n", regs[nr].xflags, regs[nr].jflags, regs[nr].lambda);
+
+			auto lo_extract_maps = linop_extract_create(1, MD_DIMS(0), MD_DIMS(maps_size), MD_DIMS(x_size));
+			lo_extract_maps = linop_reshape_out_F(lo_extract_maps, N, maps_dims);
+
+			auto lo_grad_maps = linop_grad_create(N, maps_dims, N, regs[nr].xflags);
+
+			trafos[nr] = linop_chain_FF(lo_extract_maps, lo_grad_maps);
+
 			prox_ops[nr] = prox_thresh_create(N + 1,
 					linop_codomain(trafos[nr])->dims,
 					regs[nr].lambda, regs[nr].jflags | MD_BIT(N));
 
 			break;
+		}
 
 		default:
 
@@ -522,23 +522,24 @@ static void opt_reg_meco_configure(unsigned int N, const long dims[N], struct op
 }
 
 
-void opt_reg_moba_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int model)
+void opt_reg_moba_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], struct optreg_conf* optreg_conf)
 {
-	switch (model) {
+	switch (optreg_conf->moba_model) {
 
 	case MECO_WF:
 	case MECO_WFR2S:
 	case MECO_WF2R2S:
 	case MECO_R2S:
 	case MECO_PHASEDIFF:
+	case MECO_PI:
 
-		opt_reg_meco_configure(N, dims, ropts, prox_ops, trafos, model);
+		opt_reg_meco_configure(N, dims, ropts, prox_ops, trafos, optreg_conf);
 
 		break;
 
 	default:
 
-		opt_reg_T1_configure(N, dims, ropts, prox_ops, trafos, model);
+		opt_reg_IRLL_configure(N, dims, ropts, prox_ops, trafos, optreg_conf);
 
 		break;
 

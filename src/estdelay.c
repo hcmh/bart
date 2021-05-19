@@ -52,7 +52,7 @@ static const char usage_str[] = "<trajectory> <data> [<b0> or <qf>]";
 static const char help_str[] = "Estimate gradient delays from radial data.";
 
 
-int main_estdelay(int argc, char* argv[])
+int main_estdelay(int argc, char* argv[argc])
 {
 	bool do_ring = false;
 	struct ring_conf conf = ring_defaults;
@@ -284,6 +284,18 @@ int main_estdelay(int argc, char* argv[])
 
 		unmap_cfl(DIMS, qf_dims, oqf);
 		xfree(pqf);
+	}
+
+	if (NULL != argv[3]) {
+
+		long qf_dims[1] = { 3 };
+
+		complex float* oqf = create_cfl(argv[3], 1, qf_dims);
+
+		for (int i = 0; i < 3; i++)
+			oqf[i] = qf[i];
+
+		unmap_cfl(1, qf_dims, oqf);
 	}
 
 	unmap_cfl(DIMS, full_dims, full_in);

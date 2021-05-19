@@ -162,7 +162,7 @@ int main_bloch(int argc, char* argv[argc])
 			
 			complex float* map = create_cfl("T1T2Parameter", DIMS, dim_map);
 			md_clear(DIMS, dim_map, map, CFL_SIZE);
-			calc_phantom_tubes(dim_map, map, false/*kspace*/, sstrs, samples);
+			calc_phantom_tubes(dim_map, map, false/*kspace*/, false, DIMS, sstrs, samples);
 			
 			complex float* dens = create_cfl("DensParameter", DIMS, dim_map);
 			md_zfill(DIMS, dim_map, dens, 1.0);
@@ -362,7 +362,7 @@ int main_bloch(int argc, char* argv[argc])
 					hsfp_data.t1 = t1;
 					hsfp_data.t2 = t2;
 					
-					hsfp_simu(&hsfp_data, sim_data.seq.rep_num / sim_data.seq.num_average_rep, pa, r);
+					hsfp_simu(&hsfp_data, sim_data.seq.rep_num / sim_data.seq.num_average_rep, pa, r, false);
 					
 					int ind = 0;
 					

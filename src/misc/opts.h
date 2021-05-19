@@ -1,3 +1,5 @@
+#ifndef OPTS_H
+#define OPTS_H
 
 #include <stdbool.h>
 
@@ -45,6 +47,10 @@ struct opt_subopt_s {
 
 	int n;
 	struct opt_s* opts;
+
+	char calling_c;
+	const char* calling_s;
+	const char* calling_desc;
 };
 
 struct idx_s {
@@ -68,7 +74,7 @@ typedef long opt_vec3_t[3];
 typedef float opt_fvec3_t[3];
 
 #define OPT_SEL(T, x, v)	&(struct opt_select_s){ (x), &(T){ (v) }, &(T){ *(x) }, sizeof(T) }
-#define OPT_SUB(n, opts)	&(struct opt_subopt_s){ (n), (opts) }
+#define OPT_SUB(n, opts, c, s, descr)	&(struct opt_subopt_s){ (n), (opts), (c), (s), (descr) }
 
 #define OPT_SET(c, ptr, descr)			{ (c), NULL, false, opt_set, TYPE_CHECK(bool*, (ptr)), "\t" descr }
 #define OPT_CLEAR(c, ptr, descr)		{ (c), NULL, false, opt_clear, TYPE_CHECK(bool*, (ptr)), "\t" descr }
@@ -84,12 +90,12 @@ typedef float opt_fvec3_t[3];
 #define OPT_VEC3(c, ptr, argname, descr)	OPT_ARG(c, opt_vec3, opt_vec3_t, ptr, argname, descr)
 #define OPT_FLVEC3(c, ptr, argname, descr)	OPT_ARG(c, opt_float_vec3, opt_fvec3_t, ptr, argname, descr)
 #define OPT_SELECT(c, T, ptr, value, descr)	{ (c), NULL, false, opt_select, OPT_SEL(T, TYPE_CHECK(T*, ptr), value), "\t" descr }
-#define OPT_SUBOPT(c, argname, descr, NR, opts)	OPT_ARG(c, opt_subopt, struct opt_subopt_s, OPT_SUB(NR, opts), argname, descr)
+#define OPT_SUBOPT(c, argname, descr, NR, opts)	OPT_ARG(c, opt_subopt, struct opt_subopt_s, OPT_SUB(NR, opts, c, NULL, descr), argname, descr)
 
 // If the character in these macros is 0 (please note: NOT '0'), then it is only a long opt
 // Otherwise, it is both
 #define OPTL_SET(c, s, ptr, descr)			{ (c), (s), false, opt_set, TYPE_CHECK(bool*, (ptr)), "\t" descr }
-#define OPTL_CLEAR(c, s, ptr, descr)		{ (c), (s), false, opt_clear, TYPE_CHECK(bool*, (ptr)), "\t" descr }
+#define OPTL_CLEAR(c, s, ptr, descr)			{ (c), (s), false, opt_clear, TYPE_CHECK(bool*, (ptr)), "\t" descr }
 #define OPTL_ARG(c, s, _fun, T, ptr, argname, descr) { (c), (s), true, _fun, TYPE_CHECK(T*, (ptr)), " " argname "      \t" descr }
 #define OPTL_STRING(c, s, ptr, argname, descr)	OPTL_ARG(c, s, opt_string, const char*, ptr, argname, descr)
 #define OPTL_UINT(c, s, ptr, argname, descr)	OPTL_ARG(c, s, opt_uint, unsigned int, ptr, argname, descr)
@@ -102,10 +108,13 @@ typedef float opt_fvec3_t[3];
 #define OPTL_VEC3(c, s, ptr, argname, descr)	OPTL_ARG(c, s, opt_vec3, opt_vec3_t, ptr, argname, descr)
 #define OPTL_FLVEC3(c, s, ptr, argname, descr)	OPTL_ARG(c, s, opt_float_vec3, opt_fvec3_t, ptr, argname, descr)
 #define OPTL_SELECT(c, s, T, ptr, value, descr)	{ (c), (s), false, opt_select, OPT_SEL(T, TYPE_CHECK(T*, ptr), value), "\t" descr }
-#define OPTL_SUBOPT(c, s, argname, descr, NR, opts)	OPTL_ARG(c, s, opt_subopt, struct opt_subopt_s, OPT_SUB(NR, opts), argname, descr)
+#define OPTL_SELECT_DEF(c, s, T, ptr, value, def, descr)	{ (c), (s), false, opt_select, &(struct opt_select_s){ (TYPE_CHECK(T*, ptr)), &(T){ TYPE_CHECK(T, value) }, &(T){ (TYPE_CHECK(T, def)) }, sizeof(T) }, "\t" descr }
+#define OPTL_SUBOPT(c, s, argname, descr, NR, opts)	OPTL_ARG(c, s, opt_subopt, struct opt_subopt_s, OPT_SUB(NR, opts, c, s, descr), argname, descr)
 
 extern void cmdline(int* argc, char* argv[], int min_args, int max_args, const char* usage_str, const char* help_str, int n, const struct opt_s opts[n]);
 
 
 #include "misc/cppwrap.h"
+
+#endif //OPTS_H
 

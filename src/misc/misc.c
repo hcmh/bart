@@ -204,7 +204,7 @@ void debug_print_dims(int dblevel, int D, const long dims[D])
 
 void debug_print_dims_trace(const char* func_name,
 			    const char* file,
-			    unsigned int line,
+			    int line,
 			    int dblevel,
 			    int D,
 			    const long dims[D])
@@ -254,7 +254,7 @@ ok:
 
 
 
-void quicksort(int N, int ord[N], const void* data, quicksort_cmp_t cmp)
+void quicksort(int N, int ord[N], quicksort_cmp_t cmp)
 {
 	if (N < 2)
 		return;
@@ -265,13 +265,13 @@ void quicksort(int N, int ord[N], const void* data, quicksort_cmp_t cmp)
 
 	while (l <= h) {
 
-		if (cmp(data, ord[l], pivot) < 0) {
+		if (cmp(ord[l], pivot) < 0) {
 
 			l++;
 			continue;
 		}
 
-		if (cmp(data, ord[h], pivot) > 0) {
+		if (cmp(ord[h], pivot) > 0) {
 
 			h--;
 			continue;
@@ -286,10 +286,10 @@ void quicksort(int N, int ord[N], const void* data, quicksort_cmp_t cmp)
 	}
 
 	if (h + 1 > 0)
-		quicksort(h + 1, ord, data, cmp);
+		quicksort(h + 1, ord, cmp);
 
 	if (N > l)
-		quicksort(N - l, ord + l, data, cmp);
+		quicksort(N - l, ord + l, cmp);
 }
 
 
@@ -308,47 +308,60 @@ void quicksort(int N, int ord[N], const void* data, quicksort_cmp_t cmp)
  *
  * @note In-place sort. The input array contents are not preserved in their original order. 
  */
-float quickselect(float *arr, unsigned int n, unsigned int k) {
-	unsigned long i,ir,j,l,mid;
+float quickselect(float *arr, int n, int k)
+{
+	long i, ir, j, l, mid;
 	float a;
    
-	l=0;
-	ir=n-1;
+	l = 0;
+	ir = n - 1;
+
 	for(;;) {
-		if (ir <= l+1) { 
-			if (ir == l+1 && arr[ir] > arr[l]) {
-				SWAP(arr[l],arr[ir], float);
-			}
+
+		if (ir <= l + 1) {
+
+			if ((ir == l + 1) && (arr[ir] > arr[l]))
+				SWAP(arr[l], arr[ir]);
+
 			return arr[k];
 		}
-		else {
-			mid=(l+ir) >> 1; 
-			SWAP(arr[mid],arr[l+1], float);
-			if (arr[l] < arr[ir]) {
-				SWAP(arr[l],arr[ir], float);
-			}
-			if (arr[l+1] < arr[ir]) {
-				SWAP(arr[l+1],arr[ir], float);
-			}
-			if (arr[l] < arr[l+1]) {
-				SWAP(arr[l],arr[l+1], float);
-			}
-			i=l+1; 
-			j=ir;
-			a=arr[l+1];
 
-			for (;;) { 
-				do i++; while (arr[i] > a); 
-				do j--; while (arr[j] < a); 
-				if (j < i) break; 
-				SWAP(arr[i],arr[j], float);
-			} 
-			arr[l+1]=arr[j]; 
-			arr[j]=a;
-      
-			if (j >= k) ir=j-1; 
-			if (j <= k) l=i;
+		mid = (l + ir) / 2;
+
+		SWAP(arr[mid], arr[l + 1]);
+
+		if (arr[l] < arr[ir])
+			SWAP(arr[l], arr[ir]);
+
+		if (arr[l + 1] < arr[ir])
+			SWAP(arr[l + 1], arr[ir]);
+
+		if (arr[l] < arr[l + 1])
+			SWAP(arr[l], arr[l + 1]);
+
+		i = l + 1;
+		j = ir;
+		a = arr[l + 1];
+
+		for (;;) {
+
+			do i++; while (arr[i] > a);
+			do j--; while (arr[j] < a);
+
+			if (j < i)
+				break;
+
+			SWAP(arr[i], arr[j]);
 		}
+
+		arr[l + 1] = arr[j];
+		arr[j] = a;
+
+		if (j >= k)
+			ir = j - 1;
+
+		if (j <= k)
+			l = i;
 	}
 }
 
@@ -359,48 +372,62 @@ float quickselect(float *arr, unsigned int n, unsigned int k) {
  * Possibly faster for application to complex arrays.
  *
  */
-float quickselect_complex(complex float *arr, unsigned int n, unsigned int k) {
-	unsigned long i,ir,j,l,mid;
+float quickselect_complex(complex float* arr, int n, int k)
+{
+	long i, ir, j, l, mid;
 	float a;
 	complex float ca;
    
-	l=0;
-	ir=n-1;
+	l = 0;
+	ir = n - 1;
+
 	for(;;) {
-		if (ir <= l+1) { 
-			if (ir == l+1 && cabsf(arr[ir]) > cabsf(arr[l])) {
-				SWAP(arr[l],arr[ir], complex float);
-			}
+
+		if (ir <= l + 1) {
+
+			if ((ir == l + 1) && (cabsf(arr[ir]) > cabsf(arr[l])))
+				SWAP(arr[l], arr[ir]);
+
 			return cabsf(arr[k]);
 		}
-		else {
-			mid=(l+ir) >> 1; 
-			SWAP(arr[mid],arr[l+1], complex float);
-			if (cabsf(arr[l]) < cabsf(arr[ir])) {
-				SWAP(arr[l],arr[ir], complex float);
-			}
-			if (cabsf(arr[l+1]) < cabsf(arr[ir])) {
-				SWAP(arr[l+1],arr[ir], complex float);
-			}
-			if (cabsf(arr[l]) < cabsf(arr[l+1])) {
-				SWAP(arr[l],arr[l+1], complex float);
-			}
-			i=l+1; 
-			j=ir;
-			a=cabsf(arr[l+1]);
-			ca = arr[l+1];
-			for (;;) { 
-				do i++; while (cabsf(arr[i]) > a); 
-				do j--; while (cabsf(arr[j]) < a); 
-				if (j < i) break; 
-				SWAP(arr[i],arr[j], complex float);
-			} 
-			arr[l+1]=arr[j]; 
-			arr[j]=ca;
-      
-			if (j >= k) ir=j-1; 
-			if (j <= k) l=i;
+
+		mid = (l + ir) / 2;
+
+		SWAP(arr[mid], arr[l + 1]);
+
+		if (cabsf(arr[l]) < cabsf(arr[ir]))
+			SWAP(arr[l], arr[ir]);
+
+		if (cabsf(arr[l + 1]) < cabsf(arr[ir]))
+			SWAP(arr[l + 1], arr[ir]);
+
+		if (cabsf(arr[l]) < cabsf(arr[l + 1]))
+			SWAP(arr[l], arr[l + 1]);
+
+		i = l + 1;
+		j = ir;
+		a = cabsf(arr[l + 1]);
+		ca = arr[l + 1];
+
+		for (;;) {
+
+			do i++; while (cabsf(arr[i]) > a);
+			do j--; while (cabsf(arr[j]) < a);
+
+			if (j < i)
+				break;
+
+			SWAP(arr[i], arr[j]);
 		}
+
+		arr[l + 1] = arr[j];
+		arr[j] = ca;
+
+		if (j >= k)
+			ir = j - 1;
+
+		if (j <= k)
+			l = i;
 	}
 }
 
@@ -461,7 +488,7 @@ static const char* quote(const char* str)
 
 const char* command_line = NULL;
 
-void save_command_line(int argc, char* argv[])
+void save_command_line(int argc, char* argv[static argc])
 {
 	size_t len = 0;
 	const char* qargv[argc];
@@ -528,34 +555,34 @@ bool mini_cmdline_bool(int* argcp, char* argv[], char flag_char, int expected_ar
 }
 
 
-void print_long(unsigned int D, const long arr[D])
+void print_long(int D, const long arr[D])
 {
-	for (unsigned int i = 0; i < D; i++)
+	for (int i = 0; i < D; i++)
 		printf("arr[%i] = %ld\n", i, arr[i]);
 }
 
-void print_float(unsigned int D, const float arr[D])
+void print_float(int D, const float arr[D])
 {
-	for (unsigned int i = 0; i < D; i++)
+	for (int i = 0; i < D; i++)
 		printf("arr[%i] = %f\n", i, arr[i]);
 }
 
-void print_int(unsigned int D, const int arr[D])
+void print_int(int D, const int arr[D])
 {
-	for (unsigned int i = 0; i < D; i++)
+	for (int i = 0; i < D; i++)
 		printf("arr[%i] = %i\n", i, arr[i]);
 }
 
-void print_complex(unsigned int D, const complex float arr[D])
+void print_complex(int D, const complex float arr[D])
 {
-	for (unsigned int i = 0; i < D; i++)
+	for (int i = 0; i < D; i++)
 		printf("arr[%i]: real = %f, imag = %f\n", i, crealf(arr[i]), cimagf(arr[i]));
 }
 
 
-unsigned int bitcount(unsigned long flags)
+int bitcount(unsigned long flags)
 {
-	unsigned int N = 0;
+	int N = 0;
 
 	for (; flags > 0; N++)
 		flags &= (flags - 1);
@@ -576,4 +603,55 @@ bool safe_isfinite(float x)
 	// return isfinite(x); <- is sometimes true when x is NaN.
 }
 
+const char* ptr_vprintf(const char* fmt, va_list ap)
+{
+	va_list ap1;
+	va_copy(ap1, ap);
+	size_t len = vsnprintf(NULL, 0, fmt, ap1);
+	va_end(ap1);
+	PTR_ALLOC(char[len + 1], result);
+	vsprintf((*result), fmt, ap);
+	return *PTR_PASS(result);
+}
 
+const char* ptr_printf(const char* fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	auto result = ptr_vprintf(fmt, ap);
+	va_end(ap);
+	return result;
+}
+
+const char* ptr_print_dims(int D, const long dims[D])
+{
+	const char* result = ptr_printf("[");
+	
+	for (int i = 0; i < D; i++) {
+
+		const char* tmp = ptr_printf("%s%3ld ", result, dims[i]);
+		xfree(result);
+		result = tmp;
+	}
+
+	const char* tmp = ptr_printf("%s]", result);
+	xfree(result);
+	return tmp;
+}
+
+/**
+ * Convert flat index to pos
+ *
+ */
+void md_unravel_index(unsigned int D, long pos[D], const long dims[D], const long index)
+{
+	long ind = index;
+	for (unsigned int d = 0; d < D; ++d) {
+
+		if (1 == dims[d])
+			continue;
+
+		pos[d] = ind % dims[d];
+		ind /= dims[d];
+	}
+}

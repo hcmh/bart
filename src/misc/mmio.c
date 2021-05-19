@@ -1,10 +1,10 @@
 /* Copyright 2013-2015. The Regents of the University of California.
- * Copyright 2016-2017. Martin Uecker.
+ * Copyright 2016-2021. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2017 Martin Uecker <uecker@martin.uecker@med.uni-goettingen.de>
+ * 2012-2021 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2015 Jonathan Tamir <jtamir@eecs.berkeley.edu>
  */
 
@@ -95,7 +95,7 @@ static bool long_mul_overflow_p(long a, long b)
 	return of;
 }
 
-static long io_calc_size(unsigned int D, const long dims[D], size_t size)
+static long io_calc_size(int D, const long dims[D?:1], size_t size)
 {
 	if (0 == D)
 		return size;
@@ -114,43 +114,61 @@ static long io_calc_size(unsigned int D, const long dims[D], size_t size)
 
 
 
-complex float* load_zra(const char* name, unsigned int D, long dims[D])
+static complex float* load_zra_internal(int fd, const char* name, int D, long dims[D])
 {
-	int fd;
-	if (-1 == (fd = open(name, O_RDONLY)))
-		io_error("Loading ra file %s", name);
-
 	if (-1 == read_ra(fd, D, dims))
-		error("Loading ra file %s", name);
+		error("Loading ra file %s\n", name);
 
 	long T;
 	if (-1 == (T = io_calc_size(D, dims, sizeof(complex float))))
-		error("Loading ra file %s", name);
+		error("Loading ra file %s\n", name);
 
 	void* addr;
 	struct stat st;
 
 	if (-1 == fstat(fd, &st))
-		io_error("Loading ra file %s", name);
+		io_error("Loading ra file %s\n", name);
 
 	off_t header_size;
 
 	if (-1 == (header_size = lseek(fd, 0, SEEK_CUR)))
-		io_error("Loading ra file %s", name);
+		io_error("Loading ra file %s\n", name);
 
 	// ra allows random stuff at the end
 	if (T + header_size > st.st_size)
-		error("Loading ra file %s", name);
+		error("Loading ra file %s\n", name);
 
 	assert(header_size < 4096);
 
 	if (MAP_FAILED == (addr = mmap(NULL, st.st_size, PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)))
-		io_error("Loading ra file %s", name);
+		io_error("Loading ra file %s\n", name);
 
 	if (-1 == close(fd))
-		io_error("Loading ra file %s", name);
+		io_error("Loading ra file %s\n", name);
 
 	return (complex float*)(addr + header_size);;
+}
+
+
+complex float* load_zra(const char* name, int D, long dims[D])
+{
+	int fd;
+	if (-1 == (fd = open(name, O_RDONLY)))
+		io_error("Loading ra file %s\n", name);
+
+	return load_zra_internal(fd, name, D, dims);
+}
+
+complex float* load_zshm(const char* name, int D, long dims[D])
+{
+	if ('/' != name[0])
+		error("shm file name does not start with a slash.\n");
+
+	int fd;
+	if (-1 == (fd = shm_open(name, O_RDONLY, 0)))
+		io_error("Loading shm file %s\n", name);
+
+	return load_zra_internal(fd, name, D, dims);
 }
 
 
@@ -169,59 +187,80 @@ static void* create_data(int ofd, size_t header_size, size_t size)
 	return (char*)addr + off;
 }
 
-complex float* create_zra(const char* name, unsigned int D, const long dims[D])
-{
-	int ofd;
-	if (-1 == (ofd = open(name, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR)))
-		io_error("Creating ra file %s", name);
 
+static complex float* create_zra_internal(int ofd, const char* name, int D, const long dims[D])
+{
 	if (-1 == write_ra(ofd, D, dims))
-		error("Creating ra file %s", name);
+		error("Creating ra file %s\n", name);
 
 	long T;
 	if (-1 == (T = io_calc_size(D, dims, sizeof(complex float))))
-		error("Creating ra file %s", name);
+		error("Creating ra file %s\n", name);
 
 	off_t header_size;
 
 	if (-1 == (header_size = lseek(ofd, 0, SEEK_CUR)))
-		io_error("Creating ra file %s", name);
+		io_error("Creating ra file %s\n", name);
 
 	void* data;
 
 	if (NULL == (data = create_data(ofd, header_size, T)))
-		error("Creating ra file %s", name);
+		error("Creating ra file %s\n", name);
 
 	if (-1 == close(ofd))
-		io_error("Creating ra file %s", name);
+		io_error("Creating ra file %s\n", name);
 
 	return (complex float*)data;
 }
 
 
+complex float* create_zra(const char* name, int D, const long dims[D])
+{
+	int ofd;
+	if (-1 == (ofd = open(name, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR)))
+		io_error("Creating ra file %s\n", name);
 
-float* create_coo(const char* name, unsigned int D, const long dims[D])
+
+	return create_zra_internal(ofd, name, D, dims);
+}
+
+
+complex float* create_zshm(const char* name, int D, const long dims[D])
+{
+	if ('/' != name[0])
+		error("shm file name does not start with a slash.\n");
+
+	int ofd;
+	if (-1 == (ofd = shm_open(name, O_RDWR /* |O_CREAT */, S_IRUSR|S_IWUSR)))
+		io_error("Creating shm file %s\n", name);
+
+	return create_zra_internal(ofd, name, D, dims);
+}
+
+
+
+float* create_coo(const char* name, int D, const long dims[D])
 {
 	int ofd;
 
 	if (-1 == (ofd = open(name, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR)))
-		io_error("Creating coo file %s", name);
+		io_error("Creating coo file %s\n", name);
 
 	if (-1 == write_coo(ofd, D, dims))
-		error("Creating coo file %s", name);
+		error("Creating coo file %s\n", name);
 
 	long T;
 
 	if (-1 == (T = io_calc_size(D, dims, sizeof(float))))
-		error("Creating coo file %s", name);
+		error("Creating coo file %s\n", name);
 
 	void* addr;
 
 	if (NULL == (addr = create_data(ofd, 4096, T)))
-		error("Creating coo file %s", name);
+		error("Creating coo file %s\n", name);
 
 	if (-1 == close(ofd))
-		io_error("Creating coo file %s", name);
+		io_error("Creating coo file %s\n", name);
 
 	return (float*)addr;
 }
@@ -231,7 +270,7 @@ float* create_coo(const char* name, unsigned int D, const long dims[D])
 
 
 
-complex float* create_zcoo(const char* name, unsigned int D, const long dimensions[D])
+complex float* create_zcoo(const char* name, int D, const long dimensions[D])
 {
 	long dims[D + 1];
 	dims[0] = 2; // complex
@@ -241,44 +280,54 @@ complex float* create_zcoo(const char* name, unsigned int D, const long dimensio
 }
 
 
-complex float* create_cfl(const char* name, unsigned int D, const long dimensions[D])
+complex float* create_cfl(const char* name, int D, const long dimensions[D])
 {
+	io_unlink_if_opened(name);
 	io_register_output(name);
 
 #ifdef MEMONLY_CFL
 	return create_mem_cfl(name, D, dimensions);
 #else
-	const char *p = strrchr(name, '.');
+	enum file_types_e type = file_type(name);
 
-	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".ra")))
+	switch (type) {
+
+	case FILE_TYPE_RA:
 		return create_zra(name, D, dimensions);
 
-	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".coo")))
+	case FILE_TYPE_COO:
 		return create_zcoo(name, D, dimensions);
 
+	case FILE_TYPE_SHM:
+		return create_zshm(name, D, dimensions);
+
 #ifdef USE_MEM_CFL
-	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".mem")))
+	case FILE_TYPE_MEM:
 		return create_mem_cfl(name, D, dimensions);
 #endif
 
+	default:
+		; // handled in this function
+	}
 
+ 
 	char name_bdy[1024];
 	if (1024 <= snprintf(name_bdy, 1024, "%s.cfl", name))
-		error("Creating cfl file %s", name);
+		error("Creating cfl file %s\n", name);
 
 	char name_hdr[1024];
 	if (1024 <= snprintf(name_hdr, 1024, "%s.hdr", name))
-		error("Creating cfl file %s", name);
+		error("Creating cfl file %s\n", name);
 
 	int ofd;
 	if (-1 == (ofd = open(name_hdr, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR)))
-		io_error("Creating cfl file %s", name);
+		io_error("Creating cfl file %s\n", name);
 
 	if (-1 == write_cfl_header(ofd, D, dimensions))
-		error("Creating cfl file %s", name);
+		error("Creating cfl file %s\n", name);
 
 	if (-1 == close(ofd))
-		io_error("Creating cfl file %s", name);
+		io_error("Creating cfl file %s\n", name);
 
 	return shared_cfl(D, dimensions, name_bdy);
 #endif /* MEMONLY_CFL */
@@ -287,47 +336,47 @@ complex float* create_cfl(const char* name, unsigned int D, const long dimension
 
 
 
-float* load_coo(const char* name, unsigned int D, long dims[D])
+float* load_coo(const char* name, int D, long dims[D])
 {
 	int fd;
 
 	if (-1 == (fd = open(name, O_RDONLY)))
-		io_error("Loading coo file %s", name);
+		io_error("Loading coo file %s\n", name);
 
 	if (-1 == read_coo(fd, D, dims))
-		error("Loading coo file %s", name);
+		error("Loading coo file %s\n", name);
 
 	long T;
 
 	if (-1 == (T = io_calc_size(D, dims, sizeof(float))))
-		error("Loading coo file %s", name);
+		error("Loading coo file %s\n", name);
 
 	void* addr;
 	struct stat st;
 
 	if (-1 == fstat(fd, &st))
-		io_error("Loading coo file %s", name);
+		io_error("Loading coo file %s\n", name);
 
 	if (T + 4096 != st.st_size)
-		error("Loading coo file %s", name);
+		error("Loading coo file %s\n", name);
 
 	if (MAP_FAILED == (addr = mmap(NULL, T, PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 4096)))
-		io_error("Loading coo file %s", name);
+		io_error("Loading coo file %s\n", name);
 
 	if (-1 == close(fd))
-		io_error("Loading coo file %s", name);
+		io_error("Loading coo file %s\n", name);
 
 	return (float*)addr;
 }
 
 
-complex float* load_zcoo(const char* name, unsigned int D, long dimensions[D])
+complex float* load_zcoo(const char* name, int D, long dimensions[D])
 {
 	long dims[D + 1];
 	float* data = load_coo(name, D + 1, dims);
 
 	if (2 != dims[0])
-		error("Loading coo file %s", name);
+		error("Loading coo file %s\n", name);
 
 	memcpy(dimensions, dims + 1, D * sizeof(long));
 
@@ -335,7 +384,7 @@ complex float* load_zcoo(const char* name, unsigned int D, long dimensions[D])
 }
 
 
-static complex float* load_cfl_internal(const char* name, unsigned int D, long dimensions[D], bool priv)
+static complex float* load_cfl_internal(const char* name, int D, long dimensions[D], bool priv)
 {
 	io_register_input(name);
 
@@ -345,69 +394,77 @@ static complex float* load_cfl_internal(const char* name, unsigned int D, long d
 	complex float* ptr = load_mem_cfl(name, D, dimensions);
 
 	if (NULL == ptr)
-		io_error("Loading in-memory cfl file %s", name);
+		io_error("Loading in-memory cfl file %s\n", name);
 
 	return ptr;
 #else
-	const char *p = strrchr(name, '.');
+	enum file_types_e type = file_type(name);
 
-	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".ra")))
+	switch (type) {
+
+	case FILE_TYPE_RA:
 		return load_zra(name, D, dimensions);
 
-	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".coo")))
+	case FILE_TYPE_COO:
 		return load_zcoo(name, D, dimensions);
 
+	case FILE_TYPE_SHM:
+		return load_zshm(name, D, dimensions);
+
 #ifdef USE_MEM_CFL
-	if ((NULL != p) && (p != name) && (0 == strcmp(p, ".mem"))) {
+	case FILE_TYPE_MEM:
+	{
+		complex float* ptr = load_mem_cfl(name, D, dimensions);
 
-	     complex float* ptr = load_mem_cfl(name, D, dimensions);
-
-	     if (ptr == NULL) {
-		     io_error("failed loading memory cfl file \"%s\"", name);
-	     } else {
-		  return ptr;
-	     }
+		if (ptr == NULL)
+			io_error("failed loading memory cfl file \"%s\"\n", name);
+		else
+			return ptr;
 	}
-#endif /* USE_MEM_CFL */
+#endif // USE_MEM_CFL
+
+	default:
+		; // handled in this function
+	}
 
 
 	char name_bdy[1024];
 	if (1024 <= snprintf(name_bdy, 1024, "%s.cfl", name))
-		error("Loading cfl file %s", name);
+		error("Loading cfl file %s\n", name);
 
 	char name_hdr[1024];
 	if (1024 <= snprintf(name_hdr, 1024, "%s.hdr", name))
-		error("Loading cfl file %s", name);
+		error("Loading cfl file %s\n", name);
 
 	int ofd;
 	if (-1 == (ofd = open(name_hdr, O_RDONLY)))
-		io_error("Loading cfl file %s", name);
+		io_error("Loading cfl file %s\n", name);
 
 	if (-1 == read_cfl_header(ofd, D, dimensions))
-		error("Loading cfl file %s", name);
+		error("Loading cfl file %s\n", name);
 
 	if (-1 == close(ofd))
-		io_error("Loading cfl file %s", name);
+		io_error("Loading cfl file %s\n", name);
 
 	return (priv ? private_cfl : shared_cfl)(D, dimensions, name_bdy);
 #endif /* MEMONLY_CFL */
 }
 
 
-complex float* load_cfl(const char* name, unsigned int D, long dimensions[D])
+complex float* load_cfl(const char* name, int D, long dimensions[D])
 {
 	return load_cfl_internal(name, D, dimensions, true);
 }
 
 
-complex float* load_shared_cfl(const char* name, unsigned int D, long dimensions[D])
+complex float* load_shared_cfl(const char* name, int D, long dimensions[D])
 {
 	return load_cfl_internal(name, D, dimensions, false);
 }
 
 
 #ifndef MEMONLY_CFL
-complex float* shared_cfl(unsigned int D, const long dims[D], const char* name)
+complex float* shared_cfl(int D, const long dims[D], const char* name)
 {
 //	struct stat st;
 	int fd;
@@ -415,12 +472,12 @@ complex float* shared_cfl(unsigned int D, const long dims[D], const char* name)
 	long T;
 
 	if (-1 == (T = io_calc_size(D, dims, sizeof(complex float))))
-		error("shared cfl %s", name);
+		error("shared cfl %s\n", name);
 
 	err_assert(T > 0);
 
         if (-1 == (fd = open(name, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR)))
-		io_error("shared cfl %s", name);
+		io_error("shared cfl %s\n", name);
 
 //	if (-1 == (fstat(fd, &st)))
 //		error("abort");
@@ -429,17 +486,17 @@ complex float* shared_cfl(unsigned int D, const long dims[D], const char* name)
 //		error("abort");
 
 	if (NULL == (addr = create_data(fd, 0, T)))
-		error("shared cfl %s", name);
+		error("shared cfl %s\n", name);
 
 	if (-1 == close(fd))
-		io_error("shared cfl %s", name);
+		io_error("shared cfl %s\n", name);
 
 	return (complex float*)addr;
 }
 #endif /* !MEMONLY_CFL */
 
 
-complex float* anon_cfl(const char* name, unsigned int D, const long dims[D])
+complex float* anon_cfl(const char* name, int D, const long dims[D])
 {
 	UNUSED(name);
 
@@ -448,10 +505,10 @@ complex float* anon_cfl(const char* name, unsigned int D, const long dims[D])
 	long T;
 
 	if (-1 == (T = io_calc_size(D, dims, sizeof(complex float))))
-		error("anon cfl");
+		error("anon cfl\n");
 
 	if (MAP_FAILED == (addr = mmap(NULL, T, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0)))
-		io_error("anon cfl");
+		io_error("anon cfl\n");
 
 	return (complex float*)addr;
 #else
@@ -488,38 +545,38 @@ void* private_raw(size_t* size, const char* name)
 
 
 #ifndef MEMONLY_CFL
-complex float* private_cfl(unsigned int D, const long dims[D], const char* name)
+complex float* private_cfl(int D, const long dims[D], const char* name)
 {
 	long T;
 
 	if (-1 == (T = io_calc_size(D, dims, sizeof(complex float))))
-		error("private cfl %s", name);
+		error("private cfl %s\n", name);
 
 	int fd;
 	void* addr;
 	struct stat st;
 
 	if (-1 == (fd = open(name, O_RDONLY)))
-		io_error("private cfl %s", name);
+		io_error("private cfl %s\n", name);
 
 	if (-1 == (fstat(fd, &st)))
-		io_error("private cfl %s", name);
+		io_error("private cfl %s\n", name);
 
 	if (T != st.st_size)
-		error("private cfl %s", name);
+		error("private cfl %s\n", name);
 
 	if (MAP_FAILED == (addr = mmap(NULL, T, PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)))
-		io_error("private cfl %s", name);
+		io_error("private cfl %s\n", name);
 
 	if (-1 == close(fd))
-		io_error("private cfl %s", name);
+		io_error("private cfl %s\n", name);
 
 	return (complex float*)addr;
 }
 #endif /* !MEMONLY_CFL */
 
 
-void unmap_cfl(unsigned int D, const long dims[D], const complex float* x)
+void unmap_cfl(int D, const long dims[D?:1], const complex float* x)
 {
 #ifdef MEMONLY_CFL
 	UNUSED(D); UNUSED(dims);
@@ -538,10 +595,10 @@ void unmap_cfl(unsigned int D, const long dims[D], const complex float* x)
 	long T;
 
 	if (-1 == (T = io_calc_size(D, dims, sizeof(complex float))))
-		error("unmap cfl");
+		error("unmap cfl\n");
 
 	if (-1 == munmap((void*)((uintptr_t)x & ~4095UL), T))
-		io_error("unmap cfl");
+		io_error("unmap cfl\n");
 #endif
 }
 

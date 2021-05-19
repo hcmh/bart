@@ -17,12 +17,15 @@
 #include "num/fft.h"
 #include "num/init.h"
 #include "num/gpuops.h"
+#include "num/filter.h"
 
 #include "noncart/nufft.h"
 
 #include "linops/linop.h"
 
+#include "simu/simulation.h"
 #include "simu/slice_profile.h"
+#include "simu/variable_flipangles.h"
 
 #include "misc/mri.h"
 #include "misc/misc.h"
@@ -35,6 +38,7 @@
 #include "moba/recon_Bloch.h"
 #include "moba/model_Bloch.h"
 #include "moba/scale.h"
+#include "moba/moba.h"
 
 static void help_seq(void)
 {
@@ -66,7 +70,7 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 
 	case 'P': {
 		
-		int ret = sscanf(optarg, "%7[^:]", rt);
+		int ret = sscanf(optarg, "%8[^:]", rt);
 		assert(1 == ret);
 
 		if (strcmp(rt, "h") == 0) {
@@ -79,15 +83,16 @@ static bool opt_seq(void* ptr, char c, const char* optarg)
 			// Collect simulation data
 			struct modBlochFit* data = ptr;
 
-			ret = sscanf(optarg, "%d:%f:%f:%f:%f:%f:%f",	
+			ret = sscanf(optarg, "%d:%f:%f:%f:%f:%f:%f:%f",
 									&data->sequence,
 									&data->tr, 
 									&data->te, 
 									&data->fa, 
 									&data->rfduration, 
 									&data->inversion_pulse_length,
-									&data->prep_pulse_length);
-			assert(7 == ret);
+									&data->prep_pulse_length,
+									&data->bwtp);
+			assert(8 == ret);
 		}
 		break;
 	}
@@ -105,6 +110,8 @@ int main_modbloch(int argc, char* argv[])
 	double start_time = timestamp();
 
 	float restrict_fov = -1.;
+	float scalingR1 = -1.;
+	float scalingR2 = -1.;
 
 	const char* psf = NULL;
 	const char* trajectory = NULL;
@@ -112,17 +119,20 @@ int main_modbloch(int argc, char* argv[])
 	struct moba_conf conf = moba_defaults;
 	struct modBlochFit fit_para = modBlochFit_defaults;
 
+	float k_filter = -1.;	// typically 5e-3
+
 	bool out_sens = false;
 	bool inputSP = false;
 	bool use_gpu = false;
 
 	const char* inputB1 = NULL;
-	const char* inputVFA = NULL;
 	
 	const struct opt_s opts[] = {
 
 		OPT_UINT(	'i', 	&conf.iter, 		"", "Number of Newton steps"),
 		OPT_FLOAT(	'R', 	&conf.redu, 		"", "reduction factor"),
+		OPT_FLOAT(	'1', 	&scalingR1, 		"", "scaling dR1"),
+		OPT_FLOAT(	'2', 	&scalingR2, 		"", "scaling dR2"),
 		OPT_FLOAT(	'l', 	&conf.alpha, 		"", "alpha"),
 		OPT_FLOAT(	'm', 	&conf.alpha_min, 	"", "alpha_min"),
 		OPT_UINT(	'o', 	&conf.opt_reg, 		"", "regularization option (0: l2, 1: l1-wav)"),
@@ -131,15 +141,15 @@ int main_modbloch(int argc, char* argv[])
 		OPT_STRING(	'p',	&psf, 			"", "Include Point-Spread-Function"),
 		OPT_STRING(	't',	&trajectory,		"", "Input Trajectory"),
 		OPT_STRING(	'I',	&inputB1, 		"", "Input B1 image"),
-		OPT_STRING(	'F',	&inputVFA, 		"", "Input for variable flipangle profile"),
 		OPT_INT(	'n', 	&fit_para.not_wav_maps, "", "# Removed Maps from Wav.Denoisng"),
 		OPT_SET(	'O', 	&fit_para.full_ode_sim	,  "Apply full ODE simulation"),
+		OPT_FLOAT(	'k', 	&k_filter,		"",  "Smooth pattern edges wit filter?"),
 		OPT_SET(	'S', 	&inputSP		,  "Add Slice Profile"),
 		OPT_INT(	'a', 	&fit_para.averaged_spokes, "", "Number of averaged spokes"),
 		OPT_INT(	'r', 	&fit_para.rm_no_echo, 	"", "Number of removed echoes."),
 		OPT_INT(	'w', 	&fit_para.runs, 		"", "Number of applied whole sequence trains."),
 		OPT_SET(	'g', 	&use_gpu			,  "use gpu"),
-		{ 'P', NULL, true, opt_seq, &fit_para, "\tA:B:C:D:E:F:G\tSequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep> (-Ph for help)" },
+		{ 'P', NULL, true, opt_seq, &fit_para, "\tA:B:C:D:E:F:G:H\tSequence parameter <Seq:TR:TE:FA:Drf:Dinv:Dprep:BWTP> (-Ph for help)" },
 	};
 
 	cmdline(&argc, argv, 2, 4, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -210,6 +220,10 @@ int main_modbloch(int argc, char* argv[])
 	complex float* sens = (out_sens ? create_cfl : anon_cfl)(out_sens ? argv[3] : "", DIMS, coil_dims);
 	md_clear(DIMS, coil_dims, sens, CFL_SIZE);
 
+	long dims[DIMS];
+	md_copy_dims(DIMS, dims, grid_dims);
+
+	dims[COEFF_DIM] = img_dims[COEFF_DIM];
 	
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, grid_dims);
@@ -292,6 +306,42 @@ int main_modbloch(int argc, char* argv[])
 		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace_data);
 		md_copy(DIMS, grid_dims, k_grid_data, kspace_data, CFL_SIZE);
 	}
+
+	// Filter pattern to smooth sharp edges in PSF
+	// Pruessmann et al.,"Advances in Sensitivity Encoding With Arbitrary k-Space Trajectories", MRM, 2001.
+
+	if (-1 != k_filter) {
+
+		long map_dims[DIMS];
+		md_select_dims(DIMS, FFT_FLAGS, map_dims, pat_dims);
+
+		long map_strs[DIMS];
+		md_calc_strides(DIMS, map_strs, map_dims, CFL_SIZE);
+
+		long pat_strs[DIMS];
+		md_calc_strides(DIMS, pat_strs, pat_dims, CFL_SIZE);
+
+		complex float* filter = NULL;
+		filter = anon_cfl("", DIMS, map_dims);
+		float lambda = k_filter;
+
+		klaplace(DIMS, map_dims, map_dims, READ_FLAG|PHS1_FLAG, filter);
+		md_zreal(DIMS, map_dims, filter, filter);
+		md_zsqrt(DIMS, map_dims, filter, filter);
+
+		md_zsmul(DIMS, map_dims, filter, filter, -2.);
+		md_zsadd(DIMS, map_dims, filter, filter, 1.);
+		md_zatanr(DIMS, map_dims, filter, filter);
+
+		md_zsmul(DIMS, map_dims, filter, filter, -1. / M_PI);
+		md_zsadd(DIMS, map_dims, filter, filter, 1.0);
+		md_zsmul(DIMS, map_dims, filter, filter, lambda);
+
+		md_zadd2(DIMS, pat_dims, pat_strs, pattern, pat_strs, pattern, map_strs, filter);
+
+		unmap_cfl(DIMS, map_dims, filter);
+	}
+
 	
 	// Load passed B1
 
@@ -303,25 +353,29 @@ int main_modbloch(int argc, char* argv[])
 
 		input_b1 = load_cfl(inputB1, DIMS, input_b1_dims);
 
+		assert(md_check_bounds(DIMS, FFT_FLAGS, grid_dims, input_b1_dims));
+
 		fit_para.input_b1 = md_alloc(DIMS, input_b1_dims, CFL_SIZE);
 		md_copy(DIMS, input_b1_dims, fit_para.input_b1, input_b1, CFL_SIZE);
 	}
 
-	// Load passed variable flip angle file
+	// Load variable flip angles
 
-	complex float* input_vfa = NULL;
+	if (4 == fit_para.sequence) {
 
-	long input_vfa_dims[DIMS];
+		assert(fit_para.full_ode_sim);
 
-	if (NULL != inputVFA) {
+		long vfa_dims[DIMS];
+		md_set_dims(DIMS, vfa_dims, 1);
+		vfa_dims[READ_DIM] = ksp_dims[TE_DIM];
 
-		input_vfa = load_cfl(inputVFA, DIMS, input_vfa_dims);
+		debug_print_dims(DP_DEBUG2, DIMS, vfa_dims);
 
-		fit_para.num_vfa = input_vfa_dims[READ_DIM];
-		debug_printf(DP_DEBUG3, "Number of variable flip angles: %d\n", fit_para.num_vfa);
+		fit_para.num_vfa = ksp_dims[TE_DIM];
 
-		fit_para.input_fa_profile = md_alloc(DIMS, input_vfa_dims, CFL_SIZE);
-		md_copy(DIMS, input_vfa_dims, fit_para.input_fa_profile, input_vfa, CFL_SIZE);
+		fit_para.input_fa_profile = md_alloc(DIMS, vfa_dims, CFL_SIZE);
+
+		get_antihsfp_fa(fit_para.num_vfa, fit_para.input_fa_profile);
 	}
 
 	// Determine Slice Profile
@@ -331,18 +385,26 @@ int main_modbloch(int argc, char* argv[])
 
 	if (inputSP) {
 
+		struct simdata_pulse pulse = simdata_pulse_defaults;
+
+		pulse.rf_end = fit_para.rfduration;
+		pulse.flipangle = fit_para.fa;
+		pulse.bwtp = fit_para.bwtp;
+
 		md_set_dims(DIMS, slcprfl_dims, 1);
 		slcprfl_dims[READ_DIM] = 10;
 
 		sliceprofile = md_alloc(DIMS, slcprfl_dims, CFL_SIZE);
 
-		estimate_slice_profile(DIMS, slcprfl_dims, sliceprofile);
+		estimate_slice_profile(DIMS, slcprfl_dims, sliceprofile, &pulse);
 
 		fit_para.sliceprofile_spins = slcprfl_dims[READ_DIM];
 
 		fit_para.input_sliceprofile = md_alloc(DIMS, slcprfl_dims, CFL_SIZE);
 
 		md_copy(DIMS, slcprfl_dims, fit_para.input_sliceprofile, sliceprofile, CFL_SIZE);
+
+		md_free(sliceprofile);
 	}
 
 	// Scale DATA
@@ -388,7 +450,7 @@ int main_modbloch(int argc, char* argv[])
 		scaling = 500;
 
 #else	// full data based scaling of data
-	double scaling = 10000. / md_znorm(DIMS, grid_dims, k_grid_data) * ksp_dims[2];
+	double scaling = 5000. / md_znorm(DIMS, grid_dims, k_grid_data);// * ksp_dims[2];
 #endif
 
 	debug_printf(DP_INFO, "Data Scaling: %f,\t Spokes: %ld\n", scaling, ksp_dims[PHS2_DIM]);
@@ -420,11 +482,16 @@ int main_modbloch(int argc, char* argv[])
 	long tmp_strs[DIMS];
 	md_calc_strides(DIMS, tmp_strs, tmp_dims, CFL_SIZE);
 	
-	complex float initval[3] = {0.8, 4., 10.};//	R1, M0, R2
+	complex float initval[3] = {0.5, 4., 0.01};//	R1, M0, R2
 	
 	// Determine DERIVATIVE and SIGNAL scaling by simulating the applied sequence
-
 	auto_scale(&fit_para, fit_para.scale, grid_dims, k_grid_data);
+
+	if (-1 != scalingR1)
+		fit_para.scale[0] = scalingR1;
+
+	if (-1 != scalingR2)
+		fit_para.scale[2] = scalingR2;
 
 	debug_printf(DP_INFO,"Scaling:\t%f,\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2], fit_para.scale[3]);
 
@@ -460,13 +527,13 @@ int main_modbloch(int argc, char* argv[])
 		md_copy(DIMS, grid_dims, kspace_gpu, k_grid_data, CFL_SIZE);
 
 
-		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
+		bloch_recon(&conf, &fit_para, dims, img, sens, pattern, mask, kspace_gpu, use_gpu);
 
 		md_free(kspace_gpu);
 	} else
 #endif
 
-		bloch_recon(&conf, &fit_para, grid_dims, img, sens, pattern, mask, k_grid_data, use_gpu);
+		bloch_recon(&conf, &fit_para, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
 
 	// Rescale resulting PARAMETER maps
 
@@ -504,9 +571,6 @@ int main_modbloch(int argc, char* argv[])
 	md_free(ones_tmp);
 	md_free(mask);
 
-	if (inputSP)
-		md_free(sliceprofile);
-
 	unmap_cfl(DIMS, coil_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_dims, img);
@@ -515,9 +579,6 @@ int main_modbloch(int argc, char* argv[])
 
 	if(NULL != input_b1)
 		unmap_cfl(DIMS, input_b1_dims, input_b1);
-
-	if(NULL != input_vfa)
-		unmap_cfl(DIMS, input_vfa_dims, input_vfa);
 
 	double recosecs = timestamp() - start_time;
 	debug_printf(DP_DEBUG2, "Total Time: %.2f s\n", recosecs);

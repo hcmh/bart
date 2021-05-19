@@ -45,8 +45,8 @@
 // [AC-Adaptive]
 void radial_self_delays(int N, float shifts[N], const float phi[N], const long dims[DIMS], const complex float* in)
 {
-	unsigned int d = 2;
-	unsigned int flags = (1 << d);
+	int d = 2;
+	int flags = (1 << d);
 
 	assert(N == dims[d]);
 
@@ -103,20 +103,12 @@ static float angle_dist(float a, float b)
 	return fabsf(fmodf(fabsf(a - b), M_PI) - (float)(M_PI / 2.));
 }
 
-static int dist_compare(const void* _data, int a, int b)
-{
-	const float* dist = _data;
-	float d = dist[a] - dist[b];
 
-	if (d > 0.)
-		return 1;
-
-	return (0. == d) ? 0 : -1;
-}
 
 static void find_nearest_orthogonal_spokes(int N, int spokes[N], float ref_angle, const float angles[N])
 {
 	float dist[N];
+	__block float* distp = dist; // clang workaround
 
 	for (int i = 0; i < N; i++) {
 
@@ -124,7 +116,17 @@ static void find_nearest_orthogonal_spokes(int N, int spokes[N], float ref_angle
 		dist[i] = angle_dist(ref_angle, angles[i]);
 	}
 
-	quicksort(N, spokes, dist, dist_compare);
+	NESTED(int, dist_compare, (int a, int b))
+	{
+		float d = distp[a] - distp[b];
+
+		if (d > 0.)
+			return 1;
+
+		return (0. == d) ? 0 : -1;
+	};
+
+	quicksort(N, spokes, dist_compare);
 }
 
 
@@ -212,12 +214,14 @@ static void calc_intersections(int Nint, int N, int no_intersec_sp, bool b0, flo
 						A = 0.;
 						float N = 0.;
 
-						for (int c = 0; c < channels; c++)
-							A += spoke_i[l + c * ROI] * conjf(spoke_j[m + c * ROI]);
+						for (int c = 0; c < channels; c++) {
 
-						for (int c = 0; c < channels; c++)
-							//N += powf(cabsf(spoke_j[m + c * ROI]), 2.);
-							N += cabsf(spoke_i[l + c * ROI]) * cabsf(spoke_j[m + c * ROI]);
+							complex float si = spoke_i[l + c * ROI];
+							complex float sj = spoke_j[m + c * ROI];
+
+							A += si * conjf(sj);
+							N += cabsf(si) * cabsf(sj);
+						}
 
 						A /= N;
 					}

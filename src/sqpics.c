@@ -243,7 +243,7 @@ static bool opt_reg(void* ptr, char c, const char* optarg)
 	return false;
 }
 
-int main_sqpics(int argc, char* argv[])
+int main_sqpics(int argc, char* argv[argc])
 {
 	// Initialize default parameters
 
@@ -569,7 +569,7 @@ int main_sqpics(int argc, char* argv[])
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
 			thresh_ops[nr] = lrthresh_create(img_dims, randshift, regs[nr].xflags, (const long (*)[DIMS])blkdims, regs[nr].lambda, false, 0, false);
 
-			const struct linop_s* decom_op = linop_sum_create(img_dims);
+			const struct linop_s* decom_op = linop_avg_create(DIMS, img_dims, LEVEL_FLAG);
 			const struct linop_s* tmp_op = forward_op;
 			forward_op = linop_chain(decom_op, forward_op);
 

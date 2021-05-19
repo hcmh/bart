@@ -85,17 +85,15 @@ static void zT1_alpha2_fun(const nlop_data_t* _data, int N, complex float* args[
 	md_zsmul(data->N, data->map_dims, data->R1s, data->alpha, data->scaling_alpha);
 	md_zadd(data->N, data->map_dims, data->R1s, data->R1, data->R1s);
 
-        // md_zsmul(data->N, data->map_dims, data->tmp, data->R1s, -1.);
+        md_zsmul(data->N, data->map_dims, data->tmp, data->R1s, -1.);
+        md_zmul2(data->N, data->out_dims, data->out_strs, data->xn, data->map_strs, data->tmp, data->TI_strs, data->TI);
 
-        // md_zmul2(data->N, data->out_dims, data->out_strs, data->xn, data->map_strs, data->tmp, data->TI_strs, data->TI);
-
-        for(int k = 0; k < (data->TI_dims[5]); k++)
-		md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->xn + data->out_strs[5] * k, data->map_strs, (void*)data->R1s, -1.*data->TI[k]);
-
+        // for(int k = 0; k < (data->TI_dims[5]); k++)
+	// 	md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->xn + data->out_strs[5] * k, data->map_strs, (void*)data->R1s, -1.*data->TI[k]);
 
         md_zexp(data->N, data->out_dims, data->xn, data->xn);
 
-        //M0 * R1/(R1 + alpha) - M_start
+        //M0 * R1/R1s - M_start
 	md_zdiv_reg(data->N, data->map_dims, data->dM0_1, data->R1, data->R1s, data->regularization); // dM0_1 =  R1 / R1s
         md_zmul(data->N, data->map_dims, data->tmp, data->dM0_1, data->M0);
 
@@ -116,20 +114,14 @@ static void zT1_alpha2_fun(const nlop_data_t* _data, int N, complex float* args[
 	md_copy_block(data->N, pos, data->map_dims, dst2, data->out_dims, dst1, CFL_SIZE);
 
         // derivatives (first output)
+        // dR1 = 1 - exp(-t*R1s)
         // dM0
         md_zfill(data->N, data->map_dims, data->tmp, 1.0);
         md_zsub2(data->N, data->out_dims, data->out_strs, data->dR1, data->map_strs, data->tmp, data->out_strs, data->xn); // 1 - exp(-t*R1s)
         md_zmul2(data->N, data->out_dims, data->out_strs, data->dM0, data->out_strs, data->dR1, data->map_strs, data->dM0_1);
 
-        // data->dR1 = 1 - exp(-t*R1s)
-        // dR1
-        // M0/R1*
-        // md_zdiv_reg(data->N, data->map_dims, data->tmp, data->M0, data->R1s, data->regularization);
-        // md_zmul2(data->N, data->out_dims, data->out_strs, data->dR1, data->out_strs, data->dR1, data->map_strs, data->dM0_1);
-
         //dalpha
         //R1/(scaling_alpha*alpha.^2) * M0
-
         md_zmul(data->N, data->map_dims, data->tmp, data->R1s, data->R1s);
 	md_zdiv_reg(data->N, data->map_dims, data->tmp, data->R1, data->tmp, data->regularization);
         md_zmul(data->N, data->map_dims, data->tmp, data->M0, data->tmp);
@@ -141,19 +133,8 @@ static void zT1_alpha2_fun(const nlop_data_t* _data, int N, complex float* args[
 
         md_zmul2(data->N, data->out_dims, data->out_strs, data->dalpha, data->map_strs, data->tmp, data->out_strs, data->dR1);
 
-        // t * exp(-t * R1s)
-        // md_zmul2(data->N, data->out_dims, data->out_strs, data->xn_tmp, data->out_strs, data->xn, data->TI_strs, data->TI);
-        // Calculating derivatives
-	long img_dims[data->N];
-	md_select_dims(data->N, FFT_FLAGS, img_dims, data->map_dims);
-
-        // t * exp(-t*R1s) * (1 + R1/R1s)
-	for (int s = 0; s < data->out_dims[13]; s++)
-		for(int k = 0; k < data->TI_dims[5]; k++)
-			//debug_printf(DP_DEBUG2, "\tTI: %f\n", creal(data->TI[k]));
-			md_zsmul(data->N, img_dims, (void*)data->xn_tmp + data->out_strs[5] * k + data->out_strs[13] * s,
-						(void*)data->xn + data->out_strs[5] * k + data->out_strs[13] * s, data->TI[k]);
-
+        
+        md_zmul2(data->N, data->out_dims, data->out_strs, data->xn_tmp, data->out_strs, data->xn, data->TI_strs, data->TI);
         // md_zsmul(data->N, data->out_dims, data->xn_tmp, data->xn_tmp, data->scaling_alpha);
 
         // (M0*R1/(scaling_alpha*alpha) - M_start) * t * exp(-t * R1s)
@@ -442,7 +423,7 @@ struct nlop_s* nlop_T1_alpha2_create(int N, const long map_dims[N], const long o
 	md_copy_strides(N, nl_ostr[0], data->out_strs);
         md_copy_strides(N, nl_ostr[1], data->map_strs);
 
-	data->TI = md_alloc(N, TI_dims, CFL_SIZE);
+	data->TI = my_alloc(N, TI_dims, CFL_SIZE);
 
         data->scaling_alpha = 0.2;
         data->regularization = 1e-6;

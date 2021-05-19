@@ -8,6 +8,7 @@
 
 #include "iter/iter.h"
 #include "iter/iter2.h"
+#include "iter/itop.h"
 
 #include "misc/cppwrap.h"
 
@@ -19,6 +20,8 @@ struct lsqr_conf {
 
 	float lambda;
 	_Bool it_gpu;
+	_Bool warmstart;
+	itop_continuation_t icont;
 };
 
 struct iter_monitor_s;
@@ -26,17 +29,17 @@ extern const struct lsqr_conf lsqr_defaults;
 
 extern const struct operator_p_s* lsqr2_create(const struct lsqr_conf* conf,
 				      italgo_fun2_t italgo, iter_conf* iconf,
-				      const float* init, _Bool warmstart,
+				      const float* init,
 				      const struct linop_s* model_op,
 				      const struct operator_s* precond_op,
-				      unsigned int num_funs,
+			              unsigned int num_funs,
 				      const struct operator_p_s* prox_funs[__VLA2(num_funs)],
 				      const struct linop_s* prox_linops[__VLA2(num_funs)],
 				      struct iter_monitor_s* monitor);
 
 extern const struct operator_p_s* wlsqr2_create(const struct lsqr_conf* conf,
 					italgo_fun2_t italgo, iter_conf* iconf,
-					const float* init, _Bool warmstart,
+				        const float* init,
 					const struct linop_s* model_op,
 					const struct linop_s* weights,
 					const struct operator_s* precond_op,

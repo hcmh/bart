@@ -24,7 +24,7 @@
 #include "noir/model.h"
 
 #include "iter_l1.h"
-#include "recon_T1.h"
+#include "moba.h"
 #include "model_Bloch.h"
 #include "recon_Bloch.h"
 
@@ -34,16 +34,12 @@ void bloch_recon(const struct moba_conf* conf, const struct modBlochFit* fit_par
 	long imgs_dims[DIMS];
 	long coil_dims[DIMS];
 	long data_dims[DIMS];
-	long img1_dims[DIMS];
 
 	unsigned int fft_flags = FFT_FLAGS; //SLICE_FLAG;
 
 	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
 	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|TIME2_FLAG, data_dims, dims);
-	md_select_dims(DIMS, fft_flags|TIME2_FLAG, img1_dims, dims);
-
-	imgs_dims[COEFF_DIM] = 3;
 
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);
@@ -93,7 +89,8 @@ void bloch_recon(const struct moba_conf* conf, const struct modBlochFit* fit_par
 										.lower_bound = 10E-4,
 										.constrained_maps = 5,
 										.not_wav_maps = fit_para->not_wav_maps,
-										.wav_reg = 0.1 };
+										.wav_reg = 1,
+										.auto_norm_off = true};
 
     	conf2.algo = 3;
 

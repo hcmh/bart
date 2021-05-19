@@ -18,14 +18,26 @@ MAKEFLAGS += -R
 # use for parallel make
 AR=./ar_lock.sh
 
+# allow blas calls within omp regions (fails on Debian 9, openblas)
+BLAS_THREADSAFE?=
+
+# some operations might still be non deterministic
+NON_DETERMINISTIC?=0
+
+OPENBLAS?=0
+
+# use for ppc64le HPC
 MKL?=0
 CUDA?=0
+CUDNN?=0
 ACML?=0
 UUID?=0
 OMP?=1
 SLINK?=0
 DEBUG?=0
+UBSAN?=0
 FFTWTHREADS?=1
+SCALAPACK?=0
 ISMRMRD?=0
 NOEXEC_STACK?=0
 PARALLEL?=0
@@ -47,6 +59,7 @@ UNAME = $(shell uname -s)
 NNAME = $(shell uname -n)
 
 MYLINK=ln
+
 
 ifeq ($(UNAME),Darwin)
 	BUILDTYPE = MacOSX
@@ -130,7 +143,8 @@ endif
 
 # cuda
 
-CUDA_BASE ?= /usr/local/
+CUDA_BASE ?= /usr/
+CUDNN_BASE ?= $(CUDA_BASE)
 
 
 # acml
@@ -161,15 +175,15 @@ ISMRM_BASE ?= /usr/local/ismrmrd/
 
 # Main build targets
 #
-TBASE=show slice crop resize join transpose squeeze flatten zeros ones flip circshift extract repmat bitmask reshape version delta copy casorati vec poly index linspace pad
+TBASE=show slice crop resize join transpose squeeze flatten zeros ones flip circshift extract repmat bitmask reshape version delta copy casorati vec poly index linspace pad morph multicfl fd
 TFLP=scale invert conj fmac saxpy sdot spow cpyphs creal carg normalize cdf97 pattern nrmse mip avg cabs zexp
-TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavelet window var std fftrot
-TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobaT2star modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv
+TNUM=fft fftmod fftshift noise bench threshold conv rss filter mandelbrot wavelet window var std fftrot roistat pol2mask conway
+TRECO=pics pocsense sqpics itsense nlinv T1fun moba mobafit cdi modbloch pixel nufft rof tgv sake wave lrmatrix estdims estshift estdelay wavepsf wshfl hornschunck ncsense kmat power approx kernel dcnn rtreco rtnlinv sudoku
 TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ssa bin cordelay laplace kmeans convkern nlsa eof
-TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon genLLbasis
+TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon synthesize fovshift
 TIO=toimg dcmread dcmtag
-TSIM=phantom phantom_json traj upat bloch sim tbasis signal
-TNN=mnist nn_segm nnvn nnmodl
+TSIM=phantom phantom_json traj upat bloch sim signal epg leray pde pde_mask bfield
+TNN=mnist nnvn nnmodl reconet nnet onehotenc
 
 
 
@@ -179,9 +193,10 @@ MODULES_pics = -lgrecon -lsense -liter -llinops -lwavelet -llowrank -lnoncart -l
 MODULES_sqpics = -lsense -liter -llinops -lwavelet -llowrank -lnoncart
 MODULES_pocsense = -lsense -liter -llinops -lwavelet
 MODULES_nlinv = -lnoir -liter -lnlops -llinops -lnoncart
-MODULES_moba = -lmoba -lnoir -liter -lnlops -lwavelet -lnoncart -lgrecon -llinops -llowrank -lsimu
-MODULES_mobaT2star = -lmoba -lnoir -liter -lnlops -lwavelet -lnoncart -lgrecon -llinops -llowrank -lsimu
+MODULES_cdi = -liter -lsimu -llinops
 MODULES_rtnlinv = -lnoir -liter -lnlops -llinops -lnoncart
+MODULES_moba = -lmoba -lnoir -lnlops -llinops -lwavelet -lnoncart -lsimu -lgrecon -llowrank -llinops -liter
+MODULES_mobafit = -lmoba -lnlops -llinops -lsimu -liter
 MODULES_bpsense = -lsense -lnoncart -liter -llinops -lwavelet
 MODULES_itsense = -liter -llinops
 MODULES_ecalib = -lcalib
@@ -198,7 +213,8 @@ MODULES_rof = -liter -llinops
 MODULES_tgv = -liter -llinops
 MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu -lgeom
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnn -liter -lmanifold -lmoba -lgeom -lnlops
+MODULES_phantom_json = -lsimu -lgeom
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lrkhs -lnetworks -lnn -liter -lmanifold -lmoba -lgeom -lnlops
 MODULES_sake = -lsake
 MODULES_traj = -lnoncart
 MODULES_wave = -liter -lwavelet -llinops -llowrank
@@ -215,21 +231,37 @@ MODULES_kernel = -lrkhs -lnoncart
 MODULES_power = -lrkhs -lnoncart
 MODULES_approx = -lrkhs -lnoncart
 MODULES_kmat = -lrkhs -lnoncart
-MODULES_dcnn = -lnn -llinops
+MODULES_dcnn = -lnetworks -lnn -lnlops -llinops -liter
 MODULES_ssa = -lcalib -lmanifold -liter -llinops
 MODULES_nlsa = -lcalib -lmanifold -liter -llinops
 MODULES_bin = -lcalib
 MODULES_laplace = -lmanifold -liter -llinops
 MODULES_kmeans = -lmanifold -liter -llinops
 MODULES_tgv = -liter -llinops
-MODULES_bloch = -lsimu
+MODULES_bloch = -lsimu -lgeom
 MODULES_modbloch = -lmoba -lnoir -liter -lsimu -lnlops -lwavelet -lnoncart -lgrecon -llinops -llowrank
 MODULES_sim = -lsimu
 MODULES_rtnlinv = -lnoncart -lnoir -lnlops -liter -llinops
 MODULES_signal = -lsimu
-MODULES_pad = -lnum
-MODULES_eof = -lcalib
-
+MODULES_eof = -lcalib -lmanifold
+MODULES_pol2mask = -lgeom
+MODULES_sudoku = -llinops -liter
+MODULES_nnvn = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
+MODULES_nnmodl = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
+MODULES_reconet = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
+MODULES_nnet = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
+MODULES_onehotenc = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
+MODULES_mnist = -lnetworks -lnn -lnlops -llinops -liter
+MODULES_morph = -lnlops -llinops -lgeom
+MODULES_epg = -lsimu
+MODULES_fd = -llinops
+MODULES_leray = -lsimu -llinops -liter
+MODULES_pde = -lsimu -liter -llinops
+MODULES_pde_mask = -lsimu -llinops
+MODULES_bfield = -lsimu -llinops
+MODULES_dixon = -lmoba -lnlops -llinops -lsimu
+MODULES_pixel = -lmoba -lnoir -liter -lsimu -lnlops -lwavelet -lgrecon -lnoncart -llinops -llowrank
+MODULES_rtreco = -lcalib -lnoncart -llinops
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
@@ -272,6 +304,11 @@ TARGETS = bart $(XTARGETS)
 ifeq ($(DEBUG),1)
 CPPFLAGS += -g
 CFLAGS += -g
+NVCCFLAGS += -g
+endif
+
+ifeq ($(UBSAN),1)
+CFLAGS += -fsanitize=undefined -fsanitize-undefined-trap-on-error
 endif
 
 ifeq ($(NOEXEC_STACK),1)
@@ -320,10 +357,18 @@ NVCC = $(CUDA_BASE)/bin/nvcc
 ifeq ($(CUDA),1)
 CUDA_H := -I$(CUDA_BASE)/include
 CPPFLAGS += -DUSE_CUDA $(CUDA_H)
+ifeq ($(CUDNN),1)
+CUDNN_H := -I$(CUDNN_BASE)/include
+CPPFLAGS += -DUSE_CUDNN $(CUDNN_H)
+endif
 ifeq ($(BUILDTYPE), MacOSX)
 CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -m64 -lstdc++
 else
-CUDA_L := -L$(CUDA_BASE)/lib64 -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib64
+ifeq ($(CUDNN),1)
+CUDA_L := -L$(CUDA_BASE)/lib -L$(CUDNN_BASE)/lib64 -lcudnn -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib
+else
+CUDA_L := -L$(CUDA_BASE)/lib -lcufft -lcudart -lcublas -lstdc++ -Wl,-rpath $(CUDA_BASE)/lib
+endif
 endif
 else
 CUDA_H :=
@@ -332,7 +377,7 @@ endif
 
 # sm_20 no longer supported in CUDA 9
 GPUARCH_FLAGS ?= -arch=compute_50
-NVCCFLAGS = -DUSE_CUDA -Xcompiler -fPIC -Xcompiler -fopenmp -O3 $(GPUARCH_FLAGS) -I$(srcdir)/ -m64 -ccbin $(CC)
+NVCCFLAGS += -DUSE_CUDA -Xcompiler -fPIC -Xcompiler -fopenmp -O3 $(GPUARCH_FLAGS) -I$(srcdir)/ -m64 -ccbin $(CC)
 #NVCCFLAGS = -Xcompiler -fPIC -Xcompiler -fopenmp -O3  -I$(srcdir)/
 
 
@@ -355,7 +400,9 @@ endif
 
 
 # BLAS/LAPACK
-
+ifeq ($(SCALAPACK),1)
+BLAS_L :=  -lopenblas -lscalapack
+else
 ifeq ($(ACML),1)
 BLAS_H := -I$(ACML_BASE)/include
 BLAS_L := -L$(ACML_BASE)/lib -lgfortran -lacml_mp -Wl,-rpath $(ACML_BASE)/lib
@@ -369,7 +416,15 @@ ifeq ($(NOLAPACKE),1)
 BLAS_L := -L$(BLAS_BASE)/lib -llapack -lblas
 CPPFLAGS += -Isrc/lapacke
 else
+ifeq ($(OPENBLAS), 1)
+BLAS_L := -L$(BLAS_BASE)/lib -llapacke -lopenblas
+CPPFLAGS += -DUSE_OPENBLAS
+CFLAGS += -DUSE_OPENBLAS
+BLAS_THREADSAFE?=1
+else
 BLAS_L := -L$(BLAS_BASE)/lib -llapacke -lblas
+endif
+endif
 endif
 endif
 endif
@@ -379,8 +434,20 @@ BLAS_H := -I$(MKL_BASE)/include
 BLAS_L := -L$(MKL_BASE)/lib/intel64 -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core
 CPPFLAGS += -DUSE_MKL -DMKL_Complex8="complex float" -DMKL_Complex16="complex double"
 CFLAGS += -DUSE_MKL -DMKL_Complex8="complex float" -DMKL_Complex16="complex double"
+BLAS_THREADSAFE?=1
 endif
 
+BLAS_THREADSAFE?=0
+ifeq ($(BLAS_THREADSAFE),1)
+CPPFLAGS += -DBLAS_THREADSAFE
+CFLAGS += -DBLAS_THREADSAFE
+endif
+
+ifeq ($(NON_DETERMINISTIC),1)
+CPPFLAGS += -DNON_DETERMINISTIC
+CFLAGS += -DNON_DETERMINISTIC
+NVCCFLAGS += -DNON_DETERMINISTIC
+endif
 
 
 CPPFLAGS += $(FFTW_H) $(BLAS_H)
@@ -463,10 +530,14 @@ endif
 # change for static linking
 
 ifeq ($(SLINK),1)
+ifeq ($(SCALAPACK),1)
+BLAS_L += -lgfortran -lquadmath
+else
 # work around fortran problems with static linking
 LDFLAGS += -static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -Wl,--allow-multiple-definition
 LIBS += -lmvec
 BLAS_L += -llapack -lblas -lgfortran -lquadmath
+endif
 endif
 
 
@@ -496,7 +567,11 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 
 endef
 
-ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom rkhs na nn manifold seq
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom rkhs na networks nn manifold seq
+ifeq ($(ISMRMRD),1)
+ALIBS += ismrm
+endif
+
 $(eval $(foreach t,$(ALIBS),$(eval $(call alib,$(t)))))
 
 
@@ -511,10 +586,11 @@ lib/libismrm.a: CPPFLAGS += $(ISMRM_H)
 
 
 # lib linop
-UTARGETS += test_linop_matrix test_linop test_linop_conv
+UTARGETS += test_linop_matrix test_linop test_linop_conv test_linop_fd
 MODULES_test_linop += -llinops
 MODULES_test_linop_matrix += -llinops
 MODULES_test_linop_conv += -llinops
+MODULES_test_linop_fd += -llinops
 
 # lib lowrank
 UTARGETS += test_batchsvd
@@ -524,8 +600,10 @@ MODULES_test_batchsvd = -llowrank
 UTARGETS += test_pattern test_types test_misc test_mmio
 
 # lib moba
-UTARGETS += test_moba
+UTARGETS += test_moba test_scale test_bloch_op
 MODULES_test_moba += -lmoba -lnoir -llowrank -lwavelet -liter -lnlops -llinops -lsimu
+MODULES_test_scale += -lmoba -lnoir -llowrank -liter -lnlops -llinops -lsimu
+MODULES_test_bloch_op += -lmoba -lnoir -llowrank -lwavelet -liter -lnlops -llinops -lsimu
 
 # lib nlop
 UTARGETS += test_nlop
@@ -536,17 +614,23 @@ UTARGETS += test_nufft
 MODULES_test_nufft += -lnoncart -llinops
 
 # lib num
-UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2 test_flpmath2
-UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test_ops_p test_specfun test_convcorr
-UTARGETS_GPU += test_cudafft test_cuda_flpmath_strides test_cuda_memcache_clear
+UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_mat2x2 test_fdiff
+UTARGETS += test_blas test_mdfft test_filter test_conv test_ops test_matexp test_ops_p test_specfun test_convcorr test_flpmath2
+UTARGETS_GPU += test_cuda_gpukrnls test_cudafft test_cuda_flpmath2 test_cuda_memcache_clear test_cuda_flpmath
 
 # lib simu
-UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_ode_simu test_signals
+UTARGETS += test_ode_bloch test_tsegf test_biot_savart test_biot_savart_fft test_ode_simu test_signals test_epg test_fd_geometry test_sparse test_pde test_linop_leray
 MODULES_test_ode_bloch += -lsimu
 MODULES_test_tsegf += -lsimu
 MODULES_test_biot_savart += -lsimu
+MODULES_test_biot_savart_fft += -lsimu -llinops
 MODULES_test_ode_simu += -lsimu
 MODULES_test_signals += -lsimu
+MODULES_test_epg += -lsimu
+MODULES_test_linop_leray += -lsimu -liter -llinops
+MODULES_test_fd_geometry += -lsimu -llinops
+MODULES_test_sparse += -lsimu -llinops
+MODULES_test_pde += -lsimu -llinops
 
 # lib slice profile
 UTARGETS +=test_slice_profile
@@ -562,9 +646,9 @@ MODULES_test_iter += -liter -lnlops -llinops
 MODULES_test_prox += -liter -lnlops -llinops
 
 # lib nn
-UTARGETS += test_nn_layers test_nn
-MODULES_test_nn += -lnn -lnlops -llinops
-MODULES_test_nn_layers += -lnn -lnlops -llinops
+UTARGETS += test_nn_ops test_nn
+MODULES_test_nn_ops += -lnn -lnlops -llinops -liter
+MODULES_test_nn += -lnn -lnlops -llinops -liter
 
 UTARGETS_GPU += test_cuda_nlop
 MODULES_test_cuda_nlop += -lnn -lnlops -llinops -lnum
@@ -635,25 +719,25 @@ endif
 
 .SECONDEXPANSION:
 $(TARGETS): % : src/main.c $(srcdir)/%.o $$(MODULES_%) $(MODULES)
-	$(LINKER) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -Dmain_real=main_$@ -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) $(LIBS) -lm
+	$(LINKER) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -Dmain_real=main_$@ -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) $(LIBS) -lm -lrt
 #	rm $(srcdir)/$@.o
 
 UTESTS=$(shell $(root)/utests/utests-collect.sh ./utests/$@.c)
 
 .SECONDEXPANSION:
 $(UTARGETS): % : utests/utest.c utests/%.o $$(MODULES_%) $(MODULES)
-	$(CC) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -DUTESTS="$(UTESTS)" -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(LIBS) -lm
+	$(CC) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -DUTESTS="$(UTESTS)" -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(LIBS) -lm -lrt
 
 UTESTS_GPU=$(shell $(root)/utests/utests_gpu-collect.sh ./utests/$@.c)
 
 .SECONDEXPANSION:
 $(UTARGETS_GPU): % : utests/utest_gpu.c utests/%.o $$(MODULES_%) $(MODULES)
-	$(CC) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -DUTESTS_GPU="$(UTESTS_GPU)" -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(LIBS) -lm
+	$(CC) $(LDFLAGS) $(CFLAGS) $(CPPFLAGS) -DUTESTS_GPU="$(UTESTS_GPU)" -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) $(LIBS) -lm -lrt
 
 
 
 # linker script version - does not work on MacOS X
-#	$(CC) $(LDFLAGS) -Wl,-Tutests/utests.ld $(CFLAGS) -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) -lm
+#	$(CC) $(LDFLAGS) -Wl,-Tutests/utests.ld $(CFLAGS) -o $@ $+ $(FFTW_L) $(CUDA_L) $(BLAS_L) -lm -rt
 
 clean:
 	rm -f `find $(srcdir) -name "*.o"`

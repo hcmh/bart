@@ -100,11 +100,11 @@ static void create_sim_matrix(int N, float matrix[N][N], float end, void* _data 
 
 	if (simdata->pulse.pulse_applied)
 #ifndef MATRIX_SPLIT
-		pulse_create(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.nl, simdata->pulse.nr, simdata->pulse.alpha);
+		pulse_create(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.bwtp, simdata->pulse.alpha);
 #else
 	{	// Possible increase of precision by splitting into rf- and relaxation-matrix?
 
-		pulse_create(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.nl, simdata->pulse.nr, simdata->pulse.alpha);
+		pulse_create(&simdata->pulse, simdata->pulse.rf_start, simdata->pulse.rf_end, simdata->pulse.flipangle, simdata->pulse.phase, simdata->pulse.bwtp, simdata->pulse.alpha);
 
 		float tmp1[N][N];
 
@@ -217,7 +217,7 @@ static void apply_signal_preparation(int N, float m[N], void* _data )// provides
 
 	// Special case for simulation of finit RF-pulse effect on T2 for IR bSSFP
 	if (tmp_data.pulse.pulse_length > simdata->seq.prep_pulse_length)
-		tmp_data.pulse.pulse_length = simdata->seq.prep_pulse_length;
+		tmp_data.pulse.rf_end = simdata->seq.prep_pulse_length;
 
 	float matrix[N][N];
 
@@ -263,7 +263,7 @@ static void apply_relaxation(int N, float m[N], void* _data )// provides alpha/2
 	apply_sim_matrix(N, m, matrix);
 }
 
-static void apply_inv_relaxation(int N, float m[N], void* _data )// provides alpha/2. preparation only
+static void apply_inv_relaxation(int N, float m[N], void* _data )
 {
 	struct sim_data* simdata = _data;
 	struct sim_data tmp_data = *simdata;
@@ -342,7 +342,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		isochrom_distribution( data, isochromats);
 
 	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows 
-	float *mxy = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
+	float *mxy = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) ); // [Mx, My, Mz], FIXME: better name
 	float *sa_r1 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
 	float *sa_r2 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
     
@@ -369,15 +369,15 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		data->tmp.rep_counter = 0;
 		data->pulse.phase = 0;
 
-		if (data->seq.seq_type == 1 || data->seq.seq_type == 5) {
+		if (data->seq.seq_type == 1 || data->seq.seq_type == 8  || data->seq.seq_type == 5 || data->seq.seq_type == 7) {
 
 		// 	apply_inversion(N, xp, data->seq.inversion_pulse_length, data);
-			xp[2] = -1;
+			xp[2] = -1.;
 			apply_inv_relaxation(N, xp, data);
 		}
 
 		//for bSSFP based sequences: alpha/2 and tr/2 preparation
-		if (data->seq.seq_type == 0 || data->seq.seq_type == 1)
+		if (data->seq.seq_type == 0 || data->seq.seq_type == 1 || data->seq.seq_type == 7)
 			apply_signal_preparation(N, xp, data);
 
 		// IR FLASH (Look-Locker model) assumes perfect inversion followed by a relaxation block
@@ -396,15 +396,41 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 
 		float matrix_to_tr[N][N];
 		prepare_matrix_to_tr( N, matrix_to_tr, data);
-        
-		while (data->tmp.rep_counter < data->seq.rep_num) { 
+
+
+
+		float matrix_to_te_fa2[N][N];
+		float matrix_to_te_fa2_PI[N][N];
+
+		if (7 == data->seq.seq_type) {	// half change IR bSSFP
+
+			data->pulse.flipangle *= 2;
+
+			prepare_matrix_to_te( N, matrix_to_te_fa2, data);
+
+			data->pulse.phase = M_PI;
+			prepare_matrix_to_te( N, matrix_to_te_fa2_PI, data);
+			data->pulse.phase = 0.;
+
+			data->pulse.flipangle /= 2;
+		}
+
+		while (data->tmp.rep_counter < data->seq.rep_num) {
+
+			if (data->seq.look_locker_assumptions)
+				collect_data( N, xp, mxy, sa_r1, sa_r2, data);
 			
 			if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
 				apply_sim_matrix( N, xp, matrix_to_te );
+
+			else if (7 == data->seq.seq_type && 500 <= data->tmp.rep_counter)
+				apply_sim_matrix( N, xp, ( ( data->tmp.rep_counter % 2 == 0 ) ? matrix_to_te_fa2 : matrix_to_te_fa2_PI) );
+
 			else
 				apply_sim_matrix( N, xp, ( ( data->tmp.rep_counter % 2 == 0 ) ? matrix_to_te : matrix_to_te_PI) );
 
-			collect_data( N, xp, mxy, sa_r1, sa_r2, data);
+			if (!data->seq.look_locker_assumptions)
+				collect_data( N, xp, mxy, sa_r1, sa_r2, data);
 
 			apply_sim_matrix( N, xp, matrix_to_tr );
 

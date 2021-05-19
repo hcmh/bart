@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "simu/slice_profile.h"
+#include "simu/simulation.h"
 #include "simu/sim_matrix.h"
 #include "simu/pulse.h"
 
@@ -25,10 +26,15 @@ static bool test_slice_profile(void)
 	md_set_dims(DIMS, slcprfl_dims, 1);
 	slcprfl_dims[READ_DIM] = number_isochromats;
 
+	struct simdata_pulse pulse = simdata_pulse_defaults;
+
+	pulse.rf_end = 0.009;
+	pulse.flipangle = 6.;
+
 	complex float* sliceprofile = md_alloc(DIMS, slcprfl_dims, CFL_SIZE);
 
 	// FIXME: Extend also to other rf pulse shapes
-	estimate_slice_profile(DIMS, slcprfl_dims, sliceprofile);
+	estimate_slice_profile(DIMS, slcprfl_dims, sliceprofile, &pulse);
 
 	float reference[number_isochromats] = {	0.023543, 0.083183,
 						0.192155, 0.348666,

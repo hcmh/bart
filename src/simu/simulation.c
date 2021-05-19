@@ -21,6 +21,7 @@
 
 #include "simulation.h"
 #include "sim_matrix.h"
+#include "polar_angles.h"
 
 
 
@@ -48,6 +49,7 @@ const struct simdata_seq simdata_seq_defaults = {
 	.prep_pulse_length = 0.001,
 	.molli_break = 0,
 	.molli_measure = 0,
+	.look_locker_assumptions = false,
 	
 	.slice_profile = NULL,
 	.variable_fa = NULL,
@@ -237,17 +239,20 @@ void relaxation2(struct sim_data* data, float h, float tol, int N, int P, float 
 
 void create_sim_block(struct sim_data* data)
 {
-	pulse_create(&data->pulse, data->pulse.rf_start, data->pulse.rf_end, data->pulse.flipangle, data->pulse.phase, data->pulse.nl, data->pulse.nr, data->pulse.alpha);
+	pulse_create(&data->pulse, data->pulse.rf_start, data->pulse.rf_end, data->pulse.flipangle, data->pulse.phase, data->pulse.bwtp, data->pulse.alpha);
 }
 
 
 void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* saM0Signal, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal)
 {
+	if (get_signal && data->seq.look_locker_assumptions)
+		collect_signal(data, N, P, mxy, sa_r1, sa_r2, saM0Signal, xp);
+
 	start_rf_pulse(data, h, tol, N, P, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->pulse.rf_end, data->seq.te);
 
-	if (get_signal)
+	if (get_signal && !data->seq.look_locker_assumptions)
 		collect_signal(data, N, P, mxy, sa_r1, sa_r2, saM0Signal, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->seq.te, data->seq.tr);
@@ -351,20 +356,18 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 			if (   (0 == data->seq.seq_type)
 			    || (1 == data->seq.seq_type)
 			    || (3 == data->seq.seq_type)
-			    || (   (4 == data->seq.seq_type)
-			        && (0 == data->tmp.run_counter))
-			    || (6 == data->seq.seq_type)) {
+			    || (6 == data->seq.seq_type) ) {
 
 				struct sim_data prep_data = *data;
 
-				if (4 == data->seq.seq_type)
-					prep_data.pulse.flipangle = cabsf(data->seq.variable_fa[data->tmp.rep_counter]) / 2. * slice_factor;
-				else
-					prep_data.pulse.flipangle = data->pulse.flipangle / 2.;
+				prep_data.pulse.flipangle = data->pulse.flipangle / 2.;
 
 				prep_data.pulse.phase = M_PI;
 				prep_data.seq.te = data->seq.prep_pulse_length;
 				prep_data.seq.tr = data->seq.prep_pulse_length;
+
+				if (prep_data.pulse.rf_end > data->seq.prep_pulse_length)
+					prep_data.pulse.rf_end = data->seq.prep_pulse_length;
 
 				create_sim_block(&prep_data);
 
@@ -411,6 +414,30 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 					}
 				}
 
+				// Apply inversion after one acquisition of HSFP sequence is performed
+				if ((4 == data->seq.seq_type) && (851 == data->tmp.rep_counter)) {
+
+					struct sim_data inv_data = *data;
+
+					if (0 != inv_data.pulse.rf_end) // for non-hard pulses
+						inv_data.pulse.rf_end = data->seq.inversion_pulse_length;
+
+					inv_data.pulse.flipangle = 180.;
+					inv_data.seq.te = data->pulse.rf_end;
+					inv_data.seq.tr = data->pulse.rf_end;
+
+					create_sim_block(&inv_data);
+
+					run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+
+					for (int i = 0; i < P + 2; i++) {
+
+						xp[i][0] = 0.;
+						xp[i][1] = 0.;
+					}
+				}
+
+				// Break for MOLLI experiments
 				if (0 != data->tmp.rep_counter && 0 != data->seq.molli_break && (data->tmp.rep_counter%data->seq.molli_measure == 0))
 					relaxation2(data, h, tol, N, P, xp, 0., data->seq.molli_break * data->seq.tr);
 
@@ -476,7 +503,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 }
 
 
-void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, bool ode)
+void bloch_simulation(struct sim_data* sim_data, int N, complex float* x_out, complex float* y_out, complex float* z_out, bool ode)
 {
 	complex float mxy_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
 	complex float sa_r1_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
@@ -484,12 +511,15 @@ void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, bool
 	complex float sa_m0_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
 
 	if (ode)
-		ode_bloch_simulation3(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);		// ODE simulation
+		ode_bloch_simulation3(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// ODE simulation
 	else
 		matrix_bloch_simulation(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);	// OBS simulation, does not work with hard-pulses!
 
-	for (int t = 0; t < N; t++) 
-		out[t] = mxy_sig[t][1] + mxy_sig[t][0] * I;
-}
+	for (int t = 0; t < N; t++) {
 
+		x_out[t] = mxy_sig[t][1];
+		y_out[t] = mxy_sig[t][0];
+		z_out[t] = mxy_sig[t][2];
+	}
+}
 

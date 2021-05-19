@@ -1,11 +1,11 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2015-2018. Martin Uecker.
+ * Copyright 2015-2021. Martin Uecker.
  * Copyright 2017-2018. Damien Nguyen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2021 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2017-2018 Damien Nguyen <damien.nguyen@alumni.epfl.ch>
  */
 
@@ -16,6 +16,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <complex.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -45,6 +46,31 @@ static void xdprintf(int fd, const char* fmt, ...)
 		error("Error writing.\n");
 }
 
+
+
+enum file_types_e file_type(const char* name)
+{
+	const char *p = strrchr(name, '.');
+
+	if ((NULL != p) && (p != name)) {
+
+		if (0 == strcmp(p, ".ra"))
+			return FILE_TYPE_RA;
+
+		if (0 == strcmp(p, ".coo"))
+			return FILE_TYPE_COO;
+
+		if (0 == strcmp(p, ".shm"))
+			return FILE_TYPE_SHM;
+
+#ifdef USE_MEM_CFL
+		if (0 == strcmp(p, ".mem"))
+			return FILE_TYPE_MEM;
+#endif
+	}
+
+	return FILE_TYPE_CFL;
+}
 
 
 struct iofile_s {
@@ -103,7 +129,7 @@ void io_unregister(const char* name)
 			xfree(io->name);
 			xfree(io);
 
-			return;
+			continue;
 		}
 
 		iop = &io->prev;
@@ -118,11 +144,76 @@ void io_memory_cleanup(void)
 }
 
 
-int write_cfl_header(int fd, unsigned int n, const long dimensions[n])
+
+void io_unlink_if_opened(const char* name)
+{
+	const struct iofile_s* iop = iofiles;
+
+	while (NULL != iop) {
+
+		if (0 == strcmp(name, iop->name)) {
+
+			enum file_types_e type = file_type(name);
+
+			switch (type) {
+
+			case FILE_TYPE_RA:
+			case FILE_TYPE_COO:
+
+				if (0 != unlink(name))
+					error("Failed to unlink file %s\n", name);
+
+				break;
+
+			case FILE_TYPE_CFL:
+
+				;
+
+				char name_bdy[1024];
+
+				if (1024 <= snprintf(name_bdy, 1024, "%s.cfl", name))
+					error("Failed to unlink cfl file %s\n", name);
+
+				if (0 != unlink(name_bdy))
+					error("Failed to unlink file %s\n", name);
+
+				char name_hdr[1024];
+
+				if (1024 <= snprintf(name_hdr, 1024, "%s.hdr", name))
+					error("Failed to unlink cfl file %s\n", name);
+
+				if (0 != unlink(name_hdr))
+					error("Failed to unlink file %s\n", name);
+
+				break;
+
+			case FILE_TYPE_SHM:
+
+				if (0 != shm_unlink(name))
+					error("Failed to unlink shared memory segment %s\n", name);
+
+				break;
+#ifdef USE_MEM_CFL
+			case FILE_TYPE_MEM:
+				break;
+#endif
+			}
+
+			io_unregister(name);
+
+			break;
+		}
+
+		iop = iop->prev;
+	}
+}
+
+
+int write_cfl_header(int fd, int n, const long dimensions[n])
 {
 	xdprintf(fd, "# Dimensions\n");
 
-	for (unsigned int i = 0; i < n; i++)
+	for (int i = 0; i < n; i++)
 		xdprintf(fd, "%ld ", dimensions[i]);
 
 	xdprintf(fd, "\n");
@@ -155,7 +246,7 @@ int write_cfl_header(int fd, unsigned int n, const long dimensions[n])
 
 
 
-int read_cfl_header(int fd, unsigned int n, long dimensions[n])
+int read_cfl_header(int fd, int n, long dimensions[n])
 {
 	char header[4097];
 	memset(header, 0, 4097);
@@ -194,11 +285,11 @@ int read_cfl_header(int fd, unsigned int n, long dimensions[n])
 
 			if (0 == strcmp(keyword, "Dimensions")) {
 
-				for (unsigned int i = 0; i < n; i++)
+				for (int i = 0; i < n; i++)
 					dimensions[i] = 1;
 
 				long val;
-				unsigned int i = 0;
+				int i = 0;
 
 				while (1 == sscanf(header + pos, "%ld%n", &val, &delta)) {
 
@@ -461,7 +552,7 @@ out:
 
 
 
-int write_coo(int fd, unsigned int n, const long dimensions[n])
+int write_coo(int fd, int n, const long dimensions[n])
 {
 	char header[4096];
 	size_t len = ARRAY_SIZE(header);
@@ -472,7 +563,7 @@ int write_coo(int fd, unsigned int n, const long dimensions[n])
 
 	ret = snprintf(header + pos, len, "Type: float\nDimensions: %d\n", n);
 
-	if ((ret < 0) || ((unsigned int)ret >= len))
+	if ((ret < 0) || (ret >= (int)len))
 		return -1;
 
 	pos += ret;
@@ -481,13 +572,13 @@ int write_coo(int fd, unsigned int n, const long dimensions[n])
 	long start = 0;
 	long stride = 1;
 
-	for (unsigned int i = 0; i < n; i++) {
+	for (int i = 0; i < n; i++) {
 
 		long size = dimensions[i];
 
 		ret = snprintf(header + pos, len, "[%ld\t%ld\t%ld\t%ld]\n", start, stride * size, size, stride);
 
-		if ((ret < 0) || ((unsigned int)ret >= len))
+		if ((ret < 0) || (ret >= (int)len))
 			return -1;
 
 		pos += ret;
@@ -503,7 +594,7 @@ int write_coo(int fd, unsigned int n, const long dimensions[n])
 }
 
 
-int read_coo(int fd, unsigned int n, long dimensions[n])
+int read_coo(int fd, int n, long dimensions[n])
 {
 	char header[4096];
 
@@ -521,7 +612,7 @@ int read_coo(int fd, unsigned int n, long dimensions[n])
 
 	pos += delta;
 
-	unsigned int dim;
+	int dim;
 
 	if (1 != sscanf(header + pos, "Dimensions: %d\n%n", &dim, &delta))
 		return -1;
@@ -531,10 +622,10 @@ int read_coo(int fd, unsigned int n, long dimensions[n])
 //	if (n != dim)
 //		return -1;
 
-	for (unsigned int i = 0; i < n; i++)
+	for (int i = 0; i < n; i++)
 		dimensions[i] = 1;
 
-	for (unsigned int i = 0; i < dim; i++) {
+	for (int i = 0; i < dim; i++) {
 
 		long val;
 
@@ -583,7 +674,7 @@ enum ra_types {
 #define err_assert(x)	({ if (!(x)) { debug_printf(DP_ERROR, "%s", #x); return -1; } })
 
 
-int read_ra(int fd, unsigned int n, long dimensions[n])
+int read_ra(int fd, int n, long dimensions[n])
 {
 	struct ra_hdr_s header;
 
@@ -594,7 +685,7 @@ int read_ra(int fd, unsigned int n, long dimensions[n])
 	err_assert(!(header.flags & RA_FLAG_BIG_ENDIAN));
 	err_assert(RA_TYPE_COMPLEX == header.eltype);
 	err_assert(sizeof(complex float) == header.elbyte);
-	err_assert(header.ndims <= n);
+	err_assert(header.ndims <= 100);
 
 	uint64_t dims[header.ndims];
 
@@ -603,8 +694,13 @@ int read_ra(int fd, unsigned int n, long dimensions[n])
 
 	md_singleton_dims(n, dimensions);
 
-	for (unsigned int i = 0; i < header.ndims; i++)
-		dimensions[i] = dims[i];
+	for (int i = 0; i < (int)header.ndims; i++) {
+
+		if (i < n)
+			dimensions[i] = dims[i];
+		else
+			err_assert(1 == dims[i]);
+	}
 
 	// this can overflow, but we check in mmio
 	err_assert(header.size == md_calc_size(n, dimensions) * sizeof(complex float));
@@ -614,7 +710,7 @@ int read_ra(int fd, unsigned int n, long dimensions[n])
 
 
 
-int write_ra(int fd, unsigned int n, const long dimensions[n])
+int write_ra(int fd, int n, const long dimensions[n])
 {
 	struct ra_hdr_s header = {
 
@@ -631,7 +727,7 @@ int write_ra(int fd, unsigned int n, const long dimensions[n])
 
 	uint64_t dims[n];
 
-	for (unsigned int i = 0; i < n; i++)
+	for (int i = 0; i < n; i++)
 		dims[i] = dimensions[i];
 
 	if ((int)sizeof(dims) != write(fd, &dims, sizeof(dims)))

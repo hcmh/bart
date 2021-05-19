@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include <png.h>
 
@@ -17,7 +18,7 @@
 #include "png.h"
 
 
-static int png_write_anyrgb(const char* name, unsigned int w, unsigned int h, unsigned int nbytes, bool rgb, const unsigned char* buf)
+static int png_write_anyrgb(const char* name, int w, int h, int nbytes, bool rgb, const unsigned char* buf)
 {
 
 	FILE* fp;
@@ -58,7 +59,7 @@ static int png_write_anyrgb(const char* name, unsigned int w, unsigned int h, un
 	row_ptrs = xmalloc(sizeof(png_bytep) * h);
 	int row_size = png_get_rowbytes(structp, infop);
 
-	for (unsigned int i = 0; i < h; i++)
+	for (int i = 0; i < h; i++)
 		row_ptrs[i] = (png_bytep)(buf + row_size * i);
 
 	png_write_image(structp, row_ptrs);
@@ -82,26 +83,48 @@ cleanup:
 
 
 
-int png_write_rgb24(const char* name, unsigned int w, unsigned int h, long inum, const unsigned char* buf)
+int png_write_rgb24(const char* name, int w, int h, long inum, const unsigned char* buf)
 {
 	UNUSED(inum);
 	return png_write_anyrgb(name, w, h, 3, true, buf);
 }
 
-int png_write_rgb32(const char* name, unsigned int w, unsigned int h, long inum, const unsigned char* buf)
+int png_write_rgb32(const char* name, int w, int h, long inum, const unsigned char* buf)
 {
 	UNUSED(inum);
 	return png_write_anyrgb(name, w, h, 4, true, buf);
 }
 
-int png_write_bgr24(const char* name, unsigned int w, unsigned int h, long inum, const unsigned char* buf)
+int png_write_bgr24(const char* name, int w, int h, long inum, const unsigned char* buf)
 {
 	UNUSED(inum);
 	return png_write_anyrgb(name, w, h, 3, false, buf);
 }
 
-int png_write_bgr32(const char* name, unsigned int w, unsigned int h, long inum, const unsigned char* buf)
+int png_write_bgr32(const char* name, int w, int h, long inum, const unsigned char* buf)
 {
 	UNUSED(inum);
 	return png_write_anyrgb(name, w, h, 4, false, buf);
+}
+
+
+
+static const char* spec = "xyzcmnopqsfrtuvw";
+
+void construct_filename(unsigned int bufsize, char* name, unsigned int D, const long loopdims[D], const long pos[D], const char* prefix, const char* ext)
+{
+
+	// Prepare output filename
+	char* cur = name;
+	const char* end = name + bufsize;
+
+	cur += snprintf(cur, end - cur, "%s", prefix);
+
+	assert(D <= strlen(spec));
+
+	for (int i = 0; i < D; i++)
+		if (1 != loopdims[i])
+			cur += snprintf(cur, end - cur, "_%c%04ld", spec[i], pos[i]);
+
+	cur += snprintf(cur, end - cur, ".%s", ext);
 }

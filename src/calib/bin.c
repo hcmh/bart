@@ -38,11 +38,28 @@ const struct bin_conf_s bin_defaults = {
 	.offset_angle = { 0., 0. },
 
 	.amplitude = 0,
+	.weight = 0,
 
 };
 
+// Calculate weights for soft-gating, depending on distance from center of bin 
+static void calc_weights(const long bin, const float delta, const float val, float* weights) 
+{
+	float bin_center = bin * delta + delta / 2.;
+	float dist = fabs(val - bin_center);
+	assert(dist <= delta / 1.999);
+
+	float stdv = delta * 0.5;
+	float thresh = 0.1 * delta;
+	float factor = 0;
+	if (dist > thresh)
+		factor = (dist - thresh) / stdv ;
+		
+	*weights *= expf(-powf(factor, 2));
+}
+
 // Binning by equal central angle
-static void det_bins(const complex float* state, const long bins_dims[DIMS], float* bins, const int idx, const int n, float offset)
+static void det_bins(const complex float* state, const long bins_dims[DIMS], float* bins, const int idx, float* weights, const int n, float offset)
 {
 	int T = bins_dims[TIME_DIM];
 
@@ -53,15 +70,18 @@ static void det_bins(const complex float* state, const long bins_dims[DIMS], flo
 		float angle = atan2f(crealf(state[T + t]), crealf(state[t])) + offset * ( 2 * M_PI / 360.);
 
 		angle = (angle < 0.) ? (angle + 2. * M_PI) : angle;
-
+		
 		bins[idx * T + t] = floorf(angle / central_angle);
+
+		if (weights != NULL)
+			calc_weights(bins[idx * T +t], central_angle, angle, &weights[t]);
 
  		//debug_printf(DP_INFO, "%f: bin %f\n", (M_PI + atan2f(crealf(state[T + t]), crealf(state[t]))) * 360 / 2. / M_PI, bins[idx * T + t]);
 	}
 }
 
 // Binning by amplitude
-static void det_bins_amp(const long state_dims[DIMS], const complex float* state, const long bins_dims[DIMS], float* bins, const int idx, const int n)
+static void det_bins_amp(const long state_dims[DIMS], const complex float* state, const long bins_dims[DIMS], float* bins, const int idx, float* weights, const int n)
 {
 	int T = bins_dims[TIME_DIM];
 	
@@ -86,6 +106,10 @@ static void det_bins_amp(const long state_dims[DIMS], const complex float* state
 
 		amp = s[t];
 		bins[idx * T + t] = floorf(amp * 0.99 / delta);
+
+		if (weights != NULL)
+			calc_weights(bins[idx * T +t], delta, amp * 0.99, &weights[t]);
+
 	}
 }
 
@@ -112,8 +136,13 @@ static bool check_valid_time(const long singleton_dims[DIMS], complex float* sin
 
 	// prevent ambiguity
 	while (!valid_index) {
-		idx_0 = floor(singleton_dims[TIME_DIM] / 2.) + idx_shift;
-		idx_1 = idx_0 + 1;
+
+		if (floor(singleton_dims[TIME_DIM] / 2.) + idx_shift < singleton_dims[TIME_DIM] - 2) {
+
+			idx_0 = floor(singleton_dims[TIME_DIM] / 2.) + idx_shift;
+			idx_1 = idx_0 + 1;
+		} else // prevent array overflow
+			break;
 
 		pos[TIME2_DIM] = labels_idx[0];
 		md_copy_block(DIMS, pos, singleton_dims, singleton, labels_dims, labels, CFL_SIZE);
@@ -258,7 +287,7 @@ static void moving_average(const long state_dims[DIMS], complex float* state, co
 
 
 
-extern int bin_quadrature(const long bins_dims[DIMS], float* bins,
+extern int bin_quadrature(const long bins_dims[DIMS], float* bins, float* weights,
 			const long labels_dims[DIMS], complex float* labels,
 			const struct bin_conf_s conf)
 {
@@ -322,8 +351,10 @@ extern int bin_quadrature(const long bins_dims[DIMS], float* bins,
 	}
 
 	if (conf.mavg_window > 0)
+
 		moving_average(resp_state_dims, resp_state, conf.mavg_window);
-	else if (conf.mavg_window > 0 || conf.mavg_window_card > 0) 
+	
+	if (conf.mavg_window > 0 || conf.mavg_window_card > 0) 
 		moving_average(card_state_dims, card_state, (conf.mavg_window_card > 0) ? conf.mavg_window_card : conf.mavg_window);
 	
 
@@ -332,11 +363,11 @@ extern int bin_quadrature(const long bins_dims[DIMS], float* bins,
 
 	// Determine bins
 	if (conf.amplitude)
-		det_bins_amp(resp_state_dims, resp_state, bins_dims, bins, 1, conf.n_resp); // amplitude binning for respiratory motion
+		det_bins_amp(resp_state_dims, resp_state, bins_dims, bins, 1, weights, conf.n_resp); // amplitude binning for respiratory motion
 	else
-		det_bins(resp_state, bins_dims, bins, 1, conf.n_resp, conf.offset_angle[0]); // respiratory motion	 
+		det_bins(resp_state, bins_dims, bins, 1, weights, conf.n_resp, conf.offset_angle[0]); // respiratory motion	 
 
-	det_bins(card_state, bins_dims, bins, 0, conf.n_card, conf.offset_angle[1]); // cardiac motion
+	det_bins(card_state, bins_dims, bins, 0, weights, conf.n_card, conf.offset_angle[1]); // cardiac motion
 
 	md_free(card_state);
 	md_free(card_state_singleton);

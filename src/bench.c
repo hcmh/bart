@@ -36,6 +36,7 @@
 #include "num/convcorr.h"
 #ifdef USE_CUDA
 #include "num/gpukrnls.h"
+#include "num/gpu_conv.h"
 #endif
 #endif
 
@@ -674,7 +675,7 @@ static double bench_im2col_fwd_gpu(long scale)
 
 	double tic = timestamp();
 	for(int i = 0; i < odims[5]; i++)
-		cuda_im2col(imat_tmp, iptr, odims, idims, kdims);
+		cuda_im2col(imat_tmp, iptr, odims, idims, kdims, NULL, NULL);
 	double toc = timestamp();
 
 	md_free(iptr);
@@ -774,7 +775,7 @@ static const char help_str[] = "Performs a series of micro-benchmarks.";
 
 
 
-int main_bench(int argc, char* argv[])
+int main_bench(int argc, char* argv[argc])
 {
 	bool threads = false;
 	bool scaling = false;

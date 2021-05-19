@@ -7,7 +7,6 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 
-#include "simu/seq_model.h"
 #include "simu/signals.h"
 
 #include "utest.h"

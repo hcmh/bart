@@ -47,14 +47,11 @@
 #include "linops/linop.h"
 #include "linops/someops.h"
 #include "linops/grad.h"
+#include "moba/T1fun.h"
 
 
 
 #include "iter_l1.h"
-
-// TODO: "10" stands for the enum of the signal model
-#define T1_MODEL 10
-
 
 
 struct T1inv_s {
@@ -80,26 +77,36 @@ struct T1inv_s {
 
 DEF_TYPEID(T1inv_s);
 
-
-
-static void normal(iter_op_data* _data, float* dst, const float* src)
+// Apply normal operator
+static void normal2(iter_op_data* _data, float* dst, const float* src)
 {
 	auto data = CAST_DOWN(T1inv_s, _data);
 
 	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)dst, (const complex float*)src);
+}
 
-	long res = data->dims[0];
+
+// Join application of normal operator with regularization
+static void normal(iter_op_data* _data, float* dst, const float* src)
+{
+	auto data = CAST_DOWN(T1inv_s, _data);
+
+	normal2(_data, dst, src);
+
+	long res = data->dims[READ_DIM];
 	long parameters = data->dims[COEFF_DIM];
 	long coils = data->dims[COIL_DIM];
+	long time = data->dims[TIME_DIM];
+	long time2 = data->dims[TIME2_DIM];
 	long slices = data->dims[SLICE_DIM];
-	long mphases = data->dims[TIME2_DIM];
+ 
+        if (1 == data->conf->opt_reg) {
+ 
+                md_axpy(1, MD_DIMS(data->size_x * coils / (coils + parameters)),
+						dst + res * res * 2 * parameters * time * time2 * slices,
+                                                data->alpha,
+						src + res * res * 2 * parameters * time * time2 * slices);
 
-	if (1 == data->conf->opt_reg) {
-
-		md_axpy(1, MD_DIMS(data->size_x * coils / (coils + parameters)),
-	                                        dst + res * res * 2 * parameters * slices * mphases,
-						data->alpha,
-	                                        src + res * res * 2 * parameters * slices * mphases);
 	} else {
 
 		md_axpy(1, MD_DIMS(data->size_x), dst, data->alpha, src);
@@ -111,37 +118,41 @@ static void pos_value(iter_op_data* _data, float* dst, const float* src)
 {
 	auto data = CAST_DOWN(T1inv_s, _data);
 
-	long res = data->dims[0];
+	long res = data->dims[READ_DIM];
 	long parameters = data->dims[COEFF_DIM];
+	long time = data->dims[TIME_DIM];
+	long time2 = data->dims[TIME2_DIM];
 	long slices = data->dims[SLICE_DIM];
-	long mphases = data->dims[TIME2_DIM];
 
 	long dims1[DIMS];
-
 	md_select_dims(DIMS, FFT_FLAGS, dims1, data->dims);
+	
 
-	for (int j = 0; j < mphases; j++) {
+	for (int k = 0; k < slices; k++) {
+		
+		for (int j = 0; j < time2; j++) {
 
-		for (int i = 0; i < slices; i++) {
+			for (int i = 0; i < time; i++) {
 
-			int map = 0;
-			int constrain_flags = data->conf->constrained_maps;
+				int map = 0;
+				int constrain_flags = data->conf->constrained_maps;
 
-			while (constrain_flags) {
+				while (constrain_flags) {
 
-				if (constrain_flags & 1) {
+					if (constrain_flags & 1) {
 
-					debug_printf(DP_DEBUG4, "Chosen constrained maps: %d\n", map);
+						debug_printf(DP_DEBUG4, "Chosen constrained maps: %d\n", map);
 
-					md_zsmax(DIMS, dims1, (_Complex float*)dst + map * res * res
-							+ i * res * res * parameters + j * res * res * parameters * slices,
-						(const _Complex float*)src + map * res * res
-							+ i * res * res * parameters + j * res * res * parameters * slices,
-						data->conf->lower_bound);
+						md_zsmax(DIMS, dims1, (_Complex float*)dst + map * res * res
+							+ i * res * res * parameters + j * res * res * parameters * time + k * res * res * parameters * time2,
+							(const _Complex float*)src + map * res * res
+							+ i * res * res * parameters + j * res * res * parameters * time + k * res * res * parameters * time2,
+							data->conf->lower_bound);
+					}
+
+					constrain_flags >>= 1;
+					map++;	
 				}
-
-				constrain_flags >>= 1;
-				map++;
 			}
 		}
         }
@@ -169,6 +180,59 @@ static void combined_prox(iter_op_data* _data, float rho, float* dst, const floa
 	pos_value(_data, dst, dst);
 }
 
+static void pd_print(long N,
+	iter_op_data* _data,
+	const struct vec_iter_s* vops,
+	float* new_map, const float* prev_map)
+{
+	auto data = CAST_DOWN(T1inv_s, _data);
+
+	long dims[DIMS];
+
+	md_select_dims(DIMS, FFT_FLAGS|COEFF_FLAG, dims, data->dims);
+
+
+	// Estimate update of maps
+
+	float* diff = md_alloc_sameplace(1, MD_DIMS(N), FL_SIZE, prev_map);
+
+	vops->copy(N, diff, prev_map);
+
+	vops->xpay(N, -1., diff, new_map);	// diff = new_map - prev_map
+
+	vops->norm(N, diff);
+
+#if 1
+	// Save differences between maps to file
+
+	char name0[255] = {'\0'};
+
+	sprintf(name0, "diff_step_%02d", data->outer_iter);
+
+	dump_cfl(name0, DIMS, dims, (const complex float*)diff);
+#endif
+
+	// Apply normal operator update of maps
+
+	complex float* pd = md_alloc_sameplace(1, MD_DIMS(N), CFL_SIZE, prev_map);
+
+	linop_normal_unchecked(nlop_get_derivative(data->nlop, 0, 0), pd, (const complex float*)diff);
+
+	md_free(diff);
+
+
+	// Save partial derivatives to file
+
+	char name[255] = {'\0'};
+
+	sprintf(name, "derivatives_step_%02d", data->outer_iter);
+
+	dump_cfl(name, DIMS, dims, pd);
+
+	md_free(pd);
+}
+
+
 
 
 static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const float* src)
@@ -190,7 +254,7 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
     
 	int maxiter = MIN(data->conf->c2->cgiter, 10 * powf(2, data->outer_iter));
     
-	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
 
 	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
 
@@ -203,6 +267,14 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 		itrdata->scale = data->alpha;
 	};
 
+	// Save old maps state
+
+	float* dst_tmp = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, dst);
+
+	md_copy(1, MD_DIMS(data->size_x), dst_tmp, dst, FL_SIZE);
+
+	// Run FISTA
+
 	fista(maxiter, data->conf->c2->cgtol * alpha * eps, step,
 		data->size_x,
 		select_vecops(src),
@@ -214,6 +286,13 @@ static void inverse_fista(iter_op_data* _data, float alpha, float* dst, const fl
 	pos_value(CAST_UP(data), dst, dst);
 
 	md_free(tmp);
+
+	// print partial derivatives
+
+	if (DP_DEBUG3 <= debug_level)
+		pd_print(data->size_x, _data, select_vecops(src), dst, dst_tmp);
+
+	md_free(dst_tmp);
 
 	data->outer_iter++;
 }
@@ -245,7 +324,7 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
     
 	int maxiter = MIN(data->conf->c2->cgiter, 10 * powf(2, data->outer_iter));
     
-	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_y), FL_SIZE, src);
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(data->size_x), FL_SIZE, src);
 
 	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
 
@@ -258,7 +337,11 @@ static void inverse_admm(iter_op_data* _data, float alpha, float* dst, const flo
 
 	debug_printf(DP_INFO, "##reg. alpha = %f\n", data->conf->ropts->lambda);
 
-	opt_reg_moba_configure(DIMS, data->dims, data->conf->ropts, thresh_ops, trafos, T1_MODEL);
+	struct optreg_conf optreg_conf = optreg_defaults;
+
+	optreg_conf.moba_model = IRLL;
+
+	opt_reg_moba_configure(DIMS, data->dims, data->conf->ropts, thresh_ops, trafos, &optreg_conf);
 
 	struct iter_admm_conf conf1 = iter_admm_defaults;
 
@@ -367,6 +450,8 @@ static void T1inv_apply(const operator_data_t* _data, float alpha, complex float
 	}
 }
 
+
+
 static void T1inv_del(const operator_data_t* _data)
 {
 	auto data = CAST_DOWN(T1inv2_s, _data);
@@ -397,12 +482,12 @@ const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, 
 	md_copy_dims(DIMS, ndims, dims);
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims); 
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
 	img_dims[COEFF_DIM] = img_dims[COEFF_DIM] - conf->not_wav_maps;	// jointly penalize the first few maps
 	debug_print_dims(DP_INFO, DIMS, img_dims);
 
 	auto prox1 = create_prox(img_dims, COEFF_FLAG, conf->wav_reg);
-	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | SLICE_FLAG | TIME2_FLAG));
+	auto prox2 = op_p_auto_normalize(prox1, ~(COEFF_FLAG | TIME_FLAG | TIME2_FLAG | SLICE_FLAG));
 
 	if (1 == conf->not_wav_maps) {
 
@@ -413,7 +498,7 @@ const struct operator_p_s* T1inv_p_create(const struct mdb_irgnm_l1_conf* conf, 
 		// auto prox3 = create_prox(map_dims, 0, 0.05);
 		auto prox3 = prox_zero_create(DIMS, map_dims);
 		auto prox4 = operator_p_stack(COEFF_DIM, COEFF_DIM, prox1, prox3);
-		prox2 = op_p_auto_normalize(prox4, ~(COEFF_FLAG | SLICE_FLAG | TIME2_FLAG));
+		prox2 = op_p_auto_normalize(prox4, ~(COEFF_FLAG | TIME_FLAG | TIME2_FLAG | SLICE_FLAG));
 
 		operator_p_free(prox3);
 		operator_p_free(prox4);
@@ -443,7 +528,7 @@ DEF_TYPEID(iterT1_nlop_s);
 
 
 void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
-	const long dims[],
+	const long dims[DIMS],
 	struct nlop_s* nlop,
 	long N, float* dst,
 	long M, const float* src)
@@ -463,7 +548,11 @@ void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
         const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_moba_configure(DIMS, dims, conf->ropts, thresh_ops, trafos, T1_MODEL);
+	struct optreg_conf optreg_conf = optreg_defaults;
+
+	optreg_conf.moba_model = T1_MODEL;
+
+	opt_reg_moba_configure(DIMS, dims, conf->ropts, thresh_ops, trafos, &optreg_conf);
 
 	struct iter_admm_conf conf1 = iter_admm_defaults;
 
@@ -472,7 +561,7 @@ void mdb_irgnm_l1(const struct mdb_irgnm_l1_conf* conf,
 	conf1.rho = conf->rho;
 	conf1.cg_eps = 0.005;
 		
-	inv_op = lsqr2_create(&lsqr_defaults, iter2_admm, CAST_UP(&conf1), dst, false, &nlop->derivative[0][0],
+	inv_op = lsqr2_create(&lsqr_defaults, iter2_admm, CAST_UP(&conf1), dst, &nlop->derivative[0][0],
                          NULL, conf->ropts->r, thresh_ops, trafos, NULL);
 #endif
 

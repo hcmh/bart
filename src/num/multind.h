@@ -50,6 +50,7 @@ extern void md_pad(unsigned int D, const void* val, const long odim[__VLA(D)], v
 extern void md_pad_center(unsigned int D, const void* val, const long odim[__VLA(D)], void* optr, const long idim[__VLA(D)], const void* iptr, size_t size);
 extern void md_resize(unsigned int D, const long odim[__VLA(D)], void* optr, const long idim[__VLA(D)], const void* iptr, size_t size);
 extern void md_resize_center(unsigned int D, const long odim[__VLA(D)], void* optr, const long idim[__VLA(D)], const void* iptr, size_t size);
+extern void md_resize_shift(unsigned int D, const long odim[__VLA(D)], void* optr, const long idim[__VLA(D)], const void* iptr, size_t size);
 extern void md_fill2(unsigned int D, const long dim[__VLA(D)], const long str[__VLA(D)], void* ptr, const void* iptr, size_t size);
 extern void md_fill(unsigned int D, const long dim[__VLA(D)], void* ptr, const void* iptr, size_t size);
 extern void md_slice2(unsigned int D, unsigned long flags, const long pos[__VLA(D)], const long dim[__VLA(D)], const long ostr[__VLA(D)], void* optr, const long istr[__VLA(D)], const void* iptr, size_t size);

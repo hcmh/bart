@@ -49,6 +49,7 @@ struct noir_model_conf_s noir_model_conf_defaults = {
 	.enlive_flags = 0u,
 	.rvc = false,
 	.noncart = false,
+	.sos = false,
 	.a = 220.,
 	.b = 32.,
 };
@@ -83,18 +84,27 @@ struct noir_op_s {
 
 DEF_TYPEID(noir_op_s);
 
-static void noir_calc_weights(const struct noir_model_conf_s* conf, const long dims[3], complex float* dst)
+static void noir_calc_weights(const struct noir_model_conf_s* conf, const long dims[DIMS], complex float* dst)
 {
 	unsigned int flags = 0;
 
-	for (int i = 0; i < 3; i++)
-		if (1 != dims[i])
-			flags = MD_SET(flags, i);
+	long dims1[DIMS];
+	md_select_dims(DIMS, conf->sos ? conf->fft_flags : FFT_FLAGS, dims1, dims);
 
-	klaplace(3, dims, flags, dst);
-	md_zsmul(3, dims, dst, dst, conf->a);
-	md_zsadd(3, dims, dst, dst, 1.);
-	md_zspow(3, dims, dst, dst, -conf->b / 2.);	// 1 + 220. \Laplace^16
+	for (unsigned int i = 0; i < DIMS; i++)
+		if (1 != dims1[i])
+			flags = MD_SET(flags, i);
+	
+	long dims_sc[DIMS];
+	md_copy_dims(DIMS, dims_sc, dims1);
+
+	if (conf->sos && dims_sc[READ_DIM] > 1) 
+		dims_sc[SLICE_DIM] = dims_sc[READ_DIM] * 0.5; // for reasonable smoothness in z-direction
+
+	klaplace(DIMS, dims1, dims_sc, flags, dst);
+	md_zsmul(DIMS, dims1, dst, dst, conf->a);
+	md_zsadd(DIMS, dims1, dst, dst, 1.);
+	md_zspow(DIMS, dims1, dst, dst, -conf->b / 2.);	// 1 + 220. \Laplace^16
 }
 
 
@@ -116,7 +126,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	md_select_dims(DIMS, FFT_FLAGS, mask_dims, dims);
 
 	long wght_dims[DIMS];
-	md_select_dims(DIMS, FFT_FLAGS, wght_dims, dims);
+	md_select_dims(DIMS, conf->sos ? conf->fft_flags : FFT_FLAGS, wght_dims, dims);
 
 	long ptrn_dims[DIMS];
 	md_select_dims(DIMS, conf->ptrn_flags, ptrn_dims, dims);
@@ -125,11 +135,11 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	data->wghts = md_alloc(DIMS, wght_dims, CFL_SIZE);
 
 	noir_calc_weights(conf, dims, data->wghts);
-	fftmod(DIMS, wght_dims, FFT_FLAGS, data->wghts, data->wghts);
-	fftscale(DIMS, wght_dims, FFT_FLAGS, data->wghts, data->wghts);
+	fftmod(DIMS, wght_dims, conf->fft_flags, data->wghts, data->wghts);
+	fftscale(DIMS, wght_dims, conf->fft_flags, data->wghts, data->wghts);
 
-	const struct linop_s* wghts = linop_cdiag_create(DIMS, data->coil_dims, FFT_FLAGS, data->wghts);
-	const struct linop_s* wghts_ifft = linop_ifft_create(DIMS, data->coil_dims, FFT_FLAGS);
+	const struct linop_s* wghts = linop_cdiag_create(DIMS, data->coil_dims, conf->sos ? conf->fft_flags : FFT_FLAGS, data->wghts);
+	const struct linop_s* wghts_ifft = linop_ifft_create(DIMS, data->coil_dims, conf->sos ? conf->fft_flags : FFT_FLAGS);
 
 	data->weights = linop_chain_FF(wghts, wghts_ifft);
 
@@ -143,7 +153,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 	md_copy(DIMS, ptrn_dims, data->ptr, psf, CFL_SIZE);
 	fftmod(DIMS, ptrn_dims, conf->fft_flags, data->ptr, data->ptr);
 
-	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->data_dims, 0, 0, COIL_FLAG, data->ptr);
+	const struct linop_s* lop_pattern = linop_fmac_create(DIMS, data->data_dims, 0, 0, ~conf->ptrn_flags, data->ptr);
 
 	const struct linop_s* lop_adj_pattern;
 
@@ -160,7 +170,7 @@ static struct noir_op_s* noir_init(const long dims[DIMS], const complex float* m
 
 		fftmod(DIMS, ptrn_dims, conf->fft_flags, data->adj_ptr, data->adj_ptr);
 
-		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, 0, 0, COIL_FLAG, data->adj_ptr);
+		lop_adj_pattern = linop_fmac_create(DIMS, data->data_dims, 0, 0, ~conf->ptrn_flags, data->adj_ptr);
 	}
 
 	data->msk = md_alloc(DIMS, mask_dims, CFL_SIZE);

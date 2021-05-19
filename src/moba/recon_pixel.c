@@ -71,7 +71,7 @@ void pixel_recon(const struct noir_conf_s* conf, const struct modBlochFit* fit_p
 	struct modBloch_s nl;
 	
 	// Add option for multiple different models
-	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, all_dims, img1_dims, data_dims, imgs_dims, NULL, fit_para, usegpu);
+	struct nlop_s* Bloch = nlop_Bloch_create(DIMS, all_dims, img1_dims, data_dims, imgs_dims, fit_para, usegpu);
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_domain(Bloch, 0)->dims); 			//input-dims of Bloch operator
 	debug_print_dims(DP_INFO, DIMS, nlop_generic_codomain(Bloch, 0)->dims);
 

@@ -12,14 +12,16 @@
 #include "misc/cppwrap.h"
 #include "misc/types.h"
 #include "num/ops_opts.h"
+#include "num/ops.h"
 
 extern TYPEID linop_data_s;
-typedef struct linop_data_s { TYPEID* TYPEID; } linop_data_t;
+typedef struct linop_data_s { TYPEID* TYPEID; double run_time; } linop_data_t;
 
 
 typedef void (*lop_fun_t)(const linop_data_t* _data, complex float* dst, const complex float* src);
 typedef void (*lop_p_fun_t)(const linop_data_t* _data, float lambda, complex float* dst, const complex float* src);
 typedef void (*del_fun_t)(const linop_data_t* _data);
+typedef const char* (*lop_graph_t)(const linop_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
 
 struct operator_s;
 struct operator_p_s;
@@ -88,6 +90,7 @@ extern const struct iovec_s* linop_codomain(const struct linop_s* x);
 
 extern const struct linop_s* linop_clone(const struct linop_s* x);
 extern const struct linop_s* linop_get_adjoint(const struct linop_s* x);
+extern const struct linop_s* linop_get_normal(const struct linop_s* x);
 
 extern struct linop_s* linop_loop(unsigned int D, const long dims[D], struct linop_s* op);
 extern struct linop_s* linop_copy_wrapper(unsigned int D, const long istrs[D], const long ostrs[D], struct linop_s* op);

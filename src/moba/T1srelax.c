@@ -80,12 +80,10 @@ static void zT1srelax_fun(const nlop_data_t* _data, int N, complex float* args[N
         md_copy(data->N, data->map_dims, data->R1, src3, CFL_SIZE);
         md_copy(data->N, data->map_dims, data->R1s, src4, CFL_SIZE);
 
-//         md_zsmul(data->N, data->map_dims, data->tmp, data->R1s, -1.0*data->scaling_R1s);
-//         md_zmul2(data->N, data->out_dims, data->out_strs, data->xn, data->map_strs, data->tmp, data->TI_strs, data->TI);
+        md_zsmul(data->N, data->map_dims, data->tmp, data->R1s, -1.0*data->scaling_R1s);
+        md_zmul2(data->N, data->out_dims, data->out_strs, data->xn, data->map_strs, data->tmp, data->TI_strs, data->TI);
 
-	for(int k = 0; k < (data->TI_dims[5]); k++)
-		md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->xn + data->out_strs[5] * k, data->map_strs, (void*)data->R1s, -1.*data->TI[k]);
-
+	// exp(-t .* scaling_R1s * R1s)
         md_zexp(data->N, data->out_dims, data->xn, data->xn);
 
         //M0 * R1/R1s - M_start
@@ -123,7 +121,6 @@ static void zT1srelax_fun(const nlop_data_t* _data, int N, complex float* args[N
 
         //dR1s
         //R1/(scaling_R1s*R1s.^2) * M0
-
         md_zmul(data->N, data->map_dims, data->tmp, data->R1s, data->R1s);
 	md_zdiv_reg(data->N, data->map_dims, data->tmp, data->R1, data->tmp, data->regularization);
 	md_zsmul(data->N, data->map_dims, data->tmp, data->tmp, 1./data->scaling_R1s);
@@ -136,16 +133,7 @@ static void zT1srelax_fun(const nlop_data_t* _data, int N, complex float* args[N
         md_zmul2(data->N, data->out_dims, data->out_strs, data->dR1s, data->map_strs, data->tmp, data->out_strs, data->dR1s);
 
         // t*s*exp(-scaling_R1s*t*R1s)
-//         md_zmul2(data->N, data->out_dims, data->out_strs, data->xn_tmp, data->out_strs, data->xn, data->TI_strs, data->TI);
-	long img_dims[data->N];
-	md_select_dims(data->N, FFT_FLAGS, img_dims, data->map_dims);
-
-	// t * exp(-t*R1s) * (1 + R1/R1s)
-	for (int s = 0; s < data->out_dims[13]; s++)
-		for(int k = 0; k < data->TI_dims[5]; k++)
-			//debug_printf(DP_DEBUG2, "\tTI: %f\n", creal(data->TI[k]));
-			md_zsmul(data->N, img_dims, (void*)data->xn_tmp + data->out_strs[5] * k + data->out_strs[13] * s,
-				 (void*)data->xn + data->out_strs[5] * k + data->out_strs[13] * s, data->TI[k]);
+        md_zmul2(data->N, data->out_dims, data->out_strs, data->xn_tmp, data->out_strs, data->xn, data->TI_strs, data->TI);
 
         md_zsmul(data->N, data->out_dims, data->xn_tmp, data->xn_tmp, data->scaling_R1s);
 
@@ -254,9 +242,8 @@ static void zT1srelax_adj_0_0(const nlop_data_t* _data, unsigned int o, unsigned
 	UNUSED(i);
 
 	const auto data = CAST_DOWN(zT1srelax_s, _data);
-// 	md_zmulc(data->N, data->out_dims, dst, src, data->xn);
 
-        	// sum (conj(M_start') * src, t)
+        // sum (conj(M_start') * src, t)
 	md_clear(data->N, data->map_dims, dst, CFL_SIZE);
 	md_zfmacc2(data->N, data->out_dims, data->map_strs, dst, data->out_strs, src, data->out_strs, data->xn);
 }
@@ -435,7 +422,7 @@ struct nlop_s* nlop_T1srelax_create(int N, const long map_dims[N], const long ou
 	md_copy_strides(N, nl_ostr[0], data->out_strs);
         md_copy_strides(N, nl_ostr[1], data->map_strs);
 
-        data->TI = md_alloc(N, TI_dims, CFL_SIZE);
+        data->TI = my_alloc(N, TI_dims, CFL_SIZE);
 
         data->scaling_R1s = 1.0;
         data->regularization = 1e-6;

@@ -62,7 +62,7 @@
 
 
 // Copy spokes from input array to correct position in output array
-static void asgn_bins(const long bins_dims[DIMS], const float* bins, const long sg_dims[DIMS], complex float* sg, const long in_dims[DIMS], const complex float* in, const int
+static void asgn_bins(const long bins_dims[DIMS], const float* bins, const float* weights, const long sg_dims[DIMS], complex float* sg, const long in_dims[DIMS], const complex float* in, const int
 n_card, const int n_resp)
 {
 	// Array to keep track of numbers of spokes already asigned to each bin
@@ -86,6 +86,9 @@ n_card, const int n_resp)
 
 		pos0[TIME_DIM] = t;
 		md_copy_block(DIMS, pos0, in_singleton_dims, in_singleton, in_dims, in, CFL_SIZE);
+
+		if (weights != NULL)
+			md_zsmul(DIMS, in_singleton_dims, in_singleton, in_singleton, weights[t]);
 
 		int cBin = (int)bins[0 * T + t];
 		int rBin = (int)bins[1 * T + t];
@@ -132,7 +135,7 @@ static const char help_str[] = "Binning\n";
 
 
 
-int main_bin(int argc, char* argv[])
+int main_bin(int argc, char* argv[argc])
 {
 
 	bool reorder = false;
@@ -153,6 +156,7 @@ int main_bin(int argc, char* argv[])
 		OPT_FLVEC2('O', &conf.offset_angle, "[r:c]deg", "Quadrature Binning: Angle offset for resp and card."),
 		OPT_STRING('x', &conf.card_out, "file", "(Output filtered cardiac EOFs)"), // To reproduce SSA-FARY paper
 		OPT_SET('M', &conf.amplitude, "Amplitude binning"),
+		OPT_SET('w', &conf.weight, "Soft-Gating"),
 
 	};
 
@@ -213,7 +217,8 @@ int main_bin(int argc, char* argv[])
 		error("No bin type specified!");
 	}
 
-
+	if (conf.weight && (bin_type != BIN_QUADRATURE))
+		error("Soft-gating only implemented for quadrature-type binning!");
 
 	switch (bin_type) {
 
@@ -226,10 +231,19 @@ int main_bin(int argc, char* argv[])
 		long bins_dims[DIMS];
 		md_copy_dims(DIMS, bins_dims, labels_dims);
 		bins_dims[TIME2_DIM] = 2; // Respiration and Cardiac motion
-
 		float* bins = md_alloc(DIMS, bins_dims, FL_SIZE);
 
-		int binsize_max = bin_quadrature(bins_dims, bins, labels_dims, labels, conf);
+		long weights_dims[DIMS] = { [0 ... DIMS-1] = 1 };
+		weights_dims[TIME_DIM] = bins_dims[TIME_DIM];
+		float* weights = NULL;
+		if (conf.weight) {
+		
+			weights =  md_alloc(DIMS, weights_dims, FL_SIZE);
+			float val = 1.;
+			md_fill(DIMS, weights_dims, weights, &val, FL_SIZE);
+		}
+
+		int binsize_max = bin_quadrature(bins_dims, bins, weights, labels_dims, labels, conf);
 
 		long binned_dims[DIMS];
 		md_copy_dims(DIMS, binned_dims, src_dims);
@@ -240,9 +254,10 @@ int main_bin(int argc, char* argv[])
 		complex float* binned = create_cfl(argv[3], DIMS, binned_dims);
 		md_clear(DIMS, binned_dims, binned, CFL_SIZE);
 
-		asgn_bins(bins_dims, bins, binned_dims, binned, src_dims, src, conf.n_card, conf.n_resp);
+		asgn_bins(bins_dims, bins, weights, binned_dims, binned, src_dims, src, conf.n_card, conf.n_resp);
 
 		md_free(bins);
+		md_free(weights);
 
 		unmap_cfl(DIMS, binned_dims, binned);
 

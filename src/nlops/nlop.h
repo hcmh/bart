@@ -14,10 +14,10 @@
 #ifndef NLOP_H
 #define NLOP_H
 
-typedef struct nlop_data_s { TYPEID* TYPEID; const struct op_options_s* options; } nlop_data_t;
+struct nlop_run_stats_s;
+typedef struct nlop_data_s { TYPEID* TYPEID; const struct op_options_s* options; struct nlop_run_stats_s* stats; } nlop_data_t;
 
 typedef void (*nlop_fun_t)(const nlop_data_t* _data, complex float* dst, const complex float* src);
-
 typedef void (*nlop_p_fun_t)(const nlop_data_t* _data, unsigned int o, unsigned int i, float lambda, complex float* dst, const complex float* src);
 typedef void (*nlop_der_fun_t)(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src);
 
@@ -26,6 +26,8 @@ typedef void (*nlop_del_fun_t)(const nlop_data_t* _data);
 typedef void (*nlop_gen_fun_t)(const nlop_data_t* _data, int N, complex float* arg[N]);
 
 typedef void (*nlop_set_opts_t)(const nlop_data_t* _data, const struct op_options_s* options);
+
+typedef const char* (*nlop_graph_t)(const nlop_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
 
 struct operator_s;
 struct linop_s;
@@ -38,10 +40,12 @@ struct nlop_s {
 
 extern struct nlop_s* nlop_generic_with_props_create(	int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
 							nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
-							nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO]);
+							nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO],
+							nlop_graph_t get_graph);
 extern struct nlop_s* nlop_generic_with_props_create2(	int OO, int NO, const long odims[OO][NO], const long ostr[OO][NO], int II, int IN, const long idims[II][IN], const long istr[II][IN],
 							nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del,
-							nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO]);
+							nlop_set_opts_t set_opts, operator_property_flags_t props[II][OO],
+							nlop_graph_t get_graph);
 
 extern struct nlop_s* nlop_generic_create(	int OO, int ON, const long odims[OO][ON], int II, int IN, const long idims[II][IN],
 						nlop_data_t* data, nlop_gen_fun_t forward, nlop_der_fun_t deriv[II][OO], nlop_der_fun_t adjoint[II][OO], nlop_der_fun_t normal[II][OO], nlop_p_fun_t norm_inv[II][OO], nlop_del_fun_t del);
@@ -57,6 +61,7 @@ extern struct nlop_s* nlop_create2(	unsigned int ON, const long odims[__VLA(ON)]
 
 extern const struct nlop_s* nlop_clone(const struct nlop_s* op);
 extern void nlop_free(const struct nlop_s* op);
+
 
 extern nlop_data_t* nlop_get_data(struct nlop_s* op);
 
@@ -85,6 +90,8 @@ extern const struct iovec_s* nlop_domain(const struct nlop_s* op);
 extern const struct iovec_s* nlop_codomain(const struct nlop_s* op);
 
 
+extern const struct nlop_s* nlop_loop(int D, const long dims[D], const struct nlop_s* op);
+
 extern struct nlop_s* nlop_flatten(const struct nlop_s* op);
 extern const struct nlop_s* nlop_flatten_get_op(struct nlop_s* op);
 
@@ -98,5 +105,10 @@ extern const struct nlop_s* nlop_reshape_in_F(const struct nlop_s* op, int i, in
 
 extern const struct nlop_s* nlop_append_singleton_dim_in_F(const struct nlop_s* op, int i);
 extern const struct nlop_s* nlop_append_singleton_dim_out_F(const struct nlop_s* op, int o);
+
+extern const struct nlop_s* nlop_no_der(const struct nlop_s* op, int o, int i);
+extern const struct nlop_s* nlop_no_der_F(const struct nlop_s* op, int o, int i);
+
+extern void nlop_export_graph(const char* filename, const struct nlop_s* op, graph_t opts);
 
 #endif

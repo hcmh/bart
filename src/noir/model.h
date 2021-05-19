@@ -19,6 +19,7 @@ struct noir_model_conf_s {
 	unsigned int enlive_flags;
 	_Bool rvc;
 	_Bool noncart;
+	_Bool sos;
 	float a;
 	float b;
 };

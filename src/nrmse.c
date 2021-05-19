@@ -35,8 +35,9 @@ static const char help_str[] =
 	"i.e. norm(input - ref) / norm(ref)";
 			
 
+
 __attribute__((optimize("-fno-finite-math-only")))
-int main_nrmse(int argc, char* argv[])
+int main_nrmse(int argc, char* argv[argc])
 {
 	float test = -1.;
 	bool auto_scale = false;

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <complex.h>
 
 #include "misc/types.h"
@@ -14,9 +15,6 @@
 #include "linops/someops.h"
 
 #include "T1_alpha.h"
-
-//#define general
-//#define mphase
 
 struct T1_alpha_s {
 
@@ -56,6 +54,8 @@ struct T1_alpha_s {
 	const struct linop_s* linop_alpha;
 
 	float scaling_alpha;
+
+	int counter;
 };
 
 DEF_TYPEID(T1_alpha_s);
@@ -69,10 +69,10 @@ static void moba_calc_weights(const long dims[3], complex float* dst)
 			flags = MD_SET(flags, i);
 
 
-	klaplace(3, dims, flags, dst);
-	md_zsmul(3, dims, dst, dst, 440.);
+	klaplace(3, dims, dims, flags, dst);
+	md_zsmul(3, dims, dst, dst, 44.);
 	md_zsadd(3, dims, dst, dst, 1.);
-	md_zspow(3, dims, dst, dst, -10.);
+	md_zspow(3, dims, dst, dst, -5.);
 }
 
 const struct linop_s* T1_get_alpha_trafo(struct nlop_s* op)
@@ -97,6 +97,17 @@ void T1_back_alpha(const struct linop_s* op, complex float* dst, const complex f
 static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
 	struct T1_alpha_s* data = CAST_DOWN(T1_alpha_s, _data);
+
+	if (DP_DEBUG2 <= debug_level) {
+
+		char name[255] = {'\0'};
+
+		sprintf(name, "current_map_%02d", data->counter);
+		dump_cfl(name, data->N, data->in_dims, src);
+
+		data->counter++;
+	}
+
 	long pos[data->N];
 
 	for (int i = 0; i < data->N; i++)
@@ -119,14 +130,12 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
 	T1_forw_alpha(data->linop_alpha, data->tmp_map, data->alpha);
 
 	// R1s = R1 + alpha * scaling_alpha
-
 	md_zsmul(data->N, data->map_dims, data->tmp_R1s, data->tmp_map, data->scaling_alpha);
 	md_zadd(data->N, data->map_dims, data->tmp_R1s, data->R1, data->tmp_R1s);
 
 	// exp(-t.* (R1 + alpha * scaling_alpha)):
-
-	for(int k = 0; k < (data->TI_dims[5]); k++)
-		md_zsmul2(data->N, data->map_dims, data->out_strs, (void*)data->tmp_exp + data->out_strs[5] * k, data->map_strs, (void*)data->tmp_R1s, -1.*data->TI[k]);
+        md_zsmul(data->N, data->map_dims, data->tmp_map, data->tmp_R1s, -1.0);
+        md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_exp, data->map_strs, data->tmp_map, data->TI_strs, data->TI);
 
 	md_zexp(data->N, data->out_dims, data->tmp_exp, data->tmp_exp);
 
@@ -143,15 +152,8 @@ static void T1_fun(const nlop_data_t* _data, complex float* dst, const complex f
         md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->map_strs, data->M0, data->out_strs, data->tmp_dM0);
 
 	// Calculating derivatives
-	long img_dims[data->N];
-	md_select_dims(data->N, FFT_FLAGS, img_dims, data->map_dims);
-
 	// t * exp(-t*R1s) * (1 + R1/R1s)
-	for (int s=0; s < data->out_dims[13]; s++)
-		for(int k=0; k < data->TI_dims[5]; k++)
-			//debug_printf(DP_DEBUG2, "\tTI: %f\n", creal(data->TI[k]));
-			md_zsmul(data->N, img_dims, (void*)data->tmp_dalpha + data->out_strs[5] * k + data->out_strs[13] * s,
-						(void*)data->tmp_dalpha + data->out_strs[5] * k + data->out_strs[13] * s, data->TI[k]);
+	md_zmul2(data->N, data->out_dims, data->out_strs, data->tmp_dalpha, data->out_strs, data->tmp_dalpha, data->TI_strs, data->TI);
 
 	// R1 / R1s.^2
         md_zmul(data->N, data->map_dims, data->tmp_map, data->tmp_R1s, data->tmp_R1s);
@@ -345,11 +347,7 @@ struct nlop_s* nlop_T1_alpha_create(int N, const long map_dims[N], const long ou
 	data->tmp_dM0 = my_alloc(N, out_dims, CFL_SIZE);
 	data->tmp_dR1 = my_alloc(N, out_dims, CFL_SIZE);
 	data->tmp_dalpha = my_alloc(N, out_dims, CFL_SIZE);
-#ifdef general
 	data->TI = my_alloc(N, TI_dims, CFL_SIZE);
-#else
-	data->TI = md_alloc(N, TI_dims, CFL_SIZE);
-#endif
 	md_copy(N, TI_dims, data->TI, TI, CFL_SIZE);
 
 #if 1
@@ -372,5 +370,6 @@ struct nlop_s* nlop_T1_alpha_create(int N, const long map_dims[N], const long ou
 
 	data->scaling_alpha = 0.2;
 
+	data->counter = 0;
 	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), T1_fun, T1_der, T1_adj, NULL, NULL, T1_del);
 }

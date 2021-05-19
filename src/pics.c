@@ -84,7 +84,7 @@ static const struct linop_s* sense_nc_init(const long max_dims[DIMS], const long
 }
 
 
-int main_pics(int argc, char* argv[])
+int main_pics(int argc, char* argv[argc])
 {
 	// Initialize default parameters
 
@@ -183,8 +183,8 @@ int main_pics(int argc, char* argv[])
 		OPT_FLOAT('P', &bpsense_eps, "eps", "Basis Pursuit formulation, || y- Ax ||_2 <= eps"),
 		OPT_SELECT('a', enum algo_t, &algo, ALGO_PRIDU, "select Primal Dual"),
 		OPTL_SET('M', "sms", &sms, "Simultaneous Multi-Slice reconstruction"),
-		OPT_SET('U', &nuconf.lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_STRING('Q', &Q_file, "file", "Q. Laplace L = QQH."),
+		OPTL_SET('U', "lowmem", &nuconf.lowmem, "Use low-mem mode of the nuFFT"),
 	};
 
 
@@ -251,6 +251,13 @@ int main_pics(int argc, char* argv[])
 	if (NULL != traj_file)
 		traj = load_cfl(traj_file, DIMS, traj_dims);
 
+	// Regularization on manifolds
+	long Q_dims[DIMS];
+	complex float* Q = NULL;
+	if (Q_file != NULL) {
+		Q = load_cfl(Q_file, DIMS, Q_dims);
+		assert(Q_dims[TIME_DIM] == ksp_dims[TIME_DIM]);
+	}
 
 	md_copy_dims(DIMS, max_dims, ksp_dims);
 	md_copy_dims(5, max_dims, map_dims);
@@ -538,8 +545,19 @@ int main_pics(int argc, char* argv[])
 
 	if (NULL != pattern) {
 
+		long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
+
 		pattern1 = md_alloc(DIMS, pat1_dims, CFL_SIZE);
-		md_slice(DIMS, loop_flags, (const long[DIMS]){ [0 ... DIMS - 1] = 0 }, pat_dims, pattern1, pattern, CFL_SIZE);
+		md_slice(DIMS, loop_flags, pos, pat_dims, pattern1, pattern, CFL_SIZE);
+
+		long pat_strs[DIMS];
+		md_calc_strides(DIMS, pat_strs, pat_dims, CFL_SIZE);
+
+		do {
+			if (0. != md_zrmse2(DIMS, pat1_dims, pat_strs, pattern, pat_strs, &MD_ACCESS(DIMS, pat_strs, pos, pattern)))
+				error("The pattern of different batches coes not coincide!");
+
+		} while (md_next(DIMS, pat_dims, loop_flags, pos));
 	}
 
 	// FIXME: re-initialize forward_op and precond_op
@@ -566,12 +584,6 @@ int main_pics(int argc, char* argv[])
 		debug_printf(DP_INFO, "Maximum eigenvalue: %.2e\n", maxeigen);
 	}
 
-
-	// Regularization on manifolds
-	long Q_dims[DIMS];
-	complex float* Q = NULL;
-	if (Q_file != NULL)
-		Q = load_cfl(Q_file, DIMS, Q_dims);
 
 	// initialize prox functions
 

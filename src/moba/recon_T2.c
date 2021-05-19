@@ -32,9 +32,10 @@
 
 #include "moba/model_T2.h"
 #include "moba/iter_l1.h"
+#include "moba/recon_T1.h"
+#include "moba/moba.h"
 
 #include "recon_T2.h"
-#include "recon_T1.h"
 
 
 
@@ -69,8 +70,8 @@ void T2_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	mconf.rvc = false;
 	mconf.noncart = conf->noncartesian;
 	mconf.fft_flags = fft_flags;
-	mconf.a = 880.;
-	mconf.b = 32.;
+	mconf.a = conf->sobolev_a;
+	mconf.b = conf->sobolev_b;
 	mconf.cnstcoil_flags = TE_FLAG;
 
 	//struct noir_s nl = noir_create(dims, mask, pattern, &mconf);
@@ -81,12 +82,15 @@ void T2_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	irgnm_conf.iter = conf->iter;
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
-	irgnm_conf.alpha_min = conf->alpha_min;
+	if (conf->alpha_min_exp_decay)
+		irgnm_conf.alpha_min = conf->alpha_min;
+	else
+		irgnm_conf.alpha_min0 = conf->alpha_min;
 	irgnm_conf.cgtol = conf->tolerance;
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct opt_reg_s ropts = conf->ropts;
+	struct opt_reg_s* ropts = conf->ropts;
 
 
 	struct mdb_irgnm_l1_conf conf2 = {
@@ -100,7 +104,7 @@ void T2_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		.usegpu = usegpu,
 		.algo = conf->algo,
 		.rho = conf->rho,
-		.ropts = &ropts,
+		.ropts = ropts,
 		.wav_reg = 0.1,
 		.auto_norm_off = conf->auto_norm_off };
 

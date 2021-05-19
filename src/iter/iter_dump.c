@@ -20,16 +20,10 @@ void iter_dump_free(const struct iter_dump_s* data)
 	data->free(data);
 }
 
-void iter_dump_multi(const struct iter_dump_s* data, long epoch, long NI, const float* x[NI])
-{
-	if ((NULL != data) && (NULL != data->fun_multi))
-		data->fun_multi(data, epoch, NI, x);
-}
-
-void iter_dump(const struct iter_dump_s* data, long epoch, const float* x)
+void iter_dump(const struct iter_dump_s* data, long epoch, long NI, const float* x[NI])
 {
 	if ((NULL != data) && (NULL != data->fun))
-		data->fun(data, epoch, x);
+		data->fun(data, epoch, NI, x);
 }
 
 struct iter_dump_default_s {
@@ -78,13 +72,14 @@ static void iter_dump_default_free(const struct iter_dump_s* _data)
 	xfree(_data);
 }
 
-const struct iter_dump_s* iter_dump_multi_default_create(const char* base_filename, long save_mod, long NI, unsigned long save_flag, unsigned int D[NI], const long* dims[NI])
+const struct iter_dump_s* iter_dump_default_create(const char* base_filename, long save_mod, long NI, unsigned long save_flag, unsigned int D[NI], const long* dims[NI])
 {
 	PTR_ALLOC(struct iter_dump_default_s, result);
 	SET_TYPEID(iter_dump_default_s, result);
 
-	result->INTERFACE.fun_multi = iter_dump_default_fun;
-	result->INTERFACE.fun = NULL;
+	save_flag = save_flag & (MD_BIT(NI) - 1);
+
+	result->INTERFACE.fun = iter_dump_default_fun;
 	result->INTERFACE.free = iter_dump_default_free;
 	result->INTERFACE.base_filename = base_filename;
 

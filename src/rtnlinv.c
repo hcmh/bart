@@ -70,7 +70,7 @@ static const char help_str[] =
 
 
 
-int main_rtnlinv(int argc, char* argv[])
+int main_rtnlinv(int argc, char* argv[argc])
 {
 	double start_time = timestamp();
 
@@ -94,6 +94,7 @@ int main_rtnlinv(int argc, char* argv[])
 	float scaling = -1.;
 	bool alt_scaling = false;
 
+
 	long my_img_dims[3] = { 0, 0, 0 };
 
 	conf.noncart = true;
@@ -108,6 +109,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
 		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconstruction"),
+		OPTL_UINT(0, "cnstcoil_flags", &conf.cnstcoil_flags, "", "set constant coil flags for multi-contrast recon."),
 		OPT_CLEAR('U', &combine, "Do not combine ENLIVE maps in output"),
 		OPT_FLOAT('f', &restrict_fov, "FOV", "restrict FOV"),
 		OPT_STRING('p', &psf, "file", "pattern / transfer function"),
@@ -123,6 +125,7 @@ int main_rtnlinv(int argc, char* argv[])
 		OPT_VEC3('x', &my_img_dims, "x:y:z", "Explicitly specify image dimensions"),
 		OPT_SET('A', &alt_scaling, "(Alternative scaling)"), // Used for SSA-FARY paper
  		OPT_SET('s', &conf.sms, "Simultaneous Multi-Slice reconstruction"),
+  		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
 		OPTL_CLEAR(0, "cart", &conf.noncart, "(force cartesian)"),
 	};
 
@@ -150,7 +153,14 @@ int main_rtnlinv(int argc, char* argv[])
 	if (conf.sms) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
-		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output
+		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output (consistency with SMS implementation on scanner)
+	}
+
+	// SoS
+	if (conf.sos) {
+
+		debug_printf(DP_INFO, "SoS-NLINV reconstruction. Number of partitions: %d\n", ksp_dims[SLICE_DIM]);
+		// fftmod not necessary for SoS 
 	}
 
 	long pat_dims[DIMS];
@@ -196,7 +206,7 @@ int main_rtnlinv(int argc, char* argv[])
 			
 			for (int i = 0; i < 3; i++)
 				if (my_img_dims[i] != 1)
-					my_img_dims[i] *= 2;
+					my_img_dims[i] *= (!alt_scaling) ? 2 : 1;
 			
 			md_copy_dims(3, sens_dims, my_img_dims);
 		}
@@ -206,6 +216,11 @@ int main_rtnlinv(int argc, char* argv[])
 		error("Pass either trajectory (-t) or PSF (-p)!\n");
 	}
 
+	for (long d = 0; d < DIMS; d++) {
+
+		if (MD_IS_SET(conf.cnstcoil_flags, d))
+			sens_dims[d] = 1;
+	}
 
 	long sens1_dims[DIMS];
 	md_select_dims(DIMS, ~TIME_FLAG, sens1_dims, sens_dims);
@@ -222,6 +237,12 @@ int main_rtnlinv(int argc, char* argv[])
 
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, sens_dims);
+
+	for (long d = 0; d < DIMS; d++) {
+
+		if (MD_IS_SET(conf.cnstcoil_flags, d))
+			img_dims[d] = ksp_dims[d];
+	}
 
 	long img1_dims[DIMS];
 	md_select_dims(DIMS, ~TIME_FLAG, img1_dims, img_dims);
@@ -293,8 +314,11 @@ int main_rtnlinv(int argc, char* argv[])
 		if (!md_check_bounds(DIMS, 0, img1_dims, init_dims))
 			error("Image dimensions and init dimensions do not match!");
 
-		md_copy(DIMS, img1_dims, img1, init, CFL_SIZE);
-		md_copy(DIMS, sens1_dims, ksens1, init + skip, CFL_SIZE);
+		long pos[DIMS]  = { 0 };
+		md_copy_block(DIMS, pos, img1_dims, img1, init_dims, init, CFL_SIZE);
+
+		pos[COIL_DIM] = 1;
+		md_copy_block(DIMS, pos, sens1_dims, ksens1, init_dims, init, CFL_SIZE);
 
 		conf.img_space_coils = true;
 
@@ -313,7 +337,7 @@ int main_rtnlinv(int argc, char* argv[])
 
 		debug_printf(DP_DEBUG3, "Start gridding psf ...");
 
-		md_select_dims(DIMS, ~(COIL_FLAG|MAPS_FLAG), pat_dims, sens_dims);
+		md_copy_dims(DIMS, pat_dims, img_dims);
 		pat_dims[TIME_DIM] = turns;
 
 
@@ -360,6 +384,12 @@ int main_rtnlinv(int argc, char* argv[])
 
 	long kgrid_dims[DIMS];
 	md_select_dims(DIMS, ~MAPS_FLAG, kgrid_dims, sens_dims);
+
+	for (long d = 0; d < DIMS; d++) {
+
+		if (MD_IS_SET(conf.cnstcoil_flags, d))
+			kgrid_dims[d] = img_dims[d];
+	}
 
 	long kgrid1_dims[DIMS];
 	md_select_dims(DIMS, ~TIME_FLAG, kgrid1_dims, kgrid_dims);
@@ -477,12 +507,12 @@ int main_rtnlinv(int argc, char* argv[])
 			complex float* kgrid1_gpu = md_alloc_gpu(DIMS, kgrid1_dims, CFL_SIZE);
 			md_copy(DIMS, kgrid1_dims, kgrid1_gpu, kgrid1, CFL_SIZE);
 
-			noir_recon(&conf, sens1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1_gpu);
+			noir_recon(&conf, kgrid1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1_gpu);
 			md_free(kgrid1_gpu);
 
 		} else
 #endif
-			noir_recon(&conf, sens1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1);
+			noir_recon(&conf, kgrid1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1);
 
 
 		// Temporal regularization
@@ -499,7 +529,7 @@ int main_rtnlinv(int argc, char* argv[])
 		md_calc_strides(DIMS, sens1_strs, sens1_dims, CFL_SIZE);
 
 
-		postprocess(sens1_dims, normalize,
+		postprocess(kgrid1_dims, normalize,
 				sens1_strs, sens1,
 				img1_strs, img1,
 				img_output1_dims, img_output1_strs, img_output1);

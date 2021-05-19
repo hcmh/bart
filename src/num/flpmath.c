@@ -38,7 +38,6 @@
 #include "num/vecops.h"
 #include "num/optimize.h"
 #include "num/blas.h"
-#include "num/convcorr.h"
 #include "num/vecops_strided.h"
 
 #include "misc/misc.h"
@@ -1299,6 +1298,30 @@ void md_zconv(int N, unsigned long flags,
 	md_zconv2(N, flags, odims, MD_STRIDES(N, odims, CFL_SIZE), out, kdims, MD_STRIDES(N, kdims, CFL_SIZE), krn, idims, MD_STRIDES(N, idims, CFL_SIZE), in);
 }
 
+void md_zcorr2(int N, unsigned long flags,
+	       const long odims[N], const long ostrs[N], complex float* out,
+	       const long kdims[N], const long kstrs[N], const complex float* krn,
+	       const long idims[N], const long istrs[N], const complex float* in)
+{
+	long mdims[2 * N];
+	long ostrs2[2 * N];
+	long kstrs2[2 * N];
+	long istrs2[2 * N];
+
+	krn += calc_convcorr_geom(N, flags, mdims, ostrs2, kstrs2, istrs2,
+				  odims, ostrs, kdims, kstrs, idims, istrs, false) / CFL_SIZE;
+
+	md_ztenmul2(2 * N, mdims, ostrs2, out, kstrs2, krn, istrs2, in);
+}
+
+void md_zcorr(int N, unsigned long flags,
+	      const long odims[N], complex float* out,
+	      const long kdims[N], const complex float* krn,
+	      const long idims[N], const complex float* in)
+{
+	md_zcorr2(N, flags, odims, MD_STRIDES(N, odims, CFL_SIZE), out, kdims, MD_STRIDES(N, kdims, CFL_SIZE), krn, idims, MD_STRIDES(N, idims, CFL_SIZE), in);
+}
+
 
 /*
  * matmul family of functions is deprecated - use tenmul instead
@@ -1369,9 +1392,6 @@ void md_zmatmul(unsigned int D, const long out_dims[D], complex float* dst, cons
  */
 void md_zfmac2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
-	if (simple_zconvcorr(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
-		return;
-
 	if (simple_zfmac(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
 		return;
 
@@ -1608,7 +1628,7 @@ void md_min2(unsigned int D, const long dims[D], const long ostr[D], float* optr
 /**
  * Max of inputs (without strides)
  *
- * optr = max(iptr1, iptr2)
+ * optr = max(iptr1, iptr2) + 0i
  */
 void md_zmax(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr1, const complex float* iptr2)
 {
@@ -1622,10 +1642,13 @@ void md_zmax(unsigned int D, const long dims[D], complex float* optr, const comp
 /**
  * Max of inputs (with strides)
  *
- * optr = max(iptr1, iptr2)
+ * optr = max(iptr1, iptr2) + 0i
  */
 void md_zmax2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
+	if (simple_zmax(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
+
 	MAKE_Z3OP(zmax, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
@@ -1706,72 +1729,6 @@ void md_axpy(unsigned int D, const long dims[D], float* optr, float val, const f
 	md_axpy2(D, dims, strs, optr, val, strs, iptr);
 }
 
-static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
-{
-	if (optr != iptr1)
-		return false;
-
-	long tostr[D];
-	long tistr1[D];
-	long tistr2[D];
-	long tdims[D];
-
-	md_copy_dims(D, tdims, dims);
-	md_copy_strides(D, tostr, ostr);
-	md_copy_strides(D, tistr1, istr1);
-	md_copy_strides(D, tistr2, istr2);
-
-	long (*strs[3])[D] = { &tostr, &tistr1, &tistr2 };
-	D = simplify_dims(3, D, tdims, strs);
-
-	//sum over outer dimension
-	if ((2 == D) && (CFL_SIZE == tostr[0])
-		     && (CFL_SIZE == tistr1[0])
-		     && (CFL_SIZE == tistr2[0])
-		     && (0 == tostr[1])
-		     && (0 == tistr1[1])
-		     && ((long)CFL_SIZE * tdims[0] == tistr2[1])) {
-
-#ifdef USE_CUDA
-
-		if (cuda_ondevice(iptr2)) {
-
-			assert(cuda_ondevice(optr));
-
-			if(8 * tdims[0] >= tdims[1])
-				return false;
-
-			//transpose data -> sum over inner dimensions
-			//cuda_zsum accumulates the sum in the first element
-			//copy the first elements to output
-
-			long tdimst[2] = {tdims[1], tdims[0]};
-
-			complex float* tmp = md_alloc_gpu(2, tdims, CFL_SIZE);
-
-			md_transpose(2, 0, 1, tdimst, tmp, tdims, iptr2, CFL_SIZE);
-
-			for (long i = 0; i < tdimst[1]; i++)
-				cuda_zsum(tdimst[0], tmp + i * tdimst[0]);
-
-			md_copy2(1, tdims, tostr, optr, MD_STRIDES(2, tdimst, CFL_SIZE) + 1, tmp, CFL_SIZE);
-			md_free(tmp);
-
-			return true;
-		}
-#endif
-
-		for (int j = 0; j < tdims[1]; j++)
-			for (int i = 0; i < tdims[0]; i++)
-				optr[i] += iptr2[i + tdims[0] * j];
-
-		return true;
-	}
-
-	return false;
-}
-
-
 /**
  * Add two complex arrays and save to output (with strides)
  *
@@ -1779,7 +1736,7 @@ static bool simple_zsum(unsigned int D, const long dims[D], const long ostr[D], 
  */
 void md_zadd2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr1[D], const complex float* iptr1, const long istr2[D], const complex float* iptr2)
 {
-	if (simple_zsum(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+	if (simple_zadd(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
 		return;
 
 	MAKE_Z3OP_FROM_REAL(add, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
@@ -1869,6 +1826,8 @@ void md_zsub(unsigned int D, const long dims[D], complex float* optr, const comp
  */
 void md_add2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr1[D], const float* iptr1, const long istr2[D], const float* iptr2)
 {
+	if (simple_add(D, dims, ostr, optr, istr1, iptr1, istr2, iptr2))
+		return;
 	MAKE_3OP(add, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
 
@@ -2075,6 +2034,32 @@ void md_zlessequal(unsigned int D, const long dims[D], complex float* optr, cons
 	make_z3op_simple(md_zlessequal2, D, dims, optr, iptr1, iptr2);
 }
 
+
+
+/**
+ * Elementwise less than or equal to scalar (with strides)
+ *
+ * optr = (iptr <= val)
+ */
+void md_zslessequal2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr, float val)
+{
+	make_z3op_scalar(md_zlessequal2, D, dims, ostr, optr, istr, iptr, val);
+}
+
+
+
+/**
+ * Elementwise less than or equal to scalar (without strides)
+ *
+ * optr = (iptr <= val)
+ */
+void md_zslessequal(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr, float val)
+{
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	md_zslessequal2(D, dims, strs, optr, strs, iptr, val);
+}
 
 
 
@@ -2431,6 +2416,52 @@ void md_zcos(unsigned int D, const long dims[D], complex float* optr, const comp
 
 
 
+/**
+ * Complex hyperbolic sine
+ *
+ * optr = zsinh(iptr)
+ */
+void md_zsinh2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
+{
+	MAKE_Z2OP(zsinh, D, dims, ostr, optr, istr, iptr);
+}
+
+
+/**
+ * Complex hyperbolic sine
+ *
+ * optr = zsinh(iptr)
+ */
+void md_zsinh(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr)
+{
+	make_z2op_simple(md_zsinh2, D, dims, optr, iptr);
+}
+
+
+/**
+ * Complex hyperbolic cosine
+ *
+ * optr = zcosh(iptr)
+ */
+void md_zcosh2(unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr)
+{
+	MAKE_Z2OP(zcosh, D, dims, ostr, optr, istr, iptr);
+}
+
+
+/**
+ * Complex hyperbolic cosine
+ *
+ * optr = zcosh(iptr)
+ */
+void md_zcosh(unsigned int D, const long dims[D], complex float* optr, const complex float* iptr)
+{
+	make_z2op_simple(md_zcosh2, D, dims, optr, iptr);
+}
+
+
+
+
 
 /**
  * Calculate inner product between two scalar arrays (with strides)
@@ -2533,6 +2564,26 @@ float md_zrms(unsigned int D, const long dim[D], const complex float* in)
 	return md_znorm(D, dim, in) / sqrtl(md_calc_size(D, dim));
 }
 
+/**
+ * Calculate root-mean-square error between two complex arrays
+ *
+ * return sqrt((in1 - in2)^2 / length(in))
+ */
+float md_zrmse2(unsigned int D, const long dim[D], const long str1[D], const complex float* in1, const long str2[D], const complex float* in2)
+{
+	complex float* err = md_alloc_sameplace(D, dim, CFL_SIZE, in1);
+
+	long estr[D];
+	md_calc_strides(D, estr, dim, CFL_SIZE);
+
+	md_zsub2(D, dim, estr, err, str1, in1, str2, in2);
+
+	float val = md_zrms(D, dim, err);
+
+	md_free(err);
+
+	return val;
+}
 
 
 /**
@@ -2542,15 +2593,10 @@ float md_zrms(unsigned int D, const long dim[D], const complex float* in)
  */
 float md_zrmse(unsigned int D, const long dim[D], const complex float* in1, const complex float* in2)
 {
-	complex float* err = md_alloc_sameplace(D, dim, CFL_SIZE, in1);
+	long str[D];
+	md_calc_strides(D, str, dim, CFL_SIZE);
 
-	md_zsub(D, dim, err, in1, in2);
-
-	float val = md_zrms(D, dim, err);
-
-	md_free(err);
-
-	return val;
+	return md_zrmse2(D, dim, str, in1, str, in2);
 }
 
 
@@ -3102,6 +3148,7 @@ void md_zrss(unsigned int D, const long dims[D], unsigned int flags, complex flo
 
 /**
  * Compute variance along selected dimensions (with strides)
+ * (with Bessel's correction)
  *
  * @param dims -- full dimensions of src image
  * @param flags -- bitmask for calculating variance, i.e. the dimensions that will not stay
@@ -3135,6 +3182,7 @@ void md_zvar2(unsigned int D, const long dims[D], unsigned int flags, const long
 
 /**
  * Compute variance along selected dimensions (without strides)
+ * (with Bessel's correction)
  *
  * @param dims -- full dimensions of src image
  * @param flags -- bitmask for calculating variance, i.e. the dimensions that will not stay
@@ -3153,6 +3201,7 @@ void md_zvar(unsigned int D, const long dims[D], unsigned int flags, complex flo
 
 /**
  * Compute standard deviation along selected dimensions (with strides)
+ * (with Bessel's correction)
  *
  * @param dims -- full dimensions of src image
  * @param flags -- bitmask for calculating standard deviation, i.e. the dimensions that will not stay
@@ -3181,6 +3230,7 @@ void md_zstd2(unsigned int D, const long dims[D], unsigned int flags, const long
 
 /**
  * Compute standard deviation along selected dimensions (without strides)
+ * (with Bessel's correction)
  *
  * @param dims -- full dimensions of src image
  * @param flags -- bitmask for calculating standard deviation, i.e. the dimensions that will not stay
@@ -3973,23 +4023,43 @@ void md_zsmin(unsigned int D, const long dim[D], complex float* optr, const comp
 #endif
 
 
-static void md_fdiff_core2(unsigned int D, const long dims[D], unsigned int d, bool dir, const long ostr[D], float* out, const long istr[D], const float* in)
+static void md_fdiff_core2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, bool dir, const long ostr[D], void *out, const long istr[D], const void *in, bool c)
 {
 	long pos[D];
 	md_set_dims(D, pos, 0);
 	pos[d] = dir ? 1 : -1;
+	md_circ_shift2(D, dims, pos, ostr, out, istr, in, c ? CFL_SIZE : FL_SIZE);
+	if (c)
+		md_zsub2(D, dims, ostr, out, istr, in, ostr, out);
+	else
+		md_sub2(D, dims, ostr, out, istr, in, ostr, out);
 
-	md_circ_shift2(D, dims, pos, ostr, out, istr, in, FL_SIZE);
-	md_sub2(D, dims, ostr, out, istr, in, ostr, out);
+	if (BC_ZERO == bc) {
+		// backward: out[0] = in[0]; (negative) forward: out[n-1] = in[n-1]
+		md_select_dims(D, ~MD_BIT(d), pos, dims);
+		if (c)
+			md_zsmul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
+				  istr, in + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
+		else
+			md_smul2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1) * ostr[d]),
+				 istr, in + (dir ? 0 : (dims[d] - 1) * istr[d]), dir ? 1 : 1);
+	}
+	if (BC_SAME == bc) {
+		// backward: out[0] = 0; (negative) forward: out[n-1] = 0
+		md_select_dims(D, ~MD_BIT(d), pos, dims);
+		md_clear2(D, pos, ostr, out + (dir ? 0 : (dims[d] - 1)) * ostr[d], c ? CFL_SIZE : FL_SIZE);
+	}
+	// default: periodic boundary condition
 }
 
 /**
  * Compute finite (forward) differences along selected dimensions.
  *
  */
-void md_fdiff2(unsigned int D, const long dims[D], unsigned int d, const long ostr[D], float* out, const long istr[D], const float* in)
+void md_fdiff2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], float *out, const long istr[D], const float *in)
 {
-	md_fdiff_core2(D, dims, d, true, ostr, out, istr, in);
+	//TODO this does finite backward differences!
+	md_fdiff_core2(D, dims, d, bc, true, ostr, out, istr, in, false);
 }
 
 
@@ -3998,12 +4068,12 @@ void md_fdiff2(unsigned int D, const long dims[D], unsigned int d, const long os
  * Compute finite differences along selected dimensions.
  *
  */
-void md_fdiff(unsigned int D, const long dims[D], unsigned int d, float* out, const float* in)
+void md_fdiff(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, float *out, const float *in)
 {
 	long strs[D];
 	md_calc_strides(D, strs, dims, FL_SIZE);
 
-	md_fdiff2(D, dims, d, strs, out, strs, in);
+	md_fdiff2(D, dims, d, bc, strs, out, strs, in);
 }
 
 
@@ -4012,9 +4082,10 @@ void md_fdiff(unsigned int D, const long dims[D], unsigned int d, float* out, co
  * Compute finite (backward) differences along selected dimensions.
  *
  */
-void md_fdiff_backwards2(unsigned int D, const long dims[D], unsigned int d, const long ostr[D], float* out, const long istr[D], const float* in)
+void md_fdiff_backwards2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], float *out, const long istr[D], const float *in)
 {
-	md_fdiff_core2(D, dims, d, false, ostr, out, istr, in);
+	//TODO this does finite forward differences * (-1)!
+	md_fdiff_core2(D, dims, d, bc, false, ostr, out, istr, in, false);
 }
 
 
@@ -4023,74 +4094,139 @@ void md_fdiff_backwards2(unsigned int D, const long dims[D], unsigned int d, con
  * Compute finite (backward) differences along selected dimensions.
  *
  */
-void md_fdiff_backwards(unsigned int D, const long dims[D], unsigned int d, float* out, const float* in)
+void md_fdiff_backwards(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, float *out, const float *in)
 {
 	long strs[D];
 	md_calc_strides(D, strs, dims, FL_SIZE);
 
-	md_fdiff_backwards2(D, dims, d, strs, out, strs, in);
+	md_fdiff_backwards2(D, dims, d, bc, strs, out, strs, in);
 }
 
 
 
-static void md_zfdiff_core2(unsigned int D, const long dims[D], unsigned int d, bool dir, const long ostr[D], complex float* out, const long istr[D], const complex float* in)
+/**
+ * Compute finite (forward) differences along selected dimensions.
+ *
+ */
+void md_zfdiff2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], complex float *out, const long istr[D], const complex float *in)
 {
-	// we could also implement in terms of md_fdiff2
+	md_fdiff_core2(D, dims, d, bc, true, ostr, out, istr, in, true);
+}
 
+
+
+/**
+ * Compute finite (backward) differences along selected dimensions.
+ *
+ */
+void md_zfdiff_backwards2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, const long ostr[D], complex float *out, const long istr[D], const complex float *in)
+{
+	md_fdiff_core2(D, dims, d, bc, false, ostr, out, istr, in, true);
+}
+
+
+
+/**
+ * Compute finite (forward) differences along selected dimensions.
+ *
+ */
+void md_zfdiff(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, complex float *out, const complex float *in)
+{
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	md_zfdiff2(D, dims, d, bc, strs, out, strs, in);
+}
+
+
+
+/**
+ * Compute finite (backward) differences along selected dimensions.
+ *
+ */
+void md_zfdiff_backwards(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, complex float *out, const complex float *in)
+{
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	md_zfdiff_backwards2(D, dims, d, bc, strs, out, strs, in);
+}
+
+
+
+/**
+ * Compute central finite differences along selected dimensions with strides.
+ *
+ */
+void md_zfdiff_central2(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, bool reverse, const long ostr[D], complex float *out, const long istr[D], const complex float *in)
+{
 	long pos[D];
 	md_set_dims(D, pos, 0);
-	pos[d] = dir ? 1 : -1;
+	pos[d] = 2;
 
 	md_circ_shift2(D, dims, pos, ostr, out, istr, in, CFL_SIZE);
-	md_zsub2(D, dims, ostr, out, istr, in, ostr, out);
+
+	if (reverse)
+		md_zsub2(D, dims, ostr, out, ostr, out, istr, in);
+	else
+		md_zsub2(D, dims, ostr, out, istr, in, ostr, out);
+
+	pos[d] = -1;
+	md_circ_shift2(D, dims, pos, ostr, out, ostr, out, CFL_SIZE);
+
+	if (BC_ZERO == bc) {
+		long odims[D];
+		md_select_dims(D, ~MD_BIT(d), odims, dims);
+		md_set_dims(D, pos, 0);
+
+		// out[0] = in[1];
+		md_zsmul2(D, odims, ostr, (void *)out + 0, istr, (void *)in + istr[d], reverse ? -1. : 1.);
+
+		// out[n-1] = -in[n-2]
+		pos[d] = dims[d] - 1;
+		long ooffset = md_calc_offset(D, ostr, pos);
+
+		pos[d] = dims[d] - 2;
+		long ioffset = md_calc_offset(D, istr, pos);
+
+		md_zsmul2(D, odims, ostr, (void *)out + ooffset, istr, (void *)in + ioffset, reverse ? 1. : -1.);
+	}
+	if (BC_SAME == bc) {
+		long odims[D];
+		md_select_dims(D, ~MD_BIT(d), odims, dims);
+		md_set_dims(D, pos, 0);
+
+		// out[0] = in[1] - in[0];
+		md_zsmul2(D, odims, ostr, (void *)out + 0, istr, (void *)in + istr[d], reverse ? -1. : 1.);
+		md_zaxpy2(D, odims, ostr, (void *)out + 0, reverse ? 1. : -1., istr, (void *)in + 0);
+
+		// out[n-1] = in[n-1] - in[n-2];
+		pos[d] = dims[d] - 1;
+		long ooffset = md_calc_offset(D, ostr, pos);
+
+		pos[d] = dims[d] - 2;
+		long ioffset = md_calc_offset(D, istr, pos);
+		md_zsmul2(D, odims, ostr, (void *)out + ooffset, istr, (void *)in + ioffset, reverse ? 1. : -1.);
+
+		pos[d] = dims[d] - 1;
+		ioffset = md_calc_offset(D, istr, pos);
+		md_zaxpy2(D, odims, ostr, (void *)out + ooffset, reverse ? -1. : 1., istr, (void *)in + ioffset);
+	}
+	// default: periodic boundary condition
 }
 
-/**
- * Compute finite (forward) differences along selected dimensions.
- *
- */
-void md_zfdiff2(unsigned int D, const long dims[D], unsigned int d, const long ostr[D], complex float* out, const long istr[D], const complex float* in)
-{
-	md_zfdiff_core2(D, dims, d, true, ostr, out, istr, in);
-}
-
 
 
 /**
- * Compute finite (backward) differences along selected dimensions.
+ * Compute central finite differences along selected dimensions.
  *
  */
-void md_zfdiff_backwards2(unsigned int D, const long dims[D], unsigned int d, const long ostr[D], complex float* out, const long istr[D], const complex float* in)
-{
-	md_zfdiff_core2(D, dims, d, false, ostr, out, istr, in);
-}
-
-
-
-/**
- * Compute finite (forward) differences along selected dimensions.
- *
- */
-void md_zfdiff(unsigned int D, const long dims[D], unsigned int d, complex float* out, const complex float* in)
+void md_zfdiff_central(unsigned int D, const long dims[D], unsigned int d, const enum BOUNDARY_CONDITION bc, bool reverse, complex float *out, const complex float *in)
 {
 	long strs[D];
 	md_calc_strides(D, strs, dims, CFL_SIZE);
 
-	md_zfdiff2(D, dims, d, strs, out, strs, in);
-}
-
-
-
-/**
- * Compute finite (backward) differences along selected dimensions.
- *
- */
-void md_zfdiff_backwards(unsigned int D, const long dims[D], unsigned int d, complex float* out, const complex float* in)
-{
-	long strs[D];
-	md_calc_strides(D, strs, dims, CFL_SIZE);
-
-	md_zfdiff_backwards2(D, dims, d, strs, out, strs, in);
+	md_zfdiff_central2(D, dims, d, bc, reverse, strs, out, strs, in);
 }
 
 
@@ -4281,32 +4417,4 @@ void md_pdf_gauss2(unsigned int D, const long dims[D], const long ostr[D], float
 void md_pdf_gauss(unsigned int D, const long dims[D], float* optr, const float* iptr, float mu, float sigma)
 {
 	md_pdf_gauss2(D, dims, MD_STRIDES(D, dims, FL_SIZE), optr, MD_STRIDES(D, dims, FL_SIZE), iptr, mu, sigma);
-}
-
-
-/**
- * Multiply scalar array with a scalar and save to output (with strides)
- *
- * optr = iptr * valptr[0]
- */
-void md_smul_ptr2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, const float* valptr)
-{
-
-	NESTED(void, nary_smul_ptr, (struct nary_opt_data_s* data, void* ptr[]))
-	{
-		data->ops->smul_ptr(data->size, valptr, ptr[0], ptr[1]);
-	};
-
-	optimized_twoop_oi(D, dims, ostr, optr, istr, iptr,
-		(size_t[2]){ FL_SIZE, FL_SIZE }, nary_smul_ptr);
-}
-
-/**
- * Multiply scalar array with a scalar and save to output (with strides)
- *
- * optr = iptr * valptr[0]
- */
-void md_smul_ptr(unsigned int D, const long dims[D], float* optr, const float* iptr, const float* valptr)
-{
-	md_smul_ptr2(D, dims, MD_STRIDES(D, dims, FL_SIZE), optr, MD_STRIDES(D, dims, FL_SIZE), iptr, valptr);
 }

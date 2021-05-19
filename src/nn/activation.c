@@ -81,7 +81,7 @@ const struct nlop_s* append_activation(const struct nlop_s* network, int o, enum
 
 		case ACT_SOFTMAX:
 
-			network = nlop_chain2_FF(network, o, nlop_softmax_create(N, dims, MD_BIT(N - 1)), 0);
+			network = nlop_chain2_FF(network, o, nlop_softmax_create(N, dims, ~MD_BIT(0)), 0);
 			network = nlop_permute_outputs_F(network, NO, perm_out);
 			break;
 
@@ -102,7 +102,7 @@ const struct nlop_s* append_activation(const struct nlop_s* network, int o, enum
  * @param network operator to append the activation (this operator is freed)
  * @param o output index of network, the layer is appended
  * @param activation type of activation
- * @param bflags select the dims of the bias, i.e. the dims which are not shared
+ * @param bflags select the dims of the bias, i.e. the dims which are not shared. In case of ACT_SOFTMAX, ~bflags is interpreted as batchflags.
  */
 const struct nlop_s* append_activation_bias(const struct nlop_s* network, int o, enum ACTIVATION activation, unsigned long bflags)
 {
@@ -132,7 +132,7 @@ const struct nlop_s* append_activation_bias(const struct nlop_s* network, int o,
 
 		case ACT_SOFTMAX:
 
-			nlop_act = nlop_softmax_bias_create(N, dims, MD_BIT(N-1), bdims);
+			nlop_act = nlop_softmax_bias_create(N, dims, ~bflags, bdims);
 			break;
 
 		case ACT_SIGMOID:
@@ -184,7 +184,6 @@ DEF_TYPEID(bias_op_s);
 
 static void bias_op_apply(const nlop_data_t* _data, int N, complex float* args[N])
 {
-	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 	assert(3 == N);
 
@@ -202,7 +201,6 @@ static void bias_op_apply(const nlop_data_t* _data, int N, complex float* args[N
 #endif
 
 	md_zadd2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), args[0], MD_STRIDES(d->N, d->dims, CFL_SIZE), args[1], MD_STRIDES(d->N, d->bdims, CFL_SIZE), args[2]);
-	PRINT_TIMER("biases");
 }
 
 static void bias_op_deriv1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -228,10 +226,8 @@ static void bias_op_adj1(const nlop_data_t* _data, unsigned int o, unsigned int 
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 	md_copy2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), dst, MD_STRIDES(d->N, d->dims, CFL_SIZE), src, CFL_SIZE);
-	PRINT_TIMER("bias adj1");
 }
 
 static void bias_op_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -239,28 +235,11 @@ static void bias_op_adj2(const nlop_data_t* _data, unsigned int o, unsigned int 
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 
-#ifdef USE_CUDA //FIXME: optimize zadd2 for accumulation in first or second dim
-	if (cuda_ondevice(src)) {
+	md_clear(d->N, d->bdims, dst, CFL_SIZE);
+	md_zsum(d->N, d->dims, ~md_nontriv_dims(d->N, d->bdims), dst, src);
 
-		long tdims[d->N];
-		md_select_dims(d->N, ~md_nontriv_dims(d->N, d->bdims), tdims, d->dims);
-
-		complex float* ones = md_alloc_sameplace(d->N, tdims, CFL_SIZE, src);
-		md_zfill(d->N, tdims, ones, 1.);
-		md_ztenmul(d->N, d->bdims, dst, d->dims, src, tdims, ones);
-
-		md_free(ones);
-	} else
-#endif
-	{
-		md_clear(d->N, d->bdims, dst, CFL_SIZE);
-		md_zsum(d->N, d->dims, ~md_nontriv_dims(d->N, d->bdims), dst, src);
-	}
-
-	PRINT_TIMER("bias adj2");
 }
 
 static void bias_op_free(const nlop_data_t* _data)
@@ -319,7 +298,8 @@ struct relu_s {
 
 	INTERFACE(nlop_data_t);
 
-	complex float* tmp;
+	complex float* der;
+	float slope_param;
 
 	const struct iovec_s* tmpdom;
 	const struct iovec_s* dom;
@@ -334,14 +314,13 @@ static void relu_set_opts(const nlop_data_t* _data, const struct op_options_s* o
 
 	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
 
-		md_free(data->tmp);
-		data->tmp = NULL;
+		md_free(data->der);
+		data->der = NULL;
 	}
 }
 
 static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N])
 {
-	START_TIMER;
 
 	assert(2 == N);
 	complex float* dst = args[0];
@@ -349,19 +328,38 @@ static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N])
 
 	struct relu_s* d = CAST_DOWN(relu_s, _data);
 
-	if (NULL == d->tmp)
-		d->tmp = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
+	if (NULL == d->der)
+		d->der = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
 
 	md_smax2(d->dom->N, d->dom->dims, d->codom->strs, (float*)dst, d->codom->strs, (float*)src, 0.);
-	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->der, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+
+	// leaky RELU if slope parameter has been set
+	if (0 != d->slope_param) {
+
+		complex float* tmp = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
+		complex float* tmp2 = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
+
+		// eliminate ones in derivative, where input is zero to calculate tmp(x) = (0, if x >= 0; 1, if x < 0)
+		md_lessequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)tmp2, (float*)d->der, (float*)tmp);
+		md_sub(d->tmpdom->N, d->tmpdom->dims, (float*)tmp, (float*)tmp, (float*)tmp2);
+
+		// derivative der(x) = {1, if x >= 0; d->slope_param if x < 0}
+		md_axpy(d->tmpdom->N, d->tmpdom->dims, (float*)d->der, d->slope_param, (float*)tmp);
+
+		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)dst, (float*)d->der, (float*)src);
+
+		md_free(tmp);
+		md_free(tmp2);
+	}
 
 	if (op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER)) {
 
-		md_free(d->tmp);
-		d->tmp = NULL;
+		md_free(d->der);
+		d->der = NULL;
 	}
 
-	PRINT_TIMER("relus");
 }
 
 
@@ -371,9 +369,9 @@ static void relu_deriv(const nlop_data_t* _data, unsigned int o, unsigned int i,
 	UNUSED(i);
 
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-	assert(NULL != d->tmp);
+	assert(NULL != d->der);
 
-	md_mul2(d->codom->N, d->dom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src);
+	md_mul2(d->codom->N, d->dom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->der, d->dom->strs, (float*)src);
 }
 
 static void relu_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -382,16 +380,16 @@ static void relu_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(i);
 
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-	assert(NULL != d->tmp);
+	assert(NULL != d->der);
 
-	md_mul2(d->dom->N, d->dom->dims, d->dom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, d->codom->strs, (float*)src);
+	md_mul2(d->dom->N, d->dom->dims, d->dom->strs, (float*)dst, d->tmpdom->strs, (float*)d->der, d->codom->strs, (float*)src);
 }
 
 static void relu_free(const nlop_data_t* _data)
 {
 	const struct relu_s* d = CAST_DOWN(relu_s, _data);
 
-	md_free(d->tmp);
+	md_free(d->der);
 
 	iovec_free(d->tmpdom);
 	iovec_free(d->dom);
@@ -400,8 +398,20 @@ static void relu_free(const nlop_data_t* _data)
 	xfree(d);
 }
 
-
+/**
+ * Create RELU nlop
+ * f(x) = {x, if x >= 0; 0, if x < 0}
+ */
 const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const long ostrs[N], const long istrs[N])
+{
+	return nlop_leaky_relu_create2(N, dims, ostrs, istrs, 0.);
+}
+
+/**
+ * Create leaky RELU nlop with slope control parameter a
+ * f(x) = {x, if x >= 0; ax, if x < 0}
+ */
+const struct nlop_s* nlop_leaky_relu_create2(unsigned int N, const long dims[N], const long ostrs[N], const long istrs[N], float slope_parameter)
 {
 	PTR_ALLOC(struct relu_s, data);
 	SET_TYPEID(relu_s, data);
@@ -421,7 +431,8 @@ const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const
 	long tstrs[N + 1];
 	md_calc_strides(N + 1, tstrs, r_dims, FL_SIZE);
 
-	data->tmp = NULL;
+	data->der = NULL;
+	data->slope_param = slope_parameter;
 
 	data->tmpdom = iovec_create2(N + 1, r_dims, tstrs, FL_SIZE);
 	data->dom = iovec_create2(N + 1, r_dims, r_istrs, FL_SIZE);
@@ -440,7 +451,7 @@ const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const
 	operator_property_flags_t props[1][1] = {{0}};
 
 	return nlop_generic_with_props_create2(	1, N, nl_odims, nl_ostr, 1, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, relu_set_opts, props);
+						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, relu_set_opts, props, NULL);
 }
 
 const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])
@@ -470,7 +481,6 @@ DEF_TYPEID(relu_bias_s);
 
 static void relu_bias_apply(const nlop_data_t* _data, int N, complex float* args[N])
 {
-	START_TIMER;
 
 	complex float* dst = args[0];
 	complex float* src = args[1];
@@ -505,8 +515,6 @@ static void relu_bias_apply(const nlop_data_t* _data, int N, complex float* args
 
 	md_smax2(d->tmpdom->N, d->tmpdom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, 0.);
 	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->tmpdom->strs, (float*)d->tmp, d->codom->strs, (float*)dst);
-
-	PRINT_TIMER("relu/bias");
 }
 
 static void relu_bias_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
@@ -636,7 +644,7 @@ struct softmax_s {
 	INTERFACE(nlop_data_t);
 
 	complex float* tmp;
-	unsigned int flag;
+	unsigned long batch_flag;
 
 	unsigned long N;
 
@@ -648,12 +656,11 @@ DEF_TYPEID(softmax_s);
 
 static void softmax_apply(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	//S_i = exp(x_i)/sum_k(exp(x_k)) = S_i = exp(x_i - m)/sum_k(exp(x_k - m))
 	struct softmax_s* d = CAST_DOWN(softmax_s, _data);
 
 	if (NULL == d->tmp)
-	d->tmp = md_alloc_sameplace(d->N, d->dom->dims, d->dom->size, dst);
+		d->tmp = md_alloc_sameplace(d->N, d->dom->dims, d->dom->size, dst);
 
 	complex float* tmp_real = md_alloc_sameplace(d->N, d->dom->dims, CFL_SIZE, src);
 	md_zreal(d->N, d->dom->dims, tmp_real, src);
@@ -661,7 +668,14 @@ static void softmax_apply(const nlop_data_t* _data, complex float* dst, const co
 	complex float* max = md_alloc_sameplace(d->N, d->batchdom->dims, CFL_SIZE, src);
 	md_zfill(d->N, d->batchdom->dims, max, (complex float)(-INFINITY));
 	md_zmax2(d->N, d->dom->dims, d->batchdom->strs, max, d->batchdom->strs, max, d->dom->strs, tmp_real);
+
+#if 1	//FIXME: Optimize md functions for these cases!!!
+	complex float* tmp_gpu = md_alloc_sameplace(d->N, d->dom->dims, d->dom->size, dst);
+	md_copy2(d->N, d->dom->dims, d->dom->strs, tmp_gpu, d->batchdom->strs, max, CFL_SIZE);
+	md_zsub(d->N, d->dom->dims, tmp_real, tmp_real, tmp_gpu);
+#else
 	md_zsub2(d->N, d->dom->dims, d->dom->strs, tmp_real, d->dom->strs, tmp_real, d->batchdom->strs, max);
+#endif
 	md_free(max);
 
 	complex float* tmp_exp = md_alloc_sameplace(d->dom->N, d->dom->dims, CFL_SIZE, src);
@@ -669,13 +683,18 @@ static void softmax_apply(const nlop_data_t* _data, complex float* dst, const co
 	md_free(tmp_real);
 
 	complex float* scale = md_alloc_sameplace(d->N, d->batchdom->dims, CFL_SIZE, src);
-	md_zsum(d->N, d->dom->dims, ~d->flag, scale, tmp_exp);
+	md_zsum(d->N, d->dom->dims, ~d->batch_flag, scale, tmp_exp);
+#if 1
+	md_copy2(d->N, d->dom->dims, d->dom->strs, tmp_gpu, d->batchdom->strs, scale, CFL_SIZE);
+	md_zdiv(d->N, d->dom->dims, d->tmp, tmp_exp, tmp_gpu);
+	md_free(tmp_gpu);
+#else
 	md_zdiv2(d->N, d->dom->dims, d->dom->strs, d->tmp, d->dom->strs, tmp_exp, d->batchdom->strs, scale);
+#endif
 	md_free(scale);
 	md_free(tmp_exp);
 
 	md_copy(d->N, d->dom->dims, dst, d->tmp, CFL_SIZE);
-	PRINT_TIMER("frw softmax")
 }
 
 static void softmax_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -696,11 +715,18 @@ static void softmax_der(const nlop_data_t* _data, unsigned int o, unsigned int i
 
 	//\sum_i S_ia_i
 	complex float* tmp1 = md_alloc_sameplace(d->N, d->batchdom->dims, CFL_SIZE, src);
-	md_zsum(d->N, d->dom->dims, ~d->flag, tmp1, dst);
+	md_zsum(d->N, d->dom->dims, ~d->batch_flag, tmp1, dst);
 
 	//S_j\sum_i D_jS_ia_i
 	complex float* tmp2 = md_alloc_sameplace(d->N, d->dom->dims, CFL_SIZE, src);
+#if 1
+	complex float* tmp_gpu = md_alloc_sameplace(d->N, d->dom->dims, d->dom->size, dst);
+	md_copy2(d->N, d->dom->dims, d->dom->strs, tmp_gpu, d->batchdom->strs, tmp1, CFL_SIZE);
+	md_ztenmul(d->N, d->dom->dims, tmp2, d->dom->dims, d->tmp, d->dom->dims, tmp_gpu);
+	md_free(tmp_gpu);
+#else
 	md_ztenmul(d->N, d->dom->dims, tmp2, d->dom->dims, d->tmp, d->batchdom->dims, tmp1);
+#endif
 	md_free(tmp1);
 
 	md_zsub(d->N, d->dom->dims, dst, dst, tmp2);
@@ -720,7 +746,7 @@ static void softmax_free(const nlop_data_t* _data)
 	xfree(d);
 }
 
-const struct nlop_s* nlop_softmax_create(unsigned int N, const long dims[N], unsigned int batch_flag)
+const struct nlop_s* nlop_softmax_create(unsigned int N, const long dims[N], unsigned long batch_flag)
 {
 	PTR_ALLOC(struct softmax_s, data);
 	SET_TYPEID(softmax_s, data);
@@ -732,16 +758,16 @@ const struct nlop_s* nlop_softmax_create(unsigned int N, const long dims[N], uns
 	md_select_dims(N, batch_flag, batchdims, dims);
 	data->dom = iovec_create(N, dims, CFL_SIZE);
 	data->batchdom = iovec_create(N, batchdims, CFL_SIZE);
-	data->flag = batch_flag;
+	data->batch_flag = batch_flag;
 
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), softmax_apply, softmax_der, softmax_der, NULL, NULL, softmax_free);
 }
 
-const struct nlop_s* nlop_softmax_bias_create(unsigned int N, const long dims[N], unsigned int batch_flag, const long bdims[N])
+const struct nlop_s* nlop_softmax_bias_create(unsigned int N, const long dims[N], unsigned long batch_flag, const long bdims[N])
 {
 	const struct nlop_s* act = nlop_softmax_create(N, dims, batch_flag);
 	const struct nlop_s* bias = nlop_bias_create(N, dims, bdims);
-	const struct nlop_s*  result = nlop_chain2(bias, 0, act, 0);
+	const struct nlop_s* result = nlop_chain2(bias, 0, act, 0);
 	nlop_free(bias);
 	nlop_free(act);
 	return result;

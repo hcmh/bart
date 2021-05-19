@@ -1,10 +1,10 @@
 /* Copyright 2013-2016. The Regents of the University of California.
- * Copyright 2016. Martin Uecker.
+ * Copyright 2016-2020. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
- * 2012-2016 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2013 Dara Bahri <dbahri123@gmail.com>
  * 2015-2016 Siddharth Iyer <sid8795@gmail.com>
  *
@@ -17,7 +17,6 @@
  * Towards A Parameter Free ESPIRiT: Soft-Weighting For Robust Coil Sensitivity Estimation.
  * Presented in the session: "New Frontiers In Image Reconstruction" at ISMRM 2016.
  * http://www.ismrm.org/16/program_files/O86.htm
- *
  */
 
 #include <assert.h>
@@ -148,16 +147,19 @@ void crop_sens(const long dims[DIMS], complex float* ptr, bool soft, float crth,
  *	calreg_dims     - Dimension of the calibration region.
  *	calreg	        - Calibration data.
  */
-static float sure_crop(float var, const long evec_dims[5], complex float* evec_data, complex float* eptr, const long calreg_dims[4], const complex float* calreg)
+static float sure_crop(float var, const long evec_dims[5], complex float* evec_data, complex float* eptr, const long calreg_dims[5], const complex float* calreg)
 {
 	long num_maps = evec_dims[4];
 
 	// Construct low-resolution image
 	long im_dims[5];
 	md_select_dims(5, 15, im_dims, evec_dims);
+
 	complex float* im = md_alloc_sameplace(5, im_dims, CFL_SIZE, calreg);
+
 	md_clear(5, im_dims, im, CFL_SIZE);
 	md_resize_center(5, im_dims, im, calreg_dims, calreg, CFL_SIZE);
+
 	ifftuc(5, im_dims, FFT_FLAGS, im, im);
 
 	// Temporary vector for crop dimensions
@@ -167,18 +169,22 @@ static float sure_crop(float var, const long evec_dims[5], complex float* evec_d
 
 	// Eigenvectors (M)
 	complex float* M = md_alloc_sameplace(5, evec_dims, CFL_SIZE, calreg);
+
 	md_copy(5, evec_dims, M, evec_data, CFL_SIZE);
 
 	// Temporary eigenvector holder to hold low resolution maps
 	complex float* LM = md_alloc_sameplace(5, evec_dims, CFL_SIZE, calreg);
+
 	// Temporary holder for projection calreg
 	complex float* TC = md_alloc_sameplace(5, calreg_dims, CFL_SIZE, calreg);
+
 	// Temporary holder to hold low resolution calib maps
 	complex float* CM = md_alloc_sameplace(5, cropdims, CFL_SIZE, calreg);
 
 	// Eigenvalues (W)
 	long W_dims[5];
 	md_select_dims(5, 23, W_dims, evec_dims);
+
 	complex float* W = md_alloc_sameplace(5, W_dims, CFL_SIZE, calreg);
 	md_copy(5, W_dims, W, eptr, CFL_SIZE);
 
@@ -197,17 +203,17 @@ static float sure_crop(float var, const long evec_dims[5], complex float* evec_d
 	long str2_ip[5];
 	long stro_ip[5];
 
-	md_calc_strides(5, str1_ip,   im_dims, CFL_SIZE);
+	md_calc_strides(5, str1_ip, im_dims, CFL_SIZE);
 	md_calc_strides(5, str2_ip, evec_dims, CFL_SIZE);
-	md_calc_strides(5, stro_ip,    W_dims, CFL_SIZE);
+	md_calc_strides(5, stro_ip, W_dims, CFL_SIZE);
 
 	long str1_proj[5];
 	long str2_proj[5];
 	long stro_proj[5];
 
-	md_calc_strides(5, str1_proj,    W_dims, CFL_SIZE);
+	md_calc_strides(5, str1_proj, W_dims, CFL_SIZE);
 	md_calc_strides(5, str2_proj, evec_dims, CFL_SIZE);
-	md_calc_strides(5, stro_proj,   im_dims, CFL_SIZE);
+	md_calc_strides(5, stro_proj, im_dims, CFL_SIZE);
 
 	long str1_div[5];
 	long str2_div[5];
@@ -215,22 +221,23 @@ static float sure_crop(float var, const long evec_dims[5], complex float* evec_d
 
 	md_calc_strides(5, str1_div, evec_dims, CFL_SIZE);
 	md_calc_strides(5, str2_div, evec_dims, CFL_SIZE);
-	md_calc_strides(5, stro_div,  div_dims, CFL_SIZE);
+	md_calc_strides(5, stro_div, div_dims, CFL_SIZE);
 
 	long tdims_ip[5];
 	long tdims_proj[5];
 
-	for (unsigned int i = 0; i < 5; i++) {
-		assert((im_dims[i] == evec_dims[i]) || (1 == im_dims[i]) || (1 == evec_dims[i]));
-		assert(( W_dims[i] == evec_dims[i]) || (1 ==  W_dims[i]) || (1 == evec_dims[i]));
+	for (int i = 0; i < 5; i++) {
 
-		tdims_ip[i]   = (1 == im_dims[i]) ? evec_dims[i] : im_dims[i];
-		tdims_proj[i] = (1 ==  W_dims[i]) ? evec_dims[i] :  W_dims[i];
+		assert((im_dims[i] == evec_dims[i]) || (1 == im_dims[i]) || (1 == evec_dims[i]));
+		assert((W_dims[i] == evec_dims[i]) || (1 == W_dims[i]) || (1 == evec_dims[i]));
+
+		tdims_ip[i] = (1 == im_dims[i]) ? evec_dims[i] : im_dims[i];
+		tdims_proj[i] = (1 == W_dims[i]) ? evec_dims[i] : W_dims[i];
 	}
 
 	// Starting parameter sweep with SURE.
-	float mse     = -1;
-	float old_mse = 0;
+	float mse = -1.;
+	float old_mse = 0.;
 
 	float s = -0.1;
 	float c = 0.99;
@@ -242,49 +249,71 @@ static float sure_crop(float var, const long evec_dims[5], complex float* evec_d
 	debug_printf(DP_INFO, "| CTR1 | CTR2 |  Crop  |      Est. MSE      |\n");
 	debug_printf(DP_INFO, "---------------------------------------------\n");
 
-	while (fabs(s) > 1E-4) {
-		ctr1 ++;
-		while (c < 0.999 && c > 0.001 && (ctr2 <= 1 || mse < old_mse)) {
-			ctr2 ++;
+	while (fabs(s) > 1.E-4) {
 
-			md_clear(5,      W_dims,   ip, CFL_SIZE);
-			md_clear(5,     im_dims, proj, CFL_SIZE);
-			md_clear(5,    div_dims,  div, CFL_SIZE);
-			md_clear(5,   evec_dims,    M, CFL_SIZE);
-			md_clear(5,   evec_dims,   LM, CFL_SIZE);
-			md_clear(5, calreg_dims,   TC, CFL_SIZE);
+		ctr1++;
+
+		while (   (c < 0.999)
+		       && (c > 0.001)
+		       && (   (ctr2 <= 1)
+			   || (mse < old_mse))) {
+
+			ctr2++;
+
+			md_clear(5, W_dims, ip, CFL_SIZE);
+			md_clear(5, im_dims, proj, CFL_SIZE);
+			md_clear(5, div_dims, div, CFL_SIZE);
+			md_clear(5, evec_dims, M, CFL_SIZE);
+			md_clear(5, evec_dims, LM, CFL_SIZE);
+			md_clear(5, calreg_dims, TC, CFL_SIZE);
+
 			md_copy(5, evec_dims, M, evec_data, CFL_SIZE);
-			old_mse = mse;
-			mse = 0;
 
-			crop_weight(evec_dims, M, crop_thresh_function, c, W);                   // Cropping.
-			md_zfmacc2(5,   tdims_ip,   stro_ip,   ip,   str1_ip, im,   str2_ip, M); // Projection.
-			md_zfmac2 (5, tdims_proj, stro_proj, proj, str1_proj, ip, str2_proj, M);
+			old_mse = mse;
+			mse = 0.;
+
+			crop_weight(evec_dims, M, crop_thresh_function, c, W);
+
+			md_zfmacc2(5, tdims_ip, stro_ip, ip, str1_ip, im, str2_ip, M); // Projection.
+			md_zfmac2(5, tdims_proj, stro_proj, proj, str1_proj, ip, str2_proj, M);
+
 			fftuc(5, im_dims, FFT_FLAGS, proj, proj);                                // Low res proj img.
+
 			md_resize_center(5, calreg_dims, TC, im_dims, proj, CFL_SIZE);
 			md_resize_center(5, im_dims, proj, calreg_dims, TC, CFL_SIZE);
+
 			ifftuc(5, im_dims, FFT_FLAGS, proj, proj);
-			for (int jdx = 0; jdx < md_calc_size(5, im_dims); jdx++)
-				mse += powf((float) (cabsf(im[jdx] - proj[jdx])), 2);
+
+			for (long jdx = 0; jdx < md_calc_size(5, im_dims); jdx++)
+				mse += powf(cabsf(im[jdx] - proj[jdx]), 2.);
+
 			fftuc(5, evec_dims, FFT_FLAGS, LM, M);                                   // low-res maps .
+
 			md_resize_center(5, cropdims, CM, evec_dims, LM, CFL_SIZE);
 			md_resize_center(5, evec_dims, LM, cropdims, CM, CFL_SIZE);
+
 			ifftuc(5, evec_dims, FFT_FLAGS, LM, LM);
+
 			md_zfmacc2(5, evec_dims, stro_div, div, str1_div, LM, str2_div, LM);     // Calc SURE div using low res maps.
-			mse += (float) (2 * var * crealf(*div));
+
+			mse += 2. * var * crealf(*div);
 
 			if (ctr2 == 1)
 				debug_printf(DP_INFO, "| %4ld | %4ld | %0.4f | %0.12e |\n", ctr1, ctr2, c, mse);
 			else
 				debug_printf(DP_INFO, "|      | %4ld | %0.4f | %0.12e |\n", ctr2, c, mse);
+
 			c = c + s;
 		}
+
 		c -= s;
 		ctr2 = 0;
-		s = -s/2;
+		s = -s / 2;
 		c += s;
 	}
+
 	c = c + s;
+
 	debug_printf(DP_INFO, "---------------------------------------------\n");
 
 	md_free(im);
@@ -305,7 +334,7 @@ static float sure_crop(float var, const long evec_dims[5], complex float* evec_d
 
 
 
-void calone(const struct ecalib_conf* conf, const long cov_dims[4], complex float* imgcov, unsigned int SN, float svals[SN], const long calreg_dims[DIMS], const complex float* data)
+void calone(const struct ecalib_conf* conf, const long cov_dims[4], complex float* imgcov, int SN, float svals[SN], const long calreg_dims[DIMS], const complex float* data)
 {
 	assert(1 == md_calc_size(DIMS - 5, calreg_dims + 5));
 
@@ -432,7 +461,6 @@ void eigenmaps(const long out_dims[DIMS], complex float* optr, complex float* ep
 
 void caltwo(const struct ecalib_conf* conf, const long out_dims[DIMS], complex float* out_data, complex float* emaps, const long in_dims[4], complex float* in_data, const long msk_dims[3], const bool* msk)
 {
-
 	long xx = out_dims[0];
 	long yy = out_dims[1];
 	long zz = out_dims[2];
@@ -489,14 +517,14 @@ void calone_dims(const struct ecalib_conf* conf, long cov_dims[4], long channels
 
 
 
-const struct ecalib_conf ecalib_defaults = { { 6, 6, 6 }, 0.001, -1, -1., false, false, 0.8, true, false, -1., false, true, -1., false};
+const struct ecalib_conf ecalib_defaults = { { 6, 6, 6 }, 0.001, -1, -1., false, false, 0.8, true, false, -1., false, true, -1., false };
 
 
 
 
 
 
-void calib2(const struct ecalib_conf* conf, const long out_dims[DIMS], complex float* out_data, complex float* eptr, unsigned int SN, float svals[SN], const long calreg_dims[DIMS], const complex float* data, const long msk_dims[3], const bool* msk)
+void calib2(const struct ecalib_conf* conf, const long out_dims[DIMS], complex float* out_data, complex float* eptr, int SN, float svals[SN], const long calreg_dims[DIMS], const complex float* data, const long msk_dims[3], const bool* msk)
 {
 	long channels = calreg_dims[3];
 	long maps = out_dims[4];
@@ -519,8 +547,8 @@ void calib2(const struct ecalib_conf* conf, const long out_dims[DIMS], complex f
 
 	} else {
 
-		for (unsigned int i = 0; i < channels; i++)
-			for (unsigned int j = 0; j < channels; j++)
+		for (int i = 0; i < channels; i++)
+			for (int j = 0; j < channels; j++)
 				rot[i][j] = (i == j) ? 1. : 0.;
 	}
 
@@ -569,7 +597,7 @@ void calib2(const struct ecalib_conf* conf, const long out_dims[DIMS], complex f
 
 
 
-void calib(const struct ecalib_conf* conf, const long out_dims[DIMS], complex float* out_data, complex float* eptr, unsigned int SN, float svals[SN], const long calreg_dims[DIMS], const complex float* data)
+void calib(const struct ecalib_conf* conf, const long out_dims[DIMS], complex float* out_data, complex float* eptr, int SN, float svals[SN], const long calreg_dims[DIMS], const complex float* data)
 {
 	calib2(conf, out_dims, out_data, eptr, SN, svals, calreg_dims, data, NULL, NULL);
 }
@@ -603,18 +631,20 @@ static void perturb(const long dims[2], complex float* vecs, float amt)
 }
 
 
-static int number_of_kernels(const struct ecalib_conf* conf, unsigned int N, const float val[N])
+static int number_of_kernels(const struct ecalib_conf* conf, int N, const float val[N])
 {
-	unsigned int n = 0;
+	int n = 0;
+
 	if (-1 != conf->numsv) {
 
 		n = conf->numsv;
+
 		assert(-1. == conf->percentsv);
 		assert(-1. == conf->threshold);
 
 	} else if (conf->percentsv != -1.) {
 
-		n = (unsigned int)(N * conf->percentsv / 100.);
+		n = N * conf->percentsv / 100.;
 		assert(-1 == conf->numsv);
 		assert(-1. == conf->threshold);
 
@@ -623,11 +653,9 @@ static int number_of_kernels(const struct ecalib_conf* conf, unsigned int N, con
 		assert(-1 == conf->numsv);
 		assert(-1. == conf->percentsv);
 
-		for (unsigned int i = 0; i < N; i++) {
-
+		for (int i = 0; i < N; i++)
 			if (val[i] / val[0] > sqrtf(conf->threshold))
 				n++;
-		}
 	}
 
 	if (val[0] <= 0.)
@@ -636,20 +664,23 @@ static int number_of_kernels(const struct ecalib_conf* conf, unsigned int N, con
 	debug_printf(DP_DEBUG1, "Using %d/%ld kernels (%.2f%%, last SV: %f%s).\n", n, N, (float)n / (float)N * 100., (n > 0) ? (val[n - 1] / val[0]) : 1., conf->weighting ? ", weighted" : "");
 
 	float tr = 0.;
-	for (unsigned int i = 0; i < N; i++) {
+
+	for (int i = 0; i < N; i++) {
 
 		tr += powf(val[i], 2.);
+
 		debug_printf(DP_DEBUG3, "SVALS %f (%f)\n", val[i], val[i] / val[0]);
 	}
 
 	debug_printf(DP_DEBUG3, "\nTRACE: %f (%f)\n", tr, tr / (float)N);
 
 	assert(n <= N);
+
 	return n;
 }
 
 
-void compute_kernels(const struct ecalib_conf* conf, long nskerns_dims[5], complex float** nskerns_ptr, unsigned int SN, float val[SN], const long caldims[DIMS], const complex float* caldata)
+void compute_kernels(const struct ecalib_conf* conf, long nskerns_dims[5], complex float** nskerns_ptr, int SN, float val[SN], const long caldims[DIMS], const complex float* caldata)
 {
 	assert(1 == md_calc_size(DIMS - 5, caldims + 5));
 

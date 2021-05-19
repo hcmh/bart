@@ -30,7 +30,6 @@ struct rbf_s {
 	float Imin;
 	float sigma;
 
-	float* ones;
 	float* w;
 	float* z;
 	float* dz; //sum_j (mu_j -z_ik)/sigma^2 * w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
@@ -46,7 +45,7 @@ static void rbf_initialize(struct rbf_s* data, const complex float* arg, bool de
 	if (NULL == data->z)
 		data->z = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, arg);
 
-	if (der1 &&(NULL == data->dz))
+	if (der1 && (NULL == data->dz))
 		data->dz = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, arg);
 
 	if (der1)
@@ -58,6 +57,24 @@ static void rbf_initialize(struct rbf_s* data, const complex float* arg, bool de
 	}
 }
 
+static void rbf_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
+{
+	const auto data = CAST_DOWN(rbf_s, _data);
+
+	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
+
+		md_free(data->dz);
+		data->dz = NULL;
+	}
+	if(op_options_is_set_io(opts, 0, 1, OP_APP_CLEAR_DER)){
+
+		md_free(data->z);
+		md_free(data->w);
+		data->z = NULL;
+		data->w = NULL;
+	}
+}
+
 #define STRIDED_MUL
 
 static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
@@ -65,7 +82,6 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	//dst_ik = sum_j w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
 	//data->dz_ik = sum_j (mu_j - z_ik)/sigma^2 * w_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
 
-	START_TIMER;
 
 	assert(3 == N);
 	const auto data = CAST_DOWN(rbf_s, _data);
@@ -75,7 +91,7 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	const complex float* wsrc = args[2];
 
 	bool der1 = !op_options_is_set_io(_data->options, 0, 0, OP_APP_NO_DER);
-	//bool der2 = !(MD_IS_SET(run_flags[0][2], OP_APP_NO_DER));
+	bool der2 = !op_options_is_set_io(_data->options, 0, 1, OP_APP_NO_DER);
 
 	rbf_initialize(data, zdst, der1);
 
@@ -89,12 +105,6 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	float* real_dst = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, zdst);
 	md_clear(data->N, data->zdom->dims, real_dst, FL_SIZE);
 
-	if (NULL == data->ones) {
-		data->ones = md_alloc_sameplace(1, data->zdom->dims + 1, FL_SIZE, zdst);
-		float one = 1;
-		md_fill(1, data->zdom->dims + 1, data->ones, &one, FL_SIZE);
-	}
-
 	//use dest as tmp
 	float* tmp1 = (float*)zdst;
 	float* tmp2 = (float*)zdst + md_calc_size(data->N, data->zdom->dims);
@@ -102,14 +112,14 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 
 	for (int j = 0; j < Nw; j++) {
 
-		md_pdf_gauss(2, data->zdom->dims, tmp1, data->z, (mumin + j * dmu), data->sigma); //tmp1 = 1/sqrt(2pi simga^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+		md_pdf_gauss(2, data->zdom->dims, tmp1, data->z, (mumin + j * dmu), data->sigma); //tmp1 = 1/sqrt(2pi sigma^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 
 		long wpos[3] = {0, 0, j};
 		const float* wtmp = data->w + md_calc_offset(data->N, data->wdom->strs, wpos) / FL_SIZE;
 
 	#ifndef STRIDED_MUL
 		md_copy2(2, data->dom->dims, data->zdom->strs, tmp2, data->wdom->strs, wtmp, FL_SIZE); // tmp3 = w_ik
-		md_fmac(2, data->zdom->dims, real_dst, tmp1, tmp2); //real_dst = sum_j w_ij 1/sqrt(2pi simga^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+		md_fmac(2, data->zdom->dims, real_dst, tmp1, tmp2); //real_dst = sum_j w_ij 1/sqrt(2pi sigma^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 	#else
 		md_mul2(2, data->dom->dims, data->zdom->strs, tmp1, data->wdom->strs, wtmp, data->zdom->strs, tmp1);
 		md_add(2, data->zdom->dims, real_dst, real_dst, tmp1);
@@ -117,8 +127,8 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 
 		if (der1) {
 	#ifndef STRIDED_MUL
-			md_smul(2, data->zdom->dims, tmp1, tmp1, -(mumin + j * dmu)); //tmp1 = - sum_j w_ij 1/sqrt(2pi simga^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
-			md_fmac(2, data->zdom->dims, data->dz, tmp1, tmp2); //data->dz = - sum_j w_ij 1/sqrt(2pi simga^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+			md_smul(2, data->zdom->dims, tmp1, tmp1, -(mumin + j * dmu)); //tmp1 = - sum_j w_ij 1/sqrt(2pi sigma^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+			md_fmac(2, data->zdom->dims, data->dz, tmp1, tmp2); //data->dz = - sum_j w_ij 1/sqrt(2pi sigma^2) * mu_j *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 	#else
 			float scale = -(mumin + j * dmu);
 			md_copy(1, MAKE_ARRAY(1l), tmp2, &scale, FL_SIZE);
@@ -129,8 +139,16 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 
 	if (der1) {
 
-		md_fmac(3, data->zdom->dims, data->dz, real_dst, data->z); //data->dz = sum_j w_ij 1/sqrt(2pi simga^2) * (z_ik - mu_j) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+		md_fmac(3, data->zdom->dims, data->dz, real_dst, data->z); //data->dz = sum_j w_ij 1/sqrt(2pi sigma^2) * (z_ik - mu_j) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 		md_smul(3, data->zdom->dims, data->dz, data->dz, (- sqrtf(2. * M_PI) / data->sigma)); // zdst_ik = -1/sigma^2 sum_k (z_ik-mu_j) * w_ij * exp[-(z_ik-mu_j)²/(2*sigma²)]
+	}
+
+	if (!der2) {
+
+		md_free(data->z);
+		md_free(data->w);
+		data->z = NULL;
+		data->w = NULL;
 	}
 
 	md_smul(3, data->zdom->dims, real_dst, real_dst, (sqrtf(2. * M_PI) * data->sigma)); // zdst_ik = -1/sigma^2 sum_k (z_ik-mu_j) * w_ij * exp[-(z_ik-mu_j)²/(2*sigma²)]
@@ -138,7 +156,6 @@ static void rbf_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	md_zcmpl_real(data->zdom->N, data->zdom->dims,zdst, real_dst);
 	md_free(real_dst);
 
-	PRINT_TIMER("frw rbf");
 }
 
 static void rbf_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -148,7 +165,6 @@ static void rbf_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 
 
 	//dst_ik = sum_j src_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
-	START_TIMER;
 	const auto data = CAST_DOWN(rbf_s, _data);
 
 	long Nw = data->dom->dims[2];
@@ -189,7 +205,6 @@ static void rbf_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	md_free(real_dst);
 	md_free(real_src);
 
-	PRINT_TIMER("frw rbf");
 
 }
 
@@ -199,7 +214,6 @@ static void rbf_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(i);
 
 	//dst_ij = sum_k src_ik * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
-	START_TIMER;
 	const auto data = CAST_DOWN(rbf_s, _data);
 
 	long Nw = data->dom->dims[2];
@@ -214,24 +228,14 @@ static void rbf_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 
 	float* tmp1 = md_alloc_sameplace(2, data->zdom->dims, FL_SIZE, dst);
 
-	if (NULL == data->ones) {
-		data->ones = md_alloc_sameplace(1, data->zdom->dims + 1, FL_SIZE, dst);
-		float one = 1;
-		md_fill(1, data->zdom->dims + 1, data->ones, &one, FL_SIZE);
-	}
-
 	for (int j = 0; j < Nw; j++) {
 
-		md_pdf_gauss(2, data->zdom->dims, tmp1, data->z, (mumin + j * dmu), data->sigma);//tmp1 = 1/sqrt(2pi simga^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
+		md_pdf_gauss(2, data->zdom->dims, tmp1, data->z, (mumin + j * dmu), data->sigma);//tmp1 = 1/sqrt(2pi sigma^2) *exp(-(z_ik-mu_j)^2/(2*sigma^2))
 		long wpos[3] = {0, 0, j};
 		float* wtmp = real_dst + md_calc_offset(data->N, data->wdom->strs, wpos) / FL_SIZE;
 
-		md_mul(2, data->dom->dims, tmp1, tmp1, real_src); // tmp2 = exp[-(z_ik-mu_j)²/(2*sigma²)] * phi_ik
-
-		md_fmac2(2, data->dom->dims, data->wdom->strs, wtmp, data->zdom->strs, tmp1, MAKE_ARRAY(0l, 4l), data->ones);
-
-		//blas_gemv_fmac(data->zdom->dims[0], data->zdom->dims[1], wtmp, tmp1, 'N', data->ones);
-		//md_add2(2, data->dom->dims, data->wdom->strs, wtmp, data->wdom->strs, wtmp, data->zdom->strs, tmp1); // wtmp = sum_k exp[-(z_ik-mu_j)²/(2*sigma²)] * phi_ik
+		md_mul(2, data->dom->dims, tmp1, tmp1, real_src); // tmp1 = exp[-(z_ik-mu_j)²/(2*sigma²)] * phi_ik
+		md_add2(2, data->dom->dims, data->wdom->strs, wtmp, data->wdom->strs, wtmp, data->zdom->strs, tmp1);
 		//add is optimized for reductions -> change if fmac is optimized
 	}
 	md_free(real_src);
@@ -242,7 +246,6 @@ static void rbf_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	md_zcmpl_real(data->wdom->N, data->wdom->dims, dst, real_dst);
 	md_free(real_dst);
 
-	PRINT_TIMER("adj2 rbf");
 }
 
 static void rbf_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -265,7 +268,6 @@ static void rbf_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 	const auto data = CAST_DOWN(rbf_s, _data);
 
 	complex float* tmp = md_alloc_sameplace(data->N, data->zdom->dims, CFL_SIZE, dst);
@@ -274,7 +276,6 @@ static void rbf_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	md_zrmul(data->N, data->zdom->dims, dst, src, tmp);
 
 	md_free(tmp);
-	PRINT_TIMER("adj1 rbf");
 }
 
 static void rbf_del(const nlop_data_t* _data)
@@ -284,7 +285,6 @@ static void rbf_del(const nlop_data_t* _data)
 	md_free(data->w);
 	md_free(data->z);
 	md_free(data->dz);
-	md_free(data->ones);
 
 	iovec_free(data->dom);
 	iovec_free(data->zdom);
@@ -336,7 +336,6 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 	data->w = NULL;
 	data->z = NULL;
 	data->dz = NULL;
-	data->ones = NULL;
 
 	data->Imax = Imax;
 	data->Imin = Imin;
@@ -357,6 +356,6 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 
 	operator_property_flags_t props[2][1] = {{0},{0}};
 
-	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, NULL, props);
+	auto result = nlop_generic_with_props_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_der1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_adj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, rbf_set_opts, props, NULL);
 	return result;
 }

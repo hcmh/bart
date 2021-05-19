@@ -29,7 +29,7 @@ static const char help_str[] =
 		"Perform SSA-FARY or Singular Spectrum Analysis. <src>: [samples, coordinates]\n";
 
 
-int main_ssa(int argc, char* argv[])
+int main_ssa(int argc, char* argv[argc])
 {
 	struct delay_conf conf = ssa_conf_default;
 

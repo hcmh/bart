@@ -104,38 +104,20 @@ static void dfthresh(unsigned int D, const long dims[D], float lambda, complex f
 
 static void hard_thresh(unsigned int D, const long dims[D], float lambda, complex float* out, const complex float* in)
 {
-	long size = md_calc_size(DIMS, dims) * 2;
-
-	const float* inf = (const float*)in;
-	float* outf = (float*)out;
+	long size = md_calc_size(DIMS, dims);
 
 #pragma omp parallel for
 	for (long i = 0; i < size; i++)
-		outf[i] = inf[i] > lambda ? inf[i] : 0.;
-}
-
-static void inv_hard_thresh(unsigned int D, const long dims[D], float lambda, complex float* out, const complex float* in)
-{
-	long size = md_calc_size(DIMS, dims) * 2;
-
-	const float* inf = (const float*)in;
-	float* outf = (float*)out;
-
-#pragma omp parallel for
-	for (long i = 0; i < size; i++)
-		outf[i] = inf[i] < lambda ? inf[i] : 0.;
+		out[i] = (cabsf(in[i]) > lambda) ? in[i] : 0.;
 }
 
 static void binary_thresh(unsigned int D, const long dims[D], float lambda, complex float* out, const complex float* in)
 {
-	long size = md_calc_size(DIMS, dims) * 2;
-
-	const float* inf = (const float*)in;
-	float* outf = (float*)out;
+	long size = md_calc_size(DIMS, dims);
 
 #pragma omp parallel for
 	for (long i = 0; i < size; i++)
-		outf[i] = inf[i] > lambda ? 1. : 0.;
+		out[i] = (cabsf(in[i]) > lambda) ? 1. : 0.;
 }
 
 
@@ -145,18 +127,17 @@ static const char help_str[] = "Perform (soft) thresholding with parameter lambd
 
 
 
-int main_threshold(int argc, char* argv[])
+int main_threshold(int argc, char* argv[argc])
 {
 	unsigned int flags = 0;
         
-	enum th_type { NONE, WAV, LLR, DFW, MPDFW, HARD, INV, BINARY } th_type = NONE;
+	enum th_type { NONE, WAV, LLR, DFW, MPDFW, HARD, BINARY } th_type = NONE;
 	int llrblk = 8;
 
 
 	const struct opt_s opts[] = {
 
 		OPT_SELECT('H', enum th_type, &th_type, HARD, "hard thresholding"),
-		OPT_SELECT('I', enum th_type, &th_type, INV, "inverted hard thresholding"),
 		OPT_SELECT('W', enum th_type, &th_type, WAV, "daubechies wavelet soft-thresholding"),
 		OPT_SELECT('L', enum th_type, &th_type, LLR, "locally low rank soft-thresholding"),
 		OPT_SELECT('D', enum th_type, &th_type, DFW, "divergence-free wavelet soft-thresholding"),
@@ -194,17 +175,12 @@ int main_threshold(int argc, char* argv[])
 			hard_thresh(N, dims, lambda, odata, idata);
 			break;
 		
-		case INV:
-			inv_hard_thresh(N, dims, lambda, odata, idata);
-			break;
-		
 		case BINARY:
 			binary_thresh(N, dims, lambda, odata, idata);
 			break;
 
 		default:
 			md_zsoftthresh(N, dims, lambda, flags, odata, idata);
-
 	}
 
 

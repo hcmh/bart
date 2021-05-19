@@ -14,19 +14,14 @@
 #include "simu/slice_profile.h"
 
 // TODO: Pass pulse struct to allow other pulse shapes
-void estimate_slice_profile(unsigned int N, const long dims[N], complex float* out)
+void estimate_slice_profile(unsigned int N, const long dims[N], complex float* out, struct simdata_pulse* pulse)
 {
 	// Determine Pulse Shape
 
-	struct simdata_pulse pulse = simdata_pulse_defaults;
-
-	float pulse_length = 0.0009;
-	float flipangle = 6.;
-
-	pulse_create(&pulse, 0., pulse_length, flipangle, 0., 2., 2., 0.46);
+	pulse_create(pulse, pulse->rf_start, pulse->rf_end, pulse->flipangle, pulse->phase, pulse->bwtp, pulse->alpha);
 
 	float samples = 1000.;
-	float dt =  pulse_length / samples;
+	float dt =  pulse->pulse_length / samples;
 
 	long pulse_dims[DIMS];
 	md_set_dims(DIMS, pulse_dims, 1);
@@ -36,7 +31,7 @@ void estimate_slice_profile(unsigned int N, const long dims[N], complex float* o
 	complex float* envelope = md_alloc(DIMS, pulse_dims, CFL_SIZE);
 
 	for (int i = 0; i < samples; i++)
-		envelope[i] = pulse_sinc(&pulse, pulse.rf_start + i * dt );
+		envelope[i] = pulse_sinc(pulse, pulse->rf_start + i * dt );
 
 	// dump_cfl("_pulse", DIMS, pulse_dims, envelope);
 

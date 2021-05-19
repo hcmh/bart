@@ -41,7 +41,7 @@ static const char help_str[] = "Perform non-uniform Fast Fourier Transform.";
 
 
 
-int main_nufft(int argc, char* argv[])
+int main_nufft(int argc, char* argv[argc])
 {
 	bool adjoint = false;
 	bool inverse = false;
@@ -73,6 +73,7 @@ int main_nufft(int argc, char* argv[])
 		OPT_SET('Q', &qft, "(QFT)"),
 		OPT_SET('g', &use_gpu, "GPU (only inverse)"),
 		OPT_CLEAR('1', &conf.decomp, "use/return oversampled grid"),
+		OPTL_SET(0, "lowmem", &conf.lowmem, "Use low-mem mode of the nuFFT"),
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -143,7 +144,11 @@ int main_nufft(int argc, char* argv[])
 			if (conf.toeplitz && precond)
 				precond_op = nufft_precond_create(nufft_op);
 
-			lsqr(DIMS, &(struct lsqr_conf){ lambda, use_gpu }, iter_conjgrad, CAST_UP(&cgconf),
+			struct lsqr_conf lsqr_conf = lsqr_defaults;
+			lsqr_conf.lambda = lambda;
+			lsqr_conf.it_gpu = use_gpu;
+
+			lsqr(DIMS, &lsqr_conf, iter_conjgrad, CAST_UP(&cgconf),
 			     nufft_op, NULL, coilim_dims, img, ksp_dims, ksp, precond_op);
 
 			if (conf.toeplitz && precond)

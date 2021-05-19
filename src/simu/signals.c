@@ -93,10 +93,12 @@ static float signal_hsfp(const struct signal_model* data, float r0_val, int N, c
 	return sum.a * (r0_val + 1. / data->t1 * sum.r0);
 }
 
-
-void hsfp_simu(const struct signal_model* data, int N, const float pa[N], complex float out[N])
+void hsfp_simu(const struct signal_model* data, int N, const float pa[N], complex float out[N], bool periodic)
 {
-	float r0_val = r0(data, N, pa);
+	float r0_val = -1.;
+
+	if (periodic)
+		r0_val = r0(data, N, pa);
 
 	for (int ind = 0; ind < N; ind++)
 		out[ind] = signal_hsfp(data, r0_val, N, pa, ind);
@@ -111,6 +113,7 @@ const struct signal_model signal_looklocker_defaults = {
 
 	.t1 = 1.,
 	.m0 = 1.,
+	.ms = 0.5,
 	.tr = 0.0041,
 	.fa = 8. * M_PI / 180.,
 	.ir = true,
@@ -149,6 +152,17 @@ void looklocker_model(const struct signal_model* data, int N, complex float out[
 {
 	for (int ind = 0; ind < N; ind++)
 		out[ind] = signal_looklocker(data, ind, NULL);
+}
+
+void looklocker_model2(const struct signal_model* data, int N, complex float out[N])
+{	
+	float r1s   = 1. / data->t1;
+	float m0    = data->m0;
+	float tr    = data->tr;
+	float mss   = data->ms;
+
+	for (int ind = 0; ind < N; ind++)
+		out[ind] =  mss - (mss + m0) * expf(-(ind + 0.5) * tr  * r1s);
 }
 
 /*
@@ -216,13 +230,13 @@ void IR_bSSFP_model(const struct signal_model* data, int N, complex float out[N]
 
 
 /*
- * multi gradient echo model (WFR2S)
+ * multi gradient echo model (R2S)
  */
 const struct signal_model signal_multi_grad_echo_defaults = {
 
 	.m0 = 1.,
-	.m0_water = .80,
-	.m0_fat = .20,
+	.m0_water = 1.,
+	.m0_fat = 0.,
 	.t2 = .03, // s
 	.off_reson = 20, // Hz
 	.te = 1.6 * 1.E-3, // s
@@ -230,13 +244,62 @@ const struct signal_model signal_multi_grad_echo_defaults = {
 };
 
 
-complex float calc_fat_modulation(float b0, float TE)
+/*
+ * multi gradient echo model (WFR2S)
+ */
+const struct signal_model signal_multi_grad_echo_fat = {
+
+	.m0 = 1.,
+	.m0_water = 0.8,
+	.m0_fat = 0.2,
+	.t2 = .05, // s
+	.off_reson = 20, // Hz
+	.te = 1.6 * 1.E-3, // s
+	.b0 = 3., // Tesla
+	.fat_spec = FAT_SPEC_1,
+};
+
+
+
+complex float calc_fat_modulation(float b0, float TE, enum fat_spec fs)
 {
-	/* refer to:
-	   ISMRM water/fat toolbox
-	 */
-	float ppm[FATPEAKS] = { -3.80, -3.40, -2.60, -1.94, -0.39, +0.60 };
-	float amp[FATPEAKS] = { 0.087, 0.693, 0.128, 0.004, 0.039, 0.048 };
+	enum { FATPEAKS = 6 };
+
+	float ppm[FATPEAKS] = { 0. };
+	float amp[FATPEAKS] = { 0. };
+
+	switch (fs) {
+	
+	case FAT_SPEC_0:
+		/* 
+		 * ISMRM fat-water toolbox v1 (2012)
+		 * Hernando D.
+		 */
+		ppm[0] = -3.80; amp[0] = 0.087;
+		ppm[1] = -3.40; amp[1] = 0.693;
+		ppm[2] = -2.60; amp[2] = 0.128;
+		ppm[3] = -1.94; amp[3] = 0.004;
+		ppm[4] = -0.39; amp[4] = 0.039;
+		ppm[5] = +0.60; amp[5] = 0.048;
+
+		break;
+
+	case FAT_SPEC_1:
+		/* 
+		 * Hamilton G, Yokoo T, Bydder M, Cruite I, Schroeder ME, Sirlin CB, Middleton MS. 
+		 * In vivo characterization of the liver fat 1H MR spectrum. 
+		 * NMR Biomed 24:784-790 (2011)
+		 */
+		ppm[0] = -3.80; amp[0] = 0.086;
+		ppm[1] = -3.40; amp[1] = 0.537;
+		ppm[2] = -2.60; amp[2] = 0.165;
+		ppm[3] = -1.94; amp[3] = 0.046;
+		ppm[4] = -0.39; amp[4] = 0.052;
+		ppm[5] = +0.60; amp[5] = 0.114;
+
+		break;
+
+	}
 
 	complex float out = 0.;
 
@@ -249,39 +312,27 @@ complex float calc_fat_modulation(float b0, float TE)
 	return out;
 }
 
-#if 0
-static complex float signal_MECO_WFR2S(const struct signal_model* data, int ind)
+
+static complex float signal_multi_grad_echo(const struct signal_model* data, int ind)
 {
 	assert(data->m0 == data->m0_water + data->m0_fat);
 
-	complex float TE = data->te * ind + 0.i;
+	float TE = data->te * ind;
 
-	complex float cshift = calc_fat_modulation(data->b0, TE);
+	float W = data->m0_water;
+	float F = data->m0_fat;
+	complex float cshift = calc_fat_modulation(data->b0, TE, data->fat_spec);
 
 	complex float z = -1. / data->t2 + 2.i * M_PI * data->off_reson;
 
-	return (data->m0_water + data->m0_fat * cshift) * cexpf(z * TE);
+	return (W + F * cshift) * cexpf(z * TE);
 }
-#endif
 
-
-static complex float signal_MECO_R2S(const struct signal_model* data, int ind)
-{
-	assert(data->m0 == data->m0_water + data->m0_fat);
-
-	complex float TE = data->te * ind + 0.i;
-
-	float ofr = data->off_reson;
-
-	complex float z = -1. / data->t2 + 2.i * M_PI * ofr;
-
-	return data->m0 * cexpf(z * TE);
-}
 
 void multi_grad_echo_model(const struct signal_model* data, int N, complex float out[N])
 {
 	for (int ind = 0; ind < N; ind++)
-		out[ind] = signal_MECO_R2S(data, ind);
+		out[ind] = signal_multi_grad_echo(data, ind);
 }
 
 

@@ -29,6 +29,7 @@
 #include "num/vecops.h"
 #include "num/gpuops.h"
 #include "num/gpukrnls.h"
+#include "num/gpu_conv.h"
 #include "num/mem.h"
 #include "num/multind.h"
 
@@ -40,6 +41,7 @@
 #define MiBYTE (1024*1024)
 
 #define ASYNC_API_CALLS
+//#define GPU_ASSERTS
 
 extern unsigned int reserved_gpus;
 unsigned int reserved_gpus = 0U;
@@ -285,7 +287,9 @@ void cuda_memcache_off(void)
 void cuda_clear(long size, void* dst)
 {
 //	printf("CLEAR %x %ld\n", dst, size);
+#ifdef GPU_ASSERTS
 	assert(cuda_ondevice_num(dst, cuda_get_device()));
+#endif
 #ifdef ASYNC_API_CALLS
 	CUDA_ERROR(cudaMemsetAsync(dst, 0, size, cudaStreamLegacy));
 #else
@@ -301,10 +305,12 @@ static void cuda_float_clear(long size, float* dst)
 void cuda_memcpy(long size, void* dst, const void* src)
 {
 //	printf("COPY %x %x %ld\n", dst, src, size);
+#ifdef GPU_ASSERTS
 	if (cuda_ondevice(dst))
 		assert(cuda_ondevice_num(dst, cuda_get_device()));
 	if (cuda_ondevice(src))
 		assert(cuda_ondevice_num(src, cuda_get_device()));
+#endif
 #ifdef ASYNC_API_CALLS
 	CUDA_ERROR(cudaMemcpyAsync(dst, src, size, cudaMemcpyDefault, cudaStreamLegacy));
 #else
@@ -315,10 +321,12 @@ void cuda_memcpy(long size, void* dst, const void* src)
 
 void cuda_memcpy_strided(const long dims[2], long ostr, void* dst, long istr, const void* src)
 {
+#ifdef GPU_ASSERTS
 	if (cuda_ondevice(dst))
 		assert(cuda_ondevice_num(dst, cuda_get_device()));
 	if (cuda_ondevice(src))
 		assert(cuda_ondevice_num(src, cuda_get_device()));
+#endif
 #ifdef ASYNC_API_CALLS
 	CUDA_ERROR(cudaMemcpy2DAsync(dst, ostr, src, istr, dims[0], dims[1], cudaMemcpyDefault, cudaStreamLegacy));
 #else
@@ -442,6 +450,11 @@ void* cuda_malloc(long size)
 	return mem_device_malloc(cuda_get_device(), size, cuda_malloc_wrapper);
 }
 
+void cuda_sync_device(void)
+{
+	CUDA_ERROR(cudaDeviceSynchronize());
+}
+
 
 
 #if 0
@@ -478,9 +491,11 @@ static void cuda_float_free(float* x)
 
 static double cuda_sdot(long size, const float* src1, const float* src2)
 {
+#ifdef GPU_ASSERTS
 	assert(size <= INT_MAX / 2);
 	assert(cuda_ondevice_num(src1, cuda_get_device()));
 	assert(cuda_ondevice_num(src2, cuda_get_device()));
+#endif
 //	printf("SDOT %x %x %ld\n", src1, src2, size);
 	return cublasSdot(size, src1, 1, src2, 1);
 }
@@ -493,7 +508,9 @@ static double cuda_norm(long size, const float* src1)
 	// git rev: ab28a9a953a80d243511640b23501f964a585349
 //	printf("cublas: %f\n", cublasSnrm2(size, src1, 1));
 //	printf("GPU norm (sdot: %f)\n", sqrt(cuda_sdot(size, src1, src1)));
+#ifdef GPU_ASSERTS
 	assert(cuda_ondevice_num(src1, cuda_get_device()));
+#endif
 	return sqrt(cuda_sdot(size, src1, src1));
 #else
 	return cublasSnrm2(size, src1, 1);
@@ -503,15 +520,19 @@ static double cuda_norm(long size, const float* src1)
 
 static double cuda_asum(long size, const float* src)
 {
+#ifdef GPU_ASSERTS
 	assert(cuda_ondevice_num(src, cuda_get_device()));
+#endif
 	assert(size <= INT_MAX / 2);
 	return cublasSasum(size, src, 1);
 }
 
 static void cuda_saxpy(long size, float* y, float alpha, const float* src)
 {
+#ifdef GPU_ASSERTS
 	assert(cuda_ondevice_num(src, cuda_get_device()));
 	assert(cuda_ondevice_num(y, cuda_get_device()));
+#endif
 //	printf("SAXPY %x %x %ld\n", y, src, size);
 	assert(size <= INT_MAX / 2);
 	cublasSaxpy(size, alpha, src, 1, y, 1);
@@ -519,8 +540,10 @@ static void cuda_saxpy(long size, float* y, float alpha, const float* src)
 
 static void cuda_swap(long size, float* a, float* b)
 {
+#ifdef GPU_ASSERTS
 	assert(cuda_ondevice_num(a, cuda_get_device()));
 	assert(cuda_ondevice_num(b, cuda_get_device()));
+#endif
 	assert(size <= INT_MAX / 2);
 	cublasSswap(size, a, 1, b, 1);
 }
@@ -569,7 +592,9 @@ const struct vec_ops gpu_ops = {
 	.zexpj = cuda_zexpj,
 	.zexp = cuda_zexp,
 	.zsin = cuda_zsin,
-	.zcos = cuda_zcos,	
+	.zcos = cuda_zcos,
+	.zsinh = cuda_zsinh,
+	.zcosh = cuda_zcosh,
 	.zlog = cuda_zlog,
 	.zarg = cuda_zarg,
 	.zabs = cuda_zabs,
@@ -602,8 +627,6 @@ const struct vec_ops gpu_ops = {
 	.zconvcorr_3D_CF_TI = cuda_zconvcorr_3D_CF_TI,
 
 	.pdf_gauss = cuda_pdf_gauss,
-
-	.smul_ptr = cuda_smul_ptr,
 
 	.real = cuda_real,
 	.imag = cuda_imag,

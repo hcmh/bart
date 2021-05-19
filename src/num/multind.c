@@ -715,6 +715,8 @@ void md_copy2(unsigned int D, const long dim[D], const long ostr[D], void* optr,
 	long (*nstr2[2])[D] = { &tostr, &tistr };
 	int ND = optimize_dims_gpu(2, D, tdims, nstr2);
 
+	assert(ND <= (int)D);
+
 #if 1
 	// permute dims with 0 input strides or negative in/output strides to the end
 	// these might be permuted to the inner dimensions by optimize_dims and break the strided copy
@@ -750,18 +752,22 @@ void md_copy2(unsigned int D, const long dim[D], const long ostr[D], void* optr,
 	size_t sizes[2] = { size, size };
 	int skip = min_blockdim(2, ND, tdims, nstr2, sizes);
 
-	long ostr2 = (*nstr2[0])[skip];
-	long istr2 = (*nstr2[1])[skip];
-
 	debug_printf(DP_DEBUG4, "md_copy_2 skip=%d\n", skip);
 	debug_print_dims(DP_DEBUG4, ND, tdims);
 	debug_print_dims(DP_DEBUG4, ND, (*nstr2[0]));
 	debug_print_dims(DP_DEBUG4, ND, (*nstr2[1]));
 
 	if (   use_gpu
-	    && (ND - skip > 0)
-	    && (ostr2 > 0)
-	    && (istr2 > 0)) {
+	    && (ND - skip > 0)) {
+
+		assert(skip < ND);
+
+		long ostr2 = (*nstr2[0])[skip];
+		long istr2 = (*nstr2[1])[skip];
+
+		if (!(   (ostr2 > 0)
+	              && (istr2 > 0)))
+			goto out;
 
 		void* nptr[2] = { optr, (void*)iptr };
 		long sizes[2] = { md_calc_size(skip, tdims) * size, tdims[skip] };
@@ -783,6 +789,8 @@ void md_copy2(unsigned int D, const long dim[D], const long ostr[D], void* optr,
 		md_nary(2, ND - skip, tdims + skip, nstr, nptr, nary_strided_copy);
 		return;
 	}
+
+out:	;
 #endif
 #endif
 	const long (*nstr[2])[D] = { (const long (*)[D])ostr, (const long (*)[D])istr };
@@ -1099,6 +1107,27 @@ void md_resize_center(unsigned int D, const long odim[D], void* optr, const long
 	md_clear(D, odim, optr, size);
 	md_copy_block(D, pos, odim, optr, idim, iptr, size);
 }
+
+
+
+/**
+ * Resize an array by zero-padding at the beginning.
+ *
+ * optr = [0 0 0 0 iptr]
+ *
+ */
+void md_resize_shift(unsigned int D, const long odim[D], void* optr, const long idim[D], const void* iptr, size_t size)
+{
+	long pos[D];
+	for (unsigned int i = 0; i < D; i++)
+		pos[i] = labs(odim[i] - idim[i]);
+
+	md_clear(D, odim, optr, size);
+	md_copy_block(D, pos, odim, optr, idim, iptr, size);
+}
+
+
+
 
 /**
  * Pad an array on both ends by val.

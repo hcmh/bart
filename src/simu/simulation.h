@@ -33,6 +33,7 @@ struct simdata_seq {
 	float prep_pulse_length;
 	int molli_break;
 	int molli_measure;
+	bool look_locker_assumptions;
 	
 	complex float* slice_profile;
 	complex float* variable_fa;
@@ -89,6 +90,6 @@ extern void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig
 extern void create_sim_block(struct sim_data* data);
 extern void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* saM0Signal, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal);
 
-extern void bloch_simulation(struct sim_data* sim_data, int N, complex float* out, bool ode);
+extern void bloch_simulation(struct sim_data* sim_data, int N, complex float* x_out, complex float* y_out, complex float* z_out, bool ode);
 
 #endif

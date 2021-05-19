@@ -173,7 +173,7 @@ static bool PC_symmetric(const long PC_line_dims[2], complex float* PC_line, int
 	complex float* PC_channel_h1 = md_alloc(1, w_dims, CFL_SIZE);
 	complex float* PC_channel_h2 = md_alloc(1, w_dims, CFL_SIZE); 
 
-	long sign = 0;
+	float signf = 0;
 
 	for (int i = 0; i < channels; i++) { // loop over all W-sized filters
 
@@ -184,9 +184,11 @@ static bool PC_symmetric(const long PC_line_dims[2], complex float* PC_line, int
 		md_flip(1, w_dims, 1, PC_channel_h1, PC_channel_h2, CFL_SIZE);
 
 		md_copy(1, w_dims, PC_channel_h2, PC_channel + w_dims[0], CFL_SIZE); // copy right half
-		sign += copysign(1, md_zscalar(1, w_dims, PC_channel_h1, PC_channel_h2));
 
+		signf += crealf(md_zscalar(1, w_dims, PC_channel_h1, PC_channel_h2));
 	}
+
+	long sign = copysign(1, signf);
 
 	md_free(PC_channel);
 	md_free(PC_channel_h1);
@@ -315,7 +317,7 @@ static void backprojection( const long N,
 
 	// reorder & anti-diagonal summation
 	long kern_dims[4];
-	md_set_dims(DIMS, kern_dims, 1);
+	md_set_dims(4, kern_dims, 1);
 	md_min_dims(4, ~0u, kern_dims, kernelCoil_dims, cal_dims);
 
 	long cal_strs[DIMS];
@@ -435,7 +437,7 @@ static void ssa_backprojection( const long N,
 
 	md_zfill(DIMS, norm_dims, norm, 1. / b);
 
-	for (unsigned int i = 0; i < b; i++) {
+	for (int i = 0; i < b; i++) {
 
 		norm[i] = 1. / (i + 1);
 		norm[cal_dims[0] -1 - i] = 1. / (i + 1);

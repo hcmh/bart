@@ -4,6 +4,7 @@
 
 #include "misc/cJSON.h"
 
+#include "misc/types.h"
 #include "read_json.h"
 
 char* readfile(const char *filename)
@@ -81,4 +82,76 @@ void check_json_file(cJSON *json_file)
 		
 		cJSON_Delete(json_file);
 	}
+}
+
+
+bool cJSON_not_NULL(const cJSON* object, const char* key)
+{
+	return (   (NULL != cJSON_GetObjectItemCaseSensitive(object, key)) 
+		&& !cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(object, key)));
+}
+
+int cJSON_get_int(const cJSON* object, const char* key)
+{
+	if(!cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(object, key)))
+		error("cJSON: %s is not a number!\n");
+	return cJSON_GetObjectItemCaseSensitive(object, key)->valueint;
+}
+
+float cJSON_get_float(const cJSON* object, const char* key)
+{
+	if(!cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(object, key)))
+		error("cJSON: %s is not a number!\n");
+	return cJSON_GetObjectItemCaseSensitive(object, key)->valuedouble;
+}
+
+bool cJSON_get_bool(const cJSON* object, const char* key)
+{
+	if(!cJSON_IsBool(cJSON_GetObjectItemCaseSensitive(object, key)))
+		error("cJSON: %s is not a boolean!\n");
+	return cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(object, key));
+}
+
+void cJSON_set_long(long* dst, const cJSON* object, const char* key)
+{
+	if (cJSON_not_NULL(object, key))
+		*dst = cJSON_get_int(object, key);
+}
+
+void cJSON_set_int(int* dst, const cJSON* object, const char* key)
+{
+	if (cJSON_not_NULL(object, key))
+		*dst = cJSON_get_int(object, key);
+}
+
+void cJSON_set_ulong(ulong* dst, const cJSON* object, const char* key)
+{
+	if (cJSON_not_NULL(object, key)) {
+
+		if (0 > cJSON_get_int(object, key))
+			error("%s not positive!\n");
+		*dst = cJSON_get_int(object, key);
+	}
+}
+
+void cJSON_set_uint(uint* dst, const cJSON* object, const char* key)
+{
+	if (cJSON_not_NULL(object, key)) {
+
+		if (0 > cJSON_get_int(object, key))
+			error("%s not positive!\n");
+		*dst = cJSON_get_int(object, key);
+	}
+}
+
+void cJSON_set_bool(_Bool* dst, const cJSON* object, const char* key)
+{
+	if (cJSON_not_NULL(object, key))
+		*dst = cJSON_get_bool(object, key);
+}
+
+void cJSON_set_float(float* dst, const cJSON* object, const char* key)
+{
+	if (cJSON_not_NULL(object, key))
+		*dst = cJSON_get_float(object, key);
 }

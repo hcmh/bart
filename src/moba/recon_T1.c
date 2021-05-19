@@ -1,5 +1,5 @@
 /* Copyright 2013. The Regents of the University of California.
- * Copyright 2019. Uecker Lab, University Medical Center Goettingen.
+ * Copyright 2019-2020. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
@@ -31,31 +31,13 @@
 #include "moba/model_T1.h"
 #include "moba/iter_l1.h"
 #include "moba/T1_alpha.h"
+#include "moba/T1_alpha_in.h"
+#include "moba/moba.h"
+#include "moba/model_moba.h"
 
 #include "recon_T1.h"
 
 
-struct moba_conf moba_defaults = {
-
-	.iter = 8,
-	.opt_reg = 1,
-	.alpha = 1.,
-	.alpha_min = 0.,
-	.redu = 2.,
-	.step = 0.9,
-	.lower_bound = 0.,
-	.tolerance = 0.01,
-	.inner_iter = 250,
-	.noncartesian = false,
-	.sms = false,
-	.MOLLI = false,
-        .k_filter = false,
-	.IR_SS = false,
-	.IR_phy = 0.,
-	.algo = 3,
-        .rho = 0.01,
-	.auto_norm_off = false,
-};
 
 
 void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float* img, complex float* sens, const complex float* pattern, const complex float* mask, const complex float* TI, const complex float* TI_t1relax, const complex float* kspace_data, bool usegpu)
@@ -69,10 +51,9 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	if (conf->sms)
 		fft_flags |= SLICE_FLAG;
 
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME2_FLAG, imgs_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME2_FLAG, coil_dims, dims);
-	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|MAPS_FLAG|TIME2_FLAG, data_dims, dims);
-
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|CSHIFT_FLAG|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, imgs_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|MAPS_FLAG|TIME_FLAG|TIME2_FLAG, coil_dims, dims);
+	md_select_dims(DIMS, fft_flags|COIL_FLAG|TE_FLAG|MAPS_FLAG|TIME_FLAG|TIME2_FLAG, data_dims, dims);
 
 	long skip = md_calc_size(DIMS, imgs_dims);
 	long size = skip + md_calc_size(DIMS, coil_dims);
@@ -90,44 +71,48 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 	mconf.rvc = false;
 	mconf.noncart = conf->noncartesian;
 	mconf.fft_flags = fft_flags;
-	mconf.a = 880.;
-	mconf.b = 32.;
+	mconf.a = conf->sobolev_a;
+	mconf.b = conf->sobolev_b;
 	mconf.cnstcoil_flags = TE_FLAG;
 
-	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, conf->MOLLI, TI_t1relax, conf->IR_SS, conf->IR_phy, usegpu);
+	// FIXME: Move all function arguments to struct to simplify adding new ones
+	struct T1_s nl = T1_create(dims, mask, TI, pattern, &mconf, conf->MOLLI, TI_t1relax, conf->IR_SS, conf->IR_phy, conf->input_alpha, usegpu);
 
 	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
 
 	irgnm_conf.iter = conf->iter;
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.redu = conf->redu;
-	irgnm_conf.alpha_min = conf->alpha_min;
+	if (conf->alpha_min_exp_decay)
+		irgnm_conf.alpha_min = conf->alpha_min;
+	else
+		irgnm_conf.alpha_min0 = conf->alpha_min;
 	irgnm_conf.cgtol = ((2 == conf->opt_reg) || (conf->auto_norm_off)) ? 1e-3 : conf->tolerance;
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 
-	struct opt_reg_s ropts = conf->ropts;
-
 	struct mdb_irgnm_l1_conf conf2 = {
+
 		.c2 = &irgnm_conf,
 		.opt_reg = conf->opt_reg,
 		.step = conf->step,
 		.lower_bound = conf->lower_bound,
 		.constrained_maps = 4,
-		.not_wav_maps = (0. == conf->IR_phy) ? 0 : 1,
+		.not_wav_maps = (0. == conf->IR_phy || (NULL != conf->input_alpha)) ? 0 : 1,
 		.flags = FFT_FLAGS,
 		.usegpu = usegpu,
 		.algo = conf->algo,
 		.rho = conf->rho,
-		.ropts = &ropts,
+		.ropts = conf->ropts,
 		.wav_reg = 1,
-		.auto_norm_off = conf->auto_norm_off };
+		.auto_norm_off = conf->auto_norm_off
+	};
 
-	if (conf->MOLLI || (0. != conf->IR_phy))
+	if (conf->MOLLI || (0. != conf->IR_phy) || (NULL != conf->input_alpha))
 		conf2.constrained_maps = 2;
 
 	long irgnm_conf_dims[DIMS];
-	md_select_dims(DIMS, fft_flags|MAPS_FLAG|COEFF_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
+	md_select_dims(DIMS, fft_flags|MAPS_FLAG|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, irgnm_conf_dims, imgs_dims);
 
 	irgnm_conf_dims[COIL_DIM] = coil_dims[COIL_DIM];
 
@@ -180,11 +165,7 @@ void T1_recon(const struct moba_conf* conf, const long dims[DIMS], complex float
 		linop_free(nl.linop_alpha);
 	}
 
-
 	nlop_free(nl.nlop);
 
 	md_free(x);
 }
-
-
-

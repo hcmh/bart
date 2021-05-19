@@ -47,8 +47,7 @@ DEF_TYPEID(zaxpbz_s);
 
 static void zaxpbz_fun(const operator_data_t* _data, unsigned int N, void* args[N])
 {
-	START_TIMER;
-	const auto data = CAST_DOWN(zaxpbz_s, _data);
+		const auto data = CAST_DOWN(zaxpbz_s, _data);
 	assert(3 == N);
 
 	complex float* dst = args[0];
@@ -62,27 +61,23 @@ static void zaxpbz_fun(const operator_data_t* _data, unsigned int N, void* args[
 	if ((1. == data->scale1) && (1. == data->scale2)) {
 
 		md_zadd(data->N, data->dims, dst, src1, src2);
-		PRINT_TIMER("frw zaxpbz");
-		return;
+			return;
 	}
 
 	if ((1. == data->scale1) && (-1. == data->scale2)) {
 
 		md_zsub(data->N, data->dims, dst, src1, src2);
-		PRINT_TIMER("frw zaxpbz");
-		return;
+			return;
 	}
 
 	if ((-1. == data->scale1) && (1. == data->scale2)) {
 
 		md_zsub(data->N, data->dims, dst, src2, src1);
-		PRINT_TIMER("frw zaxpbz");
-		return;
+			return;
 	}
 
 	md_zsmul(data->N, data->dims, dst, src1, data->scale1);
 	md_zaxpy(data->N, data->dims, dst, data->scale2, src2);
-	PRINT_TIMER("frw zaxpbz");
 }
 
 static void zaxpbz_del(const operator_data_t* _data)
@@ -145,7 +140,6 @@ DEF_TYPEID(smo_abs_s);
 
 static void smo_abs_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	START_TIMER;
 	const auto data = CAST_DOWN(smo_abs_s, _data);
 
 	long rdims[data->N + 1];
@@ -161,7 +155,6 @@ static void smo_abs_fun(const nlop_data_t* _data, complex float* dst, const comp
 	md_sqrt(data->N+1, rdims, (float*)dst, (float*)dst);
 	md_zdiv(data->N, data->dims, data->tmp, src, dst);
 
-	PRINT_TIMER("frw smoabs");
 }
 
 
@@ -182,7 +175,6 @@ static void smo_abs_adj(const nlop_data_t* _data, unsigned int o, unsigned int i
 	UNUSED(o);
 	UNUSED(i);
 
-	START_TIMER;
 
 	const struct smo_abs_s* data = CAST_DOWN(smo_abs_s, _data);
 	assert(NULL != data->tmp);
@@ -190,7 +182,6 @@ static void smo_abs_adj(const nlop_data_t* _data, unsigned int o, unsigned int i
 	md_zreal(data->N, data->dims, dst, src);
 	md_zmul(data->N, data->dims, dst, dst, data->tmp);
 
-	PRINT_TIMER("adj smoabs");
 }
 
 static void smo_abs_del(const nlop_data_t* _data)
@@ -331,4 +322,188 @@ const struct nlop_s* nlop_dump_create(int N, const long dims[N], const char* fil
 	data->counter = 0;
 
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), dump_fun, dump_der, dump_adj, NULL, NULL, dump_del);
+}
+
+
+struct zinv_reg_s {
+
+	INTERFACE(nlop_data_t);
+
+	unsigned long N;
+	const long* dims;
+
+	complex float epsilon; //reg not implemented
+	complex float* tmp;
+};
+
+DEF_TYPEID(zinv_reg_s);
+
+static void zinv_reg_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(zinv_reg_s, _data);
+
+	unsigned int N = data->N;
+	const long* dims = data->dims;
+
+	if (NULL == data->tmp)
+		data->tmp = md_alloc_sameplace(N, dims, CFL_SIZE, dst);
+
+	md_zfill(N, dims, data->tmp, 1.);
+	md_zdiv(N,dims, dst, data->tmp, src);
+
+	md_zmul(N, dims, data->tmp, dst, dst);
+	md_zsmul(N, dims, data->tmp, data->tmp, -1.);
+}
+
+
+static void zinv_reg_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	const struct zinv_reg_s* data = CAST_DOWN(zinv_reg_s, _data);
+	assert(NULL != data->tmp);
+
+	md_zmul(data->N, data->dims, dst, src, data->tmp);
+}
+
+static void zinv_reg_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	const struct zinv_reg_s* data = CAST_DOWN(zinv_reg_s, _data);
+	assert(NULL != data->tmp);
+
+	md_zmulc(data->N, data->dims, dst, src, data->tmp);
+}
+
+static void zinv_reg_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(zinv_reg_s, _data);
+
+	md_free(data->tmp);
+	xfree(data->dims);
+	xfree(data);
+}
+
+/**
+ * Operator computing the inverse
+ * f(x) = 1 / x
+ */
+const struct nlop_s* nlop_zinv_create(int N, const long dims[N])
+{
+	PTR_ALLOC(struct zinv_reg_s, data);
+	SET_TYPEID(zinv_reg_s, data);
+
+	data->N = N;
+	PTR_ALLOC(long[N], ndims);
+	md_copy_dims(N, *ndims, dims);
+	data->dims = *PTR_PASS(ndims);
+	data->epsilon = 0;
+
+	// will be initialized later, to transparently support GPU
+	data->tmp = NULL;
+
+	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), zinv_reg_fun, zinv_reg_der, zinv_reg_adj, NULL, NULL, zinv_reg_del);
+}
+
+struct zmax_s {
+
+	INTERFACE(nlop_data_t);
+
+	unsigned long N;
+	unsigned long flags;
+	const long* outdims;
+	const long* dims;
+	const long* strides;
+	const long* outstrides;
+
+	complex float* max_index;
+};
+
+DEF_TYPEID(zmax_s);
+
+static void zmax_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(zmax_s, _data);
+
+	if (NULL == data->max_index)
+		data->max_index = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
+
+	md_copy2(data->N, data->outdims, data->outstrides, dst, data->strides, src, CFL_SIZE);
+
+	md_zmax2(data->N, data->dims, data->outstrides, dst, data->outstrides, dst, data->strides, src);
+	
+	md_zgreatequal2(data->N, data->dims, data->strides, data->max_index, data->strides, src, data->outstrides, dst);
+}
+
+static void zmax_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	const auto data = CAST_DOWN(zmax_s, _data);
+
+	md_ztenmul(data->N, data->outdims, dst, data->dims, src, data->dims, data->max_index);
+	md_zreal(data->N, data->outdims, dst, dst);
+}
+
+static void zmax_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	const auto data = CAST_DOWN(zmax_s, _data);
+
+	md_zmul2(data->N, data->dims, data->strides, dst, data->outstrides, src, data->strides, data->max_index);
+	md_zreal(data->N, data->dims, dst, dst);
+}
+
+static void zmax_del(const struct nlop_data_s* _data)
+{
+	const auto data = CAST_DOWN(zmax_s, _data);
+
+	md_free(data->max_index);
+
+	xfree(data->outdims);
+	xfree(data->dims);
+	xfree(data->strides);
+	xfree(data->outstrides);
+
+	xfree(data);
+}
+
+
+/**
+ * Returns maximum value of array along specified flags.
+ **/
+const struct nlop_s* nlop_zmax_create(int N, const long dims[N], unsigned long flags)
+{
+	PTR_ALLOC(struct zmax_s, data);
+	SET_TYPEID(zmax_s, data);
+
+	PTR_ALLOC(long[N], outdims);
+	md_select_dims(N, ~flags, *outdims, dims);
+	PTR_ALLOC(long[N], dims_tmp);
+	md_copy_dims(N, *dims_tmp, dims);
+
+	PTR_ALLOC(long[N], strides);
+	md_calc_strides(N, *strides, dims, CFL_SIZE);
+	PTR_ALLOC(long[N], out_strides);
+	md_calc_strides(N, *out_strides, *outdims, CFL_SIZE);
+
+	data->N = N;
+	data->flags = flags;
+	data->strides = *PTR_PASS(strides);
+	data->dims = *PTR_PASS(dims_tmp);
+	data->outdims = *PTR_PASS(outdims);
+	data->outstrides = *PTR_PASS(out_strides);
+
+	data->max_index = NULL;
+
+	long odims[N];
+	md_select_dims(N, ~flags, odims, dims);
+
+	return nlop_create(N, odims, N, dims, CAST_UP(PTR_PASS(data)), zmax_fun, zmax_der, zmax_adj, NULL, NULL, zmax_del);
 }

@@ -31,12 +31,13 @@
 #include "moba/IR_SS_fun.h"
 #include "moba/T1MOLLI.h"
 #include "moba/T1_alpha.h"
+#include "moba/T1_alpha_in.h"
 
 #include "model_T1.h"
 
 
 struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const complex float* TI, const complex float* psf, 
-		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, float IR_phy, bool use_gpu)
+		const struct noir_model_conf_s* conf, bool MOLLI, const complex float* TI_t1relax, bool IR_SS, float IR_phy, const complex float* alpha, bool use_gpu)
 {
 	long data_dims[DIMS];
 	md_select_dims(DIMS, ~COEFF_FLAG, data_dims, dims);
@@ -49,10 +50,10 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	long in_dims[DIMS];
 	long TI_dims[DIMS];
 
-	md_select_dims(DIMS, conf->fft_flags|TIME2_FLAG, map_dims, dims);
-	md_select_dims(DIMS, conf->fft_flags|TE_FLAG|TIME2_FLAG, out_dims, dims);
-	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG|TIME2_FLAG, in_dims, dims);
-	md_select_dims(DIMS, TE_FLAG|TIME2_FLAG, TI_dims, dims);
+	md_select_dims(DIMS, conf->fft_flags|TIME_FLAG|TIME2_FLAG, map_dims, dims);
+	md_select_dims(DIMS, conf->fft_flags|TE_FLAG|TIME_FLAG|TIME2_FLAG, out_dims, dims);
+	md_select_dims(DIMS, conf->fft_flags|COEFF_FLAG|TIME_FLAG|TIME2_FLAG, in_dims, dims);
+	md_select_dims(DIMS, TE_FLAG|TIME_FLAG|TIME2_FLAG, TI_dims, dims);
 
 
 #if 1
@@ -86,7 +87,11 @@ struct T1_s T1_create(const long dims[DIMS], const complex float* mask, const co
 	} else if (0. != IR_phy) {
 		
                 T1 = nlop_T1_alpha_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);
+
+	} else if (NULL != alpha) {
 		
+                T1 = nlop_T1_alpha_in_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, alpha, use_gpu);
+
 	} else {
 
 		T1 = nlop_T1_create(DIMS, map_dims, out_dims, in_dims, TI_dims, TI, use_gpu);

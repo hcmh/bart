@@ -23,6 +23,7 @@ struct modBlochFit {
 	/*Simulation Parameter*/
 	int sequence;
 	float rfduration;
+	float bwtp;
 	float tr;
 	float te;
 	int averaged_spokes;
@@ -32,6 +33,7 @@ struct modBlochFit {
 	int runs; /*Number of applied sequence trains*/
 	float inversion_pulse_length;
 	float prep_pulse_length;
+	bool look_locker_assumptions;
 	
 	/*Reconstruction Parameter*/
 	float scale[4];

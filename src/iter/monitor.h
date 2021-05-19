@@ -28,8 +28,8 @@ typedef struct iter_monitor_s iter_monitor_t;
 extern void iter_monitor(struct iter_monitor_s* monitor, const struct vec_iter_s* ops, const float* x);
 extern void iter_history(struct iter_monitor_s* monitor, const struct iter_history_s*);
 
-extern struct iter_monitor_s* create_monitor(long N, const float* image_truth,
-		void* data, float (*object)(const void* data, const float* x));
+extern struct iter_monitor_s *create_monitor(long N, const float *image_truth,
+					     void *data, float (*object)(const void *data, const float *x));
 
 
 
@@ -44,5 +44,9 @@ struct monitor_iter6_s {
 };
 
 void monitor_iter6(struct monitor_iter6_s* monitor, long epoch, long batch, long num_batches, float objective, long NI, const float* x[NI], char* post_string);
+
+
+struct iter_monitor_s* create_monitor_recorder(const long N, const long dims[N], const char* name, void *data, _Bool (*select)(unsigned long iter, const float* x, void* data), _Complex float* (*process)(void* data, const float* x));
+
 
 #endif // __ITER_MONITOR_H

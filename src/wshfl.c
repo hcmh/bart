@@ -879,7 +879,7 @@ static void fftmod_apply(long sy, long sz,
 	}
 }
 
-int main_wshfl(int argc, char* argv[])
+int main_wshfl(int argc, char* argv[argc])
 {
 	double start_time = timestamp();
 
@@ -890,11 +890,13 @@ int main_wshfl(int argc, char* argv[])
 	int   cgiter    = 10;
 	int   blksize   = 8;
 	float rho       = 1;
+	float eval      = -1;
+	float tol       = 1E-3;
 	bool  hgwld     = false;
 	bool  ksp       = false;
 	const char* fwd = NULL;
 	const char* x0  = NULL;
-	int   gpun      = -1;
+	bool  use_gpu   = false;
 	bool  dcx       = false;
 
 	const struct opt_s opts[] = {
@@ -903,9 +905,11 @@ int main_wshfl(int argc, char* argv[])
 		OPT_INT(    'i', &maxiter, "mxiter",    "Maximum number of iterations."),
 		OPT_INT(    'j', &cgiter,  "cgiter",    "Maximum number of CG iterations in ADMM."),
 		OPT_FLOAT(  's', &rho,     "admrho",    "ADMM Rho value."),
+		OPT_FLOAT(  'e', &eval,    "eigval",    "Eigenvalue to scale step size. (Optional.)"),
 		OPT_STRING( 'F', &fwd,     "frwrd",     "Go from shfl-coeffs to data-table. Pass in coeffs path."),
 		OPT_STRING( 'O', &x0,      "initl",     "Initialize reconstruction with guess."),
-		OPT_INT(    'g', &gpun,    "gpunm",     "GPU device number."),
+		OPT_FLOAT(  't', &tol,     "toler",     "Tolerance convergence condition for FISTA."),
+		OPT_SET(    'g', &use_gpu,              "Use GPU."),
 		OPT_SET(    'K', &ksp,                  "Go from data-table to shuffling basis k-space."),
 		OPT_SET(    'H', &hgwld,                "Use hogwild."),
 		OPT_SET(    'v', &dcx,                  "Split coefficients to real and imaginary components."),
@@ -934,10 +938,7 @@ int main_wshfl(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Done.\n");
 
-	if (gpun >= 0)
-		num_init_gpu_device(gpun);
-	else
-		num_init();
+	(use_gpu ? num_init_gpu : num_init)();
 
 	int wx = wave_dims[0];
 	int sx = maps_dims[0];
@@ -977,7 +978,7 @@ int main_wshfl(int argc, char* argv[])
 	coeff_dims[8] = dcx ? 2 : 1;
 
 	if (ksp == true) {
-		const struct linop_s* Knc = linop_kern_create(gpun >= 0, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, table_dims);
+		const struct linop_s* Knc = linop_kern_create(use_gpu, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, table_dims);
 		long ksp_dims[] = { [0 ... DIMS - 1] = 1 };
 		ksp_dims[0] = wx;
 		ksp_dims[1] = sy;
@@ -1029,7 +1030,7 @@ int main_wshfl(int argc, char* argv[])
 	long single_channel_table_dims[] = { [0 ... DIMS - 1] = 1 };
 	md_copy_dims(DIMS, single_channel_table_dims, table_dims);
 	single_channel_table_dims[1] = 1;
-	const struct linop_s* K = linop_kern_create(gpun >= 0, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, single_channel_table_dims);
+	const struct linop_s* K = linop_kern_create(use_gpu, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, single_channel_table_dims);
 	t2 = timestamp();
 	debug_printf(DP_INFO, "\tK:   %f seconds.\n", t2 - t1);
 
@@ -1052,7 +1053,7 @@ int main_wshfl(int argc, char* argv[])
 		const struct linop_s* CFx    = linop_fx_create( wx, sy, sz, 1, tk, true);
 		const struct linop_s* W      = linop_wave_create(wx, sy, sz, 1, tk, wave_dims[COEFF_DIM], wave);
 		const struct linop_s* CFyz   = linop_fyz_create(wx, sy, sz, 1, tk, true);
-		const struct linop_s* K      = linop_kern_create(gpun >= 0, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, single_channel_table_dims);
+		const struct linop_s* K      = linop_kern_create(use_gpu, reorder_dims, reorder, phi_dims, phi, kernel_dims, kernel, single_channel_table_dims);
 		struct linop_s* AC_sc = linop_chain_FF(linop_chain_FF(linop_chain_FF(linop_chain_FF(
 			R, CFx), W), CFyz), K);
 		struct linop_s* AC = linop_multc_create(nc, md, maps, AC_sc);
@@ -1093,17 +1094,52 @@ int main_wshfl(int argc, char* argv[])
 	fftmod_apply(sy, sz, reorder_dims, reorder, table_dims, table, maps_dims, maps);
 	debug_printf(DP_INFO, "Done.\n");
 
-	debug_printf(DP_INFO, "Preparing reconstruction operator... ");
+	debug_printf(DP_INFO, "Preparing reconstruction operator: ");
 	const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_configure(DIMS, coeff_dims, &ropts, thresh_ops, trafos, blksize, 1, gpun >= 0);
+	opt_reg_configure(DIMS, coeff_dims, &ropts, thresh_ops, trafos, blksize, 1, use_gpu);
 	int nr_penalties = ropts.r;
 	struct reg_s* regs = ropts.regs;
+	bool fista = (nr_penalties == 1);
 
-	enum algo_t algo = ALGO_ADMM;
-	struct iter it = italgo_config(algo, nr_penalties, regs, maxiter, -1, hgwld, false, admm, 1, false);
-	debug_printf(DP_INFO, "Done.\n");
+	// FISTA variables.
+	float step = 0.5;
+	italgo_fun2_t italgo = iter2_call_iter;
+	struct iter_call_s iter2_data;
+	SET_TYPEID(iter_call_s, &iter2_data);
+	iter_conf* iconf = CAST_UP(&iter2_data);
+	struct iter_fista_conf fsconf = iter_fista_defaults;
+
+	// ADMM variables.
+	struct iter it;
+
+	if (fista) {
+		if (eval < 0) {
+#ifdef USE_CUDA
+			eval = use_gpu ? estimate_maxeigenval_gpu(A_sc->normal) : estimate_maxeigenval(A_sc->normal);
+#else
+			eval = estimate_maxeigenval(A_sc->normal);
+#endif
+		}
+		step /= eval;
+		debug_printf(DP_INFO, "\tAlgorithm:      FISTA.\n");
+		debug_printf(DP_INFO, "\tMax eigenvalue: %.2e\n", eval);
+		debug_printf(DP_INFO, "\tStep:           %.2e\n", step);
+		debug_printf(DP_INFO, "\tTolerance:      %.2e\n", tol);
+
+		fsconf.maxiter      = maxiter;
+		fsconf.step         = step;
+		fsconf.hogwild      = hgwld;
+		fsconf.tol          = tol;
+
+		iter2_data.fun   = iter_fista;
+		iter2_data._conf = CAST_UP(&fsconf);
+	} else {
+		debug_printf(DP_INFO, "\tAlgorithm: ADMM\n.");
+		debug_printf(DP_INFO, "\tRho:       %.2e\n.", rho);
+		it = italgo_config(ALGO_ADMM, nr_penalties, regs, maxiter, step, hgwld, false, admm, 1, false);
+	}
 
 	complex float* init = NULL;
 	if (x0 != NULL) {
@@ -1114,9 +1150,13 @@ int main_wshfl(int argc, char* argv[])
 
 	debug_printf(DP_INFO, "Reconstruction... ");
 	complex float* recon = create_cfl(argv[6], DIMS, coeff_dims);
-	struct lsqr_conf lsqr_conf = { 0., gpun >= 0 };
+	struct lsqr_conf lsqr_conf = lsqr_defaults;
+	lsqr_conf.lambda = 0.;
+	lsqr_conf.it_gpu = use_gpu;
 	double recon_start = timestamp();
-	const struct operator_p_s* J = lsqr2_create(&lsqr_conf, it.italgo, it.iconf, (const float*) init, false, A, NULL, nr_penalties, thresh_ops, trafos, NULL);
+	const struct operator_p_s* J = fista ?
+		lsqr2_create(&lsqr_conf, italgo,    iconf,    (const float*) init, A, NULL, nr_penalties, thresh_ops, NULL,   NULL):
+		lsqr2_create(&lsqr_conf, it.italgo, it.iconf, (const float*) init, A, NULL, nr_penalties, thresh_ops, trafos, NULL);
 	operator_p_apply(J, 1., DIMS, coeff_dims, recon, DIMS, table_dims, table);
 	md_zsmul(DIMS, coeff_dims, recon, recon, norm);
 	double recon_end = timestamp();

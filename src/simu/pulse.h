@@ -2,6 +2,7 @@
 #ifndef __PULSE_H
 #define __PULSE_H
 
+// FIXME: Remove redundant parameters
 struct simdata_pulse {
 
 	float pulse_length;
@@ -9,6 +10,7 @@ struct simdata_pulse {
 	float rf_end;
 	float flipangle;
 	float phase;
+	float bwtp;		/* = 2 * n for n=nl=nr*/
 	float nl;		/*number of zero crossings to the left of the main loop*/
 	float nr; 		/*number of zero crossings to the right of the main loop*/
 	float n;		/*max(nl, nr)*/
@@ -21,7 +23,7 @@ struct simdata_pulse {
 
 extern const struct simdata_pulse simdata_pulse_defaults;
 
-extern void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle, float phase, float nl, float nr, float alpha);
+extern void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle, float phase, float bwtp, float alpha);
 
 extern float pulse_integral(const struct simdata_pulse* pulse);
 extern float pulse_sinc(const struct simdata_pulse* pulse, float t);

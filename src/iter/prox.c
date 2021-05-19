@@ -83,7 +83,9 @@ static void prox_normaleq_fun(const operator_data_t* prox_data, float mu, float*
 	} else {
 
 		float rho = 1. / mu;
+
 		float* b = md_alloc_sameplace(1, MD_DIMS(pdata->size), FL_SIZE, x_plus_u);
+
 		md_copy(1, MD_DIMS(pdata->size), b, pdata->adj, FL_SIZE);
 		md_axpy(1, MD_DIMS(pdata->size), b, rho, x_plus_u);
 
@@ -131,7 +133,9 @@ const struct operator_p_s* prox_normaleq_create(const struct linop_s* op, const 
 	pdata->op = op;
 
 	pdata->size = 2 * md_calc_size(linop_domain(op)->N, linop_domain(op)->dims);
+
 	pdata->adj = md_alloc_sameplace(1, &(pdata->size), FL_SIZE, y);
+
 	linop_adjoint_unchecked(op, (complex float*)pdata->adj, y);
 
 	return operator_p_create(linop_domain(op)->N, linop_domain(op)->dims,
@@ -582,6 +586,7 @@ static void prox_ineq_fun(const operator_data_t* _data, float mu, float* dst, co
 	if (NULL == pdata->b) {
 
 		(pdata->positive ? md_smax : md_smin)(1, MD_DIMS(pdata->size), dst, src, pdata->a);
+
 	} else {
 
 		(pdata->positive ? md_max : md_min)(1, MD_DIMS(pdata->size), dst, src, pdata->b);

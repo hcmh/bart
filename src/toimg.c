@@ -89,7 +89,6 @@ static void toimg(bool dicom, bool use_windowing, bool quantitative, const char*
 	if (dicom) {
 
 		dicom_write(name, study_uid, series_uid, w, h, inum, &(*buf)[0][0][0]);
-
 	} else {
 
 		png_write_rgb24(name, w, h, inum, &(*buf)[0][0][0]);
@@ -99,17 +98,22 @@ static void toimg(bool dicom, bool use_windowing, bool quantitative, const char*
 }
 
 
-static void toimg_stack(const char* name, bool dicom, bool single_scale, bool use_windowing, bool quantitative, float gamma, float contrast, float window, const long dims[DIMS], const complex float* data)
+static void toimg_stack(const char* name, bool dicom, bool dim_names, bool single_scale, bool use_windowing, bool quantitative, float gamma, float contrast, float window, const long dims[DIMS], const complex float* data)
 {
 	long data_size = md_calc_size(DIMS, dims); 
 
 	long sq_dims[DIMS] = { [0 ... DIMS - 1] = 1 };
 
 	int l = 0;
+	unsigned int loop_flags = 0;
 
 	for (int i = 0; i < DIMS; i++)
-		if (1 != dims[i])
+		if (1 != dims[i]) {
+
+			if (2 > l)
+				loop_flags |= MD_BIT(i);
 			sq_dims[l++] = dims[i];
+		}
 
 	float max = 0.;
 	for (long i = 0; i < data_size; i++)
@@ -128,18 +132,37 @@ static void toimg_stack(const char* name, bool dicom, bool single_scale, bool us
 	dicom_generate_uid(series_uid);
 #endif
 
+	long loop_dims[DIMS];
+	md_select_dims(DIMS, ~loop_flags, loop_dims, dims);
+
+	assert(md_calc_size(DIMS, loop_dims) == num_imgs);
 
 	debug_printf(DP_INFO, "Writing %d image(s)...", num_imgs);
 
 #pragma omp parallel for
 	for (long i = 0; i < num_imgs; i++) {
 
-		char name_i[len + 10]; // extra space for ".0000.png"
+		unsigned int bufsize = len + 255;
+		char name_i[bufsize];
+		name_i[bufsize - 1] = '\0';
 
-		if (num_imgs > 1)
-			sprintf(name_i, "%s-%04ld.%s", name, i, dicom ? "dcm" : "png");
-		else
+		if ( num_imgs == 1) {
+
 			sprintf(name_i, "%s.%s", name, dicom ? "dcm" : "png");
+		} else {
+
+			if (!dim_names) {
+
+				sprintf(name_i, "%s-%04ld.%s", name, i, dicom ? "dcm" : "png");
+			} else {
+
+				long pos[DIMS] = { [0 ... DIMS - 1] = 0  };
+				md_unravel_index(DIMS, pos, loop_dims, i);
+
+				strncpy(name_i, name, bufsize);
+				construct_filename(bufsize, name_i, DIMS, loop_dims, pos, name, dicom ? "dcm" : "png");
+			}
+		}
 
 		float scale = 0.;
 
@@ -161,7 +184,7 @@ static void toimg_stack(const char* name, bool dicom, bool single_scale, bool us
 }
 
 
-int main_toimg(int argc, char* argv[])
+int main_toimg(int argc, char* argv[argc])
 {
 	float gamma = 1.;
 	float contrast = 0.;
@@ -170,6 +193,7 @@ int main_toimg(int argc, char* argv[])
 	bool single_scale = true;
 	bool dicom = false;
 	bool quantitative = false;
+	bool dim_names = false;
 
 	const struct opt_s opts[] = {
 
@@ -180,6 +204,7 @@ int main_toimg(int argc, char* argv[])
 		OPT_CLEAR('m', &single_scale, "re-scale each image"),
 		OPT_SET('W', &use_windowing, "use dynamic windowing"),
 		OPT_SET('Q', &quantitative, "quantitative imaging (use the input value)"),
+		OPT_SET('D', &dim_names, "Include dimensions in output filenames"),
 	};
 
 	cmdline(&argc, argv, 2, 2, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -204,7 +229,7 @@ int main_toimg(int argc, char* argv[])
 	long dims[DIMS];
 	complex float* data = load_cfl(argv[1], DIMS, dims);
 
-	toimg_stack(argv[2], dicom, single_scale, use_windowing, quantitative, gamma, contrast, window, dims, data);
+	toimg_stack(argv[2], dicom, dim_names, single_scale, use_windowing, quantitative, gamma, contrast, window, dims, data);
 
 	unmap_cfl(DIMS, dims, data);
 

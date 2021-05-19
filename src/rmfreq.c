@@ -32,13 +32,15 @@ static const char help_str[] = "Remove angle-dependent frequency\n";
 
 
 
-int main_rmfreq(int argc, char* argv[])
+int main_rmfreq(int argc, char* argv[argc])
 {
 	unsigned int n_harmonics = 5;
+	const char* mod_file = NULL;
 
 	const struct opt_s opts[] = {
 
 		OPT_UINT('N', &n_harmonics, "#", "Number of harmonics [Default: 5]"),
+		OPT_STRING('M', &mod_file, "file", "Contrast modulation file"),
 	};
 
 	cmdline(&argc, argv, 3, 3, usage_str, help_str, ARRAY_SIZE(opts), opts);
@@ -60,6 +62,15 @@ int main_rmfreq(int argc, char* argv[])
 
 	if (!md_check_equal_dims(DIMS, t_dims, k_dims, ~(READ_FLAG|PHS1_FLAG|COIL_FLAG)))
 		error("k-space and trajectory inconsistent!\n");
+
+	// Modulation file
+	long mod_dims[DIMS];
+	complex float* mod = NULL;
+	if (NULL != mod_file) {
+
+		mod = load_cfl(mod_file, DIMS, mod_dims);
+		assert(md_check_equal_dims(DIMS, k_dims, mod_dims, ~0u));
+	}
 
 
 	// Calculate angles from trajectory	
@@ -130,12 +141,33 @@ int main_rmfreq(int argc, char* argv[])
 
 	complex float* k_singleton = md_alloc(DIMS, k_singleton_dims, CFL_SIZE);
 
-
 	long n_part_singleton_dims[DIMS];
 	md_select_dims(DIMS, ~SLICE_FLAG, n_part_singleton_dims, n_dims);
 
 	complex float* n_part_singleton = md_alloc(DIMS, n_part_singleton_dims, CFL_SIZE);
 
+	/* Account for contrast change */
+	complex float* n_mod = NULL;
+	long n_mod_dims[DIMS];
+	md_copy_dims(DIMS, n_mod_dims, n_dims);
+	n_mod_dims[COIL_DIM] = mod_dims[COIL_DIM];
+	long n_mod_strs[DIMS];
+	md_calc_strides(DIMS, n_mod_strs, n_mod_dims, CFL_SIZE);
+
+	if (mod_file != NULL) {
+		assert(md_check_equal_dims(DIMS, n_dims, mod_dims, ~(COIL_FLAG|(1u << LAST_DIM))));
+		
+		long n_strs[DIMS];
+		md_calc_strides(DIMS, n_strs, n_dims, CFL_SIZE);
+
+		long mod_strs[DIMS];
+		md_calc_strides(DIMS, mod_strs, mod_dims, CFL_SIZE);
+
+		n_mod = md_alloc(DIMS, n_mod_dims, CFL_SIZE);
+
+		md_zmul2(DIMS, n_mod_dims, n_mod_strs, n_mod, n_strs, n, mod_strs, mod);
+		unmap_cfl(DIMS, mod_dims, mod);
+	}
 
 	long pinv_dims[DIMS];
 	md_transpose_dims(DIMS, TIME_DIM, LAST_DIM, pinv_dims, n_part_singleton_dims);
@@ -164,7 +196,11 @@ int main_rmfreq(int argc, char* argv[])
 			pos1[SLICE_DIM] = p;
 			pos1[COIL_DIM] = 0;
 
-			md_copy_block(DIMS, pos1, n_part_singleton_dims, n_part_singleton, n_dims,  n, CFL_SIZE);
+			if (mod_file != NULL) {
+				pos1[COIL_DIM] = c;
+				md_copy_block(DIMS, pos1, n_part_singleton_dims, n_part_singleton, n_mod_dims, n_mod, CFL_SIZE);
+			} else
+				md_copy_block(DIMS, pos1, n_part_singleton_dims, n_part_singleton, n_dims,  n, CFL_SIZE);
 
 			pos1[COIL_DIM] = c;
 			md_copy_block(DIMS, pos1, k_singleton_dims, k_singleton, k_dims, k, CFL_SIZE);
@@ -200,6 +236,8 @@ int main_rmfreq(int argc, char* argv[])
 
 	unmap_cfl(DIMS, k_dims, k);
 	unmap_cfl(DIMS, k_dims, k_cor);
+	if (mod_file != NULL)
+		free(n_mod);
 
 	exit(0);
 }
