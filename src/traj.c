@@ -14,7 +14,6 @@
 #include <stdbool.h>
 #include <complex.h>
 #include <math.h>
-#include <stdint.h>
 
 #include "num/flpmath.h"
 

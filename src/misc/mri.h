@@ -6,8 +6,12 @@
 #ifndef __MRI_H
 #define __MRI_H
 
+#ifdef __cplusplus
+#define _Bool bool
+#define _Complex
+#else
 #include <stdbool.h>
-
+#endif
 
 #include "misc/cppwrap.h"
 

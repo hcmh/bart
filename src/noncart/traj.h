@@ -9,11 +9,19 @@
  * 2020-2021 Christian Holme <christian.holme@med.uni-goettingen.de>
  */
 
+#ifndef _TRAJ_H
+#define _TRAJ_H
+
 
 /*
  * NOTE: due to the need for compatibility with Siemens IDEA,
  * traj.c and traj.h need to be simultaneously valid C and valid C++!
  */
+
+#ifdef __cplusplus
+#define _Bool bool
+#endif
+
 
 struct traj_conf {
 
@@ -75,3 +83,4 @@ extern void z_lookup_fill(int* z_lookup, int z_reflines, int z_npattern, int mb_
 extern bool z_contains(int* lookup, int size, int z);
 extern int gen_fibonacci(int n, int ind);
 
+#endif //_TRAJ_H

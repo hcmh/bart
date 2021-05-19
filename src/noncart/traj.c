@@ -15,13 +15,17 @@
  * traj.c and traj.h need to be simultaneously valid C and valid C++!
  */
 
+#ifndef __cplusplus
 #include <stdbool.h>
+#include <complex.h>
+#endif
+
 #include <math.h>
 #include <assert.h>
-#include <stdint.h>
-#include <complex.h>
 #include "num/rand.h"
 
+
+#ifndef __cplusplus
 
 #include "misc/debug.h"
 #include "misc/misc.h"
@@ -31,8 +35,11 @@
 #include "misc/debug.h"
 #endif
 
+#endif
+
 #include "traj.h"
 
+#ifndef __cplusplus
 const struct traj_conf traj_defaults = {
 
 	.spiral = false,
@@ -72,7 +79,7 @@ const struct traj_conf rmfreq_defaults = {
 	.tiny_gold = 0,
 	.multiple_ga = 1,
 };
-
+#endif
 
 void euler(float dir[3], float phi, float psi)
 {
@@ -319,9 +326,24 @@ double seq_rotation_angle(long spoke, long echo, long repetition, long inversion
 
 	double base_angle[16] = {0.f};
 
-	struct traj_conf conf = {.spiral = false, .radial = true, .golden = false, .aligned = true, .full_circle = double_angle,
-		.half_circle_gold = false, .golden_partition = false, .d3d = false, .transverse = false, .asym_traj = false,
-		.mems_traj = false, .rational = false, .sms_turns = true, .accel = 1, .tiny_gold = (int) tiny_golden_index, .multiple_ga = 1};
+    // Microsoft C++ does not support other initialization
+    struct traj_conf conf;
+    conf.spiral = false;
+    conf.radial = true;
+    conf.golden = false;
+    conf.aligned = true;
+    conf.full_circle = double_angle;
+    conf.half_circle_gold = false;
+    conf.golden_partition = false;
+    conf.d3d = false;
+    conf.transverse = false;
+    conf.asym_traj = false;
+    conf.mems_traj = false;
+    conf.rational = false;
+    conf.sms_turns = true;
+    conf.accel = 1;
+    conf.tiny_gold = (int) tiny_golden_index;
+    conf.multiple_ga = 1;
 
 	switch (mode)
 	{
