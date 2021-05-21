@@ -20,24 +20,30 @@
 #include <complex.h>
 #endif
 
+#ifdef __cplusplus
+#define _Bool bool
+#endif
+
 #include <math.h>
 #include <assert.h>
+#ifndef FOR_IDEA
 #include "num/rand.h"
-
-
-#ifndef __cplusplus
-
-#include "misc/debug.h"
 #include "misc/misc.h"
+#endif
+
+
 #include "misc/mri.h"
 #include "misc/version.h"
 #ifdef SSAFARY_PAPER
 #include "misc/debug.h"
 #endif
 
+#include "traj.h"
+
+#ifdef FOR_IDEA
+#define use_compat_to_version(x) false
 #endif
 
-#include "traj.h"
 
 #ifndef __cplusplus
 const struct traj_conf traj_defaults = {
@@ -519,6 +525,7 @@ bool z_contains(int* lookup, int size, int z)
     return false;
 }
 
+#ifndef FOR_IDEA
 // fill z-undersampling lookup table
 void z_lookup_fill(int* z_lookup, int z_reflines, int z_npattern, int mb_full, int mb_acc)
 {
@@ -570,3 +577,4 @@ void z_lookup_fill(int* z_lookup, int z_reflines, int z_npattern, int mb_full, i
 
 
 }
+#endif
