@@ -88,42 +88,31 @@ static const struct operator_p_s* ops_p_stack_higher_dims(unsigned int N, const 
 	return dst;
 }
 
+
 static const struct operator_p_s* moba_joint_wavthresh_prox_create(unsigned int N, const long maps_dims[N], long coeff_dim, long x_flags, long jflag, float lambda, long nr_joint_maps)
 {
-	// higher dimensions
-	long higher_flag = 0;
-	for (long d = coeff_dim+1; d < N; d++) {
-
-		if (1 < maps_dims[d])
-			higher_flag = MD_SET(higher_flag, d);
-	}
 
 	long maps_j_dims[N];
-	md_select_dims(N, ~(MD_BIT(coeff_dim)|higher_flag), maps_j_dims, maps_dims);
+	md_copy_dims(N, maps_j_dims, maps_dims);
 	maps_j_dims[coeff_dim] = nr_joint_maps;
 
-	auto prox_j = create_wav_prox(maps_j_dims, x_flags, jflag, lambda);
+	auto l1Wav_prox = create_wav_prox(maps_j_dims, x_flags, jflag, lambda);
 
 	if (nr_joint_maps < maps_dims[coeff_dim]) {
 
 		long maps_z_dims[N];
-		md_select_dims(N, ~(MD_BIT(coeff_dim)|higher_flag), maps_z_dims, maps_dims);
+		md_copy_dims(N, maps_j_dims, maps_dims);
 		maps_z_dims[coeff_dim] = maps_dims[coeff_dim] - nr_joint_maps;
 
 		auto prox_z = prox_zero_create(N, maps_z_dims);
 
-		prox_j = operator_p_stack(coeff_dim, coeff_dim, prox_j, prox_z);
+		l1Wav_prox = operator_p_stack(coeff_dim, coeff_dim, l1Wav_prox, prox_z);
 
 		operator_p_free(prox_z);
 
 	}
 
-	// stack higher dimensions
-	auto prox_s = ops_p_stack_higher_dims(N, maps_dims, coeff_dim, higher_flag, prox_j);
-
-	operator_p_free(prox_j);
-
-	return prox_s;
+	return l1Wav_prox;
 }
 
 
