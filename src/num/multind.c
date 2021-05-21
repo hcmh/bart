@@ -2022,3 +2022,30 @@ void md_free(const void* ptr)
 #endif
 	xfree(ptr);
 }
+
+
+int md_max_idx(unsigned long flags)
+{
+	int i = -1;
+
+	for ( ; 0 != flags; i++)
+		flags /= 2;
+
+	return i;
+}
+
+int md_min_idx(unsigned long flags)
+{
+	if (0 == flags)
+		return -1;
+
+	int i = 0;
+
+	for ( ; !(MD_IS_SET(flags, 0)); i++)
+		flags /= 2;
+
+	return i;
+}
+
+
+extern int md_min_idx(unsigned long flags);
