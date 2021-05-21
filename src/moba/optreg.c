@@ -101,7 +101,7 @@ static const struct operator_p_s* moba_joint_wavthresh_prox_create(unsigned int 
 	if (nr_joint_maps < maps_dims[coeff_dim]) {
 
 		long maps_z_dims[N];
-		md_copy_dims(N, maps_j_dims, maps_dims);
+		md_copy_dims(N, maps_z_dims, maps_dims);
 		maps_z_dims[coeff_dim] = maps_dims[coeff_dim] - nr_joint_maps;
 
 		auto prox_z = prox_zero_create(N, maps_z_dims);
