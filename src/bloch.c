@@ -348,6 +348,7 @@ int main_bloch(int argc, char* argv[argc])
 			complex float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 			complex float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 			complex float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+			complex float sa_b1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 			
 			complex float signal[sim_data.seq.rep_num / sim_data.seq.num_average_rep];	
 			
@@ -404,9 +405,9 @@ int main_bloch(int argc, char* argv[argc])
 			else {	//start ODE based simulation
 
 				if (operator_sim)
-					matrix_bloch_simulation(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
+					matrix_bloch_simulation(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);
 				else
-					ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
+					ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);
 
 
 				//Add data to phantom

@@ -294,6 +294,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				complex float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 				complex float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 				complex float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+				complex float sa_b1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 
 				if (NULL != data->input_sliceprofile) {
 
@@ -309,9 +310,9 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 
 				if (data->fitParameter.full_ode_sim || NULL != data->input_fa_profile)	//variable flipangles are only included into ode simulation yet
-					ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
+					ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);
 				else
-					matrix_bloch_simulation(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
+					matrix_bloch_simulation(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);
 
 
 				long curr_pos[DIMS];

@@ -57,8 +57,9 @@ static bool test_ode_bloch_simulation(void)
 	complex float sa_r1_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	complex float sa_r2_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	complex float sa_m0_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_b1_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	
-	ode_bloch_simulation3(&sim_data, mxy_ref_sig, sa_r1_ref_sig, sa_r2_ref_sig, sa_m0_ref_sig);
+	ode_bloch_simulation3(&sim_data, mxy_ref_sig, sa_r1_ref_sig, sa_r2_ref_sig, sa_m0_ref_sig, sa_b1_ref_sig);
 
 	//-------------------------------------------------------
 	//------------------- T1 Test ---------------------------
@@ -67,11 +68,12 @@ static bool test_ode_bloch_simulation(void)
 	complex float sa_r1_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	complex float sa_r2_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	complex float sa_m0_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_b1_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	
 	struct sim_data data_r1 = sim_data;
 	data_r1.voxel.r1 += e; //e in [ms] 
 	
-	ode_bloch_simulation3(&data_r1, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig);
+	ode_bloch_simulation3(&data_r1, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
 	
 	//Verify gradient
 	float err = 0;
@@ -95,7 +97,7 @@ static bool test_ode_bloch_simulation(void)
 	struct sim_data data_r2 = sim_data;
 	data_r2.voxel.r2 += e; 
 	
-	ode_bloch_simulation3(&data_r2, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig);
+	ode_bloch_simulation3(&data_r2, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
 	
 	//Verify gradient
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
@@ -116,7 +118,7 @@ static bool test_ode_bloch_simulation(void)
 	struct sim_data data_m0 = sim_data;
 	data_m0.voxel.m0 += e; 
 	
-	ode_bloch_simulation3(&data_m0, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig);
+	ode_bloch_simulation3(&data_m0, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
 	
 	//Verify gradient
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
@@ -300,8 +302,9 @@ static bool test_simulation(void)
 	complex float sa_r1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	complex float sa_r2_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	complex float sa_m0_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_b1_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	
-	ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig);
+	ode_bloch_simulation3(&sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);
 	
 	//------------------------------------------------------------
 	//--------  Simulation of phantom data analytically ----------
@@ -498,15 +501,17 @@ static bool test_matrix_exp_simulation(void)
 	complex float saR1Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
 	complex float saR2Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
 	complex float saDensSig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float sa_b1_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
 	
-	ode_bloch_simulation3(&sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode);
+	ode_bloch_simulation3(&sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, sa_b1_ode);
 	
 	complex float mxySig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	complex float saR1Sig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	complex float saR2Sig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	complex float saDensSig_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_b1_matexp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
 	
-	matrix_bloch_simulation(&sim_data, mxySig_matexp, saR1Sig_matexp, saR2Sig_matexp, saDensSig_matexp);
+	matrix_bloch_simulation(&sim_data, mxySig_matexp, saR1Sig_matexp, saR2Sig_matexp, saDensSig_matexp, sa_b1_matexp);
 
 	float tol = 10E-3;
 	float err;
