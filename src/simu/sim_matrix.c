@@ -42,7 +42,7 @@ static void ode_matrix_fun_simu(void* _data, float* x, float t, const float* in)
 	sim_data->grad.gb_eff[2] = sim_data->grad.gb[2] + sim_data->voxel.w;
 	
 	float matrix_time[N][N];
-	bloch_matrix_ode_sa(matrix_time, sim_data->voxel.r1, sim_data->voxel.r2, sim_data->grad.gb_eff);
+	bloch_matrix_ode_sa2(matrix_time, sim_data->voxel.r1, sim_data->voxel.r2, sim_data->grad.gb_eff, sim_data->pulse.phase);
 
 	for (unsigned int i = 0; i < N; i++) {
 
@@ -301,7 +301,7 @@ static void prepare_matrix_to_tr( int N, float matrix[N][N], void* _data )
 
 static void ADCcorrection(int N, float out[N], float in[N], float corr_angle)
 {
-	for (int i = 0; i < 3; i++) {	// 3 parameter: Sig, S_R1, S_R2
+	for (int i = 0; i < 4; i++) {	// 4 parameter: Sig, S_R1, S_R2, S_B1
 		
 		out[3*i] = in[3*i] * cosf(corr_angle) - in[3*i+1] * sinf(corr_angle);
 		out[3*i+1] = in[3*i] * sinf(corr_angle) + in[3*i+1] * cosf(corr_angle);
@@ -310,7 +310,7 @@ static void ADCcorrection(int N, float out[N], float in[N], float corr_angle)
 
 }
 
-static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa_r2, void* _data)
+static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa_r2, float *sa_b1, void* _data)
 {    
 	struct sim_data* data = _data;
 
@@ -326,15 +326,16 @@ static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa
 		mxy[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i];
 		sa_r1[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i+3];
 		sa_r2[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i+6];
+		sa_b1[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i+9];
 	}
 }
-    
-// for seq = 0, 1, 2, 5
-void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex float (*sa_r1_sig)[3], complex float (*sa_r2_sig)[3], complex float (*sa_m0_sig)[3])
+
+
+void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex float (*sa_r1_sig)[3], complex float (*sa_r2_sig)[3], complex float (*sa_m0_sig)[3], complex float (*sa_b1_sig)[3])
 {
 	struct sim_data* data = _data;
 	
-	enum { N = 10 };
+	enum { N = 13 };
     
 	float isochromats[data->seq.spin_num];
 
@@ -345,6 +346,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 	float *mxy = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) ); // [Mx, My, Mz], FIXME: better name
 	float *sa_r1 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
 	float *sa_r2 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
+	float *sa_b1 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
     
 	float flipangle_backup = data->pulse.flipangle;
 	float w_backup = data->voxel.w;
@@ -360,7 +362,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		
 		data->pulse.flipangle = flipangle_backup * slice_correction;
 
-		float xp[N] = { 0., 0., 1., 0., 0., 0., 0., 0., 0., 1. };
+		float xp[N] = { 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
 
 		if (data->voxel.spin_ensamble)
 			data->voxel.w = w_backup + isochromats[data->tmp.spin_counter]; //just on-resonant pulse for now.
@@ -418,7 +420,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 		while (data->tmp.rep_counter < data->seq.rep_num) {
 
 			if (data->seq.look_locker_assumptions)
-				collect_data( N, xp, mxy, sa_r1, sa_r2, data);
+				collect_data( N, xp, mxy, sa_r1, sa_r2, sa_b1, data);
 			
 			if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
 				apply_sim_matrix( N, xp, matrix_to_te );
@@ -430,7 +432,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 				apply_sim_matrix( N, xp, ( ( data->tmp.rep_counter % 2 == 0 ) ? matrix_to_te : matrix_to_te_PI) );
 
 			if (!data->seq.look_locker_assumptions)
-				collect_data( N, xp, mxy, sa_r1, sa_r2, data);
+				collect_data( N, xp, mxy, sa_r1, sa_r2, sa_b1, data);
 
 			apply_sim_matrix( N, xp, matrix_to_tr );
 
@@ -447,10 +449,11 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 	float sum_mxy_tmp;
 	float sum_sa_r1;
 	float sum_sa_r2; 
+	float sum_sa_b1;
 
 	for (int av_num = 0, dim = 0; dim < 3; dim++) {
 
-		sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = 0.;
+		sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = sum_sa_b1 = 0.;
 
 		for (int save_repe = 0, repe = 0; repe < data->seq.rep_num; repe++) {
 
@@ -462,6 +465,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 				sum_mxy_tmp += mxy[ (dim *data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
 				sum_sa_r1 += sa_r1[ (dim * data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
 				sum_sa_r2 += sa_r2[ (dim * data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
+				sum_sa_b1 += sa_b1[ (dim * data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
 			}
 			
 			if (av_num == data->seq.num_average_rep - 1) {
@@ -469,6 +473,7 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 				mxy_sig[save_repe][dim] = sum_mxy_tmp * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
 				sa_r1_sig[save_repe][dim] = sum_sa_r1 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
 				sa_r2_sig[save_repe][dim] = sum_sa_r2 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
+				sa_b1_sig[save_repe][dim] = sum_sa_b1 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
 				sa_m0_sig[save_repe][dim] = sum_mxy_tmp / (float)( data->seq.spin_num * data->seq.num_average_rep );
 
 				sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = 0.;
@@ -482,5 +487,6 @@ void matrix_bloch_simulation( void* _data, complex float (*mxy_sig)[3], complex 
 	free(mxy);
 	free(sa_r1);
 	free(sa_r2);
+	free(sa_b1);
 }
 
