@@ -1,6 +1,7 @@
- /*Authors:
+/* Author:
  * 	2018-2021 Nick Scholand <nick.scholand@med.uni-goettingen.de>
  */
+
 #include <math.h>
 #include <stdio.h>
 

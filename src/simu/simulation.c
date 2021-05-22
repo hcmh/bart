@@ -72,26 +72,6 @@ const struct simdata_grad simdata_grad_defaults = {
 };
 
 
-
-
-#if 0
-static void bloch_pdy2(void* _data, float* out, float t, const float* in)
-{
-	struct bloch_s* data = _data;
-	(void)t;
-
-	bloch_pdy((float(*)[3])out, in, data->r1, data->r2, data->gb_eff);
-}
-
-static void bloch_pdp2(void* _data, float* out, float t, const float* in)
-{
-	struct bloch_s* data = _data;
-	(void)t;
-
-	bloch_pdp((float(*)[3])out, in, data->r1, data->r2 , data->gb_eff);
-}
-#endif
-
 static void bloch_pdy3(void* _data, float* out, float t, const float* in)
 {
 	struct sim_data* data = _data;
