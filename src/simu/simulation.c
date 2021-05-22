@@ -169,9 +169,9 @@ void isochrom_distribution(struct sim_data* data, float* isochromats)
 }
 
 //If ADC gets phase, it has to be corrected manually
-void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N], float corr_angle)
+static void ADCcorr(int N, int P, float out[P + 1][N], float in[P + 1][N], float corr_angle)
 {
-	for (int i = 0; i < P + 2; i ++) {
+	for (int i = 0; i < P + 1; i ++) {
 
 		out[i][0] = in[i][0] * cosf(corr_angle) - in[i][1] * sinf(corr_angle);
 		out[i][1] = in[i][0] * sinf(corr_angle) + in[i][1] * cosf(corr_angle);
@@ -179,9 +179,9 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N], float corr_a
 	}
 }
 
-static void collect_signal(struct sim_data* data, int N, int P, float* mxy, float* sa_r1, float* sa_r2, float* sa_m0, float* sa_b1, float xp[P + 2][N])
+static void collect_signal(struct sim_data* data, int N, int P, float* mxy, float* sa_r1, float* sa_r2, float* sa_b1, float xp[P + 1][N])
 {
-	float tmp[5][3] = { { 0. }, { 0. }, { 0. }, { 0. }, { 0. } };
+	float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } };
 
 	ADCcorr(N, P, tmp, xp, -data->pulse.phase);
 
@@ -202,15 +202,10 @@ static void collect_signal(struct sim_data* data, int N, int P, float* mxy, floa
 			+  (data->tmp.rep_counter * data->seq.spin_num)
 			+ data->tmp.spin_counter] = tmp[2][i];
 
-		sa_m0[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-			+ (i * data->seq.spin_num * data->seq.rep_num)
-			+ (data->tmp.rep_counter * data->seq.spin_num)
-			+ data->tmp.spin_counter] = tmp[3][i];
-
 		sa_b1[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
 			+ (i * data->seq.spin_num * data->seq.rep_num)
 			+ (data->tmp.rep_counter * data->seq.spin_num)
-			+ data->tmp.spin_counter] = tmp[4][i];
+			+ data->tmp.spin_counter] = tmp[3][i];
 	}
 }
 
@@ -218,7 +213,7 @@ static void collect_signal(struct sim_data* data, int N, int P, float* mxy, floa
 
 
 //Module for RF-pulses
-void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 2][N])
+void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 1][N])
 {
 	data->pulse.pulse_applied = true;
 
@@ -242,7 +237,7 @@ void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, flo
 }
 
 
-void relaxation2(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 2][N], float st, float end)
+void relaxation2(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 1][N], float st, float end)
 {
 	data->pulse.pulse_applied = false;
 
@@ -256,17 +251,17 @@ void create_sim_block(struct sim_data* data)
 }
 
 
-static void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* sa_m0, float* sa_b1, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal)
+static void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* sa_b1, float h, float tol, int N, int P, float xp[P + 1][N], bool get_signal)
 {
 	if (get_signal && data->seq.look_locker_assumptions)
-		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_m0, sa_b1, xp);
+		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_b1, xp);
 
 	start_rf_pulse(data, h, tol, N, P, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->pulse.rf_end, data->seq.te);
 
 	if (get_signal && !data->seq.look_locker_assumptions)
-		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_m0, sa_b1, xp);
+		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_b1, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->seq.te, data->seq.tr);
 }
@@ -303,7 +298,6 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 	float* mxy = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
 	float* sa_r1 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
 	float* sa_r2 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
-	float* sa_m0 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
 	float* sa_b1 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
 
 	float flipangle_backup = data->pulse.flipangle;
@@ -317,7 +311,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 		data->pulse.flipangle = flipangle_backup * slice_factor;
 
-		float xp[5][3] = { { 0., 0. , 1. }, { 0. }, { 0. }, { 0. }, { 0. } }; //xp[P + (Sig, M0)][N]
+		float xp[4][3] = { { 0., 0. , 1. }, { 0. }, { 0. }, { 0. } }; //xp[P + (Sig)][N]
 
 		float h = 0.0001;
 
@@ -353,7 +347,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 				create_sim_block(&inv_data);
 
-				run_sim_block(&inv_data, NULL, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+				run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 
 				xyspoiling(N, P, xp, &inv_data);
 #else	// Apply perfect inversion
@@ -385,7 +379,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 				create_sim_block(&prep_data);
 
-				run_sim_block(&prep_data, NULL, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+				run_sim_block(&prep_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 			}
 			else if (5 == data->seq.seq_type)
 				relaxation2(data, h, tol, N, P, xp, 0., data->seq.prep_pulse_length);
@@ -416,12 +410,12 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 				else if ((0 == data->seq.seq_type) || (1 == data->seq.seq_type) || (4 == data->seq.seq_type))
 					data->pulse.phase = M_PI * (float)(data->tmp.rep_counter + data->tmp.run_counter * data->seq.rep_num);
 
-				run_sim_block(data, mxy, sa_r1, sa_r2, sa_m0, sa_b1, h, tol, N, P, xp, true);
+				run_sim_block(data, mxy, sa_r1, sa_r2, sa_b1, h, tol, N, P, xp, true);
 
 				//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
 				if ((2 == data->seq.seq_type) || (5 == data->seq.seq_type)) {
 
-					for (int i = 0; i < P + 2; i++) {
+					for (int i = 0; i < P + 1; i++) {
 
 						xp[i][0] = 0.;
 						xp[i][1] = 0.;
@@ -442,9 +436,9 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 					create_sim_block(&inv_data);
 
-					run_sim_block(&inv_data, NULL, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+					run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 
-					for (int i = 0; i < P + 2; i++) {
+					for (int i = 0; i < P + 1; i++) {
 
 						xp[i][0] = 0.;
 						xp[i][1] = 0.;
@@ -522,7 +516,6 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 	free(mxy);
 	free(sa_r1);
 	free(sa_r2);
-	free(sa_m0);
 	free(sa_b1);
 }
 
