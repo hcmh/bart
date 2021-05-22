@@ -513,6 +513,125 @@ static bool test_int_matrix_bloch_sa(void)
 UT_REGISTER_TEST(test_int_matrix_bloch_sa);
 
 
+static bool test_int_matrix_bloch_sa2(void)
+{
+	struct bloch_s data = { 1. / WATER_T1, 1. / WATER_T2, { 0., 0., GAMMA_H1 * SKYRA_GRADIENT * 0.0001 } };
+
+	float x0[13] = { 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
+	float x1[13];
+
+	float x0s[3] = { 1., 0., 0. };
+	float x2[3];
+	float x2r1[3];
+	float x2r2[3];
+	float end = 0.2;
+
+	float q = 1.E-3;
+
+	float m[13][13];
+	bloch_matrix_int_sa2(m, end, data.r1, data.r2, data.gb, 0.);
+
+	for (int i = 0; i < 13; i++) {
+
+		x1[i] = 0.;
+
+		for (int j = 0; j < 13; j++)
+			x1[i] += m[j][i] * x0[j];
+	}
+
+	bloch_relaxation(x2, end, x0s, data.r1, data.r2, data.gb);
+	bloch_relaxation(x2r1, end, x0s, data.r1 + q, data.r2, data.gb);
+	bloch_relaxation(x2r2, end, x0s, data.r1, data.r2 + q, data.gb);
+
+	assert(1. == x1[12]);
+
+
+	//Mxy
+	float err2 = 0.;
+	for (int i = 0; i < 3; i++)
+		err2 += powf(x1[i] - x2[i], 2.);
+
+	if (err2 > 1.E-6)
+		return false;
+
+
+	//S_R1
+	for (int i = 0; i < 3; i++) {
+
+		float err = fabsf(q * x1[3+i] - (x2r1[i] - x2[i]));
+
+		if (err > 1.E-6)
+			return false;
+	}
+
+	//S_R2
+	for (int i = 0; i < 3; i++) {
+
+		float err = fabsf(q * x1[6+i] - (x2r2[i] - x2[i]));
+
+		if (err > 1.E-6)
+			return false;
+	}
+
+	return true;
+
+}
+
+UT_REGISTER_TEST(test_int_matrix_bloch_sa2);
+
+
+static bool test_int_matrix_bloch_sa_pulse(void)
+{
+	float end = 0.2;
+
+	// FA 90 degree:	a = gamma * b1 * time
+	float b1 = M_PI / (2 * end);
+
+	struct bloch_s data = { 0., 0., { b1, 0., 0. } };
+
+	float x0[13] = { 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
+	float x1[13];
+
+	float x0s[3] = { 0., 0., 1. };
+	float x2[3];
+	float x2b1[3];
+
+	float q = 1.E-3;
+
+	float m[13][13];
+	bloch_matrix_int_sa2(m, end, data.r1, data.r2, data.gb, 0.);
+
+	for (int i = 0; i < 13; i++) {
+
+		x1[i] = 0.;
+
+		for (int j = 0; j < 13; j++)
+			x1[i] += m[j][i] * x0[j];
+	}
+
+	bloch_excitation(x2, end, x0s, data.r1, data.r2, data.gb);
+
+	data.gb[0] += q;
+	bloch_excitation(x2b1, end, x0s, data.r1, data.r2, data.gb);
+
+	assert(1. == x1[12]);
+
+	//S_B1
+	for (int i = 0; i < 3; i++) {
+
+		float err = fabsf(q * x1[9+i] - (x2b1[i] - x2[i]));
+
+		if (err > 1.E-6)
+			return false;
+	}
+
+	return true;
+
+}
+
+UT_REGISTER_TEST(test_int_matrix_bloch_sa_pulse);
+
+
 // SA tests including B1
 
 static void bloch_wrap_pdp(void* _data, float* out, float t, const float* in)

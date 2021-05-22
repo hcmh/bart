@@ -138,12 +138,41 @@ void bloch_matrix_ode_sa(float matrix[10][10], float r1, float r2, const float g
 	matf_copy(10, 10, matrix, m);
 }
 
-
 void bloch_matrix_int_sa(float matrix[10][10], float t, float r1, float r2, const float gb[3])
 {
 	float blm[10][10];
 	bloch_matrix_ode_sa(blm, r1, r2, gb);
 
 	mat_exp(10, t, matrix, blm);
+}
+
+void bloch_matrix_ode_sa2(float matrix[13][13], float r1, float r2, const float gb[3], float phase)
+{
+	float m0 = 1.;
+	float m[13][13] = {
+		{	-r2,		gb[2],		-gb[1],		0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.	},
+		{	-gb[2],		-r2,		gb[0],		0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.	},
+		{	gb[1],		-gb[0],		-r1,		0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	m0 * r1 },
+		{	0.,		0.,		0.,		-r2,	gb[2],	-gb[1],	0.,	0.,	0.,	0.,	0.,	0.,	0.	},
+		{	0.,		0.,		0.,		-gb[2],	-r2,	gb[0],	0.,	0.,	0.,	0.,	0.,	0.,	0.	},
+		{	0.,		0.,		-1.,		gb[1],	-gb[0],	-r1,	0.,	0.,	0.,	0.,	0.,	0.,	m0	},
+		{	-1.,		0.,		0.,		0.,	0.,	0.,	-r2,	gb[2],	-gb[1],	0.,	0.,	0.,	0.	},
+		{	0.,		-1.,		0.,		0.,	0.,	0.,	-gb[2],	-r2,	gb[0],	0.,	0.,	0.,	0.	},
+		{	0.,		0.,		0.,		0.,	0.,	0.,	gb[1],	-gb[0],	-r1,	0.,	0.,	0.,	0.	},
+		{	0.,		0.,		-sinf(phase),	0.,	0.,	0.,	0.,	0.,	0.,	-r2,	gb[2],	-gb[1],	0.	},
+		{	0.,		0.,		cosf(phase),	0.,	0.,	0.,	0.,	0.,	0.,	-gb[2],	-r2,	gb[0],	0.	},
+		{	sinf(phase),	-cosf(phase),	0.,		0.,	0.,	0.,	0.,	0.,	0.,	gb[1],	-gb[0],	-r1,	0.	},
+		{	0.,		0.,		0.,		0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.,	0.	},
+	};
+
+	matf_copy(13, 13, matrix, m);
+}
+
+void bloch_matrix_int_sa2(float matrix[13][13], float t, float r1, float r2, const float gb[3], float phase)
+{
+	float blm[13][13];
+	bloch_matrix_ode_sa2(blm, r1, r2, gb, phase);
+
+	mat_exp(13, t, matrix, blm);
 }
 
