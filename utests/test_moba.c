@@ -209,7 +209,6 @@ UT_REGISTER_TEST(test_nlop_T1relax_der_adj);
 
 
 
-
 static bool test_nlop_Blochfun(void)
 {
 	enum { N = 16 };

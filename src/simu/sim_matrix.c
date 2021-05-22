@@ -29,9 +29,9 @@ static void ode_matrix_fun_simu(void* _data, float* x, float t, const float* in)
 
 	if (sim_data->pulse.pulse_applied && t <= sim_data->pulse.rf_end) { 
 		
-		float w1 = pulse_sinc( &sim_data->pulse, t );
-		sim_data->grad.gb_eff[0] = cosf( sim_data->pulse.phase ) * w1 + sim_data->grad.gb[0];
-		sim_data->grad.gb_eff[1] = sinf( sim_data->pulse.phase ) * w1 + sim_data->grad.gb[1];
+		float w1 = pulse_sinc(&sim_data->pulse, t);
+		sim_data->grad.gb_eff[0] = cosf(sim_data->pulse.phase) * w1 + sim_data->grad.gb[0];
+		sim_data->grad.gb_eff[1] = sinf(sim_data->pulse.phase) * w1 + sim_data->grad.gb[1];
 	}
 	else {
 
@@ -317,9 +317,9 @@ static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa
 	float tmp[N];
 
 	if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
-		ADCcorrection(N, tmp, xp, 0);	// no alternating pulse scheme for FLASH sequences
+		ADCcorrection(N, tmp, xp, 0.);	// no alternating pulse scheme for FLASH sequences
 	else
-		ADCcorrection(N, tmp, xp, (data->tmp.rep_counter%2) ? -M_PI : 0); // alternating pulse scheme for bSSFP sequences
+		ADCcorrection(N, tmp, xp, (data->tmp.rep_counter%2) ? -M_PI : 0.); // alternating pulse scheme for bSSFP sequences
 
 	for (int i = 0; i < 3; i++) {
 

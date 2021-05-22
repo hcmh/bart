@@ -24,10 +24,13 @@
 static bool test_ode_bloch_simulation(void)
 {
 	float e = 1.E-3;
+
 	float tol = 1.E-4;
+
 	float t1 = 1.5;
 	float t2 = 0.1;
 	float m0 = 1;
+
 	int repetition = 500;
 
 	struct sim_data sim_data;
@@ -81,7 +84,7 @@ static bool test_ode_bloch_simulation(void)
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++) 
 		for (int j = 0; j < 3; j++) {
 
-			err = cabsf( e * sa_r1_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
+			err = cabsf(e * sa_r1_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
 
 			if (tol < err) {
 				
@@ -104,7 +107,7 @@ static bool test_ode_bloch_simulation(void)
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
 		for (int j = 0; j < 3; j++) {
 		
-			err = cabsf( e * sa_r2_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
+			err = cabsf(e * sa_r2_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
 			
 			if (tol < err) {
 				
@@ -126,11 +129,11 @@ static bool test_ode_bloch_simulation(void)
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
 		for (int j = 0; j < 3; j++) {
 
-			err = cabsf( e * sa_m0_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
+			err = cabsf(e * sa_m0_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
 
 			if (tol < err) {
 
-				printf("Error Dens: (%d,%d)\t=>\t%f\n", i,j, err);
+				printf("Error M0: (%d,%d)\t=>\t%f\n", i,j, err);
 				return false;
 			}
 		}
@@ -148,7 +151,7 @@ static bool test_ode_bloch_simulation(void)
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
 		for (int j = 0; j < 3; j++) {
 
-			err = cabsf( e * sa_m0_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
+			err = cabsf(e * sa_m0_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
 
 			if (1.E-3 < err) {
 
@@ -186,14 +189,14 @@ static bool test_ode_irbssfp_simulation(void)
 	sim_data.seq.num_average_rep = aver_num;
 
 	sim_data.voxel = simdata_voxel_defaults;
-	sim_data.voxel.r1 = 1 / t1n;
-	sim_data.voxel.r2 = 1 / t2n;
+	sim_data.voxel.r1 = 1/t1n;
+	sim_data.voxel.r2 = 1/t2n;
 	sim_data.voxel.m0 = m0n;
 	sim_data.voxel.w = 0;
 
 	sim_data.pulse = simdata_pulse_defaults;
 	sim_data.pulse.flipangle = angle;
-	sim_data.pulse.rf_end = 0.0000;			// Choose HARD-PULSE Approximation -> same assumptions as analytical model
+	sim_data.pulse.rf_end = 0.;			// Choose HARD-PULSE Approximation -> same assumptions as analytical model
 	sim_data.grad = simdata_grad_defaults;
 	sim_data.tmp = simdata_tmp_defaults;
 
@@ -221,9 +224,9 @@ static bool test_ode_irbssfp_simulation(void)
 	 * Magn Reson Med, 69: 71-81. doi:10.1002/mrm.24225
 	 */
 
-	t1s = 1 / ( (cosf( fa/2. )*cosf( fa/2. ))/t1n + (sinf( fa/2. )*sinf( fa/2. ))/t2n );
-	s0 = m0n * sinf( fa/2. );
-	stst = m0n * sinf(fa) / ( (t1n/t2n + 1) - cosf(fa) * (t1n/t2n -1) );
+	t1s = 1 / ((cosf(fa/2.)*cosf(fa/2.))/t1n + (sinf(fa/2.)*sinf(fa/2.))/t2n);
+	s0 = m0n * sinf(fa/2.);
+	stst = m0n * sinf(fa) / ((t1n/t2n + 1) - cosf(fa) * (t1n/t2n-1));
 	inv = 1 + s0 / stst;
 
 	float out_simu;
@@ -233,13 +236,13 @@ static bool test_ode_irbssfp_simulation(void)
 
 	for (int z = 0; z < repetition; z++) {
 
-		out_theory = fabsf( stst * ( 1 - inv * expf( - ( z * sim_data.seq.tr + sim_data.seq.tr )  / t1s )) ); //Does NOT include phase information! //+data.tr through alpha/2 preparation
+		out_theory = fabsf(stst * (1 - inv * expf(-(z*sim_data.seq.tr + sim_data.seq.tr)/t1s))); //Does NOT include phase information! //+data.tr through alpha/2 preparation
 
-		out_simu = cabsf( mxy_sig[z][1] + mxy_sig[z][0] * I );
+		out_simu = cabsf(mxy_sig[z][1] + mxy_sig[z][0]*I);
 
-		err = fabsf( out_simu - out_theory );
+		err = fabsf(out_simu - out_theory);
 
-		if (10E-4 < err ) {
+		if (10E-4 < err) {
 
 			debug_printf(DP_ERROR, "err: %f,\t out_simu: %f,\t out_theory: %f\n", err, out_simu, out_theory);
 			debug_printf(DP_ERROR, "Error in sequence test\n see: -> test_simulation() in test_ode_simu.c\n");
@@ -274,8 +277,8 @@ static bool test_matrix_ode_simu_comparison(void)
 	sim_data.seq.prep_pulse_length = 0.001;
 
 	sim_data.voxel = simdata_voxel_defaults;
-	sim_data.voxel.r1 = 1 / t1n;
-	sim_data.voxel.r2 = 1 / t2n;
+	sim_data.voxel.r1 = 1/t1n;
+	sim_data.voxel.r2 = 1/t2n;
 	sim_data.voxel.m0 = m0n;
 	sim_data.voxel.w = 0;
 
@@ -309,19 +312,19 @@ static bool test_matrix_ode_simu_comparison(void)
 	for (int rep = 0; rep < repetition; rep++)
 		for ( int dim = 0; dim < 3; dim++) {
 
-			err = cabsf( mxySig_matexp[rep][dim] - mxySig_ode[rep][dim] );
+			err = cabsf(mxySig_matexp[rep][dim]-mxySig_ode[rep][dim]);
 			if ( err > tol )
 				return 0;
 
-			err = cabsf( saR1Sig_matexp[rep][dim] - saR1Sig_ode[rep][dim] );
+			err = cabsf(saR1Sig_matexp[rep][dim]-saR1Sig_ode[rep][dim]);
 			if ( err > tol )
 				return 0;
 
-			err = cabsf( saR2Sig_matexp[rep][dim] - saR2Sig_ode[rep][dim] );
+			err = cabsf(saR2Sig_matexp[rep][dim]-saR2Sig_ode[rep][dim]);
 			if ( err > tol )
 				return 0;
 
-			err = cabsf( saDensSig_matexp[rep][dim] - saDensSig_ode[rep][dim] );
+			err = cabsf(saDensSig_matexp[rep][dim]-saDensSig_ode[rep][dim]);
 			if ( err > tol )
 				return 0;
 
