@@ -243,17 +243,17 @@ void create_sim_block(struct sim_data* data)
 }
 
 
-void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* saM0Signal, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal)
+static void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* sa_m0, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal)
 {
 	if (get_signal && data->seq.look_locker_assumptions)
-		collect_signal(data, N, P, mxy, sa_r1, sa_r2, saM0Signal, xp);
+		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_m0, xp);
 
 	start_rf_pulse(data, h, tol, N, P, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->pulse.rf_end, data->seq.te);
 
 	if (get_signal && !data->seq.look_locker_assumptions)
-		collect_signal(data, N, P, mxy, sa_r1, sa_r2, saM0Signal, xp);
+		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_m0, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->seq.te, data->seq.tr);
 }
