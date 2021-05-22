@@ -108,6 +108,14 @@ static void bloch_pdp3(void* _data, float* out, float t, const float* in)
 	bloch_pdp((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff);
 }
 
+static void bloch_wrap_pdp(void* _data, float* out, float t, const float* in)
+{
+	struct sim_data* data = _data;
+	(void)t;
+
+	bloch_b1_pdp((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff, data->pulse.phase);
+}
+
 
 static void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 {
@@ -171,9 +179,9 @@ void ADCcorr(int N, int P, float out[P + 2][N], float in[P + 2][N], float corr_a
 	}
 }
 
-static void collect_signal(struct sim_data* data, int N, int P, float* mxy, float* sa_r1, float* sa_r2, float* sa_m0, float xp[P + 2][N])
+static void collect_signal(struct sim_data* data, int N, int P, float* mxy, float* sa_r1, float* sa_r2, float* sa_m0, float* sa_b1, float xp[P + 2][N])
 {
-	float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } };
+	float tmp[5][3] = { { 0. }, { 0. }, { 0. }, { 0. }, { 0. } };
 
 	ADCcorr(N, P, tmp, xp, -data->pulse.phase);
 
@@ -198,6 +206,11 @@ static void collect_signal(struct sim_data* data, int N, int P, float* mxy, floa
 			+ (i * data->seq.spin_num * data->seq.rep_num)
 			+ (data->tmp.rep_counter * data->seq.spin_num)
 			+ data->tmp.spin_counter] = tmp[3][i];
+
+		sa_b1[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
+			+ (i * data->seq.spin_num * data->seq.rep_num)
+			+ (data->tmp.rep_counter * data->seq.spin_num)
+			+ data->tmp.spin_counter] = tmp[4][i];
 	}
 }
 
@@ -224,7 +237,7 @@ void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, flo
 
 	} else  {
 
-		ode_direct_sa(h, tol, N, P, xp, data->pulse.rf_start, data->pulse.rf_end, data,  bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
+		ode_direct_sa(h, tol, N, P, xp, data->pulse.rf_start, data->pulse.rf_end, data,  bloch_simu_fun2, bloch_pdy3, bloch_wrap_pdp);
 	}
 }
 
@@ -233,7 +246,7 @@ void relaxation2(struct sim_data* data, float h, float tol, int N, int P, float 
 {
 	data->pulse.pulse_applied = false;
 
-	ode_direct_sa(h, tol, N, P, xp, st, end, data, bloch_simu_fun2, bloch_pdy3, bloch_pdp3);
+	ode_direct_sa(h, tol, N, P, xp, st, end, data, bloch_simu_fun2, bloch_pdy3, bloch_wrap_pdp);
 }
 
 
@@ -243,17 +256,17 @@ void create_sim_block(struct sim_data* data)
 }
 
 
-static void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* sa_m0, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal)
+static void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float* sa_r2, float* sa_m0, float* sa_b1, float h, float tol, int N, int P, float xp[P + 2][N], bool get_signal)
 {
 	if (get_signal && data->seq.look_locker_assumptions)
-		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_m0, xp);
+		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_m0, sa_b1, xp);
 
 	start_rf_pulse(data, h, tol, N, P, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->pulse.rf_end, data->seq.te);
 
 	if (get_signal && !data->seq.look_locker_assumptions)
-		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_m0, xp);
+		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_m0, sa_b1, xp);
 
 	relaxation2(data, h, tol, N, P, xp, data->seq.te, data->seq.tr);
 }
@@ -274,12 +287,12 @@ static void xyspoiling(int N, int P, float xp[P + 2][N], struct sim_data* simdat
 #endif
 
 
-void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], complex float (*sa_r1_sig)[3], complex float (*sa_r2_sig)[3], complex float (*sa_m0_sig)[3])
+void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], complex float (*sa_r1_sig)[3], complex float (*sa_r2_sig)[3], complex float (*sa_m0_sig)[3], complex float (*sa_b1_sig)[3])
 {
 	float tol = 10E-6;
 
 	int N = 3;
-	int P = 2;
+	int P = 3;
  
 	float isochromats[data->seq.spin_num];
 
@@ -291,6 +304,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 	float* sa_r1 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
 	float* sa_r2 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
 	float* sa_m0 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
+	float* sa_b1 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
 
 	float flipangle_backup = data->pulse.flipangle;
 	float w_backup = data->voxel.w;
@@ -303,7 +317,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 		data->pulse.flipangle = flipangle_backup * slice_factor;
 
-		float xp[4][3] = { { 0., 0. , 1. }, { 0. }, { 0. }, { 0. } }; //xp[P + 2][N]
+		float xp[5][3] = { { 0., 0. , 1. }, { 0. }, { 0. }, { 0. }, { 0. } }; //xp[P + (Sig, M0)][N]
 
 		float h = 0.0001;
 
@@ -339,7 +353,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 				create_sim_block(&inv_data);
 
-				run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+				run_sim_block(&inv_data, NULL, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 
 				xyspoiling(N, P, xp, &inv_data);
 #else	// Apply perfect inversion
@@ -371,7 +385,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 				create_sim_block(&prep_data);
 
-				run_sim_block(&prep_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+				run_sim_block(&prep_data, NULL, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 			}
 			else if (5 == data->seq.seq_type)
 				relaxation2(data, h, tol, N, P, xp, 0., data->seq.prep_pulse_length);
@@ -402,7 +416,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 				else if ((0 == data->seq.seq_type) || (1 == data->seq.seq_type) || (4 == data->seq.seq_type))
 					data->pulse.phase = M_PI * (float)(data->tmp.rep_counter + data->tmp.run_counter * data->seq.rep_num);
 
-				run_sim_block(data, mxy, sa_r1, sa_r2, sa_m0, h, tol, N, P, xp, true);
+				run_sim_block(data, mxy, sa_r1, sa_r2, sa_m0, sa_b1, h, tol, N, P, xp, true);
 
 				//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
 				if ((2 == data->seq.seq_type) || (5 == data->seq.seq_type)) {
@@ -428,7 +442,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 					create_sim_block(&inv_data);
 
-					run_sim_block(&inv_data, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
+					run_sim_block(&inv_data, NULL, NULL, NULL, NULL, NULL, h, tol, N, P, xp, false);
 
 					for (int i = 0; i < P + 2; i++) {
 
@@ -450,13 +464,16 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 	* ---------------  Sum up magnetization  -----------------------
 	* ------------------------------------------------------------*/
 
+	// FIXME: Clean up code!!!
+
 	float sum_mxy_tmp;
 	float sum_sa_r1;
-	float sum_sa_r2; 
+	float sum_sa_r2;
+	float sum_sa_b1;
 
 	for (int av_num = 0, dim = 0; dim < 3; dim++) {
 
-		sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = 0.;
+		sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = sum_sa_b1 = 0.;
 
 		for (int save_repe = 0, repe = 0; repe < data->seq.rep_num; repe++) {
 
@@ -479,6 +496,11 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 							+ (dim * data->seq.spin_num * data->seq.rep_num)
 							+ (repe * data->seq.spin_num)
 							+ spin];
+
+				sum_sa_b1 += sa_b1[((data->seq.run_num - 1) * 3 * data->seq.spin_num * data->seq.rep_num)
+							+ (dim * data->seq.spin_num * data->seq.rep_num)
+							+ (repe * data->seq.spin_num)
+							+ spin];
 			}
 
 			if (av_num == (data->seq.num_average_rep - 1)) {
@@ -486,6 +508,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 					mxy_sig[save_repe][dim] = sum_mxy_tmp * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
 					sa_r1_sig[save_repe][dim] = sum_sa_r1 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
 					sa_r2_sig[save_repe][dim] = sum_sa_r2 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
+					sa_b1_sig[save_repe][dim] = sum_sa_b1 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
 					sa_m0_sig[save_repe][dim] = sum_mxy_tmp / (float)( data->seq.spin_num * data->seq.num_average_rep );
 
 					sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = 0.;
@@ -500,6 +523,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 	free(sa_r1);
 	free(sa_r2);
 	free(sa_m0);
+	free(sa_b1);
 }
 
 
