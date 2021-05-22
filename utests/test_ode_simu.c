@@ -134,6 +134,29 @@ static bool test_ode_bloch_simulation(void)
 				return false;
 			}
 		}
+
+	//-------------------------------------------------------
+	//-------------------- B1 Test --------------------------
+	//-------------------------------------------------------
+	struct sim_data data_b1 = sim_data;
+
+	data_b1.pulse.flipangle += e;
+
+	ode_bloch_simulation3(&data_b1, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
+
+	//Verify gradient
+	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
+		for (int j = 0; j < 3; j++) {
+
+			err = cabsf( e * sa_m0_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
+
+			if (1.E-3 < err) {
+
+				printf("Error B1: (%d,%d)\t=>\t%f\n", i,j, err);
+				return false;
+			}
+		}
+
 	return 1;
 }
 
