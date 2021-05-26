@@ -466,6 +466,16 @@ bool opt_float_vec3(void* ptr, char c, const char* optarg)
 	return false;
 }
 
+bool opt_float_vec5(void* ptr, char c, const char* optarg)
+{
+	UNUSED(c);
+	int r = sscanf(optarg, "%f:%f:%f:%f:%f", &(*(float(*)[5])ptr)[0], &(*(float(*)[5])ptr)[1], &(*(float(*)[5])ptr)[2], &(*(float(*)[5])ptr)[3], &(*(float(*)[5])ptr)[4]);
+
+	assert(5 == r);
+
+	return false;
+}
+
 
 bool opt_vec3(void* ptr, char c, const char* optarg)
 {
