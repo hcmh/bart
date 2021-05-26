@@ -451,53 +451,52 @@ tests/test-moba-bloch-irflash-r2fix: traj repmat phantom signal fmac ones scale 
 	$(TOOLDIR)/nrmse -t 0.00001 ones.ra r2map.ra			    		;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
+# tests/test-moba-bloch-irbssfp: traj repmat phantom signal fmac index moba spow slice scale nrmse
+# 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
+# 	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
+# 	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
+# 	$(TOOLDIR)/phantom -c -k -t traj.ra basis_geom.ra				;\
+# 	$(TOOLDIR)/signal -B -I -r 0.0045 -e 0.00225 -f45 -n 1000 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
+# 	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra k_space.ra		;\
+# 	$(TOOLDIR)/index 5 1000 dummy_ti.ra 	;\
+# 	$(TOOLDIR)/moba --sim.seq B --sim.type O --seq.tr 0.0045 --seq.te 0.00225 --seq.fa 45 --seq.rf-duration 0.00001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0.0001 --seq.scaling 1:1:1:0:1 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.0001 -B 0.0001 -t traj.ra k_space.ra dummy_ti.ra reco.ra sens.ra	;\
+# 	$(TOOLDIR)/spow -- -1 reco.ra reco2.ra				;\
+# 	$(TOOLDIR)/slice 6 0 reco2.ra t1map.ra				;\
+# 	$(TOOLDIR)/phantom -x 16 -c ref_geom.ra				;\
+# 	$(TOOLDIR)/fmac t1map.ra ref_geom.ra masked_t1.ra				;\
+# 	$(TOOLDIR)/scale -- 1.12 ref_geom.ra ref_t1.ra				;\
+# 	$(TOOLDIR)/nrmse -t 0.007 masked_t1.ra ref_t1.ra				;\
+# 	$(TOOLDIR)/slice 6 2 reco2.ra t2map.ra				;\
+# 	$(TOOLDIR)/fmac t2map.ra ref_geom.ra masked_t2.ra				;\
+# 	$(TOOLDIR)/scale -- 0.1 ref_geom.ra ref_t2.ra				;\
+# 	$(TOOLDIR)/nrmse -t 0.006 masked_t2.ra ref_t2.ra				;\
+# 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+# 	touch $@
 
-tests/test-moba-bloch-irbssfp: traj repmat phantom signal fmac index moba spow slice scale nrmse
-	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
-	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
-	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
-	$(TOOLDIR)/phantom -c -k -t traj.ra basis_geom.ra				;\
-	$(TOOLDIR)/signal -B -I -r 0.0045 -e 0.00225 -f45 -n 1000 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
-	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra k_space.ra		;\
-	$(TOOLDIR)/index 5 1000 dummy_ti.ra 	;\
-	$(TOOLDIR)/moba --sim.seq B --sim.type O --seq.tr 0.0045 --seq.te 0.00225 --seq.fa 45 --seq.rf-duration 0.00001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0.00001 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.0001 -B 0.0001 -t traj.ra k_space.ra dummy_ti.ra reco.ra sens.ra	;\
-	$(TOOLDIR)/spow -- -1 reco.ra reco2.ra				;\
-	$(TOOLDIR)/slice 6 0 reco2.ra t1map.ra				;\
-	$(TOOLDIR)/phantom -x 16 -c ref_geom.ra				;\
-	$(TOOLDIR)/fmac t1map.ra ref_geom.ra masked_t1.ra				;\
-	$(TOOLDIR)/scale -- 1.12 ref_geom.ra ref_t1.ra				;\
-	$(TOOLDIR)/nrmse -t 0.007 masked_t1.ra ref_t1.ra				;\
-	$(TOOLDIR)/slice 6 2 reco2.ra t2map.ra				;\
-	$(TOOLDIR)/fmac t2map.ra ref_geom.ra masked_t2.ra				;\
-	$(TOOLDIR)/scale -- 0.1 ref_geom.ra ref_t2.ra				;\
-	$(TOOLDIR)/nrmse -t 0.006 masked_t2.ra ref_t2.ra				;\
-	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
-	touch $@
-
-tests/test-moba-bloch-irbssfp-modbloch: traj repmat phantom signal fmac index moba spow modbloch slice nrmse
-	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
-	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
-	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
-	$(TOOLDIR)/phantom -c -k -t traj.ra basis_geom.ra				;\
-	$(TOOLDIR)/signal -B -I -r 0.0045 -e 0.00225 -f45 -n 1000 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
-	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra k_space.ra		;\
-	$(TOOLDIR)/index 5 1000 dummy_ti.ra 	;\
-	$(TOOLDIR)/moba --sim.seq B --sim.type O --seq.tr 0.0045 --seq.te 0.00225 --seq.fa 45 --seq.rf-duration 0.00001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0.00001 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.0001 -B 0.0001 -t traj.ra k_space.ra dummy_ti.ra rreco.ra sens.ra	;\
-	$(TOOLDIR)/spow -- -1 rreco.ra reco.ra		;\
-	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001:4 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -t traj.ra k_space.ra reco2.ra sens2.ra	;\
-	$(TOOLDIR)/phantom -x 16 -c ref_geom.ra				;\
-	$(TOOLDIR)/slice 6 0 reco.ra t1map.ra				;\
-	$(TOOLDIR)/slice 6 0 reco2.ra t1map2.ra				;\
-	$(TOOLDIR)/fmac t1map.ra ref_geom.ra masked_t1.ra				;\
-	$(TOOLDIR)/fmac t1map2.ra ref_geom.ra masked2_t1.ra				;\
-	$(TOOLDIR)/nrmse -t 0.001 masked_t1.ra masked2_t1.ra				;\
-	$(TOOLDIR)/slice 6 2 reco.ra t2map.ra				;\
-	$(TOOLDIR)/slice 6 2 reco2.ra t2map2.ra				;\
-	$(TOOLDIR)/fmac t2map.ra ref_geom.ra masked_t2.ra				;\
-	$(TOOLDIR)/fmac t2map2.ra ref_geom.ra masked2_t2.ra				;\
-	$(TOOLDIR)/nrmse -t 0.004 masked_t2.ra masked2_t2.ra				;\
-	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
-	touch $@
+# tests/test-moba-bloch-irbssfp-modbloch: traj repmat phantom signal fmac index moba spow modbloch slice nrmse
+# 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
+# 	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
+# 	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
+# 	$(TOOLDIR)/phantom -c -k -t traj.ra basis_geom.ra				;\
+# 	$(TOOLDIR)/signal -B -I -r 0.0045 -e 0.00225 -f45 -n 1000 -1 1.12:1.12:1 -2 0.1:0.1:1 basis_simu.ra	;\
+# 	$(TOOLDIR)/fmac basis_geom.ra basis_simu.ra k_space.ra		;\
+# 	$(TOOLDIR)/index 5 1000 dummy_ti.ra 	;\
+# 	$(TOOLDIR)/moba --sim.seq B --sim.type O --seq.tr 0.0045 --seq.te 0.00225 --seq.fa 45 --seq.rf-duration 0.00001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0.00001 --seq.scaling 1:1:1:0:1 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.0001 -B 0.0001 -t traj.ra k_space.ra dummy_ti.ra rreco.ra sens.ra	;\
+# 	$(TOOLDIR)/spow -- -1 rreco.ra reco.ra		;\
+# 	$(TOOLDIR)/modbloch -P 1:0.0045:0.00225:45:0.00001:0.00001:0.00001:4 -R2 -f1 -o0 -l1 -n0 -i15 -a1 -m0 -r0 -t traj.ra k_space.ra reco2.ra sens2.ra	;\
+# 	$(TOOLDIR)/phantom -x 16 -c ref_geom.ra				;\
+# 	$(TOOLDIR)/slice 6 0 reco.ra t1map.ra				;\
+# 	$(TOOLDIR)/slice 6 0 reco2.ra t1map2.ra				;\
+# 	$(TOOLDIR)/fmac t1map.ra ref_geom.ra masked_t1.ra				;\
+# 	$(TOOLDIR)/fmac t1map2.ra ref_geom.ra masked2_t1.ra				;\
+# 	$(TOOLDIR)/nrmse -t 0.001 masked_t1.ra masked2_t1.ra				;\
+# 	$(TOOLDIR)/slice 6 2 reco.ra t2map.ra				;\
+# 	$(TOOLDIR)/slice 6 2 reco2.ra t2map2.ra				;\
+# 	$(TOOLDIR)/fmac t2map.ra ref_geom.ra masked_t2.ra				;\
+# 	$(TOOLDIR)/fmac t2map2.ra ref_geom.ra masked2_t2.ra				;\
+# 	$(TOOLDIR)/nrmse -t 0.004 masked_t2.ra masked2_t2.ra				;\
+# 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+# 	touch $@
 
 TESTS_SLOW += tests/test-moba-t1 tests/test-moba-t1-sms tests/test-moba-t1-no-IR
 TESTS_SLOW += tests/test-moba-t1-magn tests/test-moba-t1-nonCartesian tests/test-moba-t1-nufft
@@ -510,4 +509,3 @@ TESTS_SLOW += tests/test-moba-t1-alpha-non-cartesian
 TESTS_SLOW += tests/test-moba-t1-alpha-in-non-cartesian
 TESTS_SLOW += tests/test-moba-bloch-irflash tests/test-moba-bloch-t1-alpha-in-comparison
 TESTS_SLOW += tests/test-moba-bloch-b1-input tests/test-moba-bloch-irflash-multi-coil tests/test-moba-bloch-irflash-r2fix
-TESTS_SLOW += tests/test-moba-bloch-irbssfp tests/test-moba-bloch-irbssfp-modbloch
