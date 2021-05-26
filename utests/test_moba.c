@@ -33,6 +33,7 @@
 #include "moba/T1fun.h"
 #include "moba/model_Bloch.h"
 #include "moba/blochfun.h"
+#include "moba/blochfun2.h"
 #include "moba/T1relax.h"
 #include "moba/T1MOLLI.h"
 #include "moba/T1relax_so.h"
@@ -241,6 +242,62 @@ static bool test_nlop_Blochfun(void)
 }
 
 UT_REGISTER_TEST(test_nlop_Blochfun);
+
+
+static bool test_nlop_Blochfun2(void)
+{
+	enum { N = 16 };
+	long map_dims[N] = { 16, 16, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long out_dims[N] = { 16, 16, 1, 1, 1, 500, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long in_dims[N] = { 16, 16, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+	long all_dims[N] = { 16, 16, 1, 1, 1, 500, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+	complex float* dst = md_alloc(N, out_dims, CFL_SIZE);
+	complex float* src = md_alloc(N, in_dims, CFL_SIZE);
+
+	bool gpu_use = false;
+
+	// Define simulation parameter
+	struct modBlochFit fit_para = modBlochFit_defaults;
+	fit_para.sequence = 5;
+
+	// Initialize maps with ones
+	md_zfill(N, in_dims, src, 1.0);
+
+	// FT B1 map to work with Sobolev norm and reasonable FAs
+
+	long pos[DIMS] = { [0 ... DIMS - 1] = 0 };
+	pos[COEFF_DIM] = 3;
+
+	complex float* tmp = md_alloc(DIMS, in_dims, CFL_SIZE);
+
+	const struct linop_s* linop_fftc = linop_fftc_create(DIMS, map_dims, FFT_FLAGS);
+
+	md_copy_block(DIMS, pos, map_dims, tmp, in_dims, src, CFL_SIZE);
+	linop_forward_unchecked(linop_fftc, tmp, tmp);
+	md_copy_block(DIMS, pos, in_dims, src, map_dims, tmp, CFL_SIZE);
+
+	linop_free(linop_fftc);
+
+	md_free(tmp);
+
+	// Create operator
+	struct nlop_s* op_Bloch = nlop_Bloch_create2(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
+
+	nlop_apply(op_Bloch, N, out_dims, dst, N, in_dims, src);
+
+	// Test
+	float err = linop_test_adjoint(nlop_get_derivative(op_Bloch, 0, 0));
+
+	nlop_free(op_Bloch);
+
+	md_free(src);
+	md_free(dst);
+
+	UT_ASSERT(err < 1.E-3);
+}
+
+UT_REGISTER_TEST(test_nlop_Blochfun2);
 
 
 
