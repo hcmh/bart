@@ -717,6 +717,9 @@ int main_moba(int argc, char* argv[argc])
 
 		md_copy_block(DIMS, pos, tmp_dims, tmp, img_dims, img, CFL_SIZE);
 		md_zsmul(DIMS, tmp_dims, tmp, tmp, initval[i]);
+		if (0. != conf_model.sim.scale[i])
+			md_zsmul(DIMS, tmp_dims, tmp, tmp, 1. / conf_model.sim.scale[i]);
+
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp, CFL_SIZE);
 	}
 
@@ -736,8 +739,6 @@ int main_moba(int argc, char* argv[argc])
 
 		linop_free(linop_fftc);
 	}
-
-	md_free(tmp);
 
 	// Start reconstruction
 
@@ -763,6 +764,23 @@ int main_moba(int argc, char* argv[argc])
 		meco_recon(&conf_model.opt, mgre_model, false, fat_spec, scale_fB0, true, out_origin_maps, img_dims, img, coil_dims, sens, init_dims, init, mask, conf_model.irflash.input_TI, pat_dims, pattern, grid_dims, k_grid_data);
 	else
 		moba_recon(&conf_model, dims, img, sens, pattern, mask, k_grid_data, use_gpu);
+
+
+	// Rescale estimated parameter maps
+
+	for (int i = 0; i < img_dims[COEFF_DIM]; i++) {
+
+		pos[COEFF_DIM] = i;
+
+		md_copy_block(DIMS, pos, tmp_dims, tmp, img_dims, img, CFL_SIZE);
+
+		if (0. != conf_model.sim.scale[i])
+			md_zsmul(DIMS, tmp_dims, tmp, tmp, conf_model.sim.scale[i]);
+
+		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp, CFL_SIZE);
+	}
+
+	md_free(tmp);
 
 	md_free(mask);
 
