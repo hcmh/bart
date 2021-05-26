@@ -364,11 +364,14 @@ tests/test-moba-bloch-t1-alpha-in-comparison: traj repmat phantom signal fmac on
 	$(TOOLDIR)/index 5 300 tmp1.ra							;\
 	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra						;\
 	$(TOOLDIR)/moba -A famap.ra -L -i11 --spokes-per-TR 12 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
-	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 -i11 --spokes-per-TR 12 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco2.ra sens2.ra	;\
+	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 --seq.scaling 1:1:1:0:1 -i11 --spokes-per-TR 12 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco2.ra sens2.ra	;\
+	$(TOOLDIR)/phantom -x12 -c circ.ra                                 		;\
 	$(TOOLDIR)/slice 6 1 reco.ra r1map.ra						;\
+	$(TOOLDIR)/fmac r1map.ra circ.ra r1map_masked.ra              			;\
 	$(TOOLDIR)/slice 6 0 reco2.ra r1map2.ra						;\
-	$(TOOLDIR)/nrmse -t 0.007 r1map2.ra r1map.ra			  		;\
-	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
+	$(TOOLDIR)/fmac r1map2.ra circ.ra r1map2_masked.ra              		;\
+	$(TOOLDIR)/nrmse -t 0.007 r1map2_masked.ra r1map_masked.ra			;\
+	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra					;\
 	$(TOOLDIR)/phantom -x12 -c circ.ra						;\
 	$(TOOLDIR)/fmac t1map.ra circ.ra masked.ra	    				;\
 	$(TOOLDIR)/scale -- 1.12 circ.ra ref.ra			    			;\
@@ -385,48 +388,7 @@ tests/test-moba-bloch-irflash: traj repmat phantom signal fmac ones scale index 
 	$(TOOLDIR)/fmac circ.ra signal.ra k_space.ra					;\
 	$(TOOLDIR)/index 5 1000 tmp1.ra   						;\
 	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                    	       		;\
-	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
-	$(TOOLDIR)/slice 6 0 reco.ra r1map.ra						;\
-	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
-	$(TOOLDIR)/phantom -x16 -c circ.ra						;\
-	$(TOOLDIR)/fmac t1map.ra circ.ra masked.ra	    				;\
-	$(TOOLDIR)/scale -- 1.12 circ.ra ref.ra			    			;\
-	$(TOOLDIR)/nrmse -t 0.007 masked.ra ref.ra			    		;\
-	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
-	touch $@
-
-tests/test-moba-bloch-b1-input: traj repmat phantom signal fmac ones scale index moba slice spow looklocker fmac nrmse
-	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
-	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
-	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
-	$(TOOLDIR)/phantom -c -k -t traj.ra circ.ra 		                  		;\
-	$(TOOLDIR)/signal -I -F -r0.005 -f8 -n1000 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
-	$(TOOLDIR)/ones 2 16 16 _b1map.ra				;\
-	$(TOOLDIR)/scale 8 _b1map.ra b1map.ra				;\
-	$(TOOLDIR)/fmac circ.ra signal.ra k_space.ra					;\
-	$(TOOLDIR)/index 5 1000 tmp1.ra   						;\
-	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                    	       		;\
-	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
-	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 1 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 --sim.b1map b1map.ra -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco2.ra sens2.ra	;\
-	$(TOOLDIR)/slice 6 0 reco.ra r1map.ra						;\
-	$(TOOLDIR)/phantom -x16 -c circ.ra						;\
-	$(TOOLDIR)/fmac r1map.ra circ.ra masked.ra	    				;\
-	$(TOOLDIR)/slice 6 0 reco2.ra r1map2.ra						;\
-	$(TOOLDIR)/fmac r1map2.ra circ.ra masked2.ra	    				;\
-	$(TOOLDIR)/nrmse -t 0.0003 masked.ra masked2.ra			  		;\
-	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
-	touch $@
-
-tests/test-moba-bloch-irflash-multi-coil: traj repmat phantom signal fmac ones scale index moba slice spow looklocker fmac nrmse
-	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
-	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
-	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
-	$(TOOLDIR)/phantom -s 3 -c -k -t traj.ra circ.ra 		                  		;\
-	$(TOOLDIR)/signal -I -F -r0.005 -f8 -n1000 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
-	$(TOOLDIR)/fmac circ.ra signal.ra k_space.ra					;\
-	$(TOOLDIR)/index 5 1000 tmp1.ra   						;\
-	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                    	       		;\
-	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 --seq.scaling 1:1:1:0:1 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
 	$(TOOLDIR)/slice 6 0 reco.ra r1map.ra						;\
 	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
 	$(TOOLDIR)/phantom -x16 -c circ.ra						;\
@@ -451,6 +413,65 @@ tests/test-moba-bloch-irflash-r2fix: traj repmat phantom signal fmac ones scale 
 	$(TOOLDIR)/nrmse -t 0.00001 ones.ra r2map.ra			    		;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
+
+tests/test-moba-bloch-irflash-b1fix: traj repmat phantom signal fmac ones scale index moba slice spow looklocker fmac nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
+	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
+	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
+	$(TOOLDIR)/phantom -c -k -t traj.ra circ.ra 		                  		;\
+	$(TOOLDIR)/signal -I -F -r0.005 -f8 -n1000 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
+	$(TOOLDIR)/fmac circ.ra signal.ra k_space.ra					;\
+	$(TOOLDIR)/index 5 1000 tmp1.ra   						;\
+	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                    	       		;\
+	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 --seq.scaling 1:1:1:0:1 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/slice 6 3 reco.ra b1map.ra						;\
+	$(TOOLDIR)/ones 2 16 16 ones.ra						;\
+	$(TOOLDIR)/scale 8 ones.ra fa.ra                    	       		;\
+	$(TOOLDIR)/nrmse -t 0.00001 fa.ra b1map.ra			    		;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+tests/test-moba-bloch-irflash-multi-coil: traj repmat phantom signal fmac ones scale index moba slice spow looklocker fmac nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
+	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
+	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
+	$(TOOLDIR)/phantom -s 3 -c -k -t traj.ra circ.ra 		                  		;\
+	$(TOOLDIR)/signal -I -F -r0.005 -f8 -n1000 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
+	$(TOOLDIR)/fmac circ.ra signal.ra k_space.ra					;\
+	$(TOOLDIR)/index 5 1000 tmp1.ra   						;\
+	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                    	       		;\
+	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 --seq.scaling 1:1:1:0:1 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/slice 6 0 reco.ra r1map.ra						;\
+	$(TOOLDIR)/spow -- -1. r1map.ra t1map.ra						;\
+	$(TOOLDIR)/phantom -x16 -c circ.ra						;\
+	$(TOOLDIR)/fmac t1map.ra circ.ra masked.ra	    				;\
+	$(TOOLDIR)/scale -- 1.12 circ.ra ref.ra			    			;\
+	$(TOOLDIR)/nrmse -t 0.007 masked.ra ref.ra			    		;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+tests/test-moba-bloch-b1: traj repmat phantom signal fmac ones scale index moba slice spow looklocker fmac nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)	               		 	;\
+	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
+	$(TOOLDIR)/repmat 5 1000 _traj.ra traj.ra	;\
+	$(TOOLDIR)/phantom -c -k -t traj.ra circ.ra 		                  		;\
+	$(TOOLDIR)/signal -I -F -r0.005 -f8 -n1000 -1 1.12:1.12:1 -2 100:100:1 signal.ra	;\
+	$(TOOLDIR)/ones 2 16 16 _b1map.ra				;\
+	$(TOOLDIR)/scale 8 _b1map.ra b1map.ra				;\
+	$(TOOLDIR)/fmac circ.ra signal.ra k_space.ra					;\
+	$(TOOLDIR)/index 5 1000 tmp1.ra   						;\
+	$(TOOLDIR)/scale 0.005 tmp1.ra TI.ra                    	       		;\
+	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 --seq.scaling 1:1:1:0:1 -i15 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
+	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 7 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 -i15 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco2.ra sens2.ra	;\
+	$(TOOLDIR)/slice 6 0 reco.ra r1map.ra						;\
+	$(TOOLDIR)/phantom -x16 -c circ.ra						;\
+	$(TOOLDIR)/fmac r1map.ra circ.ra masked.ra	    				;\
+	$(TOOLDIR)/slice 6 0 reco2.ra r1map2.ra						;\
+	$(TOOLDIR)/fmac r1map2.ra circ.ra masked2.ra	    				;\
+	$(TOOLDIR)/nrmse -t 0.01 masked.ra masked2.ra			  		;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
 # tests/test-moba-bloch-irbssfp: traj repmat phantom signal fmac index moba spow slice scale nrmse
 # 	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)				;\
 # 	$(TOOLDIR)/traj -x16 -y16 _traj.ra			;\
@@ -508,4 +529,5 @@ TESTS_SLOW += tests/test-moba-meco-noncart-r2s tests/test-moba-meco-noncart-wfr2
 TESTS_SLOW += tests/test-moba-t1-alpha-non-cartesian
 TESTS_SLOW += tests/test-moba-t1-alpha-in-non-cartesian
 TESTS_SLOW += tests/test-moba-bloch-irflash tests/test-moba-bloch-t1-alpha-in-comparison
-TESTS_SLOW += tests/test-moba-bloch-b1-input tests/test-moba-bloch-irflash-multi-coil tests/test-moba-bloch-irflash-r2fix
+TESTS_SLOW += tests/test-moba-bloch-irflash-r2fix tests/test-moba-bloch-irflash-b1fix
+TESTS_SLOW += tests/test-moba-bloch-irflash-multi-coil tests/test-moba-bloch-b1
