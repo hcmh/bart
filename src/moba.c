@@ -444,6 +444,8 @@ int main_moba(int argc, char* argv[argc])
 	case IR:
 	case MOLLI:
 	case IR_phy:
+		img_dims[COEFF_DIM] = 3;
+		break;
 	case Bloch:
 		img_dims[COEFF_DIM] = 4;
 		break;
