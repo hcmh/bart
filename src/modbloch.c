@@ -511,7 +511,10 @@ int main_modbloch(int argc, char* argv[])
 		
 		md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, initval[i]);
-		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / fit_para.scale[i]);
+
+		if (0 != fit_para.scale[i])
+			md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, 1. / fit_para.scale[i]);
+
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp_img, CFL_SIZE);  
 	
 	}
@@ -557,7 +560,8 @@ int main_modbloch(int argc, char* argv[])
 		
 		md_copy_block(DIMS, pos, tmp_dims, tmp_img, img_dims, img, CFL_SIZE);
 		
-		md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, fit_para.scale[i]);
+		if (0 != fit_para.scale[i])
+			md_zsmul(DIMS, tmp_dims, tmp_img, tmp_img, fit_para.scale[i]);
 		
 		if (1 != i)
 			md_zdiv(DIMS, tmp_dims, tmp_img, ones_tmp, tmp_img);
