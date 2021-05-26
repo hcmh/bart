@@ -27,7 +27,7 @@
 #include "moba/T1MOLLI.h"
 #include "moba/T1_alpha.h"
 #include "moba/T1_alpha_in.h"
-#include "moba/blochfun.h"
+#include "moba/blochfun2.h"
 #include "moba/model_Bloch.h"
 
 #include "model_moba.h"
@@ -173,7 +173,7 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 			fitpara.scale[2] = 0.;
 		}
 
-		model = nlop_Bloch_create(DIMS, der_dims, map_dims, out_dims, in_dims, &fitpara, use_gpu);
+		model = nlop_Bloch_create2(DIMS, der_dims, map_dims, out_dims, in_dims, &fitpara, use_gpu);
 		break;
 	}
 
@@ -201,6 +201,9 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 
 	if (IR_phy == conf_model->model)
 		ret.linop_alpha = T1_get_alpha_trafo(model);
+
+	if ((Bloch == conf_model->model) && (IRFLASH == conf_model->sim.sequence))
+		ret.linop_alpha = Bloch_get_alpha_trafo(model);
 
 	nlop_free(nlinv.nlop);
 

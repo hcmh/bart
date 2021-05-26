@@ -444,7 +444,7 @@ int main_moba(int argc, char* argv[argc])
 	case MOLLI:
 	case IR_phy:
 	case Bloch:
-		img_dims[COEFF_DIM] = 3;
+		img_dims[COEFF_DIM] = 4;
 		break;
 
 	case IR_SS:
@@ -664,9 +664,9 @@ int main_moba(int argc, char* argv[argc])
 
 	// FIXME: Integrate MGRE into new framework
 	if (MGRE != conf_model.model)
-		assert (3 >= img_dims[COEFF_DIM]); // Otherwise init array need to be larger
+		assert (4 >= img_dims[COEFF_DIM]); // Otherwise init array need to be larger
 
-	complex float initval[3] = {1., 1., 1.}; // last dim skipped if img_dims[COEFF_DIM] < 3
+	complex float initval[4] = {1., 1., 1., 1.}; // last dims skipped if img_dims[COEFF_DIM] < 4
 
 	// Define values depending on model
 	switch (conf_model.model) {
