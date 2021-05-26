@@ -400,10 +400,10 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[5], const long k
 
 		mean_sp = md_znorm(DIMS, dims, phantom_sp);
 
-		scale[3] = mean_ref / mean_sp;
+		scale[4] = mean_ref / mean_sp;
 	}
 
-	debug_printf(DP_DEBUG1,"Mean Ref:%f,\tMean:%f,\t Signal Scaling:%f\n", mean_ref, mean_sp, scale[3]);
+	debug_printf(DP_DEBUG1,"Mean Ref:%f,\tMean:%f,\t Signal Scaling:%f\n", mean_ref, mean_sp, scale[4]);
 
 	md_free(sens_r1);
 	md_free(sens_r2);

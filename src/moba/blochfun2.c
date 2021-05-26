@@ -188,7 +188,7 @@ static void Bloch_fun2(const nlop_data_t* _data, complex float* dst, const compl
 	// R1
 	pos[COEFF_DIM] = 0;
 	const complex float* R1 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, r1scale_tmp, data->map_strs, R1, data->scale[0]);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, r1scale_tmp, data->map_strs, R1, (0. != data->scale[0]) ? data->scale[0] : 1.);
 
 	complex float* r1scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, r1scale, r1scale_tmp, CFL_SIZE);
@@ -196,7 +196,7 @@ static void Bloch_fun2(const nlop_data_t* _data, complex float* dst, const compl
 	// M0
 	pos[COEFF_DIM] = 1;
 	const complex float* M0 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, m0scale_tmp, data->map_strs, M0, data->scale[1]);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, m0scale_tmp, data->map_strs, M0, (0. != data->scale[1]) ? data->scale[1] : 1.);
 
 	complex float* m0scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, m0scale, m0scale_tmp, CFL_SIZE);
@@ -204,7 +204,7 @@ static void Bloch_fun2(const nlop_data_t* _data, complex float* dst, const compl
 	// R2
 	pos[COEFF_DIM] = 2;
 	const complex float* R2 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, r2scale_tmp, data->map_strs, R2, data->scale[2]);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, r2scale_tmp, data->map_strs, R2, (0. != data->scale[2]) ? data->scale[2] : 1.);
 
 	complex float* r2scale = md_alloc(data->N, data->map_dims, CFL_SIZE);
 	md_copy(data->N, data->map_dims, r2scale, r2scale_tmp, CFL_SIZE);
@@ -212,7 +212,7 @@ static void Bloch_fun2(const nlop_data_t* _data, complex float* dst, const compl
 	// B1
 	pos[COEFF_DIM] = 3;
 	const complex float* B1 = (const void*)src + md_calc_offset(data->N, data->in_strs, pos);
-	md_zsmul2(data->N, data->map_dims, data->map_strs, data->tmp, data->map_strs, B1, data->scaling_alpha);
+	md_zsmul2(data->N, data->map_dims, data->map_strs, data->tmp, data->map_strs, B1, (0. != data->scale[3]) ? data->scale[3] : 1.);
 
 	Bloch_forw_alpha(data->linop_alpha, b1scale_tmp, data->tmp);	// freq -> pixel + smoothing!
 
@@ -396,11 +396,11 @@ static void Bloch_fun2(const nlop_data_t* _data, complex float* dst, const compl
 					if (5 == sim_data.seq.seq_type && 0 != sim_data.pulse.flipangle)
 						a = 1./(sinf(sim_data.pulse.flipangle * M_PI/180.) * expf(-sim_data.voxel.r2 * sim_data.seq.te));
 
-					dr1_cpu[position] = a * data->scale[3] * data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
-					dr2_cpu[position] = a * data->scale[3] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
-					dm0_cpu[position] = a * data->scale[3] * data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
-					db1_cpu[position] = a * data->scale[3] * data->scaling_alpha * (sa_b1_sig[j+rm_first_echo][1] + sa_b1_sig[j+rm_first_echo][0] * I);
-					sig_cpu[position] = a * data->scale[3] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
+					dr1_cpu[position] = a * data->scale[4] * data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
+					dr2_cpu[position] = a * data->scale[4] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
+					dm0_cpu[position] = a * data->scale[4] * data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
+					db1_cpu[position] = a * data->scale[4] * data->scale[3] * (sa_b1_sig[j+rm_first_echo][1] + sa_b1_sig[j+rm_first_echo][0] * I);
+					sig_cpu[position] = a * data->scale[4] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
 
 					i++;
 				}
@@ -594,7 +594,8 @@ struct nlop_s* nlop_Bloch_create2(int N, const long der_dims[N], const long map_
 	data->scale[0] = fit_para->scale[0];	// dR1 scaling
 	data->scale[1] = fit_para->scale[1];	// dM0 scaling
 	data->scale[2] = fit_para->scale[2];	// dR2 scaling
-	data->scale[3] = fit_para->scale[3];	// signal scaling
+	data->scale[3] = fit_para->scale[3];	// dB1 scaling
+	data->scale[4] = fit_para->scale[4];	// signal scaling
 
 	data->derivatives = my_alloc(N, der_dims, CFL_SIZE);
 	data->tmp = my_alloc(N, map_dims, CFL_SIZE);
