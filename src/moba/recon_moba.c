@@ -134,15 +134,29 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 		fftmod(DIMS, coil_dims, fft_flags, sens, sens);
 	}
 
+	long pos[DIMS];
+
+	complex float* tmp = md_alloc_sameplace(DIMS, map_dims, CFL_SIZE, kspace_data);
+
+	if ((Bloch == conf->model) && (IRFLASH == conf->sim.sequence)) {
+
+		md_set_dims(DIMS, pos, 0);
+
+		pos[COEFF_DIM] = 3;
+
+		md_copy_block(DIMS, pos, map_dims, tmp, imgs_dims, img, CFL_SIZE);
+		Bloch_forw_alpha(nl.linop_alpha, tmp, tmp);
+		md_copy_block(DIMS, pos, imgs_dims, img, map_dims, tmp, CFL_SIZE);
+	}
+
+	md_free(tmp);
+
 	// (M0, R1, alpha) model
 	// FIXME: Move to separate function which can be tested with a unit test
 	// see utests/test_fa_to_scale as opposite function
 	if (IR_phy == conf->model) {
 
-		long pos[DIMS];
-
-		for (int i = 0; i < (int)DIMS; i++)
-		pos[i] = 0;
+		md_set_dims(DIMS, pos, 0);
 
 		// output the alpha map (in degree)
 		pos[COEFF_DIM] = 2;
