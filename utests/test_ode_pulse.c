@@ -60,7 +60,7 @@ static bool test_rf_pulse_ode(void)
 
 	float trfmin = 0.0001;
 	float trfmax = 0.1;
-	float amin = 1.;
+	float amin = 0.;
 	float amax = 180.;
 
 	for (int i = 0; i < dim[0]; i++ )
@@ -143,7 +143,7 @@ static bool test_rf_pulse_matexp(void)
 
 	float trfmin = 0.0001;
 	float trfmax = 0.1;
-	float amin = 1.;
+	float amin = 0.;
 	float amax = 180.;
 
 	for (int i = 0; i < dim[0]; i++ )
