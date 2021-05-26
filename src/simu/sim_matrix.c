@@ -323,10 +323,10 @@ static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa
 
 	for (int i = 0; i < 3; i++) {
 
-		mxy[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i];
-		sa_r1[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i+3];
-		sa_r2[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i+6];
-		sa_b1[ (i * data->seq.spin_num * (data->seq.rep_num) ) + ( (data->tmp.rep_counter) * data->seq.spin_num) + data->tmp.spin_counter ] = tmp[i+9];
+		mxy[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i];
+		sa_r1[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i+3];
+		sa_r2[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i+6];
+		sa_b1[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i+9];
 	}
 }
 
@@ -340,13 +340,13 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 	float isochromats[data->seq.spin_num];
 
 	if (data->voxel.spin_ensamble)
-		isochrom_distribution( data, isochromats);
+		isochrom_distribution(data, isochromats);
 
 	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows 
-	float *mxy = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) ); // [Mx, My, Mz], FIXME: better name
-	float *sa_r1 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
-	float *sa_r2 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
-	float *sa_b1 = malloc( (data->seq.spin_num * (data->seq.rep_num) * 3) * sizeof(float) );
+	float *mxy = malloc((data->seq.spin_num * data->seq.rep_num * 3) * sizeof(float)); // [Mx, My, Mz], FIXME: better name
+	float *sa_r1 = malloc((data->seq.spin_num * data->seq.rep_num * 3) * sizeof(float));
+	float *sa_r2 = malloc((data->seq.spin_num * data->seq.rep_num * 3) * sizeof(float));
+	float *sa_b1 = malloc((data->seq.spin_num * data->seq.rep_num * 3) * sizeof(float));
     
 	float flipangle_backup = data->pulse.flipangle;
 	float w_backup = data->voxel.w;
@@ -357,9 +357,9 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 		
 		slice_correction = 1.;
 
-		if (NULL != data->seq.slice_profile) 
+		if (NULL != data->seq.slice_profile)
 			slice_correction = cabsf(data->seq.slice_profile[data->tmp.spin_counter]);
-		
+
 		data->pulse.flipangle = flipangle_backup * slice_correction;
 
 		float xp[N] = { 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
@@ -389,17 +389,15 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 
 		// Create matrices which describe signal development	
 		float matrix_to_te[N][N];
-		prepare_matrix_to_te( N, matrix_to_te, data);
+		prepare_matrix_to_te(N, matrix_to_te, data);
 
 		float matrix_to_te_PI[N][N];
 		data->pulse.phase = M_PI;
-		prepare_matrix_to_te( N, matrix_to_te_PI, data);
+		prepare_matrix_to_te(N, matrix_to_te_PI, data);
 		data->pulse.phase = 0.;
 
 		float matrix_to_tr[N][N];
-		prepare_matrix_to_tr( N, matrix_to_tr, data);
-
-
+		prepare_matrix_to_tr(N, matrix_to_tr, data);
 
 		float matrix_to_te_fa2[N][N];
 		float matrix_to_te_fa2_PI[N][N];
@@ -408,10 +406,10 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 
 			data->pulse.flipangle *= 2;
 
-			prepare_matrix_to_te( N, matrix_to_te_fa2, data);
+			prepare_matrix_to_te(N, matrix_to_te_fa2, data);
 
 			data->pulse.phase = M_PI;
-			prepare_matrix_to_te( N, matrix_to_te_fa2_PI, data);
+			prepare_matrix_to_te(N, matrix_to_te_fa2_PI, data);
 			data->pulse.phase = 0.;
 
 			data->pulse.flipangle /= 2;
@@ -420,21 +418,21 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 		while (data->tmp.rep_counter < data->seq.rep_num) {
 
 			if (data->seq.look_locker_assumptions)
-				collect_data( N, xp, mxy, sa_r1, sa_r2, sa_b1, data);
+				collect_data(N, xp, mxy, sa_r1, sa_r2, sa_b1, data);
 			
 			if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
-				apply_sim_matrix( N, xp, matrix_to_te );
+				apply_sim_matrix(N, xp, matrix_to_te);
 
 			else if (7 == data->seq.seq_type && 500 <= data->tmp.rep_counter)
-				apply_sim_matrix( N, xp, ( ( data->tmp.rep_counter % 2 == 0 ) ? matrix_to_te_fa2 : matrix_to_te_fa2_PI) );
+				apply_sim_matrix(N, xp, ((data->tmp.rep_counter % 2 == 0) ? matrix_to_te_fa2 : matrix_to_te_fa2_PI));
 
 			else
-				apply_sim_matrix( N, xp, ( ( data->tmp.rep_counter % 2 == 0 ) ? matrix_to_te : matrix_to_te_PI) );
+				apply_sim_matrix(N, xp, ((data->tmp.rep_counter % 2 == 0) ? matrix_to_te : matrix_to_te_PI));
 
 			if (!data->seq.look_locker_assumptions)
-				collect_data( N, xp, mxy, sa_r1, sa_r2, sa_b1, data);
+				collect_data(N, xp, mxy, sa_r1, sa_r2, sa_b1, data);
 
-			apply_sim_matrix( N, xp, matrix_to_tr );
+			apply_sim_matrix(N, xp, matrix_to_tr);
 
 			xyspoiling(N, xp, data);	// Turned on for FLASH based sequences
 
@@ -462,24 +460,23 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 			
 			for (int spin = 0; spin < data->seq.spin_num; spin++)  {
 				
-				sum_mxy_tmp += mxy[ (dim *data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
-				sum_sa_r1 += sa_r1[ (dim * data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
-				sum_sa_r2 += sa_r2[ (dim * data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
-				sum_sa_b1 += sa_b1[ (dim * data->seq.spin_num * (data->seq.rep_num) ) + (repe * data->seq.spin_num) + spin ];
+				sum_mxy_tmp += mxy[(dim * data->seq.spin_num * data->seq.rep_num) + (repe * data->seq.spin_num) + spin];
+				sum_sa_r1 += sa_r1[(dim * data->seq.spin_num * data->seq.rep_num) + (repe * data->seq.spin_num) + spin];
+				sum_sa_r2 += sa_r2[(dim * data->seq.spin_num * data->seq.rep_num) + (repe * data->seq.spin_num) + spin];
+				sum_sa_b1 += sa_b1[(dim * data->seq.spin_num * data->seq.rep_num) + (repe * data->seq.spin_num) + spin];
 			}
 			
 			if (av_num == data->seq.num_average_rep - 1) {
 
-				mxy_sig[save_repe][dim] = sum_mxy_tmp * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
-				sa_r1_sig[save_repe][dim] = sum_sa_r1 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
-				sa_r2_sig[save_repe][dim] = sum_sa_r2 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
-				sa_b1_sig[save_repe][dim] = sum_sa_b1 * data->voxel.m0 / (float)( data->seq.spin_num * data->seq.num_average_rep );
-				sa_m0_sig[save_repe][dim] = sum_mxy_tmp / (float)( data->seq.spin_num * data->seq.num_average_rep );
+				mxy_sig[save_repe][dim] = sum_mxy_tmp * data->voxel.m0 / (float)(data->seq.spin_num * data->seq.num_average_rep);
+				sa_r1_sig[save_repe][dim] = sum_sa_r1 * data->voxel.m0 / (float)(data->seq.spin_num * data->seq.num_average_rep);
+				sa_r2_sig[save_repe][dim] = sum_sa_r2 * data->voxel.m0 / (float)(data->seq.spin_num * data->seq.num_average_rep);
+				sa_b1_sig[save_repe][dim] = sum_sa_b1 * data->voxel.m0 / (float)(data->seq.spin_num * data->seq.num_average_rep);
+				sa_m0_sig[save_repe][dim] = sum_mxy_tmp / (float)(data->seq.spin_num * data->seq.num_average_rep);
 
 				sum_mxy_tmp = sum_sa_r1 = sum_sa_r2 = 0.;
 				save_repe++;
 			}
-
 			av_num++;
 		}
 	}
