@@ -170,7 +170,7 @@ struct moba_s moba_create(const long dims[DIMS], const complex float* mask, cons
 		if (5 == fitpara.sequence) {
 
 			// Turn off matching of T2 for IR FLASH
-			fitpara.scale[2] = 0.0001;
+			fitpara.scale[2] = 0.;
 		}
 
 		model = nlop_Bloch_create(DIMS, der_dims, map_dims, out_dims, in_dims, &fitpara, use_gpu);
