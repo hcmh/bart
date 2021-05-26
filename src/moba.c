@@ -209,6 +209,7 @@ int main_moba(int argc, char* argv[argc])
 		OPTL_FLOAT(0, "seq.bwtp", &(conf_model.sim.bwtp), "[a.u.]", "Bandwidth-Time-Product"),
 		OPTL_FLOAT(0, "seq.inv-pulse-length", &(conf_model.sim.inversion_pulse_length), "[s]", "length of inversion pulse"),
 		OPTL_FLOAT(0, "seq.prep-pulse-length", &(conf_model.sim.prep_pulse_length), "[s]", "length of preparation pulse"),
+		OPTL_FLVEC5(0, "seq.scaling", &(conf_model.sim.scale), "sR1:sM0:sR2:sB1:sSig", "Scaling of partial derivatives and signal in Bloch model."),
 
 		// optimization options
 		OPT_UINT('l', &conf_model.opt.opt_reg, "reg", "1/-l2\ttoggle l1-wavelet or l2 regularization."),
