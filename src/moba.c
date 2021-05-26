@@ -256,9 +256,7 @@ int main_moba(int argc, char* argv[argc])
 	if (5 == argc)
 		out_sens = true;
 
-
 	(use_gpu ? num_init_gpu_memopt : num_init)();
-
 
 	// FIXME: Create unified nlop for all simulation-based models
 	if (NONE != conf_model.sim.sequence)
@@ -447,6 +445,7 @@ int main_moba(int argc, char* argv[argc])
 	case IR_phy:
 		img_dims[COEFF_DIM] = 3;
 		break;
+
 	case Bloch:
 		img_dims[COEFF_DIM] = 4;
 		break;
@@ -717,6 +716,7 @@ int main_moba(int argc, char* argv[argc])
 
 		md_copy_block(DIMS, pos, tmp_dims, tmp, img_dims, img, CFL_SIZE);
 		md_zsmul(DIMS, tmp_dims, tmp, tmp, initval[i]);
+
 		if (0. != conf_model.sim.scale[i])
 			md_zsmul(DIMS, tmp_dims, tmp, tmp, 1. / conf_model.sim.scale[i]);
 

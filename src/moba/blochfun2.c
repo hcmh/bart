@@ -66,8 +66,6 @@ struct blochFun2_s {
 
 	complex float* weights;
 	const struct linop_s* linop_alpha;
-	float scaling_alpha;
-
 };
 
 DEF_TYPEID(blochFun2_s);
@@ -283,6 +281,8 @@ static void Bloch_fun2(const nlop_data_t* _data, complex float* dst, const compl
 	if (0 == zend)
 		zend = 1;
 
+	debug_printf(DP_DEBUG2, "Scaling: %f,\t%f,\t%f,\t%f,\t%f\n",	data->scale[0], data->scale[1], data->scale[2],
+									data->scale[3], data->scale[4]);
 	debug_printf(DP_DEBUG2, "seq: %d,\trfDuration: %f,\tTR:%f,\tTE:%f,\trep:%d,\tav:%d,\tFA:%f\n",
 								data->fitParameter.sequence, data->fitParameter.rfduration, data->fitParameter.tr,
 								data->fitParameter.te, data->out_dims[TE_DIM], data->fitParameter.averaged_spokes,
@@ -669,8 +669,6 @@ struct nlop_s* nlop_Bloch_create2(int N, const long der_dims[N], const long map_
 
 	linop_free(linop_wghts);
 	linop_free(linop_ifftc);
-
-	data->scaling_alpha = 1.;
 
 	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), Bloch_fun2, Bloch_der2, Bloch_adj2, NULL, NULL, Bloch_del2);
 }
