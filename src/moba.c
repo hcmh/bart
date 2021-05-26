@@ -723,7 +723,7 @@ int main_moba(int argc, char* argv[argc])
 	//	1. Initialize B1 with map in pixel domain
 	//	2. FT to k-space and add k-space to initialization array (img)
 
-	if ((Bloch == conf_model.model) && (IRFLASH == conf_model.sim.sequence)) {
+	if (Bloch == conf_model.model) {
 
 		pos[COEFF_DIM] = 3;
 
