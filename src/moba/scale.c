@@ -256,7 +256,7 @@ float get_tr_from_inversion(unsigned int D, const long dims[D], complex float* i
 //	2) Determine mean values of sensitivity output
 //	3) Scale partial derivatives to mean M0 sens output
 
-void auto_scale(const struct modBlochFit* fit_para, float scale[4], const long ksp_dims[DIMS], complex float* kspace_data)
+void auto_scale(const struct modBlochFit* fit_para, float scale[5], const long ksp_dims[DIMS], complex float* kspace_data)
 {
 	long int dims[DIMS] = { [0 ... DIMS - 1] = 1. };
 	dims[READ_DIM] = 100;

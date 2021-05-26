@@ -50,7 +50,7 @@ struct blochFun_s {
 	const long* out_strs;
 	const long* input_strs;
 
-	float scale[4];
+	float scale[5];
 
 	//derivatives
 	complex float* derivatives;

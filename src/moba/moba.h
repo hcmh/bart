@@ -39,7 +39,7 @@ struct sim_conf_s {
 	bool look_locker_assumptions;
 
 	/*Reconstruction Parameter*/
-	float scale[4];
+	float scale[5];
 	float fov_reduction_factor;
 	int rm_no_echo;
 	moba_sim_type sim_type;

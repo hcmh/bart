@@ -25,7 +25,7 @@ const struct sim_conf_s sim_conf_s_defaults = {
 	.prep_pulse_length = 0.00225,
 	.look_locker_assumptions = false,
 
-	.scale = {1., 1., 1., 1.},
+	.scale = {1., 1., 1., 1., 1.},
 	.fov_reduction_factor = 1.,
 	.rm_no_echo = 0.,
 	.sim_type = OBS,

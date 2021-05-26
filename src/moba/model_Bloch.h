@@ -36,7 +36,7 @@ struct modBlochFit {
 	bool look_locker_assumptions;
 	
 	/*Reconstruction Parameter*/
-	float scale[4];
+	float scale[5];
 	float fov_reduction_factor;
 	int rm_no_echo;
 	bool full_ode_sim;

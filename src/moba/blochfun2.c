@@ -48,7 +48,7 @@ struct blochFun2_s {
 	const long* in_strs;
 	const long* out_strs;
 
-	float scale[4];
+	float scale[5];
 
 	//derivatives
 	complex float* derivatives;
