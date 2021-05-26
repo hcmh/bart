@@ -30,6 +30,7 @@
 #include "noncart/nufft.h"
 
 #include "linops/linop.h"
+#include "linops/someops.h"
 
 #include "iter/iter2.h"
 
@@ -692,6 +693,7 @@ int main_moba(int argc, char* argv[argc])
 
 	case Bloch:
 		initval[0] = 3.;
+		initval[3] = conf_model.sim.fa;
 		break;
 
 	case MGRE:
@@ -713,6 +715,23 @@ int main_moba(int argc, char* argv[argc])
 		md_copy_block(DIMS, pos, tmp_dims, tmp, img_dims, img, CFL_SIZE);
 		md_zsmul(DIMS, tmp_dims, tmp, tmp, initval[i]);
 		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp, CFL_SIZE);
+	}
+
+	// Initialize B1 map for Bloch case with reasonable starting values
+	//	1. Initialize B1 with map in pixel domain
+	//	2. FT to k-space and add k-space to initialization array (img)
+
+	if ((Bloch == conf_model.model) && (IRFLASH == conf_model.sim.sequence)) {
+
+		pos[COEFF_DIM] = 3;
+
+		const struct linop_s* linop_fftc = linop_fftc_create(DIMS, tmp_dims, FFT_FLAGS);
+
+		md_copy_block(DIMS, pos, tmp_dims, tmp, img_dims, img, CFL_SIZE);
+		linop_forward_unchecked(linop_fftc, tmp, tmp);
+		md_copy_block(DIMS, pos, img_dims, img, tmp_dims, tmp, CFL_SIZE);
+
+		linop_free(linop_fftc);
 	}
 
 	md_free(tmp);
