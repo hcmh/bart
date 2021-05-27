@@ -400,21 +400,25 @@ cleanup:
  * Iteratively Regularized Gauss-Newton Method
  * (Bakushinsky 1993)
  *
- * y = F(x) = F xn + DF dx + ...
+ * y = L F(x) = L F xn + L DF dx + ...
  *
- * IRGNM: DF^H ((y - F xn) + DF (xn - x0)) = ( DF^H DF + alpha ) (dx + xn - x0)
- *        DF^H ((y - F xn)) - alpha (xn - x0) = ( DF^H DF + alpha) dx
+ * IRGNM: DF^H L^H ((y - L F xn) + L DF (xn - x0)) = ( DF^H L^H L DF + alpha ) (dx + xn - x0)
+ *        DF^H L^H ((y - L F xn)) - alpha (xn - x0) = ( DF^H L^H L DF + alpha) dx
  *
  * This version only solves the second equation for the update 'dx'. This corresponds
  * to a least-squares problem where the quadratic regularization applies to the difference
  * to 'x0'.
  */
-void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, long M,
+void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
+	long N, 			// size x
+	long M,				// size L^H y
 	const struct vec_iter_s* vops,
-	struct iter_op_s op,
-	struct iter_op_s adj,
-	struct iter_op_p_s inv,
-	float* x, const float* xref, const float* y,
+	struct iter_op_s op,		// L^H L F
+	struct iter_op_s adj,		// DF^H
+	struct iter_op_p_s inv,		// (DF^H L^H L DF + alpha)^-1
+	float* x,			// xn
+	const float* xref,		// x0
+	const float* y,			// L^Hy
 	struct iter_op_s callback,
 	struct iter_monitor_s* monitor)
 {
@@ -426,22 +430,22 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
 
 		iter_monitor(monitor, vops, x);
 
-		iter_op_call(op, r, x);			// r = F x
+		iter_op_call(op, r, x);		// r = L^H L F x
 
-		vops->xpay(M, -1., r, y);	// r = y - F x
+		vops->xpay(M, -1., r, y);	// r = L^H y - L^H L F x
 
 		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
 
-		iter_op_call(adj, p, r);
+		iter_op_call(adj, p, r);	// p = DF^H ( L^H y - L^H L F x )
 
 		if (NULL != xref)
 			vops->axpy(N, p, +alpha, xref);
 
-		vops->axpy(N, p, -alpha, x);
+		vops->axpy(N, p, -alpha, x);	// p = DF^H ( L^H y - L^H L F x ) - alpha (xn - x0)
 
-		iter_op_p_call(inv, alpha, h, p);
+		iter_op_p_call(inv, alpha, h, p);	// h = dx
 
-		vops->axpy(N, x, 1., h);
+		vops->axpy(N, x, 1., h);	// x = x + dx
 
 		alpha = (alpha - alpha_min) / redu + alpha_min;
 
@@ -462,17 +466,21 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, long N, 
  *
  * y = F(x) = F xn + DF dx + ...
  *
- * IRGNM: R(DF^H, DF^H DF, alpha) ((y - F xn) + DF (xn - x0)) = (dx + xn - x0)
+ * IRGNM: R(DF^H, DF^H L^H L DF, alpha) ((L^H y - L^H L F xn) + L^H L DF (xn - x0)) = (dx + xn - x0)
  *
  * This version has an extra call to DF, but we can use a generic regularized
  * least-squares solver.
  */
-void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, float redu, long N, long M,
+void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, float redu,
+	long N,						// size L^H y
+	long M,						// size x
 	const struct vec_iter_s* vops,
-	struct iter_op_s op,
-	struct iter_op_s der,
-	struct iter_op_p_s lsqr,
-	float* x, const float* xref, const float* y,
+	struct iter_op_s op,				// L^H L F
+	struct iter_op_s der,				// L^H L DF
+	struct iter_op_p_s lsqr,			// (DF^H L^H L DF + alpha)^-1 DF^H
+	float* x,					// xn
+	const float* xref,				// x0
+	const float* y,					// L^H y
 	struct iter_op_s callback,
 	struct iter_monitor_s* monitor)
 {
@@ -483,23 +491,24 @@ void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, f
 
 		iter_monitor(monitor, vops, x);
 
-		iter_op_call(op, r, x);			// r = F x
+		iter_op_call(op, r, x);		// r = L^H L F x
 
-		vops->xpay(M, -1., r, y);	// r = y - F x
+		vops->xpay(M, -1., r, y);	// r = L^H (y - L F x)
 
 		debug_printf(DP_DEBUG2, "Step: %u, Res: %f\n", i, vops->norm(M, r));
 
 		if (NULL != xref)
-			vops->axpy(N, x, -1., xref);
+			vops->axpy(N, x, -1., xref);	// x = x - x0
 
-		iter_op_call(der, q, x);
+		iter_op_call(der, q, x);	// q = L^H L DF (x - x0)
 
 		vops->xpay(M, +1., r, q);	// FIXME: own GPU kernel for vops->axpy to replace xpay for large problems (>INT_MAX/2)
+						// r = L^H (y -  L F x + L DF (x - x0))
 
-		iter_op_p_call(lsqr, alpha, x, r);
+		iter_op_p_call(lsqr, alpha, x, r);	// x = (DF^H L^H L DF + alpha)^-1 DF^H L^H (y - L F x + L DF (x - x0))
 
 		if (NULL != xref)
-			vops->axpy(N, x, +1., xref);
+			vops->axpy(N, x, +1., xref);	// x = (DF^H L^H L DF + alpha)^-1 DF^H L^H (y - L F x + L DF (x - x0)) + x0
 
 		alpha = (alpha - alpha_min) / redu + alpha_min;
 
