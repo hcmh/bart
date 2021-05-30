@@ -23,6 +23,20 @@ tests/test-nlinv-sms: repmat fft nlinv nrmse scale $(TESTS_OUT)/shepplogan_coil_
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-nlinv-sms-noncart: repmat fft nlinv nrmse scale traj phantom
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
+	$(TOOLDIR)/traj -r -x256 -y21 traj.ra						;\
+	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra						;\
+	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra					;\
+	$(TOOLDIR)/repmat 13 4 ksp.ra ksp_rep.ra					;\
+	$(TOOLDIR)/fft 8192 ksp_rep.ra ksp2.ra						;\
+	$(TOOLDIR)/nlinv -S -t traj2.ra ksp.ra r.ra					;\
+	$(TOOLDIR)/nlinv -S -t traj2.ra ksp2.ra r2.ra					;\
+	$(TOOLDIR)/repmat 13 4 r.ra r3.ra						;\
+	$(TOOLDIR)/scale 2. r2.ra r4.ra							;\
+	$(TOOLDIR)/nrmse -s -t 0.1 r3.ra r4.ra						;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
 
 tests/test-nlinv-norm: nlinv rss fmac nrmse $(TESTS_OUT)/shepplogan_coil_ksp.ra
 	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
