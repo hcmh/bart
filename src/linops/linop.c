@@ -125,6 +125,43 @@ static const char* operator_graph_linop(const operator_data_t* _data, unsigned i
 	return data->get_graph(data->data, N, D, arg_nodes, opts);
 }
 
+struct linop_s* linop_from_ops(
+	const struct operator_s* forward,
+	const struct operator_s* adjoint,
+	const struct operator_s* normal,
+	const struct operator_p_s* norm_inv)
+{
+	assert(NULL != forward);
+	assert(NULL != adjoint);
+
+	auto dom = operator_domain(forward);
+	auto cod = operator_codomain(forward);
+
+	assert(iovec_check(operator_codomain(adjoint), dom->N, dom->dims, dom->strs));
+	assert(iovec_check(operator_domain(adjoint), cod->N, cod->dims, cod->strs));
+
+	PTR_ALLOC(struct linop_s, x);
+	x->forward = operator_ref(forward);
+	x->adjoint = operator_ref(adjoint);
+
+	if (NULL != normal) {
+
+		assert(iovec_check(operator_codomain(normal), dom->N, dom->dims, dom->strs));
+		assert(iovec_check(operator_domain(normal), dom->N, dom->dims, dom->strs));
+
+		x->normal = operator_ref(normal);
+	} else {
+
+		x->normal = operator_chain(forward, adjoint);
+	}
+
+	if (NULL != norm_inv)
+		x->norm_inv = operator_p_ref(norm_inv);
+	else
+		x->norm_inv = NULL;
+
+	return PTR_PASS(x);
+}
 
 /**
  * Create a linear operator (with strides)

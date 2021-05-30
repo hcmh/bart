@@ -34,6 +34,12 @@ struct linop_s {
 	const struct operator_p_s* norm_inv;
 };
 
+extern struct linop_s* linop_from_ops(
+	const struct operator_s* forward,
+	const struct operator_s* adjoint,
+	const struct operator_s* normal,
+	const struct operator_p_s* norm_inv);
+
 
 extern struct linop_s* linop_with_props_create(unsigned int ON, const long odims[__VLA(ON)], unsigned int IN, const long idims[__VLA(IN)], linop_data_t* data,
 				lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal, lop_p_fun_t norm_inv, del_fun_t, operator_property_flags_t linop_flags);
