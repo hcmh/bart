@@ -4,18 +4,21 @@
  *
  * Authors:
  * 2021 Volkert Roeloffs
+ * 2021 Nick Scholand,	nick.scholand@med.uni-goettingen.de
  */
 
 #include <math.h>
 #include <complex.h>
 
 #include "num/multind.h"
+#include "num/flpmath.h"
 #include "num/linalg.h"
 
 #include "misc/mri.h"
 #include "misc/mmio.h"
 #include "misc/misc.h"
 #include "misc/opts.h"
+#include "misc/debug.h"
 
 #include "simu/crb.h"
 
@@ -103,4 +106,149 @@ void display_crb(int P, float rCRB[P], complex float fisher[P][P], unsigned long
 	for(int i = 1; i < P; i++)
 		bart_printf("%s: %3.3f\n", labels[idx_unknowns[i-1]], rCRB[i]);
 	bart_printf("\n");
+}
+
+
+// FIXME: Fix variance: Fischer_{ij} = b_i^T b_j / \sigma^2
+void fischer(int N, int P, float A[P][P], /*const*/ float der[P][N])
+{
+	// Set matrix zero
+	for (int i = 0; i < P; i++)
+		for (int j = 0; j < P; j++)
+			A[i][j] = 0.;
+
+	float tmp = 0.;
+
+	// Estimate Fischer matrix
+	for (int i = 0; i < P; i++)
+		for (int n = 0; n < N; n++) {
+
+			tmp = der[i][n];
+
+			for (int j = 0; j < P; j++)
+				A[i][j] += tmp * der[j][n];
+		}
+}
+
+// FIXME: Fix variance: Fischer_{ij} = b_i^T b_j / \sigma^2
+void zfischer(int N, int P, complex float A[P][P], /*const*/ complex float der[P][N])
+{
+	// Set matrix zero
+	for (int i = 0; i < P; i++)
+		for (int j = 0; j < P; j++)
+			A[i][j] = 0.;
+
+	complex float tmp = 0.;
+
+	// Estimate Fischer matrix
+	for (int i = 0; i < P; i++)
+		for (int n = 0; n < N; n++) {
+
+			tmp = der[i][n];
+
+			for (int j = 0; j < P; j++)
+				A[i][j] += tmp * conjf(der[j][n]);
+		}
+}
+
+
+
+static void get_index(unsigned int D, const long dim1[D], const long dim2[D], int index[2])
+{
+	// parameter
+	int pcounter = 0;
+
+	// time
+	int tcounter = 0;
+
+	for (unsigned int i = 0; i < D; i++) {
+
+		// both dims need to have non-zero elements in same dimension
+		if ((1 < dim1[i]) && (1 < dim2[i])) {
+
+			// Definition of parameter dim
+			if (dim1[i] == dim2[i]) {
+
+				index[0] = i;
+
+				pcounter++;
+			}
+			else {	// time dim
+
+				index[1] = i;
+
+				tcounter++;
+			}
+		}
+	}
+
+	// Only single index each is allowed!
+	assert(2 > pcounter);
+	assert(2 > tcounter);
+
+	assert(index[0] != index[1]);
+}
+
+/**
+ * Estimate Fischer matrix (optr) from derivatives (iptr)
+ * 	- Ensure matrix and derivatives share the same two dimensions
+ *
+ * FIXME: Fix variance: Fischer_{ij} = b_i^T b_j / \sigma^2
+ */
+void md_zfischer(unsigned int D, const long odims[D], complex float* optr, const long idims[D], const complex float* iptr)
+{
+	// Check if free for later use as intermediate dimension
+
+	assert(1 == odims[AVG_DIM]);
+
+	// Estimate parameter dimension [0] (where idims == odims) and time [1]
+
+	int index[2] = { 0, 0 };
+	get_index(DIMS, odims, idims, index);
+
+	// Move time dim to AVG_DIM
+
+	long tdims[DIMS];
+	md_copy_dims(D, tdims, idims);
+	md_transpose_dims(D, index[1], AVG_DIM, tdims, idims);
+
+	long tstrs[DIMS];
+	md_calc_strides(D, tstrs, tdims, CFL_SIZE);
+
+	// Allocate memory for transposed data
+
+	complex float* tmp = md_alloc_sameplace(DIMS, tdims, CFL_SIZE, iptr);
+
+	// Move data to transposed array
+
+	md_transpose(D, index[1], AVG_DIM, tdims, tmp, idims, iptr, sizeof(complex float));
+
+	// Define max dims: P P T
+
+	long max_dims[DIMS];
+	md_copy_dims(D, max_dims, tdims);
+
+	max_dims[index[1]] = odims[index[1]];
+
+	// Calculate strides
+
+	long ostrs[DIMS];
+	md_calc_strides(D, ostrs, odims, CFL_SIZE);
+
+	long istrs[DIMS];
+	md_calc_strides(D, istrs, idims, CFL_SIZE);
+
+	// Transposed stride to perform a multiplication with the transposed derivative matrix
+
+	long tstrs2[DIMS];
+	md_copy_dims(D, tstrs2, tstrs);
+
+	tstrs2[index[1]] = tstrs[index[0]];
+	tstrs2[index[0]] = 0L;
+
+	// Multiplication
+
+	md_ztenmulc2(D, max_dims, ostrs, optr, tstrs, tmp, tstrs2, tmp);
+
+	md_free(tmp);
 }
