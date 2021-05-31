@@ -45,7 +45,7 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
-#include "noir/recon.h"
+#include "noir/recon2.h"
 #include "noir/misc.h"
 
 
@@ -81,12 +81,11 @@ int main_nlinv(int argc, char* argv[argc])
 	const char* psf_file = NULL;
 	const char* trajectory = NULL;
 	const char* init_file = NULL;
-	struct noir_conf_s conf = noir_defaults;
-	bool scale_im = false;
-	bool use_gpu = false;
-	float scaling = -1.;
+	struct noir2_conf_s conf = noir2_defaults;
 	bool nufft_lowmem = false;
 
+	unsigned int cnstcoil_flags = 0;
+	bool pattern_for_each_coil = false;
 	const struct opt_s opts[] = {
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
@@ -101,14 +100,14 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_INFILE('p', &psf_file, "file", "pattern / transfer function"),
 		OPT_INFILE('t', &trajectory, "file", "kspace trajectory"),
 		OPT_INFILE('I', &init_file, "file", "File for initialization"),
-		OPT_SET('g', &use_gpu, "use gpu"),
-		OPT_SET('S', &scale_im, "Re-scale image after reconstruction"),
-		OPT_UINT('s', &conf.cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
+		OPT_SET('g', &(conf.gpu), "use gpu"),
+		OPT_SET('S', &(conf.undo_scaling), "Re-scale image after reconstruction"),
+		OPT_UINT('s', &cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
-		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
-		OPTL_SET('n', "noncart", &conf.noncart, "(non-Cartesian)"),
-		OPT_FLOAT('w', &scaling, "val", "inverse scaling of the data"),
+		OPT_SET('P', &pattern_for_each_coil, "(supplied psf is different for each coil)"),
+		OPTL_SET('n', "noncart", &(conf.noncart), "(non-Cartesian)"),
+		OPT_FLOAT('w', &(conf.scaling), "val", "inverse scaling of the data"),
   		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 	};
@@ -116,7 +115,7 @@ int main_nlinv(int argc, char* argv[argc])
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
 
-	(use_gpu ? num_init_gpu_memopt : num_init)();
+	(conf.gpu ? num_init_gpu_memopt : num_init)();
 
 	long ksp_dims[DIMS];
 	complex float* kspace = load_cfl(ksp_file, DIMS, ksp_dims);
@@ -137,7 +136,7 @@ int main_nlinv(int argc, char* argv[argc])
 
 		debug_printf(DP_INFO, "SoS-NLINV reconstruction. Number of partitions: %d\n", ksp_dims[SLICE_DIM]);
 		assert(1 < ksp_dims[SLICE_DIM]);
-		// fftmod not necessary for SoS 
+		// fftmod not necessary for SoS
 	}
 
 	// The only multimap we understand with is the one we do ourselves, where
@@ -170,13 +169,13 @@ int main_nlinv(int argc, char* argv[argc])
 				dims[i] *= 2;
 
 		md_copy_dims(DIMS - 3, dims + 3, ksp_dims + 3);
-	}	
+	}
 
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
 
 	long sens_dims[DIMS];
-	md_select_dims(DIMS, ~conf.cnstcoil_flags, sens_dims, dims);
+	md_select_dims(DIMS, ~cnstcoil_flags, sens_dims, dims);
 
 	long sens_strs[DIMS];
 	md_calc_strides(DIMS, sens_strs, sens_dims, CFL_SIZE);
@@ -251,7 +250,7 @@ int main_nlinv(int argc, char* argv[argc])
 
 		// FIXME: check compatibility
 
-		if (conf.pattern_for_each_coil) {
+		if (pattern_for_each_coil) {
 
 			assert(sens_dims[COIL_DIM] == pat_dims[COIL_DIM]);
 		}
@@ -329,21 +328,6 @@ int main_nlinv(int argc, char* argv[argc])
 
 
 
-	if (-1. == scaling) {
-#if 0
-		scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace);
-#else
-		scaling = 100. / md_znorm(DIMS, kgrid_dims, kgrid);
-
-		if (conf.sms || conf.sos)
-			scaling *= sqrt(kgrid_dims[SLICE_DIM]);
-#endif
-	}
-
-
-	debug_printf(DP_INFO, "Scaling: %f\n", scaling);
-
-	md_zsmul(DIMS, kgrid_dims, kgrid, kgrid, scaling);
 
 
 	if (-1. == restrict_fov) {
@@ -360,31 +344,21 @@ int main_nlinv(int argc, char* argv[argc])
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 	}
 
-	complex float* ref = NULL;
+	complex float* ref_img = NULL;
+	complex float* ref_sens = NULL;
 
-#ifdef  USE_CUDA
-	if (use_gpu) {
-
-		complex float* kspace_gpu = md_alloc_gpu(DIMS, kgrid_dims, CFL_SIZE);
-
-		md_copy(DIMS, kgrid_dims, kspace_gpu, kgrid, CFL_SIZE);
-
-		noir_recon(&conf, dims, img, sens, ksens, ref, psf, mask, kspace_gpu);
-
-		md_free(kspace_gpu);
-
-	} else
-#endif
-		noir_recon(&conf, dims, img, sens, ksens, ref, psf, mask, kgrid);
-
-
-
+	noir2_recon_cart(&conf, DIMS,
+			img_dims, img, ref_img,
+			sens_dims, sens, ksens, ref_sens,
+			kgrid_dims, kgrid,
+			psf_dims, psf,
+			NULL, NULL,
+			msk_dims, mask,
+			kgrid_dims);
 
 	postprocess(dims, normalize, sens_strs, sens, img_strs, img,
 			img_output_dims, img_output_strs, img_output);
 
-	if (scale_im)
-		md_zsmul(DIMS, img_output_dims, img_output, img_output, 1. / scaling);
 
 
 	md_free(mask);
