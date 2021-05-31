@@ -634,7 +634,7 @@ static struct linop_s* nufft_create3(unsigned int N,
 
 		for (int i = 0; i < (int)N; i++)
 			if (!MD_IS_SET(data->flags, i))
-				data->psf_dims[i] = data->trj_dims[i];
+				data->psf_dims[i] = MAX(data->trj_dims[i], ((NULL != weights) ? data->wgh_dims[i] : 0));
 
 		if (NULL != basis) {
 
