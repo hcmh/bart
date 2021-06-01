@@ -153,7 +153,9 @@ int main_nlinv(int argc, char* argv[argc])
 		estimate_pattern(DIMS, ksp_dims, COIL_FLAG, pattern, kspace);
 	}
 
-	if (NULL != trajectory) {
+	bool psf_based_reco = (-1 != restrict_fov) || (NULL != init_file);
+
+	if ((psf_based_reco) && (NULL != trajectory)) {
 
 		assert(NULL == psf_file);
 
@@ -223,7 +225,25 @@ int main_nlinv(int argc, char* argv[argc])
 	md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
 
 	long dims[DIMS];
-	md_copy_dims(DIMS, dims, ksp_dims);
+
+	long trj_dims[DIMS];
+	complex float* traj  = NULL;
+
+	if (NULL != trajectory) {
+
+		conf.noncart = true;
+
+		traj = load_cfl(trajectory, DIMS, trj_dims);
+
+		estimate_im_dims(DIMS, FFT_FLAGS, dims, trj_dims, traj);
+		debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
+
+		md_copy_dims(DIMS - 3, dims + 3, ksp_dims + 3);
+	} else {
+
+		md_copy_dims(DIMS, dims, ksp_dims);
+	}
+
 	dims[MAPS_DIM] = nmaps;
 
 	long sens_dims[DIMS];
@@ -235,11 +255,22 @@ int main_nlinv(int argc, char* argv[argc])
 	long img_output_dims[DIMS];
 	md_copy_dims(DIMS, img_output_dims, img_dims);
 
+	long cim_dims[DIMS];
+	md_select_dims(DIMS, ~MAPS_FLAG, cim_dims, dims);
+
 	if (conf.noncart) {
 
-		for (int i = 0; i < 3; i++)
-			if (1 != img_output_dims[i])
-				img_output_dims[i] /= 2;
+		if (NULL == traj) {
+
+			for (int i = 0; i < 3; i++)
+				if (1 != img_output_dims[i])
+					img_output_dims[i] /= 2;
+		} else {
+
+			for (int i = 0; i < 3; i++)
+				if (1 != sens_dims[i])
+					sens_dims[i] *= 2;
+		}
 	}
 
 	if (combine)
@@ -280,15 +311,10 @@ int main_nlinv(int argc, char* argv[argc])
 		md_clear(DIMS, sens_dims, ksens, CFL_SIZE);
 	}
 
-	if ((-1 == restrict_fov) && conf.noncart)
+	if ((-1 == restrict_fov) && conf.noncart && (NULL == trajectory))
 		restrict_fov = 0.5;
 
-	if (-1. == restrict_fov) {
-
-		mask = md_alloc(DIMS, msk_dims, CFL_SIZE);
-		md_zfill(DIMS, msk_dims, mask, 1.);
-
-	} else {
+	if (-1. != restrict_fov){
 
 		float restrict_dims[DIMS] = { [0 ... DIMS - 1] = 1. };
 		restrict_dims[0] = restrict_fov;
@@ -300,22 +326,80 @@ int main_nlinv(int argc, char* argv[argc])
 	complex float* ref_img = NULL;
 	complex float* ref_sens = NULL;
 
-	noir2_recon_cart(&conf, DIMS,
+	if (NULL != traj) {
+
+		struct nufft_conf_s nufft_conf = nufft_conf_defaults;
+		nufft_conf.toeplitz = true;
+		nufft_conf.lowmem = nufft_lowmem;
+		nufft_conf.pcycle = false;
+		//FIXME: periodic is numerically more similar to rtnlinv
+		nufft_conf.periodic = true;
+
+		conf.nufft_conf = &nufft_conf;
+
+		//FIXME: this is wrong but necessary to be consistent with old scaling:
+		float sc = 1.;
+		for (int i = 0; i < 3; i++)
+			if (1 != dims[i])
+				sc *= 2.;
+		md_zsmul(DIMS, ksp_dims, kspace, kspace, 1. / sqrtf(sc));
+
+		noir2_recon_noncart(&conf, DIMS,
 			img_dims, img, ref_img,
 			sens_dims, sens, ksens, ref_sens,
 			ksp_dims, kspace,
+			trj_dims, traj,
 			pat_dims, pattern,
 			NULL, NULL,
 			msk_dims, mask,
-			ksp_dims);
+			cim_dims);
 
-	postprocess(dims, normalize, MD_STRIDES(DIMS, sens_dims, CFL_SIZE), sens, MD_STRIDES(DIMS, img_dims, CFL_SIZE), img,
-			img_output_dims, MD_STRIDES(DIMS, img_output_dims, CFL_SIZE), img_output);
+	} else {
 
+		noir2_recon_cart(&conf, DIMS,
+				img_dims, img, ref_img,
+				sens_dims, sens, ksens, ref_sens,
+				ksp_dims, kspace,
+				pat_dims, pattern,
+				NULL, NULL,
+				msk_dims, mask,
+				cim_dims);
+	}
 
+	if (NULL != traj) {
+
+		long dims_os[DIMS];
+		md_copy_dims(DIMS, dims_os, dims);
+
+		for (int i = 0; i < 3; i++)
+			if (1 != dims_os[i])
+				dims_os[i] *= 2;
+
+		long img_dims_os[DIMS];
+		md_select_dims(DIMS, ~COIL_FLAG, img_dims_os, dims_os);
+
+		complex float* tmp = md_alloc(DIMS, img_dims_os, CFL_SIZE);
+		md_resize_center(DIMS, img_dims_os, tmp, img_dims, img, CFL_SIZE);
+
+		postprocess(	dims_os, normalize,
+				MD_STRIDES(DIMS, sens_dims, CFL_SIZE), sens,
+				MD_STRIDES(DIMS, img_dims_os, CFL_SIZE), tmp,
+				img_output_dims, MD_STRIDES(DIMS, img_output_dims, CFL_SIZE), img_output);
+
+		md_free(tmp);
+	} else {
+
+		postprocess(	dims, normalize,
+				MD_STRIDES(DIMS, sens_dims, CFL_SIZE), sens,
+				MD_STRIDES(DIMS, img_dims, CFL_SIZE), img,
+				img_output_dims, MD_STRIDES(DIMS, img_output_dims, CFL_SIZE), img_output);
+	}
 
 	md_free(mask);
 	md_free(img);
+
+	if (NULL != traj)
+		unmap_cfl(DIMS, trj_dims, traj);
 
 	unmap_cfl(DIMS, sens_dims, sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
