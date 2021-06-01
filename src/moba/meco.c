@@ -806,7 +806,7 @@ static void meco_fun_phasediff(const nlop_data_t* _data, complex float* dst, con
 
 	meco_forw_fB0(data->linop_fB0, fB0, fB0);
 
-	md_zaxpy2(data->N, data->map_dims, data->map_strs, fB0, 2.i * M_PI * data->scaling[PIND_FB0], data->map_strs, fB0);
+	md_zsmul(data->N, data->map_dims, fB0, fB0, 2.i * M_PI * data->scaling[PIND_FB0]);
 	md_zmul2(data->N, data->y_dims, data->y_strs, tmp_exp, data->map_strs, fB0, data->TE_strs, data->TE);
 
 
