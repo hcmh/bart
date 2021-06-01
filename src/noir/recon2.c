@@ -81,7 +81,6 @@ const struct noir2_conf_s noir2_defaults = {
 	.b = 32.,
 	.sms = false,
 	.sos = false,
-	.img_space_coils = false,
 	.enlive_flags = 0,
 	.scaling = -1,
 	.undo_scaling = false,
@@ -152,23 +151,7 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 		ref = md_alloc_sameplace(1, MD_DIMS(size), CFL_SIZE, data);
 
 		md_copy(N, img_dims, ref, img_ref, CFL_SIZE);
-
-		if (conf->img_space_coils) { // transform coils back to k-space
-
-			complex float* sens_ref_buf = md_alloc(N, col_dims, CFL_SIZE);
-			md_copy(N, col_dims, sens_ref_buf, sens_ref, CFL_SIZE);
-
-			ifftmod(DIMS, col_dims, fft_flags, sens_ref_buf, sens_ref);
-			noir2_back_coils(noir_ops.lop_coil, sens_ref_buf, sens_ref_buf);	//FIXME: must be inverse not adjoint
-
-			md_copy(N, col_dims, ref + skip, sens_ref_buf, CFL_SIZE);
-
-			md_free(sens_ref_buf);
-
-		} else  {
-
-			md_copy(N, col_dims, ref + skip, sens_ref, CFL_SIZE);
-		}
+		md_copy(N, col_dims, ref + skip, sens_ref, CFL_SIZE);
 	}
 
 	complex float* x = md_alloc_sameplace(1, MD_DIMS(size), CFL_SIZE, data);
