@@ -332,8 +332,7 @@ int main_nlinv(int argc, char* argv[argc])
 		nufft_conf.toeplitz = true;
 		nufft_conf.lowmem = nufft_lowmem;
 		nufft_conf.pcycle = false;
-		//FIXME: periodic is numerically more similar to rtnlinv
-		nufft_conf.periodic = true;
+		nufft_conf.periodic = false;
 
 		conf.nufft_conf = &nufft_conf;
 
