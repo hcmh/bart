@@ -226,20 +226,11 @@ int main_nlinv(int argc, char* argv[argc])
 	md_copy_dims(DIMS, dims, ksp_dims);
 	dims[MAPS_DIM] = nmaps;
 
-	long strs[DIMS];
-	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
-
 	long sens_dims[DIMS];
 	md_select_dims(DIMS, ~cnstcoil_flags, sens_dims, dims);
 
-	long sens_strs[DIMS];
-	md_calc_strides(DIMS, sens_strs, sens_dims, CFL_SIZE);
-
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
-
-	long img_strs[DIMS];
-	md_calc_strides(DIMS, img_strs, img_dims, CFL_SIZE);
 
 	long img_output_dims[DIMS];
 	md_copy_dims(DIMS, img_output_dims, img_dims);
@@ -254,9 +245,6 @@ int main_nlinv(int argc, char* argv[argc])
 	if (combine)
 		img_output_dims[MAPS_DIM] = 1;
 
-	long img_output_strs[DIMS];
-	md_calc_strides(DIMS, img_output_strs, img_output_dims, CFL_SIZE);
-
 	complex float* img_output = create_cfl(img_file, DIMS, img_output_dims);
 	md_clear(DIMS, img_output_dims, img_output, CFL_SIZE);
 
@@ -265,9 +253,6 @@ int main_nlinv(int argc, char* argv[argc])
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, img_dims);
-
-	long msk_strs[DIMS];
-	md_calc_strides(DIMS, msk_strs, msk_dims, CFL_SIZE);
 
 	complex float* mask = NULL;
 
@@ -324,8 +309,8 @@ int main_nlinv(int argc, char* argv[argc])
 			msk_dims, mask,
 			ksp_dims);
 
-	postprocess(dims, normalize, sens_strs, sens, img_strs, img,
-			img_output_dims, img_output_strs, img_output);
+	postprocess(dims, normalize, MD_STRIDES(DIMS, sens_dims, CFL_SIZE), sens, MD_STRIDES(DIMS, img_dims, CFL_SIZE), img,
+			img_output_dims, MD_STRIDES(DIMS, img_output_dims, CFL_SIZE), img_output);
 
 
 
