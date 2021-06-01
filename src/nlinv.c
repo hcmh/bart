@@ -298,7 +298,8 @@ int main_nlinv(int argc, char* argv[argc])
 
 		complex float* init = load_cfl(init_file, DIMS, init_dims);
 
-		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
+		assert(md_check_bounds(DIMS, ~0, img_dims, init_dims));
+		assert(md_check_equal_dims(DIMS - COIL_DIM - 1, init_dims, MD_SINGLETON_DIMS(DIMS), ~0));
 
 		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
 		fftmod(DIMS, sens_dims, FFT_FLAGS | ((conf.sms || conf.sos) ? SLICE_FLAG : 0u), ksens, init + skip);
