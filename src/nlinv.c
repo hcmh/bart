@@ -87,9 +87,6 @@ int main_nlinv(int argc, char* argv[argc])
 	unsigned int cnstcoil_flags = 0;
 	bool pattern_for_each_coil = false;
 
-	bool img_os = false;
-	bool legacy_mode = false;
-
 	const struct opt_s opts[] = {
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
@@ -229,27 +226,6 @@ int main_nlinv(int argc, char* argv[argc])
 	md_copy_dims(DIMS, dims, ksp_dims);
 	dims[MAPS_DIM] = nmaps;
 
-	complex float* traj = NULL;
-	long trj_dims[DIMS];
-
-	if (NULL != trajectory) {
-
-		conf.noncart = true;
-
-		traj = load_cfl(trajectory, DIMS, trj_dims);
-
-		estimate_im_dims(DIMS, FFT_FLAGS, dims, trj_dims, traj);
-		debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
-
-		md_zsmul(DIMS, trj_dims, traj, traj, 2.);
-
-		for (unsigned int i = 0; i < DIMS; i++)
-			if (MD_IS_SET(FFT_FLAGS, i) && (1 < dims[i]))
-				dims[i] *= 2;
-
-		md_copy_dims(DIMS - 3, dims + 3, ksp_dims + 3);
-	}
-
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
 
@@ -319,72 +295,8 @@ int main_nlinv(int argc, char* argv[argc])
 		md_clear(DIMS, sens_dims, ksens, CFL_SIZE);
 	}
 
-
-
-	complex float* psf = NULL;
-	long psf_dims[DIMS];
-
-	complex float* kgrid = NULL;
-	long kgrid_dims[DIMS];
-	struct linop_s* nufft_op;
-
-
 	if ((-1 == restrict_fov) && conf.noncart)
 		restrict_fov = 0.5;
-
-
-
-	if (NULL != trajectory) {
-
-		debug_printf(DP_DEBUG3, "Start gridding psf ...");
-
-		md_select_dims(DIMS, ~(COIL_FLAG|MAPS_FLAG), psf_dims, sens_dims);
-
-		psf = compute_psf(DIMS, psf_dims, trj_dims, traj, trj_dims, NULL, pat_dims, pattern, false, nufft_lowmem);
-
-		fftuc(DIMS, psf_dims, FFT_FLAGS, psf, psf);
-
-		float psf_sc = 1.;
-
-		for (int i = 0; i < 3; i++)
-			if (1 != psf_dims[i])
-				psf_sc *= 2.;
-
-		md_zsmul(DIMS, psf_dims, psf, psf, psf_sc);
-		debug_printf(DP_DEBUG3, "finished\n");
-
-
-		debug_printf(DP_DEBUG3, "Start creating nufft-objects...");
-
-		md_select_dims(DIMS, ~MAPS_FLAG, kgrid_dims, sens_dims);
-
-		struct nufft_conf_s nufft_conf = nufft_conf_defaults;
-		nufft_conf.toeplitz = false;
-		nufft_conf.lowmem = nufft_lowmem;
-
-		nufft_op = nufft_create(DIMS, ksp_dims, kgrid_dims, trj_dims, traj, NULL, nufft_conf);
-
-		debug_printf(DP_DEBUG3, "finished\n");
-
-		kgrid = md_alloc(DIMS, kgrid_dims, CFL_SIZE);
-
-		linop_adjoint(nufft_op, DIMS, kgrid_dims, kgrid, DIMS, ksp_dims, kspace);
-		linop_free(nufft_op);
-
-		fftuc(DIMS, kgrid_dims, FFT_FLAGS, kgrid, kgrid);
-
-	} else {
-
-		md_copy_dims(DIMS, kgrid_dims, ksp_dims);
-		md_copy_dims(DIMS, psf_dims, pat_dims);
-
-		kgrid = kspace;
-		psf = pattern;
-	}
-
-
-
-
 
 	if (-1. == restrict_fov) {
 
@@ -406,11 +318,11 @@ int main_nlinv(int argc, char* argv[argc])
 	noir2_recon_cart(&conf, DIMS,
 			img_dims, img, ref_img,
 			sens_dims, sens, ksens, ref_sens,
-			kgrid_dims, kgrid,
-			psf_dims, psf,
+			ksp_dims, kspace,
+			pat_dims, pattern,
 			NULL, NULL,
 			msk_dims, mask,
-			kgrid_dims);
+			ksp_dims);
 
 	postprocess(dims, normalize, sens_strs, sens, img_strs, img,
 			img_output_dims, img_output_strs, img_output);
