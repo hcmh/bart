@@ -42,7 +42,7 @@ tests/test-rtnlinv-nlinv-noncart: traj scale phantom rtnlinv nlinv nrmse
 	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra				;\
 	$(TOOLDIR)/nlinv -w1. -N -i9 -t traj2.ra ksp.ra r1.ra c1.ra		;\
 	$(TOOLDIR)/rtnlinv -w1. -N -i9 -t traj2.ra ksp.ra r2.ra c2.ra		;\
-	$(TOOLDIR)/nrmse -t 0.001 r2.ra r1.ra					;\
+	$(TOOLDIR)/nrmse -t 0.002 r2.ra r1.ra					;\
 	$(TOOLDIR)/nrmse -t 0.0001 c2.ra c1.ra					;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
