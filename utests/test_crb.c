@@ -6,7 +6,9 @@
 #include <complex.h>
 #include <math.h>
 #include <assert.h>
+
 #include "misc/mri.h"
+
 #include "num/multind.h"
 #include "num/flpmath.h"
 
@@ -107,8 +109,6 @@ static bool test_md_zfischer(void)
 	// function: f[i] = (2+I) * X * i + I * Y * i;
 	for (int i = 0; i < N; i++) {
 
-		bart_printf("i; %d\n", i);
-
 		// df/dX
 		pos[PHS1_DIM] = i;
 		pos[PHS2_DIM] = 0;
@@ -191,8 +191,6 @@ static bool test_md_zfischer2(void)
 
 	// function: f[i] = (2+I) * X * i + I * Y * i;
 	for (int i = 0; i < N; i++) {
-
-		bart_printf("i; %d\n", i);
 
 		// df/dX
 		pos[TE_DIM] = i;
