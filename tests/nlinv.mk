@@ -63,7 +63,7 @@ tests/test-nlinv-noncart: traj scale phantom nufft resize nlinv fmac nrmse
 	$(TOOLDIR)/traj -r -x256 -y21 traj.ra				;\
 	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra				;\
 	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra			;\
-	$(TOOLDIR)/nlinv -N -S -i9 -t traj2.ra ksp.ra r.ra c.ra		;\
+	$(TOOLDIR)/nlinv -N -S -i10 -t traj2.ra ksp.ra r.ra c.ra	;\
 	$(TOOLDIR)/resize -c 0 128 1 128 c.ra c2.ra			;\
 	$(TOOLDIR)/fmac r.ra c2.ra x.ra					;\
 	$(TOOLDIR)/nufft traj2.ra x.ra k2.ra				;\
