@@ -247,3 +247,54 @@ static bool test_md_zfischer2(void)
 }
 
 UT_REGISTER_TEST(test_md_zfischer2);
+
+
+static bool test_crb_comparison(void)
+{
+	enum { N = 3 };
+	enum { P = 2 };
+
+	// Cramer-Rao Bounds Interface 2
+
+	complex float der[P][N];
+
+	// f[i] = (2+I) * X * i + I * Y * i;
+	for (int i = 0; i < N; i++) {
+
+		der[0][i] = (2 + I) * i; // df/dX
+		der[1][i] = I * i; // df/dY
+	}
+
+	float crb2[P];
+	compute_crb2(N, P, crb2, der);
+
+	// Cramer-Rao Bounds Interface 1
+
+	enum { M = 1 };
+
+	complex float der1[M][N];
+	complex float der2[M][N];
+
+	// f[i] = (2+I) * X * i + I * Y * i;
+	for (int i = 0; i < N; i++) {
+
+		der1[0][i] = (2 + I) * i; // df/dX
+		der2[0][i] = I * i; // df/dY
+	}
+
+	float crb[P];
+
+	complex float A[P][P];
+
+	const unsigned long idx_unknowns[1] = { 0. };
+
+	compute_crb(P, crb, A, M, N, (const complex float(*)[N]) der2, (const complex float *) der1, idx_unknowns);
+
+	// Error
+
+	UT_ASSERT((fabsf(crb[0] - crb2[0]) < 1E-5) && (fabsf(crb[1] - crb2[1]) < 1E-5));
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_crb_comparison);

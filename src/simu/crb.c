@@ -252,3 +252,18 @@ void md_zfischer(unsigned int D, const long odims[D], complex float* optr, const
 
 	md_free(tmp);
 }
+
+
+void compute_crb2(int N, int P, float crb[P], /*const*/ complex float der[P][N])
+{
+	complex float A[P][P];
+
+	zfischer(N, P, A, der);
+
+	complex float A_inv[P][P];
+
+	mat_inverse(P, A_inv, A);
+
+	for (int i = 0; i < P; i++)
+		crb[i] = crealf(A_inv[i][i]);
+}
