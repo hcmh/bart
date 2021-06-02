@@ -271,7 +271,7 @@ int main_sim(int argc, char* argv[])
 			md_copy_block(DIMS, pos, mdims, m, edims, out_x, CFL_SIZE);
 		}
 		else
-			bloch_simulation(DIMS, mdims, &sim_data, m, ode);
+			bloch_simulation_mag(DIMS, &sim_data, mdims, m, ode);
 
 	} while(md_next(DIMS, dims, ~TE_FLAG, pos));
 

@@ -80,15 +80,15 @@ static void bloch_pdy3(void* _data, float* out, float t, const float* in)
 	bloch_pdy((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff);
 }
 
-#if 0
-static void bloch_pdp3(void* _data, float* out, float t, const float* in)
-{
-	struct sim_data* data = _data;
-	(void)t;
 
-	bloch_pdp((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff);
-}
-#endif
+// static void bloch_pdp3(void* _data, float* out, float t, const float* in)
+// {
+// 	struct sim_data* data = _data;
+// 	(void)t;
+
+// 	bloch_pdp((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff);
+// }
+
 
 static void bloch_wrap_pdp(void* _data, float* out, float t, const float* in)
 {
@@ -502,9 +502,9 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 }
 
 
-void bloch_simulation(unsigned int D, const long dims[D], struct sim_data* sim_data, complex float* m, bool ode)
+void bloch_simulation(unsigned int D, struct sim_data* sim_data, const long dims[D], complex float* m, complex float* d, bool ode)
 {
-	assert(3 == dims[READ_DIM]);
+	assert((3 == dims[READ_DIM]) && (4 == dims[COEFF_DIM]));
 
 	// Perform simulation
 
@@ -519,9 +519,9 @@ void bloch_simulation(unsigned int D, const long dims[D], struct sim_data* sim_d
 	else
 		matrix_bloch_simulation(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);	// OBS simulation, does not work with hard-pulses!
 
-	// Store magnetization
+	// Store magnetization and partial derivative components
 
-	long strs[DIMS];
+	long strs[D];
 	md_calc_strides(D, strs, dims, CFL_SIZE);
 
 	long pos[D];
@@ -529,21 +529,58 @@ void bloch_simulation(unsigned int D, const long dims[D], struct sim_data* sim_d
 
 	long ind = 0;
 
+	// Loop time
 	for (int t = 0; t < dims[TE_DIM]; t++) {
 
 		assert(t < dims[TE_DIM]);
 
 		pos[TE_DIM] = t;
 
+		// Loop dimensions: x, y, z
 		for (int i = 0; i < dims[READ_DIM]; i++) {
 
 			pos[READ_DIM] = i;
+			pos[COEFF_DIM] = 0;
 
 			ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
 
+			// Magnetization
 			m[ind] = mxy_sig[t][(0 == i) ? 1 : ((1 == i) ? 0 : i)]; // Compensate pulse rotation
 
+			// dR1
+			d[ind] = sa_r1_sig[t][(0 == i) ? 1 : ((1 == i) ? 0 : i)];
+
+			// dM0
+			pos[COEFF_DIM] = 1;
+			ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+			d[ind] = sa_m0_sig[t][(0 == i) ? 1 : ((1 == i) ? 0 : i)];
+
+			// dR2
+			pos[COEFF_DIM] = 2;
+			ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+			d[ind] = sa_r2_sig[t][(0 == i) ? 1 : ((1 == i) ? 0 : i)];
+
+			// dB1
+			pos[COEFF_DIM] = 3;
+			ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+			d[ind] = sa_b1_sig[t][(0 == i) ? 1 : ((1 == i) ? 0 : i)];
 		}
 	}
+}
+
+void bloch_simulation_mag(unsigned int D, struct sim_data* sim_data, const long dims[D], complex float* m, bool ode)
+{
+	long ddims[D];
+	md_copy_dims(D, ddims, dims);
+	ddims[COEFF_DIM] = 4; // partial derivatives: dR1, dM0, dR2, dB1
+
+	complex float* d = md_alloc_sameplace(DIMS, ddims, CFL_SIZE, m);
+
+	bloch_simulation(D, sim_data, ddims, m, d, ode);
+
+	md_free(d);
 }
 
