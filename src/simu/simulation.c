@@ -584,3 +584,68 @@ void bloch_simulation_mag(unsigned int D, struct sim_data* sim_data, const long 
 	md_free(d);
 }
 
+
+void bloch_xy_simulation(unsigned int D, struct sim_data* sim_data, const long dims[D], complex float* sig, complex float* der, bool ode)
+{
+	assert(4 == dims[COEFF_DIM]);
+
+	// Perform simulation
+
+	complex float mxy_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	complex float sa_r1_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	complex float sa_r2_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	complex float sa_m0_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+	complex float sa_b1_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
+
+	if (ode)
+		ode_bloch_simulation3(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);	// ODE simulation
+	else
+		matrix_bloch_simulation(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);	// OBS simulation, does not work with hard-pulses!
+
+	// Store magnetization and partial derivative components
+
+	long strs[D];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	long pos[D];
+	md_copy_dims(D, pos, dims);
+
+	long ind = 0;
+
+	// Loop time
+	for (int t = 0; t < dims[TE_DIM]; t++) {
+
+		assert(t < dims[TE_DIM]);
+
+		pos[TE_DIM] = t;
+		pos[COEFF_DIM] = 0;
+
+		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+		// Magnetization
+		sig[ind] = mxy_sig[t][1] + mxy_sig[t][0] * I; // Compensate pulse rotation
+
+		// dR1
+		der[ind] = sa_r1_sig[t][1] + sa_r1_sig[t][0] * I;
+
+		// dM0
+		pos[COEFF_DIM] = 1;
+		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+		der[ind] = sa_m0_sig[t][1] + sa_m0_sig[t][0] * I;
+
+		// dR2
+		pos[COEFF_DIM] = 2;
+		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+		der[ind] = sa_r2_sig[t][1] + sa_r2_sig[t][0] * I;
+
+		// dB1
+		pos[COEFF_DIM] = 3;
+		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+		der[ind] = sa_b1_sig[t][1] + sa_b1_sig[t][0] * I;
+	}
+}
+
+

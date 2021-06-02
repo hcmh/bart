@@ -89,5 +89,6 @@ extern void create_sim_block(struct sim_data* data);
 
 extern void bloch_simulation(unsigned int D, struct sim_data* sim_data, const long dims[D], complex float* m, complex float* d, bool ode);
 extern void bloch_simulation_mag(unsigned int D, struct sim_data* sim_data, const long dims[D], complex float* m, bool ode);
+extern void bloch_xy_simulation(unsigned int D, struct sim_data* sim_data, const long dims[D], complex float* sig, complex float* der, bool ode);
 
 #endif
