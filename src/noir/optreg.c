@@ -83,8 +83,8 @@ bool opt_reg_nlinv(void* ptr, char c, const char* optarg)
 			
 			regs[r].xform = LOGP;
 			regs[r].graph_file = (char *)malloc(100*sizeof(char));
-			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps);
-			assert(4 == ret);
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%lf:%u:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].pct, &regs[r].steps, &regs[r].prior_dimx);
+			assert(5 == ret);
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
 		}
@@ -283,7 +283,7 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 
 			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true, true);
 
-			auto prox_img = prox_logp_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].prior_dim);
+			auto prox_img = prox_logp_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].prior_dimx);
 
 			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
 
@@ -299,7 +299,7 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 
 			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true, true);
 
-			auto prox_img = prox_logp_nlinv_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].base, regs[nr].irgnm_steps, regs[nr].rho, regs[nr].prior_dim);
+			auto prox_img = prox_logp_nlinv_create(DIMS, img_dims, tf_ops, regs[nr].lambda, regs[nr].pct, regs[nr].steps, regs[nr].base, regs[nr].irgnm_steps, regs[nr].rho, regs[nr].prior_dimx);
 
 			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
 

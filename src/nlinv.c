@@ -239,7 +239,12 @@ int main_nlinv(int argc, char* argv[])
 	if (NULL != psf_file) {
 
 		pattern = load_cfl(psf_file, DIMS, pat_dims);
+		//long ksp_strs[DIMS];
+		//md_calc_strides(DIMS, ksp_strs, ksp_dims, CFL_SIZE);
 
+		//long pat_strs[DIMS];
+		//md_calc_strides(DIMS, pat_strs, pat_dims, CFL_SIZE);
+		//md_zmul2(DIMS, ksp_dims, ksp_strs, kspace, ksp_strs, kspace, pat_strs, pattern);
 		// FIXME: check compatibility
 
 		if (conf.pattern_for_each_coil) {
@@ -329,7 +334,7 @@ int main_nlinv(int argc, char* argv[])
 		if (conf.ropts.r > 0){
 
 			ifft(DIMS, psf_dims, FFT_FLAGS, psf, psf);
-			double scaling_P = 1. / md_znorm(DIMS, psf_dims, psf)/scaling_psf;
+			double scaling_P = 1./cabsf(psf[0])/10./scaling_psf;
 			md_zsmul(DIMS, psf_dims, psf, psf, scaling_P);
 			
 			fft(DIMS, psf_dims, FFT_FLAGS, psf, psf);

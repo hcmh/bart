@@ -73,8 +73,8 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 
 	if(data->conf->ropts->regs[0].xform == L1WAV)
 		md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
-	//else if(data->conf->ropts->regs[0].xform == LOGP && data->outer_iter > data->conf->max_outiter-3)
-	//	md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
+	else if(data->conf->ropts->regs[0].xform == LOGP && data->outer_iter > data->conf->max_outiter-3)
+		md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
 	else
 		md_axpy(DIMS, dm->dims, dst, data->alpha, src);
 
@@ -146,8 +146,8 @@ static void fista_solver(iter_op_data* _data, float alpha,  float* dst, const fl
 		if (data->conf->ropts->regs[0].xform == LOGP)
 		{
 			prox_ptr = &logp_prox;
-			scale = powf(5, data->outer_iter)/powf(5, (data->conf->max_outiter)-1)*powf((float)data->outer_iter/((float)(data->conf->max_outiter)-1), 5.);
-			printf("--->>> scale value %f outer_iter %d max outer_iter%d\n", scale, data->outer_iter, data->conf->max_outiter);
+			scale = powf(5, data->outer_iter)/powf(5, (data->conf->max_outiter)-1)*powf((float)data->outer_iter/((float)(data->conf->max_outiter)-1), 5.); // xxx
+			printf("--->>> scale value %f outer_iter %d max outer_iter %d\n", scale, data->outer_iter, data->conf->max_outiter); // xxx
 		}
 	}
 	else{
