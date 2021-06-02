@@ -535,26 +535,15 @@ void bloch_simulation(unsigned int D, const long dims[D], struct sim_data* sim_d
 
 		pos[TE_DIM] = t;
 
-		// x, 	FIXME: Fix correct phase! So that dimensions are nice
-		pos[READ_DIM] = 0;
+		for (int i = 0; i < dims[READ_DIM]; i++) {
 
-		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+			pos[READ_DIM] = i;
 
-		m[ind] = mxy_sig[t][1];
+			ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
 
-		// y
-		pos[READ_DIM] = 1;
+			m[ind] = mxy_sig[t][(0 == i) ? 1 : ((1 == i) ? 0 : i)]; // Compensate pulse rotation
 
-		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
-
-		m[ind] = mxy_sig[t][0];
-
-		// z
-		pos[READ_DIM] = 2;
-
-		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
-
-		m[ind] = mxy_sig[t][2];
+		}
 	}
 }
 
