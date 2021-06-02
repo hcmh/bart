@@ -288,61 +288,24 @@ struct noir2_s noir2_cart_create(int N,
 	assert(md_check_equal_dims(N, cim_dims, ksp_dims, ~0));
 	UNUSED(bas_dims);
 
-
 	struct noir2_s ret = noir2_nlop_create(N, msk_dims, mask, cim_dims, img_dims, col_dims, conf);
 
 	unsigned long fft_flags = conf->fft_flags_noncart | conf->fft_flags_cart;
-
-	long fft_dims[N];
-	md_select_dims(N, fft_flags, fft_dims, cim_dims);
-
-	complex float* fmod = md_alloc(N, fft_dims, CFL_SIZE);
-	md_zfill(N, fft_dims, fmod, 1);
-	fftmod(N, fft_dims, fft_flags, fmod, fmod);
-	fftscale(N, fft_dims, fft_flags, fmod, fmod);
-
-	ret.lop_trafo = linop_cdiag_create(N, cim_dims, fft_flags, fmod);
-	md_free(fmod);
-
-	ret.lop_trafo = linop_chain_FF(ret.lop_trafo, linop_fft_create(N, cim_dims, fft_flags));
-
-	long pat_dims2[N];
-	md_copy_dims(N, pat_dims2, pat_dims);
-	md_max_dims(N, fft_flags, pat_dims2, pat_dims2, cim_dims);
-
-	complex float* pattern2 = md_alloc(N, pat_dims2, CFL_SIZE);
-	md_copy2(N, pat_dims2, MD_STRIDES(N, pat_dims2, CFL_SIZE), pattern2, MD_STRIDES(N, pat_dims, CFL_SIZE), pattern, CFL_SIZE);
-	fftmod(N, pat_dims2, fft_flags, pattern2, pattern2);
-
-	const struct linop_s* lop_pattern = linop_cdiag_create(N, cim_dims, md_nontriv_dims(N, pat_dims2), pattern2);
-	md_free(pattern2);
-
 
 	// if noncart, the pattern is understood as psf.
 	// the forward model maps to the gridded kspace, while the adjoint does not contain the gridding
 	if (!conf->noncart) {
 
-		ret.lop_trafo = linop_chain_FF(ret.lop_trafo, lop_pattern);
+		ret.lop_trafo = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, md_nontriv_dims(N, pat_dims), pattern);
 	} else {
 
-		complex float* fmod = md_alloc(N, fft_dims, CFL_SIZE);
-		md_zfill(N, fft_dims, fmod, 1);
-		fftmod(N, fft_dims, fft_flags, fmod, fmod);
+		const struct linop_s* lop_frw = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, md_nontriv_dims(N, pat_dims), pattern);
+		const struct linop_s* lop_adj = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, 0, NULL);
 
-		const struct linop_s* lop_fftmod = linop_cdiag_create(N, cim_dims, fft_flags, fmod);
-		md_free(fmod);
+		ret.lop_trafo = linop_from_ops(lop_frw->forward, lop_adj->adjoint, NULL, NULL);
 
-		const struct operator_s* frw = operator_chain(ret.lop_trafo->forward, lop_pattern->forward);
-		const struct operator_s* adj = operator_chain(lop_fftmod->adjoint, ret.lop_trafo->adjoint);
-
-		linop_free(ret.lop_trafo);
-		linop_free(lop_fftmod);
-		linop_free(lop_pattern);
-
-		ret.lop_trafo = linop_from_ops(frw, adj, NULL, NULL);
-
-		operator_free(frw);
-		operator_free(adj);
+		linop_free(lop_frw);
+		linop_free(lop_adj);
 	}
 
 	debug_printf(DP_DEBUG1, "\nModel created (%s):\n", conf->noncart ? "non Cartesian, psf-based" : "Cartesian");
