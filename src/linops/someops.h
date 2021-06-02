@@ -37,6 +37,9 @@ extern struct linop_s* linop_ifftc_create(int N, const long dims[__VLA(N)], unsi
 extern struct linop_s* linop_fft_create_measure(int N, const long dims[__VLA(N)], unsigned int flags);
 extern struct linop_s* linop_fftmod_create(unsigned int N, const long dims[__VLA(N)], const unsigned int flags, const bool inv);
 
+extern struct linop_s* linop_fftc_weighted_create(int N, const long dims[N], unsigned int flags, unsigned int pre_flag, const _Complex float* pre_diag, unsigned int post_flag, const _Complex float* post_diag);
+extern struct linop_s* linop_ifftc_weighted_create(int N, const long dims[N], unsigned int flags, unsigned int pre_flag, const _Complex float* pre_diag, unsigned int post_flag, const _Complex float* post_diag);
+
 extern struct linop_s* linop_cdf97_create(int N, const long dims[__VLA(N)], unsigned int flag);
 
 #ifndef __PADD_ENUMS
