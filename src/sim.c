@@ -226,10 +226,16 @@ int main_sim(int argc, char* argv[])
 	md_copy_dims(DIMS, mdims, dims);
 	mdims[READ_DIM] = 3; // x, y, z
 
+	complex float* m = md_alloc(DIMS, mdims, CFL_SIZE);
+
 	long edims[DIMS];
 	md_select_dims(DIMS, TE_FLAG, edims, dims);
 
-	complex float* m = md_alloc(DIMS, mdims, CFL_SIZE);
+	long ddims[DIMS];
+	md_copy_dims(DIMS, ddims, mdims);
+	ddims[MAPS_DIM] = 4; // dR1, dM0, dR2, dB1
+
+	complex float* d = md_alloc(DIMS, ddims, CFL_SIZE);
 
 	// Output z check up's
 
@@ -270,8 +276,9 @@ int main_sim(int argc, char* argv[])
 
 			md_copy_block(DIMS, pos, mdims, m, edims, out_x, CFL_SIZE);
 		}
-		else
-			bloch_simulation_mag(DIMS, &sim_data, mdims, m, ode);
+		else {
+			bloch_simulation2(DIMS, &sim_data, ddims, m, d, ode, MAPS_DIM);
+		}
 
 	} while(md_next(DIMS, dims, ~TE_FLAG, pos));
 

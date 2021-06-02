@@ -571,6 +571,26 @@ void bloch_simulation(unsigned int D, struct sim_data* sim_data, const long dims
 	}
 }
 
+void bloch_simulation2(unsigned int D, struct sim_data* sim_data, const long dims[D], complex float* m, complex float* d, bool ode, int custom_dim)
+{
+	assert(4 == dims[custom_dim]);
+
+	long ddims[D];
+	md_select_dims(D, ~MD_BIT(custom_dim), ddims, dims);
+	ddims[COEFF_DIM] = 4; // partial derivatives: dR1, dM0, dR2, dB1
+
+	debug_print_dims(DP_INFO, D, ddims);
+
+	complex float* d2 = md_alloc_sameplace(DIMS, ddims, CFL_SIZE, m);
+
+	bloch_simulation(D, sim_data, ddims, m, d2, ode);
+
+	md_transpose(D, COEFF_DIM, custom_dim, dims, d, ddims, d2, CFL_SIZE);
+
+	md_free(d2);
+}
+
+
 void bloch_simulation_mag(unsigned int D, struct sim_data* sim_data, const long dims[D], complex float* m, bool ode)
 {
 	long ddims[D];
