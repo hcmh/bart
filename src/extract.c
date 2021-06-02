@@ -28,7 +28,7 @@
 #define CFL_SIZE sizeof(complex float)
 #endif
 
-static const char usage_str[] = "dim1 start1 end1 ... dimn startn endn <input> <output>";
+static const char usage_str[] = "dim1 start1 end1 stepsize1... dimn startn endn stepsizen <input> <output>";
 static const char help_str[] = "Extracts a sub-array along dims from index start to (not including) end.\n";
 
 
@@ -47,30 +47,39 @@ int main_extract(int argc, char* argv[])
 	md_copy_dims(DIMS, out_dims, in_dims);
 
 	int count = argc - 3;
-	assert((count > 0) && (count % 3 == 0));
+	assert((count > 0) && (count % 4 == 0));
 
 
 	long pos2[DIMS] = { [0 ... DIMS - 1] = 0 };
 
-	for (int i = 0; i < count; i += 3) {
+	long in_strs[DIMS];
+	md_calc_strides(DIMS, in_strs, in_dims, CFL_SIZE);
+
+	for (int i = 0; i < count; i += 4) {
 
 		int dim = atoi(argv[i + 1]);
 		int start = atoi(argv[i + 2]);
 		int end = atoi(argv[i + 3]);
+		int stepsize = atoi(argv[i + 4]);
 
 		assert((0 <= dim) && (dim < DIMS));
 		assert(start >= 0);
 		assert(start < end);
 		assert(end <= in_dims[dim]);
+		assert(stepsize > 0);
 
-		out_dims[dim] = end - start;
+		out_dims[dim] = (end - start)/stepsize;
 		pos2[dim] = start;
+		in_strs[dim] = in_strs[dim]*stepsize;
 	}
 
 
 	complex float* out_data = create_cfl(argv[argc - 1], DIMS, out_dims);
 
-	md_copy_block(DIMS, pos2, out_dims, out_data, in_dims, in_data, CFL_SIZE);
+	long out_strs[DIMS];
+	md_calc_strides(DIMS, out_strs, out_dims, CFL_SIZE);
+	
+	md_copy_block2(DIMS, pos2, out_dims, out_strs, out_data, in_dims, in_strs, in_data, CFL_SIZE);
 
 	unmap_cfl(DIMS, in_dims, in_data);
 	unmap_cfl(DIMS, out_dims, out_data);
