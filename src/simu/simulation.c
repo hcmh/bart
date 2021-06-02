@@ -502,8 +502,12 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 }
 
 
-void bloch_simulation(struct sim_data* sim_data, int N, complex float* x_out, complex float* y_out, complex float* z_out, bool ode)
+void bloch_simulation(unsigned int D, const long dims[D], struct sim_data* sim_data, complex float* m, bool ode)
 {
+	assert(3 == dims[READ_DIM]);
+
+	// Perform simulation
+
 	complex float mxy_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
 	complex float sa_r1_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
 	complex float sa_r2_sig[sim_data->seq.rep_num / sim_data->seq.num_average_rep][3];
@@ -515,11 +519,42 @@ void bloch_simulation(struct sim_data* sim_data, int N, complex float* x_out, co
 	else
 		matrix_bloch_simulation(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);	// OBS simulation, does not work with hard-pulses!
 
-	for (int t = 0; t < N; t++) {
+	// Store magnetization
 
-		x_out[t] = mxy_sig[t][1];
-		y_out[t] = mxy_sig[t][0];
-		z_out[t] = mxy_sig[t][2];
+	long strs[DIMS];
+	md_calc_strides(D, strs, dims, CFL_SIZE);
+
+	long pos[D];
+	md_copy_dims(D, pos, dims);
+
+	long ind = 0;
+
+	for (int t = 0; t < dims[TE_DIM]; t++) {
+
+		assert(t < dims[TE_DIM]);
+
+		pos[TE_DIM] = t;
+
+		// x, 	FIXME: Fix correct phase! So that dimensions are nice
+		pos[READ_DIM] = 0;
+
+		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+		m[ind] = mxy_sig[t][1];
+
+		// y
+		pos[READ_DIM] = 1;
+
+		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+		m[ind] = mxy_sig[t][0];
+
+		// z
+		pos[READ_DIM] = 2;
+
+		ind = md_calc_offset(D, strs, pos) / CFL_SIZE;
+
+		m[ind] = mxy_sig[t][2];
 	}
 }
 

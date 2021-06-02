@@ -220,9 +220,16 @@ int main_sim(int argc, char* argv[])
 
 	// Allocate memory for magnetization components
 
-	complex float* x_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
-	complex float* y_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
-	complex float* z_magnetization = md_alloc(DIMS, dims, CFL_SIZE);
+	assert(2 > dims[READ_DIM]);
+
+	long mdims[DIMS];
+	md_copy_dims(DIMS, mdims, dims);
+	mdims[READ_DIM] = 3; // x, y, z
+
+	long edims[DIMS];
+	md_select_dims(DIMS, TE_FLAG, edims, dims);
+
+	complex float* m = md_alloc(DIMS, mdims, CFL_SIZE);
 
 	// Output z check up's
 
@@ -234,9 +241,6 @@ int main_sim(int argc, char* argv[])
 		assert(!sim_data.seq.analytical);
 	}
 
-	long dims1[DIMS];
-	md_select_dims(DIMS, TE_FLAG, dims1, dims);
-
 	long pos[DIMS] = { 0 };
 	int N = dims[TE_DIM];
 
@@ -245,9 +249,10 @@ int main_sim(int argc, char* argv[])
 		sim_data.voxel.r2 = 1. / ( T2[0] + (T2[1] - T2[0]) / T2[2] * (float)pos[COEFF2_DIM] );
 		sim_data.voxel.m0 = 1.;
 
-		complex float out_x[N], out_y[N], out_z[N];
-
 		if (sim_data.seq.analytical) {
+
+			complex float* out_x = md_alloc(DIMS, edims, CFL_SIZE);
+
 
 			parm.t1 = 1 / sim_data.voxel.r1;
 			parm.t2 = 1 / sim_data.voxel.r2;
@@ -262,36 +267,42 @@ int main_sim(int argc, char* argv[])
 
 			default: assert(0);
 			}
-		} 
-		else
-			bloch_simulation(&sim_data, N, out_x, out_y, out_z, ode);
 
-		md_copy_block(DIMS, pos, dims, x_magnetization, dims1, out_x, CFL_SIZE);
-		// FIXME: Mapping NULL -> NULL ugly for analytical case...
-		md_copy_block(DIMS, pos, dims, y_magnetization, dims1, out_y, CFL_SIZE);
-		md_copy_block(DIMS, pos, dims, z_magnetization, dims1, out_z, CFL_SIZE);
+			md_copy_block(DIMS, pos, mdims, m, edims, out_x, CFL_SIZE);
+		}
+		else
+			bloch_simulation(DIMS, mdims, &sim_data, m, ode);
 
 	} while(md_next(DIMS, dims, ~TE_FLAG, pos));
 
 	// Determine signal
 
-	complex float* signals = create_cfl(out_file, DIMS, dims);
+	complex float* signal = create_cfl(argv[1], DIMS, dims);
+
+	md_set_dims(DIMS, pos, 0);
 
 	if (sim_data.seq.analytical)
-
-		md_copy(DIMS, dims, signals, x_magnetization, CFL_SIZE);
-
+		md_copy_block(DIMS, pos, dims, signal, mdims, m, CFL_SIZE);
 	else {
 
-		complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
+		complex float* tmp = md_alloc_sameplace(DIMS, dims, CFL_SIZE, signal);
 
-		md_zsmul(DIMS, dims, tmp, y_magnetization, I);
-		md_zadd(DIMS, dims, signals, x_magnetization, tmp);
+		// y
+		pos[READ_DIM] = 1;
+		md_copy_block(DIMS, pos, dims, tmp, mdims, m, CFL_SIZE);
+
+		md_zsmul(DIMS, dims, signal, tmp, I);
+
+		// x
+		pos[READ_DIM] = 0;
+		md_copy_block(DIMS, pos, dims, tmp, mdims, m, CFL_SIZE);
+
+		md_zadd(DIMS, dims, signal, signal, tmp);
 
 		md_free(tmp);
 	}
 
-	unmap_cfl(DIMS, dims, signals);
+	unmap_cfl(DIMS, dims, signal);
 
 	// Export z Component
 
@@ -301,7 +312,10 @@ int main_sim(int argc, char* argv[])
 
 		z_comp = create_cfl(z_component, DIMS, dims);
 
-		md_copy(DIMS, dims, z_comp, z_magnetization, CFL_SIZE);
+		md_set_dims(DIMS, pos, 0);
+		pos[READ_DIM] = 2;
+
+		md_copy_block(DIMS, pos, dims, z_comp, mdims, m, CFL_SIZE);
 
 		unmap_cfl(DIMS, dims, z_comp);
 	}
@@ -314,29 +328,12 @@ int main_sim(int argc, char* argv[])
 
 		radial_comp = create_cfl(radial_component, DIMS, dims);
 
-		complex float* tmp = md_alloc(DIMS, dims, CFL_SIZE);
-		complex float* tmp2 = md_alloc(DIMS, dims, CFL_SIZE);
-		complex float* tmp3 = md_alloc(DIMS, dims, CFL_SIZE);
-
-		md_zmul(DIMS, dims, tmp, x_magnetization, x_magnetization);
-		md_zmul(DIMS, dims, tmp2, y_magnetization, y_magnetization);
-		md_zmul(DIMS, dims, tmp3, z_magnetization, z_magnetization);
-
-		md_zadd(DIMS, dims, tmp2, tmp2, tmp);
-		md_zadd(DIMS, dims, tmp3, tmp3, tmp2);
-
-		md_zsqrt(DIMS, dims, radial_comp, tmp3);
-
-		md_free(tmp);
-		md_free(tmp2);
-		md_free(tmp3);
+		md_zrss(DIMS, mdims, READ_FLAG, radial_comp, m);
 
 		unmap_cfl(DIMS, dims, radial_comp);
 	}
 
-	md_free(x_magnetization);
-	md_free(y_magnetization);
-	md_free(z_magnetization);
+	md_free(m);
 
 	return 0;
 }

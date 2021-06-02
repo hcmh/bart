@@ -87,6 +87,6 @@ extern void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int
 extern void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], complex float (*sa_r1_sig)[3], complex float (*sa_r2_sig)[3], complex float (*sa_m0_sig)[3], complex float (*sa_b1_sig)[3]);
 extern void create_sim_block(struct sim_data* data);
 
-extern void bloch_simulation(struct sim_data* sim_data, int N, complex float* x_out, complex float* y_out, complex float* z_out, bool ode);
+extern void bloch_simulation(unsigned int D, const long dims[D], struct sim_data* sim_data, complex float* m, bool ode);
 
 #endif
