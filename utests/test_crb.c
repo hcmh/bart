@@ -8,6 +8,7 @@
 #include <assert.h>
 
 #include "misc/mri.h"
+#include "misc/misc.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
@@ -246,6 +247,26 @@ static bool test_md_zfischer2(void)
 
 UT_REGISTER_TEST(test_md_zfischer2);
 
+
+static bool test_getidxunknowns(void)
+{
+	long flag = 8321;
+	int D = bitcount(flag);
+
+	unsigned long ref[3] = { 0, 7, 13 };
+
+	unsigned long ind[D];
+	getidxunknowns(D, ind, flag);
+
+	UT_ASSERT(	(3 == D) &&
+			(ref[0] == ind[0]) &&
+			(ref[1] == ind[1]) &&
+			(ref[2] == ind[2]) );
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_getidxunknowns);
 
 static bool test_crb_comparison(void)
 {

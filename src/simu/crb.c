@@ -77,10 +77,12 @@ void normalize_crb(int P, float rCRB[P], int N, float TR, float T1, float T2, fl
 	}
 }
 
-void getidxunknowns(int Q, unsigned long idx_unknowns[Q], long unknowns) {
+void getidxunknowns(int Q, unsigned long idx_unknowns[Q], long unknowns)
+{
+	assert(Q == bitcount(unknowns));
 
 	int j = 0;
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < DIMS; i++) {
 
 		if (1 & unknowns) { 
 
