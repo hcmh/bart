@@ -163,7 +163,8 @@ static void get_index(unsigned int D, const long dim1[D], const long dim2[D], in
 	// time
 	int tcounter = 0;
 
-	for (unsigned int i = 0; i < D; i++) {
+	// Skip FFT_DIMs
+	for (unsigned int i = 3; i < D; i++) {
 
 		// both dims need to have non-zero elements in same dimension
 		if ((1 < dim1[i]) && (1 < dim2[i])) {

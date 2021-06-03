@@ -80,92 +80,7 @@ static bool test_zfischer(void)
 UT_REGISTER_TEST(test_zfischer);
 
 
-
-
 static bool test_md_zfischer(void)
-{
-	enum { N = 3 };
-	enum { P = 2 };
-
-	// Allocate derivatives
-
-	long ddims[DIMS];
-	md_set_dims(DIMS, ddims, 1.);
-	ddims[PHS1_DIM] = N;
-	ddims[PHS2_DIM] = P;
-
-	long dstrs[DIMS];
-	md_calc_strides(DIMS, dstrs, ddims, CFL_SIZE);
-
-	complex float* der = md_alloc(DIMS, ddims, CFL_SIZE);
-	md_zfill(DIMS, ddims, der, 0.);
-
-	// Estimate derivatives
-
-	long pos[DIMS];
-	md_copy_dims(DIMS, pos, ddims);
-
-	long ind = 1L;
-
-	// function: f[i] = (2+I) * X * i + I * Y * i;
-	for (int i = 0; i < N; i++) {
-
-		// df/dX
-		pos[PHS1_DIM] = i;
-		pos[PHS2_DIM] = 0;
-
-		ind = md_calc_offset(DIMS, dstrs, pos) / CFL_SIZE;
-
-		der[ind] = (2 + I) * i;
-
-		// df/dY
-		pos[PHS2_DIM] = 1;
-		ind = md_calc_offset(DIMS, dstrs, pos) / CFL_SIZE;
-
-		der[ind] = I * i;
-	}
-
-	// Allocate fischer matrix
-
-	long adims[DIMS];
-	md_copy_dims(DIMS, adims, ddims);
-	adims[PHS1_DIM] = P;
-
-	long astrs[DIMS];
-	md_calc_strides(DIMS, astrs, adims, CFL_SIZE);
-
-	complex float* A = md_alloc(DIMS, adims, CFL_SIZE);
-
-	// Define reference matrix
-
-	complex float ref[P][P] = { {25., 5.-10.*I}, {5.+10.*I, 5.}};
-
-	// Estimate Fischer matrix
-
-	md_zfischer(DIMS, adims, A, ddims, der);
-
-	// Comparison to reference
-
-	md_copy_dims(DIMS, pos, adims);
-
-	for (int i = 0; i < P; i++)
-		for (int j = 0; j < P; j++) {
-
-			pos[PHS2_DIM] = i;
-			pos[PHS1_DIM] = j;
-			ind = md_calc_offset(DIMS, astrs, pos) / CFL_SIZE;
-
-			if (1E-5 < (cabsf(ref[i][j] - A[ind])))
-				return 0;
-		}
-
-	return true;
-}
-
-UT_REGISTER_TEST(test_md_zfischer);
-
-
-static bool test_md_zfischer2(void)
 {
 	enum { N = 3 };
 	enum { P = 2 };
@@ -245,7 +160,7 @@ static bool test_md_zfischer2(void)
 	return true;
 }
 
-UT_REGISTER_TEST(test_md_zfischer2);
+UT_REGISTER_TEST(test_md_zfischer);
 
 
 static bool test_getidxunknowns(void)
