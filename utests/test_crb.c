@@ -14,6 +14,7 @@
 #include "num/flpmath.h"
 
 #include "simu/crb.h"
+#include "simu/epg.h"
 
 #include "utest.h"
 
@@ -232,3 +233,68 @@ static bool test_crb_comparison(void)
 }
 
 UT_REGISTER_TEST(test_crb_comparison);
+
+
+static bool test_crb_interfaces_epg_simu(void)
+{
+	// EPG simulation
+
+	int N = 24;
+	int M = 2*N;
+
+	complex float signal[N];
+	complex float states[3][M][N];
+	complex float dsignal[4][N];
+	complex float dstates[4][3][M][N];
+
+	float FA = 15.;
+	float TR = 0.005;
+	float T1 = 1000;
+	float T2 = 100;
+	float B1 = 1.;
+	float offres = 0.;
+	long SP = 0L;
+
+	flash_epg_der(N, M, signal, states, dsignal, dstates, FA, TR, T1, T2, B1, offres, SP);
+
+	// CRB Interface 1
+
+	long unknowns = 5; // dim 0: T1, dim 2: B1
+
+	int Q = bitcount(unknowns);
+
+	unsigned long idx_unknowns[Q];
+
+	getidxunknowns(Q, idx_unknowns, unknowns);
+
+	int P = Q + 1; // selected unknowns + M0
+	complex float fisher[P][P];
+	float rCRB[P];
+
+	compute_crb(P, rCRB, fisher, 4, N, dsignal, signal, idx_unknowns);
+
+	// CRB Interface 2
+
+	// conversion of derivatives from epg to single array
+	complex float der[P+1][N];
+
+	for(int i = 0; i < N; i++) {
+
+		der[0][i] = dsignal[0][i];	// dT1
+		der[1][i] = signal[i];		// dM0
+		der[2][i] = dsignal[1][i];	// dT2
+		der[3][i] = dsignal[2][i];	// dB1
+	}
+
+	long flag = 11; // dim 0: dT1,  dim 1: dM0, dim 3: dB1
+	float crb[P];
+
+	compute_crb2(N, P, crb, P+1, der, flag); // +1 because derivative also still includes dT2 here
+
+	// Test for M0 and B1 CRB
+	UT_ASSERT((fabsf(crb[1] - rCRB[0]) < 1E-2) && (fabsf(crb[2] - rCRB[2]) < 1E-2));
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_crb_interfaces_epg_simu);
