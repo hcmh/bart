@@ -18,4 +18,4 @@ extern void fischer(int N, int P, float A[P][P], /*const*/ float der[P][N]);
 extern void zfischer(int N, int P, complex float A[P][P], /*const*/ complex float der[P][N]);
 extern void md_zfischer(unsigned int D, const long odims[D], complex float* optr, const long idims[D], const complex float* iptr);
 
-extern void compute_crb2(int N, int P, float crb[P], /*const*/ complex float der[P][N]);
+extern void compute_crb2(int N, int P2, float crb[P2], int P, /*const*/ complex float der[P][N], long flag);

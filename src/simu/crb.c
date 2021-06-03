@@ -153,7 +153,47 @@ void zfischer(int N, int P, complex float A[P][P], /*const*/ complex float der[P
 		}
 }
 
+static void select_para(int N, int P2, complex float oder[P2][N], int P, /*const*/ complex float ider[P][N], long flag)
+{
+	assert(P2 == bitcount(flag));
 
+	unsigned long ind[P2];
+
+	getidxunknowns(P2, ind, flag);
+
+	for (int i = 0; i < P2; i++)
+		for (int j = 0; j < N; j++)
+			oder[i][j] = ider[ind[i]][j];
+}
+
+void compute_crb2(int N, int P2, float crb[P2], int P, /*const*/ complex float der[P][N], long flag)
+{
+	assert(P2 == bitcount(flag));
+
+	// Reduce derivative to desired parameters
+	// 	- Defined by flag
+
+	complex float der_redu[P2][N];
+
+	select_para(N, P2, der_redu, P, der, flag);
+
+	// Estimate Fischer Matrix
+
+	complex float A[P2][P2];
+
+	zfischer(N, P2, A, der_redu);
+
+	// Invert Fischer Matrix
+
+	complex float A_inv[P2][P2];
+
+	mat_inverse(P2, A_inv, A);
+
+	// Extract Cramer-Rao Bounds
+
+	for (int i = 0; i < P2; i++)
+		crb[i] = crealf(A_inv[i][i]);
+}
 
 static void get_index(unsigned int D, const long dim1[D], const long dim2[D], int index[2])
 {
@@ -257,16 +297,7 @@ void md_zfischer(unsigned int D, const long odims[D], complex float* optr, const
 }
 
 
-void compute_crb2(int N, int P, float crb[P], /*const*/ complex float der[P][N])
-{
-	complex float A[P][P];
 
-	zfischer(N, P, A, der);
 
-	complex float A_inv[P][P];
 
-	mat_inverse(P, A_inv, A);
 
-	for (int i = 0; i < P; i++)
-		crb[i] = crealf(A_inv[i][i]);
-}

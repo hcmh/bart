@@ -200,7 +200,7 @@ static bool test_crb_comparison(void)
 	}
 
 	float crb2[P];
-	compute_crb2(N, P, crb2, der);
+	compute_crb2(N, P, crb2, P, der, 3); // 3 is flag for dims 0, 1
 
 	// Cramer-Rao Bounds Interface 1
 
