@@ -48,11 +48,11 @@ struct lsqr_data {
 static DEF_TYPEID(lsqr_data);
 
 
-static void normaleq_l2_apply(const operator_data_t* _data, unsigned int N, void* args[static N])
+static void normaleq_l2_apply(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(lsqr_data, _data);
+	UNUSED(mu);
 
-	assert(2 == N);
 
 	linop_normal_unchecked(data->model_op, args[0], args[1]);
 
@@ -104,12 +104,12 @@ const struct operator_p_s* lsqr2_create(const struct lsqr_conf* conf,
 	data->l2_lambda = conf->lambda;
 	data->size = 2 * md_calc_size(iov->N, iov->dims);	// FIXME: assume complex
 
-	const struct operator_s* normaleq_op = NULL;
+	const struct operator_p_s* normaleq_op = NULL;
 	const struct operator_s* adjoint = NULL;
 	
 	if (NULL != model_op) {
 
-		normaleq_op = operator_create(iov->N, iov->dims, iov->N, iov->dims, CAST_UP(PTR_PASS(data)), normaleq_l2_apply, normaleq_del);
+		normaleq_op = operator_p_create(iov->N, iov->dims, iov->N, iov->dims, CAST_UP(PTR_PASS(data)), normaleq_l2_apply, normaleq_del);
 		adjoint = operator_ref(model_op->adjoint);
 
 	} else {
@@ -119,15 +119,13 @@ const struct operator_p_s* lsqr2_create(const struct lsqr_conf* conf,
 
 	if (NULL != precond_op) {
 
-		const struct operator_s* tmp;
+		const struct operator_p_s* tmp_norm = normaleq_op;
+		normaleq_op = operator_p_pst_chain(normaleq_op, precond_op);
+		operator_p_free(tmp_norm);
 
-		tmp = normaleq_op;
-		normaleq_op = operator_chain(normaleq_op, precond_op);
-		operator_free(tmp);
-
-		tmp = adjoint;
+		const struct operator_s* tmp_adj = adjoint;
 		adjoint = operator_chain(adjoint, precond_op);
-		operator_free(tmp);
+		operator_free(tmp_adj);
 	}
 
 	const struct operator_p_s* itop_op = itop_p_create(italgo, iconf, conf->warmstart, init, normaleq_op, num_funs, prox_funs, prox_linops, monitor, conf->icont);
@@ -145,7 +143,7 @@ const struct operator_p_s* lsqr2_create(const struct lsqr_conf* conf,
 	else
 		lsqr_op = operator_p_ref(itop_op);
 
-	operator_free(normaleq_op);
+	operator_p_free(normaleq_op);
 	operator_p_free(itop_op);
 	operator_free(adjoint);
 

@@ -34,7 +34,7 @@ struct itop_s {
 	struct iter_monitor_s* monitor;
 	itop_continuation_t icont;
 
-	const struct operator_s* op;
+	const struct operator_p_s* op;
 	unsigned int num_funs;
 	long size;
 
@@ -79,8 +79,12 @@ static void itop_apply(const operator_data_t* _data, float alpha, complex float*
 	if (NULL != data->icont)
 		data->icont(iconf2);
 
-	data->italgo(iconf2, data->op, data->num_funs, data->prox_funs, data->prox_linops, NULL,
+	const struct operator_s* op = (NULL != data->op) ? operator_p_bind(data->op, alpha) : NULL;
+
+	data->italgo(iconf2, op, data->num_funs, data->prox_funs, data->prox_linops, NULL,
 			NULL, data->size, (float*)dst, (const float*)src, data->monitor);
+
+	operator_free(op);
 
 	xfree(iconf2);
 }
@@ -90,7 +94,7 @@ static void itop_del(const operator_data_t* _data)
 	auto data = CAST_DOWN(itop_s, _data);
 
 	iovec_free(data->iov);
-	operator_free(data->op);
+	operator_p_free(data->op);
 
 	if (NULL != data->init)
 		md_free(data->init);
@@ -118,7 +122,7 @@ static void itop_del(const operator_data_t* _data)
 const struct operator_p_s* itop_p_create(italgo_fun2_t italgo, iter_conf* iconf,
 					bool warmstart,
 					const float* init,
-					const struct operator_s* op,
+					const struct operator_p_s* op,
 					unsigned int num_funs,
 					const struct operator_p_s* prox_funs[num_funs],
 					const struct linop_s* prox_linops[num_funs],
@@ -137,14 +141,14 @@ const struct operator_p_s* itop_p_create(italgo_fun2_t italgo, iter_conf* iconf,
 
 	} else {
 
-		iov = operator_domain(op);
+		iov = operator_p_domain(op);
 	}
 
 	data->iconf = iconf;
 	data->italgo = italgo;
 	data->icont = icont;
 	data->monitor = monitor;
-	data->op = (NULL == op) ? NULL : operator_ref(op);
+	data->op = (NULL == op) ? NULL : operator_p_ref(op);
 	data->num_funs = num_funs;
 	data->size = 2 * md_calc_size(iov->N, iov->dims);	// FIXME: do not assume complex
 	data->prox_funs = NULL;
@@ -192,7 +196,9 @@ const struct operator_s* itop_create(	italgo_fun2_t italgo, iter_conf* iconf,
 					struct iter_monitor_s* monitor,
 					itop_continuation_t icont)
 {
-	auto tmp = itop_p_create(italgo, iconf, warmstart, init, op, num_funs, prox_funs, prox_linops, monitor, icont);
+	auto op_p = operator_p_from_op(op);
+	auto tmp = itop_p_create(italgo, iconf, warmstart, init, op_p, num_funs, prox_funs, prox_linops, monitor, icont);
+	operator_p_free(op_p);
 	auto result = operator_p_bind(tmp, 1.);
 	operator_p_free(tmp);
 	return result;
