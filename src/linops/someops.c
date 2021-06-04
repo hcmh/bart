@@ -385,6 +385,11 @@ struct linop_s* linop_identity_create(unsigned int N, const long dims[N])
 	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), identity_apply, identity_apply, identity_apply, NULL, identity_free);
 }
 
+bool linop_is_identity(const struct linop_s* lop)
+{
+	return NULL != CAST_MAYBE(identity_data_s, linop_get_data(lop));
+}
+
 
 struct resize_op_s {
 
