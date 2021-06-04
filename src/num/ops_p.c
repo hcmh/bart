@@ -321,6 +321,50 @@ const struct operator_s* operator_p_bind_F(const struct operator_p_s* op, float 
 	return result;
 }
 
+struct op_p_from_op_data {
+
+	INTERFACE(operator_data_t);
+	const struct operator_s* op;
+};
+
+static DEF_TYPEID(op_p_from_op_data);
+
+
+
+static void op_p_from_op_data_fun(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(op_p_from_op_data, _data);
+	operator_apply_unchecked(data->op, dst, src);
+	UNUSED(mu);
+}
+
+static void op_p_from_op_del(const operator_data_t* _data)
+{
+	auto data = CAST_DOWN(op_p_from_op_data, _data);
+	operator_free(data->op);
+	xfree(data);
+}
+
+const struct operator_p_s* operator_p_from_op(const struct operator_s* op)
+{
+	PTR_ALLOC(struct op_p_from_op_data, data);
+	SET_TYPEID(op_p_from_op_data, data);
+
+	data->op = operator_ref(op);
+
+	return operator_p_create(
+			operator_codomain(op)->N, operator_codomain(op)->dims,
+			operator_domain(op)->N, operator_domain(op)->dims,
+			CAST_UP(PTR_PASS(data)), op_p_from_op_data_fun, op_p_from_op_del);
+}
+
+const struct operator_p_s* operator_p_from_op_F(const struct operator_s* op)
+{
+	const struct operator_p_s* op_ret = operator_p_from_op(op);
+	operator_free(op);
+	return op_ret;
+}
+
 
 const struct operator_p_s* operator_p_gpu_wrapper(const struct operator_p_s* op)
 {
