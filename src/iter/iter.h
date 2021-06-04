@@ -72,6 +72,7 @@ struct iter_fista_conf {
 	float scale;
 	_Bool hogwild;
 	float tol;
+	int maxeigen_iter;
 };
 
 

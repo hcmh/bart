@@ -258,7 +258,11 @@ void iter2_fista(const iter_conf* _conf,
 		}
 	};
 
-	fista(conf->maxiter, eps * conf->tol, conf->INTERFACE.alpha * conf->step, size, select_vecops(image_adj),
+	double maxeigen = 1.;
+	if (0 != conf->maxeigen_iter)
+		maxeigen = estimate_maxeigenval_sameplace(normaleq_op, conf->maxeigen_iter, image_adj);
+
+	fista(conf->maxiter, eps * conf->tol, conf->INTERFACE.alpha * conf->step / maxeigen, size, select_vecops(image_adj),
 		continuation, OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), image, image_adj, monitor);
 
 // cleanup:
