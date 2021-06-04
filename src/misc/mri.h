@@ -8,7 +8,6 @@
 
 #ifdef __cplusplus
 #define _Bool bool
-#define _Complex
 #else
 #include <stdbool.h>
 #endif
