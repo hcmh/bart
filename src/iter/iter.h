@@ -69,6 +69,7 @@ struct iter_fista_conf {
 	unsigned int maxiter;
 	float step;
 	float continuation;
+	float scale;
 	_Bool hogwild;
 	float tol;
 };
