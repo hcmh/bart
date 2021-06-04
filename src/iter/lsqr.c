@@ -18,6 +18,10 @@
 #include "num/ops.h"
 #include "num/iovec.h"
 
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
+
 #include "linops/linop.h"
 #include "linops/someops.h"
 
@@ -32,7 +36,7 @@
 #include "lsqr.h"
 
 
-const struct lsqr_conf lsqr_defaults = { .lambda = 0., .it_gpu = false, .warmstart = false, .icont = NULL };
+const struct lsqr_conf lsqr_defaults = { .lambda = 0., .it_gpu = false, .warmstart = false, .icont = NULL, .lambda_scale = 0., .lambda_mask = NULL, };
 
 
 struct lsqr_data {
@@ -40,7 +44,10 @@ struct lsqr_data {
 	INTERFACE(operator_data_t);
 
 	float l2_lambda;
+	float l2_lambda_scale;
 	long size;
+	bool mask_allocated;
+	const complex float* lambda_mask;
 
 	const struct linop_s* model_op;
 };
@@ -51,17 +58,40 @@ static DEF_TYPEID(lsqr_data);
 static void normaleq_l2_apply(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
 {
 	const auto data = CAST_DOWN(lsqr_data, _data);
-	UNUSED(mu);
 
 
-	linop_normal_unchecked(data->model_op, args[0], args[1]);
+	linop_normal_unchecked(data->model_op, dst, src);
 
-	md_axpy(1, MD_DIMS(data->size), args[0], data->l2_lambda, args[1]);
+	complex float* tmp = (complex float*)src;
+	if (NULL != data->lambda_mask) {
+#ifdef USE_CUDA
+		if (cuda_ondevice(dst) && !cuda_ondevice(data->lambda_mask)) {
+
+			data->mask_allocated = true;
+			data->lambda_mask = md_gpu_move(1, MD_DIMS(data->size),data->lambda_mask, CFL_SIZE);
+		}
+#endif
+
+		tmp = md_alloc_sameplace(1, MD_DIMS(data->size), CFL_SIZE, dst);
+		md_zmul(1, MD_DIMS(data->size), tmp, data->lambda_mask, src);
+	}
+
+	if (0 != data->l2_lambda)
+		md_zaxpy(1, MD_DIMS(data->size), dst, data->l2_lambda, tmp);
+
+	if (0 != data->l2_lambda_scale)
+		md_zaxpy(1, MD_DIMS(data->size), dst, data->l2_lambda_scale * mu, tmp);
+
+	if (NULL != data->lambda_mask)
+		md_free(tmp);
 }
 
 static void normaleq_del(const operator_data_t* _data)
 {
 	const auto data = CAST_DOWN(lsqr_data, _data);
+
+	if (data->mask_allocated)
+		md_free(data->lambda_mask);
 
 	linop_free(data->model_op);
 
@@ -87,7 +117,7 @@ const struct operator_p_s* lsqr2_create(const struct lsqr_conf* conf,
 	SET_TYPEID(lsqr_data, data);
 
 	const struct iovec_s* iov = NULL;
-	
+
 	if (NULL == model_op) {
 
 		assert(0 < num_funs);
@@ -102,11 +132,14 @@ const struct operator_p_s* lsqr2_create(const struct lsqr_conf* conf,
 
 
 	data->l2_lambda = conf->lambda;
-	data->size = 2 * md_calc_size(iov->N, iov->dims);	// FIXME: assume complex
+	data->l2_lambda_scale = conf->lambda_scale;
+	data->size = md_calc_size(iov->N, iov->dims);	// FIXME: assume complex
+	data->lambda_mask = conf->lambda_mask;
+	data->mask_allocated = false;
 
 	const struct operator_p_s* normaleq_op = NULL;
 	const struct operator_s* adjoint = NULL;
-	
+
 	if (NULL != model_op) {
 
 		normaleq_op = operator_p_create(iov->N, iov->dims, iov->N, iov->dims, CAST_UP(PTR_PASS(data)), normaleq_l2_apply, normaleq_del);
