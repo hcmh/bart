@@ -34,6 +34,7 @@
 #include "iter/admm.h"
 #include "iter/vec.h"
 #include "iter/niht.h"
+#include "iter/misc.h"
 
 #include "iter2.h"
 
@@ -238,7 +239,7 @@ void iter2_fista(const iter_conf* _conf,
 	NESTED(void, continuation, (struct ist_data* itrdata))
 	{
 		float a = logf(conf->continuation) / (float)itrdata->maxiter;
-		itrdata->scale = expf(a * itrdata->iter);
+		itrdata->scale = conf->scale * expf(a * itrdata->iter);
 
 		if (conf->hogwild) {
 
