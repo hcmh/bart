@@ -668,4 +668,65 @@ void bloch_xy_simulation(unsigned int D, struct sim_data* sim_data, const long d
 	}
 }
 
+void bloch_simulation_crb(int N, int P, struct sim_data* sim_data, float crb[P], bool ode)
+{
+	// Perform simulation
+
+	complex float mxy_sig[N][3];
+	complex float sa_r1_sig[N][3];
+	complex float sa_r2_sig[N][3];
+	complex float sa_m0_sig[N][3];
+	complex float sa_b1_sig[N][3];
+
+	if (ode)
+		ode_bloch_simulation3(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);	// ODE simulation
+	else
+		matrix_bloch_simulation(sim_data, mxy_sig, sa_r1_sig, sa_r2_sig, sa_m0_sig, sa_b1_sig);	// OBS simulation, does not work with hard-pulses!
+
+	// Collect all derivatives in single multi-dim. array
+
+	// complex float sig[N];
+	complex float der[P][N];
+
+	// Loop time
+	for (int t = 0; t < N; t++) {
+
+		assert(t < N);
+
+		// Signal
+		// sig[t] = mxy_sig[t][1] + mxy_sig[t][0] * I; // Compensate pulse rotation
+
+		// dR1
+		der[0][t] = sa_r1_sig[t][1] + sa_r1_sig[t][0] * I;
+
+		// dM0
+		der[1][t] = sa_m0_sig[t][1] + sa_m0_sig[t][0] * I;
+
+		// dR2
+		der[2][t] = sa_r2_sig[t][1] + sa_r2_sig[t][0] * I;
+
+		// dB1
+		der[3][t] = sa_b1_sig[t][1] + sa_b1_sig[t][0] * I;
+	}
+
+	// Choose Parameter depending on sequence
+	long flag = 0;
+
+	switch (sim_data->seq.seq_type) {
+
+	case 0: // (IR) bSSFP
+	case 1: flag = 7; break;
+
+	// (IR) FLASH
+	case 2:
+	case 5:	flag = 11; break;
+
+	default: flag = 15; break;
+	}
+
+	// Cramer Rao Bound Analysis
+	compute_crb2(N, P, crb, P, der, flag);
+
+	// make_relative_crb(P, crb, crb, sim_data);
+}
 

@@ -15,6 +15,7 @@
 
 #include "simu/crb.h"
 #include "simu/epg.h"
+#include "simu/simulation.h"
 
 #include "utest.h"
 
@@ -298,3 +299,64 @@ static bool test_crb_interfaces_epg_simu(void)
 }
 
 UT_REGISTER_TEST(test_crb_interfaces_epg_simu);
+
+
+static bool test_crb_ode_matrix(void)
+{
+	int N = 24;
+	int P = 3;
+
+	// ODE simulation
+
+	struct sim_data sim_data;
+
+	sim_data.seq = simdata_seq_defaults;
+	sim_data.seq.seq_type = 2;	// FLASH
+	sim_data.seq.tr = 0.005;
+	sim_data.seq.te = 0.003;
+	sim_data.seq.rep_num = N;
+	sim_data.seq.spin_num = 1;
+	sim_data.seq.num_average_rep = 1;
+	sim_data.seq.inversion_pulse_length = 0.00001;
+	sim_data.seq.prep_pulse_length = 0.00001;
+
+	sim_data.voxel = simdata_voxel_defaults;
+	sim_data.voxel.r1 = 1.;
+	sim_data.voxel.r2 = 10.;
+	sim_data.voxel.m0 = 1.;
+	sim_data.voxel.w = 0.;
+
+	sim_data.pulse = simdata_pulse_defaults;
+	sim_data.pulse.flipangle = 15.;
+	sim_data.pulse.rf_end = 0.001;
+	sim_data.pulse.bwtp = 4.;
+
+	sim_data.grad = simdata_grad_defaults;
+	sim_data.tmp = simdata_tmp_defaults;
+
+	// ODE
+
+	float crb[P];
+	bloch_simulation_crb(N, P, &sim_data, crb, true);
+
+	// bart_printf("CRB: %f,\t %f,\t %f\n", crb[0], crb[1], crb[2]);
+
+	// matrix ODE
+
+	float crb2[P];
+	bloch_simulation_crb(N, P, &sim_data, crb2, false);
+
+	// bart_printf("CRB: %f,\t %f,\t %f\n", crb2[0], crb2[1], crb2[2]);
+
+	float tol = 1.E-3; //[%]
+
+	UT_ASSERT(	(fabsf(crb[0] - crb2[0]) < tol*crb[0]) &&
+			(fabsf(crb[1] - crb2[1]) < tol*crb[1]) &&
+			(fabsf(crb[2] - crb2[2]) < tol*crb[2]) );
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_crb_ode_matrix);
+
+
