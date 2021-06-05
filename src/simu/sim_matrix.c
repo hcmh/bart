@@ -153,12 +153,12 @@ static void apply_sim_matrix(int N, float m[N], float matrix[N][N])
 }
 
 //Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
-static void xyspoiling(int N, float out[N], void* _data)
+static void xyspoiling(int N, int P, float out[N], void* _data)
 {
 	struct sim_data* simdata = _data;
 	
 	if (simdata->seq.seq_type == 2 || simdata->seq.seq_type == 5)
-		for(int i = 0; i < 3 ; i ++) {
+		for(int i = 0; i < P ; i ++) {
 
 			out[3*i] = 0.;
 			out[3*i+1] = 0.;
@@ -299,9 +299,9 @@ static void prepare_matrix_to_tr( int N, float matrix[N][N], void* _data )
 	create_sim_matrix(N, matrix, (tmp_data.seq.tr-tmp_data.seq.te), &tmp_data);
 }
 
-static void ADCcorrection(int N, float out[N], float in[N], float corr_angle)
+static void ADCcorrection(int N, int P, float out[N], float in[N], float corr_angle)
 {
-	for (int i = 0; i < 4; i++) {	// 4 parameter: Sig, S_R1, S_R2, S_B1
+	for (int i = 0; i < P; i++) {	// 4 parameter: Sig, S_R1, S_R2, S_B1
 		
 		out[3*i] = in[3*i] * cosf(corr_angle) - in[3*i+1] * sinf(corr_angle);
 		out[3*i+1] = in[3*i] * sinf(corr_angle) + in[3*i+1] * cosf(corr_angle);
@@ -316,10 +316,12 @@ static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa
 
 	float tmp[N];
 
+	int P = 4;
+
 	if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
-		ADCcorrection(N, tmp, xp, 0.);	// no alternating pulse scheme for FLASH sequences
+		ADCcorrection(N, P, tmp, xp, 0.);	// no alternating pulse scheme for FLASH sequences
 	else
-		ADCcorrection(N, tmp, xp, (data->tmp.rep_counter%2) ? -M_PI : 0.); // alternating pulse scheme for bSSFP sequences
+		ADCcorrection(N, P, tmp, xp, (data->tmp.rep_counter%2) ? -M_PI : 0.); // alternating pulse scheme for bSSFP sequences
 
 	for (int i = 0; i < 3; i++) {
 
@@ -336,7 +338,8 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 	struct sim_data* data = _data;
 	
 	enum { N = 13 };
-    
+	enum { P = 4 };	// Components of M = (Sig, dR1, dR2, dB1)
+
 	float isochromats[data->seq.spin_num];
 
 	if (data->voxel.spin_ensamble)
@@ -434,7 +437,7 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 
 			apply_sim_matrix(N, xp, matrix_to_tr);
 
-			xyspoiling(N, xp, data);	// Turned on for FLASH based sequences
+			xyspoiling(N, P, xp, data);	// Turned on for FLASH based sequences
 
 			data->tmp.rep_counter++;
 		}
