@@ -1,6 +1,6 @@
 /* Copyright 2013-2014. The Regents of the University of California.
  * Copyright 2016-2019. Martin Uecker.
- * All rights reserved. Use of this source code is governed by 
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
  * Authors:
@@ -38,6 +38,7 @@ const struct iter3_irgnm_conf iter3_irgnm_defaults = {
 
 	.cgiter = 100,
 	.cgtol = 0.1,
+	.cgtol_alpha_factor = 0.,
 
 	.nlinv_legacy = false,
 };

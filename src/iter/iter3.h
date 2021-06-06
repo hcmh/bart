@@ -24,6 +24,7 @@ struct iter3_irgnm_conf {
 
 	int cgiter;
 	float cgtol;
+	float cgtol_alpha_factor;
 
 	_Bool nlinv_legacy;
 };
