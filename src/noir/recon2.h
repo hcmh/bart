@@ -25,6 +25,9 @@ struct noir2_conf_s {
 
 	struct nufft_conf_s* nufft_conf;
 
+	struct opt_reg_s* regs;
+	float admm_rho;
+
 	_Bool gpu;
 
 	int cgiter;
