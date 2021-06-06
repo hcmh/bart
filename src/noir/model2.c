@@ -202,7 +202,6 @@ struct noir2_s noir2_noncart_create(int N,
 	nufft_conf.flags = conf->fft_flags_noncart;
 	nufft_conf.cfft = conf->fft_flags_cart;
 
-	assert(md_check_equal_dims(N, ksp_dims, cim_dims, ~conf->fft_flags_noncart));
 	ret.lop_fft = nufft_create2(N, ksp_dims, cim_dims, trj_dims, traj, wgh_dims, weights, bas_dims, basis, nufft_conf);
 
 	// We need to add fftmod and scale for the uncenterd cartesian fft (SMS/SOS)
@@ -286,11 +285,6 @@ struct noir2_s noir2_cart_create(int N,
 	const long col_dims[N],
 	const struct noir2_model_conf_s* conf)
 {
-
-	assert(NULL == basis);
-	assert(md_check_equal_dims(N, cim_dims, ksp_dims, ~0));
-	UNUSED(bas_dims);
-
 	struct noir2_s ret = noir2_nlop_create(N, msk_dims, mask, cim_dims, img_dims, col_dims, conf);
 
 	unsigned long fft_flags = conf->fft_flags_noncart | conf->fft_flags_cart;
@@ -299,8 +293,33 @@ struct noir2_s noir2_cart_create(int N,
 	// the forward model maps to the gridded kspace, while the adjoint does not contain the gridding
 	if (!conf->noncart) {
 
-		ret.lop_fft = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, md_nontriv_dims(N, pat_dims), pattern);
+		if (NULL != basis) {
+
+			ret.lop_fft = linop_fftc_create(N, cim_dims, fft_flags);
+
+			long max_dims[N];
+			md_max_dims(N, ~0, max_dims, cim_dims, ksp_dims);
+
+			debug_print_dims(DP_INFO, N, max_dims);
+			debug_print_dims(DP_INFO, N, bas_dims);
+
+			assert(md_check_equal_dims(N, max_dims, cim_dims, md_nontriv_dims(N, cim_dims)));
+			assert(md_check_equal_dims(N, max_dims, ksp_dims, md_nontriv_dims(N, ksp_dims)));
+			assert(md_check_equal_dims(N, max_dims, bas_dims, md_nontriv_dims(N, bas_dims)));
+
+			ret.lop_fft = linop_chain_FF(ret.lop_fft, linop_fmac_create(N, max_dims, ~md_nontriv_dims(N, ksp_dims), ~md_nontriv_dims(N, cim_dims), ~md_nontriv_dims(N, bas_dims), basis));
+			ret.lop_fft = linop_chain_FF(ret.lop_fft, linop_cdiag_create(N, ksp_dims, md_nontriv_dims(N, pat_dims), pattern));
+
+		} else {
+
+			assert(md_check_equal_dims(N, cim_dims, ksp_dims, ~0));
+			ret.lop_fft = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, md_nontriv_dims(N, pat_dims), pattern);
+		}
 	} else {
+
+		assert(NULL == basis);
+		assert(md_check_equal_dims(N, cim_dims, ksp_dims, ~0));
+		UNUSED(bas_dims);
 
 		const struct linop_s* lop_frw = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, md_nontriv_dims(N, pat_dims), pattern);
 		const struct linop_s* lop_adj = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, 0, NULL);

@@ -79,6 +79,7 @@ int main_nlinv(int argc, char* argv[argc])
 	unsigned int nmaps = 1;
 	float restrict_fov = -1.;
 	const char* psf_file = NULL;
+	const char* basis_file = NULL;
 	const char* trajectory = NULL;
 	const char* init_file = NULL;
 	struct noir2_conf_s conf = noir2_defaults;
@@ -110,6 +111,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPTL_SET('n', "noncart", &(conf.noncart), "(non-Cartesian)"),
 		OPT_FLOAT('w', &(conf.scaling), "val", "inverse scaling of the data"),
   		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
+		OPT_STRING('B', &basis_file, "file", "temporal (or other) basis"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 	};
 
@@ -138,6 +140,15 @@ int main_nlinv(int argc, char* argv[argc])
 		debug_printf(DP_INFO, "SoS-NLINV reconstruction. Number of partitions: %d\n", ksp_dims[SLICE_DIM]);
 		assert(1 < ksp_dims[SLICE_DIM]);
 		// fftmod not necessary for SoS
+	}
+
+	const complex float* basis = NULL;
+	long bas_dims[DIMS];
+
+	if (NULL != basis_file) {
+
+		basis = load_cfl(basis_file, DIMS, bas_dims);
+		assert(!md_check_dimensions(DIMS, bas_dims, COEFF_FLAG | TE_FLAG));
 	}
 
 	complex float* pattern = NULL;
@@ -246,6 +257,16 @@ int main_nlinv(int argc, char* argv[argc])
 
 	dims[MAPS_DIM] = nmaps;
 
+	if (NULL != basis) {
+
+		assert(1 == ksp_dims[COEFF_DIM]);
+		assert(bas_dims[TE_DIM] == ksp_dims[TE_DIM]);
+
+		dims[COEFF_DIM] = bas_dims[COEFF_DIM];
+		dims[TE_DIM] = 1;
+		cnstcoil_flags = cnstcoil_flags | COEFF_FLAG;
+	}
+
 	long sens_dims[DIMS];
 	md_select_dims(DIMS, ~cnstcoil_flags, sens_dims, dims);
 
@@ -349,7 +370,7 @@ int main_nlinv(int argc, char* argv[argc])
 			ksp_dims, kspace,
 			trj_dims, traj,
 			pat_dims, pattern,
-			NULL, NULL,
+			bas_dims, basis,
 			msk_dims, mask,
 			cim_dims);
 
@@ -360,7 +381,7 @@ int main_nlinv(int argc, char* argv[argc])
 				sens_dims, sens, ksens, ref_sens,
 				ksp_dims, kspace,
 				pat_dims, pattern,
-				NULL, NULL,
+				bas_dims, basis,
 				msk_dims, mask,
 				cim_dims);
 	}
@@ -396,6 +417,9 @@ int main_nlinv(int argc, char* argv[argc])
 
 	md_free(mask);
 	md_free(img);
+
+	if (NULL != basis)
+		unmap_cfl(DIMS, bas_dims, basis);
 
 	if (NULL != traj)
 		unmap_cfl(DIMS, trj_dims, traj);
