@@ -45,6 +45,8 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
+#include "grecon/optreg.h"
+
 #include "noir/recon2.h"
 #include "noir/misc.h"
 
@@ -83,6 +85,10 @@ int main_nlinv(int argc, char* argv[argc])
 	const char* trajectory = NULL;
 	const char* init_file = NULL;
 	struct noir2_conf_s conf = noir2_defaults;
+	struct opt_reg_s reg_opts;
+	conf.regs = &reg_opts;
+	opt_reg_init(conf.regs);
+
 	bool nufft_lowmem = false;
 
 	unsigned int cnstcoil_flags = 0;
@@ -91,8 +97,10 @@ int main_nlinv(int argc, char* argv[argc])
 	const struct opt_s opts[] = {
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
-		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+		OPT_FLOAT('r', &conf.redu, "", "(reduction factor)"),
 		OPT_FLOAT('M', &conf.alpha_min, "", "(minimum for regularization)"),
+		{ 'R', NULL, true, OPT_SPECIAL, opt_reg, conf.regs, "<T>:A:B:C", "generalized regularization options (-Rh for help)" },
+		OPT_FLOAT('u', &conf.admm_rho, "rho", "ADMM rho"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),

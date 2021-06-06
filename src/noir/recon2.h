@@ -10,6 +10,8 @@ struct noir2_conf_s {
 	float alpha;
 	float alpha_min;
 	float redu;
+	float cgtol;
+	float cgtol_alpha_factor;
 	float a;
 	float b;
 	_Bool sms;
@@ -23,6 +25,9 @@ struct noir2_conf_s {
 	unsigned long enlive_flags;
 
 	struct nufft_conf_s* nufft_conf;
+
+	struct opt_reg_s* regs;
+	float admm_rho;
 
 	_Bool gpu;
 };

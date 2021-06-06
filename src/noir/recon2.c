@@ -21,12 +21,22 @@
 #include "num/flpmath.h"
 #include "num/fft.h"
 #include "num/iovec.h"
+#include "num/ops.h"
+#include "num/ops_p.h"
+#include "num/rand.h"
 
+#include "iter/italgos.h"
+#include "iter/iter.h"
+#include "iter/iter2.h"
 #include "iter/iter3.h"
 #include "iter/iter4.h"
 #include "iter/iter4_lop.h"
-#include "iter/thresh.h"
-#include "iter/italgos.h"
+#include "iter/lsqr.h"
+#include "iter/prox.h"
+#include "iter/misc.h"
+
+#include "linops/someops.h"
+
 
 #include "misc/misc.h"
 #include "misc/types.h"
@@ -34,6 +44,9 @@
 #include "misc/debug.h"
 
 #include "noir/model2.h"
+
+#include "grecon/optreg.h"
+#include "grecon/italgo.h"
 
 #include "nlops/nlop.h"
 
@@ -85,12 +98,156 @@ const struct noir2_conf_s noir2_defaults = {
 	.scaling = -1,
 	.undo_scaling = false,
 
+	.cgtol = -1.,
+
 	.noncart = false,
 	.nufft_conf = NULL,
+
+	.regs = NULL,
+	.admm_rho = 1.,
 
 	.gpu = false,
 };
 
+
+struct noir_irgnm_conf {
+
+	struct iter3_irgnm_conf* irgnm_conf;
+	enum algo_t algo;
+
+	float rho;
+	struct lsqr_conf *lsqr_conf;
+};
+
+
+static void noir_irgnm2(const struct noir_irgnm_conf* conf,
+			const struct nlop_s* nlop, const struct linop_s* lop_fft,
+			int NO, const long odims[NO], complex float* x, const complex float* ref,
+			int NI, const long idims[NI], const complex float* data,
+			int num_regs, const struct operator_p_s* thresh_ops[num_regs], const struct linop_s* trafos[num_regs],
+			struct iter_op_s cb)
+{
+	struct lsqr_conf lsqr_conf = *(conf->lsqr_conf);
+
+	const struct operator_p_s* pinv_op = NULL;
+
+	const struct operator_s* op_der = operator_chain(nlop_get_derivative(nlop, 0, 0)->forward, lop_fft->normal);
+	const struct operator_s* op_adj = operator_ref(nlop_get_derivative(nlop, 0, 0)->adjoint);
+
+	const struct linop_s* lop_der = linop_from_ops(op_der, op_adj, NULL, NULL);
+
+	operator_free(op_der);
+	operator_free(op_adj);
+
+	auto cod = nlop_codomain(nlop);
+	auto dom = nlop_domain(nlop);
+
+	long M = 2 * md_calc_size(cod->N, cod->dims);
+	long N = 2 * md_calc_size(dom->N, dom->dims);
+
+	assert(N == 2 * md_calc_size(NO, odims));
+	assert(M == 2 * md_calc_size(NI, idims));
+
+	enum algo_t algo = conf->algo;
+
+	switch (algo) {
+
+		case ALGO_CG: {
+
+			struct iter_conjgrad_conf conjgrad_conf = iter_conjgrad_defaults;
+			conjgrad_conf.maxiter = conf->irgnm_conf->cgiter;
+			conjgrad_conf.tol = conf->irgnm_conf->cgtol;
+
+			NESTED(void, lsqr_cont, (iter_conf* iconf))
+			{
+				auto conjgrad_conf = CAST_DOWN(iter_conjgrad_conf, iconf);
+				conjgrad_conf->tol = conjgrad_conf->tol * powf(conjgrad_conf->INTERFACE.alpha, conf->irgnm_conf->cgtol_alpha_factor);
+				debug_printf(DP_INFO, "\t cg_tol: %f\n", conjgrad_conf->tol);
+
+				//double maxeigen = estimate_maxeigenval_sameplace(lop_der->normal, 30, data);
+				//debug_printf(DP_INFO, "\t maxeigen: %f\n", maxeigen);
+
+				//conjgrad_conf->INTERFACE.alpha *= maxeigen;
+				//debug_printf(DP_INFO, "\t alpha: %f\n", conjgrad_conf->INTERFACE.alpha);
+
+			};
+
+			lsqr_conf.icont = lsqr_cont;
+
+			pinv_op = lsqr2_create(&lsqr_conf, iter2_conjgrad, CAST_UP(&conjgrad_conf), NULL, lop_der, NULL, num_regs, NULL, NULL, NULL);
+
+			iter4_lop_irgnm2(CAST_UP(conf->irgnm_conf),
+					(struct nlop_s*)nlop, (struct linop_s*)lop_fft,
+					N, (float*)x, (const float*)ref, M, (const float*)data,
+					pinv_op,
+					cb);
+
+			break;
+		}
+
+		case ALGO_ADMM:
+		case ALGO_FISTA:
+		case ALGO_IST:
+		case ALGO_NIHT:
+		case ALGO_PRIDU:
+		default:
+			error("Algorithm not implemented!");
+
+	}
+
+
+	linop_free(lop_der);
+	operator_p_free(pinv_op);
+}
+
+
+static const struct operator_p_s* flatten_prox_F(const struct operator_p_s* src)
+{
+	const struct operator_p_s* dst = operator_p_reshape_in_F(src, 1, MD_DIMS(md_calc_size(operator_p_domain(src)->N, operator_p_domain(src)->dims)));
+	dst = operator_p_reshape_out_F(dst, 1, MD_DIMS(md_calc_size(operator_p_codomain(dst)->N, operator_p_codomain(dst)->dims)));
+	return dst;
+}
+
+static const struct linop_s* flatten_linop_F(const struct linop_s* src)
+{
+	long dom_size = md_calc_size(linop_domain(src)->N, linop_domain(src)->dims);
+	long cod_size = md_calc_size(linop_codomain(src)->N, linop_codomain(src)->dims);
+
+	src = linop_reshape_in_F(src, 1, MD_DIMS(dom_size));
+	src = linop_reshape_out_F(src, 1, MD_DIMS(cod_size));
+	return src;
+}
+
+static const struct operator_p_s* stack_flatten_prox_F(const struct operator_p_s* prox_maps, const struct operator_p_s* prox_sens)
+{
+	auto prox1 = flatten_prox_F(prox_maps);
+	auto prox2 = flatten_prox_F(prox_sens);
+	auto prox3 = operator_p_stack(0, 0, prox1, prox2);
+	operator_p_free(prox1);
+	operator_p_free(prox2);
+	return prox3;
+}
+
+
+static void opt_reg_noir_join_prox(int N, const long img_dims[N], const long col_dims[N],
+				   int num_regs, const struct operator_p_s* prox_ops[num_regs], const struct linop_s* trafos[num_regs])
+{
+	long joined_dims[1] = { md_calc_size(N, img_dims) + md_calc_size(N, col_dims) };
+	long img_dims_flat[1] = { md_calc_size(N, img_dims) };
+
+	for (int i = 0; i < num_regs; i++) {
+
+		if (linop_is_identity(trafos[i])) {
+
+			prox_ops[i] = stack_flatten_prox_F(prox_ops[i], prox_zero_create(N, col_dims));
+			trafos[i] = linop_identity_create(1, joined_dims);
+		} else {
+
+			prox_ops[i] = flatten_prox_F(prox_ops[i]);
+			trafos[i] = linop_chain_FF(linop_expand_create(1, img_dims_flat, joined_dims), flatten_linop_F(trafos[i]));
+		}
+	}
+}
 
 
 
@@ -166,7 +323,8 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.redu = conf->redu;
-	irgnm_conf.cgtol = 0.1f;
+	irgnm_conf.cgtol = conf->cgtol;
+	irgnm_conf.cgtol_alpha_factor = conf->cgtol_alpha_factor;
 	irgnm_conf.nlinv_legacy = true;
 	irgnm_conf.alpha_min = conf->alpha_min;
 
@@ -182,13 +340,66 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 	nlw.flag = conf->enlive_flags;
 	nlw.col_dims = col_dims;
 
-	iter4_lop_irgnm(CAST_UP(&irgnm_conf),
-			nlop_flat,
-			(struct linop_s*)lop_fft_flat,
-			size * 2, (float*)x, (const float*)ref,
-			md_calc_size(N, cim_dims) * 2, (const float*)data,
-			NULL,
-			(struct iter_op_s){ orthogonalize, CAST_UP(&nlw) });
+	if ((NULL == conf->regs) || (0 == conf->regs->r)) {
+
+		if (-1. == irgnm_conf.cgtol)
+			irgnm_conf.cgtol = 0.1f;
+		irgnm_conf.cgtol_alpha_factor = 0.;
+
+		iter4_lop_irgnm(CAST_UP(&irgnm_conf),
+				nlop_flat,
+				(struct linop_s*)lop_fft_flat,
+				size * 2, (float*)x, (const float*)ref,
+				md_calc_size(N, cim_dims) * 2, (const float*)data,
+				NULL,
+				(struct iter_op_s){ orthogonalize, CAST_UP(&nlw) });
+	} else {
+
+		if (-1. == irgnm_conf.cgtol)
+			irgnm_conf.cgtol = 10.f;
+		irgnm_conf.cgtol_alpha_factor = 2.;
+
+		struct lsqr_conf lsqr_conf = lsqr_defaults;
+		lsqr_conf.warmstart = true;
+
+		int num_regs = conf->regs->r;
+
+		complex float* lmask = md_alloc(1, MD_DIMS(size), CFL_SIZE);
+		md_clear(1, MD_DIMS(size), lmask, CFL_SIZE);
+		md_zfill(1, MD_DIMS(size - skip), lmask + skip, 1.); //l2-regularization for coils
+
+		lsqr_conf.lambda_mask = lmask;
+		lsqr_conf.lambda_scale = 1.;
+
+		struct noir_irgnm_conf noir_irgnm_conf = {
+
+			.irgnm_conf = &irgnm_conf,
+			.algo = italgo_choose(num_regs, conf->regs->regs),
+			.rho = conf->admm_rho,
+			.lsqr_conf = &lsqr_conf,
+		};
+
+		const struct operator_p_s* prox_ops[NUM_REGS];
+		const struct linop_s* trafos[NUM_REGS];
+
+		opt_reg_configure(N, img_dims, conf->regs, prox_ops, trafos, 0, 1, conf->gpu);
+
+		bool l2img = (L2IMG == conf->regs->regs[0].xform);
+
+		if (l2img)
+			md_zfill(1, MD_DIMS(skip), lmask, conf->regs->regs[0].lambda); //l2-regularization for images
+
+		opt_reg_noir_join_prox(N, img_dims, col_dims, num_regs , prox_ops, trafos);
+
+		noir_irgnm2(&noir_irgnm_conf, nlop_flat, lop_fft_flat,
+			   1, MD_DIMS(size), x, ref,
+			   1, MD_DIMS(md_calc_size(N, cim_dims)), data,
+			   num_regs - (l2img ? 1 : 0), prox_ops + (l2img ? 1 : 0), trafos + (l2img ? 1 : 0),
+			   (struct iter_op_s){ orthogonalize, CAST_UP(&nlw) });
+
+		opt_reg_free(conf->regs, prox_ops, trafos);
+		md_free(lmask);
+	}
 
 	nlop_free(nlop_flat);
 	linop_free(lop_fft_flat);
