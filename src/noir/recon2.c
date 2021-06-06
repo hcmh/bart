@@ -185,8 +185,69 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 			break;
 		}
 
-		case ALGO_ADMM:
-		case ALGO_FISTA:
+		case ALGO_FISTA: {
+
+			struct iter_fista_conf fista_conf = iter_fista_defaults;
+			fista_conf.maxiter = conf->irgnm_conf->cgiter;
+			fista_conf.maxeigen_iter = 20;
+			fista_conf.tol = conf->irgnm_conf->cgtol;
+
+			NESTED(void, lsqr_cont, (iter_conf* iconf))
+			{
+				auto fconf = CAST_DOWN(iter_fista_conf, iconf);
+				fconf->tol = fconf->tol  * powf(fconf->INTERFACE.alpha, conf->irgnm_conf->cgtol_alpha_factor);
+
+				//double maxeigen = estimate_maxeigenval_sameplace(lop_der->normal, 30, data);
+				//debug_printf(DP_INFO, "\t maxeigen: %f\n", maxeigen);
+
+				//fconf->INTERFACE.alpha *= maxeigen;
+				//debug_printf(DP_INFO, "\t alpha: %f\n", fconf->INTERFACE.alpha);
+
+				static int outer_iter = 0; //FIXME: should be based on alpha?
+				fconf->maxiter = MIN(conf->irgnm_conf->cgiter, 3 * (int)powf(1.5, outer_iter++));
+			};
+
+			lsqr_conf.icont = lsqr_cont;
+
+			pinv_op = lsqr2_create(&lsqr_conf, iter2_fista, CAST_UP(&fista_conf), NULL, lop_der, NULL, num_regs, thresh_ops, trafos, NULL);
+
+			iter4_lop_irgnm2(CAST_UP(conf->irgnm_conf),
+					(struct nlop_s*)nlop, (struct linop_s*)lop_fft,
+					N, (float*)x, (const float*)ref, M, (const float*)data,
+					pinv_op,
+					cb);
+
+			break;
+		}
+
+		case ALGO_ADMM: {
+
+			struct iter_admm_conf admm_conf = iter_admm_defaults;
+			admm_conf.maxiter = conf->irgnm_conf->cgiter;
+			admm_conf.cg_eps = conf->irgnm_conf->cgtol;
+			admm_conf.rho = conf->rho;
+
+			NESTED(void, lsqr_cont, (iter_conf* iconf))
+			{
+				auto aconf = CAST_DOWN(iter_admm_conf, iconf);
+
+				aconf->maxiter = MIN(admm_conf.maxiter, 10. * powf(2., ceil(logf(1. / iconf->alpha) / logf(conf->irgnm_conf->redu))));
+				aconf->cg_eps = admm_conf.cg_eps  * powf(aconf->INTERFACE.alpha, conf->irgnm_conf->cgtol_alpha_factor);
+			};
+
+			lsqr_conf.icont = lsqr_cont;
+
+			pinv_op = lsqr2_create(&lsqr_conf, iter2_admm, CAST_UP(&admm_conf), NULL, lop_der, NULL, num_regs, thresh_ops, trafos, NULL);
+
+			iter4_lop_irgnm2(CAST_UP(conf->irgnm_conf),
+					(struct nlop_s*)nlop, (struct linop_s*)lop_fft,
+					N, (float*)x, (const float*)ref, M, (const float*)data,
+					pinv_op,
+					cb);
+
+			break;
+		}
+
 		case ALGO_IST:
 		case ALGO_NIHT:
 		case ALGO_PRIDU:

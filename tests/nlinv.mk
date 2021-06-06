@@ -100,6 +100,19 @@ tests/test-nlinv-noncart-l2: traj scale phantom nufft resize nlinv fmac nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-nlinv-noncart-l1: traj scale phantom nufft resize nlinv fmac nrmse
+	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)			;\
+	$(TOOLDIR)/traj -r -x256 -y21 traj.ra				;\
+	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra				;\
+	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra			;\
+	DEBUG_LEVEL=4 $(TOOLDIR)/nlinv -RW:3:0:0.001 -M0.001 -N -S -i12 -t traj2.ra ksp.ra r.ra c.ra	;\
+	$(TOOLDIR)/resize -c 0 128 1 128 c.ra c2.ra			;\
+	$(TOOLDIR)/fmac r.ra c2.ra x.ra					;\
+	$(TOOLDIR)/nufft traj2.ra x.ra k2.ra				;\
+	$(TOOLDIR)/scale 2. k2.ra k3.ra					;\
+	$(TOOLDIR)/nrmse -t 0.05 ksp.ra k3.ra				;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
 
 tests/test-nlinv-gpu: normalize nlinv pocsense nrmse $(TESTS_OUT)/shepplogan_coil_ksp.ra
 	set -e ; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)					;\
