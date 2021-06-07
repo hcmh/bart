@@ -15,6 +15,7 @@
 #include "num/rand.h"
 
 #include "iter/prox.h"
+#include "iter/prox2.h"
 #include "iter/thresh.h"
 #include "iter/iter.h"
 #include "iter/iter2.h"

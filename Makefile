@@ -260,7 +260,7 @@ MODULES_pde = -lsimu -liter -llinops
 MODULES_pde_mask = -lsimu -llinops
 MODULES_bfield = -lsimu -llinops
 MODULES_dixon = -lmoba -lnlops -llinops -lsimu
-MODULES_pixel = -lmoba -lnoir -liter -lsimu -lnlops -lwavelet -lgrecon -lnoncart -llinops -llowrank
+MODULES_pixel = -lmoba -lnoir -liter -lsimu -lnlops -lwavelet -lgrecon -lnoncart -llinops -llowrank -lnn
 MODULES_rtreco = -lcalib -lnoncart -llinops
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
