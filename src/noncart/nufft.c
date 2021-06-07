@@ -613,8 +613,8 @@ static struct linop_s* nufft_create3(unsigned int N,
 
 
 //	assert(md_check_compat(N, ~data->flags, ksp_dims, cim_dims));
-	assert(md_check_bounds(N, ~data->flags, cim_dims, ksp_dims));
-
+//	assert(md_check_bounds(N, ~data->flags, cim_dims, ksp_dims));
+	assert(md_check_bounds(N, ~(data->flags | (NULL == basis ? 0 : (1 << 6))), cim_dims, ksp_dims));
 
 	// extend internal dimensions by one for linear phases
 	unsigned int ND = N + 1;
@@ -649,10 +649,14 @@ static struct linop_s* nufft_create3(unsigned int N,
 
 		data->out_dims[5] = bas_dims[5];	// TE
 		data->out_dims[6] = 1;			// COEFF
+		if (1 == ksp_dims[6])
+			data->ksp_dims[6] = bas_dims[6];
 		assert(data->ksp_dims[6] == bas_dims[6]);
 
 		// recompute
 		md_calc_strides(ND, data->out_strs, data->out_dims, CFL_SIZE);
+		md_calc_strides(ND, data->ksp_strs, data->ksp_dims, CFL_SIZE);
+
 
 
 		md_copy_dims(N, data->bas_dims, bas_dims);
