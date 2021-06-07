@@ -516,6 +516,35 @@ complex float* anon_cfl(const char* name, int D, const long dims[D])
 #endif
 }
 
+void unmap_raw(const void* data, size_t size)
+{
+	if (-1 == munmap((void*)data, size))
+		io_error("unmap raw");
+}
+
+
+void* private_raw(size_t* size, const char* name)
+{
+	int fd;
+	void* addr;
+	struct stat st;
+
+	if (-1 == (fd = open(name, O_RDONLY)))
+		error("abort");
+
+	if (-1 == (fstat(fd, &st)))
+		error("abort");
+
+	*size = st.st_size;
+
+	if (MAP_FAILED == (addr = mmap(NULL, *size, PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0)))
+		error("abort");
+
+	if (-1 == close(fd))
+		error("abort");
+
+	return addr;
+}
 
 
 #if 0
