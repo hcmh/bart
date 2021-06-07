@@ -51,6 +51,50 @@ static void free_buf(void* data, size_t size)
 	unmap_raw(data, size);
 }
 
+static void read_gpu_config(char* path, uint8_t* config)
+{
+	FILE *gpu_config_file;
+	gpu_config_file = fopen(path, "r");
+	
+	if(NULL==gpu_config_file)
+		printf("gpu config file doesn't exist");
+
+	fseek (gpu_config_file, 0, SEEK_END);
+ 	long lSize = ftell (gpu_config_file);
+	char* buffer = (char*) malloc (sizeof(char)*lSize);
+	fseek(gpu_config_file, 0, SEEK_SET);
+	fread(buffer, 1, lSize, gpu_config_file);
+
+	char tmp[10]={0};
+	
+	int j=0;
+	int i=0;
+	int u;
+	
+	int count = 0;
+	while( buffer[i] !='\0')
+	{
+
+		if(buffer[i]!='\t')
+		{
+			tmp[j] = buffer[i];
+			j++;
+		}
+		else
+		{
+			j=0;
+			config[count] = (uint8_t)strtoul(tmp, NULL, 16);
+			memset(tmp, 0, 10);
+			count++;
+		}
+		
+		i++;
+	}
+	
+	fclose(gpu_config_file);
+	
+}
+
 static TF_Graph* load_graph(const char* name, TF_Status* status)
 {
 	TF_Buffer* buf = TF_NewBuffer();
@@ -75,11 +119,11 @@ static TF_Graph* load_graph(const char* name, TF_Status* status)
 }
 
 
-static TF_Session* create_session(TF_Graph* graph, TF_Status* status)
+static TF_Session* create_session(TF_Graph* graph, TF_Status* status, uint8_t* config)
 {
 	TF_SessionOptions* opt = TF_NewSessionOptions();
-#if 0
-	TF_SetConfig(opt, config, clen, status);
+#if 1
+	TF_SetConfig(opt, (void*)config, strlen(config), status);
 
 	if (TF_GetCode(status) != TF_OK)
 		debug_printf(DP_INFO, "GPU selection failed\n");
@@ -476,7 +520,14 @@ const struct nlop_s* nlop_tf_create(int OO, int II, const char* path, bool sessi
 
 	TF_Graph* graph = load_graph(graph_path, status);
 
-	TF_Session* sess = create_session(graph, status);
+	char gpu_config_path[strlen(path)+8];
+	sprintf(gpu_config_path, "%s_gpu_id", path);
+	
+	uint8_t* config_char = (uint8_t*) malloc(20*sizeof(uint8_t));
+	read_gpu_config(gpu_config_path, config_char);
+
+
+	TF_Session* sess = create_session(graph, status, config_char);
 
 	if (session)
 		restore_session(graph, status, sess, path);
