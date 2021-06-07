@@ -586,7 +586,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 		}
 
 		case L1MAN:
-		{
+
 			debug_printf(DP_INFO, "l1 regularization on manifold: %f\n", regs[nr].lambda);
 
 			/* out =  img @ Q
