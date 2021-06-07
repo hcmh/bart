@@ -186,7 +186,9 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 			struct iter_fista_conf fista_conf = iter_fista_defaults;
 			fista_conf.maxiter = conf->irgnm_conf->cgiter;
 			fista_conf.maxeigen_iter = 20;
-			fista_conf.tol = conf->irgnm_conf->cgtol;
+			fista_conf.tol = 0.1f; //conf->irgnm_conf->cgtol;
+			conf->irgnm_conf->cgtol_alpha_factor = 1.;
+			fista_conf.continuation = 1.;
 
 			NESTED(void, lsqr_cont, (iter_conf* iconf))
 			{
@@ -201,6 +203,9 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 
 				static int outer_iter = 0; //FIXME: should be based on alpha?
 				fconf->maxiter = MIN(conf->irgnm_conf->cgiter, 3 * (int)powf(1.5, outer_iter++));
+
+				fconf->scale = MAX(0.2, fconf->INTERFACE.alpha);
+				fconf->step /= fconf->INTERFACE.alpha;
 			};
 
 			lsqr_conf.icont = lsqr_cont;
