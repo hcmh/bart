@@ -39,6 +39,7 @@ UBSAN?=0
 FFTWTHREADS?=1
 SCALAPACK?=0
 ISMRMRD?=0
+TENSORFLOW?=0
 NOEXEC_STACK?=0
 PARALLEL?=0
 PARALLEL_NJOBS?=
@@ -146,6 +147,8 @@ endif
 CUDA_BASE ?= /usr/
 CUDNN_BASE ?= $(CUDA_BASE)
 
+# tensorflow
+TENSORFLOW_BASE ?= /usr/local/
 
 # acml
 
@@ -294,6 +297,10 @@ CPPFLAGS += -DNOLAPACKE
 MODULES += -llapacke
 endif
 
+ifeq ($(TENSORFLOW),1)
+CPPFLAGS += -DTENSORFLOW -I$(TENSORFLOW_BASE)/include
+LIBS += -L$(TENSORFLOW_BASE)/lib -Wl,-rpath $(TENSORFLOW_BASE)/lib -ltensorflow -ltensorflow_framework
+endif
 
 
 XTARGETS += $(TBASE) $(TFLP) $(TNUM) $(TIO) $(TRECO) $(TCALIB) $(TMRI) $(TSIM) $(TNN)
