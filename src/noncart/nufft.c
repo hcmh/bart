@@ -185,7 +185,7 @@ static void compute_kern_basis(unsigned int N, unsigned int flags, const long po
 
 	md_zsmul(N, max_dims, tmp, tmp, (double)bas_dims[6]);	// FIXME: Why?
 
-	md_ztenmulc2(N, ma3_dims, krn_strs, krn, 
+	md_ztenmulc2(N, ma3_dims, krn_strs, krn,
 			max_strs, (void*)tmp + tmp_off,
 			baT_strs, (void*)basis + bas_off);
 
@@ -443,7 +443,7 @@ static struct linop_s* nufft_create3(unsigned int N,
 	// dim 0 must be transformed (we treat this special in the trajectory)
 	assert(MD_IS_SET(data->flags, 0));
 //	assert(md_check_compat(N, ~data->flags, ksp_dims, cim_dims));
-	assert(md_check_bounds(N, ~data->flags, cim_dims, ksp_dims));
+	assert(md_check_bounds(N, ~(data->flags | (NULL == basis ? 0 : (1 << 6))), cim_dims, ksp_dims));
 	assert(0 == (data->flags & conf.cfft));
 
 	assert(!((!conf.decomp) && conf.toeplitz));
@@ -483,7 +483,7 @@ static struct linop_s* nufft_create3(unsigned int N,
 	data->wgh_strs = *TYPE_ALLOC(long[ND]);
 	data->bas_strs = *TYPE_ALLOC(long[ND]);
 	data->out_strs = *TYPE_ALLOC(long[ND]);
-	
+
 
 	md_copy_dims(N, data->cim_dims, cim_dims);
 	data->cim_dims[N] = 1;
@@ -525,10 +525,13 @@ static struct linop_s* nufft_create3(unsigned int N,
 
 		data->out_dims[5] = bas_dims[5];	// TE
 		data->out_dims[6] = 1;			// COEFF
+		if (1 == ksp_dims[6])
+			data->ksp_dims[6] = bas_dims[6];
 		assert(data->ksp_dims[6] == bas_dims[6]);
 
 		// recompute
 		md_calc_strides(ND, data->out_strs, data->out_dims, CFL_SIZE);
+		md_calc_strides(ND, data->ksp_strs, data->ksp_dims, CFL_SIZE);
 
 
 		md_copy_dims(N, data->bas_dims, bas_dims);
