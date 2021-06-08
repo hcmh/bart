@@ -112,6 +112,8 @@ int main_nlinv(int argc, char* argv[argc])
   		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_ULONG('L', &(conf.loop_flags), "flags", "(batch-mode)"),
+		OPTL_INT(0, "cgiter", &conf.cgiter, "iter", "(iterations for linearized problem)"),
+		OPTL_FLOAT(0, "cgtol", &conf.cgtol, "tol", "(tolerance for linearized problem)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);

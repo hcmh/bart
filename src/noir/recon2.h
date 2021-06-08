@@ -26,6 +26,9 @@ struct noir2_conf_s {
 	struct nufft_conf_s* nufft_conf;
 
 	_Bool gpu;
+
+	int cgiter;
+	float cgtol;
 };
 
 extern const struct noir2_conf_s noir2_defaults;
