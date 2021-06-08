@@ -107,6 +107,7 @@ const struct noir2_conf_s noir2_defaults = {
 	.admm_rho = 1.,
 
 	.gpu = false,
+	.cgiter = 30,
 };
 
 
@@ -393,6 +394,7 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 	irgnm_conf.cgtol_alpha_factor = conf->cgtol_alpha_factor;
 	irgnm_conf.nlinv_legacy = true;
 	irgnm_conf.alpha_min = conf->alpha_min;
+	irgnm_conf.cgiter = conf->cgiter;
 
 
 	struct nlop_s* nlop_flat = nlop_flatten(noir_ops.nlop);

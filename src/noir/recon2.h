@@ -30,6 +30,7 @@ struct noir2_conf_s {
 	float admm_rho;
 
 	_Bool gpu;
+	int cgiter;
 };
 
 extern const struct noir2_conf_s noir2_defaults;
