@@ -5,6 +5,7 @@
 
 #include <complex.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "misc/misc.h"
 #include "misc/debug.h"
@@ -69,7 +70,6 @@ static void read_gpu_config(char* path, uint8_t* config)
 	
 	int j=0;
 	int i=0;
-	int u;
 	
 	int count = 0;
 	while( buffer[i] !='\0')
@@ -140,7 +140,7 @@ static TF_Session* create_session(TF_Graph* graph, TF_Status* status, uint8_t* c
 	return sess;
 }
 
-#if 0
+#if TF_VERSION == 1
 static void deallocator(void* ptr, size_t len, void* arg)
 {
 	xfree(ptr);
@@ -161,7 +161,8 @@ static void restore_session(TF_Graph* graph, TF_Status *status, TF_Session *sess
 
 	const TF_Operation* restore_op = TF_GraphOperationByName(graph, "save/restore_all");
 
-#if 0
+// to be compatible with TF 1.15, some struct and function used to handle string below are not defined in TF 1.15 C API
+#if TF_VERSION == 1
 	size_t checkpoint_path_str_len = strlen(ckpt_path);
 	size_t encoded_size = TF_StringEncodedSize(checkpoint_path_str_len);
 	size_t total_size = sizeof(int64_t) + encoded_size;
