@@ -94,6 +94,8 @@ int main_nlinv(int argc, char* argv[argc])
 	unsigned int cnstcoil_flags = 0;
 	bool pattern_for_each_coil = false;
 
+	long im_vec[3] = { 0 };
+
 	const struct opt_s opts[] = {
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
@@ -122,6 +124,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_STRING('B', &basis_file, "file", "temporal (or other) basis"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_INT('C', &conf.cgiter, "iter", "iterations for linearized problem"),
+		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -188,7 +191,10 @@ int main_nlinv(int argc, char* argv[argc])
 		complex float* traj = load_cfl(trajectory, DIMS, trj_dims);
 
 		estimate_im_dims(DIMS, FFT_FLAGS, dims, trj_dims, traj);
-		debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
+		if (0 == md_calc_size(3, im_vec))
+			debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
+		else
+			md_copy_dims(3, dims, im_vec);;
 
 		md_zsmul(DIMS, trj_dims, traj, traj, 2.);
 
@@ -255,8 +261,12 @@ int main_nlinv(int argc, char* argv[argc])
 
 		traj = load_cfl(trajectory, DIMS, trj_dims);
 
-		estimate_im_dims(DIMS, FFT_FLAGS, dims, trj_dims, traj);
-		debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
+		md_copy_dims(3, dims, im_vec);
+		if (0 == md_calc_size(3, dims)) {
+
+			estimate_im_dims(DIMS, FFT_FLAGS, dims, trj_dims, traj);
+			debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
+		}
 
 		md_copy_dims(DIMS - 3, dims + 3, ksp_dims + 3);
 	} else {
