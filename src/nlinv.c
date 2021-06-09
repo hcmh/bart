@@ -98,6 +98,8 @@ int main_nlinv(int argc, char* argv[argc])
 
 	long im_vec[3] = { 0 };
 
+	bool crop_sens = false;
+
 	const struct opt_s opts[] = {
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
@@ -110,6 +112,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
 		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconstruction"),
 		OPT_CLEAR('U', &combine, "Do not combine ENLIVE maps in output"),
+		OPTL_SET(0, "crop-sens", &crop_sens, "Crop sensitivities to image size"),
 		OPT_FLOAT('f', &restrict_fov, "FOV", "restrict FOV"),
 		OPT_INFILE('p', &psf_file, "file", "pattern / transfer function"),
 		OPT_INFILE('t', &trajectory, "file", "kspace trajectory"),
@@ -253,7 +256,7 @@ int main_nlinv(int argc, char* argv[argc])
 	}
 
 	// The only multimap we understand with is the one we do ourselves, where
-	// we allow multiple images and sensitivities during the reconsctruction
+	// we allow multiple images and sensitivities during the reconstruction
 	assert(1 == ksp_dims[MAPS_DIM]);
 
 	long ksp_strs[DIMS];
@@ -338,7 +341,7 @@ int main_nlinv(int argc, char* argv[argc])
 	complex float* mask = NULL;
 
 	complex float* ksens = md_alloc(DIMS, sens_dims, CFL_SIZE);
-	complex float* sens = ((NULL != sens_file) ? create_cfl : anon_cfl)((NULL != sens_file) ? sens_file : "", DIMS, sens_dims);
+	complex float* sens = md_alloc(DIMS, sens_dims, CFL_SIZE);
 
 	// initialization
 	if (NULL != init_file) {
@@ -429,7 +432,22 @@ int main_nlinv(int argc, char* argv[argc])
 	if (NULL != traj)
 		unmap_cfl(DIMS, trj_dims, traj);
 
-	unmap_cfl(DIMS, sens_dims, sens);
+	if (NULL != sens_file) {
+
+		long sens_dims_out[DIMS];
+		md_copy_dims(DIMS, sens_dims_out, sens_dims);
+
+		if (conf.noncart && crop_sens)
+			for (int i = 0; i < 3; i++)
+				if (1 != sens_dims_out[i])
+					sens_dims_out[i] /= 2;
+
+		complex float* sens_out = create_cfl(sens_file, DIMS, sens_dims_out);
+		md_resize_center(DIMS, sens_dims_out, sens_out, sens_dims, sens, CFL_SIZE);
+		unmap_cfl(DIMS, sens_dims_out, sens_out);
+	}
+
+	md_free(sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_output_dims, img_output);
 	unmap_cfl(DIMS, ksp_dims, kspace);
