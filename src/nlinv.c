@@ -127,6 +127,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_STRING('B', &basis_file, "file", "temporal (or other) basis"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_INT('C', &conf.cgiter, "iter", "iterations for linearized problem"),
+		OPTL_FLOAT(0, "alpha", &conf.alpha, "val", "start value for alpha"),
 		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
 	};
 
