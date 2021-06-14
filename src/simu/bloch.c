@@ -6,6 +6,7 @@
 #include "num/vec3.h"
 #include "num/matexp.h"
 
+#include "sim_rot.h"
 #include "bloch.h"
 
 
@@ -82,9 +83,7 @@ void bloch_excitation(float out[3], float t, const float in[3], float r1, float 
 	(void)r1; (void)r2;
 	assert(0. == gb[2]); // no gradient, rotating frame
 
-	out[0] = in[0];
-	out[1] = (in[2] * sinf(gb[0] * t) + in[0] * cosf(gb[0] * t));
-	out[2] = (in[2] * cosf(gb[0] * t) - in[0] * sinf(gb[0] * t));
+	rotx(out, in, gb[0]*t);
 }
 
 

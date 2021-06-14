@@ -10,6 +10,7 @@
 
 #include "simu/simulation.h"
 #include "simu/sim_matrix.h"
+#include "simu/sim_rot.h"
 #include "simu/pulse.h"
 
 #include "num/multind.h"
@@ -187,6 +188,8 @@ static bool test_ode_irbssfp_simulation(void)
 	sim_data.seq.rep_num = repetition;
 	sim_data.seq.spin_num = 1;
 	sim_data.seq.num_average_rep = aver_num;
+	sim_data.seq.inversion_pulse_length = 0.;
+	sim_data.seq.prep_pulse_length = sim_data.seq.te;
 
 	sim_data.voxel = simdata_voxel_defaults;
 	sim_data.voxel.r1 = 1/t1n;
@@ -338,4 +341,43 @@ static bool test_matrix_ode_simu_comparison(void)
 }
 
 UT_REGISTER_TEST(test_matrix_ode_simu_comparison);
+
+
+
+static bool test_bloch_excitation(void)
+{
+	float x0[3] = { 0., 0., 1. };
+	float x[3] = { 0., 0., 1. };
+	float ref[3] = { 0., 1., 0. };
+
+	bloch_excitation2(x, x0, M_PI/2., 0.);
+
+	float err2 = 0.;
+
+	for (int i = 0; i < 3; i++)
+		err2 += powf(x[i] - ref[i], 2.);
+
+	UT_ASSERT(err2 < 1.E-6);
+}
+
+UT_REGISTER_TEST(test_bloch_excitation);
+
+
+static bool test_bloch_excitation2(void)
+{
+	float x0[3] = { 0., 0., 1. };
+	float x[3] = { 0., 0., 1. };
+	float ref[3] = { -1., 0., 0. };
+
+	bloch_excitation2(x, x0, M_PI/2., M_PI/2.);
+
+	float err2 = 0.;
+
+	for (int i = 0; i < 3; i++)
+		err2 += powf(x[i] - ref[i], 2.);
+
+	UT_ASSERT(err2 < 1.E-6);
+}
+
+UT_REGISTER_TEST(test_bloch_excitation2);
 

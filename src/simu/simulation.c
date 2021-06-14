@@ -21,6 +21,7 @@
 
 #include "simulation.h"
 #include "sim_matrix.h"
+#include "sim_rot.h"
 #include "polar_angles.h"
 
 
@@ -155,9 +156,11 @@ static void ADCcorr(int N, int P, float out[P + 1][N], float in[P + 1][N], float
 {
 	for (int i = 0; i < P + 1; i ++) {
 
-		out[i][0] = in[i][0] * cosf(corr_angle) - in[i][1] * sinf(corr_angle);
-		out[i][1] = in[i][0] * sinf(corr_angle) + in[i][1] * cosf(corr_angle);
-		out[i][2] = in[i][2];
+		rotz(out[i], in[i], corr_angle);
+
+		// out[i][0] = in[i][0] * cosf(corr_angle) - in[i][1] * sinf(corr_angle);
+		// out[i][1] = in[i][0] * sinf(corr_angle) + in[i][1] * cosf(corr_angle);
+		// out[i][2] = in[i][2];
 	}
 }
 
@@ -201,18 +204,17 @@ void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, flo
 
 	if (0. == data->pulse.rf_end) {
 
-		// Hard-Pulse Approximation:
-		// !! Does not work with sensitivity output !!
+		float xp2[3] = { 0. };
 
-		float xtmp = xp[0][0];
-		float ytmp = xp[0][1];
-		float ztmp = xp[0][2];
+		for (int i = 0; i < P+1; i++) {
 
-		xp[0][0] = xtmp;
-		xp[0][1] = ytmp * cosf(data->pulse.flipangle / 180 * M_PI) + cosf(data->pulse.phase) * ztmp * sinf(data->pulse.flipangle / 180 * M_PI);
-		xp[0][2] = ytmp * -cosf(data->pulse.phase) * sinf(data->pulse.flipangle / 180 * M_PI) + ztmp * cosf(data->pulse.flipangle / 180 * M_PI);
+			xp2[0] = xp[i][0];
+			xp2[1] = xp[i][1];
+			xp2[2] = xp[i][2];
 
-	} else  {
+			bloch_excitation2(xp[i], xp2, data->pulse.flipangle / 180 * M_PI, data->pulse.phase);
+		}
+	} else {
 
 		ode_direct_sa(h, tol, N, P, xp, data->pulse.rf_start, data->pulse.rf_end, data,  bloch_simu_fun2, bloch_pdy3, bloch_wrap_pdp);
 	}
