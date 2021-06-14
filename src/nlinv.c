@@ -124,7 +124,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPTL_SET('n', "noncart", &(conf.noncart), "(non-Cartesian)"),
 		OPT_FLOAT('w', &(conf.scaling), "val", "inverse scaling of the data"),
   		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
-		OPT_STRING('B', &basis_file, "file", "temporal (or other) basis"),
+		OPT_INFILE('B', &basis_file, "file", "temporal (or other) basis"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_INT('C', &conf.cgiter, "iter", "iterations for linearized problem"),
 		OPTL_FLOAT(0, "alpha", &conf.alpha, "val", "start value for alpha"),
