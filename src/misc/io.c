@@ -210,6 +210,20 @@ void io_memory_cleanup(void)
 }
 
 
+char* io_normalized_filename(const char* name)
+{
+	char* normalized = strdup(name);
+	char* dot = strrchr(normalized, '.');
+
+	if (   (NULL != dot)
+		&& (   !strcmp(dot, ".cfl")
+		    || !strcmp(dot, ".hdr")
+		    || !strcmp(dot, ".")))
+		*dot = '\0';
+
+	return normalized;
+}
+
 
 void io_unlink_if_opened(const char* name)
 {

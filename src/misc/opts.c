@@ -620,7 +620,8 @@ bool opt_string(void* ptr, char c, const char* optarg)
 static bool opt_file(void* ptr, char c, const char* optarg, bool out, bool in)
 {
 	UNUSED(c);
-	*(char**)ptr = strdup(optarg);
+	*(char**)ptr = io_normalized_filename(optarg);
+	assert(NULL != ptr);
 
 	if (out)
 		io_reserve_output(*(char**)ptr);
@@ -628,7 +629,6 @@ static bool opt_file(void* ptr, char c, const char* optarg, bool out, bool in)
 	if (in)
 		io_reserve_input(*(char**)ptr);
 
-	assert(NULL != ptr);
 	return false;
 }
 

@@ -25,6 +25,8 @@ extern void io_reserve_inout(const char* name);
 extern void io_unregister(const char* name);
 extern void io_close(const char* name);
 
+extern char* io_normalized_filename(const char* name);
+
 extern void io_unlink_if_opened(const char* name);
 
 extern void io_memory_cleanup(void);
