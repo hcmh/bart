@@ -148,4 +148,7 @@ extern void* parse_arg_tuple(int n, ...);
 
 extern void cmdline(int* argc, char* argv[*argc], int m, struct arg_s args[m], const char* help_str, int n, const struct opt_s opts[n]);
 
+extern void opts_free(int n, const struct opt_s opts[n]);
+extern void args_free(int n, const struct arg_s args[n]);
+
 #include "misc/cppwrap.h"

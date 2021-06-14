@@ -155,8 +155,13 @@ int main_bart(int argc, char* argv[argc])
 		debug_printf(DP_WARN, "BART version is not reproducible.\n");
 
 	for (int i = 0; NULL != dispatch_table[i].name; i++)
-		if (0 == strcmp(bn, dispatch_table[i].name))
-			return dispatch_table[i].main_fun(argc, argv);
+		if (0 == strcmp(bn, dispatch_table[i].name)) {
+
+			int ret = dispatch_table[i].main_fun(argc, argv);
+			bart_exit_cleanup();
+			return ret;
+		}
+
 
 	fprintf(stderr, "Unknown bart command: \"%s\".\n", bn);
 

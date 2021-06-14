@@ -997,3 +997,79 @@ void cmdline(int* argc, char* argv[*argc], int m, struct arg_s args[m], const ch
 	*argc = -1;
 #endif
 }
+
+void opts_free(int n, const struct opt_s opts[n])
+{
+	for (int i = 0; i < n; ++i) {
+		switch (opts[i].type) {
+		case OPT_STRING:
+		case OPT_INFILE:
+		case OPT_OUTFILE:
+		case OPT_INOUTFILE:
+
+			free(*(char**) opts[i].ptr);
+			break;
+
+		default:
+			; // nothing to do
+		}
+	}
+
+}
+
+void args_free(int n, const struct arg_s args[n])
+{
+	for (int i = 0; i < n; ++i) {
+
+		switch (args[i].arg_type) {
+		case ARG:
+
+			switch (args[i].arg[0].opt_type) {
+
+				case OPT_STRING:
+				case OPT_INFILE:
+				case OPT_OUTFILE:
+				case OPT_INOUTFILE:
+
+					xfree(*(char**) args[i].arg[0].ptr);
+					break;
+
+				default:
+					; // nothing to do
+			}
+
+			break;
+
+		case ARG_TUPLE:
+
+			for (int j = 0; j < args[i].nargs; ++j) {
+
+				switch (args[i].arg[j].opt_type) {
+
+					case OPT_STRING:
+					case OPT_INFILE:
+					case OPT_OUTFILE:
+					case OPT_INOUTFILE:
+
+						for (int c = 0; c < *args[i].count; ++c)
+							xfree(*(char**) (*(void**)args[i].arg[j].ptr) + c * args[i].arg[j].sz);
+						break;
+
+					default:
+						; // nothing to do
+				}
+
+				xfree(*(void**) args[i].arg[j].ptr);
+
+			}
+
+			xfree(args[i].arg);
+
+			break;
+		}
+
+
+	}
+}
+
+
