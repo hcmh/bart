@@ -59,11 +59,19 @@ static void normaleq_l2_apply(const operator_data_t* _data, float mu, complex fl
 {
 	const auto data = CAST_DOWN(lsqr_data, _data);
 
+	complex float* tmp = (complex float*)src;
+	if ((dst == src) || (NULL != data->lambda_mask)) {
+
+		tmp = md_alloc_sameplace(1, MD_DIMS(data->size), CFL_SIZE, dst);
+		md_copy(1, MD_DIMS(data->size), tmp, src, CFL_SIZE);
+	}
 
 	linop_normal_unchecked(data->model_op, dst, src);
 
-	complex float* tmp = (complex float*)src;
-	if (NULL != data->lambda_mask) {
+	if (0 != data->l2_lambda)
+		md_zaxpy(1, MD_DIMS(data->size), dst, data->l2_lambda, tmp);
+
+	if ((NULL != data->lambda_mask) && (0 != data->l2_lambda_scale)) {
 #ifdef USE_CUDA
 		if (cuda_ondevice(dst) && !cuda_ondevice(data->lambda_mask)) {
 
@@ -71,18 +79,11 @@ static void normaleq_l2_apply(const operator_data_t* _data, float mu, complex fl
 			data->lambda_mask = md_gpu_move(1, MD_DIMS(data->size),data->lambda_mask, CFL_SIZE);
 		}
 #endif
-
-		tmp = md_alloc_sameplace(1, MD_DIMS(data->size), CFL_SIZE, dst);
-		md_zmul(1, MD_DIMS(data->size), tmp, data->lambda_mask, src);
+		md_zmul(1, MD_DIMS(data->size), tmp, data->lambda_mask, tmp);
+		md_zaxpy(1, MD_DIMS(data->size), dst, data->l2_lambda_scale * mu, tmp);
 	}
 
-	if (0 != data->l2_lambda)
-		md_zaxpy(1, MD_DIMS(data->size), dst, data->l2_lambda, tmp);
-
-	if (0 != data->l2_lambda_scale)
-		md_zaxpy(1, MD_DIMS(data->size), dst, data->l2_lambda_scale * mu, tmp);
-
-	if (NULL != data->lambda_mask)
+	if (tmp != src)
 		md_free(tmp);
 }
 
