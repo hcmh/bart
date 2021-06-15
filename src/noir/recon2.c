@@ -24,6 +24,9 @@
 #include "num/ops.h"
 #include "num/ops_p.h"
 #include "num/rand.h"
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
 
 #include "iter/italgos.h"
 #include "iter/iter.h"
@@ -337,6 +340,7 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 
 #ifdef USE_CUDA
 	if(conf->gpu) {
+		cuda_use_global_memory();
 
 		complex float* tmp_data = md_alloc_gpu(N, cim_dims, CFL_SIZE);
 		md_copy(N, cim_dims, tmp_data, data, CFL_SIZE);
