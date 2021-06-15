@@ -549,7 +549,7 @@ void flash_epg_der(int N, int M, complex float signal[N], complex float states[3
 	create_relax_matrix_der(ee, dee, T1, T2, offres, TR);
 
 	// initialize Z magnetization
-	state_current[2][0] = -1.0;
+	state_current[2][0] = 1.0;
 
 	// initialize phase
 	float rf_phase = 0.0;
