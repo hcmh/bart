@@ -20,7 +20,7 @@ typedef struct iter_dump_s {
 
 } iter_dump_t;
 
-const struct iter_dump_s* iter_dump_default_create(const char* base_filename, long save_mod, long NI, unsigned long save_flag, unsigned int D[NI], const long* dims[NI]);
+const struct iter_dump_s* iter_dump_default_create(const char* base_filename, long save_mod, long NI, unsigned long save_flag, int D[NI], const long* dims[NI]);
 
 void iter_dump(const struct iter_dump_s* data, long epoch, long NI, const float* x[NI]);
 void iter_dump_free(const struct iter_dump_s* data);

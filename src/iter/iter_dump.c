@@ -32,8 +32,8 @@ struct iter_dump_default_s {
 
 	unsigned long save_flag;
 
-	unsigned int N;
-	unsigned int* D;
+	int N;
+	int* D;
 	const long** dims;
 
 	long save_mod;
@@ -63,7 +63,7 @@ static void iter_dump_default_free(const struct iter_dump_s* _data)
 {
 	auto data = CAST_DOWN(iter_dump_default_s, _data);
 
-	for (unsigned int i = 0; i < data->N; i++)
+	for (int i = 0; i < data->N; i++)
 		xfree(data->dims[i]);
 
 	xfree(data->dims);
@@ -72,7 +72,7 @@ static void iter_dump_default_free(const struct iter_dump_s* _data)
 	xfree(_data);
 }
 
-const struct iter_dump_s* iter_dump_default_create(const char* base_filename, long save_mod, long NI, unsigned long save_flag, unsigned int D[NI], const long* dims[NI])
+const struct iter_dump_s* iter_dump_default_create(const char* base_filename, long save_mod, long NI, unsigned long save_flag, int D[NI], const long* dims[NI])
 {
 	PTR_ALLOC(struct iter_dump_default_s, result);
 	SET_TYPEID(iter_dump_default_s, result);
@@ -87,10 +87,10 @@ const struct iter_dump_s* iter_dump_default_create(const char* base_filename, lo
 	result->save_flag = save_flag;
 
 	result->N = bitcount(save_flag);
-	PTR_ALLOC(unsigned int[result->N], nD);
+	PTR_ALLOC(int[result->N], nD);
 	PTR_ALLOC(const long*[result->N], ndims);
 
-	unsigned int ip = 0;
+	int ip = 0;
 	for(int i = 0; i < NI; i++) {
 
 		if (MD_IS_SET(save_flag, i)) {

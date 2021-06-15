@@ -402,23 +402,23 @@ out:
  * @param n[D] number of dimensions per array
  * @param dimesnions[D] pointer to dimensions of each array
  */
-int write_multi_cfl_header(int fd, long num_ele, unsigned int D, unsigned int n[D], const long* dimensions[D])
+int write_multi_cfl_header(int fd, long num_ele, int D, int n[D], const long* dimensions[D])
 {
 
 	xdprintf(fd, "# Dimensions\n%ld \n", num_ele);
 
 	xdprintf(fd, "# SizesDimensions\n");
 
-	for (unsigned int i = 0; i < D; i++)
+	for (int i = 0; i < D; i++)
 		xdprintf(fd, "%ld ", n[i]);
 
 	xdprintf(fd, "\n");
 
 	xdprintf(fd, "# MultiDimensions\n");
 
-	for (unsigned int i = 0; i < D; i++) {
+	for (int i = 0; i < D; i++) {
 
-		for (unsigned int j = 0; j < n[i]; j++)
+		for (int j = 0; j < n[i]; j++)
 			xdprintf(fd, "%ld ", dimensions[i][j]);
 
 		xdprintf(fd, "\n");
@@ -465,7 +465,7 @@ int write_multi_cfl_header(int fd, long num_ele, unsigned int D, unsigned int n[
  *
  * @return number of arrays in file
  */
-int read_multi_cfl_header(int fd, unsigned int D_max, unsigned int n_max, unsigned int n[D_max], long dimensions[D_max][n_max])
+int read_multi_cfl_header(int fd, int D_max, int n_max, int n[D_max], long dimensions[D_max][n_max])
 {
 	char header[4097];
 	memset(header, 0, 4097);
@@ -479,7 +479,7 @@ int read_multi_cfl_header(int fd, unsigned int D_max, unsigned int n_max, unsign
 	bool ok = false;
 	bool multi_cfl = false;
 
-	unsigned int D = 0;
+	int D = 0;
 	long num_ele = 0;
 	long num_ele_dims = 0;
 
@@ -519,7 +519,7 @@ int read_multi_cfl_header(int fd, unsigned int D_max, unsigned int n_max, unsign
 
 			if (0 == strcmp(keyword, "SizesDimensions")) {
 
-				for (unsigned int i = 0; i < D_max; i++)
+				for (int i = 0; i < D_max; i++)
 					n[i] = 0;
 
 				long val;
@@ -549,13 +549,13 @@ int read_multi_cfl_header(int fd, unsigned int D_max, unsigned int n_max, unsign
 
 			if (0 == strcmp(keyword, "MultiDimensions")) {
 
-				for (unsigned int i = 0; i < D; i++)
-					for (unsigned int j = 0; j < n_max; j++)
+				for (int i = 0; i < D; i++)
+					for (int j = 0; j < n_max; j++)
 						dimensions[i][j] = 1;
 
 				long val;
-				unsigned int i = 0;
-				unsigned int j = 0;
+				int i = 0;
+				int j = 0;
 				long size_tensor = 1;
 
 				while (1 == sscanf(header + pos, "%ld%n", &val, &delta)) {

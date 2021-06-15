@@ -640,7 +640,7 @@ void unmap_cfl(int D, const long dims[D?:1], const complex float* x)
  * @param dimensions[N] pointer to dimensions of each array
  * @param args[N] pointer to the first element of each memory mapped array
  */
-void create_multi_cfl(const char* name, unsigned int N, unsigned int D[N], const long* dimensions[N], _Complex float* args[N])
+void create_multi_cfl(const char* name, int N, int D[N], const long* dimensions[N], _Complex float* args[N])
 {
 	io_register_output(name);
 
@@ -674,7 +674,7 @@ void create_multi_cfl(const char* name, unsigned int N, unsigned int D[N], const
 		io_error("Creating cfl file %s", name);
 
 	long num_ele = 0;
-	for (unsigned int i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 		num_ele += md_calc_size(D[i], dimensions[i]);
 
 	if (-1 == write_multi_cfl_header(ofd, num_ele, N, D, dimensions))
@@ -684,12 +684,12 @@ void create_multi_cfl(const char* name, unsigned int N, unsigned int D[N], const
 		io_error("Creating cfl file %s", name);
 
 	args[0] = shared_cfl(1, &num_ele, name_bdy);
-	for (unsigned int i = 1; i < N; i++)
+	for (int i = 1; i < N; i++)
 		args[i] = args[i - 1] + md_calc_size(D[i - 1], dimensions[i - 1]);
 #endif /* MEMONLY_CFL */
 }
 
-static unsigned int load_multi_cfl_internal(const char* name, unsigned int N_max, unsigned int D_max, unsigned int D[__VLA(N_max)], long dimensions[__VLA(N_max)][D_max], _Complex float* args[__VLA(N_max)], bool priv)
+static int load_multi_cfl_internal(const char* name, int N_max, int D_max, int D[__VLA(N_max)], long dimensions[__VLA(N_max)][D_max], _Complex float* args[__VLA(N_max)], bool priv)
 {
 	io_register_input(name);
 
@@ -726,7 +726,7 @@ static unsigned int load_multi_cfl_internal(const char* name, unsigned int N_max
 		error("Loading cfl file %s", name);
 
 	long num_ele = 0;
-	for (unsigned int i = 0; i < N_max; i++)
+	for (int i = 0; i < N_max; i++)
 		num_ele += 0 < D[i] ? md_calc_size(D[i], dimensions[i]) : 0;
 
 	if (-1 == close(ofd))
@@ -734,11 +734,11 @@ static unsigned int load_multi_cfl_internal(const char* name, unsigned int N_max
 
 	args[0] = (priv ? private_cfl : shared_cfl)(1, &num_ele, name_bdy);
 
-	for (unsigned int i = 1; i < N_max; i++)
+	for (int i = 1; i < N_max; i++)
 		args[i] = (0 < D[i]) ? args[i - 1] + md_calc_size(D[i - 1], dimensions[i - 1]) : NULL;
 
-	unsigned int N = 0;
-	for (unsigned int i = 0; i < N_max; i++)
+	int N = 0;
+	for (int i = 0; i < N_max; i++)
 		if (0 < D[i])
 			N++;
 
@@ -758,7 +758,7 @@ static unsigned int load_multi_cfl_internal(const char* name, unsigned int N_max
  * @param dimensions[N_max][D_max] dimensions read from header
  * @param args[N] returned pointer to the first element of each memory mapped array
  */
-unsigned int load_multi_cfl(const char* name, unsigned int N_max, unsigned int D_max, unsigned int D[N_max], long dimensions[N_max][D_max], _Complex float* args[N_max])
+int load_multi_cfl(const char* name, int N_max, int D_max, int D[N_max], long dimensions[N_max][D_max], _Complex float* args[N_max])
 {
 	return load_multi_cfl_internal(name, N_max, D_max, D, dimensions, args, true);
 }
@@ -771,7 +771,7 @@ unsigned int load_multi_cfl(const char* name, unsigned int N_max, unsigned int D
  * @param dimensions[N] pointer to dimensions of each array
  * @param args[N] pointer to the first element of each memory mapped array
  */
-void unmap_multi_cfl(unsigned int N, unsigned int D[N], const long* dimensions[N], _Complex float* args[N])
+void unmap_multi_cfl(int N, int D[N], const long* dimensions[N], _Complex float* args[N])
 {
 #ifdef MEMONLY_CFL
 	error("multi cfl not supported with MEMONLY_CFL");
@@ -783,7 +783,7 @@ void unmap_multi_cfl(unsigned int N, unsigned int D[N], const long* dimensions[N
 
 	long T = 0;
 
-	for (unsigned int i = 0; i < N; i++) {
+	for (int i = 0; i < N; i++) {
 
 		if (args[i] != args[0] + T)
 			error("unmap multi cfl 1 %ld", T);

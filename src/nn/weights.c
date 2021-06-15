@@ -55,12 +55,12 @@ nn_weights_t nn_weights_create(int N, const struct iovec_s* iovs[N])
 nn_weights_t load_nn_weights(const char *name)
 {
 	int N_max = 64;
-	unsigned int D_max = 64;
-	unsigned int D[N_max];
+	int D_max = 64;
+	int D[N_max];
 	long dimensions[N_max][D_max];
 	complex float* args[N_max];
 
-	unsigned int N = load_multi_cfl(name, N_max, D_max, D, dimensions, args);
+	int N = load_multi_cfl(name, N_max, D_max, D, dimensions, args);
 
 	PTR_ALLOC(struct nn_weights_s, result);
 	result->N = N;
@@ -70,7 +70,7 @@ nn_weights_t load_nn_weights(const char *name)
 
 	const long* dimensions_unmap[N];
 
-	for (unsigned int i = 0; i < N; i++) {
+	for (int i = 0; i < N; i++) {
 
 		(*niov)[i] = iovec_create(D[i], dimensions[i], sizeof(_Complex float));
 		(*ntensors)[i] = md_alloc(D[i], dimensions[i], sizeof(_Complex float));
@@ -96,7 +96,7 @@ nn_weights_t load_nn_weights(const char *name)
  */
 void dump_nn_weights(const char *name, nn_weights_t weights) {
 
-	unsigned int D[weights->N];
+	int D[weights->N];
 	const long* dims[weights->N];
 	for (int i = 0; i < weights->N; i++) {
 

@@ -432,7 +432,7 @@ static void iter6_op_arr_fun_diag(iter_op_data* _o, int NO, unsigned long oflags
 static const struct iter_dump_s* iter6_dump_default_create(const char* base_filename, long save_mod, const struct nlop_s* nlop, unsigned long save_flag, long NI, enum IN_TYPE in_type[NI])
 {
 
-	unsigned int D[NI];
+	int D[NI];
 	const long* dims[NI];
 
 	bool guess_save_flag = (0 == save_flag);
@@ -477,7 +477,7 @@ void iter6_sgd_like(	iter6_conf* conf,
 	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
 
 	struct iter_op_p_s prox_iter[NI];
-	for (unsigned int i = 0; i < NI; i++)
+	for (int i = 0; i < NI; i++)
 		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
 
 	long isize[NI];
@@ -625,7 +625,7 @@ void iter6_iPALM(	iter6_conf* _conf,
 	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
 
 	struct iter_op_p_s prox_iter[NI];
-	for (unsigned int i = 0; i < NI; i++)
+	for (int i = 0; i < NI; i++)
 		prox_iter[i] = OPERATOR_P2ITOP(prox_ops[i]);
 
 	//compute parameter arrays
