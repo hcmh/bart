@@ -1,8 +1,8 @@
 /* Copyright 2013. The Regents of the University of California.
- * All rights reserved. Use of this source code is governed by 
+ * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors: 
+ * Authors:
  * 2013 Martin Uecker <uecker@eecs.berkeley.edu>
  */
 
@@ -123,7 +123,7 @@ void construct_filename(unsigned int bufsize, char* name, unsigned int D, const 
 
 	assert(D <= strlen(spec));
 
-	for (int i = 0; i < D; i++)
+	for (unsigned int i = 0; i < D; i++)
 		if (1 != loopdims[i])
 			cur += snprintf(cur, end - cur, "_%c%04ld", spec[i], pos[i]);
 
