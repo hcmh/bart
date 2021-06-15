@@ -3,7 +3,7 @@
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * Authors: 
+ * Authors:
  * 2014-2019 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  */
 
@@ -31,7 +31,7 @@
  * (Matlab code by Philipp Ehses and others, Yarra by Tobias Block)
  * https://github.com/cjohnevans/Gannet2.0/blob/master/mapVBVD.m
  * https://bitbucket.org/yarra-dev/yarramodules-setdcmtags/src/
- */ 
+ */
 struct hdr_s {
 
 	uint32_t offset;
@@ -71,7 +71,7 @@ static bool siemens_meas_setup(int fd, struct hdr_s* hdr)
 	bool vd = ((0 == hdr->offset) && (hdr->nscans < 64));
 
 	if (vd) {
-	
+
 		assert((0 < hdr->nscans) && (hdr->nscans < 30));
 
 		struct entry_s entries[hdr->nscans];
@@ -443,7 +443,7 @@ int main_twixread(int argc, char* argv[argc])
 		siemens_meas_setup(ifd, &hdr); // reset
 	}
 
-	
+
 
 	long odims[DIMS];
 	md_copy_dims(DIMS, odims, dims);
@@ -466,7 +466,7 @@ int main_twixread(int argc, char* argv[argc])
 
 	long bc_odims[DIMS];
 	md_copy_dims(DIMS, bc_odims, bc_dims);
-	
+
 	complex float* bc_out = NULL;
 
 	if (0 < bc_scans)
@@ -476,8 +476,8 @@ int main_twixread(int argc, char* argv[argc])
 	long pmu_dims[DIMS];
 	md_select_dims(DIMS, ~(READ_FLAG|COIL_FLAG), pmu_dims, dims);
 
-	complex float* pmu;
-	complex float* timestamp;
+	complex float* pmu = NULL;
+	complex float* timestamp = NULL;
 
 	if (NULL != pmu_file) {
 
@@ -494,14 +494,14 @@ int main_twixread(int argc, char* argv[argc])
 
 
 	uint32_t buf_pmu;
-	complex float* val_pmu;
+	complex float* val_pmu = NULL;
 	long val_pmu_dims[DIMS] = { [0 ... DIMS - 1] = 1};
 
 	if (NULL != pmu_file)
 		val_pmu = md_alloc(DIMS, val_pmu_dims, CFL_SIZE);
 
 	uint32_t buf_timestamp;
-	complex float* val_timestamp;
+	complex float* val_timestamp = NULL;
 	long val_timestamp_dims[DIMS] = { [0 ... DIMS - 1] = 1};
 
 	if (NULL != timestamp_file)
@@ -541,11 +541,11 @@ int main_twixread(int argc, char* argv[argc])
 			continue;
 		}
 
-		md_copy_block(DIMS, pos, bc_dims, bc_out, bc_adc_dims, bc_buf, CFL_SIZE); 
+		md_copy_block(DIMS, pos, bc_dims, bc_out, bc_adc_dims, bc_buf, CFL_SIZE);
 	}
 
 	md_free(bc_buf);
-	
+
 	if (0 < bc_scans)
 		unmap_cfl(DIMS, bc_odims, bc_out);
 
@@ -604,7 +604,7 @@ int main_twixread(int argc, char* argv[argc])
 			continue;
 		}
 
-		md_copy_block(DIMS, pos, dims, out, adc_dims, buf, CFL_SIZE); 
+		md_copy_block(DIMS, pos, dims, out, adc_dims, buf, CFL_SIZE);
 
 		if (NULL != pmu_file) {
 
