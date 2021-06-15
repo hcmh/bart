@@ -343,6 +343,90 @@ static bool test_matrix_ode_simu_comparison(void)
 UT_REGISTER_TEST(test_matrix_ode_simu_comparison);
 
 
+static bool test_ode_hp_simu(void)
+{
+	float angle = 45.;
+	float repetition = 20;
+	float aver_num = 1;
+	float t1n = WATER_T1;
+	float t2n = WATER_T2;
+	float m0n = 1;
+
+	struct sim_data sim_data;
+
+	sim_data.seq = simdata_seq_defaults;
+	sim_data.seq.seq_type = 1;
+	sim_data.seq.tr = 0.003;
+	sim_data.seq.te = 0.0015;
+	sim_data.seq.rep_num = repetition;
+	sim_data.seq.spin_num = 1;
+	sim_data.seq.num_average_rep = aver_num;
+	sim_data.seq.inversion_pulse_length = 0.;
+	sim_data.seq.prep_pulse_length = 0.;
+
+	sim_data.voxel = simdata_voxel_defaults;
+	sim_data.voxel.r1 = 1/t1n;
+	sim_data.voxel.r2 = 1/t2n;
+	sim_data.voxel.m0 = m0n;
+	sim_data.voxel.w = 0;
+
+	sim_data.pulse = simdata_pulse_defaults;
+	sim_data.pulse.flipangle = angle;
+	sim_data.pulse.rf_end = 0.0001;
+	sim_data.grad = simdata_grad_defaults;
+	sim_data.tmp = simdata_tmp_defaults;
+
+	struct sim_data sim_ode = sim_data;
+
+	complex float mxySig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saR1Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saR2Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saDensSig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float sa_b1_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+
+	ode_bloch_simulation3(&sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, sa_b1_ode);
+
+
+	sim_data.pulse.rf_end = 0.;
+
+	complex float mxySig_hp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float saR1Sig_hp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float saR2Sig_hp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float saDensSig_hp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_b1_hp[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+
+	ode_bloch_simulation3(&sim_data, mxySig_hp, saR1Sig_hp, saR2Sig_hp, saDensSig_hp, sa_b1_hp);
+
+	float tol = 10E-4;
+	float err;
+
+	for (int rep = 0; rep < repetition; rep++)
+		for ( int dim = 0; dim < 3; dim++) {
+
+			err = cabsf(mxySig_hp[rep][dim]-mxySig_ode[rep][dim]);
+			if ( err > tol )
+				return 0;
+
+			err = cabsf(saR1Sig_hp[rep][dim]-saR1Sig_ode[rep][dim]);
+			if ( err > tol )
+				return 0;
+
+			err = cabsf(saR2Sig_hp[rep][dim]-saR2Sig_ode[rep][dim]);
+			if ( err > tol )
+				return 0;
+
+			err = cabsf(saDensSig_hp[rep][dim]-saDensSig_ode[rep][dim]);
+			if ( err > tol )
+				return 0;
+
+			// FIXME: Test is not working for B1 derivative!
+			// err = cabsf(sa_b1_hp[rep][dim]-sa_b1_ode[rep][dim]);
+		}
+	return 1;
+}
+
+UT_REGISTER_TEST(test_ode_hp_simu);
+
 
 static bool test_bloch_excitation(void)
 {
