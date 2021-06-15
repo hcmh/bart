@@ -152,23 +152,17 @@ void isochrom_distribution(struct sim_data* data, float* isochromats)
 }
 
 //If ADC gets phase, it has to be corrected manually
-static void ADCcorr(int N, int P, float out[P + 1][N], float in[P + 1][N], float corr_angle)
+static void adc_corr(int N, int P, float out[P + 1][N], float in[P + 1][N], float angle)
 {
-	for (int i = 0; i < P + 1; i ++) {
-
-		rotz(out[i], in[i], corr_angle);
-
-		// out[i][0] = in[i][0] * cosf(corr_angle) - in[i][1] * sinf(corr_angle);
-		// out[i][1] = in[i][0] * sinf(corr_angle) + in[i][1] * cosf(corr_angle);
-		// out[i][2] = in[i][2];
-	}
+	for (int i = 0; i < P + 1; i ++)
+		rotz(out[i], in[i], angle);
 }
 
 static void collect_signal(struct sim_data* data, int N, int P, float* mxy, float* sa_r1, float* sa_r2, float* sa_b1, float xp[P + 1][N])
 {
 	float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } };
 
-	ADCcorr(N, P, tmp, xp, -data->pulse.phase);
+	adc_corr(N, P, tmp, xp, -data->pulse.phase);
 
 	for (int i = 0; i < N; i++) {
 
