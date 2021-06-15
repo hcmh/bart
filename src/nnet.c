@@ -9,6 +9,10 @@
 #include "num/flpmath.h"
 #include "num/init.h"
 
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
+
 #include "misc/debug.h"
 #include "misc/opts.h"
 #include "misc/mmio.h"
