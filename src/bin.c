@@ -147,15 +147,6 @@ int main_bin(int argc, char* argv[argc])
 		ARG_OUTFILE(true, &dst_file, "dst"),
 	};
 
-	unsigned int n_resp = 0;
-	unsigned int n_card = 0;
-	unsigned int mavg_window = 0;
-	unsigned int mavg_window_card = 0;
-	int cluster_dim = -1;
-
-	long resp_labels_idx[2] = { 0, 1 };
-	long card_labels_idx[2] = { 2, 3 };
-
 	bool reorder = false;
 	bool amplitude = false;
 	struct bin_conf_s conf = bin_defaults;
@@ -191,7 +182,7 @@ int main_bin(int argc, char* argv[argc])
 	enum { BIN_QUADRATURE, BIN_LABEL, BIN_REORDER } bin_type;
 
 	if (amplitude) {
-		
+
 		assert(conf.cluster_dim != -1);
 		assert(conf.mavg_window == 0);
 	}
@@ -254,7 +245,7 @@ int main_bin(int argc, char* argv[argc])
 		weights_dims[TIME_DIM] = bins_dims[TIME_DIM];
 		float* weights = NULL;
 		if (conf.weight) {
-		
+
 			weights =  md_alloc(DIMS, weights_dims, FL_SIZE);
 			float val = 1.;
 			md_fill(DIMS, weights_dims, weights, &val, FL_SIZE);
