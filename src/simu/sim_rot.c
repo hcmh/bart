@@ -4,13 +4,7 @@
 #include "misc/debug.h"
 #include "misc/misc.h"
 
-#include "simu/bloch.h"
-#include "simu/simulation.h"
-#include "simu/pulse.h"
-
-#include "num/ode.h"
-
-#include "sim_matrix.h"
+#include "sim_rot.h"
 
 void rotx(float out[3], const float in[3], float angle)
 {
