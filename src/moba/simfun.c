@@ -1,3 +1,4 @@
+#if 0
 /* Copyright 2017-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
@@ -105,7 +106,7 @@ static void sim_fun(const nlop_data_t* _data, complex float* dst, const complex 
 	//-------------------------------------------------------------------
 
 	md_copy(data->N, data->out_dims, dst, sig, CFL_SIZE);
-	
+
 	//...
 
 	//-------------------------------------------------------------------
@@ -212,7 +213,8 @@ static struct nlop_s* nlop_sim_create(int N, const long dims[N], const long map_
 
 	//...
 
-	
+
 
 	return nlop_create(N, out_dims, N, in_dims, CAST_UP(PTR_PASS(data)), sim_fun, sim_der, sim_adj, NULL, NULL, sim_del);
 }
+#endif

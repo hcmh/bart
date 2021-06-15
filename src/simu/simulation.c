@@ -50,7 +50,7 @@ const struct simdata_seq simdata_seq_defaults = {
 	.molli_break = 0,
 	.molli_measure = 0,
 	.look_locker_assumptions = false,
-	
+
 	.slice_profile = NULL,
 	.variable_fa = NULL,
 };
@@ -80,6 +80,7 @@ static void bloch_pdy3(void* _data, float* out, float t, const float* in)
 	bloch_pdy((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff);
 }
 
+#if 0
 static void bloch_pdp3(void* _data, float* out, float t, const float* in)
 {
 	struct sim_data* data = _data;
@@ -87,6 +88,7 @@ static void bloch_pdp3(void* _data, float* out, float t, const float* in)
 
 	bloch_pdp((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff);
 }
+#endif
 
 static void bloch_wrap_pdp(void* _data, float* out, float t, const float* in)
 {
@@ -129,7 +131,7 @@ void isochrom_distribution(struct sim_data* data, float* isochromats)
 
 	float random_number;
 	srand(4);
-	
+
 	float iso_tmp[data->seq.spin_num];
 
 	//Creating Distribution...
@@ -142,9 +144,9 @@ void isochrom_distribution(struct sim_data* data, float* isochromats)
 
 		maximum = fmax(maximum, fabsf(iso_tmp[i]));
 	}
-	
+
 	//Assigning frequencies up to pi/2
-	for (int i = 0; i < data->seq.spin_num; i++) 
+	for (int i = 0; i < data->seq.spin_num; i++)
 		isochromats[i] = (iso_tmp[i] / maximum) * M_PI / data->seq.tr;
 }
 
@@ -268,13 +270,13 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 	int N = 3;
 	int P = 3;
- 
+
 	float isochromats[data->seq.spin_num];
 
 	if (data->voxel.spin_ensamble)
 		isochrom_distribution(data, isochromats);
 
-	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows 
+	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows
 	float* mxy = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
 	float* sa_r1 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
 	float* sa_r2 = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
