@@ -606,7 +606,7 @@ UTARGETS += test_batchsvd
 MODULES_test_batchsvd = -llowrank
 
 # lib misc
-UTARGETS += test_pattern test_types test_misc test_mmio
+UTARGETS += test_pattern test_types test_misc
 
 # lib moba
 UTARGETS += test_moba test_scale test_bloch_op
