@@ -53,13 +53,11 @@ struct cdiag_s {
 
 static DEF_TYPEID(cdiag_s);
 
-static void cdiag_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
+static const complex float* cdiag_get_diag(const struct cdiag_s* data, const complex float* ref)
 {
-	const auto data = CAST_DOWN(cdiag_s, _data);
-
 	const complex float* diag = data->diag;
 #ifdef USE_CUDA
-	if (cuda_ondevice(src)) {
+	if (cuda_ondevice(ref)) {
 #ifdef MULTIGPU
 		if (NULL == data->gpu_diag[cuda_get_device()])
 			((struct cdiag_s*)data)->gpu_diag[cuda_get_device()] = md_gpu_move(data->N, data->ddims, data->diag, CFL_SIZE);
@@ -73,6 +71,15 @@ static void cdiag_apply(const linop_data_t* _data, complex float* dst, const com
 #endif
 	}
 #endif
+	return diag;
+}
+
+static void cdiag_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(cdiag_s, _data);
+
+	const complex float* diag = cdiag_get_diag(data, src);
+
 	(data->rmul ? md_zrmul2 : md_zmul2)(data->N, data->dims, data->strs, dst, data->strs, src, data->dstrs, diag);
 }
 
@@ -80,22 +87,8 @@ static void cdiag_adjoint(const linop_data_t* _data, complex float* dst, const c
 {
 	const auto data = CAST_DOWN(cdiag_s, _data);
 
-	const complex float* diag = data->diag;
-#ifdef USE_CUDA
-	if (cuda_ondevice(src)) {
-#ifdef MULTIGPU
-		if (NULL == data->gpu_diag[cuda_get_device()])
-			((struct cdiag_s*)data)->gpu_diag[cuda_get_device()] = md_gpu_move(data->N, data->ddims, data->diag, CFL_SIZE);
+	const complex float* diag = cdiag_get_diag(data, src);
 
-		diag = data->gpu_diag[cuda_get_device()];
-#else
-		if (NULL == data->gpu_diag)
-			((struct cdiag_s*)data)->gpu_diag = md_gpu_move(data->N, data->ddims, data->diag, CFL_SIZE);
-
-		diag = data->gpu_diag;
-#endif
-	}
-#endif
 	(data->rmul ? md_zrmul2 : md_zmulc2)(data->N, data->dims, data->strs, dst, data->strs, src, data->dstrs, diag);
 }
 
