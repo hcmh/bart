@@ -113,7 +113,7 @@ void moba_recon(const struct moba_conf_s* conf, const long dims[DIMS], complex f
 	// T2 estimation turned off for IR FLASH Simulation
 	if ((Bloch == conf->model) && (IRFLASH == conf->sim.sequence)) {
 
-		conf2.constrained_maps = 1;
+		conf2.constrained_maps = 1; // only T1 map at index 0
 		conf2.not_wav_maps = 2;	// no wavelet for T2 and B1 map
 	}
 

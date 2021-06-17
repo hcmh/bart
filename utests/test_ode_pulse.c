@@ -186,7 +186,7 @@ static bool test_rf_pulse_matexp(void)
 
 			//Starting first pulse
 			float m[N][N];
-			mat_exp_simu( N, data.pulse.rf_end, m, &data);
+			mat_exp_simu(N, data.pulse.rf_end, m, &data);
 
 			for (int i = 0; i < N; i++) {
 
@@ -219,7 +219,7 @@ static bool test_rf_pulse_matexp(void)
 
 			if (10E-2 < err) {
 
-				debug_printf(DP_WARN, "Error in mat rf-pulse test!\n see -> utests/test_ode_simu.c\n");
+				debug_printf(DP_WARN, "Error in mat rf-pulse test!\nError(trf=%f, angle=%f): %f\n", trf, angle, err);
 				return 0;
 			}
 		}

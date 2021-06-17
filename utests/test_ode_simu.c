@@ -214,8 +214,6 @@ static bool test_ode_irbssfp_simulation(void)
 	//------------------------------------------------------------
 	//--------  Simulation of phantom data analytically ----------
 	//------------------------------------------------------------
-	float t1s = 0.; float s0 = 0.; float stst = 0.; float inv = 0.;
-
 	/*simulation based on analytical model. Assumption: TR << T_{1,2}
 	 *
 	 * Schmitt, P. , Griswold, M. A., Jakob, P. M., Kotas, M. , Gulani, V. , Flentje, M. and Haase, A. (2004), 
@@ -227,10 +225,10 @@ static bool test_ode_irbssfp_simulation(void)
 	 * Magn Reson Med, 69: 71-81. doi:10.1002/mrm.24225
 	 */
 
-	t1s = 1 / ((cosf(fa/2.)*cosf(fa/2.))/t1n + (sinf(fa/2.)*sinf(fa/2.))/t2n);
-	s0 = m0n * sinf(fa/2.);
-	stst = m0n * sinf(fa) / ((t1n/t2n + 1) - cosf(fa) * (t1n/t2n-1));
-	inv = 1 + s0 / stst;
+	float t1s = 1 / ((cosf(fa/2.)*cosf(fa/2.))/t1n + (sinf(fa/2.)*sinf(fa/2.))/t2n);
+	float s0 = m0n * sinf(fa/2.);
+	float stst = m0n * sinf(fa) / ((t1n/t2n + 1) - cosf(fa) * (t1n/t2n-1));
+	float inv = 1 + s0 / stst;
 
 	float out_simu;
 	float out_theory;
@@ -239,7 +237,7 @@ static bool test_ode_irbssfp_simulation(void)
 
 	for (int z = 0; z < repetition; z++) {
 
-		out_theory = fabsf(stst * (1 - inv * expf(-(z*sim_data.seq.tr + sim_data.seq.tr)/t1s))); //Does NOT include phase information! //+data.tr through alpha/2 preparation
+		out_theory = fabsf(stst * (1 - inv * expf(-((float)(z+1) * sim_data.seq.tr)/t1s))); //Does NOT include phase information! //+data.tr through alpha/2 preparation
 
 		out_simu = cabsf(mxy_sig[z][1] + mxy_sig[z][0]*I);
 

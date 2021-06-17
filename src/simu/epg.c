@@ -658,7 +658,7 @@ void bssfp_epg_der(int N, int M, complex float signal[N], complex float states[3
 	complex float dTah_exc[4][3][3] = { { {0.0 } } };
 
 	// initialize phase
-	float rf_phase = 0.0;
+	float rf_phase = 0.;
 
 	create_rf_pulse_matrix_der(Tah_exc, dTah_exc, B1 * FA / 2.0 * M_PI / 180.0, rf_phase);
 	create_relax_matrix_der(ee, dee, T1, T2, offres, TR / 2.0);

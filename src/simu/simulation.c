@@ -206,7 +206,7 @@ void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, flo
 			xp2[1] = xp[i][1];
 			xp2[2] = xp[i][2];
 
-			bloch_excitation2(xp[i], xp2, data->pulse.flipangle / 180 * M_PI, data->pulse.phase);
+			bloch_excitation2(xp[i], xp2, data->pulse.flipangle/180.*M_PI, data->pulse.phase);
 		}
 	} else {
 
@@ -329,7 +329,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 				xyspoiling(N, P, xp, &inv_data);
 #else	// Apply perfect inversion
-				xp[0][2] = -1;
+				xp[0][2] = -1.;
 				relaxation2(&inv_data, h, tol, N, P, xp, 0., inv_data.pulse.rf_end);
 #endif
 			}
@@ -383,9 +383,12 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 				}
 
 				//Change phase for phase cycled bSSFP sequences
-				if ((3 == data->seq.seq_type) || (6 == data->seq.seq_type))
+				if (	(3 == data->seq.seq_type) ||
+					(6 == data->seq.seq_type))
 					data->pulse.phase += fmodf( (0 == data->tmp.rep_counter ? 0 : M_PI) + 4. * M_PI * (float)data->tmp.rep_counter / (float)data->seq.rep_num, 2.0 * M_PI);
-				else if ((0 == data->seq.seq_type) || (1 == data->seq.seq_type) || (4 == data->seq.seq_type))
+				else if ((0 == data->seq.seq_type) ||
+					(1 == data->seq.seq_type) ||
+					(4 == data->seq.seq_type))
 					data->pulse.phase = M_PI * (float)(data->tmp.rep_counter + data->tmp.run_counter * data->seq.rep_num);
 
 				run_sim_block(data, mxy, sa_r1, sa_r2, sa_b1, h, tol, N, P, xp, true);
@@ -600,7 +603,7 @@ void bloch_simulation_mag(unsigned int D, struct sim_data* sim_data, const long 
 	md_free(d);
 }
 
-
+// FIXME: Use as basis for Bloch nlop!
 void bloch_xy_simulation(unsigned int D, struct sim_data* sim_data, const long dims[D], complex float* sig, complex float* der, bool ode)
 {
 	assert(4 == dims[COEFF_DIM]);

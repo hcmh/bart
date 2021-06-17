@@ -833,5 +833,7 @@ static bool test_bloch_ode_obs_irbssfp(void)
 	md_free(dst2);
 
 	UT_ASSERT(err < 3.E-3);
+
+	return true;
 }
 UT_REGISTER_TEST(test_bloch_ode_obs_irbssfp);

@@ -74,7 +74,7 @@ void mat_exp_simu(int N, float t, float out[N][N], void* sim_data)
 		for (int j = 0; j < N; j++)
 			out[i][j] = (i == j) ? 1. : 0.;
 
-		ode_matrix_interval_simu( h, tol, N, out[i], 0., t, sim_data );
+		ode_matrix_interval_simu(h, tol, N, out[i], 0., t, sim_data);
 	}
 }
 
