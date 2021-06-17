@@ -275,6 +275,7 @@ int main_sim(int argc, char* argv[])
 			}
 
 			md_copy_block(DIMS, pos, mdims, m, edims, out_x, CFL_SIZE);
+			md_free(out_x);
 		}
 		else {
 			bloch_simulation2(DIMS, &sim_data, ddims, m, d, ode, MAPS_DIM);
