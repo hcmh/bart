@@ -6,14 +6,14 @@
  * 2021 Volkert Roeloffs
  *
  * References:
- * Hennig, J., Weigel, M., & Scheffler, K. (2004). Calculation of flip angles
- * for echo trains with predefined amplitudes with the extended phase graph
- * (EPG)‐algorithm: principles and applications to hyperecho and TRAPS
- * sequences. Magnetic Resonance in Medicine 51(1), 68-80.
+ * 	Hennig, J., Weigel, M., & Scheffler, K. (2004).
+ *	Calculation of flip angles for echo trains with predefined amplitudes with the extended phase graph (EPG)‐algorithm: principles and applications to hyperecho and TRAPS sequences.
+ *	Magnetic Resonance in Medicine 51(1), 68-80.
  *
- * Mathias Weigel, Extended phase graphs: Dephasing, RF pulses, and echoes
- * - pure and simple J. Magn. Reson. Imaging 2015;41:266–295
- *
+ * 	Mathias Weigel,
+ *	Extended phase graphs: Dephasing, RF pulses, and echoes - pure and simple
+ * 	J. Magn. Reson. Imaging 2015;41:266–295
+ *\d
  * Brian Hargreaves EPG simulator: http://web.stanford.edu/~bah/software/epg/
  *
  * code follows the logic of Eric Hughes' C++ implementation
@@ -54,7 +54,6 @@ void create_relax_matrix_der(complex float ee[3][3], complex float dee[4][3][3],
 	ee[2][2] = cexpf(-tau / T1);
 
 	if (NULL != dee) {
-
 		// T1
 		dee[0][2][2] = tau / (T1 * T1) * ee[2][2];
 
@@ -292,7 +291,7 @@ void epg_adc_der(int idx_current, int N, int M, complex float signal[N],
 		 complex float dstate_current[4][3][M],
 		 float adc_phase)
 {
-	complex float phasor_offset = cexpf(1.i * (adc_phase));
+	complex float phasor_offset = cexpf(I * (adc_phase));
 
 	// save signal
 	signal[idx_current] = state_current[0][0] * phasor_offset;
@@ -664,7 +663,7 @@ void bssfp_epg_der(int N, int M, complex float signal[N], complex float states[3
 	create_relax_matrix_der(ee, dee, T1, T2, offres, TR / 2.0);
 
 	// initialize Z magnetization
-	state_current[2][0] = -1.0;
+	state_current[2][0] = 1.;
 
 	//apply alpha/2 excitation pulse
 	epg_pulse_der(Tah_exc, M, state_current, dTah_exc, dstate_current);
