@@ -426,6 +426,73 @@ static bool test_ode_hp_simu(void)
 UT_REGISTER_TEST(test_ode_hp_simu);
 
 
+static bool test_ode_hp_off_simu(void)
+{
+	float angle = 90.;
+	float repetition = 1.;
+	float aver_num = 1.;
+	float m0n = 1.;
+
+	struct sim_data sim_data;
+
+	sim_data.seq = simdata_seq_defaults;
+	sim_data.seq.seq_type = 2;	// Use FLASH here, because it does not have any preparation phase
+	sim_data.seq.tr = 0.003;
+	sim_data.seq.te = 0.0015;
+	sim_data.seq.rep_num = repetition;
+	sim_data.seq.spin_num = 1;
+	sim_data.seq.num_average_rep = aver_num;
+	sim_data.seq.inversion_pulse_length = 0.;
+	sim_data.seq.prep_pulse_length = 0.;
+
+	sim_data.voxel = simdata_voxel_defaults;
+	sim_data.voxel.r1 = 0.;	// Turn off relaxation
+	sim_data.voxel.r2 = 0.;	// Turn off relaxation
+	sim_data.voxel.m0 = m0n;
+
+	sim_data.pulse = simdata_pulse_defaults;
+	sim_data.pulse.flipangle = angle;
+	sim_data.pulse.rf_end = 0.;
+	sim_data.grad = simdata_grad_defaults;
+	sim_data.tmp = simdata_tmp_defaults;
+
+	// for w == 0 -> Mxy = 0+1*I
+
+	// Set off-resonance so that magnetization is roatated by 90 degree within TE
+	// Goal: Mxy = 1+0*I
+	sim_data.voxel.w = M_PI/2 / sim_data.seq.te;
+
+	struct sim_data sim_ode = sim_data;
+
+	complex float mxySig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saR1Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saR2Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saDensSig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float sa_b1_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+
+	ode_bloch_simulation3(&sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, sa_b1_ode);
+
+#if 0
+	bart_printf("M\n x: %f+i*%f,\ty: %f+i*%f,\tz: %f+i*%f\n", crealf(mxySig_ode[0][0]), cimagf(mxySig_ode[0][0])
+								, crealf(mxySig_ode[0][1]), cimagf(mxySig_ode[0][1])
+								, crealf(mxySig_ode[0][2]), cimagf(mxySig_ode[0][2]) );
+
+	bart_printf("Err\n x: %f,\ty: %f,\tz: %f\n",	fabsf(cabsf(mxySig_ode[0][0]) - 1.),
+							fabsf(cabsf(mxySig_ode[0][1]) - 0.),
+							fabsf(cabsf(mxySig_ode[0][2]) - 0.) );
+#endif
+	float tol = 10E-5;
+
+	UT_ASSERT(	(fabsf(cabsf(mxySig_ode[0][0]) - 1.) < tol) &&
+			(fabsf(cabsf(mxySig_ode[0][1]) - 0.) < tol) &&
+			(fabsf(cabsf(mxySig_ode[0][2]) - 0.) < tol) );
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_ode_hp_off_simu);
+
+
 static bool test_bloch_excitation(void)
 {
 	float x0[3] = { 0., 0., 1. };
