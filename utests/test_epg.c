@@ -63,6 +63,57 @@ static bool test_CPMG_ideal_der(void)
 UT_REGISTER_TEST(test_CPMG_ideal_der);
 
 
+static bool test_epg_flash_db1(void)
+{
+	int N = 4;
+	int M = 2*N;
+
+	float q = 1.E-3;
+	float tol = 1.E-3;
+
+	float B1 = 1.;
+	float FA = 15.;
+	float T1 = 1.;
+	float T2 = 0.1;
+	float TR = 0.003;
+	float omega = 0.;
+	long SP = 0L;
+
+	complex float signal[N];
+	complex float states[3][M][N];
+	complex float dsignal[4][N];
+	complex float dstates[4][3][M][N];
+
+	flash_epg_der(N, M, signal, states, dsignal, dstates, FA, TR, T1, T2, B1, omega, SP);
+
+	complex float signal2[N];
+	complex float states2[3][M][N];
+	complex float dsignal2[4][N];
+	complex float dstates2[4][3][M][N];
+
+	//Verify gradient dB1
+
+	flash_epg_der(N, M, signal2, states2, dsignal2, dstates2, FA, TR, T1, T2, B1+q, omega, SP);
+
+	float err = 0.;
+
+	for (int i = 0; i < N; i++) {
+
+		err = cabsf(q * dsignal[2][i] - (signal[i] - signal2[i]));
+
+		if (tol < err) {
+
+			printf("Error dB1[%d]=%f,\t<=\t%f,\t%f\n", i, err, cabsf(dsignal[2][i]), cabsf((signal[i] - signal2[i])/q));
+			return false;
+		}
+	}
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_epg_flash_db1);
+
+
 static bool test_hyperecho_epg(void)
 {
 	int N = 23;
