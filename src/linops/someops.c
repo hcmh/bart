@@ -70,7 +70,10 @@ static const complex float* cdiag_get_diag(const struct cdiag_s* data, const com
 		diag = data->gpu_diag;
 #endif
 	}
+#else
+	UNUSED(ref);
 #endif
+
 	return diag;
 }
 
@@ -523,11 +526,11 @@ static void padding_adjoint(const linop_data_t* _data, complex float* dst, const
 	auto data = CAST_DOWN(padding_op_s, _data);
 
 	complex float* dst_tmp = md_alloc_sameplace(data->N, data->dims_in, CFL_SIZE, dst);
-	
+
 	// strided copies are more efficient than strided sum (gpu)
 	md_clear(data->N, data->dims_in, dst, CFL_SIZE);
 	md_copy2(data->N, data->dims_mid, data->strs_mid, dst + data->offset_in_mid, data->strs_out, src + data->offset_out_mid, CFL_SIZE);
-	
+
 	md_clear(data->N, data->dims_in, dst_tmp, CFL_SIZE);
 	md_copy2(data->N, data->dims_for, data->strs_for, dst_tmp + data->offset_in_for, data->strs_out, src + data->offset_out_for, CFL_SIZE);
 	md_zadd(data->N, data->dims_in, dst, dst, dst_tmp);
@@ -730,7 +733,7 @@ struct linop_s* linop_padding_create(unsigned int N, const long dims[N], enum PA
 
 	if (NULL == result)
 		result = linop_identity_create(N, dims);
-				
+
 	return result;
 }
 
@@ -878,7 +881,7 @@ struct linop_s* linop_permute_create(unsigned int N, const unsigned int order[N]
 
 	md_copy_dims(N, tidims, idims);
 	md_copy_dims(N, todims, odims);
-	
+
 	data->idims = tidims;
 	data->odims = todims;
 
