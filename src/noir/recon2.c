@@ -169,6 +169,8 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 				auto conjgrad_conf = CAST_DOWN(iter_conjgrad_conf, iconf);
 				UNUSED(conjgrad_conf);
 
+				debug_printf(DP_WARN, "CG is not tested/finalized for NLINV");
+
 			};
 
 			lsqr_conf.icont = lsqr_cont;
@@ -189,14 +191,14 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 			struct iter_fista_conf fista_conf = iter_fista_defaults;
 			fista_conf.maxiter = conf->irgnm_conf->cgiter;
 			fista_conf.maxeigen_iter = 20;
-			fista_conf.tol = 0.1f; //conf->irgnm_conf->cgtol;
+			fista_conf.tol = conf->irgnm_conf->cgtol;
 			conf->irgnm_conf->cgtol_alpha_factor = 1.;
 			fista_conf.continuation = 1.;
 
 			NESTED(void, lsqr_cont, (iter_conf* iconf))
 			{
 				auto fconf = CAST_DOWN(iter_fista_conf, iconf);
-				fconf->tol = fconf->tol  * powf(fconf->INTERFACE.alpha, conf->irgnm_conf->cgtol_alpha_factor);
+				//fconf->tol = fconf->tol  * powf(fconf->INTERFACE.alpha, conf->irgnm_conf->cgtol_alpha_factor);
 
 				//double maxeigen = estimate_maxeigenval_sameplace(lop_der->normal, 30, data);
 				//debug_printf(DP_INFO, "\t maxeigen: %f\n", maxeigen);
@@ -204,11 +206,13 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 				//fconf->INTERFACE.alpha *= maxeigen;
 				//debug_printf(DP_INFO, "\t alpha: %f\n", fconf->INTERFACE.alpha);
 
-				static int outer_iter = 0; //FIXME: should be based on alpha?
-				fconf->maxiter = MIN(conf->irgnm_conf->cgiter, 3 * (int)powf(1.5, outer_iter++));
+				//static int outer_iter = 0; //FIXME: should be based on alpha?
+				//fconf->maxiter = MIN(conf->irgnm_conf->cgiter, 3 * (int)powf(1.5, outer_iter++));
 
-				fconf->scale = MAX(0.2, fconf->INTERFACE.alpha);
-				fconf->step /= fconf->INTERFACE.alpha;
+				//fconf->scale = MAX(0.2, fconf->INTERFACE.alpha);
+				//fconf->step /= fconf->INTERFACE.alpha;
+
+				debug_printf(DP_WARN, "FISTA is not tested/finalized for NLINV");
 			};
 
 			lsqr_conf.icont = lsqr_cont;
@@ -237,6 +241,8 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 
 				aconf->maxiter = MIN(admm_conf.maxiter, 10. * powf(2., ceil(logf(1. / iconf->alpha) / logf(conf->irgnm_conf->redu))));
 				aconf->cg_eps = admm_conf.cg_eps  * powf(aconf->INTERFACE.alpha, conf->irgnm_conf->cgtol_alpha_factor);
+
+				debug_printf(DP_WARN, "ADMM is not tested/finalized for NLINV");
 			};
 
 			lsqr_conf.icont = lsqr_cont;
