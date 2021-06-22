@@ -107,13 +107,13 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 
 	assert(md_check_equal_dims(N, img_dims, nlop_generic_domain(noir_ops.nlop, 0)->dims, ~0));
 	assert(md_check_equal_dims(N, col_dims, nlop_generic_domain(noir_ops.nlop, 1)->dims, ~0));
-	assert(md_check_equal_dims(N, ksp_dims, linop_codomain(noir_ops.lop_trafo)->dims, ~0));
+	assert(md_check_equal_dims(N, ksp_dims, linop_codomain(noir_ops.lop_fft)->dims, ~0));
 
 	unsigned long fft_flags = noir_ops.model_conf.fft_flags_noncart | noir_ops.model_conf.fft_flags_cart;
 
 
 	complex float* data = md_alloc(N, cim_dims, CFL_SIZE);
-	linop_adjoint(noir_ops.lop_trafo, N, cim_dims, data, N, ksp_dims, kspace);
+	linop_adjoint(noir_ops.lop_fft, N, cim_dims, data, N, ksp_dims, kspace);
 
 
 #ifdef USE_CUDA
@@ -172,7 +172,7 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 
 
 	struct nlop_s* nlop_flat = nlop_flatten(noir_ops.nlop);
-	const struct linop_s* lop_trafo_flat = linop_reshape_in(noir_ops.lop_trafo, 1, MD_DIMS(md_calc_size(N, cim_dims)));
+	const struct linop_s* lop_fft_flat = linop_reshape_in(noir_ops.lop_fft, 1, MD_DIMS(md_calc_size(N, cim_dims)));
 
 	struct nlop_wrapper2_s nlw;
 	SET_TYPEID(nlop_wrapper2_s, &nlw);
@@ -184,21 +184,21 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 
 	iter4_lop_irgnm(CAST_UP(&irgnm_conf),
 			nlop_flat,
-			(struct linop_s*)lop_trafo_flat,
+			(struct linop_s*)lop_fft_flat,
 			size * 2, (float*)x, (const float*)ref,
 			md_calc_size(N, cim_dims) * 2, (const float*)data,
 			NULL,
 			(struct iter_op_s){ orthogonalize, CAST_UP(&nlw) });
 
 	nlop_free(nlop_flat);
-	linop_free(lop_trafo_flat);
+	linop_free(lop_fft_flat);
 
 	md_free(data);
 
 	md_copy(DIMS, img_dims, img, x, CFL_SIZE);
 	md_copy(DIMS, col_dims, ksens, x + skip, CFL_SIZE);
 
-	noir2_forw_coils(noir_ops.lop_coil, x + skip, x + skip);
+	noir2_forw_coils(noir_ops.lop_coil2, x + skip, x + skip);
 	md_copy(DIMS, col_dims, sens, x + skip, CFL_SIZE);	// needed for GPU
 	fftmod(DIMS, col_dims, fft_flags, sens, sens);
 
@@ -239,8 +239,8 @@ void noir2_recon_noncart(
 	noir2_recon(conf, noir_ops, N, img_dims, img, img_ref, col_dims, sens, ksens, sens_ref, ksp_dims, kspace);
 
 	nlop_free(noir_ops.nlop);
-	linop_free(noir_ops.lop_coil);
-	linop_free(noir_ops.lop_trafo);
+	linop_free(noir_ops.lop_coil2);
+	linop_free(noir_ops.lop_fft);
 }
 
 
@@ -273,6 +273,6 @@ void noir2_recon_cart(
 	noir2_recon(conf, noir_ops, N, img_dims, img, img_ref, col_dims, sens, ksens, sens_ref, ksp_dims, kspace);
 
 	nlop_free(noir_ops.nlop);
-	linop_free(noir_ops.lop_coil);
-	linop_free(noir_ops.lop_trafo);
+	linop_free(noir_ops.lop_coil2);
+	linop_free(noir_ops.lop_fft);
 }
