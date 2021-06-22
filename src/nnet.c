@@ -44,7 +44,7 @@ int main_nnet(int argc, char* argv[])
 
 		ARG_INFILE(true, &in_file, "input"),
 		ARG_INOUTFILE(true, &weights_file, "weights"),
-		ARG_OUTFILE(true, &out_file, "output"),
+		ARG_INOUTFILE(true, &out_file, "output/referece"),
 	};
 
 	bool apply = false;
