@@ -98,6 +98,9 @@ static struct noir2_s noir2_nlop_create(int N,
 		.nlop = NULL,
 		.lop_coil2 = NULL,
 		.lop_fft = NULL,
+		.lop_coil = NULL,
+		.lop_im = NULL,
+		.tenmul = NULL,
 	};
 
 	unsigned long fft_flags = conf->fft_flags_noncart | conf->fft_flags_cart;
@@ -113,8 +116,8 @@ static struct noir2_s noir2_nlop_create(int N,
 	const struct linop_s* lop_wghts = linop_cdiag_create(N, col_dims, fft_flags, wghts);
 	const struct linop_s* lop_wghts_ifft = linop_ifft_create(N, col_dims, fft_flags);
 
-	const struct linop_s* lop_coils = linop_chain_FF(lop_wghts, lop_wghts_ifft);
-	ret.lop_coil2 = linop_clone(lop_coils);	// extra ifftmod is missing and merged into nlop
+	ret.lop_coil =  linop_chain_FF(lop_wghts, lop_wghts_ifft);
+	ret.lop_coil2 = linop_clone(ret.lop_coil);
 
 
 	complex float* ifmod = md_alloc(N, wght_dims, CFL_SIZE);
@@ -123,7 +126,7 @@ static struct noir2_s noir2_nlop_create(int N,
 
 	//FIXME: In the Cartesian case, we might merge ifftmod with fftmod of fft in linop trafo part (as in previous implementation)
 	//CAVEAT: if coil dims != img dims, we need to check if they cancel
-	lop_coils = linop_chain_FF(lop_coils, linop_cdiag_create(N, col_dims, fft_flags, ifmod));
+	ret.lop_coil = linop_chain_FF(ret.lop_coil, linop_cdiag_create(N, col_dims, fft_flags, ifmod));
 	md_free(ifmod);
 
 	long max_dims[N]; 	//of tenmul
@@ -136,36 +139,36 @@ static struct noir2_s noir2_nlop_create(int N,
 	md_select_dims(N, md_nontriv_dims(N, col_dims), col_dims2, max_dims);
 
 	if (!md_check_equal_dims(N, col_dims, col_dims2, ~0))
-		lop_coils = linop_chain_FF(lop_coils, linop_resize_center_create(N, col_dims2, col_dims));
+		ret.lop_coil = linop_chain_FF(ret.lop_coil, linop_resize_center_create(N, col_dims2, col_dims));
 
-
-	const struct linop_s* lop_mask = NULL;
 	if (NULL != mask) {
 
 		assert(md_check_equal_dims(N, msk_dims, img_dims, md_nontriv_dims(N, msk_dims)));
-		lop_mask = linop_cdiag_create(N, img_dims, md_nontriv_dims(N, msk_dims), mask);
+		ret.lop_im = linop_cdiag_create(N, img_dims, md_nontriv_dims(N, msk_dims), mask);
 	}
 
 	if (!md_check_equal_dims(N, img_dims, img_dims2, ~0)) {
 
 		if (NULL == mask)
-			lop_mask = linop_resize_center_create(N, img_dims, img_dims2);
+			ret.lop_im  = linop_resize_center_create(N, img_dims, img_dims2);
 		else
-			lop_mask = linop_chain_FF(lop_mask, linop_resize_center_create(N, img_dims, img_dims2));
+			ret.lop_im  = linop_chain_FF(ret.lop_im, linop_resize_center_create(N, img_dims, img_dims2));
 	}
 
 	if (conf->rvc) {
 
 		if (NULL == mask)
-			lop_mask = linop_zreal_create(N, img_dims);
+			ret.lop_im  = linop_zreal_create(N, img_dims);
 		else
-			lop_mask = linop_chain_FF(linop_zreal_create(N, img_dims), lop_mask);
+			ret.lop_im  = linop_chain_FF(linop_zreal_create(N, img_dims), ret.lop_im );
 	}
 
-	ret.nlop = nlop_tenmul_create(N, cim_dims, img_dims2, col_dims2);
-	ret.nlop = nlop_chain2_FF(nlop_from_linop_F(lop_coils), 0, ret.nlop, 1);
-	if (NULL != lop_mask)
-		ret.nlop = nlop_chain2_swap_FF(nlop_from_linop_F(lop_mask),0, ret.nlop, 0);
+	ret.tenmul = nlop_tenmul_create(N, cim_dims, img_dims2, col_dims2);
+	ret.nlop = nlop_chain2_FF(nlop_from_linop(ret.lop_coil), 0, nlop_clone(ret.tenmul), 1);
+	if (NULL != ret.lop_im )
+		ret.nlop = nlop_chain2_swap_FF(nlop_from_linop(ret.lop_im ),0, ret.nlop, 0);
+	else
+		ret.lop_im = linop_identity_create(N, img_dims2);
 
 	ret.model_conf = *conf;
 
@@ -418,4 +421,8 @@ void noir2_free(struct noir2_s* model)
 	nlop_free(model->nlop);
 	linop_free(model->lop_coil2);
 	linop_free(model->lop_fft);
+
+	linop_free(model->lop_coil);
+	linop_free(model->lop_im);
+	nlop_free(model->tenmul);
 }
