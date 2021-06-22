@@ -597,3 +597,138 @@ static bool test_bloch_excitation2(void)
 
 UT_REGISTER_TEST(test_bloch_excitation2);
 
+
+// Shaihan J Malik, Alessandro Sbrizzi, Hans Hoogduin, and Joseph V Hajnal
+// Equivalence of EPG and Isochromat-based simulation of MR signals
+// Proc. Intl. Soc. Mag. Reson. Med. 24 (2016), No. 3196
+static void ode_fourier_modes(int N, struct sim_data* data, complex float fn[N], float angle)
+{
+	complex float m_plus[N];
+
+	int t = data->seq.rep_num - 1;
+
+	// Perform ODE simulations for isochromates
+
+	for (int i = 0; i < N; i++) {
+
+		struct sim_data sim_ode = *data;
+
+		sim_ode.voxel.w = angle * i / N / data->seq.te;
+
+		complex float mxySig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+		complex float saR1Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+		complex float saR2Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+		complex float saDensSig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+		complex float sa_b1_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+
+		ode_bloch_simulation3(&sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, sa_b1_ode);
+
+		// Save M+
+		m_plus[i] = mxySig_ode[t][1] + mxySig_ode[t][0]*I;
+	}
+
+#if 0	// Print
+	for (int i = 0; i < N; i++) {
+		bart_printf("M+\n w/TE: %f, Mxy: %f+%f*I\n", 2 * M_PI / N * i, crealf(m_plus[i]), cimagf(m_plus[i]));
+		bart_printf("|Mxy|: %f\n", cabsf(m_plus[i]));
+	}
+#endif
+
+	// Estimate Fn based on DFT
+
+	for (int j = 0; j < N; j++) {
+
+		fn[j] = 0.;
+
+		for (int m = 0; m < N; m++)
+			fn[j] += m_plus[m] * cexpf(-2. * M_PI * I * (-(float)N/2.+j) * (float)m/(float)N);
+
+		fn[j] /= N; // Scale to compensate for Fn \prop N
+	}
+}
+
+
+// Idea: use isochromate off-resonance distributions to loop through Fourier coefficients
+static bool test_ode_epg_relation(void)
+{
+	// General simulation details
+
+	struct sim_data sim_data;
+
+	sim_data.seq = simdata_seq_defaults;
+	sim_data.seq.seq_type = 2;	// FLASH
+	sim_data.seq.tr = 0.003;
+	sim_data.seq.te = 0.0015;
+	sim_data.seq.rep_num = 1.;
+	sim_data.seq.spin_num = 1;
+	sim_data.seq.num_average_rep = 1.;
+	sim_data.seq.inversion_pulse_length = 0.;
+	sim_data.seq.prep_pulse_length = 0.;
+
+	sim_data.voxel = simdata_voxel_defaults;
+	sim_data.voxel.r1 = 0.;	// Turn off relaxation
+	sim_data.voxel.r2 = 0.;	// Turn off relaxation
+	sim_data.voxel.m0 = 1.;
+	sim_data.voxel.w = 0.;
+
+	sim_data.pulse = simdata_pulse_defaults;
+	sim_data.pulse.flipangle = 8.;
+	sim_data.pulse.rf_end = 0.;	// Hard Pulses!
+
+	sim_data.grad = simdata_grad_defaults;
+	sim_data.tmp = simdata_tmp_defaults;
+
+
+	// Estimate Fourier modes from ODE simulation
+
+	int N = 10; //number of isochromates
+
+	complex float fn[N];
+
+	float angles[4] = {0, 2*M_PI, 4*M_PI, 6*M_PI};
+
+	float test_modes[4] = { 0. };
+
+	for (int i = 0; i < 4; i++) {
+
+		ode_fourier_modes(N, &sim_data, fn, angles[i]);
+
+		test_modes[i] = fn[N/2+i];
+	}
+
+	// Compute F(n=0) mode with EPG
+
+	int T = sim_data.seq.rep_num;
+	int M = 2*T;
+
+	complex float signal[T];
+	complex float states[3][M][T]; // 3 -> dims: Fn,F-n,Zn; M: k-states; T: repetition
+
+	flash_epg_der(T, M, signal, states, NULL, NULL, sim_data.pulse.flipangle, sim_data.seq.tr, 1000000., 1000000., 1., sim_data.voxel.w, 0L);
+
+#if 0
+	for (int i = 0; i < M; i++)
+		bart_printf("EPG: Fn: k: %d,\t%f+%f*I\n", i, crealf(states[0][i][T-1]), cimagf(states[0][i][T-1])); // 0 -> Fn
+
+	bart_printf("\nSignal(EPG):\t %f+%f*i\n\n", crealf(signal[T-1]), cimagf(signal[T-1]));
+
+	bart_printf("Err\n x: %f,\ty: %f,\tz: %f\n",	(fabsf(crealf(states[0][0][T-1]) - test_modes[0])),
+							(fabsf(crealf(states[0][0][T-1]) - test_modes[1])),
+							(fabsf(crealf(states[0][0][T-1]) - test_modes[2])),
+							(fabsf(crealf(states[0][0][T-1]) - test_modes[3])) );
+#endif
+
+	float tol = 10E-5;
+
+	UT_ASSERT(	(fabsf(crealf(states[0][0][T-1]) - test_modes[0]) < tol) &&
+			(fabsf(crealf(states[0][0][T-1]) - test_modes[1]) < tol) &&
+			(fabsf(crealf(states[0][0][T-1]) - test_modes[2]) < tol) &&
+			(fabsf(crealf(states[0][0][T-1]) - test_modes[3]) < tol) );
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_ode_epg_relation);
+
+
+
