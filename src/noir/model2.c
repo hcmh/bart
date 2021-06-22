@@ -412,3 +412,10 @@ void noir2_orthogonalize(int N, const long col_dims[N], int idx, unsigned long f
 
 	md_free(tmp);
 }
+
+void noir2_free(struct noir2_s* model)
+{
+	nlop_free(model->nlop);
+	linop_free(model->lop_coil2);
+	linop_free(model->lop_fft);
+}
