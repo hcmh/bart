@@ -84,8 +84,8 @@ static void noir2_calc_weights(const struct noir2_model_conf_s* conf, int N, con
  * - if cim_dims does not equal img_dims or col_dims, we include a resize (oversampling for coils)
  * - if mask is provided, the dimensioons shoul match img_dims or be trivial
  * - if conf->rvc, only the real part of img is considered
- * lop_coil contains the coil transform without a second ifftmod, i.e.
- *	lop_coil(x) = fftmod(ifftuc(weights * x))
+ * lop_coil2 contains the coil transform without a second ifftmod, i.e.
+ *	lop_coil2(x) = fftmod(ifftuc(weights * x))
  **/
 static struct noir2_s noir2_nlop_create(int N,
 	const long msk_dims[N], const complex float* mask,
@@ -96,8 +96,8 @@ static struct noir2_s noir2_nlop_create(int N,
 {
 	struct noir2_s ret = {
 		.nlop = NULL,
-		.lop_coil = NULL,
-		.lop_trafo = NULL,
+		.lop_coil2 = NULL,
+		.lop_fft = NULL,
 	};
 
 	unsigned long fft_flags = conf->fft_flags_noncart | conf->fft_flags_cart;
@@ -114,7 +114,7 @@ static struct noir2_s noir2_nlop_create(int N,
 	const struct linop_s* lop_wghts_ifft = linop_ifft_create(N, col_dims, fft_flags);
 
 	const struct linop_s* lop_coils = linop_chain_FF(lop_wghts, lop_wghts_ifft);
-	ret.lop_coil = linop_clone(lop_coils);	// extra ifftmod is missing and merged into nlop
+	ret.lop_coil2 = linop_clone(lop_coils);	// extra ifftmod is missing and merged into nlop
 
 
 	complex float* ifmod = md_alloc(N, wght_dims, CFL_SIZE);
@@ -200,7 +200,7 @@ struct noir2_s noir2_noncart_create(int N,
 	nufft_conf.cfft = conf->fft_flags_cart;
 
 	assert(md_check_equal_dims(N, ksp_dims, cim_dims, ~conf->fft_flags_noncart));
-	ret.lop_trafo = nufft_create2(N, ksp_dims, cim_dims, trj_dims, traj, wgh_dims, weights, bas_dims, basis, nufft_conf);
+	ret.lop_fft = nufft_create2(N, ksp_dims, cim_dims, trj_dims, traj, wgh_dims, weights, bas_dims, basis, nufft_conf);
 
 	// We need to add fftmod and scale for the uncenterd cartesian fft (SMS/SOS)
 	if (0 != conf->fft_flags_cart) {
@@ -214,20 +214,20 @@ struct noir2_s noir2_noncart_create(int N,
 		const struct linop_s* lop_fftmod = linop_cdiag_create(N, ksp_dims, conf->fft_flags_cart, fmod);
 
 		//manual chain lop_fftmod to keep normal of nufft
-		const struct operator_s* frw = operator_chain(ret.lop_trafo->forward, lop_fftmod->forward);
-		const struct operator_s* adj = operator_chain(lop_fftmod->adjoint, ret.lop_trafo->adjoint);
-		const struct linop_s* lop_trafo = linop_from_ops(frw, adj, ret.lop_trafo->normal, NULL);
+		const struct operator_s* frw = operator_chain(ret.lop_fft->forward, lop_fftmod->forward);
+		const struct operator_s* adj = operator_chain(lop_fftmod->adjoint, ret.lop_fft->adjoint);
+		const struct linop_s* lop_fft = linop_from_ops(frw, adj, ret.lop_fft->normal, NULL);
 		operator_free(frw);
 		operator_free(adj);
 
-		linop_free(ret.lop_trafo);
-		ret.lop_trafo = lop_trafo;
+		linop_free(ret.lop_fft);
+		ret.lop_fft = lop_fft;
 
 
 		linop_free(lop_fftmod);
 
 		fftscale(N, fft_dims, conf->fft_flags_cart, fmod, fmod);
-		ret.lop_trafo = linop_chain_FF(linop_cdiag_create(N, cim_dims, conf->fft_flags_cart, fmod), ret.lop_trafo);
+		ret.lop_fft = linop_chain_FF(linop_cdiag_create(N, cim_dims, conf->fft_flags_cart, fmod), ret.lop_fft);
 
 		md_free(fmod);
 	}
@@ -296,13 +296,13 @@ struct noir2_s noir2_cart_create(int N,
 	// the forward model maps to the gridded kspace, while the adjoint does not contain the gridding
 	if (!conf->noncart) {
 
-		ret.lop_trafo = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, md_nontriv_dims(N, pat_dims), pattern);
+		ret.lop_fft = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, md_nontriv_dims(N, pat_dims), pattern);
 	} else {
 
 		const struct linop_s* lop_frw = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, md_nontriv_dims(N, pat_dims), pattern);
 		const struct linop_s* lop_adj = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, 0, NULL);
 
-		ret.lop_trafo = linop_from_ops(lop_frw->forward, lop_adj->adjoint, NULL, NULL);
+		ret.lop_fft = linop_from_ops(lop_frw->forward, lop_adj->adjoint, NULL, NULL);
 
 		linop_free(lop_frw);
 		linop_free(lop_adj);

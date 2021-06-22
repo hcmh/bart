@@ -33,8 +33,8 @@ struct noir2_s {
 
 	struct noir2_model_conf_s model_conf;
 	struct nlop_s* nlop;
-	const struct linop_s* lop_coil;
-	const struct linop_s* lop_trafo;
+	const struct linop_s* lop_coil2;
+	const struct linop_s* lop_fft;
 };
 
 extern struct noir2_s noir2_noncart_create(int N,
