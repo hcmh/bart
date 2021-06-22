@@ -238,9 +238,7 @@ void noir2_recon_noncart(
 
 	noir2_recon(conf, noir_ops, N, img_dims, img, img_ref, col_dims, sens, ksens, sens_ref, ksp_dims, kspace);
 
-	nlop_free(noir_ops.nlop);
-	linop_free(noir_ops.lop_coil2);
-	linop_free(noir_ops.lop_fft);
+	noir2_free(&noir_ops);
 }
 
 
@@ -272,7 +270,5 @@ void noir2_recon_cart(
 
 	noir2_recon(conf, noir_ops, N, img_dims, img, img_ref, col_dims, sens, ksens, sens_ref, ksp_dims, kspace);
 
-	nlop_free(noir_ops.nlop);
-	linop_free(noir_ops.lop_coil2);
-	linop_free(noir_ops.lop_fft);
+	noir2_free(&noir_ops);
 }

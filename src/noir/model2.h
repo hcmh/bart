@@ -58,6 +58,8 @@ extern struct noir2_s noir2_cart_create(int N,
 	const long col_dims[N],
 	const struct noir2_model_conf_s* conf);
 
+extern void noir2_free(struct noir2_s* model);
+
 extern void noir2_forw_coils(const struct linop_s* op, complex float* dst, const complex float* src);
 extern void noir2_back_coils(const struct linop_s* op, complex float* dst, const complex float* src);
 extern void noir2_orthogonalize(int N, const long col_dims[N], int idx, unsigned long flags, complex float* coils);
