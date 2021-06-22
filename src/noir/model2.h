@@ -33,8 +33,11 @@ struct noir2_s {
 
 	struct noir2_model_conf_s model_conf;
 	struct nlop_s* nlop;
-	const struct linop_s* lop_coil2;
-	const struct linop_s* lop_fft;
+	const struct linop_s* lop_coil2;	// kspace coils to img-coils without resize and ifftmod
+	const struct linop_s* lop_fft;		// fft/nufft from coil images to kspace
+	const struct linop_s* lop_coil;		// kspace coils to img-coils
+	const struct linop_s* lop_im;		// masking/resizing of image
+	const struct nlop_s* tenmul;		// tenmul coil * image = coil image
 };
 
 extern struct noir2_s noir2_noncart_create(int N,
