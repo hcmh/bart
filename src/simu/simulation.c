@@ -404,6 +404,9 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 					(4 == data->seq.seq_type))
 					data->pulse.phase = M_PI * (float)(data->tmp.rep_counter + data->tmp.run_counter * data->seq.rep_num);
 
+				else if (7 == data->seq.seq_type)
+					data->pulse.phase = fmodf(data->pulse.phase + 120./180. * M_PI * (float)data->tmp.rep_counter, 2. * M_PI);
+
 				run_sim_block(data, mxy, sa_r1, sa_r2, sa_b1, h, tol, N, P, xp, true);
 
 				//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization

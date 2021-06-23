@@ -16,6 +16,9 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 
+#include "linops/linop.h"
+#include "linops/someops.h"
+
 #include "misc/mri.h"
 #include "misc/misc.h"
 
@@ -795,3 +798,150 @@ UT_REGISTER_TEST(test_ode_epg_relation);
 
 
 
+
+// Reproduction of Figure 2 in:
+// 	Shaihan J Malik, Alessandro Sbrizzi, Hans Hoogduin, and Joseph V Hajnal
+//	Equivalence of EPG and Isochromat-based simulation of MR signals
+//	Proc. Intl. Soc. Mag. Reson. Med. 24 (2016), No. 3196
+
+static bool test_epg_ode_flash(void)
+{
+#if 1
+	// EPG FLASH Simulation
+
+	int N = 100;
+	int M = 2*N;
+
+	float B1 = 1.;
+	float FA = 10.;
+	float T1 = 1.5;
+	float T2 = 0.5;
+	float TR = 0.005;
+	float omega = 0.;
+	long SP = 3L;
+
+	complex float signal[N];
+	complex float states[3][M][N];
+
+	flash_epg_der(N, M, signal, states, NULL, NULL, FA, TR, T1, T2, B1, omega, SP);
+
+	// Join Fn+ and Fn- states into single matrix
+
+	complex float states_joined[M-1][N]; // M-1 -> because joining Fn+ and Fn- means having F(n=0) twice
+
+	for (int i = 0; i < M; i++)
+		for (int j = 0; j < N; j++)
+			states_joined[i][j] = (i <= M/2) ? states[0][M/2-i][j] : states[1][i-M/2][j];
+
+	// Copy joined states to complex float * memory block
+
+	long sdim[DIMS] = { [0 ... DIMS - 1] = 1 };
+	sdim[READ_DIM] = N;
+	sdim[PHS1_DIM] = M-1;
+
+	long pos[DIMS] = { 0 };
+
+	complex float* stat = md_alloc(DIMS, sdim, CFL_SIZE);
+	md_copy_block(DIMS, pos, sdim, stat, sdim, states_joined, CFL_SIZE);
+
+	dump_cfl("_states", DIMS, sdim, stat);
+
+
+	// FFT of joined state matrix
+
+	complex float* stat_fft = md_alloc(DIMS, sdim, CFL_SIZE);
+
+	const struct linop_s* linop_ifft = linop_ifft_create(DIMS, sdim, PHS1_FLAG);
+
+	md_copy_block(DIMS, pos, sdim, stat_fft, sdim, stat, CFL_SIZE);
+	linop_forward_unchecked(linop_ifft, stat_fft, stat_fft);
+
+	dump_cfl("_states_fft", DIMS, sdim, stat_fft);
+
+	linop_free(linop_ifft);
+
+	// Simulate Isochromates
+
+	// General simulation details
+
+	struct sim_data sim_data;
+
+	sim_data.seq = simdata_seq_defaults;
+	sim_data.seq.seq_type = 7;	// SPGR
+	sim_data.seq.tr = TR;
+	sim_data.seq.te = TR/2.;
+	sim_data.seq.rep_num = N;
+	sim_data.seq.spin_num = 1;
+	sim_data.seq.num_average_rep = 1.;//!
+	sim_data.seq.inversion_pulse_length = 0.;
+	sim_data.seq.prep_pulse_length = 0.;
+
+	sim_data.voxel = simdata_voxel_defaults;
+	sim_data.voxel.r1 = 1./T1;	// Turn off relaxation
+	sim_data.voxel.r2 = 1./T2;	// Turn off relaxation
+	sim_data.voxel.m0 = 1.;
+	sim_data.voxel.w = 0.;
+
+	sim_data.pulse = simdata_pulse_defaults;
+	sim_data.pulse.flipangle = B1*FA;
+	sim_data.pulse.rf_end = 0.;	// Hard Pulses!
+
+	sim_data.grad = simdata_grad_defaults;
+	sim_data.grad.mom = 1.;
+
+	sim_data.tmp = simdata_tmp_defaults;
+
+	complex float iso[M-1][N];	// M-1 -> because joining Fn+ and Fn- means having F(n=0) twice
+
+	// Perform ODE simulations for isochromates
+
+	for (int i = 0; i < M-1; i++) {
+
+		struct sim_data sim_ode = sim_data;
+
+		sim_ode.voxel.w = 2 * M_PI * i / (M-1) / sim_data.seq.tr;
+
+		complex float mxySig_ode[sim_ode.seq.rep_num][3];
+		complex float saR1Sig_ode[sim_ode.seq.rep_num][3];
+		complex float saR2Sig_ode[sim_ode.seq.rep_num][3];
+		complex float saDensSig_ode[sim_ode.seq.rep_num][3];
+		complex float sa_b1_ode[sim_ode.seq.rep_num][3];
+
+		ode_bloch_simulation3(&sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, sa_b1_ode);
+
+		// Save M+
+		for (int t = 0; t < sim_ode.seq.rep_num; t++)
+			iso[i][t] = mxySig_ode[t][1] + mxySig_ode[t][0] * I;
+	}
+
+	// Copy Isochromates to complex float * memory block
+
+	complex float* isochromates = md_alloc(DIMS, sdim, CFL_SIZE);
+	md_copy_block(DIMS, pos, sdim, isochromates, sdim, iso, CFL_SIZE);
+
+	dump_cfl("_iso", DIMS, sdim, isochromates);
+
+	// Fourier transform isochromates
+
+	complex float* iso_fft = md_alloc(DIMS, sdim, CFL_SIZE);
+
+	const struct linop_s* linop_fft = linop_fftc_create(DIMS, sdim, PHS1_FLAG);
+
+	md_copy_block(DIMS, pos, sdim, iso_fft, sdim, isochromates, CFL_SIZE);
+	linop_forward_unchecked(linop_fft, iso_fft, iso_fft);
+
+	dump_cfl("_iso_fft", DIMS, sdim, iso_fft);
+
+	linop_free(linop_fft);
+
+
+
+	md_free(stat);
+	md_free(stat_fft);
+	md_free(isochromates);
+
+#endif
+	return true;
+}
+
+UT_REGISTER_TEST(test_epg_ode_flash);
