@@ -70,6 +70,7 @@ const struct simdata_grad simdata_grad_defaults = {
 
 	.gb = { 0., 0., 0. },	/*gradients, example: GAMMA_H1 * SKYRA_GRADIENT * 0.0001*/
 	.gb_eff = { 0., 0., 0.},	/*storage for effective gradients*/
+	.mom = 0.,
 };
 
 
@@ -222,6 +223,18 @@ void relaxation2(struct sim_data* data, float h, float tol, int N, int P, float 
 	ode_direct_sa(h, tol, N, P, xp, st, end, data, bloch_simu_fun2, bloch_pdy3, bloch_wrap_pdp);
 }
 
+static void relaxgrad(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 1][N], float st, float end)
+{
+	data->pulse.pulse_applied = false;
+
+	if (0. != fabsf(end-st))
+		data->grad.gb[2] = data->grad.mom * 2. * M_PI / fabsf(end-st);
+
+	ode_direct_sa(h, tol, N, P, xp, st, end, data, bloch_simu_fun2, bloch_pdy3, bloch_wrap_pdp);
+
+	data->grad.gb[2] = 0.;
+}
+
 
 void create_sim_block(struct sim_data* data)
 {
@@ -241,7 +254,7 @@ static void run_sim_block(struct sim_data* data, float* mxy, float* sa_r1, float
 	if (get_signal && !data->seq.look_locker_assumptions)
 		collect_signal(data, N, P, mxy, sa_r1, sa_r2, sa_b1, xp);
 
-	relaxation2(data, h, tol, N, P, xp, data->seq.te, data->seq.tr);
+	relaxgrad(data, h, tol, N, P, xp, data->seq.te, data->seq.tr);
 }
 
 #if 0

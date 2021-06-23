@@ -55,6 +55,7 @@ struct simdata_grad {
 
 	float gb[3];
 	float gb_eff[3];
+	float mom;
 };
 extern const struct simdata_grad simdata_grad_defaults;
 

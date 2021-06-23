@@ -559,6 +559,69 @@ static bool test_ode_off_simu(void)
 
 UT_REGISTER_TEST(test_ode_off_simu);
 
+// Gradient dephasing by PI/2 between TE and TR of first repetition
+// Turns Magnetization from 0,1,0 to 1,0,0 where it is not affected during second repetition
+static bool test_ode_grad_simu(void)
+{
+	struct sim_data sim_data;
+
+	sim_data.seq = simdata_seq_defaults;
+	sim_data.seq.seq_type = 8;	// Use FLASH here, because it does not have any preparation phase
+	sim_data.seq.tr = 0.003;
+	sim_data.seq.te = 0.0015;
+	sim_data.seq.rep_num = 2.;
+	sim_data.seq.spin_num = 1;
+	sim_data.seq.num_average_rep = 1.;
+	sim_data.seq.inversion_pulse_length = 0.;
+	sim_data.seq.prep_pulse_length = 0.;
+
+	sim_data.voxel = simdata_voxel_defaults;
+	sim_data.voxel.r1 = 0.;	// Turn off relaxation
+	sim_data.voxel.r2 = 0.;	// Turn off relaxation
+	sim_data.voxel.m0 = 1.;
+	sim_data.voxel.w = 0.;
+
+	sim_data.pulse = simdata_pulse_defaults;
+	sim_data.pulse.flipangle = 90.;
+	sim_data.pulse.rf_end = 0.;	// HARD PULSE
+
+	sim_data.grad = simdata_grad_defaults;
+	sim_data.grad.mom = 0.25;	// DEPHASING by PI/2 between TE and TR of first repetition
+
+	sim_data.tmp = simdata_tmp_defaults;
+
+	struct sim_data sim_ode = sim_data;
+
+	complex float mxySig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saR1Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saR2Sig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float saDensSig_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+	complex float sa_b1_ode[sim_ode.seq.rep_num / sim_ode.seq.num_average_rep][3];
+
+	ode_bloch_simulation3(&sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, sa_b1_ode);
+
+#if 0
+	bart_printf("M\n x: %f+i*%f,\ty: %f+i*%f,\tz: %f+i*%f\n", crealf(mxySig_ode[sim_data.seq.rep_num-1][0]), cimagf(mxySig_ode[sim_data.seq.rep_num-1][0])
+								, crealf(mxySig_ode[sim_data.seq.rep_num-1][1]), cimagf(mxySig_ode[sim_data.seq.rep_num-1][1])
+								, crealf(mxySig_ode[sim_data.seq.rep_num-1][2]), cimagf(mxySig_ode[sim_data.seq.rep_num-1][2]) );
+
+	bart_printf("Err\n x: %f,\ty: %f,\tz: %f\n",	fabsf(cabsf(mxySig_ode[sim_data.seq.rep_num-1][0]) - 1.),
+							fabsf(cabsf(mxySig_ode[sim_data.seq.rep_num-1][1]) - 0.),
+							fabsf(cabsf(mxySig_ode[sim_data.seq.rep_num-1][2]) - 0.) );
+
+	UT_ASSERT(0);
+#endif
+	float tol = 10E-5;
+
+	UT_ASSERT(	(fabsf(cabsf(mxySig_ode[sim_data.seq.rep_num-1][0]) - 1.) < tol) &&
+			(fabsf(cabsf(mxySig_ode[sim_data.seq.rep_num-1][1]) - 0.) < tol) &&
+			(fabsf(cabsf(mxySig_ode[sim_data.seq.rep_num-1][2]) - 0.) < tol) );
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_ode_grad_simu);
+
 
 static bool test_bloch_excitation(void)
 {
