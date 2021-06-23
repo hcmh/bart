@@ -167,25 +167,29 @@ static void collect_signal(struct sim_data* data, int N, int P, float* mxy, floa
 
 	for (int i = 0; i < N; i++) {
 
-		mxy[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-			+ (i * data->seq.spin_num * data->seq.rep_num)
-			+ (data->tmp.rep_counter * data->seq.spin_num)
-			+ data->tmp.spin_counter] = tmp[0][i];
+		if (NULL != mxy)
+			mxy[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
+				+ (i * data->seq.spin_num * data->seq.rep_num)
+				+ (data->tmp.rep_counter * data->seq.spin_num)
+				+ data->tmp.spin_counter] = tmp[0][i];
 
-		sa_r1[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-			+ (i * data->seq.spin_num * data->seq.rep_num)
-			+ (data->tmp.rep_counter * data->seq.spin_num)
-			+ data->tmp.spin_counter] = tmp[1][i];
+		if (NULL != sa_r1)
+			sa_r1[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
+				+ (i * data->seq.spin_num * data->seq.rep_num)
+				+ (data->tmp.rep_counter * data->seq.spin_num)
+				+ data->tmp.spin_counter] = tmp[1][i];
 
-		sa_r2[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-			+ (i * data->seq.spin_num * data->seq.rep_num)
-			+  (data->tmp.rep_counter * data->seq.spin_num)
-			+ data->tmp.spin_counter] = tmp[2][i];
+		if (NULL != sa_r2)
+			sa_r2[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
+				+ (i * data->seq.spin_num * data->seq.rep_num)
+				+  (data->tmp.rep_counter * data->seq.spin_num)
+				+ data->tmp.spin_counter] = tmp[2][i];
 
-		sa_b1[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
-			+ (i * data->seq.spin_num * data->seq.rep_num)
-			+ (data->tmp.rep_counter * data->seq.spin_num)
-			+ data->tmp.spin_counter] = tmp[3][i];
+		if (NULL != sa_b1)
+			sa_b1[(data->tmp.run_counter * 3 * data->seq.spin_num * data->seq.rep_num)
+				+ (i * data->seq.spin_num * data->seq.rep_num)
+				+ (data->tmp.rep_counter * data->seq.spin_num)
+				+ data->tmp.spin_counter] = tmp[3][i];
 	}
 }
 
