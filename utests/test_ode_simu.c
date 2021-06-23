@@ -92,7 +92,7 @@ static bool test_ode_bloch_simulation(void)
 
 			if (tol < err) {
 				
-				printf("Error T1: (%d,%d)\t=>\t%f\n", i,j, err);
+				printf("Error T1: (%d,%d)\t=>\t%f\n", i, j, err);
 				return false;
 			}
 	
@@ -103,19 +103,19 @@ static bool test_ode_bloch_simulation(void)
 	//-------------------------------------------------------
 	struct sim_data data_r2 = sim_data;
 
-	data_r2.voxel.r2 += e; 
+	data_r2.voxel.r2 += e;
 
 	ode_bloch_simulation3(&data_r2, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
 
 	//Verify gradient
 	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
 		for (int j = 0; j < 3; j++) {
-		
+
 			err = cabsf(e * sa_r2_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
-			
+
 			if (tol < err) {
-				
-				printf("Error T2: (%d,%d)\t=>\t%f\n", i,j, err);
+
+				printf("Error T2: (%d,%d)\t=>\t%f\n", i, j, err);
 				return false;
 			}
 		}
@@ -137,7 +137,7 @@ static bool test_ode_bloch_simulation(void)
 
 			if (tol < err) {
 
-				printf("Error M0: (%d,%d)\t=>\t%f\n", i,j, err);
+				printf("Error M0: (%d,%d)\t=>\t%f\n", i, j, err);
 				return false;
 			}
 		}
@@ -159,7 +159,7 @@ static bool test_ode_bloch_simulation(void)
 
 			if (1.E-3 < err) {
 
-				printf("Error B1: (%d,%d)\t=>\t%f\n", i,j, err);
+				printf("Error B1: (%d,%d)\t=>\t%f\n", i, j, err);
 				return false;
 			}
 		}

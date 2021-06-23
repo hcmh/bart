@@ -83,15 +83,6 @@ static void bloch_pdy3(void* _data, float* out, float t, const float* in)
 }
 
 
-// static void bloch_pdp3(void* _data, float* out, float t, const float* in)
-// {
-// 	struct sim_data* data = _data;
-// 	(void)t;
-
-// 	bloch_pdp((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff);
-// }
-
-
 static void bloch_wrap_pdp(void* _data, float* out, float t, const float* in)
 {
 	struct sim_data* data = _data;
@@ -125,7 +116,8 @@ static void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 
 
 
-void isochrom_distribution(struct sim_data* data, float* isochromats)
+// Fixme: Add utest!
+void isochrom_distribution(struct sim_data* data, float* isochromates)
 {
 	float s = 1.;		//scaling parameters
 	float t = 0.;		// location of max
@@ -149,13 +141,14 @@ void isochrom_distribution(struct sim_data* data, float* isochromats)
 
 	//Assigning frequencies up to pi/2
 	for (int i = 0; i < data->seq.spin_num; i++)
-		isochromats[i] = (iso_tmp[i] / maximum) * M_PI / data->seq.tr;
+		isochromates[i] = (iso_tmp[i] / maximum) * M_PI / data->seq.tr;
+
 }
 
 //If ADC gets phase, it has to be corrected manually
 static void adc_corr(int N, int P, float out[P + 1][N], float in[P + 1][N], float angle)
 {
-	for (int i = 0; i < P + 1; i ++)
+	for (int i = 0; i < P + 1; i++)
 		rotz(out[i], in[i], angle);
 }
 
@@ -195,8 +188,6 @@ static void collect_signal(struct sim_data* data, int N, int P, float* mxy, floa
 
 
 
-
-//Module for RF-pulses
 void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 1][N])
 {
 	data->pulse.pulse_applied = true;
@@ -284,10 +275,10 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 	int N = 3;
 	int P = 3;
 
-	float isochromats[data->seq.spin_num];
+	float isochromates[data->seq.spin_num];
 
 	if (data->voxel.spin_ensamble)
-		isochrom_distribution(data, isochromats);
+		isochrom_distribution(data, isochromates);
 
 	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows
 	float* mxy = malloc(data->seq.run_num * data->seq.spin_num * data->seq.rep_num * 3 * sizeof(float));
@@ -313,7 +304,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 		data->voxel.w = w_backup;
 
 		if (data->voxel.spin_ensamble)
-			data->voxel.w += isochromats[data->tmp.spin_counter];
+			data->voxel.w += isochromates[data->tmp.spin_counter];
 
 		data->pulse.phase = 0;
 
@@ -401,12 +392,12 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 				//Change phase for phase cycled bSSFP sequences
 				if (	(3 == data->seq.seq_type) ||
-					(6 == data->seq.seq_type))
+					(6 == data->seq.seq_type) )
 					data->pulse.phase += fmodf( (0 == data->tmp.rep_counter ? 0 : M_PI) + 4. * M_PI * (float)data->tmp.rep_counter / (float)data->seq.rep_num, 2.0 * M_PI);
 				else if ((0 == data->seq.seq_type) ||
 					(1 == data->seq.seq_type) ||
-					(4 == data->seq.seq_type))
-					data->pulse.phase = M_PI * (float)(data->tmp.rep_counter + data->tmp.run_counter * data->seq.rep_num);
+					(4 == data->seq.seq_type) )
+						data->pulse.phase = M_PI * (float)(data->tmp.rep_counter + data->tmp.run_counter * data->seq.rep_num);
 
 				else if (7 == data->seq.seq_type)
 					data->pulse.phase = fmodf(data->pulse.phase + 120./180. * M_PI * (float)data->tmp.rep_counter, 2. * M_PI);
