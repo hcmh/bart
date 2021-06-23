@@ -1,3 +1,7 @@
+/* Authors:
+ * 2021  Volkert Roeloffs, Nick Scholand, nick.scholand@med.uni-goettingen.de
+ */
+
 #include <stdio.h>
 #include <complex.h>
 #include <math.h>
