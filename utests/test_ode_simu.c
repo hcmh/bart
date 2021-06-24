@@ -798,6 +798,104 @@ static bool test_ode_epg_relation(void)
 UT_REGISTER_TEST(test_ode_epg_relation);
 
 
+static bool test_epg_ode_spgr(void)
+{
+	// EPG FLASH Simulation
+#if 0
+	int N = 10;
+	int M = 2*N;
+
+	float B1 = 1.;
+	float FA = 10.;
+	float T1 = 1.5;
+	float T2 = 0.5;
+	float TR = 0.005;
+	float omega = 0.;
+	long SP = 3L;
+
+	complex float signal_epg[N];
+
+	flash_epg_der(N, M, signal_epg, NULL, NULL, NULL, FA, TR, T1, T2, B1, omega, SP);
+
+	// Simulate Isochromate
+
+	struct sim_data sim_data;
+
+	sim_data.seq = simdata_seq_defaults;
+	sim_data.seq.seq_type = 7;	// SPGR
+	sim_data.seq.tr = TR;
+	sim_data.seq.te = TR/2.;
+	sim_data.seq.rep_num = N;
+	sim_data.seq.spin_num = 1;
+	sim_data.seq.num_average_rep = 1.;//!
+	sim_data.seq.inversion_pulse_length = 0.;
+	sim_data.seq.prep_pulse_length = 0.;
+
+	sim_data.voxel = simdata_voxel_defaults;
+	sim_data.voxel.r1 = 1./T1;	// Turn off relaxation
+	sim_data.voxel.r2 = 1./T2;	// Turn off relaxation
+	sim_data.voxel.m0 = 1.;
+	sim_data.voxel.w = 0.;
+
+	sim_data.pulse = simdata_pulse_defaults;
+	sim_data.pulse.flipangle = B1*FA;
+	sim_data.pulse.rf_end = 0.;	// Hard Pulses!
+
+	sim_data.grad = simdata_grad_defaults;
+	sim_data.grad.mom = 1.;
+
+	sim_data.tmp = simdata_tmp_defaults;
+
+	// Perform ODE simulation
+
+	complex float mxySig_ode[sim_data.seq.rep_num][3];
+	complex float saR1Sig_ode[sim_data.seq.rep_num][3];
+	complex float saR2Sig_ode[sim_data.seq.rep_num][3];
+	complex float saDensSig_ode[sim_data.seq.rep_num][3];
+	complex float sa_b1_ode[sim_data.seq.rep_num][3];
+
+	complex float signal_ode[N];
+
+	for (int t = 0; t < sim_data.seq.rep_num; t++)
+		signal_ode[t] = 0.;
+
+	for (int i = 0; i < M-1; i++) {
+
+		struct sim_data sim_ode = sim_data;
+
+		sim_ode.voxel.w = 2 * M_PI * i / (M-1) / sim_data.seq.tr;
+
+		complex float mxySig_ode[sim_ode.seq.rep_num][3];
+		complex float saR1Sig_ode[sim_ode.seq.rep_num][3];
+		complex float saR2Sig_ode[sim_ode.seq.rep_num][3];
+		complex float saDensSig_ode[sim_ode.seq.rep_num][3];
+		complex float sa_b1_ode[sim_ode.seq.rep_num][3];
+
+		ode_bloch_simulation3(&sim_ode, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, sa_b1_ode);
+
+		// Save M+
+		for (int t = 0; t < sim_ode.seq.rep_num; t++)
+			signal_ode[t] += mxySig_ode[t][1] + mxySig_ode[t][0] * I;
+	}
+
+	// ode_bloch_simulation3(&sim_data, mxySig_ode, saR1Sig_ode, saR2Sig_ode, saDensSig_ode, sa_b1_ode);
+
+	// Save M+
+	for (int t = 0; t < sim_data.seq.rep_num; t++) {
+
+		signal_ode[t] /= (float)M;
+
+		bart_printf("sig: %f+%f*i,\t%f+%f*i\n",	crealf(signal_ode[t]), cimagf(signal_ode[t]),
+							crealf(signal_epg[t]), cimagf(signal_epg[t]));
+	}
+
+	UT_ASSERT(0);
+#endif
+	return true;
+}
+
+UT_REGISTER_TEST(test_epg_ode_spgr);
+
 
 
 // Reproduction of Figure 2 in:
