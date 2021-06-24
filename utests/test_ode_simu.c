@@ -12,6 +12,7 @@
 #include "simu/sim_matrix.h"
 #include "simu/sim_rot.h"
 #include "simu/pulse.h"
+#include "simu/epg.h"
 
 #include "num/multind.h"
 #include "num/flpmath.h"
