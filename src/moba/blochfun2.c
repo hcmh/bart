@@ -397,8 +397,8 @@ static void Bloch_fun2(const nlop_data_t* _data, complex float* dst, const compl
 						a = 1./(sinf(sim_data.pulse.flipangle * M_PI/180.) * expf(-sim_data.voxel.r2 * sim_data.seq.te));
 
 					dr1_cpu[position] = a * data->scale[4] * data->scale[0] * (sa_r1_sig[j+rm_first_echo][1] + sa_r1_sig[j+rm_first_echo][0] * I);
-					dr2_cpu[position] = a * data->scale[4] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
 					dm0_cpu[position] = a * data->scale[4] * data->scale[1] * (sa_m0_sig[j+rm_first_echo][1] + sa_m0_sig[j+rm_first_echo][0] * I);
+					dr2_cpu[position] = a * data->scale[4] * data->scale[2] * (sa_r2_sig[j+rm_first_echo][1] + sa_r2_sig[j+rm_first_echo][0] * I);
 					db1_cpu[position] = a * data->scale[4] * data->scale[3] * (sa_b1_sig[j+rm_first_echo][1] + sa_b1_sig[j+rm_first_echo][0] * I);
 					sig_cpu[position] = a * data->scale[4] * (mxy_sig[j+rm_first_echo][1] + mxy_sig[j+rm_first_echo][0] * I);
 

@@ -456,13 +456,13 @@ static bool test_ode_hp_off_simu(void)
 
 	sim_data.pulse = simdata_pulse_defaults;
 	sim_data.pulse.flipangle = angle;
-	sim_data.pulse.rf_end = 0.;
+	sim_data.pulse.rf_end = 0.;	// HARD PULSES!
 	sim_data.grad = simdata_grad_defaults;
 	sim_data.tmp = simdata_tmp_defaults;
 
 	// for w == 0 -> Mxy = 0+1*I
 
-	// Set off-resonance so that magnetization is roatated by 90 degree within TE
+	// Set off-resonance so that magnetization is rotated by 90 degree within TE
 	// Goal: Mxy = 1+0*I
 	sim_data.voxel.w = M_PI/2 / sim_data.seq.te;
 
