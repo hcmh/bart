@@ -905,7 +905,7 @@ UT_REGISTER_TEST(test_epg_ode_spgr);
 
 static bool test_epg_ode_flash(void)
 {
-#if 1
+#if 0
 	// EPG FLASH Simulation
 
 	int N = 100;
