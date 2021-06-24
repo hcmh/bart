@@ -630,7 +630,7 @@ UT_REGISTER_TEST(test_ode_grad_simu);
 static bool test_bloch_excitation(void)
 {
 	float x0[3] = { 0., 0., 1. };
-	float x[3] = { 0., 0., 1. };
+	float x[3] = { 0. };
 	float ref[3] = { 0., 1., 0. };
 
 	bloch_excitation2(x, x0, M_PI/2., 0.);
@@ -649,8 +649,8 @@ UT_REGISTER_TEST(test_bloch_excitation);
 static bool test_bloch_excitation2(void)
 {
 	float x0[3] = { 0., 0., 1. };
-	float x[3] = { 0., 0., 1. };
-	float ref[3] = { -1., 0., 0. };
+	float x[3] = { 0. };
+	float ref[3] = { 1., 0., 0. };
 
 	bloch_excitation2(x, x0, M_PI/2., M_PI/2.);
 
