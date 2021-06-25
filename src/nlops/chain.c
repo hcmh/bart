@@ -105,6 +105,16 @@ struct nlop_s* nlop_chain2(const struct nlop_s* a, int o, const struct nlop_s* b
 	}
 #endif
 
+	auto domo = nlop_generic_codomain(a, o);
+	auto domi = nlop_generic_domain(b, i);
+
+	if (!iovec_check(domo, domi->N, domi->dims, domi->strs)) {
+
+		nlop_debug(DP_INFO, a);
+		nlop_debug(DP_INFO, b);
+		error("Cannot chain args %d -> %d!\n", o, i);
+	}
+
 	struct nlop_s* nl = nlop_combine(b, a);
 	struct nlop_s* li = nlop_link(nl, bo + o, i);
 	nlop_free(nl);
@@ -415,6 +425,15 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 	assert(a < II);
 	assert(b < II);
 	assert(a < b);
+
+	auto doma = nlop_generic_domain(x, a);
+	auto domb = nlop_generic_domain(x, b);
+
+	if (!iovec_check(doma, domb->N, domb->dims, domb->strs)) {
+
+		nlop_debug(DP_INFO, x);
+		error("Cannot dup args %d and %d!\n", a, b);
+	}
 
 	PTR_ALLOC(struct nlop_s, n);
 	PTR_ALLOC(const struct linop_s*[II-1][OO], der);
