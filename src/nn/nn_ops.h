@@ -9,5 +9,6 @@ extern const struct linop_s* linop_avgpool_create(int N, const long dims[__VLA(N
 extern const struct linop_s* linop_pool_create(int N, const long dims[__VLA(N)], const long pool_size[__VLA(N)]);
 extern const struct nlop_s* nlop_blurpool_create(int N, const long dims[__VLA(N)], const long pool_size[__VLA(N)]);
 extern const struct nlop_s* nlop_norm_max_abs_create(int N, const long dims[__VLA(N)], unsigned long batch_flag);
+extern const struct nlop_s* nlop_norm_znorm_create(int N, const long dims[__VLA(N)], unsigned long batch_flag);
 
 #endif

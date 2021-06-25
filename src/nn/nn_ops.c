@@ -417,3 +417,82 @@ const struct nlop_s* nlop_norm_max_abs_create(int N, const long dims[N], unsigne
 	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), norm_max_abs_fun, NULL, NULL, NULL, NULL, norm_max_abs_del);
 
 }
+
+struct norm_znorm_s {
+
+	INTERFACE(nlop_data_t);
+
+	unsigned long N;
+	const long* dims;
+	const long* sdims;
+};
+
+DEF_TYPEID(norm_znorm_s);
+
+static void norm_znorm_fun(const nlop_data_t* _data, int D, complex float* args[D])
+{
+	assert(3 == D);
+	complex float* dst = args[0];
+	complex float* scale = args[1];
+	complex float* src = args[2];
+
+	const auto data = CAST_DOWN(norm_znorm_s, _data);
+
+	unsigned long N = data->N;
+	const long* dims = data->dims;
+	const long* sdims = data->sdims;
+
+#ifdef USE_CUDA
+	assert((cuda_ondevice(dst) == cuda_ondevice(src)));
+#endif
+	md_ztenmulc(N, sdims, scale, dims, src, dims, src);
+	md_zreal(N, sdims, scale, scale);
+	md_sqrt(N + 1, MD_REAL_DIMS(N, sdims), (float*)scale, (float*)scale);
+
+	//scale[0] = md_znorm(N, dims, src);
+
+	complex float* tmp = md_alloc_sameplace(N, sdims, CFL_SIZE, dst);
+	md_zfill(N, sdims, tmp, 1);
+	md_zdiv(N, sdims, tmp, tmp, scale);
+	md_zmul2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), dst, MD_STRIDES(N, dims, CFL_SIZE), src, MD_STRIDES(N, sdims, CFL_SIZE), tmp);
+
+	print_complex(md_calc_size(N, sdims), tmp);
+	md_free(tmp);
+
+
+}
+
+static void norm_znorm_del(const struct nlop_data_s* _data)
+{
+	const auto data = CAST_DOWN(norm_znorm_s, _data);
+
+	xfree(data->dims);
+	xfree(data->sdims);
+
+	xfree(data);
+}
+
+const struct nlop_s* nlop_norm_znorm_create(int N, const long dims[N], unsigned long batch_flag)
+{
+	PTR_ALLOC(struct norm_znorm_s, data);
+	SET_TYPEID(norm_znorm_s, data);
+
+	PTR_ALLOC(long[N], ndims);
+	md_copy_dims(N, *ndims, dims);
+	PTR_ALLOC(long[N], sdims);
+	md_select_dims(N, batch_flag, *sdims, dims);
+
+	data->N = N;
+	data->dims = *PTR_PASS(ndims);
+	data->sdims = *PTR_PASS(sdims);
+
+	long nl_odims[2][N];
+	md_copy_dims(N, nl_odims[0], dims);
+	md_copy_dims(N, nl_odims[1], data->sdims);
+
+	long nl_idims[1][N];
+	md_copy_dims(N, nl_idims[0], dims);
+
+	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), norm_znorm_fun, NULL, NULL, NULL, NULL, norm_znorm_del);
+
+}
