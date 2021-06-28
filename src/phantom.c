@@ -57,6 +57,8 @@ int main_phantom(int argc, char* argv[argc])
 	int rinit = -1;
 	int N = -1;
 
+	int rotation_steps = 1;
+
 
 	const struct opt_s opts[] = {
 
@@ -77,6 +79,7 @@ int main_phantom(int argc, char* argv[argc])
 		OPT_SET('3', &d3, "3D"),
 		OPT_SET('b', &basis, "basis functions for geometry"),
 		OPT_INT('r', &rinit, "seed", "random seed initialization"),
+		OPTL_INT(0, "rotation-steps", &(rotation_steps), " ", "Steps to rotate TUBES phantom around 2pi"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -107,6 +110,9 @@ int main_phantom(int argc, char* argv[argc])
 
 	if ((TIME == ptype) || (HEART == ptype))
 		dims[TE_DIM] = 32;
+
+	if ((TUBES == ptype))
+		dims[TIME_DIM] = rotation_steps;
 
 	if (-1 != osens) {
 

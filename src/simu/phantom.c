@@ -577,7 +577,6 @@ void calc_bart(const long dims[DIMS], complex float* out, bool kspace, const lon
 }
 
 
-
 void calc_phantom_arb(int N, const struct ellipsis_s data[N], const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
 {
 	bool coeff = (dims[COEFF_DIM] > 1);
@@ -585,9 +584,34 @@ void calc_phantom_arb(int N, const struct ellipsis_s data[N], const long dims[DI
 	assert((!coeff) || (0 == tstrs[COEFF_DIM]));
 	assert((!coeff) || (N == dims[COEFF_DIM]));
 
-	sample(dims, out, tstrs, traj, &(struct krn2d_data){ kspace, coeff, N, data }, krn2d, kspace);
-}
+	long strs[DIMS];
+	md_calc_strides(DIMS, strs, dims, sizeof(complex float));
 
+	long dims1[DIMS];
+	md_select_dims(DIMS, ~MD_BIT(TIME_DIM), dims1, dims);
+
+	for (int i = 0; i < dims[TIME_DIM]; i++) {
+
+		struct ellipsis_s data2[N];
+
+		complex float position = 0.;
+
+		for (int j = 0; j < N; j++) {
+
+			position = (data[j].center[0] + data[j].center[1]*I) * cexpf(-2.i * M_PI * (float)i / (float)dims[TIME_DIM]);
+
+			data2[j] = data[j];
+			data2[j].center[0] = crealf(position);
+			data2[j].center[1] = cimagf(position);
+			data2[j].axis[0] = data[j].axis[0];
+			data2[j].axis[1] = data[j].axis[1];
+		}
+
+		void* traj2 = (NULL == traj) ? NULL : ((void*)traj + i * tstrs[TIME_DIM]);
+
+		sample(dims1, (void*)out + i * strs[TIME_DIM], tstrs, traj2, &(struct krn2d_data){ kspace, coeff, N, data2 }, krn2d, kspace);
+	}
+}
 
 static void separate_bckgrd(int Nb, struct ellipsis_s bckgrd[Nb], int Nf, struct ellipsis_s frgrd[Nf], int N, const struct ellipsis_bs geometry[N])
 {
