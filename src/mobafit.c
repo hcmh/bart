@@ -190,7 +190,7 @@ int main_mobafit(int argc, char* argv[])
 
 		if (0. == md_znorm(DIMS, y_patch_dims, y_patch)) {
 
-			debug_printf(DP_WARN, "source images are zero!");
+			debug_printf(DP_WARN, "source images are zero!\n");
 			md_zfill(DIMS, x_patch_dims, x_patch, 0.);
 			continue;
 		}
