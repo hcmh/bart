@@ -77,8 +77,28 @@ tests/test-phantom-random-tubes: nrmse phantom fmac
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-phantom-rotation-tubes: phantom slice flip nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+	$(TOOLDIR)/phantom -x 21 -T --rotation-steps 4 o.ra					;\
+	$(TOOLDIR)/slice 10 0 o.ra o2.ra							;\
+	$(TOOLDIR)/flip 3 o2.ra o2f.ra								;\
+	$(TOOLDIR)/slice 10 2 o.ra o3.ra							;\
+	$(TOOLDIR)/nrmse -t 0.000001 o2f.ra o3.ra						;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
+tests/test-phantom-rotation-tubes-kspace: phantom slice flip nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+	$(TOOLDIR)/phantom -x 21 -k -T --rotation-steps 4 o.ra					;\
+	$(TOOLDIR)/slice 10 0 o.ra o2.ra							;\
+	$(TOOLDIR)/flip 3 o2.ra o2f.ra								;\
+	$(TOOLDIR)/slice 10 2 o.ra o3.ra							;\
+	$(TOOLDIR)/nrmse -t 0.000001 o2f.ra o3.ra						;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
 
 
 TESTS += tests/test-phantom-ksp tests/test-phantom-noncart tests/test-phantom-coil tests/test-phantom-ksp-coil
 TESTS += tests/test-phantom-bart tests/test-phantom-basis tests/test-phantom-random-tubes
+TESTS += tests/test-phantom-rotation-tubes tests/test-phantom-rotation-tubes-kspace
 
