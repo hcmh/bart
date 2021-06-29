@@ -4,6 +4,7 @@
  * a BSD-style license which can be found in the LICENSE file.
  *
  * 2012-2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
+ * 2020-2021 Nick Scholand <nick.scholand@med.uni-goettingen.de>
  *
  * Simple numerical phantoms that simulate image-domain or
  * k-space data with multiple channels.
