@@ -113,7 +113,7 @@ int main_mobafit(int argc, char* argv[])
 		md_zfill(DIMS, x_dims, x, 1.);
 
 
-	complex float* xref = create_cfl(argv[3], DIMS, x_dims);
+	complex float* xref = md_alloc(DIMS, x_dims, CFL_SIZE);
 
 	md_clear(DIMS, x_dims, xref, CFL_SIZE);
 
@@ -204,6 +204,8 @@ int main_mobafit(int argc, char* argv[])
 
 	} while(md_next(DIMS, y_dims, ~TE_FLAG, pos));
 
+	md_free(xref);
+	md_free(xref_patch);
 	md_free(x_patch);
 	md_free(y_patch);
 

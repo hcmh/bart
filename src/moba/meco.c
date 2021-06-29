@@ -702,7 +702,7 @@ static void meco_fun_r2s(const nlop_data_t* _data, complex float* dst, const com
 
 	meco_forw_fB0(data->linop_fB0, fB0, fB0);
 
-	md_zsmul(data->N, data->map_dims, fB0, fB0, data->scaling[pind_fB0]);
+	md_zsmul(data->N, data->map_dims, fB0, fB0, 2.i * M_PI * data->scaling[pind_fB0]);
 
 	md_zmul2(data->N, data->y_dims, data->y_strs, tmp_exp_fB0, data->map_strs, fB0, data->TE_strs, data->TE);
 
