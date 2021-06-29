@@ -23,6 +23,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+#include <limits.h>
 
 #ifdef BART_WITH_PYTHON
 #include <Python.h>
@@ -252,7 +253,30 @@ ok:
 }
 
 
+int parse_long(long res[1], const char* str)
+{
+	char* tail;
+	long l = strtol(str, &tail, 10);
 
+	if ('\0' != tail[0])
+		return -1;
+	res[0] = l;
+	return 0;
+}
+
+
+int parse_int(int res[1], const char* str)
+{
+	long val;
+	if (0 != parse_long(&val, str))
+		return -1;
+
+	if (val < INT_MIN || val > INT_MAX)
+		error("Value %ld too large for int!\n", val);
+
+	res[0] = (int) val;
+	return 0;
+}
 
 void quicksort(int N, int ord[N], quicksort_cmp_t cmp)
 {
