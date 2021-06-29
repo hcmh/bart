@@ -83,7 +83,7 @@ int main_mobafit(int argc, char* argv[])
 		OPT_UINT('m', &mgre_model, "model", "Select the MGRE model from enum { WF = 0, WFR2S, WF2R2S, R2S, PHASEDIFF } [default: WFR2S]"),
 		OPT_UINT('i', &iter, "iter", "Number of IRGNM steps"),
 		OPT_VEC3('p', &patch_size, "x:y:z", "(patch size) [default: 1:1:1]"),
-		OPT_STRING('I', &init_file, "init", "File for initialization"),
+		OPT_INFILE('I', &init_file, "init", "File for initialization"),
 		OPT_SET('g', &use_gpu, "use gpu"),
 	};
 
@@ -214,6 +214,9 @@ int main_mobafit(int argc, char* argv[])
 	unmap_cfl(DIMS, y_dims, y);
 	unmap_cfl(DIMS, TE_dims, TE);
 	unmap_cfl(DIMS, x_dims, x);
+
+	if (NULL != init_file)
+		unmap_cfl(DIMS, init_dims, init);
 
 	double recosecs = timestamp() - start_time;
 
