@@ -97,8 +97,19 @@ tests/test-phantom-rotation-tubes-kspace: phantom slice flip nrmse
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
+tests/test-phantom-rotation-tubes-basis: phantom fmac slice flip nrmse
+	set -e; mkdir $(TESTS_TMP) ; cd $(TESTS_TMP)						;\
+	$(TOOLDIR)/phantom -x 21 -k -T k.ra					;\
+	$(TOOLDIR)/phantom -x 21 -k -b -T --rotation-steps 4 k2.ra					;\
+	$(TOOLDIR)/fmac -s 64 k2.ra o.ra							;\
+	$(TOOLDIR)/slice 10 2 o.ra o2.ra							;\
+	$(TOOLDIR)/flip 3 k.ra kf.ra								;\
+	$(TOOLDIR)/nrmse -t 0.000001 kf.ra o2.ra						;\
+	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
+	touch $@
+
 
 TESTS += tests/test-phantom-ksp tests/test-phantom-noncart tests/test-phantom-coil tests/test-phantom-ksp-coil
 TESTS += tests/test-phantom-bart tests/test-phantom-basis tests/test-phantom-random-tubes
-TESTS += tests/test-phantom-rotation-tubes tests/test-phantom-rotation-tubes-kspace
+TESTS += tests/test-phantom-rotation-tubes tests/test-phantom-rotation-tubes-kspace tests/test-phantom-rotation-tubes-basis
 
