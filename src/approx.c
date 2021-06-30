@@ -61,10 +61,6 @@ int main_approx(int argc, char* argv[argc])
 	long sdims[3];
 	complex float* samples = load_cfl(traj_file, 3, sdims);
 
-//	long ddims[8];
-//	complex float* data = load_cfl(argv[4], 8, ddims);
-
-
 	long kdims[8];
 	complex float* kmat = load_cfl(kmat_file, 8, kdims);
 

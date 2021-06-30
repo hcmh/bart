@@ -285,7 +285,7 @@ int main_sim(int argc, char* argv[])
 
 	// Determine signal
 
-	complex float* signal = create_cfl(argv[1], DIMS, dims);
+	complex float* signal = create_cfl(out_file, DIMS, dims);
 
 	md_set_dims(DIMS, pos, 0);
 

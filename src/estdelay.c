@@ -55,13 +55,13 @@ int main_estdelay(int argc, char* argv[argc])
 {
 	const char* traj_file = NULL;
 	const char* data_file = NULL;
-	const char* qf_file = NULL;
+	const char* qf_b0_file = NULL;
 
 	struct arg_s args[] = {
 
 		ARG_INFILE(true, &traj_file, "trajectory"),
 		ARG_INFILE(true, &data_file, "data"),
-		ARG_OUTFILE(false, &qf_file, "b0 or qf"),
+		ARG_OUTFILE(false, &qf_b0_file, "b0 or qf"),
 	};
 
 	bool do_ring = false;
@@ -235,7 +235,7 @@ int main_estdelay(int argc, char* argv[argc])
 		b0_dims[0] = 2;
 		b0_dims[1] = full_dims[COIL_DIM];
 
-		complex float* b0 = create_cfl(argv[3], 2, b0_dims);
+		complex float* b0 = create_cfl(qf_b0_file, 2, b0_dims);
 
 		// Get DC component of a coil
 		long dc_dims[DIMS];
@@ -279,7 +279,7 @@ int main_estdelay(int argc, char* argv[argc])
 		unmap_cfl(2, b0_dims, b0);
 	}
 
-	if ((do_ac_adaptive || do_ring) && (NULL != argv[3])) {
+	if ((do_ac_adaptive || do_ring) && (NULL != qf_b0_file)) {
 
 		long qf_dims[DIMS];
 		md_singleton_dims(DIMS, qf_dims);
@@ -289,18 +289,18 @@ int main_estdelay(int argc, char* argv[argc])
 		for (int i = 0; i < NC; i++)
 			pqf[i] = qf[i] + 0. * I;
 
-		complex float* oqf = create_cfl(argv[3], DIMS, qf_dims);
+		complex float* oqf = create_cfl(qf_b0_file, DIMS, qf_dims);
 		md_copy(DIMS, qf_dims, oqf, pqf, sizeof(complex float));
 
 		unmap_cfl(DIMS, qf_dims, oqf);
 		xfree(pqf);
 	}
 
-	if (NULL != qf_file) {
+	if (NULL != qf_b0_file) {
 
 		long qf_dims[1] = { 3 };
 
-		complex float* oqf = create_cfl(qf_file, 1, qf_dims);
+		complex float* oqf = create_cfl(qf_b0_file, 1, qf_dims);
 
 		for (int i = 0; i < 3; i++)
 			oqf[i] = qf[i];

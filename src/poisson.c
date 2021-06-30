@@ -221,7 +221,6 @@ int main_poisson(int argc, char* argv[argc])
 
 #if 1
 				long sdims[2] = { 3, P };
-				//complex float (*samples)[P][3] = (void*)create_cfl(argv[1], 2, sdims);
 				complex float (*samples)[P][3] =
 					MD_CAST_ARRAY2_PTR(complex float, 2, sdims, create_cfl(out_file, 2, sdims), 0, 1);
 
