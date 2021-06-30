@@ -407,11 +407,8 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 				//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
 				if ((2 == data->seq.seq_type) || (5 == data->seq.seq_type)) {
 
-					for (int i = 0; i < P + 1; i++) {
-
-						xp[i][0] = 0.;
-						xp[i][1] = 0.;
-					}
+						xp[0][0] = 0.;
+						xp[0][1] = 0.;
 				}
 
 				// Apply inversion after one acquisition of HSFP sequence is performed
