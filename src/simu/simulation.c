@@ -32,6 +32,7 @@ const struct simdata_voxel simdata_voxel_defaults = {
 	.r2 = 0.,
 	.m0 = 1.,
 	.w = 0.,
+	.b1 = 1.,
 	.spin_ensamble = false,
 };
 
@@ -63,6 +64,7 @@ const struct simdata_tmp simdata_tmp_defaults = {
 	.rep_counter = 0,
 	.spin_counter = 0,
 	.run_counter = 0,
+	.w1 = 0.,
 };
 
 
@@ -88,7 +90,7 @@ static void bloch_wrap_pdp(void* _data, float* out, float t, const float* in)
 	struct sim_data* data = _data;
 	(void)t;
 
-	bloch_b1_pdp((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff, data->pulse.phase);
+	bloch_b1_pdp((float(*)[3])out, in, data->voxel.r1, data->voxel.r2, data->grad.gb_eff, data->pulse.phase, data->tmp.w1);
 }
 
 
@@ -98,13 +100,14 @@ static void bloch_simu_fun2(void* _data, float* out, float t, const float* in)
 
 	if (data->pulse.pulse_applied) {
 
-		float w1 = pulse_sinc(&data->pulse, t);
+		data->tmp.w1 = pulse_sinc(&data->pulse, t);
 
-		data->grad.gb_eff[0] = cosf(data->pulse.phase) * w1 + data->grad.gb[0];
-		data->grad.gb_eff[1] = sinf(data->pulse.phase) * w1 + data->grad.gb[1];
+		data->grad.gb_eff[0] = cosf(data->pulse.phase) * data->tmp.w1 * data->voxel.b1 + data->grad.gb[0];
+		data->grad.gb_eff[1] = sinf(data->pulse.phase) * data->tmp.w1 * data->voxel.b1 + data->grad.gb[1];
 
 	} else {
 
+		data->tmp.w1 = 0.;
 		data->grad.gb_eff[0] = data->grad.gb[0];
 		data->grad.gb_eff[1] = data->grad.gb[1];
 	}

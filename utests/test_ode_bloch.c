@@ -93,6 +93,7 @@ static bool test_ode_bloch(void)
 
 UT_REGISTER_TEST(test_ode_bloch);
 
+
 static bool test_ode_bloch_pulse(void)
 {
 	float end = 0.2;
@@ -529,7 +530,7 @@ static bool test_int_matrix_bloch_sa2(void)
 	float q = 1.E-3;
 
 	float m[13][13];
-	bloch_matrix_int_sa2(m, end, data.r1, data.r2, data.gb, 0.);
+	bloch_matrix_int_sa2(m, end, data.r1, data.r2, data.gb, 0., 0.);
 
 	for (int i = 0; i < 13; i++) {
 
@@ -585,9 +586,9 @@ static bool test_int_matrix_bloch_sa_pulse(void)
 	float end = 0.2;
 
 	// FA 90 degree:	a = gamma * b1 * time
-	float b1 = M_PI / (2 * end);
+	float fa = M_PI / (2 * end);
 
-	struct bloch_s data = { 0., 0., { b1, 0., 0. } };
+	struct bloch_s data = { 0., 0., { fa, 0., 0. } };
 
 	float x0[13] = { 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
 	float x1[13];
@@ -599,7 +600,7 @@ static bool test_int_matrix_bloch_sa_pulse(void)
 	float q = 1.E-3;
 
 	float m[13][13];
-	bloch_matrix_int_sa2(m, end, data.r1, data.r2, data.gb, 0.);
+	bloch_matrix_int_sa2(m, end, data.r1, data.r2, data.gb, 0., fa);
 
 	for (int i = 0; i < 13; i++) {
 
@@ -619,7 +620,7 @@ static bool test_int_matrix_bloch_sa_pulse(void)
 	//S_B1
 	for (int i = 0; i < 3; i++) {
 
-		float err = fabsf(q * x1[9+i] - (x2b1[i] - x2[i]));
+		float err = fabsf(q * x1[9+i]/fa - (x2b1[i] - x2[i])); // dm/dfa = dm/db1*db1/dfa = dm/db1*1/(nom.FA)
 
 		if (err > 1.E-6)
 			return false;
@@ -640,7 +641,7 @@ static void bloch_wrap_pdp(void* _data, float* out, float t, const float* in)
 	struct bloch_s* data = _data;
 	(void)t;
 
-	bloch_b1_pdp((float(*)[3])out, in, data->r1, data->r2, data->gb, 0.);
+	bloch_b1_pdp((float(*)[3])out, in, data->r1, data->r2, data->gb, 0., M_PI / (2 * 0.2));
 }
 
 
@@ -652,9 +653,9 @@ static bool test_ode_sa_bloch_b1(void)
 	float end = 0.2;
 
 	// FA 90 degree:	a = gamma * b1 * time
-	float b1 = M_PI / (2 * end);
+	float fa = M_PI / (2 * end);
 
-	struct bloch_s data = { 0. , 0., { b1, 0, 0. } };
+	struct bloch_s data = { 0. , 0., { fa, 0, 0. } };
 
 	float xp[4][3] = { { 0., 0., 1. }, { 0. }, { 0. }, { 0. } };
 	float x0[3] = { 0., 0., 1. };
@@ -674,7 +675,7 @@ static bool test_ode_sa_bloch_b1(void)
 
 	for (int i = 0; i < N; i++) {
 
-		float err = fabsf(q * xp[3][i] - (x2b1[i] - x2[i]));
+		float err = fabsf(q * xp[3][i]/fa - (x2b1[i] - x2[i])); // dm/dfa = dm/db1*db1/dfa = dm/db1*1/(nom.FA)
 
 		if (err > 1.E-7)
 			return false;
@@ -685,3 +686,52 @@ static bool test_ode_sa_bloch_b1(void)
 
 
 UT_REGISTER_TEST(test_ode_sa_bloch_b1);
+//dFA
+static void bloch_wrap_pdp2(void* _data, float* out, float t, const float* in)
+{
+	struct bloch_s* data = _data;
+	(void)t;
+
+	bloch_b1_pdp((float(*)[3])out, in, data->r1, data->r2, data->gb, 0., 1.);
+}
+
+static bool test_ode_sa_bloch_db1_dfa(void)
+{
+	int N = 3;
+	int P = 3;
+
+	float end = 0.2;
+
+	// FA 90 degree:	a = gamma * b1 * time
+	float fa = M_PI / (2 * end);
+
+	struct bloch_s data = { 0. , 0., { fa, 0, 0. } };
+
+	float xp[4][3] = { { 0., 0., 1. }, { 0. }, { 0. }, { 0. } };
+	float xp2[4][3] = { { 0., 0., 1. }, { 0. }, { 0. }, { 0. } };
+
+	float h = 0.1;
+	float tol = 0.000001;
+
+	// dm/dB1
+	ode_direct_sa(h, tol, N, P, xp, 0., end, &data, bloch_fun, bloch_pdy2, bloch_wrap_pdp);
+
+
+	// dm/dFA
+	ode_direct_sa(h, tol, N, P, xp2, 0., end, &data, bloch_fun, bloch_pdy2, bloch_wrap_pdp2);
+
+	// dm/dfa = dm/db1*db1/dfa = dm/db1*1/(nom.FA)
+	for (int i = 0; i < N; i++) {
+
+		float err = fabsf(xp[3][i]/fa - xp2[3][i]);
+
+		// bart_printf("err: %f <= %f/%f=%f,\t %f\n", err, xp[3][i], fa, xp[3][i]/fa, xp2[3][i]);
+
+		if (err > 1.E-6)
+			return false;
+	}
+
+	return true;
+}
+
+UT_REGISTER_TEST(test_ode_sa_bloch_db1_dfa);

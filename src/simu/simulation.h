@@ -14,6 +14,7 @@ struct simdata_voxel {
 	float r2;
 	complex float m0;
 	float w;
+	float b1;
 	bool spin_ensamble;
 };
 extern const struct simdata_voxel simdata_voxel_defaults;
@@ -47,6 +48,7 @@ struct simdata_tmp {
 	int rep_counter;
 	int spin_counter;
 	int run_counter;
+	float w1;
 };
 extern const struct simdata_tmp simdata_tmp_defaults;
 

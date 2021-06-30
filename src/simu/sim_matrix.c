@@ -27,11 +27,13 @@ static void ode_matrix_fun_simu(void* _data, float* x, float t, const float* in)
 
 	unsigned int N = data->N;
 
+	float w1 = 0.;
+
 	if (sim_data->pulse.pulse_applied && t <= sim_data->pulse.rf_end) { 
 		
-		float w1 = pulse_sinc(&sim_data->pulse, t);
-		sim_data->grad.gb_eff[0] = cosf(sim_data->pulse.phase) * w1 + sim_data->grad.gb[0];
-		sim_data->grad.gb_eff[1] = sinf(sim_data->pulse.phase) * w1 + sim_data->grad.gb[1];
+		w1 = pulse_sinc(&sim_data->pulse, t);
+		sim_data->grad.gb_eff[0] = cosf(sim_data->pulse.phase) * w1 * sim_data->voxel.b1 + sim_data->grad.gb[0];
+		sim_data->grad.gb_eff[1] = sinf(sim_data->pulse.phase) * w1 * sim_data->voxel.b1 + sim_data->grad.gb[1];
 	}
 	else {
 
@@ -42,7 +44,7 @@ static void ode_matrix_fun_simu(void* _data, float* x, float t, const float* in)
 	sim_data->grad.gb_eff[2] = sim_data->grad.gb[2] + sim_data->voxel.w;
 	
 	float matrix_time[N][N];
-	bloch_matrix_ode_sa2(matrix_time, sim_data->voxel.r1, sim_data->voxel.r2, sim_data->grad.gb_eff, sim_data->pulse.phase);
+	bloch_matrix_ode_sa2(matrix_time, sim_data->voxel.r1, sim_data->voxel.r2, sim_data->grad.gb_eff, sim_data->pulse.phase, w1);
 
 	for (unsigned int i = 0; i < N; i++) {
 

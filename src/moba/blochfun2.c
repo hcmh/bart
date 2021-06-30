@@ -335,11 +335,12 @@ static void Bloch_fun2(const nlop_data_t* _data, complex float* dst, const compl
 				sim_data.voxel.r1 = crealf(r1scale[spa_ind]);
 				sim_data.voxel.r2 = crealf(r2scale[spa_ind]);
 				sim_data.voxel.m0 = m0scale[spa_ind];
-				sim_data.voxel.w = 0;
+				sim_data.voxel.b1 = (safe_isnanf(cabsf(b1scale[spa_ind]))) ? 0. : cabsf(b1scale[spa_ind]); //1.;
+				sim_data.voxel.w = 0.;
 
 				// Pulse
 				sim_data.pulse = simdata_pulse_defaults;
-				sim_data.pulse.flipangle = (safe_isnanf(cabsf(b1scale[spa_ind]))) ? 0. : cabsf(b1scale[spa_ind]);
+				sim_data.pulse.flipangle = data->fitParameter.fa;
 				sim_data.pulse.rf_end = data->fitParameter.rfduration;
 				sim_data.pulse.bwtp = data->fitParameter.bwtp;
 				sim_data.grad = simdata_grad_defaults;

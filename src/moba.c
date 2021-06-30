@@ -705,7 +705,7 @@ int main_moba(int argc, char* argv[argc])
 
 	case Bloch:
 		initval[0] = 3.;
-		initval[3] = conf_model.sim.fa;
+		initval[3] = 1.;
 		break;
 
 	case MGRE:

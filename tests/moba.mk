@@ -426,8 +426,9 @@ tests/test-moba-bloch-irflash-b1fix: traj repmat phantom signal fmac ones scale 
 	$(TOOLDIR)/moba --sim.seq F --sim.type O --seq.tr 0.005 --seq.te 0.003 --seq.fa 8 --seq.rf-duration 0.0001 --seq.bwtp 4 --seq.inv-pulse-length 0 --seq.prep-pulse-length 0 --seq.scaling 1:1:1:0:1 -i11 -C250 -s0.95 -f1 -R3 -o1 -j0.001 -B 0.0001 -t traj.ra k_space.ra TI.ra reco.ra sens.ra	;\
 	$(TOOLDIR)/slice 6 3 reco.ra b1map.ra						;\
 	$(TOOLDIR)/ones 2 16 16 ones.ra						;\
+	$(TOOLDIR)/scale 8 b1map.ra b1maps.ra                    	       		;\
 	$(TOOLDIR)/scale 8 ones.ra fa.ra                    	       		;\
-	$(TOOLDIR)/nrmse -t 0.00001 fa.ra b1map.ra			    		;\
+	$(TOOLDIR)/nrmse -t 0.00001 fa.ra b1maps.ra			    		;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
