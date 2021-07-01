@@ -111,6 +111,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_FLOAT('w', &(conf.scaling), "val", "inverse scaling of the data"),
   		OPT_SET('z', &conf.sos, "Stack-of-Stars reconstruction"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
+		OPT_ULONG('L', &(conf.loop_flags), "flags", "(batch-mode)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -349,7 +350,7 @@ int main_nlinv(int argc, char* argv[argc])
 			ksp_dims, kspace,
 			trj_dims, traj,
 			pat_dims, pattern,
-			NULL, NULL,
+			MD_SINGLETON_DIMS(DIMS), NULL,
 			msk_dims, mask,
 			cim_dims);
 
@@ -360,7 +361,7 @@ int main_nlinv(int argc, char* argv[argc])
 				sens_dims, sens, ksens, ref_sens,
 				ksp_dims, kspace,
 				pat_dims, pattern,
-				NULL, NULL,
+				MD_SINGLETON_DIMS(DIMS), NULL,
 				msk_dims, mask,
 				cim_dims);
 	}

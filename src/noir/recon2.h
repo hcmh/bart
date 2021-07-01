@@ -21,6 +21,7 @@ struct noir2_conf_s {
 	_Bool noncart;
 
 	unsigned long enlive_flags;
+	unsigned long loop_flags;
 
 	struct nufft_conf_s* nufft_conf;
 
