@@ -114,6 +114,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_ULONG('L', &(conf.loop_flags), "flags", "(batch-mode)"),
 		OPTL_INT(0, "cgiter", &conf.cgiter, "iter", "(iterations for linearized problem)"),
 		OPTL_FLOAT(0, "cgtol", &conf.cgtol, "tol", "(tolerance for linearized problem)"),
+		OPTL_FLOAT(0, "alpha", &conf.alpha, "val", "(alpha in first iteration)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
