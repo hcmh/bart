@@ -87,6 +87,8 @@ int main_nlinv(int argc, char* argv[argc])
 	unsigned int cnstcoil_flags = 0;
 	bool pattern_for_each_coil = false;
 
+	float coil_os = -1;
+
 	const struct opt_s opts[] = {
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
@@ -115,6 +117,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPTL_INT(0, "cgiter", &conf.cgiter, "iter", "(iterations for linearized problem)"),
 		OPTL_FLOAT(0, "cgtol", &conf.cgtol, "tol", "(tolerance for linearized problem)"),
 		OPTL_FLOAT(0, "alpha", &conf.alpha, "val", "(alpha in first iteration)"),
+		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -160,6 +163,9 @@ int main_nlinv(int argc, char* argv[argc])
 	bool psf_based_reco = (-1 != restrict_fov) || (NULL != init_file);
 
 	if ((psf_based_reco) && (NULL != trajectory)) {
+
+		assert((-1 == coil_os) || (2 == coil_os));
+		coil_os = 1;
 
 		assert(NULL == psf_file);
 
@@ -262,20 +268,21 @@ int main_nlinv(int argc, char* argv[argc])
 	long cim_dims[DIMS];
 	md_select_dims(DIMS, ~MAPS_FLAG, cim_dims, dims);
 
-	if (conf.noncart) {
+	if ((conf.noncart) && (NULL == traj)) {
 
-		if (NULL == traj) {
-
-			for (int i = 0; i < 3; i++)
-				if (1 != img_output_dims[i])
-					img_output_dims[i] /= 2;
-		} else {
-
-			for (int i = 0; i < 3; i++)
-				if (1 != sens_dims[i])
-					sens_dims[i] *= 2;
-		}
+		assert((-1 == coil_os) || (2 == coil_os));
+		coil_os = 1;
+		for (int i = 0; i < 3; i++)
+			if (1 != img_output_dims[i])
+				img_output_dims[i] /= 2;
 	}
+
+	if (-1 == coil_os)
+		coil_os = conf.noncart ? 2 : 1;
+
+	for (int i = 0; i < 3; i++)
+		if (1 != sens_dims[i])
+			sens_dims[i] = lround(coil_os * sens_dims[i]);
 
 	if (combine)
 		img_output_dims[MAPS_DIM] = 1;
