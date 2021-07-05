@@ -108,6 +108,45 @@ static void cudnn_print_convolution_descriptor(const cudnnConvolutionDescriptor_
 }
 #endif
 
+static cudnnTensorDescriptor_t bart_to_cudnn_float_tensor_descriptor(unsigned int D, const long dims[D], const long str[D])
+{
+	int nbDims = MAX(D, 3u);
+	int dimA[nbDims];
+	int strideA[nbDims];
+
+	for (int i = 0; i < nbDims; i++) {
+
+		dimA[i] = 1;
+		strideA[i] = 1;
+	}
+
+	for (int i = 0; i < (int)D; i++) {
+
+		dimA[D - 1 - i] = dims[i];
+		strideA[D - 1 - i] = str[i] ? str[i] / FL_SIZE : 1;
+	}
+
+	cudnnTensorDescriptor_t result;
+	CUDNN_ERROR(cudnnCreateTensorDescriptor(&result));
+	CUDNN_ERROR(cudnnSetTensorNdDescriptor(result, CUDNN_DATA_FLOAT, nbDims, dimA, strideA));
+
+	return result;
+}
+
+static void cudnn_smul2(unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, float val)
+{
+	cudnnTensorDescriptor_t odesc = bart_to_cudnn_float_tensor_descriptor(D, dims, ostr);
+	cudnnTensorDescriptor_t idesc = bart_to_cudnn_float_tensor_descriptor(D, dims, istr);
+
+	float alpha = val;
+	float beta = 0;
+
+	CUDNN_ERROR(cudnnTransformTensor(get_handle(), &alpha, idesc, iptr, &beta, odesc, optr));
+
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(odesc));
+	CUDNN_ERROR(cudnnDestroyTensorDescriptor(idesc));
+}
+
 #define MAX_DIMS 16
 struct conv_desc_s {
 
@@ -137,7 +176,7 @@ static int flag_to_index(unsigned long flag)
 {
 	if (1 != bitcount(flag))
 		return -1;
-	
+
 	for (uint i = 0; i < 8 * sizeof(flag); i++)
 		if (MD_IS_SET(flag, i))
 			return i;
@@ -158,7 +197,7 @@ static bool check_cudnn_convcorr(struct conv_desc_s bart_conv_desc)
 		return false;
 	if (bart_conv_desc.conv)  // should work, not tested
 		return false;
-	
+
 	return true;
 }
 
@@ -177,7 +216,7 @@ static struct conv_desc_s create_conv_desc(	int N,
 	unsigned long non_singleton_flags = md_nontriv_dims(N, odims) | md_nontriv_dims(N, idims) | md_nontriv_dims(N, kdims);
 
 	assert(MAX_DIMS >= N);
-	
+
 	result.N = N;
 	result.conv_flags = conv_flags & non_singleton_flags;
 	result.conv = conv;
@@ -215,7 +254,7 @@ static struct conv_desc_s create_conv_desc(	int N,
 
 		if ((odims[i] == idims[i]) && (1 == kdims[i]) && (1 != odims[i]))
 			result.batch_flags = MD_SET(result.batch_flags, i);
-		
+
 		if ((kdims[i] == idims[i]) && (1 == odims[i]) && (1 != kdims[i]))
 			result.channel_in_flags = MD_SET(result.channel_in_flags, i);
 
@@ -224,9 +263,9 @@ static struct conv_desc_s create_conv_desc(	int N,
 
 		if ((kdims[i] == idims[i]) && (kdims[i] == odims[i]) && (1 != idims[i]))
 			result.group_flags = MD_SET(result.group_flags, i);
-	
+
 	}
-	
+
 	result.batch_flags &= ~conv_flags;
 	result.channel_in_flags &= ~conv_flags;
 	result.channel_out_flags &= ~conv_flags;
@@ -251,7 +290,7 @@ struct cudnn_filter_s {
 
 	size_t size_transformed;
 };
-					
+
 static struct cudnn_filter_s get_filter_descriptor(struct conv_desc_s conv_desc, cudnnTensorFormat_t format)
 {
 	struct cudnn_filter_s result;
@@ -315,7 +354,7 @@ static struct cudnn_filter_s get_filter_descriptor(struct conv_desc_s conv_desc,
 
 	int filterStrT[MAX(4, nbDims)];
 	filterStrT[MAX(4, nbDims) - 1] = (format == CUDNN_TENSOR_NCHW) ? 1 : filterDimA[1];
-	
+
 	for (int i = MAX(4, nbDims) - 2; i >=2; i--)
 		filterStrT[i] = filterStrT[i + 1] * filterDimA[i + 1];
 
@@ -328,9 +367,9 @@ static struct cudnn_filter_s get_filter_descriptor(struct conv_desc_s conv_desc,
 
 	CUDNN_ERROR(cudnnCreateTensorDescriptor(&result.input_filter_tensor_desc));
 	CUDNN_ERROR(cudnnSetTensorNdDescriptor(result.input_filter_tensor_desc, CUDNN_DATA_FLOAT, MAX(4, nbDims), filterDimA, filterStrA));
-	
+
 	result.transform_needed = true;
-	
+
 	for (int i = 0; i < MAX(4, nbDims); i++)
 		if ((1 != filterDimA[i]) && (filterStrT[i] != filterStrA[i]))
 			result.transform_needed = true;
@@ -352,15 +391,15 @@ struct cudnn_tensor_s {
 	bool transform_needed;
 	cudnnTensorDescriptor_t transformed_tensor_desc;
 	cudnnTensorDescriptor_t input_tensor_desc;
-	
-	size_t size_transformed; 
+
+	size_t size_transformed;
 };
-					
+
 static struct cudnn_tensor_s get_tensor_descriptor(struct conv_desc_s conv_desc, bool output, cudnnTensorFormat_t format)
 {
 	struct cudnn_tensor_s result;
 	result.format = format;
-	
+
 	unsigned long channel_flags = output ? conv_desc.channel_out_flags : conv_desc.channel_in_flags;
 	long* dims = output ? conv_desc.odims : conv_desc.idims;
 	long* strs = output ? conv_desc.ostrs : conv_desc.istrs;
@@ -396,7 +435,7 @@ static struct cudnn_tensor_s get_tensor_descriptor(struct conv_desc_s conv_desc,
 
 		if (!MD_IS_SET(conv_desc.conv_flags, i))
 			continue;
-		
+
 		dimA[ir] = dims[i];
 		strA[ir] = strs[i] / FL_SIZE;
 
@@ -420,7 +459,7 @@ static struct cudnn_tensor_s get_tensor_descriptor(struct conv_desc_s conv_desc,
 
 	int strT[MAX(4, nbDims)];
 	strT[MAX(4, nbDims) - 1] = (format == CUDNN_TENSOR_NCHW) ? 1 : dimA[1];
-	
+
 	for (int i = MAX(4, nbDims) - 2; i >=2; i--)
 		strT[i] = strT[i + 1] * dimA[i + 1];
 
@@ -430,13 +469,13 @@ static struct cudnn_tensor_s get_tensor_descriptor(struct conv_desc_s conv_desc,
 	//for (int i = 0; i < MAX(4, nbDims); i++)
 	//	if(1 == dimA[i])
 	//		strT[i] = 1;
-	
+
 	CUDNN_ERROR(cudnnCreateTensorDescriptor(&result.input_tensor_desc));
 	CUDNN_ERROR(cudnnSetTensorNdDescriptor(result.input_tensor_desc, CUDNN_DATA_FLOAT, MAX(4, nbDims), dimA, strA));
 
 	CUDNN_ERROR(cudnnCreateTensorDescriptor(&result.transformed_tensor_desc));
 	CUDNN_ERROR(cudnnSetTensorNdDescriptor(result.transformed_tensor_desc, CUDNN_DATA_FLOAT, MAX(4, nbDims), dimA, strT));
-	
+
 	result.transform_needed = true;
 
 	for (int i = MAX(4, nbDims) - 1; i >=0; i--)
@@ -474,7 +513,7 @@ static cudnnConvolutionDescriptor_t get_conv_descriptor(struct conv_desc_s conv_
 
 		if (!MD_IS_SET(conv_desc.conv_flags, i))
 			continue;
-		
+
 		filterStrideA[ir] = conv_desc.strides[i];
 		dilationA[ir] = conv_desc.dilations[i];
 
@@ -498,7 +537,7 @@ static bool cudnn_convcorr_fwd_int(	float alpha,
  					const float* krn,
  					const cudnnTensorDescriptor_t out_desc,
 					float* out)
-{	
+{
 	int N_algos;
 	CUDNN_ERROR(cudnnGetConvolutionForwardAlgorithmMaxCount(get_handle(), &N_algos));
 	cudnnConvolutionFwdAlgoPerf_t algos[N_algos];
@@ -525,7 +564,7 @@ static bool cudnn_convcorr_fwd_int(	float alpha,
 
 		if (i == N_algos - 1)
 			return false;
-	}			
+	}
 
 	size_t ws_size = algo->memory;
 	void* workspace = (0 < ws_size) ? md_alloc_gpu(1, MD_DIMS(1), ws_size) : NULL;
@@ -535,7 +574,7 @@ static bool cudnn_convcorr_fwd_int(	float alpha,
 
 	if (CUDNN_STATUS_NOT_SUPPORTED == status)
 		return false;
-	
+
 	CUDNN_ERROR(status);
 	return true;
 }
@@ -549,7 +588,7 @@ static bool cudnn_convcorr_bwd_krn_int(	float alpha,
  					float* krn,
  					const cudnnTensorDescriptor_t out_desc,
 					const float* out)
-{	
+{
 	int N_algos;
 	CUDNN_ERROR(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(get_handle(), &N_algos));
 	cudnnConvolutionBwdFilterAlgoPerf_t algos[N_algos];
@@ -586,7 +625,7 @@ static bool cudnn_convcorr_bwd_krn_int(	float alpha,
 
 	if (CUDNN_STATUS_NOT_SUPPORTED == status)
 		return false;
-	
+
 	CUDNN_ERROR(status);
 	return true;
 }
@@ -600,7 +639,7 @@ static bool cudnn_convcorr_bwd_in_int(	float alpha,
  					const float* krn,
  					const cudnnTensorDescriptor_t out_desc,
 					const float* out)
-{	
+{
 	int N_algos;
 	CUDNN_ERROR(cudnnGetConvolutionBackwardDataAlgorithmMaxCount(get_handle(), &N_algos));
 	cudnnConvolutionBwdDataAlgoPerf_t algos[N_algos];
@@ -637,7 +676,7 @@ static bool cudnn_convcorr_bwd_in_int(	float alpha,
 
 	if (CUDNN_STATUS_NOT_SUPPORTED == status)
 		return false;
-	
+
 	CUDNN_ERROR(status);
 	return true;
 }
@@ -671,7 +710,7 @@ static void cudnn_tensor_transform_split_complex(float alpha, float beta, cudnnT
 		strA_comp[i] = (1 == dimA_comp[i]) ? 1 : strA_comp[i] / 2;
 	}
 
-	long (*tstrs[1])[nbDims] = {(long (*)[nbDims])strs}; 
+	long (*tstrs[1])[nbDims] = {(long (*)[nbDims])strs};
 	decomp_bart = decomp_bart && (1 == optimize_dims_gpu(1, nbDims, dims, tstrs));
 
 	if (decomp_bart) {
@@ -724,7 +763,7 @@ static void cudnn_tensor_transform_combine_complex(float alpha, float beta, cudn
 		strA_comp[i] = (1 == dimA_comp[i]) ? 1 : strA_comp[i] / 2;
 	}
 
-	long (*tstrs[1])[nbDims] = {(long (*)[nbDims])strs}; 
+	long (*tstrs[1])[nbDims] = {(long (*)[nbDims])strs};
 	decomp_bart = decomp_bart && (1 == optimize_dims_gpu(1, nbDims, dims, tstrs));
 
 	if (decomp_bart) {
@@ -772,7 +811,7 @@ static bool cudnn_zconvcorr_fwd_split(
 	struct cudnn_tensor_s in_desc = get_tensor_descriptor(bcd, false, format);
 	struct cudnn_tensor_s out_desc = get_tensor_descriptor(bcd, true, format);
 	struct cudnn_filter_s krn_desc = get_filter_descriptor(bcd, format);
-	
+
 	float* krn_real = md_alloc_gpu(bcd.N, bcd.kdims, FL_SIZE);
 	float* krn_imag = md_alloc_gpu(bcd.N, bcd.kdims, FL_SIZE);
 
@@ -785,8 +824,8 @@ static bool cudnn_zconvcorr_fwd_split(
 	float* out_real = (float*)out + 0;
 	float* out_imag = (float*)out + 1;
 
-	bool direct = false; // if true, cudnn tries to perform convolution with out transformation	
-	
+	bool direct = false; // if true, cudnn tries to perform convolution with out transformation
+
 	direct = direct && cudnn_convcorr_fwd_int(1. , 1., conv_desc, in_desc.input_tensor_desc, in_real, krn_desc.filter_desc, krn_real, out_desc.input_tensor_desc, out_real);
 	direct = direct && cudnn_convcorr_fwd_int(1. , 1., conv_desc, in_desc.input_tensor_desc, in_imag, krn_desc.filter_desc, krn_real, out_desc.input_tensor_desc, out_imag);
 
@@ -823,7 +862,7 @@ static bool cudnn_zconvcorr_fwd_split(
 
 	md_free(krn_real);
 	md_free(krn_imag);
-	
+
 	free_tensor_descriptor(in_desc);
 	free_tensor_descriptor(out_desc);
 
@@ -841,7 +880,7 @@ static bool cudnn_zconvcorr_bwd_in_split(
 			const complex float* out,
 			cudnnTensorFormat_t format
 			)
-{	
+{
 	cudnnConvolutionDescriptor_t conv_desc = get_conv_descriptor(bcd);
 
 	struct cudnn_tensor_s in_desc = get_tensor_descriptor(bcd, false, format);
@@ -860,13 +899,13 @@ static bool cudnn_zconvcorr_bwd_in_split(
 	const float* out_imag = (const float*)out + 1;
 
 	bool direct = false; // if true, cudnn tries to perform convolution with out transformation
-		
+
 	direct = direct && cudnn_convcorr_bwd_in_int( 1. , 1., conv_desc, in_desc.input_tensor_desc, in_real, krn_desc.filter_desc, krn_real, out_desc.input_tensor_desc, out_real);
 	direct = direct && cudnn_convcorr_bwd_in_int( 1. , 1., conv_desc, in_desc.input_tensor_desc, in_imag, krn_desc.filter_desc, krn_real, out_desc.input_tensor_desc, out_imag);
 
 	direct = direct && cudnn_convcorr_bwd_in_int(-1. , 1., conv_desc, in_desc.input_tensor_desc, in_real, krn_desc.filter_desc, krn_imag, out_desc.input_tensor_desc, out_imag);
 	direct = direct && cudnn_convcorr_bwd_in_int( 1. , 1., conv_desc, in_desc.input_tensor_desc, in_imag, krn_desc.filter_desc, krn_imag, out_desc.input_tensor_desc, out_real);
-	
+
 	bool success = true;
 
 	if (!direct) {
@@ -915,7 +954,7 @@ static bool cudnn_zconvcorr_bwd_krn_split(
 			const complex float* out,
 			cudnnTensorFormat_t format
 			)
-{	
+{
 	cudnnConvolutionDescriptor_t conv_desc = get_conv_descriptor(bcd);
 
 	struct cudnn_tensor_s in_desc = get_tensor_descriptor(bcd, false, format);
@@ -925,8 +964,6 @@ static bool cudnn_zconvcorr_bwd_krn_split(
 	float* krn_real = md_alloc_gpu(bcd.N, bcd.kdims, FL_SIZE);
 	float* krn_imag = md_alloc_gpu(bcd.N, bcd.kdims, FL_SIZE);
 
-	cudnn_tensor_transform_split_complex(1., 0., krn_desc.transformed_filter_tensor_desc, krn_real, krn_imag, krn_desc.input_filter_tensor_desc, krn);
-
 	const float* in_real = (const float*)in + 0;
 	const float* in_imag = (const float*)in + 1;
 
@@ -934,13 +971,13 @@ static bool cudnn_zconvcorr_bwd_krn_split(
 	const float* out_imag = (const float*)out + 1;
 
 	bool direct = false; // if true, cudnn tries to perform convolution with out transformation
-		
+
 	direct = direct && cudnn_convcorr_bwd_krn_int( 1. , 0., conv_desc, in_desc.input_tensor_desc, in_real, krn_desc.filter_desc, krn_real, out_desc.input_tensor_desc, out_real);
 	direct = direct && cudnn_convcorr_bwd_krn_int(-1. , 1., conv_desc, in_desc.input_tensor_desc, in_imag, krn_desc.filter_desc, krn_real, out_desc.input_tensor_desc, out_imag);
 
 	direct = direct && cudnn_convcorr_bwd_krn_int( 1. , 0., conv_desc, in_desc.input_tensor_desc, in_real, krn_desc.filter_desc, krn_imag, out_desc.input_tensor_desc, out_imag);
 	direct = direct && cudnn_convcorr_bwd_krn_int( 1. , 1., conv_desc, in_desc.input_tensor_desc, in_imag, krn_desc.filter_desc, krn_imag, out_desc.input_tensor_desc, out_real);
-	
+
 	bool success = true;
 
 	if (!direct) {
@@ -967,7 +1004,7 @@ static bool cudnn_zconvcorr_bwd_krn_split(
 	}
 
 	if (success)
-		cudnn_tensor_transform_combine_complex(1., 0., krn_desc.input_filter_tensor_desc, krn, krn_desc.transformed_filter_tensor_desc, krn_real, krn_imag);
+		cudnn_tensor_transform_combine_complex(1., 1., krn_desc.input_filter_tensor_desc, krn, krn_desc.transformed_filter_tensor_desc, krn_real, krn_imag);
 
 	md_free(krn_real);
 	md_free(krn_imag);
@@ -996,13 +1033,13 @@ static bool cudnn_convcorr_fwd(
 	struct cudnn_tensor_s in_desc = get_tensor_descriptor(bcd, false, format);
 	struct cudnn_tensor_s out_desc = get_tensor_descriptor(bcd, true, format);
 	struct cudnn_filter_s krn_desc = get_filter_descriptor(bcd, format);
-	
+
 	float* krn_tmp = md_alloc_gpu(bcd.N, bcd.kdims, FL_SIZE);
 	cudnn_tensor_transform(1, 0, krn_desc.transformed_filter_tensor_desc, krn_tmp, krn_desc.input_filter_tensor_desc, krn);
 
 	bool direct = false; // if true, cudnn tries to perform convolution with out transformation
 	direct = direct && cudnn_convcorr_fwd_int(1. , 1., conv_desc, in_desc.input_tensor_desc, in, krn_desc.filter_desc, krn_tmp, out_desc.input_tensor_desc, out);
-	
+
 	bool success = true;
 
 	if (!direct) {
@@ -1020,7 +1057,7 @@ static bool cudnn_convcorr_fwd(
 	}
 
 	md_free(krn_tmp);
-	
+
 	free_tensor_descriptor(in_desc);
 	free_tensor_descriptor(out_desc);
 
@@ -1038,7 +1075,7 @@ static bool cudnn_convcorr_bwd_in(
 			const float* out,
 			cudnnTensorFormat_t format
 			)
-{	
+{
 	cudnnConvolutionDescriptor_t conv_desc = get_conv_descriptor(bcd);
 
 	struct cudnn_tensor_s in_desc = get_tensor_descriptor(bcd, false, format);
@@ -1086,7 +1123,7 @@ static bool cudnn_convcorr_bwd_krn(
 			const float* out,
 			cudnnTensorFormat_t format
 			)
-{	
+{
 	cudnnConvolutionDescriptor_t conv_desc = get_conv_descriptor(bcd);
 
 	struct cudnn_tensor_s in_desc = get_tensor_descriptor(bcd, false, format);
@@ -1097,9 +1134,9 @@ static bool cudnn_convcorr_bwd_krn(
 
 	cudnn_tensor_transform(1., 0., krn_desc.transformed_filter_tensor_desc, krn_tmp, krn_desc.input_filter_tensor_desc, krn);
 
-	bool direct = false; // if true, cudnn tries to perform convolution with out transformation 
+	bool direct = false; // if true, cudnn tries to perform convolution with out transformation
 	direct = direct && cudnn_convcorr_bwd_krn_int( 1. , 0., conv_desc, in_desc.input_tensor_desc, in, krn_desc.filter_desc, krn_tmp, out_desc.input_tensor_desc, out);
-	
+
 	bool success = true;
 
 	if (!direct) {
@@ -1134,7 +1171,7 @@ static bool cudnn_convcorr_bwd_krn(
 // *_kernel methodes merge the complex channel in the convolution channel
 // and create a real kernel including the complex multiplication
 // this seems to be faster as only one
-// 2 * in_channel x 2 * out_channel convolution is invoked instead of 
+// 2 * in_channel x 2 * out_channel convolution is invoked instead of
 // four in_channel x out_channel convolutions
 static bool cudnn_zconvcorr_fwd_kernel(
  			struct conv_desc_s bcd,
@@ -1148,14 +1185,14 @@ static bool cudnn_zconvcorr_fwd_kernel(
 		return false;
 	if (1 < bitcount(bcd.channel_out_flags))
 		return false;
-	
+
 	if (0 == bitcount(bcd.channel_out_flags))
 		for (unsigned int i = 0; (i < bcd.N) && (0 == bcd.channel_out_flags); i++)
 			if ((1 == bcd.odims[i]) && (1 == bcd.idims[i]) && (1 == bcd.kdims[i]))
-				bcd.channel_out_flags = MD_BIT(i); 
-	
+				bcd.channel_out_flags = MD_BIT(i);
+
 	if (0 == bitcount(bcd.channel_in_flags))
-		for (unsigned int i = 0; (i < bcd.N) && (0 == bcd.channel_out_flags); i++)
+		for (unsigned int i = 0; (i < bcd.N) && (0 == bcd.channel_in_flags); i++)
 			if ((1 == bcd.odims[i]) && (1 == bcd.idims[i]) && (1 == bcd.kdims[i]) && !(MD_IS_SET(bcd.channel_out_flags, i)))
 				bcd.channel_in_flags = MD_BIT(i);
 
@@ -1206,26 +1243,30 @@ static bool cudnn_zconvcorr_fwd_kernel(
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 0;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 0;
-	md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, 1);
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 1;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 1;
-	md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, 1);
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 1;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 0;
-	md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, 1);
 
 	md_smul(bcd.N, bcd.kdims, krn_imag, krn_imag, -1.);
 	pos[flag_to_index(bcd.channel_out_flags)] = 0;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 1;
-	md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, 1);
 
 	md_free(krn_imag);
 	md_free(krn_real);
 
 	bool success = cudnn_convcorr_fwd(rbcd, (const float*)in, nkrn, (float*)out, format);
-	
+
 	md_free(nkrn);
 
 	return success;
@@ -1243,14 +1284,14 @@ static bool cudnn_zconvcorr_bwd_in_kernel(
 		return false;
 	if (1 < bitcount(bcd.channel_out_flags))
 		return false;
-	
+
 	if (0 == bitcount(bcd.channel_out_flags))
 		for (unsigned int i = 0; (i < bcd.N) && (0 == bcd.channel_out_flags); i++)
 			if ((1 == bcd.odims[i]) && (1 == bcd.idims[i]) && (1 == bcd.kdims[i]))
-				bcd.channel_out_flags = MD_BIT(i); 
-	
+				bcd.channel_out_flags = MD_BIT(i);
+
 	if (0 == bitcount(bcd.channel_in_flags))
-		for (unsigned int i = 0; (i < bcd.N) && (0 == bcd.channel_out_flags); i++)
+		for (unsigned int i = 0; (i < bcd.N) && (0 == bcd.channel_in_flags); i++)
 			if ((1 == bcd.odims[i]) && (1 == bcd.idims[i]) && (1 == bcd.kdims[i]) && !(MD_IS_SET(bcd.channel_out_flags, i)))
 				bcd.channel_in_flags = MD_BIT(i);
 
@@ -1301,26 +1342,30 @@ static bool cudnn_zconvcorr_bwd_in_kernel(
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 0;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 0;
-	md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, 1.);
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 1;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 1;
-	md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_real, 1.);
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 0;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 1;
-	md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, 1.);
 
 	md_smul(bcd.N, bcd.kdims, krn_imag, krn_imag, -1.);
 	pos[flag_to_index(bcd.channel_out_flags)] = 1;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 0;
-	md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), rkstrs, krn_imag, 1.);
 
 	md_free(krn_imag);
 	md_free(krn_real);
 
 	bool success = cudnn_convcorr_bwd_in(rbcd, (float*)in, nkrn, (const float*)out, format);
-	
+
 	md_free(nkrn);
 
 	return success;
@@ -1338,14 +1383,14 @@ static bool cudnn_zconvcorr_bwd_krn_kernel(
 		return false;
 	if (1 < bitcount(bcd.channel_out_flags))
 		return false;
-	
+
 	if (0 == bitcount(bcd.channel_out_flags))
 		for (unsigned int i = 0; (i < bcd.N) && (0 == bcd.channel_out_flags); i++)
 			if ((1 == bcd.odims[i]) && (1 == bcd.idims[i]) && (1 == bcd.kdims[i]))
-				bcd.channel_out_flags = MD_BIT(i); 
-	
+				bcd.channel_out_flags = MD_BIT(i);
+
 	if (0 == bitcount(bcd.channel_in_flags))
-		for (unsigned int i = 0; (i < bcd.N) && (0 == bcd.channel_out_flags); i++)
+		for (unsigned int i = 0; (i < bcd.N) && (0 == bcd.channel_in_flags); i++)
 			if ((1 == bcd.odims[i]) && (1 == bcd.idims[i]) && (1 == bcd.kdims[i]) && !(MD_IS_SET(bcd.channel_out_flags, i)))
 				bcd.channel_in_flags = MD_BIT(i);
 
@@ -1401,22 +1446,26 @@ static bool cudnn_zconvcorr_bwd_krn_kernel(
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 0;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 0;
-	md_copy2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), 1);
 	md_add(bcd.N, bcd.kdims, krn_real, krn_real, krn_tmp);
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 1;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 1;
-	md_copy2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), 1);
 	md_sub(bcd.N, bcd.kdims, krn_real, krn_real, krn_tmp);
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 1;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 0;
-	md_copy2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), 1);
 	md_add(bcd.N, bcd.kdims, krn_imag, krn_imag, krn_tmp);
 
 	pos[flag_to_index(bcd.channel_out_flags)] = 0;
 	pos[flag_to_index(bcd.channel_in_flags)]  = 1;
-	md_copy2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), FL_SIZE);
+	//md_copy2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), FL_SIZE);
+	cudnn_smul2(bcd.N, bcd.kdims, rkstrs, krn_tmp, nkstrs_cp, &MD_ACCESS(bcd.N, rbcd.kstrs, pos, nkrn), 1);
 	md_add(bcd.N, bcd.kdims, krn_imag, krn_imag, krn_tmp);
 
 	md_zcmpl2(bcd.N, bcd.kdims, bcd.kstrs, krn, rkstrs, krn_real, rkstrs, krn_imag);
@@ -1446,7 +1495,7 @@ bool zconvcorr_fwd_cudnn(	int N,
 								kdims, kstrs,
 								dilation, strides,
 								flags, conv);
-	
+
 	if (!check_cudnn_convcorr(bart_conv_desc))
 		return false;
 
@@ -1480,10 +1529,10 @@ bool zconvcorr_bwd_in_cudnn(	int N,
 								kdims, kstrs,
 								dilation, strides,
 								flags, conv);
-	
+
 	if (!check_cudnn_convcorr(bart_conv_desc))
 		return false;
-	
+
 	if (cudnn_zconvcorr_bwd_in_kernel(bart_conv_desc, in, krn, out, CUDNN_TENSOR_NCHW)) {
 
 		debug_printf(DP_DEBUG3, "conv by %s -> 1\n", __func__);
@@ -1517,7 +1566,7 @@ bool zconvcorr_bwd_krn_cudnn(	int N,
 
 	if (!check_cudnn_convcorr(bart_conv_desc))
 		return false;
-	
+
 
 	if (cudnn_zconvcorr_bwd_krn_kernel(bart_conv_desc, in, krn, out, CUDNN_TENSOR_NCHW)) {
 
