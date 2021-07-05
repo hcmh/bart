@@ -2,8 +2,8 @@
  * Copyright 2015-2018. Martin Uecker.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
- * 
- * Authors: 
+ *
+ * Authors:
  * 2014-2018 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2014 Jonathan Tamir <jtamir@eecs.berkeley.edu>
  */
@@ -65,7 +65,7 @@ static double bench_generic_copy(long dims[DIMS])
 	return toc - tic;
 }
 
-	
+
 static double bench_generic_matrix_multiply(long dims[DIMS])
 {
 	long dimsX[DIMS];
@@ -330,7 +330,7 @@ static double bench_transpose(long scale)
 
 	complex float* x = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* y = md_alloc(DIMS, dims, CFL_SIZE);
-	
+
 	md_gaussian_rand(DIMS, dims, x);
 	md_clear(DIMS, dims, y, CFL_SIZE);
 
@@ -342,7 +342,7 @@ static double bench_transpose(long scale)
 
 	md_free(x);
 	md_free(y);
-	
+
 	return toc - tic;
 }
 
@@ -355,7 +355,7 @@ static double bench_resize(long scale)
 
 	complex float* x = md_alloc(DIMS, dimsX, CFL_SIZE);
 	complex float* y = md_alloc(DIMS, dimsY, CFL_SIZE);
-	
+
 	md_gaussian_rand(DIMS, dimsX, x);
 	md_clear(DIMS, dimsY, y, CFL_SIZE);
 
@@ -367,7 +367,7 @@ static double bench_resize(long scale)
 
 	md_free(x);
 	md_free(y);
-	
+
 	return toc - tic;
 }
 
@@ -382,7 +382,7 @@ static double bench_norm(int s, long scale)
 	complex float* x = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* y = md_alloc(DIMS, dims, CFL_SIZE);
 #endif
-	
+
 	md_gaussian_rand(DIMS, dims, x);
 	md_gaussian_rand(DIMS, dims, y);
 
@@ -407,7 +407,7 @@ static double bench_norm(int s, long scale)
 
 	md_free(x);
 	md_free(y);
-	
+
 	return toc - tic;
 }
 
@@ -615,10 +615,7 @@ static double bench_cpu_ ## function(long scale)\
 	return toc - tic;\
 }
 
-BENCH_CONV_CPU(zconvcorr_fwd_direct_cf)
 BENCH_CONV_CPU(zconvcorr_fwd_im2col_cf_cpu)
-BENCH_CONV_CPU(zconvcorr_bwd_in_direct_cf)
-BENCH_CONV_CPU(zconvcorr_bwd_krn_direct_cf)
 BENCH_CONV_CPU(zconvcorr_bwd_krn_im2col_cf_cpu)
 
 #ifdef USE_CUDA
@@ -654,11 +651,8 @@ static double bench_gpu_ ## function(long scale)\
 	return toc - tic;\
 }
 
-BENCH_CONV_GPU(zconvcorr_fwd_direct_cf)
 BENCH_CONV_GPU(zconvcorr_fwd_im2col_cf_gpu)
-BENCH_CONV_GPU(zconvcorr_bwd_in_direct_cf)
 BENCH_CONV_GPU(zconvcorr_bwd_in_im2col_cf_gpu)
-BENCH_CONV_GPU(zconvcorr_bwd_krn_direct_cf)
 BENCH_CONV_GPU(zconvcorr_bwd_krn_im2col_cf_gpu)
 
 static double bench_im2col_fwd_gpu(long scale)
@@ -694,7 +688,7 @@ typedef double (*bench_fun)(long scale);
 static void do_test(const long dims[BENCH_DIMS], complex float* out, long scale, bench_fun fun, const char* str)
 {
 	printf("%30.30s |", str);
-	
+
 	int N = dims[REPETITION_IND];
 	double sum = 0.;
 	double min = 1.E10;
@@ -714,7 +708,7 @@ static void do_test(const long dims[BENCH_DIMS], complex float* out, long scale,
 		out[i] = dt;
 	}
 
-	printf(" | Avg: %3.4f Max: %3.4f Min: %3.4f\n", (float)(sum / N), max, min); 
+	printf(" | Avg: %3.4f Max: %3.4f Min: %3.4f\n", (float)(sum / N), max, min);
 }
 
 
@@ -724,20 +718,14 @@ const struct benchmark_s {
 	const char* str;
 
 } benchmarks[] = {
-#ifdef BENCH_CONV	
+#ifdef BENCH_CONV
 #ifdef USE_CUDA
-	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_direct_cf)
 	BENCH_CONV_GPU_ENTRY(zconvcorr_fwd_im2col_cf_gpu)
 	{ bench_im2col_fwd_gpu,		"im2col copy fwd gpu" },
-	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_in_direct_cf)
 	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_in_im2col_cf_gpu)
-	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_krn_direct_cf)
 	BENCH_CONV_GPU_ENTRY(zconvcorr_bwd_krn_im2col_cf_gpu)
 #endif
-	BENCH_CONV_CPU_ENTRY(zconvcorr_fwd_direct_cf)
 	BENCH_CONV_CPU_ENTRY(zconvcorr_fwd_im2col_cf_cpu)
-	BENCH_CONV_CPU_ENTRY(zconvcorr_bwd_in_direct_cf)
-	BENCH_CONV_CPU_ENTRY(zconvcorr_bwd_krn_direct_cf)
 	BENCH_CONV_CPU_ENTRY(zconvcorr_bwd_krn_im2col_cf_cpu)
 #endif
 	{ bench_add,		"add (md_zaxpy)" },
