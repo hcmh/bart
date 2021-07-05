@@ -25,6 +25,7 @@
 #include "nlops/stack.h"
 
 #include "linops/linop.h"
+#include "linops/someops.h"
 
 #include "chain.h"
 
@@ -78,7 +79,18 @@ struct nlop_s* nlop_chain_FF(const struct nlop_s* a, const struct nlop_s* b)
 	return x;
 }
 
-
+/**
+ * Chain output o of nlop a in input i of nlop b.
+ *
+ * Returned operator has
+ * - inputs:  [b_0, ..., b_i-1, b_i+1, ..., b_n, a_0, ..., a_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o+1, ..., a_n]
+ *
+ * @param a
+ * @param o
+ * @param b
+ * @param i
+ */
 struct nlop_s* nlop_chain2(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
 {
 //	int ai = nlop_get_nr_in_args(a);
@@ -100,6 +112,50 @@ struct nlop_s* nlop_chain2(const struct nlop_s* a, int o, const struct nlop_s* b
 	return li;
 }
 
+/**
+ * Chain output o of nlop a in input i of nlop b.
+ * Keep output o of a.
+ *
+ * Returned operator has
+ * - inputs:  [b_0, ..., b_i-1, b_i+1, ..., b_n, a_0, ..., a_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o, a_o+1, ..., a_n]
+ *
+ * @param a
+ * @param o
+ * @param b
+ * @param i
+ */
+struct nlop_s* nlop_chain2_keep(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
+{
+	auto iov = nlop_generic_domain(b, i);
+
+	int Ob = nlop_get_nr_out_args(b);
+
+	auto nb = nlop_from_linop_F(linop_identity_create(iov->N, iov->dims));
+	nb = nlop_combine_FF(nb, nlop_clone(b));
+	nb = nlop_dup_F(nb, 0, i + 1);
+
+	auto result = nlop_chain2(a, o, nb, 0);
+	nlop_free(nb);
+
+	result = nlop_shift_output_F(result, Ob + o, 0);
+
+	return result;
+}
+
+/**
+ * Chain output o of nlop a in input i of nlop b.
+ * Frees a and b.
+ *
+ * Returned operator has
+ * - inputs:  [b_0, ..., b_i-1, b_i+1, ..., b_n, a_0, ..., a_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o+1, ..., a_n]
+ *
+ * @param a
+ * @param o
+ * @param b
+ * @param i
+ */
 struct nlop_s* nlop_chain2_FF(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
 {
 	auto result = nlop_chain2(a, o, b, i);
@@ -110,24 +166,98 @@ struct nlop_s* nlop_chain2_FF(const struct nlop_s* a, int o, const struct nlop_s
 	return result;
 }
 
-/*
- * Chains two non-linear operators
- * permutes inputs to have order: inputs a, inputs b
+/**
+ * Chain output o of nlop a in input i of nlop b.
+ * Keep output o of a.
+ * Frees a and b.
+ *
+ * Returned operator has
+ * - inputs:  [b_0, ..., b_i-1, b_i+1, ..., b_n, a_0, ..., a_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o, a_o+1, ..., a_n]
+ *
+ * @param a
+ * @param o
+ * @param b
+ * @param i
  */
-struct nlop_s* nlop_chain2_swap_FF(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
+struct nlop_s* nlop_chain2_keep_FF(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
 {
-	auto result = nlop_chain2(a, o, b, i);
-	int permute_array[nlop_get_nr_in_args(result)];
-	for (int i = 0; i < nlop_get_nr_in_args(result); i++)
-		permute_array[(nlop_get_nr_in_args(a) + i) % nlop_get_nr_in_args(result)] = i;
-
-	result = nlop_permute_inputs_F(result, nlop_get_nr_in_args(result), permute_array);
+	auto result = nlop_chain2_keep(a, o, b, i);
 
 	nlop_free(a);
 	nlop_free(b);
 
 	return result;
 }
+
+/**
+ * Chain output o of nlop a in input i of nlop b.
+ * Permutes inputs.
+ * Frees a and b.
+ *
+ * Returned operator has
+ * - inputs:  [a_0, ..., a_n, b_0, ..., b_i-1, b_i+1, ..., b_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o+1, ..., a_n]
+ *
+ * @param a
+ * @param o
+ * @param b
+ * @param i
+ */
+struct nlop_s* nlop_chain2_swap_FF(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
+{
+	auto result = nlop_chain2(a, o, b, i);
+
+	int II = nlop_get_nr_in_args(result);
+	int Ia = nlop_get_nr_in_args(a);
+	int permute_array[II];
+
+	for (int i = 0; i < II; i++)
+		permute_array[(Ia + i) % II] = i;
+
+	result = nlop_permute_inputs_F(result, II, permute_array);
+
+	nlop_free(a);
+	nlop_free(b);
+
+	return result;
+}
+
+/**
+ * Chain output o of nlop a in input i of nlop b.
+ * Keep output o of a.
+ * Permutes inputs.
+ * Frees a and b.
+ *
+ * Returned operator has
+ * - inputs:  [a_0, ..., a_n, b_0, ..., b_i-1, b_i+1, ..., b_n]
+ * - outputs: [b_0, ..., b_n, a_0, ..., a_o-1, a_o, a_o+1, ..., a_n]
+ *
+ * @param a
+ * @param o
+ * @param b
+ * @param i
+ */
+struct nlop_s* nlop_chain2_keep_swap_FF(const struct nlop_s* a, int o, const struct nlop_s* b, int i)
+{
+	auto result = nlop_chain2_keep(a, o, b, i);
+
+	int II = nlop_get_nr_in_args(result);
+	int Ia = nlop_get_nr_in_args(a);
+	int permute_array[II];
+
+	for (int i = 0; i < II; i++)
+		permute_array[(Ia + i) % II] = i;
+
+	result = nlop_permute_inputs_F(result, II, permute_array);
+
+	nlop_free(a);
+	nlop_free(b);
+
+	return result;
+}
+
+
 
 /*
  * CAVE: if we pass the same operator twice, it might not
@@ -304,10 +434,11 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 
 		for (int o = 0; o < OO; o++) {
 
-                        if (i == a)
+			if (i == a)
 				(*der)[i][o] = linop_plus(nlop_get_derivative(x, o, ip), nlop_get_derivative(x, o, b));
 			else
 				(*der)[i][o] = linop_clone(nlop_get_derivative(x, o, ip));
+
 		}
 	}
 
