@@ -188,7 +188,7 @@ TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ss
 TMRI=homodyne poisson twixread fakeksp umgread looklocker schmitt paradiseread phasediff dixon synthesize fovshift
 TIO=toimg dcmread dcmtag
 TSIM=phantom phantom_json traj upat bloch sim signal epg leray pde pde_mask bfield
-TNN=mnist nnvn nnmodl reconet nnet onehotenc
+TNN=reconet nnet onehotenc
 
 
 
@@ -253,8 +253,8 @@ MODULES_pol2mask = -lgeom
 MODULES_sudoku = -llinops -liter -lnlops
 MODULES_nnvn = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_nnmodl = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
-MODULES_reconet = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
-MODULES_nnet = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
+MODULES_reconet = -lnetworks -lnoncart -lnn -lnlops -llinops -liter -lgrecon
+MODULES_nnet = -lnetworks -lnoncart -lnn -lnlops -llinops -liter -lgrecon
 MODULES_onehotenc = -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_mnist = -lnetworks -lnn -lnlops -llinops -liter
 MODULES_morph = -lnlops -llinops -lgeom
@@ -576,7 +576,7 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 
 endef
 
-ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops noncart moba lapacke box geom na networks nn manifold seq
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops noncart moba lapacke box geom rkhs na networks nn manifold seq
 ifeq ($(ISMRMRD),1)
 ALIBS += ismrm
 endif

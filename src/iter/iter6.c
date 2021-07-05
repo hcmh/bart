@@ -1,11 +1,15 @@
-/* Copyright 2017-2019. Martin Uecker.
+/* Copyright 2021. Uecker Lab. University Medical Center Göttingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
+ *
+ * Authors: Moritz Blumenthal
  */
 
 #include <assert.h>
+#include <math.h>
 
 #include "num/ops.h"
+#include "num/ops_p.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
@@ -14,7 +18,6 @@
 
 #include "misc/misc.h"
 #include "misc/types.h"
-#include "misc/opts.h"
 
 #include "iter/batch_gen.h"
 #include "iter/italgos.h"
@@ -23,6 +26,8 @@
 #include "iter/iter6_ops.h"
 #include "iter/monitor_iter6.h"
 #include "iter/iter_dump.h"
+
+#include "iter/prox.h"
 
 #include "iter6.h"
 
@@ -50,6 +55,7 @@ DEF_TYPEID(iter6_iPALM_conf);
 	.INTERFACE.epochs = 1, \
 	.INTERFACE.clip_norm = 0., \
 	.INTERFACE.clip_val = 0., \
+	.INTERFACE.weight_decay = 0., \
 	.INTERFACE.history_filename = NULL, \
 	.INTERFACE.dump = NULL, \
 	.INTERFACE.dump_filename = NULL, \
@@ -57,7 +63,9 @@ DEF_TYPEID(iter6_iPALM_conf);
 	.INTERFACE.batchnorm_momentum = .95, \
 	.INTERFACE.batchgen_type = BATCH_GEN_SAME, \
 	.INTERFACE.batch_seed = 123, \
-	.INTERFACE.dump_flag = 0,
+	.INTERFACE.dump_flag = 0, \
+	.INTERFACE.min_learning_rate = 0.,\
+	.INTERFACE.learning_rate_epoch_mod = 0,
 
 const struct iter6_sgd_conf iter6_sgd_conf_defaults = {
 
@@ -127,230 +135,6 @@ const struct iter6_iPALM_conf iter6_iPALM_conf_defaults = {
 };
 
 
-struct iter6_conf_s iter6_conf_unset = {
-
-	.learning_rate = 0.,
-	.epochs = -1,
-	.clip_norm = 0.,
-	.clip_val = 0.,
-	.history_filename = NULL,
-	.dump = NULL,
-	.dump_filename = NULL,
-	.dump_mod = -1,
-	.batchnorm_momentum = .95,
-	.batchgen_type = BATCH_GEN_SAME,
-	.batch_seed = 123,
-	.dump_flag = 0,
-};
-
-struct iter6_conf_s iter6_conf_opts = {
-
-	.learning_rate = 0.,
-	.epochs = -1,
-	.clip_norm = 0.,
-	.clip_val = 0.,
-	.history_filename = NULL,
-	.dump = NULL,
-	.dump_filename = NULL,
-	.dump_mod = -1,
-	.batchnorm_momentum = .95,
-	.batchgen_type = BATCH_GEN_SAME,
-	.batch_seed = 123,
-	.dump_flag = 0,
-};
-
-struct iter6_sgd_conf iter6_sgd_conf_opts = {
-
-	.INTERFACE.TYPEID = &TYPEID2(iter6_sgd_conf),
-
-	ITER6_DEFAULT
-
-	.INTERFACE.learning_rate = 0.001,
-
-	.momentum = 0.
-};
-
-struct iter6_adadelta_conf iter6_adadelta_conf_opts = {
-
-	.INTERFACE.TYPEID = &TYPEID2(iter6_adadelta_conf),
-
-	ITER6_DEFAULT
-
-	.INTERFACE.learning_rate = 1.,
-
-	.rho = 0.95
-};
-
-struct iter6_adam_conf iter6_adam_conf_opts = {
-
-	.INTERFACE.TYPEID = &TYPEID2(iter6_adam_conf),
-
-	ITER6_DEFAULT
-
-	.INTERFACE.learning_rate = .001,
-
-	.reset_epoch = -1,
-
-	.epsilon = 1.e-7,
-
-	.beta1 = 0.9,
-	.beta2 = 0.999,
-};
-
-struct iter6_iPALM_conf iter6_iPALM_conf_opts = {
-
-	.INTERFACE.TYPEID = &TYPEID2(iter6_iPALM_conf),
-
-	ITER6_DEFAULT
-
-	.INTERFACE.learning_rate = 1.,
-
-	.Lmin = 1.e-10,
-	.Lmax = 1.e10,
-	.Lshrink = 1.2,
-	.Lincrease = 2.,
-
-	.alpha = -1.,
-	.beta = -1.,
-	.convex = false,
-
-	.trivial_stepsize = false,
-
-	.alpha_arr = NULL,
-	.beta_arr =NULL,
-	.convex_arr = NULL,
-
-	.reduce_momentum = true,
-
-};
-
-enum ITER6_TRAIN_ALGORITHM {ITER6_NONE, ITER6_SGD, ITER6_ADAM, ITER6_ADADELTA, ITER6_IPALM};
-static enum ITER6_TRAIN_ALGORITHM iter_6_select_algo = ITER6_NONE;
-
-struct opt_s iter6_opts[] = {
-
-	OPTL_FLOAT('r', "learning-rate", &(iter6_conf_opts.learning_rate), "f", "learning rate"),
-	OPTL_INT('e', "epochs", &(iter6_conf_opts.epochs), "d", "number of epochs to train"),
-
-	OPTL_SELECT_DEF(0, "sgd", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_SGD, ITER6_NONE, "select stochastic gradient descent"),
-	OPTL_SELECT_DEF(0, "adadelta", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_ADADELTA, ITER6_NONE, "select AdaDelta"),
-	OPTL_SELECT_DEF(0, "adam", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_ADAM, ITER6_NONE, "select Adam"),
-	OPTL_SELECT_DEF(0, "ipalm", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_IPALM, ITER6_NONE, "select iPALM"),
-
-	OPTL_FLOAT(0, "clip-norm", &(iter6_conf_opts.clip_norm), "f", "clip norm of gradients"),
-	OPTL_FLOAT(0, "clip-value", &(iter6_conf_opts.clip_val), "f", "clip value of gradients"),
-
-	OPTL_LONG(0, "dump-mod", &(iter6_conf_opts.dump_mod), "mod", "dump weights to file every \"mod\" epochs"),
-
-	OPTL_FLOAT(0, "batchnorm-momentum", &(iter6_conf_opts.batchnorm_momentum), "f", "momentum for batch normalization (default: 0.95)"),
-
-	OPTL_SELECT_DEF(0, "batchgen-same", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SAME, BATCH_GEN_SAME, "use the same batches in the same order for each epoch"),
-	OPTL_SELECT_DEF(0, "batchgen-shuffle-batches", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_BATCHES, BATCH_GEN_SAME, "use the same batches in random order for each epoch"),
-	OPTL_SELECT_DEF(0, "batchgen-shuffle-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_DATA, BATCH_GEN_SAME, "shuffle data to form batches"),
-	OPTL_SELECT_DEF(0, "batchgen-draw-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_RANDOM_DATA, BATCH_GEN_SAME, "randomly draw data to form batches"),
-	OPTL_INT(0, "batchgen-seed", &(iter6_conf_opts.batch_seed), "d", "seed for batch-generator (default: 123)"),
-};
-
-struct opt_s iter6_sgd_opts[] = {
-
-	OPTL_SELECT_DEF('s', "sgd", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_SGD, ITER6_NONE, "select stochastic gradient descent"),
-	OPTL_FLOAT(0, "momentum", &(iter6_sgd_conf_opts.momentum), "f", "momentum (default: 0.)"),
-};
-const int N_iter6_sgd_opts = ARRAY_SIZE(iter6_sgd_opts);
-
-struct opt_s iter6_adadelta_opts[] = {
-
-	OPTL_SELECT_DEF('s', "adadelta", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_ADADELTA, ITER6_NONE, "select AdaDelta"),
-	OPTL_FLOAT(0, "rho", &(iter6_adadelta_conf_opts.rho), "f", "rho (default: 0.95"),
-};
-
-struct opt_s iter6_adam_opts[] = {
-
-	OPTL_SELECT_DEF('s', "adam", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_ADAM, ITER6_NONE, "select Adam"),
-	OPTL_FLOAT(0, "epsilon", &(iter6_adam_conf_opts.epsilon), "f", "epsilon (default: 1.e-7"),
-	OPTL_FLOAT(0, "beta1", &(iter6_adam_conf_opts.beta1), "f", "beta1 (default: 0.9"),
-	OPTL_FLOAT(0, "beta2", &(iter6_adam_conf_opts.beta2), "f", "beta2 (default: 0.999"),
-
-	OPTL_LONG(0, "reset-momentum", &(iter6_adam_conf_opts.reset_epoch), "n", "reset momentum every nth epoch (default: -1=never"),
-};
-
-struct opt_s iter6_ipalm_opts[] = {
-
-	OPTL_SELECT_DEF('s', "ipalm", enum ITER6_TRAIN_ALGORITHM, &(iter_6_select_algo), ITER6_IPALM, ITER6_NONE, "select iPALM"),
-
-	OPTL_FLOAT(0, "L-min", &(iter6_iPALM_conf_opts.Lmin), "f", "minimum Lipshitz constant for backtracking (default: 1.e-10"),
-	OPTL_FLOAT(0, "L-max", &(iter6_iPALM_conf_opts.Lmax), "f", "maximum Lipshitz constant for backtracking (default: 1.e10"),
-	OPTL_FLOAT(0, "L-reduce", &(iter6_iPALM_conf_opts.Lshrink), "f", "factor to reduce Lipshitz constant in backtracking (default: 1.2"),
-	OPTL_FLOAT(0, "L-increase", &(iter6_iPALM_conf_opts.Lincrease), "f", "factor to increase Lipshitz constant in backtracking (default: 2"),
-
-	OPTL_FLOAT(0, "alpha", &(iter6_iPALM_conf_opts.alpha), "f", "alpha factor (default: -1. = \"dynamic case\")"),
-	OPTL_FLOAT(0, "beta", &(iter6_iPALM_conf_opts.beta), "f", "beta factor (default: -1. = \"dynamic case\")"),
-	OPTL_SET(0, "convex", &(iter6_iPALM_conf_opts.convex), "convex constraints (higher learning rate possible)"),
-
-	OPTL_CLEAR(0, "non-trivial-step-size", &(iter6_iPALM_conf_opts.convex), "set stepsize based on alpha and beta, not simply Lipshitz constant^-1"),
-	OPTL_CLEAR(0, "no-momentum-reduction", &(iter6_iPALM_conf_opts.reduce_momentum), "momentum is not reduced, when Lipshitz condition is not satisfied while backtracking"),
-};
-
-const int N_iter6_opts = ARRAY_SIZE(iter6_opts);
-const int N_iter6_adadelta_opts = ARRAY_SIZE(iter6_adadelta_opts);
-const int N_iter6_adam_opts = ARRAY_SIZE(iter6_adam_opts);
-const int N_iter6_ipalm_opts = ARRAY_SIZE(iter6_ipalm_opts);
-
-void iter6_copy_config_from_opts(struct iter6_conf_s* result)
-{
-	if (iter6_conf_opts.learning_rate != iter6_conf_unset.learning_rate)
-		result->learning_rate = iter6_conf_opts.learning_rate;
-	if (iter6_conf_opts.epochs != iter6_conf_unset.epochs)
-		result->epochs = iter6_conf_opts.epochs;
-	if (iter6_conf_opts.clip_norm != iter6_conf_unset.clip_norm)
-		result->clip_norm = iter6_conf_opts.clip_norm;
-	if (iter6_conf_opts.clip_val != iter6_conf_unset.clip_val)
-		result->clip_val = iter6_conf_opts.clip_val;
-	if (iter6_conf_opts.history_filename != iter6_conf_unset.history_filename)
-		result->history_filename = iter6_conf_opts.history_filename;
-	if (iter6_conf_opts.dump_filename != iter6_conf_unset.dump_filename)
-		result->dump_filename = iter6_conf_opts.dump_filename;
-	if (iter6_conf_opts.dump_mod != iter6_conf_unset.dump_mod)
-		result->dump_mod = iter6_conf_opts.dump_mod;
-	if (iter6_conf_opts.batchnorm_momentum != iter6_conf_unset.batchnorm_momentum)
-		result->batchnorm_momentum = iter6_conf_opts.batchnorm_momentum;
-	if (iter6_conf_opts.batchgen_type != iter6_conf_unset.batchgen_type)
-		result->batchgen_type = iter6_conf_opts.batchgen_type;
-	if (iter6_conf_opts.batch_seed != iter6_conf_unset.batch_seed)
-		result->batch_seed = iter6_conf_opts.batch_seed;
-}
-
-struct iter6_conf_s* iter6_get_conf_from_opts(void)
-{
-	struct iter6_conf_s* result = NULL;
-
-	switch (iter_6_select_algo) {
-
-		case ITER6_NONE:
-			return result;
-			break;
-
-		case ITER6_SGD:
-			result = CAST_UP(&iter6_sgd_conf_opts);
-			break;
-
-		case ITER6_ADAM:
-			result = CAST_UP(&iter6_adam_conf_opts);
-			break;
-
-		case ITER6_ADADELTA:
-			result = CAST_UP(&iter6_adam_conf_opts);
-			break;
-
-		case ITER6_IPALM:
-			result = CAST_UP(&iter6_adam_conf_opts);
-			break;
-	}
-
-	iter6_copy_config_from_opts(result);
-
-	return result;
-}
 
 struct iter6_nlop_s {
 
@@ -416,22 +200,8 @@ static void iter6_op_arr_fun_deradj(iter_op_data* _o, int NO, unsigned long ofla
 #endif
 }
 
-static void iter6_op_arr_fun_diag(iter_op_data* _o, int NO, unsigned long oflags, float* dst[NO], int NI, unsigned long iflags, const float* src[NI])
-{
-	const struct iter6_op_arr_s* data = CAST_DOWN(iter6_op_arr_s, _o);
-
-	assert(NO == data->NO);
-	assert(NI == data->NI);
-	assert(oflags == iflags);
-
-	for (int i = 0; i < NI; i++)
-		if (MD_IS_SET(iflags, i))
-			operator_apply_unchecked(data->ops[i * NI + i], (_Complex float*)dst[i], (_Complex float*)src[i]);
-}
-
 static const struct iter_dump_s* iter6_dump_default_create(const char* base_filename, long save_mod, const struct nlop_s* nlop, unsigned long save_flag, long NI, enum IN_TYPE in_type[NI])
 {
-
 	int D[NI];
 	const long* dims[NI];
 
@@ -448,22 +218,40 @@ static const struct iter_dump_s* iter6_dump_default_create(const char* base_file
 	return iter_dump_default_create(base_filename, save_mod, NI, save_flag, D, dims);
 }
 
-static const struct operator_s* get_update_operator(iter6_conf* conf, int N, const long dims[N], long numbatches)
+static const struct operator_p_s* get_update_operator(iter6_conf* conf, int N, const long dims[N], long numbatches)
 {
 	auto conf_adadelta = CAST_MAYBE(iter6_adadelta_conf, conf);
 	if (NULL != conf_adadelta)
-		return operator_adadelta_update_create(N, dims, conf->learning_rate, conf_adadelta->rho, 1.e-7);
+		return operator_adadelta_update_create(N, dims, conf_adadelta->rho, 1.e-7);
 
 	auto conf_sgd = CAST_MAYBE(iter6_sgd_conf, conf);
 	if (NULL != conf_sgd)
-		return operator_sgd_update_create(N, dims, conf->learning_rate);
+		return operator_sgd_update_create(N, dims);
 
 	auto conf_adam = CAST_MAYBE(iter6_adam_conf, conf);
 	if (NULL != conf_adam)
-		return operator_adam_update_create(N, dims, conf->learning_rate, conf_adam->beta1, conf_adam->beta2, conf_adam->epsilon, numbatches * conf_adam->reset_epoch);
+		return operator_adam_update_create(N, dims, conf_adam->beta1, conf_adam->beta2, conf_adam->epsilon, numbatches * conf_adam->reset_epoch);
 
 	error("iter6_conf not SGD-like!\n");
 	return NULL;
+}
+
+static float* get_learning_rate_schedule_cosine_annealing(int epochs, int numbatches, float learning_rate, float min_learning_rate, int epoch_mod)
+{
+	long dims[2] = {numbatches, epochs};
+
+	if (1 >= epoch_mod)
+		return NULL;
+
+	assert(0 <= min_learning_rate);
+
+	float (*result)[numbatches] = (float (*)[numbatches])md_alloc(2, dims, FL_SIZE);
+
+	for (int ie = 0; ie < dims[1]; ie++)
+		for (int ib = 0; ib < dims[0]; ib++)
+			result[ie][ib] = min_learning_rate + 0.5 * (learning_rate - min_learning_rate) * (1 + cosf(M_PI * (float)(ie % epoch_mod) / (float)(epoch_mod-1)));
+
+	return &(result[0][0]);
 }
 
 void iter6_sgd_like(	iter6_conf* conf,
@@ -476,34 +264,47 @@ void iter6_sgd_like(	iter6_conf* conf,
 	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
 	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
 
+	const struct operator_p_s* prox_ops_weight_decay[NI];
+	for (int i = 0; i < NI; i++) {
+
+		if ( (0 != conf->weight_decay) && (NULL == prox_ops[i]) && (IN_OPTIMIZE == in_type[i])) {
+
+			prox_ops_weight_decay[i] = prox_leastsquares_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->weight_decay, NULL);
+			prox_ops[i] = prox_ops_weight_decay[i];
+		} else
+			prox_ops_weight_decay[i] = NULL;
+	}
+
 	struct iter_op_p_s prox_iter[NI];
-	for (int i = 0; i < NI; i++)
+	for (unsigned int i = 0; i < NI; i++)
 		prox_iter[i] = OPERATOR_P2ITOP((NULL == prox_ops ? NULL : prox_ops[i]));
 
 	long isize[NI];
 	long osize[NO];
 
 	//array of update operators
-	const struct operator_s* upd_ops[NI][NI];
+	const struct operator_p_s* upd_ops[NI];
 	for (int i = 0; i < NI; i++) {
 
-		for (int j = 0; j < NI; j++)
-			upd_ops[i][j] = NULL;
+		upd_ops[i] = NULL;
+		if (IN_OPTIMIZE != in_type[i])
+			continue;
 
-		upd_ops[i][i] = get_update_operator(conf, nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, numbatches);
+		upd_ops[i] = get_update_operator(conf, nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, numbatches);
 
 		if ((0.0 != conf->clip_norm) || (0.0 != conf->clip_val)) {
 
 			const struct operator_s* tmp1 = operator_clip_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->clip_norm, conf->clip_val);
-			const struct operator_s* tmp2 = upd_ops[i][i];
-			upd_ops[i][i] = operator_chain(tmp1, tmp2);
+			const struct operator_p_s* tmp2 = upd_ops[i];
+			upd_ops[i] = operator_p_pre_chain(tmp1, tmp2);
 			operator_free(tmp1);
-			operator_free(tmp2);
+			operator_p_free(tmp2);
 		}
 	}
 
-	struct iter6_op_arr_s upd_ops_data = { { &TYPEID(iter6_op_arr_s) }, NI, NI, &(upd_ops[0][0])};
-	struct iter_op_arr_s upd_op_arr ={iter6_op_arr_fun_diag, CAST_UP(&upd_ops_data)};
+	struct iter_op_p_s upd_iter_ops[NI];
+	for (unsigned int i = 0; i < NI; i++)
+		upd_iter_ops[i] = OPERATOR_P2ITOP(upd_ops[i]);
 
 
 	for (int i = 0; i < NI; i++)
@@ -526,19 +327,23 @@ void iter6_sgd_like(	iter6_conf* conf,
 	if (free_dump)
 		conf->dump = iter6_dump_default_create(conf->dump_filename, conf->dump_mod, nlop, conf->dump_flag, NI, in_type);
 
-	sgd(	conf->epochs, conf->batchnorm_momentum,
+	float (*learning_rate_schedule)[numbatches] = (float (*)[numbatches])get_learning_rate_schedule_cosine_annealing(conf->epochs, numbatches, conf->learning_rate, conf->min_learning_rate, conf->learning_rate_epoch_mod);
+
+	sgd(	conf->epochs, numbatches,
+		conf->learning_rate, conf->batchnorm_momentum,
+		learning_rate_schedule,
 		NI, isize, in_type, dst,
 		NO, osize, out_type,
 		batchsize, batchsize * numbatches,
 		select_vecops(gpu_ref),
 		nlop_iter, adj_op_arr,
-		upd_op_arr,
+		upd_iter_ops,
 		prox_iter,
 		nlop_batch_gen_iter,
 		(struct iter_op_s){ NULL, NULL }, monitor, conf->dump);
 
 	for (int i = 0; i < NI; i++)
-		operator_free(upd_ops[i][i]);
+		operator_p_free(upd_ops[i]);
 
 	if (NULL != conf->history_filename)
 		monitor_iter6_dump_record(monitor, conf->history_filename);
@@ -550,6 +355,13 @@ void iter6_sgd_like(	iter6_conf* conf,
 		iter_dump_free(conf->dump);
 		conf->dump = NULL;
 	}
+
+	for (int i = 0; i < NI; i++)
+		if (NULL != prox_ops_weight_decay[i]) {
+
+			operator_p_free(prox_ops_weight_decay[i]);
+			prox_ops[i] = NULL;
+		}
 }
 
 
@@ -624,8 +436,19 @@ void iter6_iPALM(	iter6_conf* _conf,
 	struct iter_op_arr_s adj_op_arr = NLOP2IT_ADJ_ARR(nlop);
 	struct iter_nlop_s nlop_batch_gen_iter = NLOP2ITNLOP(nlop_batch_gen);
 
+	const struct operator_p_s* prox_ops_weight_decay[NI];
+	for (int i = 0; i < NI; i++) {
+
+		if ( (0 != conf->INTERFACE.weight_decay) && (NULL == prox_ops[i]) && (IN_OPTIMIZE == in_type[i])) {
+
+			prox_ops_weight_decay[i] = prox_leastsquares_create(nlop_generic_domain(nlop, i)->N, nlop_generic_domain(nlop, i)->dims, conf->INTERFACE.weight_decay, NULL);
+			prox_ops[i] = prox_ops_weight_decay[i];
+		} else
+			prox_ops_weight_decay[i] = NULL;
+	}
+
 	struct iter_op_p_s prox_iter[NI];
-	for (int i = 0; i < NI; i++)
+	for (unsigned int i = 0; i < NI; i++)
 		prox_iter[i] = OPERATOR_P2ITOP(prox_ops[i]);
 
 	//compute parameter arrays
@@ -670,10 +493,10 @@ void iter6_iPALM(	iter6_conf* _conf,
 	iPALM(	NI, isize, in_type, dst, x_old,
 		NO, osize, out_type,
 		numbatches, 0, conf->INTERFACE.epochs,
-       		select_vecops(gpu_ref),
+		select_vecops(gpu_ref),
 		alpha, beta, convex, conf->trivial_stepsize, conf->reduce_momentum,
 		lipshitz_constants, conf->Lmin, conf->Lmax, conf->Lshrink, conf->Lincrease,
-       		nlop_iter, adj_op_arr,
+		nlop_iter, adj_op_arr,
 		prox_iter,
 		conf->INTERFACE.batchnorm_momentum,
 		nlop_batch_gen_iter,
@@ -693,6 +516,13 @@ void iter6_iPALM(	iter6_conf* _conf,
 		iter_dump_free(conf->INTERFACE.dump);
 		conf->INTERFACE.dump = NULL;
 	}
+
+	for (int i = 0; i < NI; i++)
+		if (NULL != prox_ops_weight_decay[i]) {
+
+			operator_p_free(prox_ops_weight_decay[i]);
+			prox_ops[i] = NULL;
+		}
 }
 
 void iter6_by_conf(	iter6_conf* _conf,

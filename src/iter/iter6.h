@@ -1,26 +1,12 @@
 #ifndef ITER6_H
 #define ITER6_H
 
-#include "misc/opts.h"
+
 #include "iter/italgos.h"
 #include "iter/iter_dump.h"
 #include "iter/batch_gen.h"
 
-extern struct opt_s iter6_opts[];
-extern struct opt_s iter6_sgd_opts[];
-extern struct opt_s iter6_adadelta_opts[];
-extern struct opt_s iter6_adam_opts[];
-extern struct opt_s iter6_ipalm_opts[];
 
-extern const int N_iter6_opts;
-extern const int N_iter6_sgd_opts;
-extern const int N_iter6_adadelta_opts;
-extern const int N_iter6_adam_opts;
-extern const int N_iter6_ipalm_opts;
-
-extern void iter6_copy_config_from_opts(struct iter6_conf_s* result);
-extern struct iter6_conf_s* iter6_get_conf_from_opts(void);
-extern struct iter6_adam_conf iter6_adam_conf_opts;
 
 struct iter_dump_s;
 typedef struct iter6_conf_s {
@@ -32,6 +18,8 @@ typedef struct iter6_conf_s {
 
 	float clip_norm;
 	float clip_val;
+
+	float weight_decay;
 
 	float batchnorm_momentum;
 
@@ -45,9 +33,10 @@ typedef struct iter6_conf_s {
 	enum BATCH_GEN_TYPE batchgen_type;
 	int batch_seed;
 
-} iter6_conf;
+	float min_learning_rate;
+	int learning_rate_epoch_mod;
 
-extern struct iter6_conf_s iter6_conf_opts;
+} iter6_conf;
 
 struct iter_op_s;
 

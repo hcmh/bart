@@ -115,21 +115,21 @@ void landweber_sym(unsigned int maxiter, float epsilon, float alpha,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
-typedef void iter6_algo_f(unsigned int epochs, float batchnorm_momentum,
+void sgd(unsigned int epochs, unsigned int batches,
+	float learning_rate, float batchnorm_momentum,
+	float learning_rate_schedule[epochs][batches],
 	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
 	long NO, long osize[NO], enum OUT_TYPE out_type[NI],
 	int N_batch, int N_total,
 	const struct vec_iter_s* vops,
 	struct iter_nlop_s nlop,
 	struct iter_op_arr_s adj,
-	struct iter_op_arr_s update,
+	struct iter_op_p_s update[NI],
 	struct iter_op_p_s prox[NI],
 	struct iter_nlop_s nlop_batch_gen,
 	struct iter_op_s callback,
 	struct monitor_iter6_s* monitor,
 	const struct iter_dump_s* dump);
-
-iter6_algo_f sgd;
 
 /**
  * Store information about iterative algorithm.

@@ -812,6 +812,10 @@ static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], floa
  * The gradient is computed and the operator "update" computes the update, this operator can remember information such as momentum
  *
  * @param epochs number of epochs to train (one epoch corresponds to seeing each dataset once)
+ * @param batches number of updates per epoch
+ * @param learning_rate (overwritten by learning_rate_schedule if != NULL)
+ * @param batchnorm_momentum momentum for updating mean and variance of batch normalization
+ * @param learning_rate_schedule learning rate for each update
  * @param NI number of input tensors
  * @param isize size of input tensors (flattened as real)
  * @param in_type type of inputs (static, batchgen, to optimize)
@@ -830,13 +834,15 @@ static void getgrad(int NI, unsigned long in_optimize_flag, long isize[NI], floa
  * @param callback UNUSED
  * @param monitor UNUSED
  */
-void sgd(	unsigned int epochs, float batchnorm_momentum,
+void sgd(	unsigned int epochs, unsigned int batches,
+		float learning_rate, float batchnorm_momentum,
+		float learning_rate_schedule[epochs][batches],
 		long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI],
 		long NO, long osize[NO], enum OUT_TYPE out_type[NI],
 		int N_batch, int N_total,
 		const struct vec_iter_s* vops,
 		struct iter_nlop_s nlop, struct iter_op_arr_s adj,
-		struct iter_op_arr_s update,
+		struct iter_op_p_s update[NI],
 		struct iter_op_p_s prox[NI],
 		struct iter_nlop_s nlop_batch_gen,
 		struct iter_op_s callback, struct monitor_iter6_s* monitor, const struct iter_dump_s* dump)
@@ -852,6 +858,9 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 
 	unsigned long in_optimize_flag = 0;
 	unsigned long out_optimize_flag = 0;
+
+	if ((int)batches != N_total / N_batch)
+		error("Wrong number of batches!");
 
 	for (int i = 0; i< NI; i++){
 
@@ -922,18 +931,22 @@ void sgd(	unsigned int epochs, float batchnorm_momentum,
 
 			float r0 = compute_objective(NO, NI, nlop, args, out_optimize_flag, in_optimize_flag, vops); // update graph and compute loss
 			getgrad(NI, in_optimize_flag, isize, grad, NO, out_optimize_flag, adj, vops);
-			iter_op_arr_call(update, NI, in_optimize_flag, dxs, NI, in_optimize_flag, (const float**)grad);
 
 			int batchnorm_counter = 0;
+
+			if (NULL != learning_rate_schedule)
+				learning_rate = learning_rate_schedule[epoch][i_batch];
 
 			for (int i = 0; i < NI; i++) {
 
 				if (in_type[i] == IN_OPTIMIZE) {
 
+					iter_op_p_call(update[i], learning_rate, dxs[i], grad[i]);
+
 					vops->add(isize[i], args[NO + i], args[NO + i], dxs[i]);
 
 					if (NULL != prox[i].fun)
-						iter_op_p_call(prox[i], 0, args[NO + i], args[NO + i]); //we only support projections (mu = 0)
+						iter_op_p_call(prox[i], learning_rate, args[NO + i], args[NO + i]);
 				}
 
 				if (in_type[i] == IN_BATCH)
@@ -1122,157 +1135,146 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 
 		for (int batch = 0; batch < N_batch; batch++) {
 
-		if (0 != N_batch_gen)
-			iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
+			if (0 != N_batch_gen)
+				iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
 
-		float r_old = compute_objective(NO, NI, nlop, args, out_optimize_flag, 0, vops);
+			float r_old = compute_objective(NO, NI, nlop, args, out_optimize_flag, 0, vops);
 
-		float r_i = r_old;
+			float r_i = r_old;
 
-		for (int i = 0; i < NI; i++) {
+			for (int i = 0; i < NI; i++) {
 
-			if (IN_OPTIMIZE != in_type[i])
-				continue;
+				if (IN_OPTIMIZE != in_type[i])
+					continue;
 
-			grad[i] = vops->allocate(isize[i]);
-			tmp[i] = vops->allocate(isize[i]);
-			y[i] = vops->allocate(isize[i]);
-			x_new[i] = vops->allocate(isize[i]);
+				grad[i] = vops->allocate(isize[i]);
+				tmp[i] = vops->allocate(isize[i]);
+				y[i] = vops->allocate(isize[i]);
+				x_new[i] = vops->allocate(isize[i]);
 
-			//determine current parameters
-			float betai = (-1. == beta[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : beta[i];
-			float alphai = (-1. == alpha[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : alpha[i];
+				//determine current parameters
+				float betai = (-1. == beta[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : beta[i];
+				float alphai = (-1. == alpha[i]) ? (float)(epoch * N_batch + batch) / (float)((epoch * N_batch + batch) + 3.) : alpha[i];
 
-			float r_z = 0;
+				float r_z = 0;
 
-			if (!reduce_momentum) {
-
-				//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
-				z[i] = vops->allocate(isize[i]);
-				vops->axpbz(isize[i], z[i], 1 + betai, x[i], -betai, x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
-				args[NO + i] = z[i];
-				r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, MD_BIT(i), vops);
-				vops->del(z[i]);
-				getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
-			}
-
-			//backtracking
-			bool lipshitz_condition = false;
-			float reduce_momentum_scale = 1;
-			while (!lipshitz_condition) {
-
-				if (reduce_momentum) {
+				if (!reduce_momentum) {
 
 					//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
 					z[i] = vops->allocate(isize[i]);
-					vops->axpbz(isize[i], z[i], 1 + reduce_momentum_scale * betai, x[i], -(reduce_momentum_scale * betai), x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
+					vops->axpbz(isize[i], z[i], 1 + betai, x[i], -betai, x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
 					args[NO + i] = z[i];
 					r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, MD_BIT(i), vops);
 					vops->del(z[i]);
 					getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
 				}
 
+				//backtracking
+				bool lipshitz_condition = false;
+				float reduce_momentum_scale = 1;
+				while (!lipshitz_condition) {
 
-				float tau = convex[i] ? (1. + 2. * betai) / (2. - 2. * alphai) * L[i] : (1. + 2. * betai) / (1. - 2. * alphai) * L[i];
-				if (trivial_stepsize || (-1. == beta[i]) || (-1. == alpha[i]))
-					tau = L[i];
+					if (reduce_momentum) {
 
-				if((0 > betai) || ( 0 > alphai) || ( 0 > tau))
-					error("invalid parameters alpha[%d]=%f, beta[%d]=%f, tau=%f\n", i, alphai, i, betai, tau);
+						//Compute gradient at z = x^n + alpha * (x^n - x^(n-1))
+						z[i] = vops->allocate(isize[i]);
+						vops->axpbz(isize[i], z[i], 1 + reduce_momentum_scale * betai, x[i], -(reduce_momentum_scale * betai), x_old[i]); // tmp1 = z = x^n + alpha * (x^n - x^(n-1))
+						args[NO + i] = z[i];
+						r_z = compute_objective(NO, NI, nlop, args, out_optimize_flag, MD_BIT(i), vops);
+						vops->del(z[i]);
+						getgrad(NI, MD_BIT(i), isize, grad, NO, out_optimize_flag, adj, vops);
+					}
 
-				//compute new weights
-				vops->axpbz(isize[i], y[i], 1 + reduce_momentum_scale * alphai, x[i], -(reduce_momentum_scale * alphai), x_old[i]);
-				vops->axpbz(isize[i], tmp[i], 1, y[i], -1./tau, grad[i]); //tmp2 = x^n + alpha*(x^n - x^n-1) - 1/tau grad
 
-				if (NULL != prox[i].fun)
-					iter_op_p_call(prox[i], tau, x_new[i], tmp[i]);
-				else
-					vops->copy(isize[i],  x_new[i], tmp[i]);
+					float tau = convex[i] ? (1. + 2. * betai) / (2. - 2. * alphai) * L[i] : (1. + 2. * betai) / (1. - 2. * alphai) * L[i];
+					if (trivial_stepsize || (-1. == beta[i]) || (-1. == alpha[i]))
+						tau = L[i];
 
-				//compute new residual
-				args[NO + i] = x_new[i];
-				float r_new = compute_objective(NO, NI, nlop, args, out_optimize_flag, 0, vops);
+					if((0 > betai) || ( 0 > alphai) || ( 0 > tau))
+						error("invalid parameters alpha[%d]=%f, beta[%d]=%f, tau=%f\n", i, alphai, i, betai, tau);
 
-				//compute Lipschitz condition at z
-				float r_lip_z = r_z;
-				vops->sub(isize[i], tmp[i], x_new[i], y[i]); // tmp = x^(n+1) - y^n
-				r_lip_z += vops->dot(isize[i], grad[i], tmp[i]);
-				r_lip_z += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
+					//compute new weights
+					vops->axpbz(isize[i], y[i], 1 + reduce_momentum_scale * alphai, x[i], -(reduce_momentum_scale * alphai), x_old[i]);
+					vops->axpbz(isize[i], tmp[i], 1, y[i], -1./tau, grad[i]); //tmp2 = x^n + alpha*(x^n - x^n-1) - 1/tau grad
 
-				//compute Lipschitz condition at x
-				//float r_lip_x = r_i;
-				//vops->sub(isize[i], tmp[i], x_new[i], x[i]); // tmp = x^(n+1) - x^n
-				//r_lip_x += vops->dot(isize[i], grad[i], tmp[i]);
-				//r_lip_x += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
+					if (NULL != prox[i].fun)
+						iter_op_p_call(prox[i], tau, x_new[i], tmp[i]);
+					else
+						vops->copy(isize[i],  x_new[i], tmp[i]);
 
-				if ((r_lip_z * 1.001 >= r_new) || (L[i] >= Lmax)) { //1.001 for flp errors
+					//compute new residual
+					args[NO + i] = x_new[i];
+					float r_new = compute_objective(NO, NI, nlop, args, out_optimize_flag, 0, vops);
 
-					lipshitz_condition = true;
-					if (L[i] > Lmin)
-						L[i] /= Lshrink;
+					//compute Lipschitz condition at z
+					float r_lip_z = r_z;
+					vops->sub(isize[i], tmp[i], x_new[i], y[i]); // tmp = x^(n+1) - y^n
+					r_lip_z += vops->dot(isize[i], grad[i], tmp[i]);
+					r_lip_z += L[i] / 2. * vops->dot(isize[i], tmp[i], tmp[i]);
 
-					vops->copy(isize[i], x_old[i], x[i]);
-					vops->copy(isize[i], x[i], x_new[i]);
+					if ((r_lip_z * 1.001 >= r_new) || (L[i] >= Lmax)) { //1.001 for flp errors
 
-					r_i = r_new; //reuse the new residual within one batch (no update of training data)
+						lipshitz_condition = true;
+						if (L[i] > Lmin)
+							L[i] /= Lshrink;
 
-				} else {
+						vops->copy(isize[i], x_old[i], x[i]);
+						vops->copy(isize[i], x[i], x_new[i]);
 
-					reduce_momentum_scale /= Lincrease;
-					L[i] *= Lincrease;
+						r_i = r_new; //reuse the new residual within one batch (no update of training data)
+
+					} else {
+
+						reduce_momentum_scale /= Lincrease;
+						L[i] *= Lincrease;
+					}
 				}
 
+				args[NO + i] = x[i];
 
-			}
+				vops->del(grad[i]);
+				vops->del(tmp[i]);
+				vops->del(y[i]);
+				vops->del(x_new[i]);
 
-			args[NO + i] = x[i];
+				grad[i] = NULL;
+				tmp[i] = NULL;
+				y[i] = NULL;
+				z[i] = NULL;
+				x_new[i] = NULL;
 
-			vops->del(grad[i]);
-			vops->del(tmp[i]);
-			vops->del(y[i]);
-			vops->del(x_new[i]);
+				int batchnorm_counter = 0;
+				for (int i = 0; i < NI; i++) {
 
-			grad[i] = NULL;
-			tmp[i] = NULL;
-			y[i] = NULL;
-			z[i] = NULL;
-			x_new[i] = NULL;
-
-			int batchnorm_counter = 0;
-			for (int i = 0; i < NI; i++) {
-
-				if (in_type[i] == IN_BATCHNORM) {
+					if (in_type[i] == IN_BATCHNORM) {
 
 						int o = 0;
 						int j = batchnorm_counter;
 
 						while ((OUT_BATCHNORM != out_type[o]) || (j > 0)) {
 
-						if (OUT_BATCHNORM == out_type[o])
-							j--;
-						o++;
+							if (OUT_BATCHNORM == out_type[o])
+								j--;
+							o++;
 						}
 
 						vops->smul(isize[i], batchnorm_momentum, x[i], x[i]);
 						vops->axpy(isize[i], x[i],  1. - batchnorm_momentum, args[o]);
 
-
 						batchnorm_counter++;
 					}
 				}
+			}
+
+			char post_string[20 * NI];
+			sprintf (post_string, " ");
+
+			for (int i = 0; i < NI; i++)
+				if (IN_OPTIMIZE == in_type[i])
+					sprintf(post_string + strlen(post_string), "L[%d]=%.3e ", i, L[i]);
+
+			monitor_iter6(monitor, epoch, batch, N_batch, r_i, NI, (const float**)x, post_string);
 		}
-
-
-
-		char post_string[20 * NI];
-		sprintf (post_string, " ");
-
-		for (int i = 0; i < NI; i++)
-			if (IN_OPTIMIZE == in_type[i])
-				sprintf(post_string + strlen(post_string), "L[%d]=%.3e ", i, L[i]);
-
-		monitor_iter6(monitor, epoch, batch, N_batch, r_i, NI, (const float**)x, post_string);
-	}
 	}
 
 
