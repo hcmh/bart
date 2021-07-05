@@ -5,6 +5,10 @@
 #include <libgen.h>
 #include <string.h>
 
+#include "grecon/opt_iter6.h"
+#include "grecon/losses.h"
+#include "grecon/network.h"
+
 #include "noncart/nufft.h"
 
 #include "misc/misc.h"
@@ -24,7 +28,6 @@
 
 #include "misc/debug.h"
 #include "misc/opts.h"
-#include "misc/opts_json.h"
 #include "misc/mmio.h"
 
 #include "nn/weights.h"
@@ -49,19 +52,7 @@ static const char help_str[] = "Trains or appplies a neural network for reconstr
 
 int main_reconet(int argc, char* argv[])
 {
-	const char* kspace_file = NULL;
-	const char* sens_file = NULL;
-	const char* weights_file = NULL;
-	const char* out_file = NULL;
-
-	struct arg_s args[] = {
-
-		ARG_INFILE(true, &kspace_file, "kspace"),
-		ARG_INFILE(true, &sens_file, "sens"),
-		ARG_INOUTFILE(true, &weights_file, "weights"),
-		ARG_INOUTFILE(true, &out_file, "out/ref"),
-	};
-
+	opts_iter6_init();
 
 	struct reconet_s config = reconet_config_opts;
 
@@ -73,11 +64,9 @@ int main_reconet(int argc, char* argv[])
 
 	long Nb = 0;
 
-	bool one_iter = false;
 	bool load_mem = false;
 
 	bool normalize = false;
-	bool regrid = false;
 
 	bool varnet_default = false;
 	bool modl_default = false;
@@ -94,35 +83,42 @@ int main_reconet(int argc, char* argv[])
 
 	struct opt_s dc_opts[] = {
 
-		OPTL_FLOAT(0, "fix-lambda", &(config.dc_lambda_fixed), "float", "fix lambda to specified value (-1 means train lambda)"),
-		OPTL_FLOAT(0, "lambda-init", &(config.dc_lambda_init), "float", "initialize lambda with specified value"),
-		OPTL_SET(0, "dc-gradient-step", &(config.dc_gradient), "use gradient steps for data-consistency"),
-		OPTL_SET(0, "dc-proximal-mapping", &(config.dc_tickhonov), "use proximal mapping for data-consistency"),
-		OPTL_INT(0, "dc-max-cg-iter", &(config.dc_max_iter), "int", "number of cg steps for proximal mapping"),
+		OPTL_FLOAT(0, "fix-lambda", &(config.dc_lambda_fixed), "f", "fix lambda to specified value (-1 means train lambda)"),
+		OPTL_FLOAT(0, "lambda-init", &(config.dc_lambda_init), "f", "initialize lambda with specified value"),
+		OPTL_SET(0, "gradient-step", &(config.dc_gradient), "use gradient steps for data-consistency"),
+		OPTL_SET(0, "gradient-max-eigen", &(config.dc_scale_max_eigen), "scale stepsize by inverse max eigen value of A^HA"),
+		OPTL_SET(0, "proximal-mapping", &(config.dc_tickhonov), "use proximal mapping for data-consistency"),
+		OPTL_INT(0, "max-cg-iter", &(config.dc_max_iter), "d", "number of cg steps for proximal mapping"),
+	};
 
-		OPTL_SET(0, "init-tickhonov", &(config.tickhonov_init), "init network with Tickhonov regularized reconstruction instead of adjoint reconstruction"),
-		OPTL_INT(0, "init-max-cg-iter", &(config.init_max_iter), "int", "number of cg steps for initialization"),
-		OPTL_FLOAT(0, "init-fix-lambda", &(config.init_lambda_fixed), "float", "fix lambda for initialization to specified value (-1 means train lambda)"),
-		OPTL_FLOAT(0, "init-lambda-init", &(config.init_lambda_init), "float", "initialize lambda for initialization with specified value"),
+	struct opt_s init_opts[] = {
+
+		OPTL_SET(0, "tickhonov", &(config.tickhonov_init), "init network with Tickhonov regularized reconstruction instead of adjoint reconstruction"),
+		OPTL_INT(0, "max-cg-iter", &(config.init_max_iter), "d", "number of cg steps for Tickhonov regularized reconstruction"),
+		OPTL_FLOAT(0, "fix-lambda", &(config.init_lambda_fixed), "f", "fix lambda to specified value (-1 means train lambda)"),
+		OPTL_FLOAT(0, "lambda-init", &(config.init_lambda_init), "f", "initialize lambda with specified value"),
 	};
 
 	struct opt_s valid_opts[] = {
 
-		OPTL_INFILE('t', "trajectory", &(valid_data.filename_trajectory), "file", "validation data trajectory"),
-		OPTL_INFILE('p', "pattern", &(valid_data.filename_pattern), "file", "validation data sampling pattern / psf in kspace"),
-		OPTL_INFILE('k', "kspace", &(valid_data.filename_kspace), "file", "validation data kspace"),
-		OPTL_INFILE('c', "coil", &(valid_data.filename_coil), "file", "validation data sensitivity maps"),
-		OPTL_INFILE('r', "ref", &(valid_data.filename_out), "file", "validation data reference"),
+		OPTL_INFILE('t', "trajectory", &(valid_data.filename_trajectory), "<file>", "validation data trajectory"),
+		OPTL_INFILE('p', "pattern", &(valid_data.filename_pattern), "<file>", "validation data sampling pattern / psf in kspace"),
+		OPTL_INFILE('k', "kspace", &(valid_data.filename_kspace), "<file>", "validation data kspace"),
+		OPTL_INFILE('c', "coil", &(valid_data.filename_coil), "<file>", "validation data sensitivity maps"),
+		OPTL_INFILE('r', "ref", &(valid_data.filename_out), "<file>", "validation data reference"),
 	};
 
 	struct opt_s network_opts[] = {
 
 		OPTL_SET(0, "modl", &(modl_default), "use MoDL Network (also sets train and data-consistency default values)"),
 		OPTL_SET(0, "varnet", &(varnet_default), "use Variational Network (also sets train and data-consistency default values)"),
-		OPTL_SET(0, "unet", &(unet_default), "use U-Net (also sets train and data-consistency default values)"),
+		//OPTL_SET(0, "unet", &(unet_default), "use U-Net (also sets train and data-consistency default values)"),
 
-		OPTL_SELECT(0, "resnet-block", enum NETWORK_SELECT, &net, NETWORK_RESBLOCK, "use residual block (overwrite default)"),
-		OPTL_SELECT(0, "varnet-block", enum NETWORK_SELECT, &net, NETWORK_VARNET, "use variational block (overwrite default)"),
+		OPTL_SET(0, "kspace", &(config.kspace), "network acting in kspace"),
+		OPTL_SET(0, "reinsert-init", &(config.reinsert), "reinsert initial reconstruction at each iteration"),
+
+		//OPTL_SELECT(0, "resnet-block", enum NETWORK_SELECT, &net, NETWORK_RESBLOCK, "use residual block (overwrite default)"),
+		//OPTL_SELECT(0, "varnet-block", enum NETWORK_SELECT, &net, NETWORK_VARNET, "use variational block (overwrite default)"),
 	};
 
 	const struct opt_s opts[] = {
@@ -133,20 +129,20 @@ int main_reconet(int argc, char* argv[])
 
 		OPTL_SET('g', "gpu", &(config.gpu), "run on gpu"),
 
-		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "file", "load weights for continuing training"),
-		OPTL_LONG('b', "batch-size", &(Nb), "d", "size of mini batches"),
+		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "<weights-init>", "load weights for continuing training"),
+		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
 
-		OPTL_LONG('I', "iterations", &(config.Nt), "d", "number of unrolled iterations"),
+		OPTL_LONG('I', "iterations", &(config.Nt), "", "number of unrolled iterations"),
 
 		OPTL_SET('n', "normalize", &(config.normalize), "normalize data with maximum magnitude of adjoint reconstruction"),
-		OPTL_SET(0, "regrid", &(regrid), "grids fully sampled kspace by applying pattern"),
 
 		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
-		OPTL_SUBOPT(0, "config-resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
-		OPTL_SUBOPT(0, "config-varnet-block", "...", "configure variational block", N_variational_block_opts, variational_block_opts),
-		OPTL_SUBOPT(0, "config-unet", "...", "configure U-Net block", N_unet_reco_opts, unet_reco_opts),
+		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
+		OPTL_SUBOPT(0, "varnet-block", "...", "configure variational block", N_variational_block_opts, variational_block_opts),
+		OPTL_SUBOPT(0, "unet", "...", "configure U-Net block", N_unet_reco_opts, unet_reco_opts),
 
-		OPTL_SUBOPT(0, "config-dc", "...", "configure data-consistency methode", ARRAY_SIZE(dc_opts), dc_opts),
+		OPTL_SUBOPT(0, "data-consistency", "...", "configure data-consistency method", ARRAY_SIZE(dc_opts), dc_opts),
+		OPTL_SUBOPT(0, "initial-reco", "...", "configure initialization", ARRAY_SIZE(init_opts), init_opts),
 
 		OPTL_SELECT(0, "shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_TRUE, "share weights across iterations"),
 		OPTL_SELECT(0, "no-shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_FALSE, "share weights across iterations"),
@@ -154,34 +150,44 @@ int main_reconet(int argc, char* argv[])
 		OPTL_SELECT(0, "no-shared-lambda", enum BOOL_SELECT, &(config.share_lambda_select), BOOL_FALSE, "share lambda across iterations"),
 
 
-		OPTL_INFILE(0, "trajectory", &(data.filename_trajectory), "file", "trajectory"),
-		OPTL_INFILE(0, "pattern", &(data.filename_pattern), "file", "sampling pattern / psf in kspace"),
+		OPTL_INFILE(0, "trajectory", &(data.filename_trajectory), "<traj>", "trajectory"),
+		OPTL_INFILE(0, "pattern", &(data.filename_pattern), "<pattern>", "sampling pattern / psf in kspace"),
 
 		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
 
-		OPTL_SUBOPT(0, "loss", "...", "configure the training loss", N_loss_opts, loss_opts),
+		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 		OPTL_SUBOPT(0, "valid-loss", "...", "configure the validation loss", N_val_loss_opts, val_loss_opts),
 
-		OPTL_SUBOPT('T', "train-config", "...", "configure general training parmeters", N_iter6_opts, iter6_opts),
+		OPTL_FLOAT(0, "multi-loss", &(config.multi_loss), "f", "include loss of previous iterations weighted by f^(I-1)"),
+
+		OPTL_SUBOPT('T', "train-algo", "...", "configure general training parmeters", N_iter6_opts, iter6_opts),
 		OPTL_SUBOPT(0, "adam", "...", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
 		OPTL_SUBOPT(0, "iPALM", "...", "configure iPALM", N_iter6_ipalm_opts, iter6_ipalm_opts),
 
-		OPTL_SET('o', "one-iter", &one_iter, "only one iteration for initialization"),
-
-		OPTL_SET('m', "load-data", &(load_mem), "load files int memory"),
-		OPTL_SET(0, "low-mem", &(config.low_mem), "reduce memory usage by checkpointing"),
+		OPTL_SET(0, "load-memory", &(load_mem), "copy training data into memory"),
+		OPTL_SET(0, "lowmem", &(config.low_mem), "reduce memory usage by checkpointing"),
 
 		OPTL_SET(0, "test", &(test_defaults), "very small network for tests"),
-		OPTL_STRING(0, "export_graph", (const char**)(&(graph_filename)), "file.dot", "file for dumping graph"),
+		OPTL_STRING(0, "export-graph", (const char**)(&(graph_filename)), "<file.dot>", "export graph for visualization"),
+	};
+
+	const char* filename_weights;
+
+	struct arg_s args[] = {
+
+		ARG_INFILE(true, &(data.filename_kspace), "kspace"),
+		ARG_INFILE(true, &(data.filename_coil), "sensitivities"),
+		ARG_INOUTFILE(true, &filename_weights, "weights"),
+		ARG_INOUTFILE(true, &(data.filename_out), "ref/out"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
-	data.filename_kspace = kspace_file;
-	data.filename_coil = sens_file;
-	data.filename_out = out_file;
+	if (train)
+		config.train_conf = iter6_get_conf_from_opts();
 
-	config.train_conf = iter6_get_conf_from_opts();
+	config.valid_loss = get_val_loss_from_option();
+	config.train_loss = get_loss_from_option();
 
 	config.network = get_default_network(net);
 
@@ -209,10 +215,11 @@ int main_reconet(int argc, char* argv[])
 		if (NULL == config.train_conf) {
 
 			debug_printf(DP_WARN, "No training algorithm selected. Fallback to Adam!");
-			config.train_conf = CAST_UP(&iter6_adam_conf_opts);
-		}
+			iter_6_select_algo = ITER6_ADAM;
+			config.train_conf = iter6_get_conf_from_opts();
 
-		iter6_copy_config_from_opts(config.train_conf);
+		} else
+			iter6_copy_config_from_opts(config.train_conf);
 	}
 
 	if (NULL == config.network)
@@ -221,13 +228,11 @@ int main_reconet(int argc, char* argv[])
 
 
 	if ((0 < config.train_conf->dump_mod) && (NULL == config.train_conf->dump_filename))
-		config.train_conf->dump_filename = weights_file;
+		config.train_conf->dump_filename = filename_weights;
 
-	if (one_iter)
-		config.Nt = 1;
 
-	if (regrid)
-		config.mri_config->regrid = true;
+	if (NULL != data.filename_trajectory)
+		config.mri_config->gridded = true;
 
 	if (0 == Nb)
 		Nb = 10;
@@ -236,7 +241,7 @@ int main_reconet(int argc, char* argv[])
 		config.normalize = true;
 
 	if (0 < config.train_conf->dump_mod)
-		config.train_conf->dump_filename = weights_file;
+		config.train_conf->dump_filename = filename_weights;
 
 
 	if (((train || eval) && apply) || (!train && !apply && ! eval))
@@ -256,32 +261,39 @@ int main_reconet(int argc, char* argv[])
 	if (apply)
 		data.create_out = true;
 
+	data.load_mem = load_mem;
 	load_network_data(&data);
+
 	bool use_valid_data = (NULL != valid_data.filename_coil) && (NULL != valid_data.filename_kspace) && (NULL != valid_data.filename_out);
-	network_data_check_simple_dims(&data);
 
 	config.graph_file = graph_filename;
 
 	if (NULL != filename_weights_load)
 		config.weights = load_nn_weights(filename_weights_load);
 
+	if (NULL != data.filename_trajectory) {
+
+		config.mri_config->noncart = true;
+		config.mri_config->nufft_conf = data.nufft_conf;
+	}
+
 	if (train) {
 
-		train_reconet(&config, 5, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb, use_valid_data ? &valid_data : NULL);
-		dump_nn_weights(weights_file, config.weights);
+		train_reconet(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf, Nb, use_valid_data ? &valid_data : NULL);
+		dump_nn_weights(filename_weights, config.weights);
 	}
 
 	if (eval) {
 
 		if (NULL == config.weights)
-			config.weights = load_nn_weights(weights_file);
-		eval_reconet(&config, 5, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb);
+			config.weights = load_nn_weights(filename_weights);
+		eval_reconet(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf, Nb);
 	}
 
 	if (apply) {
 
-		config.weights = load_nn_weights(weights_file);
-		apply_reconet_batchwise(&config, 5, data.idims, data.out, data.kdims, data.kspace, data.cdims, data.coil, data.pdims, data.pattern, Nb);
+		config.weights = load_nn_weights(filename_weights);
+		apply_reconet_batchwise(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf, Nb);
 	}
 
 	nn_weights_free(config.weights);

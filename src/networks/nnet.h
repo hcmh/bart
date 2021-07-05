@@ -52,7 +52,7 @@ extern void apply_nnet_batchwise(
 extern void train_nnet(	struct nnet_s* nnet,
 			unsigned int NO, const long odims[NO], const _Complex float* out,
 			unsigned int NI, const long idims[NI], const _Complex float* in,
-			long Nb);
+			long Nb, const struct nn_weights_s* valid_files);
 
 extern void eval_nnet(	struct nnet_s* nnet,
 			unsigned int NO, const long odims[NO], const _Complex float* out,

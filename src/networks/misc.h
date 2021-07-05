@@ -3,10 +3,15 @@
 
 struct network_data_s {
 
-	long kdims[DIMS];
-	long cdims[DIMS];
-	long pdims[DIMS];
-	long idims[DIMS];
+	int N;
+	int ND;
+
+	long ksp_dims[DIMS];
+	long col_dims[DIMS];
+	long psf_dims[DIMS + 1];
+	long img_dims[DIMS];
+	long max_dims[DIMS];
+	long cim_dims[DIMS];
 
 	const char* filename_trajectory;
 	const char* filename_pattern;
@@ -15,9 +20,12 @@ struct network_data_s {
 	const char* filename_out;
 
 	_Complex float* kspace;
+	_Complex float* adjoint;
 	_Complex float* coil;
-	_Complex float* pattern;
+	_Complex float* psf;
 	_Complex float* out;
+
+	struct nufft_conf_s* nufft_conf;
 
 	_Bool create_out;
 	_Bool load_mem;

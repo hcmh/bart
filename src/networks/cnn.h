@@ -4,7 +4,6 @@
 
 #include "misc/mri.h"
 #include "misc/types.h"
-#include "misc/opts.h"
 #include "nn/layers.h"
 #include "nn/activation.h"
 #include "nn/nn.h"
@@ -22,15 +21,6 @@ typedef struct network_s {
 	_Bool low_mem;
 
 } network_t;
-
-enum NETWORK_SELECT {
-	NETWORK_NONE,
-	NETWORK_MNIST,
-	NETWORK_RESBLOCK,
-	NETWORK_VARNET,
-};
-
-extern struct network_s* get_default_network(enum NETWORK_SELECT net);
 
 extern nn_t network_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 
@@ -63,10 +53,6 @@ struct network_resnet_s {
 	enum ACTIVATION last_activation;
 };
 extern struct network_resnet_s network_resnet_default;
-extern const int N_res_block_opts;
-extern struct opt_s res_block_opts[];
-extern nn_t network_resnet_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
-
 
 struct network_varnet_s {
 
@@ -87,12 +73,8 @@ struct network_varnet_s {
 	float init_scale_mu;
 };
 
-extern const int N_variational_block_opts;
-extern struct opt_s variational_block_opts[];
 extern struct network_varnet_s network_varnet_default;
-extern nn_t network_varnet_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 
 extern struct network_s network_mnist_default;
-nn_t network_mnist_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 
 #endif

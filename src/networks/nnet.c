@@ -9,6 +9,7 @@
 #include "misc/debug.h"
 #include "misc/misc.h"
 
+#include "num/ops.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/iovec.h"
@@ -27,12 +28,15 @@
 #include "nlops/const.h"
 #include "nlops/someops.h"
 
+#include "nn/misc.h"
 #include "nn/nn.h"
+#include "nn/const.h"
 #include "nn/weights.h"
 #include "nn/init.h"
 #include "nn/losses.h"
 #include "nn/chain.h"
 #include "nn/weights.h"
+#include "nn/layers.h"
 
 #include "networks/unet.h"
 #include "networks/losses.h"
@@ -40,7 +44,6 @@
 
 
 #include "nnet.h"
-#include "num/ops.h"
 
 struct nnet_s nnet_init = {
 
@@ -86,14 +89,20 @@ void nnet_init_mnist_default(struct nnet_s* nnet)
 	}
 
 	PTR_ALLOC(struct network_s, network);
-	network->create = network_mnist_create;
+	*network = network_mnist_default;
 	nnet->network = PTR_PASS(network);
 
 	nnet->get_no_odims = get_no_odims_mnist;
 	nnet->get_odims = get_odims_mnist;
 
-	nnet->train_loss = loss_option_changed(&loss_option) ? &loss_option : &loss_classification;
-	nnet->valid_loss = loss_option_changed(&val_loss_option) ? &val_loss_option : &loss_classification_valid;
+	if (NULL == nnet->train_loss) {
+
+		nnet->train_loss =  &loss_option;
+		nnet->train_loss->weighting_cce = 1.;
+	}
+
+	if (NULL == nnet->valid_loss)
+		nnet->valid_loss =  &loss_classification_valid;
 }
 
 static unsigned int get_no_odims_segm(const struct nnet_s* config, unsigned int NI, const long idims[NI])
@@ -124,8 +133,14 @@ void nnet_init_unet_segm_default(struct nnet_s* nnet, long N_segm_labels)
 	nnet->get_no_odims = get_no_odims_segm;
 	nnet->get_odims = get_odims_segm;
 
-	nnet->train_loss = &loss_classification;
-	nnet->valid_loss = &loss_classification_valid;
+	if (NULL == nnet->train_loss) {
+
+		nnet->train_loss =  &loss_option;
+		nnet->train_loss->weighting_cce = 1.;
+	}
+
+	if (NULL == nnet->valid_loss)
+		nnet->valid_loss =  &loss_classification_valid;
 
 	nnet->N_segm_labels = N_segm_labels;
 }
@@ -140,7 +155,7 @@ static nn_t nnet_network_create(const struct nnet_s* config, unsigned int NO, co
 static nn_t nnet_train_create(const struct nnet_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI])
 {
 	auto train_op = nnet_network_create(config, NO, odims, NI, idims, STAT_TRAIN);
-	auto loss = loss_create(config->train_loss, NO, odims, true);
+	auto loss = train_loss_create(config->train_loss, NO, odims);
 	train_op = nn_chain2_FF(train_op, 0, NULL, loss, 0, NULL);
 
 	return train_op;
@@ -152,10 +167,29 @@ static nn_t nnet_apply_op_create(const struct nnet_s* config, unsigned int NO, c
 	return nn_get_wo_weights_F(nn_apply, config->weights, false);
 }
 
+static nn_t nnet_valid_create(const struct nnet_s* config, const struct nn_weights_s* vf)
+{
+	auto iov_o = vf->iovs[1];
+	auto iov_i = vf->iovs[0];
+
+	auto valid_loss = nnet_network_create(config, iov_o->N, iov_o->dims, iov_i->N, iov_i->dims, STAT_TEST);
+	valid_loss = nn_del_out_bn_F(valid_loss);
+
+	auto loss = val_measure_create(config->valid_loss, iov_o->N, iov_o->dims);
+	valid_loss = nn_chain2_FF(valid_loss, 0, NULL, loss, 0, NULL);
+
+	valid_loss = nn_ignore_input_F(valid_loss, 0, NULL, iov_o->N, iov_o->dims, true, vf->tensors[1]);
+	valid_loss = nn_ignore_input_F(valid_loss, 1, NULL, iov_i->N, iov_i->dims, true, vf->tensors[0]);
+
+	return valid_loss;
+}
+
+
+
 void train_nnet(struct nnet_s* config,
 		unsigned int NO, const long odims[NO], const complex float* out,
 		unsigned int NI, const long idims[NI], const complex float* in,
-		long Nb)
+		long Nb, const struct nn_weights_s* valid_files)
 {
 	long Nt = odims[NO - 1];
 	assert(Nt == idims[NI - 1]);
@@ -180,27 +214,14 @@ void train_nnet(struct nnet_s* config,
 		nn_init(nn_train, config->weights);
 	}
 
-	dump_nn_weights("init_nnet", config->weights);
-
 	if (config->gpu)
 		move_gpu_nn_weights(config->weights);
 
-	//create batch generator
-	unsigned int N = MAX(NO, NI);
-	long batchgen_odims[N];
-	long batchgen_idims[N];
-	md_copy_dims(NO, batchgen_odims, odims);
-	md_copy_dims(NI, batchgen_idims, idims);
-	md_singleton_dims(N - NO, batchgen_odims + NO);
-	md_singleton_dims(N - NI, batchgen_idims + NI);
-	batchgen_odims[N - 1] = Nb;
-	batchgen_idims[N - 1] = Nb;
-	batchgen_odims[NO - 1] = (NO < N) ? 1 : Nb;
-	batchgen_idims[NI - 1] = (NI < N) ? 1 : Nb;
 
 	const complex float* train_data[] = {out, in};
-	const long* train_dims[] = { batchgen_odims, batchgen_idims };
-	auto batch_generator = batch_gen_create_from_iter(config->train_conf, 2, N, train_dims, train_data, Nt, 0);
+	const long* bat_dims[] = { bodims, bidims };
+	const long* tot_dims[] = { odims, idims };
+	auto batch_generator = batch_gen_create_from_iter(config->train_conf, 2, (const int[2]){NO, NI}, bat_dims, tot_dims, train_data, 0);
 
 	//setup for iter algorithm
 	int II = nn_get_nr_in_args(nn_train);
@@ -232,13 +253,31 @@ void train_nnet(struct nnet_s* config,
 	for (int i = 0; i < II; i++)
 		projections[i] = nn_get_prox_op_arg_index(nn_train, i);
 
-	iter6_by_conf(config->train_conf, nn_get_nlop(nn_train), II, in_type, projections, src, OO, out_type, Nb, Nt / Nb, batch_generator, NULL);
+	int num_monitors = 0;
+	const struct monitor_value_s* value_monitors[1];
+
+	if (NULL != valid_files) {
+
+		auto nn_validation_loss = nnet_valid_create(config, valid_files);
+		const char* val_names[nn_get_nr_out_args(nn_validation_loss)];
+		for (int i = 0; i < nn_get_nr_out_args(nn_validation_loss); i++)
+			val_names[i] = nn_get_out_name_from_arg_index(nn_validation_loss, i, false);
+		value_monitors[num_monitors] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, nn_get_nr_out_args(nn_validation_loss), val_names);
+		nn_free(nn_validation_loss);
+		num_monitors += 1;
+	}
+
+	struct monitor_iter6_s* monitor = monitor_iter6_create(true, true, num_monitors, value_monitors);
+
+	iter6_by_conf(config->train_conf, nn_get_nlop(nn_train), II, in_type, projections, src, OO, out_type, Nb, Nt / Nb, batch_generator, monitor);
 
 	if (NULL != config->graph_file)
-		nn_export_graph(config->graph_file, nn_train, graph_stats);
+		nn_export_graph(config->graph_file, nn_train);
 
 	nn_free(nn_train);
 	nlop_free(batch_generator);
+
+	monitor_iter6_free(monitor);
 }
 
 
@@ -254,7 +293,7 @@ void apply_nnet(	const struct nnet_s* config,
 	static bool export = true;
 	if (export && NULL != config->graph_file) {
 
-		nn_export_graph(config->graph_file, nnet, graph_default);
+		nn_export_graph(config->graph_file, nnet);
 		export = false;
 	}
 
@@ -314,24 +353,27 @@ extern void eval_nnet(	struct nnet_s* nnet,
 {
 	complex float* tmp_out = md_alloc(NO, odims, CFL_SIZE);
 
-	auto loss = loss_create(nnet->valid_loss, NO, odims, false);
-	unsigned int N = nn_get_nr_out_args(loss);
+	auto loss = val_measure_create(nnet->valid_loss, NO, odims);
+	int N = nn_get_nr_out_args(loss);
 	complex float losses[N];
 	md_clear(1, MD_DIMS(N), losses, CFL_SIZE);
 
 	apply_nnet_batchwise(nnet, NO, odims, tmp_out, NI, idims, in, Nb);
 
 	complex float* args[N + 2];
-	for (unsigned int i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 		args[i] = losses + i;
 
 	args[N] = tmp_out;
 	args[N + 1] = (complex float*)out;
 
 	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(loss), N + 2, (void**)args, 0, 0);
-	for (unsigned int i = 0; i < N ; i++)
+	for (int i = 0; i < N ; i++)
 		debug_printf(DP_INFO, "%s: %e\n", nn_get_out_name_from_arg_index(loss, i, false), crealf(losses[i]));
 
 	nn_free(loss);
+
+	print_confusion_matrix(NO, odims, 0, tmp_out, out);
+
 	md_free(tmp_out);
 }

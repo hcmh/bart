@@ -1,4 +1,8 @@
 
+#include <string.h>
+
+#include "iter/italgos.h"
+
 #include "misc/misc.h"
 #include "misc/opts.h"
 #include "misc/mri.h"
@@ -31,6 +35,7 @@ struct loss_config_s loss_option = {
 	.weighting_ssim = 0.,
 
 	.weighting_cce = 0.,
+	.weighting_weighted_cce = 0.,
 	.weighting_accuracy = 0.,
 
 	.weighting_dice0 = 0.,
@@ -38,55 +43,8 @@ struct loss_config_s loss_option = {
 	.weighting_dice2 = 0.,
 
 	.label_index = 0,
+	.image_flags = FFT_FLAGS,
 };
-
-bool loss_option_changed(struct loss_config_s* loss_option)
-{
-	if (0 != loss_option->weighting_mse_sa)
-		return true;
-	if (0 != loss_option->weighting_mse)
-		return true;
-	if (0 != loss_option->weighting_psnr)
-		return true;
-	if (0 != loss_option->weighting_ssim)
-		return true;
-
-	if (0 != loss_option->weighting_cce)
-		return true;
-	if (0 != loss_option->weighting_accuracy)
-		return true;
-
-	if (0 != loss_option->weighting_dice0)
-		return true;
-	if (0 != loss_option->weighting_dice1)
-		return true;
-	if (0 != loss_option->weighting_dice2)
-		return true;
-
-	return false;
-}
-
-struct opt_s loss_opts[] = {
-
-	OPTL_FLOAT(0, "mse", &(loss_option.weighting_mse), "weighting", "weighting for mean squared error"),
-	OPTL_FLOAT(0, "mse_sa", &(loss_option.weighting_mse_sa), "weighting", "weighting for smoothed mean squared error of magnitude"),
-	//OPTL_FLOAT(0, "psnr", &(loss_option.weighting_psnr), "weighting", "weighting for peak signal to noise ratio (no training)"),
-	//OPTL_FLOAT(0, "ssim", &(loss_option.weighting_ssim), "weighting", "weighting for structural similarity index measure (no training)"),
-
-	OPTL_FLOAT(0, "cce", &(loss_option.weighting_cce), "weighting", "weighting for categorical cross entropy"),
-	//OPTL_FLOAT(0, "acc", &(loss_option.weighting_accuracy), "weighting", "weighting for accuracy (no training)"),
-
-	OPTL_FLOAT(0, "dice0", &(loss_option.weighting_dice0), "weighting", "weighting for unbalanced dice loss"),
-	OPTL_FLOAT(0, "dice1", &(loss_option.weighting_dice1), "weighting", "weighting for dice loss weighted with inverse frequency of label"),
-	OPTL_FLOAT(0, "dice2", &(loss_option.weighting_dice2), "weighting", "weighting for dice loss weighted with inverse square frequency of label"),
-
-	//OPTL_FLOAT(0, "dicel", &(loss_option.weighting_dice2), "weighting", "weighting for per label dice loss"),
-
-	OPTL_UINT(0, "label_dim", &(loss_option.label_index), "index", "label dimension"),
-};
-
-const int N_loss_opts = ARRAY_SIZE(loss_opts);
-
 
 struct loss_config_s val_loss_option = {
 
@@ -96,6 +54,7 @@ struct loss_config_s val_loss_option = {
 	.weighting_ssim = 0.,
 
 	.weighting_cce = 0.,
+	.weighting_weighted_cce = 0.,
 	.weighting_accuracy = 0.,
 
 	.weighting_dice0 = 0.,
@@ -103,86 +62,7 @@ struct loss_config_s val_loss_option = {
 	.weighting_dice2 = 0.,
 
 	.label_index = 0,
-};
-
-
-struct opt_s val_loss_opts[] = {
-
-	OPTL_FLOAT(0, "mse", &(val_loss_option.weighting_mse), "weighting", "weighting for mean squared error"),
-	OPTL_FLOAT(0, "mse_sa", &(val_loss_option.weighting_mse_sa), "weighting", "weighting for smoothed mean squared error of magnitude"),
-	OPTL_FLOAT(0, "psnr", &(val_loss_option.weighting_psnr), "weighting", "weighting for peak signal to noise ratio (no training)"),
-	OPTL_FLOAT(0, "ssim", &(val_loss_option.weighting_ssim), "weighting", "weighting for structural similarity index measure (no training)"),
-
-	OPTL_FLOAT(0, "cce", &(val_loss_option.weighting_cce), "weighting", "weighting for categorical cross entropy"),
-	OPTL_FLOAT(0, "acc", &(val_loss_option.weighting_accuracy), "weighting", "weighting for accuracy (no training)"),
-
-	OPTL_FLOAT(0, "dice0", &(val_loss_option.weighting_dice0), "weighting", "weighting for unbalanced dice loss"),
-	OPTL_FLOAT(0, "dice1", &(val_loss_option.weighting_dice1), "weighting", "weighting for dice loss weighted with inverse frequency of label"),
-	OPTL_FLOAT(0, "dice2", &(val_loss_option.weighting_dice2), "weighting", "weighting for dice loss weighted with inverse square frequency of label"),
-
-	OPTL_FLOAT(0, "dicel", &(val_loss_option.weighting_dice2), "weighting", "weighting for per label dice loss"),
-
-	OPTL_UINT(0, "label_dim", &(val_loss_option.label_index), "index", "label dimension"),
-};
-
-const int N_val_loss_opts = ARRAY_SIZE(val_loss_opts);
-
-
-struct loss_config_s loss_empty = {
-
-	.weighting_mse_sa = 0.,
-	.weighting_mse = 0.,
-	.weighting_psnr = 0.,
-	.weighting_ssim = 0.,
-
-	.weighting_cce = 0.,
-	.weighting_accuracy = 0.,
-
-	.weighting_dice0 = 0.,
-	.weighting_dice1 = 0.,
-	.weighting_dice2 = 0.,
-
-	.weighting_dice_labels = 0.,
-
-	.label_index = 0,
-};
-
-struct loss_config_s loss_mse = {
-
-	.weighting_mse_sa = 0.,
-	.weighting_mse = 1.,
-	.weighting_psnr = 0.,
-	.weighting_ssim = 0.,
-
-	.weighting_cce = 0.,
-	.weighting_accuracy = 0.,
-
-	.weighting_dice0 = 0.,
-	.weighting_dice1 = 0.,
-	.weighting_dice2 = 0.,
-
-	.weighting_dice_labels = 0.,
-
-	.label_index = 0,
-};
-
-struct loss_config_s loss_mse_sa = {
-
-	.weighting_mse_sa = 1.,
-	.weighting_mse = 0.,
-	.weighting_psnr = 0.,
-	.weighting_ssim = 0.,
-
-	.weighting_cce = 0.,
-	.weighting_accuracy = 0.,
-
-	.weighting_dice0 = 0.,
-	.weighting_dice1 = 0.,
-	.weighting_dice2 = 0.,
-
-	.weighting_dice_labels = 0.,
-
-	.label_index = 0,
+	.image_flags = FFT_FLAGS,
 };
 
 struct loss_config_s loss_image_valid = {
@@ -193,6 +73,7 @@ struct loss_config_s loss_image_valid = {
 	.weighting_ssim = 1.,
 
 	.weighting_cce = 0.,
+	.weighting_weighted_cce = 0.,
 	.weighting_accuracy = 0.,
 
 	.weighting_dice0 = 0.,
@@ -202,27 +83,8 @@ struct loss_config_s loss_image_valid = {
 	.weighting_dice_labels = 0.,
 
 	.label_index = 0,
+	.image_flags = FFT_FLAGS,
 };
-
-struct loss_config_s loss_classification = {
-
-	.weighting_mse_sa = 0.,
-	.weighting_mse = 0.,
-	.weighting_psnr = 0.,
-	.weighting_ssim = 0.,
-
-	.weighting_cce = 1.,
-	.weighting_accuracy = 0.,
-
-	.weighting_dice0 = 0.,
-	.weighting_dice1 = 0.,
-	.weighting_dice2 = 0.,
-
-	.weighting_dice_labels = 0.,
-
-	.label_index = 0,
-};
-
 
 struct loss_config_s loss_classification_valid = {
 
@@ -232,6 +94,7 @@ struct loss_config_s loss_classification_valid = {
 	.weighting_ssim = 0.,
 
 	.weighting_cce = 1.,
+	.weighting_weighted_cce = 1.,
 	.weighting_accuracy = 1.,
 
 	.weighting_dice0 = 1.,
@@ -241,6 +104,7 @@ struct loss_config_s loss_classification_valid = {
 	.weighting_dice_labels = 1.,
 
 	.label_index = 0,
+	.image_flags = FFT_FLAGS,
 };
 
 
@@ -309,7 +173,39 @@ static nn_t add_loss(nn_t loss, nn_t new_loss, bool combine) {
 	return result;
 }
 
-nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N], bool combine)
+static const struct nlop_s* nlop_affine_transform_out_F(const struct nlop_s* nlop, complex float a, complex float b)
+{
+	assert(1 == nlop_get_nr_out_args(nlop));
+	int N = nlop_generic_codomain(nlop, 0)->N;
+	const long* dims = nlop_generic_codomain(nlop, 0)->dims;
+
+	if (0 == b)
+		return nlop_chain2_FF(nlop, 0, nlop_from_linop_F(linop_scale_create(N, dims, a)), 0);
+
+	complex float* tmp = md_alloc(N, dims, CFL_SIZE);
+	md_zfill(N, dims, tmp, b);
+
+	auto result = nlop_zaxpbz_create(N, dims, a, 1);
+	result = nlop_set_input_const_F(result, 1, N, dims, true, tmp);
+
+	result = nlop_chain2_FF(nlop, 0, result, 0);
+
+	md_free(tmp);
+	return result;
+}
+
+static nn_t nlop_loss_to_nn_F(const struct nlop_s* nlop, const char* name, float weighting, bool measure)
+{
+	if (measure && 1 != weighting)
+		error("Scaling other than 0. and 1. is only allowed for losses!");
+
+	auto tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop, 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), weighting)), 0));
+	tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
+	tmp_loss = nn_set_output_name_F(tmp_loss, 0, name);
+	return tmp_loss;
+}
+
+static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int N, const long dims[N], bool combine, bool measure)
 {
 	UNUSED(dims);
 
@@ -321,94 +217,131 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, dims, 1.e-12), 0, tmp_loss_nlop, 0);
 		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, dims, 1.e-12), 0, tmp_loss_nlop, 0);
 
-		auto tmp_loss = nn_from_nlop_F(nlop_chain2_FF(tmp_loss_nlop, 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_mse_sa)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mse_sa");
-
-		result = add_loss(result, tmp_loss, combine);
+		result = add_loss(result, nlop_loss_to_nn_F(tmp_loss_nlop, "mse smoothed magnitunde", config->weighting_mse_sa, measure), combine);
 	}
 
 	if (0 != config->weighting_mse) {
 
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_mse_create(N, dims, ~0ul), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_mse)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mse");
-
-		result = add_loss(result, tmp_loss, combine);
+		result = add_loss(result, nlop_loss_to_nn_F(nlop_mse_create(N, dims, ~0ul), "mse", config->weighting_mse, measure), combine);
 	}
 
 	if (0 != config->weighting_psnr) {
 
-		assert(5 == N); //FIXME: should be more general
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_mpsnr_create(N, dims, MD_BIT(4)), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_psnr)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mpsnr");
+		auto nlop = nlop_mpsnr_create(N, dims, ~config->image_flags);
 
-		result = add_loss(result, tmp_loss, combine);
+		if (!measure) {
+
+			assert(0); //cannot be used for training
+			nlop = nlop_affine_transform_out_F(nlop, -1, 0);
+		}
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean psnr", config->weighting_psnr, measure), combine);
 	}
 
 	if (0 != config->weighting_ssim) {
 
-		assert(5 == N); //FIXME: should be more general
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_mssim_create(N, dims, MD_DIMS(7, 7, 1, 1, 1), FFT_FLAGS), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_ssim)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "mssim");
+		assert(5 <= N); //FIXME: should be more general
+		assert(0 == (config->image_flags & ~(MD_BIT(4) - 1))); //dim 4 becomes batch / average dim
 
-		result = add_loss(result, tmp_loss, combine);
+		long ndims[5];
+		md_copy_dims(4, ndims, dims);
+		ndims[4] = md_calc_size(N - 4, dims + 4);
+
+		auto nlop = nlop_mssim_create(5, ndims, MD_DIMS(7, 7, 1, 1, 1), config->image_flags);
+
+		if (!measure)
+			nlop = nlop_affine_transform_out_F(nlop, -1, 1);
+
+		nlop = nlop_reshape_in_F(nlop, 0, N, dims);
+		nlop = nlop_reshape_in_F(nlop, 1, N, dims);
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean ssim", config->weighting_ssim, measure), combine);
 	}
 
 	if (0 != config->weighting_cce) {
 
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_cce_create(N, dims, ~MD_BIT(config->label_index)), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_cce)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "cce");
+		if (0 > config->label_index)
+			error("Label index not set!");
 
-		result = add_loss(result, tmp_loss, combine);
+		auto nlop = nlop_cce_create(N, dims, ~MD_BIT(config->label_index));
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "cce", config->weighting_cce, measure), combine);
+	}
+
+	if (0 != config->weighting_weighted_cce) {
+
+		if (0 > config->label_index)
+			error("Label index not set!");
+
+		auto nlop = nlop_weighted_cce_create(N, dims, ~MD_BIT(config->label_index));
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "weighted cce", config->weighting_weighted_cce, measure), combine);
 	}
 
 	if (0 != config->weighting_accuracy) {
 
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_accuracy_create(N, dims, config->label_index), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_cce)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "accuracy");
+		if (0 > config->label_index)
+			error("Label index not set!");
 
-		result = add_loss(result, tmp_loss, combine);
+		if (!measure)
+			error("Accuracy cannot be used as training loss!");
+
+		auto nlop = nlop_accuracy_create(N, dims, config->label_index);
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "accuracy", config->weighting_accuracy, measure), combine);
 	}
 
 	if (0 != config->weighting_dice0) {
 
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, 0., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_dice0)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice0");
+		if (0 > config->label_index)
+			error("Label index not set!");
 
-		result = add_loss(result, tmp_loss, combine);
+		auto nlop = nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, 0., false);
+		if (measure)
+			nlop = nlop_affine_transform_out_F(nlop, -1, 1);
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, measure ? "dice sim 0" : "dice loss 0", config->weighting_dice0, measure), combine);
 	}
 
 	if (0 != config->weighting_dice1) {
 
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -1., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_dice1)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice1");
+		if (0 > config->label_index)
+			error("Label index not set!");
 
-		result = add_loss(result, tmp_loss, combine);
+		auto nlop = nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -1., false);
+		if (measure)
+			nlop = nlop_affine_transform_out_F(nlop, -1, 1);
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, measure ? "dice sim 1" : "dice loss 1", config->weighting_dice1, measure), combine);
 	}
 
 	if (0 != config->weighting_dice2) {
 
-		nn_t tmp_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -2., false), 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), config->weighting_dice2)), 0));
-		tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
-		tmp_loss = nn_set_output_name_F(tmp_loss, 0, "dice2");
+		if (0 > config->label_index)
+			error("Label index not set!");
 
-		result = add_loss(result, tmp_loss, combine);
+		auto nlop = nlop_dice_create(N, dims, MD_BIT(config->label_index), 0, -2., false);
+		if (measure)
+			nlop = nlop_affine_transform_out_F(nlop, -1, 1);
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, measure ? "dice sim 2" : "dice loss 2", config->weighting_dice2, measure), combine);
 	}
 
 
 	if (0 != config->weighting_dice_labels) {
 
+		if (0 > config->label_index)
+			error("Label index not set!");
+
 		long labels = dims[config->label_index];
 
 		auto dice = nlop_dice_generic_create(N, dims, MD_BIT(config->label_index), MD_BIT(config->label_index), 0., false);
 		dice = nlop_reshape_out_F(dice, 0, 1, MD_DIMS(md_calc_size(N, nlop_generic_codomain(dice, 0)->dims)));
+
+		if (measure)
+			dice = nlop_affine_transform_out_F(dice, -1, 1);
+		else
+			error("Dice labels are only supported as measure!");
 
 		dice = nlop_chain2_FF(dice, 0, nlop_from_linop_F(linop_scale_create(1, MD_DIMS(labels), config->weighting_dice_labels)), 0);
 		while (labels > 1) {
@@ -422,7 +355,7 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 
 		while (0 < nn_get_nr_unnamed_out_args(tmp_loss)) {
 
-			auto name = ptr_printf("dice_label_%d", labels++);
+			auto name = ptr_printf("dice sim (label %d)", labels++);
 			tmp_loss = nn_set_out_type_F(tmp_loss, 0, NULL, OUT_OPTIMIZE);
 			tmp_loss = nn_set_output_name_F(tmp_loss, 0, name);
 			xfree(name);
@@ -430,6 +363,57 @@ nn_t loss_create(const struct loss_config_s* config, unsigned int N, const long 
 
 		result = add_loss(result, tmp_loss, combine);
 	}
+
+	return result;
+}
+
+nn_t train_loss_create(const struct loss_config_s* config, unsigned int N, const long dims[N])
+{
+	return loss_measure_create(config, N, dims, true, false);
+}
+
+nn_t val_measure_create(const struct loss_config_s* config, unsigned int N, const long dims[N])
+{
+	return loss_measure_create(config, N, dims, false, true);
+}
+
+/**
+ * Returns sum of losses
+ *
+ * [sum_i (weighting_base)^(M - i) L(in_i, ref) ] / [sum_i (weighting_base)^(M - i)]
+ *
+ *
+ **/
+nn_t train_loss_multi_create(const struct loss_config_s* config, unsigned int N, const long dims[N], int M, float weighting_base)
+{
+	auto result = train_loss_create(config, N, dims);
+
+	if (0 >= weighting_base) {
+
+		for (int i = 1; i < M; i++)
+			result = nn_combine_FF(nn_from_nlop_F(nlop_del_out_create(N, dims)), result);
+
+		return result;
+	}
+
+	const char* loss_name = nn_get_out_name_from_arg_index(result, 0, true);
+
+	for (int i = 1; i < M; i++) {
+
+		auto nn_tmp = nn_from_nlop_F(nlop_zaxpbz_create(1, MD_DIMS(1), weighting_base  / (1. + weighting_base), 1. / (1. + weighting_base)));
+
+		//result: in: in_0, ..., in_i-1, ref; out: old_loss
+
+		result = nn_chain2_FF(result, 0, loss_name, nn_tmp, 0, NULL); //in: new_loss, in_0, ..., in_i-1, ref; out:  s1 * new_loss + s2 * old_loss
+		result = nn_chain2_FF(train_loss_create(config, N, dims), 0, loss_name, result, 0, NULL); //in: in_0, ..., in_i-1, ref, in_i, ref; out:  s1 * new_loss + s2 * old_loss
+		result = nn_dup_F(result, i, NULL, i + 2, NULL); //in: in_0, ..., in_i-1, ref, in_i; out:  s1 * new_loss + s2 * old_loss
+		result = nn_shift_input_F(result, i + 1, NULL, i, NULL); //in: in_0, ..., in_i-1, in_i, ref; out: s1 * new_loss + s2 * old_loss
+
+		result = nn_set_output_name_F(result, 0, loss_name);
+		result = nn_set_out_type_F(result, 0, loss_name, OUT_OPTIMIZE);
+	}
+
+	xfree(loss_name);
 
 	return result;
 }

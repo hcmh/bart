@@ -1,17 +1,22 @@
 #include <complex.h>
 #include <math.h>
 
+#include "linops/fmac.h"
+#include "linops/someops.h"
 #include "misc/debug.h"
 #include "misc/misc.h"
 #include "misc/mmio.h"
 
+#include "misc/mri.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/fft.h"
+#include "num/iovec.h"
 
 #include "noncart/nufft.h"
 
 #include "linops/linop.h"
+#include "linops/fmac.h"
 
 
 #include "misc.h"
@@ -19,10 +24,12 @@
 
 struct network_data_s network_data_empty = {
 
-	.kdims = { 0 },
-	.cdims = { 0 },
-	.pdims = { 0 },
-	.idims = { 0 },
+	.ksp_dims = { 0 },
+	.col_dims = { 0 },
+	.psf_dims = { 0 },
+	.img_dims = { 0 },
+	.max_dims = { 0 },
+	.cim_dims = { 0 },
 
 	.filename_trajectory = NULL,
 	.filename_pattern = NULL,
@@ -32,177 +39,152 @@ struct network_data_s network_data_empty = {
 
 	.kspace = NULL,
 	.coil = NULL,
-	.pattern = NULL,
+	.psf = NULL,
+	.adjoint = NULL,
 	.out = NULL,
 
 	.create_out = false,
 	.load_mem = false,
+
+	.nufft_conf = &nufft_conf_defaults,
 };
 
 
 void load_network_data(struct network_data_s* nd) {
 
+	nd->N = DIMS;
+	nd->ND = DIMS;
 
-	nd->coil = load_cfl(nd->filename_coil, DIMS, nd->cdims);
+
+	nd->coil = load_cfl(nd->filename_coil, DIMS, nd->col_dims);
 
 	if (nd->load_mem) {
 
-		complex float* tmp = anon_cfl("", DIMS, nd->cdims);
-		md_copy(DIMS, nd->cdims, tmp, nd->coil, CFL_SIZE);
-		unmap_cfl(DIMS, nd->cdims, nd->coil);
+		complex float* tmp = anon_cfl("", DIMS, nd->col_dims);
+		md_copy(DIMS, nd->col_dims, tmp, nd->coil, CFL_SIZE);
+		unmap_cfl(DIMS, nd->col_dims, nd->coil);
 		nd->coil = tmp;
 	}
 
-	md_copy_dims(DIMS, nd->kdims, nd->cdims);
-	md_select_dims(DIMS, ~COIL_FLAG, nd->idims, nd->cdims);
+	nd->kspace = load_cfl(nd->filename_kspace, DIMS, nd->ksp_dims);
+
+	md_copy_dims(DIMS, nd->max_dims, nd->ksp_dims);
+
+	long pat_dims[DIMS];
+	complex float* pattern;
+
+	if (NULL != nd->filename_pattern) {
+
+		pattern = load_cfl(nd->filename_pattern, DIMS, pat_dims);
+		md_zmulc2(DIMS, nd->ksp_dims,
+				MD_STRIDES(DIMS, nd->ksp_dims, CFL_SIZE), nd->kspace,
+				MD_STRIDES(DIMS, nd->ksp_dims, CFL_SIZE), nd->kspace,
+				MD_STRIDES(DIMS, pat_dims, CFL_SIZE), pattern);
+	} else {
+
+		md_select_dims(DIMS, ~(COIL_FLAG), pat_dims, nd->ksp_dims);
+		pattern = anon_cfl("", DIMS, pat_dims);
+		estimate_pattern(DIMS, nd->ksp_dims, COIL_FLAG, pattern, nd->kspace);
+	}
+
+	md_copy_dims(DIMS, nd->max_dims, nd->ksp_dims);
+	md_copy_dims(5, nd->max_dims, nd->col_dims);
+
+	md_select_dims(DIMS, ~MAPS_FLAG, nd->cim_dims, nd->max_dims);
+	md_select_dims(DIMS, ~COIL_FLAG, nd->img_dims, nd->max_dims);
+
+	nd->adjoint = md_alloc(DIMS, nd->img_dims, CFL_SIZE);
+
+	unsigned long cim_flags = md_nontriv_dims(DIMS, nd->cim_dims);
+	unsigned long img_flags = md_nontriv_dims(DIMS, nd->img_dims);
+	unsigned long col_flags = md_nontriv_dims(DIMS, nd->col_dims);
+
+	if (NULL == nd->filename_trajectory) {
+
+		const struct linop_s* lop_frw = linop_fmac_create(DIMS, nd->max_dims, ~cim_flags, ~img_flags, ~col_flags, nd->coil);
+		lop_frw = linop_chain_FF(lop_frw, linop_resize_center_create(DIMS, nd->ksp_dims, nd->cim_dims));
+		lop_frw = linop_chain_FF(lop_frw, linop_fftc_create(DIMS, nd->ksp_dims, FFT_FLAGS));
+
+		linop_adjoint(lop_frw, DIMS, nd->img_dims, nd->adjoint, DIMS, nd->ksp_dims, nd->kspace);
+
+		linop_free(lop_frw);
+
+		long pat_strs[DIMS];
+		md_calc_strides(DIMS, pat_strs, pat_dims, CFL_SIZE);
+
+		md_copy_dims(DIMS, nd->psf_dims, pat_dims);
+		for (int i = 0; i < DIMS; i++) {
+
+			long pat_strs2[DIMS];
+			md_copy_dims(DIMS, pat_strs2, pat_strs);
+			pat_strs2[i] = 0;
+
+			if ( (1 == nd->psf_dims[i]) || md_compare2(DIMS, nd->psf_dims, pat_strs2, pattern, pat_strs, pattern, CFL_SIZE) )
+				nd->psf_dims[i] = 1;
+		}
+
+		assert(md_check_equal_dims(DIMS, nd->psf_dims, nd->max_dims, md_nontriv_dims(DIMS, nd->psf_dims)));
+
+
+		nd->psf = md_alloc(DIMS, nd->psf_dims, CFL_SIZE);
+
+		md_resize(DIMS, nd->psf_dims, nd->psf, pat_dims, pattern, CFL_SIZE);
+		md_zmulc(DIMS, nd->psf_dims, nd->psf, nd->psf, nd->psf);
+
+	} else {
+
+		complex float* traj = NULL;
+		long trj_dims[DIMS];
+		traj = load_cfl(nd->filename_trajectory, DIMS, trj_dims);
+
+		const struct linop_s* fft_op = nufft_create2(DIMS, nd->ksp_dims, nd->cim_dims, trj_dims, traj, pat_dims, pattern, NULL, NULL, *(nd->nufft_conf));
+
+		if (DIMS + 1 != nufft_get_psf_dims(fft_op, DIMS + 1, nd->psf_dims))
+			assert(0);
+
+		nd->ND = DIMS + 1;
+
+		nd->psf = md_alloc(DIMS + 1, nd->psf_dims, CFL_SIZE);
+		nufft_get_psf(fft_op, DIMS + 1, nd->psf_dims, nd->psf);
+
+		const struct linop_s* maps_op = linop_fmac_create(DIMS, nd->max_dims, ~cim_flags, ~img_flags, ~col_flags, nd->coil);
+		const struct linop_s* lop_frw = linop_chain_FF(maps_op, fft_op);
+
+		linop_adjoint(lop_frw, DIMS, nd->img_dims, nd->adjoint, DIMS, nd->ksp_dims, nd->kspace);
+
+		linop_free(lop_frw);
+
+		unmap_cfl(DIMS, trj_dims, traj);
+	}
+
+	unmap_cfl(DIMS, pat_dims, pattern);
+	unmap_cfl(DIMS, nd->ksp_dims, nd->kspace);
+	nd->kspace = NULL;
 
 	if (nd->create_out) {
 
-		nd->out = create_cfl(nd->filename_out, DIMS, nd->idims);
+		nd->out = create_cfl(nd->filename_out, DIMS, nd->img_dims);
 	} else {
 
 		long idims_file[DIMS];
 		nd->out = load_cfl(nd->filename_out, DIMS, idims_file);
-		assert(md_check_equal_dims(DIMS, nd->idims, idims_file, ~0));
+		assert(md_check_equal_dims(DIMS, nd->img_dims, idims_file, ~0));
 
 		if (nd->load_mem) {
 
-			complex float* out_tmp = anon_cfl("", DIMS, nd->idims);
-			md_copy(DIMS, nd->idims, out_tmp, nd->out, CFL_SIZE);
-			unmap_cfl(DIMS, nd->idims, nd->out);
+			complex float* out_tmp = anon_cfl("", DIMS, nd->img_dims);
+			md_copy(DIMS, nd->img_dims, out_tmp, nd->out, CFL_SIZE);
+			unmap_cfl(DIMS, nd->img_dims, nd->out);
 			nd->out = out_tmp;
 		}
-	}
-
-	long kdims_file[DIMS];
-	complex float* kspace_file = load_cfl(nd->filename_kspace, DIMS, kdims_file);
-
-	complex float* pattern_file = NULL;
-	long pdims_file[DIMS];
-
-	if (NULL != nd->filename_pattern) {
-
-		pattern_file = load_cfl(nd->filename_pattern, DIMS, pdims_file);
-	} else {
-
-		md_select_dims(DIMS, ~(COIL_FLAG), pdims_file, kdims_file);
-		pattern_file = anon_cfl("", DIMS, pdims_file);
-		estimate_pattern(DIMS, kdims_file, COIL_FLAG, pattern_file, kspace_file);
-	}
-
-	complex float* traj = NULL;
-	long trj_dims[DIMS];
-
-
-	if (NULL != nd->filename_trajectory) {
-
-		traj = load_cfl(nd->filename_trajectory, DIMS, trj_dims);
-		md_zsmul(DIMS, trj_dims, traj, traj, 2.);
-
-		for (unsigned int i = 0; i < DIMS; i++)
-			if (MD_IS_SET(FFT_FLAGS, i) && (1 < nd->kdims[i]))
-				nd->kdims[i] *= 2;
-
-		md_copy_dims(DIMS - 3, nd->kdims + 3, kdims_file + 3);
-		md_copy_dims(3, nd->pdims, nd->kdims);
-		md_copy_dims(DIMS - 3, nd->pdims + 3, trj_dims + 3);
-
-		unsigned int cmp_flag = md_nontriv_dims(DIMS, pdims_file) & md_nontriv_dims(DIMS, kdims_file);
-
-		if (!md_check_equal_dims(DIMS, pdims_file, kdims_file, cmp_flag)) {
-
-			debug_printf(DP_WARN, "pdims: ");
-			debug_print_dims(DP_INFO, DIMS, pdims_file);
-			debug_printf(DP_WARN, "kdims: ");
-			debug_print_dims(DP_INFO, DIMS, kdims_file);
-			error("Inconsistent dimensions of kspace and pattern!");
-		}
-
-		//compute psf
-
-		nd->pattern = compute_psf(DIMS, nd->pdims, trj_dims, traj, trj_dims, NULL, pdims_file, pattern_file, false, false);
-		fftuc(DIMS, nd->pdims, FFT_FLAGS, nd->pattern, nd->pattern);
-
-		float pattern_scale = 1.;
-		float kspace_scale = 1.;
-
-		for (int i = 0; i < 3; i++)
-			if (1 != nd->pdims[i]) {
-
-				pattern_scale *= 2.;
-				kspace_scale *= sqrtf(2.);
-			}
-
-		md_zsmul(DIMS, nd->pdims, nd->pattern, nd->pattern, pattern_scale);
-
-		//grid kspace
-
-		nd->kspace = anon_cfl("", DIMS, nd->kdims);
-
-		struct nufft_conf_s nufft_conf = nufft_conf_defaults;
-		nufft_conf.toeplitz = false;
-		nufft_conf.lowmem = true;
-
-		auto nufft_op = nufft_create(DIMS, kdims_file, nd->kdims, trj_dims, traj, NULL, nufft_conf);
-		linop_adjoint(nufft_op, DIMS, nd->kdims, nd->kspace, DIMS, kdims_file, kspace_file);
-		linop_free(nufft_op);
-
-		fftuc(DIMS, nd->kdims, FFT_FLAGS, nd->kspace, nd->kspace);
-		md_zsmul(DIMS, nd->kdims, nd->kspace, nd->kspace, kspace_scale);
-
-		unmap_cfl(DIMS, kdims_file, kspace_file);
-
-	} else {
-
-		md_copy_dims(DIMS, nd->kdims, kdims_file);
-
-		if (nd->load_mem) {
-
-			nd->kspace = anon_cfl("", DIMS, nd->kdims);
-			md_copy(DIMS, nd->kdims, nd->kspace, kspace_file, CFL_SIZE);
-			unmap_cfl(DIMS, kdims_file, kspace_file);
-		} else {
-
-			nd->kspace = kspace_file;
-		}
-
-		md_copy_dims(DIMS, nd->pdims, pdims_file);
-		nd->pattern = md_alloc(DIMS, nd->pdims, CFL_SIZE);
-		md_copy(DIMS, nd->pdims, nd->pattern, pattern_file, CFL_SIZE);
 	}
 }
 
 void free_network_data(struct network_data_s* nd)
 {
-	md_free(nd->pattern);
-	unmap_cfl(DIMS, nd->kdims, nd->kspace);
-	unmap_cfl(DIMS, nd->cdims, nd->coil);
-	unmap_cfl(DIMS, nd->idims, nd->out);
-}
+	md_free(nd->psf);
+	md_free(nd->adjoint);
 
-void network_data_check_simple_dims(struct network_data_s* network_data)
-{
-	bool consistent_dims = true;
-
-	for (unsigned int i = 3; i < DIMS; i++)
-		consistent_dims = consistent_dims && (network_data->kdims[i] == network_data->cdims[i]);
-	for (int i = 0; i < 3; i++)
-		consistent_dims = consistent_dims && (network_data->kdims[i] == network_data->pdims[i]);
-
-	consistent_dims = consistent_dims && (1 == network_data->pdims[3]);
-	consistent_dims = consistent_dims && ((1 == network_data->pdims[4]) || (network_data->kdims[4] == network_data->pdims[4]));
-
-	if (!consistent_dims) {
-
-		debug_printf(DP_WARN, "kdims: ");
-		debug_print_dims(DP_INFO, DIMS, network_data->kdims);
-		debug_printf(DP_WARN, "cdims: ");
-		debug_print_dims(DP_INFO, DIMS, network_data->cdims);
-		debug_printf(DP_WARN, "pdims: ");
-		debug_print_dims(DP_INFO, DIMS, network_data->pdims);
-		debug_printf(DP_WARN, "idims: ");
-		debug_print_dims(DP_INFO, DIMS, network_data->idims);
-
-		error("Inconsistent dimensions!");
-	}
+	unmap_cfl(DIMS, nd->col_dims, nd->coil);
+	unmap_cfl(DIMS, nd->img_dims, nd->out);
 }

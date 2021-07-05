@@ -8,6 +8,7 @@ enum BOOL_SELECT {BOOL_DEFAULT, BOOL_TRUE, BOOL_FALSE};
 struct reconet_s {
 
 	struct network_s* network;
+	_Bool kspace;
 
 	long Nt;
 
@@ -24,6 +25,7 @@ struct reconet_s {
 	float dc_lambda_fixed;
 	float dc_lambda_init;
 	_Bool dc_gradient;
+	_Bool dc_scale_max_eigen;
 	_Bool dc_tickhonov;
 	int dc_max_iter;
 
@@ -39,6 +41,7 @@ struct reconet_s {
 
 	struct loss_config_s* train_loss;
 	struct loss_config_s* valid_loss;
+	float multi_loss;
 
 	_Bool low_mem;
 	_Bool gpu;
@@ -58,29 +61,25 @@ extern void reconet_init_modl_test_default(struct reconet_s* reconet);
 extern void reconet_init_varnet_test_default(struct reconet_s* reconet);
 extern void reconet_init_unet_test_default(struct reconet_s* reconet);
 
-extern void apply_reconet(	const struct reconet_s* reconet, unsigned int N,
-				const long idims[N], _Complex float* out,
-				const long kdims[N], const _Complex float* kspace,
-				const long cdims[N], const _Complex float* coil,
-				const long pdims[N], const _Complex float* pattern);
+extern void apply_reconet(	const struct reconet_s* reconet, unsigned int N, const long max_dims[N],
+				const long img_dims[N], _Complex float* out, const _Complex float* adjoint,
+				const long col_dims[N], const _Complex float* coil,
+				int ND, const long psf_dims[ND], const _Complex float* psf);
 
-extern void apply_reconet_batchwise(	const struct reconet_s* reconet, unsigned int N,
-					const long idims[N], _Complex float* out,
-					const long kdims[N], const _Complex float* kspace,
-					const long cdims[N], const _Complex float* coil,
-					const long pdims[N], const _Complex float* pattern,
+extern void apply_reconet_batchwise(	const struct reconet_s* reconet, unsigned int N, const long max_dims[N],
+					const long img_dims[N], _Complex float* out, const _Complex float* adjoint,
+					const long col_dims[N], const _Complex float* coil,
+					int ND, const long psf_dims[ND], const _Complex float* psf,
 					long Nb);
 
-extern void train_reconet(	struct reconet_s* reconet, unsigned int N,
-				const long idims[N], _Complex float* ref,
-				const long kdims[N], _Complex float* kspace,
-				const long cdims[N], const _Complex float* coil,
-				const long pdims[N], const _Complex float* pattern,
+extern void train_reconet(	struct reconet_s* reconet, unsigned int N, const long max_dims[N],
+				const long img_dims[N], _Complex float* ref, const _Complex float* adjoint,
+				const long col_dims[N], const _Complex float* coil,
+				int ND, const long psf_dims[ND], const _Complex float* psf,
 				long Nb, struct network_data_s* valid_files);
 
-extern void eval_reconet(	const struct reconet_s* reconet, unsigned int N,
-				const long idims[N], const _Complex float* ref,
-				const long kdims[N], const _Complex float* kspace,
-				const long cdims[N], const _Complex float* coil,
-				const long pdims[N], const _Complex float* pattern,
+extern void eval_reconet(	const struct reconet_s* reconet, unsigned int N, const long max_dims[N],
+				const long img_dims[N], const _Complex float* ref, const _Complex float* adjoint,
+				const long col_dims[N], const _Complex float* coil,
+				int ND, const long psf_dims[N], const _Complex float* psf,
 				long Nb);

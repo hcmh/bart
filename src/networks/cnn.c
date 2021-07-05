@@ -8,7 +8,6 @@
 #include "misc/types.h"
 #include "misc/mri.h"
 #include "misc/misc.h"
-#include "misc/opts.h"
 
 #include "num/multind.h"
 #include "num/iovec.h"
@@ -35,24 +34,9 @@
 
 #include  "cnn.h"
 
-
-struct network_s* get_default_network(enum NETWORK_SELECT net)
-{
-	switch (net) {
-
-		case NETWORK_NONE:
-			return NULL;
-		case NETWORK_MNIST:
-			return &network_mnist_default;
-		case NETWORK_RESBLOCK:
-			return CAST_UP(&network_resnet_default);
-		case NETWORK_VARNET:
-			return CAST_UP(&network_varnet_default);
-	}
-
-	assert(0);
-}
-
+static nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
+static nn_t network_varnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
+static nn_t network_mnist_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 
 DEF_TYPEID(network_resnet_s);
 
@@ -97,21 +81,6 @@ struct network_resnet_s network_resnet_default = {
 	.activation = ACT_RELU,
 	.last_activation = ACT_LIN,
 };
-
-struct opt_s res_block_opts[] = {
-
-	OPTL_LONG('L', "layers", &(network_resnet_default.Nl), "d", "number of layers in residual block (default: 5)"),
-	OPTL_LONG('F', "filters", &(network_resnet_default.Nf), "d", "number of filters in residual block (default: 32)"),
-
-	OPTL_LONG('X', "filter-x", &(network_resnet_default.Kx), "d", "filter sze in x-dimension (default: 3)"),
-	OPTL_LONG('Y', "filter-y", &(network_resnet_default.Ky), "d", "filter sze in y-dimension (default: 3)"),
-	OPTL_LONG('Z', "filter-z", &(network_resnet_default.Kz), "d", "filter sze in z-dimension (default: 1)"),
-
-	OPTL_CLEAR(0, "no-batch-normalization", &(network_resnet_default.batch_norm), "do not use batch normalization"),
-	OPTL_CLEAR(0, "no-bias", &(network_resnet_default.bias), "do not use bias"),
-};
-const int N_res_block_opts = ARRAY_SIZE(res_block_opts);
-
 
 
 static void network_resnet_get_kdims(const struct network_resnet_s* config, unsigned int N, long kdims[N])
@@ -159,7 +128,7 @@ static void network_resnet_get_kdims(const struct network_resnet_s* config, unsi
  * INDEX_0:	odims
  * batchnorm
  */
-nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
+static nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
 {
 	assert(NO == NI);
 	unsigned int N = NO;
@@ -283,7 +252,7 @@ nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, con
 	auto nlop_sum = nlop_zaxpbz_create(N, odims, 1, 1);
 	nlop_sum = nlop_chain2_FF(nlop_from_linop_F(linop_expand_create(N, odims, idims)), 0, nlop_sum, 1);
 
-	result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_sum), 1, NULL);
+	result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_sum), 0, NULL);
 	result = nn_dup_F(result, 0, NULL, 1, NULL);
 
 	result = nn_sort_inputs_by_list_F(result, ARRAY_SIZE(resnet_sorted_weight_names), resnet_sorted_weight_names);
@@ -321,20 +290,8 @@ struct network_varnet_s network_varnet_default = {
 	.init_scale_mu = 0.04,
 };
 
-struct opt_s variational_block_opts[] = {
 
-	OPTL_LONG('W', "layers", &(network_varnet_default.Nw), "int", "number of basis functions (default: 31)"),
-	OPTL_LONG('F', "filters", &(network_varnet_default.Nf), "int", "number of filters in residual block (default: 24)"),
-
-	OPTL_LONG('X', "filter-x", &(network_varnet_default.Kx), "int", "filter sze in x-dimension (default: 3)"),
-	OPTL_LONG('Y', "filter-y", &(network_varnet_default.Ky), "int", "filter sze in y-dimension (default: 3)"),
-	OPTL_LONG('Z', "filter-z", &(network_varnet_default.Kz), "int", "filter sze in z-dimension (default: 1)"),
-
-};
-const int N_variational_block_opts = ARRAY_SIZE(variational_block_opts);
-
-
-nn_t network_varnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
+static nn_t network_varnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
 {
 	assert(NO == NI);
 	unsigned int N = NO;
@@ -362,15 +319,14 @@ nn_t network_varnet_create(const struct network_s* _config, unsigned int NO, con
 	long rbfdims[3] = {config->Nf, (Ux + 2 * (config->Kx - 1)) * (Uy + 2 * (config->Ky - 1)) * (Uz + 2 * (config->Kz - 1)) * Nb, config->Nw};
 
 	//operator dims
-	long kerdims[5] = {config->Nf, config->Kx, config->Ky, config->Kz, 1};
-	long wdims[3] = {config->Nf, config->Nw, 1};
+	long wdims[2] = {config->Nf, config->Nw};
 
 	const struct nlop_s* nlop_result = nlop_from_linop_F(linop_identity_create(5, idims)); // in: u
 	//nlop_result = nlop_chain2_FF(nlop_result, 0, padu, 0); // in: u
 	nlop_result = append_padding_layer(nlop_result, 0, 5, pad_up, pad_up, PAD_SYMMETRIC);
 	nlop_result = append_convcorr_layer(nlop_result, 0, config->Nf, ker_size, false, PAD_SAME, true, NULL, NULL); // in: u, conv_w
 
-	const struct nlop_s* rbf = nlop_activation_rbf_create(rbfdims, config->Imax, config->Imin);
+	const struct nlop_s* rbf = nlop_activation_rbf_create(rbfdims, config->Imax, config->Imin, false);
 	rbf = nlop_reshape_in_F(rbf, 0, 5, zdimsw);
 	rbf = nlop_reshape_out_F(rbf, 0, 5, zdimsw);
 	nlop_result = nlop_chain2_FF(nlop_result, 0, rbf, 0); //in: rbf_w, in, conv_w
@@ -379,11 +335,12 @@ nn_t network_varnet_create(const struct network_s* _config, unsigned int NO, con
 	nlop_result = append_padding_layer(nlop_result, 0, 5, pad_down, pad_down, PAD_VALID);
 	nlop_result = nlop_dup_F(nlop_result, 2, 3); //in: rbf_w, u, conv_w
 
-	nlop_result = nlop_reshape_in_F(nlop_result, 2, 4, kerdims); //in: rbf_w, u, conv_w
+	//nlop_result = nlop_append_singleton_dim_in_F(nlop_result, 2);// nlop_reshape_in_F(nlop_result, 2, 4, kerdims); //in: rbf_w, u, conv_w
 	nlop_result = nlop_reshape_in_F(nlop_result, 0, 2, wdims); //in: rbf_w, u, conv_w
 
 	//VN implementation: u_k = (real(up) * real(k) + imag(up) * imag(k))
-	nlop_result = nlop_chain2_FF(nlop_from_linop_F(linop_zconj_create(4, kerdims)), 0, nlop_result, 2); //in: rbf_w, u, conv_w
+	auto iov_ker = nlop_generic_domain(nlop_result, 2);
+	nlop_result = nlop_chain2_FF(nlop_from_linop_F(linop_zconj_create(iov_ker->N, iov_ker->dims)), 0, nlop_result, 2); //in: rbf_w, u, conv_w
 	nlop_result = nlop_chain2_FF(nlop_result, 0, nlop_from_linop_F(linop_scale_create(5, idims, 1. / config->Nf)), 0); //in: rbf_w, u, conv_w
 
 	int perm [] = {1, 2, 0};
@@ -421,7 +378,7 @@ struct network_s network_mnist_default = {
 	.low_mem = false,
 };
 
-nn_t network_mnist_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
+static nn_t network_mnist_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
 {
 	UNUSED(_config);
 
