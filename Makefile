@@ -576,7 +576,7 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 
 endef
 
-ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops noncart moba lapacke box geom nn
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops noncart moba lapacke box geom na networks nn manifold seq
 ifeq ($(ISMRMRD),1)
 ALIBS += ismrm
 endif
