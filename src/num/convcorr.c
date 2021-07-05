@@ -5,6 +5,7 @@
  * Authors: Moritz Blumenthal
  */
 
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <complex.h>
@@ -72,25 +73,18 @@ static void optimized_threeop_oii(unsigned int D, const long dim[D], const long 
 	optimized_nop(3, io, D, dim, nstr, nptr, sizes, too);
 }
 
-zconvcorr_fwd_algo_f* algos_fwd_cpu[] = {	zconvcorr_fwd_inner_matmul_cf,
-						zconvcorr_fwd_im2col_cf_cpu,
-						zconvcorr_fwd_direct_cf};
 
-zconvcorr_bwd_krn_algo_f* algos_bwd_krn_cpu[] = {	zconvcorr_bwd_krn_inner_matmul_cf,
-							zconvcorr_bwd_krn_im2col_cf_cpu,
-							zconvcorr_bwd_krn_direct_cf};
 
-zconvcorr_bwd_in_algo_f* algos_bwd_in_cpu[] = {	zconvcorr_bwd_in_inner_matmul_cf,
-						zconvcorr_bwd_in_im2col_cf_cpu,
-						zconvcorr_bwd_in_direct_cf};
+zconvcorr_fwd_algo_f* algos_fwd_cpu[] = { zconvcorr_fwd_inner_matmul_cf, zconvcorr_fwd_im2col_cf_cpu, };
+zconvcorr_bwd_krn_algo_f* algos_bwd_krn_cpu[] = { zconvcorr_bwd_krn_inner_matmul_cf, zconvcorr_bwd_krn_im2col_cf_cpu, };
+zconvcorr_bwd_in_algo_f* algos_bwd_in_cpu[] = {	zconvcorr_bwd_in_inner_matmul_cf, zconvcorr_bwd_in_im2col_cf_cpu, };
 
 #ifdef USE_CUDA
 zconvcorr_bwd_krn_algo_f* algos_bwd_krn_gpu[] = {
 #ifdef USE_CUDNN
-							zconvcorr_bwd_krn_cudnn,
+						zconvcorr_bwd_krn_cudnn,
 #endif
-							zconvcorr_bwd_krn_im2col_cf_gpu,
-							zconvcorr_bwd_krn_direct_cf
+						zconvcorr_bwd_krn_im2col_cf_gpu,
 };
 
 zconvcorr_fwd_algo_f* algos_fwd_gpu[] = {
@@ -98,7 +92,6 @@ zconvcorr_fwd_algo_f* algos_fwd_gpu[] = {
 						zconvcorr_fwd_cudnn,
 #endif
 						zconvcorr_fwd_im2col_cf_gpu,
-						zconvcorr_fwd_direct_cf
 };
 
 zconvcorr_bwd_in_algo_f* algos_bwd_in_gpu[] = {
@@ -106,7 +99,6 @@ zconvcorr_bwd_in_algo_f* algos_bwd_in_gpu[] = {
 						zconvcorr_bwd_in_cudnn,
 #endif
 						zconvcorr_bwd_in_im2col_cf_gpu,
-						zconvcorr_bwd_in_direct_cf
 };
 #endif
 
@@ -174,7 +166,6 @@ static bool detect_convcorr(	int N,
 			nostrs[i] = ostrs[i];
 
 			long test_strides[] = { istrs[i] / istrs_triv, 1, 2, 3, 4, 5, 6, 7, 8 };
-
 			bool found = false;
 
 			for (uint j = 0; !found && j < ARRAY_SIZE(test_strides); j++) {
@@ -600,7 +591,6 @@ static bool check_trivial_cf(	int N,
 		return false;
 
 	// check contiguous memory
-
 	if ((uint)N > md_calc_blockdim(N, odims, ostrs, size))
 		return false;
 
@@ -624,7 +614,7 @@ static bool check_trivial_strs_dil(int N, const long dilation[N], const long str
 	return true;
 }
 
-
+#if 0
 bool zconvcorr_fwd_direct_cf(	int N,
 				long odims[N], long ostrs[N], complex float* out,
 				long idims[N], long istrs[N], const complex float* in,
@@ -770,7 +760,7 @@ bool zconvcorr_bwd_krn_direct_cf(	int N,
 
 	return true;
 }
-
+#endif
 
 bool zconvcorr_fwd_im2col_cf_cpu(int N,
 				long odims[N], long ostrs[N], complex float* out,
@@ -786,6 +776,7 @@ bool zconvcorr_fwd_im2col_cf_cpu(int N,
 
 	if (5 > N)
 		return false;
+
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 
@@ -881,6 +872,7 @@ bool zconvcorr_bwd_krn_im2col_cf_cpu(int N,
 
 	if (5 > N)
 		return false;
+
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 
@@ -976,6 +968,7 @@ bool zconvcorr_bwd_in_im2col_cf_cpu(int N,
 
 	if (5 > N)
 		return false;
+
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 
@@ -1073,6 +1066,7 @@ bool zconvcorr_fwd_im2col_cf_gpu(int N,
 
 	if (5 > N)
 		return false;
+
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 
@@ -1146,6 +1140,7 @@ bool zconvcorr_bwd_krn_im2col_cf_gpu(int N,
 
 	if (5 > N)
 		return false;
+
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 
@@ -1219,6 +1214,7 @@ bool zconvcorr_bwd_in_im2col_cf_gpu(int N,
 
 	if (5 > N)
 		return false;
+
 	if (!check_trivial_cf(5, odims, ostrs, idims, istrs, kdims, kstrs, flags, size))
 		return false;
 
@@ -1228,6 +1224,7 @@ bool zconvcorr_bwd_in_im2col_cf_gpu(int N,
 #ifndef NON_DETERMINISTIC
 	if ((NULL != dilation) && 1 != md_calc_size(N, dilation))
 		return false;
+
 	if ((NULL != strides) && 1 != md_calc_size(N, strides))
 		return false;
 #endif

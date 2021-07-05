@@ -19,10 +19,6 @@ typedef _Bool zconvcorr_bwd_krn_algo_f(	int N,
 					long kdims[__VLA(N)], long kstrs[__VLA(N)], _Complex float* krn,
 					unsigned long flags, const long dilation[__VLA(N)], const long strides[__VLA(N)], _Bool conv);
 
-zconvcorr_fwd_algo_f zconvcorr_fwd_direct_cf;
-zconvcorr_bwd_in_algo_f zconvcorr_bwd_in_direct_cf;
-zconvcorr_bwd_krn_algo_f zconvcorr_bwd_krn_direct_cf;
-
 zconvcorr_fwd_algo_f zconvcorr_fwd_im2col_cf_cpu;
 zconvcorr_bwd_in_algo_f zconvcorr_bwd_in_im2col_cf_cpu;
 zconvcorr_bwd_krn_algo_f zconvcorr_bwd_krn_im2col_cf_cpu;
