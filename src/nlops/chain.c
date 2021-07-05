@@ -359,21 +359,6 @@ struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, int sta
 	return result;
 }
 
-//renamed for consistency, deprecated
-struct nlop_s* nlop_destack(const struct nlop_s* x, int a, int b, int stack_dim)
-{
-	return nlop_stack_inputs(x, a, b, stack_dim);
-}
-
-//renamed for consistency, deprecated
-struct nlop_s* nlop_destack_F(const struct nlop_s* x, int a, int b, int stack_dim)
-{
-	return nlop_stack_inputs_F(x, a, b, stack_dim);
-}
-
-
-
-
 struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, int stack_dim)
 {
 	//int II = nlop_get_nr_in_args(x);

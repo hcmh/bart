@@ -15,8 +15,6 @@ extern struct nlop_s* nlop_permute_inputs_F(const struct nlop_s* x, int I2, cons
 extern struct nlop_s* nlop_permute_outputs_F(const struct nlop_s* x, int O2, const int perm[__VLA(O2)]);
 extern struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b);
 extern struct nlop_s* nlop_dup_F(const struct nlop_s* x, int a, int b);
-extern struct nlop_s* nlop_destack(const struct nlop_s* x, int a, int b, int stack_dim);//deprecated, equivalent to nlop_stack_inputs
-extern struct nlop_s* nlop_destack_F(const struct nlop_s* x, int a, int b, int stack_dim);
 extern struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, int stack_dim);
 extern struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, int stack_dim);
 extern struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, int stack_dim);

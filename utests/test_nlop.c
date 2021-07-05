@@ -842,14 +842,14 @@ static bool test_stack(void)
 	const struct nlop_s* nlop_test;
 
 	nlop_test = nlop_stack_create(N, dims, dims1, dims2, 1);
-	nlop_test = nlop_destack_F(nlop_test, 0, 1, 1);
+	nlop_test = nlop_stack_inputs_F(nlop_test, 0, 1, 1);
 	nlop_apply(nlop_test, N, dims, out, N, dims, in);
 	err += md_zrmse(N, dims, in, out);
 	nlop_free(nlop_test);
 
 	nlop_test = nlop_stack_create(N, dims, dims1, dims2, 1);
 	nlop_test = nlop_permute_inputs_F(nlop_test, 2, MAKE_ARRAY(1, 0));
-	nlop_test = nlop_destack_F(nlop_test, 1, 0, 1);
+	nlop_test = nlop_stack_inputs_F(nlop_test, 1, 0, 1);
 	nlop_apply(nlop_test, N, dims, out, N, dims, in);
 	err += md_zrmse(N, dims, in, out);
 	nlop_free(nlop_test);
