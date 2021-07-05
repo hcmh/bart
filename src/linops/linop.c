@@ -19,6 +19,7 @@
 #include "num/iovec.h"
 #include "num/ops_p.h"
 #include "num/ops.h"
+#include "num/ops_graph.h"
 
 #include "misc/misc.h"
 #include "misc/shrdptr.h"
@@ -27,10 +28,6 @@
 
 #include "linop.h"
 
-//only these operator properties are passed to linops
-static operator_property_flags_t linop_props_understood =  MD_BIT(OP_PROP_ATOMIC)
-						     | MD_BIT(OP_PROP_R_LIN)
-						     | MD_BIT(OP_PROP_C_LIN);
 
 
 
@@ -42,9 +39,10 @@ struct shared_data_s {
 	linop_data_t* data;
 	del_fun_t del;
 
-	struct shared_ptr_s sptr;
-
+	enum LINOP_TYPE lop_type;
 	lop_graph_t get_graph;
+
+	struct shared_ptr_s sptr;
 
 	union {
 
@@ -72,11 +70,7 @@ static void shared_apply(const operator_data_t* _data, unsigned int N, void* arg
 
 	assert(2 == N);
 	debug_trace("ENTER %p\n", data->u.apply);
-	#pragma omp critical
-	data->data->run_time -= timestamp();
 	data->u.apply(data->data, args[0], args[1]);
-	#pragma omp critical
-	data->data->run_time += timestamp();
 	debug_trace("LEAVE %p\n", data->u.apply);
 }
 
@@ -97,42 +91,52 @@ static void sptr_del(const struct shared_ptr_s* p)
 	data->del(data->data);
 }
 
-static const char* linop_graph_default(linop_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
-{
-	UNUSED(opts);
+const char* lop_get_type_str(enum LINOP_TYPE lop_type) {
 
-	for (uint i = 0; i < N; i++) {
+	switch (lop_type){
 
-		D[i] = 1;
-		PTR_ALLOC(const char*[D[i]], nodes_i);
-		arg_nodes[i] = *PTR_PASS(nodes_i);
-
-		(arg_nodes[i])[0] = ptr_printf("linop_%p", _data);
+		case LOP_FORWARD:
+			return ptr_printf("forward");
+		case LOP_ADJOINT:
+			return ptr_printf("adjoint");
+		case LOP_NORMAL:
+			return ptr_printf("normal");
+		case LOP_NORMAL_INV:
+			return ptr_printf("normal inversion");
 	}
-
-	if (opts.time)
-		return ptr_printf("linop_%p [label=\"linop\\n%s\\ntime: %f\"];\n", _data, _data->TYPEID->name, _data->run_time);
-	else
-		return ptr_printf("linop_%p [label=\"linop\\n%s\"];\n", _data, _data->TYPEID->name);
+	assert(0);
+	return NULL;
 }
 
-static const char* operator_graph_linop(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts)
+static const struct graph_s* lop_get_graph_default(const struct operator_s* op, linop_data_t* data, enum LINOP_TYPE lop_type)
 {
-	auto data = CAST_DOWN(shared_data_s, _data);
+	const char* lop_type_str = lop_get_type_str(lop_type);
+	const char* name = ptr_printf("linop\\n%s\\n%s", data->TYPEID->name, lop_type_str);
+	auto result = create_graph_operator(op, name);
+	xfree(lop_type_str);
+	xfree(name);
+	return result;
+}
 
-	if (NULL == data->get_graph)
-		return linop_graph_default(data->data, N, D, arg_nodes, opts);
-	return data->get_graph(data->data, N, D, arg_nodes, opts);
+static const struct graph_s* operator_linop_get_graph(const struct operator_s* op)
+{
+	auto data = CAST_DOWN(shared_data_s, operator_get_data(op));
+
+	if (NULL != data->get_graph)
+		return data->get_graph(op, data->data, data->lop_type);
+	else
+		return lop_get_graph_default(op, data->data, data->lop_type);
 }
 
 
 /**
  * Create a linear operator (with strides)
  */
-struct linop_s* linop_with_props_create2(unsigned int ON, const long odims[ON], const long ostrs[ON],
+struct linop_s* linop_with_graph_create2(unsigned int ON, const long odims[ON], const long ostrs[ON],
 				unsigned int IN, const long idims[IN], const long istrs[IN],
 				linop_data_t* data, lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal,
-				lop_p_fun_t norm_inv, del_fun_t del, operator_property_flags_t linop_props)
+				lop_p_fun_t norm_inv, del_fun_t del,
+				lop_graph_t get_graph)
 {
 	PTR_ALLOC(struct linop_s, lo);
 
@@ -144,24 +148,17 @@ struct linop_s* linop_with_props_create2(unsigned int ON, const long odims[ON], 
 		SET_TYPEID(shared_data_s, shared_data[i]);
 	}
 
-	linop_props = MD_SET(linop_props, OP_PROP_ATOMIC);
-	linop_props = MD_SET(linop_props, OP_PROP_R_LIN);
-
-	if (0 != (linop_props & (~linop_props_understood)))
-		error("Property passed to linop which is not understood\n");
-
-	data->run_time = 0;
-
 	for (unsigned int i = 0; i < 4; i++) {
 
 		shared_data[i]->data = data;
 		shared_data[i]->del = del;
-		shared_data[i]->get_graph = NULL;
 
 		if (0 == i)
 			shared_ptr_init(&shared_data[i]->sptr, sptr_del);
 		else
 			shared_ptr_copy(&shared_data[i]->sptr, &shared_data[0]->sptr);
+
+		shared_data[i]->get_graph = get_graph;
 	}
 
 	shared_data[0]->u.apply = forward;
@@ -169,17 +166,27 @@ struct linop_s* linop_with_props_create2(unsigned int ON, const long odims[ON], 
 	shared_data[2]->u.apply = normal;
 	shared_data[3]->u.apply_p = norm_inv;
 
+	shared_data[0]->lop_type = LOP_FORWARD;
+	shared_data[1]->lop_type = LOP_ADJOINT;
+	shared_data[2]->lop_type = LOP_NORMAL;
+	shared_data[3]->lop_type = LOP_NORMAL_INV;
+
 	assert((NULL != forward));
 	assert((NULL != adjoint));
 
-	operator_property_flags_t lin_props[1][1] = {{linop_props}};
+	lo->forward = operator_generic_create2(	2, (bool[2]){ true, false},
+						(unsigned int[2]){ ON, IN}, (const long* [2]){ odims, idims }, (const long* [2]){ ostrs, istrs },
+						CAST_UP(shared_data[0]), shared_apply, shared_del, operator_linop_get_graph);
 
-	lo->forward = operator_with_props_create2(ON, odims, ostrs, IN, idims, istrs, CAST_UP(shared_data[0]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props), operator_graph_linop);
-	lo->adjoint = operator_with_props_create2(IN, idims, istrs, ON, odims, ostrs, CAST_UP(shared_data[1]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props), operator_graph_linop);
+	lo->adjoint = operator_generic_create2(	2, (bool[2]){ true, false},
+						(unsigned int[2]){ IN, ON}, (const long* [2]){ idims, odims }, (const long* [2]){ istrs, ostrs },
+						CAST_UP(shared_data[1]), shared_apply, shared_del, operator_linop_get_graph);
 
 	if (NULL != normal) {
 
-		lo->normal = operator_with_props_create2(IN, idims, istrs, IN, idims, istrs, CAST_UP(shared_data[2]), shared_apply, shared_del, NULL, op_property_io_create(1, 1, (bool[2]){true, false}, lin_props), operator_graph_linop);
+		lo->normal = operator_generic_create2(	2, (bool[2]){ true, false},
+							(unsigned int[2]){ IN, IN}, (const long* [2]){ idims, idims }, (const long* [2]){ istrs, istrs },
+							CAST_UP(shared_data[2]), shared_apply, shared_del, operator_linop_get_graph);
 
 	} else {
 
@@ -214,7 +221,7 @@ struct linop_s* linop_create2(unsigned int ON, const long odims[ON], const long 
 				linop_data_t* data, lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal,
 				lop_p_fun_t norm_inv, del_fun_t del)
 {
-	return linop_with_props_create2(ON, odims, ostrs, IN, idims, istrs, data, forward, adjoint, normal, norm_inv, del, MD_BIT(OP_PROP_R_LIN));
+	return linop_with_graph_create2(ON, odims, ostrs, IN, idims, istrs, data, forward, adjoint, normal, norm_inv, del, NULL);
 }
 
 
@@ -231,16 +238,18 @@ struct linop_s* linop_create2(unsigned int ON, const long odims[ON], const long 
  * @param norm_inv function for applying the pseudo-inverse operation, (A^H A + mu I)^-1
  * @param del function for freeing the data
  * @param
+ * @param
  */
-struct linop_s* linop_with_props_create(	unsigned int ON, const long odims[ON], unsigned int IN, const long idims[IN], linop_data_t* data,
-					lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal, lop_p_fun_t norm_inv, del_fun_t del, operator_property_flags_t linop_flags)
+struct linop_s* linop_with_graph_create(	unsigned int ON, const long odims[ON], unsigned int IN, const long idims[IN], linop_data_t* data,
+					lop_fun_t forward, lop_fun_t adjoint, lop_fun_t normal, lop_p_fun_t norm_inv, del_fun_t del,
+					lop_graph_t get_graph)
 {
 	long ostrs[ON];
 	long istrs[IN];
 	md_calc_strides(ON, ostrs, odims, CFL_SIZE);
 	md_calc_strides(IN, istrs, idims, CFL_SIZE);
 
-	return linop_with_props_create2(ON, odims, ostrs, IN, idims, istrs, data, forward, adjoint, normal, norm_inv, del, linop_flags);
+	return linop_with_graph_create2(ON, odims, ostrs, IN, idims, istrs, data, forward, adjoint, normal, norm_inv, del, get_graph);
 }
 
 /**
@@ -756,3 +765,12 @@ struct linop_s* linop_reshape_out_F(const struct linop_s* op, unsigned int NO, c
 	return result;
 }
 
+const linop_data_t* operator_get_linop_data(const struct operator_s* op)
+{
+	auto data = CAST_MAYBE(shared_data_s, operator_get_data(op));
+
+	if (NULL == data)
+		return NULL;
+	else
+		return data->data;
+}

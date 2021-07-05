@@ -1,5 +1,4 @@
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <complex.h>
@@ -25,12 +24,9 @@ struct operator_s {
 
 	operator_data_t* data;
 	void (*apply)(const operator_data_t* data, unsigned int N, void* args[N]);
-	void (*set_opts)(const operator_data_t* _data, const struct op_options_s* opts);
 	void (*del)(const operator_data_t* data);
 
-	const char* (*get_graph)(const operator_data_t* _data, unsigned int N, unsigned int D[N], const char** arg_nodes[N], graph_t opts);
-
-	const struct op_property_s* props;
+	const struct graph_s* (*get_graph)(const struct operator_s* op);
 
 	struct shared_obj_s sptr;
 };
@@ -138,9 +134,9 @@ static void operator_del(const struct shared_obj_s* sptr)
 
 	xfree(x->domain);
 	xfree(x->io_flags);
-	op_property_free(x->props);
 	xfree(x);
 }
+
 
 
 /**
@@ -171,8 +167,7 @@ const struct operator_p_s* operator_p_create2(unsigned int ON, const long out_di
 	o->domain = *PTR_PASS(dom);
 	o->data = CAST_UP(PTR_PASS(op));
 	o->apply = op_p_apply;
-	o->set_opts = NULL;
-	o->props = op_property_create(3, io_flags, NULL);
+	o->get_graph = NULL;
 	o->del = op_p_del;
 
 	shared_obj_init(&o->sptr, operator_del);

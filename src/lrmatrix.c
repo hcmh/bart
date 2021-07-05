@@ -209,7 +209,7 @@ int main_lrmatrix(int argc, char* argv[argc])
 	const struct linop_s* ops[2] = { eye_op, eye_op };
 	const struct operator_p_s* prox_ops[2] = { sum_prox, lr_prox };
 	long size = 2 * md_calc_size(DIMS, odims);
-	struct s_data s_data = { { &TYPEID(s_data), 0. }, size / 2 };
+	struct s_data s_data = { { &TYPEID(s_data) }, size / 2 };
 
 	const struct operator_p_s* sum_xupdate_op = operator_p_create(DIMS, odims, DIMS, odims, CAST_UP(&s_data), sum_xupdate, sum_xupdate_free);
 
