@@ -84,7 +84,7 @@ tests/test-mdb-bloch-traj-b1: traj repmat phantom sim fmac modbloch slice scale 
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-TESTS += tests/test-mdb-bloch tests/test-mdb-bloch-psf tests/test-mdb-bloch-traj tests/test-mdb-bloch-traj-b1
+TESTSLOW += tests/test-mdb-bloch tests/test-mdb-bloch-psf tests/test-mdb-bloch-traj tests/test-mdb-bloch-traj-b1
 
 
 
