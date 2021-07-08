@@ -343,6 +343,8 @@ struct norm_max_abs_s {
 	unsigned long N;
 	const long* dims;
 	const long* sdims;
+
+	complex float* inv_scale;
 };
 
 DEF_TYPEID(norm_max_abs_s);
@@ -360,6 +362,9 @@ static void norm_max_abs_fun(const nlop_data_t* _data, int D, complex float* arg
 	const long* dims = data->dims;
 	const long* sdims = data->sdims;
 
+	if (NULL == data->inv_scale)
+		data->inv_scale = md_alloc_sameplace(N, sdims, CFL_SIZE, dst);
+
 #ifdef USE_CUDA
 	assert((cuda_ondevice(dst) == cuda_ondevice(src)));
 #endif
@@ -370,17 +375,36 @@ static void norm_max_abs_fun(const nlop_data_t* _data, int D, complex float* arg
 	md_copy2(N, sdims, MD_STRIDES(N, sdims, CFL_SIZE), scale, MD_STRIDES(N, dims, CFL_SIZE), tmp, CFL_SIZE);
 	md_zmax2(N, dims, MD_STRIDES(N, sdims, CFL_SIZE), scale, MD_STRIDES(N, sdims, CFL_SIZE), scale, MD_STRIDES(N, dims, CFL_SIZE), tmp);
 
+	md_free(tmp);
+
 	complex float* ones = md_alloc_sameplace(N, sdims, CFL_SIZE, dst);
 	md_zfill(N, sdims, ones, 1.);
-	md_zdiv(N, sdims, tmp, ones, scale);
+	md_zdiv(N, sdims, data->inv_scale, ones, scale);
 
 	md_zmul2(N, dims,
 		MD_STRIDES(N, dims, CFL_SIZE), dst,
 		MD_STRIDES(N, dims, CFL_SIZE), src,
-		MD_STRIDES(N, sdims, CFL_SIZE), tmp);
+		MD_STRIDES(N, sdims, CFL_SIZE), data->inv_scale);
 
 	md_free(ones);
-	md_free(tmp);
+
+}
+
+static void norm_max_abs_deradj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	const auto data = CAST_DOWN(norm_max_abs_s, _data);
+
+	unsigned long N = data->N;
+	const long* dims = data->dims;
+	const long* sdims = data->sdims;
+
+	md_zmul2(N, dims,
+		MD_STRIDES(N, dims, CFL_SIZE), dst,
+		MD_STRIDES(N, dims, CFL_SIZE), src,
+		MD_STRIDES(N, sdims, CFL_SIZE), data->inv_scale); //inv_scale is real -> selfadjoint
 }
 
 static void norm_max_abs_del(const struct nlop_data_s* _data)
@@ -389,6 +413,8 @@ static void norm_max_abs_del(const struct nlop_data_s* _data)
 
 	xfree(data->dims);
 	xfree(data->sdims);
+
+	md_free(data->inv_scale);
 
 	xfree(data);
 }
@@ -407,6 +433,8 @@ const struct nlop_s* nlop_norm_max_abs_create(int N, const long dims[N], unsigne
 	data->dims = *PTR_PASS(ndims);
 	data->sdims = *PTR_PASS(sdims);
 
+	data->inv_scale = NULL;
+
 	long nl_odims[2][N];
 	md_copy_dims(N, nl_odims[0], dims);
 	md_copy_dims(N, nl_odims[1], data->sdims);
@@ -414,8 +442,7 @@ const struct nlop_s* nlop_norm_max_abs_create(int N, const long dims[N], unsigne
 	long nl_idims[1][N];
 	md_copy_dims(N, nl_idims[0], dims);
 
-	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), norm_max_abs_fun, NULL, NULL, NULL, NULL, norm_max_abs_del);
-
+	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), norm_max_abs_fun, (nlop_der_fun_t[1][2]){ { norm_max_abs_deradj, NULL } }, (nlop_der_fun_t[1][2]){ { norm_max_abs_deradj, NULL } }, NULL, NULL, norm_max_abs_del);
 }
 
 struct norm_znorm_s {
@@ -425,6 +452,8 @@ struct norm_znorm_s {
 	unsigned long N;
 	const long* dims;
 	const long* sdims;
+
+	complex float* inv_scale;
 };
 
 DEF_TYPEID(norm_znorm_s);
@@ -442,6 +471,9 @@ static void norm_znorm_fun(const nlop_data_t* _data, int D, complex float* args[
 	const long* dims = data->dims;
 	const long* sdims = data->sdims;
 
+	if (NULL == data->inv_scale)
+		data->inv_scale = md_alloc_sameplace(N, sdims, CFL_SIZE, dst);
+
 #ifdef USE_CUDA
 	assert((cuda_ondevice(dst) == cuda_ondevice(src)));
 #endif
@@ -451,15 +483,26 @@ static void norm_znorm_fun(const nlop_data_t* _data, int D, complex float* args[
 
 	//scale[0] = md_znorm(N, dims, src);
 
-	complex float* tmp = md_alloc_sameplace(N, sdims, CFL_SIZE, dst);
-	md_zfill(N, sdims, tmp, 1);
-	md_zdiv(N, sdims, tmp, tmp, scale);
-	md_zmul2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), dst, MD_STRIDES(N, dims, CFL_SIZE), src, MD_STRIDES(N, sdims, CFL_SIZE), tmp);
+	md_zfill(N, sdims, data->inv_scale, 1);
+	md_zdiv(N, sdims, data->inv_scale, data->inv_scale, scale);
+	md_zmul2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), dst, MD_STRIDES(N, dims, CFL_SIZE), src, MD_STRIDES(N, sdims, CFL_SIZE), data->inv_scale);
+}
 
-	print_complex(md_calc_size(N, sdims), tmp);
-	md_free(tmp);
+static void norm_znorm_deradj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
 
+	const auto data = CAST_DOWN(norm_znorm_s, _data);
 
+	unsigned long N = data->N;
+	const long* dims = data->dims;
+	const long* sdims = data->sdims;
+
+	md_zmul2(N, dims,
+		MD_STRIDES(N, dims, CFL_SIZE), dst,
+		MD_STRIDES(N, dims, CFL_SIZE), src,
+		MD_STRIDES(N, sdims, CFL_SIZE), data->inv_scale); //inv_scale is real -> selfadjoint
 }
 
 static void norm_znorm_del(const struct nlop_data_s* _data)
@@ -468,6 +511,8 @@ static void norm_znorm_del(const struct nlop_data_s* _data)
 
 	xfree(data->dims);
 	xfree(data->sdims);
+
+	md_free(data->inv_scale);
 
 	xfree(data);
 }
@@ -486,6 +531,8 @@ const struct nlop_s* nlop_norm_znorm_create(int N, const long dims[N], unsigned 
 	data->dims = *PTR_PASS(ndims);
 	data->sdims = *PTR_PASS(sdims);
 
+	data->inv_scale = NULL;
+
 	long nl_odims[2][N];
 	md_copy_dims(N, nl_odims[0], dims);
 	md_copy_dims(N, nl_odims[1], data->sdims);
@@ -493,6 +540,31 @@ const struct nlop_s* nlop_norm_znorm_create(int N, const long dims[N], unsigned 
 	long nl_idims[1][N];
 	md_copy_dims(N, nl_idims[0], dims);
 
-	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), norm_znorm_fun, NULL, NULL, NULL, NULL, norm_znorm_del);
+	return nlop_generic_create(2, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), norm_znorm_fun, (nlop_der_fun_t[1][2]){ { norm_znorm_deradj, NULL } }, (nlop_der_fun_t[1][2]){ { norm_znorm_deradj, NULL } }, NULL, NULL, norm_znorm_del);
 
+}
+
+
+const struct nlop_s* nlop_norm_create(int N, const long dims[__VLA(N)], unsigned long batch_flag, enum norm norm, _Bool stop_grad)
+{
+	const struct nlop_s* result = NULL;
+	switch (norm) {
+
+		case NORM_MAX:
+			result = nlop_norm_max_abs_create(N, dims, batch_flag);
+			break;
+
+		case NORM_L2:
+			result = nlop_norm_znorm_create(N, dims, batch_flag);
+			break;
+
+		case NORM_NONE:
+		default:
+			error("No normalization selected!");
+	}
+
+	if (stop_grad)
+		result = nlop_no_der_F(result, 1, 0);
+
+	return result;
 }
