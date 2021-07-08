@@ -289,6 +289,8 @@ struct noir2_s noir2_cart_create(int N,
 
 	unsigned long fft_flags = conf->fft_flags_noncart | conf->fft_flags_cart;
 
+	assert(md_check_equal_dims(N, pat_dims, ksp_dims, md_nontriv_dims(N, pat_dims)));
+
 	// if noncart, the pattern is understood as psf.
 	// the forward model maps to the gridded kspace, while the adjoint does not contain the gridding
 	if (!conf->noncart) {
