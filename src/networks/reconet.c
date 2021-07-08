@@ -485,7 +485,7 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 		result = nn_from_nlop_F(nlop_init);
 		result = nn_set_input_name_F(result, 1, "reinsert");
 
-		auto network = config->network->create(config->network, 5, odims_w, 5, idims_w2, status);
+		auto network = network_create(config->network, 5, odims_w, 5, idims_w2, status);
 
 		if (config->kspace) {
 
@@ -500,7 +500,7 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 
 	} else {
 
-		result = config->network->create(config->network, 5, odims_w, 5, idims_w, status);
+		result = network_create(config->network, 5, odims_w, 5, idims_w, status);
 
 		if (config->kspace) {
 

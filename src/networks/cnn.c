@@ -9,6 +9,7 @@
 #include "misc/mri.h"
 #include "misc/misc.h"
 
+#include "nn/nn_ops.h"
 #include "num/multind.h"
 #include "num/iovec.h"
 
@@ -34,6 +35,30 @@
 
 #include  "cnn.h"
 
+nn_t network_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
+{
+	auto result = config->create(config, NO, odims, NI, idims, status);
+	result = nn_checkpoint_F(result, true, config->low_mem);
+
+	if (NORM_NONE != config->norm) {
+
+		const struct nlop_s* nlop_norm = nlop_norm_create(NI, idims, config->norm_batch_flag, config->norm, true);
+
+		long sodims[NO];
+		md_select_dims(NO, config->norm_batch_flag, sodims, odims);
+		nlop_norm = nlop_reshape_out_F(nlop_norm, 1, NO, sodims);
+
+		result = nn_chain2_swap_FF(nn_from_nlop_F(nlop_norm), 0, NULL, result, 0, NULL);
+
+		auto nn_scale = nn_from_nlop_F(nlop_tenmul_create(NO, odims, odims, sodims));
+
+		result = nn_chain2_FF(result, 1, NULL, nn_scale, 1, NULL);
+		result = nn_link_F(result, 0, NULL, 0, NULL);
+	}
+
+	return result;
+}
+
 static nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 static nn_t network_varnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
 static nn_t network_mnist_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
@@ -55,6 +80,8 @@ struct network_resnet_s network_resnet_default = {
 	.INTERFACE.create = network_resnet_create,
 
 	.INTERFACE.low_mem = false,
+	.INTERFACE.norm = NORM_NONE,
+	.INTERFACE.norm_batch_flag = MD_BIT(4),
 
 	.N = 5,
 
@@ -258,7 +285,7 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 	result = nn_sort_inputs_by_list_F(result, ARRAY_SIZE(resnet_sorted_weight_names), resnet_sorted_weight_names);
 	result = nn_sort_outputs_by_list_F(result, ARRAY_SIZE(resnet_sorted_weight_names), resnet_sorted_weight_names);
 
-	return nn_checkpoint_F(result, true, config->INTERFACE.low_mem);
+	return result;
 }
 
 
@@ -274,6 +301,9 @@ struct network_varnet_s network_varnet_default = {
 	.INTERFACE.create = network_varnet_create,
 
 	.INTERFACE.low_mem = false,
+
+	.INTERFACE.norm = NORM_NONE,
+	.INTERFACE.norm_batch_flag = MD_BIT(4),
 
 	.Nf = 24,
 	.Nw = 31,
@@ -369,13 +399,16 @@ static nn_t network_varnet_create(const struct network_s* _config, unsigned int 
 
 	nn_debug(DP_DEBUG3, nn_result);
 
-	return nn_checkpoint_F(nn_result, true, config->INTERFACE.low_mem);
+	return nn_result;
 }
 
 struct network_s network_mnist_default = {
 
 	.create = network_mnist_create,
 	.low_mem = false,
+
+	.norm = NORM_NONE,
+	.norm_batch_flag = MD_BIT(4),
 };
 
 static nn_t network_mnist_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)

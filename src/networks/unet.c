@@ -49,6 +49,9 @@ struct network_unet_s network_unet_default_reco = {
 
 	.INTERFACE.low_mem = false,
 
+	.INTERFACE.norm = NORM_NONE,
+	.INTERFACE.norm_batch_flag = MD_BIT(4),
+
 	.N = 5,
 	.kdims = {[0 ... DIMS -1] = 0},
 	.dilations = {[0 ... DIMS -1] = 1},

@@ -7,6 +7,7 @@
 #include "nn/layers.h"
 #include "nn/activation.h"
 #include "nn/nn.h"
+#include "nn/nn_ops.h"
 #include "nn/init.h"
 
 struct network_s;
@@ -19,6 +20,9 @@ typedef struct network_s {
 
 	network_create_t create;
 	_Bool low_mem;
+
+	enum norm norm;
+	unsigned long norm_batch_flag;
 
 } network_t;
 

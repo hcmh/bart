@@ -148,7 +148,7 @@ void nnet_init_unet_segm_default(struct nnet_s* nnet, long N_segm_labels)
 
 static nn_t nnet_network_create(const struct nnet_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
 {
-	return config->network->create(config->network, NO, odims, NI, idims, status);
+	return network_create(config->network, NO, odims, NI, idims, status);
 }
 
 
