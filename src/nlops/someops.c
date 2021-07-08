@@ -522,3 +522,53 @@ const struct nlop_s* nlop_zmax_create(int N, const long dims[N], unsigned long f
 
 	return nlop_create(N, odims, N, dims, CAST_UP(PTR_PASS(data)), zmax_fun, zmax_der, zmax_adj, NULL, NULL, zmax_del);
 }
+
+
+struct zrss_s {
+
+	INTERFACE(nlop_data_t);
+
+	unsigned long N;
+	unsigned long flags;
+	const long* dims;
+};
+
+DEF_TYPEID(zrss_s);
+
+static void zrss_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto data = CAST_DOWN(zrss_s, _data);
+	md_zrss(data->N, data->dims, data->flags, dst, src);
+}
+
+
+static void zrss_del(const struct nlop_data_s* _data)
+{
+	const auto data = CAST_DOWN(zrss_s, _data);
+
+	xfree(data->dims);
+
+	xfree(data);
+}
+
+
+/**
+ * Returns zrss of array along specified flags.
+ **/
+const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long flags)
+{
+	PTR_ALLOC(struct zrss_s, data);
+	SET_TYPEID(zrss_s, data);
+
+	PTR_ALLOC(long[N], dims_tmp);
+	md_copy_dims(N, *dims_tmp, dims);
+
+	data->N = N;
+	data->flags = flags;
+	data->dims = *PTR_PASS(dims_tmp);
+
+	long odims[N];
+	md_select_dims(N, ~flags, odims, dims);
+
+	return nlop_create(N, odims, N, dims, CAST_UP(PTR_PASS(data)), zrss_fun, NULL, NULL, NULL, NULL, zrss_del);
+}
