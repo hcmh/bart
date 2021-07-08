@@ -22,16 +22,19 @@
 #include "noir/recon2.h"
 #include "noir/model_net.h"
 
+#include "nn/weights.h"
+
+#include "networks/nlinvnet.h"
+
 #include "noir/misc.h"
 
-
-
+#ifdef USE_CUDA
+#include "num/gpuops.c"
+#endif
 
 
 static const char help_str[] =
-		"Jointly estimate image and sensitivities with nonlinear\n"
-		"inversion using {iter} iteration steps. Optionally outputs\n"
-		"the sensitivities.";
+		"";
 
 
 
@@ -40,42 +43,46 @@ int main_nlinvnet(int argc, char* argv[argc])
 	double start_time = timestamp();
 
 	const char* ksp_file = NULL;
-	const char* img_file = NULL;
+	const char* out_file = NULL;
+	const char* weight_file = NULL;
 	const char* sens_file = NULL;
 
 	struct arg_s args[] = {
 
 		ARG_INFILE(true, &ksp_file, "kspace"),
-		ARG_OUTFILE(true, &img_file, "output"),
+		ARG_INOUTFILE(true, &weight_file, "weights"),
+		ARG_INOUTFILE(true, &out_file, "output/reference"),
 		ARG_OUTFILE(false, &sens_file, "sensitivities"),
 	};
 
 	const char* pat_file = NULL;
 	const char* traj_file = NULL;
 
-	int nmaps = 1;
-
 	struct noir2_conf_s conf = noir2_defaults;
+	struct nlinvnet_s nlinvnet = nlinvnet_config_opts;
+	nlinvnet.conf = &conf;
 
-	unsigned int cnstcoil_flags = 0;
-	bool combine = true;
+	float coil_os = -1;
 
 	const struct opt_s opts[] = {
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
-		OPT_FLOAT('M', &conf.alpha_min, "", "(minimum for regularization)"),
-		OPT_SET('c', &conf.rvc, "Real-value constraint"),
-		OPT_SET('g', &(conf.gpu), "use gpu"),
-		//OPT_UINT('s', &cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
+		OPT_SET('g', &(nlinvnet.gpu), "use gpu"),
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPTL_FLOAT(0, "alpha", &conf.alpha, "", "(minimum for regularization)"),
+		OPT_INFILE('p', &pat_file, "", "sampling pattern"),
+		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
-	(conf.gpu ? num_init_gpu_memopt : num_init)();
+	(nlinvnet.gpu ? num_init_gpu_memopt : num_init)();
+	#ifdef USE_CUDA
+	if (nlinvnet.gpu)
+		cuda_use_global_memory();
+	#endif
 
 	long ksp_dims[DIMS];
 	complex float* kspace = load_cfl(ksp_file, DIMS, ksp_dims);
@@ -117,55 +124,63 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		md_copy_dims(DIMS, dims, ksp_dims);
 	}
+	if (-1 == coil_os)
+		coil_os = conf.noncart ? 2 : 1;
 
-	dims[MAPS_DIM] = nmaps;
+	dims[MAPS_DIM] = 1;
 
 	long sens_dims[DIMS];
-	md_select_dims(DIMS, ~cnstcoil_flags, sens_dims, dims);
+	md_select_dims(DIMS, ~0, sens_dims, dims);
+
+	for (int i = 0; i < 3; i++)
+		if (1 != sens_dims[i])
+			sens_dims[i] = lround(coil_os * sens_dims[i]);
 
 	long img_dims[DIMS];
 	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
 
-	long img_output_dims[DIMS];
-	md_copy_dims(DIMS, img_output_dims, img_dims);
-
 	long cim_dims[DIMS];
 	md_select_dims(DIMS, ~MAPS_FLAG, cim_dims, dims);
-
-	if (conf.noncart) {
-
-		if (NULL == traj) {
-
-			for (int i = 0; i < 3; i++)
-				if (1 != img_output_dims[i])
-					img_output_dims[i] /= 2;
-		} else {
-
-			for (int i = 0; i < 3; i++)
-				if (1 != sens_dims[i])
-					sens_dims[i] *= 2;
-		}
-	}
-
-	if (combine)
-		img_output_dims[MAPS_DIM] = 1;
-
-	complex float* img_output = create_cfl(img_file, DIMS, img_output_dims);
-	md_clear(DIMS, img_output_dims, img_output, CFL_SIZE);
 
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, img_dims);
 
+	nlinvnet_init_resnet_default(&nlinvnet);
 
-	complex float* sens = ((NULL != sens_file) ? create_cfl : anon_cfl)((NULL != sens_file) ? sens_file : "", DIMS, sens_dims);
+	long col_dims_s[DIMS];
+	long img_dims_s[DIMS];
+	long cim_dims_s[DIMS];
+	long msk_dims_s[DIMS];
+	long ksp_dims_s[DIMS];
+	long pat_dims_s[DIMS];
 
-	auto nlop_nlinv = noir_cart_unrolled_create(DIMS, pat_dims, pattern, NULL, NULL, msk_dims, NULL, ksp_dims, cim_dims, img_dims, sens_dims, &conf);
-	nlop_generic_apply_unchecked(nlop_nlinv, 3, (void*[3]){img_output, sens, kspace});
-	nlop_free(nlop_nlinv);
+	md_select_dims(DIMS, ~BATCH_FLAG, col_dims_s, sens_dims);
+	md_select_dims(DIMS, ~BATCH_FLAG, img_dims_s, img_dims);
+	md_select_dims(DIMS, ~BATCH_FLAG, cim_dims_s, cim_dims);
+	md_select_dims(DIMS, ~BATCH_FLAG, msk_dims_s, msk_dims);
+	md_select_dims(DIMS, ~BATCH_FLAG, ksp_dims_s, ksp_dims);
+	md_select_dims(DIMS, ~BATCH_FLAG, pat_dims_s, pat_dims);
 
-	unmap_cfl(DIMS, sens_dims, sens);
+	nlinvnet_init_model_cart(&nlinvnet, DIMS,
+		pat_dims_s, pattern,
+		MD_SINGLETON_DIMS(DIMS), NULL,
+		msk_dims_s, NULL,
+		ksp_dims_s,
+		cim_dims_s,
+		img_dims_s,
+		col_dims_s);
+
+	int Nb = 10;
+
+	long cim_dims2[DIMS];
+	complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
+	assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
+	train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims, ref, ksp_dims, kspace);
+
+	dump_nn_weights(weight_file, nlinvnet.weights);
+
+	unmap_cfl(DIMS, cim_dims, ref);
 	unmap_cfl(DIMS, pat_dims, pattern);
-	unmap_cfl(DIMS, img_output_dims, img_output);
 	unmap_cfl(DIMS, ksp_dims, kspace);
 
 	double recosecs = timestamp() - start_time;
