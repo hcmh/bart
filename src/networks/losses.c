@@ -27,12 +27,39 @@
 
 #include "networks/losses.h"
 
+struct loss_config_s loss_nlinvnet = {
+
+	.weighting_mse_sa = 0.,
+	.weighting_mse = 1.,
+	.weighting_psnr = 0.,
+	.weighting_ssim = 0.,
+
+	.weighting_mse_rss = 1.,
+	.weighting_psnr_rss = 1.,
+	.weighting_ssim_rss = 1.,
+
+	.weighting_cce = 0.,
+	.weighting_weighted_cce = 0.,
+	.weighting_accuracy = 0.,
+
+	.weighting_dice0 = 0.,
+	.weighting_dice1 = 0.,
+	.weighting_dice2 = 0.,
+
+	.label_index = 0,
+	.image_flags = FFT_FLAGS,
+};
+
 struct loss_config_s loss_option = {
 
 	.weighting_mse_sa = 0.,
 	.weighting_mse = 0.,
 	.weighting_psnr = 0.,
 	.weighting_ssim = 0.,
+
+	.weighting_mse_rss = 0.,
+	.weighting_psnr_rss = 0.,
+	.weighting_ssim_rss = 0.,
 
 	.weighting_cce = 0.,
 	.weighting_weighted_cce = 0.,
@@ -53,6 +80,10 @@ struct loss_config_s val_loss_option = {
 	.weighting_psnr = 0.,
 	.weighting_ssim = 0.,
 
+	.weighting_mse_rss = 0.,
+	.weighting_psnr_rss = 0.,
+	.weighting_ssim_rss = 0.,
+
 	.weighting_cce = 0.,
 	.weighting_weighted_cce = 0.,
 	.weighting_accuracy = 0.,
@@ -71,6 +102,10 @@ struct loss_config_s loss_image_valid = {
 	.weighting_mse = 1.,
 	.weighting_psnr = 1.,
 	.weighting_ssim = 1.,
+
+	.weighting_mse_rss = 0.,
+	.weighting_psnr_rss = 0.,
+	.weighting_ssim_rss = 0.,
 
 	.weighting_cce = 0.,
 	.weighting_weighted_cce = 0.,
@@ -92,6 +127,10 @@ struct loss_config_s loss_classification_valid = {
 	.weighting_mse = 0.,
 	.weighting_psnr = 0.,
 	.weighting_ssim = 0.,
+
+	.weighting_mse_rss = 0.,
+	.weighting_psnr_rss = 0.,
+	.weighting_ssim_rss = 0.,
 
 	.weighting_cce = 1.,
 	.weighting_weighted_cce = 1.,
@@ -256,6 +295,63 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 		nlop = nlop_reshape_in_F(nlop, 1, N, dims);
 
 		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean ssim", config->weighting_ssim, measure), combine);
+	}
+
+	if (measure && (0 != config->weighting_mse_rss)) {
+
+		long loss_dims[N];
+		md_select_dims(N, ~COIL_FLAG, loss_dims, dims);
+
+		auto loss = nlop_mse_create(N, loss_dims, ~0ul);
+		loss = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG), 0, loss, 0);
+		loss = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG), 0, loss, 0);
+
+		result = add_loss(result, nlop_loss_to_nn_F(loss, "mse rss", config->weighting_mse_rss, measure), combine);
+	}
+
+	if (measure && (0 != config->weighting_psnr_rss)) {
+
+		long loss_dims[N];
+		md_select_dims(N, ~COIL_FLAG, loss_dims, dims);
+
+		auto nlop = nlop_mpsnr_create(N, loss_dims, ~config->image_flags);
+
+		if (!measure) {
+
+			assert(0); //cannot be used for training
+			nlop = nlop_affine_transform_out_F(nlop, -1, 0);
+		}
+
+		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG), 0, nlop, 0);
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean psnr rss", config->weighting_psnr_rss, measure), combine);
+	}
+
+	if (measure && (0 != config->weighting_ssim_rss)) {
+
+		assert(5 <= N); //FIXME: should be more general
+		assert(0 == (config->image_flags & ~(MD_BIT(4) - 1))); //dim 4 becomes batch / average dim
+
+		long loss_dims[N];
+		md_select_dims(N, ~COIL_FLAG, loss_dims, dims);
+
+		long ndims[5];
+		md_copy_dims(4, ndims, loss_dims);
+		ndims[4] = md_calc_size(N - 4, dims + 4);
+
+		auto nlop = nlop_mssim_create(5, ndims, MD_DIMS(7, 7, 1, 1, 1), config->image_flags);
+
+		if (!measure)
+			nlop = nlop_affine_transform_out_F(nlop, -1, 1);
+
+		nlop = nlop_reshape_in_F(nlop, 0, N, loss_dims);
+		nlop = nlop_reshape_in_F(nlop, 1, N, loss_dims);
+
+		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG), 0, nlop, 0);
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean ssim rss", config->weighting_ssim_rss, measure), combine);
 	}
 
 	if (0 != config->weighting_cce) {

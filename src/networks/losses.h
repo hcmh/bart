@@ -5,6 +5,10 @@ struct loss_config_s {
 	float weighting_psnr;
 	float weighting_ssim;
 
+	float weighting_mse_rss;
+	float weighting_psnr_rss;
+	float weighting_ssim_rss;
+
 	float weighting_cce;
 	float weighting_weighted_cce;
 	float weighting_accuracy;
@@ -21,6 +25,7 @@ struct loss_config_s {
 
 extern struct loss_config_s val_loss_option;
 extern struct loss_config_s loss_option;
+extern struct loss_config_s loss_nlinvnet;
 
 extern struct loss_config_s loss_image_valid;
 extern struct loss_config_s loss_classification_valid;
