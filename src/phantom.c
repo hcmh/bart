@@ -40,6 +40,7 @@ int main_phantom(int argc, char* argv[argc])
 
 	bool kspace = false;
 	bool d3 = false;
+	bool no_rot = false;
 	int sens = 0;
 	int osens = -1;
 	int xdim = -1;
@@ -78,6 +79,7 @@ int main_phantom(int argc, char* argv[argc])
 		OPT_INT('x', &xdim, "n", "dimensions in y and z"),
 		OPT_INT('g', &geo, "n=1,2,3", "select geometry for object phantom"),
 		OPT_SET('3', &d3, "3D"),
+		OPT_SET('n', &no_rot, "disable rotation for the heart phantom"),
 		OPT_SET('b', &basis, "basis functions for geometry"),
 		OPT_INT('r', &rinit, "seed", "random seed initialization"),
 		OPTL_INT(0, "rotation-steps", &(rotation_steps), " ", "Steps to rotate TUBES phantom around 2pi"),
@@ -180,9 +182,9 @@ int main_phantom(int argc, char* argv[argc])
 
 	case HEART:
 
-		assert(!d3);
-		calc_heart(dims, out, kspace, sstrs, samples);
-
+                assert(!d3);
+                        
+                (no_rot ? calc_heart2 : calc_heart)(dims, out, kspace, sstrs, samples);
 		break;
 
 	case GEOM:

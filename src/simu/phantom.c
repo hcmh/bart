@@ -400,6 +400,28 @@ void calc_heart(const long dims[DIMS], complex float* out, bool kspace, const lo
 	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc);
 }
 
+void calc_heart2(const long dims[DIMS], complex float* out, bool kspace, const long tstrs[DIMS], const complex float* traj)
+{
+	struct moving_ellipsis_s disc[] = {
+		{	.geom = { 0.4, { 0.3, 0.3 }, { 0., 0. }, 0. },
+			.fourier_coeff_size = { { 0.3, 0.08, 0. }, { 0.3, 0.08, 0., }, },
+			.fourier_coeff_pos = { { 0., 0.0, 0., }, { 0., 0.0i, 0., }, }, },
+		{	.geom = { -0.4, { 0.225, 0.225 }, { 0., 0. }, 0. },
+			.fourier_coeff_size = { { 0.225, 0.05, 0. }, { 0.225, 0.05, 0., }, },
+			.fourier_coeff_pos = { { 0., 0.0, 0., }, { 0., 0.0i, 0., }, }, },
+		{	.geom = { 1., { 0.225, 0.225 }, { 0., 0. }, 0. },
+			.fourier_coeff_size = { { 0.225, 0.05, 0., }, { 0.225, 0.05, 0., }, },
+			.fourier_coeff_pos = { { 0., 0.0, 0., }, { 0., 0.0i, 0., }, }, },
+		{	.geom = { 0.5, { 0.9, 0.8 }, { 0, 0. }, 0. },
+			.fourier_coeff_size = { { 0.9, 0.00, 0., }, { 0.8, 0.00, 0., }, },
+			.fourier_coeff_pos = { { 0., 0., 0., }, { 0., 0., 0., }, }, },
+		{	.geom = { -0.5, { 0.8, 0.7 }, { 0, 0. }, 0. },
+			.fourier_coeff_size = { { 0.8, 0.00, 0., }, { 0.7, 0.00, 0., }, },
+			.fourier_coeff_pos = { { 0., 0., 0., }, { 0., 0., 0., }, }, },
+	};
+
+	calc_moving_discs(dims, out, kspace, tstrs, traj, ARRAY_SIZE(disc), disc);
+}
 
 struct poly1 {
 
