@@ -112,10 +112,12 @@ static const char help_str[] = "Basis function based simulation tool.";
 int main_sim(int argc, char* argv[])
 {
 	const char* out_file = NULL;
+	const char* out_deriv = NULL;
 
 	struct arg_s args[] = {
 
 		ARG_OUTFILE(true, &out_file, "OUT:basis-functions"),
+		ARG_OUTFILE(false, &out_deriv, "OUT:basis-functions"),
 	};
 
 	long dims[DIMS] = { [0 ... DIMS - 1] = 1 };
@@ -235,7 +237,9 @@ int main_sim(int argc, char* argv[])
 	md_copy_dims(DIMS, ddims, mdims);
 	ddims[MAPS_DIM] = 4; // dR1, dM0, dR2, dB1
 
-	complex float* d = md_alloc(DIMS, ddims, CFL_SIZE);
+	complex float* d = ((NULL != out_deriv) ? create_cfl : anon_cfl)((NULL != out_deriv) ? out_deriv : "", DIMS, ddims);
+
+	md_zfill(DIMS, ddims, d, 0.);
 
 	// Output z check up's
 
@@ -342,6 +346,7 @@ int main_sim(int argc, char* argv[])
 	}
 
 	md_free(m);
+	unmap_cfl(DIMS, ddims, d);
 
 	return 0;
 }
