@@ -160,7 +160,7 @@ static void xyspoiling(int N, int P, float out[N], void* _data)
 	struct sim_data* simdata = _data;
 	
 	if (simdata->seq.seq_type == 2 || simdata->seq.seq_type == 5)
-		for(int i = 0; i < P + 1 ; i ++) {
+		for(int i = 0; i < P + 1 ; i++) {
 
 			out[3*i] = 0.;
 			out[3*i+1] = 0.;
@@ -342,10 +342,10 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 	enum { N = 13 };
 	enum { P = 4 };	// Components of M = (Sig, dR1, dR2, dB1)
 
-	float isochromats[data->seq.spin_num];
+	float isochromates[data->seq.spin_num];
 
 	if (data->voxel.spin_ensamble)
-		isochrom_distribution(data, isochromats);
+		isochrom_distribution(data, isochromates);
 
 	//Create bin for sum up the resulting signal and sa -> heap implementation should avoid stack overflows 
 	float *mxy = malloc((data->seq.spin_num * data->seq.rep_num * 3) * sizeof(float)); // [Mx, My, Mz], FIXME: better name
@@ -370,7 +370,7 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 		float xp[N] = { 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1. };
 
 		if (data->voxel.spin_ensamble)
-			data->voxel.w = w_backup + isochromats[data->tmp.spin_counter]; //just on-resonant pulse for now.
+			data->voxel.w = w_backup + isochromates[data->tmp.spin_counter]; //just on-resonant pulse for now.
 
 		data->tmp.t = 0;
 		data->tmp.rep_counter = 0;
