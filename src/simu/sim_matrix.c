@@ -160,7 +160,7 @@ static void xyspoiling(int N, int P, float out[N], void* _data)
 	struct sim_data* simdata = _data;
 	
 	if (simdata->seq.seq_type == 2 || simdata->seq.seq_type == 5)
-		for(int i = 0; i < P ; i ++) {
+		for(int i = 0; i < P + 1 ; i ++) {
 
 			out[3*i] = 0.;
 			out[3*i+1] = 0.;
