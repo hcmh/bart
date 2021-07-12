@@ -280,11 +280,11 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 				sim_data.voxel.r1 = crealf(r1scale[spa_ind]);
 				sim_data.voxel.r2 = crealf(r2scale[spa_ind]);
 				sim_data.voxel.m0 = m0scale[spa_ind];
-				sim_data.voxel.b1 = 1.;
+				sim_data.voxel.b1 = b1;
 				sim_data.voxel.w = 0;
 
 				sim_data.pulse = simdata_pulse_defaults;
-				sim_data.pulse.flipangle = angle * b1;
+				sim_data.pulse.flipangle = angle;
 				sim_data.pulse.rf_end = data->fitParameter.rfduration;
 				sim_data.pulse.bwtp = data->fitParameter.bwtp;
 				sim_data.grad = simdata_grad_defaults;
