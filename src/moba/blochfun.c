@@ -251,7 +251,7 @@ static void Bloch_fun(const nlop_data_t* _data, complex float* dst, const comple
 
 				if (NULL != data->input_b1) {
 
-					b1 = cabsf(b1_cpu[spa_ind]);
+					b1 = crealf(b1_cpu[spa_ind]);
 
 					if(safe_isnanf(b1))
 						b1 = 0.;
