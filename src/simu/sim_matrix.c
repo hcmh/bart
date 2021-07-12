@@ -303,7 +303,7 @@ static void prepare_matrix_to_tr( int N, float matrix[N][N], void* _data )
 
 static void ADCcorrection(int N, int P, float out[N], float in[N], float corr_angle)
 {
-	for (int i = 0; i < P; i++) {	// 4 parameter: Sig, S_R1, S_R2, S_B1
+	for (int i = 0; i < P + 1; i++) {	// 4 parameter: Sig, S_R1, S_R2, S_B1
 		
 		out[3*i] = in[3*i] * cosf(corr_angle) - in[3*i+1] * sinf(corr_angle);
 		out[3*i+1] = in[3*i] * sinf(corr_angle) + in[3*i+1] * cosf(corr_angle);
@@ -318,7 +318,7 @@ static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa
 
 	float tmp[N];
 
-	int P = 4;
+	int P = 3;
 
 	if (data->seq.seq_type == 2 || data->seq.seq_type == 5)
 		ADCcorrection(N, P, tmp, xp, 0.);	// no alternating pulse scheme for FLASH sequences
@@ -340,7 +340,7 @@ void matrix_bloch_simulation(void* _data, complex float (*mxy_sig)[3], complex f
 	struct sim_data* data = _data;
 	
 	enum { N = 13 };
-	enum { P = 4 };	// Components of M = (Sig, dR1, dR2, dB1)
+	enum { P = 3 };	// Components of M = (dR1, dR2, dB1)
 
 	float isochromates[data->seq.spin_num];
 
