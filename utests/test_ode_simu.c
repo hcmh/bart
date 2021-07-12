@@ -26,7 +26,7 @@
 #include "utest.h"
 
 
-static bool test_ode_bloch_simulation(void)
+static bool test_ode_bloch_simulation_irbssfp(void)
 {
 	float e = 1.E-3;
 
@@ -34,7 +34,7 @@ static bool test_ode_bloch_simulation(void)
 
 	float t1 = 1.5;
 	float t2 = 0.1;
-	float m0 = 1;
+	float m0 = 1.;
 
 	int repetition = 500;
 
@@ -53,9 +53,155 @@ static bool test_ode_bloch_simulation(void)
 	sim_data.voxel.r2 = 1 / t2;
 	sim_data.voxel.m0 = m0;
 	sim_data.voxel.w = 0;
+	sim_data.voxel.b1 = 1.;
 
 	sim_data.pulse = simdata_pulse_defaults;
 	sim_data.pulse.flipangle = 45.;
+	sim_data.pulse.rf_end = 0.0009;
+	sim_data.grad = simdata_grad_defaults;
+	sim_data.tmp = simdata_tmp_defaults;
+
+	complex float mxy_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r1_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r2_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_m0_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_b1_ref_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+
+	ode_bloch_simulation3(&sim_data, mxy_ref_sig, sa_r1_ref_sig, sa_r2_ref_sig, sa_m0_ref_sig, sa_b1_ref_sig);
+
+	//-------------------------------------------------------
+	//------------------- T1 Test ---------------------------
+	//-------------------------------------------------------
+	complex float mxy_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r1_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_r2_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_m0_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+	complex float sa_b1_tmp_sig[sim_data.seq.rep_num / sim_data.seq.num_average_rep][3];
+
+	struct sim_data data_r1 = sim_data;
+
+	data_r1.voxel.r1 += e;
+
+	ode_bloch_simulation3(&data_r1, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
+
+	//Verify gradient
+	float err = 0;
+
+	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
+		for (int j = 0; j < 3; j++) {
+
+			err = cabsf(e * sa_r1_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
+
+			if (tol < err) {
+
+				printf("Error T1: (%d,%d)\t=>\t%f\n", i, j, err);
+				return false;
+			}
+		}
+
+	//-------------------------------------------------------
+	//------------------- T2 Test ---------------------------
+	//-------------------------------------------------------
+	struct sim_data data_r2 = sim_data;
+
+	data_r2.voxel.r2 += e;
+
+	ode_bloch_simulation3(&data_r2, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
+
+	//Verify gradient
+	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
+		for (int j = 0; j < 3; j++) {
+
+			err = cabsf(e * sa_r2_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
+
+			if (tol < err) {
+
+				printf("Error T2: (%d,%d)\t=>\t%f\n", i, j, err);
+				return false;
+			}
+		}
+
+	//-------------------------------------------------------
+	//-------------------- M0 Test --------------------------
+	//-------------------------------------------------------
+	struct sim_data data_m0 = sim_data;
+
+	data_m0.voxel.m0 += e;
+
+	ode_bloch_simulation3(&data_m0, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
+
+	//Verify gradient
+	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
+		for (int j = 0; j < 3; j++) {
+
+			err = cabsf(e * sa_m0_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
+
+			if (tol < err) {
+
+				printf("Error M0: (%d,%d)\t=>\t%f\n", i, j, err);
+				return false;
+			}
+		}
+
+	//-------------------------------------------------------
+	//-------------------- B1 Test --------------------------
+	//-------------------------------------------------------
+	struct sim_data data_b1 = sim_data;
+
+	data_b1.voxel.b1 += 1.E-4;
+
+	ode_bloch_simulation3(&data_b1, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
+
+	//Verify gradient
+	for (int i = 0; i < sim_data.seq.rep_num / sim_data.seq.num_average_rep; i++)
+		for (int j = 0; j < 3; j++) {
+
+			err = cabsf(e * sa_m0_ref_sig[i][j] - (mxy_tmp_sig[i][j] - mxy_ref_sig[i][j]));
+
+			if (1.E-3 < err) {
+
+				printf("Error B1: (%d,%d)\t=>\t%f\n", i, j, err);
+				return false;
+			}
+		}
+
+	return 1;
+}
+
+UT_REGISTER_TEST(test_ode_bloch_simulation_irbssfp);
+
+
+static bool test_ode_bloch_simulation_flash(void)
+{
+	float e = 1.E-3;
+
+	float tol = 1.E-4;
+
+	float t1 = 1.5;
+	float t2 = 0.1;
+	float m0 = 1.;
+
+	int repetition = 500;
+
+	struct sim_data sim_data;
+
+	sim_data.seq = simdata_seq_defaults;
+	sim_data.seq.seq_type = 2;
+	sim_data.seq.tr = 0.003;
+	sim_data.seq.te = 0.0018;
+	sim_data.seq.rep_num = repetition;
+	sim_data.seq.spin_num = 1;
+	sim_data.seq.num_average_rep = 1;
+
+	sim_data.voxel = simdata_voxel_defaults;
+	sim_data.voxel.r1 = 1 / t1;
+	sim_data.voxel.r2 = 1 / t2;
+	sim_data.voxel.m0 = m0;
+	sim_data.voxel.w = 0;
+	sim_data.voxel.b1 = 1.;
+
+	sim_data.pulse = simdata_pulse_defaults;
+	sim_data.pulse.flipangle = 15.;
 	sim_data.pulse.rf_end = 0.0009;
 	sim_data.grad = simdata_grad_defaults;
 	sim_data.tmp = simdata_tmp_defaults;
@@ -148,7 +294,7 @@ static bool test_ode_bloch_simulation(void)
 	//-------------------------------------------------------
 	struct sim_data data_b1 = sim_data;
 
-	data_b1.pulse.flipangle += e;
+	data_b1.voxel.b1 += 1.E-4;
 
 	ode_bloch_simulation3(&data_b1, mxy_tmp_sig, sa_r1_tmp_sig, sa_r2_tmp_sig, sa_m0_tmp_sig, sa_b1_tmp_sig);
 
@@ -168,7 +314,7 @@ static bool test_ode_bloch_simulation(void)
 	return 1;
 }
 
-UT_REGISTER_TEST(test_ode_bloch_simulation);
+UT_REGISTER_TEST(test_ode_bloch_simulation_flash);
 
 
 static bool test_ode_irbssfp_simulation(void)
