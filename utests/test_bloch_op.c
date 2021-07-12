@@ -743,7 +743,7 @@ static bool test_bloch_ode_obs_irflash(void)
 	fit_para.look_locker_assumptions = true; // ! Analytical Assumption: Mxy(t=TE) == Mz(t=0)
 
 	// Turn off T2 relaxation (IR FLASH insensitive to it)
-	fit_para.scale[2] = 0.0001;
+	fit_para.scale[2] = 0.;
 
 	struct nlop_s* Bloch = nlop_Bloch_create(N, all_dims, map_dims, out_dims, in_dims, &fit_para, gpu_use);
 
