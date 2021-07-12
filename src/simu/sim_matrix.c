@@ -327,10 +327,17 @@ static void collect_data(int N, float xp[N], float *mxy, float *sa_r1, float *sa
 
 	for (int i = 0; i < 3; i++) {
 
-		mxy[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i];
-		sa_r1[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i+3];
-		sa_r2[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i+6];
-		sa_b1[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i+9];
+		if (NULL != mxy)
+			mxy[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i];
+
+		if (NULL != sa_r1)
+			sa_r1[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i+3];
+
+		if (NULL != sa_r2)
+			sa_r2[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i+6];
+
+		if (NULL != sa_b1)
+			sa_b1[(i * data->seq.spin_num * data->seq.rep_num) + (data->tmp.rep_counter * data->seq.spin_num) + data->tmp.spin_counter] = tmp[i+9];
 	}
 }
 
