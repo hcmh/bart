@@ -339,14 +339,14 @@ static bool test_crb_ode_matrix(void)
 	float crb[P];
 	bloch_simulation_crb(N, P+1, &sim_data, crb, true);	// +1 to cover Signal too
 
-	// bart_printf("CRB: %f,\t %f,\t %f\n", crb[0], crb[1], crb[2]);
+	// bart_printf("ODE CRB: %f,\t %f,\t %f\n", crb[0], crb[1], crb[2]);
 
 	// matrix ODE
 
 	float crb2[P];
 	bloch_simulation_crb(N, P+1, &sim_data, crb2, false);	// +1 to cover Signal too
 
-	// bart_printf("CRB: %f,\t %f,\t %f\n", crb2[0], crb2[1], crb2[2]);
+	// bart_printf("M ODE CRB: %f,\t %f,\t %f\n", crb2[0], crb2[1], crb2[2]);
 
 	float tol = 1.E-3; //[%]
 
