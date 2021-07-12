@@ -23,6 +23,7 @@
 #include "sim_matrix.h"
 #include "sim_rot.h"
 #include "polar_angles.h"
+#include "crb.h"
 
 
 
@@ -738,7 +739,7 @@ void bloch_simulation_crb(int N, int P, struct sim_data* sim_data, float crb[P],
 	}
 
 	// Cramer Rao Bound Analysis
-	compute_crb2(N, P, crb, P, der, flag);
+	compute_crb2(N, bitcount(flag), crb, P, der, flag);
 
 	// make_relative_crb(P, crb, crb, sim_data);
 }
