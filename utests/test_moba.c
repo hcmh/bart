@@ -42,8 +42,10 @@
 #include "moba/T1_alpha.h"
 #include "moba/T1_alpha_in.h"
 #include "moba/T2fun.h"
-#include "moba/meco.h"
 #include "moba/optreg.h"
+#include "moba/meco.h"
+
+#include "simu/signals.h"
 
 #include "simu/signals.h"
 
@@ -1008,3 +1010,54 @@ static bool test_nlop_T1_alpha_in_fun(void)
 }
 
 UT_REGISTER_TEST(test_nlop_T1_alpha_in_fun);
+
+#if 0
+static bool test_nlop_meco(void) 
+{
+	/* 
+	 * please don't use any real constraint on R2* and fB0 maps in src/moba/meco.c
+	 * when making utest
+	 */
+	enum { N = 16 };
+	enum { NECO = 3 };
+	enum { IMSIZE = 16 };
+
+	bool curr_res = false;
+
+	for (unsigned int m = 0; m < 7; m++) {
+
+		long NCOEFF = set_num_of_coeff(m);
+
+		long y_dims[N] = { IMSIZE, IMSIZE, 1, 1, 1, NECO,      1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+		long x_dims[N] = { IMSIZE, IMSIZE, 1, 1, 1,    1, NCOEFF, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+		complex float* dst = md_alloc(N, y_dims, CFL_SIZE);
+		complex float* src = md_alloc(N, x_dims, CFL_SIZE);
+
+		complex float TE[NECO] = { 1.26 + I*0., 2.66, 3.69 };
+
+		md_zfill(N, x_dims, src, 1.0);
+
+		float scale_fB0[2] = { 0., 1. };
+		struct nlop_s* meco = nlop_meco_create(N, y_dims, x_dims, TE, m, false, FAT_SPEC_1, scale_fB0, false);
+
+		nlop_apply(meco, N, y_dims, dst, N, x_dims, src);
+		
+		float err = linop_test_adjoint(nlop_get_derivative(meco, 0, 0));
+
+		nlop_free(meco);
+
+		md_free(src);
+		md_free(dst);
+
+		curr_res = (err < 1.E-3) ? true : false;
+
+		if (curr_res == false)
+			break;
+	}
+
+	UT_ASSERT(curr_res);
+}
+
+// U T _REGISTER_TEST(test_nlop_meco);
+#endif
