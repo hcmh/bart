@@ -10,6 +10,7 @@ enum meco_model {
 	MECO_R2S,
 	MECO_PHASEDIFF,
 	MECO_2R2S,
+	MECO_R2,
 	MECO_PI,
 };
 

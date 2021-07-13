@@ -520,6 +520,8 @@ void opt_reg_moba_configure(unsigned int N, const long dims[N], struct opt_reg_s
 	case MECO_WF2R2S:
 	case MECO_R2S:
 	case MECO_PHASEDIFF:
+	case MECO_2R2S:
+	case MECO_R2:
 	case MECO_PI:
 
 		opt_reg_meco_configure(N, dims, ropts, prox_ops, trafos, optreg_conf);
