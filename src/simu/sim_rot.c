@@ -36,3 +36,17 @@ void bloch_excitation2(float out[3], float in[3], float angle, float phase)
 	rotx(in, tmp, angle);
 	rotz(out, in, phase);
 }
+
+// Including off resonance
+static void bloch_excitation3(float out[3], float in[3], float angle, float phase, float w, float fa, float t)
+{
+	float tmp[3] = { 0. };
+
+	float theta = atan(w/(fa/t));
+
+	rotz(tmp, in, -phase);
+	roty(in, tmp, -theta);
+	rotx(tmp, in, angle);
+	roty(in, tmp, -theta);
+	rotz(out, in, phase);
+}
