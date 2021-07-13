@@ -161,7 +161,7 @@ int main_pixel(int argc, char* argv[argc])
 	//Values for Initialization of maps
 	complex float initval[3] = {0.8, 20., 4.} ;//	R1, R2, M0 
 	
-	auto_scale(&fit_para, fit_para.scale, dims, data);
+	auto_scale(&fit_para, fit_para.scale, dims);
 	debug_printf(DP_DEBUG1,"Scaling:\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2]);
 
 	

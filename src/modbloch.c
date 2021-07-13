@@ -490,7 +490,7 @@ int main_modbloch(int argc, char* argv[argc])
 	complex float initval[3] = {0.5, 4., 0.01};//	R1, M0, R2
 	
 	// Determine DERIVATIVE and SIGNAL scaling by simulating the applied sequence
-	auto_scale(&fit_para, fit_para.scale, grid_dims, k_grid_data);
+	auto_scale(&fit_para, fit_para.scale, grid_dims);
 
 	if (-1 != scalingR1)
 		fit_para.scale[0] = scalingR1;

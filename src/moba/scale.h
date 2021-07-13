@@ -1,7 +1,7 @@
 
 
 struct modBlochFit;
-extern void auto_scale(const struct modBlochFit* fit_para, float scale[4], const long ksp_dims[DIMS], complex float* kspace_data);
+extern void auto_scale(const struct modBlochFit* fit_para, float scale[4], const long ksp_dims[DIMS]);
 
 struct nlop_s;
 void nlop_get_partial_ev(struct nlop_s* op, const long dims[DIMS], complex float* ev, complex float* maps);

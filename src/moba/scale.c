@@ -1,7 +1,7 @@
 /* All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
  *
- * 2019 Nick Scholand <nick.scholand@med.uni-goettingen.de>
+ * 2019-2021 Nick Scholand <nick.scholand@med.uni-goettingen.de>
  *
  */
 
@@ -256,7 +256,7 @@ float get_tr_from_inversion(unsigned int D, const long dims[D], complex float* i
 //	2) Determine mean values of sensitivity output
 //	3) Scale partial derivatives to mean M0 sens output
 
-void auto_scale(const struct modBlochFit* fit_para, float scale[5], const long ksp_dims[DIMS], complex float* kspace_data)
+void auto_scale(const struct modBlochFit* fit_para, float scale[5], const long ksp_dims[DIMS])
 {
 	long int dims[DIMS] = { [0 ... DIMS - 1] = 1. };
 	dims[READ_DIM] = 100;
@@ -265,6 +265,7 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[5], const long k
 
 	complex float* sens_r1 = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* sens_r2 = md_alloc(DIMS, dims, CFL_SIZE);
+	complex float* sens_b1 = md_alloc(DIMS, dims, CFL_SIZE);
 	complex float* sens_m0 = md_alloc(DIMS, dims, CFL_SIZE);
 
 	complex float* phantom = md_alloc(DIMS, dims, CFL_SIZE);
@@ -289,19 +290,18 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[5], const long k
 			sim_data.seq.te = fit_para->te;
 
 			sim_data.seq.rep_num = dims[TE_DIM] * fit_para->averaged_spokes;
-			
+
 			sim_data.seq.spin_num = 1;
 			sim_data.seq.num_average_rep = fit_para->averaged_spokes;
 			sim_data.seq.run_num = fit_para->runs;
-			
-			sim_data.voxel = simdata_voxel_defaults;
 
+			sim_data.voxel = simdata_voxel_defaults;
 			sim_data.voxel.r1 = 1 / (lim_T1[0] + x * lim_T1[1]/(dims[0]-1));
 			sim_data.voxel.r2 = 1 / (lim_T2[0] + x * lim_T2[1]/(dims[1]-1));
-
 			sim_data.voxel.m0 = 1;
 			sim_data.voxel.w = 0;
-			
+			sim_data.voxel.b1 = 1.;
+
 			sim_data.pulse = simdata_pulse_defaults;
 			sim_data.pulse.flipangle = fit_para->fa;
 			sim_data.pulse.rf_end = fit_para->rfduration;
@@ -368,6 +368,7 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[5], const long k
 				phantom[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = mxy_sig[z][1] + mxy_sig[z][0] * I; 
 				sens_r1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = sa_r1_sig[z][1] + sa_r1_sig[z][0] * I; 
 				sens_r2[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = sa_r2_sig[z][1] + sa_r2_sig[z][0] * I;
+				sens_b1[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = sa_b1_sig[z][1] + sa_b1_sig[z][0] * I;
 				sens_m0[ (z * dims[0] * dims[1]) + (y * dims[0]) + x] = sa_m0_sig[z][1] + sa_m0_sig[z][0] * I;
 
 				if (NULL != fit_para->input_sliceprofile)
@@ -375,8 +376,6 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[5], const long k
 			}
 		}
 	}
-
-	double mean_sig = md_znorm(DIMS, ksp_dims, kspace_data);
 
 	double mean_m0 = md_znorm(DIMS, dims, sens_m0);
 	scale[1] = 1.;
@@ -387,10 +386,13 @@ void auto_scale(const struct modBlochFit* fit_para, float scale[5], const long k
 	double mean_r2 = md_znorm(DIMS, dims, sens_r2);
 	scale[2] = mean_m0 / mean_r2;
 
+	double mean_b1 = md_znorm(DIMS, dims, sens_b1);
+	scale[3] = mean_m0 / mean_b1;
+
 	if (2 == fit_para->sequence || 5 == fit_para->sequence)
 		scale[2] = 0.0001;
 
-	debug_printf(DP_DEBUG1,"means:\tData:%f,\tdR1:%f,\tdM0:%f,\tdR2:%f\n", mean_sig, mean_r1, mean_m0, mean_r2);
+	debug_printf(DP_DEBUG1,"means:\tdR1:%f,\tdM0:%f,\tdR2:%f,\tdB1:%f\n", mean_r1, mean_m0, mean_r2, mean_b1);
 
 	double mean_ref = md_znorm(DIMS, dims, phantom);
 
