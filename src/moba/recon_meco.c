@@ -176,12 +176,16 @@ void meco_recon(struct moba_conf* moba_conf,
 	long Y_1s_dims[DIMS];
 	md_copy_dims(DIMS, Y_1s_dims, Y_dims);
 
+	long P_1s_dims[DIMS];
+	md_copy_dims(DIMS, P_1s_dims, P_dims);
+
 	if (!moba_conf->stack_frames) {
 
 		maps_1s_dims[TIME_DIM] = 1;
 		sens_1s_dims[TIME_DIM] = 1;
 
 		Y_1s_dims[TIME_DIM] = 1;
+		P_1s_dims[TIME_DIM] = 1;
 	}
 
 	long maps_1s_size = md_calc_size(DIMS, maps_1s_dims);
@@ -243,7 +247,6 @@ void meco_recon(struct moba_conf* moba_conf,
 	fft(DIMS, P_dims, FFT_FLAGS, P, P);
 
 
-
 	// reconstruction: jointly or sequentially
 
 	complex float* x_akt    = md_alloc_sameplace(1, MD_DIMS(x_1s_size), CFL_SIZE, Y);
@@ -262,7 +265,7 @@ void meco_recon(struct moba_conf* moba_conf,
 
 		complex float* Y_ptr = (void*)Y + md_calc_offset(DIMS, MD_STRIDES(DIMS, Y_dims, CFL_SIZE), frame_pos);
 
-		double scaling_Y = 100. / md_znorm(DIMS, Y_1s_dims, Y_ptr);
+		double scaling_Y = (moba_conf->noncartesian ? 100. : 5000.) / md_znorm(DIMS, Y_1s_dims, Y_ptr);
 
 		md_zsmul(DIMS, Y_1s_dims, Y_ptr, Y_ptr, scaling_Y);
 
@@ -270,6 +273,10 @@ void meco_recon(struct moba_conf* moba_conf,
 		P_pos[TIME_DIM] = f % P_dims[TIME_DIM];
 
 		complex float* P_ptr = (void*)P + md_calc_offset(DIMS, MD_STRIDES(DIMS, P_dims, CFL_SIZE), P_pos);
+
+		double scaling_P = moba_conf->noncartesian ? 1. : 1000. / md_znorm(DIMS, P_1s_dims, P_ptr);
+
+		md_zsmul(DIMS, P_1s_dims, P_ptr, P_ptr, scaling_P);
 
 		maps_ptr = (void*)maps + md_calc_offset(DIMS, MD_STRIDES(DIMS, maps_dims, CFL_SIZE), frame_pos);
 		sens_ptr = (void*)sens + md_calc_offset(DIMS, MD_STRIDES(DIMS, sens_dims, CFL_SIZE), frame_pos);

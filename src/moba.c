@@ -525,7 +525,8 @@ int main_moba(int argc, char* argv[argc])
 		if (-1 == restrict_fov)
 			restrict_fov = 0.5;
 
-		conf_model.opt.noncartesian = true;
+		if (1 != restrict_fov)
+			conf_model.opt.noncartesian = true;
 
 	} else if (NULL != trajectory) {
 
