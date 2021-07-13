@@ -644,6 +644,51 @@ static void bloch_wrap_pdp(void* _data, float* out, float t, const float* in)
 	bloch_b1_pdp((float(*)[3])out, in, data->r1, data->r2, data->gb, 0., M_PI / (2 * 0.2));
 }
 
+//FA
+static void bloch_wrap_pdp_fa(void* _data, float* out, float t, const float* in)
+{
+	struct bloch_s* data = _data;
+	(void)t;
+
+	bloch_b1_pdp((float(*)[3])out, in, data->r1, data->r2, data->gb, 0., 1.);
+}
+
+static bool test_ode_sa_bloch_b1_fa(void)
+{
+	int N = 3;
+	int P = 3;
+
+	float end = 0.2;
+
+	// FA 90 degree:	a = gamma * b1 * time
+	float fa = M_PI / (2 * end);
+
+	struct bloch_s data = { 0. , 0., { fa, 0, 0. } };
+
+	float xp[4][3] = { { 0., 0., 1. }, { 0. }, { 0. }, { 0. } };
+	float xp2[4][3] = { { 0., 0., 1. }, { 0. }, { 0. }, { 0. } };
+
+	float h = 0.1;
+	float tol = 0.000001;
+
+	// B1
+	ode_direct_sa(h, tol, N, P, xp, 0., end, &data, bloch_fun, bloch_pdy2, bloch_wrap_pdp);
+
+	// FA
+	ode_direct_sa(h, tol, N, P, xp2, 0., end, &data, bloch_fun, bloch_pdy2, bloch_wrap_pdp_fa);
+
+	for (int i = 0; i < N; i++) {
+
+		float err = fabsf(xp[3][i]/fa - xp2[3][i]); // dm/dfa = dm/db1*db1/dfa = dm/db1*1/(nom.FA)
+
+		if (err > 1.E-6)	
+			return false;
+	}
+
+	return true;
+}
+UT_REGISTER_TEST(test_ode_sa_bloch_b1_fa);
+
 
 static bool test_ode_sa_bloch_b1(void)
 {
@@ -684,8 +729,9 @@ static bool test_ode_sa_bloch_b1(void)
 	return true;
 }
 
-
 UT_REGISTER_TEST(test_ode_sa_bloch_b1);
+
+
 //dFA
 static void bloch_wrap_pdp2(void* _data, float* out, float t, const float* in)
 {
