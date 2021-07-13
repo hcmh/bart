@@ -317,8 +317,8 @@ static bool test_crb_ode_matrix(void)
 	sim_data.seq.rep_num = N;
 	sim_data.seq.spin_num = 1;
 	sim_data.seq.num_average_rep = 1;
-	sim_data.seq.inversion_pulse_length = 0.00001;
-	sim_data.seq.prep_pulse_length = 0.00001;
+	sim_data.seq.inversion_pulse_length = 0.;
+	sim_data.seq.prep_pulse_length = 0.;
 
 	sim_data.voxel = simdata_voxel_defaults;
 	sim_data.voxel.r1 = 1.;
