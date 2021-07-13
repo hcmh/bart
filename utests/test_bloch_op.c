@@ -62,7 +62,7 @@ static bool test_bloch_irflash_frw_der_xy(void)
 	fit_para.tr = 0.003;
 	fit_para.te = 0.001;
 	fit_para.fa = 8.;
-	fit_para.rfduration = 0.00001;
+	fit_para.rfduration = 0.0001;
 	fit_para.inversion_pulse_length = 0.;
 	fit_para.prep_pulse_length = 0.;
 	fit_para.look_locker_assumptions = false;
@@ -74,6 +74,10 @@ static bool test_bloch_irflash_frw_der_xy(void)
 
 	// dump_cfl("_dst_frw_bloch", N, out_dims, dst_frw_bloch);
 	// dump_cfl("_dst_der_bloch", N, out_dims, dst_der_bloch);
+	// complex float* deriv = md_alloc(N, all_dims, CFL_SIZE);
+	// deriv = blochfun_get_derivatives(Bloch);
+	// dump_cfl("_der_bloch", N, all_dims, deriv);
+	// md_free(deriv); // Automatically freed when Bloch operator is freed
 
 	nlop_free(Bloch);
 	md_free(src);
@@ -81,7 +85,7 @@ static bool test_bloch_irflash_frw_der_xy(void)
 
 	// Init and apply IR FLASH model operator
 
-	in_dims[COEFF_DIM] = 2;
+	in_dims[COEFF_DIM] = all_dims[COEFF_DIM] = 2;
 
 	complex float* src2 = md_alloc(N, in_dims, CFL_SIZE);
 	md_zfill(N, in_dims, src2, 1.0);
@@ -113,6 +117,11 @@ static bool test_bloch_irflash_frw_der_xy(void)
 	// dump_cfl("_dst_frw_irflash", N, out_dims, dst_frw_irflash);
 	// dump_cfl("_dst_der_irflash", N, out_dims, dst_der_irflash);
 
+	// complex float* deriv2 = md_alloc(N, all_dims, CFL_SIZE);
+	// T1_alpha_in_get_derivatives(T1, N, all_dims, deriv2);
+	// dump_cfl("_der_flash", N, all_dims, deriv2);
+	// md_free(deriv2);
+
 	nlop_free(T1);
 	md_free(src2);
 	md_free(TI);
@@ -132,11 +141,7 @@ static bool test_bloch_irflash_frw_der_xy(void)
 	md_free(dst_frw_irflash);
 	md_free(dst_der_irflash);
 
-	if (err_frw > 3.E-3)
-		return 0;
-
-	if (err_der > 5.E-3)
-		return 0;
+	UT_ASSERT((3.E-3 > err_frw) && (5.E-3 > err_der));
 
 	return 1;
 }
@@ -240,11 +245,7 @@ static bool test_bloch_irflash_frw_der_z(void)
 	md_free(dst_frw_irflash);
 	md_free(dst_der_irflash);
 
-	if (err_frw > 3.E-3)
-		return 0;
-
-	if (err_der > 5.E-3)
-		return 0;
+	UT_ASSERT((3.E-3 > err_frw) && (5.E-3 > err_der));
 
 	return 1;
 }
@@ -358,8 +359,7 @@ static bool test_bloch_irflash_adj_z(void)
 	md_free(dst_adj_irflash);
 	md_free(map_update_irflash);
 
-	if (err_adj > 4.E-3)
-		return 0;
+	UT_ASSERT(4.E-3 > err_adj);
 
 	return 1;
 }
@@ -465,11 +465,7 @@ static bool test_bloch_irflash_frw_der_spoke_av_z(void)
 	md_free(dst_frw_irflash);
 	md_free(dst_der_irflash);
 
-	if (err_frw > 8.E-3)
-		return 0;
-
-	if (err_der > 7.E-3)
-		return 0;
+	UT_ASSERT((8.E-3 > err_frw) && (7.E-3 > err_der));
 
 	return 1;
 }
@@ -586,8 +582,7 @@ static bool test_bloch_irflash_adj_spoke_av_z(void)
 	md_free(dst_adj_irflash);
 	md_free(map_update_irflash);
 
-	if (err_adj > 6.E-3)
-		return 0;
+	UT_ASSERT(6.E-3 > err_adj);
 
 	return 1;
 }
@@ -702,8 +697,7 @@ static bool test_bloch_irflash_frw_init_relax_z(void)
 	md_free(dst_frw_bloch);
 	md_free(dst_frw_irflash);
 
-	if (err_frw > 3.5E-3)
-		return 0;
+	UT_ASSERT(3.5E-3 > err_frw);
 
 	return 1;
 }
@@ -771,7 +765,7 @@ static bool test_bloch_ode_obs_irflash(void)
 	md_free(dst1);
 	md_free(dst2);
 
-	UT_ASSERT(err < 3.E-4);
+	UT_ASSERT(3.E-4 > err);
 }
 UT_REGISTER_TEST(test_bloch_ode_obs_irflash);
 
@@ -832,7 +826,7 @@ static bool test_bloch_ode_obs_irbssfp(void)
 	md_free(dst1);
 	md_free(dst2);
 
-	UT_ASSERT(err < 3.E-3);
+	UT_ASSERT(3.E-3 > err);
 
 	return true;
 }
