@@ -498,7 +498,10 @@ int main_modbloch(int argc, char* argv[argc])
 	if (-1 != scalingR2)
 		fit_para.scale[2] = scalingR2;
 
-	debug_printf(DP_INFO,"Scaling:\t%f,\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2], fit_para.scale[3]);
+	debug_printf(DP_INFO,"Scaling:\t%f,\t%f,\t%f,\t%f,\t%f\n", fit_para.scale[0], fit_para.scale[1], fit_para.scale[2], fit_para.scale[3], fit_para.scale[4]);
+
+	fit_para.scale[3] = 0.; // Simple blochfun.c interface here, does not support B1 mapping
+
 
 	// Scale initialized maps by derivative scaling
 
