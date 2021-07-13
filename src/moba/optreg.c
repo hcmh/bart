@@ -1,12 +1,12 @@
 /* Copyright 2020. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
- * 
+ *
  * Authors:
  * 2020 Xiaoqing Wang <xiaoqing.wang@med.uni-goettingen.de>
  * 2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2020 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
- * 
+ *
  */
 
 #include <assert.h>
@@ -77,8 +77,9 @@ static const struct operator_p_s* ops_p_stack_higher_dims(unsigned int N, const 
 		if (MD_IS_SET(higher_flag, d)) {
 
 			for (long p = 1; p < maps_dims[d]; p++)
-				dst = operator_p_stack(d, d, dst, tmp);
-			
+				dst = operator_p_stack_FF(d, d, dst, operator_p_ref(tmp));
+
+			operator_p_free(tmp);
 			tmp = operator_p_ref(dst);
 		}
 	}
@@ -132,19 +133,18 @@ const struct operator_p_s* moba_nonneg_prox_create(unsigned int N, const long ma
 
 	const struct operator_p_s* p1 = prox_zsmax_create(N, map_dims, lambda);
 	const struct operator_p_s* p2 = prox_zero_create(N, map_dims);
-	const struct operator_p_s* p3 = NULL;
 
-	const struct operator_p_s* prox_j = NULL;
 
-	for (long m = 0; m < maps_dims[coeff_dim]; m++) {
+	const struct operator_p_s* prox_j = operator_p_ref(MD_IS_SET(nonneg_flag, 0) ? p1 : p2);
 
-		p3 = MD_IS_SET(nonneg_flag, m) ? p1 : p2;
-		prox_j = (NULL == prox_j) ? p3 : operator_p_stack(coeff_dim, coeff_dim, prox_j, p3);
+	for (long m = 1; m < maps_dims[coeff_dim]; m++) {
+
+		const struct operator_p_s* p3 = MD_IS_SET(nonneg_flag, m) ? p1 : p2;
+		prox_j = operator_p_stack_FF(coeff_dim, coeff_dim, prox_j, operator_p_ref(p3));
 	}
 
 	operator_p_free(p1);
 	operator_p_free(p2);
-	operator_p_free(p3);
 
 	// stack higher dimensions
 	auto prox_s = ops_p_stack_higher_dims(N, maps_dims, coeff_dim, higher_flag, prox_j);
@@ -206,10 +206,10 @@ bool opt_reg_moba(void* ptr, char c, const char* optarg)
 	const int r = p->r;
 
 	assert(r < NUM_REGS);
-	
+
 	char rt[5];
 	int ret;
-	
+
 	switch (c) {
 
 	case 'r':
@@ -224,7 +224,7 @@ bool opt_reg_moba(void* ptr, char c, const char* optarg)
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%f", &regs[r].xflags, &regs[r].jflags, &regs[r].lambda);
 			assert(3 == ret);
 
-		} else 
+		} else
 		if (strcmp(rt, "Q") == 0) {
 
 			regs[r].xform = L2IMG;
@@ -233,7 +233,7 @@ bool opt_reg_moba(void* ptr, char c, const char* optarg)
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
 
-		} else 
+		} else
 		if (strcmp(rt, "S") == 0) {
 
 			regs[r].xform = POS;
@@ -242,14 +242,14 @@ bool opt_reg_moba(void* ptr, char c, const char* optarg)
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
 
-		} else 
+		} else
 		if (strcmp(rt, "T") == 0) {
 
 			regs[r].xform = TV;
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%f", &regs[r].xflags, &regs[r].jflags, &regs[r].lambda);
 			assert(3 == ret);
 
-		} else 
+		} else
 		if (strcmp(rt, "h") == 0) {
 
 			help_reg_moba();
@@ -284,7 +284,7 @@ static void opt_reg_IRLL_configure(unsigned int N, const long dims[N], struct op
 		lambda = 0.;
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims); 
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
 
 	long x_dims[DIMS];
 	md_copy_dims(DIMS, x_dims, img_dims);
@@ -353,20 +353,20 @@ static void opt_reg_IRLL_configure(unsigned int N, const long dims[N], struct op
 			break;
 
 		case TV:
-		
+
 			regs[nr].lambda = lambda;
 			debug_printf(DP_INFO, "TV regularization: %f\n", regs[nr].lambda);
 
 			auto extract = linop_extract_create(1, MD_DIMS(0), MD_DIMS(md_calc_size(DIMS, img_dims)), MD_DIMS(md_calc_size(DIMS, x_dims)));
 			extract = linop_reshape_out_F(extract, DIMS, img_dims);
-			
+
                         auto grad = linop_grad_create(DIMS, img_dims, DIMS, regs[nr].xflags);
 
 			trafos[nr] = linop_chain_FF(extract, grad);
 			prox_ops[nr] = prox_thresh_create(DIMS + 1,
 					linop_codomain(trafos[nr])->dims,
 					regs[nr].lambda, regs[nr].jflags | MD_BIT(DIMS));
-	
+
 			break;
 
 		case POS:
@@ -375,9 +375,9 @@ static void opt_reg_IRLL_configure(unsigned int N, const long dims[N], struct op
 
 			auto zsmax_prox = prox_zsmax_create(DIMS, map_dims, regs[nr].lambda);
 			auto zero_prox1 = prox_zero_create(DIMS, map2_dims);
-										
+
 			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(operator_p_stack_FF(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox)), 
+			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(operator_p_stack_FF(COEFF_DIM, COEFF_DIM, zero_prox1, zsmax_prox)),
 							operator_p_flatten_F(prox_zero_create(DIMS, coil_dims)));
 
 			break;
@@ -387,7 +387,7 @@ static void opt_reg_IRLL_configure(unsigned int N, const long dims[N], struct op
 			debug_printf(DP_INFO, "l2 regularization: %f\n", regs[nr].lambda);
 
 			trafos[nr] = linop_identity_create(DIMS, x_dims);;
-			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(prox_zero_create(DIMS, img_dims)), 
+			prox_ops[nr] = operator_p_stack_FF(0, 0, operator_p_flatten_F(prox_zero_create(DIMS, img_dims)),
 							operator_p_flatten_F(prox_l2norm_create(DIMS, coil_dims, regs[nr].lambda)));
 
 			break;
@@ -428,7 +428,7 @@ static void opt_reg_meco_configure(unsigned int N, const long dims[N], struct op
 		nr_joint_coeff -= 1;
 	}
 
-	// set the flag for the position of the coefficient 
+	// set the flag for the position of the coefficient
 	// which needs non-negativity constraint
 	long nonneg_flag = (MECO_PI == optreg_conf->moba_model) ? 0L : set_R2S_flag(optreg_conf->moba_model);
 
