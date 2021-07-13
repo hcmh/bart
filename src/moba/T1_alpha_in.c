@@ -55,6 +55,27 @@ struct T1_alpha_in_s {
 DEF_TYPEID(T1_alpha_in_s);
 
 
+void T1_alpha_in_get_derivatives(struct nlop_s* op, unsigned int N, long dims[N], complex float* out)
+{
+	const nlop_data_t* _data = nlop_get_data(op);
+	struct T1_alpha_in_s* data = CAST_DOWN(T1_alpha_in_s, _data);
+
+	assert(2 == dims[COEFF_DIM]);
+	assert(N == data->N);
+
+	long pos[N];
+
+	for (int i = 0; i < N; i++)
+		pos[i] = 0;
+
+	pos[COEFF_DIM] = 0;
+	md_copy_block(N, pos, dims, out, data->out_dims, data->tmp_dM0, CFL_SIZE);
+
+	pos[COEFF_DIM] = 1;
+	md_copy_block(N, pos, dims, out, data->out_dims, data->tmp_dR1, CFL_SIZE);
+}
+
+
 // Calculate Model: M0 * (R1/(R1 + alpha) - (1 + R1/(R1 + alpha)) * exp(-t.*(R1 + alpha)))
 static void T1_alpha_in_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
