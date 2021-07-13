@@ -156,6 +156,7 @@ static void adc_corr(int N, int P, float out[P + 1][N], float in[P + 1][N], floa
 		rotz(out[i], in[i], angle);
 }
 
+
 static void collect_signal(struct sim_data* data, int N, int P, float* mxy, float* sa_r1, float* sa_r2, float* sa_b1, float xp[P + 1][N])
 {
 	float tmp[4][3] = { { 0. }, { 0. }, { 0. }, { 0. } };
@@ -189,7 +190,6 @@ static void collect_signal(struct sim_data* data, int N, int P, float* mxy, floa
 				+ data->tmp.spin_counter] = tmp[3][i];
 	}
 }
-
 
 
 void start_rf_pulse(struct sim_data* data, float h, float tol, int N, int P, float xp[P + 1][N])
@@ -398,6 +398,7 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 				if (	(3 == data->seq.seq_type) ||
 					(6 == data->seq.seq_type) )
 					data->pulse.phase += fmodf( (0 == data->tmp.rep_counter ? 0 : M_PI) + 4. * M_PI * (float)data->tmp.rep_counter / (float)data->seq.rep_num, 2.0 * M_PI);
+
 				else if ((0 == data->seq.seq_type) ||
 					(1 == data->seq.seq_type) ||
 					(4 == data->seq.seq_type) )
@@ -410,7 +411,6 @@ void ode_bloch_simulation3(struct sim_data* data, complex float (*mxy_sig)[3], c
 
 				//Spoiling of FLASH deletes x- and y-directions of sensitivities as well as magnetization
 				if ((2 == data->seq.seq_type) || (5 == data->seq.seq_type)) {
-
 					for (int i = 0; i < P + 1; i++) {
 
 						xp[i][0] = 0.;

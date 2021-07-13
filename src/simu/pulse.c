@@ -76,7 +76,7 @@ void pulse_create(struct simdata_pulse* pulse, float rf_start, float rf_end, flo
 	pulse->pulse_length = rf_end - rf_start;
 	pulse->flipangle = 90.;
 	pulse->phase = phase;
-	pulse->nl = bwtp / 2.;	// Asume symetric pulses
+	pulse->nl = bwtp / 2.;	// Assume symmetric pulses
 	pulse->nr = bwtp / 2.;
 	pulse->n = MAX(pulse->nl, pulse->nr);
 	pulse->t0 = pulse->pulse_length / ( 2. + (pulse->nl - 1.) + (pulse->nr - 1.) );
