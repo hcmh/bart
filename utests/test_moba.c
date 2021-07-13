@@ -958,6 +958,8 @@ static bool test_op_p_stack_moba_nonneg(void)
 	md_clear(N, dims1, in1, CFL_SIZE);
 	md_copy_block(N, pos, dims, in, dims1, in1, CFL_SIZE);
 
+	xfree(pos);
+
 	float err = md_znrmse(N, dims, out, in);
 
 	md_free(in);
