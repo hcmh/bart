@@ -110,9 +110,11 @@ const struct noir2_conf_s noir2_defaults = {
 	.admm_rho = 1.,
 
 	.gpu = false,
-	
+
 	.cgiter = 30,
-	.cgtol = 0.1,
+	.cgtol = -1.,
+
+	.nr_init = -1,
 };
 
 
@@ -399,6 +401,7 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 	irgnm_conf.nlinv_legacy = true;
 	irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.cgiter = conf->cgiter;
+	irgnm_conf.nr_init = conf->nr_init;
 
 
 	struct nlop_s* nlop_flat = nlop_flatten(noir_ops.nlop);
@@ -417,6 +420,9 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 		if (-1. == irgnm_conf.cgtol)
 			irgnm_conf.cgtol = 0.1f;
 
+		if (-1 == irgnm_conf.nr_init)
+			irgnm_conf.nr_init = 0;
+
 		iter4_lop_irgnm(CAST_UP(&irgnm_conf),
 				nlop_flat,
 				(struct linop_s*)lop_fft_flat,
@@ -427,7 +433,11 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 	} else {
 
 		if (-1. == irgnm_conf.cgtol)
-			irgnm_conf.cgtol = 10.f;
+			irgnm_conf.cgtol = 0.f;
+
+		if (-1 == irgnm_conf.nr_init)
+			irgnm_conf.nr_init = 3;
+
 
 		struct lsqr_conf lsqr_conf = lsqr_defaults;
 		lsqr_conf.warmstart = true;
@@ -575,7 +585,7 @@ void noir2_recon_noncart(
 	long pos[N];
 	for (int i = 0; i < N; i++)
 		pos[i] = 0;
-	
+
 	do {
 
 		complex float* l_img = &MD_ACCESS(N, img_strs, pos, img);
@@ -681,7 +691,7 @@ void noir2_recon_cart(
 	long pos[N];
 	for (int i = 0; i < N; i++)
 		pos[i] = 0;
-	
+
 	do {
 
 		complex float* l_img = &MD_ACCESS(N, img_strs, pos, img);

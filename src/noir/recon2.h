@@ -32,6 +32,8 @@ struct noir2_conf_s {
 
 	int cgiter;
 	float cgtol;
+
+	int nr_init;
 };
 
 extern const struct noir2_conf_s noir2_defaults;
