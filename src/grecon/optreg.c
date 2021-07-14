@@ -104,13 +104,13 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			assert(3 == ret);
 		}
 		else if (strcmp(rt, "H") == 0) {
-			
+
 			regs[r].xform = NIHTWAV;
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%d", &regs[r].xflags, &regs[r].jflags, &regs[r].k);
 			assert(3 == ret);
 		}
 		else if (strcmp(rt, "N") == 0) {
-			
+
 			regs[r].xform = NIHTIM;
 			int ret = sscanf(optarg, "%*[^:]:%d:%d:%d", &regs[r].xflags, &regs[r].jflags, &regs[r].k);
 			assert(3 == ret);
@@ -263,6 +263,31 @@ bool opt_reg_init(struct opt_reg_s* ropts)
 	return false;
 }
 
+static void opt_reg_sort(int nr_penalties, struct reg_s* regs)
+{
+	int idx_l2 = -1;
+
+	for (int i = 0; (i < nr_penalties) && (-1 == idx_l2); i++)
+		if (L2IMG == regs[i].xform)
+			idx_l2 = i;
+
+	if (-1 == idx_l2)
+		return;
+
+	struct reg_s tmp[nr_penalties];
+	for (int i = 0; i < nr_penalties; i++)
+		tmp[i] = regs[i];
+
+	regs[0] = tmp[idx_l2];
+	for (int i = 1, ip = 0; i < nr_penalties; i++, ip++) {
+
+		if (ip == idx_l2)
+			ip++;
+
+		regs[i] = tmp[ip];
+	}
+}
+
 
 void opt_bpursuit_configure(struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], const struct linop_s* model_op, const complex float* data, const float eps)
 {
@@ -312,6 +337,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 	long blkdims[MAX_LEV][DIMS];
 	int levels;
 
+	opt_reg_sort(nr_penalties, regs);
 
 	for (int nr = 0; nr < nr_penalties; nr++) {
 
@@ -347,7 +373,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 			prox_ops[nr] = prox_wavelet_thresh_create(DIMS, img_dims, wflags, regs[nr].jflags, minsize, regs[nr].lambda, randshift);
 			break;
 		}
-		
+
 		case NIHTWAV:
 		{
 			debug_printf(DP_INFO, "NIHT with wavelets regularization: k = %d%% of total elements in each wavelet transform\n", regs[nr].k);
@@ -387,7 +413,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 			for (unsigned int i = 0; i < DIMS; i++)
 				debug_printf(DP_DEBUG3,"%d ", wav_dims[i]);
 			debug_printf(DP_DEBUG3, "]\n");
-			
+
 			prox_ops[nr] = prox_niht_thresh_create(N, wav_dims, K, regs[nr].jflags);
 			break;
 		}
@@ -400,7 +426,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 				error("GPU operation is not currently implemented for NIHT.\n");
 
 			long thresh_dims[N];
-			md_select_dims(N, regs[nr].xflags, thresh_dims, img_dims);		
+			md_select_dims(N, regs[nr].xflags, thresh_dims, img_dims);
 			unsigned int K = (md_calc_size(N, thresh_dims) / 100) * regs[nr].k;
 			debug_printf(DP_INFO, "k = %d%%, actual K = %d\n", regs[nr].k, K);
 
@@ -471,7 +497,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 
 		case MLR:
 #if 0
-			// FIXME: multiscale low rank changes the output image dimensions 
+			// FIXME: multiscale low rank changes the output image dimensions
 			// and requires the forward linear operator. This should be decoupled...
 			debug_printf(DP_INFO, "multi-scale lowrank regularization: %f\n", regs[nr].lambda);
 
@@ -580,7 +606,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 			md_max_dims(DIMS, ~0lu, dims, img_dims, Q_dims);
 
 			trafos[nr] = linop_fmac_create(DIMS, dims, TIME_FLAG, TIME2_FLAG, ~(TIME2_FLAG|TIME_FLAG), Q);
-			
+
 			prox_ops[nr] = prox_leastsquares_create(DIMS, out_dims, regs[nr].lambda, NULL);
 			break;
 		}
@@ -606,7 +632,7 @@ unsigned int llr_blk, unsigned int shift_mode, const long Q_dims[__VLA(N)], cons
 			md_max_dims(DIMS, ~0lu, dims, img_dims, Q_dims);
 
 			trafos[nr] = linop_fmac_create(DIMS, dims, TIME_FLAG, TIME2_FLAG, ~(TIME2_FLAG|TIME_FLAG), Q);
-			
+
 			prox_ops[nr] = prox_thresh_create(DIMS, out_dims, regs[nr].lambda, 0);
 			break;
 		}
