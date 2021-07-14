@@ -197,6 +197,8 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 			conf->irgnm_conf->cgtol_alpha_factor = 1.;
 			fista_conf.continuation = 1.;
 
+			debug_printf(DP_WARN, "FISTA is not tested/finalized for NLINV");
+
 			NESTED(void, lsqr_cont, (iter_conf* iconf))
 			{
 				auto fconf = CAST_DOWN(iter_fista_conf, iconf);
@@ -213,8 +215,6 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 
 				//fconf->scale = MAX(0.2, fconf->INTERFACE.alpha);
 				//fconf->step /= fconf->INTERFACE.alpha;
-
-				debug_printf(DP_WARN, "FISTA is not tested/finalized for NLINV");
 			};
 
 			lsqr_conf.icont = lsqr_cont;
