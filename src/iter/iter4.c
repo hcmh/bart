@@ -136,7 +136,7 @@ void iter4_irgnm(const iter3_conf* _conf,
 
 	struct iter_op_p_s inv = { inverse, CAST_UP(&data2) };
 
-	irgnm(conf->iter, conf->alpha, conf->alpha_min, conf->redu, N, M, select_vecops(src),
+	irgnm(conf->iter, conf->alpha, conf->alpha_min, conf->redu, conf->nr_init, N, M, select_vecops(src),
 		frw, adj, inv,
 		dst, ref, src, cb, NULL);
 
@@ -218,7 +218,7 @@ void iter4_irgnm2(const iter3_conf* _conf,
 
 	struct iter_op_p_s inv2 = { inverse2, CAST_UP(&data2) };
 
-	irgnm2(conf->iter, conf->alpha, conf->alpha_min, conf->alpha_min0, conf->redu, N, M, select_vecops(src),
+	irgnm2(conf->iter, conf->alpha, conf->alpha_min, conf->alpha_min0, conf->redu, conf->nr_init, N, M, select_vecops(src),
 		frw, der, (NULL == lsqr) ? inv2 : OPERATOR_P2ITOP(lsqr),
 		dst, ref, src, cb, NULL);
 

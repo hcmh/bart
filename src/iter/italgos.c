@@ -409,7 +409,7 @@ cleanup:
  * to a least-squares problem where the quadratic regularization applies to the difference
  * to 'x0'.
  */
-void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
+void irgnm(unsigned int iter, float alpha, float alpha_min, float redu, int nr_init,
 	long N, 			// size x
 	long M,				// size L^H y
 	const struct vec_iter_s* vops,
@@ -445,7 +445,7 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
 
 		iter_op_p_call(inv, alpha, h, p);	// h = dx
 
-		vops->axpy(N, x, 1., h);	// x = x + dx
+		vops->axpy(N, x, (nr_init > (int)i) ? 0.5 : 1, h);	// x = x + dx
 
 		alpha = (alpha - alpha_min) / redu + alpha_min;
 
@@ -471,7 +471,7 @@ void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
  * This version has an extra call to DF, but we can use a generic regularized
  * least-squares solver.
  */
-void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, float redu,
+void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, float redu, int nr_init,
 	long N,						// size L^H y
 	long M,						// size x
 	const struct vec_iter_s* vops,
@@ -487,11 +487,18 @@ void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, f
 	float* r = vops->allocate(M);
 	float* q = vops->allocate(M);
 
+	float* xo = NULL;
+	if (0 < nr_init)
+		xo = vops->allocate(N);
+
 	for (unsigned int i = 0; i < iter; i++) {
 
 		iter_monitor(monitor, vops, x);
 
 		iter_op_call(op, r, x);		// r = L^H L F x
+
+		if (nr_init > (int)i)
+			vops->copy(N, xo, x);
 
 		vops->xpay(M, -1., r, y);	// r = L^H (y - L F x)
 
@@ -510,6 +517,9 @@ void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, f
 		if (NULL != xref)
 			vops->axpy(N, x, +1., xref);	// x = (DF^H L^H L DF + alpha)^-1 DF^H L^H (y - L F x + L DF (x - x0)) + x0
 
+		if (nr_init > (int)i)
+			vops->axpbz(N, x, 0.5, x, 0.5, xo);
+
 		alpha = (alpha - alpha_min) / redu + alpha_min;
 
 		if (alpha < alpha_min0)
@@ -521,6 +531,9 @@ void irgnm2(unsigned int iter, float alpha, float alpha_min, float alpha_min0, f
 
 	vops->del(q);
 	vops->del(r);
+
+	if (0 < nr_init)
+		vops->del(xo);
 }
 
 
