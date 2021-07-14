@@ -55,7 +55,7 @@ struct T1_alpha_in_s {
 DEF_TYPEID(T1_alpha_in_s);
 
 
-void T1_alpha_in_get_derivatives(struct nlop_s* op, unsigned int N, long dims[N], complex float* out)
+void T1_alpha_in_get_derivatives(struct nlop_s* op, int N, long dims[N], complex float* out)
 {
 	const nlop_data_t* _data = nlop_get_data(op);
 	struct T1_alpha_in_s* data = CAST_DOWN(T1_alpha_in_s, _data);
