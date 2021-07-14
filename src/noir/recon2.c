@@ -456,8 +456,11 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 
 		bool l2img = (L2IMG == conf->regs->regs[0].xform);
 
-		if (l2img)
+		if (l2img) {
+
 			md_zfill(1, MD_DIMS(skip), lmask, conf->regs->regs[0].lambda); //l2-regularization for images
+			noir_irgnm_conf.algo = italgo_choose(num_regs - 1, conf->regs->regs + 1);
+		}
 
 		opt_reg_noir_join_prox(N, img_dims, col_dims, num_regs , prox_ops, trafos);
 
