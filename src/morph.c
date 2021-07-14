@@ -1,3 +1,6 @@
+/* Author:
+ * 2020 Nick Scholand <nick.scholand@med.uni-goettingen.de>
+ */
 
 #include <stdbool.h>
 #include <complex.h>
