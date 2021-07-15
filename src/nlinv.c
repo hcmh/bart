@@ -438,10 +438,9 @@ int main_nlinv(int argc, char* argv[argc])
 		long sens_dims_out[DIMS];
 		md_copy_dims(DIMS, sens_dims_out, sens_dims);
 
-		if (conf.noncart && crop_sens)
+		if (crop_sens)
 			for (int i = 0; i < 3; i++)
-				if (1 != sens_dims_out[i])
-					sens_dims_out[i] /= 2;
+				sens_dims_out[i] = img_output_dims[i];
 
 		complex float* sens_out = create_cfl(sens_file, DIMS, sens_dims_out);
 		md_resize_center(DIMS, sens_dims_out, sens_out, sens_dims, sens, CFL_SIZE);
