@@ -517,7 +517,7 @@ static void proj_add(unsigned int flags, unsigned int D, const long dims[D],
 
 	md_free(v22);
 
-	md_ztenmul2(D, dims, ostrs, optr, v_strs, v12, v2_strs, v2);
+	md_zfmac2(D, dims, ostrs, optr, v_strs, v12, v2_strs, v2);
 
 	md_free(v12);
 }
