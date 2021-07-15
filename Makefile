@@ -262,7 +262,7 @@ MODULES_pde_mask = -lsimu -llinops
 MODULES_bfield = -lsimu -llinops
 MODULES_dixon = -lmoba -lnlops -llinops -lsimu
 MODULES_rtreco = -lcalib -lnoncart -llinops
-MODULES_nlinvnet = -lnetworks -lnoir -liter -lnn -lnlops -llinops -lnoncart
+MODULES_nlinvnet = -lnetworks -lnoir -liter -lnn -lnlops -llinops -lnoncart -lgrecon  -lsense -liter -llinops -lwavelet -llowrank -lnoncart -lnlops -lnn
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
