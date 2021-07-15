@@ -131,6 +131,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_ULONG('L', &(conf.loop_flags), "flags", "(batch-mode)"),
 		OPTL_INT(0, "cgiter", &conf.cgiter, "iter", "(iterations for linearized problem)"),
 		OPTL_FLOAT(0, "cgtol", &conf.cgtol, "tol", "(tolerance for linearized problem)"),
+		OPTL_INT(0, "init-iter", &conf.nr_init, "iter", "(number of iterations updated with half dx)"),
 		OPTL_FLOAT(0, "alpha", &conf.alpha, "val", "(alpha in first iteration)"),
 		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
