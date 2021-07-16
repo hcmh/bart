@@ -175,7 +175,17 @@ int main_nlinvnet(int argc, char* argv[argc])
 	long cim_dims2[DIMS];
 	complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
 	assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
-	train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims, ref, ksp_dims, kspace);
+
+	long ksp_dims_val[DIMS];
+	long cim_dims_val[DIMS];
+
+	md_copy_dims(DIMS, ksp_dims_val, ksp_dims);
+	md_copy_dims(DIMS, cim_dims_val, cim_dims);
+
+	ksp_dims_val[BATCH_DIM] = 10;
+	cim_dims_val[BATCH_DIM] = 10;
+
+	train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims_val, ref, ksp_dims_val, kspace);
 
 	dump_nn_weights(weight_file, nlinvnet.weights);
 
