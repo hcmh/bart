@@ -122,6 +122,8 @@ void nlinvnet_init_resnet_default(struct nlinvnet_s* nlinvnet)
 		PTR_ALLOC(struct iter6_adam_conf, train_conf);
 		*train_conf = iter6_adam_conf_defaults;
 		nlinvnet->train_conf = CAST_UP(PTR_PASS(train_conf));
+		nlinvnet->train_conf->epochs = 100;
+		nlinvnet->train_conf->batchgen_type = BATCH_GEN_SHUFFLE_DATA;
 	}
 
 	if (NULL == nlinvnet->network) {
