@@ -299,7 +299,7 @@ static void noir_normal_inversion_fun(const nlop_data_t* _data, int Narg, comple
 
 	if (! (der1 || der2)){
 
-		nlop_clear_derivatives(d->normal_op, true);
+		nlop_clear_derivatives(d->normal_op);
 		md_free(d->xn);
 		md_free(d->out);
 		d->xn = NULL;
