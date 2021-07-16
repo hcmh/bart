@@ -86,6 +86,7 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.model = NULL,
 	.iter_conf = NULL,
 	.iter_init = 3,
+	.iter_no_net = 5,
 
 	.train_loss = &loss_nlinvnet,
 	.valid_loss = &loss_nlinvnet,
@@ -160,9 +161,9 @@ void nlinvnet_init_model_cart(struct nlinvnet_s* nlinvnet, int N,
 	assert(0 == nlinvnet->iter_conf->tol);
 }
 
-static nn_t nlinvnet_get_gauss_newton_step(const struct nlinvnet_s* nlinvnet, int Nb)
+static nn_t nlinvnet_get_gauss_newton_step(const struct nlinvnet_s* nlinvnet, int Nb, float update)
 {
-	auto result = nn_from_nlop_F(noir_gauss_newton_step_batch_create(nlinvnet->model, nlinvnet->iter_conf, Nb));
+	auto result = nn_from_nlop_F(noir_gauss_newton_step_batch_create(nlinvnet->model, nlinvnet->iter_conf, Nb, update));
 	result = nn_set_input_name_F(result, 0, "y");
 	result = nn_set_input_name_F(result, 1, "x_0");
 	result = nn_set_input_name_F(result, 1, "alpha");
@@ -232,9 +233,9 @@ static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb,
 	return nn_checkpoint_F(network, false, true);
 }
 
-static nn_t nlinvnet_get_cell(const struct nlinvnet_s* nlinvnet, int Nb, bool network, enum NETWORK_STATUS status)
+static nn_t nlinvnet_get_cell(const struct nlinvnet_s* nlinvnet, int Nb, bool network, float update, enum NETWORK_STATUS status)
 {
-	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb);
+	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update);
 
 	long reg_dims[2];
 	md_copy_dims(2, reg_dims, nn_generic_domain(result, 0, "x_0")->dims);
@@ -263,9 +264,9 @@ static nn_t nlinvnet_get_cell(const struct nlinvnet_s* nlinvnet, int Nb, bool ne
 	return result;
 }
 
-static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, bool network, enum NETWORK_STATUS status)
+static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, bool network, float update, enum NETWORK_STATUS status)
 {
-	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb);
+	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update);
 
 	long reg_dims[2];
 	md_copy_dims(2, reg_dims, nn_generic_domain(result, 0, "x_0")->dims);
@@ -321,7 +322,7 @@ static nn_t nlinvnet_chain_alpha(nn_t network, float redu)
 static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status)
 {
 	int j = nlinvnet->conf->iter;
-	auto result = nlinvnet_get_cell(nlinvnet, Nb, j > nlinvnet->iter_init, status);
+	auto result = nlinvnet_get_cell(nlinvnet, Nb, j > nlinvnet->iter_no_net, j > nlinvnet->iter_init ? 1. : 0.5, status);
 
 	int N_in_names = nn_get_nr_named_in_args(result);
 	int N_out_names = nn_get_nr_named_out_args(result);
@@ -340,7 +341,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, e
 		result = nn_mark_dup_if_exists_F(result, "x_0");
 		result = nn_mark_dup_if_exists_F(result, "alpha");
 
-		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, j > nlinvnet->iter_init, status);
+		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, j > nlinvnet->iter_no_net, j > nlinvnet->iter_init ? 1. : 0.5, status);
 
 		int N_in_names = nn_get_nr_named_in_args(tmp);
 		int N_out_names = nn_get_nr_named_out_args(tmp);

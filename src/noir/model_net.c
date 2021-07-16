@@ -505,7 +505,7 @@ static const struct nlop_s* noir_normal_inversion_create(struct noir2_s* model, 
 }
 
 
-static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf)
+static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, float update)
 {
 	auto result = noir_get_forward(model);	//out: F(xn); in: xn
 
@@ -537,7 +537,7 @@ static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model,
 	result = nlop_dup_F(result, 1, 4);								//out: (DF(xn)^H DF(xn) + alpha)^-1 DF(xn)^H(y - F(xn)) - alpha(xn - x0); in: y, xn, x0, alpha, alpha
 	result = nlop_dup_F(result, 3, 4);								//out: (DF(xn)^H DF(xn) + alpha)^-1 DF(xn)^H(y - F(xn)) - alpha(xn - x0); in: y, xn, x0, alpha
 
-	result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(1, dims, 1, 1), 0);
+	result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(1, dims, update, 1), 0);
 	result = nlop_dup_F(result, 1, 4);
 
 	result = nlop_reshape_in_F(result, 3, N, MD_SINGLETON_DIMS(N));
@@ -545,17 +545,17 @@ static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model,
 	return result;
 }
 
-const struct nlop_s* noir_gauss_newton_step_batch_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, int Nb)
+const struct nlop_s* noir_gauss_newton_step_batch_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, int Nb, float update)
 {
 
-	auto result = noir_gauss_newton_step_create(model, iter_conf);
+	auto result = noir_gauss_newton_step_create(model, iter_conf, update);
 	result = nlop_append_singleton_dim_in_F(result, 1);
 	result = nlop_append_singleton_dim_in_F(result, 2);
 	result = nlop_append_singleton_dim_out_F(result, 0);
 
 	for (int i = 1; i < Nb; i++) {
 
-		auto tmp = noir_gauss_newton_step_create(model, iter_conf);
+		auto tmp = noir_gauss_newton_step_create(model, iter_conf, update);
 		tmp = nlop_append_singleton_dim_in_F(tmp, 1);
 		tmp = nlop_append_singleton_dim_in_F(tmp, 2);
 		tmp = nlop_append_singleton_dim_out_F(tmp, 0);
@@ -711,6 +711,8 @@ const struct nlop_s* noir_set_img_batch_create(struct noir2_s* model, int Nb)
 	return nlop_set_input_const_F2(result, 1, dom->N, dom->dims, MD_SINGLETON_STRS(dom->N), true, &zero);
 }
 
+#if 0
+
 static const struct nlop_s* noir_cart_unrolled_batched_create(	int N,
 							const long pat_dims[N], const complex float* pattern,
 							const long bas_dims[N], const complex float* basis,
@@ -751,7 +753,7 @@ static const struct nlop_s* noir_cart_unrolled_batched_create(	int N,
 	for (int i = 1; i < conf->iter; i++){
 
 		result = nlop_chain2_FF(nlop_from_linop_F(linop_scale_create(N, alp_dims, 1. / conf->redu)), 0, result, 3);
-		result = nlop_chain2_swap_FF(noir_gauss_newton_step_batch_create(&model, &iter_conf, Nb), 0, result, 1); // in: y, xn, x0, alpha, y, x0, alpha
+		result = nlop_chain2_swap_FF(noir_gauss_newton_step_batch_create(&model, &iter_conf, Nb), 0, result, 1, 1); // in: y, xn, x0, alpha, y, x0, alpha
 		result = nlop_dup_F(result, 0, 4);
 		result = nlop_dup_F(result, 2, 4);
 		result = nlop_dup_F(result, 3, 4); // in: y, xn, x0, alpha
@@ -818,8 +820,8 @@ static const struct nlop_s* noir_cart_unrolled_batched_create(	int N,
 
 	return result;
 }
-
-const struct nlop_s* noir_cart_unrolled_create(	int N,
+noir_cart_unrolled_create
+const struct nlop_s* (	int N,
 							const long pat_dims[N], const complex float* pattern,
 							const long bas_dims[N], const complex float* basis,
 							const long msk_dims[N], const complex float* mask,
@@ -848,3 +850,4 @@ const struct nlop_s* noir_cart_unrolled_create(	int N,
 	return noir_cart_unrolled_batched_create(N, lpat_dims, pattern, lbas_dims, basis, lmsk_dims, mask, lksp_dims, lcim_dims, limg_dims, lcol_dims, (BATCH_DIM < N) ? ksp_dims[BATCH_DIM] : 1, conf);
 }
 
+#endif

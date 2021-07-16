@@ -20,8 +20,8 @@ extern const struct nlop_s* noir_cim_batch_create(struct noir2_s* model, int Nb)
 extern const struct nlop_s* noir_extract_img_batch_create(struct noir2_s* model, int Nb);
 extern const struct nlop_s* noir_set_img_batch_create(struct noir2_s* model, int Nb);
 
-extern const struct nlop_s* noir_gauss_newton_step_batch_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, int Nb);
-
+extern const struct nlop_s* noir_gauss_newton_step_batch_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, int Nb, float update);
+#if 0
 extern const struct nlop_s* noir_cart_unrolled_create(	int N,
 							const long pat_dims[N], const _Complex float* pattern,
 							const long bas_dims[N], const _Complex float* basis,
@@ -31,3 +31,4 @@ extern const struct nlop_s* noir_cart_unrolled_create(	int N,
 							const long img_dims[N],
 							const long col_dims[N],
 							struct noir2_conf_s* conf);
+#endif
