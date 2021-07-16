@@ -145,7 +145,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, img_dims);
 
-	nlinvnet_init_resnet_default(&nlinvnet);
+	nlinvnet_init_varnet_default(&nlinvnet);
 
 	long col_dims_s[DIMS];
 	long img_dims_s[DIMS];

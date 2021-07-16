@@ -86,7 +86,7 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.model = NULL,
 	.iter_conf = NULL,
 	.iter_init = 3,
-	.iter_no_net = 5,
+	.iter_no_net = 4,
 
 	.train_loss = &loss_nlinvnet,
 	.valid_loss = &loss_nlinvnet,
@@ -104,6 +104,8 @@ void nlinvnet_init_varnet_default(struct nlinvnet_s* nlinvnet)
 		PTR_ALLOC(struct iter6_iPALM_conf, train_conf);
 		*train_conf = iter6_iPALM_conf_defaults;
 		nlinvnet->train_conf = CAST_UP(PTR_PASS(train_conf));
+		nlinvnet->train_conf->epochs = 100;
+		nlinvnet->train_conf->batchgen_type = BATCH_GEN_SHUFFLE_DATA;
 	}
 
 	if (NULL == nlinvnet->network) {
