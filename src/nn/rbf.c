@@ -38,51 +38,51 @@ struct rbf_s {
 	float Imax;
 	float Imin;
 	float sigma;
+
+	float* z;
+	float* dz;
 };
 
 DEF_TYPEID(rbf_s);
 
-
-#if 0
-static void rbf_initialize(struct rbf_s* data, const complex float* arg, bool der1)
+static void rbf_init(struct rbf_s* data, const complex float* ref)
 {
-	if (NULL == data->w)
-		data->w = md_alloc_sameplace(data->N, data->wdom->dims, FL_SIZE, arg);
+	if (nlop_der_requested(CAST_UP(data), 0, 0)) {
 
-	if (NULL == data->z)
-		data->z = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, arg);
+		if (NULL == data->z)
+			data->dz = md_alloc_sameplace(data->N, data->zdom->dims, data->zdom->size, ref);
+		md_clear(data->N, data->zdom->dims, data->dz, data->zdom->size);
 
-	if (der1 && (NULL == data->dz))
-		data->dz = md_alloc_sameplace(data->N, data->zdom->dims, FL_SIZE, arg);
+	} else {
 
-	if (der1)
-		md_clear(data->N, data->zdom->dims, data->dz, FL_SIZE);
-
-	if (!der1 &&(NULL != data->dz)){
 		md_free(data->dz);
 		data->dz = NULL;
 	}
+
+	if (nlop_der_requested(CAST_UP(data), 1, 0)) {
+
+		if (NULL == data->z)
+			data->z = md_alloc_sameplace(data->N, data->zdom->dims, data->zdom->size, ref);
+		md_clear(data->N, data->zdom->dims, data->z, data->zdom->size);
+
+	} else {
+
+		md_free(data->z);
+		data->z = NULL;
+	}
 }
 
-static void rbf_set_opts(const nlop_data_t* _data, const struct op_options_s* opts)
+static void rbf_clear_der(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(rbf_s, _data);
 
-	if(op_options_is_set_io(opts, 0, 0, OP_APP_CLEAR_DER)){
+	md_free(data->dz);
+	data->dz = NULL;
 
-		md_free(data->dz);
-		data->dz = NULL;
-	}
-	if(op_options_is_set_io(opts, 0, 1, OP_APP_CLEAR_DER)){
-
-		md_free(data->z);
-		md_free(data->w);
-		data->z = NULL;
-		data->w = NULL;
-	}
+	md_free(data->z);
+	data->z = NULL;
 }
 
-#endif
 
 
 static void rbf_fun(const nlop_data_t* _data, int N_args, complex float* args[N_args])
@@ -101,21 +101,16 @@ static void rbf_fun(const nlop_data_t* _data, int N_args, complex float* args[N_
 	bool der1 = nlop_der_requested(_data, 0, 0);
 	bool der2 = nlop_der_requested(_data, 1, 0);
 
-	nlop_data_der_alloc_memory(_data, zdst);
+	rbf_init(data, zdst);
 
-	void* der_data[2];
-	nlop_get_der_array(_data, 2, (void**)der_data);
-	float* der_z = der_data[0];
-	float* der_dz = der_data[1];
+	float* der_z = data->z;
+	float* der_dz = data->dz;
 
 	int N = data->N;
 	const long* zdims = data->zdom->dims;
 	const long* wdims = data->wdom->dims;
 	const long* zstrs = data->zdom->strs;
 	const long* wstrs = data->wdom->strs;
-
-	if(NULL != der_dz)
-		md_clear(N, zdims, der_dz, FL_SIZE);
 
 	float* tmp_w = md_alloc_sameplace(N, wdims, FL_SIZE, zdst);
 	float* tmp_z = md_alloc_sameplace(N, zdims, FL_SIZE, zdst);
@@ -189,14 +184,10 @@ static void rbf_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(o);
 	UNUSED(i);
 
-	void* der_data[2];
-	nlop_get_der_array(_data, 2, (void**)der_data);
-	float* der_z = der_data[0];
-	//float* der_dz = der_data[1];
-
-
 	//dst_ik = sum_j src_ij * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
+
 	const auto data = CAST_DOWN(rbf_s, _data);
+	float* der_z = data->z;
 
 	int N = data->N;
 	const long* zdims = data->zdom->dims;
@@ -257,13 +248,10 @@ static void rbf_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, c
 	UNUSED(o);
 	UNUSED(i);
 
-	void* der_data[2];
-	nlop_get_der_array(_data, 2, (void**)der_data);
-	float* der_z = der_data[0];
-	//float* der_dz = der_data[1];
-
 	//dst_ij = sum_k src_ik * exp[-(z_ik-mu_j)^2/(s*sigma^2)]
+
 	const auto data = CAST_DOWN(rbf_s, _data);
+	float* der_z = data->z;
 
 	int N = data->N;
 	const long* zdims = data->zdom->dims;
@@ -320,12 +308,8 @@ static void rbf_deradj1(const nlop_data_t* _data, unsigned int o, unsigned int i
 	UNUSED(i);
 
 
-	void* der_data[2];
-	nlop_get_der_array(_data, 2, (void**)der_data);
-	//float* der_z = der_data[0];
-	float* der_dz = der_data[1];
-
 	const auto data = CAST_DOWN(rbf_s, _data);
+	float* der_dz = data->dz;
 
 	if (data->use_imag) {
 
@@ -344,6 +328,9 @@ static void rbf_deradj1(const nlop_data_t* _data, unsigned int o, unsigned int i
 static void rbf_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(rbf_s, _data);
+
+	md_free(data->z);
+	md_free(data->dz);
 
 	iovec_free(data->zdom);
 	iovec_free(data->wdom);
@@ -394,6 +381,9 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 	data->zdom = iovec_create(3, zdimsw, FL_SIZE);
 	data->wdom = iovec_create(3, wdimsw, FL_SIZE);
 
+	data->z = NULL;
+	data->dz = NULL;
+
 	data->Imax = Imax;
 	data->Imin = Imin;
 
@@ -411,10 +401,6 @@ const struct nlop_s* nlop_activation_rbf_create(const long dims[3], complex floa
 	md_copy_dims(2, nl_idims[0], zdims);
 	md_copy_dims(2, nl_idims[1], wdims);
 
-	struct nlop_der_array_s* der_arrays[2];
-	der_arrays[0] = nlop_der_array_create(3, zdimsw, FL_SIZE, 2, 1, (bool[2][1]){{ false }, { true }});
-	der_arrays[1] = nlop_der_array_create(3, zdimsw, FL_SIZE, 2, 1, (bool[2][1]){{ true }, { false }});
-
-	auto result = nlop_generic_managed_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_deradj1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_deradj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, 2, der_arrays, NULL);
+	auto result = nlop_generic_managed_create(1, 2, nl_odims, 2, 2, nl_idims, CAST_UP(PTR_PASS(data)), rbf_fun, (nlop_der_fun_t[2][1]){ { rbf_deradj1 }, { rbf_der2 } }, (nlop_der_fun_t[2][1]){ { rbf_deradj1 }, { rbf_adj2 } }, NULL, NULL, rbf_del, rbf_clear_der, NULL);
 	return result;
 }
