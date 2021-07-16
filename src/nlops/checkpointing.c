@@ -34,8 +34,8 @@ struct checkpoint_s {
 
 	const struct nlop_s* nlop;
 
-	unsigned int II;
-	unsigned int OO;
+	int II;
+	int OO;
 
 	unsigned int* DI;
 	const long** idims;
@@ -58,17 +58,9 @@ struct checkpoint_s {
 
 DEF_TYPEID(checkpoint_s);
 
-void nlop_clear_derivatives_checkpoint(const nlop_data_t* _data, _Bool enforce)
-{
-	auto data = CAST_MAYBE(checkpoint_s, _data);
-	if (NULL != data)
-		nlop_clear_derivatives(data->nlop, enforce);
-}
-
-
 static void checkpoint_free_der(struct checkpoint_s* d)
 {
-	for (uint i = 0; i < d->II * d->OO; i++) {
+	for (int i = 0; i < d->II * d->OO; i++) {
 
 		md_free(d->adj_out[i]);
 		md_free(d->der_out[i]);
@@ -77,25 +69,44 @@ static void checkpoint_free_der(struct checkpoint_s* d)
 		d->der_out[i] = NULL;
 	}
 
-	for (uint i = 0; i < d->OO; i++) {
+	for (int i = 0; i < d->OO; i++) {
 
 		md_free(d->adj_in[i]);
 		d->adj_in[i] = NULL;
 	}
 
-	for (uint i = 0; i < d->II; i++) {
+	for (int i = 0; i < d->II; i++) {
 
 		md_free(d->der_in[i]);
 		d->der_in[i] = NULL;
 	}
 }
 
+static void checkpoint_free_input(struct checkpoint_s* d)
+{
+	for (int i = 0; i < d->II; i++) {
 
-static void checkpoint_save_inputs(struct checkpoint_s* data, unsigned int II, const complex float* inputs[II], bool save_inputs)
+		md_free(d->inputs[i]);
+		d->inputs[i] = NULL;
+	}
+}
+
+static void checkpoint_clear_der(const nlop_data_t* _data)
+{
+	auto data = CAST_DOWN(checkpoint_s, _data);
+
+	checkpoint_free_der(data);
+	checkpoint_free_input(data);
+
+	nlop_clear_derivatives(data->nlop);
+}
+
+
+static void checkpoint_save_inputs(struct checkpoint_s* data, int II, const complex float* inputs[II], bool save_inputs)
 {
 	assert(II == data->II);
 	assert(0 < II);
-	for (uint i = 0; i < data->II; i++) {
+	for (int i = 0; i < data->II; i++) {
 
 		if (save_inputs && (NULL == data->inputs[i]))
 			data->inputs[i] = md_alloc_sameplace(data->DI[i], data->idims[i], CFL_SIZE, inputs[0]);
@@ -114,14 +125,14 @@ static void checkpoint_save_inputs(struct checkpoint_s* data, unsigned int II, c
 static void checkpoint_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	const auto data = CAST_DOWN(checkpoint_s, _data);
-	assert(data->II + data->OO == (uint)N);
+	assert(data->II + data->OO == N);
 
 	int II = data->II;
 	int OO = data->OO;
 
 	bool der = false;
-	for (uint i = 0; i < data->II; i++)
-		for (uint o = 0; o < data->OO; o++) {
+	for (int i = 0; i < data->II; i++)
+		for (int o = 0; o < data->OO; o++) {
 
 			data->der_requested[o + OO * i] = nlop_der_requested(_data, i, o);
 			der = der || nlop_der_requested(_data, i, o);
@@ -155,7 +166,7 @@ static void checkpoint_der(const nlop_data_t* _data, unsigned int o, unsigned in
 			d->der_out[i + d->II * o] = NULL;
 		}
 
-		for (unsigned int o = 0; o < d->OO; o++)
+		for (int o = 0; o < d->OO; o++)
 			if (NULL != d->der_out[i + d->II * o])
 				return;
 
@@ -171,19 +182,18 @@ static void checkpoint_der(const nlop_data_t* _data, unsigned int o, unsigned in
 
 	if (d->clear_mem) {
 
-
 		bool (*der_requested)[d->II][d->OO] = (void*)d->der_requested;
 		nlop_set_derivatives(d->nlop, d->II, d->OO, (*der_requested));
 
 		void* args[d->OO + d->II];
-		for (uint j = 0; j < d->OO; j++)
+		for (int j = 0; j < d->OO; j++)
 			args[j] = md_alloc_sameplace(d->DO[j], d->odims[j], CFL_SIZE, src);
-		for (uint j = 0; j < d->II; j++)
+		for (int j = 0; j < d->II; j++)
 			args[d->OO + j] = d->inputs[j];
 
 		nlop_generic_apply_unchecked(d->nlop, d->OO + d->II, (void**)args);
 
-		for (uint j = 0; j < d->OO; j++)
+		for (int j = 0; j < d->OO; j++)
 			md_free(args[j]);
 	}
 
@@ -191,7 +201,7 @@ static void checkpoint_der(const nlop_data_t* _data, unsigned int o, unsigned in
 	const struct operator_s* der_ops[d->OO];
 	void* der_out_tmp[d->OO];
 
-	for (uint j = 0; j < d->OO; j++) {
+	for (int j = 0; j < d->OO; j++) {
 
 		if (!d->der_requested[j + d->OO * i])
 			continue;
@@ -205,7 +215,7 @@ static void checkpoint_der(const nlop_data_t* _data, unsigned int o, unsigned in
 
 	operator_apply_parallel_unchecked(num_ops_par, der_ops, (complex float**)der_out_tmp, src);
 	if (d->clear_mem)
-		nlop_clear_derivatives(d->nlop, true);
+		nlop_clear_derivatives(d->nlop);
 
 	assert(NULL != d->der_out[i + d->II * o]);
 	md_copy(d->DO[o], d->odims[o], dst, d->der_out[i + d->II * o], CFL_SIZE);
@@ -216,7 +226,7 @@ static void checkpoint_der(const nlop_data_t* _data, unsigned int o, unsigned in
 		d->der_out[i + d->II * o] = NULL;
 	}
 
-	for (unsigned int o = 0; o < d->OO; o++)
+	for (int o = 0; o < d->OO; o++)
 		if (NULL != d->der_out[i + d->II * o])
 			return;
 
@@ -241,7 +251,7 @@ static void checkpoint_adj(const nlop_data_t* _data, unsigned int o, unsigned in
 			d->adj_out[i + d->II * o] = NULL;
 		}
 
-		for (unsigned int i = 0; i < d->II; i++)
+		for (int i = 0; i < d->II; i++)
 			if (NULL != d->adj_out[i + d->II * o])
 				return;
 
@@ -261,15 +271,15 @@ static void checkpoint_adj(const nlop_data_t* _data, unsigned int o, unsigned in
 		nlop_set_derivatives(d->nlop, d->II, d->OO, (*der_requested));
 
 		void* args[d->OO + d->II];
-		for (uint j = 0; j < d->OO; j++)
+		for (int j = 0; j < d->OO; j++)
 			args[j] = md_alloc_sameplace(d->DO[j], d->odims[j], CFL_SIZE, src);
-		for (uint j = 0; j < d->II; j++)
+		for (int j = 0; j < d->II; j++)
 			args[d->OO + j] = d->inputs[j];
 
 
 		nlop_generic_apply_unchecked(d->nlop, d->OO + d->II, (void**)args);
 
-		for (uint j = 0; j < d->OO; j++)
+		for (int j = 0; j < d->OO; j++)
 			md_free(args[j]);
 	}
 
@@ -277,7 +287,7 @@ static void checkpoint_adj(const nlop_data_t* _data, unsigned int o, unsigned in
 	const struct operator_s* adj_ops[d->II];
 	void* adj_out_tmp[d->II];
 
-	for (uint j = 0; j < d->II; j++) {
+	for (int j = 0; j < d->II; j++) {
 
 		if (!d->der_requested[o + d->OO * j])
 			continue;
@@ -291,7 +301,7 @@ static void checkpoint_adj(const nlop_data_t* _data, unsigned int o, unsigned in
 
 	operator_apply_parallel_unchecked(num_ops_par, adj_ops, (complex float**)adj_out_tmp, src);
 	if (d->clear_mem)
-		nlop_clear_derivatives(d->nlop, true);
+		nlop_clear_derivatives(d->nlop);
 
 	assert(NULL != d->adj_out[i + d->II * o]);
 	md_copy(d->DI[i], d->idims[i], dst, d->adj_out[i + d->II * o], CFL_SIZE);
@@ -301,7 +311,7 @@ static void checkpoint_adj(const nlop_data_t* _data, unsigned int o, unsigned in
 		d->adj_out[i + d->II * o] = NULL;
 	}
 
-	for (unsigned int i = 0; i < d->II; i++)
+	for (int i = 0; i < d->II; i++)
 		if (NULL != d->adj_out[i + d->II * o])
 			return;
 
@@ -324,7 +334,7 @@ static void checkpoint_del(const nlop_data_t* _data)
 	xfree(d->der_in);
 	xfree(d->der_out);
 
-	for (uint i = 0; i < d->II; i++) {
+	for (int i = 0; i < d->II; i++) {
 
 		md_free(d->inputs[i]);
 		xfree(d->idims[i]);
@@ -333,7 +343,7 @@ static void checkpoint_del(const nlop_data_t* _data)
 	xfree(d->inputs);
 	xfree(d->DI);
 
-	for (uint i = 0; i < d->OO; i++)
+	for (int i = 0; i < d->OO; i++)
 		xfree(d->odims[i]);
 	xfree(d->odims);
 	xfree(d->DO);
@@ -381,8 +391,8 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 	PTR_ALLOC(struct checkpoint_s, d);
 	SET_TYPEID(checkpoint_s, d);
 
-	unsigned int II = nlop_get_nr_in_args(nlop);
-	unsigned int OO = nlop_get_nr_out_args(nlop);
+	int II = nlop_get_nr_in_args(nlop);
+	int OO = nlop_get_nr_out_args(nlop);
 
 	unsigned int max_DI = 0;
 	unsigned int max_DO = 0;
@@ -392,7 +402,7 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 	PTR_ALLOC(unsigned int[II], DI);
 	PTR_ALLOC(const long*[II], idims);
 
-	for (uint i = 0; i < OO; i++) {
+	for (int i = 0; i < OO; i++) {
 
 		auto iov = nlop_generic_codomain(nlop, i);
 		(*DO)[i] = iov->N;
@@ -403,7 +413,7 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 		(*odims)[i] = *PTR_PASS(tdims);
 	}
 
-	for (uint i = 0; i < II; i++) {
+	for (int i = 0; i < II; i++) {
 
 		auto iov = nlop_generic_domain(nlop, i);
 		(*DI)[i] = iov->N;
@@ -442,28 +452,31 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 	d->adj_in = *PTR_PASS(adj_in);
 	d->adj_out = *PTR_PASS(adj_out);
 
-	for (uint i = 0; i < II; i++)
-		d->inputs[i] = NULL;
-	for (uint i = 0; i < II; i++)
-		d->der_in[i] = NULL;
-	for (uint i = 0; i < OO; i++)
-		d->adj_in[i] = NULL;
-	for (uint i = 0; i < II * OO; i++)
-		d->adj_out[i] = NULL;
-	for (uint i = 0; i < II * OO; i++)
-		d->der_out[i] = NULL;
+	for (int i = 0; i < II; i++) {
 
+		d->inputs[i] = NULL;
+		d->der_in[i] = NULL;
+	}
+
+	for (int i = 0; i < OO; i++)
+		d->adj_in[i] = NULL;
+
+	for (int i = 0; i < II * OO; i++) {
+
+		d->adj_out[i] = NULL;
+		d->der_out[i] = NULL;
+	}
 
 	long nl_odims[OO][max_DO];
 	long nl_idims[II][max_DI];
 
-	for (uint i = 0; i < OO; i++){
+	for (int i = 0; i < OO; i++){
 
 		md_singleton_dims(max_DO, nl_odims[i]);
 		md_copy_dims(d->DO[i], nl_odims[i], d->odims[i]);
 	}
 
-	for (uint i = 0; i < II; i++){
+	for (int i = 0; i < II; i++){
 
 		md_singleton_dims(max_DI, nl_idims[i]);
 		md_copy_dims(d->DI[i], nl_idims[i], d->idims[i]);
@@ -472,22 +485,22 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 	nlop_der_fun_t der_funs[II][OO];
 	nlop_der_fun_t adj_funs[II][OO];
 
-	for(uint i = 0; i < II; i++)
-		for(uint o = 0; o < OO; o++) {
+	for(int i = 0; i < II; i++)
+		for(int o = 0; o < OO; o++) {
 
 			der_funs[i][o] = checkpoint_der;
 			adj_funs[i][o] = checkpoint_adj;
 		}
 
 	const struct nlop_s* result = nlop_generic_managed_create(	OO, max_DO, nl_odims, II, max_DI, nl_idims, CAST_UP(PTR_PASS(d)),
-									checkpoint_fun, der_funs, adj_funs, NULL, NULL, checkpoint_del, 0, NULL, nlop_graph_checkpointing);
+									checkpoint_fun, der_funs, adj_funs, NULL, NULL, checkpoint_del, checkpoint_clear_der, nlop_graph_checkpointing);
 
-	for (uint i = 0; i < II; i++) {
+	for (int i = 0; i < II; i++) {
 
 		auto iov = nlop_generic_domain(nlop, i);
 		result = nlop_reshape_in_F(result, i, iov->N, iov->dims);
 	}
-	for (uint o = 0; o < OO; o++) {
+	for (int o = 0; o < OO; o++) {
 
 		auto iov = nlop_generic_codomain(nlop, o);
 		result = nlop_reshape_out_F(result, o, iov->N, iov->dims);
