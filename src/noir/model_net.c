@@ -255,6 +255,11 @@ static void noir_normal_inversion_set_ops(const struct noir_normal_inversion_s* 
 	md_free(tmp_out);
 }
 
+static void noir_normal_inversion_free_ops(const struct noir_normal_inversion_s* d)
+{
+	nlop_clear_derivatives(d->normal_op);
+}
+
 static void noir_normal_inversion(const struct noir_normal_inversion_s* d, complex float* dst, const complex float* src)
 {
 	const struct operator_s* normal_op = nlop_get_derivative(d->normal_op, 0, 0)->forward;
@@ -297,9 +302,10 @@ static void noir_normal_inversion_fun(const nlop_data_t* _data, int Narg, comple
 	bool der1 = nlop_der_requested(_data, 0, 0);
 	bool der2 = nlop_der_requested(_data, 1, 0);
 
+	noir_normal_inversion_free_ops(d);
+
 	if (! (der1 || der2)){
 
-		nlop_clear_derivatives(d->normal_op);
 		md_free(d->xn);
 		md_free(d->out);
 		d->xn = NULL;
@@ -320,8 +326,9 @@ static void noir_normal_inversion_der_src(const nlop_data_t* _data, unsigned int
 
 	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
 
-	noir_normal_inversion_set_ops(d);	//should not be needed but allows freeing of in nlop
+	noir_normal_inversion_set_ops(d);
 	noir_normal_inversion(d, dst, src);
+	noir_normal_inversion_free_ops(d);
 }
 
 static void noir_normal_inversion_der_xn(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -338,6 +345,7 @@ static void noir_normal_inversion_der_xn(const nlop_data_t* _data, unsigned int 
 	md_zsmul(d->N, d->dims, tmp, tmp, -1);
 	noir_normal_inversion(d, dst, tmp);
 
+	noir_normal_inversion_free_ops(d);
 	md_free(tmp);
 }
 
@@ -353,6 +361,8 @@ static void noir_normal_inversion_der_alpha(const nlop_data_t* _data, unsigned i
 	noir_normal_inversion(d, dst, d->out);
 	md_zsmul(d->N, d->dims, dst, dst, -1);
 	md_zmul2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), dst, MD_STRIDES(d->N, d->dims, CFL_SIZE), dst, MD_SINGLETON_STRS(d->N), src);
+
+	noir_normal_inversion_free_ops(d);
 }
 
 static void noir_normal_inversion_alloc_adj(struct noir_normal_inversion_s* d, const void* ref)
@@ -362,7 +372,6 @@ static void noir_normal_inversion_alloc_adj(struct noir_normal_inversion_s* d, c
 		d->dout = md_alloc_sameplace(d->N, d->dims, CFL_SIZE, ref);
 		md_clear(d->N, d->dims, d->dout, CFL_SIZE);
 	}
-
 
 	if (NULL == d->AhAdout) {
 
@@ -381,6 +390,7 @@ static void noir_normal_inversion_compute_adjoint(struct noir_normal_inversion_s
 		md_copy(d->N, d->dims, d->dout, src, CFL_SIZE);
 		noir_normal_inversion_set_ops(d);
 		noir_normal_inversion(d, d->AhAdout, src);
+		noir_normal_inversion_free_ops(d);
 	}
 }
 
@@ -404,16 +414,13 @@ static void noir_normal_inversion_adj_xn(const nlop_data_t* _data, unsigned int 
 	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
 
 	noir_normal_inversion_compute_adjoint(d, src);
-	linop_adjoint(nlop_get_derivative(d->normal_op, 0, 1), d->N, d->dims, dst, d->N, d->dims, d->AhAdout);
-
-	complex float* tmp = md_alloc_sameplace(d->N, d->dims, CFL_SIZE, dst);
 	noir_normal_inversion_set_ops(d);
 
-	linop_forward(nlop_get_derivative(d->normal_op, 0, 1), d->N, d->dims, tmp, d->N, d->dims, src);
-	md_zsmul(d->N, d->dims, tmp, tmp, -1);
-	noir_normal_inversion(d, dst, tmp);
+	linop_adjoint(nlop_get_derivative(d->normal_op, 0, 1), d->N, d->dims, dst, d->N, d->dims, d->AhAdout);
+	md_zsmul(d->N, d->dims, dst, dst, -1);
 
-	md_free(tmp);
+	noir_normal_inversion_free_ops(d);
+
 }
 
 static void noir_normal_inversion_adj_alpha(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -471,7 +478,7 @@ static struct noir_normal_inversion_s* noir_normal_inversion_data_create(struct 
 
 		data->iter_conf = iter_conjgrad_defaults;
 		data->iter_conf.l2lambda = 1.;
-		data->iter_conf.maxiter = 50;
+		data->iter_conf.maxiter = 30;
 	} else {
 
 		data->iter_conf = *iter_conf;
