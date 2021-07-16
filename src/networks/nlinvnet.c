@@ -130,6 +130,7 @@ void nlinvnet_init_resnet_default(struct nlinvnet_s* nlinvnet)
 
 		nlinvnet->network = CAST_UP(&network_resnet_default);
 		nlinvnet->network->norm = NORM_MAX;
+		nlinvnet->network->low_mem = true;
 	}
 }
 
