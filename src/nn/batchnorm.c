@@ -426,11 +426,40 @@ struct bn_s {
 
 	float mean_size;
 
+	complex float* der_out;
+	complex float* der_scale;
+
 	complex float epsilon;
 };
 
 DEF_TYPEID(bn_s);
 
+static void bn_clear_der(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(bn_s, _data);
+
+	md_free(data->der_out);
+	md_free(data->der_scale);
+
+	data->der_out = NULL;
+	data->der_scale = NULL;
+}
+
+static void bn_init(struct bn_s* data, const complex float* ref) {
+
+	bool der = nlop_der_requested(CAST_UP(data), 0, 0);
+
+	if (der) {
+
+		if (NULL == data->der_out)
+			data->der_out = md_alloc_sameplace(data->dom->N, data->dom->dims, data->dom->size, ref);
+		if (NULL == data->der_scale)
+			data->der_scale = md_alloc_sameplace(data->stat_dom->N, data->stat_dom->dims, data->stat_dom->size, ref);
+	} else {
+
+		bn_clear_der(CAST_UP(data));
+	}
+}
 
 static void bn_fun(const nlop_data_t* _data, int D, complex float* args[D])
 {
@@ -481,18 +510,16 @@ static void bn_fun(const nlop_data_t* _data, int D, complex float* args[D])
 	//output unbiased variance
 	md_zsmul(N, data->stat_dom->dims, var, var, data->mean_size / (data->mean_size - 1));
 
-
-	nlop_data_der_alloc_memory(_data, out);
-	void* der_data[2];
-	nlop_get_der_array(_data, 2, (void**)der_data);
-	complex float* der_out = der_data[0];
-	complex float* der_scale = der_data[1];
-
 	bool der = nlop_der_requested(_data, 0, 0);
 	if (der) {
 
-		md_copy(N, data->dom->dims, der_out, out, CFL_SIZE);
-		md_copy(N, data->stat_dom->dims, der_scale, scale, CFL_SIZE);
+		bn_init(data, out);
+
+		md_copy(N, data->dom->dims, data->der_out, out, CFL_SIZE);
+		md_copy(N, data->stat_dom->dims, data->der_scale, scale, CFL_SIZE);
+	} else {
+
+		bn_clear_der(_data);
 	}
 
 	md_free(tmp);
@@ -506,10 +533,8 @@ static void bn_deradj_in(const nlop_data_t* _data, unsigned int o, unsigned int 
 	UNUSED(i);
 	const auto data = CAST_DOWN(bn_s, _data);
 
-	void* der_data[2];
-	nlop_get_der_array(_data, 2, (void**)der_data);
-	complex float* der_out = der_data[0];
-	complex float* der_scale = der_data[1];
+	complex float* der_out = data->der_out;
+	complex float* der_scale = data->der_scale;
 
 	unsigned int N = data->dom->N;
 
@@ -555,6 +580,9 @@ static void bn_del(const struct nlop_data_s* _data)
 	iovec_free(data->dom);
 	iovec_free(data->stat_dom);
 
+	md_free(data->der_out);
+	md_free(data->der_scale);
+
 	xfree(data);
 }
 
@@ -588,6 +616,9 @@ static const struct nlop_s* nlop_bn_create(int N, const long dims[N], unsigned l
 	data->mean_size = (float)md_calc_size(N, dims) / md_calc_size(N, stat_dims);
 	data->epsilon = epsilon;
 
+	data->der_out = NULL;
+	data->der_scale = NULL;
+
 	long nl_odims[3][N];
 	md_copy_dims(N, nl_odims[0], dims);
 	md_copy_dims(N, nl_odims[1], stat_dims);
@@ -596,14 +627,10 @@ static const struct nlop_s* nlop_bn_create(int N, const long dims[N], unsigned l
 	long nl_idims[1][N];
 	md_copy_dims(N, nl_idims[0], dims);
 
-	struct nlop_der_array_s* der_arrays[2];
-	der_arrays[0] = nlop_der_array_create(N, nl_odims[0], CFL_SIZE, 1, 3, (bool[1][3]){{ true, false, false } });
-	der_arrays[1] = nlop_der_array_create(N, nl_odims[1], CFL_SIZE, 1, 3, (bool[1][3]){{ true, false, false } });
-
 	return nlop_generic_managed_create(3, N, nl_odims, 1, N, nl_idims, CAST_UP(PTR_PASS(data)), bn_fun,
 						(nlop_der_fun_t[1][3]){ { bn_deradj_in, NULL, NULL } },
 						(nlop_der_fun_t[1][3]){ { bn_deradj_in, NULL, NULL } },
-						 NULL, NULL, bn_del, 2, der_arrays, NULL);
+						 NULL, NULL, bn_del, bn_clear_der, NULL);
 }
 
 
