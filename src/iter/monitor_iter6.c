@@ -173,11 +173,11 @@ static const char* compute_val_monitors(struct monitor_iter6_default_s* monitor,
 		complex float vals[N_vals];
 
 		for (unsigned int i = 0; i < N_vals; i++) {
-			
+
 			eval[i] = 0;
 			vals[i] = 0;
 		}
-		
+
 		if (monitor->val_monitors[i]->eval(monitor->val_monitors[i]->data, epoch, batch, num_batches)) {
 
 			for (unsigned int i = 0; i < N_vals; i++)
@@ -199,7 +199,7 @@ static const char* compute_val_monitors(struct monitor_iter6_default_s* monitor,
 
 			long rstrs[4];
 			md_calc_strides(4, rstrs, MD_DIMS(monitor->epochs_created, num_batches, 2, monitor->record_dim), CFL_SIZE);
-			
+
 			rpos[2] = 0;
 			md_copy2(4, MD_DIMS(1, 1, 1, N_vals), rstrs, &(MD_ACCESS(4, rstrs, rpos, monitor->record)), MD_STRIDES(4, MD_DIMS(1, 1, 1, N_vals), CFL_SIZE), eval, CFL_SIZE);
 
@@ -207,7 +207,7 @@ static const char* compute_val_monitors(struct monitor_iter6_default_s* monitor,
 			md_copy2(4, MD_DIMS(1, 1, 1, N_vals), rstrs, &(MD_ACCESS(4, rstrs, rpos, monitor->record)), MD_STRIDES(4, MD_DIMS(1, 1, 1, N_vals), CFL_SIZE), vals, CFL_SIZE);
 
 			rpos[3] += N_vals;
-		}		
+		}
 	}
 
 	return result;
@@ -224,14 +224,14 @@ static void monitor6_default_fun(struct monitor_iter6_s* _monitor, long epoch, l
 	bool print_loss = true;
 	bool print_overwrite = true;
 
-	const char* str_progress = (print_progress) ? print_progress_bar(10, batch, numbatches) :  ptr_printf("");	
+	const char* str_progress = (print_progress) ? print_progress_bar(10, batch, numbatches) :  ptr_printf("");
 
 	double time = timestamp() - monitor->start_time;
 	double est_time = time + (double)(numbatches - batch - 1) * time / (double)(batch + 1);
 	const char* str_time = (print_time) ? print_time_string(time, est_time) : ptr_printf("");
 
 	monitor->average_obj = ((batch) * monitor->average_obj + objective) / (batch + 1);
-	const char* str_loss = (print_loss) ? ptr_printf(" loss: %f;", monitor->print_average_obj ? monitor->average_obj: objective) :  ptr_printf("");	
+	const char* str_loss = (print_loss) ? ptr_printf(" loss: %e;", monitor->print_average_obj ? monitor->average_obj: objective) :  ptr_printf("");
 
 	const char* str_val_monitor = compute_val_monitors(monitor, epoch, batch, numbatches, NI, x);
 
@@ -401,14 +401,14 @@ static const char* monitor_iter6_nlop_print(const monitor_iter6_value_data_t* _d
 		return result;
 
 	for (unsigned int i = 0; i < d->INTERFACE.N_vals; i++) {
-	
+
 		auto tmp = result;
 
 		if (0. == cimagf(d->last_result[i]))
 			result = ptr_printf("%s %s: %.3e;", tmp, d->names[i], crealf(d->last_result[i]));
 		else
 			result = ptr_printf("%s %s: %.3e + %.3ei;", tmp, d->names[i], crealf(d->last_result[i]), cimagf(d->last_result[i]));
-		
+
 		xfree(tmp);
 	}
 
@@ -445,7 +445,7 @@ struct monitor_value_s* monitor_iter6_nlop_create(const struct nlop_s* nlop, _Bo
 
 	data->last_result = md_alloc(1, MD_DIMS(data->INTERFACE.N_vals), CFL_SIZE);
 	data->names = NULL;
-	
+
 	if (NULL != print_name) {
 
 		assert(N == data->INTERFACE.N_vals);
