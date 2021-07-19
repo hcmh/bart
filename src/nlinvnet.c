@@ -24,6 +24,16 @@
 
 #include "nn/weights.h"
 
+#include "grecon/opt_iter6.h"
+#include "grecon/losses.h"
+#include "grecon/network.h"
+
+
+#include "networks/cnn.h"
+#include "networks/unet.h"
+#include "networks/reconet.h"
+#include "networks/losses.h"
+#include "networks/misc.h"
 #include "networks/nlinvnet.h"
 
 #include "noir/misc.h"
@@ -64,15 +74,47 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	float coil_os = -1;
 
+	bool train = false;
+	bool apply = false;
+	bool eval = false;
+
+	long Nb = 0;
+
+	const char* val_file_kspace = NULL;
+	const char* val_file_reference = NULL;
+
+	opts_iter6_init();
+
+
+	struct opt_s valid_opts[] = {
+
+		//OPTL_INFILE('p', "pattern", &(val_file_pattern), "<file>", "validation data sampling pattern"), currently use same model as training
+		OPTL_INFILE('k', "kspace", &(val_file_kspace), "<file>", "validation data kspace"),
+		OPTL_INFILE('r', "ref", &(val_file_reference), "<file>", "validation data reference"),
+	};
+
 	const struct opt_s opts[] = {
+
+		OPTL_SET('t', "train", &train, "train nlinvnet"),
+		OPTL_SET('e', "eval", &eval, "evaluate nlinvnet"),
+		OPTL_SET('a', "apply", &apply, "apply nlinvnet"),
+
+		OPTL_SET('g', "gpu", &(nlinvnet.gpu), "run on gpu"),
+		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
+
+		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
+		OPTL_INFILE(0, "pattern", &pat_file, "<pattern>", "sampling pattern / psf in kspace"),
+
+		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
+
+		OPTL_SUBOPT('T', "train-algo", "...", "configure general training parmeters", N_iter6_opts, iter6_opts),
+		OPTL_SUBOPT(0, "adam", "...", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
-		OPT_SET('g', &(nlinvnet.gpu), "use gpu"),
-		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
-		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
+		OPTL_FLOAT(0, "sobolev-a", &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
+		OPTL_FLOAT(0, "sobolev-b", &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPTL_FLOAT(0, "alpha", &conf.alpha, "", "(minimum for regularization)"),
-		OPT_INFILE('p', &pat_file, "", "sampling pattern"),
 		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 	};
 
@@ -83,6 +125,23 @@ int main_nlinvnet(int argc, char* argv[argc])
 	if (nlinvnet.gpu)
 		cuda_use_global_memory();
 	#endif
+
+	if (train) {
+
+		nlinvnet.train_conf = iter6_get_conf_from_opts();
+
+		if (NULL == nlinvnet.train_conf) {
+
+			debug_printf(DP_WARN, "No training algorithm selected. Fallback to Adam!");
+			iter_6_select_algo = ITER6_ADAM;
+			nlinvnet.train_conf = iter6_get_conf_from_opts();
+
+		} else
+			iter6_copy_config_from_opts(nlinvnet.train_conf);
+	}
+
+	nlinvnet.network = get_default_network(NETWORK_RESBLOCK);
+	nlinvnet.network->norm = NORM_MAX;
 
 	long ksp_dims[DIMS];
 	complex float* kspace = load_cfl(ksp_file, DIMS, ksp_dims);
@@ -145,8 +204,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 	long msk_dims[DIMS];
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, img_dims);
 
-	nlinvnet_init_resnet_default(&nlinvnet);
-
 	long col_dims_s[DIMS];
 	long img_dims_s[DIMS];
 	long cim_dims_s[DIMS];
@@ -170,26 +227,64 @@ int main_nlinvnet(int argc, char* argv[argc])
 		img_dims_s,
 		col_dims_s);
 
-	int Nb = 10;
+	Nb = Nb ? Nb : 10;
 
-	long cim_dims2[DIMS];
-	complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
-	assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
+	if (train) {
 
-	long ksp_dims_val[DIMS];
-	long cim_dims_val[DIMS];
+		long cim_dims2[DIMS];
+		complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
+		assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
 
-	md_copy_dims(DIMS, ksp_dims_val, ksp_dims);
-	md_copy_dims(DIMS, cim_dims_val, cim_dims);
+		long ksp_dims_val[DIMS];
+		long cim_dims_val[DIMS];
 
-	ksp_dims_val[BATCH_DIM] = 10;
-	cim_dims_val[BATCH_DIM] = 10;
+		complex float* val_kspace = NULL;
+		complex float* val_ref = NULL;
 
-	train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims_val, ref, ksp_dims_val, kspace);
+		if (NULL != val_file_kspace) {
 
-	dump_nn_weights(weight_file, nlinvnet.weights);
+			val_kspace = load_cfl(val_file_kspace, DIMS, ksp_dims_val);
+			val_ref = load_cfl(val_file_reference, DIMS, cim_dims_val);
+		}
 
-	unmap_cfl(DIMS, cim_dims, ref);
+		train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims_val, val_ref, ksp_dims_val, val_kspace);
+		dump_nn_weights(weight_file, nlinvnet.weights);
+
+		if (NULL != val_file_kspace) {
+
+			unmap_cfl(DIMS, ksp_dims_val, val_kspace);
+			unmap_cfl(DIMS, cim_dims_val, val_ref);
+		}
+
+		unmap_cfl(DIMS, cim_dims, ref);
+	}
+
+	if (apply) {
+
+		complex float* img = create_cfl(out_file, DIMS, img_dims);
+
+		complex float* col = (NULL != sens_file) ? create_cfl(sens_file, DIMS, dims) : anon_cfl("", DIMS, dims);
+		nlinvnet.weights = load_nn_weights(weight_file);
+
+		apply_nlinvnet(&nlinvnet, DIMS, img_dims, img, dims, col, ksp_dims, kspace);
+
+		unmap_cfl(DIMS, img_dims, img);
+		unmap_cfl(DIMS, dims, col);
+	}
+
+	if (eval) {
+
+		long cim_dims2[DIMS];
+		complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
+		assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
+
+		nlinvnet.weights = load_nn_weights(weight_file);
+
+		eval_nlinvnet(&nlinvnet, DIMS, cim_dims, ref, ksp_dims, kspace);
+
+		unmap_cfl(DIMS, cim_dims2, ref);
+	}
+
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, ksp_dims, kspace);
 

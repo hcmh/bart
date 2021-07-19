@@ -45,18 +45,18 @@ void nlinvnet_init_model_cart(struct nlinvnet_s* nlinvnet, int N,
 	const long col_dims[N]);
 
 
-enum nlinvnet_out { NLINVNET_OUT_CIM, NLINVNET_OUT_IMG };
+enum nlinvnet_out { NLINVNET_OUT_CIM, NLINVNET_OUT_IMG, NLINVNET_OUT_IMG_COL };
 
 
 void train_nlinvnet(struct nlinvnet_s* nlinvnet, int N, int Nb,
 	const long cim_dims_trn[N], const _Complex float* ref_trn, const long ksp_dims_trn[N], const _Complex float* ksp_trn,
 	const long cim_dims_val[N], const _Complex float* ref_val, const long ksp_dims_val[N], const _Complex float* ksp_val);
 
-void apply_nlinvnet(struct nlinvnet_s* nlinvnet, enum nlinvnet_out out_type, int N,
-	const long img_dims[N], _Complex float* out, const long ksp_dims[N], const _Complex float* ksp);
+void apply_nlinvnet(struct nlinvnet_s* nlinvnet, int N,
+	const long img_dims[N], _Complex float* img,
+	const long col_dims[N], _Complex float* col,
+	const long ksp_dims[N], const _Complex float* ksp);
 
-void apply_nlinvnet_batchwise(struct nlinvnet_s* nlinvnet, enum nlinvnet_out out_type, int N,
-	const long img_dims[N], _Complex float* out, const long ksp_dims[N], const _Complex float* ksp, int Nb);
-
-void eval_nlinvnet(struct nlinvnet_s* nlinvnet, enum nlinvnet_out out_type, int N,
-	const long cim_dims[N], const _Complex float* ref, const long ksp_dims[N], const _Complex float* ksp, int Nb);
+void eval_nlinvnet(struct nlinvnet_s* nlinvnet, int N,
+	const long cim_dims[N], const _Complex float* ref,
+	const long ksp_dims[N], const _Complex float* ksp);
