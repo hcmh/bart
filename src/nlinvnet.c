@@ -114,7 +114,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
 		OPTL_FLOAT(0, "sobolev-a", &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPTL_FLOAT(0, "sobolev-b", &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
-		OPTL_FLOAT(0, "alpha", &conf.alpha, "", "(minimum for regularization)"),
+		OPTL_FLOAT(0, "alpha", &conf.alpha, "", "(start regularization)"),
+		OPTL_FLOAT(0, "alpha-min", &conf.alpha_min, "", "(minimum for regularization)"),
 		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 	};
 

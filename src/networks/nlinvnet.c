@@ -160,8 +160,6 @@ static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb,
 	network = nn_reshape_in_F(network, 0, NULL, N, img_dims);
 	network = nn_reshape_out_F(network, 0, NULL, N, img_dims);
 
-	//network = nn_chain2_FF(network, 0, NULL, nn_from_nlop_F(nlop_dump_create(N, img_dims, "out", true, false, false)), 0, NULL);
-	//network = nn_chain2_FF(nn_from_nlop_F(nlop_dump_create(N, img_dims, "in", true, false, false)), 0, NULL, network, 0, NULL);
 
 	int N_in_names = nn_get_nr_named_in_args(network);
 	int N_out_names = nn_get_nr_named_out_args(network);
@@ -267,7 +265,7 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, boo
 }
 
 
-static nn_t nlinvnet_chain_alpha(nn_t network, float redu)
+static nn_t nlinvnet_chain_alpha(const struct nlinvnet_s* nlinvnet, nn_t network)
 {
 	int N_in_names = nn_get_nr_named_in_args(network);
 	const char* in_names[N_in_names];
@@ -275,7 +273,11 @@ static nn_t nlinvnet_chain_alpha(nn_t network, float redu)
 
 	auto dom = nn_generic_domain(network, 0, "alpha");
 
-	auto scale = nn_from_nlop_F(nlop_from_linop_F(linop_scale_create(dom->N, dom->dims, 1. / redu)));
+	auto nlop_scale = nlop_from_linop_F(linop_scale_create(dom->N, dom->dims, 1. / nlinvnet->conf->redu));
+	nlop_scale = nlop_chain_FF(nlop_zsadd_create(dom->N, dom->dims, -nlinvnet->conf->alpha_min), nlop_scale);
+	nlop_scale = nlop_chain_FF(nlop_scale, nlop_zsadd_create(dom->N, dom->dims, nlinvnet->conf->alpha_min));
+
+	auto scale = nn_from_nlop_F(nlop_scale);
 	network = nn_chain2_FF(scale, 0, NULL, network, 0, "alpha");
 	network = nn_set_input_name_F(network, -1, "alpha");
 
@@ -304,7 +306,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, e
 
 	while (0 < --j) {
 
-		result = nlinvnet_chain_alpha(result, nlinvnet->conf->redu);
+		result = nlinvnet_chain_alpha(nlinvnet, result);
 
 		result = nn_mark_dup_if_exists_F(result, "y");
 		result = nn_mark_dup_if_exists_F(result, "x_0");
