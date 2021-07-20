@@ -24,6 +24,8 @@ typedef struct network_s {
 	enum norm norm;
 	unsigned long norm_batch_flag;
 
+	_Bool debug;
+
 } network_t;
 
 extern nn_t network_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);

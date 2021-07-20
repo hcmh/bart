@@ -52,6 +52,8 @@ struct network_unet_s network_unet_default_reco = {
 	.INTERFACE.norm = NORM_NONE,
 	.INTERFACE.norm_batch_flag = MD_BIT(4),
 
+	.INTERFACE.debug = false,
+
 	.N = 5,
 	.kdims = {[0 ... DIMS -1] = 0},
 	.dilations = {[0 ... DIMS -1] = 1},
@@ -102,6 +104,8 @@ struct network_unet_s network_unet_default_segm = {
 	.INTERFACE.TYPEID = &TYPEID2(network_unet_s),
 	.INTERFACE.create = network_unet_create,
 	.INTERFACE.low_mem = false,
+
+	.INTERFACE.debug = false,
 
 	.N = 5,
 

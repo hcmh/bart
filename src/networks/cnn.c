@@ -83,6 +83,8 @@ struct network_resnet_s network_resnet_default = {
 	.INTERFACE.norm = NORM_NONE,
 	.INTERFACE.norm_batch_flag = MD_BIT(4),
 
+	.INTERFACE.debug = false,
+
 	.N = 5,
 
 	.Nl = 5,
@@ -275,12 +277,30 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 	else
 		result = nn_append_activation(result, 0, NULL, config->last_activation);
 
+	static int counter = 0;
+	const char* i_name_debug = ptr_printf("resblock_%d_in", counter);
+	const char* o_name_debug = ptr_printf("resblock_%d_out", counter);
+	const char* r_name_debug = ptr_printf("resblock_%d_res", counter++);
+
+	if (_config->debug)
+		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_dump_create(N, odims, r_name_debug, true, true, true)), 0, NULL);
+
 
 	auto nlop_sum = nlop_zaxpbz_create(N, odims, 1, 1);
 	nlop_sum = nlop_chain2_FF(nlop_from_linop_F(linop_expand_create(N, odims, idims)), 0, nlop_sum, 1);
 
 	result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_sum), 0, NULL);
 	result = nn_dup_F(result, 0, NULL, 1, NULL);
+
+	if (_config->debug) {
+
+		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_dump_create(N, odims, o_name_debug, true, true, true)), 0, NULL);
+		result = nn_chain2_FF(nn_from_nlop_F(nlop_dump_create(N, idims, i_name_debug, true, true, true)), 0, NULL, result, 0, NULL);
+	}
+
+	xfree(o_name_debug);
+	xfree(i_name_debug);
+	xfree(r_name_debug);
 
 	result = nn_sort_inputs_by_list_F(result, ARRAY_SIZE(resnet_sorted_weight_names), resnet_sorted_weight_names);
 	result = nn_sort_outputs_by_list_F(result, ARRAY_SIZE(resnet_sorted_weight_names), resnet_sorted_weight_names);
@@ -304,6 +324,8 @@ struct network_varnet_s network_varnet_default = {
 
 	.INTERFACE.norm = NORM_NONE,
 	.INTERFACE.norm_batch_flag = MD_BIT(4),
+
+	.INTERFACE.debug = false,
 
 	.Nf = 24,
 	.Nw = 31,
@@ -409,6 +431,8 @@ struct network_s network_mnist_default = {
 
 	.norm = NORM_NONE,
 	.norm_batch_flag = MD_BIT(4),
+
+	.debug = false,
 };
 
 static nn_t network_mnist_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
