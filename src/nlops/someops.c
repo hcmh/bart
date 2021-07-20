@@ -23,6 +23,7 @@
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 #include "nlops/cast.h"
+#include "nlops/const.h"
 
 #ifdef USE_CUDA
 #include "num/gpuops.h"
@@ -131,6 +132,12 @@ const struct nlop_s* nlop_zaxpbz_create(int N, const long dims[N], complex float
 
 	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)),
 		zaxpbz_fun, (nlop_der_fun_t[2][1]){ { scale_apply }, { scale_apply } }, (nlop_der_fun_t[2][1]){ { scale_adjoint }, { scale_adjoint } }, NULL, NULL, zaxpbz_del);
+}
+
+const struct nlop_s* nlop_zsadd_create(int N, const long dims[N], complex float val)
+{
+	auto result = nlop_zaxpbz_create(N, dims, 1., 1.);
+	return nlop_set_input_const_F2(result, 1, N, dims, MD_SINGLETON_STRS(N), true, &val);
 }
 
 struct smo_abs_s {
