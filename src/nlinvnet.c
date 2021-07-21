@@ -102,8 +102,10 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SET('g', "gpu", &(nlinvnet.gpu), "run on gpu"),
 		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
 
+		OPTL_INT(0, "iter-net", &(nlinvnet.iter_net), "iter", "number of iterations with network"),
+
 		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
-		OPTL_INFILE(0, "pattern", &pat_file, "<pattern>", "sampling pattern / psf in kspace"),
+		OPTL_INFILE(0, "pattern", &pat_file, "<pattern>", "sampling pattern"),
 
 		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
 

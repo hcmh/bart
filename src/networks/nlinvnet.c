@@ -86,7 +86,7 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.model = NULL,
 	.iter_conf = NULL,
 	.iter_init = 3,
-	.iter_no_net = 5,
+	.iter_net = 3,
 
 	.train_loss = &loss_nlinvnet,
 	.valid_loss = &loss_nlinvnet,
@@ -293,7 +293,7 @@ static nn_t nlinvnet_chain_alpha(const struct nlinvnet_s* nlinvnet, nn_t network
 static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status)
 {
 	int j = nlinvnet->conf->iter;
-	auto result = nlinvnet_get_cell(nlinvnet, Nb, j > nlinvnet->iter_no_net, j > nlinvnet->iter_init ? 1. : 0.5, status);
+	auto result = nlinvnet_get_cell(nlinvnet, Nb, j > ((int)nlinvnet->conf->iter - nlinvnet->iter_net), j > nlinvnet->iter_init ? 1. : 0.5, status);
 
 	int N_in_names = nn_get_nr_named_in_args(result);
 	int N_out_names = nn_get_nr_named_out_args(result);

@@ -19,7 +19,7 @@ struct nlinvnet_s {
 	struct noir2_s* model;
 	struct iter_conjgrad_conf* iter_conf;
 	int iter_init;
-	int iter_no_net;
+	int iter_net;
 
 	_Bool low_mem;
 	_Bool gpu;
