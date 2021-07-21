@@ -320,7 +320,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, e
 		result = nn_mark_dup_if_exists_F(result, "x_0");
 		result = nn_mark_dup_if_exists_F(result, "alpha");
 
-		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, j - 1, status);
+		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, j, status);
 
 		int N_in_names = nn_get_nr_named_in_args(tmp);
 		int N_out_names = nn_get_nr_named_out_args(tmp);
