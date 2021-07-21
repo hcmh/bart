@@ -200,8 +200,12 @@ static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb,
 	return nn_checkpoint_F(network, false, true);
 }
 
-static nn_t nlinvnet_get_cell(const struct nlinvnet_s* nlinvnet, int Nb, bool network, float update, enum NETWORK_STATUS status)
+#if 0
+static nn_t nlinvnet_get_cell(const struct nlinvnet_s* nlinvnet, int Nb, int index, enum NETWORK_STATUS status)
 {
+	bool network = index >= ((int)nlinvnet->conf->iter - nlinvnet->iter_net);
+	float update = index < nlinvnet->iter_init ? 0.5 : 1;
+
 	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update);
 
 	long reg_dims[2];
@@ -230,9 +234,13 @@ static nn_t nlinvnet_get_cell(const struct nlinvnet_s* nlinvnet, int Nb, bool ne
 
 	return result;
 }
+#endif
 
-static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, bool network, float update, enum NETWORK_STATUS status)
+static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int index, enum NETWORK_STATUS status)
 {
+	bool network = index >= ((int)nlinvnet->conf->iter - nlinvnet->iter_net);
+	float update = index < nlinvnet->iter_init ? 0.5 : 1;
+
 	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update);
 
 	long reg_dims[2];
@@ -292,8 +300,8 @@ static nn_t nlinvnet_chain_alpha(const struct nlinvnet_s* nlinvnet, nn_t network
 
 static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status)
 {
-	int j = nlinvnet->conf->iter;
-	auto result = nlinvnet_get_cell(nlinvnet, Nb, j > ((int)nlinvnet->conf->iter - nlinvnet->iter_net), j > nlinvnet->iter_init ? 1. : 0.5, status);
+	int j = nlinvnet->conf->iter - 1;
+	auto result = nlinvnet_get_cell_reg(nlinvnet, Nb, j, status);
 
 	int N_in_names = nn_get_nr_named_in_args(result);
 	int N_out_names = nn_get_nr_named_out_args(result);
@@ -304,7 +312,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, e
 	nn_get_in_names_copy(N_in_names, in_names, result);
 	nn_get_out_names_copy(N_out_names, out_names, result);
 
-	while (0 < --j) {
+	while (0 < j--) {
 
 		result = nlinvnet_chain_alpha(nlinvnet, result);
 
@@ -312,7 +320,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, e
 		result = nn_mark_dup_if_exists_F(result, "x_0");
 		result = nn_mark_dup_if_exists_F(result, "alpha");
 
-		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, j > nlinvnet->iter_no_net, j > nlinvnet->iter_init ? 1. : 0.5, status);
+		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, j - 1, status);
 
 		int N_in_names = nn_get_nr_named_in_args(tmp);
 		int N_out_names = nn_get_nr_named_out_args(tmp);
