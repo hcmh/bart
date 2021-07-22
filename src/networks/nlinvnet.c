@@ -87,6 +87,7 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.iter_conf = NULL,
 	.iter_init = 3,
 	.iter_net = 3,
+	.iter_net_shift = 0,
 
 	.train_loss = &loss_nlinvnet,
 	.valid_loss = &loss_nlinvnet,
@@ -238,7 +239,12 @@ static nn_t nlinvnet_get_cell(const struct nlinvnet_s* nlinvnet, int Nb, int ind
 
 static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int index, enum NETWORK_STATUS status)
 {
-	bool network = index >= ((int)nlinvnet->conf->iter - nlinvnet->iter_net);
+	assert(0 <= nlinvnet->iter_net_shift);
+	assert((int)nlinvnet->conf->iter > nlinvnet->iter_net_shift);
+
+	bool network = (index + nlinvnet->iter_net_shift >= ((int)nlinvnet->conf->iter - nlinvnet->iter_net))
+		    && (index + nlinvnet->iter_net_shift < (int)nlinvnet->conf->iter);
+
 	float update = index < nlinvnet->iter_init ? 0.5 : 1;
 
 	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update);

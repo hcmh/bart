@@ -103,6 +103,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
 
 		OPTL_INT(0, "iter-net", &(nlinvnet.iter_net), "iter", "number of iterations with network"),
+		OPTL_INT(0, "iter-net-shift", &(nlinvnet.iter_net_shift), "iter", "no network in the last \"iter\" steps"),
 
 		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
 		OPTL_INFILE(0, "pattern", &pat_file, "<pattern>", "sampling pattern"),

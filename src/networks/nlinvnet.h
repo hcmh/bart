@@ -18,8 +18,9 @@ struct nlinvnet_s {
 	struct noir2_conf_s* conf;
 	struct noir2_s* model;
 	struct iter_conjgrad_conf* iter_conf;
-	int iter_init;
-	int iter_net;
+	int iter_init;		//iterations with half update dx -> 0.5dx
+	int iter_net;		//# of iterations with network
+	int iter_net_shift;	//shift of iterations with network to earlier iterations
 
 	_Bool low_mem;
 	_Bool gpu;
