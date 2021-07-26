@@ -575,7 +575,12 @@ const struct nlop_s* nlop_cce_create(int N, const long dims[N], unsigned long ba
 	md_copy_strides(N, nl_istr[0], MD_STRIDES(N, dims, CFL_SIZE));
 	md_copy_strides(N, nl_istr[1], MD_STRIDES(N, dims, CFL_SIZE));
 
-	return nlop_generic_create2(1, 1, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), cce_fun, (nlop_der_fun_t[2][1]){ { cce_der1 }, { cce_der2 } }, (nlop_der_fun_t[2][1]){ { cce_adj1 }, { cce_adj2 } }, NULL, NULL, cce_del);
+	auto result = nlop_generic_create2(1, 1, nl_odims, nl_ostr, 2, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)), cce_fun, (nlop_der_fun_t[2][1]){ { cce_der1 }, { cce_der2 } }, (nlop_der_fun_t[2][1]){ { cce_adj1 }, { cce_adj2 } }, NULL, NULL, cce_del);
+
+	result = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(N, dims)), 0, result, 0);
+	result = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(N, dims)), 0, result, 0);
+
+	return result;
 }
 
 struct accuracy_s {
@@ -1046,7 +1051,11 @@ const struct nlop_s* nlop_dice_generic_create(int N, const long dims[N], unsigne
 	md_copy_dims(N, nl_idims[1], dims);
 
 
-	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), dice_fun, (nlop_der_fun_t[2][1]){ { dice_der }, { dice_der } }, (nlop_der_fun_t[2][1]){ { dice_adj }, { dice_adj } }, NULL, NULL, dice_del);
+	auto result = nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), dice_fun, (nlop_der_fun_t[2][1]){ { dice_der }, { dice_der } }, (nlop_der_fun_t[2][1]){ { dice_adj }, { dice_adj } }, NULL, NULL, dice_del);
+	result = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(N, dims)), 0, result, 0);
+	result = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(N, dims)), 0, result, 0);
+
+	return result;
 }
 
 /**
