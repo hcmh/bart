@@ -1387,7 +1387,7 @@ void nufft_normal_op_free_psf(const struct operator_s* op)
 #ifdef MULTIGPU
 	for (int i = 0; i < MAX_CUDA_DEVICES; i++) {
 
-		md_free(data->linphase_gpu[i]);
+		md_free(data->psf_gpu[i]);
 		data->psf_gpu[i] = NULL;
 	}
 #else
