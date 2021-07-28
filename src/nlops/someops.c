@@ -20,10 +20,13 @@
 #include "num/flpmath.h"
 #include "num/ops.h"
 
+#include "linops/someops.h"
+
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 #include "nlops/cast.h"
 #include "nlops/const.h"
+#include "nlops/tenmul.h"
 
 #ifdef USE_CUDA
 #include "num/gpuops.h"
@@ -597,51 +600,23 @@ const struct nlop_s* nlop_zsqrt_create(int N, const long dims[N])
 		zsqrt_fun, zsqrt_der, zsqrt_adj, NULL, NULL, zsqrt_del);
 }
 
-struct zrss_s {
-
-	INTERFACE(nlop_data_t);
-
-	unsigned long N;
-	unsigned long flags;
-	const long* dims;
-};
-
-DEF_TYPEID(zrss_s);
-
-static void zrss_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
-{
-	const auto data = CAST_DOWN(zrss_s, _data);
-	md_zrss(data->N, data->dims, data->flags, dst, src);
-}
-
-
-static void zrss_del(const struct nlop_data_s* _data)
-{
-	const auto data = CAST_DOWN(zrss_s, _data);
-
-	xfree(data->dims);
-
-	xfree(data);
-}
-
 
 /**
  * Returns zrss of array along specified flags.
  **/
 const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long flags)
 {
-	PTR_ALLOC(struct zrss_s, data);
-	SET_TYPEID(zrss_s, data);
-
-	PTR_ALLOC(long[N], dims_tmp);
-	md_copy_dims(N, *dims_tmp, dims);
-
-	data->N = N;
-	data->flags = flags;
-	data->dims = *PTR_PASS(dims_tmp);
 
 	long odims[N];
 	md_select_dims(N, ~flags, odims, dims);
 
-	return nlop_create(N, odims, N, dims, CAST_UP(PTR_PASS(data)), zrss_fun, NULL, NULL, NULL, NULL, zrss_del);
+	auto result = nlop_tenmul_create(N, odims, dims, dims);
+	result = nlop_chain2_FF(nlop_from_linop_F(linop_zconj_create(N, dims)), 0, result, 0);
+	result = nlop_dup_F(result, 0, 1);
+
+	result = nlop_chain_FF(result, nlop_from_linop_F(linop_zreal_create(N, odims)));
+	result = nlop_chain_FF(result, nlop_zsqrt_create(N, odims));
+	result = nlop_chain_FF(result, nlop_from_linop_F(linop_zreal_create(N, odims)));
+
+	return result;
 }
