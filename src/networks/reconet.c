@@ -111,6 +111,8 @@ struct reconet_s reconet_config_opts = {
 	.low_mem = false,
 
 	.graph_file = NULL,
+
+	.rss_scale = false,
 };
 
 static void reconet_init_default(struct reconet_s* reconet) {
@@ -813,6 +815,25 @@ static nn_t reconet_train_create(const struct reconet_s* config, int N, const lo
 
 	auto train_op = reconet_create(config, N, max_dims, ND, psf_dims, valid ? STAT_TEST : STAT_TRAIN);
 
+	if (config->rss_scale) {
+
+		auto weight = nn_from_nlop_F(nlop_tenmul_create(N, img_dims, img_dims, img_dims));
+		weight = nn_set_input_name_F(weight, 1, "rss_scale");
+		train_op = nn_chain2_FF(train_op, 0, NULL, weight, 0, NULL);
+
+		for (int i = 1; i < config->Nt; i++) {
+
+			char out_name[30];
+			sprintf(out_name, "out_%d", i);
+
+			auto weight = nn_from_nlop_F(nlop_tenmul_create(N, img_dims, img_dims, img_dims));
+			weight = nn_set_input_name_F(weight, 1, "rss_scale_tmp");
+			train_op = nn_chain2_FF(train_op, 0, out_name, weight, 0, NULL);
+			train_op = nn_set_output_name_F(train_op, 0, out_name);
+			train_op = nn_dup_F(train_op, 0, "rss_scale", 0, "rss_scale_tmp");
+		}
+	}
+
 	if(config->normalize) {
 
 		auto nn_norm_ref = nn_from_nlop_F(nlop_chain2_FF(nlop_zinv_create(N, scl_dims), 0, nlop_tenmul_create(N, img_dims, img_dims, scl_dims), 1));
@@ -853,6 +874,18 @@ static nn_t reconet_train_create(const struct reconet_s* config, int N, const lo
 
 	if (valid)
 		train_op = nn_del_out_bn_F(train_op);
+
+	if (config->rss_scale) {
+
+		auto weight = nn_from_nlop_F(nlop_tenmul_create(N, img_dims, img_dims, img_dims));
+		weight = nn_set_input_name_F(weight, 1, "rss_scale_tmp");
+		train_op = nn_chain2_swap_FF(weight, 0, NULL, train_op, 0, NULL);
+		train_op = nn_dup_F(train_op, 0, "rss_scale", 0, "rss_scale_tmp");
+
+		auto nn_rss_scale = nn_from_nlop_F(nlop_mri_scale_rss_create(N, max_dims, config->mri_config));
+		train_op = nn_chain2_swap_FF(nn_rss_scale, 0, NULL, train_op, 0, "rss_scale");
+		train_op = nn_dup_F(train_op, 0, "coil", 0, NULL);
+	}
 
 	return train_op;
 }
@@ -1100,6 +1133,9 @@ void eval_reconet(	const struct reconet_s* config, unsigned int N, const long ma
 			const long cdims[N], const _Complex float* coil,
 			int ND, const long psf_dims[ND], const _Complex float* psf)
 {
+	if (config->rss_scale)
+		debug_printf(DP_WARN, "Evaluation does not support rss weighting!\n");
+
 	complex float* tmp_out = md_alloc(N, img_dims, CFL_SIZE);
 
 	auto loss = val_measure_create(config->valid_loss, N, img_dims);

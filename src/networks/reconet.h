@@ -47,6 +47,8 @@ struct reconet_s {
 	_Bool gpu;
 
 	const char* graph_file;
+
+	_Bool rss_scale;
 };
 
 extern struct reconet_s reconet_config_opts;
