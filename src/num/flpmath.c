@@ -390,22 +390,33 @@ static void* gpu_constant(const void* vp, size_t size)
 
 static void make_z3op_scalar(md_z3op_t fun, unsigned int D, const long dims[D], const long ostr[D], complex float* optr, const long istr[D], const complex float* iptr, complex float val)
 {
-	complex float* valp = &val;
+	size_t size = CFL_SIZE;
+	unsigned long flags = 0;
 
-#ifdef USE_CUDA
-	if (cuda_ondevice(optr))
-		valp = gpu_constant(&val, CFL_SIZE);
-#endif
+	if ((1024 >= dims[0]) && (size == ostr[0]) && (size == istr[0]))
+		flags = MD_SET(flags, 0);
 
+	for (unsigned int i = 1; i < D; i++) {
+
+		if (!MD_IS_SET(flags, i - 1))
+			continue;
+
+		if ((1024 >= dims[i]) && (dims[i - 1] * ostr[i - 1] == ostr[i]) && (ostr[i] == istr[i]))
+			flags = MD_SET(flags, i);
+	}
+
+	long tdims[D];
 	long strs1[D];
-	md_singleton_strides(D, strs1);
+
+	md_select_dims(D, flags, tdims, dims);
+	md_calc_strides(D, strs1, tdims, size);
+
+	complex float* valp = md_alloc_sameplace(D, tdims, size, optr);
+	md_zfill(D, tdims, valp, val);
 
 	fun(D, dims, ostr, optr, istr, iptr, strs1, valp);
 
-#ifdef USE_CUDA
-	if (cuda_ondevice(optr))
-		md_free(valp);
-#endif
+	md_free(valp);
 }
 
 static void make_3op_scalar(md_3op_t fun, unsigned int D, const long dims[D], const long ostr[D], float* optr, const long istr[D], const float* iptr, float val)
