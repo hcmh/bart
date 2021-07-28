@@ -746,3 +746,79 @@ const struct nlop_s* nlop_mri_normal_max_eigen_create(int N, const long max_dims
 
 	return result;
 }
+
+struct mri_scale_rss_s {
+
+	INTERFACE(nlop_data_t);
+	int N;
+
+	unsigned long rss_flag;
+	unsigned long bat_flag;
+
+	const long* col_dims;
+
+	bool mean;
+};
+
+DEF_TYPEID(mri_scale_rss_s);
+
+static void mri_scale_rss_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto d = CAST_DOWN(mri_scale_rss_s, _data);
+
+	int N = d->N;
+
+	md_zrss(N, d->col_dims, d->rss_flag, dst, src);
+
+	if (d->mean) {
+
+		long bdims[N];
+		long idims[N];
+		md_select_dims(N, d->bat_flag, bdims, d->col_dims);
+		md_select_dims(N, ~d->rss_flag, idims, d->col_dims);
+
+		complex float* mean = md_alloc_sameplace(N, bdims, CFL_SIZE, dst);
+		complex float* ones = md_alloc_sameplace(N, bdims, CFL_SIZE, dst);
+		md_zfill(N, bdims, ones, 1.);
+
+		md_zsum(N, idims, ~d->bat_flag, mean, dst);
+		md_zsmul(N, bdims, mean, mean, (float)md_calc_size(N, bdims) / (float)md_calc_size(N, idims));
+		md_zdiv(N, bdims, mean, ones, mean);
+
+		md_zmul2(N, idims, MD_STRIDES(N, idims, CFL_SIZE), dst, MD_STRIDES(N, idims, CFL_SIZE), dst, MD_STRIDES(N, bdims, CFL_SIZE), mean);
+
+		md_free(mean);
+		md_free(ones);
+	}
+}
+
+static void mri_scale_rss_del(const nlop_data_t* _data)
+{
+	const auto d = CAST_DOWN(mri_scale_rss_s, _data);
+
+	xfree(d->col_dims);
+	xfree(d);
+}
+
+const struct nlop_s* nlop_mri_scale_rss_create(int N, const long max_dims[N], const struct config_nlop_mri_s* conf)
+{
+	PTR_ALLOC(struct mri_scale_rss_s, data);
+	SET_TYPEID(mri_scale_rss_s, data);
+
+	PTR_ALLOC(long[N], col_dims);
+	md_select_dims(N, conf->coil_flags, *col_dims, max_dims);
+	data->col_dims = *PTR_PASS(col_dims);
+
+	data->N = N;
+	data->bat_flag = conf->batch_flags;
+	data->rss_flag = (~conf->image_flags) & (conf->coil_flags);
+	data->mean = true;
+
+	long odims[N];
+	long idims[N];
+	md_select_dims(N, conf->coil_flags, idims, max_dims);
+	md_select_dims(N, conf->image_flags, odims, idims);
+
+
+	return nlop_create(N, odims, N, idims, CAST_UP(PTR_PASS(data)), mri_scale_rss_fun, NULL, NULL, NULL, NULL, mri_scale_rss_del);
+}

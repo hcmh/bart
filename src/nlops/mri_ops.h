@@ -24,3 +24,4 @@ extern const struct nlop_s* nlop_mri_normal_create(int N, const long cim_dims[N]
 extern const struct nlop_s* nlop_mri_normal_inv_create(int N, const long cim_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf, struct iter_conjgrad_conf* iter_conf);
 
 extern const struct nlop_s* nlop_mri_normal_max_eigen_create(int N, const long cim_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf);
+extern const struct nlop_s* nlop_mri_scale_rss_create(int N, const long max_dims[N], const struct config_nlop_mri_s* conf);
