@@ -853,7 +853,7 @@ void md_zpow2(unsigned int D, const long dims[D], const long ostr[D], complex fl
 {
 #ifdef USE_CUDA
 	// FIXME: something is broken with the cuda implementation of zpow
-	assert(!(cuda_ondevice(optr) || cuda_ondevice(iptr1) || cuda_ondevice(iptr2)));
+	// assert(!(cuda_ondevice(optr) || cuda_ondevice(iptr1) || cuda_ondevice(iptr2)));
 #endif
 	MAKE_Z3OP(zpow, D, dims, ostr, optr, istr1, iptr1, istr2, iptr2);
 }
