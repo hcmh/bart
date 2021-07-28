@@ -9,4 +9,4 @@ extern const struct nlop_s* nlop_dump_create(int N, const long dims[__VLA(N)], c
 extern const struct nlop_s* nlop_zinv_create(int N, const long dims[__VLA(N)]);
 extern const struct nlop_s* nlop_zsqrt_create(int N, const long dims[__VLA(N)]);
 
-extern const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long flags);
+extern const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long flags, float epsilon);

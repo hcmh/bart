@@ -27,6 +27,7 @@
 #include "nlops/cast.h"
 #include "nlops/const.h"
 #include "nlops/tenmul.h"
+#include "nlops/checkpointing.h"
 
 #ifdef USE_CUDA
 #include "num/gpuops.h"
@@ -604,7 +605,7 @@ const struct nlop_s* nlop_zsqrt_create(int N, const long dims[N])
 /**
  * Returns zrss of array along specified flags.
  **/
-const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long flags)
+const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long flags, float epsilon)
 {
 
 	long odims[N];
@@ -615,6 +616,7 @@ const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long f
 	result = nlop_dup_F(result, 0, 1);
 
 	result = nlop_chain_FF(result, nlop_from_linop_F(linop_zreal_create(N, odims)));
+	result = nlop_chain_FF(result, nlop_zsadd_create(N, odims, epsilon));
 	result = nlop_chain_FF(result, nlop_zsqrt_create(N, odims));
 	result = nlop_chain_FF(result, nlop_from_linop_F(linop_zreal_create(N, odims)));
 
