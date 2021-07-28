@@ -287,13 +287,13 @@ int main_reconet(int argc, char* argv[])
 
 		if (NULL == config.weights)
 			config.weights = load_nn_weights(filename_weights);
-		eval_reconet(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf, Nb);
+		eval_reconet(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf);
 	}
 
 	if (apply) {
 
 		config.weights = load_nn_weights(filename_weights);
-		apply_reconet_batchwise(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf, Nb);
+		apply_reconet(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf);
 	}
 
 	nn_weights_free(config.weights);

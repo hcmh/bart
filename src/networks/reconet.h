@@ -66,12 +66,6 @@ extern void apply_reconet(	const struct reconet_s* reconet, unsigned int N, cons
 				const long col_dims[N], const _Complex float* coil,
 				int ND, const long psf_dims[ND], const _Complex float* psf);
 
-extern void apply_reconet_batchwise(	const struct reconet_s* reconet, unsigned int N, const long max_dims[N],
-					const long img_dims[N], _Complex float* out, const _Complex float* adjoint,
-					const long col_dims[N], const _Complex float* coil,
-					int ND, const long psf_dims[ND], const _Complex float* psf,
-					long Nb);
-
 extern void train_reconet(	struct reconet_s* reconet, unsigned int N, const long max_dims[N],
 				const long img_dims[N], _Complex float* ref, const _Complex float* adjoint,
 				const long col_dims[N], const _Complex float* coil,
@@ -81,5 +75,4 @@ extern void train_reconet(	struct reconet_s* reconet, unsigned int N, const long
 extern void eval_reconet(	const struct reconet_s* reconet, unsigned int N, const long max_dims[N],
 				const long img_dims[N], const _Complex float* ref, const _Complex float* adjoint,
 				const long col_dims[N], const _Complex float* coil,
-				int ND, const long psf_dims[N], const _Complex float* psf,
-				long Nb);
+				int ND, const long psf_dims[N], const _Complex float* psf);

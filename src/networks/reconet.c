@@ -1065,143 +1065,40 @@ void train_reconet(	struct reconet_s* config, unsigned int N, const long max_dim
 	monitor_iter6_free(monitor);
 }
 
-static const struct nn_s* nn_apply_reconet = NULL;
-static long nn_apply_batch_size = -1;
-
-static void apply_reconet2(	const struct reconet_s* config, unsigned int N, const long max_dims[N],
-				const long img_dims[N], const long img_strs[N], _Complex float* out, const complex float* adjoint,
-				const long col_dims[N], const long col_strs[N], const _Complex float* coil,
-				int ND, const long psf_dims[ND], const long psf_strs[ND], const _Complex float* psf)
-{
-	assert(1 == bitcount(config->mri_config->batch_flags));
-	int bat_dim = md_max_idx(config->mri_config->batch_flags);
-
-	if ((NULL == nn_apply_reconet) || img_dims[bat_dim] != nn_apply_batch_size) {
-
-		if (config->gpu)
-			move_gpu_nn_weights(config->weights);
-
-		if (NULL != nn_apply_reconet)
-			nn_free(nn_apply_reconet);
-		nn_apply_batch_size = img_dims[bat_dim];
-
-		config->mri_config->pattern_flags = md_nontriv_dims(ND, psf_dims);
-
-		nn_apply_reconet = reconet_apply_op_create(config, N, max_dims, ND, psf_dims);
-
-		static bool export = true;
-		if (export && NULL != config->graph_file) {
-
-			nn_export_graph(config->graph_file, nn_apply_reconet);
-			export = false;
-		}
-	}
-
-	complex float* out_tmp = md_alloc_sameplace(N, img_dims, CFL_SIZE, config->weights->tensors[0]);
-	complex float* adjoint_tmp = md_alloc_sameplace(N, img_dims, CFL_SIZE, config->weights->tensors[0]);
-	complex float* coil_tmp = md_alloc_sameplace(N, col_dims, CFL_SIZE, config->weights->tensors[0]);
-	complex float* psf_tmp = md_alloc_sameplace(ND, psf_dims, CFL_SIZE, config->weights->tensors[0]);
-
-	md_copy2(N, img_dims, MD_STRIDES(N, img_dims, CFL_SIZE), adjoint_tmp, img_strs, adjoint, CFL_SIZE);
-	md_copy2(N, col_dims, MD_STRIDES(N, col_dims, CFL_SIZE), coil_tmp, col_strs, coil, CFL_SIZE);
-
-	md_copy2(ND, psf_dims, MD_STRIDES(ND, psf_dims, CFL_SIZE), psf_tmp, psf_strs, psf, CFL_SIZE);
-
-	complex float* args[4];
-
-	args[0] = out_tmp;
-	args[1] = adjoint_tmp;
-	args[2] = coil_tmp;
-	args[3] = psf_tmp;
-
-	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(nn_apply_reconet), 4, (void**)args, 0, 0);
-
-	md_copy2(N, img_dims,  img_strs, out, MD_STRIDES(N, img_dims, CFL_SIZE), out_tmp, CFL_SIZE);
-
-	md_free(out_tmp);
-	md_free(adjoint_tmp);
-	md_free(coil_tmp);
-	md_free(psf_tmp);
-}
-
-
-
 void apply_reconet(	const struct reconet_s* config, unsigned int N, const long max_dims[N],
 			const long img_dims[N], _Complex float* out, const complex float* adjoint,
 			const long col_dims[N], const _Complex float* coil,
 			int ND, const long psf_dims[ND], const _Complex float* psf)
 {
-	apply_reconet2(	config, N, max_dims,
-			img_dims, MD_STRIDES(N, img_dims, CFL_SIZE), out, adjoint,
-			col_dims, MD_STRIDES(N, col_dims, CFL_SIZE), coil,
-			ND, psf_dims, MD_STRIDES(ND, psf_dims, CFL_SIZE), psf);
+	if (config->gpu)
+			move_gpu_nn_weights(config->weights);
 
-}
+	int DO[1] = { N };
+	int DI[3] = { N, N, ND };
 
-void apply_reconet_batchwise(	const struct reconet_s* config, unsigned int N, const long max_dims[N],
-				const long img_dims[N], _Complex float* out, const complex float* adjoint,
-				const long col_dims[N], const _Complex float* coil,
-				int ND, const long psf_dims[ND], const _Complex float* psf,
-				long Nb)
-{
-	assert(1 == bitcount(config->mri_config->batch_flags));
-	int bat_dim = md_max_idx(config->mri_config->batch_flags);
+	const long* odims[1] = { img_dims };
+	const long* idims[3] = { img_dims, col_dims, psf_dims };
 
-	long Nt = img_dims[bat_dim];
+	complex float* dst[1] = { out };
+	const complex float* src[3] = { adjoint, coil, psf };
 
 	long max_dims1[N];
-	long col_dims1[N];
-	long img_dims1[N];
 	long psf_dims1[ND];
 
-	md_copy_dims(N, max_dims1, max_dims);
-	md_copy_dims(N, col_dims1, col_dims);
-	md_copy_dims(N, img_dims1, img_dims);
-	md_copy_dims(ND, psf_dims1, psf_dims);
+	md_select_dims(N, ~BATCH_FLAG, max_dims1, max_dims);
+	md_select_dims(ND, ~BATCH_FLAG, psf_dims1, psf_dims);
 
-	long col_strs[N];
-	long img_strs[N];
-	long psf_strs[ND];
+	auto nn_apply = reconet_apply_op_create(config, N, max_dims1, ND, psf_dims1);
 
-	md_calc_strides(N, col_strs, col_dims, CFL_SIZE);
-	md_calc_strides(N, img_strs, img_dims, CFL_SIZE);
-	md_calc_strides(ND, psf_strs, psf_dims, CFL_SIZE);
+	nlop_generic_apply_loop_sameplace(nn_get_nlop(nn_apply), BATCH_FLAG, 1, DO, odims, dst, 3, DI, idims, src, config->weights->tensors[0]);
 
-	long pos[ND];
-	for (int i = 0; i < ND; i++)
-		pos[i] = 0;
-
-
-	while (0 < Nt) {
-
-		long Nb_tmp = MIN(Nt, Nb);
-
-		max_dims1[bat_dim] = Nb_tmp;
-		col_dims1[bat_dim] = Nb_tmp;
-		img_dims1[bat_dim] = Nb_tmp;
-		psf_dims1[bat_dim] = MIN(psf_dims1[bat_dim], Nb_tmp);
-
-		apply_reconet2(config, N, max_dims1,
-				img_dims1, img_strs, &MD_ACCESS(N, img_strs, pos, out), &MD_ACCESS(N, img_strs, pos, adjoint),
-				col_dims1, col_strs, &MD_ACCESS(N, col_strs, pos, coil),
-				ND, psf_dims1, psf_strs, &MD_ACCESS(ND, psf_strs, pos, psf));
-
-		pos[bat_dim] += Nb_tmp;
-
-		Nt -= Nb_tmp;
-	}
-
-	if (NULL != nn_apply_reconet)
-		nn_free(nn_apply_reconet);
-	nn_apply_reconet = NULL;
-	nn_apply_batch_size = -1;
+	nn_free(nn_apply);
 }
 
 void eval_reconet(	const struct reconet_s* config, unsigned int N, const long max_dims[N],
 			const long img_dims[N], const _Complex float* out, const complex float* adjoint,
 			const long cdims[N], const _Complex float* coil,
-			int ND, const long psf_dims[ND], const _Complex float* psf,
-			long Nb)
+			int ND, const long psf_dims[ND], const _Complex float* psf)
 {
 	complex float* tmp_out = md_alloc(N, img_dims, CFL_SIZE);
 
@@ -1210,7 +1107,7 @@ void eval_reconet(	const struct reconet_s* config, unsigned int N, const long ma
 	complex float losses[NL];
 	md_clear(1, MD_DIMS(NL), losses, CFL_SIZE);
 
-	apply_reconet_batchwise(config, N, max_dims, img_dims, tmp_out, adjoint, cdims, coil, ND, psf_dims, psf, Nb);
+	apply_reconet(config, N, max_dims, img_dims, tmp_out, adjoint, cdims, coil, ND, psf_dims, psf);
 
 	complex float* args[NL + 2];
 	for (int i = 0; i < NL; i++)
