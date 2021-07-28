@@ -25,7 +25,8 @@ struct loss_config_s {
 
 extern struct loss_config_s val_loss_option;
 extern struct loss_config_s loss_option;
-extern struct loss_config_s loss_nlinvnet;
+extern struct loss_config_s train_loss_nlinvnet;
+extern struct loss_config_s valid_loss_nlinvnet;
 
 extern struct loss_config_s loss_image_valid;
 extern struct loss_config_s loss_classification_valid;

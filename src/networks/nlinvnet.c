@@ -89,8 +89,10 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.iter_net = 3,
 	.iter_net_shift = 0,
 
-	.train_loss = &loss_nlinvnet,
-	.valid_loss = &loss_nlinvnet,
+	.train_loss = &train_loss_nlinvnet,
+	.valid_loss = &valid_loss_nlinvnet,
+
+	.rss_loss = false,
 
 	.gpu = false,
 	.low_mem = true,
@@ -127,6 +129,11 @@ void nlinvnet_init_model_cart(struct nlinvnet_s* nlinvnet, int N,
 	nlinvnet->iter_conf->l2lambda = 1.;
 	nlinvnet->iter_conf->maxiter = (0 == nlinvnet->conf->cgiter) ? 30 : nlinvnet->conf->cgiter;
 	nlinvnet->iter_conf->tol = 0.;
+
+	if (nlinvnet->rss_loss)
+		nlinvnet->train_loss->weighting_mse_rss=1.;
+	else
+		nlinvnet->train_loss->weighting_mse=1.;
 
 	assert(0 == nlinvnet->iter_conf->tol);
 }
