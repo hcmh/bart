@@ -34,6 +34,8 @@ struct noir2_conf_s {
 	float cgtol;
 
 	int nr_init;
+
+	_Bool primal_dual;
 };
 
 extern const struct noir2_conf_s noir2_defaults;

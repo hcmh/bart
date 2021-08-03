@@ -115,6 +115,8 @@ const struct noir2_conf_s noir2_defaults = {
 	.cgtol = -1.,
 
 	.nr_init = -1,
+
+	.primal_dual = false,
 };
 
 
@@ -170,9 +172,6 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 			{
 				auto conjgrad_conf = CAST_DOWN(iter_conjgrad_conf, iconf);
 				UNUSED(conjgrad_conf);
-
-				debug_printf(DP_WARN, "CG is not tested/finalized for NLINV");
-
 			};
 
 			lsqr_conf.icont = lsqr_cont;
@@ -202,6 +201,7 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 			NESTED(void, lsqr_cont, (iter_conf* iconf))
 			{
 				auto fconf = CAST_DOWN(iter_fista_conf, iconf);
+				UNUSED(fconf);
 				//fconf->tol = fconf->tol  * powf(fconf->INTERFACE.alpha, conf->irgnm_conf->cgtol_alpha_factor);
 
 				//double maxeigen = estimate_maxeigenval_sameplace(lop_der->normal, 30, data);
@@ -226,11 +226,61 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 					N, (float*)x, (const float*)ref, M, (const float*)data,
 					pinv_op,
 					cb);
-
-			break;
 		}
+		break;
+
+		case ALGO_PRIDU: {
+
+			struct iter_chambolle_pock_conf cp_conf = iter_chambolle_pock_defaults;
+			cp_conf.maxiter = conf->irgnm_conf->cgiter;
+			cp_conf.maxeigen_iter = 20;
+			cp_conf.tol = conf->irgnm_conf->cgtol;
+
+			debug_printf(DP_WARN, "ChambollePock is not tested/finalized for NLINV");
+
+			NESTED(void, lsqr_cont, (iter_conf* iconf))
+			{
+				auto cp_conf = CAST_DOWN(iter_chambolle_pock_conf, iconf);
+				UNUSED(cp_conf);
+			};
+
+			lsqr_conf.icont = lsqr_cont;
+
+			const struct linop_s* trafos2[num_regs + 2];
+			const struct operator_p_s* thresh_ops2[num_regs + 2];
+
+			trafos2[0] = linop_identity_create(nlop_domain(nlop)->N, nlop_domain(nlop)->dims);
+			thresh_ops2[0] = prox_zero_create(nlop_domain(nlop)->N, nlop_domain(nlop)->dims);
+
+			trafos2[num_regs + 1] = linop_null_create(1, MD_DIMS(1), nlop_domain(nlop)->N, nlop_domain(nlop)->dims);
+			thresh_ops2[num_regs + 1] = prox_zero_create(1, MD_DIMS(1));
+
+			for (int i = 0; i < num_regs; i++) {
+
+				trafos2[i + 1] = trafos[i];
+				thresh_ops2[i + 1] = thresh_ops[i];
+			}
+
+			num_regs += 1;
+
+			int shift = linop_is_identity(trafos[0]) ? 1 : 0;
+
+			pinv_op = lsqr2_create(&lsqr_conf, iter2_chambolle_pock, CAST_UP(&cp_conf), NULL, lop_der, NULL, num_regs + 1 - shift, thresh_ops2 + shift, trafos2 + shift, NULL);
+
+			iter4_lop_irgnm2(CAST_UP(conf->irgnm_conf),
+					(struct nlop_s*)nlop, (struct linop_s*)lop_fft,
+					N, (float*)x, (const float*)ref, M, (const float*)data,
+					pinv_op,
+					cb);
+
+			operator_p_free(thresh_ops2[0]);
+			linop_free(trafos2[0]);
+		}
+		break;
 
 		case ALGO_ADMM: {
+
+			error("ADMM is not supported!");
 
 			struct iter_admm_conf admm_conf = iter_admm_defaults;
 			admm_conf.maxiter = conf->irgnm_conf->cgiter;
@@ -243,8 +293,6 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 
 				aconf->maxiter = MIN(admm_conf.maxiter, 10. * powf(2., ceil(logf(1. / iconf->alpha) / logf(conf->irgnm_conf->redu))));
 				aconf->cg_eps = admm_conf.cg_eps  * powf(aconf->INTERFACE.alpha, conf->irgnm_conf->cgtol_alpha_factor);
-
-				debug_printf(DP_WARN, "ADMM is not tested/finalized for NLINV");
 			};
 
 			lsqr_conf.icont = lsqr_cont;
@@ -262,7 +310,6 @@ static void noir_irgnm2(const struct noir_irgnm_conf* conf,
 
 		case ALGO_IST:
 		case ALGO_NIHT:
-		case ALGO_PRIDU:
 		default:
 			error("Algorithm not implemented!");
 
@@ -454,7 +501,7 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 		struct noir_irgnm_conf noir_irgnm_conf = {
 
 			.irgnm_conf = &irgnm_conf,
-			.algo = italgo_choose(num_regs, conf->regs->regs),
+			.algo = conf->primal_dual ? ALGO_PRIDU : italgo_choose(num_regs, conf->regs->regs),
 			.rho = conf->admm_rho,
 			.lsqr_conf = &lsqr_conf,
 		};
@@ -469,7 +516,7 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 		if (l2img) {
 
 			md_zfill(1, MD_DIMS(skip), lmask, conf->regs->regs[0].lambda); //l2-regularization for images
-			noir_irgnm_conf.algo = italgo_choose(num_regs - 1, conf->regs->regs + 1);
+			noir_irgnm_conf.algo = conf->primal_dual ? ALGO_PRIDU : italgo_choose(num_regs - 1, conf->regs->regs + 1);
 		}
 
 		opt_reg_noir_join_prox(N, img_dims, col_dims, num_regs , prox_ops, trafos);
