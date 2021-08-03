@@ -133,6 +133,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPTL_FLOAT(0, "cgtol", &conf.cgtol, "tol", "(tolerance for linearized problem)"),
 		OPTL_INT(0, "init-iter", &conf.nr_init, "iter", "(number of iterations updated with half dx)"),
 		OPTL_FLOAT(0, "alpha", &conf.alpha, "val", "(alpha in first iteration)"),
+		OPTL_SET(0, "pridu", &conf.primal_dual, "use primal dual"),
 		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
 	};
