@@ -662,6 +662,103 @@ struct linop_s* linop_stack(int D, int E, const struct linop_s* a, const struct 
 	return PTR_PASS(c);
 }
 
+struct stack_op_s {
+
+	INTERFACE(linop_data_t);
+
+	const struct linop_s* lop1;
+	const struct linop_s* lop2;
+};
+
+static DEF_TYPEID(stack_op_s);
+
+static void stack_cod_forward(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto d = CAST_DOWN(stack_op_s, _data);
+
+	long offset = md_calc_size(linop_codomain(d->lop1)->N, linop_codomain(d->lop1)->dims);
+
+	linop_forward_unchecked(d->lop1, dst, src);
+	linop_forward_unchecked(d->lop2, dst + offset, src);
+}
+
+static void stack_cod_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto d = CAST_DOWN(stack_op_s, _data);
+
+	long offset = md_calc_size(linop_codomain(d->lop1)->N, linop_codomain(d->lop1)->dims);
+
+	int N = linop_domain(d->lop1)->N;
+	const long* dims = linop_domain(d->lop1)->dims;
+
+	complex float* tmp = md_alloc_sameplace(N, dims, CFL_SIZE, dst);
+
+	linop_adjoint_unchecked(d->lop1, tmp, src);
+	linop_adjoint_unchecked(d->lop2, dst, src + offset);
+	md_zadd(N, dims, dst, dst, tmp);
+
+	md_free(tmp);
+}
+
+static void stack_cod_normal(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	const auto d = CAST_DOWN(stack_op_s, _data);
+
+	int N = linop_domain(d->lop1)->N;
+	const long* dims = linop_domain(d->lop1)->dims;
+
+	complex float* tmp = md_alloc_sameplace(N, dims, CFL_SIZE, dst);
+
+	linop_normal_unchecked(d->lop1, tmp, src);
+	linop_normal_unchecked(d->lop2, dst, src);
+	md_zadd(N, dims, dst, dst, tmp);
+
+	md_free(tmp);
+}
+
+static void stack_cod_free(const linop_data_t* _data)
+{
+	const auto d = CAST_DOWN(stack_op_s, _data);
+
+	linop_free(d->lop1);
+	linop_free(d->lop2);
+
+	xfree(d);
+}
+
+
+struct linop_s* linop_stack_cod(int D, const struct linop_s* lop1, const struct linop_s* lop2)
+{
+	PTR_ALLOC(struct stack_op_s, data);
+	SET_TYPEID(stack_op_s, data);
+
+	data->lop1 = linop_clone(lop1);
+	data->lop2 = linop_clone(lop2);
+
+	auto ov1 = linop_codomain(lop1);
+	auto ov2 = linop_codomain(lop2);
+
+	assert(ov1->N == ov2->N);
+
+	long odims[ov1->N];
+	long ostrs[ov1->N];
+
+	md_copy_dims(ov1->N, odims, ov1->dims);
+	odims[D] += ov2->dims[D];
+
+	md_calc_strides(ov1->N, ostrs, odims, CFL_SIZE);
+	assert(md_check_equal_dims(ov1->N, ov1->strs, ostrs, md_nontriv_dims(ov1->N, ov1->dims)));
+	assert(md_check_equal_dims(ov2->N, ov2->strs, ostrs, md_nontriv_dims(ov2->N, ov2->dims)));
+	assert(iovec_check(ov2, ov2->N, ov2->dims, MD_STRIDES(ov2->N, ov2->dims, CFL_SIZE))); // assert trivial strides->stacking over last dim only
+	assert(iovec_check(ov1, ov1->N, ov1->dims, MD_STRIDES(ov1->N, ov1->dims, CFL_SIZE))); // assert trivial strides->stacking over last dim only
+
+	auto iv1 = linop_domain(lop1);
+	auto iv2 = linop_domain(lop2);
+	assert(iovec_check(iv2, iv1->N, iv1->dims, iv1->strs));
+	assert(iovec_check(iv2, iv1->N, iv1->dims, MD_STRIDES(iv2->N, iv2->dims, CFL_SIZE)));
+
+	return linop_create(ov1->N, odims, iv1->N, iv1->dims, CAST_UP(PTR_PASS(data)), stack_cod_forward, stack_cod_adjoint, stack_cod_normal, NULL, stack_cod_free);
+}
 
 
 
