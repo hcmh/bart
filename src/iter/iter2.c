@@ -285,10 +285,9 @@ void iter2_chambolle_pock(const iter_conf* _conf,
 {
 	assert(D == 2);
 	assert(NULL == biases);
-	assert(NULL == normaleq_op);
+	assert((NULL == normaleq_op) == (NULL == image_adj));
 
 	UNUSED(xupdate_op);
-	UNUSED(image_adj);
 
 	auto conf = CAST_DOWN(iter_chambolle_pock_conf, _conf);
 
@@ -299,6 +298,11 @@ void iter2_chambolle_pock(const iter_conf* _conf,
 
 	assert(check_ops(size, normaleq_op, D, prox_ops, ops));
 
+	const struct iovec_s* iv_prox = operator_p_domain(prox_ops[0]);
+	assert(iovec_check(iv, iv_prox->N, iv_prox->dims, iv_prox->strs));
+	//FIXME: check if ops[0] is NULL or identity
+
+
 	// FIXME: sensible way to check for corrupt data?
 #if 0
 	float eps = md_norm(1, MD_DIMS(size), image_adj);
@@ -308,11 +312,20 @@ void iter2_chambolle_pock(const iter_conf* _conf,
 #else
 	float eps = 1.;
 #endif
+	double maxeigen = 1.;
+	if (0 != conf->maxeigen_iter) {
+
+		auto tmp_normaleq_op = (NULL == normaleq_op) ? operator_ref(ops[1]->normal) : operator_plus_create(normaleq_op, ops[1]->normal);
+		maxeigen = estimate_maxeigenval_sameplace(tmp_normaleq_op, conf->maxeigen_iter, image);
+		operator_free(tmp_normaleq_op);
+	}
+
+
 
 	// FIXME: conf->INTERFACE.alpha * c
-	chambolle_pock(conf->maxiter, eps * conf->tol, conf->tau, conf->sigma, conf->theta, conf->decay, 2 * md_calc_size(iv->N, iv->dims), 2 * md_calc_size(ov->N, ov->dims), select_vecops(image),
-			OPERATOR2ITOP(ops[1]->forward), OPERATOR2ITOP(ops[1]->adjoint), OPERATOR_P2ITOP(prox_ops[1]), OPERATOR_P2ITOP(prox_ops[0]), 
-			image, monitor);
+	chambolle_pock(conf->maxiter, eps * conf->tol, conf->tau / sqrtf(maxeigen), conf->sigma / sqrtf(maxeigen), conf->theta, conf->decay, 2 * md_calc_size(iv->N, iv->dims), 2 * md_calc_size(ov->N, ov->dims), select_vecops(image),
+			OPERATOR2ITOP(ops[1]->forward), OPERATOR2ITOP(ops[1]->adjoint), OPERATOR_P2ITOP(prox_ops[1]), OPERATOR_P2ITOP(prox_ops[0]),
+			OPERATOR2ITOP(normaleq_op), image, image_adj, monitor);
 
 	//cleanup:
 	//;

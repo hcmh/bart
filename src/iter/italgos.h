@@ -222,7 +222,8 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	struct iter_op_s op_adj,
 	struct iter_op_p_s thresh1,
 	struct iter_op_p_s thresh2,
-	float* x,
+	struct iter_op_s linop,
+	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
 void iPALM(	long NI, long isize[__VLA(NI)], enum IN_TYPE in_type[__VLA(NI)], float* x[__VLA(NI)], float* x_old[__VLA(NI)],

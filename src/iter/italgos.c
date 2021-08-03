@@ -639,7 +639,9 @@ double power(unsigned int maxiter,
 
 
 /**
- * Chambolle Pock First Order Primal Dual algorithm. Solves min_x F(Ax) + G(x)
+ * Chambolle Pock First Order Primal Dual algorithm. Solves min_x 0.5||Bx - b||^2 + F(Ax) + G(x)
+ *
+ * 0.5||Bx - b||^2 as in "Chambolle-Pock and Tseng’s methods: relationship and extension to the bilevel optimization" by Yura Malitsky
  *
  * @param maxiter maximum number of iterations
  * @param epsilon stop criterion
@@ -654,7 +656,9 @@ double power(unsigned int maxiter,
  * @param op_adj adjoint operator, AH
  * @param prox1 proximal function of F, e.g. prox_l2ball
  * @param prox2 proximal function of G, e.g. prox_wavelet_thresh
+ * @param linop normal equation operator of B: B^HB
  * @param x initial estimate
+ * @param b adjoint data term B^Hb
  * @param monitor callback function
  */
 void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma, float theta, float decay,
@@ -664,12 +668,15 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	struct iter_op_s op_adj,
 	struct iter_op_p_s prox1,
 	struct iter_op_p_s prox2,
-	float* x,
+	struct iter_op_s linop,
+	float* x, const float* b,
 	struct iter_monitor_s* monitor)
 {
 	float* x_avg = vops->allocate(N);
 	float* x_old = vops->allocate(N);
 	float* x_new = vops->allocate(N);
+
+	float* z = NULL;
 
 	float* u_old = vops->allocate(M);
 	float* u = vops->allocate(M);
@@ -678,6 +685,12 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	vops->copy(N, x_old, x);
 	vops->copy(N, x_new, x);
 	vops->copy(N, x_avg, x);
+
+	if (NULL != b) {
+
+		z = vops->allocate(N);
+		vops->copy(N, z, x);
+	}
 
 	vops->clear(M, u);
 	vops->clear(M, u_new);
@@ -707,7 +720,7 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 
 		/* update x
 		 * x0 = x
-		 * q = x0 - tau * AH(u)
+		 * q = x0 - tau * AH(u) - (tau * BHB(z) - tau BH(b))
 		 * x = prox2(q, tau)
 		 * x = lambda * x + (1 - lambda * x0)
 		 */
@@ -717,12 +730,23 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 
 		vops->axpy(N, x, -1. * tau, x_new);
 
+		if (NULL != b) {
+
+			vops->axpbz(N, z, sigma / (1. + sigma), x_avg, 1. / (1. + sigma), z);
+
+			float* t = vops->allocate(N);
+			iter_op_call(linop, t, z);
+			vops->axpy(N, t, -1., b);
+			vops->axpy(N, x, -1. * tau, t);
+			vops->del(t);
+		}
+
 		iter_op_p_call(prox2, tau, x_new, x);
 
 		vops->axpbz(N, x, lambda, x_new, 1. - lambda, x_old);
 
 		/* update x_avg
-		 * a_avg = x + theta * (x - x0)
+		 * x_avg = x + theta * (x - x0)
 		 */
 		vops->axpbz(N, x_avg, 1 + theta, x, -1. * theta, x_old);
 
@@ -750,6 +774,9 @@ void chambolle_pock(unsigned int maxiter, float epsilon, float tau, float sigma,
 	vops->del(u_old);
 	vops->del(u);
 	vops->del(u_new);
+
+	if (NULL != z)
+		vops->del(z);
 }
 
 

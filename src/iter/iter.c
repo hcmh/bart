@@ -153,6 +153,7 @@ const struct iter_chambolle_pock_conf iter_chambolle_pock_defaults = {
 	.sigma = .95,
 	.decay = 1.,
 	.fast = false,
+	.maxeigen_iter = 0,
 };
 
 typedef void (*thresh_fun_t)(void* data, float lambda, float* dst, const float* src);
