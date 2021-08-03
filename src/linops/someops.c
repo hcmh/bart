@@ -387,7 +387,7 @@ struct linop_s* linop_identity_create(unsigned int N, const long dims[N])
 
 bool linop_is_identity(const struct linop_s* lop)
 {
-	return NULL != CAST_MAYBE(identity_data_s, linop_get_data(lop));
+	return (NULL != linop_get_data(lop)) && (NULL != CAST_MAYBE(identity_data_s, linop_get_data(lop)));
 }
 
 
