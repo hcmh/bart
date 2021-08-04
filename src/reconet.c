@@ -150,6 +150,7 @@ int main_reconet(int argc, char* argv[])
 		OPTL_SELECT(0, "no-shared-lambda", enum BOOL_SELECT, &(config.share_lambda_select), BOOL_FALSE, "share lambda across iterations"),
 		OPTL_SET(0, "rss-weighting", &(config.rss_scale), "weight loss with rss scaling"),
 
+		OPTL_SET(0, "rss-norm", &(config.normalize_rss), "scale output image to rss normalization"),
 
 		OPTL_INFILE(0, "trajectory", &(data.filename_trajectory), "<traj>", "trajectory"),
 		OPTL_INFILE(0, "pattern", &(data.filename_pattern), "<pattern>", "sampling pattern / psf in kspace"),

@@ -113,6 +113,7 @@ struct reconet_s reconet_config_opts = {
 	.graph_file = NULL,
 
 	.rss_scale = false,
+	.normalize_rss = false,
 };
 
 static void reconet_init_default(struct reconet_s* reconet) {
@@ -1126,6 +1127,14 @@ void apply_reconet(	const struct reconet_s* config, unsigned int N, const long m
 	nlop_generic_apply_loop_sameplace(nn_get_nlop(nn_apply), BATCH_FLAG, 1, DO, odims, dst, 3, DI, idims, src, config->weights->tensors[0]);
 
 	nn_free(nn_apply);
+
+	if (config->normalize_rss) {
+
+		complex float* tmp = md_alloc_sameplace(N, img_dims, CFL_SIZE, out);
+		md_zrss(N, col_dims, COIL_FLAG, tmp, coil);
+		md_zmul(N, img_dims, out, out, tmp);
+		md_free(tmp);
+	}
 }
 
 void eval_reconet(	const struct reconet_s* config, unsigned int N, const long max_dims[N],
@@ -1133,9 +1142,6 @@ void eval_reconet(	const struct reconet_s* config, unsigned int N, const long ma
 			const long cdims[N], const _Complex float* coil,
 			int ND, const long psf_dims[ND], const _Complex float* psf)
 {
-	if (config->rss_scale)
-		debug_printf(DP_WARN, "Evaluation does not support rss weighting!\n");
-
 	complex float* tmp_out = md_alloc(N, img_dims, CFL_SIZE);
 
 	auto loss = val_measure_create(config->valid_loss, N, img_dims);
@@ -1149,8 +1155,24 @@ void eval_reconet(	const struct reconet_s* config, unsigned int N, const long ma
 	for (int i = 0; i < NL; i++)
 		args[i] = losses + i;
 
+	complex float* tmp_ref = md_alloc_sameplace(N, img_dims, CFL_SIZE, out);
+
+	md_copy(N, img_dims, tmp_ref, out, CFL_SIZE);
+
+	if (config->normalize_rss || config->rss_scale) {
+
+		complex float* tmp = md_alloc_sameplace(N, img_dims, CFL_SIZE, out);
+		md_zrss(N, cdims, COIL_FLAG, tmp, coil);
+		md_zmul(N, img_dims, tmp_ref, tmp_ref, tmp);
+
+		if (!config->normalize_rss) //else it's part of apply
+			md_zmul(N, img_dims, tmp_out, tmp_out, tmp);
+
+		md_free(tmp);
+	}
+
 	args[NL] = tmp_out;
-	args[NL + 1] = (complex float*)out;
+	args[NL + 1] = tmp_ref;
 
 	nlop_generic_apply_select_derivative_unchecked(nn_get_nlop(loss), NL + 2, (void**)args, 0, 0);
 	for (int i = 0; i < NL ; i++)
@@ -1158,4 +1180,5 @@ void eval_reconet(	const struct reconet_s* config, unsigned int N, const long ma
 
 	nn_free(loss);
 	md_free(tmp_out);
+	md_free(tmp_ref);
 }

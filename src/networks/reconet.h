@@ -49,6 +49,7 @@ struct reconet_s {
 	const char* graph_file;
 
 	_Bool rss_scale;
+	_Bool normalize_rss;
 };
 
 extern struct reconet_s reconet_config_opts;
