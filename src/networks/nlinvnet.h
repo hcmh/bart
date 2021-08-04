@@ -26,6 +26,7 @@ struct nlinvnet_s {
 	_Bool gpu;
 
 	_Bool rss_loss;
+	_Bool normalize_rss;
 
 	const char* graph_file;
 };
