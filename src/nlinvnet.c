@@ -105,9 +105,10 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SET(0, "rss-loss", &(nlinvnet.rss_loss), "train on rss instead of coil images"),
 
 		OPTL_INT(0, "iter-net", &(nlinvnet.iter_net), "iter", "number of iterations with network"),
-		OPTL_INT(0, "iter-net-shift", &(nlinvnet.iter_net_shift), "iter", "no network in the last \"iter\" steps"),
+		//OPTL_INT(0, "iter-net-shift", &(nlinvnet.iter_net_shift), "iter", "no network in the last \"iter\" steps"),
 
 		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
+		OPTL_CLEAR(0, "no-shared-weights", &(nlinvnet.share_weights), "don't share weights across iterations"),
 		OPTL_INFILE(0, "pattern", &pat_file, "<pattern>", "sampling pattern"),
 
 		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
@@ -116,11 +117,11 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SUBOPT(0, "adam", "...", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
-		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
-		OPTL_FLOAT(0, "sobolev-a", &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
-		OPTL_FLOAT(0, "sobolev-b", &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
-		OPTL_FLOAT(0, "alpha", &conf.alpha, "", "(start regularization)"),
-		OPTL_FLOAT(0, "alpha-min", &conf.alpha_min, "", "(minimum for regularization)"),
+		//OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+		//OPTL_FLOAT(0, "sobolev-a", &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
+		//OPTL_FLOAT(0, "sobolev-b", &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
+		//OPTL_FLOAT(0, "alpha", &conf.alpha, "", "(start regularization)"),
+		//OPTL_FLOAT(0, "alpha-min", &conf.alpha_min, "", "(minimum for regularization)"),
 		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 	};
 
