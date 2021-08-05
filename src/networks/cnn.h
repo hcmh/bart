@@ -57,6 +57,8 @@ struct network_resnet_s {
 
 	enum ACTIVATION activation;
 	enum ACTIVATION last_activation;
+
+	_Bool zero_init;
 };
 extern struct network_resnet_s network_resnet_default;
 

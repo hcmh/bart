@@ -109,6 +109,8 @@ struct network_resnet_s network_resnet_default = {
 
 	.activation = ACT_RELU,
 	.last_activation = ACT_LIN,
+
+	.zero_init = false,
 };
 
 
@@ -244,12 +246,12 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 		}
 	}
 
-	const struct initializer_s* conv_init_last = (config->batch_norm) ? initializer_clone(conv_init) : init_const_create(0);
+	const struct initializer_s* conv_init_last = (config->batch_norm || !config->zero_init) ? initializer_clone(conv_init) : init_const_create(0);
 
 	result = nn_append_convcorr_layer_generic(	result, 0, NULL, "conv_n",
 							config->conv_flag, tchannel_flag, tgroup_flag,
 							N, ldims, NULL, config->dilations,
-							false, PAD_SAME, initializer_clone(conv_init_last));
+							false, PAD_SAME, initializer_clone(conv_init));
 
 	initializer_free(conv_init);
 	initializer_free(conv_init_last);
