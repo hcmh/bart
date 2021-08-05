@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "grecon/losses.h"
+
 #include "iter/italgos.h"
 
 #include "misc/mri.h"
@@ -135,6 +137,9 @@ void nlinvnet_init_model_cart(struct nlinvnet_s* nlinvnet, int N,
 		nlinvnet->train_loss->weighting_mse_rss=1.;
 	else
 		nlinvnet->train_loss->weighting_mse=1.;
+
+	if (NULL != get_loss_from_option())
+		nlinvnet->train_loss = get_loss_from_option();
 
 	assert(0 == nlinvnet->iter_conf->tol);
 }
