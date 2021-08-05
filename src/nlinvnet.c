@@ -93,6 +93,13 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_INFILE('r', "ref", &(val_file_reference), "<file>", "validation data reference"),
 	};
 
+	bool unet = false;
+
+	struct opt_s network_opts[] = {
+
+		OPTL_SET(0, "unet", &(unet), "use U-Net (also sets train and data-consistency default values)"),
+	};
+
 	const struct opt_s opts[] = {
 
 		OPTL_SET('t', "train", &train, "train nlinvnet"),
@@ -124,6 +131,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 		//OPTL_FLOAT(0, "alpha", &conf.alpha, "", "(start regularization)"),
 		//OPTL_FLOAT(0, "alpha-min", &conf.alpha_min, "", "(minimum for regularization)"),
 		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
+
+		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
+
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -148,7 +158,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 			iter6_copy_config_from_opts(nlinvnet.train_conf);
 	}
 
-	nlinvnet.network = get_default_network(NETWORK_RESBLOCK);
+	nlinvnet.network = get_default_network(unet ? NETWORK_UNET_RECO : NETWORK_RESBLOCK);
 	nlinvnet.network->norm = NORM_MAX;
 
 	long ksp_dims[DIMS];

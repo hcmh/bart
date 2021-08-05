@@ -20,6 +20,8 @@ struct network_s* get_default_network(enum NETWORK_SELECT net)
 			return CAST_UP(&network_resnet_default);
 		case NETWORK_VARNET:
 			return CAST_UP(&network_varnet_default);
+		case NETWORK_UNET_RECO:
+			return CAST_UP(&network_unet_default_reco);
 	}
 
 	assert(0);
