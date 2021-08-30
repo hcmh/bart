@@ -109,13 +109,18 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_SET('g', &(conf.gpu), "use gpu"),
 		OPT_SET('S', &(conf.undo_scaling), "Re-scale image after reconstruction"),
 		OPT_UINT('s', &cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
-		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
-		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
+		OPT_FLOAT('a', &conf.a, "", "(a in c * (1 + a * \\Laplace^-b/2))"),
+		OPT_FLOAT('b', &conf.b, "", "(b in c * (1 + a * \\Laplace^-b/2))"),
+		OPTL_FLOAT(0, "scaling-coils", &conf.scaling_coils, "", "(b in c * (1 + a * \\Laplace^-b/2))"),
 		OPT_SET('P', &pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPT_SET('n', &conf.noncart, "(non-Cartesian)"),
 		OPT_FLOAT('w', &conf.scaling, "", "(inverse scaling of the data)"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 		OPTL_VEC3('x', "dims", &my_img_dims, "x:y:z", "Explicitly specify image dimensions"),
+		OPT_ULONG('L', &(conf.loop_flags), "flags", "(batch-mode)"),
+		OPTL_INT(0, "cgiter", &conf.cgiter, "iter", "(iterations for linearized problem)"),
+		OPTL_FLOAT(0, "cgtol", &conf.cgtol, "tol", "(tolerance for linearized problem)"),
+		OPTL_FLOAT(0, "alpha", &conf.alpha, "val", "(alpha in first iteration)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -128,7 +133,7 @@ int main_nlinv(int argc, char* argv[argc])
 
 	// FIXME: SMS should not be the default
 
-	if (1 != ksp_dims[SLICE_DIM]) {
+	if ((1 != ksp_dims[SLICE_DIM] && !MD_IS_SET(conf.loop_flags, SLICE_DIM))) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
 		conf.sms = true;
