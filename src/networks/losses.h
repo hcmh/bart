@@ -2,11 +2,7 @@ struct loss_config_s {
 
 	float epsilon;
 
-	float weighting_mse_sa;
 	float weighting_mse;
-	float weighting_psnr;
-	float weighting_ssim;
-
 	float weighting_mse_rss;
 	float weighting_psnr_rss;
 	float weighting_ssim_rss;
@@ -23,12 +19,11 @@ struct loss_config_s {
 
 	int label_index;
 	unsigned long image_flags;
+	unsigned long rss_flags;
 };
 
 extern struct loss_config_s val_loss_option;
 extern struct loss_config_s loss_option;
-extern struct loss_config_s train_loss_nlinvnet;
-extern struct loss_config_s valid_loss_nlinvnet;
 
 extern struct loss_config_s loss_image_valid;
 extern struct loss_config_s loss_classification_valid;

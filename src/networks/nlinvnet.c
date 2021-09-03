@@ -91,8 +91,8 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.iter_net = 3,
 	.iter_net_shift = 0,
 
-	.train_loss = &train_loss_nlinvnet,
-	.valid_loss = &valid_loss_nlinvnet,
+	.train_loss = &loss_option,
+	.valid_loss = &val_loss_option,
 
 	.rss_loss = false,
 	.normalize_rss = false,
@@ -133,13 +133,13 @@ void nlinvnet_init_model_cart(struct nlinvnet_s* nlinvnet, int N,
 	nlinvnet->iter_conf->maxiter = (0 == nlinvnet->conf->cgiter) ? 30 : nlinvnet->conf->cgiter;
 	nlinvnet->iter_conf->tol = 0.;
 
-	if (nlinvnet->rss_loss)
-		nlinvnet->train_loss->weighting_mse_rss=1.;
-	else
-		nlinvnet->train_loss->weighting_mse=1.;
+	if (NULL == get_loss_from_option()) {
 
-	if (NULL != get_loss_from_option())
-		nlinvnet->train_loss = get_loss_from_option();
+		if (nlinvnet->rss_loss)
+			nlinvnet->train_loss->weighting_mse_rss=1.;
+		else
+			nlinvnet->train_loss->weighting_mse=1.;
+	}
 
 	assert(0 == nlinvnet->iter_conf->tol);
 }
@@ -477,6 +477,7 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETW
 			result = nn_chain2_FF(result, 0, "img_us", nn_scale, 0, NULL);
 			result = nn_link_F(result, 0, "scale", 0, "scale");
 		}
+		break;
 
 		case NLINVNET_OUT_IMG_COL: {
 

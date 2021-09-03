@@ -6,11 +6,8 @@
 struct opt_s loss_opts[] = {
 
 	OPTL_FLOAT(0, "mse", &(loss_option.weighting_mse), "weighting", "weighting for mean squared error"),
-	OPTL_FLOAT(0, "mse-magnitude", &(loss_option.weighting_mse_sa), "weighting", "weighting for smoothed mean squared error of magnitude"),
-	OPTL_FLOAT(0, "ssim", &(loss_option.weighting_ssim), "weighting", "weighting for structural similarity index measure (magnitude)"),
-
-	OPTL_FLOAT(0, "mse-rss", &(loss_option.weighting_mse_rss), "weighting", "weighting for mean squared error (rss)"),
-	OPTL_FLOAT(0, "ssim-rss", &(loss_option.weighting_ssim_rss), "weighting", "weighting for structural similarity index measure (rss)"),
+	OPTL_FLOAT(0, "mse-magnitude", &(loss_option.weighting_mse_rss), "weighting", "weighting for mean squared error (rss)"),
+	OPTL_FLOAT(0, "ssim", &(loss_option.weighting_ssim_rss), "weighting", "weighting for structural similarity index measure (rss)"),
 
 	OPTL_FLOAT(0, "cce", &(loss_option.weighting_cce), "weighting", "weighting for categorical cross entropy"),
 	OPTL_FLOAT(0, "wcce", &(loss_option.weighting_weighted_cce), "weighting", "weighting for weighted categorical cross entropy"),
@@ -26,9 +23,9 @@ const int N_loss_opts = ARRAY_SIZE(loss_opts);
 struct opt_s val_loss_opts[] = {
 
 	OPTL_FLOAT(0, "mse", &(val_loss_option.weighting_mse), "weighting", "weighting for mean squared error"),
-	OPTL_FLOAT(0, "mse-magnitude", &(val_loss_option.weighting_mse_sa), "weighting", "weighting for smoothed mean squared error of magnitude"),
-	OPTL_FLOAT(0, "psnr", &(val_loss_option.weighting_psnr), "weighting", "weighting for peak signal to noise ratio (no training)"),
-	OPTL_FLOAT(0, "ssim", &(val_loss_option.weighting_ssim), "weighting", "weighting for structural similarity index measure"),
+	OPTL_FLOAT(0, "mse-magnitude", &(val_loss_option.weighting_mse_rss), "weighting", "weighting for smoothed mean squared error (rss)"),
+	OPTL_FLOAT(0, "psnr", &(val_loss_option.weighting_psnr_rss), "weighting", "weighting for peak signal to noise ratio (rss)"),
+	OPTL_FLOAT(0, "ssim", &(val_loss_option.weighting_ssim_rss), "weighting", "weighting for structural similarity index measure (rss)"),
 
 	OPTL_FLOAT(0, "cce", &(val_loss_option.weighting_cce), "weighting", "weighting for categorical cross entropy"),
 	OPTL_FLOAT(0, "wcce", &(val_loss_option.weighting_weighted_cce), "weighting", "weighting for weighted categorical cross entropy"),
@@ -45,16 +42,9 @@ const int N_val_loss_opts = ARRAY_SIZE(val_loss_opts);
 
 static bool loss_option_changed(struct loss_config_s* loss_option)
 {
-	if (0 != loss_option->weighting_mse_sa)
+	if (0 != loss_option->weighting_mse_rss)
 		return true;
 	if (0 != loss_option->weighting_mse)
-		return true;
-	if (0 != loss_option->weighting_psnr)
-		return true;
-	if (0 != loss_option->weighting_ssim)
-		return true;
-
-	if (0 != loss_option->weighting_mse_rss)
 		return true;
 	if (0 != loss_option->weighting_psnr_rss)
 		return true;

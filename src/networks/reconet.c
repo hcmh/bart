@@ -183,7 +183,7 @@ void reconet_init_varnet_default(struct reconet_s* reconet)
 	if (NULL == reconet->train_loss) {
 
 		reconet->train_loss =  &loss_option;
-		reconet->train_loss->weighting_mse_sa = 1.;
+		reconet->train_loss->weighting_mse_rss = 1.;
 	}
 
 	if (NULL == reconet->valid_loss)

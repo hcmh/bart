@@ -27,65 +27,12 @@
 
 #include "networks/losses.h"
 
-struct loss_config_s valid_loss_nlinvnet = {
-
-	.epsilon = 1.e-12,
-
-	.weighting_mse_sa = 0.,
-	.weighting_mse = 1.,
-	.weighting_psnr = 0.,
-	.weighting_ssim = 0.,
-
-	.weighting_mse_rss = 1.,
-	.weighting_psnr_rss = 1.,
-	.weighting_ssim_rss = 1.,
-
-	.weighting_cce = 0.,
-	.weighting_weighted_cce = 0.,
-	.weighting_accuracy = 0.,
-
-	.weighting_dice0 = 0.,
-	.weighting_dice1 = 0.,
-	.weighting_dice2 = 0.,
-
-	.label_index = 0,
-	.image_flags = FFT_FLAGS,
-};
-
-struct loss_config_s train_loss_nlinvnet = {
-
-	.epsilon = 1.e-12,
-
-	.weighting_mse_sa = 0.,
-	.weighting_mse = 0.,
-	.weighting_psnr = 0.,
-	.weighting_ssim = 0.,
-
-	.weighting_mse_rss = 0.,
-	.weighting_psnr_rss = 0.,
-	.weighting_ssim_rss = 0.,
-
-	.weighting_cce = 0.,
-	.weighting_weighted_cce = 0.,
-	.weighting_accuracy = 0.,
-
-	.weighting_dice0 = 0.,
-	.weighting_dice1 = 0.,
-	.weighting_dice2 = 0.,
-
-	.label_index = 0,
-	.image_flags = FFT_FLAGS,
-};
 
 struct loss_config_s loss_option = {
 
 	.epsilon = 1.e-12,
 
-	.weighting_mse_sa = 0.,
 	.weighting_mse = 0.,
-	.weighting_psnr = 0.,
-	.weighting_ssim = 0.,
-
 	.weighting_mse_rss = 0.,
 	.weighting_psnr_rss = 0.,
 	.weighting_ssim_rss = 0.,
@@ -100,17 +47,14 @@ struct loss_config_s loss_option = {
 
 	.label_index = 0,
 	.image_flags = FFT_FLAGS,
+	.rss_flags = COIL_FLAG,
 };
 
 struct loss_config_s val_loss_option = {
 
 	.epsilon = 1.e-12,
 
-	.weighting_mse_sa = 0.,
 	.weighting_mse = 0.,
-	.weighting_psnr = 0.,
-	.weighting_ssim = 0.,
-
 	.weighting_mse_rss = 0.,
 	.weighting_psnr_rss = 0.,
 	.weighting_ssim_rss = 0.,
@@ -125,20 +69,17 @@ struct loss_config_s val_loss_option = {
 
 	.label_index = 0,
 	.image_flags = FFT_FLAGS,
+	.rss_flags = COIL_FLAG,
 };
 
 struct loss_config_s loss_image_valid = {
 
 	.epsilon = 1.e-12,
 
-	.weighting_mse_sa = 1.,
 	.weighting_mse = 1.,
-	.weighting_psnr = 1.,
-	.weighting_ssim = 1.,
-
-	.weighting_mse_rss = 0.,
-	.weighting_psnr_rss = 0.,
-	.weighting_ssim_rss = 0.,
+	.weighting_mse_rss = 1.,
+	.weighting_psnr_rss = 1.,
+	.weighting_ssim_rss = 1.,
 
 	.weighting_cce = 0.,
 	.weighting_weighted_cce = 0.,
@@ -152,17 +93,14 @@ struct loss_config_s loss_image_valid = {
 
 	.label_index = 0,
 	.image_flags = FFT_FLAGS,
+	.rss_flags = COIL_FLAG,
 };
 
 struct loss_config_s loss_classification_valid = {
 
 	.epsilon = 1.e-12,
 
-	.weighting_mse_sa = 0.,
 	.weighting_mse = 0.,
-	.weighting_psnr = 0.,
-	.weighting_ssim = 0.,
-
 	.weighting_mse_rss = 0.,
 	.weighting_psnr_rss = 0.,
 	.weighting_ssim_rss = 0.,
@@ -179,6 +117,7 @@ struct loss_config_s loss_classification_valid = {
 
 	.label_index = 0,
 	.image_flags = FFT_FLAGS,
+	.rss_flags = COIL_FLAG,
 };
 
 
@@ -281,17 +220,19 @@ static nn_t nlop_loss_to_nn_F(const struct nlop_s* nlop, const char* name, float
 
 static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int N, const long dims[N], bool combine, bool measure)
 {
-	UNUSED(dims);
+
+	long ldims[N];
+	md_select_dims(N, ~config->rss_flags, ldims, dims);
 
 	nn_t result = NULL;
 
-	if (0 != config->weighting_mse_sa) {
+	if (0 != config->weighting_mse_rss) {
 
-		const struct nlop_s* tmp_loss_nlop = nlop_mse_create(N, dims, ~0ul);
-		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, dims, measure ? 0 : config->epsilon), 0, tmp_loss_nlop, 0);
-		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, dims, measure ? 0 : config->epsilon), 0, tmp_loss_nlop, 0);
+		const struct nlop_s* nlop = nlop_mse_create(N, ldims, ~0ul);
+		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
 
-		result = add_loss(result, nlop_loss_to_nn_F(tmp_loss_nlop, "mse mag", config->weighting_mse_sa, measure), combine);
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mse mag (rss)", config->weighting_mse_rss, measure), combine);
 	}
 
 	if (0 != config->weighting_mse) {
@@ -299,68 +240,19 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 		result = add_loss(result, nlop_loss_to_nn_F(nlop_mse_create(N, dims, ~0ul), "mse", config->weighting_mse, measure), combine);
 	}
 
-	if (0 != config->weighting_psnr) {
-
-		auto nlop = nlop_mpsnr_create(N, dims, ~config->image_flags);
-
-		if (!measure) {
-
-			assert(0); //cannot be used for training
-			nlop = nlop_affine_transform_out_F(nlop, -1, 0);
-		}
-
-		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean psnr", config->weighting_psnr, measure), combine);
-	}
-
-	if (0 != config->weighting_ssim) {
-
-		assert(5 <= N); //FIXME: should be more general
-		assert(0 == (config->image_flags & ~(MD_BIT(4) - 1))); //dim 4 becomes batch / average dim
-
-		long ndims[5];
-		md_copy_dims(4, ndims, dims);
-		ndims[4] = md_calc_size(N - 4, dims + 4);
-
-		auto nlop = nlop_mssim_create(5, ndims, MD_DIMS(7, 7, 1, 1, 1), config->image_flags);
-
-		if (!measure)
-			nlop = nlop_affine_transform_out_F(nlop, -1, 1);
-
-		nlop = nlop_reshape_in_F(nlop, 0, N, dims);
-		nlop = nlop_reshape_in_F(nlop, 1, N, dims);
-
-		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean ssim", config->weighting_ssim, measure), combine);
-	}
-
-	if (0 != config->weighting_mse_rss) {
-
-		long loss_dims[N];
-		md_select_dims(N, ~COIL_FLAG, loss_dims, dims);
-
-		auto loss = nlop_mse_create(N, loss_dims, ~0ul);
-		loss = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, loss, 0);
-		loss = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, loss, 0);
-
-		result = add_loss(result, nlop_loss_to_nn_F(loss, "mse rss", config->weighting_mse_rss, measure), combine);
-	}
-
 	if (0 != config->weighting_psnr_rss) {
 
-		long loss_dims[N];
-		md_select_dims(N, ~COIL_FLAG, loss_dims, dims);
+		auto nlop = nlop_mpsnr_create(N, ldims, ~config->image_flags);
 
-		auto nlop = nlop_mpsnr_create(N, loss_dims, ~config->image_flags);
+		if (!md_check_equal_dims(N, dims, ldims, ~0)) {
 
-		if (!measure) {
-
-			assert(0); //cannot be used for training
-			nlop = nlop_affine_transform_out_F(nlop, -1, 0);
+			nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
+			nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
 		}
 
-		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
-		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
+		assert(measure);
 
-		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean psnr rss", config->weighting_psnr_rss, measure), combine);
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean psnr", config->weighting_psnr_rss, measure), combine);
 	}
 
 	if (0 != config->weighting_ssim_rss) {
@@ -368,25 +260,25 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 		assert(5 <= N); //FIXME: should be more general
 		assert(0 == (config->image_flags & ~(MD_BIT(4) - 1))); //dim 4 becomes batch / average dim
 
-		long loss_dims[N];
-		md_select_dims(N, ~COIL_FLAG, loss_dims, dims);
-
 		long ndims[5];
-		md_copy_dims(4, ndims, loss_dims);
-		ndims[4] = md_calc_size(N - 4, dims + 4);
+		md_copy_dims(4, ndims, ldims);
+		ndims[4] = md_calc_size(N - 4, ldims + 4);
 
 		auto nlop = nlop_mssim_create(5, ndims, MD_DIMS(7, 7, 1, 1, 1), config->image_flags);
 
 		if (!measure)
 			nlop = nlop_affine_transform_out_F(nlop, -1, 1);
 
-		nlop = nlop_reshape_in_F(nlop, 0, N, loss_dims);
-		nlop = nlop_reshape_in_F(nlop, 1, N, loss_dims);
+		nlop = nlop_reshape_in_F(nlop, 0, N, ldims);
+		nlop = nlop_reshape_in_F(nlop, 1, N, ldims);
 
-		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
-		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
+		if (!md_check_equal_dims(N, dims, ldims, ~0)) {
 
-		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean ssim rss", config->weighting_ssim_rss, measure), combine);
+			nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
+			nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
+		}
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean ssim", config->weighting_ssim_rss, measure), combine);
 	}
 
 	if (0 != config->weighting_cce) {
