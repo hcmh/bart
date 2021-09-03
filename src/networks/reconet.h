@@ -65,17 +65,20 @@ extern void reconet_init_varnet_test_default(struct reconet_s* reconet);
 extern void reconet_init_unet_test_default(struct reconet_s* reconet);
 
 extern void apply_reconet(	const struct reconet_s* reconet, unsigned int N, const long max_dims[N],
-				const long img_dims[N], _Complex float* out, const _Complex float* adjoint,
+				const long out_dims[N], _Complex float* out,
+				const long img_dims[N], const _Complex float* adjoint,
 				const long col_dims[N], const _Complex float* coil,
 				int ND, const long psf_dims[ND], const _Complex float* psf);
 
 extern void train_reconet(	struct reconet_s* reconet, unsigned int N, const long max_dims[N],
-				const long img_dims[N], _Complex float* ref, const _Complex float* adjoint,
+				const long out_dims[N], _Complex float* ref,
+				const long img_dims[N], const _Complex float* adjoint,
 				const long col_dims[N], const _Complex float* coil,
 				int ND, const long psf_dims[ND], const _Complex float* psf,
 				long Nb, struct network_data_s* valid_files);
 
 extern void eval_reconet(	const struct reconet_s* reconet, unsigned int N, const long max_dims[N],
-				const long img_dims[N], const _Complex float* ref, const _Complex float* adjoint,
+				const long out_dims[N], const _Complex float* ref,
+				const long img_dims[N], const _Complex float* adjoint,
 				const long col_dims[N], const _Complex float* coil,
-				int ND, const long psf_dims[N], const _Complex float* psf);
+				int ND, const long psf_dims[ND], const _Complex float* psf);

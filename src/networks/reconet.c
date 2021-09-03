@@ -899,7 +899,7 @@ static nn_t reconet_valid_create(const struct reconet_s* config, struct network_
 
 	auto valid_loss = reconet_train_create(config, vf->N, vf->max_dims, vf->ND, vf->psf_dims, true);
 
-	valid_loss = nn_ignore_input_F(valid_loss, 0, NULL,vf-> N, vf->img_dims, true, vf->out);
+	valid_loss = nn_ignore_input_F(valid_loss, 0, NULL,vf-> N, vf->out_dims, true, vf->out);
 	valid_loss = nn_ignore_input_F(valid_loss, 0, "adjoint", vf->N, vf->img_dims, true, vf->adjoint);
 	valid_loss = nn_ignore_input_F(valid_loss, 0, "coil", vf->N, vf->col_dims, true, vf->coil);
 	valid_loss = nn_ignore_input_F(valid_loss, 0, "psf", vf->ND, vf->psf_dims, true, vf->psf);
@@ -943,7 +943,8 @@ static nn_t reconet_apply_op_create(const struct reconet_s* config, int N, const
 
 
 void train_reconet(	struct reconet_s* config, unsigned int N, const long max_dims[N],
-			const long img_dims[N], _Complex float* ref, const complex float* adjoint,
+			const long out_dims[N], _Complex float* ref,
+			const long img_dims[N], const complex float* adjoint,
 			const long col_dims[N], const _Complex float* coil,
 			int ND, const long psf_dims[ND], const _Complex float* pattern,
 			long Nb, struct network_data_s* valid_files)
@@ -955,16 +956,19 @@ void train_reconet(	struct reconet_s* config, unsigned int N, const long max_dim
 	Nb = MIN(Nb, Nt);
 
 	long bat_max_dims[N];
+	long bat_out_dims[N];
 	long bat_img_dims[N];
 	long bat_col_dims[N];
 	long bat_psf_dims[ND];
 
 	md_copy_dims(N, bat_max_dims, max_dims);
+	md_copy_dims(N, bat_out_dims, out_dims);
 	md_copy_dims(N, bat_img_dims, img_dims);
 	md_copy_dims(N, bat_col_dims, col_dims);
 	md_copy_dims(ND, bat_psf_dims, psf_dims);
 
 	bat_max_dims[bat_dim] = Nb;
+	bat_out_dims[bat_dim] = Nb;
 	bat_img_dims[bat_dim] = Nb;
 	bat_col_dims[bat_dim] = Nb;
 	bat_psf_dims[bat_dim] = (1 == psf_dims[bat_dim]) ? 1 : Nb;
@@ -994,8 +998,8 @@ void train_reconet(	struct reconet_s* config, unsigned int N, const long max_dim
 
 	//create batch generator
 	const complex float* train_data[] = {ref, adjoint, coil, pattern};
-	const long* bat_dims[] = { bat_img_dims, bat_img_dims, bat_col_dims, bat_psf_dims };
-	const long* tot_dims[] = { img_dims, img_dims, col_dims, psf_dims };
+	const long* bat_dims[] = { bat_out_dims, bat_img_dims, bat_col_dims, bat_psf_dims };
+	const long* tot_dims[] = { out_dims, img_dims, col_dims, psf_dims };
 
 	auto batch_generator = batch_gen_create_from_iter(config->train_conf, 4, (const int[4]){ N, N ,N , ND }, bat_dims, tot_dims, train_data, 0);
 
@@ -1100,17 +1104,18 @@ void train_reconet(	struct reconet_s* config, unsigned int N, const long max_dim
 }
 
 void apply_reconet(	const struct reconet_s* config, unsigned int N, const long max_dims[N],
-			const long img_dims[N], _Complex float* out, const complex float* adjoint,
+			const long out_dims[N], _Complex float* out,
+			const long img_dims[N], const complex float* adjoint,
 			const long col_dims[N], const _Complex float* coil,
 			int ND, const long psf_dims[ND], const _Complex float* psf)
 {
 	if (config->gpu)
-			move_gpu_nn_weights(config->weights);
+		move_gpu_nn_weights(config->weights);
 
 	int DO[1] = { N };
 	int DI[3] = { N, N, ND };
 
-	const long* odims[1] = { img_dims };
+	const long* odims[1] = { out_dims };
 	const long* idims[3] = { img_dims, col_dims, psf_dims };
 
 	complex float* dst[1] = { out };
@@ -1130,6 +1135,8 @@ void apply_reconet(	const struct reconet_s* config, unsigned int N, const long m
 
 	if (config->normalize_rss) {
 
+		assert(md_check_equal_dims(N, img_dims, out_dims, ~0));
+
 		complex float* tmp = md_alloc_sameplace(N, img_dims, CFL_SIZE, out);
 		md_zrss(N, col_dims, COIL_FLAG, tmp, coil);
 		md_zmul(N, img_dims, out, out, tmp);
@@ -1138,31 +1145,34 @@ void apply_reconet(	const struct reconet_s* config, unsigned int N, const long m
 }
 
 void eval_reconet(	const struct reconet_s* config, unsigned int N, const long max_dims[N],
-			const long img_dims[N], const _Complex float* out, const complex float* adjoint,
-			const long cdims[N], const _Complex float* coil,
-			int ND, const long psf_dims[ND], const _Complex float* psf)
+			const long out_dims[N], const complex float* out,
+			const long img_dims[N], const complex float* adjoint,
+			const long col_dims[N], const complex float* coil,
+			int ND, const long psf_dims[ND], const complex float* psf)
 {
-	complex float* tmp_out = md_alloc(N, img_dims, CFL_SIZE);
+	complex float* tmp_out = md_alloc(N, out_dims, CFL_SIZE);
 
-	auto loss = val_measure_create(config->valid_loss, N, img_dims);
+	auto loss = val_measure_create(config->valid_loss, N, out_dims);
 	int NL = nn_get_nr_out_args(loss);
 	complex float losses[NL];
 	md_clear(1, MD_DIMS(NL), losses, CFL_SIZE);
 
-	apply_reconet(config, N, max_dims, img_dims, tmp_out, adjoint, cdims, coil, ND, psf_dims, psf);
+	apply_reconet(config, N, max_dims, out_dims, tmp_out, img_dims, adjoint, col_dims, coil, ND, psf_dims, psf);
 
 	complex float* args[NL + 2];
 	for (int i = 0; i < NL; i++)
 		args[i] = losses + i;
 
-	complex float* tmp_ref = md_alloc_sameplace(N, img_dims, CFL_SIZE, out);
+	complex float* tmp_ref = md_alloc_sameplace(N, out_dims, CFL_SIZE, out);
 
-	md_copy(N, img_dims, tmp_ref, out, CFL_SIZE);
+	md_copy(N, out_dims, tmp_ref, out, CFL_SIZE);
 
 	if (config->normalize_rss || config->rss_scale) {
 
+		assert(md_check_equal_dims(N, img_dims, out_dims, ~0));
+
 		complex float* tmp = md_alloc_sameplace(N, img_dims, CFL_SIZE, out);
-		md_zrss(N, cdims, COIL_FLAG, tmp, coil);
+		md_zrss(N, col_dims, COIL_FLAG, tmp, coil);
 		md_zmul(N, img_dims, tmp_ref, tmp_ref, tmp);
 
 		if (!config->normalize_rss) //else it's part of apply

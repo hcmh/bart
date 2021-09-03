@@ -281,7 +281,7 @@ int main_reconet(int argc, char* argv[])
 
 	if (train) {
 
-		train_reconet(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf, Nb, use_valid_data ? &valid_data : NULL);
+		train_reconet(&config, data.N, data.max_dims, data.out_dims, data.out, data.img_dims, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf, Nb, use_valid_data ? &valid_data : NULL);
 		dump_nn_weights(filename_weights, config.weights);
 	}
 
@@ -289,13 +289,13 @@ int main_reconet(int argc, char* argv[])
 
 		if (NULL == config.weights)
 			config.weights = load_nn_weights(filename_weights);
-		eval_reconet(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf);
+		eval_reconet(&config, data.N, data.max_dims, data.out_dims, data.out, data.img_dims, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf);
 	}
 
 	if (apply) {
 
 		config.weights = load_nn_weights(filename_weights);
-		apply_reconet(&config, data.N, data.max_dims, data.img_dims, data.out, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf);
+		apply_reconet(&config, data.N, data.max_dims, data.out_dims, data.out, data.img_dims, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf);
 	}
 
 	nn_weights_free(config.weights);
