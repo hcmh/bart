@@ -23,7 +23,7 @@ struct sense_normal_ops_s {
 	struct sense_cart_normal_s* sense_cart;
 };
 
-struct sense_normal_ops_s* sense_normal_create(int N, const long cim_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf);
+struct sense_normal_ops_s* sense_normal_create(int N, const long max_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf);
 
 void sense_normal_free(struct sense_normal_ops_s* d);
 void sense_normal_update_ops(struct sense_normal_ops_s* d, int N, const long col_dims[N], const _Complex float* coils, int ND, const long psf_dims[ND], const _Complex float* psf);

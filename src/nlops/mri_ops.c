@@ -38,9 +38,10 @@ struct config_nlop_mri_s conf_nlop_mri_simple = {
 
 	.coil_flags = FFT_FLAGS | COIL_FLAG | MAPS_FLAG | BATCH_FLAG,
 	.image_flags = FFT_FLAGS | MAPS_FLAG | BATCH_FLAG,
-	.pattern_flags = FFT_FLAGS,
+	.pattern_flags = FFT_FLAGS | BATCH_FLAG,
 	.batch_flags = BATCH_FLAG,
 	.fft_flags = FFT_FLAGS,
+	.coil_image_flags = FFT_FLAGS | COIL_FLAG | BATCH_FLAG,
 
 	.noncart = false,
 	.gridded = false,

@@ -5,6 +5,7 @@ struct config_nlop_mri_s {
 	unsigned long pattern_flags;
 	unsigned long batch_flags;
 	unsigned long fft_flags;
+	unsigned long coil_image_flags;
 
 	_Bool basis;
 	_Bool gridded;

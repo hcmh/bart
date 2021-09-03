@@ -35,13 +35,15 @@ struct sense_cart_normal_s {
 	unsigned long bat_flag;
 	unsigned long img_flag;
 	unsigned long col_flag;
-	unsigned long fft_flag;
-
-	const long* cim_dims;
-	const long* ksp_dims;
-	const long* pat_dims;
+	unsigned long cim_flag;
+	unsigned long pat_flag;
 
 	const long* bat_dims;
+	const long* max_dims;
+	const long* cim_dims;
+	const long* img_dims;
+	const long* col_dims;
+	const long* pat_dims;
 
 	const struct linop_s* lop_fft; //reusable
 	const struct linop_s* lop_fft_mod; //reusable
@@ -49,25 +51,20 @@ struct sense_cart_normal_s {
 	const struct operator_s** normal_ops;
 };
 
-static const struct operator_s* create_sense_cart_normal_op_int(int N, const long ksp_dims[N], const long cim_dims[N],
-								unsigned long img_flag, unsigned long fft_flag,
+static const struct operator_s* create_sense_cart_normal_op_int(struct sense_cart_normal_s* d, int N,
 								const long col_dims[N], const complex float* coil,
-								const long pat_dims[N], const complex float* pattern,
-								const struct linop_s* lop_fft_mod, //reusable
-								const struct linop_s* lop_fft //reusable
-							)
+								const long pat_dims[N], const complex float* pattern)
 {
-	unsigned long coil_flag = md_nontriv_dims(N, col_dims);
+	assert(md_check_equal_dims(N, pat_dims, d->pat_dims, ~0));
+	assert(md_check_equal_dims(N, col_dims, d->col_dims, ~0));
 
-	auto linop_frw = linop_chain_FF(linop_clone(lop_fft_mod), linop_fmac_create(N, cim_dims, 0, ~img_flag, ~coil_flag, coil));
+	long max_dims[d->N];
+	md_select_dims(d->N, d->cim_flag | d->img_flag | d->col_flag, max_dims, d->max_dims);
 
-	UNUSED(fft_flag);
-	assert(md_check_equal_dims(N, pat_dims, ksp_dims, md_nontriv_dims(N, pat_dims)));
+	auto linop_frw = linop_chain_FF(linop_clone(d->lop_fft_mod), linop_fmac_create(N, max_dims, ~(d->cim_flag), ~(d->img_flag), ~(d->col_flag), coil));
+	linop_frw = linop_chain_FF(linop_frw, linop_clone(d->lop_fft));
 
-	linop_frw = linop_chain_FF(linop_frw, linop_clone(lop_fft));
-
-	unsigned long pattern_flags = md_nontriv_dims(N, pat_dims);
-	auto linop_pattern = linop_cdiag_create(N, ksp_dims, pattern_flags, pattern);
+	auto linop_pattern = linop_cdiag_create(N, d->cim_dims, d->pat_flag, pattern);
 
 	auto result = operator_chainN(3, (const struct operator_s **)MAKE_ARRAY(linop_frw->forward, linop_pattern->forward, linop_frw->adjoint));
 
@@ -89,12 +86,6 @@ static void sense_normal_cart_update_ops(	struct sense_cart_normal_s* d, int N,
 	md_select_dims(N, ~d->bat_flag, col_dims_slice, col_dims);
 	md_select_dims(N, ~d->bat_flag, pat_dims_slice, pat_dims);
 
-	long ksp_dims_slice[N];
-	long cim_dims_slice[N];
-
-	md_select_dims(N, ~d->bat_flag, ksp_dims_slice, d->ksp_dims);
-	md_select_dims(N, ~d->bat_flag, cim_dims_slice, d->cim_dims);
-
 	long pos[d->N];
 	for (int i = 0; i < d->N; i++)
 		pos[i] = 0;
@@ -107,23 +98,17 @@ static void sense_normal_cart_update_ops(	struct sense_cart_normal_s* d, int N,
 		const complex float* coil_i = &MD_ACCESS(d->N, MD_STRIDES(N, col_dims, CFL_SIZE), pos, coil);
 		const complex float* pattern_i = &MD_ACCESS(d->N, MD_STRIDES(N, pat_dims, CFL_SIZE), pos, pattern);
 
-		(d->normal_ops)[index] = create_sense_cart_normal_op_int(N, ksp_dims_slice, cim_dims_slice,
-									d->img_flag, d->fft_flag,
+		(d->normal_ops)[index] = create_sense_cart_normal_op_int(d, N,
 									col_dims_slice, coil_i,
-									pat_dims_slice, pattern_i,
-									d->lop_fft_mod,
-									d->lop_fft
-									);
+									pat_dims_slice, pattern_i);
 
 	} while (md_next(N, d->bat_dims, ~(0ul), pos));
 }
 
-static struct sense_cart_normal_s* sense_cart_normal_create(int N, const long cim_dims[N], const long pat_dims[N], const struct config_nlop_mri_s* conf)
+static struct sense_cart_normal_s* sense_cart_normal_create(int N, const long max_dims[N], const long pat_dims[N], const struct config_nlop_mri_s* conf)
 {
 	assert(NULL != conf);
 	assert(!conf->basis); // not implemented
-
-	PTR_ALLOC(struct sense_cart_normal_s, data);
 
 	// batch dims must be outer most dims
 	bool batch = false;
@@ -132,81 +117,81 @@ static struct sense_cart_normal_s* sense_cart_normal_create(int N, const long ci
 		if (MD_IS_SET(conf->batch_flags, i))
 			batch = true;
 		else
-			assert(!batch || (1 == cim_dims[i]));
+			assert(!batch || (1 == (max_dims)[i]));
 	}
+
+	PTR_ALLOC(struct sense_cart_normal_s, data);
 
 	data->N = N;
 
 	data->bat_flag = conf->batch_flags;
 	data->img_flag = conf->image_flags;
 	data->col_flag = conf->coil_flags;
-	data->fft_flag = conf->fft_flags;
+	data->cim_flag = conf->coil_image_flags;
+	data->pat_flag = conf->pattern_flags;
 
+	PTR_ALLOC(long[N], n_bat_dims);
+	PTR_ALLOC(long[N], n_max_dims);
 	PTR_ALLOC(long[N], n_cim_dims);
+	PTR_ALLOC(long[N], n_img_dims);
+	PTR_ALLOC(long[N], n_col_dims);
 	PTR_ALLOC(long[N], n_pat_dims);
 
-	md_copy_dims(N, *n_cim_dims, cim_dims);
-	md_copy_dims(N, *n_pat_dims, pat_dims);
+	md_select_dims(N, data->bat_flag, *n_bat_dims, max_dims);
+	md_select_dims(N, ~data->bat_flag, *n_max_dims, max_dims);
+	md_select_dims(N, data->cim_flag & ~data->bat_flag, *n_cim_dims, max_dims);
+	md_select_dims(N, data->img_flag & ~data->bat_flag, *n_img_dims, max_dims);
+	md_select_dims(N, data->col_flag & ~data->bat_flag, *n_col_dims, max_dims);
+	md_select_dims(N, data->pat_flag & ~data->bat_flag, *n_pat_dims, max_dims);
 
-	PTR_ALLOC(long[N], bat_dims);
-	PTR_ALLOC(long[N], ksp_dims);
+	assert(md_check_equal_dims(N, *n_pat_dims, pat_dims, ~0));
 
-	md_select_dims(N, conf->batch_flags, *bat_dims, cim_dims);
-	md_copy_dims(N, *ksp_dims, cim_dims);
 
+	data->bat_dims = *PTR_PASS(n_bat_dims);
+	data->max_dims = *PTR_PASS(n_max_dims);
 	data->cim_dims = *PTR_PASS(n_cim_dims);
-	data->ksp_dims = *PTR_PASS(ksp_dims);
+	data->img_dims = *PTR_PASS(n_img_dims);
+	data->col_dims = *PTR_PASS(n_col_dims);
 	data->pat_dims = *PTR_PASS(n_pat_dims);
-	data->bat_dims = *PTR_PASS(bat_dims);
 
 	PTR_ALLOC(const struct operator_s*[md_calc_size(N, data->bat_dims)], normalops);
 	for (int i = 0; i < md_calc_size(N, data->bat_dims); i++)
 		(*normalops)[i] = NULL;
 	data->normal_ops = *PTR_PASS(normalops);
 
-	long ksp_dims_slice[N];
-	md_select_dims(N, ~(conf->batch_flags), ksp_dims_slice, data->ksp_dims);
-
 	unsigned long fft_flags = conf->fft_flags & md_nontriv_dims(N, pat_dims);
 
-	data->lop_fft = linop_fft_create(N, ksp_dims_slice, fft_flags);
+	data->lop_fft = linop_fft_create(N, data->cim_dims, fft_flags);
 
 	// create linop for fftmod which only applies on coil dims not kdims
 	long fft_dims[N];
-	md_select_dims(N, fft_flags, fft_dims, data->ksp_dims);
+	md_select_dims(N, fft_flags, fft_dims, data->img_dims);
 
 	complex float* fmod = md_alloc(N, fft_dims, CFL_SIZE);
 	md_zfill(N, fft_dims, fmod, 1.);
 	fftmod(N, fft_dims, fft_flags, fmod, fmod);
 	fftscale(N, fft_dims, fft_flags, fmod, fmod);
 
-	long img_dims_slice[N];
-	md_select_dims(N, data->img_flag & (~(conf->batch_flags)) , img_dims_slice, cim_dims);
-
-	data->lop_fft_mod = linop_cdiag_create(N, img_dims_slice, fft_flags, fmod);
+	data->lop_fft_mod = linop_cdiag_create(N, data->img_dims, fft_flags, fmod);
 	md_free(fmod);
 
 	return PTR_PASS(data);
 }
 
-static void sense_cart_normal_release_ops(struct sense_cart_normal_s* d)
+static void sense_cart_normal_free(struct sense_cart_normal_s* d)
 {
 	for (int i = 0; i < md_calc_size(d->N, d->bat_dims); i++) {
 
 		operator_free(d->normal_ops[i]);
 		d->normal_ops[i] = NULL;
 	}
-}
-
-static void sense_cart_normal_free(struct sense_cart_normal_s* d)
-{
-	sense_cart_normal_release_ops(d);
-
-	xfree(d->cim_dims);
-	xfree(d->ksp_dims);
-	xfree(d->pat_dims);
 
 	xfree(d->bat_dims);
+	xfree(d->max_dims);
+	xfree(d->cim_dims);
+	xfree(d->img_dims);
+	xfree(d->col_dims);
+	xfree(d->pat_dims);
 
 	linop_free(d->lop_fft);
 	linop_free(d->lop_fft_mod);
@@ -228,9 +213,11 @@ struct sense_noncart_normal_s {
 	unsigned long bat_flag;
 	unsigned long img_flag;
 	unsigned long col_flag;
+	unsigned long cim_flag;
 
-	const long* cim_dims_slice;
-	const long* psf_dims_slice;
+	const long* max_dims;
+	const long* cim_dims;
+	const long* psf_dims;
 
 	const long* bat_dims;
 
@@ -255,7 +242,7 @@ static void create_nufft_normal_ops(struct sense_noncart_normal_s* d, bool basis
 
 	do {
 		int index = md_calc_offset(d->N, MD_STRIDES(d->N, d->bat_dims, 1), pos);
-		d->nufft_normal_ops[index] = nufft_normal_op_create(d->N, d->cim_dims_slice, d->psf_dims_slice, basis, conf);
+		d->nufft_normal_ops[index] = nufft_normal_op_create(d->N, d->cim_dims, d->psf_dims, basis, conf);
 
 	} while (md_next(d->N, d->bat_dims, ~(0ul), pos));
 }
@@ -280,9 +267,12 @@ static void sense_normal_noncart_update_ops(	struct sense_noncart_normal_s* d, i
 		if (NULL != d->normal_ops[index])
 			operator_free(d->normal_ops[index]);
 
-		nufft_normal_op_set_psf2(d->nufft_normal_ops[index], d->N + 1, d->psf_dims_slice, psf_strs, &MD_ACCESS(N + 1, psf_strs, pos, psf));
+		nufft_normal_op_set_psf2(d->nufft_normal_ops[index], d->N + 1, d->psf_dims, psf_strs, &MD_ACCESS(N + 1, psf_strs, pos, psf));
 
-		auto linop_fmac = linop_fmac_create(d->N, d->cim_dims_slice, 0, ~d->img_flag, ~d->col_flag, &MD_ACCESS(N, col_strs, pos, coils));
+		long max_dims[d->N];
+		md_select_dims(d->N, d->cim_flag | d->img_flag | d->col_flag, max_dims, d->max_dims);
+
+		auto linop_fmac = linop_fmac_create(d->N, max_dims, ~d->cim_flag, ~d->img_flag, ~d->col_flag, &MD_ACCESS(N, col_strs, pos, coils));
 
 		d->normal_ops[index] = operator_chainN(3, (const struct operator_s *[3]) { linop_fmac->forward, d->nufft_normal_ops[index], linop_fmac->adjoint });
 
@@ -291,7 +281,7 @@ static void sense_normal_noncart_update_ops(	struct sense_noncart_normal_s* d, i
 	} while (md_next(d->N, d->bat_dims, ~(0ul), pos));
 }
 
-static struct sense_noncart_normal_s* sense_noncart_normal_create(int N, const long cim_dims[N], const long psf_dims[N + 1], const struct config_nlop_mri_s* conf)
+static struct sense_noncart_normal_s* sense_noncart_normal_create(int N, const long max_dims[N], const long psf_dims[N + 1], const struct config_nlop_mri_s* conf)
 {
 	assert(NULL != conf);
 
@@ -304,7 +294,7 @@ static struct sense_noncart_normal_s* sense_noncart_normal_create(int N, const l
 		if (MD_IS_SET(conf->batch_flags, i))
 			batch = true;
 		else
-			assert(!batch || (1 == cim_dims[i]));
+			assert(!batch || (1 == max_dims[i]));
 	}
 
 	data->N = N;
@@ -313,19 +303,23 @@ static struct sense_noncart_normal_s* sense_noncart_normal_create(int N, const l
 	data->bat_flag = conf->batch_flags;
 	data->col_flag = conf->coil_flags;
 	data->img_flag = conf->image_flags;
+	data->cim_flag = conf->coil_image_flags;
 
+	PTR_ALLOC(long[N], n_max_dims);
+	PTR_ALLOC(long[N], n_cim_dims);
+	PTR_ALLOC(long[N], n_bat_dims);
+	PTR_ALLOC(long[N + 1], n_psf_dims);
 
-	PTR_ALLOC(long[N], cim_dims_slice);
-	PTR_ALLOC(long[N], bat_dims);
-	PTR_ALLOC(long[N + 1], psf_dims_slice);
+	md_select_dims(N, ~conf->batch_flags & conf->coil_image_flags, *n_cim_dims, max_dims);
+	md_select_dims(N, ~conf->batch_flags, *n_max_dims, max_dims);
+	md_select_dims(N, conf->batch_flags, *n_bat_dims, max_dims);
 
-	md_select_dims(N, ~conf->batch_flags, *cim_dims_slice, cim_dims);
-	md_select_dims(N + 1, ~conf->batch_flags, *psf_dims_slice, psf_dims);
-	md_select_dims(N, conf->batch_flags, *bat_dims, cim_dims);
+	md_select_dims(N + 1, ~conf->batch_flags, *n_psf_dims, psf_dims);
 
-	data->cim_dims_slice = *PTR_PASS(cim_dims_slice);
-	data->psf_dims_slice = *PTR_PASS(psf_dims_slice);
-	data->bat_dims = *PTR_PASS(bat_dims);
+	data->cim_dims = *PTR_PASS(n_cim_dims);
+	data->psf_dims = *PTR_PASS(n_psf_dims);
+	data->bat_dims = *PTR_PASS(n_bat_dims);
+	data->max_dims = *PTR_PASS(n_max_dims);
 
 	PTR_ALLOC(const struct operator_s*[md_calc_size(N, data->bat_dims)], nufft_normal_ops);
 	for (int i = 0; i < md_calc_size(N, data->bat_dims); i++)
@@ -354,18 +348,17 @@ static void sense_noncart_normal_ops_data_free(struct sense_noncart_normal_s* d)
 	xfree(d->nufft_normal_ops);
 	xfree(d->normal_ops);
 
-	xfree(d->cim_dims_slice);
+	xfree(d->max_dims);
+	xfree(d->cim_dims);
+	xfree(d->psf_dims);
 	xfree(d->bat_dims);
-	xfree(d->psf_dims_slice);
-
 
 	xfree(d);
 }
 
-struct sense_normal_ops_s* sense_normal_create(int N, const long cim_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf)
+struct sense_normal_ops_s* sense_normal_create(int N, const long max_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf)
 {
 	PTR_ALLOC(struct sense_normal_ops_s, data);
-
 
 	PTR_ALLOC(long[ND], n_psf_dims);
 	md_copy_dims(ND, *n_psf_dims, psf_dims);
@@ -376,10 +369,10 @@ struct sense_normal_ops_s* sense_normal_create(int N, const long cim_dims[N], in
 	PTR_ALLOC(long[N], bat_dims);
 	PTR_ALLOC(long[N], img_dims_slice);
 
-	md_select_dims(N, conf->image_flags, *img_dims, cim_dims);
-	md_select_dims(N, conf->coil_flags, *col_dims, cim_dims);
-	md_select_dims(N, conf->batch_flags, *bat_dims, cim_dims);
-	md_select_dims(N, conf->image_flags & (~conf->batch_flags), *img_dims_slice, cim_dims);
+	md_select_dims(N, conf->image_flags, *img_dims, max_dims);
+	md_select_dims(N, conf->coil_flags, *col_dims, max_dims);
+	md_select_dims(N, conf->batch_flags, *bat_dims, max_dims);
+	md_select_dims(N, conf->image_flags & (~conf->batch_flags), *img_dims_slice, max_dims);
 
 	data->N = N;
 	data->ND = ND;
@@ -400,11 +393,11 @@ struct sense_normal_ops_s* sense_normal_create(int N, const long cim_dims[N], in
 	if (data->noncart) {
 
 		assert(N + 1 == ND);
-		data->sense_noncart = sense_noncart_normal_create(N, cim_dims, psf_dims, conf);
+		data->sense_noncart = sense_noncart_normal_create(N, max_dims, psf_dims, conf);
 	} else {
 
 		assert(N == ND);
-		data->sense_cart = sense_cart_normal_create(N, cim_dims, psf_dims, conf);
+		data->sense_cart = sense_cart_normal_create(N, max_dims, psf_dims, conf);
 	}
 
 	return PTR_PASS(data);
