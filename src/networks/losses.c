@@ -29,6 +29,8 @@
 
 struct loss_config_s valid_loss_nlinvnet = {
 
+	.epsilon = 1.e-12,
+
 	.weighting_mse_sa = 0.,
 	.weighting_mse = 1.,
 	.weighting_psnr = 0.,
@@ -51,6 +53,8 @@ struct loss_config_s valid_loss_nlinvnet = {
 };
 
 struct loss_config_s train_loss_nlinvnet = {
+
+	.epsilon = 1.e-12,
 
 	.weighting_mse_sa = 0.,
 	.weighting_mse = 0.,
@@ -75,6 +79,8 @@ struct loss_config_s train_loss_nlinvnet = {
 
 struct loss_config_s loss_option = {
 
+	.epsilon = 1.e-12,
+
 	.weighting_mse_sa = 0.,
 	.weighting_mse = 0.,
 	.weighting_psnr = 0.,
@@ -98,6 +104,8 @@ struct loss_config_s loss_option = {
 
 struct loss_config_s val_loss_option = {
 
+	.epsilon = 1.e-12,
+
 	.weighting_mse_sa = 0.,
 	.weighting_mse = 0.,
 	.weighting_psnr = 0.,
@@ -120,6 +128,8 @@ struct loss_config_s val_loss_option = {
 };
 
 struct loss_config_s loss_image_valid = {
+
+	.epsilon = 1.e-12,
 
 	.weighting_mse_sa = 1.,
 	.weighting_mse = 1.,
@@ -145,6 +155,8 @@ struct loss_config_s loss_image_valid = {
 };
 
 struct loss_config_s loss_classification_valid = {
+
+	.epsilon = 1.e-12,
 
 	.weighting_mse_sa = 0.,
 	.weighting_mse = 0.,
@@ -276,8 +288,8 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 	if (0 != config->weighting_mse_sa) {
 
 		const struct nlop_s* tmp_loss_nlop = nlop_mse_create(N, dims, ~0ul);
-		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, dims, measure ? 0 : 1.e-12), 0, tmp_loss_nlop, 0);
-		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, dims, measure ? 0 : 1.e-12), 0, tmp_loss_nlop, 0);
+		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, dims, measure ? 0 : config->epsilon), 0, tmp_loss_nlop, 0);
+		tmp_loss_nlop = nlop_chain2_FF(nlop_smo_abs_create(N, dims, measure ? 0 : config->epsilon), 0, tmp_loss_nlop, 0);
 
 		result = add_loss(result, nlop_loss_to_nn_F(tmp_loss_nlop, "mse mag", config->weighting_mse_sa, measure), combine);
 	}
@@ -326,8 +338,8 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 		md_select_dims(N, ~COIL_FLAG, loss_dims, dims);
 
 		auto loss = nlop_mse_create(N, loss_dims, ~0ul);
-		loss = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : 1.e-12), 0, loss, 0);
-		loss = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : 1.e-12), 0, loss, 0);
+		loss = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, loss, 0);
+		loss = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, loss, 0);
 
 		result = add_loss(result, nlop_loss_to_nn_F(loss, "mse rss", config->weighting_mse_rss, measure), combine);
 	}
@@ -345,8 +357,8 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 			nlop = nlop_affine_transform_out_F(nlop, -1, 0);
 		}
 
-		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : 1.e-12), 0, nlop, 0);
-		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : 1.e-12), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
 
 		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean psnr rss", config->weighting_psnr_rss, measure), combine);
 	}
@@ -371,8 +383,8 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 		nlop = nlop_reshape_in_F(nlop, 0, N, loss_dims);
 		nlop = nlop_reshape_in_F(nlop, 1, N, loss_dims);
 
-		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : 1.e-12), 0, nlop, 0);
-		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : 1.e-12), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
 
 		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean ssim rss", config->weighting_ssim_rss, measure), combine);
 	}

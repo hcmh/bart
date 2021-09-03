@@ -1,5 +1,7 @@
 struct loss_config_s {
 
+	float epsilon;
+
 	float weighting_mse_sa;
 	float weighting_mse;
 	float weighting_psnr;
