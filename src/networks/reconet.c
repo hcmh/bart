@@ -345,6 +345,12 @@ static nn_t data_consistency_gradientstep_create(const struct reconet_s* config,
  * for a network
  * [and normalization scale]
  *
+ * The output init is either the adjoint reconstruction AHb or the regularized SENSE reconstruction
+ * (AHA + lambda)^-1AHb
+ *
+ * The output is normalized such that the maximum absolute value of the adjoint or SENSE reconstruction is one.
+ * If lambda is trainable, the data is always normalized with respect to the adjoint reconstruction.
+ *
  * @param mri_init
  * @param N
  * @param dims
@@ -474,9 +480,21 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 	int bat_dim = md_max_idx(config->mri_config->batch_flags);
 
 	long idims_w[5] = {1, img_dims[0], img_dims[1], img_dims[2], img_dims[bat_dim]};
+	long idims_w2[5] = {config->reinsert ? 2 : 1, img_dims[0], img_dims[1], img_dims[2], img_dims[bat_dim]};
 	long odims_w[5] = {1, img_dims[0], img_dims[1], img_dims[2], img_dims[bat_dim]};
 
 	nn_t result = NULL;
+
+	result = network_create(config->network, 5, odims_w, 5, idims_w2, status);
+
+	if (config->kspace) {
+
+		auto nn_fft = nn_from_nlop_F(nlop_from_linop_F(linop_fftc_create(5, idims_w2, 14)));
+		auto nn_ifft = nn_from_nlop_F(nlop_from_linop_F(linop_ifftc_create(5, odims_w, 14)));
+
+		result = nn_chain2_FF(nn_fft, 0, NULL, result, 0, NULL);
+		result = nn_chain2_FF(result, 0, NULL, nn_ifft, 0, NULL);
+	}
 
 	if (config->reinsert) {
 
@@ -485,38 +503,16 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 		nlop_init = nlop_reshape_in_F(nlop_init, 0, N, img_dims);
 		nlop_init = nlop_reshape_in_F(nlop_init, 1, N, img_dims);
 
-		result = nn_from_nlop_F(nlop_init);
-		result = nn_set_input_name_F(result, 1, "reinsert");
+		auto nn_init = nn_from_nlop_F(nlop_init);
+		nn_init = nn_set_input_name_F(result, 1, "reinsert");
 
-		auto network = network_create(config->network, 5, odims_w, 5, idims_w2, status);
 
-		if (config->kspace) {
 
-			auto nn_fft = nn_from_nlop_F(nlop_from_linop_F(linop_fftc_create(5, idims_w2, 14)));
-			auto nn_ifft = nn_from_nlop_F(nlop_from_linop_F(linop_ifftc_create(5, odims_w, 14)));
+		result = nn_chain2_FF(nn_init, 0, NULL, result, 0, NULL);
 
-			network = nn_chain2_FF(nn_fft, 0, NULL, network, 0, NULL);
-			network = nn_chain2_FF(network, 0, NULL, nn_ifft, 0, NULL);
-		}
-
-		result = nn_chain2_FF(result, 0, NULL, network, 0, NULL);
-
-	} else {
-
-		result = network_create(config->network, 5, odims_w, 5, idims_w, status);
-
-		if (config->kspace) {
-
-			auto nn_fft = nn_from_nlop_F(nlop_from_linop_F(linop_fftc_create(5, idims_w, 14)));
-			auto nn_ifft = nn_from_nlop_F(nlop_from_linop_F(linop_ifftc_create(5, odims_w, 14)));
-
-			result = nn_chain2_FF(nn_fft, 0, NULL, result, 0, NULL);
-			result = nn_chain2_FF(result, 0, NULL, nn_ifft, 0, NULL);
-		}
-
-		result = nn_reshape_in_F(result, 0, NULL, N, img_dims);
 	}
 
+	result = nn_reshape_in_F(result, 0, NULL, N, img_dims);
 	result = nn_reshape_out_F(result, 0, NULL, N, img_dims);
 
 	int N_in_names = nn_get_nr_named_in_args(result);
@@ -655,11 +651,17 @@ static nn_t reconet_iterations_create(const struct reconet_s* config, int N, con
 		for (int i = 0; i < N_out_names; i++)
 			tmp = nn_mark_stack_output_if_exists_F(tmp, out_names[i]);
 
-		char out_name[30];
-		sprintf(out_name, "out_%d", i);
-		result = nn_set_output_name_F(result, 0, out_name);
-		result = nn_set_out_type_F(result, 0, out_name, OUT_STATIC);
-		result = nn_chain2_keep_FF(result, 0, out_name, tmp, 0, NULL);
+		if ((STAT_TRAIN == status) && (0 != config->multi_loss)) {
+
+			char out_name[30];
+			sprintf(out_name, "out_%d", i);
+			result = nn_set_output_name_F(result, 0, out_name);
+			result = nn_set_out_type_F(result, 0, out_name, OUT_STATIC);
+			result = nn_chain2_keep_FF(result, 0, out_name, tmp, 0, NULL);
+		} else {
+
+			result = nn_chain2_FF(result, 0, NULL, tmp, 0, NULL);
+		}
 
 		result = nn_stack_dup_by_name_F(result);
 	}
@@ -822,17 +824,7 @@ static nn_t reconet_train_create(const struct reconet_s* config, int N, const lo
 		weight = nn_set_input_name_F(weight, 1, "rss_scale");
 		train_op = nn_chain2_FF(train_op, 0, NULL, weight, 0, NULL);
 
-		for (int i = 1; i < config->Nt; i++) {
-
-			char out_name[30];
-			sprintf(out_name, "out_%d", i);
-
-			auto weight = nn_from_nlop_F(nlop_tenmul_create(N, img_dims, img_dims, img_dims));
-			weight = nn_set_input_name_F(weight, 1, "rss_scale_tmp");
-			train_op = nn_chain2_FF(train_op, 0, out_name, weight, 0, NULL);
-			train_op = nn_set_output_name_F(train_op, 0, out_name);
-			train_op = nn_dup_F(train_op, 0, "rss_scale", 0, "rss_scale_tmp");
-		}
+		assert(0 == config->multi_loss);
 	}
 
 	if(config->normalize) {
@@ -846,31 +838,32 @@ static nn_t reconet_train_create(const struct reconet_s* config, int N, const lo
 
 	if (valid) {
 
-		for (int i = 1; i < config->Nt; i++) {
-
-			char out_name[30];
-			sprintf(out_name, "out_%d", i);
-			train_op = nn_del_out_F(train_op, 0, out_name);
-		}
-
 		auto loss = val_measure_create(config->valid_loss, N, img_dims);
 
 		train_op = nn_chain2_FF(train_op, 1, NULL, loss, 0, NULL);
 		train_op = nn_link_F(train_op, 0, NULL, 0, NULL);
 	} else {
 
-		auto loss = train_loss_multi_create(config->train_loss, N, img_dims, config->Nt, config->multi_loss);
+		if (0. != config->multi_loss) {
 
-		train_op = nn_chain2_FF(train_op, 1, NULL, loss, config->Nt - 1, NULL);
+			auto loss = train_loss_multi_create(config->train_loss, N, img_dims, config->Nt, config->multi_loss);
+			train_op = nn_chain2_FF(train_op, 1, NULL, loss, config->Nt - 1, NULL);
 
-		for (int i = 1; i < config->Nt; i++) {
+			for (int i = 1; i < config->Nt; i++) {
 
-			char out_name[30];
-			sprintf(out_name, "out_%d", i);
-			train_op = nn_link_F(train_op, 0, out_name, 0, NULL);
+				char out_name[30];
+				sprintf(out_name, "out_%d", i);
+				train_op = nn_link_F(train_op, 0, out_name, 0, NULL);
+			}
+
+			train_op = nn_link_F(train_op, 0, NULL, 0, NULL);
+
+		} else {
+
+			auto loss = train_loss_create(config->train_loss, N, img_dims);
+			train_op = nn_chain2_FF(train_op, 1, NULL, loss, 0, NULL);
+			train_op = nn_link_F(train_op, 0, NULL, 0, NULL);
 		}
-
-		train_op = nn_link_F(train_op, 0, NULL, 0, NULL);
 	}
 
 	if (valid)
@@ -919,13 +912,6 @@ static nn_t reconet_apply_op_create(const struct reconet_s* config, int N, const
 	md_select_dims(N, config->mri_config->batch_flags, scl_dims, img_dims);
 
 	auto nn_apply = reconet_create(config, N, max_dims, ND, psf_dims, STAT_TEST);
-
-	for (int i = 1; i < config->Nt; i++) {
-
-		char out_name[30];
-		sprintf(out_name, "out_%d", i);
-		nn_apply = nn_del_out_F(nn_apply, 0, out_name);
-	}
 
 	if(config->normalize) {
 
