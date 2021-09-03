@@ -12,6 +12,7 @@ struct network_data_s {
 	long img_dims[DIMS];
 	long max_dims[DIMS];
 	long cim_dims[DIMS];
+	long out_dims[DIMS];
 
 	const char* filename_trajectory;
 	const char* filename_pattern;

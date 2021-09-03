@@ -30,6 +30,7 @@ struct network_data_s network_data_empty = {
 	.img_dims = { 0 },
 	.max_dims = { 0 },
 	.cim_dims = { 0 },
+	.out_dims = { 0 },
 
 	.filename_trajectory = NULL,
 	.filename_pattern = NULL,
@@ -163,18 +164,19 @@ void load_network_data(struct network_data_s* nd) {
 
 	if (nd->create_out) {
 
+		md_copy_dims(DIMS, nd->out_dims, nd->img_dims);
 		nd->out = create_cfl(nd->filename_out, DIMS, nd->img_dims);
 	} else {
 
-		long idims_file[DIMS];
-		nd->out = load_cfl(nd->filename_out, DIMS, idims_file);
-		assert(md_check_equal_dims(DIMS, nd->img_dims, idims_file, ~0));
+		nd->out = load_cfl(nd->filename_out, DIMS, nd->out_dims);
+		assert(    md_check_equal_dims(DIMS, nd->img_dims, nd->out_dims, ~0)
+			|| md_check_equal_dims(DIMS, nd->cim_dims, nd->out_dims, ~0) );
 
 		if (nd->load_mem) {
 
-			complex float* out_tmp = anon_cfl("", DIMS, nd->img_dims);
-			md_copy(DIMS, nd->img_dims, out_tmp, nd->out, CFL_SIZE);
-			unmap_cfl(DIMS, nd->img_dims, nd->out);
+			complex float* out_tmp = anon_cfl("", DIMS, nd->out_dims);
+			md_copy(DIMS, nd->out_dims, out_tmp, nd->out, CFL_SIZE);
+			unmap_cfl(DIMS, nd->out_dims, nd->out);
 			nd->out = out_tmp;
 		}
 	}
