@@ -338,8 +338,8 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 		md_select_dims(N, ~COIL_FLAG, loss_dims, dims);
 
 		auto loss = nlop_mse_create(N, loss_dims, ~0ul);
-		loss = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, loss, 0);
-		loss = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, loss, 0);
+		loss = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, loss, 0);
+		loss = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, loss, 0);
 
 		result = add_loss(result, nlop_loss_to_nn_F(loss, "mse rss", config->weighting_mse_rss, measure), combine);
 	}
@@ -357,8 +357,8 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 			nlop = nlop_affine_transform_out_F(nlop, -1, 0);
 		}
 
-		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
-		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
 
 		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean psnr rss", config->weighting_psnr_rss, measure), combine);
 	}
@@ -383,8 +383,8 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 		nlop = nlop_reshape_in_F(nlop, 0, N, loss_dims);
 		nlop = nlop_reshape_in_F(nlop, 1, N, loss_dims);
 
-		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
-		nlop = nlop_chain2_FF(nlop_zrss_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, COIL_FLAG, measure ? 0 : config->epsilon), 0, nlop, 0);
 
 		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean ssim rss", config->weighting_ssim_rss, measure), combine);
 	}

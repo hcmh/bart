@@ -605,7 +605,7 @@ const struct nlop_s* nlop_zsqrt_create(int N, const long dims[N])
 /**
  * Returns zrss of array along specified flags.
  **/
-const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long flags, float epsilon)
+const struct nlop_s* nlop_zrss_reg_create(int N, const long dims[N], unsigned long flags, float epsilon)
 {
 
 	long odims[N];
@@ -616,9 +616,15 @@ const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long f
 	result = nlop_dup_F(result, 0, 1);
 
 	result = nlop_chain_FF(result, nlop_from_linop_F(linop_zreal_create(N, odims)));
-	result = nlop_chain_FF(result, nlop_zsadd_create(N, odims, epsilon));
+	if (0 != epsilon)
+		result = nlop_chain_FF(result, nlop_zsadd_create(N, odims, epsilon));
 	result = nlop_chain_FF(result, nlop_zsqrt_create(N, odims));
 	result = nlop_chain_FF(result, nlop_from_linop_F(linop_zreal_create(N, odims)));
 
 	return result;
+}
+
+const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long flags)
+{
+	return nlop_zrss_reg_create(N, dims, flags, 0);
 }
