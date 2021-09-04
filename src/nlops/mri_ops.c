@@ -275,10 +275,7 @@ static void mri_normal_del(const nlop_data_t* _data)
  */
 const struct nlop_s* nlop_mri_normal_create(int N, const long max_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf)
 {
-	long cim_dims[N];
-	md_select_dims(N, conf->coil_flags | conf->image_flags, cim_dims, max_dims);
-
-	auto data = mri_normal_data_create(N, cim_dims, ND, psf_dims, conf);
+	auto data = mri_normal_data_create(N, max_dims, ND, psf_dims, conf);
 
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], data->normal_ops->img_dims);
@@ -526,10 +523,7 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
 	PTR_ALLOC(struct mri_normal_inversion_s, data);
 	SET_TYPEID(mri_normal_inversion_s, data);
 
-	long cim_dims[N];
-	md_select_dims(N, conf->coil_flags | conf->image_flags, cim_dims, max_dims);
-
-	data->normal_ops = sense_normal_create(N, cim_dims, ND, psf_dims, conf);
+	data->normal_ops = sense_normal_create(N, max_dims, ND, psf_dims, conf);
 	data->coil = NULL;
 
 	// will be initialized later, to transparently support GPU
@@ -583,10 +577,7 @@ static struct mri_normal_inversion_s* mri_normal_inversion_data_create(int N, co
  */
 const struct nlop_s* nlop_mri_normal_inv_create(int N, const long max_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf, struct iter_conjgrad_conf* iter_conf)
 {
-	long cim_dims[N];
-	md_select_dims(N, conf->coil_flags | conf->image_flags, cim_dims, max_dims);
-
-	auto data = mri_normal_inversion_data_create(N, cim_dims, ND, psf_dims, conf, iter_conf);
+	auto data = mri_normal_inversion_data_create(N, max_dims, ND, psf_dims, conf, iter_conf);
 
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], data->normal_ops->img_dims);
