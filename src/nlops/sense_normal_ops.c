@@ -144,7 +144,7 @@ static struct sense_cart_normal_s* sense_cart_normal_create(int N, const long ma
 	md_select_dims(N, data->col_flag & ~data->bat_flag, *n_col_dims, max_dims);
 	md_select_dims(N, data->pat_flag & ~data->bat_flag, *n_pat_dims, max_dims);
 
-	assert(md_check_equal_dims(N, *n_pat_dims, pat_dims, ~0));
+	assert(md_check_equal_dims(N, *n_pat_dims, pat_dims, ~(data->bat_flag)));
 
 
 	data->bat_dims = *PTR_PASS(n_bat_dims);

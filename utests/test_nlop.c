@@ -1176,22 +1176,23 @@ static bool test_mriop_normalinv_config(bool batch_independent, bool share_patte
 	// Here we test the basic case of a fully sampled k-space
 	// => The normal operator is the identity
 	// => out = in / (1+lambda)
-	enum { N = 5 };
-	long dims[N] = { 8, 8, 2, 1, 3};
+	enum { N = 16 };
+	long dims[N] = { 8, 8, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3};
+
+	struct config_nlop_mri_s mri_conf = conf_nlop_mri_simple;
+	if (!share_pattern)
+		mri_conf.pattern_flags = MD_CLEAR(mri_conf.pattern_flags, 15);
+	if (!batch_independent)
+		mri_conf.batch_flags = 0;
 
 	long pdims[N];
 	long idims[N];
 	long ldims[N];
 
-	md_select_dims(N, share_pattern ? 7 : 23, pdims, dims);
-	md_select_dims(N, 23, idims, dims);
-	md_select_dims(N, 16, ldims, dims);
+	md_select_dims(N, mri_conf.pattern_flags, pdims, dims);
+	md_select_dims(N, mri_conf.image_flags, idims, dims);
+	md_select_dims(N, MD_BIT(15), ldims, dims);
 
-	struct config_nlop_mri_s mri_conf = conf_nlop_mri_simple;
-	if (!share_pattern)
-		mri_conf.pattern_flags = ~MD_BIT(3);
-	if (!batch_independent)
-		mri_conf.batch_flags = 0;
 
 	auto nlop_inv = nlop_mri_normal_inv_create(N, dims, N, pdims, &mri_conf, NULL); // in: x0, coil, pattern, lambda; out:
 
@@ -1202,9 +1203,8 @@ static bool test_mriop_normalinv_config(bool batch_independent, bool share_patte
 	md_gaussian_rand(N, dims, coils);
 
 	complex float* coils_scale = md_alloc(N, idims, CFL_SIZE);
-	md_ztenmulc(5, idims, coils_scale, dims, coils, dims, coils);
-	md_sqrt(N + 1, MD_REAL_DIMS(N, idims), (float*)coils_scale, (float*)coils_scale);
-	md_zdiv2(5, dims, MD_STRIDES(N, dims, CFL_SIZE), coils, MD_STRIDES(N, dims, CFL_SIZE), coils, MD_STRIDES(N, idims, CFL_SIZE), coils_scale);
+	md_zrss(N, dims, MD_BIT(3), coils_scale, coils);
+	md_zdiv2(N, dims, MD_STRIDES(N, dims, CFL_SIZE), coils, MD_STRIDES(N, dims, CFL_SIZE), coils, MD_STRIDES(N, idims, CFL_SIZE), coils_scale);
 	md_free(coils_scale);
 
 	nlop_inv = nlop_set_input_const_F(nlop_inv, 1, N, dims, true, coils);
