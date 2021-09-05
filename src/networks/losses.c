@@ -48,6 +48,7 @@ struct loss_config_s loss_option = {
 	.label_index = 0,
 	.image_flags = FFT_FLAGS,
 	.rss_flags = COIL_FLAG,
+	.mse_mean_flags = ~0ul,
 };
 
 struct loss_config_s val_loss_option = {
@@ -70,6 +71,7 @@ struct loss_config_s val_loss_option = {
 	.label_index = 0,
 	.image_flags = FFT_FLAGS,
 	.rss_flags = COIL_FLAG,
+	.mse_mean_flags = ~0ul,
 };
 
 struct loss_config_s loss_image_valid = {
@@ -94,6 +96,7 @@ struct loss_config_s loss_image_valid = {
 	.label_index = 0,
 	.image_flags = FFT_FLAGS,
 	.rss_flags = COIL_FLAG,
+	.mse_mean_flags = ~0ul,
 };
 
 struct loss_config_s loss_classification_valid = {
@@ -118,6 +121,7 @@ struct loss_config_s loss_classification_valid = {
 	.label_index = 0,
 	.image_flags = FFT_FLAGS,
 	.rss_flags = COIL_FLAG,
+	.mse_mean_flags = ~0ul,
 };
 
 
@@ -224,20 +228,22 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 	long ldims[N];
 	md_select_dims(N, ~config->rss_flags, ldims, dims);
 
+	bool rss = !md_check_equal_dims(N, dims, ldims, ~0);
+
 	nn_t result = NULL;
 
 	if (0 != config->weighting_mse_rss) {
 
-		const struct nlop_s* nlop = nlop_mse_create(N, ldims, ~0ul);
+		const struct nlop_s* nlop = nlop_mse_create(N, ldims, config->mse_mean_flags);
 		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
 		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
 
-		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mse mag (rss)", config->weighting_mse_rss, measure), combine);
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, rss ? "mse rss" : "mse mag", config->weighting_mse_rss, measure), combine);
 	}
 
 	if (0 != config->weighting_mse) {
 
-		result = add_loss(result, nlop_loss_to_nn_F(nlop_mse_create(N, dims, ~0ul), "mse", config->weighting_mse, measure), combine);
+		result = add_loss(result, nlop_loss_to_nn_F(nlop_mse_create(N, dims, config->mse_mean_flags), "mse", config->weighting_mse, measure), combine);
 	}
 
 	if (0 != config->weighting_psnr_rss) {
@@ -252,7 +258,7 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 
 		assert(measure);
 
-		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean psnr", config->weighting_psnr_rss, measure), combine);
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, rss ? "mean psnr (rss)" : "mean psnr", config->weighting_psnr_rss, measure), combine);
 	}
 
 	if (0 != config->weighting_ssim_rss) {
@@ -278,7 +284,7 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 			nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
 		}
 
-		result = add_loss(result, nlop_loss_to_nn_F(nlop, "mean ssim", config->weighting_ssim_rss, measure), combine);
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, rss ? "mean ssim (rss)" : "mean ssim", config->weighting_ssim_rss, measure), combine);
 	}
 
 	if (0 != config->weighting_cce) {

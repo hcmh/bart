@@ -20,6 +20,7 @@ struct loss_config_s {
 	int label_index;
 	unsigned long image_flags;
 	unsigned long rss_flags;
+	unsigned long mse_mean_flags;
 };
 
 extern struct loss_config_s val_loss_option;
