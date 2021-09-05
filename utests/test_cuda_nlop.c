@@ -15,6 +15,7 @@
 
 #include "nlops/nlop.h"
 #include "nlops/nltest.h"
+#include "nlops/chain.h"
 
 #include "nlops/conv.h"
 #include "nlops/const.h"
@@ -232,7 +233,12 @@ static bool test_cce_layer_gpu(void)
 
 
 	auto op_cpu = nlop_cce_create(N, dims, ~MD_BIT(0));
+	op_cpu = nlop_chain2_FF(nlop_softmax_create(N, dims, ~MD_BIT(0)), 0, op_cpu, 0);
+	op_cpu = nlop_chain2_FF(nlop_softmax_create(N, dims, ~MD_BIT(0)), 0, op_cpu, 0);
+
 	auto op_gpu = nlop_cce_create(N, dims, ~MD_BIT(0));
+	op_gpu = nlop_chain2_FF(nlop_softmax_create(N, dims, ~MD_BIT(0)), 0, op_gpu, 0);
+	op_gpu = nlop_chain2_FF(nlop_softmax_create(N, dims, ~MD_BIT(0)), 0, op_gpu, 0);
 
 	float err = compare_gpu(op_cpu, op_gpu);
 
