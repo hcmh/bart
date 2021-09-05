@@ -128,7 +128,7 @@ static struct sense_cart_normal_s* sense_cart_normal_create(int N, const long ma
 	data->img_flag = conf->image_flags;
 	data->col_flag = conf->coil_flags;
 	data->cim_flag = conf->coil_image_flags;
-	data->pat_flag = conf->pattern_flags;
+	data->pat_flag = conf->pattern_flags & md_nontriv_dims(N, pat_dims);
 
 	PTR_ALLOC(long[N], n_bat_dims);
 	PTR_ALLOC(long[N], n_max_dims);
@@ -320,6 +320,8 @@ static struct sense_noncart_normal_s* sense_noncart_normal_create(int N, const l
 	data->psf_dims = *PTR_PASS(n_psf_dims);
 	data->bat_dims = *PTR_PASS(n_bat_dims);
 	data->max_dims = *PTR_PASS(n_max_dims);
+
+	assert(md_check_equal_dims(N, psf_dims, max_dims, md_nontriv_dims(N, psf_dims)));
 
 	PTR_ALLOC(const struct operator_s*[md_calc_size(N, data->bat_dims)], nufft_normal_ops);
 	for (int i = 0; i < md_calc_size(N, data->bat_dims); i++)
