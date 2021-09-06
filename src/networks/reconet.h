@@ -48,6 +48,8 @@ struct reconet_s {
 
 	const char* graph_file;
 
+	_Bool coil_image;
+
 	_Bool rss_scale;
 	_Bool normalize_rss;
 };
@@ -64,7 +66,7 @@ extern void reconet_init_modl_test_default(struct reconet_s* reconet);
 extern void reconet_init_varnet_test_default(struct reconet_s* reconet);
 extern void reconet_init_unet_test_default(struct reconet_s* reconet);
 
-extern void apply_reconet(	const struct reconet_s* reconet, unsigned int N, const long max_dims[N],
+extern void apply_reconet(	struct reconet_s* reconet, unsigned int N, const long max_dims[N],
 				const long out_dims[N], _Complex float* out,
 				const long img_dims[N], const _Complex float* adjoint,
 				const long col_dims[N], const _Complex float* coil,
@@ -77,7 +79,7 @@ extern void train_reconet(	struct reconet_s* reconet, unsigned int N, const long
 				int ND, const long psf_dims[ND], const _Complex float* psf,
 				long Nb, struct network_data_s* valid_files);
 
-extern void eval_reconet(	const struct reconet_s* reconet, unsigned int N, const long max_dims[N],
+extern void eval_reconet(	struct reconet_s* reconet, unsigned int N, const long max_dims[N],
 				const long out_dims[N], const _Complex float* ref,
 				const long img_dims[N], const _Complex float* adjoint,
 				const long col_dims[N], const _Complex float* coil,
