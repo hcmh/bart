@@ -3,7 +3,9 @@ struct loss_config_s {
 	float epsilon;
 
 	float weighting_mse;
+	float weighting_mad;
 	float weighting_mse_rss;
+	float weighting_mad_rss;
 	float weighting_psnr_rss;
 	float weighting_ssim_rss;
 

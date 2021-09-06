@@ -168,6 +168,135 @@ const struct nlop_s* nlop_mse_create(int N, const long dims[N], unsigned long me
 	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mse_fun, (nlop_der_fun_t[2][1]){ { mse_der1 }, { mse_der2 } }, (nlop_der_fun_t[2][1]){ { mse_adj1 }, { mse_adj2 } }, NULL, NULL, mse_del);
 }
 
+struct mad_s {
+
+	INTERFACE(nlop_data_t);
+
+	long N;
+	const long* rdims;
+	float scaling;
+
+	float* der;
+};
+
+DEF_TYPEID(mad_s);
+
+static void mad_fun(const nlop_data_t* _data, int D, complex float* args[D])
+{
+	const auto data = CAST_DOWN(mad_s, _data);
+	assert(3 == D);
+
+	complex float* dst = args[0];
+	const float* src1 = (float*)args[1];
+	const float* src2 = (float*)args[2];
+
+#ifdef USE_CUDA
+	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
+#endif
+	if (NULL == data->der)
+		data->der = md_alloc_sameplace(data->N, data->rdims, FL_SIZE, dst);
+
+	md_sub(data->N, data->rdims, data->der, src1, src2);
+
+	complex float result = md_asum(data->N, data->rdims, data->der) / data->scaling;
+
+	md_greatequal(data->N, data->rdims, data->der, src1, src2);
+
+	float* tmp = md_alloc_sameplace(data->N, data->rdims, FL_SIZE, dst);
+
+	md_greatequal(data->N, data->rdims, tmp, src2, src1);
+	md_sub(data->N, data->rdims, data->der, data->der, tmp);
+	md_free(tmp);
+
+	md_smul(data->N, data->rdims, data->der, data->der, 1. / data->scaling);
+
+	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
+}
+
+
+static void mad_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	auto data = CAST_DOWN(mad_s, _data);
+	assert(NULL != data->der);
+
+	md_clear(1, MD_DIMS(1), dst, CFL_SIZE);
+	md_tenmul(data->N, MD_SINGLETON_DIMS(data->N), (float*)dst, data->rdims, (float*)src, data->rdims, data->der);
+}
+
+static void mad_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	auto data = CAST_DOWN(mad_s, _data);
+	assert(NULL != data->der);
+
+	md_clear(1, MD_DIMS(1), dst, CFL_SIZE);
+	md_tenmul(data->N, MD_SINGLETON_DIMS(data->N), (float*)dst, data->rdims, (float*)src, data->rdims, data->der);
+	md_smul(1, MD_DIMS(1), (float*)dst, (float*)dst, -1);
+}
+
+static void mad_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	auto data = CAST_DOWN(mad_s, _data);
+	assert(NULL != data->der);
+
+	md_tenmul(data->N, data->rdims, (float*)dst, MD_SINGLETON_DIMS(data->N), (float*)src, data->rdims, data->der);
+}
+
+static void mad_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	UNUSED(o);
+	UNUSED(i);
+
+	auto data = CAST_DOWN(mad_s, _data);
+	assert(NULL != data->der);
+
+	md_tenmul(data->N, data->rdims, (float*)dst, MD_SINGLETON_DIMS(data->N), (float*)src, data->rdims, data->der);
+	md_smul(data->N, data->rdims, (float*)dst, (float*)dst, -1);
+}
+
+static void mad_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(mad_s, _data);
+
+	md_free(data->der);
+	xfree(data->rdims);
+	xfree(data);
+}
+
+const struct nlop_s* nlop_mad_create(int N, const long dims[N], unsigned long mean_dims)
+{
+	PTR_ALLOC(struct mad_s, data);
+	SET_TYPEID(mad_s, data);
+
+	PTR_ALLOC(long[N + 1], rdims);
+	(*rdims[0] = 2);
+	md_copy_dims(N, *rdims + 1, dims);
+
+	data->N = N + 1;
+	data->rdims = *PTR_PASS(rdims);
+	data->der = NULL;
+
+	long tdims[N];
+	md_select_dims(N, mean_dims, tdims, dims);
+	data->scaling = (float)md_calc_size(N, tdims);
+
+	long nl_odims[1][1];
+	md_copy_dims(1, nl_odims[0], MD_SINGLETON_DIMS(1));
+	long nl_idims[2][N];
+	md_copy_dims(N, nl_idims[0], data->rdims + 1);
+	md_copy_dims(N, nl_idims[1], data->rdims + 1);
+
+	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mad_fun, (nlop_der_fun_t[2][1]){ { mad_der1 }, { mad_der2 } }, (nlop_der_fun_t[2][1]){ { mad_adj1 }, { mad_adj2 } }, NULL, NULL, mad_del);
+}
+
 
 struct mpsnr_s {
 
