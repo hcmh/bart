@@ -601,6 +601,23 @@ const struct nlop_s* nlop_zsqrt_create(int N, const long dims[N])
 		zsqrt_fun, zsqrt_der, zsqrt_adj, NULL, NULL, zsqrt_del);
 }
 
+/**
+ * Returns zss of array along specified flags.
+ **/
+const struct nlop_s* nlop_zss_create(int N, const long dims[N], unsigned long flags)
+{
+
+	long odims[N];
+	md_select_dims(N, ~flags, odims, dims);
+
+	auto result = nlop_tenmul_create(N, odims, dims, dims);
+	result = nlop_chain2_FF(nlop_from_linop_F(linop_zconj_create(N, dims)), 0, result, 0);
+	result = nlop_dup_F(result, 0, 1);
+
+	result = nlop_chain_FF(result, nlop_from_linop_F(linop_zreal_create(N, odims)));
+
+	return result;
+}
 
 /**
  * Returns zrss of array along specified flags.
