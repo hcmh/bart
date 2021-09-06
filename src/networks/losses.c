@@ -38,6 +38,8 @@ struct loss_config_s loss_option = {
 	.weighting_mad_rss = 0.,
 	.weighting_psnr_rss = 0.,
 	.weighting_ssim_rss = 0.,
+	.weighting_nmse = 0.,
+	.weighting_nmse_rss = 0.,
 
 	.weighting_cce = 0.,
 	.weighting_weighted_cce = 0.,
@@ -63,6 +65,8 @@ struct loss_config_s val_loss_option = {
 	.weighting_mad_rss = 0.,
 	.weighting_psnr_rss = 0.,
 	.weighting_ssim_rss = 0.,
+	.weighting_nmse = 0.,
+	.weighting_nmse_rss = 0.,
 
 	.weighting_cce = 0.,
 	.weighting_weighted_cce = 0.,
@@ -88,6 +92,8 @@ struct loss_config_s loss_image_valid = {
 	.weighting_mad_rss = 1.,
 	.weighting_psnr_rss = 1.,
 	.weighting_ssim_rss = 1.,
+	.weighting_nmse = 1.,
+	.weighting_nmse_rss = 1.,
 
 	.weighting_cce = 0.,
 	.weighting_weighted_cce = 0.,
@@ -115,6 +121,8 @@ struct loss_config_s loss_classification_valid = {
 	.weighting_mad_rss = 0.,
 	.weighting_psnr_rss = 0.,
 	.weighting_ssim_rss = 0.,
+	.weighting_nmse = 0.,
+	.weighting_nmse_rss = 0.,
 
 	.weighting_cce = 1.,
 	.weighting_weighted_cce = 1.,
@@ -145,7 +153,6 @@ static nn_t add_loss(nn_t loss, nn_t new_loss, bool combine) {
 		result = nn_combine_FF(result, new_loss);
 		result = nn_dup_F(result, 0, NULL, 2, NULL);
 		result = nn_dup_F(result, 1, NULL, 2, NULL);
-
 	}
 
 	while (combine) {
@@ -413,6 +420,20 @@ static nn_t loss_measure_create(const struct loss_config_s* config, unsigned int
 		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
 
 		result = add_loss(result, nlop_loss_to_nn_F(nlop, rss ? "mad rss" : "mad mag", config->weighting_mad_rss, measure), combine);
+	}
+
+	if (0 != config->weighting_nmse) {
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop_nmse_create(N, dims, ~(config->image_flags | config->rss_flags)), "nmse", config->weighting_nmse, measure), combine);
+	}
+
+	if (0 != config->weighting_nmse_rss) {
+
+		const struct nlop_s* nlop = nlop_nmse_create(N, ldims, ~(config->image_flags | config->rss_flags));
+		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
+		nlop = nlop_chain2_FF(nlop_zrss_reg_create(N, dims, config->rss_flags, measure ? 0 : config->epsilon), 0, nlop, 0);
+
+		result = add_loss(result, nlop_loss_to_nn_F(nlop, rss ? "nmse rss" : "nmse mag", config->weighting_nmse_rss, measure), combine);
 	}
 
 	return result;

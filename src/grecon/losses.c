@@ -7,8 +7,10 @@ struct opt_s loss_opts[] = {
 
 	OPTL_FLOAT(0, "mse", &(loss_option.weighting_mse), "weighting", "weighting for mean squared error"),
 	OPTL_FLOAT(0, "mad", &(loss_option.weighting_mad), "weighting", "weighting for mean absolute difference"),
+	OPTL_FLOAT(0, "nmse", &(loss_option.weighting_nmse), "weighting", "weighting for normalized mean squared error"),
 	OPTL_FLOAT(0, "mse-magnitude", &(loss_option.weighting_mse_rss), "weighting", "weighting for mean squared error (rss)"),
 	OPTL_FLOAT(0, "mad-magnitude", &(loss_option.weighting_mad_rss), "weighting", "weighting for mean absolute difference (rss)"),
+	OPTL_FLOAT(0, "nmse-magnitude", &(loss_option.weighting_nmse_rss), "weighting", "weighting for normalized mean squared error (rss)"),
 	OPTL_FLOAT(0, "ssim", &(loss_option.weighting_ssim_rss), "weighting", "weighting for structural similarity index measure (rss)"),
 
 	OPTL_FLOAT(0, "cce", &(loss_option.weighting_cce), "weighting", "weighting for categorical cross entropy"),
@@ -56,6 +58,9 @@ static bool loss_option_changed(struct loss_config_s* loss_option)
 		return true;
 	if (0 != loss_option->weighting_ssim_rss)
 		return true;
+	if (0 != loss_option->weighting_nmse_rss)
+		return true;
+	if (0 != loss_option->weighting_nmse)
 
 	if (0 != loss_option->weighting_cce)
 		return true;

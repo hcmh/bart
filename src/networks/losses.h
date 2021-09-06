@@ -8,6 +8,8 @@ struct loss_config_s {
 	float weighting_mad_rss;
 	float weighting_psnr_rss;
 	float weighting_ssim_rss;
+	float weighting_nmse;
+	float weighting_nmse_rss;
 
 	float weighting_cce;
 	float weighting_weighted_cce;
