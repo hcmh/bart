@@ -65,6 +65,7 @@ DEF_TYPEID(iter6_iPALM_conf);
 	.INTERFACE.batch_seed = 123, \
 	.INTERFACE.dump_flag = 0, \
 	.INTERFACE.min_learning_rate = 0.,\
+	.INTERFACE.monitor_averaged_objective = false,\
 	.INTERFACE.learning_rate_epoch_mod = 0,
 
 const struct iter6_sgd_conf iter6_sgd_conf_defaults = {
@@ -323,6 +324,9 @@ void iter6_sgd_like(	iter6_conf* conf,
 	if (free_monitor)
 		monitor = monitor_iter6_create(true, false, 0, NULL);
 
+	if (conf->monitor_averaged_objective)
+		monitor6_average_objective(monitor);
+
 	bool free_dump = ((NULL == conf->dump) && (NULL != conf->dump_filename) && (0 < conf->dump_mod));
 	if (free_dump)
 		conf->dump = iter6_dump_default_create(conf->dump_filename, conf->dump_mod, nlop, conf->dump_flag, NI, in_type);
@@ -485,6 +489,9 @@ void iter6_iPALM(	iter6_conf* _conf,
 	bool free_monitor = (NULL == monitor);
 	if (free_monitor)
 		monitor = monitor_iter6_create(true, false, 0, NULL);
+
+	if (_conf->monitor_averaged_objective)
+		monitor6_average_objective(monitor);
 
 	bool free_dump = ((NULL == conf->INTERFACE.dump) && (NULL != conf->INTERFACE.dump_filename) && (0 < conf->INTERFACE.dump_mod));
 	if (free_dump)

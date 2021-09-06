@@ -268,11 +268,17 @@ static void monitor6_default_fun(struct monitor_iter6_s* _monitor, long epoch, l
 
 		pos[2] = 1;
 
-		MD_ACCESS(4, MD_STRIDES(4, dims, sizeof(complex float)), pos, monitor->record) = objective;
+		MD_ACCESS(4, MD_STRIDES(4, dims, sizeof(complex float)), pos, monitor->record) = monitor->print_average_obj ? monitor->average_obj: objective;
 	}
 
 	if (batch == numbatches - 1)
 		monitor->start_time = timestamp();
+}
+
+void monitor6_average_objective(struct monitor_iter6_s* _monitor)
+{
+	auto monitor = CAST_DOWN(monitor_iter6_default_s, _monitor);
+	monitor->print_average_obj = true;
 }
 
 static void monitor6_default_free(const struct monitor_iter6_s* _monitor)

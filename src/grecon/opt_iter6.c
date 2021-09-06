@@ -22,6 +22,7 @@ struct iter6_conf_s iter6_conf_unset = {
 	.batchgen_type = BATCH_GEN_SAME,
 	.batch_seed = 123,
 	.dump_flag = 0,
+	.monitor_averaged_objective = false,
 };
 
 struct iter6_conf_s iter6_conf_opts = {
@@ -39,6 +40,7 @@ struct iter6_conf_s iter6_conf_opts = {
 	.batchgen_type = BATCH_GEN_SAME,
 	.batch_seed = 123,
 	.dump_flag = 0,
+	.monitor_averaged_objective = false,
 };
 
 struct iter6_sgd_conf iter6_sgd_conf_opts;
@@ -88,6 +90,7 @@ struct opt_s iter6_opts[] = {
 	OPTL_SELECT_DEF(0, "batchgen-shuffle-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_SHUFFLE_DATA, BATCH_GEN_SAME, "shuffle data to form batches"),
 	OPTL_SELECT_DEF(0, "batchgen-draw-data", enum BATCH_GEN_TYPE, &(iter6_conf_opts.batchgen_type), BATCH_GEN_RANDOM_DATA, BATCH_GEN_SAME, "randomly draw data to form batches"),
 	OPTL_INT(0, "batchgen-seed", &(iter6_conf_opts.batch_seed), "d", "seed for batch-generator (default: 123)"),
+	OPTL_SET(0, "average-loss", &(iter6_conf_opts.monitor_averaged_objective), "monitor loss averaged over epoch"),
 };
 
 struct opt_s iter6_sgd_opts[] = {
@@ -163,6 +166,8 @@ void iter6_copy_config_from_opts(struct iter6_conf_s* result)
 		result->learning_rate_epoch_mod = iter6_conf_opts.learning_rate_epoch_mod;
 	if (iter6_conf_opts.min_learning_rate != iter6_conf_unset.min_learning_rate)
 		result->min_learning_rate = iter6_conf_opts.min_learning_rate;
+	if (iter6_conf_opts.monitor_averaged_objective != iter6_conf_unset.monitor_averaged_objective)
+		result->monitor_averaged_objective = iter6_conf_opts.monitor_averaged_objective;
 }
 
 struct iter6_conf_s* iter6_get_conf_from_opts(void)

@@ -36,6 +36,8 @@ typedef struct iter6_conf_s {
 	float min_learning_rate;
 	int learning_rate_epoch_mod;
 
+	_Bool monitor_averaged_objective;
+
 } iter6_conf;
 
 struct iter_op_s;
