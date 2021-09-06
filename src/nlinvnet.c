@@ -80,6 +80,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	long Nb = 0;
 
+	char* filename_weights_load = NULL;
+
 	const char* val_file_kspace = NULL;
 	const char* val_file_reference = NULL;
 
@@ -133,6 +135,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 
 		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
+
+		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "<weights-init>", "load weights for continuing training"),
 
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 	};
@@ -249,6 +253,10 @@ int main_nlinvnet(int argc, char* argv[argc])
 	Nb = Nb ? Nb : 10;
 
 	if (train) {
+
+		if (NULL != filename_weights_load)
+			nlinvnet.weights = load_nn_weights(filename_weights_load);
+
 
 		long cim_dims2[DIMS];
 		complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
