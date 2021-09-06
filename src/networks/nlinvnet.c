@@ -141,6 +141,9 @@ void nlinvnet_init_model_cart(struct nlinvnet_s* nlinvnet, int N,
 			nlinvnet->train_loss->weighting_mse=1.;
 	}
 
+	if (NULL == get_val_loss_from_option())
+		nlinvnet->valid_loss = &loss_image_valid;
+
 	assert(0 == nlinvnet->iter_conf->tol);
 }
 
