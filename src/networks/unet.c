@@ -54,6 +54,8 @@ struct network_unet_s network_unet_default_reco = {
 
 	.INTERFACE.debug = false,
 
+	.INTERFACE.prefix = NULL,
+
 	.N = 5,
 	.kdims = {[0 ... DIMS -1] = 0},
 	.dilations = {[0 ... DIMS -1] = 1},
@@ -94,7 +96,7 @@ struct network_unet_s network_unet_default_reco = {
 	.ds_method = UNET_DS_STRIDED_CONV,
 	.us_method = UNET_US_STRIDED_CONV,
 
-	.residual = true,
+	.INTERFACE.residual = true,
 
 	.adjoint = false,
 };
@@ -145,7 +147,7 @@ struct network_unet_s network_unet_default_segm = {
 	.ds_method = UNET_DS_STRIDED_CONV,
 	.us_method = UNET_US_STRIDED_CONV,
 
-	.residual = false,
+	.INTERFACE.residual = false,
 
 	.adjoint = false,
 
@@ -343,7 +345,7 @@ static bool get_init_zero(struct network_unet_s* unet, unsigned int level, bool 
 		return false;
 
 	if (0 == level)
-		return unet->residual;
+		return unet->INTERFACE.residual;
 
 	return true;
 }
@@ -787,7 +789,7 @@ nn_t network_unet_create(const struct network_s* _unet, unsigned int NO, const l
 
 	auto result = unet_level_create(unet, N, odims, idims, 0, status);
 
-	if (unet->residual) {
+	if (unet->INTERFACE.residual) {
 
 		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_zaxpbz_create(N, idims, 1., -1.)), 1, NULL);
 		result = nn_dup_F(result, 0, NULL, 1, NULL);

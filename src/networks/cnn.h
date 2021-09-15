@@ -26,6 +26,10 @@ typedef struct network_s {
 
 	_Bool debug;
 
+	_Bool residual;
+
+	const char* prefix;
+
 } network_t;
 
 extern nn_t network_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
@@ -62,6 +66,17 @@ struct network_resnet_s {
 };
 extern struct network_resnet_s network_resnet_default;
 
+struct network_combi_kspace_s {
+
+	INTERFACE(network_t);
+
+	network_t* img_net;
+	network_t* ksp_net;
+};
+
+extern struct network_combi_kspace_s network_combi_kspace_default;
+extern nn_t network_combi_kspace_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status);
+
 struct network_varnet_s {
 
 	INTERFACE(network_t);
@@ -75,8 +90,6 @@ struct network_varnet_s {
 
 	float Imax;
 	float Imin;
-
-	_Bool residual;
 
 	float init_scale_mu;
 };

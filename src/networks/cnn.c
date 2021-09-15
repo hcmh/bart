@@ -85,6 +85,8 @@ struct network_resnet_s network_resnet_default = {
 
 	.INTERFACE.debug = false,
 
+	.INTERFACE.prefix = NULL,
+
 	.N = 5,
 
 	.Nl = 5,
@@ -161,6 +163,11 @@ static void network_resnet_get_kdims(const struct network_resnet_s* config, unsi
  */
 static nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
 {
+	int Nw = ARRAY_SIZE(resnet_sorted_weight_names);
+	const char* wnames[Nw];
+	for (int i = 0; i < Nw; i++)
+		wnames[i] = (NULL == _config->prefix) ? ptr_printf("%s", resnet_sorted_weight_names[i]) : ptr_printf("%s_%s", _config->prefix, resnet_sorted_weight_names[i]);
+
 	assert(NO == NI);
 	unsigned int N = NO;
 
@@ -186,44 +193,44 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 		}
 	}
 
-	result = nn_append_convcorr_layer_generic(	result, 0, NULL, "conv_0",
+	result = nn_append_convcorr_layer_generic(	result, 0, NULL, wnames[0],
 							config->conv_flag, tchannel_flag, tgroup_flag,
 							N, kdims, NULL, config->dilations,
 							false, PAD_SAME, initializer_clone(conv_init));
 
 	if (config->batch_norm)
-		result = nn_append_batchnorm_layer(result, 0, NULL, "bn_0", ~(config->channel_flag | config->group_flag), status, NULL);
+		result = nn_append_batchnorm_layer(result, 0, NULL, wnames[7], ~(config->channel_flag | config->group_flag), status, NULL);
 
 	if (config->bias)
-		result = nn_append_activation_bias(result, 0, NULL, "bias_0", config->activation, MD_BIT(0));
+		result = nn_append_activation_bias(result, 0, NULL, wnames[3], config->activation, MD_BIT(0));
 	else
 		result = nn_append_activation(result, 0, NULL, config->activation);
 
 
 	for (int i = 0; i < config->Nl - 2; i++) {
 
-		result = nn_mark_stack_input_if_exists_F(result, "conv_i");
-		result = nn_mark_stack_input_if_exists_F(result, "bias_i");
-		result = nn_mark_stack_input_if_exists_F(result, "bn_i");
-		result = nn_mark_stack_output_if_exists_F(result, "bn_i");
+		result = nn_mark_stack_input_if_exists_F(result, wnames[1]);
+		result = nn_mark_stack_input_if_exists_F(result, wnames[4]);
+		result = nn_mark_stack_input_if_exists_F(result, wnames[8]);
+		result = nn_mark_stack_output_if_exists_F(result, wnames[8]);
 
 
-		result = nn_append_convcorr_layer_generic(	result, 0, NULL, "conv_i",
+		result = nn_append_convcorr_layer_generic(	result, 0, NULL, wnames[1],
 							config->conv_flag, config->channel_flag, config->group_flag,
 							N, kdims, NULL, config->dilations,
 							false, PAD_SAME, initializer_clone(conv_init));
 
 		if (config->batch_norm)
-			result = nn_append_batchnorm_layer(result, 0, NULL, "bn_i", ~(config->channel_flag | config->group_flag), status, NULL);
+			result = nn_append_batchnorm_layer(result, 0, NULL, wnames[8], ~(config->channel_flag | config->group_flag), status, NULL);
 		if (config->bias)
-			result = nn_append_activation_bias(result, 0, NULL, "bias_i", config->activation, MD_BIT(0));
+			result = nn_append_activation_bias(result, 0, NULL, wnames[4], config->activation, MD_BIT(0));
 		else
 			result = nn_append_activation(result, 0, NULL, config->activation);
 
-		result = nn_append_singleton_dim_in_if_exists_F(result, "conv_i");
-		result = nn_append_singleton_dim_in_if_exists_F(result, "bias_i");
-		result = nn_append_singleton_dim_in_if_exists_F(result, "bn_i");
-		result = nn_append_singleton_dim_out_if_exists_F(result, "bn_i");
+		result = nn_append_singleton_dim_in_if_exists_F(result, wnames[1]);
+		result = nn_append_singleton_dim_in_if_exists_F(result, wnames[4]);
+		result = nn_append_singleton_dim_in_if_exists_F(result, wnames[8]);
+		result = nn_append_singleton_dim_out_if_exists_F(result, wnames[8]);
 
 		result = nn_stack_dup_by_name_F(result);
 	}
@@ -248,7 +255,7 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 
 	const struct initializer_s* conv_init_last = (config->batch_norm || !config->zero_init) ? initializer_clone(conv_init) : init_const_create(0);
 
-	result = nn_append_convcorr_layer_generic(	result, 0, NULL, "conv_n",
+	result = nn_append_convcorr_layer_generic(	result, 0, NULL, wnames[2],
 							config->conv_flag, tchannel_flag, tgroup_flag,
 							N, ldims, NULL, config->dilations,
 							false, PAD_SAME, initializer_clone(conv_init));
@@ -258,7 +265,7 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 
 	if (config->batch_norm) {
 
-		result = nn_append_batchnorm_layer(result, 0, NULL, "bn_n", ~(config->channel_flag | config->group_flag), status, NULL);
+		result = nn_append_batchnorm_layer(result, 0, NULL, wnames[9], ~(config->channel_flag | config->group_flag), status, NULL);
 
 		//append gamma for batchnorm
 		auto iov = nn_generic_codomain(result, 0, NULL);
@@ -268,14 +275,14 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 
 		auto nn_scale_gamma = nn_from_nlop_F(nlop_tenmul_create(iov->N, iov->dims, iov->dims, gdims));
 		result = nn_chain2_swap_FF(result, 0, NULL, nn_scale_gamma, 0, NULL);
-		result = nn_set_input_name_F(result, -1, "gamma");
-		result = nn_set_initializer_F(result, 0, "gamma", init_const_create(0));
-		result = nn_set_in_type_F(result, 0, "gamma", IN_OPTIMIZE);
-		result = nn_set_dup_F(result, 0, "gamma", false);
+		result = nn_set_input_name_F(result, -1, wnames[6]);
+		result = nn_set_initializer_F(result, 0, wnames[6], init_const_create(0));
+		result = nn_set_in_type_F(result, 0, wnames[6], IN_OPTIMIZE);
+		result = nn_set_dup_F(result, 0, wnames[6], false);
 	}
 
 	if (config->bias)
-		result = nn_append_activation_bias(result, 0, NULL, "bias_n", config->last_activation, MD_BIT(0));
+		result = nn_append_activation_bias(result, 0, NULL, wnames[5], config->last_activation, MD_BIT(0));
 	else
 		result = nn_append_activation(result, 0, NULL, config->last_activation);
 
@@ -287,12 +294,14 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 	if (_config->debug)
 		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_dump_create(N, odims, r_name_debug, true, true, true)), 0, NULL);
 
+	if (config->INTERFACE.residual) {
 
-	auto nlop_sum = nlop_zaxpbz_create(N, odims, 1, 1);
-	nlop_sum = nlop_chain2_FF(nlop_from_linop_F(linop_expand_create(N, odims, idims)), 0, nlop_sum, 1);
+		auto nlop_sum = nlop_zaxpbz_create(N, odims, 1, 1);
+		nlop_sum = nlop_chain2_FF(nlop_from_linop_F(linop_expand_create(N, odims, idims)), 0, nlop_sum, 1);
 
-	result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_sum), 0, NULL);
-	result = nn_dup_F(result, 0, NULL, 1, NULL);
+		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_sum), 0, NULL);
+		result = nn_dup_F(result, 0, NULL, 1, NULL);
+	}
 
 	if (_config->debug) {
 
@@ -306,6 +315,9 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 
 	result = nn_sort_inputs_by_list_F(result, ARRAY_SIZE(resnet_sorted_weight_names), resnet_sorted_weight_names);
 	result = nn_sort_outputs_by_list_F(result, ARRAY_SIZE(resnet_sorted_weight_names), resnet_sorted_weight_names);
+
+	for (int i = 0; i < Nw; i++)
+		xfree(wnames[i]);
 
 	return result;
 }
@@ -329,6 +341,8 @@ struct network_varnet_s network_varnet_default = {
 
 	.INTERFACE.debug = false,
 
+	.INTERFACE.prefix = NULL,
+
 	.Nf = 24,
 	.Nw = 31,
 
@@ -339,7 +353,7 @@ struct network_varnet_s network_varnet_default = {
 	.Imax = 1.,
 	.Imin = -1.,
 
-	.residual = true,
+	.INTERFACE.residual = true,
 
 	.init_scale_mu = 0.04,
 };
@@ -413,7 +427,7 @@ static nn_t network_varnet_create(const struct network_s* _config, unsigned int 
 	auto prox_conv = operator_project_mean_free_sphere_create(iov->N, iov->dims, MD_BIT(0), false);
 	nn_result = nn_set_prox_op_F(nn_result, 0, "conv", prox_conv);
 
-	if(config->residual) {
+	if(config->INTERFACE.residual) {
 
 		nn_result = nn_chain2_FF(nn_result, 0, NULL, nn_from_nlop_F(nlop_zaxpbz_create(N, idims, 1., -1.)), 1, NULL);
 		nn_result = nn_dup_F(nn_result, 0, NULL, 1, NULL);
@@ -470,4 +484,105 @@ static nn_t network_mnist_create(const struct network_s* _config, unsigned int N
 	network = nn_append_activation_bias(network, 0, NULL, "dense_bias_", ACT_SOFTMAX, MD_BIT(0));
 
 	return network;
+}
+
+
+
+struct network_resnet_s network_resnet_ksp_default = {
+
+	.INTERFACE.TYPEID = &TYPEID2(network_resnet_s),
+
+	.INTERFACE.create = network_resnet_create,
+
+	.INTERFACE.low_mem = false,
+	.INTERFACE.norm = NORM_NONE,
+	.INTERFACE.norm_batch_flag = MD_BIT(4),
+
+	.INTERFACE.debug = false,
+
+	.INTERFACE.prefix = "ksp",
+
+	.N = 5,
+
+	.Nl = 5,
+	.Nf = 32,
+
+	.Kx = 3,
+	.Ky = 3,
+	.Kz = 1,
+
+	.Ng = 1,
+
+	.conv_flag = MD_BIT(1) | MD_BIT(2) | MD_BIT(3),
+	.channel_flag = MD_BIT(0),
+	.group_flag = 0,
+	.batch_flag = MD_BIT(4),
+
+	.kdims = {[0 ... DIMS -1] = 0},
+	.dilations = {[0 ... DIMS -1] = 1},
+
+	.batch_norm = false,
+	.bias = true,
+
+	.activation = ACT_RELU,
+	.last_activation = ACT_LIN,
+
+	.zero_init = true,
+};
+
+
+DEF_TYPEID(network_combi_kspace_s);
+
+
+struct network_combi_kspace_s network_combi_kspace_default = {
+
+	.INTERFACE.TYPEID = &TYPEID2(network_combi_kspace_s),
+
+	.INTERFACE.create = network_combi_kspace_create,
+
+	.INTERFACE.low_mem = false,
+	.INTERFACE.norm = NORM_NONE,
+	.INTERFACE.norm_batch_flag = MD_BIT(4),
+
+	.INTERFACE.debug = false,
+
+	.INTERFACE.prefix = NULL,
+
+	.INTERFACE.residual = true,
+
+	.ksp_net = CAST_UP(&network_resnet_ksp_default),
+	.img_net = CAST_UP(&network_resnet_default),
+};
+
+
+extern nn_t network_combi_kspace_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
+{
+
+	auto config = CAST_DOWN(network_combi_kspace_s, _config);
+
+	config->img_net->residual = false;
+	config->ksp_net->residual = false;
+
+	nn_t img_net = config->img_net->create(config->img_net, NO, odims, NI, idims, status);
+	nn_t ksp_net = config->ksp_net->create(config->ksp_net, NO, odims, NI, idims, status);
+
+	ksp_net = nn_chain2_swap_FF(nn_from_nlop_F(nlop_from_linop_F(linop_fftc_create(NI, idims, 7))), 0, NULL, ksp_net, 0, NULL);
+	ksp_net = nn_chain2_FF(ksp_net, 0, NULL, nn_from_nlop_F(nlop_from_linop_F(linop_ifftc_create(NI, idims, 7))), 0, NULL);
+
+	nn_t result = nn_combine_FF(img_net, ksp_net);
+	result = nn_dup_F(result, 0, NULL, 1, NULL);
+	result = nn_combine_FF(nn_from_nlop_F(nlop_zaxpbz_create(NO, odims, 1, 1)), result);
+	result = nn_link_F(result, 1, NULL, 0, NULL);
+	result = nn_link_F(result, 1, NULL, 0, NULL);
+
+	if (config->INTERFACE.residual) {
+
+		auto nlop_sum = nlop_zaxpbz_create(NO, odims, 1, 1);
+		nlop_sum = nlop_chain2_FF(nlop_from_linop_F(linop_expand_create(NO, odims, idims)), 0, nlop_sum, 1);
+
+		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_sum), 0, NULL);
+		result = nn_dup_F(result, 0, NULL, 1, NULL);
+	}
+
+	return result;
 }

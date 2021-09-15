@@ -96,9 +96,11 @@ int main_nlinvnet(int argc, char* argv[argc])
 	};
 
 	bool unet = false;
+	bool kspace_network = false;
 
 	struct opt_s network_opts[] = {
 
+		OPTL_SET(0, "kspace", &kspace_network, "add network in kspace"),
 		OPTL_SET(0, "unet", &(unet), "use U-Net (also sets train and data-consistency default values)"),
 	};
 
@@ -164,6 +166,13 @@ int main_nlinvnet(int argc, char* argv[argc])
 	}
 
 	nlinvnet.network = get_default_network(unet ? NETWORK_UNET_RECO : NETWORK_RESBLOCK);
+	if (kspace_network) {
+
+		network_combi_kspace_default.img_net = nlinvnet.network;
+		nlinvnet.network = CAST_UP(&network_combi_kspace_default);
+	}
+
+
 	nlinvnet.network->norm = NORM_MAX;
 
 	long ksp_dims[DIMS];

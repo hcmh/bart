@@ -58,8 +58,6 @@ struct network_unet_s {
 	enum UNET_DOWNSAMPLING_METHOD ds_method;
 	enum UNET_UPSAMPLING_METHOD us_method;
 
-	_Bool residual;
-
 	_Bool adjoint;
 };
 
