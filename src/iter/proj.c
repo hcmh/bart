@@ -18,10 +18,10 @@
 
 
 
-/** 
+/**
  * We write projections to a set M as proximal functions,
- * i.e. f(x) = 0 if x in M and infinity else. 
- * 
+ * i.e. f(x) = 0 if x in M and infinity else.
+ *
  * Proximal function of f is defined as
  * (prox_f)(z) = arg min_x 0.5 || z - x ||_2^2 + f(x)
  *
@@ -42,19 +42,21 @@
 	INTERFACE(operator_data_t);
 	long N;
 	const long* dims;
+
+	float min;
 };
 
 DEF_TYPEID(proj_pos_real_s);
 
 static void proj_pos_real_fun(const operator_data_t* _data, unsigned int N, void* args[N])
-{	
+{
 	assert(2 == N);
 	const auto data = CAST_DOWN(proj_pos_real_s, _data);
 
 	complex float* dst = args[0];
 	const complex float* src = args[1];
 
-	md_zsmax(data->N, data->dims, dst, src, 0);
+	md_zsmax(data->N, data->dims, dst, src, data->min);
 }
 
 static void proj_pos_real_apply(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
@@ -74,7 +76,7 @@ static void proj_pos_real_del(const operator_data_t* _data)
  * Create operator projecting inputs to positive real values
  *
  * @param N
- * @param dims 
+ * @param dims
  */
 const struct operator_p_s* operator_project_pos_real_create(long N, const long dims[N])
 {
@@ -85,6 +87,28 @@ const struct operator_p_s* operator_project_pos_real_create(long N, const long d
 	PTR_ALLOC(long[N], ndims);
 	md_copy_dims(N, *ndims, dims);
 	data->dims = *PTR_PASS(ndims);
+	data->min = 0;
+
+	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), proj_pos_real_apply, proj_pos_real_del);
+}
+
+/**
+ * Create operator projecting inputs to real values larger min
+ *
+ * @param N
+ * @param dims
+ * @param min
+ */
+const struct operator_p_s* operator_project_min_real_create(long N, const long dims[N], float min)
+{
+	PTR_ALLOC(struct proj_pos_real_s, data);
+	SET_TYPEID(proj_pos_real_s, data);
+
+	data->N = N;
+	PTR_ALLOC(long[N], ndims);
+	md_copy_dims(N, *ndims, dims);
+	data->dims = *PTR_PASS(ndims);
+	data->min = min;
 
 	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), proj_pos_real_apply, proj_pos_real_del);
 }
@@ -120,7 +144,7 @@ static void proj_mean_free_fun(const operator_data_t* _data, unsigned int N, voi
 	long mf_dims[data->N];
 	md_select_dims(data->N, data->bflag, batch_dims, data->dims);
 	md_select_dims(data->N, ~data->bflag, mf_dims, data->dims);
-	
+
 	complex float* tmp = md_alloc_sameplace(data->N, batch_dims, CFL_SIZE, dst);
 
 	md_zsum(data->N, data->dims, ~data->bflag, tmp, src);
@@ -148,7 +172,7 @@ static void proj_mean_free_del(const operator_data_t* _data)
  * Dimensions selected by bflag stay independent
  *
  * @param N
- * @param dims 
+ * @param dims
  * @param bflag batch dims -> dimensions which stay independent
  */
 const struct operator_p_s* operator_project_mean_free_create(long N, const long dims[N], unsigned long bflag)
@@ -224,7 +248,7 @@ static void proj_sphere_complex_fun(const struct operator_data_s* _data, unsigne
 
 	long bdims[data->N];
 	md_select_dims(data->N, data->bflag, bdims, data->dims);
-	
+
 	complex float* tmp = md_alloc_sameplace(data->N, bdims, CFL_SIZE, dst);
 	md_zmulc(data->N, data->dims, dst, src, src);
 	md_zsum(data->N, data->dims, ~data->bflag, tmp, dst);
@@ -259,10 +283,10 @@ static void proj_sphere_del(const operator_data_t* _data)
 }
 
 /**
- * Create operator scaling inputs to unit sphere 
+ * Create operator scaling inputs to unit sphere
  *
  * @param N
- * @param dims 
+ * @param dims
  * @param bflag
  * @param real if true, real and imaginary part are handeled independently (as bflag is set for dimension real/imag)
  */
@@ -285,7 +309,7 @@ const struct operator_p_s* operator_project_sphere_create(long N, const long dim
  * Real and imaginary part are considered independently
  *
  * @param N
- * @param dims 
+ * @param dims
  * @param bflag
  * @param real if real, real and imaginary part are handeled independently (as bflag is set for dimension real/imag)
  */
