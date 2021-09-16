@@ -35,6 +35,8 @@
 
 #include "linops/linop.h"
 #include "linops/someops.h"
+#include "linops/sum.h"
+
 
 #include "iter/iter.h"
 #include "iter/iter6.h"
@@ -99,6 +101,8 @@ struct nlinvnet_s nlinvnet_config_opts = {
 
 	.gpu = false,
 	.low_mem = true,
+
+	.extra_lambda = true,
 
 	.graph_file = NULL,
 };
@@ -279,8 +283,47 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int
 		nn_get_in_names_copy(N_in_names_gn, in_names, result);
 		nn_get_in_names_copy(N_in_names_net, in_names + N_in_names_gn, network);
 
+		if (nlinvnet->extra_lambda) {
+
+			int N = noir_model_get_N(nlinvnet->model);
+			assert(N == DIMS);
+
+			long img_dims[N];
+			long col_dims[N];
+
+			noir_model_get_img_dims(N, img_dims, nlinvnet->model);
+			noir_model_get_col_dims(N, col_dims, nlinvnet->model);
+
+			long img_size [2] = { md_calc_size(N, img_dims), Nb };
+			long tot_size [2] = { md_calc_size(N, img_dims) + md_calc_size(N, col_dims), Nb };
+
+			auto nlop = nlop_from_linop_F(linop_chain_FF(linop_repmat_create(1, img_size, MD_BIT(0)), linop_expand_create(1, tot_size, img_size)));
+			nlop = nlop_chain2_FF(nlop, 0, nlop_zaxpbz_create(1, tot_size, 1, 1), 0);
+			result = nn_chain2_swap_FF(nn_from_nlop_F(nlop), 0, NULL, result, 0, "alpha");
+			result = nn_set_input_name_F(result, 0, "alpha");
+			result = nn_set_input_name_F(result, 0, "lambda");
+			result = nn_mark_dup_F(result, "alpha");
+			result = nn_mark_dup_F(result, "lambda");
+
+			nlop = nlop_from_linop_F(linop_chain_FF(linop_repmat_create(1, img_size, MD_BIT(0)), linop_expand_create(1, tot_size, img_size)));
+			nlop = nlop_chain2_FF(nlop, 0, nlop_zaxpbz_create(1, tot_size, 1, 1), 0);
+			nlop = nlop_chain2_FF(nlop, 0, nlop_zdiv_create(1, tot_size), 1);
+			nlop = nlop_chain2_swap_FF(nlop_from_linop_F(linop_chain_FF(linop_repmat_create(1, img_size, MD_BIT(0)), linop_expand_create(1, tot_size, img_size))), 0, nlop, 0);
+			nlop = nlop_dup_F(nlop, 0, 2);
+			nlop = nlop_chain2_FF(nlop_reshape_out_F(nlop, 0, 2, MD_DIMS(tot_size[0], 1)), 0, nlop_tenmul_create(2, tot_size, tot_size, MD_DIMS(tot_size[0], 1)), 1);
+
+			auto tmp = nn_from_nlop_F(nlop);
+			tmp = nn_set_input_name_F(tmp, 1, "lambda");
+			tmp = nn_set_input_name_F(tmp, 1, "alpha");
+			tmp = nn_set_in_type_F(tmp, 0, "lambda", IN_OPTIMIZE);
+			tmp = nn_set_initializer_F(tmp, 0, "lambda", init_const_create(0.01));
+
+			network = nn_chain2_FF(network, 0, NULL, tmp, 0, NULL);
+		}
+
 		result = nn_chain2_FF(network, 0, NULL, result, 0, "x_0");
 		result = nn_dup_F(result, 0, NULL, 1, NULL);
+		result = nn_stack_dup_by_name_F(result);
 		result = nn_sort_inputs_by_list_F(result, N_in_names_gn + N_in_names_net, in_names);
 
 		for (int i = 0; i < N_in_names_gn + N_in_names_net; i++)
@@ -578,6 +621,14 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 
 	auto nn_train = nlinvnet_loss_create(nlinvnet, Nb, false);
 
+	if (nn_is_name_in_in_args(nn_train, "lambda")) {
+
+		auto iov = nn_generic_domain(nn_train, 0, "lambda");
+		auto prox_conv = operator_project_min_real_create(iov->N, iov->dims, 0.001);
+		nn_train = nn_set_prox_op_F(nn_train, 0, "lambda", prox_conv);
+	}
+
+
 	debug_printf(DP_INFO, "Train nlinvnet\n");
 	nn_debug(DP_INFO, nn_train);
 
@@ -646,6 +697,31 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 			val_names[i] = nn_get_out_name_from_arg_index(nn_validation_loss, i, false);
 		value_monitors[num_monitors] = monitor_iter6_nlop_create(nn_get_nlop(nn_validation_loss), false, nn_get_nr_out_args(nn_validation_loss), val_names);
 		nn_free(nn_validation_loss);
+		num_monitors += 1;
+	}
+
+	if (nn_is_name_in_in_args(nn_train, "lambda")) {
+
+		int index_lambda = nn_get_in_arg_index(nn_train, 0, "lambda");
+		int num_lambda = nn_generic_domain(nn_train, 0, "lambda")->dims[0];
+
+		const char* lam = "l";
+		const char* lams[num_lambda];
+
+		for (int i = 0; i < num_lambda; i++)
+			lams[i] = lam;
+
+		auto destack_lambda = nlop_from_linop_F(linop_identity_create(2, MD_DIMS(1, num_lambda)));
+		for (int i = num_lambda - 1; 0 < i; i--)
+			destack_lambda = nlop_chain2_FF(destack_lambda, 0, nlop_destack_create(2, MD_DIMS(1, i), MD_DIMS(1, 1), MD_DIMS(1, i + 1), 1), 0);
+
+		for(int i = 0; i < index_lambda; i++)
+			destack_lambda = nlop_combine_FF(nlop_del_out_create(1, MD_DIMS(1)), destack_lambda);
+		for(int i = index_lambda + 1; i < NI; i++)
+			destack_lambda = nlop_combine_FF(destack_lambda, nlop_del_out_create(1, MD_DIMS(1)));
+
+		value_monitors[num_monitors] = monitor_iter6_nlop_create(destack_lambda, true, num_lambda, lams);
+		nlop_free(destack_lambda);
 		num_monitors += 1;
 	}
 
