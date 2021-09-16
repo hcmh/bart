@@ -427,6 +427,16 @@ const struct nlop_s* nlop_zinv_create(int N, const long dims[N])
 	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), zinv_reg_fun, zinv_reg_der, zinv_reg_adj, NULL, NULL, zinv_reg_del);
 }
 
+/**
+ * Operator dividing input one by input 2
+ * f(x, y) = x / y
+ */
+const struct nlop_s* nlop_zdiv_create(int N, const long dims[N])
+{
+	return nlop_chain2_FF(nlop_zinv_create(N, dims), 0, nlop_tenmul_create(N, dims, dims, dims), 1);
+}
+
+
 struct zmax_s {
 
 	INTERFACE(nlop_data_t);
