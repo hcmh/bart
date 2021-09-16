@@ -221,7 +221,8 @@ struct noir_normal_inversion_s {
 
 	int N;
 	const long* dims;
-	float alpha;
+
+	const struct linop_s* lop_lambda;
 
 	complex float* xn;
 	complex float* out;
@@ -262,7 +263,11 @@ static void noir_normal_inversion_free_ops(const struct noir_normal_inversion_s*
 
 static void noir_normal_inversion(const struct noir_normal_inversion_s* d, complex float* dst, const complex float* src)
 {
-	const struct operator_s* normal_op = nlop_get_derivative(d->normal_op, 0, 0)->forward;
+	auto nlop = nlop_chain2_FF(nlop_from_linop(nlop_get_derivative(d->normal_op, 0, 0)), 0, nlop_zaxpbz_create(d->N, d->dims, 1, 1), 0);
+	nlop = nlop_chain2_FF(nlop_from_linop(d->lop_lambda), 0, nlop, 0);
+	nlop = nlop_dup_F(nlop, 0, 1);
+
+	const struct operator_s* normal_op = nlop->op;
 
 	md_clear(d->N, d->dims, dst, CFL_SIZE);
 
@@ -272,6 +277,8 @@ static void noir_normal_inversion(const struct noir_normal_inversion_s* d, compl
 			(float*)dst,
 			(const float*)src,
 			NULL);
+
+	nlop_free(nlop);
 }
 
 static void noir_normal_inversion_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
@@ -287,11 +294,9 @@ static void noir_normal_inversion_fun(const nlop_data_t* _data, int Narg, comple
 
 	md_copy(d->N, d->dims, d->xn, xn, CFL_SIZE);
 
-	complex float alpha;
-	md_copy(1, MD_DIMS(1), &alpha, args[3], CFL_SIZE);
-	if ((0 != cimagf(alpha)) || (0 > crealf(alpha)))
-		error("Alpha=%f+%fi is not non-negative real number!\n", crealf(alpha), cimagf(alpha));
-	d->iter_conf.INTERFACE.alpha = crealf(alpha);
+	linop_free(d->lop_lambda);
+	d->lop_lambda = linop_cdiag_create(d->N, d->dims, ~0, args[3]);
+	d->iter_conf.INTERFACE.alpha = 0;
 
 	noir_normal_inversion_set_ops(d);
 
@@ -349,7 +354,7 @@ static void noir_normal_inversion_der_xn(const nlop_data_t* _data, unsigned int 
 	md_free(tmp);
 }
 
-static void noir_normal_inversion_der_alpha(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void noir_normal_inversion_der_lambda(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
 	UNUSED(o);
 	UNUSED(i);
@@ -360,7 +365,7 @@ static void noir_normal_inversion_der_alpha(const nlop_data_t* _data, unsigned i
 
 	noir_normal_inversion(d, dst, d->out);
 	md_zsmul(d->N, d->dims, dst, dst, -1);
-	md_zmul2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), dst, MD_STRIDES(d->N, d->dims, CFL_SIZE), dst, MD_SINGLETON_STRS(d->N), src);
+	md_zmul(d->N, d->dims, dst, dst, src);
 
 	noir_normal_inversion_free_ops(d);
 }
@@ -423,7 +428,7 @@ static void noir_normal_inversion_adj_xn(const nlop_data_t* _data, unsigned int 
 
 }
 
-static void noir_normal_inversion_adj_alpha(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void noir_normal_inversion_adj_lambda(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
 	UNUSED(o);
 	UNUSED(i);
@@ -432,16 +437,16 @@ static void noir_normal_inversion_adj_alpha(const nlop_data_t* _data, unsigned i
 
 	noir_normal_inversion_compute_adjoint(d, src);
 
-	md_ztenmulc(d->N, MD_SINGLETON_DIMS(d->N), dst, d->dims, d->out, d->dims, d->AhAdout);
-
-	md_zsmul(d->N, MD_SINGLETON_DIMS(d->N), dst, dst, -1);
-	md_zreal(d->N, MD_SINGLETON_DIMS(d->N), dst, dst);
+	md_zmulc(d->N, d->dims, dst, d->AhAdout, d->out);
+	md_zsmul(d->N, d->dims, dst, dst, -1);
+	md_zreal(d->N, d->dims, dst, dst);
 }
 
 static void noir_normal_inversion_free(const nlop_data_t* _data)
 {
 	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
 
+	linop_free(d->lop_lambda);
 	nlop_free(d->normal_op);
 	xfree(d->dims);
 
@@ -467,7 +472,7 @@ static struct noir_normal_inversion_s* noir_normal_inversion_data_create(struct 
 
 	data->normal_op = noir_get_normal(model);
 
-	data->alpha = 0;
+	data->lop_lambda = NULL;
 
 	data-> xn = NULL;
 	data->out = NULL;
@@ -501,12 +506,12 @@ static const struct nlop_s* noir_normal_inversion_create(struct noir2_s* model, 
 	long nl_idims[3][N];
 	md_copy_dims(N, nl_idims[0], data->dims);
 	md_copy_dims(N, nl_idims[1], data->dims);
-	md_singleton_dims(N, nl_idims[2]);
+	md_copy_dims(N, nl_idims[2], data->dims);
 
 	return nlop_generic_create(	1, N, nl_odims, 3, N, nl_idims, CAST_UP(data),
 					noir_normal_inversion_fun,
-					(nlop_der_fun_t[3][1]){ { noir_normal_inversion_der_src }, { noir_normal_inversion_der_xn }, { noir_normal_inversion_der_alpha } },
-					(nlop_der_fun_t[3][1]){ { noir_normal_inversion_adj_src }, { noir_normal_inversion_adj_xn }, { noir_normal_inversion_adj_alpha } },
+					(nlop_der_fun_t[3][1]){ { noir_normal_inversion_der_src }, { noir_normal_inversion_der_xn }, { noir_normal_inversion_der_lambda } },
+					(nlop_der_fun_t[3][1]){ { noir_normal_inversion_adj_src }, { noir_normal_inversion_adj_xn }, { noir_normal_inversion_adj_lambda } },
 					NULL, NULL, noir_normal_inversion_free);
 
 }
@@ -531,23 +536,21 @@ static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model,
 	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(N, kdims, 1, -1), 1);			//out: y - F(xn); in: y, xn
 	result = nlop_chain2_swap_FF(result, 0, noir_get_adjoint(model), 0);				//out: DF(xn)^H(y - F(xn)); in: y, xn, xn
 	result = nlop_dup_F(result, 1, 2);								//out: DF(xn)^H(y - F(xn)); in: y, xn
-	result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(1, dims, 1, -1), 0);			//out: DF(xn)^H(y - F(xn)) - alpha(xn - x0); in: y, xn, alpha(xn - x0)
+	result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(1, dims, 1, -1), 0);			//out: DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, lambda(xn - x0)
 
 	auto nlop_reg = nlop_zaxpbz_create(1, dims, 1, -1);						//out: xn - x0; in: xn, x0
-	nlop_reg = nlop_chain2_swap_FF(nlop_reg, 0, nlop_tenmul_create(1, dims, dims, MD_DIMS(1)), 0);	//out: alpha(x_n - x_0); in: xn, x0, alpha
+	nlop_reg = nlop_chain2_swap_FF(nlop_reg, 0, nlop_tenmul_create(1, dims, dims, dims), 0);	//out: lambda(x_n - x_0); in: xn, x0, lambda
 
-	result = nlop_chain2_FF(nlop_reg, 0, result, 2);						//out: DF(xn)^H(y - F(xn)) - alpha(xn - x0); in: y, xn, xn, x0, alpha
-	result = nlop_dup_F(result, 1, 2);								//out: DF(xn)^H(y - F(xn)) - alpha(xn - x0); in: y, xn, x0, alpha
+	result = nlop_chain2_FF(nlop_reg, 0, result, 2);						//out: DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, xn, x0, lambda
+	result = nlop_dup_F(result, 1, 2);								//out: DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, x0, lambda
 
 
-	result = nlop_chain2_swap_FF(result, 0, noir_normal_inversion_create(model, iter_conf), 0);	//out: (DF(xn)^H DF(xn) + alpha)^-1 DF(xn)^H(y - F(xn)) - alpha(xn - x0); in: y, xn, x0, alpha, xn, alpha
-	result = nlop_dup_F(result, 1, 4);								//out: (DF(xn)^H DF(xn) + alpha)^-1 DF(xn)^H(y - F(xn)) - alpha(xn - x0); in: y, xn, x0, alpha, alpha
-	result = nlop_dup_F(result, 3, 4);								//out: (DF(xn)^H DF(xn) + alpha)^-1 DF(xn)^H(y - F(xn)) - alpha(xn - x0); in: y, xn, x0, alpha
+	result = nlop_chain2_swap_FF(result, 0, noir_normal_inversion_create(model, iter_conf), 0);	//out: (DF(xn)^H DF(xn) + lambda)^-1 DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, x0, lambda, xn, lambda
+	result = nlop_dup_F(result, 1, 4);								//out: (DF(xn)^H DF(xn) + lambda)^-1 DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, x0, lambda, lambda
+	result = nlop_dup_F(result, 3, 4);								//out: (DF(xn)^H DF(xn) + lambda)^-1 DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, x0, lambda
 
 	result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(1, dims, update, 1), 0);
 	result = nlop_dup_F(result, 1, 4);
-
-	result = nlop_reshape_in_F(result, 3, N, MD_SINGLETON_DIMS(N));
 
 	return result;
 }
@@ -572,7 +575,7 @@ const struct nlop_s* noir_gauss_newton_step_batch_create(struct noir2_s* model, 
 		result = nlop_stack_inputs_F(result, 0, 4, BATCH_DIM);
 		result = nlop_stack_inputs_F(result, 1, 4, 1);
 		result = nlop_stack_inputs_F(result, 2, 4, 1);
-		result = nlop_stack_inputs_F(result, 3, 4, BATCH_DIM);
+		result = nlop_dup_F(result, 3, 4);
 
 		result = nlop_stack_outputs_F(result, 0, 1, 1);
 	}

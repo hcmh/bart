@@ -405,9 +405,9 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETW
 	noir_model_get_cim_dims(N, cim_dims, nlinvnet->model);
 
 	complex float alpha = nlinvnet->conf->alpha;
-	long alp_dims[N];
-	md_copy_dims(N, alp_dims, nn_generic_domain(result, 0, "alpha")->dims);
-	result = nn_set_input_const_F2(result, 0, "alpha", N, alp_dims, MD_SINGLETON_STRS(N), true, &alpha);	// in: y, xn, x0
+	long alp_dims[1];
+	md_copy_dims(1, alp_dims, nn_generic_domain(result, 0, "alpha")->dims);
+	result = nn_set_input_const_F2(result, 0, "alpha", 1, alp_dims, MD_SINGLETON_STRS(N), true, &alpha);	// in: y, xn, x0
 
 
 	long ini_dims[2];
