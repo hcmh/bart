@@ -171,6 +171,8 @@ int main_reconet(int argc, char* argv[])
 
 		OPTL_SET(0, "test", &(test_defaults), "very small network for tests"),
 		OPTL_STRING(0, "export-graph", (const char**)(&(graph_filename)), "<file.dot>", "export graph for visualization"),
+
+		OPT_INFILE('B', &(data.filename_basis), "file", "temporal (or other) basis"),
 	};
 
 	const char* filename_weights;
@@ -266,6 +268,7 @@ int main_reconet(int argc, char* argv[])
 	data.load_mem = load_mem;
 	load_network_data(&data);
 
+	valid_data.filename_basis = data.filename_basis;
 	bool use_valid_data = (NULL != valid_data.filename_coil) && (NULL != valid_data.filename_kspace) && (NULL != valid_data.filename_out);
 
 	config.graph_file = graph_filename;
@@ -278,6 +281,9 @@ int main_reconet(int argc, char* argv[])
 		config.mri_config->noncart = true;
 		config.mri_config->nufft_conf = data.nufft_conf;
 	}
+
+	if (NULL != data.filename_basis)
+		config.mri_config->basis = true;
 
 	if (train) {
 

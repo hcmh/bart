@@ -321,7 +321,7 @@ static struct sense_noncart_normal_s* sense_noncart_normal_create(int N, const l
 	data->bat_dims = *PTR_PASS(n_bat_dims);
 	data->max_dims = *PTR_PASS(n_max_dims);
 
-	assert(md_check_equal_dims(N, psf_dims, max_dims, md_nontriv_dims(N, psf_dims)));
+	assert(conf->basis || md_check_equal_dims(N, psf_dims, max_dims, md_nontriv_dims(N, psf_dims)));
 
 	PTR_ALLOC(const struct operator_s*[md_calc_size(N, data->bat_dims)], nufft_normal_ops);
 	for (int i = 0; i < md_calc_size(N, data->bat_dims); i++)

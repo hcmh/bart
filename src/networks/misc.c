@@ -37,6 +37,7 @@ struct network_data_s network_data_empty = {
 	.filename_kspace = NULL,
 	.filename_coil = NULL,
 	.filename_out = NULL,
+	.filename_basis = NULL,
 
 	.kspace = NULL,
 	.coil = NULL,
@@ -46,6 +47,7 @@ struct network_data_s network_data_empty = {
 
 	.create_out = false,
 	.load_mem = false,
+	.basis = false,
 
 	.nufft_conf = &nufft_conf_defaults,
 };
@@ -102,6 +104,8 @@ void load_network_data(struct network_data_s* nd) {
 
 	if (NULL == nd->filename_trajectory) {
 
+		assert(NULL == nd->filename_basis);
+
 		const struct linop_s* lop_frw = linop_fmac_create(DIMS, nd->max_dims, ~cim_flags, ~img_flags, ~col_flags, nd->coil);
 		lop_frw = linop_chain_FF(lop_frw, linop_resize_center_create(DIMS, nd->ksp_dims, nd->cim_dims));
 		lop_frw = linop_chain_FF(lop_frw, linop_fftc_create(DIMS, nd->ksp_dims, FFT_FLAGS));
@@ -138,7 +142,36 @@ void load_network_data(struct network_data_s* nd) {
 		long trj_dims[DIMS];
 		traj = load_cfl(nd->filename_trajectory, DIMS, trj_dims);
 
-		const struct linop_s* fft_op = nufft_create2(DIMS, nd->ksp_dims, nd->cim_dims, trj_dims, traj, pat_dims, pattern, NULL, NULL, *(nd->nufft_conf));
+		const struct linop_s* fft_op = NULL;
+
+		if (NULL != nd->filename_basis) {
+
+			long bas_dims[DIMS];
+			complex float* basis = load_cfl(nd->filename_basis, DIMS, bas_dims);
+
+			md_copy_dims(DIMS, nd->max_dims, nd->ksp_dims);
+			md_copy_dims(5, nd->max_dims, nd->col_dims);
+			md_max_dims(DIMS, ~0, nd->max_dims, nd->max_dims, bas_dims);
+			nd->max_dims[TE_DIM] = 1;
+
+			md_select_dims(DIMS, ~MAPS_FLAG, nd->cim_dims, nd->max_dims);
+			md_select_dims(DIMS, ~COIL_FLAG, nd->img_dims, nd->max_dims);
+
+			md_free(nd->adjoint);
+			nd->adjoint = md_alloc(DIMS, nd->img_dims, CFL_SIZE);
+
+			cim_flags = md_nontriv_dims(DIMS, nd->cim_dims);
+			img_flags = md_nontriv_dims(DIMS, nd->img_dims);
+			col_flags = md_nontriv_dims(DIMS, nd->col_dims);
+
+			fft_op = nufft_create2(DIMS, nd->ksp_dims, nd->cim_dims, trj_dims, traj, pat_dims, pattern, bas_dims, basis, *(nd->nufft_conf));
+
+			unmap_cfl(DIMS, bas_dims, basis);
+
+			nd->basis = true;
+		} else {
+			fft_op = nufft_create2(DIMS, nd->ksp_dims, nd->cim_dims, trj_dims, traj, pat_dims, pattern, NULL, NULL, *(nd->nufft_conf));
+		}
 
 		if (DIMS + 1 != nufft_get_psf_dims(fft_op, DIMS + 1, nd->psf_dims))
 			assert(0);

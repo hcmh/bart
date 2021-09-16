@@ -481,18 +481,25 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 	assert(1 == bitcount(config->mri_config->batch_flags));
 	int bat_dim = md_max_idx(config->mri_config->batch_flags);
 
-	long idims_w[5] = {1, img_dims[0], img_dims[1], img_dims[2], img_dims[bat_dim]};
-	long idims_w2[5] = {config->reinsert ? 2 : 1, img_dims[0], img_dims[1], img_dims[2], img_dims[bat_dim]};
-	long odims_w[5] = {1, img_dims[0], img_dims[1], img_dims[2], img_dims[bat_dim]};
+	unsigned long channel_flag = (~(FFT_FLAGS | config->mri_config->batch_flags)) & (md_nontriv_dims(N, img_dims));
+	assert(config->mri_config->batch_flags > channel_flag);
+
+	long chn_dims[N];
+	md_select_dims(N, channel_flag, chn_dims, img_dims);
+	long channel = md_calc_size(N, chn_dims);
+
+	long dims[5] = {img_dims[0], img_dims[1], img_dims[2], channel, img_dims[bat_dim]};
+	long dims_net[5] = {channel, img_dims[0], img_dims[1], img_dims[2], img_dims[bat_dim]};
+	long dims_net_2[5] = {config->reinsert ? 2 * channel : channel, img_dims[0], img_dims[1], img_dims[2], img_dims[bat_dim]};
 
 	nn_t result = NULL;
 
-	result = network_create(config->network, 5, odims_w, 5, idims_w2, status);
+	result = network_create(config->network, 5, dims_net, 5, dims_net_2, status);
 
 	if (config->kspace) {
 
-		auto nn_fft = nn_from_nlop_F(nlop_from_linop_F(linop_fftc_create(5, idims_w2, 14)));
-		auto nn_ifft = nn_from_nlop_F(nlop_from_linop_F(linop_ifftc_create(5, odims_w, 14)));
+		auto nn_fft = nn_from_nlop_F(nlop_from_linop_F(linop_fftc_create(5, dims_net_2, 14)));
+		auto nn_ifft = nn_from_nlop_F(nlop_from_linop_F(linop_ifftc_create(5, dims_net, 14)));
 
 		result = nn_chain2_FF(nn_fft, 0, NULL, result, 0, NULL);
 		result = nn_chain2_FF(result, 0, NULL, nn_ifft, 0, NULL);
@@ -500,17 +507,25 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 
 	if (config->reinsert) {
 
-		long idims_w2[5] = {2, img_dims[0], img_dims[1], img_dims[2], img_dims[bat_dim]};
-		const struct nlop_s* nlop_init = nlop_stack_create(5, idims_w2, idims_w, idims_w, 0);
+		assert(1 == channel);
+
+		const struct nlop_s* nlop_init = nlop_stack_create(5, dims_net_2, dims_net, dims_net, 0);
 		nlop_init = nlop_reshape_in_F(nlop_init, 0, N, img_dims);
 		nlop_init = nlop_reshape_in_F(nlop_init, 1, N, img_dims);
 
 		auto nn_init = nn_from_nlop_F(nlop_init);
 		nn_init = nn_set_input_name_F(result, 1, "reinsert");
 
-
-
 		result = nn_chain2_FF(nn_init, 0, NULL, result, 0, NULL);
+	}
+
+	if (1 != channel) {
+
+		unsigned int iperm[5] = {3, 0, 1, 2, 4};
+		unsigned int operm[5] = {1, 2, 3, 0, 4};
+
+		result = nn_chain2_swap_FF(nn_from_nlop_F(nlop_from_linop_F(linop_permute_create(5, iperm, dims))), 0, NULL, result, 0, NULL);
+		result = nn_chain2_swap_FF(result, 0, NULL, nn_from_nlop_F(nlop_from_linop_F(linop_permute_create(5, operm, dims_net))), 0, NULL);
 
 	}
 

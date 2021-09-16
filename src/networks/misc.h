@@ -18,6 +18,7 @@ struct network_data_s {
 	const char* filename_pattern;
 	const char* filename_kspace;
 	const char* filename_coil;
+	const char* filename_basis;
 	const char* filename_out;
 
 	_Complex float* kspace;
@@ -30,6 +31,7 @@ struct network_data_s {
 
 	_Bool create_out;
 	_Bool load_mem;
+	_Bool basis;
 };
 
 extern struct network_data_s network_data_empty;
