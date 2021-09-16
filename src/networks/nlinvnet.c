@@ -103,6 +103,7 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.low_mem = true,
 
 	.extra_lambda = true,
+	.fix_lambda = false,
 
 	.graph_file = NULL,
 };
@@ -132,8 +133,8 @@ void nlinvnet_init_model_cart(struct nlinvnet_s* nlinvnet, int N,
 
 	nlinvnet->iter_conf = TYPE_ALLOC(struct iter_conjgrad_conf);
 	*(nlinvnet->iter_conf) = iter_conjgrad_defaults;
-	nlinvnet->iter_conf->INTERFACE.alpha = 1.;
-	nlinvnet->iter_conf->l2lambda = 1.;
+	nlinvnet->iter_conf->INTERFACE.alpha = 0.;
+	nlinvnet->iter_conf->l2lambda = 0.;
 	nlinvnet->iter_conf->maxiter = (0 == nlinvnet->conf->cgiter) ? 30 : nlinvnet->conf->cgiter;
 	nlinvnet->iter_conf->tol = 0.;
 
@@ -315,7 +316,12 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int
 			auto tmp = nn_from_nlop_F(nlop);
 			tmp = nn_set_input_name_F(tmp, 1, "lambda");
 			tmp = nn_set_input_name_F(tmp, 1, "alpha");
-			tmp = nn_set_in_type_F(tmp, 0, "lambda", IN_OPTIMIZE);
+
+			if (nlinvnet->fix_lambda)
+				tmp = nn_set_in_type_F(tmp, 0, "lambda", IN_STATIC);
+			else
+				tmp = nn_set_in_type_F(tmp, 0, "lambda", IN_OPTIMIZE);;
+
 			tmp = nn_set_initializer_F(tmp, 0, "lambda", init_const_create(0.01));
 
 			network = nn_chain2_FF(network, 0, NULL, tmp, 0, NULL);

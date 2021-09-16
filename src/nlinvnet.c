@@ -115,6 +115,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		OPTL_SET(0, "rss-loss", &(nlinvnet.rss_loss), "train on rss instead of coil images"),
 		OPTL_SET(0, "rss-norm", &(nlinvnet.normalize_rss), "scale output image to rss normalization"),
+		OPTL_SET(0, "fix-lambda", &(nlinvnet.fix_lambda), "fix lambda"),
 
 		OPTL_INT(0, "iter-net", &(nlinvnet.iter_net), "iter", "number of iterations with network"),
 		//OPTL_INT(0, "iter-net-shift", &(nlinvnet.iter_net_shift), "iter", "no network in the last \"iter\" steps"),

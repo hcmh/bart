@@ -29,6 +29,7 @@ struct nlinvnet_s {
 	_Bool normalize_rss;
 
 	_Bool extra_lambda;
+	_Bool fix_lambda;
 
 	const char* graph_file;
 };
