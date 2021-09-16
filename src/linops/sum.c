@@ -179,3 +179,75 @@ const struct linop_s* linop_avg_create(int N, const long imgd_dims[N], unsigned 
 }
 
 
+struct repmat_data {
+
+	INTERFACE(linop_data_t);
+
+	int N;
+	long *odims;
+	long *idims;
+	long *ostrs;
+	long *istrs;
+};
+
+static DEF_TYPEID(repmat_data);
+
+
+
+static struct repmat_data* repmat_create_data(int N, const long odims[N], unsigned long flags)
+{
+	PTR_ALLOC(struct repmat_data, data);
+	SET_TYPEID(repmat_data, data);
+
+	data->N = N;
+	data->odims = *TYPE_ALLOC(long[N]);
+	data->ostrs = *TYPE_ALLOC(long[N]);
+	data->idims = *TYPE_ALLOC(long[N]);
+	data->istrs = *TYPE_ALLOC(long[N]);
+
+	// decom dimensions
+	md_copy_dims(N, data->odims, odims);
+	md_calc_strides(N, data->ostrs, odims, CFL_SIZE);
+	md_select_dims(N, ~flags, data->idims, odims);
+	md_calc_strides(N, data->istrs, data->idims, CFL_SIZE);
+
+	return PTR_PASS(data);
+}
+
+
+
+static void repmat_free_data(const linop_data_t* _data)
+{
+	auto data = CAST_DOWN(repmat_data, _data);
+
+	xfree(data->odims);
+	xfree(data->ostrs);
+	xfree(data->idims);
+	xfree(data->istrs);
+
+	xfree(data);
+}
+
+
+static void repmat_apply(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(repmat_data, _data);
+	md_copy2(data->N, data->odims, data->ostrs, dst, data->istrs, src, CFL_SIZE);
+}
+
+
+static void repmat_apply_adjoint(const linop_data_t* _data, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(repmat_data, _data);
+
+	md_clear(data->N, data->idims, dst, CFL_SIZE);
+	md_zadd2(data->N, data->odims, data->istrs, dst, data->istrs, dst, data->ostrs, src);
+}
+
+const struct linop_s* linop_repmat_create(int N, const long odims[N], unsigned long flags)
+{
+	struct repmat_data* data = repmat_create_data(N, odims, flags);
+
+	return linop_create(N, data->odims, N, data->idims,
+			CAST_UP(data), repmat_apply, repmat_apply_adjoint, NULL, NULL, repmat_free_data);
+}
