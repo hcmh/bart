@@ -30,6 +30,7 @@ struct nlinvnet_s {
 
 	_Bool extra_lambda;
 	_Bool fix_lambda;
+	_Bool fix_coils;
 
 	const char* graph_file;
 };

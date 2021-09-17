@@ -102,6 +102,28 @@ long noir_model_get_skip(struct noir2_s* model)
 }
 
 
+static const struct nlop_s* noir_debug_coil_create(struct noir2_s* model, const char* filename)
+{
+	int N = noir_model_get_N(model);
+
+	long img_dims[N];
+	long col_dims[N];
+
+	noir_model_get_img_tm_dims(N, img_dims, model);
+	noir_model_get_col_tm_dims(N, col_dims, model);
+
+	auto result = noir_decomp_create(model);
+	result = nlop_del_out_F(result, 0);
+	result = nlop_chain_FF(result, nlop_dump_create(N, col_dims, filename, true, false, false));
+	result = nlop_del_out_F(result, 0);
+
+	result = nlop_combine_FF(result, nlop_from_linop_F(linop_identity_create(1, MD_DIMS(noir_model_get_size(model)))));
+	result = nlop_dup_F(result, 0, 1);
+
+	return result;
+}
+
+
 
 static const struct nlop_s* noir_get_forward(struct noir2_s* model)
 {
@@ -517,7 +539,7 @@ static const struct nlop_s* noir_normal_inversion_create(struct noir2_s* model, 
 }
 
 
-static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, float update)
+static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, float update, bool fix_coils)
 {
 	auto result = noir_get_forward(model);	//out: F(xn); in: xn
 
@@ -533,39 +555,66 @@ static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model,
 	md_copy_dims(1, dims, dom->dims);
 	md_copy_dims(N, kdims, cod->dims);
 
+	complex float* mask_img = NULL;
+	complex float* mask_col = NULL;
+
+	if (fix_coils) {
+
+		mask_img = md_alloc(1, dims, CFL_SIZE);
+		mask_col = md_alloc(1, dims, CFL_SIZE);
+
+		md_clear(1, dims, mask_img, CFL_SIZE);
+		md_clear(1, dims, mask_col, CFL_SIZE);
+
+		md_zfill(1, MD_DIMS(noir_model_get_skip(model)), mask_img, 1.);
+		md_zfill(1, MD_DIMS(noir_model_get_size(model) - noir_model_get_skip(model)), mask_col + noir_model_get_skip(model), 1.);
+	}
+
 	result = nlop_chain2_FF(result, 0, nlop_zaxpbz_create(N, kdims, 1, -1), 1);			//out: y - F(xn); in: y, xn
 	result = nlop_chain2_swap_FF(result, 0, noir_get_adjoint(model), 0);				//out: DF(xn)^H(y - F(xn)); in: y, xn, xn
 	result = nlop_dup_F(result, 1, 2);								//out: DF(xn)^H(y - F(xn)); in: y, xn
 	result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(1, dims, 1, -1), 0);			//out: DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, lambda(xn - x0)
 
 	auto nlop_reg = nlop_zaxpbz_create(1, dims, 1, -1);						//out: xn - x0; in: xn, x0
+	if (NULL != mask_img)
+		nlop_reg = nlop_chain2_FF(nlop_reg, 0, nlop_from_linop_F(linop_cdiag_create(1, dims, MD_BIT(0), mask_img)), 0);
 	nlop_reg = nlop_chain2_swap_FF(nlop_reg, 0, nlop_tenmul_create(1, dims, dims, dims), 0);	//out: lambda(x_n - x_0); in: xn, x0, lambda
 
 	result = nlop_chain2_FF(nlop_reg, 0, result, 2);						//out: DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, xn, x0, lambda
 	result = nlop_dup_F(result, 1, 2);								//out: DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, x0, lambda
 
+	auto nlop_inv = noir_normal_inversion_create(model, iter_conf);
 
-	result = nlop_chain2_swap_FF(result, 0, noir_normal_inversion_create(model, iter_conf), 0);	//out: (DF(xn)^H DF(xn) + lambda)^-1 DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, x0, lambda, xn, lambda
+	if (NULL != mask_col) {
+
+		nlop_inv = nlop_chain2_swap_FF(nlop_from_linop_F(linop_cdiag_create(1, dims, MD_BIT(0), mask_col)), 0, nlop_inv, 1);
+		nlop_inv = nlop_chain2_swap_FF(nlop_from_linop_F(linop_cdiag_create(1, dims, MD_BIT(0), mask_img)), 0, nlop_inv, 1);
+	}
+
+	result = nlop_chain2_swap_FF(result, 0, nlop_inv, 0);						//out: (DF(xn)^H DF(xn) + lambda)^-1 DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, x0, lambda, xn, lambda
 	result = nlop_dup_F(result, 1, 4);								//out: (DF(xn)^H DF(xn) + lambda)^-1 DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, x0, lambda, lambda
 	result = nlop_dup_F(result, 3, 4);								//out: (DF(xn)^H DF(xn) + lambda)^-1 DF(xn)^H(y - F(xn)) - lambda(xn - x0); in: y, xn, x0, lambda
 
 	result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(1, dims, update, 1), 0);
 	result = nlop_dup_F(result, 1, 4);
 
+	md_free(mask_img);
+	md_free(mask_col);
+
 	return result;
 }
 
-const struct nlop_s* noir_gauss_newton_step_batch_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, int Nb, float update)
+const struct nlop_s* noir_gauss_newton_step_batch_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, int Nb, float update, bool fix_coils)
 {
 
-	auto result = noir_gauss_newton_step_create(model, iter_conf, update);
+	auto result = noir_gauss_newton_step_create(model, iter_conf, update, fix_coils);
 	result = nlop_append_singleton_dim_in_F(result, 1);
 	result = nlop_append_singleton_dim_in_F(result, 2);
 	result = nlop_append_singleton_dim_out_F(result, 0);
 
 	for (int i = 1; i < Nb; i++) {
 
-		auto tmp = noir_gauss_newton_step_create(model, iter_conf, update);
+		auto tmp = noir_gauss_newton_step_create(model, iter_conf, update, fix_coils);
 		tmp = nlop_append_singleton_dim_in_F(tmp, 1);
 		tmp = nlop_append_singleton_dim_in_F(tmp, 2);
 		tmp = nlop_append_singleton_dim_out_F(tmp, 0);

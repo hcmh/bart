@@ -152,9 +152,9 @@ void nlinvnet_init_model_cart(struct nlinvnet_s* nlinvnet, int N,
 	assert(0 == nlinvnet->iter_conf->tol);
 }
 
-static nn_t nlinvnet_get_gauss_newton_step(const struct nlinvnet_s* nlinvnet, int Nb, float update)
+static nn_t nlinvnet_get_gauss_newton_step(const struct nlinvnet_s* nlinvnet, int Nb, float update, bool fix_coils)
 {
-	auto result = nn_from_nlop_F(noir_gauss_newton_step_batch_create(nlinvnet->model, nlinvnet->iter_conf, Nb, update));
+	auto result = nn_from_nlop_F(noir_gauss_newton_step_batch_create(nlinvnet->model, nlinvnet->iter_conf, Nb, update, fix_coils));
 	result = nn_set_input_name_F(result, 0, "y");
 	result = nn_set_input_name_F(result, 1, "x_0");
 	result = nn_set_input_name_F(result, 1, "alpha");
@@ -268,7 +268,7 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int
 
 	float update = index < nlinvnet->iter_init ? 0.5 : 1;
 
-	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update);
+	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update, false);
 
 	long reg_dims[2];
 	md_copy_dims(2, reg_dims, nn_generic_domain(result, 0, "x_0")->dims);
@@ -303,19 +303,10 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int
 			result = nn_chain2_swap_FF(nn_from_nlop_F(nlop), 0, NULL, result, 0, "alpha");
 			result = nn_set_input_name_F(result, 0, "alpha");
 			result = nn_set_input_name_F(result, 0, "lambda");
-			result = nn_mark_dup_F(result, "alpha");
 			result = nn_mark_dup_F(result, "lambda");
 
-			nlop = nlop_from_linop_F(linop_chain_FF(linop_repmat_create(1, img_size, MD_BIT(0)), linop_expand_create(1, tot_size, img_size)));
-			nlop = nlop_chain2_FF(nlop, 0, nlop_zaxpbz_create(1, tot_size, 1, 1), 0);
-			nlop = nlop_chain2_FF(nlop, 0, nlop_zdiv_create(1, tot_size), 1);
-			nlop = nlop_chain2_swap_FF(nlop_from_linop_F(linop_chain_FF(linop_repmat_create(1, img_size, MD_BIT(0)), linop_expand_create(1, tot_size, img_size))), 0, nlop, 0);
-			nlop = nlop_dup_F(nlop, 0, 2);
-			nlop = nlop_chain2_FF(nlop_reshape_out_F(nlop, 0, 2, MD_DIMS(tot_size[0], 1)), 0, nlop_tenmul_create(2, tot_size, tot_size, MD_DIMS(tot_size[0], 1)), 1);
-
-			auto tmp = nn_from_nlop_F(nlop);
-			tmp = nn_set_input_name_F(tmp, 1, "lambda");
-			tmp = nn_set_input_name_F(tmp, 1, "alpha");
+			nn_t tmp = nn_from_nlop_F(nlop_del_out_create(1, MD_DIMS(1)));
+			tmp = nn_set_input_name_F(tmp, 0, "lambda");
 
 			if (nlinvnet->fix_lambda)
 				tmp = nn_set_in_type_F(tmp, 0, "lambda", IN_STATIC);
@@ -324,7 +315,7 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int
 
 			tmp = nn_set_initializer_F(tmp, 0, "lambda", init_const_create(0.01));
 
-			network = nn_chain2_FF(network, 0, NULL, tmp, 0, NULL);
+			network = nn_combine_FF(tmp, network);
 		}
 
 		result = nn_chain2_FF(network, 0, NULL, result, 0, "x_0");
