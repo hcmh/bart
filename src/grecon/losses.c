@@ -11,6 +11,7 @@ struct opt_s loss_opts[] = {
 	OPTL_FLOAT(0, "mse-magnitude", &(loss_option.weighting_mse_rss), "weighting", "weighting for mean squared error (rss)"),
 	OPTL_FLOAT(0, "mad-magnitude", &(loss_option.weighting_mad_rss), "weighting", "weighting for mean absolute difference (rss)"),
 	OPTL_FLOAT(0, "nmse-magnitude", &(loss_option.weighting_nmse_rss), "weighting", "weighting for normalized mean squared error (rss)"),
+	OPTL_FLOAT(0, "nmse-magnitude-scaled", &(loss_option.weighting_nmse_rss_scaled), "weighting", "weighting for normalized mean squared error scaled to optimal scale(rss)"),
 	OPTL_FLOAT(0, "ssim", &(loss_option.weighting_ssim_rss), "weighting", "weighting for structural similarity index measure (rss)"),
 
 	OPTL_FLOAT(0, "cce", &(loss_option.weighting_cce), "weighting", "weighting for categorical cross entropy"),

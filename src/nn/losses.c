@@ -168,6 +168,27 @@ const struct nlop_s* nlop_mse_create(int N, const long dims[N], unsigned long me
 	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mse_fun, (nlop_der_fun_t[2][1]){ { mse_der1 }, { mse_der2 } }, (nlop_der_fun_t[2][1]){ { mse_adj1 }, { mse_adj2 } }, NULL, NULL, mse_del);
 }
 
+//compute lambda to find argmin ||lambda * x - xref||^2
+const struct nlop_s* nlop_mse_scl_create(int N, const long dims[N], unsigned long batch_flags)
+{
+	long bat_dims[N];
+	md_select_dims(N, batch_flags, bat_dims, dims);
+
+	auto nlop1 = nlop_chain2_FF(nlop_tenmul_create(N, bat_dims, dims, dims), 0, nlop_from_linop_F(linop_zreal_create(N, bat_dims)), 0);
+	nlop1 = nlop_chain2_FF(nlop_from_linop_F(linop_zconj_create(N, dims)), 0, nlop1, 0);
+
+	auto nlop2 = nlop_chain2_FF(nlop_tenmul_create(N, bat_dims, dims, dims), 0, nlop_from_linop_F(linop_zreal_create(N, bat_dims)), 0);
+	nlop2 = nlop_chain2_FF(nlop_from_linop_F(linop_zconj_create(N, dims)), 0, nlop2, 0);
+
+	auto nlop_scl = nlop_chain2_FF(nlop1, 0, nlop_zdiv_create(N, bat_dims), 0);
+	nlop_scl = nlop_chain2_FF(nlop2, 0, nlop_scl, 0);
+
+	nlop_scl = nlop_dup_F(nlop_scl, 2, 3);
+	nlop_scl = nlop_dup_F(nlop_scl, 0, 2); // in: x, x_ref; out: lambda = (x*xref) / (x*x)
+
+	return nlop_scl;
+}
+
 const struct nlop_s* nlop_nmse_create(int N, const long dims[N], unsigned long batch_flags)
 {
 	long bat_dims[N];
@@ -181,6 +202,27 @@ const struct nlop_s* nlop_nmse_create(int N, const long dims[N], unsigned long b
 	result = nlop_dup_F(result, 1, 2);
 	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_scale_create(N, MD_SINGLETON_DIMS(N), 1. / md_calc_size(N, bat_dims))), 0);
 	result = nlop_reshape_out_F(result, 0, 1, MD_SINGLETON_DIMS(1));
+
+	return result;
+}
+
+const struct nlop_s* nlop_nmse_scl_create(int N, const long dims[N], unsigned long batch_flags)
+{
+	long bat_dims[N];
+	md_select_dims(N, batch_flags, bat_dims, dims);
+
+	auto nlop_scl = nlop_mse_scl_create(N, dims, batch_flags);
+	auto nlop_nmse = nlop_nmse_create(N, dims, batch_flags);
+
+	nlop_nmse = nlop_chain2_swap_FF(nlop_tenmul_create(N, dims, dims, bat_dims), 0, nlop_nmse, 0);
+	nlop_nmse = nlop_chain2_FF(nlop_scl, 0, nlop_nmse, 1);
+
+	nlop_nmse = nlop_dup_F(nlop_nmse, 0, 2);
+	nlop_nmse = nlop_dup_F(nlop_nmse, 1, 2);
+
+	nlop_export_graph("tmp.dot", nlop_nmse);
+
+	return nlop_nmse;
 }
 
 const struct nlop_s* nlop_nrmse_create(int N, const long dims[N], unsigned long batch_flags)
@@ -196,6 +238,8 @@ const struct nlop_s* nlop_nrmse_create(int N, const long dims[N], unsigned long 
 	result = nlop_dup_F(result, 1, 2);
 	result = nlop_chain2_FF(result, 0, nlop_from_linop_F(linop_scale_create(N, MD_SINGLETON_DIMS(N), 1. / md_calc_size(N, bat_dims))), 0);
 	result = nlop_reshape_out_F(result, 0, 1, MD_SINGLETON_DIMS(1));
+
+	return result;
 }
 
 
