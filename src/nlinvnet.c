@@ -141,6 +141,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "<weights-init>", "load weights for continuing training"),
 
+		OPTL_INT(0, "cgiter", &(conf.cgiter), "", "number of cg iterations"),
+
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 	};
 
