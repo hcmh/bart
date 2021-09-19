@@ -76,6 +76,7 @@ int main_nlinv(int argc, char* argv[argc])
 		ARG_OUTFILE(false, &sens_file, "sensitivities"),
 	};
 
+	bool old_scaling = false;
 	bool normalize = true;
 	bool combine = true;
 	unsigned int nmaps = 1;
@@ -392,11 +393,14 @@ int main_nlinv(int argc, char* argv[argc])
 		conf.nufft_conf = &nufft_conf;
 
 		//FIXME: this is wrong but necessary to be consistent with old scaling:
-		float sc = 1.;
-		for (int i = 0; i < 3; i++)
-			if (1 != dims[i])
-				sc *= 2.;
-		md_zsmul(DIMS, ksp_dims, kspace, kspace, 1. / sqrtf(sc));
+		if (old_scaling) {
+
+			float sc = 1.;
+			for (int i = 0; i < 3; i++)
+				if (1 != dims[i])
+					sc *= 2.;
+			md_zsmul(DIMS, ksp_dims, kspace, kspace, 1. / sqrtf(sc));
+		}
 
 		noir2_recon_noncart(&conf, DIMS,
 			img_dims, img, ref_img,
