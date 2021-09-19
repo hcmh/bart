@@ -48,10 +48,13 @@ int main_cc(int argc, char* argv[argc])
 	bool all = false;
 	enum cc_type { SCC, GCC, ECC } cc_type = SCC;
 
+	const char* file_matrix = NULL;
+
 	const struct opt_s opts[] = {
 
 		OPT_LONG('p', &P, "N", "perform compression to N virtual channels"),
 		OPT_CLEAR('M', &proj, "output compression matrix"),
+		OPT_INFILE('m', &file_matrix, "file", "load compression matrix"),
 		OPT_VEC3('r', &calsize, "S", "size of calibration region"),
 		OPT_VEC3('R', &calsize, "", "(size of calibration region)"),
 		OPT_SET('A', &all, "use all data to compute coefficients"),
@@ -87,36 +90,45 @@ int main_cc(int argc, char* argv[argc])
 
 	complex float* out_data = (proj ? anon_cfl : create_cfl)(out_file, DIMS, out_dims);
 
+	if (NULL == file_matrix) {
 
-	long caldims[DIMS];
-	complex float* cal_data = NULL;
+		long caldims[DIMS];
+		complex float* cal_data = NULL;
 
-	if (all) {
+		if (all) {
 
-		md_copy_dims(DIMS, caldims, in_dims);
-		cal_data = in_data;
+			md_copy_dims(DIMS, caldims, in_dims);
+			cal_data = in_data;
 
+		} else {
+
+			cal_data = extract_calib(caldims, calsize, in_dims, in_data, false);
+		}
+
+		if (0. == md_znorm(DIMS, caldims, cal_data))
+			debug_printf(DP_WARN, "Empty calibration region.\n");
+
+
+		if (ECC == cc_type)
+			debug_printf(DP_WARN, "Warning: ECC depends on a parameter choice rule for optimal results which is not implemented.\n");
+
+
+		switch (cc_type) {
+		case SCC: scc(out_dims, out_data, caldims, cal_data); break;
+		case GCC: gcc(out_dims, out_data, caldims, cal_data); break;
+		case ECC: ecc(out_dims, out_data, caldims, cal_data); break;
+		}
+
+		if (!all)
+			md_free(cal_data);
 	} else {
-		
-		cal_data = extract_calib(caldims, calsize, in_dims, in_data, false);
+
+		long mat_dims[DIMS];
+		complex float* mat = load_cfl(file_matrix, DIMS, mat_dims);
+		assert(md_check_equal_dims(DIMS, mat_dims, out_dims, ~0));
+		md_copy(DIMS, mat_dims, out_data, mat, CFL_SIZE);
+		unmap_cfl(DIMS, mat_dims, mat);
 	}
-
-	if (0. == md_znorm(DIMS, caldims, cal_data))
-		debug_printf(DP_WARN, "Empty calibration region.\n");
-
-
-	if (ECC == cc_type)
-		debug_printf(DP_WARN, "Warning: ECC depends on a parameter choice rule for optimal results which is not implemented.\n");
-
-
-	switch (cc_type) {
-	case SCC: scc(out_dims, out_data, caldims, cal_data); break;
-	case GCC: gcc(out_dims, out_data, caldims, cal_data); break;
-	case ECC: ecc(out_dims, out_data, caldims, cal_data); break;
-	}
-
-	if (!all)
-		md_free(cal_data);
 
 
 	if (proj) {
