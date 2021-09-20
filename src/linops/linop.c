@@ -794,6 +794,17 @@ struct linop_s* linop_copy_wrapper(unsigned int D, const long istrs[D], const lo
 	return PTR_PASS(op2);
 }
 
+struct linop_s* linop_gpu_wrapper(struct linop_s* op)
+{
+	PTR_ALLOC(struct linop_s, op2);
+
+	op2->forward = operator_gpu_wrapper(op->forward);
+	op2->adjoint = operator_gpu_wrapper(op->adjoint);
+	op2->normal = (NULL == op->normal) ? NULL : operator_gpu_wrapper(op->normal);
+	op2->norm_inv = NULL; // FIXME
+
+	return PTR_PASS(op2);
+}
 
 
 
