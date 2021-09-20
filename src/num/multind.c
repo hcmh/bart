@@ -2023,6 +2023,113 @@ void md_free(const void* ptr)
 	xfree(ptr);
 }
 
+struct multiplace_array_s {
+
+	unsigned int N;
+	const long* dims;
+	size_t size;
+
+	void* ptr_cpu;
+
+#ifdef USE_CUDA
+#ifdef MULTIGPU
+	void* ptr_gpu[MAX_CUDA_DEVICES];
+#else
+	void* ptr_gpu;
+#endif
+#endif
+};
+
+static struct multiplace_array_s* md_alloc_multiplace(unsigned int D, const long dimensions[D], size_t size)
+{
+	PTR_ALLOC(struct multiplace_array_s, result);
+
+	result->N = D;
+	result->size = size;
+
+	PTR_ALLOC(long[D], dims);
+	md_copy_dims(D, *dims, dimensions);
+	result->dims =*PTR_PASS(dims);
+
+	result->ptr_cpu = md_alloc(D, dimensions, size);
+
+#ifdef USE_CUDA
+#ifdef MULTIGPU
+	for (int i = 0; i < MAX_CUDA_DEVICES; i++)
+		result->ptr_gpu[i] = NULL;
+#else
+	result->ptr_gpu = NULL;
+#endif
+#endif
+
+	return PTR_PASS(result);
+}
+
+static void md_free_multiplace_data(struct multiplace_array_s* ptr)
+{
+	md_free(ptr->ptr_cpu);
+	ptr->ptr_cpu = NULL;
+
+#ifdef USE_CUDA
+#ifdef MULTIGPU
+	for (int i = 0; i < MAX_CUDA_DEVICES; i++) {
+
+		md_free(ptr->ptr_gpu[i]);
+		ptr->ptr_gpu[i] = NULL;
+	}
+#else
+	md_free(ptr->ptr_gpu)
+	ptr->ptr_gpu = NULL;
+#endif
+#endif
+}
+
+void md_free_multiplace(const struct multiplace_array_s* ptr)
+{
+	if (NULL == ptr)
+		return;
+
+	md_free_multiplace_data((struct multiplace_array_s*)ptr);
+
+	xfree(ptr->dims);
+	xfree(ptr);
+}
+
+const void* md_multiplace_read(struct multiplace_array_s* ptr, const void* ref)
+{
+	if (NULL == ptr)
+		return NULL;
+
+#ifdef USE_CUDA
+
+	if (cuda_ondevice(ref)) {
+#ifdef MULTIGPU
+		if (NULL == ptr->ptr_gpu[cuda_get_device()])
+			ptr->ptr_gpu[cuda_get_device()] = md_gpu_move(ptr->N, ptr->dims, ptr->ptr_cpu, ptr->size);
+
+		return ptr->ptr_gpu[cuda_get_device()];
+#else
+		if (NULL == ptr->ptr_gpu)
+			ptr->ptr_gpu = md_gpu_move(ptr->N, ptr->dims, ptr->ptr_cpu, ptr->size);
+
+		return ptr->ptr_gpu;
+#endif
+	}
+
+#else
+	UNUSED(ref);
+#endif
+
+	return ptr->ptr_cpu;
+}
+
+struct multiplace_array_s* md_move_multiplace(unsigned int D, const long dimensions[D], size_t size, const void* ptr)
+{
+	auto result = md_alloc_multiplace(D, dimensions, size);
+	md_copy(D, dimensions, result->ptr_cpu, ptr, size);
+	return result;
+}
+
 
 int md_max_idx(unsigned long flags)
 {
@@ -2046,6 +2153,3 @@ int md_min_idx(unsigned long flags)
 
 	return i;
 }
-
-
-extern int md_min_idx(unsigned long flags);
