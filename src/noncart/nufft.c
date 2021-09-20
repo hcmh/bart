@@ -1258,7 +1258,7 @@ void nufft_get_psf2(const struct linop_s* nufft, unsigned int N, const long psf_
 
 	assert(N == data->N + 1);
 	md_check_equal_dims(N, psf_dims, data->psf_dims, ~0);
-	md_copy2(N, psf_dims, psf_strs, psf, data->psf_strs, data->psf, CFL_SIZE);
+	md_copy2(N, psf_dims, psf_strs, psf, data->psf_strs, md_multiplace_read(data->psf, psf), CFL_SIZE);
 }
 
 void nufft_get_psf(const struct linop_s* nufft, unsigned int N, const long psf_dims[N], complex float* psf)
