@@ -58,15 +58,15 @@ static complex float* compute_precond(unsigned int N, const long* pre_dims, cons
 	// Compensate for linear phase to get cropped psf
 	md_clear(ND, pre_dims, pre, CFL_SIZE);
 	md_zfmacc2(ND, psf_dims, pre_strs, pre, psf_strs, psft, psf_strs, linphase);
-	
+
         md_free(psft);
-        
+
 	// Transform to Fourier domain
 	fftuc(N, pre_dims, flags, pre, pre);
 
 	md_zabs(N, pre_dims, pre, pre);
 	md_zsadd(N, pre_dims, pre, pre, 1e-3);
-	
+
 	return pre;
 }
 
@@ -147,7 +147,8 @@ const struct operator_s* nufft_precond_create(const struct linop_s* nufft_op)
 	md_calc_strides(ND, pdata->cim_strs, pdata->cim_dims, CFL_SIZE);
 	md_calc_strides(ND, pdata->pre_strs, pdata->pre_dims, CFL_SIZE);
 
-	pdata->pre = compute_precond(pdata->N, pdata->pre_dims, pdata->pre_strs, data->psf_dims, data->psf_strs, data->psf, data->linphase);
+	int cpu_ptr = 0;
+	pdata->pre = compute_precond(pdata->N, pdata->pre_dims, pdata->pre_strs, data->psf_dims, data->psf_strs, md_multiplace_read(data->psf, &cpu_ptr), md_multiplace_read(data->linphase, &cpu_ptr));
 
 	pdata->fft_op = linop_fft_create(pdata->N, pdata->cim_dims, data->flags);
 

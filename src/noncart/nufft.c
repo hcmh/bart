@@ -461,18 +461,6 @@ static struct nufft_data* nufft_create_data(unsigned int N,
 	data->basis = NULL;
 	data->weights = NULL;
 	data->psf = NULL;
-#ifdef USE_CUDA
-#ifdef MULTIGPU
-	for (int i = 0; i < MAX_CUDA_DEVICES; i++) {
-
-		data->linphase_gpu[i] = NULL;
-		data->psf_gpu[i] = NULL;
-	}
-#else
-	data->linphase_gpu = NULL;
-	data->psf_gpu = NULL;
-#endif
-#endif
 
 	md_copy_dims(N, data->cim_dims, cim_dims);
 	data->cim_dims[N] = 1;
@@ -487,7 +475,10 @@ static struct nufft_data* nufft_create_data(unsigned int N,
 
 	complex float* roll = md_alloc(ND, data->img_dims, CFL_SIZE);
 	rolloff_correction(conf.decomp ? 1. : data->grid_conf.os, data->width, data->beta, data->img_dims, roll);
-	data->roll = roll;
+	data->roll = md_move_multiplace(ND, data->img_dims, CFL_SIZE, roll);
+	md_free(roll);
+
+
 
 	complex float* linphase = NULL;
 
@@ -498,11 +489,14 @@ static struct nufft_data* nufft_create_data(unsigned int N,
 		md_calc_strides(ND, data->lph_strs, data->lph_dims, CFL_SIZE);
 
 		if (!conf.toeplitz)
-			md_zmul2(ND, data->lph_dims, data->lph_strs, linphase, data->lph_strs, linphase, data->img_strs, data->roll);
+			md_zmul2(ND, data->lph_dims, data->lph_strs, linphase, data->lph_strs, linphase, data->img_strs, md_multiplace_read(data->roll, linphase));
 
 	} else {
 
-		linphase = roll;
+		linphase = md_alloc(ND, data->img_dims, CFL_SIZE);
+
+		md_copy(ND, data->img_dims, linphase, md_multiplace_read(data->roll, linphase), CFL_SIZE);
+		md_free_multiplace(data->roll);
 		data->roll = NULL;
 
 		md_copy_dims(ND, data->lph_dims, data->img_dims);
@@ -521,7 +515,12 @@ static struct nufft_data* nufft_create_data(unsigned int N,
 
 	md_zsmul(ND, data->lph_dims, linphase, linphase, scale);
 
-	data->linphase = linphase;
+	if (conf.decomp)
+		data->linphase = md_move_multiplace(N + 1, data->lph_dims, CFL_SIZE, linphase);
+	else
+		data->linphase = md_move_multiplace(ND, data->img_dims, CFL_SIZE, linphase);
+
+	md_free(linphase);
 
 	for (int i = 0; i < (int)data->N; i++)
 		if (data->conf.decomp && (data->img_dims[i] > 1) && MD_IS_SET(data->flags, i))
@@ -588,9 +587,7 @@ static struct linop_s* nufft_create3(unsigned int N,
 			     (NULL != basis),
 			     conf);
 
-
-	data->traj = traj;
-
+	data->traj= md_move_multiplace(N, traj_dims, CFL_SIZE, traj);
 
 	debug_printf(DP_DEBUG1, "ksp : ");
 	debug_print_dims(DP_DEBUG1, N, ksp_dims);
@@ -664,9 +661,7 @@ static struct linop_s* nufft_create3(unsigned int N,
 
 		md_calc_strides(ND, data->bas_strs, data->bas_dims, CFL_SIZE);
 
-		complex float* tmp = md_alloc(ND, data->bas_dims, CFL_SIZE);
-		md_copy(ND, data->bas_dims, tmp, basis, CFL_SIZE);
-		data->basis = tmp;
+		data->basis = md_move_multiplace(ND, data->bas_dims, CFL_SIZE, basis);
 	}
 
 
@@ -677,15 +672,15 @@ static struct linop_s* nufft_create3(unsigned int N,
 
 		md_calc_strides(ND, data->wgh_strs, data->wgh_dims, CFL_SIZE);
 
-		complex float* tmp = md_alloc(ND, data->wgh_dims, CFL_SIZE);
-		md_copy(ND, data->wgh_dims, tmp, weights, CFL_SIZE);
-		data->weights = tmp;
+		data->weights = md_move_multiplace(ND, data->wgh_dims, CFL_SIZE, weights);
 	}
 
 	complex float* fftm = md_alloc(ND, data->img_dims, CFL_SIZE);
 	md_zfill(ND, data->img_dims, fftm, 1.);
 	fftmod(ND, data->img_dims, data->flags, fftm, fftm);
-	data->fftmod = fftm;
+
+	data->fftmod = md_move_multiplace(ND, data->img_dims, CFL_SIZE, fftm);
+	md_free(fftm);
 
 
 	if (conf.toeplitz) {
@@ -708,9 +703,12 @@ static struct linop_s* nufft_create3(unsigned int N,
 
 		md_calc_strides(ND, data->psf_strs, data->psf_dims, CFL_SIZE);
 
-		data->psf = compute_psf2(N, data->psf_dims, data->flags, data->trj_dims, data->traj,
-					data->bas_dims, data->basis, data->wgh_dims, data->weights,
+		const complex float* psf = compute_psf2(N, data->psf_dims, data->flags, data->trj_dims, traj,
+					data->bas_dims, md_multiplace_read(data->basis, traj), data->wgh_dims, md_multiplace_read(data->weights, traj),
 					true /*conf.periodic*/, conf.lowmem);
+
+		data->psf = md_move_multiplace(ND, data->psf_dims, CFL_SIZE, psf);
+		md_free(psf);
 	}
 
 	long out_dims[N];
@@ -841,25 +839,13 @@ static void nufft_free_data(const linop_data_t* _data)
 	xfree(data->cm2_dims);
 	xfree(data->factors);
 
-	md_free(data->linphase);
-	md_free(data->psf);
-	md_free(data->fftmod);
-	md_free(data->weights);
-	md_free(data->roll);
-	md_free(data->basis);
+	md_free_multiplace(data->linphase);
+	md_free_multiplace(data->psf);
+	md_free_multiplace(data->fftmod);
+	md_free_multiplace(data->weights);
+	md_free_multiplace(data->roll);
+	md_free_multiplace(data->basis);
 
-#ifdef USE_CUDA
-#ifdef MULTIGPU
-	for (int i = 0; i < MAX_CUDA_DEVICES; i++) {
-
-		md_free(data->linphase_gpu[i]);
-		md_free(data->psf_gpu[i]);
-	}
-#else
-	md_free(data->linphase_gpu);
-	md_free(data->psf_gpu);
-#endif
-#endif
 	linop_free(data->fft_op);
 
 	if (data->conf.pcycle || data->conf.lowmem)
@@ -877,20 +863,20 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 	auto data = CAST_DOWN(nufft_data, _data);
 
 #ifdef USE_CUDA
-	assert(!cuda_ondevice(src));
+	//assert(!cuda_ondevice(src));
 #endif
 	assert(!data->conf.toeplitz); // if toeplitz linphase has no roll, so would need to be added
 
 	int ND = data->N + 1;
 
-	complex float* grid = md_alloc(ND, data->cml_dims, CFL_SIZE);
+	complex float* grid = md_alloc_sameplace(ND, data->cml_dims, CFL_SIZE, dst);
 
-	md_zmul2(ND, data->cml_dims, data->cml_strs, grid, data->cim_strs, src, data->lph_strs, data->linphase);
+	md_zmul2(ND, data->cml_dims, data->cml_strs, grid, data->cim_strs, src, data->lph_strs, md_multiplace_read(data->linphase, src));
 	linop_forward(data->fft_op, ND, data->cml_dims, grid, ND, data->cml_dims, grid);
-	md_zmul2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, data->fftmod);
+	md_zmul2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, md_multiplace_read(data->fftmod, src));
 
 
-	complex float* gridX = md_alloc(data->N, data->cm2_dims, CFL_SIZE);
+	complex float* gridX = md_alloc_sameplace(data->N, data->cm2_dims, CFL_SIZE, dst);
 
 	md_recompose(data->N, data->factors, data->cm2_dims, gridX, data->cml_dims, grid, CFL_SIZE);
 	md_free(grid);
@@ -899,21 +885,21 @@ static void nufft_apply(const linop_data_t* _data, complex float* dst, const com
 	complex float* tmp = dst;
 
 	if (NULL != data->basis)
-		tmp = md_alloc(ND, data->ksp_dims, CFL_SIZE);
+		tmp = md_alloc_sameplace(ND, data->ksp_dims, CFL_SIZE, dst);
 
 	md_clear(ND, data->ksp_dims, tmp, CFL_SIZE);
-	grid2H(&data->grid_conf, ND, data->trj_dims, data->traj, data->ksp_dims, tmp, data->cm2_dims, gridX);
+	grid2H(&data->grid_conf, ND, data->trj_dims, md_multiplace_read(data->traj, src), data->ksp_dims, tmp, data->cm2_dims, gridX);
 
 	md_free(gridX);
 
 	if (NULL != data->basis) {
 
-		md_ztenmul(data->N, data->out_dims, dst, data->ksp_dims, tmp, data->bas_dims, data->basis);
+		md_ztenmul(data->N, data->out_dims, dst, data->ksp_dims, tmp, data->bas_dims, md_multiplace_read(data->basis, src));
 		md_free(tmp);
 	}
 
 	if (NULL != data->weights)
-		md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->out_strs, dst, data->wgh_strs, data->weights);
+		md_zmul2(data->N, data->out_dims, data->out_strs, dst, data->out_strs, dst, data->wgh_strs, md_multiplace_read(data->weights, src));
 }
 
 
@@ -963,9 +949,9 @@ static void split_nufft_adjoint (const struct nufft_data* data, int ND, complex 
 	md_calc_strides(ND, cml_reduced_strs, cml_reduced_dims, CFL_SIZE);
 
 
-	complex float* grid_reduced = md_alloc(ND, cml_reduced_dims, CFL_SIZE);
-	complex float* gridX = md_alloc(ND, cm2_reduced_dims, CFL_SIZE);
-	complex float* src_reduced = md_alloc(ND, ksp_reduced_dims, CFL_SIZE);
+	complex float* grid_reduced = md_alloc_sameplace(ND, cml_reduced_dims, CFL_SIZE, src);
+	complex float* gridX = md_alloc_sameplace(ND, cm2_reduced_dims, CFL_SIZE, src);
+	complex float* src_reduced = md_alloc_sameplace(ND, ksp_reduced_dims, CFL_SIZE, src);
 
 	long pos[ND];
 	md_set_dims(ND, pos, 0L);
@@ -981,7 +967,7 @@ static void split_nufft_adjoint (const struct nufft_data* data, int ND, complex 
 		do {
 			md_copy_block2(data->N, pos, ksp_reduced_dims, ksp_reduced_strs, src_reduced, data->ksp_dims, ksp_strs, src, CFL_SIZE);
 
-			grid2(&data->grid_conf, ND, data->trj_dims, data->traj, cm2_reduced_dims, gridX, ksp_reduced_dims, src_reduced);
+			grid2(&data->grid_conf, ND, data->trj_dims, md_multiplace_read(data->traj, src), cm2_reduced_dims, gridX, ksp_reduced_dims, src_reduced);
 
 		} while(md_next(ND, sum_dims, sum_flags, pos));
 
@@ -992,7 +978,7 @@ static void split_nufft_adjoint (const struct nufft_data* data, int ND, complex 
 
 	} while(md_next(data->N, iter_dims, ~0L, pos));
 
-	md_zmulc2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, data->fftmod);
+	md_zmulc2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, md_multiplace_read(data->fftmod, src));
 
 	md_free(grid_reduced);
 	md_free(gridX);
@@ -1008,7 +994,7 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 	auto data = CAST_DOWN(nufft_data, _data);
 
 #ifdef USE_CUDA
-	assert(!cuda_ondevice(src));
+	//assert(!cuda_ondevice(src));
 #endif
 	int ND = data->N + 1;
 
@@ -1016,8 +1002,8 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 
 	if (NULL != data->weights) {
 
-		wdat = md_alloc(data->N, data->out_dims, CFL_SIZE);
-		md_zmulc2(data->N, data->out_dims, data->out_strs, wdat, data->out_strs, src, data->wgh_strs, data->weights);
+		wdat = md_alloc_sameplace(data->N, data->out_dims, CFL_SIZE, dst);
+		md_zmulc2(data->N, data->out_dims, data->out_strs, wdat, data->out_strs, src, data->wgh_strs, md_multiplace_read(data->weights, dst));
 		src = wdat;
 	}
 
@@ -1025,12 +1011,12 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 
 	if (NULL != data->basis) {
 
-		bdat = md_alloc(data->N, data->ksp_dims, CFL_SIZE);
-		md_ztenmulc(data->N, data->ksp_dims, bdat, data->out_dims, src, data->bas_dims, data->basis);
+		bdat = md_alloc_sameplace(data->N, data->ksp_dims, CFL_SIZE, dst);
+		md_ztenmulc(data->N, data->ksp_dims, bdat, data->out_dims, src, data->bas_dims, md_multiplace_read(data->basis, dst));
 		src = bdat;
 	}
 
-	complex float* grid = md_alloc(ND, data->cml_dims, CFL_SIZE);
+	complex float* grid = md_alloc_sameplace(ND, data->cml_dims, CFL_SIZE, dst);
 	complex float* gridX = NULL;
 
 	if (data->conf.lowmem) {
@@ -1039,9 +1025,10 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 
 	} else {
 
-		gridX = md_calloc(data->N, data->cm2_dims, CFL_SIZE);
+		gridX = md_alloc_sameplace(data->N, data->cm2_dims, CFL_SIZE, dst);
+		md_clear(data->N, data->cm2_dims, gridX, CFL_SIZE);
 
-		grid2(&data->grid_conf, ND, data->trj_dims, data->traj, data->cm2_dims, gridX, data->ksp_dims, src);
+		grid2(&data->grid_conf, ND, data->trj_dims, md_multiplace_read(data->traj, dst), data->cm2_dims, gridX, data->ksp_dims, src);
 	}
 
 	md_free(bdat);
@@ -1053,65 +1040,31 @@ static void nufft_apply_adjoint(const linop_data_t* _data, complex float* dst, c
 
 		md_free(gridX);
 
-		md_zmulc2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, data->fftmod);
+		md_zmulc2(ND, data->cml_dims, data->cml_strs, grid, data->cml_strs, grid, data->img_strs, md_multiplace_read(data->fftmod, dst));
 	}
 
 	linop_adjoint(data->fft_op, ND, data->cml_dims, grid, ND, data->cml_dims, grid);
 
 	md_clear(ND, data->cim_dims, dst, CFL_SIZE);
-	md_zfmacc2(ND, data->cml_dims, data->cim_strs, dst, data->cml_strs, grid, data->lph_strs, data->linphase);
+	md_zfmacc2(ND, data->cml_dims, data->cim_strs, dst, data->cml_strs, grid, data->lph_strs, md_multiplace_read(data->linphase, dst));
 
 	md_free(grid);
 
 	if (data->conf.toeplitz)
-		md_zmul2(ND, data->cim_dims, data->cim_strs, dst, data->cim_strs, dst, data->img_strs, data->roll);
+		md_zmul2(ND, data->cim_dims, data->cim_strs, dst, data->cim_strs, dst, data->img_strs, md_multiplace_read(data->roll, dst));
 }
 
 
 
-
-
-#ifdef USE_CUDA
-static void gpu_alloc(const struct nufft_data* data)
-{
-	unsigned int ND = data->N + 1;
-#ifdef MULTIGPU
-	if (NULL == data->linphase_gpu[cuda_get_device()])
-		((struct nufft_data*)data)->linphase_gpu[cuda_get_device()] = md_gpu_move(ND, data->lph_dims, data->linphase, CFL_SIZE);
-
-	if (NULL == data->psf_gpu[cuda_get_device()])
-		((struct nufft_data*)data)->psf_gpu[cuda_get_device()] = md_gpu_move(ND, data->psf_dims, data->psf, CFL_SIZE);
-#else
-	if (NULL == data->linphase_gpu)
-		((struct nufft_data*)data)->linphase_gpu = md_gpu_move(ND, data->lph_dims, data->linphase, CFL_SIZE);
-
-	if (NULL == data->psf_gpu)
-		((struct nufft_data*)data)->psf_gpu = md_gpu_move(ND, data->psf_dims, data->psf, CFL_SIZE);
-#endif
-}
-#endif
 
 
 static void toeplitz_mult(const struct nufft_data* data, complex float* dst, const complex float* src)
 {
 	unsigned int ND = data->N + 1;
 
-	const complex float* linphase = data->linphase;
-	const complex float* psf = data->psf;
+	const complex float* linphase = md_multiplace_read(data->linphase, src);
+	const complex float* psf = md_multiplace_read(data->psf, src);
 
-#ifdef USE_CUDA
-	if (cuda_ondevice(src)) {
-
-		gpu_alloc(data);
-#ifdef MULTIGPU
-		linphase = data->linphase_gpu[cuda_get_device()];
-		psf= data->psf_gpu[cuda_get_device()];
-#else
-		linphase = data->linphase_gpu;
-		psf = data->psf_gpu;
-#endif
-	}
-#endif
 	complex float* grid = md_alloc_sameplace(ND, data->cml_dims, CFL_SIZE, dst);
 
 	md_zmul2(ND, data->cml_dims, data->cml_strs, grid, data->cim_strs, src, data->lph_strs, linphase);
@@ -1136,22 +1089,9 @@ static void toeplitz_mult(const struct nufft_data* data, complex float* dst, con
 
 static void toeplitz_mult_lowmem(const struct nufft_data* data, int i, complex float* dst, const complex float* src)
 {
-	const complex float* linphase = data->linphase;
-	const complex float* psf = data->psf;
+	const complex float* linphase = md_multiplace_read(data->linphase, src);
+	const complex float* psf = md_multiplace_read(data->psf, src);
 
-#ifdef USE_CUDA
-	if (cuda_ondevice(src)) {
-
-		gpu_alloc(data);
-#ifdef MULTIGPU
-		linphase = data->linphase_gpu[cuda_get_device()];
-		psf= data->psf_gpu[cuda_get_device()];
-#else
-		linphase = data->linphase_gpu;
-		psf = data->psf_gpu;
-#endif
-	}
-#endif
 	const complex float* clinphase = linphase + i * md_calc_size(data->N, data->lph_dims);
 	const complex float* cpsf = psf + i * md_calc_size(data->N, data->psf_dims);
 
@@ -1381,20 +1321,8 @@ void nufft_normal_op_free_psf(const struct operator_s* op)
 	auto op_data = CAST_DOWN(nufft_normal_data_s, operator_get_data(op));
 	auto data = op_data->data;
 
-	md_free(data->psf);
+	md_free_multiplace(data->psf);
 	data->psf = NULL;
-#ifdef USE_CUDA
-#ifdef MULTIGPU
-	for (int i = 0; i < MAX_CUDA_DEVICES; i++) {
-
-		md_free(data->psf_gpu[i]);
-		data->psf_gpu[i] = NULL;
-	}
-#else
-	md_free(data->psf_gpu);
-	data->psf_gpu = NULL;
-#endif
-#endif
 
 }
 
@@ -1409,7 +1337,9 @@ void nufft_normal_op_set_psf2(const struct operator_s* op, unsigned int N, const
 
 	complex float* tmp = md_alloc(N, psf_dims, CFL_SIZE);
 	md_copy2(N, psf_dims, data->psf_strs, tmp, psf_strs, psf, CFL_SIZE);
-	data->psf = tmp;
+
+	data->psf = md_move_multiplace(N, data->psf_dims, CFL_SIZE, tmp);
+	md_free(tmp);
 }
 
 void nufft_normal_op_set_psf(const struct operator_s* op, unsigned int N, const long psf_dims[N], const complex float* psf)

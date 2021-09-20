@@ -1,7 +1,7 @@
 
 #include "noncart/grid.h"
-#include "num/gpuops.h"
 
+struct multiplace_array_s;
 
 /**
  *
@@ -18,25 +18,14 @@ struct nufft_data {
 	unsigned int N;			///< Number of dimension
 	unsigned long flags;
 
-	const complex float* linphase;	///< Linear phase for pruned FFT
-	const complex float* traj;	///< Trajectory
-	const complex float* roll;	///< Roll-off factor
-	const complex float* psf;	///< Point-spread function (2x size)
-	const complex float* fftmod;	///< FFT modulation for centering
-	const complex float* weights;	///< Weights, ex, density compensation
-	const complex float* basis;
-#ifdef USE_CUDA
-#ifdef MULTIGPU
-	const complex float* linphase_gpu[MAX_CUDA_DEVICES];
-	const complex float* psf_gpu[MAX_CUDA_DEVICES];
-	complex float* grid_gpu[MAX_CUDA_DEVICES];
-#else
-	const complex float* linphase_gpu;
-	const complex float* psf_gpu;
-	complex float* grid_gpu;
-#endif
-#endif
-	complex float* grid;		///< Oversampling grid
+	struct multiplace_array_s* linphase;	///< Linear phase for pruned FFT
+	struct multiplace_array_s* traj;	///< Trajectory
+	struct multiplace_array_s* roll;	///< Roll-off factor
+	struct multiplace_array_s* psf;	///< Point-spread function (2x size)
+	struct multiplace_array_s* fftmod;	///< FFT modulation for centering
+	struct multiplace_array_s* weights;	///< Weights, ex, density compensation
+	struct multiplace_array_s* basis;
+	struct multiplace_array_s* grid;	///< Oversampling grid
 
 	float width;			///< Interpolation kernel width
 	double beta;			///< Kaiser-Bessel beta parameter
