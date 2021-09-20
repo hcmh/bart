@@ -2029,6 +2029,8 @@ struct multiplace_array_s {
 	const long* dims;
 	size_t size;
 
+	void* ptr_ref;
+
 	void* ptr_cpu;
 
 #ifdef USE_CUDA
@@ -2051,7 +2053,7 @@ static struct multiplace_array_s* md_alloc_multiplace(unsigned int D, const long
 	md_copy_dims(D, *dims, dimensions);
 	result->dims =*PTR_PASS(dims);
 
-	result->ptr_cpu = md_alloc(D, dimensions, size);
+	result->ptr_cpu = NULL;
 
 #ifdef USE_CUDA
 #ifdef MULTIGPU
@@ -2105,7 +2107,7 @@ const void* md_multiplace_read(struct multiplace_array_s* ptr, const void* ref)
 	if (cuda_ondevice(ref)) {
 #ifdef MULTIGPU
 		if (NULL == ptr->ptr_gpu[cuda_get_device()])
-			ptr->ptr_gpu[cuda_get_device()] = md_gpu_move(ptr->N, ptr->dims, ptr->ptr_cpu, ptr->size);
+			ptr->ptr_gpu[cuda_get_device()] = md_gpu_move(ptr->N, ptr->dims, ptr->ptr_ref, ptr->size);
 
 		return ptr->ptr_gpu[cuda_get_device()];
 #else
@@ -2119,6 +2121,11 @@ const void* md_multiplace_read(struct multiplace_array_s* ptr, const void* ref)
 #else
 	UNUSED(ref);
 #endif
+	if (NULL == ptr->ptr_cpu) {
+
+		ptr->ptr_cpu = md_alloc(ptr->N, ptr->dims, ptr->size);
+		md_copy(ptr->N, ptr->dims, ptr->ptr_cpu, ptr->ptr_ref, ptr->size);
+	}
 
 	return ptr->ptr_cpu;
 }
@@ -2126,7 +2133,23 @@ const void* md_multiplace_read(struct multiplace_array_s* ptr, const void* ref)
 struct multiplace_array_s* md_move_multiplace(unsigned int D, const long dimensions[D], size_t size, const void* ptr)
 {
 	auto result = md_alloc_multiplace(D, dimensions, size);
-	md_copy(D, dimensions, result->ptr_cpu, ptr, size);
+	void* tmp = md_alloc_sameplace(D, dimensions, size, ptr);
+	md_copy(D, dimensions, tmp, ptr, size);
+
+	result->ptr_ref = tmp;
+
+#ifdef USE_CUDA
+
+	if (cuda_ondevice(tmp)) {
+#ifdef MULTIGPU
+		result->ptr_gpu[cuda_get_device()] = tmp;
+#else
+		result->ptr_gpu = tmp;
+#endif
+	} else
+#endif
+	result->ptr_cpu = tmp;
+
 	return result;
 }
 
