@@ -42,6 +42,7 @@
 #include "num/optimize.h"
 #include "num/blas_md_wrapper.h"
 #include "num/reduce_md_wrapper.h"
+#include "num/md_wrapper.h"
 #include "num/convcorr.h"
 #ifdef USE_CUDA
 #include "num/gpuops.h"
@@ -455,6 +456,65 @@ static long check_dot(unsigned long N, long ndims[N], long nostrs[N], long nistr
 	return 1;
 }
 
+/**
+ * Output: 1 if dot, -1, else
+ *
+ * if successful, the out strides have the form:
+ * nostrs: (0)
+ * the in strides have the form
+ * nistrs1: (s*x)
+ * nistrs2: (s*x)
+ */
+static long check_batched_select(unsigned long N, long ndims[N], long nostrs[N], long nistrs1[N], long nistrs2[N], const long dims[N], const long ostrs[N], const long istrs1[N], const long istrs2[N], long size)
+{
+	md_singleton_dims(N, ndims);
+	md_singleton_strides(N, nostrs);
+	md_singleton_strides(N, nistrs1);
+	md_singleton_strides(N, nistrs2);
+
+	long tdims[N];
+	long tostrs[N];
+	long tistrs1[N];
+	long tistrs2[N];
+
+	md_copy_dims(N, tdims, dims);
+	md_copy_strides(N, tostrs, ostrs);
+	md_copy_strides(N, tistrs1, istrs1);
+	md_copy_strides(N, tistrs2, istrs2);
+
+	long (*strs[3])[N] = { &tostrs, &tistrs1, &tistrs2 };
+
+	N = simplify_dims(3, N, tdims, strs);
+
+	md_copy_dims(N, ndims, tdims);
+	md_copy_strides(N, nostrs, tostrs);
+	md_copy_strides(N, nistrs1, tistrs1);
+	md_copy_strides(N, nistrs2, tistrs2);
+
+	long todims[N];
+	long tidims1[N];
+	long tidims2[N];
+
+	md_select_dims(N, MD_BIT(0) | md_nontriv_strides(N, nostrs), todims, ndims);
+	md_select_dims(N, MD_BIT(0) | md_nontriv_strides(N, nistrs1), tidims1, ndims);
+	md_select_dims(N, MD_BIT(0) | md_nontriv_strides(N, nistrs2), tidims2, ndims);
+
+	md_calc_strides(N, tostrs, todims, size);
+	md_calc_strides(N, tistrs1, tidims1, size);
+	md_calc_strides(N, tistrs2, tidims2, size);
+
+	int i = 0;
+	while ( i < (int)N
+		&& (tostrs[i] == nostrs[i])
+		&& (tistrs1[i] == nistrs1[i])
+		&& (tistrs2[i] == nistrs2[i]))
+		i++;
+
+	if (1 >= i)
+		return -1;
+
+	return MIN(4, i);
+}
 
 /**
  * Output: 2 if diagonal-general matrix multiplication, -1, else
@@ -962,7 +1022,9 @@ bool simple_zfmac(unsigned int N, const long dims[N], const long ostrs[N], compl
 		{ check_gemv,	blas_zfmac_cgemv, true, true, false, false, blas_threadsafe },
 		{ check_ger,	blas_zfmac_cgeru, true, true, false, false, blas_threadsafe },
 		{ check_axpy,	blas_zfmac_caxpy, true, true, false, false, blas_threadsafe },
-		{ check_dot,	blas_zfmac_cdotu, true, true, false, false, blas_threadsafe }
+		{ check_dot,	blas_zfmac_cdotu, true, true, false, false, blas_threadsafe },
+		{ check_batched_select,	zfmac_gpu_batched_loop, true, false, false, false, true }
+
 	};
 
 	return simple_z3op(	ARRAY_SIZE(strided_calls), strided_calls,
@@ -976,7 +1038,8 @@ bool simple_zfmacc(unsigned int N, const long dims[N], const long ostrs[N], comp
 		{ check_gemv,  blas_zfmac_cgemv, true, true, false, false, blas_threadsafe },
 		{ check_ger,   blas_zfmac_cgeru, true, true, false, false, blas_threadsafe },
 		{ check_axpy,  blas_zfmac_caxpy, true, true, false, false, blas_threadsafe },
-		{ check_dot,   blas_zfmac_cdotu, true, true, false, false, blas_threadsafe }
+		{ check_dot,   blas_zfmac_cdotu, true, true, false, false, blas_threadsafe },
+		{ check_batched_select,	zfmac_gpu_batched_loop, true, false, false, false, true }
 	};
 
 	return simple_z3op(	ARRAY_SIZE(strided_calls), strided_calls,
