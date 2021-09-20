@@ -1335,7 +1335,7 @@ void nufft_normal_op_set_psf2(const struct operator_s* op, unsigned int N, const
 
 	assert(md_check_equal_dims(N, psf_dims, data->psf_dims, ~0));
 
-	complex float* tmp = md_alloc(N, psf_dims, CFL_SIZE);
+	complex float* tmp = md_alloc_sameplace(N, psf_dims, CFL_SIZE, psf);
 	md_copy2(N, psf_dims, data->psf_strs, tmp, psf_strs, psf, CFL_SIZE);
 
 	data->psf = md_move_multiplace(N, data->psf_dims, CFL_SIZE, tmp);
