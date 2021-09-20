@@ -19,6 +19,11 @@
 #include "misc/nested.h"
 #include "misc/misc.h"
 
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#include "gpu_grid.h"
+#endif
+
 #include "grid.h"
 
 
@@ -87,6 +92,13 @@ static float kb_beta = -1.;
 
 void gridH(const struct grid_conf_s* conf, const complex float* traj, const long ksp_dims[4], complex float* dst, const long grid_dims[4], const complex float* grid)
 {
+#ifdef USE_CUDA
+	if (cuda_ondevice(traj)) {
+
+		error("Adjoint gridding not implemented on GPU!");
+	}
+#endif
+
 	long C = ksp_dims[3];
 
 	// precompute kaiser bessel table
@@ -117,7 +129,7 @@ void gridH(const struct grid_conf_s* conf, const complex float* traj, const long
 		complex float val[C];
 		for (int j = 0; j < C; j++)
 			val[j] = 0.0;
-		
+
 		grid_pointH(C, 3, grid_dims, pos, val, grid, conf->periodic, conf->width, kb_size, kb_table);
 
 		for (int j = 0; j < C; j++)
@@ -128,6 +140,15 @@ void gridH(const struct grid_conf_s* conf, const complex float* traj, const long
 
 void grid(const struct grid_conf_s* conf, const complex float* traj, const long grid_dims[4], complex float* grid, const long ksp_dims[4], const complex float* src)
 {
+
+#ifdef USE_CUDA
+	if (cuda_ondevice(traj)) {
+
+		cuda_grid(conf, traj, grid_dims, grid, ksp_dims, src);
+		return;
+	}
+#endif
+
 	long C = ksp_dims[3];
 
 	// precompute kaiser bessel table
@@ -157,7 +178,7 @@ void grid(const struct grid_conf_s* conf, const complex float* traj, const long 
 		pos[2] += (grid_dims[2] > 1) ? ((float) grid_dims[2] / 2.) : 0.;
 
 		complex float val[C];
-		
+
 		for (int j = 0; j < C; j++)
 			val[j] = src[j * samples + i];
 
@@ -358,10 +379,10 @@ static float pos(int d, int i)
 void rolloff_correction(float os, float width, float beta, const long dimensions[3], complex float* dst)
 {
 #pragma omp parallel for collapse(3)
-	for (int z = 0; z < dimensions[2]; z++) 
-		for (int y = 0; y < dimensions[1]; y++) 
+	for (int z = 0; z < dimensions[2]; z++)
+		for (int y = 0; y < dimensions[1]; y++)
 			for (int x = 0; x < dimensions[0]; x++)
-				dst[x + dimensions[0] * (y + z * dimensions[1])] 
+				dst[x + dimensions[0] * (y + z * dimensions[1])]
 					= rolloff(os * pos(dimensions[0], x), beta, width)
 					* rolloff(os * pos(dimensions[1], y), beta, width)
 					* rolloff(os * pos(dimensions[2], z), beta, width) / 1.001411;
