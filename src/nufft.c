@@ -165,7 +165,12 @@ int main_nufft(int argc, char* argv[argc])
 				operator_free(precond_op);
 
 		} else {
+			if (use_gpu) {
 
+				auto tmp = nufft_op;
+				nufft_op = linop_gpu_wrapper((struct linop_s*)tmp);
+				linop_free(tmp);
+			}
 			linop_adjoint(nufft_op, DIMS, coilim_dims, img, DIMS, ksp_dims, ksp);
 		}
 
