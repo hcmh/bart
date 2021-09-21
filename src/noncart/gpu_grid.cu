@@ -119,6 +119,7 @@ struct grid_data {
 struct grid_data_device {
 
 	float pos[MAX_GRID_DIMS];
+	int pos_grid[MAX_GRID_DIMS];
 	int sti[MAX_GRID_DIMS];
 	int eni[MAX_GRID_DIMS];
 	int off[MAX_GRID_DIMS];
@@ -128,6 +129,12 @@ __device__ static __inline__ void dev_atomic_zadd_scl(cuFloatComplex* arg, cuFlo
 {
 	atomicAdd(&(arg->x), val.x * scl);
 	atomicAdd(&(arg->y), val.y * scl);
+}
+
+__device__ static __inline__ void dev_zadd_scl(cuFloatComplex* arg, cuFloatComplex val, float scl)
+{
+	arg->x += val.x * scl;
+	arg->y += val.y * scl;
 }
 
 #if 1
@@ -267,4 +274,108 @@ void cuda_grid(const struct grid_conf_s* conf, const _Complex float* traj, const
 	};
 
 	kern_grid<<<gridsize(gd.samples), blocksize(gd.samples)>>>(gd, (const cuFloatComplex*)traj, (cuFloatComplex*)grid, (const cuFloatComplex*)src);
+}
+
+// loop over out-dims and krn-dims and copy elements from input (copies one element per thread)
+__global__ static void kern_grid2(struct grid_data conf, const cuFloatComplex* traj, cuFloatComplex* grid, const cuFloatComplex* src)
+{
+	long xstart = threadIdx.x + blockDim.x * blockIdx.x;
+	long xstride = blockDim.x * gridDim.x;
+
+	long ystart = threadIdx.y + blockDim.y * blockIdx.y;
+	long ystride = blockDim.y * gridDim.y;
+
+	long zstart = threadIdx.z + blockDim.z * blockIdx.z;
+	long zstride = blockDim.z * gridDim.z;
+
+	struct grid_data_device gdd;
+	for (gdd.pos_grid[2] = zstart; gdd.pos_grid[2] < conf.grid_dims[2]; gdd.pos_grid[2] += zstride)
+	for (gdd.pos_grid[1] = ystart; gdd.pos_grid[1] < conf.grid_dims[1]; gdd.pos_grid[1] += ystride)
+	for (gdd.pos_grid[0] = xstart; gdd.pos_grid[0] < conf.grid_dims[0]; gdd.pos_grid[0] += xstride) {
+
+		for (long i = 0; i < conf.samples; i++) {
+
+			bool grid_point = true;
+			float weight = 1.;
+
+			for (int j = 0; grid_point && (j < conf.N); j++) {
+
+				gdd.pos[j] = conf.os * (traj[i * 3 + j]).x;
+				gdd.pos[j] += (conf.grid_dims[j] > 1) ? ((float) conf.grid_dims[j] / 2.) : 0.;
+
+				gdd.sti[j] = (int)ceil(gdd.pos[j] - conf.width);
+				gdd.eni[j] = (int)floor(gdd.pos[j] + conf.width);
+				gdd.off[j] = 0;
+
+				if (gdd.sti[j] > gdd.eni[j])
+					continue;
+
+				if (!conf.periodic) {
+
+					gdd.sti[j] = MAX(gdd.sti[j], 0);
+					gdd.eni[j] = MIN(gdd.eni[j], conf.grid_dims[j] - 1);
+
+				} else {
+
+					while (gdd.sti[j] > gdd.pos_grid[j] + gdd.off[j])
+						gdd.off[j] += conf.grid_dims[j];
+
+					while (gdd.eni[j] < gdd.pos_grid[j] + gdd.off[j])
+						gdd.off[j] -= conf.grid_dims[j];
+				}
+
+				if (1 == conf.grid_dims[j]) {
+
+					assert(0. == gdd.pos[j]); // ==0. fails nondeterministically for test_nufft_forward bbdec08cb
+					gdd.sti[j] = 0;
+					gdd.eni[j] = 0;
+				}
+
+				grid_point = (gdd.sti[j] <= gdd.pos_grid[j] + gdd.off[j]) && (gdd.pos_grid[j] <= gdd.eni[j]);
+
+				if (grid_point) {
+
+					float frac = fabs(((float)(gdd.pos_grid[j] + gdd.off[j]) - gdd.pos[j]));
+					weight *= intlookup(kb_size, conf.kb_table, frac / conf.width);
+				}
+			}
+
+			if (grid_point) {
+
+				for (int c = 0; c < conf.ch; c++)
+					dev_zadd_scl(grid + gdd.pos_grid[0] + conf.grid_dims[0] * (gdd.pos_grid[1] + conf.grid_dims[1] * gdd.pos_grid[2]) + c * conf.off_ch_grid, src[i + c * conf.off_ch_ksp], weight);
+			}
+		}
+	}
+}
+
+
+void cuda_grid2(const struct grid_conf_s* conf, const _Complex float* traj, const long grid_dims[4], _Complex float* grid, const long ksp_dims[4], const _Complex float* src)
+{
+	kb_precompute_gpu(conf->beta);
+
+	struct grid_data gd = {
+
+		.N = 3,
+		.os = conf->os,
+		.width = conf->width,
+		.periodic = conf->periodic,
+
+		.samples = ksp_dims[1] * ksp_dims[2],
+
+		.grid_dims = { grid_dims[0], grid_dims[1], grid_dims[2], grid_dims[3]},
+		.ksp_dims = { ksp_dims[0], ksp_dims[1], ksp_dims[2], ksp_dims[3]},
+
+		.ch = (int)ksp_dims[3],
+
+		.off_ch_ksp = md_calc_size(3, ksp_dims),
+		.off_ch_grid = md_calc_size(3, grid_dims),
+
+		.kb_table = kb_table,
+	};
+
+	dim3 blockDim(16, 16);
+    	dim3 gridDim(gd.grid_dims[0] / 16, gd.grid_dims[1] / 16);
+
+	kern_grid2<<<gridDim, blockDim>>>(gd, (const cuFloatComplex*)traj, (cuFloatComplex*)grid, (const cuFloatComplex*)src);
 }
