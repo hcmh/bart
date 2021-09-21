@@ -213,18 +213,16 @@ void grid2(const struct grid_conf_s* conf, unsigned int D, const long trj_dims[D
 	long grid_strs[D];
 	md_calc_strides(D, grid_strs, grid_dims, CFL_SIZE);
 
+	long dims[D];
+	md_select_dims(D, (~0 ^ 15), dims, ksp_dims);
 
-	long pos[D];
-	for (unsigned int i = 0; i < D; i++)
-		pos[i] = 0;
+	NESTED(void, nary_opt, (void* ptr[]))
+	{
+		grid(conf, ptr[0], grid_dims, ptr[1], ksp_dims, ptr[2]);
+	};
 
-	do {
+	md_parallel_nary(3, D, dims, ~0 & md_nontriv_dims(D, dims), (const long*[3]){trj_strs, grid_strs, ksp_strs}, (void* [3]){(void*)traj, dst, (void*)src}, nary_opt);
 
-		grid(conf, &MD_ACCESS(D, trj_strs, pos, traj),
-			grid_dims, &MD_ACCESS(D, grid_strs, pos, dst),
-			ksp_dims, &MD_ACCESS(D, ksp_strs, pos, src));
-
-	} while(md_next(D, ksp_dims, (~0 ^ 15), pos));
 }
 
 
