@@ -37,6 +37,7 @@ struct opt_s res_block_opts[] = {
 	OPTL_LONG('Z', "filter-z", &(network_resnet_default.Kz), "d", "filter size in z-dimension (default: 1)"),
 
 	OPTL_CLEAR(0, "no-batch-normalization", &(network_resnet_default.batch_norm), "do not use batch normalization"),
+	OPTL_CLEAR(0, "no-batch-normalization-lf", &(network_resnet_default.batch_norm_lf), "do not use batch normalization in first and last layer"),
 	OPTL_CLEAR(0, "no-bias", &(network_resnet_default.bias), "do not use bias"),
 };
 const int N_res_block_opts = ARRAY_SIZE(res_block_opts);

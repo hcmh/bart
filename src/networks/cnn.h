@@ -57,6 +57,7 @@ struct network_resnet_s {
 	unsigned long batch_flag;
 
 	_Bool batch_norm;
+	_Bool batch_norm_lf;
 	_Bool bias;
 
 	enum ACTIVATION activation;

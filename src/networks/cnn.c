@@ -107,6 +107,7 @@ struct network_resnet_s network_resnet_default = {
 	.dilations = {[0 ... DIMS -1] = 1},
 
 	.batch_norm = true,
+	.batch_norm_lf = true,
 	.bias = true,
 
 	.activation = ACT_RELU,
@@ -198,7 +199,7 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 							N, kdims, NULL, config->dilations,
 							false, PAD_SAME, initializer_clone(conv_init));
 
-	if (config->batch_norm)
+	if (config->batch_norm && config->batch_norm_lf)
 		result = nn_append_batchnorm_layer(result, 0, NULL, wnames[7], ~(config->channel_flag | config->group_flag), status, NULL);
 
 	if (config->bias)
@@ -263,7 +264,7 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 	initializer_free(conv_init);
 	initializer_free(conv_init_last);
 
-	if (config->batch_norm) {
+	if (config->batch_norm && config->batch_norm_lf) {
 
 		result = nn_append_batchnorm_layer(result, 0, NULL, wnames[9], ~(config->channel_flag | config->group_flag), status, NULL);
 
