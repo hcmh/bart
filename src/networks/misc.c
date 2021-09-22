@@ -142,12 +142,12 @@ void load_network_data(struct network_data_s* nd) {
 		long trj_dims[DIMS];
 		traj = load_cfl(nd->filename_trajectory, DIMS, trj_dims);
 
-		const struct linop_s* fft_op = NULL;
+		long bas_dims[DIMS];
+		complex float* basis = NULL;
 
 		if (NULL != nd->filename_basis) {
 
-			long bas_dims[DIMS];
-			complex float* basis = load_cfl(nd->filename_basis, DIMS, bas_dims);
+			basis = load_cfl(nd->filename_basis, DIMS, bas_dims);
 
 			md_copy_dims(DIMS, nd->max_dims, nd->ksp_dims);
 			md_copy_dims(5, nd->max_dims, nd->col_dims);
@@ -164,29 +164,67 @@ void load_network_data(struct network_data_s* nd) {
 			img_flags = md_nontriv_dims(DIMS, nd->img_dims);
 			col_flags = md_nontriv_dims(DIMS, nd->col_dims);
 
-			fft_op = nufft_create2(DIMS, nd->ksp_dims, nd->cim_dims, trj_dims, traj, pat_dims, pattern, bas_dims, basis, *(nd->nufft_conf));
-
-			unmap_cfl(DIMS, bas_dims, basis);
-
 			nd->basis = true;
-		} else {
-			fft_op = nufft_create2(DIMS, nd->ksp_dims, nd->cim_dims, trj_dims, traj, pat_dims, pattern, NULL, NULL, *(nd->nufft_conf));
 		}
 
-		if (DIMS + 1 != nufft_get_psf_dims(fft_op, DIMS + 1, nd->psf_dims))
-			assert(0);
+		long bat_dims[DIMS + 1];
+		md_singleton_dims(DIMS + 1, bat_dims);
+		md_select_dims(DIMS, BATCH_FLAG, bat_dims, nd->ksp_dims);
 
-		nd->ND = DIMS + 1;
+		long pos[DIMS + 1];
+		md_singleton_strides(DIMS + 1, pos);
 
-		nd->psf = md_alloc(DIMS + 1, nd->psf_dims, CFL_SIZE);
-		nufft_get_psf(fft_op, DIMS + 1, nd->psf_dims, nd->psf);
+		do {	//FIXME: nufft does not support batch dimension in last dimension with basis
 
-		const struct linop_s* maps_op = linop_fmac_create(DIMS, nd->max_dims, ~cim_flags, ~img_flags, ~col_flags, nd->coil);
-		const struct linop_s* lop_frw = linop_chain_FF(maps_op, fft_op);
+			long max_dims_s[DIMS];
+			long ksp_dims_s[DIMS];
+			long img_dims_s[DIMS];
+			long cim_dims_s[DIMS];
+			long trj_dims_s[DIMS];
+			long pat_dims_s[DIMS];
+			long bas_dims_s[DIMS];
+			long psf_dims_s[DIMS + 1];
 
-		linop_adjoint(lop_frw, DIMS, nd->img_dims, nd->adjoint, DIMS, nd->ksp_dims, nd->kspace);
+			md_select_dims(DIMS, ~BATCH_FLAG, max_dims_s, nd->max_dims);
+			md_select_dims(DIMS, ~BATCH_FLAG, ksp_dims_s, nd->ksp_dims);
+			md_select_dims(DIMS, ~BATCH_FLAG, cim_dims_s, nd->cim_dims);
+			md_select_dims(DIMS, ~BATCH_FLAG, img_dims_s, nd->img_dims);
+			md_select_dims(DIMS, ~BATCH_FLAG, trj_dims_s, trj_dims);
+			md_select_dims(DIMS, ~BATCH_FLAG, pat_dims_s, pat_dims);
+			md_select_dims(DIMS, ~BATCH_FLAG, bas_dims_s, bas_dims);
 
-		linop_free(lop_frw);
+			auto fft_op = nufft_create2(DIMS, ksp_dims_s, cim_dims_s,
+							trj_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, trj_dims, CFL_SIZE), pos, traj),
+							pat_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, pat_dims, CFL_SIZE), pos, pattern),
+							bas_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, bas_dims, CFL_SIZE), pos, basis),
+							*(nd->nufft_conf));
+
+			if (DIMS + 1 != nufft_get_psf_dims(fft_op, DIMS + 1, psf_dims_s))
+				assert(0);
+
+			if (NULL == nd->psf) {
+
+				nd->ND = DIMS + 1;
+				md_max_dims(nd->ND, ~0, nd->psf_dims, psf_dims_s, bat_dims);
+				nd->psf = md_alloc(DIMS + 1, nd->psf_dims, CFL_SIZE);
+			}
+
+			nufft_get_psf2(fft_op, DIMS + 1, psf_dims_s, MD_STRIDES(nd->ND, nd->psf_dims, CFL_SIZE), &MD_ACCESS(nd->ND, MD_STRIDES(nd->ND, nd->psf_dims, CFL_SIZE), pos, nd->psf));
+
+			const struct linop_s* maps_op = linop_fmac_create(DIMS, max_dims_s, ~cim_flags, ~img_flags, ~col_flags, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, nd->col_dims, CFL_SIZE), pos, nd->coil));
+			const struct linop_s* lop_frw = linop_chain_FF(maps_op, fft_op);
+
+			linop_adjoint(lop_frw,
+					DIMS, img_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, nd->img_dims, CFL_SIZE), pos, nd->adjoint),
+					DIMS, ksp_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, nd->ksp_dims, CFL_SIZE), pos, nd->kspace)
+					);
+
+			linop_free(lop_frw);
+
+		} while (md_next(DIMS, nd->ksp_dims, BATCH_FLAG, pos));
+
+		if (NULL != basis)
+			unmap_cfl(DIMS, bas_dims, basis);
 
 		unmap_cfl(DIMS, trj_dims, traj);
 	}

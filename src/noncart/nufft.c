@@ -254,6 +254,7 @@ complex float* compute_psf(unsigned int N, const long img_dims[N], const long tr
 	if (NULL != basis) {
 
 		assert(1 == trj2_dims[6]);
+		assert(1 == trj2_dims[N - 1]);
 		ksp2_dims[N - 1] = trj2_dims[5];
 		trj2_dims[N - 1] = trj2_dims[5];
 		trj2_dims[5] = 1;	// FIXME copy?
