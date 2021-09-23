@@ -21,6 +21,10 @@ struct network_data_s {
 	const char* filename_basis;
 	const char* filename_out;
 
+	_Bool export;
+	const char* filename_adjoint;
+	const char* filename_psf;
+
 	_Complex float* kspace;
 	_Complex float* adjoint;
 	_Complex float* coil;

@@ -106,6 +106,9 @@ int main_reconet(int argc, char* argv[])
 		OPTL_INFILE('k', "kspace", &(valid_data.filename_kspace), "<file>", "validation data kspace"),
 		OPTL_INFILE('c', "coil", &(valid_data.filename_coil), "<file>", "validation data sensitivity maps"),
 		OPTL_INFILE('r', "ref", &(valid_data.filename_out), "<file>", "validation data reference"),
+		OPTL_INOUTFILE('a', "adjoint", &(valid_data.filename_adjoint), "<file>", "validation data adjoint (load or export)"),
+		OPTL_INOUTFILE('P', "psf", &(valid_data.filename_psf), "<file>", "validation data psf (load or export)"),
+		OPTL_SET('e', "export", &(valid_data.export), "export psf and adjoint reconstruction"),
 	};
 
 	struct opt_s network_opts[] = {
@@ -154,6 +157,9 @@ int main_reconet(int argc, char* argv[])
 
 		OPTL_INFILE(0, "trajectory", &(data.filename_trajectory), "<traj>", "trajectory"),
 		OPTL_INFILE(0, "pattern", &(data.filename_pattern), "<pattern>", "sampling pattern / psf in kspace"),
+		OPTL_INOUTFILE(0, "adjoint", &(data.filename_adjoint), "<file>", "validation data adjoint (load or export)"),
+		OPTL_INOUTFILE(0, "psf", &(data.filename_psf), "<file>", "psf (load or export)"),
+		OPTL_SET(0, "export", &(data.export), "export psf and adjoint reconstruction"),
 
 		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
 
