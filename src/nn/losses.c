@@ -220,8 +220,6 @@ const struct nlop_s* nlop_nmse_scl_create(int N, const long dims[N], unsigned lo
 	nlop_nmse = nlop_dup_F(nlop_nmse, 0, 2);
 	nlop_nmse = nlop_dup_F(nlop_nmse, 1, 2);
 
-	nlop_export_graph("tmp.dot", nlop_nmse);
-
 	return nlop_nmse;
 }
 
