@@ -86,10 +86,6 @@ static void load_network_data_precomputed(struct network_data_s* nd)
 		nd->out = create_cfl(nd->filename_out, DIMS, nd->img_dims);
 	} else {
 
-		debug_print_dims(DP_INFO, DIMS, nd->out_dims);
-		debug_print_dims(DP_INFO, DIMS, nd->img_dims);
-		debug_print_dims(DP_INFO, DIMS, nd->cim_dims);
-
 		nd->out = load_cfl(nd->filename_out, DIMS, nd->out_dims);
 		assert(    md_check_equal_dims(DIMS, nd->img_dims, nd->out_dims, ~0)
 			|| md_check_equal_dims(DIMS, nd->cim_dims, nd->out_dims, ~0) );
