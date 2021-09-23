@@ -77,7 +77,7 @@ tests/test-nlinv-noncart: traj scale phantom nufft resize nlinv fmac nrmse
 	$(TOOLDIR)/traj -r -x256 -y21 traj.ra				;\
 	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra				;\
 	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra			;\
-	$(TOOLDIR)/nlinv -N -S -i10 -t traj2.ra ksp.ra r.ra c.ra	;\
+	$(TOOLDIR)/nlinv --old-scaling -N -S -i10 -t traj2.ra ksp.ra r.ra c.ra	;\
 	$(TOOLDIR)/resize -c 0 128 1 128 c.ra c2.ra			;\
 	$(TOOLDIR)/fmac r.ra c2.ra x.ra					;\
 	$(TOOLDIR)/nufft traj2.ra x.ra k2.ra				;\
@@ -91,7 +91,7 @@ tests/test-nlinv-noncart-l2: traj scale phantom nufft resize nlinv fmac nrmse
 	$(TOOLDIR)/traj -r -x256 -y21 traj.ra				;\
 	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra				;\
 	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra			;\
-	DEBUG_LEVEL=4 $(TOOLDIR)/nlinv -RQ:0.5 -N -S -i9 -t traj2.ra ksp.ra r.ra c.ra	;\
+	$(TOOLDIR)/nlinv --old-scaling -RQ:0.5 -N -S -i9 -t traj2.ra ksp.ra r.ra c.ra	;\
 	$(TOOLDIR)/resize -c 0 128 1 128 c.ra c2.ra			;\
 	$(TOOLDIR)/fmac r.ra c2.ra x.ra					;\
 	$(TOOLDIR)/nufft traj2.ra x.ra k2.ra				;\
@@ -105,7 +105,7 @@ tests/test-nlinv-noncart-l1: traj scale phantom nufft resize nlinv fmac nrmse
 	$(TOOLDIR)/traj -r -x256 -y21 traj.ra				;\
 	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra				;\
 	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra			;\
-	DEBUG_LEVEL=4 $(TOOLDIR)/nlinv -RW:3:0:0.001 -M0.001 -N -S -i12 -t traj2.ra ksp.ra r.ra c.ra	;\
+	$(TOOLDIR)/nlinv --old-scaling -RW:3:0:0.001 -M0.001 -N -S -i12 -t traj2.ra ksp.ra r.ra c.ra	;\
 	$(TOOLDIR)/resize -c 0 128 1 128 c.ra c2.ra			;\
 	$(TOOLDIR)/fmac r.ra c2.ra x.ra					;\
 	$(TOOLDIR)/nufft traj2.ra x.ra k2.ra				;\
@@ -149,7 +149,7 @@ tests/test-nlinv-precomp: traj scale phantom ones repmat fft nufft nlinv nrmse
 	$(TOOLDIR)/fft -u 7 adj.ra ksp2.ra					;\
 	$(TOOLDIR)/scale 4. mtf.ra mtf2.ra					;\
 	$(TOOLDIR)/nlinv -w1. -n -N -i7 -p mtf2.ra ksp2.ra r1.ra c1.ra		;\
-	$(TOOLDIR)/nlinv -w1. -N -i7 -t traj2.ra ksp.ra r2.ra c2.ra		;\
+	$(TOOLDIR)/nlinv --old-scaling -w1. -N -i7 -t traj2.ra ksp.ra r2.ra c2.ra		;\
 	$(TOOLDIR)/nrmse -t 0.0002 r2.ra r1.ra					;\
 	$(TOOLDIR)/nrmse -t 0.0002 c2.ra c1.ra					;\
 	rm *.ra ; cd .. ; rmdir $(TESTS_TMP)

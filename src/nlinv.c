@@ -137,6 +137,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPTL_SET(0, "pridu", &conf.primal_dual, "use primal dual"),
 		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
+		OPTL_SET(0, "old-scaling", &old_scaling, "(use old scaling)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);

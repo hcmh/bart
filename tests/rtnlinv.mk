@@ -40,7 +40,7 @@ tests/test-rtnlinv-nlinv-noncart: traj scale phantom rtnlinv nlinv nrmse
 	$(TOOLDIR)/traj -r -x128 -y21 traj.ra					;\
 	$(TOOLDIR)/scale 0.5 traj.ra traj2.ra					;\
 	$(TOOLDIR)/phantom -s8 -k -t traj2.ra ksp.ra				;\
-	$(TOOLDIR)/nlinv -w1. -N -i9 -t traj2.ra ksp.ra r1.ra c1.ra		;\
+	$(TOOLDIR)/nlinv --old-scaling -w1. -N -i9 -t traj2.ra ksp.ra r1.ra c1.ra		;\
 	$(TOOLDIR)/rtnlinv -w1. -N -i9 -t traj2.ra ksp.ra r2.ra c2.ra		;\
 	$(TOOLDIR)/nrmse -t 0.002 r2.ra r1.ra					;\
 	$(TOOLDIR)/nrmse -t 0.0001 c2.ra c1.ra					;\
