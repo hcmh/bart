@@ -13,18 +13,21 @@ set -e
 LOGFILE=/dev/stdout
 
 helpstr=$(cat <<- EOF
+-p paralellize loop
 -i input files
 -o output files
 -h help
 EOF
 )
 
-usage="Usage: $0 [-hi:o:] loop_dim \"bart command\""
+usage="Usage: $0 [-hpi:o:] loop_dim \"bart command\""
 
 ifiles=
 ofiles=
 
-while getopts "hi:o:" opt; do
+para="FALSE"
+
+while getopts "hpi:o:" opt; do
         case $opt in
 	h)
 		echo "$usage"
@@ -37,6 +40,9 @@ while getopts "hi:o:" opt; do
 	;;
 	o)
 		ofiles+=" $OPTARG"
+	;;
+	p)
+		para="TRUE"
 	;;
         \?)
         	echo "$usage" >&2
@@ -58,9 +64,6 @@ fi
 # Mac: http://unix.stackexchange.com/questions/30091/fix-or-alternative-for-mktemp-in-os-x
 WORKDIR=`mktemp -d 2>/dev/null || mktemp -d -t 'mytmpdir'`
 trap 'rm -rf "$WORKDIR"' EXIT
-
-echo "$ifiles"
-echo "$ofiles"
 
 ldim=$1
 comd=$2
@@ -113,10 +116,19 @@ do
 	j=$((j+1))
 done
 
-for i in $(seq $lsize)
-do
-	${cmd2//IDX/$i}
-done
+if [ $para == TRUE ]
+then
+	for i in $(seq $lsize)
+	do
+		${cmd2//IDX/$i} &
+	done
+	wait
+else
+	for i in $(seq $lsize)
+	do
+		${cmd2//IDX/$i}
+	done
+fi
 
 j=0
 for file in $ofiles
