@@ -1,7 +1,7 @@
 /* Copyright 2021. Uecker Lab, University Medical Center Goettingen.
  * All rights reserved. Use of this source code is governed by
  * a BSD-style license which can be found in the LICENSE file.
- * 
+ *
  * Authors:
  * 2020 Martin Uecker <martin.uecker@med.uni-goettingen.de>
  * 2020-2021 Zhengguo Tan <zhengguo.tan@med.uni-goettingen.de>
@@ -141,48 +141,48 @@ int main_mobafit(int argc, char* argv[])
 	map_patch_dims[COEFF_DIM] = 1;
 
 
-	// create signal model
-	struct nlop_s* nlop = NULL;
+	NESTED(void, nary_opt, (void* ptr[]))
+	{
+		complex float* y    = ptr[0];
+		complex float* x    = ptr[1];
+		complex float* xref = ptr[2];
 
-	switch (seq) {
+		// create signal model
+		struct nlop_s* nlop = NULL;
 
-	case IR_LL:  ;
+		switch (seq) {
 
-		nlop = nlop_T1_create(DIMS, map_patch_dims, y_patch_dims, x_patch_dims, y_patch_dims, TE, use_gpu);
-		break;
+		case IR_LL:  ;
 
+			nlop = nlop_T1_create(DIMS, map_patch_dims, y_patch_dims, x_patch_dims, y_patch_dims, TE, use_gpu);
+			break;
 
-	case MGRE:  ;
+		case MGRE:  ;
 
-		float scale_fB0[2] = { 0., 1. };
-		nlop = nlop_meco_create(DIMS, y_patch_dims, x_patch_dims, TE, mgre_model, false, FAT_SPEC_1, scale_fB0, use_gpu);
-		break;
+			float scale_fB0[2] = { 0., 1. };
+			nlop = nlop_meco_create(DIMS, y_patch_dims, x_patch_dims, TE, mgre_model, false, FAT_SPEC_1, scale_fB0, use_gpu);
+			break;
 
-	default:
+		default:
 
-		error("sequence type not supported");
-	}
+			error("sequence type not supported");
+		}
 
+		struct iter_conjgrad_conf conjgrad_conf = iter_conjgrad_defaults;
+		struct lsqr_conf lsqr_conf = lsqr_defaults;
+		lsqr_conf.it_gpu = false;
 
+		const struct operator_p_s* lsqr = lsqr2_create(&lsqr_conf, iter2_conjgrad, CAST_UP(&conjgrad_conf), NULL, &nlop->derivative[0][0], NULL, 0, NULL, NULL, NULL);
 
-	struct iter_conjgrad_conf conjgrad_conf = iter_conjgrad_defaults;
-	struct lsqr_conf lsqr_conf = lsqr_defaults;
-	lsqr_conf.it_gpu = false;
-
-	const struct operator_p_s* lsqr = lsqr2_create(&lsqr_conf, iter2_conjgrad, CAST_UP(&conjgrad_conf), NULL, &nlop->derivative[0][0], NULL, 0, NULL, NULL, NULL);
-
-
-	struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
-	irgnm_conf.iter = iter;
+		struct iter3_irgnm_conf irgnm_conf = iter3_irgnm_defaults;
+		irgnm_conf.iter = iter;
 
 
-	complex float* y_patch    = md_alloc(DIMS, y_patch_dims, CFL_SIZE);
-	complex float* x_patch    = md_alloc(DIMS, x_patch_dims, CFL_SIZE);
-	complex float* xref_patch = md_alloc(DIMS, x_patch_dims, CFL_SIZE);
+		complex float* y_patch    = md_alloc(DIMS, y_patch_dims, CFL_SIZE);
+		complex float* x_patch    = md_alloc(DIMS, x_patch_dims, CFL_SIZE);
+		complex float* xref_patch = md_alloc(DIMS, x_patch_dims, CFL_SIZE);
 
-	long pos[DIMS] = { 0 };
-
-	do {
+		long pos[DIMS] = { 0 };
 
 		md_copy_block(DIMS, pos, y_patch_dims,    y_patch, y_dims, y   , CFL_SIZE);
 		md_copy_block(DIMS, pos, x_patch_dims,    x_patch, x_dims, x   , CFL_SIZE);
@@ -192,26 +192,44 @@ int main_mobafit(int argc, char* argv[])
 
 			debug_printf(DP_WARN, "source images are zero!\n");
 			md_zfill(DIMS, x_patch_dims, x_patch, 0.);
-			continue;
+		} else {
+
+			iter4_irgnm2(CAST_UP(&irgnm_conf), nlop,
+					2 * md_calc_size(DIMS, x_patch_dims), (float*)x_patch, (float*)xref_patch,
+					2 * md_calc_size(DIMS, y_patch_dims), (const float*)y_patch, lsqr,
+					(struct iter_op_s){ NULL, NULL });
+
+			md_copy_block(DIMS, pos, x_dims, x, x_patch_dims, x_patch, CFL_SIZE);
 		}
 
-		iter4_irgnm2(CAST_UP(&irgnm_conf), nlop,
-				2 * md_calc_size(DIMS, x_patch_dims), (float*)x_patch, (float*)xref_patch,
-				2 * md_calc_size(DIMS, y_patch_dims), (const float*)y_patch, lsqr,
-				(struct iter_op_s){ NULL, NULL });
+		md_free(xref_patch);
+		md_free(x_patch);
+		md_free(y_patch);
 
-		md_copy_block(DIMS, pos, x_dims, x, x_patch_dims, x_patch, CFL_SIZE);
+		operator_p_free(lsqr);
+		nlop_free(nlop);
 
-	} while(md_next(DIMS, y_dims, ~TE_FLAG, pos));
+	};// while(md_next(DIMS, y_dims, ~TE_FLAG, pos));
+
+	long x_strs[DIMS];
+	long y_strs[DIMS];
+	md_calc_strides(DIMS, x_strs, x_dims, CFL_SIZE);
+	md_calc_strides(DIMS, y_strs, y_dims, CFL_SIZE);
+
+	long loop_dims[DIMS];
+	md_singleton_dims(DIMS, loop_dims);
+	for (int i = 0; i < 3; i++) {
+
+		assert(0 == y_dims[i] % patch_size[i]);
+		loop_dims[i] = y_dims[i] / patch_size[i];
+
+		x_strs[i] *= patch_size[i];
+		y_strs[i] *= patch_size[i];
+	}
+
+	md_parallel_nary(3, DIMS, loop_dims, ~0, (const long*[3]){y_strs, x_strs, x_strs}, (void* [3]){y, x, xref}, nary_opt);
 
 	md_free(xref);
-	md_free(xref_patch);
-	md_free(x_patch);
-	md_free(y_patch);
-
-
-	operator_p_free(lsqr);
-	nlop_free(nlop);
 
 	unmap_cfl(DIMS, y_dims, y);
 	unmap_cfl(DIMS, TE_dims, TE);
