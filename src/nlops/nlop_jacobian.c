@@ -573,7 +573,7 @@ static void zblock_diag_simple_fun(const nlop_data_t* _data, int N, int OO, cons
 
 static void block_diag_simple_del(const nlop_data_t* _data)
 {
-	const auto data = CAST_DOWN(block_diag_s, _data);
+	const auto data = CAST_DOWN(block_diag_simple_s, _data);
 
 	if (NULL != data->del)
 		data->del(data->data);
