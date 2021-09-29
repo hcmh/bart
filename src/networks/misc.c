@@ -56,6 +56,36 @@ struct network_data_s network_data_empty = {
 	.nufft_conf = &nufft_conf_defaults,
 };
 
+static void load_mem(struct network_data_s* nd)
+{
+	if (!nd->load_mem)
+		return;
+
+	complex float* tmp_psf = anon_cfl("", nd->ND, nd->psf_dims);
+	complex float* tmp_adj = anon_cfl("", nd->N, nd->img_dims);
+	complex float* tmp_col = anon_cfl("", nd->N, nd->col_dims);
+
+	md_copy(nd->ND, nd->psf_dims, tmp_psf, nd->psf, CFL_SIZE);
+	md_copy(nd->N, nd->img_dims, tmp_adj, nd->adjoint, CFL_SIZE);
+	md_copy(nd->N, nd->col_dims, tmp_col, nd->coil, CFL_SIZE);
+
+	unmap_cfl(nd->ND, nd->psf_dims, nd->psf);
+	unmap_cfl(DIMS, nd->img_dims, nd->adjoint);
+	unmap_cfl(DIMS, nd->col_dims, nd->coil);
+
+	nd->psf = tmp_psf;
+	nd->adjoint = tmp_adj;
+	nd->coil = tmp_col;
+
+	if (!nd->create_out) {
+
+		complex float* tmp_out = anon_cfl("", nd->N, nd->out_dims);
+		md_copy(nd->N, nd->out_dims, tmp_out, nd->out, CFL_SIZE);
+		unmap_cfl(DIMS, nd->out_dims, nd->out);
+		nd->out = tmp_out;
+	}
+}
+
 static void load_network_data_precomputed(struct network_data_s* nd)
 {
 	nd->N = DIMS;
@@ -230,6 +260,7 @@ void load_network_data(struct network_data_s* nd) {
 	if ( !nd->export && (NULL != nd->filename_adjoint)) {
 
 		load_network_data_precomputed(nd);
+		load_mem(nd);
 		return;
 	}
 
@@ -279,6 +310,8 @@ void load_network_data(struct network_data_s* nd) {
 		assert(    md_check_equal_dims(DIMS, nd->img_dims, nd->out_dims, ~0)
 			|| md_check_equal_dims(DIMS, nd->cim_dims, nd->out_dims, ~0) );
 	}
+
+	load_mem(nd);
 }
 
 
