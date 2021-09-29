@@ -82,6 +82,7 @@ struct network_resnet_s network_resnet_default = {
 	.INTERFACE.low_mem = false,
 	.INTERFACE.norm = NORM_NONE,
 	.INTERFACE.norm_batch_flag = MD_BIT(4),
+	.INTERFACE.residual = true,
 
 	.INTERFACE.debug = false,
 
