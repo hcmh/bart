@@ -478,7 +478,7 @@ void sense_apply_normal_ops(struct sense_normal_ops_s* d, int N, const long img_
 	} while (md_next(d->N, d->bat_dims, ~(0ul), pos));
 }
 
-void sense_apply_normal_inv(struct sense_normal_ops_s* d, const struct iter_conjgrad_conf* iter_conf, int N, const long img_dims[N], complex float* dst, const complex float* src)
+void sense_apply_normal_inv(struct sense_normal_ops_s* d, const struct iter_conjgrad_conf* iter_conf, int N, const long img_dims[N], complex float* dst, const complex float* src, const long lam_dims[N], const complex float* lambda)
 {
 
 	assert(N == d->N);
@@ -489,6 +489,9 @@ void sense_apply_normal_inv(struct sense_normal_ops_s* d, const struct iter_conj
 	long img_dims_slice[N];
 	md_select_dims(N, ~d->bat_flag, img_dims_slice, img_dims);
 
+	long lam_strs[N];
+	md_calc_strides(N, lam_strs, lam_dims, CFL_SIZE);
+
 	long pos[d->N];
 	for (int i = 0; i < d->N; i++)
 		pos[i] = 0;
@@ -496,16 +499,26 @@ void sense_apply_normal_inv(struct sense_normal_ops_s* d, const struct iter_conj
 	do {
 		const struct operator_s* normal_op = sense_get_normal_op(d, N, pos);
 
-		int index = md_calc_offset(N, MD_STRIDES(N, d->bat_dims, 1), pos);
+		if (NULL != lambda) {
+
+			auto lop = linop_cdiag_create(N, img_dims_slice, md_nontriv_dims(N, lam_dims), &(MD_ACCESS(N, lam_strs, pos, lambda)));
+			normal_op = operator_plus_create(normal_op, lop->forward);
+			linop_free(lop);
+		} else {
+
+			normal_op = operator_ref(normal_op);
+		}
 
 		md_clear(N, img_dims_slice, &MD_ACCESS(N, img_strs, pos, dst), CFL_SIZE);
 
-		iter2_conjgrad(	CAST_UP(&(iter_conf[index])), normal_op,
+		iter2_conjgrad(	CAST_UP(iter_conf), normal_op,
 				0, NULL, NULL, NULL, NULL,
 				2 * md_calc_size(N, img_dims_slice),
 				(float*)&MD_ACCESS(N, img_strs, pos, dst),
 				(const float*)&MD_ACCESS(N, img_strs, pos, src),
 				NULL);
+
+		operator_free(normal_op);
 
 	} while (md_next(d->N, d->bat_dims, ~(0ul), pos));
 }

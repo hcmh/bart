@@ -1194,7 +1194,7 @@ static bool test_mriop_normalinv_config(bool batch_independent, bool share_patte
 	md_select_dims(N, MD_BIT(15), ldims, dims);
 
 
-	auto nlop_inv = nlop_mri_normal_inv_create(N, dims, N, pdims, &mri_conf, NULL); // in: x0, coil, pattern, lambda; out:
+	auto nlop_inv = nlop_mri_normal_inv_create(N, dims, ldims, N, pdims, &mri_conf, NULL); // in: x0, coil, pattern, lambda; out:
 
 	complex float* pattern = md_alloc(N, pdims, CFL_SIZE);
 	md_zfill(N, pdims, pattern, 1.);

@@ -30,6 +30,6 @@ void sense_normal_update_ops(struct sense_normal_ops_s* d, int N, const long col
 
 const struct operator_s* sense_get_normal_op(struct sense_normal_ops_s* d, int N, const long pos[N]);
 void sense_apply_normal_ops(struct sense_normal_ops_s* d, int N, const long img_dims[N], _Complex float* dst, const _Complex float* src);
-void sense_apply_normal_inv(struct sense_normal_ops_s* d, const struct iter_conjgrad_conf* iter_conf, int N, const long img_dims[N], _Complex float* dst, const _Complex float* src);
+void sense_apply_normal_inv(struct sense_normal_ops_s* d, const struct iter_conjgrad_conf* iter_conf, int N, const long img_dims[N], _Complex float* dst, const _Complex float* src, const long lam_dims[N], const _Complex float* lambda);
 
 
