@@ -93,6 +93,7 @@ struct reconet_s reconet_config_opts = {
 	.dc_tickhonov = false,
 	.dc_max_iter = 10,
 	.pnorm = -1,
+	.no_dc_last_iter = false,
 
 	//network initialization
 	.normalize = false,
@@ -341,6 +342,63 @@ static nn_t data_consistency_gradientstep_create(const struct reconet_s* config,
 }
 
 /**
+ * Returns dummy dataconsistency block
+ *
+ * Out = In
+ *
+ * Input tensors:
+ *
+ * INDEX_0: 	idims
+ * adjoint:	idims
+ * coil:	cdims
+ * pattern:	pdims
+ * lambda:	ldims
+ *
+ * Output tensors:
+ *
+ * INDEX_0:	idims
+ */
+static nn_t data_consistency_dummy_create(const struct reconet_s* config, unsigned int N, const long max_dims[N], unsigned int ND, const long psf_dims[ND])
+{
+	struct iter_conjgrad_conf iter_conf = iter_conjgrad_defaults;
+	iter_conf.l2lambda = 0.;
+	iter_conf.maxiter = config->dc_max_iter;
+
+	long lam_dims[N];
+	long img_dims[N];
+	long col_dims[N];
+	md_select_dims(N, config->mri_config->batch_flags, lam_dims, max_dims);
+	md_select_dims(N, config->mri_config->image_flags, img_dims, max_dims);
+	md_select_dims(N, config->mri_config->coil_flags, col_dims, max_dims);
+
+	auto nlop_dc = nlop_from_linop_F(linop_identity_create(N, img_dims));
+	nlop_dc = nlop_combine_FF(nlop_dc, nlop_del_out_create(N, img_dims));
+	nlop_dc = nlop_combine_FF(nlop_dc, nlop_del_out_create(N, col_dims));
+	nlop_dc = nlop_combine_FF(nlop_dc, nlop_del_out_create(ND, psf_dims));
+	nlop_dc = nlop_combine_FF(nlop_dc, nlop_del_out_create(N, lam_dims));
+
+	auto result = nn_from_nlop_F(nlop_dc);
+	result = nn_set_input_name_F(result, 1, "adjoint");
+	result = nn_set_input_name_F(result, 1, "coil");
+	result = nn_set_input_name_F(result, 1, "psf");
+
+	result = nn_set_input_name_F(result, 1, "lambda");
+	result = nn_set_in_type_F(result, 0, "lambda", IN_OPTIMIZE);
+	result = nn_set_initializer_F(result, 0, "lambda", init_const_create(config->dc_lambda_init));
+
+	auto iov = nn_generic_domain(result, 0, "lambda");
+	auto prox_conv = operator_project_pos_real_create(iov->N, iov->dims);
+	result = nn_set_prox_op_F(result, 0, "lambda", prox_conv);
+
+	if (-1 != config->pnorm)
+		result = nn_set_input_name_F(result, 1, "reinsert");
+
+	nn_debug(DP_DEBUG3, result);
+
+	return result;// in:  input, adjoint, coil, pattern, lambda; out: output
+}
+
+/**
  * Returns operator computing the initialization
  * for a network
  * [and normalization scale]
@@ -572,7 +630,7 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
  * INDEX_0:	idims
  * [batchnorm output]
  */
-static nn_t reconet_cell_create(const struct reconet_s* config, unsigned int N, const long max_dims[N], int ND, const long psf_dims[ND], enum NETWORK_STATUS status)
+static nn_t reconet_cell_create(const struct reconet_s* config, unsigned int N, const long max_dims[N], int ND, const long psf_dims[ND], enum NETWORK_STATUS status, bool dummy_dc)
 {
 	long img_dims[N];
 	md_select_dims(N, config->mri_config->image_flags, img_dims, max_dims);
@@ -594,13 +652,19 @@ static nn_t reconet_cell_create(const struct reconet_s* config, unsigned int N, 
 	nn_get_in_names_copy(N_in_names, sorted_in_names + 6, result);
 	nn_get_out_names_copy(N_out_names, sorted_out_names, result);
 
-	if (config->dc_tickhonov) {
+	if (dummy_dc) {
+
+		auto dc = data_consistency_dummy_create(config, N, max_dims, ND, psf_dims);
+		result = nn_chain2_FF(result, 0, NULL, dc, 0, NULL);
+	}
+
+	if ((!dummy_dc) && config->dc_tickhonov) {
 
 		auto dc = data_consistency_tickhonov_create(config, N, max_dims, ND, psf_dims);
 		result = nn_chain2_FF(result, 0, NULL, dc, 0, NULL);
 	}
 
-	if (config->dc_gradient) {
+	if ((!dummy_dc) && config->dc_gradient) {
 
 		auto dc = data_consistency_gradientstep_create(config, N, max_dims, ND, psf_dims);
 		result = nn_combine_FF(dc, result);
@@ -627,7 +691,7 @@ static nn_t reconet_cell_create(const struct reconet_s* config, unsigned int N, 
 
 static nn_t reconet_iterations_create(const struct reconet_s* config, int N, const long max_dims[N], int ND, const long psf_dims[N], enum NETWORK_STATUS status)
 {
-	auto result = reconet_cell_create(config, N, max_dims, ND, psf_dims, status);
+	auto result = reconet_cell_create(config, N, max_dims, ND, psf_dims, status, config->no_dc_last_iter && (1 == config->Nt));
 
 	int N_in_names = nn_get_nr_named_in_args(result);
 	int N_out_names = nn_get_nr_named_out_args(result);
@@ -640,7 +704,7 @@ static nn_t reconet_iterations_create(const struct reconet_s* config, int N, con
 
 	for (int i = 1; i < config->Nt; i++) {
 
-		auto tmp = reconet_cell_create(config, N, max_dims, ND, psf_dims, status);
+		auto tmp = reconet_cell_create(config, N, max_dims, ND, psf_dims, status, config->no_dc_last_iter && (i + 1 == config->Nt));
 
 		tmp = nn_mark_dup_if_exists_F(tmp, "adjoint");
 		tmp = nn_mark_dup_if_exists_F(tmp, "coil");

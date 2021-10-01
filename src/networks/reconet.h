@@ -29,6 +29,7 @@ struct reconet_s {
 	_Bool dc_tickhonov;
 	int dc_max_iter;
 	float pnorm;
+	_Bool no_dc_last_iter;
 
 
 	//network initialization
