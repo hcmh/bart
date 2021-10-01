@@ -604,6 +604,44 @@ const struct nlop_s* nlop_mri_normal_inv_create(int N, const long max_dims[N], c
 	return result;
 }
 
+/**
+ * Create an operator minimizing the following functional
+ *
+ * out = argmin 0.5 ||Ax-y||_2^2 + 0.5 ||sqrt{lambda} (x-x_0)||_2^2
+ * A = Pattern FFT Coils
+ *
+ * @param N
+ * @param dims 	kspace dimension (possibly oversampled)
+ * @param idims image dimensions
+ * @param conf can be NULL to fallback on nlop_mri_simple
+ * @param iter_conf configuration for conjugate gradient
+ * @param lammbda_fixed if -1, lambda is an input of the nlop
+ *
+ * Input tensors:
+ * x0:		idims: 	(Nx, Ny, Nz,  1, ..., Nb)
+ * adjoint:	idims: 	(Nx, Ny, Nz,  1, ..., Nb)
+ * coil:	cdims:	(Nx, Ny, Nz, Nc, ..., Nb)
+ * pattern:	pdims:	(Nx, Ny, Nz,  1, ..., 1 / Nb)
+ * lambda:	ldims:	( 1,  1,  1,  1, ..., Nb)
+ *
+ * Output tensors:
+ * image:	idims: 	(Nx, Ny, Nz, 1, ..., Nb)
+ */
+const struct nlop_s* nlop_mri_dc_prox_create(int N, const long max_dims[N], const long lam_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf, struct iter_conjgrad_conf* iter_conf)
+{
+	auto result = nlop_mri_normal_inv_create(N, max_dims, lam_dims, ND, psf_dims, conf, iter_conf);
+
+	long img_dims[N];
+	md_copy_dims(N, img_dims, nlop_generic_codomain(result, 0)->dims);
+
+	result = nlop_chain2_swap_FF(nlop_zaxpbz_create(N, img_dims, 1., 1.), 0, result, 0); //in: lambda*x0, AHy, coil, pattern, lambda
+	result = nlop_chain2_swap_FF(nlop_tenmul_create(N, img_dims, img_dims, lam_dims),0 , result, 0); //in: x0, lambda, AHy, coil, pattern, lambda
+	result = nlop_dup_F(result, 1, 5); //in: x0, lambda, AHy, coil, pattern
+	result = nlop_shift_input_F(result, 4, 1); //in: x0, AHy, coil, pattern, lambda
+	result = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(N, lam_dims)), 0, result, 4);
+
+	return result;
+}
 
 
 
