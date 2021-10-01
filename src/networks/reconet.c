@@ -252,7 +252,7 @@ void reconet_init_unet_test_default(struct reconet_s* reconet)
 static nn_t data_consistency_tickhonov_create(const struct reconet_s* config, unsigned int N, const long max_dims[N], unsigned int ND, const long psf_dims[ND])
 {
 	struct iter_conjgrad_conf iter_conf = iter_conjgrad_defaults;
-	iter_conf.l2lambda = 1.;
+	iter_conf.l2lambda = 0.;
 	iter_conf.maxiter = config->dc_max_iter;
 
 	long ldims[N];
@@ -261,7 +261,7 @@ static nn_t data_consistency_tickhonov_create(const struct reconet_s* config, un
 	long img_dims[N];
 	md_select_dims(N, config->mri_config->image_flags, img_dims, max_dims);
 
-	auto nlop_dc = nlop_mri_normal_inv_create(N, max_dims, ND, psf_dims, config->mri_config, &iter_conf); // in: lambda * input + adjoint, coil, pattern, lambda; out: output
+	auto nlop_dc = nlop_mri_normal_inv_create(N, max_dims, ldims, ND, psf_dims, config->mri_config, &iter_conf); // in: lambda * input + adjoint, coil, pattern, lambda; out: output
 	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(N, img_dims, 1., 1.), 0, nlop_dc, 0); // in: lambda * input, adjoint, coil, pattern, lambda; out: output
 
 	const struct nlop_s* nlop_scale_lambda = nlop_tenmul_create(N, img_dims, img_dims, ldims);
@@ -399,10 +399,10 @@ static nn_t nn_init_create(const struct reconet_s* config, int N, const long max
 	}
 
 	struct iter_conjgrad_conf iter_conf = iter_conjgrad_defaults;
-	iter_conf.l2lambda = 1.;
+	iter_conf.l2lambda = 0.;
 	iter_conf.maxiter = config->init_max_iter;
 
-	auto nlop_result = nlop_mri_normal_inv_create(N, max_dims, ND, psf_dims, config->mri_config, &iter_conf); //in: adjoint, coil, pattern, lambda; out: (A^HA + l)^-1 adjoint
+	auto nlop_result = nlop_mri_normal_inv_create(N, max_dims, scl_dims, ND, psf_dims, config->mri_config, &iter_conf); //in: adjoint, coil, pattern, lambda; out: (A^HA + l)^-1 adjoint
 	nlop_result = nlop_combine_FF(nlop_from_linop_F(linop_identity_create(N, img_dims)),  nlop_result);
 	nlop_result = nlop_dup_F(nlop_result, 0, 1); //in: adjoint, coil, pattern, lambda; out: adjoint, (A^HA + l)^-1 adjoint
 
