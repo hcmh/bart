@@ -88,6 +88,7 @@ int main_reconet(int argc, char* argv[])
 		OPTL_SET(0, "gradient-step", &(config.dc_gradient), "use gradient steps for data-consistency"),
 		OPTL_SET(0, "gradient-max-eigen", &(config.dc_scale_max_eigen), "scale stepsize by inverse max eigen value of A^HA"),
 		OPTL_SET(0, "proximal-mapping", &(config.dc_tickhonov), "use proximal mapping for data-consistency"),
+		OPTL_FLOAT(0, "pnorm-IRLS", &(config.pnorm), "p", "use proximal mapping for data-consistency"),
 		OPTL_INT(0, "max-cg-iter", &(config.dc_max_iter), "d", "number of cg steps for proximal mapping"),
 	};
 
@@ -195,6 +196,9 @@ int main_reconet(int argc, char* argv[])
 
 	if (train)
 		config.train_conf = iter6_get_conf_from_opts();
+
+	if (-1. != config.pnorm)
+		config.dc_tickhonov = true;
 
 	config.valid_loss = get_val_loss_from_option();
 	config.train_loss = get_loss_from_option();

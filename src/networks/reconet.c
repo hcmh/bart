@@ -92,6 +92,7 @@ struct reconet_s reconet_config_opts = {
 	.dc_scale_max_eigen = false,
 	.dc_tickhonov = false,
 	.dc_max_iter = 10,
+	.pnorm = -1,
 
 	//network initialization
 	.normalize = false,
@@ -261,17 +262,11 @@ static nn_t data_consistency_tickhonov_create(const struct reconet_s* config, un
 	long img_dims[N];
 	md_select_dims(N, config->mri_config->image_flags, img_dims, max_dims);
 
-	auto nlop_dc = nlop_mri_normal_inv_create(N, max_dims, ldims, ND, psf_dims, config->mri_config, &iter_conf); // in: lambda * input + adjoint, coil, pattern, lambda; out: output
-	nlop_dc = nlop_chain2_swap_FF(nlop_zaxpbz_create(N, img_dims, 1., 1.), 0, nlop_dc, 0); // in: lambda * input, adjoint, coil, pattern, lambda; out: output
-
-	const struct nlop_s* nlop_scale_lambda = nlop_tenmul_create(N, img_dims, img_dims, ldims);
-	nlop_scale_lambda = nlop_chain2_FF(nlop_from_linop_F(linop_zreal_create(N, ldims)), 0, nlop_scale_lambda, 1); // in: input, lambda; out: lambda * input
-
-	nlop_dc = nlop_chain2_FF(nlop_scale_lambda, 0, nlop_dc, 0); // in: adjoint, coil, pattern, lambda, input, lambda; out: output
-	nlop_dc = nlop_dup_F(nlop_dc, 3, 5); // in: adjoint, coil, pattern, lambda, input; out: output
-	nlop_dc = nlop_shift_input_F(nlop_dc, 0, 4); // in: input, adjoint, coil, pattern, lambda; out: output
-
-	// nlop_dc : in: input, adjoint, coil, pattern[, lambda]; out: output
+	const struct nlop_s* nlop_dc = NULL;
+	if (-1 == config->pnorm)
+		nlop_dc = nlop_mri_dc_prox_create(N, max_dims, ldims, ND, psf_dims, config->mri_config, &iter_conf); // in: input, adjoint, coil, pattern, lambda; out: output
+	else
+	 	nlop_dc = nlop_mri_dc_pnorm_IRLS_create(N, max_dims, ldims, ND, psf_dims, config->mri_config, &iter_conf, config->pnorm, 3); // in: input, adjoint, coil, pattern, lambda; out: output
 
 	auto result = nn_from_nlop_F(nlop_dc);
 	result = nn_set_input_name_F(result, 1, "adjoint");
@@ -285,6 +280,9 @@ static nn_t data_consistency_tickhonov_create(const struct reconet_s* config, un
 	auto iov = nn_generic_domain(result, 0, "lambda");
 	auto prox_conv = operator_project_pos_real_create(iov->N, iov->dims);
 	result = nn_set_prox_op_F(result, 0, "lambda", prox_conv);
+
+	if (-1 != config->pnorm)
+		result = nn_set_input_name_F(result, 1, "reinsert");
 
 	nn_debug(DP_DEBUG3, result);
 

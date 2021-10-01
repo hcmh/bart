@@ -28,6 +28,8 @@ struct reconet_s {
 	_Bool dc_scale_max_eigen;
 	_Bool dc_tickhonov;
 	int dc_max_iter;
+	float pnorm;
+
 
 	//network initialization
 	_Bool normalize;
