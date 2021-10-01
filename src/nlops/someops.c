@@ -28,6 +28,7 @@
 #include "nlops/const.h"
 #include "nlops/tenmul.h"
 #include "nlops/checkpointing.h"
+#include "nlops/nlop_jacobian.h"
 
 #ifdef USE_CUDA
 #include "num/gpuops.h"
@@ -654,4 +655,40 @@ const struct nlop_s* nlop_zrss_reg_create(int N, const long dims[N], unsigned lo
 const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long flags)
 {
 	return nlop_zrss_reg_create(N, dims, flags, 0);
+}
+
+
+struct zspow_s {
+
+	INTERFACE(nlop_data_t);
+	complex float exp;
+};
+
+DEF_TYPEID(zspow_s);
+
+static void zspow_fun(const nlop_data_t* _data, int N, const long dims[N], complex float* dst, const complex float* src, complex float* der)
+{
+	const auto data = CAST_DOWN(zspow_s, _data);
+
+	md_zspow(N, dims, dst, src, data->exp);
+
+	if (NULL != der) {
+
+		md_zdiv(N, dims, der, dst, src);
+		md_zsmul(N, dims, der, der, data->exp);
+	}
+}
+
+/**
+ * Operator computing the inverse
+ * f(x) = x^p
+ */
+const struct nlop_s* nlop_zspow_create(int N, const long dims[N], complex float exp)
+{
+	PTR_ALLOC(struct zspow_s, data);
+	SET_TYPEID(zspow_s, data);
+
+	data->exp = exp;
+
+	return nlop_zdiag_create(N, dims, CAST_UP(PTR_PASS(data)), zspow_fun, NULL);
 }
