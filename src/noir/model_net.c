@@ -328,15 +328,19 @@ static void noir_normal_inversion_fun(const nlop_data_t* _data, int Narg, comple
 
 	bool der1 = nlop_der_requested(_data, 0, 0);
 	bool der2 = nlop_der_requested(_data, 1, 0);
+	bool der3 = nlop_der_requested(_data, 2, 0);
 
 	noir_normal_inversion_free_ops(d);
 
-	if (! (der1 || der2)){
+	if (! (der1 || der2 || der3)){
 
 		md_free(d->xn);
 		md_free(d->out);
 		d->xn = NULL;
 		d->out = NULL;
+
+		linop_free(d->lop_lambda);
+		d->lop_lambda = NULL;
 	}
 
 	md_free(d->dout);
