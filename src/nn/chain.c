@@ -1392,3 +1392,54 @@ nn_t nn_mark_stack_output_if_exists_F(nn_t x, const char* name)
 		return x;
 }
 
+/**
+ * Permute inputs of nn_t such that all inputs without a name come before named inputs
+ *
+ * @param op nn_t struct (will be freed)
+ *
+ * @returns nn_t with sorted inputs
+ **/
+nn_t nn_sort_inputs_F(nn_t x)
+{
+	int II = nn_get_nr_in_args(x);
+	int index_unnamed = 0;
+	int index_named = nn_get_nr_unnamed_in_args(x);
+
+	int nperm[II];
+
+	for (int i = 0; i < II; i++){
+
+		if (NULL == (x->in_names)[i])
+			nperm[index_unnamed++] = i;
+		else
+			nperm[index_named++] = i;
+	}
+
+	return nn_permute_inputs_F(x, II, nperm);
+}
+
+/**
+ * Permute inputs of nn_t such that all outputs without a name come before named outputs
+ *
+ * @param op nn_t struct (will be freed)
+ *
+ * @returns nn_t with sorted inputs
+ **/
+nn_t nn_sort_outputs_F(nn_t x)
+{
+	int OO = nn_get_nr_out_args(x);
+	int index_unnamed = 0;
+	int index_named = nn_get_nr_unnamed_out_args(x);
+
+	int nperm[OO];
+
+	for (int i = 0; i < OO; i++){
+
+		if (NULL == (x->out_names)[i])
+			nperm[index_unnamed++] = i;
+		else
+			nperm[index_named++] = i;
+	}
+
+	return nn_permute_outputs_F(x, OO, nperm);
+}

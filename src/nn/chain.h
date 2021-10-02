@@ -44,6 +44,8 @@ extern nn_t nn_mark_stack_output_F(nn_t x, const char* name);
 extern nn_t nn_stack_dup_by_name_F(nn_t x);
 extern nn_t nn_sort_inputs_by_list_F(nn_t x, int N, const char* sorted_names[N]);
 extern nn_t nn_sort_outputs_by_list_F(nn_t x, int N, const char* sorted_names[N]);
+extern nn_t nn_sort_inputs_F(nn_t x);
+extern nn_t nn_sort_outputs_F(nn_t x);
 
 
 extern nn_t nn_append_singleton_dim_in_if_exists_F(nn_t op, const char* iname);
