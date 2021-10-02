@@ -29,6 +29,7 @@
 #include "nlops/chain.h"
 #include "nlops/tenmul.h"
 #include "nlops/someops.h"
+#include "nlops/checkpointing.h"
 
 #include "nlops/sense_normal_ops.h"
 #include "mri_ops.h"
@@ -725,7 +726,7 @@ const struct nlop_s* nlop_mri_dc_pnorm_IRLS_create(int N, const long max_dims[N]
 		result = nlop_dup_F(result, 4, 6);
 	}
 
-	return result;
+	return nlop_checkpoint_create_F(result, true, false);
 }
 
 
