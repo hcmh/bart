@@ -606,7 +606,30 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETW
 
 static nn_t nlinvnet_loss_create(const struct nlinvnet_s* nlinvnet, int Nb, bool valid)
 {
-	auto train_op = nlinvnet_create(nlinvnet, Nb, valid ? STAT_TEST : STAT_TRAIN, NLINVNET_OUT_CIM);
+	auto train_op = nlinvnet_create(nlinvnet, valid ? 1 : Nb, valid ? STAT_TEST : STAT_TRAIN, NLINVNET_OUT_CIM);
+
+	if (valid) {
+
+		train_op = nn_del_out_bn_F(train_op);
+
+		for (int i = 1; i < Nb; i++) {
+
+			auto tmp = nlinvnet_create(nlinvnet, 1, valid ? STAT_TEST : STAT_TRAIN, NLINVNET_OUT_CIM);
+			tmp = nn_del_out_bn_F(tmp);
+
+			int N_in_names = nn_get_nr_named_in_args(tmp);
+			const char* in_names[N_in_names];
+			nn_get_in_names_copy(N_in_names, in_names, tmp);
+
+			tmp = nn_mark_stack_input_F(tmp, "ksp");
+			tmp = nn_mark_stack_output_F(tmp, "cim");
+			for (int i = 0; i < N_in_names; i++)
+				tmp = nn_mark_dup_if_exists_F(tmp, in_names[i]);
+
+			train_op = nn_combine_FF(train_op, tmp);
+			train_op = nn_stack_dup_by_name_F(train_op);
+		}
+	}
 
 	int N = noir_model_get_N(nlinvnet->model);
 	assert(N == DIMS);
@@ -622,9 +645,6 @@ static nn_t nlinvnet_loss_create(const struct nlinvnet_s* nlinvnet, int Nb, bool
 		loss = train_loss_create(nlinvnet->train_loss, N, cim_dims);
 
 	train_op = nn_chain2_FF(train_op, 0, "cim", loss, 0, NULL);
-
-	if (valid)
-		train_op = nn_del_out_bn_F(train_op);
 
 	return train_op;
 }
