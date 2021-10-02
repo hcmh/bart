@@ -91,7 +91,6 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.iter_conf = NULL,
 	.iter_init = 3,
 	.iter_net = 3,
-	.iter_net_shift = 0,
 
 	.train_loss = &loss_option,
 	.valid_loss = &val_loss_option,
@@ -222,49 +221,11 @@ static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb,
 	return nn_checkpoint_F(network, false, true);
 }
 
-#if 0
-static nn_t nlinvnet_get_cell(const struct nlinvnet_s* nlinvnet, int Nb, int index, enum NETWORK_STATUS status)
-{
-	bool network = index >= ((int)nlinvnet->conf->iter - nlinvnet->iter_net);
-	float update = index < nlinvnet->iter_init ? 0.5 : 1;
-
-	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update);
-
-	long reg_dims[2];
-	md_copy_dims(2, reg_dims, nn_generic_domain(result, 0, "x_0")->dims);
-
-	complex float zero = 0;
-	result = nn_set_input_const_F2(result, 0, "x_0", 2, reg_dims, MD_SINGLETON_STRS(2), true, &zero);
-
-	if (network) {
-
-		auto network = nlinvnet_get_network_step(nlinvnet, Nb, status, true);
-
-		int N_in_names_gn = nn_get_nr_named_in_args(result);
-		int N_in_names_net = nn_get_nr_named_in_args(network);
-
-		const char* in_names[N_in_names_gn + N_in_names_net];
-		nn_get_in_names_copy(N_in_names_gn, in_names, result);
-		nn_get_in_names_copy(N_in_names_net, in_names + N_in_names_gn, network);
-
-		result = nn_chain2_FF(network, 0, NULL, result, 0, NULL);
-		result = nn_sort_inputs_by_list_F(result, N_in_names_gn + N_in_names_net, in_names);
-
-		for (int i = 0; i < N_in_names_gn + N_in_names_net; i++)
-			xfree(in_names[i]);
-	}
-
-	return result;
-}
-#endif
 
 static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int index, enum NETWORK_STATUS status)
 {
-	assert(0 <= nlinvnet->iter_net_shift);
-	assert((int)nlinvnet->conf->iter > nlinvnet->iter_net_shift);
-
-	bool network = (index + nlinvnet->iter_net_shift >= ((int)nlinvnet->conf->iter - nlinvnet->iter_net))
-		    && (index + nlinvnet->iter_net_shift < (int)nlinvnet->conf->iter);
+	assert(0 <= index);
+	bool network = (index >= ((int)nlinvnet->conf->iter - nlinvnet->iter_net));
 
 	float update = index < nlinvnet->iter_init ? 0.5 : 1;
 
@@ -360,9 +321,9 @@ static nn_t nlinvnet_chain_alpha(const struct nlinvnet_s* nlinvnet, nn_t network
 }
 
 
-static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status)
+static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status, int index_start, int index_end)
 {
-	int j = nlinvnet->conf->iter - 1;
+	int j = index_end;
 	auto result = nlinvnet_get_cell_reg(nlinvnet, Nb, j, status);
 
 	int N_in_names = nn_get_nr_named_in_args(result);
@@ -374,7 +335,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, e
 	nn_get_in_names_copy(N_in_names, in_names, result);
 	nn_get_out_names_copy(N_out_names, out_names, result);
 
-	while (0 < j--) {
+	while (index_start < j--) {
 
 		result = nlinvnet_chain_alpha(nlinvnet, result);
 
@@ -428,10 +389,10 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, e
 	return result;
 }
 
-static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status, enum nlinvnet_out out_type)
+static nn_t nlinvnet_init_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status)
 {
 
-	auto result = nlinvnet_get_iterations(nlinvnet, Nb, status);
+	auto result = nlinvnet_get_iterations(nlinvnet, Nb, status, 0, nlinvnet->conf->iter - 1 - nlinvnet->iter_net);
 
 	int N = noir_model_get_N(nlinvnet->model);
 	assert(N == DIMS);
@@ -482,9 +443,57 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETW
 	nlop_scale = nlop_chain2_FF(nlop_scale, 1, nlop_from_linop_F(linop_scale_create(N, cim_dims2, scale)), 0);
 
 	auto nn_scale = nn_from_nlop_F(nlop_scale);
-	nn_scale = nn_set_output_name_F(nn_scale, 1, "scale");
+	nn_scale = nn_set_output_name_F(nn_scale, 0, "y");
+	nn_scale = nn_set_output_name_F(nn_scale, 0, "scale");
 
-	result = nn_chain2_FF(nn_scale, 0, NULL, result, 0, "y");
+	result = nn_chain2_keep_FF(nn_scale, 0, "y", result, 0, "y");
+
+
+	long bat_dims[N];
+	md_singleton_dims(N, bat_dims);
+	bat_dims[BATCH_DIM] = Nb;
+
+	result = nn_chain2_swap_FF(nn_from_nlop_F(nlop_from_linop_F(linop_get_adjoint(linop_loop(N, bat_dims, (struct linop_s*)(nlinvnet->model->lop_fft))))), 0, NULL , result, 0, NULL);
+	result = nn_set_input_name_F(result, 0, "ksp");
+
+	return result;
+}
+
+
+static nn_t nlinvnet_net_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status, enum nlinvnet_out out_type)
+{
+
+	auto result = nlinvnet_get_iterations(nlinvnet, Nb, status, nlinvnet->conf->iter - nlinvnet->iter_net, nlinvnet->conf->iter - 1);
+
+	int N = noir_model_get_N(nlinvnet->model);
+	assert(N == DIMS);
+
+	long img_dims[N];
+	long col_dims[N];
+	long cim_dims[N];
+
+	noir_model_get_img_dims(N, img_dims, nlinvnet->model);
+	noir_model_get_col_dims(N, col_dims, nlinvnet->model);
+	noir_model_get_cim_dims(N, cim_dims, nlinvnet->model);
+
+	complex float alpha = nlinvnet->conf->alpha;
+	for (int i = 0; i < nlinvnet->conf->iter - nlinvnet->iter_net; i++)
+		alpha = nlinvnet->conf->alpha_min + (alpha - nlinvnet->conf->alpha_min) / nlinvnet->conf->redu;
+
+	long alp_dims[1];
+	md_copy_dims(1, alp_dims, nn_generic_domain(result, 0, "alpha")->dims);
+	result = nn_set_input_const_F2(result, 0, "alpha", 1, alp_dims, MD_SINGLETON_STRS(N), true, &alpha);	// in: y, xn
+
+	long cim_dims2[N];
+	long img_dims2[N];
+	md_copy_dims(N, cim_dims2, cim_dims);
+	md_copy_dims(N, img_dims2, img_dims);
+	cim_dims2[BATCH_DIM] = Nb;
+	img_dims2[BATCH_DIM] = Nb;
+
+
+	long sdims[N];
+	md_select_dims(N, BATCH_FLAG, sdims, img_dims2);
 
 
 	switch (out_type) {
@@ -500,7 +509,6 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETW
 			nn_scale = nn_set_input_name_F(nn_scale, 1, "scale");
 
 			result = nn_chain2_FF(result, 0, "cim_us", nn_scale, 0, NULL);
-			result = nn_link_F(result, 0, "scale", 0, "scale");
 		}
 		break;
 
@@ -518,7 +526,6 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETW
 			nn_scale = nn_set_input_name_F(nn_scale, 1, "scale");
 
 			result = nn_chain2_FF(result, 0, "img_us", nn_scale, 0, NULL);
-			result = nn_link_F(result, 0, "scale", 0, "scale");
 		}
 		break;
 
@@ -535,22 +542,33 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETW
 			nn_scale = nn_set_input_name_F(nn_scale, 1, "scale");
 
 			result = nn_chain2_FF(result, 0, "img_us", nn_scale, 0, NULL);
-			result = nn_link_F(result, 0, "scale", 0, "scale");
 		}
 
 		break;
 	}
 
-	long bat_dims[N];
-	md_singleton_dims(N, bat_dims);
-	bat_dims[BATCH_DIM] = Nb;
-
-	result = nn_chain2_swap_FF(nn_from_nlop_F(nlop_from_linop_F(linop_get_adjoint(linop_loop(N, bat_dims, (struct linop_s*)(nlinvnet->model->lop_fft))))), 0, NULL , result, 0, NULL);
-	result = nn_set_input_name_F(result, 0, "ksp");
-
 	return result;
 }
 
+static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status, enum nlinvnet_out out_type)
+{
+	auto init = nlinvnet_init_create(nlinvnet, Nb, status);
+	auto net = nlinvnet_net_create(nlinvnet, Nb, status, out_type);
+
+	int N_in_names = nn_get_nr_named_in_args(net);
+	const char* in_names[N_in_names + 1];
+
+	in_names[0] = "ksp";
+	nn_get_in_names_copy(N_in_names, in_names + 1, net);
+
+	auto result = nn_combine_FF(net, init);
+	result = nn_link_F(result, 0, NULL, 0, NULL);
+	result = nn_link_F(result, 0, "y", 0, "y");
+	result = nn_link_F(result, 0, "scale", 0, "scale");
+	result = nn_sort_inputs_by_list_F(result, N_in_names + 1, in_names);
+
+	return result;
+}
 
 static nn_t nlinvnet_loss_create(const struct nlinvnet_s* nlinvnet, int Nb, bool valid)
 {
