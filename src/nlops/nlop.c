@@ -52,17 +52,6 @@ bool nlop_der_requested(const nlop_data_t* data, int i, int o)
 	return (*(bool (*)[II][OO])(data->data_der->requested))[i][o];
 }
 
-static bool nlop_der_available(const nlop_data_t* data, int i, int o)
-{
-	int II = data->data_der->II;
-	int OO = data->data_der->OO;
-
-	assert(i < II);
-	assert(o < OO);
-
-	return (*(bool (*)[II][OO])(data->data_der->available))[i][o];
-}
-
 static void nlop_der_set_requested(const nlop_data_t* data, int i, int o, bool status)
 {
 	int II = data->data_der->II;
@@ -74,17 +63,6 @@ static void nlop_der_set_requested(const nlop_data_t* data, int i, int o, bool s
 	(*(bool (*)[II][OO])(data->data_der->requested))[i][o] = status;
 }
 
-static void nlop_der_set_available(const nlop_data_t* data, int i, int o, bool status)
-{
-	int II = data->data_der->II;
-	int OO = data->data_der->OO;
-
-	assert(i < II);
-	assert(o < OO);
-
-	(*(bool (*)[II][OO])(data->data_der->available))[i][o] = status;
-}
-
 static void nlop_der_set_all_requested(const nlop_data_t* data, bool status)
 {
 	int II = data->data_der->II;
@@ -93,28 +71,6 @@ static void nlop_der_set_all_requested(const nlop_data_t* data, bool status)
 	for (int i = 0; i < II; i++)
 		for (int o = 0; o < OO; o++)
 			nlop_der_set_requested(data, i, o, status);
-
-}
-
-static void nlop_der_copy(const nlop_data_t* data)
-{
-	int II = data->data_der->II;
-	int OO = data->data_der->OO;
-
-	for (int i = 0; i < II; i++)
-		for (int o = 0; o < OO; o++)
-			nlop_der_set_available(data, i, o, nlop_der_requested(data, i, o));
-
-}
-
-static void nlop_der_set_all_available(const nlop_data_t* data, bool status)
-{
-	int II = data->data_der->II;
-	int OO = data->data_der->OO;
-
-	for (int i = 0; i < II; i++)
-		for (int o = 0; o < OO; o++)
-			nlop_der_set_available(data, i, o, status);
 
 }
 
@@ -218,8 +174,6 @@ static void sptr_linop_del(const struct shared_ptr_s* sptr)
 static void op_fun(const operator_data_t* _data, unsigned int N, void* args[__VLA(N)])
 {
 	auto data = CAST_DOWN(nlop_op_data_s, _data);
-
-	nlop_der_copy(data->data);
 
 	if (NULL != data->forward1) {
 
@@ -632,17 +586,8 @@ void nlop_clear_derivatives(const struct nlop_s* nlop)
 
 		auto data = CAST_MAYBE(nlop_op_data_s, operator_get_data(op));
 
-		if (NULL == data) {
-
-			op = list_pop(operators);
-			continue;
-		}
-
-		if (NULL != data->data->clear_der) {
-
+		if ((NULL != data) && (NULL != data->data->clear_der))
 			data->data->clear_der(data->data);
-			nlop_der_set_all_available(data->data, false);
-		}
 
 		op = list_pop(operators);
 	}
@@ -658,13 +603,8 @@ void nlop_unset_derivatives(const struct nlop_s* nlop) {
 
 		auto data = CAST_MAYBE(nlop_op_data_s, operator_get_data(op));
 
-		if (NULL == data) {
-
-			op = list_pop(operators);
-			continue;
-		}
-
-		nlop_der_set_all_requested(data->data, false);
+		if (NULL != data)
+			nlop_der_set_all_requested(data->data, false);
 
 		op = list_pop(operators);
 	}
