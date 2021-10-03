@@ -104,6 +104,8 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.extra_lambda = true,
 	.fix_lambda = false,
 
+	.fix_coils = false,
+
 	.graph_file = NULL,
 };
 
@@ -222,14 +224,14 @@ static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb,
 }
 
 
-static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int index, enum NETWORK_STATUS status)
+static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, int index, enum NETWORK_STATUS status, bool fix_coil)
 {
 	assert(0 <= index);
 	bool network = (index >= ((int)nlinvnet->conf->iter - nlinvnet->iter_net));
 
 	float update = index < nlinvnet->iter_init ? 0.5 : 1;
 
-	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update, false);
+	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, update, fix_coil);
 
 	long reg_dims[2];
 	md_copy_dims(2, reg_dims, nn_generic_domain(result, 0, "x_0")->dims);
@@ -324,7 +326,17 @@ static nn_t nlinvnet_chain_alpha(const struct nlinvnet_s* nlinvnet, nn_t network
 static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, enum NETWORK_STATUS status, int index_start, int index_end)
 {
 	int j = index_end;
-	auto result = nlinvnet_get_cell_reg(nlinvnet, Nb, j, status);
+	nn_t result = NULL;
+
+	if ((index_end == nlinvnet->conf->iter - 1) && (nlinvnet->fix_coils)) {
+
+		result = nlinvnet_get_cell_reg(nlinvnet, Nb, j, status, true);
+		j++;
+	} else {
+
+		result = nlinvnet_get_cell_reg(nlinvnet, Nb, j, status, false);
+	}
+
 
 	int N_in_names = nn_get_nr_named_in_args(result);
 	int N_out_names = nn_get_nr_named_out_args(result);
@@ -343,7 +355,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, e
 		result = nn_mark_dup_if_exists_F(result, "x_0");
 		result = nn_mark_dup_if_exists_F(result, "alpha");
 
-		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, j, status);
+		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, j, status, false);
 
 		int N_in_names = nn_get_nr_named_in_args(tmp);
 		int N_out_names = nn_get_nr_named_out_args(tmp);
@@ -571,7 +583,6 @@ static nn_t nlinvnet_net_create(const struct nlinvnet_s* nlinvnet, int Nb, enum 
 	for (int i; i < N_in_names1; i++)
 		if (0 != strcmp(in_names1[i], "y") * strcmp(in_names1[i], "scale"))
 			in_names2[N_in_names2++] = in_names1[i];
-	nn_debug(DP_INFO, result);
 	result = nn_sort_inputs_by_list_F(result, N_in_names2, in_names2);
 	result = nn_sort_inputs_F(result);
 
