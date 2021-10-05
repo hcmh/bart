@@ -7,6 +7,7 @@ extern const struct nlop_s* nlop_mssim_create(int N, const long dims[__VLA(N)], 
 extern const struct nlop_s* nlop_cce_create(int N, const long dims[__VLA(N)], unsigned long batch_flag);
 extern const struct nlop_s* nlop_weighted_cce_create(int N, const long dims[__VLA(N)], unsigned long batch_flag);
 extern const struct nlop_s* nlop_accuracy_create(int N, const long dims[__VLA(N)], int class_index);
+extern const struct nlop_s* nlop_mse_rand_mask_kspace_create(int N, const long dims[__VLA(N)], unsigned long mean_dims, unsigned long shared_dims, float p);
 
 extern const struct nlop_s* nlop_nmse_create(int N, const long dims[N], unsigned long batch_flags);
 extern const struct nlop_s* nlop_nmse_scl_create(int N, const long dims[N], unsigned long batch_flags);

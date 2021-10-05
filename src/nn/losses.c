@@ -10,6 +10,7 @@
 #include <math.h>
 
 #include "misc/misc.h"
+#include "misc/mri.h"
 #include "misc/types.h"
 #include "misc/debug.h"
 
@@ -134,6 +135,15 @@ const struct nlop_s* nlop_znorm_create(int N, const long dims[N], unsigned long 
 const struct nlop_s* nlop_mse_create(int N, const long dims[N], unsigned long mean_dims)
 {
 	return nlop_chain2_FF(nlop_zaxpbz_create(N, dims, 1, -1), 0, nlop_znorm_create(N, dims, mean_dims), 0);
+}
+
+const struct nlop_s* nlop_mse_rand_mask_kspace_create(int N, const long dims[N], unsigned long mean_dims, unsigned long shared_dims, float p)
+{
+	auto result = nlop_znorm_create(N, dims, mean_dims);
+	result = nlop_chain_FF(nlop_dropout_create(N, dims, p, shared_dims), result);
+	result = nlop_chain_FF(nlop_from_linop_F(linop_fftc_create(N, dims, FFT_FLAGS)), result);
+	result = nlop_chain2_FF(nlop_zaxpbz_create(N, dims, 1, -1), 0, result, 0);
+	return result;
 }
 
 
