@@ -12,6 +12,8 @@ struct loss_config_s {
 	float weighting_nmse_rss;
 	float weighting_nmse_rss_scaled;
 
+	float weighting_mse_rand_ksp;
+
 	float weighting_cce;
 	float weighting_weighted_cce;
 	float weighting_accuracy;
