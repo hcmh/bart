@@ -39,134 +39,104 @@
 
 #include "losses.h"
 
-struct mse_s {
+struct znorm_s {
 
 	INTERFACE(nlop_data_t);
 
 	long N;
-	const long* rdims;
-	float scaling;
+	const long* ridims;
+	const long* rodims;
 
+	float scale;
 	float* tmp;
 };
 
-DEF_TYPEID(mse_s);
+DEF_TYPEID(znorm_s);
 
-static void mse_fun(const nlop_data_t* _data, int D, complex float* args[D])
+static void znorm_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
 {
-	const auto data = CAST_DOWN(mse_s, _data);
-	assert(3 == D);
-
-	complex float* dst = args[0];
-	const float* src1 = (float*)args[1];
-	const float* src2 = (float*)args[2];
-
 #ifdef USE_CUDA
-	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
+	assert((cuda_ondevice(dst) == cuda_ondevice(src)));
 #endif
-	if (NULL == data->tmp)
-		data->tmp = md_alloc_sameplace(data->N, data->rdims, FL_SIZE, dst);
+	const auto d = CAST_DOWN(znorm_s, _data);
 
-	md_sub(data->N, data->rdims, data->tmp, src1, src2);
+	if (NULL == d->tmp)
+		d->tmp = md_alloc_sameplace(d->N, d->ridims, FL_SIZE, dst);
 
-	complex float result = md_scalar(data->N, data->rdims, data->tmp, data->tmp);
-	complex float scale = 1. / data->scaling;
-	result = result * scale;
-	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
+	md_tenmul(d->N, d->rodims, d->tmp, d->ridims, (const float*)src, d->ridims, (const float*)src);
+	md_smul(d->N, d->rodims, d->tmp, d->tmp, 1. / d->scale);
+	md_zcmpl_real(d->N - 1, d->rodims + 1, dst, d->tmp);
+
+	md_smul(d->N, d->ridims, d->tmp, (const float*)src, 2. / d->scale);
 }
 
-
-static void mse_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void znorm_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
 	UNUSED(o);
 	UNUSED(i);
 
-	const struct mse_s* data = CAST_DOWN(mse_s, _data);
-	assert(NULL != data->tmp);
+	const auto d = CAST_DOWN(znorm_s, _data);
+	assert(NULL != d->tmp);
 
-	complex float result = md_scalar(data->N, data->rdims, data->tmp, (float*)src);
-	complex float scale = 1. / data->scaling;
-	result = result * scale * 2;
-	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
+	float* tmp = md_alloc_sameplace(d->N, d->rodims, FL_SIZE, dst);
+	md_tenmul(d->N, d->rodims, tmp, d->ridims, d->tmp, d->ridims, (const float*)src);
+	md_zcmpl_real(d->N - 1, d->rodims + 1, dst, tmp);
+	md_free(tmp);
 }
 
-static void mse_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void znorm_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
 	UNUSED(o);
 	UNUSED(i);
 
-	const struct mse_s* data = CAST_DOWN(mse_s, _data);
-	assert(NULL != data->tmp);
+	const auto d = CAST_DOWN(znorm_s, _data);
+	assert(NULL != d->tmp);
 
-	complex float result = md_scalar(data->N, data->rdims, data->tmp, (float*)src);
-	complex float scale = 1. / data->scaling;
-	result = -(result * scale) * 2;
-	md_copy(1, MAKE_ARRAY(1l), dst, &result, CFL_SIZE);
+	float* tmp = md_alloc_sameplace(d->N, d->rodims, FL_SIZE, dst);
+	md_real(d->N - 1, d->rodims + 1, tmp, src);
+	md_tenmul(d->N, d->ridims, (float*)dst, d->ridims, d->tmp, d->rodims, tmp);
+	md_free(tmp);
 }
 
-static void mse_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void znorm_del(const nlop_data_t* _data)
 {
-	UNUSED(o);
-	UNUSED(i);
-
-	const struct mse_s* data = CAST_DOWN(mse_s, _data);
-	assert(NULL != data->tmp);
-
-	float in;
-	md_copy(1, MAKE_ARRAY(1l), &in, src, FL_SIZE);
-	in *= 2. / data->scaling;
-	md_smul(data->N, data->rdims, (float*)dst, data->tmp, in);
-}
-
-static void mse_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const struct mse_s* data = CAST_DOWN(mse_s, _data);
-	assert(NULL != data->tmp);
-
-	float in;
-	md_copy(1, MAKE_ARRAY(1l), &in, src, FL_SIZE);
-	in *= -2. / data->scaling;
-	md_smul(data->N, data->rdims, (float*)dst, data->tmp, in);
-}
-
-static void mse_del(const nlop_data_t* _data)
-{
-	const auto data = CAST_DOWN(mse_s, _data);
+	const auto data = CAST_DOWN(znorm_s, _data);
 
 	md_free(data->tmp);
-	xfree(data->rdims);
+	xfree(data->rodims);
+	xfree(data->ridims);
 	xfree(data);
 }
 
-const struct nlop_s* nlop_mse_create(int N, const long dims[N], unsigned long mean_dims)
+const struct nlop_s* nlop_znorm_create(int N, const long dims[N], unsigned long mean_dims)
 {
-	PTR_ALLOC(struct mse_s, data);
-	SET_TYPEID(mse_s, data);
+	PTR_ALLOC(struct znorm_s, data);
+	SET_TYPEID(znorm_s, data);
 
-	PTR_ALLOC(long[N + 1], rdims);
-	(*rdims[0] = 2);
-	md_copy_dims(N, *rdims + 1, dims);
+	PTR_ALLOC(long[N + 1], rodims);
+	PTR_ALLOC(long[N + 1], ridims);
+	(*ridims[0] = 2);
+	md_copy_dims(N, *ridims + 1, dims);
+	md_singleton_dims(N + 1, *rodims);
 
 	data->N = N + 1;
-	data->rdims = *PTR_PASS(rdims);
+	data->rodims = *PTR_PASS(rodims);
+	data->ridims = *PTR_PASS(ridims);
 	data->tmp = NULL;
 
 	long tdims[N];
 	md_select_dims(N, mean_dims, tdims, dims);
-	data->scaling = (float)md_calc_size(N, tdims);
+	data->scale = (float)md_calc_size(N, tdims);
 
-	long nl_odims[1][1];
-	md_copy_dims(1, nl_odims[0], MD_SINGLETON_DIMS(1));
-	long nl_idims[2][N];
-	md_copy_dims(N, nl_idims[0], data->rdims + 1);
-	md_copy_dims(N, nl_idims[1], data->rdims + 1);
-
-
-	return nlop_generic_create(1, 1, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)), mse_fun, (nlop_der_fun_t[2][1]){ { mse_der1 }, { mse_der2 } }, (nlop_der_fun_t[2][1]){ { mse_adj1 }, { mse_adj2 } }, NULL, NULL, mse_del);
+	return nlop_create(1, MD_DIMS(1), N, dims, CAST_UP(PTR_PASS(data)), znorm_fun, znorm_der, znorm_adj, NULL, NULL, znorm_del);
 }
+
+const struct nlop_s* nlop_mse_create(int N, const long dims[N], unsigned long mean_dims)
+{
+	return nlop_chain2_FF(nlop_zaxpbz_create(N, dims, 1, -1), 0, nlop_znorm_create(N, dims, mean_dims), 0);
+}
+
+
 
 //compute lambda to find argmin ||lambda * x - xref||^2
 const struct nlop_s* nlop_mse_scl_create(int N, const long dims[N], unsigned long batch_flags)
