@@ -328,7 +328,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, e
 	int j = index_end;
 	nn_t result = NULL;
 
-	if ((index_end == nlinvnet->conf->iter - 1) && (nlinvnet->fix_coils)) {
+	if ((index_end == (int)(nlinvnet->conf->iter) - 1) && (nlinvnet->fix_coils)) {
 
 		result = nlinvnet_get_cell_reg(nlinvnet, Nb, j, status, true);
 		j++;
@@ -499,7 +499,7 @@ static nn_t nlinvnet_net_create(const struct nlinvnet_s* nlinvnet, int Nb, enum 
 	noir_model_get_cim_dims(N, cim_dims, nlinvnet->model);
 
 	complex float alpha = nlinvnet->conf->alpha;
-	for (int i = 0; i < nlinvnet->conf->iter - nlinvnet->iter_net; i++)
+	for (int i = 0; i < (int)nlinvnet->conf->iter - nlinvnet->iter_net; i++)
 		alpha = nlinvnet->conf->alpha_min + (alpha - nlinvnet->conf->alpha_min) / nlinvnet->conf->redu;
 
 	long alp_dims[1];
@@ -580,7 +580,7 @@ static nn_t nlinvnet_net_create(const struct nlinvnet_s* nlinvnet, int Nb, enum 
 
 	int N_in_names2 = 2;
 
-	for (int i; i < N_in_names1; i++)
+	for (int i = 0; i < N_in_names1; i++)
 		if (0 != strcmp(in_names1[i], "y") * strcmp(in_names1[i], "scale"))
 			in_names2[N_in_names2++] = in_names1[i];
 	result = nn_sort_inputs_by_list_F(result, N_in_names2, in_names2);
