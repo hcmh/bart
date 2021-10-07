@@ -118,7 +118,7 @@ void md_decompose(unsigned int N, const long factors[N], const long odims[N + 1]
 
 		md_singleton_dims(2 * N, factors2);
 
-		for (int i = 0; i < N; i++) {
+		for (unsigned int i = 0; i < N; i++) {
 
 			if (1 < factors[i]) {
 
