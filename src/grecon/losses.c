@@ -14,6 +14,7 @@ struct opt_s loss_opts[] = {
 	OPTL_FLOAT(0, "nmse-magnitude-scaled", &(loss_option.weighting_nmse_rss_scaled), "weighting", "weighting for normalized mean squared error scaled to optimal scale(rss)"),
 	OPTL_FLOAT(0, "ssim", &(loss_option.weighting_ssim_rss), "weighting", "weighting for structural similarity index measure (rss)"),
 	OPTL_FLOAT(0, "mse-rand-ksp", &(loss_option.weighting_mse_rand_ksp), "weighting", "weighting for mean squared error for random kspace lines"),
+	OPTL_FLOAT(0, "mse-mask-ksp", &(loss_option.weighting_mse_mask_ksp), "weighting", "weighting for mean squared error for masked kspace lines"),
 
 	OPTL_FLOAT(0, "cce", &(loss_option.weighting_cce), "weighting", "weighting for categorical cross entropy"),
 	OPTL_FLOAT(0, "wcce", &(loss_option.weighting_weighted_cce), "weighting", "weighting for weighted categorical cross entropy"),
@@ -65,6 +66,8 @@ static bool loss_option_changed(struct loss_config_s* loss_option)
 	if (0 != loss_option->weighting_nmse)
 		return true;
 	if (0 != loss_option->weighting_mse_rand_ksp)
+		return true;
+	if (0 != loss_option->weighting_mse_mask_ksp)
 		return true;
 
 	if (0 != loss_option->weighting_cce)

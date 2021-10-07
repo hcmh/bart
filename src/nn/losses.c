@@ -146,6 +146,16 @@ const struct nlop_s* nlop_mse_rand_mask_kspace_create(int N, const long dims[N],
 	return result;
 }
 
+const struct nlop_s* nlop_mse_fixed_mask_kspace_create(int N, const long dims[N], unsigned long mean_dims, const long msk_dims[N], const complex float* mask)
+{
+	assert(md_check_equal_dims(N, dims, msk_dims, md_nontriv_dims(N, msk_dims)));
+	auto result = nlop_znorm_create(N, dims, mean_dims);
+	result = nlop_chain_FF(nlop_from_linop_F(linop_cdiag_create(N, dims, md_nontriv_dims(N, msk_dims), mask)), result);
+	result = nlop_chain_FF(nlop_from_linop_F(linop_fftc_create(N, dims, FFT_FLAGS)), result);
+	result = nlop_chain2_FF(nlop_zaxpbz_create(N, dims, 1, -1), 0, result, 0);
+	return result;
+}
+
 
 
 //compute lambda to find argmin ||lambda * x - xref||^2

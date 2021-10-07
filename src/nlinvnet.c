@@ -6,6 +6,7 @@
 #include "num/flpmath.h"
 #include "num/fft.h"
 #include "num/init.h"
+#include "num/rand.h"
 
 #include "noncart/nufft.h"
 #include "linops/linop.h"
@@ -87,6 +88,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	opts_iter6_init();
 
+	bool mask_lines = true;
+	float ratio_train = 0.;
+
 
 	struct opt_s valid_opts[] = {
 
@@ -145,6 +149,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_INT(0, "cgiter", &(conf.cgiter), "", "number of cg iterations"),
 
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
+
+		OPTL_FLOAT(0, "train-mask-ratio", &ratio_train, "p", "use p\% of kspace lines as reference"),
+		OPTL_CLEAR(0, "train-mask-points", &mask_lines, "use pointwise kspace mask instead of full lines")
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -254,6 +261,32 @@ int main_nlinvnet(int argc, char* argv[argc])
 	md_select_dims(DIMS, ~BATCH_FLAG, ksp_dims_s, ksp_dims);
 	md_select_dims(DIMS, ~BATCH_FLAG, pat_dims_s, pat_dims);
 
+	complex float* trn_mask = md_alloc(DIMS, pat_dims_s, CFL_SIZE);
+	md_copy(DIMS, pat_dims_s, trn_mask, pattern, CFL_SIZE);
+
+	if (0. != ratio_train) {
+
+		long tdims[DIMS];
+		md_select_dims(DIMS, mask_lines ? MD_BIT(1) | MD_BIT(2) : FFT_FLAGS, tdims, pat_dims_s);
+		complex float* rand_mask = md_alloc(DIMS, tdims, CFL_SIZE);
+
+		long pstrs[DIMS];
+		long tstrs[DIMS];
+
+		md_calc_strides(DIMS, pstrs, pat_dims_s, CFL_SIZE);
+		md_calc_strides(DIMS, tstrs, tdims, CFL_SIZE);
+
+		md_rand_one(DIMS, tdims, rand_mask, ratio_train);
+
+		md_zmul2(DIMS, pat_dims_s, pstrs, pattern, pstrs, pattern, tstrs, rand_mask);
+		md_zsadd(DIMS, tdims, rand_mask, rand_mask, -1.);
+		md_zsmul(DIMS, tdims, rand_mask, rand_mask, -1.);
+		md_zmul2(DIMS, pat_dims_s, pstrs, trn_mask, pstrs, trn_mask, tstrs, rand_mask);
+
+		md_free(rand_mask);
+	}
+
+
 	nlinvnet_init_model_cart(&nlinvnet, DIMS,
 		pat_dims_s, pattern,
 		MD_SINGLETON_DIMS(DIMS), NULL,
@@ -270,11 +303,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 		if (NULL != filename_weights_load)
 			nlinvnet.weights = load_nn_weights(filename_weights_load);
 
-
-		long cim_dims2[DIMS];
-		complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
-		assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
-
 		long ksp_dims_val[DIMS];
 		long cim_dims_val[DIMS];
 
@@ -287,7 +315,28 @@ int main_nlinvnet(int argc, char* argv[argc])
 			val_ref = load_cfl(val_file_reference, DIMS, cim_dims_val);
 		}
 
-		train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims_val, val_ref, ksp_dims_val, val_kspace);
+		if (0. == loss_option.weighting_mse_mask_ksp) {
+
+			long cim_dims2[DIMS];
+			complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
+			assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
+
+			train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims_val, val_ref, ksp_dims_val, val_kspace);
+
+			unmap_cfl(DIMS, cim_dims, ref);
+		} else {
+
+			complex float* ref = md_alloc(DIMS, ksp_dims, CFL_SIZE);
+			ifftuc(DIMS, ksp_dims, FFT_FLAGS, ref, kspace);
+
+			loss_option.mask = trn_mask;
+
+			train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims_val, val_ref, ksp_dims_val, val_kspace);
+
+			md_free(ref);
+		}
+
+
 		dump_nn_weights(weight_file, nlinvnet.weights);
 
 		if (NULL != val_file_kspace) {
@@ -295,8 +344,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 			unmap_cfl(DIMS, ksp_dims_val, val_kspace);
 			unmap_cfl(DIMS, cim_dims_val, val_ref);
 		}
-
-		unmap_cfl(DIMS, cim_dims, ref);
 	}
 
 	if (apply) {
@@ -327,6 +374,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, ksp_dims, kspace);
+	md_free(trn_mask);
 
 	double recosecs = timestamp() - start_time;
 

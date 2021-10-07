@@ -13,6 +13,8 @@ struct loss_config_s {
 	float weighting_nmse_rss_scaled;
 
 	float weighting_mse_rand_ksp;
+	float weighting_mse_mask_ksp;
+	const _Complex float* mask;
 
 	float weighting_cce;
 	float weighting_weighted_cce;
