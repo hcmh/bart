@@ -151,7 +151,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 
 		OPTL_FLOAT(0, "train-mask-ratio", &ratio_train, "p", "use p\% of kspace lines as reference"),
-		OPTL_CLEAR(0, "train-mask-points", &mask_lines, "use pointwise kspace mask instead of full lines")
+		OPTL_CLEAR(0, "train-mask-points", &mask_lines, "use pointwise kspace mask instead of full lines"),
+
+		OPTL_FLOAT(0, "add-noise-to-kspace", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution.")
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);

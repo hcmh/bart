@@ -160,6 +160,106 @@ const struct nlop_s* nlop_dropout_create(int N, const long dims[N], float p, uns
 }
 
 
+struct noise_s {
+
+	INTERFACE(nlop_data_t);
+
+	int N;
+
+	const long* noi_dims;
+	const long* out_dims;
+
+	float var;	//negative value means var is drawn from gaussian distribution with abs(var) (take magnitude)
+	unsigned long shared_var_flag;
+};
+
+DEF_TYPEID(noise_s);
+
+
+static void noise_fun(const nlop_data_t* _data, int Nargs, complex float* args[Nargs])
+{
+	const auto data = CAST_DOWN(noise_s, _data);
+
+	assert(1 == Nargs);
+	complex float* dst = args[0];
+
+	complex float* tmp = md_alloc_sameplace(data->N, data->noi_dims, CFL_SIZE, dst);
+
+	long noi_dims[data->N];
+	md_select_dims(data->N, (data->shared_var_flag), noi_dims, data->noi_dims);
+
+	long pos[data->N];
+	md_singleton_strides(data->N, pos);
+
+	do {
+
+		complex float* tmp2 = md_alloc_sameplace(data->N, noi_dims, CFL_SIZE, dst);
+
+		md_gaussian_rand(data->N, noi_dims, tmp2);
+
+		float var = (0 > data->var) ? pow(fabs(crealf(gaussian_rand())) * sqrtf(-(data->var)), 2) : data->var;
+		md_zsmul(data->N, noi_dims, tmp2, tmp2, sqrtf(var));
+
+		md_copy2(data->N, noi_dims,
+			MD_STRIDES(data->N, data->noi_dims, CFL_SIZE), &(MD_ACCESS(data->N, MD_STRIDES(data->N, data->noi_dims, CFL_SIZE), pos, tmp)),
+			MD_STRIDES(data->N, noi_dims, CFL_SIZE), tmp2, CFL_SIZE);
+
+		md_free(tmp2);
+
+
+	} while (md_next(data->N, data->noi_dims, ~(data->shared_var_flag), pos));
+
+
+	md_copy2(data->N, data->out_dims,
+			MD_STRIDES(data->N, data->out_dims, CFL_SIZE), dst,
+			MD_STRIDES(data->N, data->noi_dims, CFL_SIZE), tmp, CFL_SIZE);
+
+	md_free(tmp);
+}
+
+
+static void noise_del(const struct nlop_data_s* _data)
+{
+	const auto data = CAST_DOWN(noise_s, _data);
+
+	xfree(data->noi_dims);
+	xfree(data->out_dims);
+
+	xfree(data);
+}
+
+
+const struct nlop_s* nlop_noise_create(int N, const long dims[N], float var, unsigned long shared_dims_flag, unsigned long shared_var_flag)
+{
+	PTR_ALLOC(struct noise_s, data);
+	SET_TYPEID(noise_s, data);
+
+	data->N = N;
+
+	long* out_dims = *TYPE_ALLOC(long[N]);
+	long* noi_dims = *TYPE_ALLOC(long[N]);
+
+	md_copy_dims(N, out_dims, dims);
+	md_select_dims(N, ~shared_dims_flag, noi_dims, dims);
+
+	data->out_dims = out_dims;
+	data->noi_dims = noi_dims;
+	data->var = var;
+	data->shared_var_flag = shared_var_flag;
+
+	long odims[1][N];
+	md_copy_dims(N, odims[0], dims);
+
+	return nlop_generic_create(1, N, odims, 0, 0, NULL, CAST_UP(PTR_PASS(data)), noise_fun, NULL, NULL, NULL, NULL, noise_del);
+}
+
+const struct nlop_s* nlop_add_noise_create(int N, const long dims[N], float var, unsigned long shared_dims_flag, unsigned long shared_var_flag)
+{
+	auto result = nlop_zaxpbz_create(N, dims, 1, 1);
+	result = nlop_chain2_FF(nlop_noise_create(N, dims, var, shared_dims_flag, shared_var_flag), 0, result, 1);
+	return result;
+}
+
 const struct linop_s* linop_avgpool_create(int N, const long dims[N], const long pool_size[N])
 {
 	long ndims[2 * N];

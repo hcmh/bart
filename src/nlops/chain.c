@@ -268,6 +268,46 @@ struct nlop_s* nlop_chain2_keep_swap_FF(const struct nlop_s* a, int o, const str
 }
 
 
+/**
+ * Chain output o of nlop a into b and permute output to o
+ *
+ * Returned operator has
+ * - inputs:  [a_0, ..., a_n]
+ * - outputs: [a_0, ..., a_o-1, b_0, a_o+1, ..., a_n]
+ *
+ * @param a
+ * @param o
+ * @param b
+ */
+struct nlop_s* nlop_append_FF(const struct nlop_s* a, int o, const struct nlop_s* b)
+{
+	assert(1 == nlop_get_nr_in_args(b));
+	assert(1 == nlop_get_nr_out_args(b));
+
+	auto result = nlop_chain2_FF(a, o, b, 0);
+	return nlop_shift_output_F(result, o, 0);
+}
+
+/**
+ * Chain nlop a into input i of b and permute input of a to i
+ *
+ * Returned operator has
+ * - inputs:  [b_0, ..., b_i-1, a_0, b_i+1, ..., b_n]
+ * - outputs: [b_0, ..., b_n]
+ *
+ * @param a
+ * @param b
+ * @param i
+ */
+struct nlop_s* nlop_prepend_FF(const struct nlop_s* a, const struct nlop_s* b, int i)
+{
+	assert(1 == nlop_get_nr_in_args(a));
+	assert(1 == nlop_get_nr_out_args(a));
+
+	auto result = nlop_chain2_swap_FF(a, 0, b, i);
+	return nlop_shift_input_F(result, i, 0);
+}
+
 
 /*
  * CAVE: if we pass the same operator twice, it might not

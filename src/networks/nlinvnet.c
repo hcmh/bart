@@ -106,6 +106,8 @@ struct nlinvnet_s nlinvnet_config_opts = {
 
 	.fix_coils = false,
 
+	.ksp_noise = 0.,
+
 	.graph_file = NULL,
 };
 
@@ -685,7 +687,7 @@ static nn_t nlinvnet_net_loss_create(const struct nlinvnet_s* nlinvnet, int Nb, 
 	return train_op;
 }
 
-static nn_t nlinvnet_valid_create(const struct nlinvnet_s* nlinvnet, int N, const long cim_dims[N], const complex float* ref, const long ksp_dims[N], const complex float* ksp)
+static nn_t nlinvnet_valid_create(const struct nlinvnet_s* nlinvnet, int N, const long cim_dims[N], const complex float* ref, const long ksp_dims[N], const complex float* ksp, int N_batch_inputs)
 {
 	int Nb = ksp_dims[BATCH_DIM];
 
@@ -693,10 +695,8 @@ static nn_t nlinvnet_valid_create(const struct nlinvnet_s* nlinvnet, int N, cons
 
 	valid_loss = nn_set_input_const_F(valid_loss, 0, NULL, N, cim_dims, true, ref);
 	valid_loss = nn_set_input_const_F(valid_loss, 0, "ksp", N, ksp_dims, true, ksp);
-	valid_loss = nn_combine_FF(nn_from_nlop_F(nlop_del_out_create(1, MD_SINGLETON_DIMS(1))), valid_loss);
-	valid_loss = nn_combine_FF(nn_from_nlop_F(nlop_del_out_create(1, MD_SINGLETON_DIMS(1))), valid_loss);
-	valid_loss = nn_combine_FF(nn_from_nlop_F(nlop_del_out_create(1, MD_SINGLETON_DIMS(1))), valid_loss);
-	valid_loss = nn_combine_FF(nn_from_nlop_F(nlop_del_out_create(1, MD_SINGLETON_DIMS(1))), valid_loss);
+	for (int i = 0; i < N_batch_inputs; i++)
+		valid_loss = nn_combine_FF(nn_from_nlop_F(nlop_del_out_create(1, MD_SINGLETON_DIMS(1))), valid_loss);
 
 	return valid_loss;
 }
@@ -728,7 +728,9 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 	ksp_dims_bat[BATCH_DIM] = Nb;
 	cim_dims_bat[BATCH_DIM] = Nb;
 
-	auto nn_train = nlinvnet_net_loss_create(nlinvnet, Nb, false);
+	bool precompute = (0 == nlinvnet->ksp_noise);
+
+	auto nn_train = (precompute ? nlinvnet_net_loss_create : nlinvnet_loss_create)(nlinvnet, Nb, false);
 
 	if (nn_is_name_in_in_args(nn_train, "lambda")) {
 
@@ -756,43 +758,66 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 	if (nlinvnet->gpu)
 		move_gpu_nn_weights(nlinvnet->weights);
 
-	long xdims_b[N];
-	long kdims_b[N];
-	long sdims_b[N];
+	complex float* init = NULL;
+	complex float* ksp_grid = NULL;
+	complex float* scale = 	NULL;
 
-	md_copy_dims(nn_generic_domain(nn_train, 1, NULL)->N, xdims_b, nn_generic_domain(nn_train, 1, NULL)->dims);
-	md_copy_dims(nn_generic_domain(nn_train, 0, "y")->N, kdims_b, nn_generic_domain(nn_train, 0, "y")->dims);
-	md_copy_dims(nn_generic_domain(nn_train, 0, "scale")->N, sdims_b, nn_generic_domain(nn_train, 0, "scale")->dims);
+	const struct nlop_s* batch_generator = NULL;
+	int N_batch_inputs = -1;
 
-	long xdims_t[N];
-	long kdims_t[N];
-	long sdims_t[N];
+	if (precompute) {
 
-	md_copy_dims(N, xdims_t, xdims_b);
-	md_copy_dims(N, kdims_t, kdims_b);
-	md_copy_dims(N, sdims_t, sdims_b);
+		long xdims_b[N];
+		long kdims_b[N];
+		long sdims_b[N];
 
-	xdims_t[BATCH_DIM] = Nt;
-	kdims_t[BATCH_DIM] = Nt;
-	sdims_t[BATCH_DIM] = Nt;
+		md_copy_dims(nn_generic_domain(nn_train, 1, NULL)->N, xdims_b, nn_generic_domain(nn_train, 1, NULL)->dims);
+		md_copy_dims(nn_generic_domain(nn_train, 0, "y")->N, kdims_b, nn_generic_domain(nn_train, 0, "y")->dims);
+		md_copy_dims(nn_generic_domain(nn_train, 0, "scale")->N, sdims_b, nn_generic_domain(nn_train, 0, "scale")->dims);
 
-	complex float* init = 	md_alloc(N, xdims_t, CFL_SIZE);
-	complex float* ksp_grid = md_alloc(N, kdims_t, CFL_SIZE);
-	complex float* scale = 	md_alloc(N, sdims_t, CFL_SIZE);
+		long xdims_t[N];
+		long kdims_t[N];
+		long sdims_t[N];
 
-	auto nn_init = nlinvnet_init_create(nlinvnet, 1, STAT_TRAIN);
-	nlop_generic_apply_loop_sameplace(nn_init->nlop, BATCH_FLAG,
-		3, (int [3]){N, N, N}, (const long* [3]){xdims_t, kdims_t, sdims_t}, (complex float* [3]) {init, ksp_grid, scale},
-		1, (int [1]){N}, (const long* [1]){ksp_dims_trn}, (const complex float* [1]) {ksp_trn},
-		nlinvnet->weights->tensors[0]);
-	nn_free(nn_init);
+		md_copy_dims(N, xdims_t, xdims_b);
+		md_copy_dims(N, kdims_t, kdims_b);
+		md_copy_dims(N, sdims_t, sdims_b);
 
-	//create batch generator
-	const complex float* train_data[] = {ref_trn, init, ksp_grid, scale};
-	const long* bat_dims[] = { cim_dims_bat, xdims_b, kdims_b, sdims_b };
-	const long* tot_dims[] = { cim_dims_trn, xdims_t, kdims_t, sdims_t };
+		xdims_t[BATCH_DIM] = Nt;
+		kdims_t[BATCH_DIM] = Nt;
+		sdims_t[BATCH_DIM] = Nt;
 
-	auto batch_generator = batch_gen_create_from_iter(nlinvnet->train_conf, 4, (const int[4]){ N, N, N, N}, bat_dims, tot_dims, train_data, 0);
+		complex float* init = 	md_alloc(N, xdims_t, CFL_SIZE);
+		complex float* ksp_grid = md_alloc(N, kdims_t, CFL_SIZE);
+		complex float* scale = 	md_alloc(N, sdims_t, CFL_SIZE);
+
+		auto nn_init = nlinvnet_init_create(nlinvnet, 1, STAT_TRAIN);
+		nlop_generic_apply_loop_sameplace(nn_init->nlop, BATCH_FLAG,
+			3, (int [3]){N, N, N}, (const long* [3]){xdims_t, kdims_t, sdims_t}, (complex float* [3]) {init, ksp_grid, scale},
+			1, (int [1]){N}, (const long* [1]){ksp_dims_trn}, (const complex float* [1]) {ksp_trn},
+			nlinvnet->weights->tensors[0]);
+		nn_free(nn_init);
+
+		//create batch generator
+		const complex float* train_data[] = {ref_trn, init, ksp_grid, scale};
+		const long* bat_dims[] = { cim_dims_bat, xdims_b, kdims_b, sdims_b };
+		const long* tot_dims[] = { cim_dims_trn, xdims_t, kdims_t, sdims_t };
+
+		N_batch_inputs = 4;
+		batch_generator = batch_gen_create_from_iter(nlinvnet->train_conf, 4, (const int[4]){ N, N, N, N}, bat_dims, tot_dims, train_data, 0);
+	} else {
+
+		//create batch generator
+		const complex float* train_data[] = {ref_trn, ksp_trn};
+		const long* bat_dims[] = { cim_dims_bat, ksp_dims_bat };
+		const long* tot_dims[] = { cim_dims_trn, ksp_dims_trn };
+
+		N_batch_inputs = 2;
+		batch_generator = batch_gen_create_from_iter(nlinvnet->train_conf, 2, (const int[2]){ N, N}, bat_dims, tot_dims, train_data, 0);
+
+		if (0 != nlinvnet->ksp_noise)
+			batch_generator = nlop_append_FF(batch_generator, 1, nlop_add_noise_create(N, ksp_dims_bat, nlinvnet->ksp_noise, 0, ~BATCH_FLAG));
+	}
 
 	//setup for iter algorithm
 	int NI = nn_get_nr_in_args(nn_train);
@@ -803,9 +828,9 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 	for (int i = 0; i < nlinvnet->weights->N; i++) {
 
 		auto iov_weight = nlinvnet->weights->iovs[i];
-		auto iov_train_op = nlop_generic_domain(nn_get_nlop(nn_train), i + 4);
+		auto iov_train_op = nlop_generic_domain(nn_get_nlop(nn_train), i + N_batch_inputs);
 		assert(md_check_equal_dims(iov_weight->N, iov_weight->dims, iov_train_op->dims, ~0));
-		src[i + 4] = (float*)nlinvnet->weights->tensors[i];
+		src[i + N_batch_inputs] = (float*)nlinvnet->weights->tensors[i];
 	}
 
 	enum IN_TYPE in_type[NI];
@@ -815,7 +840,7 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 	nn_get_in_types(nn_train, NI, in_type);
 	nn_get_out_types(nn_train, NO, out_type);
 
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < N_batch_inputs; i++) {
 
 		src[i] = NULL;
 		in_type[i] = IN_BATCH_GENERATOR;
@@ -831,7 +856,7 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 
 		assert(NULL != ksp_val);
 
-		auto nn_validation_loss = nlinvnet_valid_create(nlinvnet, N, cim_dims_val, ref_val, ksp_dims_val, ksp_val);
+		auto nn_validation_loss = nlinvnet_valid_create(nlinvnet, N, cim_dims_val, ref_val, ksp_dims_val, ksp_val, N_batch_inputs);
 		const char* val_names[nn_get_nr_out_args(nn_validation_loss)];
 		for (int i = 0; i < nn_get_nr_out_args(nn_validation_loss); i++)
 			val_names[i] = nn_get_out_name_from_arg_index(nn_validation_loss, i, false);

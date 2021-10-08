@@ -32,6 +32,8 @@ struct nlinvnet_s {
 	_Bool fix_lambda;
 	_Bool fix_coils;
 
+	float ksp_noise;
+
 	const char* graph_file;
 };
 
