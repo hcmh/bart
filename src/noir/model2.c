@@ -78,6 +78,50 @@ static void noir2_calc_weights(const struct noir2_model_conf_s* conf, int N, con
 	md_zspow(N, wght_dims, dst, dst, -conf->b / 2.);	// 1 + 220. \Laplace^16
 }
 
+static struct noir2_s noir2_init_create(int N,
+					const long pat_dims[N],
+					const long bas_dims[N],
+					const long msk_dims[N],
+					const long ksp_dims[N],
+					const long cim_dims[N],
+					const long img_dims[N],
+					const long col_dims[N],
+					const long trj_dims[N])
+{
+	struct noir2_s ret = {
+		.nlop = NULL,
+		.lop_coil2 = NULL,
+		.lop_fft = NULL,
+		.lop_coil = NULL,
+		.lop_im = NULL,
+		.tenmul = NULL,
+
+		.lop_nufft = NULL,
+		.lop_pattern = NULL,
+
+		.N = N,
+		.pat_dims = *TYPE_ALLOC(long[N]),
+		.bas_dims = *TYPE_ALLOC(long[N]),
+		.msk_dims = *TYPE_ALLOC(long[N]),
+		.ksp_dims = *TYPE_ALLOC(long[N]),
+		.cim_dims = *TYPE_ALLOC(long[N]),
+		.img_dims = *TYPE_ALLOC(long[N]),
+		.col_dims = *TYPE_ALLOC(long[N]),
+		.trj_dims = *TYPE_ALLOC(long[N]),
+	};
+
+	md_copy_dims(N, ret.pat_dims, (NULL == pat_dims) ? MD_SINGLETON_DIMS(N) : pat_dims);
+	md_copy_dims(N, ret.bas_dims, (NULL == bas_dims) ? MD_SINGLETON_DIMS(N) : bas_dims);
+	md_copy_dims(N, ret.msk_dims, (NULL == msk_dims) ? MD_SINGLETON_DIMS(N) : msk_dims);
+	md_copy_dims(N, ret.ksp_dims, (NULL == ksp_dims) ? MD_SINGLETON_DIMS(N) : ksp_dims);
+	md_copy_dims(N, ret.cim_dims, (NULL == cim_dims) ? MD_SINGLETON_DIMS(N) : cim_dims);
+	md_copy_dims(N, ret.img_dims, (NULL == img_dims) ? MD_SINGLETON_DIMS(N) : img_dims);
+	md_copy_dims(N, ret.col_dims, (NULL == col_dims) ? MD_SINGLETON_DIMS(N) : col_dims);
+	md_copy_dims(N, ret.trj_dims, (NULL == trj_dims) ? MD_SINGLETON_DIMS(N) : trj_dims);
+
+	return ret;
+}
+
 /**
  * This function creates the non (bi)-linear part of the sense model, i.e.
  * 	cim = (mask * img) * ifftuc[weights * ksens]
@@ -87,37 +131,24 @@ static void noir2_calc_weights(const struct noir2_model_conf_s* conf, int N, con
  * lop_coil2 contains the coil transform without a second ifftmod, i.e.
  *	lop_coil2(x) = fftmod(ifftuc(weights * x))
  **/
-static struct noir2_s noir2_nlop_create(int N,
-	const long msk_dims[N], const complex float* mask,
-	const long cim_dims[N],
-	const long img_dims[N],
-	const long col_dims[N],
-	const struct noir2_model_conf_s* conf)
+static void noir2_nlop_create(struct noir2_s* ret, int N, const long msk_dims[N], const complex float* mask, const struct noir2_model_conf_s* conf)
 {
-	struct noir2_s ret = {
-		.nlop = NULL,
-		.lop_coil2 = NULL,
-		.lop_fft = NULL,
-		.lop_coil = NULL,
-		.lop_im = NULL,
-		.tenmul = NULL,
-	};
 
 	unsigned long fft_flags = conf->fft_flags_noncart | conf->fft_flags_cart;
 
 	long wght_dims[N];
-	md_select_dims(N, fft_flags, wght_dims, col_dims);
+	md_select_dims(N, fft_flags, wght_dims, ret->col_dims);
 
 	complex float* wghts = md_alloc(N, wght_dims, CFL_SIZE);
 	noir2_calc_weights(conf, N, wght_dims, wghts);
 	ifftmod(N, wght_dims, fft_flags, wghts, wghts);		//in the previous implementation fftmod was used, but ifftmod should be correct
 	fftscale(N, wght_dims, fft_flags, wghts, wghts);
 
-	const struct linop_s* lop_wghts = linop_cdiag_create(N, col_dims, fft_flags, wghts);
-	const struct linop_s* lop_wghts_ifft = linop_ifft_create(N, col_dims, fft_flags);
+	const struct linop_s* lop_wghts = linop_cdiag_create(N, ret->col_dims, fft_flags, wghts);
+	const struct linop_s* lop_wghts_ifft = linop_ifft_create(N, ret->col_dims, fft_flags);
 
-	ret.lop_coil =  linop_chain_FF(lop_wghts, lop_wghts_ifft);
-	ret.lop_coil2 = linop_clone(ret.lop_coil);
+	ret->lop_coil =  linop_chain_FF(lop_wghts, lop_wghts_ifft);
+	ret->lop_coil2 = linop_clone(ret->lop_coil);
 
 
 	complex float* ifmod = md_alloc(N, wght_dims, CFL_SIZE);
@@ -126,53 +157,51 @@ static struct noir2_s noir2_nlop_create(int N,
 
 	//FIXME: In the Cartesian case, we might merge ifftmod with fftmod of fft in linop trafo part (as in previous implementation)
 	//CAVEAT: if coil dims != img dims, we need to check if they cancel
-	ret.lop_coil = linop_chain_FF(ret.lop_coil, linop_cdiag_create(N, col_dims, fft_flags, ifmod));
+	ret->lop_coil = linop_chain_FF(ret->lop_coil, linop_cdiag_create(N, ret->col_dims, fft_flags, ifmod));
 	md_free(ifmod);
 
 	long max_dims[N]; 	//of tenmul
 	for (int i = 0; i < N; i++)
-		max_dims[i] = (1 == cim_dims[i]) ? MIN(img_dims[i], col_dims[i]) : cim_dims[i];
+		max_dims[i] = (1 == ret->cim_dims[i]) ? MIN(ret->img_dims[i], ret->col_dims[i]) : ret->cim_dims[i];
 
 	long img_dims2[N];
 	long col_dims2[N];
-	md_select_dims(N, md_nontriv_dims(N, img_dims), img_dims2, max_dims);
-	md_select_dims(N, md_nontriv_dims(N, col_dims), col_dims2, max_dims);
+	md_select_dims(N, md_nontriv_dims(N, ret->img_dims), img_dims2, max_dims);
+	md_select_dims(N, md_nontriv_dims(N, ret->col_dims), col_dims2, max_dims);
 
-	if (!md_check_equal_dims(N, col_dims, col_dims2, ~0))
-		ret.lop_coil = linop_chain_FF(ret.lop_coil, linop_resize_center_create(N, col_dims2, col_dims));
+	if (!md_check_equal_dims(N, ret->col_dims, col_dims2, ~0))
+		ret->lop_coil = linop_chain_FF(ret->lop_coil, linop_resize_center_create(N, col_dims2, ret->col_dims));
 
 	if (NULL != mask) {
 
-		assert(md_check_equal_dims(N, msk_dims, img_dims, md_nontriv_dims(N, msk_dims)));
-		ret.lop_im = linop_cdiag_create(N, img_dims, md_nontriv_dims(N, msk_dims), mask);
+		assert(md_check_equal_dims(N, msk_dims, ret->img_dims, md_nontriv_dims(N, msk_dims)));
+		ret->lop_im = linop_cdiag_create(N, ret->img_dims, md_nontriv_dims(N, msk_dims), mask);
 	}
 
-	if (!md_check_equal_dims(N, img_dims, img_dims2, ~0)) {
+	if (!md_check_equal_dims(N, ret->img_dims, img_dims2, ~0)) {
 
 		if (NULL == mask)
-			ret.lop_im  = linop_resize_center_create(N, img_dims, img_dims2);
+			ret->lop_im  = linop_resize_center_create(N, ret->img_dims, img_dims2);
 		else
-			ret.lop_im  = linop_chain_FF(ret.lop_im, linop_resize_center_create(N, img_dims, img_dims2));
+			ret->lop_im  = linop_chain_FF(ret->lop_im, linop_resize_center_create(N, ret->img_dims, img_dims2));
 	}
 
 	if (conf->rvc) {
 
 		if (NULL == mask)
-			ret.lop_im  = linop_zreal_create(N, img_dims);
+			ret->lop_im  = linop_zreal_create(N, ret->img_dims);
 		else
-			ret.lop_im  = linop_chain_FF(linop_zreal_create(N, img_dims), ret.lop_im );
+			ret->lop_im  = linop_chain_FF(linop_zreal_create(N, ret->img_dims), ret->lop_im );
 	}
 
-	ret.tenmul = nlop_tenmul_create(N, cim_dims, img_dims2, col_dims2);
-	ret.nlop = nlop_chain2_FF(nlop_from_linop(ret.lop_coil), 0, nlop_clone(ret.tenmul), 1);
-	if (NULL != ret.lop_im )
-		ret.nlop = nlop_chain2_swap_FF(nlop_from_linop(ret.lop_im ),0, ret.nlop, 0);
+	ret->tenmul = nlop_tenmul_create(N, ret->cim_dims, img_dims2, col_dims2);
+	ret->nlop = nlop_chain2_FF(nlop_from_linop(ret->lop_coil), 0, nlop_clone(ret->tenmul), 1);
+	if (NULL != ret->lop_im )
+		ret->nlop = nlop_chain2_swap_FF(nlop_from_linop(ret->lop_im ),0, ret->nlop, 0);
 	else
-		ret.lop_im = linop_identity_create(N, img_dims2);
+		ret->lop_im = linop_identity_create(N, img_dims2);
 
-	ret.model_conf = *conf;
-
-	return ret;
+	ret->model_conf = *conf;
 }
 
 /**
@@ -196,7 +225,8 @@ struct noir2_s noir2_noncart_create(int N,
 {
 	assert(conf->noncart);
 
-	struct noir2_s ret = noir2_nlop_create(N, msk_dims, mask, cim_dims, img_dims, col_dims, conf);
+	struct noir2_s ret = noir2_init_create(N, wgh_dims, bas_dims, msk_dims, ksp_dims, cim_dims, img_dims, col_dims, trj_dims);
+	noir2_nlop_create(&ret, N, msk_dims, mask, conf);
 
 	struct nufft_conf_s nufft_conf = *(conf->nufft_conf);
 	nufft_conf.flags = conf->fft_flags_noncart;
@@ -285,7 +315,8 @@ struct noir2_s noir2_cart_create(int N,
 	const long col_dims[N],
 	const struct noir2_model_conf_s* conf)
 {
-	struct noir2_s ret = noir2_nlop_create(N, msk_dims, mask, cim_dims, img_dims, col_dims, conf);
+	struct noir2_s ret = noir2_init_create(N, pat_dims, bas_dims, msk_dims, ksp_dims, cim_dims, img_dims, col_dims, NULL);
+	noir2_nlop_create(&ret, N, msk_dims, mask, conf);
 
 	unsigned long fft_flags = conf->fft_flags_noncart | conf->fft_flags_cart;
 
@@ -315,7 +346,10 @@ struct noir2_s noir2_cart_create(int N,
 		} else {
 
 			assert(md_check_equal_dims(N, cim_dims, ksp_dims, ~0));
-			ret.lop_fft = linop_fftc_weighted_create(N, cim_dims, fft_flags, 0, NULL, md_nontriv_dims(N, pat_dims), pattern);
+			ret.lop_fft = linop_fftc_create(N, cim_dims, fft_flags);
+
+			ret.lop_pattern = linop_cdiag_create(N, cim_dims, md_nontriv_dims(N, pat_dims), pattern);
+			ret.lop_fft = linop_chain_FF(ret.lop_fft, linop_clone(ret.lop_pattern));
 		}
 	} else {
 
@@ -446,4 +480,16 @@ void noir2_free(struct noir2_s* model)
 	linop_free(model->lop_coil);
 	linop_free(model->lop_im);
 	nlop_free(model->tenmul);
+
+	linop_free(model->lop_pattern);
+	linop_free(model->lop_nufft);
+
+	xfree(model->pat_dims);
+	xfree(model->bas_dims);
+	xfree(model->msk_dims);
+	xfree(model->ksp_dims);
+	xfree(model->cim_dims);
+	xfree(model->img_dims);
+	xfree(model->col_dims);
+	xfree(model->trj_dims);
 }

@@ -38,6 +38,19 @@ struct noir2_s {
 	const struct linop_s* lop_coil;		// kspace coils to img-coils
 	const struct linop_s* lop_im;		// masking/resizing of image
 	const struct nlop_s* tenmul;		// tenmul coil * image = coil image
+
+	const struct linop_s* lop_nufft;	// for retrospectively changing trajectory
+	const struct linop_s* lop_pattern;	// for retrospectively changing pattern
+
+	int N;
+	long* pat_dims;
+	long* bas_dims;
+	long* msk_dims;
+	long* ksp_dims;
+	long* cim_dims;
+	long* img_dims;
+	long* col_dims;
+	long* trj_dims;
 };
 
 extern struct noir2_s noir2_noncart_create(int N,
