@@ -85,6 +85,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	const char* val_file_kspace = NULL;
 	const char* val_file_reference = NULL;
+	const char* val_file_pattern = NULL;
 
 	opts_iter6_init();
 
@@ -94,7 +95,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	struct opt_s valid_opts[] = {
 
-		//OPTL_INFILE('p', "pattern", &(val_file_pattern), "<file>", "validation data sampling pattern"), currently use same model as training
+		OPTL_INFILE('p', "pattern", &(val_file_pattern), "<file>", "validation data sampling pattern"),
 		OPTL_INFILE('k', "kspace", &(val_file_kspace), "<file>", "validation data kspace"),
 		OPTL_INFILE('r', "ref", &(val_file_reference), "<file>", "validation data reference"),
 	};
@@ -307,14 +308,26 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		long ksp_dims_val[DIMS];
 		long cim_dims_val[DIMS];
+		long pat_dims_val[DIMS];
 
 		complex float* val_kspace = NULL;
 		complex float* val_ref = NULL;
+		complex float* val_pattern = NULL;
 
 		if (NULL != val_file_kspace) {
 
 			val_kspace = load_cfl(val_file_kspace, DIMS, ksp_dims_val);
 			val_ref = load_cfl(val_file_reference, DIMS, cim_dims_val);
+
+			if (NULL != val_file_pattern) {
+
+				val_pattern = load_cfl(val_file_pattern, DIMS, pat_dims_val);
+			} else {
+
+				md_select_dims(DIMS, ~COIL_FLAG, pat_dims_val, ksp_dims_val);
+				val_pattern = anon_cfl("", DIMS, pat_dims_val);
+				estimate_pattern(DIMS, ksp_dims_val, COIL_FLAG, val_pattern, val_kspace);
+			}
 		}
 
 		if (0. == loss_option.weighting_mse_mask_ksp) {
@@ -323,7 +336,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 			complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
 			assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
 
-			train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims_val, val_ref, ksp_dims_val, val_kspace);
+			train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern, cim_dims_val, val_ref, ksp_dims_val, val_kspace, pat_dims_val, val_pattern);
 
 			unmap_cfl(DIMS, cim_dims, ref);
 		} else {
@@ -333,7 +346,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 			loss_option.mask = trn_mask;
 
-			train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, cim_dims_val, val_ref, ksp_dims_val, val_kspace);
+			train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern, cim_dims_val, val_ref, ksp_dims_val, val_kspace, pat_dims_val, val_pattern);
 
 			md_free(ref);
 		}
@@ -355,7 +368,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		complex float* col = (NULL != sens_file) ? create_cfl(sens_file, DIMS, dims) : anon_cfl("", DIMS, dims);
 		nlinvnet.weights = load_nn_weights(weight_file);
 
-		apply_nlinvnet(&nlinvnet, DIMS, img_dims, img, dims, col, ksp_dims, kspace);
+		apply_nlinvnet(&nlinvnet, DIMS, img_dims, img, dims, col, ksp_dims, kspace, pat_dims, pattern);
 
 		unmap_cfl(DIMS, img_dims, img);
 		unmap_cfl(DIMS, dims, col);
@@ -369,7 +382,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		nlinvnet.weights = load_nn_weights(weight_file);
 
-		eval_nlinvnet(&nlinvnet, DIMS, cim_dims, ref, ksp_dims, kspace);
+		eval_nlinvnet(&nlinvnet, DIMS, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern);
 
 		unmap_cfl(DIMS, cim_dims2, ref);
 	}
