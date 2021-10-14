@@ -235,7 +235,7 @@ const struct nlop_s* batch_gen_create(int D, const int Ns[D], const long* bat_di
 				assert(-1 == bat_idx[j]);
 				bat_idx[j] = i;
 
-				assert((d->Nt == tot_dims[j][i]) || (1 == d->Nt));
+				assert((d->Nt == tot_dims[j][i]) || (1 == d->Nt) || (1 == tot_dims[j][i]));
 				d->Nt = MAX(d->Nt, tot_dims[j][i]);
 
 				assert((d->Nb == bat_dims[j][i]) || (1 == d->Nb));
