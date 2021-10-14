@@ -288,6 +288,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 		md_free(rand_mask);
 	}
 
+	Nb = Nb ? Nb : 10;
+	nlinvnet.Nb = Nb;
 
 	nlinvnet_init_model_cart(&nlinvnet, DIMS,
 		pat_dims_s, pattern,
@@ -297,8 +299,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 		cim_dims_s,
 		img_dims_s,
 		col_dims_s);
-
-	Nb = Nb ? Nb : 10;
 
 	if (train) {
 

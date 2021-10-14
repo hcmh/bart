@@ -16,7 +16,11 @@ struct nlinvnet_s {
 	struct loss_config_s* valid_loss;
 
 	struct noir2_conf_s* conf;
-	struct noir2_s* model;
+
+	int Nb;
+	struct noir2_s** models;
+	struct noir2_s* model_valid;
+
 	struct iter_conjgrad_conf* iter_conf;
 	int iter_init;		//iterations with half update dx -> 0.5dx
 	int iter_net;		//# of iterations with network

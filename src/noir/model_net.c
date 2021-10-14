@@ -608,17 +608,17 @@ static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model,
 	return result;
 }
 
-const struct nlop_s* noir_gauss_newton_step_batch_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf, int Nb, float update, bool fix_coils)
+const struct nlop_s* noir_gauss_newton_step_batch_create(int Nb, struct noir2_s* model[Nb], const struct iter_conjgrad_conf* iter_conf, float update, bool fix_coils)
 {
 
-	auto result = noir_gauss_newton_step_create(model, iter_conf, update, fix_coils);
+	auto result = noir_gauss_newton_step_create(model[0], iter_conf, update, fix_coils);
 	result = nlop_append_singleton_dim_in_F(result, 1);
 	result = nlop_append_singleton_dim_in_F(result, 2);
 	result = nlop_append_singleton_dim_out_F(result, 0);
 
 	for (int i = 1; i < Nb; i++) {
 
-		auto tmp = noir_gauss_newton_step_create(model, iter_conf, update, fix_coils);
+		auto tmp = noir_gauss_newton_step_create(model[i], iter_conf, update, fix_coils);
 		tmp = nlop_append_singleton_dim_in_F(tmp, 1);
 		tmp = nlop_append_singleton_dim_in_F(tmp, 2);
 		tmp = nlop_append_singleton_dim_out_F(tmp, 0);
@@ -650,14 +650,14 @@ const struct nlop_s* noir_decomp_create(struct noir2_s* model)
 	return nlop_decomp;
 }
 
-const struct nlop_s* noir_decomp_batch_create(struct noir2_s* model, int Nb)
+const struct nlop_s* noir_decomp_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_decomp_create(model);
+	auto result = noir_decomp_create(model[0]);
 	result = nlop_append_singleton_dim_in_F(result, 0);
 
 	for (int i = 1; i < Nb; i++) {
 
-		result = nlop_combine_FF(result, nlop_append_singleton_dim_in_F(noir_decomp_create(model), 0));
+		result = nlop_combine_FF(result, nlop_append_singleton_dim_in_F(noir_decomp_create(model[i]), 0));
 
 		result = nlop_stack_inputs_F(result, 0, 1, 1);
 		result = nlop_stack_outputs_F(result, 0, 2, BATCH_DIM);
@@ -667,19 +667,19 @@ const struct nlop_s* noir_decomp_batch_create(struct noir2_s* model, int Nb)
 	return result;
 }
 
-const struct nlop_s* noir_cim_batch_create(struct noir2_s* model, int Nb)
+const struct nlop_s* noir_cim_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_decomp_batch_create(model, Nb);
+	auto result = noir_decomp_batch_create(Nb, model);
 
-	int N = noir_model_get_N(model);
+	int N = noir_model_get_N(model[0]);
 
 	long img_dims[N];
 	long col_dims[N];
 	long cim_dims[N];
 
-	noir_model_get_img_tm_dims(N, img_dims, model);
-	noir_model_get_col_tm_dims(N, col_dims, model);
-	noir_model_get_cim_dims(N, cim_dims, model);
+	noir_model_get_img_tm_dims(N, img_dims, model[0]);
+	noir_model_get_col_tm_dims(N, col_dims, model[0]);
+	noir_model_get_cim_dims(N, cim_dims, model[0]);
 
 	img_dims[BATCH_DIM] = Nb;
 	col_dims[BATCH_DIM] = Nb;
@@ -709,14 +709,14 @@ const struct nlop_s* noir_split_create(struct noir2_s* model)
 	return nlop_decomp;
 }
 
-const struct nlop_s* noir_split_batch_create(struct noir2_s* model, int Nb)
+const struct nlop_s* noir_split_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_split_create(model);
+	auto result = noir_split_create(model[0]);
 	result = nlop_append_singleton_dim_in_F(result, 0);
 
 	for (int i = 1; i < Nb; i++) {
 
-		result = nlop_combine_FF(result, nlop_append_singleton_dim_in_F(noir_split_create(model), 0));
+		result = nlop_combine_FF(result, nlop_append_singleton_dim_in_F(noir_split_create(model[i]), 0));
 
 		result = nlop_stack_inputs_F(result, 0, 1, 1);
 		result = nlop_stack_outputs_F(result, 0, 2, BATCH_DIM);
@@ -743,14 +743,14 @@ const struct nlop_s* noir_join_create(struct noir2_s* model)
 	return nlop_join;
 }
 
-const struct nlop_s* noir_join_batch_create(struct noir2_s* model, int Nb)
+const struct nlop_s* noir_join_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_join_create(model);
+	auto result = noir_join_create(model[0]);
 	result = nlop_append_singleton_dim_out_F(result, 0);
 
 	for (int i = 1; i < Nb; i++) {
 
-		result = nlop_combine_FF(result, nlop_append_singleton_dim_out_F(noir_join_create(model), 0));
+		result = nlop_combine_FF(result, nlop_append_singleton_dim_out_F(noir_join_create(model[i]), 0));
 
 		result = nlop_stack_outputs_F(result, 0, 1, 1);
 		result = nlop_stack_inputs_F(result, 0, 2, BATCH_DIM);
@@ -760,15 +760,15 @@ const struct nlop_s* noir_join_batch_create(struct noir2_s* model, int Nb)
 	return result;
 }
 
-const struct nlop_s* noir_extract_img_batch_create(struct noir2_s* model, int Nb)
+const struct nlop_s* noir_extract_img_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_split_batch_create(model, Nb);
+	auto result = noir_split_batch_create(Nb, model);
 	return nlop_del_out_F(result, 1);
 }
 
-const struct nlop_s* noir_set_img_batch_create(struct noir2_s* model, int Nb)
+const struct nlop_s* noir_set_img_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_join_batch_create(model, Nb);
+	auto result = noir_join_batch_create(Nb, model);
 	auto dom = nlop_generic_domain(result, 1);
 	complex float zero = 0;
 	return nlop_set_input_const_F2(result, 1, dom->N, dom->dims, MD_SINGLETON_STRS(dom->N), true, &zero);
