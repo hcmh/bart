@@ -774,6 +774,95 @@ const struct nlop_s* noir_set_img_batch_create(int Nb, struct noir2_s* model[Nb]
 	return nlop_set_input_const_F2(result, 1, dom->N, dom->dims, MD_SINGLETON_STRS(dom->N), true, &zero);
 }
 
+
+struct noir_adjoint_fft_s {
+
+	INTERFACE(nlop_data_t);
+	struct noir2_s* model;
+};
+
+DEF_TYPEID(noir_adjoint_fft_s);
+
+static void noir_adjoint_fft_fun(const nlop_data_t* _data, int N, complex float* args[N])
+{
+	const auto data = CAST_DOWN(noir_adjoint_fft_s, _data);
+	assert(3 == N);
+
+	complex float* dst = args[0];
+	const complex float* src1 = args[1];
+	const complex float* src2 = args[2];
+
+	linop_gdiag_set_diag(data->model->lop_pattern, data->model->N, data->model->pat_dims, src2);
+	linop_adjoint_unchecked(data->model->lop_fft, dst, src1);
+}
+
+static void noir_adjoint_fft_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	assert(0 == o);
+	assert(0 == i);
+	const auto data = CAST_DOWN(noir_adjoint_fft_s, _data);
+	linop_adjoint_unchecked(data->model->lop_fft, dst, src);
+}
+
+static void noir_adjoint_fft_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	assert(0 == o);
+	assert(0 == i);
+	const auto data = CAST_DOWN(noir_adjoint_fft_s, _data);
+	linop_forward_unchecked(data->model->lop_fft, dst, src);
+}
+
+
+static void noir_adjoint_fft_del(const nlop_data_t* _data)
+{
+	xfree(_data);
+}
+
+const struct nlop_s* noir_adjoint_fft_create(struct noir2_s* model)
+{
+
+	PTR_ALLOC(struct noir_adjoint_fft_s, data);
+	SET_TYPEID(noir_adjoint_fft_s, data);
+
+	data->model = model;
+
+	auto cod = linop_codomain(model->lop_fft);
+	auto dom = linop_domain(model->lop_fft);
+
+	int N = model->N;
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], dom->dims);
+
+
+	long nl_idims[2][N];
+	md_copy_dims(N, nl_idims[0], cod->dims);
+	md_copy_dims(N, nl_idims[1], data->model->pat_dims);
+
+
+	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)),
+					noir_adjoint_fft_fun,
+					(nlop_der_fun_t[2][1]){ { noir_adjoint_fft_der }, { NULL } },
+					(nlop_der_fun_t[2][1]){ { noir_adjoint_fft_adj }, { NULL } },
+					NULL, NULL, noir_adjoint_fft_del);
+}
+
+const struct nlop_s* noir_adjoint_fft_batch_create(int Nb, struct noir2_s* model[Nb])
+{
+	auto result = noir_adjoint_fft_create(model[0]);
+
+	for (int i = 1; i < Nb; i++) {
+
+		auto tmp = noir_adjoint_fft_create(model[i]);
+		result = nlop_combine_FF(result, tmp);
+
+		result = nlop_stack_inputs_F(result, 0, 2, BATCH_DIM);
+		result = nlop_stack_inputs_F(result, 1, 2, BATCH_DIM);
+		result = nlop_stack_outputs_F(result, 0, 1, BATCH_DIM);
+	}
+
+	return nlop_checkpoint_create_F(result, false, false);
+}
+
 #if 0
 
 static const struct nlop_s* noir_cart_unrolled_batched_create(	int N,
