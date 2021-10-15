@@ -863,6 +863,28 @@ const struct nlop_s* noir_adjoint_fft_batch_create(int Nb, struct noir2_s* model
 	return nlop_checkpoint_create_F(result, false, false);
 }
 
+
+const struct nlop_s* noir_fft_create(struct noir2_s* model)
+{
+	return nlop_from_linop_F(linop_fftc_create(model->N, model->cim_dims, model->model_conf.fft_flags_cart));
+}
+
+const struct nlop_s* noir_fft_batch_create(int Nb, struct noir2_s* model[Nb])
+{
+	auto result = noir_adjoint_fft_create(model[0]);
+
+	for (int i = 1; i < Nb; i++) {
+
+		auto tmp = noir_fft_create(model[i]);
+		result = nlop_combine_FF(result, tmp);
+
+		result = nlop_stack_inputs_F(result, 0, 2, BATCH_DIM);
+		result = nlop_stack_outputs_F(result, 0, 1, BATCH_DIM);
+	}
+
+	return nlop_checkpoint_create_F(result, false, false);
+}
+
 #if 0
 
 static const struct nlop_s* noir_cart_unrolled_batched_create(	int N,

@@ -24,6 +24,8 @@ extern const struct nlop_s* noir_gauss_newton_step_batch_create(int Nb, struct n
 extern const struct nlop_s* noir_adjoint_fft_create(struct noir2_s* model);
 extern const struct nlop_s* noir_adjoint_fft_batch_create(int Nb, struct noir2_s* model[Nb]);
 
+extern const struct nlop_s* noir_fft_create(struct noir2_s* model);
+extern const struct nlop_s* noir_fft_batch_create(int Nb, struct noir2_s* model[Nb]);
 
 
 
