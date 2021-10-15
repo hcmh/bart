@@ -101,6 +101,7 @@ extern void md_free(const void* p);
 struct multiplace_array_s;
 extern void md_free_multiplace(const struct multiplace_array_s* ptr);
 extern const void* md_multiplace_read(struct multiplace_array_s* ptr, const void* ref);
+extern struct multiplace_array_s* md_move_multiplace2(unsigned int D, const long dimensions[__VLA(D)], const long strides[__VLA(D)], size_t size, const void* ptr);
 extern struct multiplace_array_s* md_move_multiplace(unsigned int D, const long dimensions[__VLA(D)], size_t size, const void* ptr);
 
 

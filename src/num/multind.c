@@ -2106,11 +2106,11 @@ const void* md_multiplace_read(struct multiplace_array_s* ptr, const void* ref)
 	return ptr->ptr_cpu;
 }
 
-struct multiplace_array_s* md_move_multiplace(unsigned int D, const long dimensions[D], size_t size, const void* ptr)
+struct multiplace_array_s* md_move_multiplace2(unsigned int D, const long dimensions[D], const long strides[D], size_t size, const void* ptr)
 {
 	auto result = md_alloc_multiplace(D, dimensions, size);
 	void* tmp = md_alloc_sameplace(D, dimensions, size, ptr);
-	md_copy(D, dimensions, tmp, ptr, size);
+	md_copy2(D, dimensions, MD_STRIDES(D, dimensions, size), tmp, strides, ptr, size);
 
 	result->ptr_ref = tmp;
 
@@ -2127,6 +2127,11 @@ struct multiplace_array_s* md_move_multiplace(unsigned int D, const long dimensi
 	result->ptr_cpu = tmp;
 
 	return result;
+}
+
+struct multiplace_array_s* md_move_multiplace(unsigned int D, const long dimensions[D], size_t size, const void* ptr)
+{
+	return md_move_multiplace2(D, dimensions, MD_STRIDES(D, dimensions, size), size, ptr);
 }
 
 
