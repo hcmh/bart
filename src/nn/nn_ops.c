@@ -31,6 +31,8 @@
 #include "nlops/someops.h"
 #include "linops/someops.h"
 #include "nlops/cast.h"
+#include "nlops/const.h"
+#include "nlops/tenmul.h"
 #include "nn/layers.h"
 
 #include "nn_ops.h"
@@ -68,97 +70,80 @@ const struct nlop_s* nlop_maxpool_create(int N, const long dims[N], const long p
 	return result;
 }
 
-
-struct dropout_s {
+struct rand_mask_s {
 
 	INTERFACE(nlop_data_t);
 
 	int N;
 	float p;
-
-	const struct iovec_s* tmpdom;
-	const struct iovec_s* dom;
-	const struct iovec_s* codom;
-
-	complex float* tmp;
+	long* dims;
 };
 
-DEF_TYPEID(dropout_s);
+DEF_TYPEID(rand_mask_s);
 
 
-static void dropout_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void rand_mask_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
-	const auto data = CAST_DOWN(dropout_s, _data);
-
-	if (NULL == data->tmp)
-		data->tmp = md_alloc_sameplace(data->N, data->tmpdom->dims, CFL_SIZE, dst);
-#ifdef USE_CUDA
-	assert((cuda_ondevice(dst) == cuda_ondevice(src)));
-#endif
-	if (NULL == data->tmp)
-		data->tmp = md_alloc_sameplace(data->N, data->tmpdom->dims, CFL_SIZE, dst);
-
-	md_rand_one(data->N, data->tmpdom->dims, data->tmp, (1. - data->p));
-
-	md_ztenmul2(data->N, data->codom->dims, data->codom->strs, dst, data->tmpdom->strs, data->tmp, data->dom->strs, src);
+	assert(1 == N);
+	const auto data = CAST_DOWN(rand_mask_s, _data);
+	md_rand_one(data->N, data->dims, args[0], (1. - data->p));
 }
 
-static void dropout_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void rand_mask_del(const struct nlop_data_s* _data)
 {
-	UNUSED(o);
-	UNUSED(i);
-	const auto data = CAST_DOWN(dropout_s, _data);
-	assert(NULL != data->tmp);
-
-	md_ztenmul2(data->N, data->codom->dims, data->codom->strs, dst, data->tmpdom->strs, data->tmp, data->dom->strs, src);
-}
-
-static void dropout_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-	const auto data = CAST_DOWN(dropout_s, _data);
-	assert(NULL != data->tmp);
-
-	md_ztenmul2(data->N, data->dom->dims, data->dom->strs, dst, data->tmpdom->strs, data->tmp, data->codom->strs, src);
-}
-
-
-static void dropout_del(const struct nlop_data_s* _data)
-{
-	const auto data = CAST_DOWN(dropout_s, _data);
-
-	md_free(data->tmp);
-
-	iovec_free(data->dom);
-	iovec_free(data->codom);
-	iovec_free(data->tmpdom);
-
+	const auto data = CAST_DOWN(rand_mask_s, _data);
+	xfree(data->dims);
 	xfree(data);
 }
+
+//nlop creating random mask with (1. - p) ones and p. zeros
+const struct nlop_s* nlop_rand_mask_create(int N, const long dims[N], float p)
+{
+	PTR_ALLOC(struct rand_mask_s, data);
+	SET_TYPEID(rand_mask_s, data);
+
+	data->N = N;
+	data->p = p;
+	data->dims = *TYPE_ALLOC(long[N]);
+	md_copy_dims(N, data->dims, dims);
+
+	long odims[1][N];
+	md_copy_dims(N, odims[0], dims);
+
+	return nlop_generic_create(1, N, odims, 0, 0, NULL, CAST_UP(PTR_PASS(data)), rand_mask_fun, NULL, NULL, NULL, NULL, rand_mask_del);
+}
+
+//input is multiplied with p ones to create first output
+//input is multiplied with 1.-p ones to create second output
+const struct nlop_s* nlop_rand_split_create(int N, const long dims[N], unsigned long shared_dims_flag, float p)
+{
+	long dims2[N];
+	md_select_dims(N, ~shared_dims_flag, dims2, dims);
+
+	complex float one = 1.;
+
+	auto invert = nlop_zaxpbz_create(N, dims2, -1., 1.);
+	invert = nlop_set_input_const_F2(invert, 1, N, dims2, MD_SINGLETON_STRS(N), true, &one);
+
+	auto result = nlop_chain2_FF(invert, 0, nlop_tenmul_create(N, dims, dims, dims2), 1);
+	result = nlop_combine_FF(nlop_tenmul_create(N, dims, dims, dims2), result);
+	result = nlop_dup_F(result, 0, 2);
+	result = nlop_dup_F(result, 1, 2);
+	result = nlop_chain2_FF(nlop_rand_mask_create(N, dims2, 1. -p), 0, result, 1);
+
+	return result;
+}
+
+
 
 
 const struct nlop_s* nlop_dropout_create(int N, const long dims[N], float p, unsigned int shared_dims_flag)
 {
-	PTR_ALLOC(struct dropout_s, data);
-	SET_TYPEID(dropout_s, data);
+	long dims2[N];
+	md_select_dims(N, ~shared_dims_flag, dims2, dims);
 
-	data->N = N;
-	data->p = p;
-
-	// will be initialized later, to transparently support GPU
-	data->tmp = NULL;
-
-	long tmpdims[N];
-	md_select_dims(N, ~shared_dims_flag, tmpdims, dims);
-
-	data->tmpdom = iovec_create(N, tmpdims, CFL_SIZE);
-	data->dom = iovec_create(N, dims, CFL_SIZE);
-	data->codom = iovec_create(N, dims, CFL_SIZE);
-
-	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), dropout_fun, dropout_der, dropout_adj, NULL, NULL, dropout_del);
+	return nlop_chain2_FF(nlop_rand_mask_create(N, dims2, p), 0, nlop_tenmul_create(N, dims, dims, dims2), 1);
 }
-
 
 struct noise_s {
 
