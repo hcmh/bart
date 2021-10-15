@@ -151,9 +151,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 
-		OPTL_FLOAT(0, "train-mask-ratio", &ratio_train, "p", "use p\% of kspace lines as reference"),
-		OPTL_CLEAR(0, "train-mask-points", &mask_lines, "use pointwise kspace mask instead of full lines"),
-
+		OPTL_FLOAT(0, "train-mask-ratio", &(nlinvnet.ksp_split), "p", "use p\% of kspace data as reference"),
 		OPTL_FLOAT(0, "add-noise-to-kspace", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution.")
 	};
 
@@ -164,6 +162,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 	if (nlinvnet.gpu)
 		cuda_use_global_memory();
 	#endif
+
+	nlinvnet.ksp_training = (0. != nlinvnet.ksp_noise) || (-1. != nlinvnet.ksp_split);
 
 	if (train) {
 
@@ -267,28 +267,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 	complex float* trn_mask = md_alloc(DIMS, pat_dims_s, CFL_SIZE);
 	md_copy(DIMS, pat_dims_s, trn_mask, pattern, CFL_SIZE);
 
-	if (0. != ratio_train) {
-
-		long tdims[DIMS];
-		md_select_dims(DIMS, mask_lines ? MD_BIT(1) | MD_BIT(2) : FFT_FLAGS, tdims, pat_dims_s);
-		complex float* rand_mask = md_alloc(DIMS, tdims, CFL_SIZE);
-
-		long pstrs[DIMS];
-		long tstrs[DIMS];
-
-		md_calc_strides(DIMS, pstrs, pat_dims_s, CFL_SIZE);
-		md_calc_strides(DIMS, tstrs, tdims, CFL_SIZE);
-
-		md_rand_one(DIMS, tdims, rand_mask, ratio_train);
-
-		md_zmul2(DIMS, pat_dims_s, pstrs, pattern, pstrs, pattern, tstrs, rand_mask);
-		md_zsadd(DIMS, tdims, rand_mask, rand_mask, -1.);
-		md_zsmul(DIMS, tdims, rand_mask, rand_mask, -1.);
-		md_zmul2(DIMS, pat_dims_s, pstrs, trn_mask, pstrs, trn_mask, tstrs, rand_mask);
-
-		md_free(rand_mask);
-	}
-
 	Nb = Nb ? Nb : 10;
 	nlinvnet.Nb = Nb;
 
@@ -330,27 +308,13 @@ int main_nlinvnet(int argc, char* argv[argc])
 			}
 		}
 
-		if (0. == loss_option.weighting_mse_mask_ksp) {
+		long cim_dims2[DIMS];
+		complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
+		assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
 
-			long cim_dims2[DIMS];
-			complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
-			assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
+		train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern, cim_dims_val, val_ref, ksp_dims_val, val_kspace, pat_dims_val, val_pattern);
 
-			train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern, cim_dims_val, val_ref, ksp_dims_val, val_kspace, pat_dims_val, val_pattern);
-
-			unmap_cfl(DIMS, cim_dims, ref);
-		} else {
-
-			complex float* ref = md_alloc(DIMS, ksp_dims, CFL_SIZE);
-			ifftuc(DIMS, ksp_dims, FFT_FLAGS, ref, kspace);
-
-			loss_option.mask = trn_mask;
-
-			train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern, cim_dims_val, val_ref, ksp_dims_val, val_kspace, pat_dims_val, val_pattern);
-
-			md_free(ref);
-		}
-
+		unmap_cfl(DIMS, cim_dims, ref);
 
 		dump_nn_weights(weight_file, nlinvnet.weights);
 

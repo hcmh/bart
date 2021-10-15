@@ -108,6 +108,8 @@ struct nlinvnet_s nlinvnet_config_opts = {
 
 	.fix_coils = false,
 
+	.ksp_training = true,
+	.ksp_split = -1.,
 	.ksp_noise = 0.,
 
 	.graph_file = NULL,
@@ -670,7 +672,45 @@ static nn_t nlinvnet_loss_create(const struct nlinvnet_s* nlinvnet, int Nb, stru
 	else
 		loss = train_loss_create(nlinvnet->train_loss, N, cim_dims);
 
-	train_op = nn_chain2_FF(train_op, 0, "cim", loss, 0, NULL);
+	if ((!valid) && nlinvnet->ksp_training) {
+
+		train_op = nn_chain2_FF(train_op, 0, "cim", nn_from_nlop_F(nlop_from_linop_F(linop_fftc_create(N, cim_dims, FFT_FLAGS))), 0, NULL);
+		train_op = nn_set_output_name_F(train_op, 0, "ksp");
+
+		int N_in_names = nn_get_nr_named_in_args(train_op);
+		const char* in_names[N_in_names];
+		nn_get_in_names_copy(N_in_names, in_names + 1, train_op);
+
+		long pat_dims[N];
+		md_copy_dims(N, pat_dims, models[0]->pat_dims);
+		pat_dims[BATCH_DIM] = Nb;
+
+		loss = nn_chain2_FF(nn_from_nlop_F(nlop_tenmul_create(N, cim_dims, cim_dims, pat_dims)), 0, NULL, loss, 1, NULL);
+		loss = nn_chain2_FF(nn_from_nlop_F(nlop_tenmul_create(N, cim_dims, cim_dims, pat_dims)), 0, NULL, loss, 0, NULL);
+		loss = nn_dup_F(loss, 1, NULL, 3, NULL);
+		loss = nn_set_input_name_F(loss, 1, "pat_ref");
+		train_op = nn_chain2_FF(train_op, 0, "ksp", loss, 1, NULL);
+
+		if (-1. != nlinvnet->ksp_split) {
+
+			auto split_op = nn_from_nlop_F(nlop_rand_split_create(N, pat_dims, 0, nlinvnet->ksp_split));
+			split_op = nn_set_output_name_F(split_op, 0, "pat_trn");
+			split_op = nn_set_output_name_F(split_op, 0, "pat_ref");
+
+			train_op = nn_chain2_swap_FF(split_op, 0, "pat_ref", train_op, 0, "pat_ref");
+			train_op = nn_link_F(train_op, 0, "pat_trn", 0, "pat");
+			train_op = nn_shift_input_F(train_op, 1, NULL, 0, NULL);
+			train_op = nn_set_input_name_F(train_op, 1, "pat");
+		} else {
+
+			train_op = nn_dup_F(train_op, 0, "pat", 0, "pat_ref");
+		}
+
+		train_op = nn_sort_inputs_by_list_F(train_op, N_in_names, in_names);
+	} else {
+
+		train_op = nn_chain2_FF(train_op, 0, "cim", loss, 0, NULL);
+	}
 
 	return train_op;
 }
