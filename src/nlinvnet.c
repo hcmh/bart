@@ -89,10 +89,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	opts_iter6_init();
 
-	bool mask_lines = true;
-	float ratio_train = 0.;
-
-
 	struct opt_s valid_opts[] = {
 
 		OPTL_INFILE('p', "pattern", &(val_file_pattern), "<file>", "validation data sampling pattern"),
@@ -101,11 +97,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 	};
 
 	bool unet = false;
-	bool kspace_network = false;
 
 	struct opt_s network_opts[] = {
 
-		OPTL_SET(0, "kspace", &kspace_network, "add network in kspace"),
 		OPTL_SET(0, "unet", &(unet), "use U-Net (also sets train and data-consistency default values)"),
 	};
 
@@ -118,13 +112,10 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SET('g', "gpu", &(nlinvnet.gpu), "run on gpu"),
 		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
 
-		OPTL_SET(0, "rss-loss", &(nlinvnet.rss_loss), "train on rss instead of coil images"),
 		OPTL_SET(0, "rss-norm", &(nlinvnet.normalize_rss), "scale output image to rss normalization"),
 		OPTL_SET(0, "fix-lambda", &(nlinvnet.fix_lambda), "fix lambda"),
-		OPTL_SET(0, "fix-coils", &(nlinvnet.fix_coils), "append layer with fixed coils"),
 
 		OPTL_INT(0, "iter-net", &(nlinvnet.iter_net), "iter", "number of iterations with network"),
-		//OPTL_INT(0, "iter-net-shift", &(nlinvnet.iter_net_shift), "iter", "no network in the last \"iter\" steps"),
 
 		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
 		OPTL_CLEAR(0, "no-shared-weights", &(nlinvnet.share_weights), "don't share weights across iterations"),
@@ -151,8 +142,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 
-		OPTL_FLOAT(0, "train-mask-ratio", &(nlinvnet.ksp_split), "p", "use p\% of kspace data as reference"),
-		OPTL_FLOAT(0, "add-noise-to-kspace", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution.")
+		OPTL_FLOAT(0, "ss-ksp-split", &(nlinvnet.ksp_split), "p", "use p\% of kspace data as reference"),
+		OPTL_FLOAT(0, "ss-ksp-noise", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution.")
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -171,7 +162,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		if (NULL == nlinvnet.train_conf) {
 
-			debug_printf(DP_WARN, "No training algorithm selected. Fallback to Adam!");
+			debug_printf(DP_WARN, "No training algorithm selected. Fallback to Adam!\n");
 			iter_6_select_algo = ITER6_ADAM;
 			nlinvnet.train_conf = iter6_get_conf_from_opts();
 
@@ -180,13 +171,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 	}
 
 	nlinvnet.network = get_default_network(unet ? NETWORK_UNET_RECO : NETWORK_RESBLOCK);
-	if (kspace_network) {
-
-		network_combi_kspace_default.img_net = nlinvnet.network;
-		nlinvnet.network = CAST_UP(&network_combi_kspace_default);
-	}
-
-
 	nlinvnet.network->norm = NORM_MAX;
 
 	long ksp_dims[DIMS];
@@ -194,7 +178,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	complex float* pattern = NULL;
 	long pat_dims[DIMS];
-
 	if (NULL != pat_file) {
 
 		pattern = load_cfl(pat_file, DIMS, pat_dims);
@@ -242,12 +225,11 @@ int main_nlinvnet(int argc, char* argv[argc])
 			sens_dims[i] = lround(coil_os * sens_dims[i]);
 
 	long img_dims[DIMS];
-	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
-
 	long cim_dims[DIMS];
-	md_select_dims(DIMS, ~MAPS_FLAG, cim_dims, dims);
-
 	long msk_dims[DIMS];
+
+	md_select_dims(DIMS, ~COIL_FLAG, img_dims, dims);
+	md_select_dims(DIMS, ~MAPS_FLAG, cim_dims, dims);
 	md_select_dims(DIMS, FFT_FLAGS, msk_dims, img_dims);
 
 	long col_dims_s[DIMS];
@@ -263,9 +245,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 	md_select_dims(DIMS, ~BATCH_FLAG, msk_dims_s, msk_dims);
 	md_select_dims(DIMS, ~BATCH_FLAG, ksp_dims_s, ksp_dims);
 	md_select_dims(DIMS, ~BATCH_FLAG, pat_dims_s, pat_dims);
-
-	complex float* trn_mask = md_alloc(DIMS, pat_dims_s, CFL_SIZE);
-	md_copy(DIMS, pat_dims_s, trn_mask, pattern, CFL_SIZE);
 
 	Nb = Nb ? Nb : 10;
 	nlinvnet.Nb = Nb;
@@ -353,7 +332,6 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, ksp_dims, kspace);
-	md_free(trn_mask);
 
 	double recosecs = timestamp() - start_time;
 

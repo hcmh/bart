@@ -24,17 +24,12 @@ struct nlinvnet_s {
 	struct iter_conjgrad_conf* iter_conf;
 	int iter_init;		//iterations with half update dx -> 0.5dx
 	int iter_net;		//# of iterations with network
-	int iter_net_shift;	//shift of iterations with network to earlier iterations
 
 	_Bool low_mem;
 	_Bool gpu;
 
-	_Bool rss_loss;
 	_Bool normalize_rss;
-
-	_Bool extra_lambda;
 	_Bool fix_lambda;
-	_Bool fix_coils;
 
 	_Bool ksp_training;
 	float ksp_split;
@@ -61,7 +56,7 @@ void nlinvnet_init_model_cart(struct nlinvnet_s* nlinvnet, int N,
 	const long col_dims[N]);
 
 
-enum nlinvnet_out { NLINVNET_OUT_CIM, NLINVNET_OUT_IMG, NLINVNET_OUT_IMG_COL };
+enum nlinvnet_out { NLINVNET_OUT_CIM, NLINVNET_OUT_KSP, NLINVNET_OUT_IMG_COL };
 
 
 void train_nlinvnet(struct nlinvnet_s* nlinvnet, int N, int Nb,
