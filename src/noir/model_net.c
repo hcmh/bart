@@ -871,14 +871,14 @@ const struct nlop_s* noir_fft_create(struct noir2_s* model)
 
 const struct nlop_s* noir_fft_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_adjoint_fft_create(model[0]);
+	auto result = noir_fft_create(model[0]);
 
 	for (int i = 1; i < Nb; i++) {
 
 		auto tmp = noir_fft_create(model[i]);
 		result = nlop_combine_FF(result, tmp);
 
-		result = nlop_stack_inputs_F(result, 0, 2, BATCH_DIM);
+		result = nlop_stack_inputs_F(result, 0, 1, BATCH_DIM);
 		result = nlop_stack_outputs_F(result, 0, 1, BATCH_DIM);
 	}
 
