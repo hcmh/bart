@@ -326,30 +326,20 @@ static const struct nlop_s* noir_gauss_newton_step_create(struct noir2_s* model,
 
 const struct nlop_s* noir_gauss_newton_step_batch_create(int Nb, struct noir2_s* model[Nb], const struct iter_conjgrad_conf* iter_conf, float update, bool fix_coils)
 {
+	const struct nlop_s* nlops[Nb];
 
-	auto result = noir_gauss_newton_step_create(model[0], iter_conf, update, fix_coils);
-	result = nlop_append_singleton_dim_in_F(result, 1);
-	result = nlop_append_singleton_dim_in_F(result, 2);
-	result = nlop_append_singleton_dim_out_F(result, 0);
+	for (int i = 0; i < Nb; i++){
 
-	for (int i = 1; i < Nb; i++) {
-
-		auto tmp = noir_gauss_newton_step_create(model[i], iter_conf, update, fix_coils);
-		tmp = nlop_append_singleton_dim_in_F(tmp, 1);
-		tmp = nlop_append_singleton_dim_in_F(tmp, 2);
-		tmp = nlop_append_singleton_dim_out_F(tmp, 0);
-
-		result = nlop_combine_FF(result, tmp);
-
-		result = nlop_stack_inputs_F(result, 0, 4, BATCH_DIM);
-		result = nlop_stack_inputs_F(result, 1, 4, 1);
-		result = nlop_stack_inputs_F(result, 2, 4, 1);
-		result = nlop_dup_F(result, 3, 4);
-
-		result = nlop_stack_outputs_F(result, 0, 1, 1);
+		nlops[i] = noir_gauss_newton_step_create(model[i], iter_conf, update, fix_coils);
+		nlops[i] = nlop_append_singleton_dim_in_F(nlops[i], 1);
+		nlops[i] = nlop_append_singleton_dim_in_F(nlops[i], 2);
+		nlops[i] = nlop_append_singleton_dim_out_F(nlops[i], 0);
 	}
 
-	return nlop_checkpoint_create_F(result, false, false);
+	int istack_dims[] = { BATCH_DIM, 1, 1, -1};
+	int ostack_dims[] = { 1 };
+
+	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 4, istack_dims, 1, ostack_dims), false, false);
 }
 
 const struct nlop_s* noir_decomp_create(struct noir2_s* model)
@@ -368,19 +358,15 @@ const struct nlop_s* noir_decomp_create(struct noir2_s* model)
 
 const struct nlop_s* noir_decomp_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_decomp_create(model[0]);
-	result = nlop_append_singleton_dim_in_F(result, 0);
+	const struct nlop_s* nlops[Nb];
 
-	for (int i = 1; i < Nb; i++) {
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = nlop_append_singleton_dim_in_F(noir_decomp_create(model[i]), 0);
 
-		result = nlop_combine_FF(result, nlop_append_singleton_dim_in_F(noir_decomp_create(model[i]), 0));
+	int istack_dims[] = { 1 };
+	int ostack_dims[] = { BATCH_DIM, BATCH_DIM };
 
-		result = nlop_stack_inputs_F(result, 0, 1, 1);
-		result = nlop_stack_outputs_F(result, 0, 2, BATCH_DIM);
-		result = nlop_stack_outputs_F(result, 1, 2, BATCH_DIM);
-	}
-
-	return result;
+	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 1, istack_dims, 2, ostack_dims), false, false);
 }
 
 const struct nlop_s* noir_cim_batch_create(int Nb, struct noir2_s* model[Nb])
@@ -427,19 +413,15 @@ const struct nlop_s* noir_split_create(struct noir2_s* model)
 
 const struct nlop_s* noir_split_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_split_create(model[0]);
-	result = nlop_append_singleton_dim_in_F(result, 0);
+	const struct nlop_s* nlops[Nb];
 
-	for (int i = 1; i < Nb; i++) {
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = nlop_append_singleton_dim_in_F(noir_split_create(model[i]), 0);
 
-		result = nlop_combine_FF(result, nlop_append_singleton_dim_in_F(noir_split_create(model[i]), 0));
+	int istack_dims[] = { 1 };
+	int ostack_dims[] = { BATCH_DIM, BATCH_DIM };
 
-		result = nlop_stack_inputs_F(result, 0, 1, 1);
-		result = nlop_stack_outputs_F(result, 0, 2, BATCH_DIM);
-		result = nlop_stack_outputs_F(result, 1, 2, BATCH_DIM);
-	}
-
-	return result;
+	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 1, istack_dims, 2, ostack_dims), false, false);
 }
 
 const struct nlop_s* noir_join_create(struct noir2_s* model)
@@ -461,19 +443,15 @@ const struct nlop_s* noir_join_create(struct noir2_s* model)
 
 const struct nlop_s* noir_join_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_join_create(model[0]);
-	result = nlop_append_singleton_dim_out_F(result, 0);
+	const struct nlop_s* nlops[Nb];
 
-	for (int i = 1; i < Nb; i++) {
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = nlop_append_singleton_dim_out_F(noir_join_create(model[i]), 0);
 
-		result = nlop_combine_FF(result, nlop_append_singleton_dim_out_F(noir_join_create(model[i]), 0));
+	int ostack_dims[] = { 1 };
+	int istack_dims[] = { BATCH_DIM, BATCH_DIM };
 
-		result = nlop_stack_outputs_F(result, 0, 1, 1);
-		result = nlop_stack_inputs_F(result, 0, 2, BATCH_DIM);
-		result = nlop_stack_inputs_F(result, 1, 2, BATCH_DIM);
-	}
-
-	return result;
+	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 2, istack_dims, 1, ostack_dims), false, false);
 }
 
 const struct nlop_s* noir_extract_img_batch_create(int Nb, struct noir2_s* model[Nb])
@@ -564,19 +542,15 @@ const struct nlop_s* noir_adjoint_fft_create(struct noir2_s* model)
 
 const struct nlop_s* noir_adjoint_fft_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_adjoint_fft_create(model[0]);
+	const struct nlop_s* nlops[Nb];
 
-	for (int i = 1; i < Nb; i++) {
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = noir_adjoint_fft_create(model[i]);
 
-		auto tmp = noir_adjoint_fft_create(model[i]);
-		result = nlop_combine_FF(result, tmp);
+	int istack_dims[] = { BATCH_DIM, BATCH_DIM };
+	int ostack_dims[] = { BATCH_DIM };
 
-		result = nlop_stack_inputs_F(result, 0, 2, BATCH_DIM);
-		result = nlop_stack_inputs_F(result, 1, 2, BATCH_DIM);
-		result = nlop_stack_outputs_F(result, 0, 1, BATCH_DIM);
-	}
-
-	return nlop_checkpoint_create_F(result, false, false);
+	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 2, istack_dims, 1, ostack_dims), false, false);
 }
 
 
@@ -587,18 +561,15 @@ const struct nlop_s* noir_fft_create(struct noir2_s* model)
 
 const struct nlop_s* noir_fft_batch_create(int Nb, struct noir2_s* model[Nb])
 {
-	auto result = noir_fft_create(model[0]);
+	const struct nlop_s* nlops[Nb];
 
-	for (int i = 1; i < Nb; i++) {
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = noir_fft_create(model[i]);
 
-		auto tmp = noir_fft_create(model[i]);
-		result = nlop_combine_FF(result, tmp);
+	int istack_dims[] = { BATCH_DIM };
+	int ostack_dims[] = { BATCH_DIM };
 
-		result = nlop_stack_inputs_F(result, 0, 1, BATCH_DIM);
-		result = nlop_stack_outputs_F(result, 0, 1, BATCH_DIM);
-	}
-
-	return nlop_checkpoint_create_F(result, false, false);
+	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 1, istack_dims, 1, ostack_dims), false, false);
 }
 
 #if 0
