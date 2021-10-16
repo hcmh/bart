@@ -20,6 +20,7 @@
 #include "nlops/chain.h"
 #include "nlops/someops.h"
 #include "nlops/tenmul.h"
+#include "nlops/norm_inv.h"
 
 #include "nn/nn_ops.h"
 
@@ -233,313 +234,28 @@ static const struct nlop_s* noir_get_normal(struct noir2_s* model)
 }
 
 
-struct noir_normal_inversion_s {
-
-	INTERFACE(nlop_data_t);
-
-	struct noir2_s* model;
-
-	const struct nlop_s* normal_op;
-
-	int N;
-	const long* dims;
-
-	const struct linop_s* lop_lambda;
-
-	complex float* xn;
-	complex float* out;
-	complex float* dout;	//Adjoint lambda and adjoint in
-	complex float* AhAdout;	//share same intermediate result
-
-	struct iter_conjgrad_conf iter_conf;
-};
-
-DEF_TYPEID(noir_normal_inversion_s);
-
-static void noir_normal_inversion_alloc(struct noir_normal_inversion_s* d, const void* ref)
-{
-	if (NULL == d->out)
-		d->out = md_alloc_sameplace(d->N, d->dims, CFL_SIZE, ref);
-	md_clear(d->N, d->dims, d->out, CFL_SIZE);
-
-	if (NULL == d->xn)
-		d->xn = md_alloc_sameplace(d->N, d->dims, CFL_SIZE, ref);
-}
-
-static void noir_normal_inversion_set_ops(const struct noir_normal_inversion_s* d)
-{
-	complex float* tmp_out = md_alloc_sameplace(d->N, d->dims, CFL_SIZE, d->xn);
-
-	assert(NULL != d->out);
-	assert(NULL != d->xn);
-
-	nlop_generic_apply_unchecked(d->normal_op, 3, (void*[3]){ tmp_out, d->out, (void*)d->xn});
-
-	md_free(tmp_out);
-}
-
-static void noir_normal_inversion_free_ops(const struct noir_normal_inversion_s* d)
-{
-	nlop_clear_derivatives(d->normal_op);
-}
-
-static void noir_normal_inversion(const struct noir_normal_inversion_s* d, complex float* dst, const complex float* src)
-{
-	auto nlop = nlop_chain2_FF(nlop_from_linop(nlop_get_derivative(d->normal_op, 0, 0)), 0, nlop_zaxpbz_create(d->N, d->dims, 1, 1), 0);
-	nlop = nlop_chain2_FF(nlop_from_linop(d->lop_lambda), 0, nlop, 0);
-	nlop = nlop_dup_F(nlop, 0, 1);
-
-	const struct operator_s* normal_op = nlop->op;
-
-	md_clear(d->N, d->dims, dst, CFL_SIZE);
-
-	iter2_conjgrad(	CAST_UP(&(d->iter_conf)), normal_op,
-			0, NULL, NULL, NULL, NULL,
-			2 * md_calc_size(d->N, d->dims),
-			(float*)dst,
-			(const float*)src,
-			NULL);
-
-	nlop_free(nlop);
-}
-
-static void noir_normal_inversion_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
-{
-	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
-	assert(4 == Narg);
-
-	complex float* dst = args[0];
-	const complex float* src = args[1];
-	const complex float* xn = args[2];
-
-	noir_normal_inversion_alloc(d, dst);
-
-	md_copy(d->N, d->dims, d->xn, xn, CFL_SIZE);
-
-	linop_free(d->lop_lambda);
-	d->lop_lambda = linop_cdiag_create(d->N, d->dims, ~0, args[3]);
-	d->iter_conf.INTERFACE.alpha = 0;
-
-	noir_normal_inversion_set_ops(d);
-
-	noir_normal_inversion(d, dst, src);
-
-	md_copy(d->N, d->dims, d->out, dst, CFL_SIZE);
-
-	bool der1 = nlop_der_requested(_data, 0, 0);
-	bool der2 = nlop_der_requested(_data, 1, 0);
-	bool der3 = nlop_der_requested(_data, 2, 0);
-
-	noir_normal_inversion_free_ops(d);
-
-	if (! (der1 || der2 || der3)){
-
-		md_free(d->xn);
-		md_free(d->out);
-		d->xn = NULL;
-		d->out = NULL;
-
-		linop_free(d->lop_lambda);
-		d->lop_lambda = NULL;
-	}
-
-	md_free(d->dout);
-	md_free(d->AhAdout);
-	d->dout = NULL;
-	d->AhAdout = NULL;
-}
-
-
-static void noir_normal_inversion_der_src(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
-
-	noir_normal_inversion_set_ops(d);
-	noir_normal_inversion(d, dst, src);
-	noir_normal_inversion_free_ops(d);
-}
-
-static void noir_normal_inversion_der_xn(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
-
-	complex float* tmp = md_alloc_sameplace(d->N, d->dims, CFL_SIZE, dst);
-	noir_normal_inversion_set_ops(d);
-
-	linop_forward(nlop_get_derivative(d->normal_op, 0, 1), d->N, d->dims, tmp, d->N, d->dims, src);
-	md_zsmul(d->N, d->dims, tmp, tmp, -1);
-	noir_normal_inversion(d, dst, tmp);
-
-	noir_normal_inversion_free_ops(d);
-	md_free(tmp);
-}
-
-static void noir_normal_inversion_der_lambda(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
-
-	noir_normal_inversion_set_ops(d);
-
-	noir_normal_inversion(d, dst, d->out);
-	md_zsmul(d->N, d->dims, dst, dst, -1);
-	md_zmul(d->N, d->dims, dst, dst, src);
-
-	noir_normal_inversion_free_ops(d);
-}
-
-static void noir_normal_inversion_alloc_adj(struct noir_normal_inversion_s* d, const void* ref)
-{
-	if (NULL == d->dout) {
-
-		d->dout = md_alloc_sameplace(d->N, d->dims, CFL_SIZE, ref);
-		md_clear(d->N, d->dims, d->dout, CFL_SIZE);
-	}
-
-	if (NULL == d->AhAdout) {
-
-		d->AhAdout = md_alloc_sameplace(d->N, d->dims, CFL_SIZE, ref);
-		md_clear(d->N, d->dims, d->AhAdout, CFL_SIZE);
-	}
-}
-
-
-static void noir_normal_inversion_compute_adjoint(struct noir_normal_inversion_s* d, const complex float* src)
-{
-	noir_normal_inversion_alloc_adj(d, src);
-
-	if (0 != md_zrmse(d->N, d->dims, d->dout, src)) {
-
-		md_copy(d->N, d->dims, d->dout, src, CFL_SIZE);
-		noir_normal_inversion_set_ops(d);
-		noir_normal_inversion(d, d->AhAdout, src);
-		noir_normal_inversion_free_ops(d);
-	}
-}
-
-
-static void noir_normal_inversion_adj_src(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
-
-	noir_normal_inversion_compute_adjoint(d, src);
-	md_copy(d->N, d->dims, dst, d->AhAdout, CFL_SIZE);
-}
-
-static void noir_normal_inversion_adj_xn(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
-
-	noir_normal_inversion_compute_adjoint(d, src);
-	noir_normal_inversion_set_ops(d);
-
-	linop_adjoint(nlop_get_derivative(d->normal_op, 0, 1), d->N, d->dims, dst, d->N, d->dims, d->AhAdout);
-	md_zsmul(d->N, d->dims, dst, dst, -1);
-
-	noir_normal_inversion_free_ops(d);
-
-}
-
-static void noir_normal_inversion_adj_lambda(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
-
-	noir_normal_inversion_compute_adjoint(d, src);
-
-	md_zmulc(d->N, d->dims, dst, d->AhAdout, d->out);
-	md_zsmul(d->N, d->dims, dst, dst, -1);
-	md_zreal(d->N, d->dims, dst, dst);
-}
-
-static void noir_normal_inversion_free(const nlop_data_t* _data)
-{
-	const auto d = CAST_DOWN(noir_normal_inversion_s, _data);
-
-	linop_free(d->lop_lambda);
-	nlop_free(d->normal_op);
-	xfree(d->dims);
-
-	md_free(d->xn);
-	md_free(d->out);
-	md_free(d->dout);
-	md_free(d->AhAdout);
-}
-
-static struct noir_normal_inversion_s* noir_normal_inversion_data_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf)
+static const struct nlop_s* noir_normal_inversion_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf)
 {
 
-	PTR_ALLOC(struct noir_normal_inversion_s, data);
-	SET_TYPEID(noir_normal_inversion_s, data);
-
-	data->model = model;
-	data->normal_op = noir_get_normal(model);
-
-	data->N = nlop_generic_codomain(data->normal_op, 0)->N;
-	PTR_ALLOC(long[data->N], dims);
-	md_copy_dims(data->N, *dims, nlop_generic_codomain(data->normal_op, 0)->dims);
-	data->dims = *PTR_PASS(dims);
-
-	data->normal_op = noir_get_normal(model);
-
-	data->lop_lambda = NULL;
-
-	data-> xn = NULL;
-	data->out = NULL;
-	data->dout = NULL;
-	data->AhAdout = NULL;
+	struct iter_conjgrad_conf cgconf = iter_conjgrad_defaults;
 
 	if (NULL == iter_conf) {
 
-		data->iter_conf = iter_conjgrad_defaults;
-		data->iter_conf.l2lambda = 1.;
-		data->iter_conf.maxiter = 30;
+		cgconf.l2lambda = 0.;
+		cgconf.maxiter = 30;
+		cgconf.tol = 0;
 	} else {
 
-		data->iter_conf = *iter_conf;
+		cgconf = *iter_conf;
 	}
 
-	return PTR_PASS(data);
-}
+	struct nlop_norm_inv_conf conf = nlop_norm_inv_default;
+	conf.iter_conf = &cgconf;
 
-
-static const struct nlop_s* noir_normal_inversion_create(struct noir2_s* model, const struct iter_conjgrad_conf* iter_conf)
-{
-	auto data = noir_normal_inversion_data_create(model, iter_conf);
-
-	assert(1 == data->N);
-	int N = data->N;
-
-	long nl_odims[1][N];
-	md_copy_dims(N, nl_odims[0], data->dims);
-
-	long nl_idims[3][N];
-	md_copy_dims(N, nl_idims[0], data->dims);
-	md_copy_dims(N, nl_idims[1], data->dims);
-	md_copy_dims(N, nl_idims[2], data->dims);
-
-	return nlop_generic_create(	1, N, nl_odims, 3, N, nl_idims, CAST_UP(data),
-					noir_normal_inversion_fun,
-					(nlop_der_fun_t[3][1]){ { noir_normal_inversion_der_src }, { noir_normal_inversion_der_xn }, { noir_normal_inversion_der_lambda } },
-					(nlop_der_fun_t[3][1]){ { noir_normal_inversion_adj_src }, { noir_normal_inversion_adj_xn }, { noir_normal_inversion_adj_lambda } },
-					NULL, NULL, noir_normal_inversion_free);
-
+	auto normal_op = noir_get_normal(model);
+	auto result = norm_inv_lambda_create(&conf, normal_op, ~0);
+	nlop_free(normal_op);
+	return result;
 }
 
 
