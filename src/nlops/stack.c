@@ -11,6 +11,7 @@
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
 #include "nlops/cast.h"
+#include "nlops/const.h"
 
 #ifdef USE_CUDA
 #include "num/gpuops.h"
@@ -24,15 +25,13 @@ struct stack_s {
 	INTERFACE(nlop_data_t);
 
 	int N;
-	const long* idims1;
-	const long* idims2;
-	const long* odims;
+	int II;
 
-	const long* istrs1;
-	const long* istrs2;
-	const long* ostrs;
-
-	long offset;
+	long* odims;
+	long* ostrs;
+	long* idims;
+	long* istrs;
+	long* pos;
 };
 
 DEF_TYPEID(stack_s);
@@ -41,57 +40,51 @@ DEF_TYPEID(stack_s);
 static void stack_fun(const nlop_data_t* _data, int N, complex float* args[N])
 {
 	const auto data = CAST_DOWN(stack_s, _data);
-	assert(3 == N);
+	int II = data->II;
 
-	complex float* dst = args[0];
-	const complex float* src1 = args[1];
-	const complex float* src2 = args[2];
+	assert(II + 1 == N);
 
-#ifdef USE_CUDA
-	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
-#endif
+	long (*idims)[II][data->N] = (void*)data->idims;
+	long (*istrs)[II][data->N] = (void*)data->istrs;
+	long (*pos)[II][data->N] = (void*)data->pos;
 
-	md_copy2(data->N, data->idims1, MD_STRIDES(data->N, data->odims, CFL_SIZE), dst, MD_STRIDES(data->N, data->idims1, CFL_SIZE), src1, CFL_SIZE);
-	md_copy2(data->N, data->idims2, MD_STRIDES(data->N, data->odims, CFL_SIZE), dst + data->offset, MD_STRIDES(data->N, data->idims2, CFL_SIZE), src2, CFL_SIZE);
+	for (int i = 0; i < II; i++)
+		md_copy2(data->N, (*idims)[i], data->ostrs, &(MD_ACCESS(data->N, data->ostrs, (*pos)[i], args[0])), (*istrs)[i], args[i + 1], CFL_SIZE);
+
 }
 
-static void stack_der2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void stack_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
-	UNUSED(o);
-	UNUSED(i);
-
 	const auto data = CAST_DOWN(stack_s, _data);
-	md_clear(data->N, data->odims, dst, CFL_SIZE);
-	md_copy2(data->N, data->idims2, MD_STRIDES(data->N, data->odims, CFL_SIZE), dst + data->offset, MD_STRIDES(data->N, data->idims2, CFL_SIZE), src, CFL_SIZE);
+	int II = data->II;
+
+	assert(0 == o);
+	assert((int)i < II);
+
+	long (*idims)[II][data->N] = (void*)data->idims;
+	long (*istrs)[II][data->N] = (void*)data->istrs;
+	long (*pos)[II][data->N] = (void*)data->pos;
+
+	md_clear(data->N, data->ostrs, dst, CFL_SIZE);
+	for (int i = 0; i < II; i++)
+		md_copy2(data->N, (*idims)[i], data->ostrs, &(MD_ACCESS(data->N, data->ostrs, (*pos)[i], dst)), (*istrs)[i], src, CFL_SIZE);
 }
 
-static void stack_adj2(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void stack_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
 {
-	UNUSED(o);
-	UNUSED(i);
-
 	const auto data = CAST_DOWN(stack_s, _data);
-	md_copy2(data->N, data->idims2, MD_STRIDES(data->N, data->idims2, CFL_SIZE) , dst, MD_STRIDES(data->N, data->odims, CFL_SIZE), src + data->offset, CFL_SIZE);
-}
+	int II = data->II;
 
-static void stack_der1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
+	assert(0 == o);
+	assert((int)i < II);
 
+	long (*idims)[II][data->N] = (void*)data->idims;
+	long (*istrs)[II][data->N] = (void*)data->istrs;
+	long (*pos)[II][data->N] = (void*)data->pos;
 
-	const auto data = CAST_DOWN(stack_s, _data);
-	md_clear(data->N, data->odims, dst, CFL_SIZE);
-	md_copy2(data->N, data->idims1, MD_STRIDES(data->N, data->odims, CFL_SIZE), dst, MD_STRIDES(data->N, data->idims1, CFL_SIZE), src, CFL_SIZE);
-}
-
-static void stack_adj1(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto data = CAST_DOWN(stack_s, _data);
-	md_copy2(data->N, data->idims1, MD_STRIDES(data->N, data->idims1, CFL_SIZE), dst, MD_STRIDES(data->N, data->odims, CFL_SIZE), src, CFL_SIZE);
+	md_clear(data->N, data->ostrs, dst, CFL_SIZE);
+	for (int i = 0; i < II; i++)
+		md_copy2(data->N, (*idims)[i], (*istrs)[i], dst, data->ostrs, &(MD_ACCESS(data->N, data->ostrs, (*pos)[i], src)), CFL_SIZE);
 }
 
 
@@ -99,100 +92,107 @@ static void stack_del(const nlop_data_t* _data)
 {
 	const auto data = CAST_DOWN(stack_s, _data);
 
-	xfree(data->idims1);
-	xfree(data->idims2);
+	xfree(data->idims);
 	xfree(data->odims);
 
-	xfree(data->istrs1);
-	xfree(data->istrs2);
+	xfree(data->istrs);
 	xfree(data->ostrs);
+
+	xfree(data->pos);
 
 	xfree(data);
 }
 
 
-struct nlop_s* nlop_stack_create(int N, const long odims[N], const long idims1[N], const long idims2[N], unsigned long stack_dim)
+struct nlop_s* nlop_stack_generic_create(int II, int N, const long odims[N], const long idims[II][N], int stack_dim)
 {
-	assert((int)stack_dim < N);
+	assert(stack_dim < N);
+	assert(0 <=stack_dim);
 
 	PTR_ALLOC(struct stack_s, data);
 	SET_TYPEID(stack_s, data);
 
-	data->offset = 1;
+	data->N = N;
+	data->II = II;
 
-	for (unsigned int i = 0; i < (unsigned)N; i++)
+	data->odims = *TYPE_ALLOC(long[N]);
+	data->ostrs = *TYPE_ALLOC(long[N]);
+	data->idims = *TYPE_ALLOC(long[N * II]);
+	data->istrs = *TYPE_ALLOC(long[N * II]);
+	data->pos = *TYPE_ALLOC(long[N * II]);
+
+	long (*tidims)[II][data->N] = (void*)data->idims;
+	long (*tistrs)[II][data->N] = (void*)data->istrs;
+	long (*tpos)[II][data->N] = (void*)data->pos;
+
+	md_copy_dims(N, data->odims, odims);
+	md_calc_strides(N, data->ostrs, odims, CFL_SIZE);
+
+	long stack_size = 0;
+
+	nlop_der_fun_t der [II][1];
+	nlop_der_fun_t adj [II][1];
+
+	for (int i = 0; i < II; i++)
 	{
-		if (i == stack_dim)
-			assert(odims[i] == (idims1[i] + idims2[i]));
-		else
-			assert((odims[i] == idims1[i]) && (odims[i] == idims2[i]));
+		md_copy_dims(N, (*tidims)[i], idims[i]);
+		md_calc_strides(N, (*tistrs)[i], idims[i], CFL_SIZE);
+		md_singleton_strides(N, (*tpos)[i]);
+		(*tpos)[i][stack_dim] = stack_size;
+		stack_size += (*tidims)[i][stack_dim];
 
-		if (i <= stack_dim)
-			data->offset *= idims1[i];
+		assert(md_check_equal_dims(N, odims, idims[i], ~MD_BIT(stack_dim)));
 
+		der[i][0] = stack_der;
+		adj[i][0] = stack_adj;
 	}
 
-	PTR_ALLOC(long[N], nodims);
-	PTR_ALLOC(long[N], nidims1);
-	PTR_ALLOC(long[N], nidims2);
-	md_copy_dims(N, *nodims, odims);
-	md_copy_dims(N, *nidims1, idims1);
-	md_copy_dims(N, *nidims2, idims2);
-
-	PTR_ALLOC(long[N], nistr1);
-	md_calc_strides(N, *nistr1, idims1, CFL_SIZE);
-	data->istrs1 = *PTR_PASS(nistr1);
-
-	PTR_ALLOC(long[N], nistr2);
-	md_calc_strides(N, *nistr2, idims1, CFL_SIZE);
-	data->istrs2 = *PTR_PASS(nistr2);
-
-	PTR_ALLOC(long[N], nostr);
-	md_calc_strides(N, *nostr, odims, CFL_SIZE);
-	data->ostrs = *PTR_PASS(nostr);
-
-	data->N = N;
-	data->odims = *PTR_PASS(nodims);
-	data->idims1 = *PTR_PASS(nidims1);
-	data->idims2 = *PTR_PASS(nidims2);
+	assert(stack_size == odims[stack_dim]);
 
 	long nl_odims[1][N];
 	md_copy_dims(N, nl_odims[0], data->odims);
 
+	return nlop_generic_create(1, N, nl_odims, II, N, idims, CAST_UP(PTR_PASS(data)), stack_fun, der, adj, NULL, NULL, stack_del);
+}
 
-	long nl_idims[2][N];
-	md_copy_dims(N, nl_idims[0], data->idims1);
-	md_copy_dims(N, nl_idims[1], data->idims2);
+struct nlop_s* nlop_stack_create(int N, const long odims[N], const long idims1[N], const long idims2[N], int stack_dim)
+{
+	long idims[2][N];
+	md_copy_dims(N, idims[0], idims1);
+	md_copy_dims(N, idims[1], idims2);
 
+	return nlop_stack_generic_create(2, N, odims, idims, stack_dim);
+}
 
-	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)),
-		stack_fun, (nlop_der_fun_t[2][1]){ { stack_der1 }, { stack_der2 } }, (nlop_der_fun_t[2][1]){ { stack_adj1 }, { stack_adj2 } }, NULL, NULL, stack_del);
+struct nlop_s* nlop_destack_generic_create(int OO, int N, const long odims[OO][N], const long idims[N], int stack_dim)
+{
+	assert(stack_dim < N);
+	assert(0 <=stack_dim);
+
+	long pos[N];
+	md_singleton_strides(N, pos);
+
+	auto result = nlop_del_out_create(N, idims);
+
+	for (int i = 0; i < OO; i++) {
+
+		result = nlop_combine_FF(result, nlop_from_linop_F(linop_extract_create(N, pos, odims[i], idims)));
+		result = nlop_dup_F(result, 0, 1);
+		pos[stack_dim] += odims[i][stack_dim];
+		assert(md_check_equal_dims(N, odims[i], idims, ~MD_BIT(stack_dim)));
+	}
+
+	assert(pos[stack_dim] == idims[stack_dim]);
+
+	return result;
 }
 
 
-struct nlop_s* nlop_destack_create(int N, const long odims1[N], const long odims2[N], const long idims[N], unsigned long stack_dim)
+struct nlop_s* nlop_destack_create(int N, const long odims1[N], const long odims2[N], const long idims[N], int stack_dim)
 {
-	assert((int)stack_dim < N);
+	long odims[2][N];
+	md_copy_dims(N, odims[0], odims1);
+	md_copy_dims(N, odims[1], odims2);
 
-	for (unsigned int i = 0; i < (unsigned)N; i++)
-	{
-		if (i == stack_dim)
-			assert(odims1[i] + odims2[i] == idims[i]);
-		else
-			assert((odims1[i] == idims[i]) && (odims1[i] == odims2[i]));
-	}
-
-	long pos1[N];
-	long pos2[N];
-	for(int i = 0; i < N; i++) {
-
-		pos1[i] = 0;
-		pos2[i] = ((unsigned long)i == stack_dim) ? odims1[i] : 0;
-	}
-
-	auto extract1 = nlop_from_linop_F(linop_extract_create(N, pos1, odims1, idims));
-	auto extract2 = nlop_from_linop_F(linop_extract_create(N, pos2, odims2, idims));
-
-	auto combined = nlop_combine_FF(extract1, extract2);
-	return nlop_dup_F(combined, 0, 1);
+	return nlop_destack_generic_create(2, N, odims, idims, stack_dim);
 }
