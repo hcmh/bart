@@ -751,3 +751,45 @@ struct nlop_s* nlop_shift_output_F(const struct nlop_s* x, int new_index, int ol
 	nlop_free(x);
 	return result;
 }
+
+
+struct nlop_s* nlop_stack_multiple_F(int N, const struct nlop_s* nlops[N], int II, int in_stack_dim[II], int OO, int out_stack_dim[OO])
+{
+	auto result = (struct nlop_s*)nlops[0];
+	for (int i = 1; i < N; i++)
+		result = nlop_combine_FF(result, nlops[i]);
+
+	for (int i = 0; i < II; i++) {
+
+		int index[N];
+		index[0] = i;
+		for (int j = 1; j < N; j++)
+			index[j] = index[j - 1] + II - i;
+
+		struct nlop_s* tmp = NULL;
+
+		if (0 > in_stack_dim[i])
+			tmp = (struct nlop_s*)nlop_dup_generic(result, N, index);
+		else
+			tmp = nlop_stack_inputs_generic(result, N, index, in_stack_dim[i]);
+
+		nlop_free(result);
+		result = tmp;
+	}
+
+	for (int i = 0; i < OO; i++) {
+
+		int index[N];
+		index[0] = i;
+		for (int j = 1; j < N; j++)
+			index[j] = index[j - 1] + OO - i;
+
+		assert(0 <= out_stack_dim[i]);
+
+		struct nlop_s* tmp = nlop_stack_outputs_generic(result, N, index, out_stack_dim[i]);
+		nlop_free(result);
+		result = tmp;
+	}
+
+	return result;
+}
