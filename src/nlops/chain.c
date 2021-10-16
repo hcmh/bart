@@ -506,40 +506,61 @@ struct nlop_s* nlop_dup(const struct nlop_s* x, int a, int b)
 	return PTR_PASS(n);
 }
 
-struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, int stack_dim)
+static const struct nlop_s* nlop_dup_generic(const struct nlop_s* x, int II, const int index[II])
+{
+	x = nlop_clone(x);
+	for (int i = 1; i < II; i++)
+		x = nlop_dup_F(x, index[0], index[i] + 1 -i);
+
+	return x;
+}
+
+static struct nlop_s* nlop_stack_inputs_generic(const struct nlop_s* x, int NI, int _index[NI], int stack_dim)
 {
 	int II = nlop_get_nr_in_args(x);
 	int OO = nlop_get_nr_out_args(x);
 
-	assert(a < II);
-	assert(b < II);
-	assert( a!= b);
+	int index[NI];
+	for (int i = 0; i < NI; i++)
+		index[i] = _index[i];
 
-	auto doma = nlop_generic_domain(x, a);
-	auto domb = nlop_generic_domain(x, b);
-	assert(doma->N == domb->N);
+	int N = nlop_generic_domain(x, index[0])->N;
 
-	assert(stack_dim < (int)doma->N);
-	assert(stack_dim >= -(int)doma->N);
 	if (0 > stack_dim)
-		stack_dim += doma->N;
+		stack_dim += N;
 
-	long N = doma->N;
+	long odims[NI][N];
 	long idims[N];
-	md_copy_dims(N, idims, doma->dims);
-	idims[stack_dim] += domb->dims[stack_dim];
-	auto nlop_destack = nlop_destack_create(N, doma->dims, domb->dims, idims, stack_dim);
-	auto combined = nlop_combine(x, nlop_destack);
-	auto result = nlop_link_F(combined, OO + 1, b);
-	result = nlop_link_F(result, OO, a < b ? a : a - 1);
-	nlop_free(nlop_destack);
+	md_copy_dims(N, idims, nlop_generic_domain(x, index[0])->dims);
+	idims[stack_dim] = 0;
 
-	int perm[II-1];
-	for (int i = 0; i < II - 1; i++)
-		perm[i] = (i <= MIN(a, b)) ? i : i - 1;
-	perm[MIN(a, b)] = II - 2;
+	int nindex = index[0];
 
-	return nlop_permute_inputs_F(result, II - 1, perm);
+	for (int i = 0; i < NI; i++) {
+
+		assert(N == (int)nlop_generic_domain(x, index[i])->N);
+		md_copy_dims(N, odims[i], nlop_generic_domain(x, index[i])->dims);
+		idims[stack_dim] += odims[i][stack_dim];
+		nindex = MIN(nindex, index[i]);
+	}
+
+	auto result = nlop_combine_FF(nlop_clone(x), nlop_destack_generic_create(NI, N, odims, idims, stack_dim));
+
+	for (int i = 0; i < NI; i++) {
+
+		result = nlop_link_F(result, OO, index[i]);
+		for (int j = i + 1; j < NI; j++)
+			if (index[j] > index[i])
+				index[j]--;
+	}
+
+	return nlop_shift_input_F(result, nindex, II - NI);
+}
+
+
+struct nlop_s* nlop_stack_inputs(const struct nlop_s* x, int a, int b, int stack_dim)
+{
+	return nlop_stack_inputs_generic(x, 2, (int [2]) {a, b}, stack_dim);
 }
 
 struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, int stack_dim)
@@ -549,41 +570,48 @@ struct nlop_s* nlop_stack_inputs_F(const struct nlop_s* x, int a, int b, int sta
 	return result;
 }
 
+static struct nlop_s* nlop_stack_outputs_generic(const struct nlop_s* x, int NO, int _index[NO], int stack_dim)
+{
+	int index[NO];
+	for (int i = 0; i < NO; i++)
+		index[i] = _index[i];
+
+	int N = nlop_generic_codomain(x, index[0])->N;
+
+	if (0 > stack_dim)
+		stack_dim += N;
+
+	long idims[NO][N];
+	long odims[N];
+	md_copy_dims(N, odims, nlop_generic_codomain(x, index[0])->dims);
+	odims[stack_dim] = 0;
+
+	int nindex = index[0];
+
+	for (int i = 0; i < NO; i++) {
+
+		assert(N == (int)nlop_generic_codomain(x, index[i])->N);
+		md_copy_dims(N, idims[i], nlop_generic_codomain(x, index[i])->dims);
+		odims[stack_dim] += idims[i][stack_dim];
+		nindex = MIN(nindex, index[i]);
+	}
+
+	auto result = nlop_combine_FF(nlop_stack_generic_create(NO, N, odims, idims, stack_dim), nlop_clone(x));
+
+	for (int i = 0; i < NO; i++) {
+
+		result = nlop_link_F(result, 1 + index[i], 0);
+		for (int j = i + 1; j < NO; j++)
+			if (index[j] > index[i])
+				index[j]--;
+	}
+
+	return nlop_shift_output_F(result, nindex, 0);
+}
+
 struct nlop_s* nlop_stack_outputs(const struct nlop_s* x, int a, int b, int stack_dim)
 {
-	//int II = nlop_get_nr_in_args(x);
-	int OO = nlop_get_nr_out_args(x);
-
-	assert(a < OO);
-	assert(b < OO);
-	assert(a != b);
-
-	auto codoma = nlop_generic_codomain(x, a);
-	auto codomb = nlop_generic_codomain(x, b);
-	assert(codoma->N == codomb->N);
-
-	assert(stack_dim < (int)codoma->N);
-	assert(stack_dim >= -(int)codoma->N);
-	if (0 > stack_dim)
-		stack_dim += codoma->N;
-
-	long N = codoma->N;
-	long odims[N];
-	md_copy_dims(N, odims, codoma->dims);
-	odims[stack_dim] += codomb->dims[stack_dim];
-	auto nlop_stack = nlop_stack_create(N, odims, codoma->dims, codomb->dims, stack_dim);
-	auto combined = nlop_combine(nlop_stack, x);
-	nlop_free(nlop_stack);
-
-	auto result = nlop_link_F(combined, b + 1, 1);
-	result = nlop_link_F(result, a < b ? a + 1 : a, 0);
-
-	int perm[OO - 1];
-	for (int o = 0; o < OO - 1 ; o++)
-		perm[o] = (o <= MIN(a, b)) ? o + 1 : o;
-	perm[MIN(a, b)] = 0;
-
-	return nlop_permute_outputs_F(result, OO - 1, perm);
+	return nlop_stack_outputs_generic(x, 2, (int [2]) {a, b}, stack_dim);
 }
 
 struct nlop_s* nlop_stack_outputs_F(const struct nlop_s* x, int a, int b, int stack_dim)
