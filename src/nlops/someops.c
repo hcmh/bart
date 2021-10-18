@@ -27,7 +27,6 @@
 #include "nlops/cast.h"
 #include "nlops/const.h"
 #include "nlops/tenmul.h"
-#include "nlops/checkpointing.h"
 #include "nlops/nlop_jacobian.h"
 
 #ifdef USE_CUDA
@@ -44,6 +43,10 @@ struct zaxpbz_s {
 	int N;
 	const long* dims;
 
+	const long* ostrs;
+	const long* istrs1;
+	const long* istrs2;
+
 	complex float scale1;
 	complex float scale2;
 };
@@ -56,33 +59,50 @@ static void zaxpbz_fun(const nlop_data_t* _data, int N, complex float* args[N])
 	assert(3 == N);
 
 	complex float* dst = args[0];
-	const complex float* src1 = args[1];
-	const complex float* src2 = args[2];
+	complex float* src1 = args[1];
+	complex float* src2 = args[2];
 
 	#ifdef USE_CUDA
 	assert((cuda_ondevice(dst) == cuda_ondevice(src1)) && (cuda_ondevice(src1) == cuda_ondevice(src2)));
 	#endif
 
+	src1 = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, args[1]);
+	src2 = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, args[2]);
+	md_copy2(data->N, data->dims, data->ostrs, src1, data->istrs1, args[1], CFL_SIZE);
+	md_copy2(data->N, data->dims, data->ostrs, src2, data->istrs2, args[2], CFL_SIZE);
+
+	const long* istrs1 = data->ostrs;
+	const long* istrs2 = data->ostrs;
+
+
+
 	if ((1. == data->scale1) && (1. == data->scale2)) {
 
-		md_zadd(data->N, data->dims, dst, src1, src2);
-			return;
+		md_zadd2(data->N, data->dims, data->ostrs, dst, istrs1, src1, istrs2, src2);
+		goto cleanup;
 	}
 
 	if ((1. == data->scale1) && (-1. == data->scale2)) {
 
-		md_zsub(data->N, data->dims, dst, src1, src2);
-			return;
+		md_zsub2(data->N, data->dims, data->ostrs, dst, istrs1, src1, istrs2, src2);
+		goto cleanup;
 	}
 
 	if ((-1. == data->scale1) && (1. == data->scale2)) {
 
-		md_zsub(data->N, data->dims, dst, src2, src1);
-			return;
+		md_zsub2(data->N, data->dims, data->ostrs, dst, istrs2, src2, istrs1, src1);
+		goto cleanup;
 	}
 
-	md_zsmul(data->N, data->dims, dst, src1, data->scale1);
-	md_zaxpy(data->N, data->dims, dst, data->scale2, src2);
+	md_zsmul2(data->N, data->dims, data->ostrs, dst, istrs1, src1, data->scale1);
+	md_zaxpy2(data->N, data->dims, data->ostrs, dst, data->scale2, istrs2, src2);
+
+cleanup:
+
+	if (args[1] != src1)
+		md_free(src1);
+	if (args[2] != src2)
+		md_free(src2);
 }
 
 static void scale_apply(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -90,7 +110,7 @@ static void scale_apply(const nlop_data_t* _data, unsigned int o, unsigned int i
 	assert(0 == o);
 	const auto data = CAST_DOWN(zaxpbz_s, _data);
 	const complex float scale = (i == 0) ? data->scale1 : data->scale2;
-	md_zsmul(data->N, data->dims, dst, src, scale);
+	md_zsmul2(data->N, data->dims, data->ostrs, dst, (i == 0) ? data->istrs1 : data->istrs2, src, scale);
 }
 
 static void scale_adjoint(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -98,7 +118,8 @@ static void scale_adjoint(const nlop_data_t* _data, unsigned int o, unsigned int
 	assert(0 == o);
 	const auto data = CAST_DOWN(zaxpbz_s, _data);
 	const complex float scale = (i == 0) ? data->scale1 : data->scale2;
-	md_zsmul(data->N, data->dims, dst, src, conjf(scale));
+	md_clear2(data->N, data->dims, (i == 0) ? data->istrs1 : data->istrs2, dst, CFL_SIZE); //FIXME: compute size and use md_clear
+	md_zaxpy2(data->N, data->dims, (i == 0) ? data->istrs1 : data->istrs2, dst, conjf(scale), data->ostrs, src);
 }
 
 
@@ -107,21 +128,41 @@ static void zaxpbz_del(const nlop_data_t* _data)
 	const auto data = CAST_DOWN(zaxpbz_s, _data);
 
 	xfree(data->dims);
+	xfree(data->ostrs);
+	xfree(data->istrs1);
+	xfree(data->istrs2);
 
 	xfree(data);
 }
 
-const struct nlop_s* nlop_zaxpbz_create(int N, const long dims[N], complex float scale1, complex float scale2)
+const struct nlop_s* nlop_zaxpbz2_create(int N, const long dims[N], unsigned long flags1, complex float scale1, unsigned long flags2, complex float scale2)
 {
 
 	PTR_ALLOC(struct zaxpbz_s, data);
 	SET_TYPEID(zaxpbz_s, data);
 
 	PTR_ALLOC(long[N], ndims);
+	PTR_ALLOC(long[N], ostrs);
+	PTR_ALLOC(long[N], istrs1);
+	PTR_ALLOC(long[N], istrs2);
+
 	md_copy_dims(N, *ndims, dims);
+	md_calc_strides(N, *ostrs, dims, CFL_SIZE);
+
+	long idims1[N];
+	long idims2[N];
+
+	md_select_dims(N, flags1, idims1, dims);
+	md_select_dims(N, flags2, idims2, dims);
+
+	md_calc_strides(N, *istrs1, idims1, CFL_SIZE);
+	md_calc_strides(N, *istrs2, idims2, CFL_SIZE);
 
 	data->N = N;
 	data->dims = *PTR_PASS(ndims);
+	data->ostrs = *PTR_PASS(ostrs);
+	data->istrs1 = *PTR_PASS(istrs1);
+	data->istrs2 = *PTR_PASS(istrs2);
 
 	data->scale1 = scale1;
 	data->scale2 = scale2;
@@ -131,12 +172,17 @@ const struct nlop_s* nlop_zaxpbz_create(int N, const long dims[N], complex float
 
 
 	long nl_idims[2][N];
-	md_copy_dims(N, nl_idims[0], dims);
-	md_copy_dims(N, nl_idims[1], dims);
+	md_select_dims(N, flags1, nl_idims[0], dims);
+	md_select_dims(N, flags2, nl_idims[1], dims);
 
 
 	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)),
 		zaxpbz_fun, (nlop_der_fun_t[2][1]){ { scale_apply }, { scale_apply } }, (nlop_der_fun_t[2][1]){ { scale_adjoint }, { scale_adjoint } }, NULL, NULL, zaxpbz_del);
+}
+
+const struct nlop_s* nlop_zaxpbz_create(int N, const long dims[N], complex float scale1, complex float scale2)
+{
+	return nlop_zaxpbz2_create(N, dims, ~0, scale1, ~0, scale2);
 }
 
 const struct nlop_s* nlop_zsadd_create(int N, const long dims[N], complex float val)
@@ -349,83 +395,57 @@ struct zinv_reg_s {
 
 	INTERFACE(nlop_data_t);
 
-	unsigned long N;
-	const long* dims;
-
-	complex float epsilon; //reg not implemented
-	complex float* tmp;
+	complex float epsilon;
 };
 
 DEF_TYPEID(zinv_reg_s);
 
-static void zinv_reg_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void zinv_reg_fun(const nlop_data_t* _data, int N, const long dims[N], complex float* dst, const complex float* src, complex float* der)
 {
 	const auto data = CAST_DOWN(zinv_reg_s, _data);
 
-	unsigned int N = data->N;
-	const long* dims = data->dims;
+	complex float* tmp = md_alloc_sameplace(N, dims, CFL_SIZE, dst);
 
-	if (NULL == data->tmp)
-		data->tmp = md_alloc_sameplace(N, dims, CFL_SIZE, dst);
+	md_zfill(N, dims, tmp, 1.);
+	md_zdiv_reg(N, dims, dst, tmp, src, data->epsilon);
 
-	md_zfill(N, dims, data->tmp, 1.);
-	md_zdiv(N,dims, dst, data->tmp, src);
+	if (NULL != der) {
 
-	md_zmul(N, dims, data->tmp, dst, dst);
-	md_zsmul(N, dims, data->tmp, data->tmp, -1.);
-}
-
-
-static void zinv_reg_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const struct zinv_reg_s* data = CAST_DOWN(zinv_reg_s, _data);
-	assert(NULL != data->tmp);
-
-	md_zmul(data->N, data->dims, dst, src, data->tmp);
-}
-
-static void zinv_reg_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const struct zinv_reg_s* data = CAST_DOWN(zinv_reg_s, _data);
-	assert(NULL != data->tmp);
-
-	md_zmulc(data->N, data->dims, dst, src, data->tmp);
-}
-
-static void zinv_reg_del(const nlop_data_t* _data)
-{
-	const auto data = CAST_DOWN(zinv_reg_s, _data);
-
-	md_free(data->tmp);
-	xfree(data->dims);
-	xfree(data);
+		md_zmul(N, dims, der, dst, dst);
+		md_zsmul(N, dims, der, der, -1.);
+	}
 }
 
 /**
  * Operator computing the inverse
- * f(x) = 1 / x
+ * f(x) = 1 / (x + eps)
  */
-const struct nlop_s* nlop_zinv_create(int N, const long dims[N])
+const struct nlop_s* nlop_zinv_reg_create(int N, const long dims[N], float eps)
 {
 	PTR_ALLOC(struct zinv_reg_s, data);
 	SET_TYPEID(zinv_reg_s, data);
 
-	data->N = N;
-	PTR_ALLOC(long[N], ndims);
-	md_copy_dims(N, *ndims, dims);
-	data->dims = *PTR_PASS(ndims);
-	data->epsilon = 0;
+	data->epsilon = eps;
 
-	// will be initialized later, to transparently support GPU
-	data->tmp = NULL;
+	return nlop_zdiag_create(N, dims, CAST_UP(PTR_PASS(data)), zinv_reg_fun, NULL);
+}
 
-	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), zinv_reg_fun, zinv_reg_der, zinv_reg_adj, NULL, NULL, zinv_reg_del);
+/**
+ * Operator computing the inverse
+ * f(x) = 1 / (x)
+ */
+const struct nlop_s* nlop_zinv_create(int N, const long dims[N])
+{
+	return nlop_zinv_reg_create(N, dims, 0);
+}
+
+/**
+ * Operator dividing input one by input 2
+ * f(x, y) = x / (y + eps)
+ */
+const struct nlop_s* nlop_zdiv_reg_create(int N, const long dims[N], float eps)
+{
+	return nlop_chain2_FF(nlop_zinv_reg_create(N, dims, eps), 0, nlop_tenmul_create(N, dims, dims, dims), 1);
 }
 
 /**
@@ -436,7 +456,6 @@ const struct nlop_s* nlop_zdiv_create(int N, const long dims[N])
 {
 	return nlop_chain2_FF(nlop_zinv_create(N, dims), 0, nlop_tenmul_create(N, dims, dims, dims), 1);
 }
-
 
 struct zmax_s {
 
@@ -656,6 +675,7 @@ const struct nlop_s* nlop_zrss_create(int N, const long dims[N], unsigned long f
 {
 	return nlop_zrss_reg_create(N, dims, flags, 0);
 }
+
 
 
 struct zspow_s {

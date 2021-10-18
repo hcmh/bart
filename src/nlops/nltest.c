@@ -512,3 +512,134 @@ float compare_gpu(const struct nlop_s* cpu_op, const struct nlop_s* gpu_op)
 	assert(0);
 #endif
 }
+
+static bool compare_linops(const struct linop_s* lop1, const struct linop_s* lop2, bool frw, bool adj, float tol)
+{
+	bool result = true;
+
+	auto dom = linop_domain(lop1);
+	auto cod = linop_codomain(lop2);
+
+	if (frw) {
+
+		complex float* src = md_alloc(dom->N, dom->dims, dom->size);
+		complex float* dst1 = md_alloc(cod->N, cod->dims, cod->size);
+		complex float* dst2 = md_alloc(cod->N, cod->dims, cod->size);
+
+		md_gaussian_rand(dom->N, dom->dims, src);
+
+		linop_forward_unchecked(lop1, dst1, src);
+		linop_forward_unchecked(lop2, dst2, src);
+
+		result = result && (tol >= md_znrmse(cod->N, cod->dims, dst1, dst2));
+		if (!result)
+			debug_printf(DP_INFO, "linop compare frw failed!\n");
+
+		md_free(src);
+		md_free(dst1);
+		md_free(dst2);
+	}
+
+	if (result && adj) {
+
+		complex float* src = md_alloc(cod->N, cod->dims, cod->size);
+		complex float* dst1 = md_alloc(dom->N, dom->dims, dom->size);
+		complex float* dst2 = md_alloc(dom->N, dom->dims, dom->size);
+
+		md_gaussian_rand(cod->N, cod->dims, src);
+
+		linop_adjoint_unchecked(lop1, dst1, src);
+		linop_adjoint_unchecked(lop2, dst2, src);
+
+		result = result && (tol >= md_znrmse(dom->N, dom->dims, dst1, dst2));
+		if (!result)
+			debug_printf(DP_INFO, "linop compare adj failed!\n");
+
+		md_free(src);
+		md_free(dst1);
+		md_free(dst2);
+	}
+
+	return result;
+}
+
+bool compare_nlops(const struct nlop_s* nlop1, const struct nlop_s* nlop2, bool shape, bool der, bool adj, float tol)
+{
+	int II = nlop_get_nr_in_args(nlop1);
+	int OO = nlop_get_nr_out_args(nlop1);
+
+	assert(II == nlop_get_nr_in_args(nlop2));
+	assert(OO == nlop_get_nr_out_args(nlop2));
+
+	complex float* args1[OO + II];
+	complex float* args2[OO + II];
+
+	bool result = true;
+
+	for (int i = 0; i < II; i++){
+
+		auto iov = nlop_generic_domain(nlop1, i);
+		if (shape)
+			result = result && iovec_check(nlop_generic_domain(nlop2, i), iov->N, iov->dims, iov->strs);
+		else
+			result = result && md_calc_size(iov->N, iov->dims) == md_calc_size(nlop_generic_domain(nlop2, i)->N, nlop_generic_domain(nlop2, i)->dims);
+
+		args1[OO + i] = md_alloc(iov->N, iov->dims, iov->size);
+		args2[OO + i] = args1[OO + i];
+		md_gaussian_rand(iov->N, iov->dims, args1[OO + i]);
+	}
+
+	for (int i = 0; i < OO; i++){
+
+		auto iov = nlop_generic_codomain(nlop1, i);
+		if (shape)
+			result = result && iovec_check(nlop_generic_codomain(nlop2, i), iov->N, iov->dims, iov->strs);
+		else
+			result = result && md_calc_size(iov->N, iov->dims) == md_calc_size(nlop_generic_codomain(nlop2, i)->N, nlop_generic_codomain(nlop2, i)->dims);
+
+		args1[i] = md_alloc(iov->N, iov->dims, iov->size);
+		args2[i] = md_alloc(iov->N, iov->dims, iov->size);
+	}
+
+	if (!result) {
+
+		debug_printf(DP_INFO, "nlop compare shape failed!\n");
+		goto cleanup;
+	}
+
+	nlop_generic_apply_unchecked(nlop1, II + OO, (void**)args1);
+	nlop_generic_apply_unchecked(nlop2, II + OO, (void**)args2);
+
+	for (int i = 0; i < OO; i++)
+		result = result && (tol >= md_znrmse(nlop_generic_codomain(nlop1, i)->N, nlop_generic_codomain(nlop1, i)->dims, args1[i], args2[i]));
+
+	if (!result) {
+
+		debug_printf(DP_INFO, "nlop compare forward failed!\n");
+		goto cleanup;
+	}
+
+
+	for (int i = 0; i < II; i++){
+
+		for (int o = 0; o < OO; o++) {
+
+			auto der1 = nlop_get_derivative(nlop1, o, i);
+			auto der2 = nlop_get_derivative(nlop2, o, i);
+
+			result = result && compare_linops(der1, der2, der, adj, tol);
+		}
+	}
+
+cleanup:
+	for (int i = 0; i < II; i++)
+		md_free(args1[OO + i]);
+
+	for (int i = 0; i < OO; i++){
+
+		md_free(args1[i]);
+		md_free(args2[i]);
+	}
+
+	return result;
+}
