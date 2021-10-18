@@ -386,7 +386,7 @@ static struct im2col_descriptor_uint64 get_im2col_descriptor_uint64(const long o
 		config.N_out_elements_k_only *= kdims[i];
 		config.N_out_elements *= odims[i] * kdims[i];
 
-		config.triv_strides_dilation &= 
+		config.triv_strides_dilation &=
 				(   (config.istrs_odims[j] == istrs[i])
 				 && (config.istrs_kdims[j] == istrs[i]));
 
@@ -785,7 +785,7 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 
 		cuFloatComplex result = dst[i];
 
-		for (uint kz = 0; kz < config.kdims[2]; kz++) {
+		for (unsigned int kz = 0; kz < config.kdims[2]; kz++) {
 
 			int oz = iz - kz;
 
@@ -828,7 +828,7 @@ __global__ static void kern_im2col_valid_no_dil_str_transp(struct im2col_descrip
 
 		uint32_t i_cur = i;
 		uint32_t i_new;
-		
+
 #ifdef USE_FXDIV
 		i_new = cuda_fxdiv_quotient_uint32_t(i_cur, config.div_NC);
 #else
