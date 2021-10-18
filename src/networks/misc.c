@@ -218,8 +218,8 @@ static void compute_adjoint_noncart(struct network_data_s* nd, long pat_dims[DIM
 
 		auto fft_op = nufft_create2(DIMS, ksp_dims_s, cim_dims_s,
 						trj_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, trj_dims, CFL_SIZE), pos, traj),
-						pat_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, pat_dims, CFL_SIZE), pos, pattern),
-						bas_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, bas_dims, CFL_SIZE), pos, basis),
+						pat_dims_s, pattern ? &MD_ACCESS(nd->N, MD_STRIDES(nd->N, pat_dims, CFL_SIZE), pos, pattern) : NULL,
+						bas_dims_s, basis ? &MD_ACCESS(nd->N, MD_STRIDES(nd->N, bas_dims, CFL_SIZE), pos, basis) : NULL,
 						*(nd->nufft_conf));
 
 		if (DIMS + 1 != nufft_get_psf_dims(fft_op, DIMS + 1, psf_dims_s))
