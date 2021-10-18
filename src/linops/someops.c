@@ -107,7 +107,7 @@ static struct linop_s* linop_gdiag_create(unsigned int N, const long dims[N], un
 	data->strs = *PTR_PASS(strs);
 	data->ddims = *PTR_PASS(ddims);
 	data->dstrs = *PTR_PASS(dstrs);
-	data->diag = md_move_multiplace(N, data->ddims, CFL_SIZE, diag);
+	data->diag = (NULL == diag) ? NULL : md_move_multiplace(N, data->ddims, CFL_SIZE, diag);
 
 	return linop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), cdiag_apply, cdiag_adjoint, cdiag_normal, NULL, cdiag_free);
 }
