@@ -16,6 +16,7 @@
 #include "num/flpmath.h"
 
 #include "nlops/nlop.h"
+#include "nlops/nlop_jacobian.h"
 
 #include "zhyperbolic.h"
 
@@ -23,48 +24,23 @@
 struct zsinh_s {
 
 	INTERFACE(nlop_data_t);
-
-	int N;
-	const long* dims;
-	complex float* xn;
 };
 
 DEF_TYPEID(zsinh_s);
 
-static void zsinh_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void zsinh_free(const nlop_data_t* _data)
 {
-	const auto data = CAST_DOWN(zsinh_s, _data);
-	if (NULL == data->xn)
-		data->xn = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
-	md_zsinh(data->N, data->dims, dst, src);
-	md_zcosh(data->N, data->dims, data->xn, src);
+	xfree(_data);
 }
 
-static void zsinh_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void zsinh_apply(const nlop_data_t* _data, int N, const long dims[N], complex float* dst, const complex float* src, complex float* der)
 {
-	UNUSED(o);
-	UNUSED(i);
+	UNUSED(_data);
 
-	const auto data = CAST_DOWN(zsinh_s, _data);
-	md_zmul(data->N, data->dims, dst, src, data->xn);
-}
+	if (NULL != der)
+		md_zcosh(N, dims, der, src);
 
-static void zsinh_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto data = CAST_DOWN(zsinh_s, _data);
-	md_zmulc(data->N, data->dims, dst, src, data->xn);
-}
-
-static void zsinh_del(const nlop_data_t* _data)
-{
-	const auto data = CAST_DOWN(zsinh_s, _data);
-
-	md_free(data->xn);
-	xfree(data->dims);
-	xfree(data);
+	md_zsinh(N, dims, dst, src);
 }
 
 struct nlop_s* nlop_zsinh_create(int N, const long dims[N])
@@ -72,63 +48,34 @@ struct nlop_s* nlop_zsinh_create(int N, const long dims[N])
 	PTR_ALLOC(struct zsinh_s, data);
 	SET_TYPEID(zsinh_s, data);
 
-	PTR_ALLOC(long[N], ndims);
-	md_copy_dims(N, *ndims, dims);
-
-	data->N = N;
-	data->dims = *PTR_PASS(ndims);
-	data->xn = NULL;
-
-
-	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)),
-		zsinh_fun, zsinh_der, zsinh_adj, NULL, NULL, zsinh_del);
+	return nlop_zdiag_create(N, dims, CAST_UP(PTR_PASS(data)), zsinh_apply, zsinh_free);
 }
+
+
+
+
+
 
 struct zcosh_s {
 
 	INTERFACE(nlop_data_t);
-
-	int N;
-	const long* dims;
-	complex float* xn;
 };
 
 DEF_TYPEID(zcosh_s);
 
-static void zcosh_fun(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void zcosh_free(const nlop_data_t* _data)
 {
-	const auto data = CAST_DOWN(zcosh_s, _data);
-	if (NULL == data->xn)
-		data->xn = md_alloc_sameplace(data->N, data->dims, CFL_SIZE, dst);
-	md_zcosh(data->N, data->dims, dst, src);
-	md_zsinh(data->N, data->dims, data->xn, src);
+	xfree(_data);
 }
 
-static void zcosh_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+static void zcosh_apply(const nlop_data_t* _data, int N, const long dims[N], complex float* dst, const complex float* src, complex float* der)
 {
-	UNUSED(o);
-	UNUSED(i);
+	UNUSED(_data);
 
-	const auto data = CAST_DOWN(zcosh_s, _data);
-	md_zmul(data->N, data->dims, dst, src, data->xn);
-}
+	if (NULL != der)
+		md_zsinh(N, dims, der, src);
 
-static void zcosh_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const auto data = CAST_DOWN(zcosh_s, _data);
-	md_zmulc(data->N, data->dims, dst, src, data->xn);
-}
-
-static void zcosh_del(const nlop_data_t* _data)
-{
-	const auto data = CAST_DOWN(zcosh_s, _data);
-
-	md_free(data->xn);
-	xfree(data->dims);
-	xfree(data);
+	md_zcosh(N, dims, dst, src);
 }
 
 struct nlop_s* nlop_zcosh_create(int N, const long dims[N])
@@ -136,14 +83,5 @@ struct nlop_s* nlop_zcosh_create(int N, const long dims[N])
 	PTR_ALLOC(struct zcosh_s, data);
 	SET_TYPEID(zcosh_s, data);
 
-	PTR_ALLOC(long[N], ndims);
-	md_copy_dims(N, *ndims, dims);
-
-	data->N = N;
-	data->dims = *PTR_PASS(ndims);
-	data->xn = NULL;
-
-	return nlop_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)),
-		zcosh_fun, zcosh_der, zcosh_adj, NULL, NULL, zcosh_del);
+	return nlop_zdiag_create(N, dims, CAST_UP(PTR_PASS(data)), zcosh_apply, zcosh_free);
 }
-

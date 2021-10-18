@@ -16,6 +16,7 @@
 #include "num/flpmath.h"
 
 #include "nlops/nlop.h"
+#include "nlops/nlop_jacobian.h"
 #include "num/ops.h"
 
 #ifdef USE_CUDA
@@ -230,26 +231,66 @@ struct nlop_s* nlop_tenmul_create2(int N, const long dims[N], const long ostr[N]
 		tenmul_fun, (nlop_der_fun_t[2][1]){ { tenmul_der1 }, { tenmul_der2 } }, (nlop_der_fun_t[2][1]){ { tenmul_adj1 }, { tenmul_adj2 } }, NULL, NULL, tenmul_del, tenmul_clear_der, NULL);
 }
 
+struct tenmul_block_diag_s {
+
+	INTERFACE(nlop_data_t);
+};
+
+DEF_TYPEID(tenmul_block_diag_s);
+
+static void tenmul_block_diag_fun(const nlop_data_t* _data, int N, int OO, const long odims[OO][N], _Complex float* dst[OO], int II, const long idims[II][N], const _Complex float* src[II], const long ddims[OO][II][N], _Complex float* jac[OO][II])
+{
+	UNUSED(_data);
+
+	assert(1 == OO);
+	assert(2 == II);
+
+	assert(md_check_equal_dims(N, idims[0], ddims[0][1], ~0));
+	assert(md_check_equal_dims(N, idims[1], ddims[0][0], ~0));
+
+	md_ztenmul(N, odims[0], dst[0], idims[0], src[0], idims[1], src[1]);
+
+	if (NULL != jac[0][0])
+		md_copy(N, ddims[0][0], jac[0][0], src[1], CFL_SIZE);
+
+	if (NULL != jac[0][1])
+		md_copy(N, ddims[0][1], jac[0][1], src[0], CFL_SIZE);
+}
 
 struct nlop_s* nlop_tenmul_create(int N, const long odim[N], const long idim1[N], const long idim2[N])
 {
-	long dims[N];
-	md_tenmul_dims(N, dims, odim, idim1, idim2);
+	PTR_ALLOC(struct tenmul_block_diag_s, data);
+	SET_TYPEID(tenmul_block_diag_s, data);
 
-	return nlop_tenmul_create2(N, dims, MD_STRIDES(N, odim, CFL_SIZE),
-					MD_STRIDES(N, idim1, CFL_SIZE),
-					MD_STRIDES(N, idim2, CFL_SIZE));
+	int OO = 1;
+	int II = 2;
+
+	long odims[OO][N];
+	long idims[II][N];
+
+	unsigned long diag_flags[OO][II];
+
+	md_copy_dims(N, odims[0], odim);
+	md_copy_dims(N, idims[0], idim1);
+	md_copy_dims(N, idims[1], idim2);
+
+	diag_flags[0][0] = ~md_nontriv_dims(N, idim2);
+	diag_flags[0][1] = ~md_nontriv_dims(N, idim1);
+
+	return nlop_zblock_diag_generic_create(CAST_UP(PTR_PASS(data)), N, OO, odims, II, idims, diag_flags, tenmul_block_diag_fun, NULL);
 }
 
 bool nlop_tenmul_der_available(const struct nlop_s* op, int index)
 {
 	auto data = CAST_MAYBE(tenmul_s, nlop_get_data((struct nlop_s*)op));
-	assert(NULL != data);
+	if (NULL != data) {
 
-	if (0 == index)
-		return (NULL != data->der2);
-	if (1 == index)
-		return (NULL != data->der1);
-	assert(0);
-	return false;
+		if (0 == index)
+			return (NULL != data->der2);
+		if (1 == index)
+			return (NULL != data->der1);
+		assert(0);
+	}
+
+	return nlop_block_diag_der_available(op, 0, index);
 }
