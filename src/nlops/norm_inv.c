@@ -5,10 +5,12 @@
 #include "num/iovec.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/rand.h"
 
 #include "iter/italgos.h"
 #include "iter/iter.h"
 #include "iter/iter2.h"
+#include "iter/misc.h"
 
 #include "linops/linop.h"
 #include "linops/someops.h"
@@ -43,6 +45,9 @@ struct norm_inv_s {
 
 	bool store_nlop;		//store data necessary for inversion in nlop
 	struct iter_conjgrad_conf iter_conf;
+
+	complex float* noise;
+	int maxeigen_iter;
 };
 
 DEF_TYPEID(norm_inv_s);
@@ -257,6 +262,7 @@ static void norm_inv_free(const nlop_data_t* _data)
 
 	md_free(d->dout);
 	md_free(d->AhAdout);
+	md_free(d->noise);
 
 	for (int i = 0; i < d->II; i++) {
 		iovec_free(d->dom[i]);
@@ -307,6 +313,9 @@ static struct norm_inv_s* norm_inv_data_create(struct nlop_norm_inv_conf* conf, 
 	}
 
 	data->store_nlop = conf->store_nlop;
+
+	data->noise = NULL;
+	data->maxeigen_iter = 0;
 
 	return PTR_PASS(data);
 }
@@ -390,5 +399,80 @@ const struct nlop_s* norm_inv_lop_lambda_create(struct nlop_norm_inv_conf* conf,
 	auto result = norm_inv_lambda_create(&tconf, normal_op, lflags);
 
 	nlop_free(normal_op);
+	return result;
+}
+
+
+
+static void normal_power_iter_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
+{
+	const auto d = CAST_DOWN(norm_inv_s, _data);
+	assert(1 + d->II == Narg);
+
+	complex float* dst = args[0];
+
+	norm_inv_alloc(d, dst);
+
+	for (int i = 1; i < d->II; i++)
+		md_copy(d->dom[i]->N, d->dom[i]->dims, d->in_args[i], args[i + 1], CFL_SIZE);
+
+	norm_inv_set_ops(d, MD_BIT(0));
+
+	if (NULL == d->noise) {
+
+		d->noise = md_alloc_sameplace(d->dom[0]->N, d->dom[0]->dims, CFL_SIZE, dst);
+		md_gaussian_rand(d->dom[0]->N, d->dom[0]->dims, d->noise);
+	}
+
+	complex float result = iter_power(d->maxeigen_iter, nlop_get_derivative(d->normal_op, 0, 0)->forward, 2 * md_calc_size(d->dom[0]->N, d->dom[0]->dims), (float*)d->noise);
+
+	norm_inv_free_ops(d);
+	for (int i = 0; i < d->II; i++) {
+
+		md_free(d->in_args[i]);
+		d->in_args[i] = NULL;
+	}
+
+	md_copy(1, MD_DIMS(1), dst, &result, CFL_SIZE);
+}
+
+
+
+const struct nlop_s* nlop_maxeigen_create(const struct nlop_s* normal_op)
+{
+	auto data = norm_inv_data_create(NULL, normal_op);
+	data->maxeigen_iter = 30;
+
+	int II = nlop_get_nr_in_args(normal_op) - 1;
+	int OO = 1;
+
+	unsigned int NO = nlop_generic_codomain(normal_op, 0)->N;
+	unsigned int NI = nlop_generic_domain(normal_op, 0)->N;
+
+	for (int i = 0; i < II; i++)
+		NI = MAX(NI, nlop_generic_domain(normal_op, i)->N);
+
+
+	long nl_odims[OO][NO];
+	long nl_idims[II ? II : 1][NI];
+
+
+	md_singleton_dims(NO, nl_odims[0]);
+
+	for (int i = 0; i < II; i++){
+
+		md_singleton_dims(nlop_generic_domain(normal_op, i + 1)->N, nl_idims[i]);
+		md_copy_dims(nlop_generic_domain(normal_op, i + 1)->N, nl_idims[i], nlop_generic_domain(normal_op, i + 1)->dims);
+	}
+
+	const struct nlop_s* result = nlop_generic_create(
+			1, NO, nl_odims, II, NI, nl_idims, CAST_UP(PTR_PASS(data)),
+			normal_power_iter_fun,
+			NULL, NULL,
+			NULL, NULL, norm_inv_free);
+
+	for (int i = 0; i < II; i++)
+		result = nlop_reshape_in_F(result, i, nlop_generic_domain(normal_op, i + 1)->N, nl_idims[i]);
+
 	return result;
 }
