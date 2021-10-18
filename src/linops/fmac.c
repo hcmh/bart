@@ -125,7 +125,7 @@ const struct linop_s* linop_fmac_create(unsigned int N, const long dims[N],
 	md_select_dims(N, ~tflags, data->tdims, dims);
 	md_calc_strides(N, data->tstrs, data->tdims, CFL_SIZE);
 
-	data->tensor = md_move_multiplace(N, data->tdims, CFL_SIZE, tensor);
+	data->tensor = (NULL == tensor) ? NULL : md_move_multiplace(N, data->tdims, CFL_SIZE, tensor);
 
 	long odims[N];
 	md_copy_dims(N, odims, data->odims);
