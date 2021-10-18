@@ -24,6 +24,7 @@
 
 #include "nlops/nlop.h"
 #include "nlops/chain.h"
+#include "nlops/nlop_jacobian.h"
 
 #include "activation.h"
 
@@ -186,16 +187,12 @@ static void bias_op_apply(const nlop_data_t* _data, int N, complex float* args[N
 	const struct bias_op_s* d = CAST_DOWN(bias_op_s, _data);
 	assert(3 == N);
 
-	#ifdef USE_CUDA
+#ifdef USE_CUDA
 
 	if (cuda_ondevice(args[0])) {
 
-		complex float* tmp = md_alloc_gpu(d->N, d->dims, CFL_SIZE);
-		md_copy2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), tmp, MD_STRIDES(d->N, d->bdims, CFL_SIZE), args[2], CFL_SIZE);
-
-		md_zadd(d->N, d->dims, args[0], args[1], tmp);
-
-		md_free(tmp);
+		md_copy2(d->N, d->dims, MD_STRIDES(d->N, d->dims, CFL_SIZE), args[0], MD_STRIDES(d->N, d->bdims, CFL_SIZE), args[2], CFL_SIZE);
+		md_zadd(d->N, d->dims, args[0], args[1], args[0]);
 	} else
 #endif
 
@@ -298,167 +295,67 @@ struct relu_s {
 	INTERFACE(nlop_data_t);
 
 	float slope_param;
-
-	const struct iovec_s* tmpdom;
-	const struct iovec_s* dom;
-	const struct iovec_s* codom;
-
-	float* der;
 };
 
 DEF_TYPEID(relu_s);
 
-static void relu_clear_der(const nlop_data_t* data)
+
+static void relu_apply(const nlop_data_t* _data, int N, const long dims[N], float* dst, const float* src, float* der)
 {
-	struct relu_s* d = CAST_DOWN(relu_s, data);
-
-	md_free(d->der);
-	d->der = NULL;
-}
-
-static void relu_init(struct relu_s* data, const complex float* ref) {
-
-
-	if (nlop_der_requested(CAST_UP(data), 0, 0)) {
-
-		if (NULL == data->der)
-			data->der = md_alloc_sameplace(data->tmpdom->N, data->tmpdom->dims, data->tmpdom->size, ref);
-	} else {
-
-		md_free(data->der);
-		data->der = NULL;
-	}
-}
-
-
-static void relu_apply(const nlop_data_t* _data, int N, complex float* args[N])
-{
-
-	assert(2 == N);
-	complex float* dst = args[0];
-	complex float* src = args[1];
-
 	struct relu_s* d = CAST_DOWN(relu_s, _data);
-	relu_init(d, dst);
 
-	md_smax2(d->dom->N, d->dom->dims, d->codom->strs, (float*)dst, d->codom->strs, (float*)src, 0.);
-	if ((0 == d->slope_param) && (nlop_der_requested(_data, 0, 0)))
-		md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, d->der, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
+	md_smax(N, dims, dst, src, 0.);
+
+	if ((0 == d->slope_param) && (NULL != der))
+		md_greatequal(N, dims, der, src, dst);
 
 	// leaky RELU if slope parameter has been set
 	if (0 != d->slope_param) {
 
-		complex float* tmp = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
-		complex float* tmp2 = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
-		complex float* der = md_alloc_sameplace(d->dom->N, d->dom->dims, d->dom->size, dst);
+		float* tmp = md_alloc_sameplace(N, dims, FL_SIZE, dst);
+		float* tmp2 = md_alloc_sameplace(N, dims, FL_SIZE, dst);
+		float* tder = md_alloc_sameplace(N, dims, FL_SIZE, dst);
+
+		md_greatequal(N, dims, tder, src, dst);
 
 		// eliminate ones in derivative, where input is zero to calculate tmp(x) = (0, if x >= 0; 1, if x < 0)
-		md_lessequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)tmp, d->dom->strs, (float*)src, d->codom->strs, (float*)dst);
-		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)tmp2, (float*)der, (float*)tmp);
-		md_sub(d->tmpdom->N, d->tmpdom->dims, (float*)tmp, (float*)tmp, (float*)tmp2);
+		md_lessequal(N, dims, tmp, src, dst);
+		md_mul(N, dims, tmp2, tder, tmp);
+		md_sub(N, dims, tmp, tmp, tmp2);
 
 		// derivative der(x) = {1, if x >= 0; d->slope_param if x < 0}
-		md_axpy(d->tmpdom->N, d->tmpdom->dims, (float*)der, d->slope_param, (float*)tmp);
+		md_axpy(N, dims, tder, d->slope_param, tmp);
 
-		md_mul(d->tmpdom->N, d->tmpdom->dims, (float*)dst, (float*)der, (float*)src);
+		md_mul(N, dims, dst, tder, src);
 
 		md_free(tmp);
 		md_free(tmp2);
 
-		if (nlop_der_requested(_data, 0, 0))
-			md_copy2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, d->der, d->dom->strs, der, d->tmpdom->size);
+		if (NULL != der)
+			md_copy(N, dims, der, tder, FL_SIZE);
+
+		md_free(tder);
 
 	}
-
-}
-
-
-static void relu_deriv(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-
-	md_mul2(d->codom->N, d->dom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, d->der, d->dom->strs, (float*)src);
-}
-
-static void relu_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-
-	md_mul2(d->dom->N, d->dom->dims, d->dom->strs, (float*)dst, d->tmpdom->strs, d->der, d->codom->strs, (float*)src);
 }
 
 static void relu_free(const nlop_data_t* _data)
 {
-	const struct relu_s* d = CAST_DOWN(relu_s, _data);
-
-	iovec_free(d->tmpdom);
-	iovec_free(d->dom);
-	iovec_free(d->codom);
-
-	md_free(d->der);
-
-	xfree(d);
-}
-
-/**
- * Create RELU nlop
- * f(x) = {x, if x >= 0; 0, if x < 0}
- */
-const struct nlop_s* nlop_relu_create2(unsigned int N, const long dims[N], const long ostrs[N], const long istrs[N])
-{
-	return nlop_leaky_relu_create2(N, dims, ostrs, istrs, 0.);
+	xfree(_data);
 }
 
 /**
  * Create leaky RELU nlop with slope control parameter a
  * f(x) = {x, if x >= 0; ax, if x < 0}
  */
-const struct nlop_s* nlop_leaky_relu_create2(unsigned int N, const long dims[N], const long ostrs[N], const long istrs[N], float slope_parameter)
+const struct nlop_s* nlop_leaky_relu_create(unsigned int N, const long dims[N], float slope_parameter)
 {
 	PTR_ALLOC(struct relu_s, data);
 	SET_TYPEID(relu_s, data);
 
-	long r_dims[N + 1];
-	long r_istrs[N + 1];
-	long r_ostrs[N + 1];
-
-	r_dims[0] = 2;
-	r_istrs[0] = FL_SIZE;
-	r_ostrs[0] = FL_SIZE;
-
-	md_copy_dims(N, r_dims + 1, dims);
-	md_copy_dims(N, r_istrs + 1, istrs);
-	md_copy_dims(N, r_ostrs + 1, ostrs);
-
-	long tstrs[N + 1];
-	md_calc_strides(N + 1, tstrs, r_dims, FL_SIZE);
-
 	data->slope_param = slope_parameter;
 
-	data->tmpdom = iovec_create2(N + 1, r_dims, tstrs, FL_SIZE);
-	data->dom = iovec_create2(N + 1, r_dims, r_istrs, FL_SIZE);
-	data->codom = iovec_create2(N + 1, r_dims, r_ostrs, FL_SIZE);
-
-	data->der = NULL;
-
-	long nl_odims[1][N];
-	md_copy_dims(N, nl_odims[0], dims);
-	long nl_idims[1][N];
-	md_copy_dims(N, nl_idims[0], dims);
-
-	long nl_ostr[1][N];
-	md_copy_strides(N, nl_ostr[0], ostrs);
-	long nl_istr[1][N];
-	md_copy_strides(N, nl_istr[0], istrs);
-
-	return nlop_generic_managed_create2(	1, N, nl_odims, nl_ostr, 1, N, nl_idims, nl_istr, CAST_UP(PTR_PASS(data)),
-						relu_apply, (nlop_der_fun_t[1][1]){ { relu_deriv } }, (nlop_der_fun_t[1][1]){ { relu_adj} }, NULL, NULL, relu_free, relu_clear_der, NULL);
+	return nlop_zrdiag_create(N, dims, CAST_UP(PTR_PASS(data)), relu_apply, relu_free);
 }
 
 const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])
@@ -466,185 +363,13 @@ const struct nlop_s* nlop_relu_create(unsigned int N, const long dims[N])
 	long strs[N];
 	md_calc_strides(N, strs, dims, CFL_SIZE);
 
-	return nlop_relu_create2(N, dims, strs, strs);
+	return nlop_leaky_relu_create(N, dims, 0.);
 }
 
-#if 0
-
-struct relu_bias_s {
-
-	INTERFACE(nlop_data_t);
-
-	complex float* tmp;
-
-	const struct iovec_s* bdom;
-
-	const struct iovec_s* tmpdom;
-	const struct iovec_s* dom;
-	const struct iovec_s* codom;
-};
-
-DEF_TYPEID(relu_bias_s);
-
-static void relu_bias_apply(const nlop_data_t* _data, int N, complex float* args[N])
-{
-
-	complex float* dst = args[0];
-	complex float* src = args[1];
-	complex float* bsrc = args[2];
-
-	struct relu_bias_s* d = CAST_DOWN(relu_bias_s, _data);
-
-	if (NULL == d->tmp)
-		d->tmp = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
-
-#ifdef USE_CUDA
-
-	if (cuda_ondevice(bsrc)) {
-
-		float* bias_cpu = md_alloc(d->bdom->N, d->bdom->dims, d->bdom->size);
-		float* bias_spread_cpu = md_alloc(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size);
-		float* bias_spread_gpu = md_alloc_gpu(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size);
-
-
-		md_copy(d->bdom->N, d->bdom->dims, bias_cpu, (float*)bsrc, d->bdom->size);
-		md_copy2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, bias_spread_cpu, d->bdom->strs, bias_cpu, FL_SIZE);
-		md_copy(d->tmpdom->N, d->tmpdom->dims, bias_spread_gpu, bias_spread_cpu, d->tmpdom->size);
-
-		md_add2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->tmpdom->strs, bias_spread_gpu);
-
-		md_free(bias_cpu);
-		md_free(bias_spread_cpu);
-		md_free(bias_spread_gpu);
-	} else
-#endif
-		md_add2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src, d->bdom->strs, (float*)bsrc);
-
-	md_smax2(d->tmpdom->N, d->tmpdom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, 0.);
-	md_greatequal2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)d->tmp, d->tmpdom->strs, (float*)d->tmp, d->codom->strs, (float*)dst);
-}
-
-static void relu_bias_der1(const nlop_data_t* _data, complex float* dst, const complex float* src)
-{
-	const struct relu_bias_s* d = CAST_DOWN(relu_bias_s, _data);
-	assert(NULL != d->tmp);
-
-	md_mul2(d->codom->N, d->codom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, d->dom->strs, (float*)src);
-}
-
-static void relu_bias_der2(const nlop_data_t* _data, complex float* dst, const complex float* src)
-{
-	const struct relu_bias_s* d = CAST_DOWN(relu_bias_s, _data);
-	assert(NULL != d->tmp);
-
-	md_mul2(d->codom->N, d->codom->dims, d->codom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, d->bdom->strs, (float*)src);
-}
-
-static void relu_bias_adj1(const nlop_data_t* _data, complex float* dst, const complex float* src)
-{
-	const struct relu_bias_s* d = CAST_DOWN(relu_bias_s, _data);
-	assert(NULL != d->tmp);
-
-	md_mul2(d->codom->N, d->codom->dims, d->dom->strs, (float*)dst, d->tmpdom->strs, (float*)d->tmp, d->codom->strs, (float*)src);
-}
-
-static void relu_bias_adj2(const nlop_data_t* _data, complex float* dst, const complex float* src)
-{
-	const struct relu_bias_s* d = CAST_DOWN(relu_bias_s, _data);
-	assert(NULL != d->tmp);
-
-	md_clear(d->bdom->N, d->bdom->dims, dst, d->bdom->size);
-	float* tmp = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
-
-	md_mul2(d->codom->N, d->tmpdom->dims, d->tmpdom->strs, (float*)tmp, d->tmpdom->strs, (float*)d->tmp, d->codom->strs, (float*)src);
-
-	md_zsum(d->tmpdom->N - 1, d->tmpdom->dims + 1, ~md_nontriv_dims(d->bdom->N - 1, d->bdom->dims + 1), dst, (complex float*)tmp);
-	md_free(tmp);
-}
-
-static void relu_bias_free(const nlop_data_t* _data)
-{
-	const struct relu_bias_s* d = CAST_DOWN(relu_bias_s, _data);
-
-	md_free(d->tmp);
-
-	iovec_free(d->tmpdom);
-	iovec_free(d->dom);
-	iovec_free(d->codom);
-	iovec_free(d->bdom);
-
-	xfree(d);
-}
-
-
-static const struct nlop_s* nlop_relu_bias_create2(unsigned int N, const long dims[N], const long ostrs[N], const long istrs[N], const long bstrs[N])
-{
-	PTR_ALLOC(struct relu_bias_s, data);
-	SET_TYPEID(relu_bias_s, data);
-
-	long r_dims[N + 1];
-	long r_bdims[N + 1];
-	long r_istrs[N + 1];
-	long r_ostrs[N + 1];
-	long r_bstrs[N + 1];
-
-	r_dims[0] = 2;
-	r_bdims[0] = 2;
-	r_istrs[0] = FL_SIZE;
-	r_ostrs[0] = FL_SIZE;
-	r_bstrs[0] = FL_SIZE;
-
-	md_copy_dims(N, r_dims + 1, dims);
-	md_select_dims(N, md_nontriv_strides(N, bstrs), r_bdims + 1, dims);
-
-
-	md_copy_dims(N, r_istrs + 1, istrs);
-	md_copy_dims(N, r_ostrs + 1, ostrs);
-	md_copy_dims(N, r_bstrs + 1, bstrs);
-
-	long tstrs[N + 1];
-	md_calc_strides(N + 1, tstrs, r_dims, FL_SIZE);
-
-	data->tmp = NULL;
-
-	data->tmpdom = iovec_create2(N + 1, r_dims, tstrs, FL_SIZE);
-	data->dom = iovec_create2(N + 1, r_dims, r_istrs, FL_SIZE);
-	data->codom = iovec_create2(N + 1, r_dims, r_ostrs, FL_SIZE);
-	data->bdom = iovec_create2(N + 1, r_bdims, r_bstrs, FL_SIZE);
-
-	long nl_odims[1][N];
-	md_copy_dims(N, nl_odims[0], dims);
-
-	long nl_idims[2][N];
-	md_copy_dims(N, nl_idims[0], dims);
-	md_copy_dims(N, nl_idims[1], r_bdims + 1);
-
-	long nl_ostrs[1][N];
-	md_calc_strides(N, nl_ostrs[0], nl_odims[0], CFL_SIZE);
-
-	long nl_istrs[2][N];
-	md_calc_strides(N, nl_istrs[0], nl_idims[0], CFL_SIZE);
-	md_calc_strides(N, nl_istrs[1], nl_idims[1], CFL_SIZE);
-
-
-	return nlop_generic_create2(1, N, nl_odims, nl_ostrs, 2, N, nl_idims, nl_istrs, CAST_UP(PTR_PASS(data)), relu_bias_apply, (nlop_der_fun_t[2][1]){ { relu_bias_der1 }, { relu_bias_der2 } }, (nlop_der_fun_t[2][1]){ { relu_bias_adj1 }, { relu_bias_adj2 } }, NULL, NULL, relu_bias_free);
-}
-
-const struct nlop_s* nlop_relu_bias_create(unsigned int N, const long dims[N], const long bdims[N])
-{
-	long strs[N];
-	long bstrs[N];
-	md_calc_strides(N, strs, dims, CFL_SIZE);
-	md_calc_strides(N, bstrs, bdims, CFL_SIZE);
-
-	return nlop_relu_bias_create2(N, dims, strs, strs, bstrs);
-}
-#else
 const struct nlop_s* nlop_relu_bias_create(unsigned int N, const long dims[N], const long bdims[N])
 {
 	return nlop_chain2_FF(nlop_bias_create(N, dims, bdims), 0, nlop_relu_create(N, dims), 0);
 }
-#endif
 
 struct softmax_s {
 
@@ -781,115 +506,54 @@ const struct nlop_s* nlop_softmax_bias_create(unsigned int N, const long dims[N]
 }
 
 struct sigmoid_s {
-
 	INTERFACE(nlop_data_t);
-
-	complex float* tmp;
-
-	const struct iovec_s* tmpdom;
-	const struct iovec_s* dom;
-	const struct iovec_s* codom;
 };
 
 DEF_TYPEID(sigmoid_s);
 
-static void sigmoid_apply(const nlop_data_t* _data, complex float* dst, const complex float* src)
+static void sigmoid_apply(const nlop_data_t* _data, int N, const long dims[N], float* dst, const float* src, float* der)
 {
-	struct sigmoid_s* d = CAST_DOWN(sigmoid_s, _data);
 
-	if (NULL == d->tmp)
-		d->tmp = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
+	UNUSED(_data);
 
-	complex float* tmp_real = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
+	float one = 1.;
+	float* ones = md_alloc_sameplace(N, dims, FL_SIZE, dst);
+	md_fill(N, dims, ones, &one, FL_SIZE);
 
-	md_zreal2(d->dom->N, d->dom->dims, d->tmpdom->strs, tmp_real, d->dom->strs, src);
-	md_zsmul(d->tmpdom->N, d->tmpdom->dims, tmp_real, tmp_real, (complex float)(-1.));
-	md_zexp(d->tmpdom->N, d->tmpdom->dims, tmp_real, tmp_real);
-	md_zsadd(d->tmpdom->N, d->tmpdom->dims, tmp_real, tmp_real, (complex float)1.);
+	md_smul(N, dims, dst, src, -1);
+	md_exp(N, dims, dst, dst);
+	md_add(N, dims, dst, dst, ones);
+	md_div(N, dims, dst, ones, dst);
 
-	md_zfill(d->tmpdom->N, d->tmpdom->dims, d->tmp, (complex float)1.);
-	md_zfill2(d->codom->N, d->codom->dims, d->codom->strs, dst, (complex float)1.);
+	if (NULL != der) {
 
-	md_zdiv2(d->codom->N, d->codom->dims, d->codom->strs, dst, d->codom->strs, dst, d->tmpdom->strs, tmp_real);
-	md_free(tmp_real);
+		md_sub(N, dims, der, ones, dst);
+		md_mul(N, dims, der, der, dst);
+	}
 
-	md_zsub2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, d->tmp, d->tmpdom->strs, d->tmp, d->codom->strs, dst);
-	md_zmul2(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->strs, d->tmp, d->tmpdom->strs, d->tmp, d->codom->strs, dst);
-
-	md_zsadd2(d->codom->N, d->codom->dims, d->codom->strs, dst, d->codom->strs, dst, (complex float)(-0.5));
+	md_free(ones);
 }
 
-
-static void sigmoid_deriv(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const struct sigmoid_s* d = CAST_DOWN(sigmoid_s, _data);
-	assert(NULL != d->tmp);
-
-	complex float* tmp_real = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
-	md_zreal2(d->dom->N, d->dom->dims, d->tmpdom->strs, tmp_real, d->dom->strs, src);
-
-	md_ztenmul2(d->codom->N, d->codom->dims, d->codom->strs, dst, d->tmpdom->strs, tmp_real, d->tmpdom->strs, d->tmp);
-	md_free(tmp_real);
-}
-
-static void sigmoid_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
-{
-	UNUSED(o);
-	UNUSED(i);
-
-	const struct sigmoid_s* d = CAST_DOWN(sigmoid_s, _data);
-	assert(NULL != d->tmp);
-
-	complex float* tmp_real = md_alloc_sameplace(d->tmpdom->N, d->tmpdom->dims, d->tmpdom->size, dst);
-	md_zreal2(d->dom->N, d->dom->dims, d->tmpdom->strs, tmp_real, d->codom->strs, src);
-	md_ztenmul2(d->codom->N, d->codom->dims, d->dom->strs, dst, d->tmpdom->strs, tmp_real, d->tmpdom->strs, d->tmp);
-	md_free(tmp_real);
-}
 
 static void sigmoid_free(const nlop_data_t* _data)
 {
-	const struct sigmoid_s* d = CAST_DOWN(sigmoid_s, _data);
-
-	md_free(d->tmp);
-
-	iovec_free(d->tmpdom);
-	iovec_free(d->dom);
-	iovec_free(d->codom);
-
-	xfree(d);
-}
-
-const struct nlop_s* nlop_sigmoid_create2(unsigned int N, const long dims[N],
-					const long ostrs[N], const long istrs[N])
-{
-	PTR_ALLOC(struct sigmoid_s, data);
-	SET_TYPEID(sigmoid_s, data);
-
-	data->tmp = NULL;
-
-	data->tmpdom = iovec_create(N, dims, CFL_SIZE);
-	data->dom = iovec_create2(N, dims, istrs, CFL_SIZE);
-	data->codom = iovec_create2(N, dims, ostrs, CFL_SIZE);
-
-	return nlop_create2(N, dims, ostrs, N, dims, istrs, CAST_UP(PTR_PASS(data)), sigmoid_apply, sigmoid_deriv, sigmoid_adj, NULL, NULL, sigmoid_free);
+	xfree(_data);
 }
 
 const struct nlop_s* nlop_sigmoid_create(unsigned int N, const long dims[N])
 {
-	long strs[N];
-	md_calc_strides(N, strs, dims, CFL_SIZE);
+	PTR_ALLOC(struct sigmoid_s, data);
+	SET_TYPEID(sigmoid_s, data);
 
-	return nlop_sigmoid_create2(N, dims, strs, strs);
+	return nlop_zrdiag_create(N, dims, CAST_UP(PTR_PASS(data)), sigmoid_apply, sigmoid_free);
 }
+
 
 const struct nlop_s* nlop_sigmoid_bias_create(unsigned int N, const long dims[N], const long bdims[N])
 {
 	const struct nlop_s* act = nlop_sigmoid_create(N, dims);
 	const struct nlop_s* bias = nlop_bias_create(N, dims, bdims);
-	const struct nlop_s*  result = nlop_chain2(bias, 0, act, 0);
+	const struct nlop_s* result = nlop_chain2(bias, 0, act, 0);
 	nlop_free(bias);
 	nlop_free(act);
 	return result;
