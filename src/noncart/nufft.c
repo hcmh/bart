@@ -627,9 +627,10 @@ static void nufft_set_traj(struct nufft_data* data, int N,
 		data->traj= md_move_multiplace(N, trj_dims, CFL_SIZE, traj);
 	}
 
-	if (NULL != basis) {
+	if ((NULL != bas_dims) && (1 != md_calc_size(N, bas_dims))) {
 
-	//	conf.toeplitz = false;
+		//	conf.toeplitz = false;
+		debug_print_dims(DP_INFO, N, bas_dims);
 		assert(!md_check_dimensions(N, bas_dims, (1 << 5) | (1 << 6)));
 
 		data->out_dims[5] = bas_dims[5];	// TE
@@ -644,17 +645,22 @@ static void nufft_set_traj(struct nufft_data* data, int N,
 
 		md_copy_dims(N, data->bas_dims, bas_dims);
 		md_calc_strides(ND, data->bas_strs, data->bas_dims, CFL_SIZE);
+	}
+
+	if (NULL != basis) {
 
 		md_free_multiplace(data->basis);
 		data->basis = md_move_multiplace(ND, data->bas_dims, CFL_SIZE, basis);
 	}
 
-	if (NULL != weights) {
+	if (NULL != wgh_dims){
 
 		md_copy_dims(N, data->wgh_dims, wgh_dims);
-		data->wgh_dims[N] = 1;
-
 		md_calc_strides(ND, data->wgh_strs, data->wgh_dims, CFL_SIZE);
+	}
+
+	if (NULL != weights) {
+
 		md_free_multiplace(data->weights);
 		data->weights = md_move_multiplace(ND, data->wgh_dims, CFL_SIZE, weights);
 	}
@@ -669,7 +675,7 @@ static void nufft_set_traj(struct nufft_data* data, int N,
 			if (!MD_IS_SET(data->flags, i))
 				data->psf_dims[i] = MAX(data->trj_dims[i], ((NULL != weights) ? data->wgh_dims[i] : 0));
 
-		if (NULL != data->basis) {
+		if (1 != md_calc_size(N, data->bas_dims)) {
 
 			debug_printf(DP_DEBUG3, "psf_dims: ");
 			debug_print_dims(DP_DEBUG3, N, data->psf_dims);
@@ -679,13 +685,16 @@ static void nufft_set_traj(struct nufft_data* data, int N,
 
 		md_calc_strides(ND, data->psf_strs, data->psf_dims, CFL_SIZE);
 
-		const complex float* psf = compute_psf2(N, data->psf_dims, data->flags, data->trj_dims, traj,
-					data->bas_dims, md_multiplace_read(data->basis, traj), data->wgh_dims, md_multiplace_read(data->weights, traj),
-					true /*conf.periodic*/, data->conf.lowmem);
+		if (NULL != data->traj) {
 
-		md_free_multiplace(data->psf);
-		data->psf = md_move_multiplace(ND, data->psf_dims, CFL_SIZE, psf);
-		md_free(psf);
+			const complex float* psf = compute_psf2(N, data->psf_dims, data->flags, data->trj_dims, traj,
+						data->bas_dims, md_multiplace_read(data->basis, traj), data->wgh_dims, md_multiplace_read(data->weights, traj),
+						true /*conf.periodic*/, data->conf.lowmem);
+
+			md_free_multiplace(data->psf);
+			data->psf = md_move_multiplace(ND, data->psf_dims, CFL_SIZE, psf);
+			md_free(psf);
+		}
 	}
 }
 
@@ -722,21 +731,21 @@ static struct linop_s* nufft_create3(unsigned int N,
 
 //	assert(md_check_compat(N, ~data->flags, ksp_dims, cim_dims));
 //	assert(md_check_bounds(N, ~data->flags, cim_dims, ksp_dims));
-	assert(md_check_bounds(N, ~(conf.flags | (NULL == basis ? 0 : (1 << 6))), cim_dims, ksp_dims));
+	assert((1 == md_calc_size(N, ksp_dims)) || md_check_bounds(N, ~(conf.flags | (NULL == basis ? 0 : (1 << 6))), cim_dims, ksp_dims));
 
 	// extend internal dimensions by one for linear phases
 	unsigned int ND = N + 1;
 
-	assert(bitcount(conf.flags) == traj_dims[0]);
+	assert((1 == md_calc_size(N, traj_dims)) || (bitcount(conf.flags) == traj_dims[0]));
 
 	long chk_dims[N];
 	md_select_dims(N, ~conf.flags, chk_dims, traj_dims);
-	assert(md_check_compat(N, ~0ul, chk_dims, ksp_dims));
+	assert((1 == md_calc_size(N, ksp_dims)) || md_check_compat(N, ~0ul, chk_dims, ksp_dims));
 //	assert(md_check_bounds(N, ~0ul, chk_dims, ksp_dims));
 
 
 	auto data = nufft_create_data(N);
-	nufft_set_data(data, N, cim_dims, (NULL != basis), conf);
+	nufft_set_data(data, N, cim_dims, (NULL != bas_dims) && (1 != md_calc_size(N, bas_dims)), conf);
 
 	md_copy_dims(N, data->ksp_dims, ksp_dims);
 	md_copy_dims(N, data->out_dims, ksp_dims);
@@ -1325,6 +1334,12 @@ void nufft_update_psf2(	const struct linop_s* nufft, unsigned int ND, const long
 	md_free_multiplace(data->psf);
 	data->psf = md_move_multiplace2(ND, psf_dims, psf_strs, CFL_SIZE, psf);
 }
+
+void nufft_update_psf(	const struct linop_s* nufft, unsigned int ND, const long psf_dims[ND], const complex float* psf)
+{
+	nufft_update_psf2(nufft, ND, psf_dims, MD_STRIDES(ND, psf_dims, CFL_SIZE), psf);
+}
+
 
 
 struct nufft_normal_data_s {

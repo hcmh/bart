@@ -232,7 +232,7 @@ struct noir2_s noir2_noncart_create(int N,
 	nufft_conf.flags = conf->fft_flags_noncart;
 	nufft_conf.cfft = conf->fft_flags_cart;
 
-	ret.lop_fft = nufft_create2(N, ksp_dims, cim_dims, trj_dims, traj, wgh_dims, weights, bas_dims, basis, nufft_conf);
+	ret.lop_fft = nufft_create2(N, ksp_dims, cim_dims, trj_dims, traj, weights ? wgh_dims : NULL, weights, basis ? bas_dims : NULL, basis, nufft_conf);
 
 	// We need to add fftmod and scale for the uncenterd cartesian fft (SMS/SOS)
 	if (0 != conf->fft_flags_cart) {
