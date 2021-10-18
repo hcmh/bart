@@ -245,10 +245,6 @@ int main_reconet(int argc, char* argv[])
 	if ((0 < config.train_conf->dump_mod) && (NULL == config.train_conf->dump_filename))
 		config.train_conf->dump_filename = filename_weights;
 
-
-	if (NULL != data.filename_trajectory)
-		config.mri_config->gridded = true;
-
 	if (0 == Nb)
 		Nb = 10;
 
@@ -294,7 +290,7 @@ int main_reconet(int argc, char* argv[])
 	}
 
 	if (NULL != data.filename_basis)
-		config.mri_config->basis = true;
+		config.mri_config->basis_flags = TE_FLAG | COEFF_FLAG;
 
 	if (train) {
 

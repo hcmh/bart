@@ -103,12 +103,12 @@ static void load_network_data_precomputed(struct network_data_s* nd)
 
 	nd->ND = (1 != nd->psf_dims[DIMS]) ? DIMS + 1 : DIMS;
 
-	nd->basis = nd->filename_basis != NULL;
-	if (nd->basis)
-		assert(nd->psf_dims[5] == nd->psf_dims[6]);
-
 	md_max_dims(nd->N, ~0, nd->max_dims, nd->img_dims, nd->col_dims);
 	md_select_dims(nd->N, ~MAPS_FLAG, nd->cim_dims, nd->max_dims);
+
+	nd->basis = (nd->filename_basis != NULL);
+	if (nd->basis)
+		assert(nd->psf_dims[5] == nd->psf_dims[6]);
 
 	if (nd->create_out) {
 
@@ -189,6 +189,9 @@ static void compute_adjoint_noncart(struct network_data_s* nd, long pat_dims[DIM
 		md_select_dims(DIMS, ~COIL_FLAG, nd->img_dims, nd->max_dims);
 
 		nd->basis = true;
+	} else {
+
+		md_singleton_dims(DIMS, bas_dims);
 	}
 
 	nd->adjoint = (nd->export) ? create_cfl(nd->filename_adjoint, DIMS, nd->img_dims) : anon_cfl("", DIMS, nd->img_dims);
@@ -239,8 +242,7 @@ static void compute_adjoint_noncart(struct network_data_s* nd, long pat_dims[DIM
 
 		linop_adjoint(lop_frw,
 				DIMS, img_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, nd->img_dims, CFL_SIZE), pos, nd->adjoint),
-				DIMS, ksp_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, nd->ksp_dims, CFL_SIZE), pos, nd->kspace)
-				);
+				DIMS, ksp_dims_s, &MD_ACCESS(nd->N, MD_STRIDES(nd->N, nd->ksp_dims, CFL_SIZE), pos, nd->kspace));
 
 		linop_free(lop_frw);
 
@@ -266,8 +268,6 @@ void load_network_data(struct network_data_s* nd) {
 
 	nd->coil = load_cfl(nd->filename_coil, DIMS, nd->col_dims);
 	nd->kspace = load_cfl(nd->filename_kspace, DIMS, nd->ksp_dims);
-
-	md_copy_dims(DIMS, nd->max_dims, nd->ksp_dims);
 
 	long pat_dims[DIMS];
 	complex float* pattern;

@@ -74,15 +74,5 @@ extern unsigned int nufft_get_psf_dims(const struct linop_s* nufft, unsigned int
 extern void nufft_get_psf2(const struct linop_s* nufft, unsigned int N, const long psf_dims[N], const long psf_strs[N], _Complex float* psf);
 extern void nufft_get_psf(const struct linop_s* nufft, unsigned int N, const long psf_dims[N], _Complex float* psf);
 
-extern const struct operator_s* nufft_normal_op_create(unsigned int N,
-						const long cim_dims[N],
-						const long psf_dims[N + 1],
-						_Bool basis,
-						struct nufft_conf_s conf);
-
-extern void nufft_normal_op_free_psf(const struct operator_s* op);
-extern void nufft_normal_op_set_psf2(const struct operator_s* op, unsigned int N, const long psf_dims[N], const long psf_strs[N], const _Complex float* psf);
-extern void nufft_normal_op_set_psf(const struct operator_s* op, unsigned int N, const long psf_dims[N], const _Complex float* psf);
-
 #include "misc/cppwrap.h"
 
