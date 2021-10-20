@@ -22,6 +22,8 @@
 #include "nlops/tenmul.h"
 #include "nlops/norm_inv.h"
 
+#include "noncart/nufft.h"
+
 #include "nn/nn_ops.h"
 
 #include "noir/model2.h"
@@ -483,11 +485,28 @@ static void noir_adjoint_fft_fun(const nlop_data_t* _data, int N, complex float*
 	assert(3 == N);
 
 	complex float* dst = args[0];
-	const complex float* src1 = args[1];
-	const complex float* src2 = args[2];
+	const complex float* src = args[1];
+	const complex float* pat = args[2];
 
-	linop_gdiag_set_diag(data->model->lop_pattern, data->model->N, data->model->pat_dims, src2);
-	linop_adjoint_unchecked(data->model->lop_fft, dst, src1);
+	linop_gdiag_set_diag(data->model->lop_pattern, data->model->N, data->model->pat_dims, pat);
+	linop_adjoint_unchecked(data->model->lop_fft, dst, src);
+}
+
+static void noir_adjoint_nufft_fun(const nlop_data_t* _data, int N, complex float* args[N])
+{
+	const auto data = CAST_DOWN(noir_adjoint_fft_s, _data);
+	assert(4 == N);
+
+	complex float* dst = args[0];
+	const complex float* src = args[1];
+	const complex float* wgh = args[2];
+	const complex float* trj = args[3];
+
+	auto model = data->model;
+
+	nufft_update_traj(model->lop_nufft, model->N, model->trj_dims, trj, model->pat_dims, wgh, model->bas_dims, NULL);
+
+	linop_adjoint_unchecked(data->model->lop_fft, dst, src);
 }
 
 static void noir_adjoint_fft_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
@@ -553,6 +572,48 @@ const struct nlop_s* noir_adjoint_fft_batch_create(int Nb, struct noir2_s* model
 	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 2, istack_dims, 1, ostack_dims), false, false);
 }
 
+const struct nlop_s* noir_adjoint_nufft_create(struct noir2_s* model)
+{
+
+	PTR_ALLOC(struct noir_adjoint_fft_s, data);
+	SET_TYPEID(noir_adjoint_fft_s, data);
+
+	data->model = model;
+
+	auto cod = linop_codomain(model->lop_fft);
+	auto dom = linop_domain(model->lop_fft);
+
+	int N = model->N;
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], dom->dims);
+
+
+	long nl_idims[3][N];
+	md_copy_dims(N, nl_idims[0], cod->dims);
+	md_copy_dims(N, nl_idims[1], data->model->pat_dims);
+	md_copy_dims(N, nl_idims[2], data->model->trj_dims);
+
+
+	return nlop_generic_create(1, N, nl_odims, 3, N, nl_idims, CAST_UP(PTR_PASS(data)),
+					noir_adjoint_nufft_fun,
+					(nlop_der_fun_t[3][1]){ { noir_adjoint_fft_der }, { NULL }, { NULL } },
+					(nlop_der_fun_t[3][1]){ { noir_adjoint_fft_adj }, { NULL }, { NULL } },
+					NULL, NULL, noir_adjoint_fft_del);
+}
+
+const struct nlop_s* noir_adjoint_nufft_batch_create(int Nb, struct noir2_s* model[Nb])
+{
+	const struct nlop_s* nlops[Nb];
+
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = noir_adjoint_nufft_create(model[i]);
+
+	int istack_dims[] = { BATCH_DIM, BATCH_DIM, BATCH_DIM };
+	int ostack_dims[] = { BATCH_DIM };
+
+	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 3, istack_dims, 1, ostack_dims), false, false);
+}
+
 
 const struct nlop_s* noir_fft_create(struct noir2_s* model)
 {
@@ -570,6 +631,134 @@ const struct nlop_s* noir_fft_batch_create(int Nb, struct noir2_s* model[Nb])
 	int ostack_dims[] = { BATCH_DIM };
 
 	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 1, istack_dims, 1, ostack_dims), false, false);
+}
+
+
+struct noir_nufft_s {
+
+	INTERFACE(nlop_data_t);
+	const struct linop_s* nufft;
+
+	int N;
+	long* trj_dims;
+	long* cim_dims;
+	long* ksp_dims;
+};
+
+DEF_TYPEID(noir_nufft_s);
+
+static void noir_nufft_fun(const nlop_data_t* _data, int N, complex float* args[N])
+{
+	const auto data = CAST_DOWN(noir_nufft_s, _data);
+	assert(3 == N);
+
+	complex float* dst = args[0];
+	const complex float* src = args[1];
+	const complex float* trj = args[2];
+
+	nufft_update_traj(data->nufft, data->N, data->trj_dims, trj, NULL, NULL, NULL, NULL);
+
+	complex float* src_cpu = md_alloc(data->N, data->cim_dims, CFL_SIZE);
+	complex float* dst_cpu = md_alloc(data->N, data->ksp_dims, CFL_SIZE);
+
+	md_copy(data->N, data->cim_dims, src_cpu, src, CFL_SIZE);
+
+	linop_forward_unchecked(data->nufft, dst_cpu, src_cpu);
+
+	md_copy(data->N, data->ksp_dims, dst, dst_cpu, CFL_SIZE);
+
+	md_free(src_cpu);
+	md_free(dst_cpu);
+}
+
+static void noir_nufft_der(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	assert(0 == o);
+	assert(0 == i);
+	const auto data = CAST_DOWN(noir_nufft_s, _data);
+
+	complex float* src_cpu = md_alloc(data->N, data->cim_dims, CFL_SIZE);
+	complex float* dst_cpu = md_alloc(data->N, data->ksp_dims, CFL_SIZE);
+
+	md_copy(data->N, data->cim_dims, src_cpu, src, CFL_SIZE);
+
+	linop_forward_unchecked(data->nufft, dst_cpu, src_cpu);
+
+	md_copy(data->N, data->ksp_dims, dst, dst_cpu, CFL_SIZE);
+
+	md_free(src_cpu);
+	md_free(dst_cpu);
+}
+
+static void noir_nufft_adj(const nlop_data_t* _data, unsigned int o, unsigned int i, complex float* dst, const complex float* src)
+{
+	assert(0 == o);
+	assert(0 == i);
+	const auto data = CAST_DOWN(noir_nufft_s, _data);
+	linop_adjoint_unchecked(data->nufft, dst, src);
+}
+
+static void noir_nufft_del(const nlop_data_t* _data)
+{
+	const auto data = CAST_DOWN(noir_nufft_s, _data);
+
+	xfree(data->trj_dims);
+	xfree(data->cim_dims);
+	xfree(data->ksp_dims);
+
+	linop_free(data->nufft);
+
+	xfree(_data);
+}
+
+const struct nlop_s* noir_nufft_create(struct noir2_s* model)
+{
+
+	PTR_ALLOC(struct noir_nufft_s, data);
+	SET_TYPEID(noir_nufft_s, data);
+
+	auto conf = nufft_conf_defaults;
+	conf.toeplitz = false;
+
+	data->nufft = nufft_create2(model->N, model->ksp_dims, model->cim_dims, model->trj_dims, NULL, model->pat_dims, NULL, model->bas_dims, NULL, conf);
+	data->N = model->N;
+
+	data->trj_dims = *TYPE_ALLOC(long[model->N]);
+	data->ksp_dims = *TYPE_ALLOC(long[model->N]);
+	data->cim_dims = *TYPE_ALLOC(long[model->N]);
+
+	md_copy_dims(model->N, data->trj_dims, model->trj_dims);
+	md_copy_dims(model->N, data->ksp_dims, model->ksp_dims);
+	md_copy_dims(model->N, data->cim_dims, model->cim_dims);
+
+	int N = model->N;
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], model->ksp_dims);
+
+
+	long nl_idims[2][N];
+	md_copy_dims(N, nl_idims[0], model->cim_dims);
+	md_copy_dims(N, nl_idims[1], model->trj_dims);
+
+
+	return nlop_generic_create(1, N, nl_odims, 2, N, nl_idims, CAST_UP(PTR_PASS(data)),
+					noir_nufft_fun,
+					(nlop_der_fun_t[2][1]){ { noir_nufft_der }, { NULL } },
+					(nlop_der_fun_t[2][1]){ { noir_nufft_adj }, { NULL } },
+					NULL, NULL, noir_nufft_del);
+}
+
+const struct nlop_s* noir_nufft_batch_create(int Nb, struct noir2_s* model[Nb])
+{
+	const struct nlop_s* nlops[Nb];
+
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = noir_nufft_create(model[i]);
+
+	int istack_dims[] = { BATCH_DIM, BATCH_DIM };
+	int ostack_dims[] = { BATCH_DIM };
+
+	return nlop_checkpoint_create_F(nlop_stack_multiple_F(Nb, nlops, 2, istack_dims, 1, ostack_dims), false, false);
 }
 
 #if 0

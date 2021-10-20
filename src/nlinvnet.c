@@ -70,6 +70,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 	const char* traj_file = NULL;
 
 	struct noir2_conf_s conf = noir2_defaults;
+	conf.nufft_conf = &nufft_conf_defaults;
 	struct nlinvnet_s nlinvnet = nlinvnet_config_opts;
 	nlinvnet.conf = &conf;
 
@@ -86,17 +87,20 @@ int main_nlinvnet(int argc, char* argv[argc])
 	const char* val_file_kspace = NULL;
 	const char* val_file_reference = NULL;
 	const char* val_file_pattern = NULL;
+	const char* val_file_trajectory = NULL;
 
 	opts_iter6_init();
 
 	struct opt_s valid_opts[] = {
 
 		OPTL_INFILE('p', "pattern", &(val_file_pattern), "<file>", "validation data sampling pattern"),
+		OPTL_INFILE('t', "trajectory", &(val_file_trajectory), "<file>", "validation data trajectory"),
 		OPTL_INFILE('k', "kspace", &(val_file_kspace), "<file>", "validation data kspace"),
 		OPTL_INFILE('r', "ref", &(val_file_reference), "<file>", "validation data reference"),
 	};
 
 	bool unet = false;
+	long im_vec[3] = {0, 0, 0};
 
 	struct opt_s network_opts[] = {
 
@@ -108,6 +112,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SET('t', "train", &train, "train nlinvnet"),
 		OPTL_SET('e', "eval", &eval, "evaluate nlinvnet"),
 		OPTL_SET('a', "apply", &apply, "apply nlinvnet"),
+
+		OPTL_INFILE(0, "trajectory", (const char**)(&(traj_file)), "<traj>", "trajectory"),
 
 		OPTL_SET('g', "gpu", &(nlinvnet.gpu), "run on gpu"),
 		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
@@ -143,7 +149,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 
 		OPTL_FLOAT(0, "ss-ksp-split", &(nlinvnet.ksp_split), "p", "use p\% of kspace data as reference"),
-		OPTL_FLOAT(0, "ss-ksp-noise", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution.")
+		OPTL_FLOAT(0, "ss-ksp-noise", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution."),
+
+		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -205,13 +213,18 @@ int main_nlinvnet(int argc, char* argv[argc])
 		traj = load_cfl(traj_file, DIMS, trj_dims);
 
 		estimate_im_dims(DIMS, FFT_FLAGS, dims, trj_dims, traj);
-		debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
+		if (0 == md_calc_size(3, im_vec))
+			debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
+		else
+			md_copy_dims(3, dims, im_vec);;
 
 		md_copy_dims(DIMS - 3, dims + 3, ksp_dims + 3);
 	} else {
 
 		md_copy_dims(DIMS, dims, ksp_dims);
+		md_singleton_dims(DIMS, trj_dims);
 	}
+
 	if (-1 == coil_os)
 		coil_os = conf.noncart ? 2 : 1;
 
@@ -238,6 +251,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 	long msk_dims_s[DIMS];
 	long ksp_dims_s[DIMS];
 	long pat_dims_s[DIMS];
+	long trj_dims_s[DIMS];
 
 	md_select_dims(DIMS, ~BATCH_FLAG, col_dims_s, sens_dims);
 	md_select_dims(DIMS, ~BATCH_FLAG, img_dims_s, img_dims);
@@ -245,18 +259,32 @@ int main_nlinvnet(int argc, char* argv[argc])
 	md_select_dims(DIMS, ~BATCH_FLAG, msk_dims_s, msk_dims);
 	md_select_dims(DIMS, ~BATCH_FLAG, ksp_dims_s, ksp_dims);
 	md_select_dims(DIMS, ~BATCH_FLAG, pat_dims_s, pat_dims);
+	md_select_dims(DIMS, ~BATCH_FLAG, trj_dims_s, trj_dims);
 
 	Nb = Nb ? Nb : 10;
 	nlinvnet.Nb = Nb;
 
-	nlinvnet_init_model_cart(&nlinvnet, DIMS,
-		pat_dims_s, pattern,
-		MD_SINGLETON_DIMS(DIMS), NULL,
-		msk_dims_s, NULL,
-		ksp_dims_s,
-		cim_dims_s,
-		img_dims_s,
-		col_dims_s);
+	complex float one = 1.;
+
+	if (NULL == traj)
+		nlinvnet_init_model_cart(&nlinvnet, DIMS,
+			pat_dims_s,
+			MD_SINGLETON_DIMS(DIMS), NULL,
+			msk_dims_s, NULL,
+			ksp_dims_s,
+			cim_dims_s,
+			img_dims_s,
+			col_dims_s);
+	else
+		nlinvnet_init_model_noncart(&nlinvnet, DIMS,
+			trj_dims_s,
+			pat_dims_s,
+			MD_SINGLETON_DIMS(DIMS), NULL,
+			msk_dims_s, NULL,
+			ksp_dims_s,
+			cim_dims_s,
+			img_dims_s,
+			col_dims_s);
 
 	if (train) {
 
@@ -266,10 +294,12 @@ int main_nlinvnet(int argc, char* argv[argc])
 		long ksp_dims_val[DIMS];
 		long cim_dims_val[DIMS];
 		long pat_dims_val[DIMS];
+		long trj_dims_val[DIMS];
 
 		complex float* val_kspace = NULL;
 		complex float* val_ref = NULL;
 		complex float* val_pattern = NULL;
+		complex float* val_traj = NULL;
 
 		if (NULL != val_file_kspace) {
 
@@ -285,13 +315,22 @@ int main_nlinvnet(int argc, char* argv[argc])
 				val_pattern = anon_cfl("", DIMS, pat_dims_val);
 				estimate_pattern(DIMS, ksp_dims_val, COIL_FLAG, val_pattern, val_kspace);
 			}
+
+			if (NULL != val_file_trajectory)
+				val_traj = load_cfl(val_file_trajectory, DIMS, trj_dims_val);
+			else
+				md_singleton_dims(DIMS, trj_dims_val);
 		}
 
-		long cim_dims2[DIMS];
-		complex float* ref = load_cfl(out_file, DIMS, cim_dims2);
-		assert(md_check_equal_dims(DIMS, cim_dims, cim_dims2, ~0));
+		long out_dims[DIMS];
+		complex float* ref = load_cfl(out_file, DIMS, out_dims);
 
-		train_nlinvnet(&nlinvnet, DIMS, Nb, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern, cim_dims_val, val_ref, ksp_dims_val, val_kspace, pat_dims_val, val_pattern);
+		if (nlinvnet.ksp_training)
+			assert(md_check_equal_dims(DIMS, ksp_dims, out_dims, ~0));
+		else
+			assert(md_check_equal_dims(DIMS, cim_dims, out_dims, ~0));
+
+		train_nlinvnet(&nlinvnet, DIMS, Nb, out_dims, ref, ksp_dims, kspace, pat_dims, pattern, trj_dims, traj ? traj : &one, cim_dims_val, val_ref, ksp_dims_val, val_kspace, pat_dims_val, val_pattern, trj_dims_val, val_traj? val_traj : &one);
 
 		unmap_cfl(DIMS, cim_dims, ref);
 
@@ -311,7 +350,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		complex float* col = (NULL != sens_file) ? create_cfl(sens_file, DIMS, dims) : anon_cfl("", DIMS, dims);
 		nlinvnet.weights = load_nn_weights(weight_file);
 
-		apply_nlinvnet(&nlinvnet, DIMS, img_dims, img, dims, col, ksp_dims, kspace, pat_dims, pattern);
+		apply_nlinvnet(&nlinvnet, DIMS, img_dims, img, dims, col, ksp_dims, kspace, pat_dims, pattern, trj_dims, traj ? traj : &one);
 
 		unmap_cfl(DIMS, img_dims, img);
 		unmap_cfl(DIMS, dims, col);
@@ -325,7 +364,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		nlinvnet.weights = load_nn_weights(weight_file);
 
-		eval_nlinvnet(&nlinvnet, DIMS, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern);
+		eval_nlinvnet(&nlinvnet, DIMS, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern, trj_dims, traj ? traj : &one);
 
 		unmap_cfl(DIMS, cim_dims2, ref);
 	}
