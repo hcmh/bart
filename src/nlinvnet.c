@@ -161,6 +161,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 	if (nlinvnet.gpu)
 		cuda_use_global_memory();
 	#endif
+	reuse_nufft_for_psf();
 
 	nlinvnet.ksp_training = (0. != nlinvnet.ksp_noise) || (-1. != nlinvnet.ksp_split);
 
@@ -375,6 +376,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 	double recosecs = timestamp() - start_time;
 
 	debug_printf(DP_DEBUG2, "Total time: %.2f s\n", recosecs);
+
+	nufft_psf_del();
+
 
 	exit(0);
 }
