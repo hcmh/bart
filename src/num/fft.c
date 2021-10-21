@@ -9,7 +9,7 @@
  * 2014 Frank Ong <frankong@berkeley.edu>
  * 2018 Siddharth Iyer <ssi@mit.edu>
  *
- * 
+ *
  * FFT. It uses FFTW or CUFFT internally.
  *
  *
@@ -40,6 +40,8 @@
 #include "fft-cuda.h"
 #define LAZY_CUDA
 #endif
+
+#define LAZY_FFTW
 
 
 void fftscale2(unsigned int N, const long dimensions[N], unsigned long flags, const long ostrides[N], complex float* dst, const long istrides[N], const complex float* src)
@@ -197,6 +199,8 @@ struct fft_plan_s {
 	const long* istrs;
 	const long* ostrs;
 
+	bool measure;
+
 #ifdef  USE_CUDA
 	struct fft_cuda_plan_s* cuplan;
 #endif
@@ -267,7 +271,7 @@ static fftwf_plan fft_fftwf_plan(unsigned int D, const long dimensions[D], unsig
 		fftwf_import_wisdom_from_filename(wisdom);
 
 	//FFTW seems to be fine with this
-	//assert(0 != flags); 
+	//assert(0 != flags);
 
 	for (unsigned int i = 0; i < N; i++) {
 
@@ -323,9 +327,14 @@ static void fft_apply(const operator_data_t* _plan, unsigned int N, void* args[N
 		assert(NULL != plan->cuplan);
 		fft_cuda_exec(plan->cuplan, dst, src);
 
-	} else 
+	} else
 #endif
 	{
+		#ifdef LAZY_FFTW
+		if ((0u != plan->flags) && (0 != plan->fftw))
+			plan->fftw = fft_fftwf_plan(plan->D, plan->dims, plan->flags, plan->ostrs, dst, plan->istrs, src, plan->backwards, plan->measure);
+		#endif
+
 		assert(NULL != plan->fftw);
 		fftwf_execute_dft(plan->fftw, (complex float*)src, dst);
 	}
@@ -366,8 +375,11 @@ const struct operator_s* fft_measure_create(unsigned int D, const long dimension
 
 	plan->fftw = NULL;
 
+	#ifndef LAZY_FFTW
 	if (0u != flags)
-		plan->fftw = fft_fftwf_plan(D, dimensions, flags, strides, dst, strides, src, backwards, true);
+		plan->fftw = fft_fftwf_plan(D, dimensions, flags, ostrides, dst, istrides, src, backwards, false);
+	#endif
+	plan->measure = true;
 
 	md_free(src);
 
@@ -410,8 +422,11 @@ const struct operator_s* fft_create2(unsigned int D, const long dimensions[D], u
 
 	plan->fftw = NULL;
 
+#ifndef LAZY_FFTW
 	if (0u != flags)
 		plan->fftw = fft_fftwf_plan(D, dimensions, flags, ostrides, dst, istrides, src, backwards, false);
+#endif
+	plan->measure = false;
 
 #ifdef  USE_CUDA
 	plan->cuplan = NULL;
