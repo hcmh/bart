@@ -332,7 +332,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		train_nlinvnet(&nlinvnet, DIMS, Nb, out_dims, ref, ksp_dims, kspace, pat_dims, pattern, trj_dims, traj ? traj : &one, cim_dims_val, val_ref, ksp_dims_val, val_kspace, pat_dims_val, val_pattern, trj_dims_val, val_traj? val_traj : &one);
 
-		unmap_cfl(DIMS, cim_dims, ref);
+		unmap_cfl(DIMS, out_dims, ref);
 
 		dump_nn_weights(weight_file, nlinvnet.weights);
 
