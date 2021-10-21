@@ -331,7 +331,7 @@ static void fft_apply(const operator_data_t* _plan, unsigned int N, void* args[N
 #endif
 	{
 		#ifdef LAZY_FFTW
-		if ((0u != plan->flags) && (0 != plan->fftw))
+		if ((0u != plan->flags) && (NULL == plan->fftw))
 			plan->fftw = fft_fftwf_plan(plan->D, plan->dims, plan->flags, plan->ostrs, dst, plan->istrs, src, plan->backwards, plan->measure);
 		#endif
 
