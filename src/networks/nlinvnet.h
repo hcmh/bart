@@ -22,6 +22,8 @@ struct nlinvnet_s {
 	struct noir2_s* model_valid;
 
 	struct iter_conjgrad_conf* iter_conf;
+	struct iter_conjgrad_conf* iter_conf_net;
+	float cgtol;
 	int iter_init;		//iterations with half update dx -> 0.5dx
 	int iter_net;		//# of iterations with network
 

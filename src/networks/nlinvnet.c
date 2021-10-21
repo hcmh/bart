@@ -91,6 +91,7 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.models = NULL,
 	.model_valid = NULL,
 	.iter_conf = NULL,
+	.iter_conf_net = NULL,
 	.iter_init = 3,
 	.iter_net = 3,
 
@@ -98,6 +99,7 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.valid_loss = &val_loss_option,
 
 	.normalize_rss = false,
+	.cgtol = 0.1,
 
 	.gpu = false,
 	.low_mem = true,
@@ -113,12 +115,19 @@ struct nlinvnet_s nlinvnet_config_opts = {
 
 static void nlinvnet_init(struct nlinvnet_s* nlinvnet)
 {
+	nlinvnet->iter_conf_net = TYPE_ALLOC(struct iter_conjgrad_conf);
+	*(nlinvnet->iter_conf_net) = iter_conjgrad_defaults;
+	nlinvnet->iter_conf_net->INTERFACE.alpha = 0.;
+	nlinvnet->iter_conf_net->l2lambda = 0.;
+	nlinvnet->iter_conf_net->maxiter = (0 == nlinvnet->conf->cgiter) ? 30 : nlinvnet->conf->cgiter;
+	nlinvnet->iter_conf_net->tol = 0.;
+
 	nlinvnet->iter_conf = TYPE_ALLOC(struct iter_conjgrad_conf);
 	*(nlinvnet->iter_conf) = iter_conjgrad_defaults;
 	nlinvnet->iter_conf->INTERFACE.alpha = 0.;
 	nlinvnet->iter_conf->l2lambda = 0.;
 	nlinvnet->iter_conf->maxiter = (0 == nlinvnet->conf->cgiter) ? 30 : nlinvnet->conf->cgiter;
-	nlinvnet->iter_conf->tol = 0.;
+	nlinvnet->iter_conf->tol = nlinvnet->cgtol;
 
 	if (NULL == get_loss_from_option())
 			nlinvnet->train_loss->weighting_mse=1.;
@@ -126,7 +135,7 @@ static void nlinvnet_init(struct nlinvnet_s* nlinvnet)
 	if (NULL == get_val_loss_from_option())
 		nlinvnet->valid_loss = &loss_image_valid;
 
-	assert(0 == nlinvnet->iter_conf->tol);
+	assert(0 == nlinvnet->iter_conf_net->tol);
 }
 
 
@@ -195,15 +204,6 @@ void nlinvnet_init_model_noncart(struct nlinvnet_s* nlinvnet, int N,
 	}
 }
 
-static nn_t nlinvnet_get_gauss_newton_step(const struct nlinvnet_s* nlinvnet, int Nb, struct noir2_s* models[Nb], float update, bool fix_coils)
-{
-	auto result = nn_from_nlop_F(noir_gauss_newton_step_batch_create(Nb, models, nlinvnet->iter_conf, update, fix_coils));
-	result = nn_set_input_name_F(result, 0, "y");
-	result = nn_set_input_name_F(result, 1, "x_0");
-	result = nn_set_input_name_F(result, 1, "alpha");
-
-	return result;
-}
 
 static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb, struct noir2_s* models[Nb], enum NETWORK_STATUS status)
 {
@@ -262,7 +262,10 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, str
 
 	float update = index < nlinvnet->iter_init ? 0.5 : 1;
 
-	auto result = nlinvnet_get_gauss_newton_step(nlinvnet, Nb, models, update, fix_coil);
+	auto result = nn_from_nlop_F(noir_gauss_newton_step_batch_create(Nb, models, network ? nlinvnet->iter_conf_net : nlinvnet->iter_conf, update, fix_coil));
+	result = nn_set_input_name_F(result, 0, "y");
+	result = nn_set_input_name_F(result, 1, "x_0");
+	result = nn_set_input_name_F(result, 1, "alpha");
 
 	long reg_dims[2];
 	md_copy_dims(2, reg_dims, nn_generic_domain(result, 0, "x_0")->dims);
