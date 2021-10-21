@@ -159,7 +159,7 @@ static void compute_kern_basis(unsigned int N, unsigned int flags, const long po
 
 	debug_printf(DP_DEBUG1, "Allocating %ld\n", md_calc_size(N, max_dims));
 
-	complex float* tmp = md_alloc(N, max_dims, CFL_SIZE);
+	complex float* tmp = md_alloc_sameplace(N, max_dims, CFL_SIZE, krn);
 
 	md_copy2(N, max_dims, max_strs, tmp, baT_strs, basis, CFL_SIZE);
 
@@ -289,11 +289,11 @@ complex float* compute_psf(unsigned int N, const long img_dims[N], const long tr
 
 		debug_printf(DP_DEBUG1, "Allocating %ld (vs. %ld) + %ld\n", A, B, C);
 
-		complex float* ones = md_alloc(N, ksp2_dims, CFL_SIZE);
+		complex float* ones = md_alloc_sameplace(N, ksp2_dims, CFL_SIZE, traj);
 
 		compute_kern(N, ~0u, pos, ksp2_dims, ones, bas2_dims, basis, wgh2_dims, weights);
 
-		psft = md_alloc(N, img2_dims, CFL_SIZE);
+		psft = md_alloc_sameplace(N, img2_dims, CFL_SIZE, traj);
 
 		struct linop_s* op2 = nufft_create(N, ksp2_dims, img2_dims, trj2_dims, traj, NULL, conf);
 
@@ -307,13 +307,14 @@ complex float* compute_psf(unsigned int N, const long img_dims[N], const long tr
 
 		debug_printf(DP_DEBUG1, "Allocating %ld (vs. %ld) + %ld\n", B, A, C);
 
-		psft = md_calloc(N, img2_dims, CFL_SIZE);
+		psft = md_alloc_sameplace(N, img2_dims, CFL_SIZE, traj);
+		md_clear(N, img2_dims, psft, CFL_SIZE);
 
 		long trj2_strs[N];
 		md_calc_strides(N, trj2_strs, trj2_dims, CFL_SIZE);
 
-		complex float* ones = md_alloc(N - 1, ksp2_dims, CFL_SIZE);
-		complex float* tmp = md_alloc(N - 1, img2_dims, CFL_SIZE);
+		complex float* ones = md_alloc_sameplace(N - 1, ksp2_dims, CFL_SIZE, traj);
+		complex float* tmp = md_alloc_sameplace(N - 1, img2_dims, CFL_SIZE, traj);
 
 		assert(!((1 != trj2_dims[N - 1]) && (NULL == basis)));
 
@@ -370,13 +371,16 @@ static complex float* compute_psf2(int N, const long psf_dims[N + 1], unsigned l
 
 	md_calc_strides(ND, img2_strs, img2_dims, CFL_SIZE);
 
-	complex float* traj2 = md_alloc(ND, trj_dims, CFL_SIZE);
+	complex float* traj2 = md_alloc_sameplace(ND, trj_dims, CFL_SIZE, traj);
 	md_zsmul(ND, trj_dims, traj2, traj, 2.);
 
 	complex float* psft = compute_psf(ND, img2_dims, trj_dims, traj2, bas_dims, basis, wgh_dims, weights, periodic, lowmem);
 	md_free(traj2);
 
-	fftuc(ND, img2_dims, flags, psft, psft);
+	//fftuc(ND, img2_dims, flags, psft, psft); //FIXME: fftmod is slow on gpu
+	auto lop_fft = linop_fftc_create(ND, img2_dims, flags);
+	linop_forward_unchecked(lop_fft, psft, psft);
+	linop_free(lop_fft);
 
 	float scale = 1.;
 	for (int i = 0; i < N; i++)
@@ -386,7 +390,7 @@ static complex float* compute_psf2(int N, const long psf_dims[N + 1], unsigned l
 
 	// reformat
 
-	complex float* psf = md_alloc(ND, psf_dims, CFL_SIZE);
+	complex float* psf = md_alloc_sameplace(ND, psf_dims, CFL_SIZE, traj);
 
 	long factors[N];
 
@@ -1202,7 +1206,7 @@ static void nufft_apply_normal(const linop_data_t* _data, complex float* dst, co
 
 	} else {
 
-		complex float* tmp_ksp = md_alloc(data->N + 1, data->out_dims, CFL_SIZE);
+		complex float* tmp_ksp = md_alloc_sameplace(data->N + 1, data->out_dims, CFL_SIZE, dst);
 
 		nufft_apply(_data, tmp_ksp, src);
 		nufft_apply_adjoint(_data, dst, tmp_ksp);
