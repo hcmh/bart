@@ -37,6 +37,8 @@ struct nlinvnet_s {
 	float ksp_split;
 	float ksp_noise;
 
+	float scaling;
+
 	const char* graph_file;
 };
 

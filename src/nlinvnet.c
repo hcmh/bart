@@ -238,6 +238,10 @@ int main_nlinvnet(int argc, char* argv[argc])
 	long sens_dims[DIMS];
 	md_select_dims(DIMS, ~cnstcoil_flags, sens_dims, dims);
 
+	long const_sens_dims[DIMS];
+	md_select_dims(DIMS, cnstcoil_flags, const_sens_dims, dims);
+	nlinvnet.scaling *= md_calc_size(DIMS, const_sens_dims);
+
 	for (int i = 0; i < 3; i++)
 		if (1 != sens_dims[i])
 			sens_dims[i] = lround(coil_os * sens_dims[i]);

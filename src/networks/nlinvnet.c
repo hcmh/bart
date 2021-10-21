@@ -104,6 +104,8 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.gpu = false,
 	.low_mem = true,
 
+	.scaling = 100.,
+
 	.fix_lambda = false,
 
 	.ksp_training = true,
@@ -478,7 +480,7 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 	result = nn_set_input_const_F2(result, 0, NULL, 2, ini_dims, MD_DIMS(CFL_SIZE, 0), true, init);	// in: y
 	md_free(init);
 
-	complex float scale = 100.;
+	complex float scale = nlinvnet->scaling;
 
 	long cim_dims2[N];
 	long img_dims2[N];
