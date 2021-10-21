@@ -205,6 +205,35 @@ void nlinvnet_init_model_noncart(struct nlinvnet_s* nlinvnet, int N,
 }
 
 
+static nn_t nlinvnet_network_create(const struct nlinvnet_s* nlinvnet, unsigned int N, const long img_dims[N], enum NETWORK_STATUS status)
+{
+
+	unsigned long channel_flag = (~(FFT_FLAGS | BATCH_FLAG)) & (md_nontriv_dims(N, img_dims));
+
+	long chn_dims[N];
+	md_select_dims(N, channel_flag, chn_dims, img_dims);
+	long channel = md_calc_size(N, chn_dims);
+
+	long dims[5] = {img_dims[0], img_dims[1], img_dims[2], channel, img_dims[BATCH_DIM]};
+	long dims_net[5] = {channel, img_dims[0], img_dims[1], img_dims[2], img_dims[BATCH_DIM]};
+
+	auto network = network_create(nlinvnet->network, 5, dims_net, 5, dims_net, status);
+
+	if (1 != channel) {
+
+		unsigned int iperm[5] = {3, 0, 1, 2, 4};
+		unsigned int operm[5] = {1, 2, 3, 0, 4};
+
+		network = nn_chain2_swap_FF(nn_from_nlop_F(nlop_from_linop_F(linop_permute_create(5, iperm, dims))), 0, NULL, network, 0, NULL);
+		network = nn_chain2_swap_FF(network, 0, NULL, nn_from_nlop_F(nlop_from_linop_F(linop_permute_create(5, operm, dims_net))), 0, NULL);
+	}
+
+	network = nn_reshape_in_F(network, 0, NULL, N, img_dims);
+	network = nn_reshape_out_F(network, 0, NULL, N, img_dims);
+
+	return network;
+}
+
 static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb, struct noir2_s* models[Nb], enum NETWORK_STATUS status)
 {
 	int N = noir_model_get_N(models[0]);
@@ -219,12 +248,7 @@ static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb,
 	img_dims[BATCH_DIM] = Nb;
 	col_dims[BATCH_DIM] = Nb;
 
-	long img_dims_net[5] = { 1, img_dims[0], img_dims[1], img_dims[2], img_dims[BATCH_DIM] };
-
-	auto network = network_create(nlinvnet->network, 5, img_dims_net, 5, img_dims_net, status);
-	network = nn_reshape_in_F(network, 0, NULL, N, img_dims);
-	network = nn_reshape_out_F(network, 0, NULL, N, img_dims);
-
+	auto network = nlinvnet_network_create(nlinvnet, N, img_dims, status);
 
 	int N_in_names = nn_get_nr_named_in_args(network);
 	int N_out_names = nn_get_nr_named_out_args(network);

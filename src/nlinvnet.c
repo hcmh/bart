@@ -89,6 +89,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 	const char* val_file_pattern = NULL;
 	const char* val_file_trajectory = NULL;
 
+	unsigned long cnstcoil_flags = 0;
+
 	opts_iter6_init();
 
 	struct opt_s valid_opts[] = {
@@ -152,6 +154,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_FLOAT(0, "ss-ksp-split", &(nlinvnet.ksp_split), "p", "use p\% of kspace data as reference"),
 		OPTL_FLOAT(0, "ss-ksp-noise", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution."),
 
+		OPTL_ULONG(0, "const-coils", &cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
 		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
 	};
 
@@ -233,7 +236,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 	dims[MAPS_DIM] = 1;
 
 	long sens_dims[DIMS];
-	md_select_dims(DIMS, ~0, sens_dims, dims);
+	md_select_dims(DIMS, ~cnstcoil_flags, sens_dims, dims);
 
 	for (int i = 0; i < 3; i++)
 		if (1 != sens_dims[i])
@@ -349,10 +352,12 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		complex float* img = create_cfl(out_file, DIMS, img_dims);
 
-		complex float* col = (NULL != sens_file) ? create_cfl(sens_file, DIMS, dims) : anon_cfl("", DIMS, dims);
+		md_copy_dims(3, sens_dims, img_dims);
+
+		complex float* col = (NULL != sens_file) ? create_cfl(sens_file, DIMS, sens_dims) : anon_cfl("", DIMS, sens_dims);
 		nlinvnet.weights = load_nn_weights(weight_file);
 
-		apply_nlinvnet(&nlinvnet, DIMS, img_dims, img, dims, col, ksp_dims, kspace, pat_dims, pattern, trj_dims, traj ? traj : &one);
+		apply_nlinvnet(&nlinvnet, DIMS, img_dims, img, sens_dims, col, ksp_dims, kspace, pat_dims, pattern, trj_dims, traj ? traj : &one);
 
 		unmap_cfl(DIMS, img_dims, img);
 		unmap_cfl(DIMS, dims, col);
