@@ -76,6 +76,7 @@ int main_nlinv(int argc, char* argv[argc])
 		ARG_OUTFILE(false, &sens_file, "sensitivities"),
 	};
 
+	bool ksens_out = false;
 	bool old_scaling = false;
 	bool normalize = true;
 	bool combine = true;
@@ -139,6 +140,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
 		OPTL_SET(0, "old-scaling", &old_scaling, "(use old scaling)"),
 		OPTL_SET(0, "real-time", &conf.real_time, "real time (L2 in time dimension)"),
+		OPTL_SET(0, "kspace-sens", &ksens_out, "(output sensitivities in kspace)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -475,10 +477,11 @@ int main_nlinv(int argc, char* argv[argc])
 				sens_dims_out[i] = img_output_dims[i];
 
 		complex float* sens_out = create_cfl(sens_file, DIMS, sens_dims_out);
-		md_resize_center(DIMS, sens_dims_out, sens_out, sens_dims, sens, CFL_SIZE);
+		md_resize_center(DIMS, sens_dims_out, sens_out, sens_dims, ksens_out ? ksens : sens, CFL_SIZE);
 		unmap_cfl(DIMS, sens_dims_out, sens_out);
 	}
 
+	md_free(ksens);
 	md_free(sens);
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, img_output_dims, img_output);
