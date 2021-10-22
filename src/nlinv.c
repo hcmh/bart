@@ -138,6 +138,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
 		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
 		OPTL_SET(0, "old-scaling", &old_scaling, "(use old scaling)"),
+		OPTL_SET(0, "real-time", &conf.real_time, "real time (L2 in time dimension)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
@@ -380,6 +381,14 @@ int main_nlinv(int argc, char* argv[argc])
 		mask = compute_mask(DIMS, msk_dims, restrict_dims);
 	}
 
+
+	long img_ref_dims[DIMS];
+	long sens_ref_dims[DIMS];
+
+	md_select_dims(DIMS, ~TIME_FLAG, img_ref_dims, img_dims);
+	md_select_dims(DIMS, ~TIME_FLAG, sens_ref_dims, sens_dims);
+
+
 	complex float* ref_img = NULL;
 	complex float* ref_sens = NULL;
 
@@ -403,15 +412,32 @@ int main_nlinv(int argc, char* argv[argc])
 			md_zsmul(DIMS, ksp_dims, kspace, kspace, 1. / sqrtf(sc));
 		}
 
-		noir2_recon_noncart(&conf, DIMS,
-			img_dims, img, ref_img,
-			sens_dims, sens, ksens, ref_sens,
+		if (conf.real_time) {
+
+			noir2_rtrecon_noncart(&conf, DIMS,
+			img_dims, img,
+			img_ref_dims, ref_img,
+			sens_dims, sens, ksens,
+			sens_ref_dims, ref_sens,
 			ksp_dims, kspace,
 			trj_dims, traj,
 			pat_dims, pattern,
 			bas_dims, basis,
 			msk_dims, mask,
 			cim_dims);
+
+		} else {
+
+			noir2_recon_noncart(&conf, DIMS,
+				img_dims, img, ref_img,
+				sens_dims, sens, ksens, ref_sens,
+				ksp_dims, kspace,
+				trj_dims, traj,
+				pat_dims, pattern,
+				bas_dims, basis,
+				msk_dims, mask,
+				cim_dims);
+		}
 
 	} else {
 

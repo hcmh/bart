@@ -35,6 +35,9 @@ struct noir2_conf_s {
 
 	int nr_init;
 
+	_Bool real_time;
+	float temp_damp;
+
 	_Bool primal_dual;
 };
 
@@ -57,6 +60,19 @@ extern void noir2_recon_cart(
 	const long col_dims[N], complex float* sens, complex float* ksens, const complex float* sens_ref,
 	const long ksp_dims[N], const complex float* kspace,
 	const long pat_dims[N], const complex float* pattern,
+	const long bas_dims[N], const complex float* basis,
+	const long msk_dims[N], const complex float* mask,
+	const long cim_dims[N]);
+
+extern void noir2_rtrecon_noncart(
+	const struct noir2_conf_s* conf, int N,
+	const long img_dims[N], complex float* img,
+	const long img1_dims[N], const complex float* img_ref,
+	const long col_dims[N], complex float* sens, complex float* ksens,
+	const long col1_dims[N], const complex float* sens_ref,
+	const long ksp_dims[N], const complex float* kspace,
+	const long trj_dims[N], const complex float* traj,
+	const long wgh_dims[N], const complex float* weights,
 	const long bas_dims[N], const complex float* basis,
 	const long msk_dims[N], const complex float* mask,
 	const long cim_dims[N]);

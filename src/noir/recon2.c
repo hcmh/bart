@@ -39,6 +39,7 @@
 #include "iter/misc.h"
 
 #include "linops/someops.h"
+#include "noncart/nufft.h"
 
 
 #include "misc/misc.h"
@@ -111,10 +112,13 @@ const struct noir2_conf_s noir2_defaults = {
 
 	.gpu = false,
 
-	.cgiter = 30,
+	.cgiter = 100,
 	.cgtol = -1.,
 
 	.nr_init = -1,
+
+	.real_time = false,
+	.temp_damp = 0.9f,
 
 	.primal_dual = false,
 };
@@ -373,8 +377,8 @@ static void opt_reg_noir_join_prox(int N, const long img_dims[N], const long col
 
 static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops,
 			int N,
-			const long img_dims[N], complex float* img, const complex float* img_ref,
-			const long col_dims[N], complex float* sens, complex float* ksens, const complex float* sens_ref,
+			const long img_dims[N], complex float* img, complex float* img_ref,
+			const long col_dims[N], complex float* sens, complex float* ksens, complex float* sens_ref,
 			const long ksp_dims[N], const complex float* kspace)
 {
 
@@ -389,7 +393,7 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 	unsigned long fft_flags = noir_ops.model_conf.fft_flags_noncart | noir_ops.model_conf.fft_flags_cart;
 
 
-	complex float* data = md_alloc(N, cim_dims, CFL_SIZE);
+	complex float* data = md_alloc_sameplace(N, cim_dims, CFL_SIZE, kspace);
 	linop_adjoint(noir_ops.lop_fft, N, cim_dims, data, N, ksp_dims, kspace);
 
 
@@ -539,6 +543,11 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 	md_copy(DIMS, img_dims, img, x, CFL_SIZE);
 	md_copy(DIMS, col_dims, ksens, x + skip, CFL_SIZE);
 
+	if (conf->real_time) {
+		md_zsmul(N, img_dims, img_ref, img, conf->temp_damp);
+		md_zsmul(N, col_dims, sens_ref, ksens, conf->temp_damp);
+	}
+
 	noir2_forw_coils(noir_ops.lop_coil2, x + skip, x + skip);
 	md_copy(DIMS, col_dims, sens, x + skip, CFL_SIZE);
 
@@ -576,7 +585,7 @@ static void noir2_recon_noncart_loop(
 
 	struct noir2_s noir_ops = noir2_noncart_create(N, trj_dims, traj, wgh_dims, weights, bas_dims, basis, msk_dims, mask, ksp_dims, cim_dims, img_dims, col_dims, &mconf);
 
-	noir2_recon(conf, noir_ops, N, img_dims, img, img_ref, col_dims, sens, ksens, sens_ref, ksp_dims, kspace);
+	noir2_recon(conf, noir_ops, N, img_dims, img, (complex float*)img_ref, col_dims, sens, ksens, (complex float*)sens_ref, ksp_dims, kspace);
 
 	noir2_free(&noir_ops);
 }
@@ -687,7 +696,7 @@ static void noir2_recon_cart_loop(
 
 	struct noir2_s noir_ops = noir2_cart_create(N, pat_dims, pattern, bas_dims, basis, msk_dims, mask, ksp_dims, cim_dims, img_dims, col_dims, &mconf);
 
-	noir2_recon(conf, noir_ops, N, img_dims, img, img_ref, col_dims, sens, ksens, sens_ref, ksp_dims, kspace);
+	noir2_recon(conf, noir_ops, N, img_dims, img, (complex float*)img_ref, col_dims, sens, ksens, (complex float*)sens_ref, ksp_dims, kspace);
 
 	noir2_free(&noir_ops);
 }
@@ -762,4 +771,119 @@ void noir2_recon_cart(
 
 
 	} while (md_next(N, ksp_dims, conf->loop_flags, pos));
+}
+
+
+
+void noir2_rtrecon_noncart(
+	const struct noir2_conf_s* conf, int N,
+	const long img_dims[N], complex float* img,
+	const long img1_dims[N], const complex float* img_ref,
+	const long col_dims[N], complex float* sens, complex float* ksens,
+	const long col1_dims[N], const complex float* sens_ref,
+	const long ksp_dims[N], const complex float* kspace,
+	const long trj_dims[N], const complex float* traj,
+	const long wgh_dims[N], const complex float* weights,
+	const long bas_dims[N], const complex float* basis,
+	const long msk_dims[N], const complex float* mask,
+	const long cim_dims[N])
+{
+	struct noir2_model_conf_s mconf = noir2_model_conf_defaults;
+
+	mconf.fft_flags_noncart = FFT_FLAGS;
+	mconf.fft_flags_cart = (conf->sms || conf->sos) ? SLICE_FLAG : 0;
+
+	mconf.rvc = conf->rvc;
+	mconf.sos = conf->sos;
+	mconf.a = conf->a;
+	mconf.b = conf->b;
+	mconf.noncart = conf->noncart;
+
+	mconf.nufft_conf = conf->nufft_conf;
+
+	long ksp1_dims[N];
+	long trj1_dims[N];
+	long wgh1_dims[N];
+	long cim1_dims[N];
+
+	md_select_dims(N, ~TIME_FLAG, ksp1_dims, ksp_dims);
+	md_select_dims(N, ~TIME_FLAG, trj1_dims, trj_dims);
+	md_select_dims(N, ~TIME_FLAG, wgh1_dims, wgh_dims);
+	md_select_dims(N, ~TIME_FLAG, cim1_dims, cim_dims);
+
+	assert(NULL == basis);
+	UNUSED(bas_dims);
+
+	#ifdef USE_CUDA
+	md_alloc_fun_t my_alloc = conf->gpu ? md_alloc_gpu : md_alloc;
+	#else
+	assert(!conf->gpu);
+	md_alloc_fun_t my_alloc = md_alloc;
+	#endif
+
+	complex float* ksp1 = my_alloc(N, ksp1_dims, CFL_SIZE);
+	complex float* trj1 = my_alloc(N, trj1_dims, CFL_SIZE);
+	complex float* img1 = my_alloc(N, img1_dims, CFL_SIZE);
+	complex float* sens1 = my_alloc(N, col1_dims, CFL_SIZE);
+	complex float* ksens1 = my_alloc(N, col1_dims, CFL_SIZE);
+	complex float* img1_ref = my_alloc(N, img1_dims, CFL_SIZE);
+	complex float* ksens1_ref = my_alloc(N, col1_dims, CFL_SIZE);
+	complex float* wgh1 = weights ? my_alloc(N, wgh1_dims, CFL_SIZE) : NULL;
+
+	if (NULL != img_ref)
+		md_copy(N, img1_dims, img1_ref, img_ref, CFL_SIZE);
+	else
+		md_clear(N, img1_dims, img1_ref, CFL_SIZE);
+
+	if (NULL != sens_ref)
+		md_copy(N, col1_dims, ksens1_ref, sens_ref, CFL_SIZE);
+	else
+		md_clear(N, col1_dims, ksens1_ref, CFL_SIZE);
+
+	struct noir2_s noir_ops = noir2_noncart_create(N, trj1_dims, NULL, wgh1_dims, NULL, NULL, NULL, msk_dims, mask, ksp1_dims, cim1_dims, img1_dims, col1_dims, &mconf);
+	long pos[N];
+	long pos_trj[N];
+	long pos_wgh[N];
+
+	md_singleton_strides(N, pos);
+	md_singleton_strides(N, pos_trj);
+	md_singleton_strides(N, pos_wgh);
+
+	reuse_nufft_for_psf();
+
+	do {
+
+		pos_trj[TIME_DIM] = pos[TIME_DIM] % trj_dims[TIME_DIM];
+		pos_wgh[TIME_DIM] = pos[TIME_DIM] % wgh_dims[TIME_DIM];
+
+		md_slice(N, TIME_FLAG, pos, ksp_dims, ksp1, kspace, CFL_SIZE);
+		md_slice(N, TIME_FLAG, pos_trj, trj_dims, trj1, traj, CFL_SIZE);
+		md_zfill(N, img1_dims, img1, 1);
+		md_clear(N, col1_dims, sens1, CFL_SIZE);
+		md_clear(N, col1_dims, ksens1, CFL_SIZE);
+		if (NULL != weights)
+			md_slice(N, TIME_FLAG, pos_wgh, wgh_dims, wgh1, weights, CFL_SIZE);
+
+		noir2_noncart_update(&noir_ops, N, trj1_dims, trj1, wgh1_dims, wgh1, NULL, NULL);
+
+		noir2_recon(conf, noir_ops, N, img1_dims, img1, img1_ref, col1_dims, sens1, ksens1, ksens1_ref, ksp1_dims, ksp1);
+
+		md_copy_block(N, pos, img_dims, img, img1_dims, img1, CFL_SIZE);
+		md_copy_block(N, pos, col_dims, sens, col1_dims, sens1, CFL_SIZE);
+		md_copy_block(N, pos, col_dims, ksens, col1_dims, ksens1, CFL_SIZE);
+
+	} while (md_next(N, ksp_dims, TIME_FLAG, pos));
+
+	nufft_psf_del();
+
+	md_free(ksp1);
+	md_free(trj1);
+	md_free(img1);
+	md_free(sens1);
+	md_free(ksens1);
+	md_free(img1_ref);
+	md_free(ksens1_ref);
+	md_free(wgh1);
+
+	noir2_free(&noir_ops);
 }
