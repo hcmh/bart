@@ -494,3 +494,13 @@ void noir2_free(struct noir2_s* model)
 	xfree(model->col_dims);
 	xfree(model->trj_dims);
 }
+
+
+extern struct noir2_s noir2_noncart_update(struct noir2_s* model, int N,
+	const long trj_dims[N], const complex float* traj,
+	const long wgh_dims[N], const complex float* weights,
+	const long bas_dims[N], const complex float* basis)
+{
+	assert(NULL != model->lop_nufft);
+	nufft_update_traj(model->lop_nufft, N, trj_dims, traj, wgh_dims, weights, bas_dims, basis);
+}
