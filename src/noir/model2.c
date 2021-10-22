@@ -148,7 +148,6 @@ static void noir2_nlop_create(struct noir2_s* ret, int N, const long msk_dims[N]
 	const struct linop_s* lop_wghts_ifft = linop_ifft_create(N, ret->col_dims, fft_flags);
 
 	ret->lop_coil =  linop_chain_FF(lop_wghts, lop_wghts_ifft);
-	ret->lop_coil2 = linop_clone(ret->lop_coil);
 
 
 	complex float* ifmod = md_alloc(N, wght_dims, CFL_SIZE);
@@ -158,6 +157,7 @@ static void noir2_nlop_create(struct noir2_s* ret, int N, const long msk_dims[N]
 	//FIXME: In the Cartesian case, we might merge ifftmod with fftmod of fft in linop trafo part (as in previous implementation)
 	//CAVEAT: if coil dims != img dims, we need to check if they cancel
 	ret->lop_coil = linop_chain_FF(ret->lop_coil, linop_cdiag_create(N, ret->col_dims, fft_flags, ifmod));
+	ret->lop_coil2 = linop_clone(ret->lop_coil);
 	md_free(ifmod);
 
 	long max_dims[N]; 	//of tenmul

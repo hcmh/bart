@@ -540,8 +540,7 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 	md_copy(DIMS, col_dims, ksens, x + skip, CFL_SIZE);
 
 	noir2_forw_coils(noir_ops.lop_coil2, x + skip, x + skip);
-	md_copy(DIMS, col_dims, sens, x + skip, CFL_SIZE);	// needed for GPU
-	fftmod(DIMS, col_dims, fft_flags, sens, sens);
+	md_copy(DIMS, col_dims, sens, x + skip, CFL_SIZE);
 
 	md_free(x);
 	md_free(ref);
