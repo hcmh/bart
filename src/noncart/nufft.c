@@ -57,7 +57,9 @@ DEF_TYPEID(nufft_data);
 
 
 static struct linop_s* nufft_psf_create(int N, const long ksp_dims[N], const long img_dims[N], const long trj_dims[N], const complex float* traj, struct nufft_conf_s conf);
+static struct linop_s* fft_psf_create(int N, const long img_dims[N], unsigned long flags);
 static void nufft_psf_free(void);
+static void fft_psf_free(void);
 
 static void nufft_free_data(const linop_data_t* data);
 static void nufft_apply(const linop_data_t* _data, complex float* dst, const complex float* src);
@@ -380,10 +382,9 @@ static complex float* compute_psf2(int N, const long psf_dims[N + 1], unsigned l
 	complex float* psft = compute_psf(ND, img2_dims, trj_dims, traj2, bas_dims, basis, wgh_dims, weights, periodic, lowmem);
 	md_free(traj2);
 
-	//fftuc(ND, img2_dims, flags, psft, psft); //FIXME: fftmod is slow on gpu
-	auto lop_fft = linop_fftc_create(ND, img2_dims, flags);
+	auto lop_fft = fft_psf_create(ND, img2_dims, flags);
 	linop_forward_unchecked(lop_fft, psft, psft);
-	linop_free(lop_fft);
+	fft_psf_free();
 
 	float scale = 1.;
 	for (int i = 0; i < N; i++)
@@ -1359,6 +1360,11 @@ struct nufft_psf_reuse_s {
 	long* img_dims;
 
 	struct nufft_conf_s conf;
+
+	struct linop_s* lop_fftc;
+	int ND;
+	unsigned long flags;
+	long* img2_dims;
 };
 
 static bool reuse_nufft_psf = false;
@@ -1369,6 +1375,11 @@ static struct nufft_psf_reuse_s nufft_psf_reuse = {
 	.ksp_dims = NULL,
 	.trj_dims = NULL,
 	.img_dims = NULL,
+
+	.lop_fftc = NULL,
+	.ND = 0,
+	.img2_dims = NULL,
+	.flags = 0,
 };
 
 void reuse_nufft_for_psf(void)
@@ -1376,7 +1387,7 @@ void reuse_nufft_for_psf(void)
 	reuse_nufft_psf = true;
 }
 
-void nufft_psf_del(void)
+static void nufft_psf_nufft_del(void)
 {
 	linop_free(nufft_psf_reuse.nufft);
 
@@ -1386,10 +1397,33 @@ void nufft_psf_del(void)
 	if (NULL != nufft_psf_reuse.trj_dims)
 		xfree(nufft_psf_reuse.trj_dims);
 
+	if (NULL != nufft_psf_reuse.img_dims)
+		xfree(nufft_psf_reuse.img_dims);
+
 	nufft_psf_reuse.nufft = NULL;
 	nufft_psf_reuse.ksp_dims = NULL;
 	nufft_psf_reuse.trj_dims = NULL;
+	nufft_psf_reuse.img_dims = NULL;
 };
+
+static void nufft_psf_fft_del(void)
+{
+	nufft_psf_reuse.ND = 0;
+	linop_free(nufft_psf_reuse.lop_fftc);
+	nufft_psf_reuse.lop_fftc = NULL;
+
+	nufft_psf_reuse.flags = 0;
+
+	if (NULL != nufft_psf_reuse.img2_dims)
+		xfree(nufft_psf_reuse.img2_dims);
+	nufft_psf_reuse.img2_dims = NULL;
+};
+
+void nufft_psf_del(void)
+{
+	nufft_psf_fft_del();
+	nufft_psf_nufft_del();
+}
 
 static struct linop_s* nufft_psf_create(int N, const long ksp_dims[N], const long img_dims[N], const long trj_dims[N], const complex float* traj, struct nufft_conf_s conf)
 {
@@ -1404,7 +1438,7 @@ static struct linop_s* nufft_psf_create(int N, const long ksp_dims[N], const lon
 		    return nufft_psf_reuse.nufft;
 	    }
 
-	nufft_psf_del();
+	nufft_psf_nufft_del();
 
 	nufft_psf_reuse.N = N;
 	nufft_psf_reuse.trj_dims = *TYPE_ALLOC(long[N]);
@@ -1419,8 +1453,32 @@ static struct linop_s* nufft_psf_create(int N, const long ksp_dims[N], const lon
 	return nufft_psf_reuse.nufft;
 }
 
+static struct linop_s* fft_psf_create(int N, const long img_dims[N], unsigned long flags)
+{
+	if (   (NULL != nufft_psf_reuse.lop_fftc) && (N == nufft_psf_reuse.ND)
+	    && md_check_equal_dims(N, nufft_psf_reuse.img2_dims, img_dims, ~0)
+	    && (flags == nufft_psf_reuse.flags))
+			return nufft_psf_reuse.lop_fftc;
+
+	nufft_psf_fft_del();
+
+	nufft_psf_reuse.ND = N;
+	nufft_psf_reuse.img2_dims = *TYPE_ALLOC(long[N]);
+	md_copy_dims(N, nufft_psf_reuse.img2_dims, img_dims);
+	nufft_psf_reuse.flags = flags;
+
+	nufft_psf_reuse.lop_fftc = linop_fftc_create(N, img_dims, flags);
+	return nufft_psf_reuse.lop_fftc;
+}
+
 static void nufft_psf_free(void)
 {
 	if (!reuse_nufft_psf || (NULL == CAST_MAYBE(nufft_data, linop_get_data(nufft_psf_reuse.nufft))))
+		nufft_psf_del();
+}
+
+static void fft_psf_free(void)
+{
+	if (!reuse_nufft_psf)
 		nufft_psf_del();
 }
