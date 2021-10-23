@@ -206,6 +206,48 @@ void nlinvnet_init_model_noncart(struct nlinvnet_s* nlinvnet, int N,
 	}
 }
 
+static nn_t nlinvnet_sort_args_F(nn_t net)
+{
+	int N_in_names = nn_get_nr_named_in_args(net);
+	const char* in_names[7 + N_in_names];
+
+	in_names[0] = "ksp";
+	in_names[1] = "pat";
+	in_names[2] = "trj";
+	in_names[3] = "ref_img";
+	in_names[4] = "ref_col";
+	in_names[5] = "lambda";
+	in_names[6] = "alpha";
+
+	nn_get_in_names_copy(N_in_names, in_names + 7, net);
+
+	net = nn_sort_inputs_by_list_F(net, 7 + N_in_names, in_names);
+
+	for (int i = 0; i < N_in_names; i++)
+		xfree(in_names[7 + i]);
+
+
+	int N_out_names = nn_get_nr_named_out_args(net);
+	const char* out_names[4 + N_out_names];
+
+	out_names[0] = "ksp";
+	out_names[1] = "cim";
+	out_names[2] = "img";
+	out_names[3] = "col";
+
+	nn_get_out_names_copy(N_out_names, out_names + 4, net);
+
+	net = nn_sort_outputs_by_list_F(net, 4 + N_out_names, out_names);
+
+	for (int i = 0; i < N_out_names; i++)
+		xfree(out_names[4 + i]);
+
+	net = nn_sort_inputs_F(net);
+	net = nn_sort_outputs_F(net);
+
+	return net;
+}
+
 
 static nn_t nlinvnet_network_create(const struct nlinvnet_s* nlinvnet, unsigned int N, const long img_dims[N], enum NETWORK_STATUS status)
 {
@@ -352,9 +394,6 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, str
 
 static nn_t nlinvnet_chain_alpha(const struct nlinvnet_s* nlinvnet, nn_t network)
 {
-	int N_in_names = nn_get_nr_named_in_args(network);
-	const char* in_names[N_in_names];
-	nn_get_in_names_copy(N_in_names, in_names, network);
 
 	auto dom = nn_generic_domain(network, 0, "alpha");
 
@@ -366,10 +405,7 @@ static nn_t nlinvnet_chain_alpha(const struct nlinvnet_s* nlinvnet, nn_t network
 	network = nn_chain2_FF(scale, 0, NULL, network, 0, "alpha");
 	network = nn_set_input_name_F(network, -1, "alpha");
 
-	network = nn_sort_inputs_by_list_F(network, N_in_names, in_names);
-
-	for (int i = 0; i < N_in_names; i++)
-		xfree(in_names[i]);
+	network = nlinvnet_sort_args_F(network);
 
 	return network;
 }
@@ -380,15 +416,6 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, s
 	int j = nlinvnet->conf->iter - 1;
 
 	auto result = nlinvnet_get_cell_reg(nlinvnet, Nb, models, j, status, false);
-
-	int N_in_names = nn_get_nr_named_in_args(result);
-	int N_out_names = nn_get_nr_named_out_args(result);
-
-	const char* in_names[N_in_names];
-	const char* out_names[N_out_names];
-
-	nn_get_in_names_copy(N_in_names, in_names, result);
-	nn_get_out_names_copy(N_out_names, out_names, result);
 
 	while (0 < j--) {
 
@@ -433,13 +460,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, s
 			xfree(out_names[i]);
 	}
 
-	result = nn_sort_inputs_by_list_F(result, N_in_names, in_names);
-	result = nn_sort_outputs_by_list_F(result, N_out_names, out_names);
-
-	for (int i = 0; i < N_in_names; i++)
-		xfree(in_names[i]);
-	for (int i = 0; i < N_out_names; i++)
-		xfree(out_names[i]);
+	result = nlinvnet_sort_args_F(result);
 
 	return result;
 }
@@ -588,10 +609,6 @@ static nn_t nlinvnet_train_loss_create(const struct nlinvnet_s* nlinvnet)
 
 	if (nlinvnet->ksp_training) {
 
-		int N_in_names = nn_get_nr_named_in_args(train_op);
-		const char* in_names[N_in_names];
-		nn_get_in_names_copy(N_in_names, in_names, train_op);
-
 		loss = nn_chain2_FF(nn_from_nlop_F(nlop_tenmul_create(N, out_dims, out_dims, pat_dims)), 0, NULL, loss, 1, NULL);
 		loss = nn_chain2_FF(nn_from_nlop_F(nlop_tenmul_create(N, out_dims, out_dims, pat_dims)), 0, NULL, loss, 0, NULL);
 		loss = nn_dup_F(loss, 1, NULL, 3, NULL);
@@ -613,11 +630,12 @@ static nn_t nlinvnet_train_loss_create(const struct nlinvnet_s* nlinvnet)
 			train_op = nn_dup_F(train_op, 0, "pat", 0, "pat_ref");
 		}
 
-		train_op = nn_sort_inputs_by_list_F(train_op, N_in_names, in_names);
 	} else {
 
 		train_op = nn_chain2_FF(train_op, 0, "cim", loss, 0, NULL);
 	}
+
+	train_op = nlinvnet_sort_args_F(train_op);
 
 	return train_op;
 }
