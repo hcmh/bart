@@ -74,7 +74,7 @@ extern struct noir2_s noir2_cart_create(int N,
 	const long col_dims[N],
 	const struct noir2_model_conf_s* conf);
 
-extern struct noir2_s noir2_noncart_update(struct noir2_s* model, int N,
+extern void noir2_noncart_update(struct noir2_s* model, int N,
 	const long trj_dims[N], const complex float* traj,
 	const long wgh_dims[N], const complex float* weights,
 	const long bas_dims[N], const complex float* basis);

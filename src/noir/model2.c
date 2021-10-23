@@ -496,7 +496,7 @@ void noir2_free(struct noir2_s* model)
 }
 
 
-extern struct noir2_s noir2_noncart_update(struct noir2_s* model, int N,
+void noir2_noncart_update(struct noir2_s* model, int N,
 	const long trj_dims[N], const complex float* traj,
 	const long wgh_dims[N], const complex float* weights,
 	const long bas_dims[N], const complex float* basis)
