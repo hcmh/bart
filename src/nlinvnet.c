@@ -68,6 +68,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	const char* pat_file = NULL;
 	const char* traj_file = NULL;
+	const char* ref_img_file = NULL;
+	const char* ref_col_file = NULL;
 
 	struct noir2_conf_s conf = noir2_defaults;
 	conf.nufft_conf = &nufft_conf_defaults;
@@ -88,6 +90,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 	const char* val_file_reference = NULL;
 	const char* val_file_pattern = NULL;
 	const char* val_file_trajectory = NULL;
+	const char* val_file_ref_img = NULL;
+	const char* val_file_ref_col = NULL;
 
 	unsigned long cnstcoil_flags = 0;
 
@@ -99,6 +103,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_INFILE('t', "trajectory", &(val_file_trajectory), "<file>", "validation data trajectory"),
 		OPTL_INFILE('k', "kspace", &(val_file_kspace), "<file>", "validation data kspace"),
 		OPTL_INFILE('r', "ref", &(val_file_reference), "<file>", "validation data reference"),
+		OPTL_INFILE(0, "ref-img", (const char**)(&(val_file_ref_img)), "<ref>", "reference file for image"),
+		OPTL_INFILE(0, "ref-col", (const char**)(&(val_file_ref_col)), "<ref>", "reference file for sensitivities"),
 	};
 
 	bool unet = false;
@@ -116,6 +122,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SET('a', "apply", &apply, "apply nlinvnet"),
 
 		OPTL_INFILE(0, "trajectory", (const char**)(&(traj_file)), "<traj>", "trajectory"),
+		OPTL_INFILE(0, "ref-img", (const char**)(&(ref_img_file)), "<ref>", "reference file for image"),
+		OPTL_INFILE(0, "ref-col", (const char**)(&(ref_col_file)), "<ref>", "reference file for sensitivities"),
 
 		OPTL_SET('g', "gpu", &(nlinvnet.gpu), "run on gpu"),
 		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
@@ -295,6 +303,26 @@ int main_nlinvnet(int argc, char* argv[argc])
 			img_dims_s,
 			col_dims_s);
 
+	long ref_img_dims[DIMS];
+	long ref_col_dims[DIMS];
+	complex float* ref_img = NULL;
+	complex float* ref_col = NULL;
+
+	if (NULL != ref_img_file) {
+
+		nlinvnet.ref = true;
+		ref_img = load_cfl(ref_img_file, DIMS, ref_img_dims);
+	} else
+		md_copy_dims(DIMS, ref_img_dims, img_dims_s);
+
+	if (NULL != ref_col_file)
+		ref_col = load_cfl(ref_col_file, DIMS, ref_col_dims);
+	else
+		md_copy_dims(DIMS, ref_col_dims, col_dims_s);
+
+
+
+
 	if (train) {
 
 		if (NULL != filename_weights_load)
@@ -304,11 +332,15 @@ int main_nlinvnet(int argc, char* argv[argc])
 		long cim_dims_val[DIMS];
 		long pat_dims_val[DIMS];
 		long trj_dims_val[DIMS];
+		long ref_img_dims_val[DIMS];
+		long ref_col_dims_val[DIMS];
 
 		complex float* val_kspace = NULL;
 		complex float* val_ref = NULL;
 		complex float* val_pattern = NULL;
 		complex float* val_traj = NULL;
+		complex float* val_ref_img = NULL;
+		complex float* val_ref_col = NULL;
 
 		if (NULL != val_file_kspace) {
 
@@ -329,6 +361,16 @@ int main_nlinvnet(int argc, char* argv[argc])
 				val_traj = load_cfl(val_file_trajectory, DIMS, trj_dims_val);
 			else
 				md_singleton_dims(DIMS, trj_dims_val);
+
+			if (NULL != val_file_ref_img)
+				val_ref_img = load_cfl(val_file_ref_img, DIMS, ref_img_dims_val);
+			else
+				md_copy_dims(DIMS, ref_img_dims_val, img_dims_s);
+
+			if (NULL != val_file_ref_col)
+				val_ref_col = load_cfl(val_file_ref_img, DIMS, ref_col_dims_val);
+			else
+				md_copy_dims(DIMS, ref_col_dims_val, col_dims_s);
 		}
 
 		long out_dims[DIMS];
@@ -339,7 +381,19 @@ int main_nlinvnet(int argc, char* argv[argc])
 		else
 			assert(md_check_equal_dims(DIMS, cim_dims, out_dims, ~0));
 
-		train_nlinvnet(&nlinvnet, DIMS, Nb, out_dims, ref, ksp_dims, kspace, pat_dims, pattern, trj_dims, traj ? traj : &one, cim_dims_val, val_ref, ksp_dims_val, val_kspace, pat_dims_val, val_pattern, trj_dims_val, val_traj? val_traj : &one);
+		train_nlinvnet(&nlinvnet, DIMS, Nb,
+			out_dims, ref,
+			ksp_dims, kspace,
+			pat_dims, pattern,
+			trj_dims, traj ? traj : &one,
+			ref_img_dims, ref_img,
+			ref_col_dims, ref_col,
+			cim_dims_val, val_ref,
+			ksp_dims_val, val_kspace,
+			pat_dims_val, val_pattern,
+			trj_dims_val, val_traj? val_traj : &one,
+			ref_img_dims_val, val_ref_img,
+			ref_col_dims_val, val_ref_col);
 
 		unmap_cfl(DIMS, out_dims, ref);
 
@@ -349,6 +403,14 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 			unmap_cfl(DIMS, ksp_dims_val, val_kspace);
 			unmap_cfl(DIMS, cim_dims_val, val_ref);
+			unmap_cfl(DIMS, pat_dims_val, val_pattern);
+
+			if (NULL != val_traj)
+				unmap_cfl(DIMS, trj_dims_val, val_traj);
+			if (NULL != val_ref_img)
+				unmap_cfl(DIMS, ref_img_dims_val, val_ref_img);
+			if (NULL != val_ref_col)
+				unmap_cfl(DIMS, ref_col_dims_val, val_ref_col);
 		}
 	}
 
@@ -361,7 +423,14 @@ int main_nlinvnet(int argc, char* argv[argc])
 		complex float* col = (NULL != sens_file) ? create_cfl(sens_file, DIMS, sens_dims) : anon_cfl("", DIMS, sens_dims);
 		nlinvnet.weights = load_nn_weights(weight_file);
 
-		apply_nlinvnet(&nlinvnet, DIMS, img_dims, img, sens_dims, col, ksp_dims, kspace, pat_dims, pattern, trj_dims, traj ? traj : &one);
+		apply_nlinvnet(&nlinvnet, DIMS,
+				img_dims, img,
+				sens_dims, col,
+				ksp_dims, kspace,
+				pat_dims, pattern,
+				trj_dims, traj ? traj : &one,
+				ref_img_dims, ref_img,
+				ref_col_dims, ref_col);
 
 		unmap_cfl(DIMS, img_dims, img);
 		unmap_cfl(DIMS, dims, col);
@@ -375,13 +444,24 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		nlinvnet.weights = load_nn_weights(weight_file);
 
-		eval_nlinvnet(&nlinvnet, DIMS, cim_dims, ref, ksp_dims, kspace, pat_dims, pattern, trj_dims, traj ? traj : &one);
+		eval_nlinvnet(&nlinvnet, DIMS,
+				cim_dims, ref,
+				ksp_dims, kspace,
+				pat_dims, pattern,
+				trj_dims, traj ? traj : &one,
+				ref_img_dims, ref_img,
+				ref_col_dims, ref_col);
 
 		unmap_cfl(DIMS, cim_dims2, ref);
 	}
 
 	unmap_cfl(DIMS, pat_dims, pattern);
 	unmap_cfl(DIMS, ksp_dims, kspace);
+
+	if (NULL != ref_img)
+		unmap_cfl(DIMS, ref_img_dims, ref_img);
+	if (NULL != ref_col)
+		unmap_cfl(DIMS, ref_col_dims, ref_col);
 
 	double recosecs = timestamp() - start_time;
 
