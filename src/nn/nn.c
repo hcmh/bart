@@ -555,7 +555,8 @@ nn_t nn_set_prox_op_F(nn_t op, int i, const char* iname, const struct operator_p
 {
 	auto result = nn_clone(op);
 	i = nn_get_in_arg_index(result, i, iname);
-	assert(NULL == result->prox_ops[i]);
+	if (NULL != result->prox_ops[i])
+		operator_p_free(result->prox_ops[i]);
 	auto iov = operator_p_domain(opp);
 	assert(iovec_check(nlop_generic_domain(op->nlop, i), iov->N, iov->dims, iov->strs));
 	result->prox_ops[i] = opp;
