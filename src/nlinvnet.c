@@ -124,6 +124,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_INT(0, "iter-init", &(nlinvnet.iter_init), "iter", "number of iterations with half update"),
 
 		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
+		OPTL_SUBOPT(0, "unet", "...", "configure U-Net block", N_unet_reco_opts, unet_reco_opts),
 		OPTL_CLEAR(0, "no-shared-weights", &(nlinvnet.share_weights), "don't share weights across iterations"),
 
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
