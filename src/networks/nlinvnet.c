@@ -942,7 +942,7 @@ void apply_nlinvnet(struct nlinvnet_s* nlinvnet, int N,
 	const long* idims[5] = { ksp_dims, pat_dims, trj_dims, ref_img_dims2, ref_col_dims2 };
 
 	complex float* dst[2] = { img, col };
-	const complex float* src[5] = { ksp, pat, trj, ref_img2, ref_col2 };
+	const complex float* src[5] = { ksp, pat, trj, ref_img, ref_col };
 
 	nlop_generic_apply_loop_sameplace(nn_get_nlop(nn_apply), BATCH_FLAG, 2, DO, odims, dst, 5, DI, idims, src, nlinvnet->weights->tensors[0]);
 
