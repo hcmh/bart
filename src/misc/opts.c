@@ -421,7 +421,7 @@ static void add_argnames(int n, struct opt_s wopts[n ?: 1])
 }
 
 
-static void process_option(char c, const char* optarg, const char* name, const char* usage_str, const char* help_str, int n, const struct opt_s opts[n ?: 1], int m, struct arg_s args[m ?: 1])
+static bool process_option(char c, const char* optarg, const char* name, const char* usage_str, const char* help_str, int n, const struct opt_s opts[n ?: 1], int m, struct arg_s args[m ?: 1])
 {
 	if ('h' == c) {
 
@@ -447,12 +447,9 @@ static void process_option(char c, const char* optarg, const char* name, const c
 				error("process_option: failed to convert value\n");
 			}
 
-			return;
+			return true;
 		}
 	}
-
-	print_usage(stderr, name, usage_str, n, opts);
-	error("process_option: unknown option\n");
 }
 
 
@@ -566,7 +563,11 @@ static void options(int* argcp, char* argv[], int min_args, int max_args, const 
 
 	out:	continue;
 #else
-		process_option(c, optarg, argv[0], usage_str, help_str, n, wopts, m, args);
+		if (!process_option(c, optarg, argv[0], usage_str, help_str, n, wopts, m, args)) {
+
+			print_usage(stderr, argv[0], usage_str, n, opts);
+			error("process_option: unknown option\n");
+		}
 #endif
 	}
 
@@ -583,6 +584,84 @@ static void options(int* argcp, char* argv[], int min_args, int max_args, const 
 
 	*argcp = argc - optind + 1;
 	argv[*argcp] = NULL;
+}
+
+//apply opts nad ignore optsi
+void options_only(int* argcp, char* argv[], int n, const struct opt_s opts[n ?: 1], int ni, const struct opt_s optsi[ni ?: 1])
+{
+	int argc = *argcp;
+
+	// create writable copy of opts
+
+	struct opt_s wopts[n + ni ?: 1];
+
+	if (NULL != opts)
+		memcpy(wopts, opts, sizeof(struct opt_s) * n);
+
+	if (NULL != optsi)
+		memcpy(wopts + n, optsi, sizeof(struct opt_s) * ni);
+
+
+	add_argnames(n + ni, wopts);
+
+	int max_num_long_opts = 256;
+	struct option longopts[max_num_long_opts];
+
+	// According to documentation, the last element of the longopts array has to be filled with zeros.
+	// So we fill it entirely before using it
+
+	memset(longopts, 0, sizeof longopts);
+
+
+	char lc = 0;
+	int nlong = 0;
+
+	for (int i = 0; i < n + ni; i++) {
+
+		if (NULL != wopts[i].s) {
+
+			// if it is only longopt, overwrite c with an unprintable char
+			if (0 == wopts[i].c) {
+
+				while (isprint(++lc)) // increment and skip over printable chars
+					;
+
+				wopts[i].c = lc;
+			}
+
+			longopts[nlong++] = (struct option){ wopts[i].s, wopts[i].arg, NULL, wopts[i].c };
+
+			// Ensure that we only used unprintable characters
+			// and that the last entry of the array is only zeros
+			if ((nlong >= max_num_long_opts) || (lc >= max_num_long_opts))
+				error("Too many long options specified, aborting...");
+		}
+	}
+
+	char optstr[2 * (n + ni) + 2];
+	ya_getopt_reset(); // reset getopt variables to process multiple argc/argv pairs
+
+	check_options(n + ni, wopts);
+
+	int l = 0;
+
+	for (int i = 0; i < n + ni; i++) {
+
+		optstr[l++] = wopts[i].c;
+
+		if (wopts[i].arg)
+			optstr[l++] = ':';
+	}
+
+	optstr[l] = '\0';
+
+	int c;
+	int longindex = -1;
+
+	while (-1 != (c = ya_getopt_long(argc, argv, optstr, longopts, &longindex))) {
+
+		process_option(c, optarg, argv[0], NULL, NULL, n, wopts, 0, NULL);
+	}
 }
 
 

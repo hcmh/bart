@@ -172,6 +172,7 @@ extern void* parse_arg_tuple(int n, ...);
 #define ARG_TUPLE(required, count, n, ...)				{ (required), ARG_TUPLE, (count), (n), parse_arg_tuple( (n), __VA_ARGS__) }
 
 extern void cmdline(int* argc, char* argv[*argc], int m, struct arg_s args[m], const char* help_str, int n, const struct opt_s opts[n]);
+extern void options_only(int* argcp, char* argv[], int n, const struct opt_s opts[n ?: 1], int ni, const struct opt_s optsi[ni ?: 1]);
 
 #include "misc/cppwrap.h"
 
