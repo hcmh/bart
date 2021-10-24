@@ -450,6 +450,8 @@ static bool process_option(char c, const char* optarg, const char* name, const c
 			return true;
 		}
 	}
+
+	return false;
 }
 
 
