@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <math.h>
 #include <complex.h>
 
@@ -198,6 +199,29 @@ struct sense_model_s* sense_noncart_normal_create(int N, const long max_dims[N],
 }
 
 
+int sense_model_get_N(struct sense_model_s* model)
+{
+	return model->N;
+}
+
+void sense_model_get_img_dims(struct sense_model_s* model, int N, long img_dims[N])
+{
+	assert(N == model->N);
+	md_copy_dims(N, img_dims, model->img_dims);
+}
+
+void sense_model_get_col_dims(struct sense_model_s* model, int N, long col_dims[N])
+{
+	assert(N == model->N);
+	md_copy_dims(N, col_dims, model->col_dims);
+}
+
+void sense_model_get_cim_dims(struct sense_model_s* model, int N, long cim_dims[N])
+{
+	assert(N == model->N);
+	md_copy_dims(N, cim_dims, model->cim_dims);
+}
+
 
 
 struct sense_model_set_data_s {
@@ -304,12 +328,266 @@ const struct nlop_s* nlop_sense_model_set_data_create(int N, const long dims[N],
 	return result;
 }
 
+/**
+ * Returns: Update coils and pattern in linops (SENSE Operator)
+ *
+ * @param N
+ * @param dims 	dummy dimensions for identity from input 0 to output 0
+ * @param model SENSE model holding linops to update
+ *
+ * Input tensors:
+ * dummy:	dims
+ * coil:	col_dims (derived from model)
+ * pattern:	pat_dims (derived from model)
+ *
+ * Output tensors:
+ * dummy:	dims
+ */
+const struct nlop_s* nlop_sense_model_set_data_batch_create(int N, const long dims[N], int Nb, struct sense_model_s* models[Nb])
+{
+	assert(N >= models[0]->N);
+	assert(dims[BATCH_DIM] == Nb);
+
+	long dims2[N];
+	md_select_dims(N, ~BATCH_FLAG, dims2, dims);
+
+	const struct nlop_s* nlops[Nb];
+
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = nlop_sense_model_set_data_create(N, dims2, models[i]);
+
+	if (1 == Nb)
+		return nlops[0];
+
+	int ostack_dim[] = { BATCH_DIM };
+	int istack_dim[] = { BATCH_DIM, BATCH_DIM, BATCH_DIM };
+
+	return nlop_stack_multiple_F(Nb, nlops, 3, istack_dim, 1, ostack_dim);
+}
 
 
 
+static void sense_model_set_data_noncart_fun(const nlop_data_t* _data, int Narg, complex float* args[Narg])
+{
+	const auto d = CAST_DOWN(sense_model_set_data_s, _data);
+
+	complex float* dst = args[0];
+	const complex float* src = args[1];
+	const complex float* coil = args[2];
+	const complex float* pattern = args[3];
+	const complex float* traj = args[4];
+
+	md_copy(d->N, d->dims, dst, src, CFL_SIZE);
+
+	linop_fmac_set_tensor(d->model->coils, d->model->N, d->model->col_dims, coil);
+
+	assert(NULL != d->model->nufft);
+	nufft_update_traj(d->model->nufft, d->N, d->model->trj_dims, traj, d->model->pat_dims, pattern, NULL, NULL);
+}
 
 
 
+/**
+ * Returns: Update coils pattern and trajectory in linops (Noncart SENSE Operator)
+ *
+ * @param N
+ * @param dims 	dummy dimensions for identity from input 0 to output 0
+ * @param model SENSE model holding linops to update
+ *
+ * Input tensors:
+ * dummy:	dims
+ * coil:	col_dims (derived from model)
+ * pattern:	wgh_dims (derived from model)
+ * trajectory:	trj_dims (derived from model)
+ *
+ * Output tensors:
+ * dummy:	dims
+ */
+const struct nlop_s* nlop_sense_model_set_data_noncart_create(int N, const long dims[N], struct sense_model_s* model)
+{
+
+	PTR_ALLOC(struct sense_model_set_data_s, data);
+	SET_TYPEID(sense_model_set_data_s, data);
+
+	data->model = sense_model_ref(model);
+	data->N = N;
+	data->dims = *TYPE_ALLOC(long[N]);
+	md_copy_dims(N, data->dims, dims);
+
+	int NM = MAX(N, model->N);
+
+	long nl_odims[1][N];
+	md_copy_dims(N, nl_odims[0], data->dims);
+
+	long nl_idims[4][NM];
+	md_singleton_dims(NM, nl_idims[0]);
+	md_singleton_dims(NM, nl_idims[1]);
+	md_singleton_dims(NM, nl_idims[2]);
+	md_singleton_dims(NM, nl_idims[3]);
+
+	md_copy_dims(N, nl_idims[0], dims);
+	md_copy_dims(model->N, nl_idims[1], model->col_dims);
+	md_copy_dims(model->N, nl_idims[2], model->pat_dims);
+	md_copy_dims(model->N, nl_idims[3], model->trj_dims);
+
+	const struct nlop_s* result = nlop_generic_create(
+			1, N, nl_odims, 4, NM, nl_idims, CAST_UP(PTR_PASS(data)),
+			sense_model_set_data_noncart_fun,
+			(nlop_der_fun_t[4][1]){ { sense_model_set_data_der }, { NULL }, { NULL }, { NULL } },
+			(nlop_der_fun_t[4][1]){ { sense_model_set_data_der }, { NULL }, { NULL }, { NULL } },
+			NULL, NULL, sense_model_set_data_del);
+
+	result = nlop_reshape_in_F(result, 0, N, nl_idims[0]);
+	result = nlop_reshape_in_F(result, 1, model->N, nl_idims[1]);
+	result = nlop_reshape_in_F(result, 2, model->N, nl_idims[2]);
+	result = nlop_reshape_in_F(result, 3, model->N, nl_idims[3]);
+
+	return result;
+}
+
+
+/**
+ * Returns: Adjoint SENSE model
+ *
+ * @param model
+ *
+ * Input tensors:
+ * kspace:	ksp_dims (derived from model)
+ * coil:	col_dims (derived from model)
+ * pattern:	wgh_dims (derived from model)
+ * [trajectory:	trj_dims (derived from model)]
+ *
+ * Output tensors:
+ * image:	img_dims (derived from model)
+ */
+const struct nlop_s* nlop_sense_adjoint_create(int Nb, struct sense_model_s* models[Nb])
+{
+	const struct nlop_s* nlops[Nb];
+
+	for (int i = 0; i < Nb; i++) {
+
+		nlops[i] = nlop_from_linop(models[i]->sense);
+		if (NULL == models[i]->nufft)
+			nlops[i] = nlop_chain2_FF(nlop_sense_model_set_data_create(models[i]->N, models[i]->ksp_dims, models[i]), 0, nlops[i], 0);
+		else
+			nlops[i] = nlop_chain2_FF(nlop_sense_model_set_data_noncart_create(models[i]->N, models[i]->ksp_dims, models[i]), 0, nlops[i], 0);
+	}
+
+	if (1 == Nb)
+		return nlops[0];
+
+	int ostack_dim[] = { BATCH_DIM };
+	int istack_dim[] = { BATCH_DIM, BATCH_DIM, BATCH_DIM };
+
+	return nlop_stack_multiple_F(Nb, nlops, (NULL == models[0]->nufft) ? 2 : 3, istack_dim, 1, ostack_dim);
+
+}
+
+const struct nlop_s* nlop_sense_normal_create(int Nb, struct sense_model_s* models[Nb])
+{
+	const struct nlop_s* nlops[Nb];
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = nlop_from_linop_F(linop_get_normal(models[i]->sense));
+
+	if (1 == Nb)
+		return nlops[0];
+
+	int ostack_dim[] = { BATCH_DIM };
+	int istack_dim[] = { BATCH_DIM };
+
+	return nlop_stack_multiple_F(Nb, nlops, 1, istack_dim, 1, ostack_dim);
+}
+
+const struct nlop_s* nlop_sense_normal_inv_create(int Nb, struct sense_model_s* models[Nb], struct iter_conjgrad_conf* iter_conf, unsigned long lambda_flags)
+{
+
+	struct nlop_norm_inv_conf norm_inv_conf = {
+
+		.store_nlop = true,
+		.iter_conf = iter_conf,
+	};
+
+	const struct nlop_s* nlops[Nb];
+	for (int i = 0; i < Nb; i++)
+		nlops[i] = norm_inv_lop_lambda_create(&norm_inv_conf, models[0]->sense, lambda_flags);
+
+	if (1 == Nb)
+		return nlops[0];
+
+	int ostack_dim[] = { BATCH_DIM };
+	int istack_dim[] = { BATCH_DIM, MD_IS_SET(lambda_flags, BATCH_DIM) ? BATCH_DIM : -1 };
+
+	return nlop_stack_multiple_F(Nb, nlops, 2, istack_dim, 1, ostack_dim);
+}
+
+const struct nlop_s* nlop_sense_dc_prox_create(int Nb, struct sense_model_s* models[Nb], struct iter_conjgrad_conf* iter_conf, unsigned long lambda_flags)
+{
+	auto result = nlop_sense_normal_inv_create(Nb, models, iter_conf, lambda_flags);
+
+	int N = models[0]->N;
+	long img_dims[N];
+	long lam_dims[N];
+	md_copy_dims(N, img_dims, nlop_generic_domain(result, 0)->dims);
+	md_copy_dims(N, lam_dims, nlop_generic_domain(result, 1)->dims);
+
+	result = nlop_chain2_swap_FF(nlop_zaxpbz_create(N, img_dims, 1, 1), 0, result, 0);
+	result = nlop_chain2_swap_FF(nlop_tenmul_create(N, img_dims, img_dims, lam_dims), 0, result, 0);
+	result = nlop_dup_F(result, 1, 3);
+	result = nlop_shift_input_F(result, 2, 1);
+
+	return result;
+}
+
+const struct nlop_s* nlop_sense_dc_grad_create(int Nb, struct sense_model_s* models[Nb], unsigned long lambda_flags)
+{
+	auto result = nlop_sense_normal_create(Nb, models);
+
+	int N = models[0]->N;
+	long img_dims[N];
+	long lam_dims[N];
+	md_copy_dims(N, img_dims, nlop_generic_domain(result, 0)->dims);
+	md_select_dims(N, lambda_flags, lam_dims, img_dims);
+
+	result = nlop_chain2_swap_FF(result, 0, nlop_zaxpbz_create(N, img_dims, 1., -1.), 0);
+	result = nlop_chain2_swap_FF(result, 0, nlop_tenmul_create(N, img_dims, img_dims, lam_dims), 0);
+
+	return result;
+}
+
+const struct nlop_s* nlop_sense_scale_maxeigen_create(int Nb, struct sense_model_s* models[Nb], int N, const long dims[N])
+{
+	assert(N >= models[0]->N);
+
+	long dims_scl[N];
+	md_select_dims(N, ~BATCH_FLAG, dims_scl, dims);
+
+	const struct nlop_s* nlops[Nb];
+	for (int i = 0; i < Nb; i++) {
+
+		auto normal_op = nlop_from_linop_F(linop_get_normal(models[i]->sense));
+		normal_op = nlop_combine_FF(normal_op, nlop_del_out_create(N, dims_scl)); // that is necessary to apply operators in corect order
+		nlops[i] = nlop_maxeigen_create(normal_op), 0;
+	}
+
+	int ostack_dim[] = { BATCH_DIM };
+	int istack_dim[] = { BATCH_DIM };
+
+	const struct nlop_s* result = NULL;
+	if (1 == Nb)
+		result = nlops[0];
+	else
+		result = nlop_stack_multiple_F(Nb, nlops, 1, istack_dim, 1, ostack_dim);
+
+	long odims[N];
+	md_select_dims(N, BATCH_FLAG, odims, dims);
+
+	result = nlop_reshape_out_F(result, 0, N, odims);
+	result = nlop_chain_FF(result, nlop_zinv_create(N, odims));
+	result = nlop_chain2_FF(result, 0, nlop_tenmul_create(N, dims, dims, odims), 1);
+	result = nlop_dup_F(result, 0, 1);
+
+	return result;
+}
 
 
 static const struct nlop_s* nlop_mri_normal_slice_create(int N, const long max_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf)
@@ -534,98 +812,6 @@ const struct nlop_s* nlop_mri_dc_prox_create(int N, const long max_dims[N], cons
 
 	return result;
 }
-
-/**
- * Create an operator minimizing the following functional
- *
- * out = argmin 0.5 ||Ax-y||_2^2 + lambda ||W (x-x_0)||_2^2
- * A = Pattern FFT Coils
- *
- * with W = |init-x_0|^(p/2 - 1)
- *
- * @param N
- * @param max_dims
- * @param lam_dims
- * @param ND
- * @param psf_dims
- * @param conf can be NULL to fallback on nlop_mri_simple
- * @param iter_conf configuration for conjugate gradient
- * @param p
- *
- * Input tensors:
- * x0:		idims: 	(Nx, Ny, Nz,  1, ..., Nb)
- * adjoint:	idims: 	(Nx, Ny, Nz,  1, ..., Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, ..., Nb)
- * pattern:	pdims:	(Nx, Ny, Nz,  1, ..., 1 / Nb)
- * lambda:	ldims:	( 1,  1,  1,  1, ..., Nb)
- * init:	idims:	(Nx, Ny, Nz,  1, ..., Nb)
- *
- * Output tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1, ..., Nb)
- */
-static const struct nlop_s* nlop_mri_weighted_dc_prox_create(int N, const long max_dims[N], const long lam_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf, struct iter_conjgrad_conf* iter_conf, float p)
-{
-	long img_dims[N];
-	md_select_dims(N, conf->image_flags, img_dims, max_dims);
-
-	auto result = nlop_mri_dc_prox_create(N, max_dims, img_dims, ND, psf_dims, conf, iter_conf); //in: x0, AHy, coil, pattern, lambda
-	result = nlop_chain2_FF(nlop_tenmul_create(N, img_dims, lam_dims, img_dims), 0, result, 4); //in: x0, AHy, coil, pattern, lambda, W^2
-	result = nlop_chain2_FF(nlop_zspow_create(N, img_dims, 1. - p / 2), 0, result, 5);
-	result = nlop_chain2_FF(nlop_zinv_create(N, img_dims), 0, result, 5);
-	result = nlop_chain2_FF(nlop_smo_abs_create(N, img_dims, 0.), 0, result, 5);
-	result = nlop_chain2_FF(nlop_zaxpbz_create(N, img_dims, 1., -1.), 0, result, 5);
-	result = nlop_dup_F(result, 0, 5);
-
-	return result;
-}
-
-/**
- * Create an operator minimizing the following functional
- *
- * out = argmin 0.5 ||Ax-y||_2^2 + lambda ||x-x_0||_p^p
- * A = Pattern FFT Coils
- *
- * using iteratively weighted least squares
- *
- * @param N
- * @param max_dims
- * @param lam_dims
- * @param ND
- * @param psf_dims
- * @param conf can be NULL to fallback on nlop_mri_simple
- * @param iter_conf configuration for conjugate gradient
- * @param p
- * @param iter nr of iterations of iteratively weighted least squares
- *
- * Input tensors:
- * x0:		idims: 	(Nx, Ny, Nz,  1, ..., Nb)
- * adjoint:	idims: 	(Nx, Ny, Nz,  1, ..., Nb)
- * coil:	cdims:	(Nx, Ny, Nz, Nc, ..., Nb)
- * pattern:	pdims:	(Nx, Ny, Nz,  1, ..., 1 / Nb)
- * lambda:	ldims:	( 1,  1,  1,  1, ..., Nb)
- * init:	idimss:	( 1,  1,  1,  1, ..., Nb)
- *
- * Output tensors:
- * image:	idims: 	(Nx, Ny, Nz, 1, ..., Nb)
- */
-const struct nlop_s* nlop_mri_dc_pnorm_IRLS_create(int N, const long max_dims[N], const long lam_dims[N], int ND, const long psf_dims[ND], const struct config_nlop_mri_s* conf, struct iter_conjgrad_conf* iter_conf, float p, int iter)
-{
-	auto result = nlop_mri_weighted_dc_prox_create(N, max_dims, lam_dims, ND, psf_dims, conf, iter_conf, p);
-
-	for (int i = 1; i < iter; i++) {
-
-		result = nlop_chain2_swap_FF(result, 0, nlop_mri_weighted_dc_prox_create(N, max_dims, lam_dims, ND, psf_dims, conf, iter_conf, p), 5);
-		result = nlop_dup_F(result, 0, 6);
-		result = nlop_dup_F(result, 1, 6);
-		result = nlop_dup_F(result, 2, 6);
-		result = nlop_dup_F(result, 3, 6);
-		result = nlop_dup_F(result, 4, 6);
-	}
-
-	return nlop_checkpoint_create_F(result, true, false);
-}
-
-
 
 
 
