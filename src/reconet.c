@@ -11,6 +11,7 @@
 
 #include "noncart/nufft.h"
 
+#include "misc/io.h"
 #include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/types.h"
@@ -126,7 +127,7 @@ int main_reconet(int argc, char* argv[])
 		//OPTL_SELECT(0, "varnet-block", enum NETWORK_SELECT, &net, NETWORK_VARNET, "use variational block (overwrite default)"),
 	};
 
-	const struct opt_s opts[] = {
+	const struct opt_s opts_trn[] = {
 
 		OPTL_SET('t', "train", &train, "train reconet"),
 		OPTL_SET('e', "eval", &eval, "evaluate reconet"),
@@ -137,24 +138,7 @@ int main_reconet(int argc, char* argv[])
 		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "<weights-init>", "load weights for continuing training"),
 		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
 
-		OPTL_LONG('I', "iterations", &(config.Nt), "", "number of unrolled iterations"),
-
-		OPTL_SET('n', "normalize", &(config.normalize), "normalize data with maximum magnitude of adjoint reconstruction"),
-
-		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
-		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
-		OPTL_SUBOPT(0, "varnet-block", "...", "configure variational block", N_variational_block_opts, variational_block_opts),
-		OPTL_SUBOPT(0, "unet", "...", "configure U-Net block", N_unet_reco_opts, unet_reco_opts),
-
-		OPTL_SUBOPT(0, "data-consistency", "...", "configure data-consistency method", ARRAY_SIZE(dc_opts), dc_opts),
-		OPTL_SUBOPT(0, "initial-reco", "...", "configure initialization", ARRAY_SIZE(init_opts), init_opts),
-
-		OPTL_SELECT(0, "shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_TRUE, "share weights across iterations"),
-		OPTL_SELECT(0, "no-shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_FALSE, "share weights across iterations"),
-		OPTL_SELECT(0, "shared-lambda", enum BOOL_SELECT, &(config.share_lambda_select), BOOL_TRUE, "share lambda across iterations"),
-		OPTL_SELECT(0, "no-shared-lambda", enum BOOL_SELECT, &(config.share_lambda_select), BOOL_FALSE, "share lambda across iterations"),
 		OPTL_SET(0, "rss-weighting", &(config.rss_scale), "weight loss with rss scaling"),
-
 		OPTL_SET(0, "rss-norm", &(config.normalize_rss), "scale output image to rss normalization"),
 
 		OPTL_INFILE(0, "trajectory", &(data.filename_trajectory), "<traj>", "trajectory"),
@@ -164,11 +148,10 @@ int main_reconet(int argc, char* argv[])
 		OPTL_SET(0, "export", &(data.export), "export psf and adjoint reconstruction"),
 
 		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
-
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 		OPTL_SUBOPT(0, "valid-loss", "...", "configure the validation loss", N_val_loss_opts, val_loss_opts),
 
-		OPTL_FLOAT(0, "multi-loss", &(config.multi_loss), "f", "include loss of previous iterations weighted by f^(I-1)"),
+		OPTL_FLOAT(0, "multi-loss", &(config.multi_loss), "f", "(include loss of previous iterations weighted by f^(I-1))"),
 
 		OPTL_SUBOPT('T', "train-algo", "...", "configure general training parmeters", N_iter6_opts, iter6_opts),
 		OPTL_SUBOPT(0, "adam", "...", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
@@ -183,6 +166,26 @@ int main_reconet(int argc, char* argv[])
 		OPT_INFILE('B', &(data.filename_basis), "file", "temporal (or other) basis"),
 	};
 
+	const struct opt_s opts_net[] = {
+
+
+		OPTL_LONG('I', "iterations", &(config.Nt), "", "number of unrolled iterations"),
+		OPTL_SET('n', "normalize", &(config.normalize), "normalize data with maximum magnitude of adjoint reconstruction"),
+
+		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
+		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
+		OPTL_SUBOPT(0, "varnet-block", "...", "configure variational block", N_variational_block_opts, variational_block_opts),
+		OPTL_SUBOPT(0, "unet", "...", "configure U-Net block", N_unet_reco_opts, unet_reco_opts),
+
+		OPTL_SUBOPT(0, "data-consistency", "...", "configure data-consistency method", ARRAY_SIZE(dc_opts), dc_opts),
+		OPTL_SUBOPT(0, "initial-reco", "...", "configure initialization", ARRAY_SIZE(init_opts), init_opts),
+
+		OPTL_SELECT(0, "shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_TRUE, "share weights across iterations"),
+		OPTL_SELECT(0, "no-shared-weights", enum BOOL_SELECT, &(config.share_weights_select), BOOL_FALSE, "share weights across iterations"),
+		OPTL_SELECT(0, "shared-lambda", enum BOOL_SELECT, &(config.share_lambda_select), BOOL_TRUE, "share lambda across iterations"),
+		OPTL_SELECT(0, "no-shared-lambda", enum BOOL_SELECT, &(config.share_lambda_select), BOOL_FALSE, "share lambda across iterations"),
+	};
+
 	const char* filename_weights;
 
 	struct arg_s args[] = {
@@ -193,7 +196,28 @@ int main_reconet(int argc, char* argv[])
 		ARG_INOUTFILE(true, &(data.filename_out), "ref/out"),
 	};
 
+	struct opt_s opts[ARRAY_SIZE(opts_net) + ARRAY_SIZE(opts_trn)];
+
+	for (int i = 0; (unsigned int)i < ARRAY_SIZE(opts_trn); i++)
+		opts[i] = opts_trn[i];
+	for (int i = 0; (unsigned int)i < ARRAY_SIZE(opts_net); i++)
+		opts[i + ARRAY_SIZE(opts_trn)] = opts_net[i];
+
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
+
+	if (apply || eval) {
+
+		int nargs2 = 100;
+		char* args2[nargs2];
+		nargs2 = read_command(filename_weights, nargs2, args2);
+
+		int nargs3 = nargs2;
+
+		options_only(&nargs3, args2, ARRAY_SIZE(opts_net), opts_net, ARRAY_SIZE(opts_trn), opts_trn);
+
+		for (int i = 0; i < nargs2; i++)
+			xfree(args2[i]);
+	}
 
 	if (train)
 		config.train_conf = iter6_get_conf_from_opts();
