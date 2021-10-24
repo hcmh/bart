@@ -19,6 +19,7 @@
 #include "misc/utils.h"
 #include "misc/opts.h"
 #include "misc/debug.h"
+#include "misc/io.h"
 
 #include "noir/recon2.h"
 #include "noir/model_net.h"
@@ -115,7 +116,32 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SET(0, "unet", &(unet), "use U-Net (also sets train and data-consistency default values)"),
 	};
 
-	const struct opt_s opts[] = {
+	const struct opt_s opts_net[] = {
+
+		OPTL_SET(0, "fix-lambda", &(nlinvnet.fix_lambda), "fix lambda"),
+
+		OPTL_INT(0, "iter-net", &(nlinvnet.iter_net), "iter", "number of iterations with network"),
+		OPTL_INT(0, "iter-init", &(nlinvnet.iter_init), "iter", "number of iterations with half update"),
+
+		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
+		OPTL_CLEAR(0, "no-shared-weights", &(nlinvnet.share_weights), "don't share weights across iterations"),
+
+		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
+		//OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+		//OPTL_FLOAT(0, "sobolev-a", &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
+		//OPTL_FLOAT(0, "sobolev-b", &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
+		//OPTL_FLOAT(0, "alpha", &conf.alpha, "", "(start regularization)"),
+		//OPTL_FLOAT(0, "alpha-min", &conf.alpha_min, "", "(minimum for regularization)"),
+		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
+
+		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
+		OPTL_INT(0, "cgiter", &(conf.cgiter), "", "number of cg iterations"),
+
+		OPTL_ULONG(0, "const-coils", &cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
+		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
+	};
+
+	const struct opt_s opts_trn[] = {
 
 		OPTL_SET('t', "train", &train, "train nlinvnet"),
 		OPTL_SET('e', "eval", &eval, "evaluate nlinvnet"),
@@ -129,13 +155,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
 
 		OPTL_SET(0, "rss-norm", &(nlinvnet.normalize_rss), "scale output image to rss normalization"),
-		OPTL_SET(0, "fix-lambda", &(nlinvnet.fix_lambda), "fix lambda"),
 
-		OPTL_INT(0, "iter-net", &(nlinvnet.iter_net), "iter", "number of iterations with network"),
-		OPTL_INT(0, "iter-init", &(nlinvnet.iter_init), "iter", "number of iterations with half update"),
-
-		OPTL_SUBOPT(0, "resnet-block", "...", "configure residual block", N_res_block_opts, res_block_opts),
-		OPTL_CLEAR(0, "no-shared-weights", &(nlinvnet.share_weights), "don't share weights across iterations"),
 		OPTL_INFILE(0, "pattern", &pat_file, "<pattern>", "sampling pattern"),
 
 		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
@@ -143,30 +163,36 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SUBOPT('T', "train-algo", "...", "configure general training parmeters", N_iter6_opts, iter6_opts),
 		OPTL_SUBOPT(0, "adam", "...", "configure Adam", N_iter6_adam_opts, iter6_adam_opts),
 
-		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
-		//OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
-		//OPTL_FLOAT(0, "sobolev-a", &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
-		//OPTL_FLOAT(0, "sobolev-b", &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
-		//OPTL_FLOAT(0, "alpha", &conf.alpha, "", "(start regularization)"),
-		//OPTL_FLOAT(0, "alpha-min", &conf.alpha_min, "", "(minimum for regularization)"),
-		OPTL_FLOAT(0, "coil-os", &coil_os, "val", "(over-sampling factor for sensitivities)"),
-
-		OPTL_SUBOPT('N', "network", "...", "select neural network", ARRAY_SIZE(network_opts), network_opts),
-
 		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "<weights-init>", "load weights for continuing training"),
-
-		OPTL_INT(0, "cgiter", &(conf.cgiter), "", "number of cg iterations"),
 
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 
 		OPTL_FLOAT(0, "ss-ksp-split", &(nlinvnet.ksp_split), "p", "use p\% of kspace data as reference"),
 		OPTL_FLOAT(0, "ss-ksp-noise", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution."),
-
-		OPTL_ULONG(0, "const-coils", &cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
-		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
 	};
 
+	struct opt_s opts[ARRAY_SIZE(opts_net) + ARRAY_SIZE(opts_trn)];
+
+	for (int i = 0; (unsigned int)i < ARRAY_SIZE(opts_trn); i++)
+		opts[i] = opts_trn[i];
+	for (int i = 0; (unsigned int)i < ARRAY_SIZE(opts_net); i++)
+		opts[i + ARRAY_SIZE(opts_trn)] = opts_net[i];
+
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
+
+	if (apply || eval) {
+
+		int nargs2 = 100;
+		char* args2[nargs2];
+		nargs2 = read_command(weight_file, nargs2, args2);
+
+		int nargs3 = nargs2;
+
+		options_only(&nargs3, args2, ARRAY_SIZE(opts_net), opts_net, ARRAY_SIZE(opts_trn), opts_trn);
+
+		for (int i = 0; i < nargs2; i++)
+			xfree(args2[i]);
+	}
 
 	(nlinvnet.gpu ? num_init_gpu_memopt : num_init)();
 	#ifdef USE_CUDA
