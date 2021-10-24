@@ -20,6 +20,8 @@ extern int read_coo(int fd, int n, long dimensions[__VLA(n)]);
 extern int write_cfl_header(int fd, int n, const long dimensions[__VLA(n)]);
 extern int read_cfl_header(int fd, int D, long dimensions[__VLA(D)]);
 
+extern int read_command(const char* file_name, int n, char* argv[__VLA(n)]);
+
 extern int write_multi_cfl_header(int fd, long num_ele, int D, int n[D], const long* dimensions[D]);
 extern int read_multi_cfl_header(int fd, int D_max, int n_max, int n[D_max], long dimensions[D_max][n_max]);
 

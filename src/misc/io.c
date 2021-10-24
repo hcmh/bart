@@ -393,6 +393,92 @@ out:
 	return ok ? 0 : -1;
 }
 
+int read_command(const char* file_name, int n, char* argv[n])
+{
+	char name_hdr[strlen(file_name) + 5];
+	sprintf(name_hdr, "%s.hdr", file_name);
+
+	int ofd;
+	if (-1 == (ofd = open(name_hdr, O_RDONLY)))
+		error("Loading header file %s\n", name_hdr);
+
+	char header[4097];
+	memset(header, 0, 4097);
+
+	int max;
+	if (0 > (max = read(ofd, header, 4096))) {
+
+		debug_printf(DP_WARN, "Header file %s too long\n", name_hdr);
+		return 0;
+	}
+
+	int pos = 0;
+	int delta = 0;
+
+	int argc = 0;
+
+	while (true) {
+
+		// skip lines not starting with '#'
+
+		while ('#' != header[pos]) {
+
+			if ('\0' == header[pos])
+				goto out;
+
+			if (0 != sscanf(header + pos, "%*[^\n]\n%n", &delta))
+				return -1;
+
+			if (0 == delta)
+				goto out;
+
+			pos += delta;
+		}
+
+		char keyword[32];
+
+		if (1 == sscanf(header + pos, "# %31s\n%n", keyword, &delta)) {
+
+			pos += delta;
+
+			if (0 == strcmp(keyword, "Command")) {
+
+				size_t length = strcspn(header + pos, "\n");
+				char* command = strndup(header + pos, length);
+				pos += length;
+
+				const char* ptr = strtok(command, " ");
+				while (NULL != ptr) {
+
+					assert(argc < n);
+					argv[argc++] = strdup(ptr);
+					ptr = strtok(NULL, " ");
+				}
+
+				free(command);
+			}
+
+		} else {
+
+			// skip this line
+
+			if (0 != sscanf(header + pos, "%*[^\n]\n%n", &delta))
+				return -1;
+
+			if (0 == delta)
+				goto out;
+
+			pos += delta;
+		}
+	}
+
+out:
+	if (-1 == close(ofd))
+		error("Loading header file %s\n", name_hdr);
+
+	return argc;
+}
+
 /**
  * Writes a header for multiple md_arrays in one cfl file
  *
