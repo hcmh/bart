@@ -791,7 +791,10 @@ nn_t network_unet_create(const struct network_s* _unet, unsigned int NO, const l
 
 	if (unet->INTERFACE.residual) {
 
-		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_zaxpbz_create(N, idims, 1., -1.)), 1, NULL);
+		auto nlop_sum = nlop_zaxpbz_create(N, odims, 1., -1.);
+		nlop_sum = nlop_chain2_FF(nlop_from_linop_F(linop_expand_create(N, odims, idims)), 0, nlop_sum, 0);
+
+		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_sum), 0, NULL);
 		result = nn_dup_F(result, 0, NULL, 1, NULL);
 	}
 
