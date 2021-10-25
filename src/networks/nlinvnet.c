@@ -112,6 +112,9 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.ksp_split = -1.,
 	.ksp_noise = 0.,
 
+	.l1_norm = 0,
+	.l2_norm = 0,
+
 	.ref = false,
 
 	.graph_file = NULL,
@@ -593,6 +596,20 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 
 		result = nn_chain2_FF(result, 0, "img", nn_cim, 0, NULL);
 		result = nn_link_F(result, 0, "col", 0, NULL);
+
+		if (0 != nlinvnet->l2_norm) {
+			auto l2_norm = nn_from_nlop_F(nlop_chain_FF(nlop_znorm_create(N, cim_dims2, ~0), nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), nlinvnet->l2_norm))));
+			l2_norm = nn_set_output_name_F(l2_norm, 0, "l2_norm");
+			l2_norm = nn_set_out_type_F(l2_norm, 0, "l2_norm", OUT_OPTIMIZE);
+			result = nn_chain2_keep_FF(result, 0, "cim", l2_norm, 0, NULL);
+		}
+
+		if (0 != nlinvnet->l1_norm) {
+			auto l1_norm = nn_from_nlop_F(nlop_chain_FF(nlop_z1norm_create(N, cim_dims2, ~0), nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), nlinvnet->l1_norm))));
+			l1_norm = nn_set_output_name_F(l1_norm, 0, "l1_norm");
+			l1_norm = nn_set_out_type_F(l1_norm, 0, "l1_norm", OUT_OPTIMIZE);
+			result = nn_chain2_keep_FF(result, 0, "cim", l1_norm, 0, NULL);
+		}
 	}
 
 	if (NLINVNET_OUT_KSP == out_type) {
@@ -683,6 +700,11 @@ static nn_t nlinvnet_valid_create(const struct nlinvnet_s* nlinvnet, int N, cons
 	auto result = nlinvnet_create(nlinvnet, 1, &(((struct nlinvnet_s*)nlinvnet)->model_valid), STAT_TEST, NLINVNET_OUT_CIM);
 	result = nn_del_out_bn_F(result);
 
+	if (nn_is_name_in_out_args(result, "l1_norm"))
+		result = nn_del_out_F(result, 0, "l1_norm");
+	if (nn_is_name_in_out_args(result, "l2_norm"))
+		result = nn_del_out_F(result, 0, "l2_norm");
+
 	for (int i = 1; i < Nb; i++) {
 
 		auto tmp = nlinvnet_create(nlinvnet, 1, &(((struct nlinvnet_s*)nlinvnet)->model_valid), STAT_TEST, NLINVNET_OUT_CIM);
@@ -741,6 +763,12 @@ static nn_t nlinvnet_valid_create(const struct nlinvnet_s* nlinvnet, int N, cons
 static nn_t nlinvnet_apply_op_create(const struct nlinvnet_s* nlinvnet, enum nlinvnet_out out_type, int Nb)
 {
 	auto nn_apply = nlinvnet_create(nlinvnet, Nb, nlinvnet->models, STAT_TEST, out_type);
+
+	if (nn_is_name_in_out_args(nn_apply, "l1_norm"))
+		nn_apply = nn_del_out_F(nn_apply, 0, "l1_norm");
+	if (nn_is_name_in_out_args(nn_apply, "l2_norm"))
+		nn_apply = nn_del_out_F(nn_apply, 0, "l2_norm");
+
 	return nn_get_wo_weights_F(nn_apply, nlinvnet->weights, false);
 }
 

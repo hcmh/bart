@@ -170,6 +170,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		OPTL_FLOAT(0, "ss-ksp-split", &(nlinvnet.ksp_split), "p", "use p\% of kspace data as reference"),
 		OPTL_FLOAT(0, "ss-ksp-noise", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution."),
+		OPTL_FLOAT(0, "ss-l1-norm", &(nlinvnet.l1_norm), "", "Add l1 norm of coil image to loss"),
+		OPTL_FLOAT(0, "ss-l2-norm", &(nlinvnet.l2_norm), "", "Add l2 norm of coil image to loss"),
 	};
 
 	struct opt_s opts[ARRAY_SIZE(opts_net) + ARRAY_SIZE(opts_trn)];

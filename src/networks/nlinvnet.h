@@ -39,6 +39,9 @@ struct nlinvnet_s {
 
 	float scaling;
 
+	float l1_norm;
+	float l2_norm;
+
 	_Bool ref;
 
 	const char* graph_file;
