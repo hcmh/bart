@@ -621,6 +621,8 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 	result = nn_set_input_name_F(result, 0, "trj");
 	result = nn_stack_dup_by_name_F(result);
 
+	result = nlinvnet_sort_args_F(result);
+
 	return result;
 }
 
