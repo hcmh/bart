@@ -985,9 +985,13 @@ void apply_nlinvnet(struct nlinvnet_s* nlinvnet, int N,
 
 	if (nlinvnet->normalize_rss) {
 
-		complex float* tmp = md_alloc_sameplace(N, img_dims, CFL_SIZE, img);
+
+		long col_dims2[N];
+		md_select_dims(N, ~COIL_FLAG, col_dims2, col_dims);
+		complex float* tmp = md_alloc_sameplace(N, col_dims2, CFL_SIZE, img);
 		md_zrss(N, col_dims, COIL_FLAG, tmp, col);
-		md_zmul2(N, img_dims, MD_STRIDES(N, img_dims, CFL_SIZE), img, MD_STRIDES(N, img_dims, CFL_SIZE), img, MD_STRIDES(N, col_dims, CFL_SIZE), tmp);
+
+		md_zmul2(N, img_dims, MD_STRIDES(N, img_dims, CFL_SIZE), img, MD_STRIDES(N, img_dims, CFL_SIZE), img, MD_STRIDES(N, col_dims2, CFL_SIZE), tmp);
 		md_free(tmp);
 	}
 }
