@@ -946,6 +946,8 @@ void apply_nlinvnet(struct nlinvnet_s* nlinvnet, int N,
 	complex float* dst[2] = { img, col };
 	const complex float* src[5] = { ksp, pat, trj, ref_img, ref_col };
 
+	nn_debug(DP_INFO, nn_apply);
+
 	nlop_generic_apply_loop_sameplace(nn_get_nlop(nn_apply), BATCH_FLAG, 2, DO, odims, dst, 5, DI, idims, src, nlinvnet->weights->tensors[0]);
 
 	nn_free(nn_apply);
@@ -957,7 +959,7 @@ void apply_nlinvnet(struct nlinvnet_s* nlinvnet, int N,
 
 		complex float* tmp = md_alloc_sameplace(N, img_dims, CFL_SIZE, img);
 		md_zrss(N, col_dims, COIL_FLAG, tmp, col);
-		md_zmul(N, img_dims, img, img, tmp);
+		md_zmul2(N, img_dims, MD_STRIDES(N, img_dims, CFL_SIZE), img, MD_STRIDES(N, img_dims, CFL_SIZE), img, MD_STRIDES(N, col_dims, CFL_SIZE), tmp);
 		md_free(tmp);
 	}
 }

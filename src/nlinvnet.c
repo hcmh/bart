@@ -460,7 +460,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 				ref_col_dims, ref_col);
 
 		unmap_cfl(DIMS, img_dims, img);
-		unmap_cfl(DIMS, dims, col);
+		unmap_cfl(DIMS, sens_dims, col);
 	}
 
 	if (eval) {
