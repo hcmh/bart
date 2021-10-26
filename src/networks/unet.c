@@ -803,5 +803,18 @@ nn_t network_unet_create(const struct network_s* _unet, unsigned int NO, const l
 	debug_printf(DP_DEBUG1, "U-Net created:\n");
 	nn_debug(DP_DEBUG1, result);
 
+
+	if (unet->INTERFACE.debug) {
+		static int counter = 0;
+		const char* i_name_debug = ptr_printf("unet_%d_in", counter);
+		const char* o_name_debug = ptr_printf("unet_%d_out", counter++);
+
+		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_dump_create(N, odims, o_name_debug, true, true, true)), 0, NULL);
+		result = nn_chain2_swap_FF(nn_from_nlop_F(nlop_dump_create(N, idims, i_name_debug, true, true, true)), 0, NULL, result, 0, NULL);
+
+		xfree(i_name_debug);
+		xfree(o_name_debug);
+	}
+
 	return result;
 }
