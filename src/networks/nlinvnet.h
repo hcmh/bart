@@ -36,6 +36,7 @@ struct nlinvnet_s {
 	_Bool ksp_training;
 	float ksp_split;
 	float ksp_noise;
+	unsigned long ksp_shared_dims;
 
 	float scaling;
 

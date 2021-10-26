@@ -169,6 +169,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
 
 		OPTL_FLOAT(0, "ss-ksp-split", &(nlinvnet.ksp_split), "p", "use p\% of kspace data as reference"),
+		OPTL_ULONG(0, "ss-ksp-split-shared", &(nlinvnet.ksp_shared_dims), "flags", "shared dims for mask"),
 		OPTL_FLOAT(0, "ss-ksp-noise", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution."),
 		OPTL_FLOAT(0, "ss-l1-norm", &(nlinvnet.l1_norm), "", "Add l1 norm of coil image to loss"),
 		OPTL_FLOAT(0, "ss-l2-norm", &(nlinvnet.l2_norm), "", "Add l2 norm of coil image to loss"),

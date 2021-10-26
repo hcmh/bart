@@ -108,9 +108,10 @@ struct nlinvnet_s nlinvnet_config_opts = {
 
 	.fix_lambda = false,
 
-	.ksp_training = true,
+	.ksp_training = false,
 	.ksp_split = -1.,
 	.ksp_noise = 0.,
+	.ksp_shared_dims = 0.,
 
 	.l1_norm = 0,
 	.l2_norm = 0,
@@ -670,7 +671,7 @@ static nn_t nlinvnet_train_loss_create(const struct nlinvnet_s* nlinvnet)
 
 		if (-1. != nlinvnet->ksp_split) {
 
-			auto split_op = nn_from_nlop_F(nlop_rand_split_create(N, pat_dims, 0, nlinvnet->ksp_split));
+			auto split_op = nn_from_nlop_F(nlop_rand_split_create(N, pat_dims, nlinvnet->ksp_shared_dims, nlinvnet->ksp_split));
 			split_op = nn_set_output_name_F(split_op, 0, "pat_trn");
 			split_op = nn_set_output_name_F(split_op, 0, "pat_ref");
 
