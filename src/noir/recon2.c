@@ -99,7 +99,7 @@ const struct noir2_conf_s noir2_defaults = {
 	.sms = false,
 	.sos = false,
 	.enlive_flags = 0,
-	.scaling = -1,
+	.scaling = -100.,
 	.undo_scaling = false,
 
 	.loop_flags = 0,
@@ -412,9 +412,9 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 #endif
 
 	float scaling = conf->scaling;
-	if (-1 == scaling) {
+	if (0. > scaling) {
 
-		scaling = 100. / md_znorm(N, cim_dims, data);
+		scaling = -scaling / md_znorm(N, cim_dims, data);
 		if (conf->sms || conf->sos)
 			scaling *= sqrt(cim_dims[SLICE_DIM]);
 	}
