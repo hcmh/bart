@@ -568,65 +568,71 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 
 	result = nn_chain2_FF(nn_scale, 0, "y", result, 0, "y");
 
+	switch (out_type) {
 
-	if (   (NLINVNET_OUT_IMG_COL == out_type)
-	    || (NLINVNET_OUT_CIM == out_type)
-	    || (NLINVNET_OUT_KSP == out_type) ) {
+		case NLINVNET_OUT_KSP:
+		case NLINVNET_OUT_CIM: {
 
-		auto nlop_img = noir_decomp_batch_create(Nb, models);
-		auto nn_img = nn_from_nlop_F(nlop_img);
-		nn_img = nn_set_output_name_F(nn_img, 0, "img_us");
-		nn_img = nn_set_output_name_F(nn_img, 0, "col");
-		result = nn_chain2_swap_FF(result, 0, NULL, nn_img, 0, NULL);
+			auto nn_cim = nn_from_nlop_F(noir_cim_batch_create(Nb, models));
+			nn_cim = nn_set_output_name_F(nn_cim, 0, "cim_us");
+			result = nn_chain2_swap_FF(result, 0, NULL, nn_cim, 0, NULL);
 
-		auto nn_rescale = nn_from_nlop_F(nlop_tenmul_create(N, img_dims2, img_dims2, sdims));
-		nn_rescale = nn_set_output_name_F(nn_rescale, 0, "img");
-		nn_rescale = nn_set_input_name_F(nn_rescale, 1, "scale");
+			auto nn_scale = nn_from_nlop_F(nlop_tenmul_create(N, cim_dims2, cim_dims2, sdims));
+			nn_scale = nn_set_output_name_F(nn_scale, 0, "cim");
+			nn_scale = nn_set_input_name_F(nn_scale, 1, "scale");
 
-		result = nn_chain2_FF(result, 0, "img_us", nn_rescale, 0, NULL);
-		result = nn_link_F(result, 0, "scale", 0, "scale");
-	}
+			result = nn_chain2_FF(result, 0, "cim_us", nn_scale, 0, NULL);
+			result = nn_link_F(result, 0, "scale", 0, "scale");
 
-	if (   (NLINVNET_OUT_CIM == out_type)
-	    || (NLINVNET_OUT_KSP == out_type) ) {
+			if (0 != nlinvnet->l2_norm) {
+				auto l2_norm = nn_from_nlop_F(nlop_chain_FF(nlop_znorm_create(N, cim_dims2, ~0), nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), nlinvnet->l2_norm))));
+				l2_norm = nn_set_output_name_F(l2_norm, 0, "l2_norm");
+				l2_norm = nn_set_out_type_F(l2_norm, 0, "l2_norm", OUT_OPTIMIZE);
+				result = nn_chain2_keep_FF(result, 0, "cim", l2_norm, 0, NULL);
+			}
 
-		auto nn_cim = nn_from_nlop_F(nlop_tenmul_create(N, cim_dims2,
-								nn_generic_codomain(result, 0, "img")->dims,
-								nn_generic_codomain(result, 0, "col")->dims));
-		nn_cim = nn_set_output_name_F(nn_cim, 0, "cim");
+			if (0 != nlinvnet->l1_norm) {
+				auto l1_norm = nn_from_nlop_F(nlop_chain_FF(nlop_z1norm_create(N, cim_dims2, ~0), nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), nlinvnet->l1_norm))));
+				l1_norm = nn_set_output_name_F(l1_norm, 0, "l1_norm");
+				l1_norm = nn_set_out_type_F(l1_norm, 0, "l1_norm", OUT_OPTIMIZE);
+				result = nn_chain2_keep_FF(result, 0, "cim", l1_norm, 0, NULL);
+			}
 
-		result = nn_chain2_FF(result, 0, "img", nn_cim, 0, NULL);
-		result = nn_link_F(result, 0, "col", 0, NULL);
+			if (NLINVNET_OUT_KSP == out_type) {
 
-		if (0 != nlinvnet->l2_norm) {
-			auto l2_norm = nn_from_nlop_F(nlop_chain_FF(nlop_znorm_create(N, cim_dims2, ~0), nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), nlinvnet->l2_norm))));
-			l2_norm = nn_set_output_name_F(l2_norm, 0, "l2_norm");
-			l2_norm = nn_set_out_type_F(l2_norm, 0, "l2_norm", OUT_OPTIMIZE);
-			result = nn_chain2_keep_FF(result, 0, "cim", l2_norm, 0, NULL);
+				nn_t fft_op = NULL;
+
+				if (nlinvnet->conf->noncart)
+					fft_op = nn_from_nlop_F(noir_nufft_batch_create(Nb, models));
+				else
+				 	fft_op = nn_from_nlop_F(nlop_combine_FF(noir_fft_batch_create(Nb, models), nlop_del_out_create(N, MD_SINGLETON_DIMS(N))));
+
+
+				fft_op = nn_set_output_name_F(fft_op, 0, "ksp");
+				fft_op = nn_set_input_name_F(fft_op, 1, "trj");
+				fft_op = nn_mark_dup_F(fft_op, "trj");
+				result = nn_chain2_FF(result, 0, "cim", fft_op, 0, NULL);
+			}
+		}
+		break;
+
+		case NLINVNET_OUT_IMG_COL: {
+
+			auto nlop_img = noir_decomp_batch_create(Nb, models);
+			auto nn_img = nn_from_nlop_F(nlop_img);
+			nn_img = nn_set_output_name_F(nn_img, 0, "img_us");
+			nn_img = nn_set_output_name_F(nn_img, 0, "col");
+			result = nn_chain2_swap_FF(result, 0, NULL, nn_img, 0, NULL);
+
+			auto nn_scale = nn_from_nlop_F(nlop_tenmul_create(N, img_dims2, img_dims2, sdims));
+			nn_scale = nn_set_output_name_F(nn_scale, 0, "img");
+			nn_scale = nn_set_input_name_F(nn_scale, 1, "scale");
+
+			result = nn_chain2_FF(result, 0, "img_us", nn_scale, 0, NULL);
+			result = nn_link_F(result, 0, "scale", 0, "scale");
 		}
 
-		if (0 != nlinvnet->l1_norm) {
-			auto l1_norm = nn_from_nlop_F(nlop_chain_FF(nlop_z1norm_create(N, cim_dims2, ~0), nlop_from_linop_F(linop_scale_create(1, MD_DIMS(1), nlinvnet->l1_norm))));
-			l1_norm = nn_set_output_name_F(l1_norm, 0, "l1_norm");
-			l1_norm = nn_set_out_type_F(l1_norm, 0, "l1_norm", OUT_OPTIMIZE);
-			result = nn_chain2_keep_FF(result, 0, "cim", l1_norm, 0, NULL);
-		}
-	}
-
-	if (NLINVNET_OUT_KSP == out_type) {
-
-		nn_t fft_op = NULL;
-
-		if (nlinvnet->conf->noncart)
-			fft_op = nn_from_nlop_F(noir_nufft_batch_create(Nb, models));
-		else
-		 	fft_op = nn_from_nlop_F(nlop_combine_FF(noir_fft_batch_create(Nb, models), nlop_del_out_create(N, MD_SINGLETON_DIMS(N))));
-
-
-		fft_op = nn_set_output_name_F(fft_op, 0, "ksp");
-		fft_op = nn_set_input_name_F(fft_op, 1, "trj");
-		fft_op = nn_mark_dup_F(fft_op, "trj");
-		result = nn_chain2_FF(result, 0, "cim", fft_op, 0, NULL);
+		break;
 	}
 
 	if (nlinvnet->conf->noncart)
