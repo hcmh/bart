@@ -414,6 +414,11 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, str
 
 		for (int i = 0; i < N_in_names_gn + N_in_names_net; i++)
 			xfree(in_names[i]);
+	} else {
+
+		complex float zero = 0;
+		if (!nlinvnet->ref)
+			result = nn_set_input_const_F2(result, 0, "x_0", 2, reg_dims, MD_SINGLETON_STRS(2), true, &zero);
 	}
 
 	return result;
@@ -498,21 +503,34 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 
 	auto result = nlinvnet_get_iterations(nlinvnet, Nb, models, status);
 
-	nn_t join = nn_from_nlop_F(noir_join_batch_create(Nb, models));
-	join = nn_set_input_name_F(join, 0, "ref_img");
-	join = nn_set_input_name_F(join, 0, "ref_col");
-
 	if (nlinvnet->ref) {
+
+		nn_t join = nn_from_nlop_F(noir_join_batch_create(Nb, models));
+		join = nn_set_input_name_F(join, 0, "ref_img");
+		join = nn_set_input_name_F(join, 0, "ref_col");
 
 		join = nn_mark_dup_F(join, "ref_img");
 		join = nn_mark_dup_F(join, "ref_col");
+
+		result = nn_chain2_FF(join, 0, NULL, result, 0, "x_0");
+		result = nn_stack_dup_by_name_F(result);
+
+		result = nn_set_in_type_F(result, 0, "ref_img", IN_BATCH_GENERATOR);
+		result = nn_set_in_type_F(result, 0, "ref_col", IN_BATCH_GENERATOR);
+	} else {
+
+		nn_t join = nn_from_nlop_F(
+				nlop_combine_FF(
+					nlop_del_out_create(models[0]->N, models[0]->img_dims),
+					nlop_del_out_create(models[0]->N, models[0]->col_dims)));
+		join = nn_set_input_name_F(join, 0, "ref_img");
+		join = nn_set_input_name_F(join, 0, "ref_col");
+
+		result = nn_combine_FF(result, join);
+
+		result = nn_set_in_type_F(result, 0, "ref_img", IN_STATIC);
+		result = nn_set_in_type_F(result, 0, "ref_col", IN_STATIC);
 	}
-
-	result = nn_chain2_FF(join, 0, NULL, result, 0, "x_0");
-	result = nn_stack_dup_by_name_F(result);
-
-	result = nn_set_in_type_F(result, 0, "ref_img", IN_BATCH_GENERATOR);
-	result = nn_set_in_type_F(result, 0, "ref_col", IN_BATCH_GENERATOR);
 
 	int N = noir_model_get_N(models[0]);
 	assert(N == DIMS);
@@ -802,21 +820,20 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 	md_copy_dims(N, ref_dims_bat, ref_dims_trn);
 	md_copy_dims(N, pat_dims_bat, pat_dims_trn);
 	md_copy_dims(N, trj_dims_bat, trj_dims_trn ? trj_dims_trn : MD_SINGLETON_DIMS(N));
+	md_copy_dims(N, ref_img_dims_bat, ref_img_dims_trn);
+	md_copy_dims(N, ref_col_dims_bat, ref_col_dims_trn);
 	ksp_dims_bat[BATCH_DIM] = Nb;
 	ref_dims_bat[BATCH_DIM] = Nb;
 	pat_dims_bat[BATCH_DIM] = Nb;
 	trj_dims_bat[BATCH_DIM] = Nb;
+	ref_img_dims_bat[BATCH_DIM] = Nb;
+	ref_col_dims_bat[BATCH_DIM] = Nb;
 
 	auto nn_train = nlinvnet_train_loss_create(nlinvnet);
 	md_copy_dims(N, ref_img_dims_bat, nn_generic_domain(nn_train, 0, "ref_img")->dims);
 	md_copy_dims(N, ref_col_dims_bat, nn_generic_domain(nn_train, 0, "ref_col")->dims);
 
-	const complex float* ref_img2 = ref_img_trn ? NULL : md_calloc(N, ref_img_dims_trn, CFL_SIZE);
-	const complex float* ref_col2 = ref_col_trn ? NULL : md_calloc(N, ref_col_dims_trn, CFL_SIZE);
-
-	ref_img_trn = ref_img_trn ? ref_img_trn :ref_img2;
-	ref_col_trn = ref_col_trn ? ref_col_trn :ref_col2;
-
+	nn_export_graph("tmp.dot", nn_train);
 
 	if (nn_is_name_in_in_args(nn_train, "lambda")) {
 
@@ -854,7 +871,7 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 	const complex float* train_data[] = {ref_trn, ksp_trn, pat_trn, trj_trn ? trj_trn : &one, ref_img_trn, ref_col_trn};
 	const long* bat_dims[] = { ref_dims_bat, ksp_dims_bat, pat_dims_bat, trj_dims_bat, ref_img_dims_bat, ref_col_dims_bat };
 	const long* tot_dims[] = { ref_dims_trn, ksp_dims_trn, pat_dims_trn, trj_dims_trn, ref_img_dims_trn, ref_col_dims_trn };
-	batch_generator = batch_gen_create_from_iter(nlinvnet->train_conf, N_batch_inputs, (const int[6]){ N, N, N, N, N, N }, bat_dims, tot_dims, train_data, 0);
+	batch_generator = batch_gen_create_from_iter(nlinvnet->train_conf, nlinvnet->ref ? 6 : 4, (const int[6]){ N, N, N, N, N, N }, bat_dims, tot_dims, train_data, 0);
 	if (0 != nlinvnet->ksp_noise)
 		batch_generator = nlop_append_FF(batch_generator, 1, nlop_add_noise_create(N, ksp_dims_bat, nlinvnet->ksp_noise, 0, ~BATCH_FLAG));
 
@@ -880,7 +897,7 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 	nn_get_in_types(nn_train, NI, in_type);
 	nn_get_out_types(nn_train, NO, out_type);
 
-	for (int i = 0; i < N_batch_inputs; i++) {
+	for (int i = 0; i < (nlinvnet->ref ? 6 : 4); i++) {
 
 		src[i] = NULL;
 		in_type[i] = IN_BATCH_GENERATOR;
@@ -936,9 +953,6 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 
 	nn_free(nn_train);
 	nlop_free(batch_generator);
-
-	md_free(ref_img2);
-	md_free(ref_col2);
 
 	monitor_iter6_free(monitor);
 }
