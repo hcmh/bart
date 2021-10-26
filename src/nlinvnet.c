@@ -73,6 +73,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 	const char* ref_col_file = NULL;
 
 	struct noir2_conf_s conf = noir2_defaults;
+	conf.cgiter = 30;
+
 	conf.nufft_conf = &nufft_conf_defaults;
 	struct nlinvnet_s nlinvnet = nlinvnet_config_opts;
 	nlinvnet.conf = &conf;
