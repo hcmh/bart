@@ -413,6 +413,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 		else
 			assert(md_check_equal_dims(DIMS, cim_dims, out_dims, ~0));
 
+		if ((-1. != nlinvnet.ksp_split) && (NULL != ref_img))
+			md_zsmul(DIMS, ref_img_dims, ref_img, ref_img, 1. / nlinvnet.ksp_split);
+
 		train_nlinvnet(&nlinvnet, DIMS, Nb,
 			out_dims, ref,
 			ksp_dims, kspace,
