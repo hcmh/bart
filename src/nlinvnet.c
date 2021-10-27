@@ -142,6 +142,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		OPTL_ULONG(0, "const-coils", &cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
 		OPTL_VEC3(0, "dims", &im_vec, "x:y:z", "image dimensions"),
+
+		OPTL_SET(0, "ref-net-only", &(nlinvnet.ksp_ref_net_only), "(Use reference only in network)"),
 	};
 
 	const struct opt_s opts_trn[] = {

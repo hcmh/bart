@@ -19,6 +19,7 @@ extern const struct nlop_s* noir_join_batch_create(int Nb, struct noir2_s* model
 extern const struct nlop_s* noir_cim_batch_create(int Nb, struct noir2_s* model[Nb]);
 extern const struct nlop_s* noir_extract_img_batch_create(int Nb, struct noir2_s* model[Nb]);
 extern const struct nlop_s* noir_set_img_batch_create(int Nb, struct noir2_s* model[Nb]);
+extern const struct nlop_s* noir_set_col_batch_create(int Nb, struct noir2_s* model[Nb]);
 
 extern const struct nlop_s* noir_gauss_newton_step_batch_create(int Nb, struct noir2_s* model[Nb], const struct iter_conjgrad_conf* iter_conf, float update, _Bool fix_coils);
 

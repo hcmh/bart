@@ -470,6 +470,14 @@ const struct nlop_s* noir_set_img_batch_create(int Nb, struct noir2_s* model[Nb]
 	return nlop_set_input_const_F2(result, 1, dom->N, dom->dims, MD_SINGLETON_STRS(dom->N), true, &zero);
 }
 
+const struct nlop_s* noir_set_col_batch_create(int Nb, struct noir2_s* model[Nb])
+{
+	auto result = noir_join_batch_create(Nb, model);
+	auto dom = nlop_generic_domain(result, 0);
+	complex float zero = 0;
+	return nlop_set_input_const_F2(result, 0, dom->N, dom->dims, MD_SINGLETON_STRS(dom->N), true, &zero);
+}
+
 
 struct noir_adjoint_fft_s {
 

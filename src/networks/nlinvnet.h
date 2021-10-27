@@ -37,6 +37,7 @@ struct nlinvnet_s {
 	float ksp_split;
 	float ksp_noise;
 	unsigned long ksp_shared_dims;
+	_Bool ksp_ref_net_only;
 
 	float scaling;
 

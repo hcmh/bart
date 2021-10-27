@@ -112,6 +112,7 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.ksp_split = -1.,
 	.ksp_noise = 0.,
 	.ksp_shared_dims = 0.,
+	.ksp_ref_net_only = false,
 
 	.l1_norm = 0,
 	.l2_norm = 0,
@@ -337,10 +338,11 @@ static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb,
 
 	nn_t join = NULL;
 
-	if (nlinvnet->ref) {
+	if (nlinvnet->ref && !(nlinvnet->ksp_ref_net_only)) {
 
 		join = nn_from_nlop_F(noir_join_batch_create(Nb, models));
 		join = nn_set_input_name_F(join, 1, "ref_col");
+		join = nn_set_in_type_F(join, 0, "ref_col", IN_BATCH_GENERATOR);
 
 	} else {
 		join = nn_from_nlop_F(noir_set_img_batch_create(Nb, models));
@@ -505,18 +507,29 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 
 	if (nlinvnet->ref) {
 
-		nn_t join = nn_from_nlop_F(noir_join_batch_create(Nb, models));
-		join = nn_set_input_name_F(join, 0, "ref_img");
-		join = nn_set_input_name_F(join, 0, "ref_col");
+		if (nlinvnet->ksp_ref_net_only) {
 
-		join = nn_mark_dup_F(join, "ref_img");
-		join = nn_mark_dup_F(join, "ref_col");
+			nn_t join = nn_from_nlop_F(noir_set_col_batch_create(Nb, models));
+			join = nn_set_input_name_F(join, 0, "ref_col");
+			join = nn_set_in_type_F(join, 0, "ref_col", IN_BATCH_GENERATOR);
 
-		result = nn_chain2_FF(join, 0, NULL, result, 0, "x_0");
-		result = nn_stack_dup_by_name_F(result);
+			result = nn_chain2_FF(join, 0, NULL, result, 0, "x_0");
 
-		result = nn_set_in_type_F(result, 0, "ref_img", IN_BATCH_GENERATOR);
-		result = nn_set_in_type_F(result, 0, "ref_col", IN_BATCH_GENERATOR);
+		} else {
+
+			nn_t join = nn_from_nlop_F(noir_join_batch_create(Nb, models));
+			join = nn_set_input_name_F(join, 0, "ref_img");
+			join = nn_set_input_name_F(join, 0, "ref_col");
+
+			join = nn_mark_dup_F(join, "ref_img");
+			join = nn_mark_dup_F(join, "ref_col");
+
+			result = nn_chain2_FF(join, 0, NULL, result, 0, "x_0");
+			result = nn_stack_dup_by_name_F(result);
+
+			result = nn_set_in_type_F(result, 0, "ref_img", IN_BATCH_GENERATOR);
+			result = nn_set_in_type_F(result, 0, "ref_col", IN_BATCH_GENERATOR);
+		}
 	} else {
 
 		nn_t join = nn_from_nlop_F(
