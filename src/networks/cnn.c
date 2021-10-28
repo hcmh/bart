@@ -114,6 +114,9 @@ struct network_resnet_s network_resnet_default = {
 	.activation = ACT_RELU,
 	.last_activation = ACT_LIN,
 
+	.Nb = 1,
+	.residual_scaling = 1.,
+
 	.zero_init = false,
 };
 
@@ -163,17 +166,16 @@ static void network_resnet_get_kdims(const struct network_resnet_s* config, unsi
  * INDEX_0:	odims
  * batchnorm
  */
-static nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
+static nn_t network_resnet_block_create(const struct network_resnet_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status, const char* prefix)
 {
 	int Nw = ARRAY_SIZE(resnet_sorted_weight_names);
 	const char* wnames[Nw];
 	for (int i = 0; i < Nw; i++)
-		wnames[i] = (NULL == _config->prefix) ? ptr_printf("%s", resnet_sorted_weight_names[i]) : ptr_printf("%s_%s", _config->prefix, resnet_sorted_weight_names[i]);
+		wnames[i] = (NULL == prefix) ? ptr_printf("%s", resnet_sorted_weight_names[i]) : ptr_printf("%s_%s", prefix, resnet_sorted_weight_names[i]);
 
 	assert(NO == NI);
 	unsigned int N = NO;
 
-	auto config = CAST_DOWN(network_resnet_s, _config);
 	assert(config->N == N);
 
 	long kdims[N];
@@ -293,19 +295,20 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 	const char* o_name_debug = ptr_printf("resblock_%d_out", counter);
 	const char* r_name_debug = ptr_printf("resblock_%d_res", counter++);
 
-	if (_config->debug)
+	if (config->INTERFACE.debug)
 		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_dump_create(N, odims, r_name_debug, true, true, true)), 0, NULL);
 
 	if (config->INTERFACE.residual) {
 
-		auto nlop_sum = nlop_zaxpbz_create(N, odims, 1, 1);
-		nlop_sum = nlop_chain2_FF(nlop_from_linop_F(linop_expand_create(N, odims, idims)), 0, nlop_sum, 1);
+		auto nlop_sum = nlop_zaxpbz_create(N, odims, config->residual_scaling, 1);
+		if (!md_check_equal_dims(N, odims, idims, ~0))
+			nlop_sum = nlop_chain2_FF(nlop_from_linop_F(linop_expand_create(N, odims, idims)), 0, nlop_sum, 1);
 
 		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_sum), 0, NULL);
 		result = nn_dup_F(result, 0, NULL, 1, NULL);
 	}
 
-	if (_config->debug) {
+	if (config->INTERFACE.debug) {
 
 		result = nn_chain2_FF(result, 0, NULL, nn_from_nlop_F(nlop_dump_create(N, odims, o_name_debug, true, true, true)), 0, NULL);
 		result = nn_chain2_FF(nn_from_nlop_F(nlop_dump_create(N, idims, i_name_debug, true, true, true)), 0, NULL, result, 0, NULL);
@@ -320,6 +323,99 @@ static nn_t network_resnet_create(const struct network_s* _config, unsigned int 
 
 	for (int i = 0; i < Nw; i++)
 		xfree(wnames[i]);
+
+	return result;
+}
+
+/**
+ * Returns residual block
+ *
+ * Input tensors:
+ *
+ * INDEX_0: 	idims
+ * weights as listed in "sorted_weight_names"
+ *
+ * Output tensors:
+ *
+ * INDEX_0:	odims
+ * batchnorm
+ */
+static nn_t network_resnet_create(const struct network_s* _config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
+{
+
+	auto config = CAST_DOWN(network_resnet_s, _config);
+
+	if (1 == config->Nb)
+		return network_resnet_block_create(config, NO, odims, NI, idims, status, config->INTERFACE.prefix);
+
+
+	assert(NO == NI);
+	int N = NO;
+
+	assert(md_check_equal_dims(N, odims, idims, ~(config->channel_flag | config->group_flag)));
+	assert((int)(config->N) == N);
+
+	long kdims[N];
+	network_resnet_get_kdims(config, N, kdims);
+
+	long tdims[N];
+	md_copy_dims(N, tdims, idims);
+	for (int i = 0; i < N; i++)
+		if (MD_IS_SET((config->channel_flag | config->group_flag), i))
+			tdims[i] = kdims[i];
+
+	const char* prefix_first = config->INTERFACE.prefix ? ptr_printf("%s_first_block", config->INTERFACE.prefix) : strdup("first_block");
+	const char* prefix_center = config->INTERFACE.prefix ? ptr_printf("%s_center_block", config->INTERFACE.prefix) : strdup("center_block");
+	const char* prefix_last = config->INTERFACE.prefix ? ptr_printf("%s_last_block", config->INTERFACE.prefix) : strdup("last_block");
+
+	nn_t result = network_resnet_block_create(config, NO, tdims, NI, idims, status, prefix_first);
+
+	for (int i = 0; i < config->Nb - 2; i++) {
+
+		nn_t tmp = network_resnet_block_create(config, NO, tdims, NI, tdims, status, prefix_center);
+		int N_inames = nn_get_nr_named_in_args(tmp);
+		int N_onames = nn_get_nr_named_out_args(tmp);
+
+		const char* inames[N_inames];
+		const char* onames[N_onames];
+
+		nn_get_out_names_copy(N_onames, onames, tmp);
+		nn_get_in_names_copy(N_inames, inames, tmp);
+
+
+		if (0 != i) {
+
+			for (int j = 0; j < N_inames; j++)
+				tmp = nn_mark_stack_input_F(tmp, inames[j]);
+
+			for (int j = 0; j < N_onames; j++)
+				tmp = nn_mark_stack_output_F(tmp, onames[j]);
+		}
+
+		result = nn_chain2_swap_FF(result, 0, NULL, tmp, 0, NULL);
+		result = nn_stack_dup_by_name_F(result);
+
+		if (i == config->Nb - 3) {
+
+			for (int j = 0; j < N_inames; j++)
+				result = nn_append_singleton_dim_in_F(result, 0, inames[j]);
+
+			for (int j = 0; j < N_onames; j++)
+				result = nn_append_singleton_dim_out_F(result, 0, onames[j]);
+		}
+
+		for (int j = 0; j < N_inames; j++)
+			xfree(inames[j]);
+
+		for (int j = 0; j < N_onames; j++)
+			xfree(onames[j]);
+	}
+
+	result = nn_chain2_FF(result, 0, NULL, network_resnet_block_create(config, NO, odims, NI, tdims, status, prefix_last), 0, NULL);
+
+	xfree(prefix_first);
+	xfree(prefix_center);
+	xfree(prefix_last);
 
 	return result;
 }

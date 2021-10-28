@@ -31,6 +31,7 @@ struct opt_s res_block_opts[] = {
 
 	OPTL_LONG('L', "layers", &(network_resnet_default.Nl), "d", "number of layers in residual block (default: 5)"),
 	OPTL_LONG('F', "filters", &(network_resnet_default.Nf), "d", "number of filters in residual block (default: 32)"),
+	OPTL_LONG('B', "blocks", &(network_resnet_default.Nb), "d", "number of residual blocks (default: 1)"),
 
 	OPTL_LONG('X', "filter-x", &(network_resnet_default.Kx), "d", "filter size in x-dimension (default: 3)"),
 	OPTL_LONG('Y', "filter-y", &(network_resnet_default.Ky), "d", "filter size in y-dimension (default: 3)"),
@@ -39,6 +40,8 @@ struct opt_s res_block_opts[] = {
 	OPTL_CLEAR(0, "no-batch-normalization", &(network_resnet_default.batch_norm), "do not use batch normalization"),
 	OPTL_CLEAR(0, "no-batch-normalization-lf", &(network_resnet_default.batch_norm_lf), "do not use batch normalization in first and last layer"),
 	OPTL_CLEAR(0, "no-bias", &(network_resnet_default.bias), "do not use bias"),
+
+	OPTL_FLOAT('s', "scaling", &(network_resnet_default.residual_scaling), "d", "scaling of network before combining (default: 1.)"),
 };
 const int N_res_block_opts = ARRAY_SIZE(res_block_opts);
 

@@ -60,6 +60,9 @@ struct network_resnet_s {
 	_Bool batch_norm_lf;
 	_Bool bias;
 
+	long Nb;
+	float residual_scaling;
+
 	enum ACTIVATION activation;
 	enum ACTIVATION last_activation;
 
