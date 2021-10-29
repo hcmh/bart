@@ -460,6 +460,19 @@ int main_nlinvnet(int argc, char* argv[argc])
 		complex float* col = (NULL != sens_file) ? create_cfl(sens_file, DIMS, sens_dims) : anon_cfl("", DIMS, sens_dims);
 		nlinvnet.weights = load_nn_weights(weight_file);
 
+		if (-1. != nlinvnet.ksp_split) {
+
+			long sdims[DIMS];
+			md_select_dims(DIMS, ~nlinvnet.ksp_shared_dims, sdims, pat_dims);
+			complex float* tmp = md_alloc(DIMS, pat_dims, CFL_SIZE);
+
+			md_rand_one(DIMS, sdims, tmp, nlinvnet.ksp_split);
+
+			md_zmul2(DIMS, pat_dims, MD_STRIDES(DIMS, pat_dims, CFL_SIZE), pattern, MD_STRIDES(DIMS, pat_dims, CFL_SIZE), pattern, MD_STRIDES(DIMS, sdims, CFL_SIZE), tmp);
+
+			md_free(tmp);
+		}
+
 		apply_nlinvnet(&nlinvnet, DIMS,
 				img_dims, img,
 				sens_dims, col,
