@@ -357,14 +357,14 @@ static nn_t nlinvnet_get_network_step(const struct nlinvnet_s* nlinvnet, int Nb,
 }
 
 
-static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, struct noir2_s* models[Nb], int index, enum NETWORK_STATUS status, bool fix_coil)
+static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, struct noir2_s* models[Nb], int index, enum NETWORK_STATUS status)
 {
 	assert(0 <= index);
 	bool network = (index >= ((int)nlinvnet->conf->iter - nlinvnet->iter_net));
 
 	float update = index < nlinvnet->iter_init ? 0.5 : 1;
 
-	auto result = nn_from_nlop_F(noir_gauss_newton_step_batch_create(Nb, models, network ? nlinvnet->iter_conf_net : nlinvnet->iter_conf, update, fix_coil));
+	auto result = nn_from_nlop_F(noir_gauss_newton_step_batch_create(Nb, models, network ? nlinvnet->iter_conf_net : nlinvnet->iter_conf, update));
 	result = nn_set_input_name_F(result, 0, "y");
 	result = nn_set_input_name_F(result, 1, "x_0");
 	result = nn_set_input_name_F(result, 1, "alpha");
@@ -450,7 +450,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, s
 {
 	int j = nlinvnet->conf->iter - 1;
 
-	auto result = nlinvnet_get_cell_reg(nlinvnet, Nb, models, j, status, false);
+	auto result = nlinvnet_get_cell_reg(nlinvnet, Nb, models, j, status);
 
 	while (0 < j--) {
 
@@ -460,7 +460,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, s
 		result = nn_mark_dup_if_exists_F(result, "x_0");
 		result = nn_mark_dup_if_exists_F(result, "alpha");
 
-		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, models, j, status, false);
+		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, models, j, status);
 
 		int N_in_names = nn_get_nr_named_in_args(tmp);
 		int N_out_names = nn_get_nr_named_out_args(tmp);
