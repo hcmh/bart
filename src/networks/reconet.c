@@ -702,7 +702,7 @@ static nn_t reconet_create(const struct reconet_s* config, int N, const long max
 		if (conf2.noncart)
 			models[i] = sense_noncart_normal_create(N, max_dims2, &conf2);
 		else
-			models[i] = sense_cart_create(N, max_dims2, &conf2);
+			models[i] = sense_cart_normal_create(N, max_dims2, &conf2);
 	}
 
 	auto network = reconet_iterations_create(config, Nb, models, status);
