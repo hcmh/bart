@@ -294,6 +294,7 @@ int main_reconet(int argc, char* argv[])
 	else
 #endif
 		num_init();
+	reuse_nufft_for_psf();
 
 	if (apply)
 		data.create_out = true;
@@ -363,6 +364,7 @@ int main_reconet(int argc, char* argv[])
 
 	free_network_data(&data);
 
+	nufft_psf_del();
 
 	exit(0);
 }
