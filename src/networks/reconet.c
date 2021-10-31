@@ -234,6 +234,41 @@ void reconet_init_unet_test_default(struct reconet_s* reconet)
 	CAST_DOWN(network_unet_s, reconet->network)->N_level = 2;
 }
 
+
+static nn_t reconet_sort_args(nn_t reconet)
+{
+	const char* data_names[] =
+		{
+			"reference",
+			"kspace",
+			"adjoint",
+			"coil",
+			"psf",
+			"pattern",
+			"trajectory"
+		};
+
+	int N = nn_get_nr_named_in_args(reconet);
+	const char* sorted_names[N + ARRAY_SIZE(data_names) + 2];
+
+	nn_get_in_names_copy(N, sorted_names + ARRAY_SIZE(data_names) + 2, reconet);
+	for (int i = 0; i < (int)ARRAY_SIZE(data_names); i++)
+		sorted_names[i] = data_names[i];
+
+	sorted_names[ARRAY_SIZE(data_names)] = "lambda_init";
+	sorted_names[ARRAY_SIZE(data_names) + 1] = "lambda";
+
+	reconet = nn_sort_inputs_by_list_F(reconet, N + ARRAY_SIZE(data_names) + 2, sorted_names);
+	for (int i = 0; i < N; i++)
+		xfree(sorted_names[i + ARRAY_SIZE(data_names) + 2]);
+
+	for (int i = 0; i < (int)ARRAY_SIZE(data_names); i++)
+		if (nn_is_name_in_in_args(reconet, data_names[i]))
+			reconet = nn_set_in_type_F(reconet, 0, data_names[i], IN_BATCH_GENERATOR);
+
+	return reconet;
+}
+
 /**
  * Returns dataconsistency block using Tickhonov regularization
  *
@@ -551,24 +586,7 @@ static nn_t reconet_cell_create(const struct reconet_s* config, int Nb, struct s
 	sense_model_get_img_dims(models[0], N, img_dims);
 	img_dims[BATCH_DIM] = Nb;
 
-
 	auto result = network_block_create(config, N, img_dims, status);
-
-	int N_in_names = nn_get_nr_named_in_args(result);
-	int N_out_names = nn_get_nr_named_out_args(result);
-
-	const char* sorted_in_names[6 + N_in_names];
-	const char* sorted_out_names[N_out_names];
-
-	sorted_in_names[0] = "kspace";
-	sorted_in_names[1] = "adjoint";
-	sorted_in_names[2] = "coils";
-	sorted_in_names[3] = "psf";
-	sorted_in_names[4] = "lambda_init";
-	sorted_in_names[5] = "lambda";
-	nn_get_in_names_copy(N_in_names, sorted_in_names + 6, result);
-	nn_get_out_names_copy(N_out_names, sorted_out_names, result);
-
 
 	if (config->dc_tickhonov) {
 
@@ -586,13 +604,6 @@ static nn_t reconet_cell_create(const struct reconet_s* config, int Nb, struct s
 		result = nn_link_F(result, 1, NULL, 0, NULL);
 	}
 
-	result = nn_sort_inputs_by_list_F(result, N_in_names + 6, sorted_in_names);
-	result = nn_sort_outputs_by_list_F(result, N_out_names, sorted_out_names);
-
-	for (int i = 6; i < N_in_names + 6; i++)
-		xfree(sorted_in_names[i]);
-	for (int i = 0; i < N_out_names; i++)
-		xfree(sorted_out_names[i]);
 
 	if (nn_is_name_in_in_args(result, "lambda"))
 		result = nn_append_singleton_dim_in_F(result, 0, "lambda");
@@ -669,13 +680,6 @@ static nn_t reconet_iterations_create(const struct reconet_s* config, int Nb, st
 	return result;
 }
 
-static bool is_name_in_list(int N, const char* names[N], const char* name)
-{
-	bool result = false;
-	for (int i = 0; i < N; i++)
-		result |= (NULL == names[i]) ? false : (0 == strcmp(names[i], name));
-	return result;
-}
 
 static nn_t reconet_create(const struct reconet_s* config, int N, const long max_dims[N], int ND, const long psf_dims[N], enum NETWORK_STATUS status)
 {
@@ -701,24 +705,6 @@ static nn_t reconet_create(const struct reconet_s* config, int N, const long max
 	}
 
 	auto network = reconet_iterations_create(config, Nb, models, status);
-
-	int N_in_names = nn_get_nr_named_in_args(network);
-	const char* in_names[N_in_names + 6];
-
-	int i = 0;
-	in_names[i++] = "kspace";
-	in_names[i++] = "adjoint";
-	in_names[i++] = "coil";
-	in_names[i++] = "psf";
-	in_names[i++] = "lambda_init";
-	in_names[i++] = "lambda";
-
-	const char* tnames[N_in_names];
-	nn_get_in_names_copy(N_in_names, tnames, network);
-	for (int j = 0; j < N_in_names; j++)
-		if (!is_name_in_list(i, in_names, tnames[j]))
-			in_names[i++] = tnames[j];
-
 	auto nn_init = nn_init_create(config, Nb, models);
 
 	if (nn_is_name_in_in_args(nn_init, "lambda")) {
@@ -822,9 +808,7 @@ static nn_t reconet_create(const struct reconet_s* config, int N, const long max
 	for (int i = 0; i < Nb; i++)
 		sense_model_free(models[i]);
 
-	result = nn_sort_inputs_by_list_F(result, i, in_names);
-	for (int j = 0; j < N_in_names; j++)
-		xfree(tnames[j]);
+	result = reconet_sort_args(result);
 
 	return result;
 }
@@ -901,6 +885,10 @@ static nn_t reconet_train_create(const struct reconet_s* config, int N, const lo
 		train_op = nn_chain2_swap_FF(nn_rss_scale, 0, NULL, train_op, 0, "rss_scale");
 		train_op = nn_dup_F(train_op, 0, "coil", 0, NULL);
 	}
+
+	train_op = nn_set_input_name_F(train_op, 0, "reference");
+
+	train_op = reconet_sort_args(train_op);
 
 	return train_op;
 }
