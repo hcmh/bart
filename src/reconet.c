@@ -15,22 +15,24 @@
 #include "misc/misc.h"
 #include "misc/mri.h"
 #include "misc/types.h"
+#include "misc/debug.h"
+#include "misc/opts.h"
+#include "misc/mmio.h"
+
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/init.h"
 #include "num/mem.h"
 #include "num/fft.h"
-#include "iter/iter6.h"
-#include "iter/iter.h"
-
 #ifdef USE_CUDA
 #include "num/gpuops.h"
 #endif
 
-#include "misc/debug.h"
-#include "misc/opts.h"
-#include "misc/mmio.h"
+#include "iter/iter6.h"
+#include "iter/iter.h"
 
+
+#include "nn/data_list.h"
 #include "nn/weights.h"
 
 #include "networks/cnn.h"
@@ -318,8 +320,30 @@ int main_reconet(int argc, char* argv[])
 
 	if (train) {
 
-		train_reconet(&config, data.N, data.max_dims, data.out_dims, data.out, data.img_dims, data.adjoint, data.col_dims, data.coil, data.ND, data.psf_dims, data.psf, Nb, use_valid_data ? &valid_data : NULL);
+		auto train_data_list = named_data_list_create();
+		named_data_list_append(train_data_list, data.N, data.img_dims, data.adjoint, "adjoint");
+		named_data_list_append(train_data_list, data.N, data.col_dims, data.coil, "coil");
+		named_data_list_append(train_data_list, data.ND, data.psf_dims, data.psf, "psf");
+		named_data_list_append(train_data_list, data.N, data.out_dims, data.out, "reference");
+
+		struct named_data_list_s* valid_data_list = NULL;
+		if (use_valid_data) {
+
+			load_network_data(&valid_data);
+
+			valid_data_list = named_data_list_create();
+			named_data_list_append(valid_data_list, valid_data.N, valid_data.img_dims, valid_data.adjoint, "adjoint");
+			named_data_list_append(valid_data_list, valid_data.N, valid_data.col_dims, valid_data.coil, "coil");
+			named_data_list_append(valid_data_list, valid_data.ND, valid_data.psf_dims, valid_data.psf, "psf");
+			named_data_list_append(valid_data_list, valid_data.N, valid_data.out_dims, valid_data.out, "reference");
+		}
+
+		train_reconet(&config, data.N, data.max_dims, data.ND, data.psf_dims, MIN(Nb, data.max_dims[BATCH_DIM]), train_data_list, use_valid_data ? valid_data.max_dims[BATCH_DIM] : 0, valid_data_list);
 		dump_nn_weights(filename_weights, config.weights);
+
+		named_data_list_free(train_data_list);
+		if (NULL != valid_data_list)
+			named_data_list_free(valid_data_list);
 	}
 
 	if (eval) {
