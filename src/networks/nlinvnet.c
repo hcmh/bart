@@ -215,38 +215,50 @@ void nlinvnet_init_model_noncart(struct nlinvnet_s* nlinvnet, int N,
 
 static nn_t nlinvnet_sort_args_F(nn_t net)
 {
-	int N_in_names = nn_get_nr_named_in_args(net);
-	const char* in_names[7 + N_in_names];
 
-	in_names[0] = "ksp";
-	in_names[1] = "pat";
-	in_names[2] = "trj";
-	in_names[3] = "ref_img";
-	in_names[4] = "ref_col";
-	in_names[5] = "lambda";
-	in_names[6] = "alpha";
+	const char* data_names[] =
+		{
+			"ref",
+			"ksp",
+			"pat",
+			"trj",
+			"ref_img",
+			"ref_col"
+		};
 
-	nn_get_in_names_copy(N_in_names, in_names + 7, net);
+	int N = nn_get_nr_named_in_args(net);
+	const char* sorted_names[N + ARRAY_SIZE(data_names) + 2];
 
-	net = nn_sort_inputs_by_list_F(net, 7 + N_in_names, in_names);
+	nn_get_in_names_copy(N, sorted_names + ARRAY_SIZE(data_names) + 2, net);
+	for (int i = 0; i < (int)ARRAY_SIZE(data_names); i++)
+		sorted_names[i] = data_names[i];
 
-	for (int i = 0; i < N_in_names; i++)
-		xfree(in_names[7 + i]);
+	sorted_names[ARRAY_SIZE(data_names)] = "lam";
+	sorted_names[ARRAY_SIZE(data_names) + 1] = "alp";
+
+	net = nn_sort_inputs_by_list_F(net, N + ARRAY_SIZE(data_names) + 2, sorted_names);
+
+	for (int i = 0; i < N; i++)
+		xfree(sorted_names[i + ARRAY_SIZE(data_names) + 2]);
+
+	for (int i = 0; i < (int)ARRAY_SIZE(data_names); i++)
+		if (nn_is_name_in_in_args(net, data_names[i]))
+			net = nn_set_in_type_F(net, 0, data_names[i], IN_BATCH_GENERATOR);
 
 
-	int N_out_names = nn_get_nr_named_out_args(net);
-	const char* out_names[4 + N_out_names];
+	N = nn_get_nr_named_out_args(net);
+	const char* out_names[4 + N];
 
 	out_names[0] = "ksp";
 	out_names[1] = "cim";
 	out_names[2] = "img";
 	out_names[3] = "col";
 
-	nn_get_out_names_copy(N_out_names, out_names + 4, net);
+	nn_get_out_names_copy(N, out_names + 4, net);
 
-	net = nn_sort_outputs_by_list_F(net, 4 + N_out_names, out_names);
+	net = nn_sort_outputs_by_list_F(net, 4 + N, out_names);
 
-	for (int i = 0; i < N_out_names; i++)
+	for (int i = 0; i < N; i++)
 		xfree(out_names[4 + i]);
 
 	net = nn_sort_inputs_F(net);
@@ -367,7 +379,7 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, str
 	auto result = nn_from_nlop_F(noir_gauss_newton_step_batch_create(Nb, models, network ? nlinvnet->iter_conf_net : nlinvnet->iter_conf, update));
 	result = nn_set_input_name_F(result, 0, "y");
 	result = nn_set_input_name_F(result, 1, "x_0");
-	result = nn_set_input_name_F(result, 1, "alpha");
+	result = nn_set_input_name_F(result, 1, "alp");
 
 	long reg_dims[2];
 	md_copy_dims(2, reg_dims, nn_generic_domain(result, 0, "x_0")->dims);
@@ -397,16 +409,16 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, str
 
 		auto nlop = nlop_from_linop_F(linop_chain_FF(linop_repmat_create(1, img_size, MD_BIT(0)), linop_expand_create(1, tot_size, img_size)));
 		nlop = nlop_chain2_FF(nlop, 0, nlop_zaxpbz_create(1, tot_size, 1, 1), 0);
-		result = nn_chain2_swap_FF(nn_from_nlop_F(nlop), 0, NULL, result, 0, "alpha");
-		result = nn_set_input_name_F(result, 0, "alpha");
-		result = nn_set_input_name_F(result, 0, "lambda");
-		result = nn_mark_dup_F(result, "lambda");
+		result = nn_chain2_swap_FF(nn_from_nlop_F(nlop), 0, NULL, result, 0, "alp");
+		result = nn_set_input_name_F(result, 0, "alp");
+		result = nn_set_input_name_F(result, 0, "lam");
+		result = nn_mark_dup_F(result, "lam");
 
 		//make lambda dummy input of network
 		nn_t tmp = nn_from_nlop_F(nlop_del_out_create(1, MD_DIMS(1)));
-		tmp = nn_set_input_name_F(tmp, 0, "lambda");
-		tmp = nn_set_in_type_F(tmp, 0, "lambda", IN_OPTIMIZE);;
-		tmp = nn_set_initializer_F(tmp, 0, "lambda", init_const_create(0.01));
+		tmp = nn_set_input_name_F(tmp, 0, "lam");
+		tmp = nn_set_in_type_F(tmp, 0, "lam", IN_OPTIMIZE);;
+		tmp = nn_set_initializer_F(tmp, 0, "lam", init_const_create(0.01));
 		network = nn_combine_FF(tmp, network);
 
 		result = nn_chain2_FF(network, 0, NULL, result, 0, "x_0");
@@ -430,15 +442,15 @@ static nn_t nlinvnet_get_cell_reg(const struct nlinvnet_s* nlinvnet, int Nb, str
 static nn_t nlinvnet_chain_alpha(const struct nlinvnet_s* nlinvnet, nn_t network)
 {
 
-	auto dom = nn_generic_domain(network, 0, "alpha");
+	auto dom = nn_generic_domain(network, 0, "alp");
 
 	auto nlop_scale = nlop_from_linop_F(linop_scale_create(dom->N, dom->dims, 1. / nlinvnet->conf->redu));
 	nlop_scale = nlop_chain_FF(nlop_zsadd_create(dom->N, dom->dims, -nlinvnet->conf->alpha_min), nlop_scale);
 	nlop_scale = nlop_chain_FF(nlop_scale, nlop_zsadd_create(dom->N, dom->dims, nlinvnet->conf->alpha_min));
 
 	auto scale = nn_from_nlop_F(nlop_scale);
-	network = nn_chain2_FF(scale, 0, NULL, network, 0, "alpha");
-	network = nn_set_input_name_F(network, -1, "alpha");
+	network = nn_chain2_FF(scale, 0, NULL, network, 0, "alp");
+	network = nn_set_input_name_F(network, -1, "alp");
 
 	network = nlinvnet_sort_args_F(network);
 
@@ -458,7 +470,7 @@ static nn_t nlinvnet_get_iterations(const struct nlinvnet_s* nlinvnet, int Nb, s
 
 		result = nn_mark_dup_if_exists_F(result, "y");
 		result = nn_mark_dup_if_exists_F(result, "x_0");
-		result = nn_mark_dup_if_exists_F(result, "alpha");
+		result = nn_mark_dup_if_exists_F(result, "alp");
 
 		auto tmp = nlinvnet_get_cell_reg(nlinvnet, Nb, models, j, status);
 
@@ -558,8 +570,8 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 
 	complex float alpha = nlinvnet->conf->alpha;
 	long alp_dims[1];
-	md_copy_dims(1, alp_dims, nn_generic_domain(result, 0, "alpha")->dims);
-	result = nn_set_input_const_F2(result, 0, "alpha", 1, alp_dims, MD_SINGLETON_STRS(N), true, &alpha);	// in: y, xn, x0
+	md_copy_dims(1, alp_dims, nn_generic_domain(result, 0, "alp")->dims);
+	result = nn_set_input_const_F2(result, 0, "alp", 1, alp_dims, MD_SINGLETON_STRS(N), true, &alpha);	// in: y, xn, x0
 
 
 	long ini_dims[2];
@@ -848,11 +860,11 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 
 	nn_export_graph("tmp.dot", nn_train);
 
-	if (nn_is_name_in_in_args(nn_train, "lambda")) {
+	if (nn_is_name_in_in_args(nn_train, "lam")) {
 
-		auto iov = nn_generic_domain(nn_train, 0, "lambda");
+		auto iov = nn_generic_domain(nn_train, 0, "lam");
 		auto prox_conv = operator_project_pos_real_create(iov->N, iov->dims);
-		nn_train = nn_set_prox_op_F(nn_train, 0, "lambda", prox_conv);
+		nn_train = nn_set_prox_op_F(nn_train, 0, "lam", prox_conv);
 	}
 
 	debug_printf(DP_INFO, "Train nlinvnet\n");
@@ -874,7 +886,7 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 		move_gpu_nn_weights(nlinvnet->weights);
 
 	if (nlinvnet->fix_lambda)
-		nn_train = nn_set_in_type_F(nn_train, 0, "lambda", IN_STATIC);
+		nn_train = nn_set_in_type_F(nn_train, 0, "lam", IN_STATIC);
 
 	const struct nlop_s* batch_generator = NULL;
 	int N_batch_inputs = 6;
@@ -935,10 +947,10 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 		num_monitors += 1;
 	}
 
-	if (nn_is_name_in_in_args(nn_train, "lambda")) {
+	if (nn_is_name_in_in_args(nn_train, "lam")) {
 
-		int index_lambda = nn_get_in_arg_index(nn_train, 0, "lambda");
-		int num_lambda = nn_generic_domain(nn_train, 0, "lambda")->dims[0];
+		int index_lambda = nn_get_in_arg_index(nn_train, 0, "lam");
+		int num_lambda = nn_generic_domain(nn_train, 0, "lam")->dims[0];
 
 		const char* lam = "l";
 		const char* lams[num_lambda];
