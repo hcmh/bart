@@ -558,7 +558,7 @@ static nn_t network_block_create(const struct reconet_s* config, unsigned int N,
 		xfree(out_names[i]);
 	}
 
-	return nn_checkpoint_F(result, true, (1 < config->Nt) && config->low_mem);
+	return nn_checkpoint_F(result, false, (1 < config->Nt) && config->low_mem);
 }
 
 
@@ -781,6 +781,14 @@ static nn_t reconet_create(const struct reconet_s* config, int N, const long max
 		result = nn_reshape_in_F(result, 0, "lambda_init", 1, MD_SINGLETON_DIMS(1));
 	}
 
+	long img_dims[N];
+	md_select_dims(N, config->mri_config->image_flags, img_dims, max_dims);
+	auto nn_set_data = nn_from_nlop_F(nlop_sense_model_set_data_batch_create(N, img_dims, Nb, models));
+	nn_set_data = nn_set_input_name_F(nn_set_data, 1, "coil");
+	nn_set_data = nn_set_input_name_F(nn_set_data, 1, "psf");
+	result = nn_chain2_swap_FF(nn_set_data, 0, NULL, result, 0, "adjoint");
+	result = nn_set_input_name_F(result, 0, "adjoint");
+
 	if (config->coil_image) {
 
 		long cim_dims[N];
@@ -799,13 +807,6 @@ static nn_t reconet_create(const struct reconet_s* config, int N, const long max
 		result = nn_dup_F(result, 0, "coil", 0, NULL);
 	}
 
-	long img_dims[N];
-	md_select_dims(N, config->mri_config->image_flags, img_dims, max_dims);
-	auto nn_set_data = nn_from_nlop_F(nlop_sense_model_set_data_batch_create(N, img_dims, Nb, models));
-	nn_set_data = nn_set_input_name_F(nn_set_data, 1, "coil");
-	nn_set_data = nn_set_input_name_F(nn_set_data, 1, "psf");
-	result = nn_chain2_swap_FF(nn_set_data, 0, NULL, result, 0, "adjoint");
-	result = nn_set_input_name_F(result, 0, "adjoint");
 
 	for (int i = 0; i < Nb; i++)
 		sense_model_free(models[i]);

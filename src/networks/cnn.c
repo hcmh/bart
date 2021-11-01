@@ -38,7 +38,7 @@
 nn_t network_create(const struct network_s* config, unsigned int NO, const long odims[NO], unsigned int NI, const long idims[NI], enum NETWORK_STATUS status)
 {
 	auto result = config->create(config, NO, odims, NI, idims, status);
-	result = nn_checkpoint_F(result, true, config->low_mem);
+	result = nn_checkpoint_F(result, false, config->low_mem);
 
 	if (NORM_NONE != config->norm) {
 
