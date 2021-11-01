@@ -84,6 +84,10 @@ int main_reconet(int argc, char* argv[])
 	struct network_data_s data = network_data_empty;
 	struct network_data_s valid_data = network_data_empty;
 
+	const char* filename_mask = NULL;
+	const char* filename_mask_val = NULL;
+
+
 	struct opt_s dc_opts[] = {
 
 		OPTL_FLOAT(0, "fix-lambda", &(config.dc_lambda_fixed), "f", "fix lambda to specified value (-1 means train lambda)"),
@@ -114,6 +118,7 @@ int main_reconet(int argc, char* argv[])
 		OPTL_INOUTFILE('a', "adjoint", &(valid_data.filename_adjoint), "<file>", "validation data adjoint (load or export)"),
 		OPTL_INOUTFILE('P', "psf", &(valid_data.filename_psf), "<file>", "validation data psf (load or export)"),
 		OPTL_SET('e', "export", &(valid_data.export), "export psf and adjoint reconstruction"),
+		OPTL_INFILE(0, "mask", &(filename_mask_val), "<mask>", "mask for computation of loss"),
 	};
 
 	struct opt_s network_opts[] = {
@@ -148,6 +153,8 @@ int main_reconet(int argc, char* argv[])
 		OPTL_INOUTFILE(0, "adjoint", &(data.filename_adjoint), "<file>", "validation data adjoint (load or export)"),
 		OPTL_INOUTFILE(0, "psf", &(data.filename_psf), "<file>", "psf (load or export)"),
 		OPTL_SET(0, "export", &(data.export), "export psf and adjoint reconstruction"),
+
+		OPTL_INFILE(0, "mask", &(filename_mask), "<mask>", "mask for computation of loss"),
 
 		OPTL_SUBOPT(0, "valid-data", "...", "provide validation data", ARRAY_SIZE(valid_opts),valid_opts),
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
@@ -327,6 +334,19 @@ int main_reconet(int argc, char* argv[])
 		named_data_list_append(train_data_list, data.ND, data.psf_dims, data.psf, "psf");
 		named_data_list_append(train_data_list, data.N, data.out_dims, data.out, "reference");
 
+		complex float* mask = NULL;
+		long mask_dims[DIMS];
+
+		if (NULL != filename_mask) {
+
+			mask = load_cfl(filename_mask, DIMS, mask_dims);
+			config.train_loss->mask_flags = md_nontriv_dims(DIMS, mask_dims);
+			named_data_list_append(train_data_list, DIMS, mask_dims, mask, "loss_mask");
+		}
+
+		complex float* mask_val = NULL;
+		long mask_dims_val[DIMS];
+
 		struct named_data_list_s* valid_data_list = NULL;
 		if (use_valid_data) {
 
@@ -337,6 +357,13 @@ int main_reconet(int argc, char* argv[])
 			named_data_list_append(valid_data_list, valid_data.N, valid_data.col_dims, valid_data.coil, "coil");
 			named_data_list_append(valid_data_list, valid_data.ND, valid_data.psf_dims, valid_data.psf, "psf");
 			named_data_list_append(valid_data_list, valid_data.N, valid_data.out_dims, valid_data.out, "reference");
+
+			if (NULL != filename_mask_val) {
+
+				mask_val = load_cfl(filename_mask_val, DIMS, mask_dims_val);
+				config.valid_loss->mask_flags = md_nontriv_dims(DIMS, mask_dims_val);
+				named_data_list_append(valid_data_list, DIMS, mask_dims_val, mask_val, "loss_mask");
+			}
 		}
 
 		train_reconet(&config, data.N, data.max_dims, data.ND, data.psf_dims, MIN(Nb, data.max_dims[BATCH_DIM]), train_data_list, use_valid_data ? valid_data.max_dims[BATCH_DIM] : 0, valid_data_list);
@@ -345,6 +372,11 @@ int main_reconet(int argc, char* argv[])
 		named_data_list_free(train_data_list);
 		if (NULL != valid_data_list)
 			named_data_list_free(valid_data_list);
+
+		if (NULL != mask)
+			unmap_cfl(DIMS, mask_dims, mask);
+		if (NULL != mask_val)
+			unmap_cfl(DIMS, mask_dims_val, mask_val);
 	}
 
 	if (eval) {

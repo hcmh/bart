@@ -246,7 +246,8 @@ static nn_t reconet_sort_args(nn_t reconet)
 			"coil",
 			"psf",
 			"pattern",
-			"trajectory"
+			"trajectory",
+			"loss_mask"
 		};
 
 	int N = nn_get_nr_named_in_args(reconet);

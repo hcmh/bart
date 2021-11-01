@@ -99,6 +99,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 	unsigned long cnstcoil_flags = 0;
 
+	const char* filename_mask = NULL;
+	const char* filename_mask_val = NULL;
+
 	opts_iter6_init();
 
 	struct opt_s valid_opts[] = {
@@ -109,6 +112,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_INFILE('r', "ref", &(val_file_reference), "<file>", "validation data reference"),
 		OPTL_INFILE(0, "ref-img", (const char**)(&(val_file_ref_img)), "<ref>", "reference file for image"),
 		OPTL_INFILE(0, "ref-col", (const char**)(&(val_file_ref_col)), "<ref>", "reference file for sensitivities"),
+		OPTL_INFILE(0, "mask", &(filename_mask_val), "<mask>", "mask for computation of loss"),
 	};
 
 	bool unet = false;
@@ -156,6 +160,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_INFILE(0, "trajectory", (const char**)(&(traj_file)), "<traj>", "trajectory"),
 		OPTL_INFILE(0, "ref-img", (const char**)(&(ref_img_file)), "<ref>", "reference file for image"),
 		OPTL_INFILE(0, "ref-col", (const char**)(&(ref_col_file)), "<ref>", "reference file for sensitivities"),
+		OPTL_INFILE(0, "mask", &(filename_mask), "<mask>", "mask for computation of loss"),
 
 		OPTL_SET('g', "gpu", &(nlinvnet.gpu), "run on gpu"),
 		OPTL_LONG('b', "batch-size", &(Nb), "", "size of mini batches"),
@@ -381,6 +386,16 @@ int main_nlinvnet(int argc, char* argv[argc])
 		if (NULL != ref_col)
 			named_data_list_append(train_data_list, DIMS, ref_col_dims, ref_col, "ref_col");
 
+		complex float* mask = NULL;
+		long mask_dims[DIMS];
+
+		if (NULL != filename_mask) {
+
+			mask = load_cfl(filename_mask, DIMS, mask_dims);
+			nlinvnet.train_loss->mask_flags = md_nontriv_dims(DIMS, mask_dims);
+			named_data_list_append(train_data_list, DIMS, mask_dims, mask, "loss_mask");
+		}
+
 
 
 		long ksp_dims_val[DIMS];
@@ -389,6 +404,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		long trj_dims_val[DIMS];
 		long ref_img_dims_val[DIMS];
 		long ref_col_dims_val[DIMS];
+		long mask_dims_val[DIMS];
 
 		complex float* val_kspace = NULL;
 		complex float* val_ref = NULL;
@@ -396,6 +412,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		complex float* val_traj = NULL;
 		complex float* val_ref_img = NULL;
 		complex float* val_ref_col = NULL;
+		complex float* mask_val = NULL;
 
 		struct named_data_list_s* valid_data_list = NULL;
 
@@ -442,6 +459,13 @@ int main_nlinvnet(int argc, char* argv[argc])
 				named_data_list_append(train_data_list, DIMS, ref_img_dims_val, val_ref_img, "ref_img");
 			if (NULL != val_ref_col)
 				named_data_list_append(train_data_list, DIMS, ref_col_dims_val, val_ref_col, "ref_col");
+
+			if (NULL != filename_mask_val) {
+
+				mask_val = load_cfl(filename_mask_val, DIMS, mask_dims_val);
+				nlinvnet.valid_loss->mask_flags = md_nontriv_dims(DIMS, mask_dims_val);
+				named_data_list_append(valid_data_list, DIMS, mask_dims_val, mask_val, "loss_mask");
+			}
 		}
 
 		train_nlinvnet(&nlinvnet, Nb, train_data_list, valid_data_list);
@@ -467,6 +491,12 @@ int main_nlinvnet(int argc, char* argv[argc])
 			if (NULL != val_ref_col)
 				unmap_cfl(DIMS, ref_col_dims_val, val_ref_col);
 		}
+
+
+		if (NULL != mask)
+			unmap_cfl(DIMS, mask_dims, mask);
+		if (NULL != mask_val)
+			unmap_cfl(DIMS, mask_dims_val, mask_val);
 	}
 
 	if (apply) {

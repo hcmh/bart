@@ -223,7 +223,8 @@ static nn_t nlinvnet_sort_args_F(nn_t net)
 			"pat",
 			"trj",
 			"ref_img",
-			"ref_col"
+			"ref_col",
+			"loss_mask"
 		};
 
 	int N = nn_get_nr_named_in_args(net);
