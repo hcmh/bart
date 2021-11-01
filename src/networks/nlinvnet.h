@@ -79,20 +79,8 @@ void nlinvnet_init_model_noncart(struct nlinvnet_s* nlinvnet, int N,
 
 enum nlinvnet_out { NLINVNET_OUT_CIM, NLINVNET_OUT_KSP, NLINVNET_OUT_IMG_COL };
 
-
-void train_nlinvnet(struct nlinvnet_s* nlinvnet, int N, int Nb,
-	const long cim_dims_trn[N], const _Complex float* ref_trn,
-	const long ksp_dims_trn[N], const _Complex float* ksp_trn,
-	const long pat_dims_trn[N], const _Complex float* pat_trn,
-	const long trj_dims_trn[N], const _Complex float* trj_trn,
-	const long ref_img_dims_trn[N], const _Complex float* ref_img_trn,
-	const long ref_col_dims_trn[N], const _Complex float* ref_col_trn,
-	const long cim_dims_val[N], const _Complex float* ref_val,
-	const long ksp_dims_val[N], const _Complex float* ksp_val,
-	const long pat_dims_val[N], const _Complex float* pat_val,
-	const long trj_dims_val[N], const _Complex float* trj_val,
-	const long ref_img_dims_val[N], const _Complex float* ref_img_val,
-	const long ref_col_dims_val[N], const _Complex float* ref_col_val);
+struct named_data_list_s;
+void train_nlinvnet(struct nlinvnet_s* nlinvnet, int Nb, struct named_data_list_s* train_data, struct named_data_list_s* valid_data);
 
 void apply_nlinvnet(struct nlinvnet_s* nlinvnet, int N,
 	const long img_dims[N], _Complex float* img,

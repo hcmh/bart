@@ -25,6 +25,7 @@
 #include "noir/model_net.h"
 
 #include "nn/weights.h"
+#include "nn/data_list.h"
 
 #include "grecon/opt_iter6.h"
 #include "grecon/losses.h"
@@ -346,14 +347,12 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		nlinvnet.ref = true;
 		ref_img = load_cfl(ref_img_file, DIMS, ref_img_dims);
-	} else
-		md_copy_dims(DIMS, ref_img_dims, img_dims_s);
-
-	if (NULL != ref_col_file)
 		ref_col = load_cfl(ref_col_file, DIMS, ref_col_dims);
-	else
-		md_copy_dims(DIMS, ref_col_dims, col_dims_s);
+	} else {
 
+		md_copy_dims(DIMS, ref_img_dims, img_dims_s);
+		md_copy_dims(DIMS, ref_col_dims, col_dims_s);
+	}
 
 
 
@@ -361,6 +360,28 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		if (NULL != filename_weights_load)
 			nlinvnet.weights = load_nn_weights(filename_weights_load);
+
+
+		long out_dims[DIMS];
+		complex float* ref = load_cfl(out_file, DIMS, out_dims);
+		assert(md_check_equal_dims(DIMS, nlinvnet.ksp_training ? ksp_dims : cim_dims, out_dims, ~0));
+
+		if ((-1. != nlinvnet.ksp_split) && (NULL != ref_img))
+			md_zsmul(DIMS, ref_img_dims, ref_img, ref_img, 1. / nlinvnet.ksp_split);
+
+		auto train_data_list = named_data_list_create();
+		named_data_list_append(train_data_list, DIMS, out_dims, ref, "ref");
+		named_data_list_append(train_data_list, DIMS, ksp_dims, kspace, "ksp");
+		named_data_list_append(train_data_list, DIMS, pat_dims, pattern, "pat");
+
+		if (NULL != traj)
+			named_data_list_append(train_data_list, DIMS, trj_dims, traj, "trj");
+		if (NULL != ref_img)
+			named_data_list_append(train_data_list, DIMS, ref_img_dims, ref_img, "ref_img");
+		if (NULL != ref_col)
+			named_data_list_append(train_data_list, DIMS, ref_col_dims, ref_col, "ref_col");
+
+
 
 		long ksp_dims_val[DIMS];
 		long cim_dims_val[DIMS];
@@ -375,6 +396,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 		complex float* val_traj = NULL;
 		complex float* val_ref_img = NULL;
 		complex float* val_ref_col = NULL;
+
+		struct named_data_list_s* valid_data_list = NULL;
 
 		if (NULL != val_file_kspace) {
 
@@ -391,6 +414,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 				estimate_pattern(DIMS, ksp_dims_val, COIL_FLAG, val_pattern, val_kspace);
 			}
 
+
 			if (NULL != val_file_trajectory)
 				val_traj = load_cfl(val_file_trajectory, DIMS, trj_dims_val);
 			else
@@ -405,38 +429,32 @@ int main_nlinvnet(int argc, char* argv[argc])
 				val_ref_col = load_cfl(val_file_ref_img, DIMS, ref_col_dims_val);
 			else
 				md_copy_dims(DIMS, ref_col_dims_val, col_dims_s);
+
+
+			valid_data_list = named_data_list_create();
+			named_data_list_append(valid_data_list, DIMS, cim_dims_val, val_ref, "ref");
+			named_data_list_append(valid_data_list, DIMS, ksp_dims_val, val_kspace, "ksp");
+			named_data_list_append(valid_data_list, DIMS, pat_dims_val, val_pattern, "pat");
+
+			if (NULL != val_traj)
+				named_data_list_append(train_data_list, DIMS, trj_dims_val, val_traj, "trj");
+			if (NULL != val_ref_img)
+				named_data_list_append(train_data_list, DIMS, ref_img_dims_val, val_ref_img, "ref_img");
+			if (NULL != val_ref_col)
+				named_data_list_append(train_data_list, DIMS, ref_col_dims_val, val_ref_col, "ref_col");
 		}
 
-		long out_dims[DIMS];
-		complex float* ref = load_cfl(out_file, DIMS, out_dims);
+		train_nlinvnet(&nlinvnet, Nb, train_data_list, valid_data_list);
 
-		if (nlinvnet.ksp_training)
-			assert(md_check_equal_dims(DIMS, ksp_dims, out_dims, ~0));
-		else
-			assert(md_check_equal_dims(DIMS, cim_dims, out_dims, ~0));
-
-		if ((-1. != nlinvnet.ksp_split) && (NULL != ref_img))
-			md_zsmul(DIMS, ref_img_dims, ref_img, ref_img, 1. / nlinvnet.ksp_split);
-
-		train_nlinvnet(&nlinvnet, DIMS, Nb,
-			out_dims, ref,
-			ksp_dims, kspace,
-			pat_dims, pattern,
-			trj_dims, traj ? traj : &one,
-			ref_img_dims, ref_img,
-			ref_col_dims, ref_col,
-			cim_dims_val, val_ref,
-			ksp_dims_val, val_kspace,
-			pat_dims_val, val_pattern,
-			trj_dims_val, val_traj? val_traj : &one,
-			ref_img_dims_val, val_ref_img,
-			ref_col_dims_val, val_ref_col);
+		named_data_list_free(train_data_list);
 
 		unmap_cfl(DIMS, out_dims, ref);
 
 		dump_nn_weights(weight_file, nlinvnet.weights);
 
 		if (NULL != val_file_kspace) {
+
+			named_data_list_free(valid_data_list);
 
 			unmap_cfl(DIMS, ksp_dims_val, val_kspace);
 			unmap_cfl(DIMS, cim_dims_val, val_ref);

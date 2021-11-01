@@ -63,8 +63,8 @@
 #include "nn/chain.h"
 #include "nn/layers_nn.h"
 #include "nn/activation_nn.h"
-
 #include "nn/nn_ops.h"
+#include "nn/data_list.h"
 
 #include "networks/misc.h"
 #include "networks/losses.h"
@@ -263,6 +263,13 @@ static nn_t nlinvnet_sort_args_F(nn_t net)
 
 	net = nn_sort_inputs_F(net);
 	net = nn_sort_outputs_F(net);
+
+	if (nn_is_name_in_in_args(net, "lam")) {
+
+		auto iov = nn_generic_domain(net, 0, "lam");
+		auto prox_conv = operator_project_pos_real_create(iov->N, iov->dims);
+		net = nn_set_prox_op_F(net, 0, "lam", prox_conv);
+	}
 
 	return net;
 }
@@ -542,19 +549,6 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 			result = nn_set_in_type_F(result, 0, "ref_img", IN_BATCH_GENERATOR);
 			result = nn_set_in_type_F(result, 0, "ref_col", IN_BATCH_GENERATOR);
 		}
-	} else {
-
-		nn_t join = nn_from_nlop_F(
-				nlop_combine_FF(
-					nlop_del_out_create(models[0]->N, models[0]->img_dims),
-					nlop_del_out_create(models[0]->N, models[0]->col_dims)));
-		join = nn_set_input_name_F(join, 0, "ref_img");
-		join = nn_set_input_name_F(join, 0, "ref_col");
-
-		result = nn_combine_FF(result, join);
-
-		result = nn_set_in_type_F(result, 0, "ref_img", IN_STATIC);
-		result = nn_set_in_type_F(result, 0, "ref_col", IN_STATIC);
 	}
 
 	int N = noir_model_get_N(models[0]);
@@ -648,12 +642,17 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 				if (nlinvnet->conf->noncart)
 					fft_op = nn_from_nlop_F(noir_nufft_batch_create(Nb, models));
 				else
-				 	fft_op = nn_from_nlop_F(nlop_combine_FF(noir_fft_batch_create(Nb, models), nlop_del_out_create(N, MD_SINGLETON_DIMS(N))));
+				 	fft_op = nn_from_nlop_F(noir_fft_batch_create(Nb, models));
 
 
 				fft_op = nn_set_output_name_F(fft_op, 0, "ksp");
-				fft_op = nn_set_input_name_F(fft_op, 1, "trj");
-				fft_op = nn_mark_dup_F(fft_op, "trj");
+
+				if (nlinvnet->conf->noncart) {
+
+					fft_op = nn_set_input_name_F(fft_op, 1, "trj");
+					fft_op = nn_mark_dup_F(fft_op, "trj");
+				}
+
 				result = nn_chain2_FF(result, 0, "cim", fft_op, 0, NULL);
 			}
 		}
@@ -681,11 +680,13 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, struct no
 	if (nlinvnet->conf->noncart)
 		result = nn_chain2_swap_FF(nn_from_nlop_F(noir_adjoint_nufft_batch_create(Nb, models)), 0, NULL , result, 0, NULL);
 	else
-	 	result = nn_chain2_swap_FF(nn_from_nlop_F(nlop_combine_FF(noir_adjoint_fft_batch_create(Nb, models), nlop_del_out_create(N, MD_SINGLETON_DIMS(N)))), 0, NULL , result, 0, NULL);
+	 	result = nn_chain2_swap_FF(nn_from_nlop_F(noir_adjoint_fft_batch_create(Nb, models)), 0, NULL , result, 0, NULL);
 
 	result = nn_set_input_name_F(result, 0, "ksp");
 	result = nn_set_input_name_F(result, 0, "pat");
-	result = nn_set_input_name_F(result, 0, "trj");
+	if (nlinvnet->conf->noncart)
+		result = nn_set_input_name_F(result, 0, "trj");
+
 	result = nn_stack_dup_by_name_F(result);
 
 	result = nlinvnet_sort_args_F(result);
@@ -738,14 +739,18 @@ static nn_t nlinvnet_train_loss_create(const struct nlinvnet_s* nlinvnet)
 		train_op = nn_chain2_FF(train_op, 0, "cim", loss, 0, NULL);
 	}
 
+	train_op = nn_set_input_name_F(train_op, 0, "ref");
+
 	train_op = nlinvnet_sort_args_F(train_op);
 
 	return train_op;
 }
 
-static nn_t nlinvnet_valid_create(const struct nlinvnet_s* nlinvnet, int N, const long cim_dims[N], const complex float* ref, const long ksp_dims[N], const complex float* ksp, const long pat_dims[N], const complex float* pat, const long trj_dims[N], const complex float* trj, const long ref_img_dims[N], const complex float* ref_img, const long ref_col_dims[N], const complex float* ref_col)
+static nn_t nlinvnet_valid_create(const struct nlinvnet_s* nlinvnet, struct named_data_list_s* valid_data)
 {
-	int Nb = ksp_dims[BATCH_DIM];
+	auto ksp_iov = named_data_list_get_iovec(valid_data, "ksp");
+	int Nb = ksp_iov->dims[BATCH_DIM];
+	iovec_free(ksp_iov);
 
 	auto result = nlinvnet_create(nlinvnet, 1, &(((struct nlinvnet_s*)nlinvnet)->model_valid), STAT_TEST, NLINVNET_OUT_CIM);
 	result = nn_del_out_bn_F(result);
@@ -766,7 +771,7 @@ static nn_t nlinvnet_valid_create(const struct nlinvnet_s* nlinvnet, int N, cons
 
 		tmp = nn_mark_stack_input_F(tmp, "ksp");
 		tmp = nn_mark_stack_input_F(tmp, "pat");
-		tmp = nn_mark_stack_input_F(tmp, "trj");
+		tmp = nn_mark_stack_input_if_exists_F(tmp, "trj");
 		tmp = nn_mark_stack_output_F(tmp, "cim");
 		for (int i = 0; i < N_in_names; i++)
 			tmp = nn_mark_dup_if_exists_F(tmp, in_names[i]);
@@ -775,38 +780,15 @@ static nn_t nlinvnet_valid_create(const struct nlinvnet_s* nlinvnet, int N, cons
 		result = nn_stack_dup_by_name_F(result);
 	}
 
-	long out_dims[N];
-	md_copy_dims(N, out_dims, nn_generic_codomain(result, 0, "cim")->dims);
-	auto valid_loss = nn_chain2_FF(result, 0, "cim", val_measure_create(nlinvnet->valid_loss, N, out_dims), 0, NULL);
+	auto cim_iov = named_data_list_get_iovec(valid_data, "ref");
+	auto valid_loss = nn_chain2_FF(result, 0, "cim", val_measure_create(nlinvnet->valid_loss, cim_iov->N, cim_iov->dims), 0, NULL);
+	iovec_free(cim_iov);
 
-	valid_loss = nn_set_input_const_F(valid_loss, 0, NULL, N, cim_dims, true, ref);
-	valid_loss = nn_set_input_const_F(valid_loss, 0, "ksp", N, ksp_dims, true, ksp);
+	valid_loss = nn_set_input_name_F(valid_loss, 0, "ref");
+	valid_loss = nlinvnet_sort_args_F(valid_loss);
 
-	complex float one = 1.;
-	complex float zero = 0.;
 
-	auto pat_dom = nn_generic_domain(valid_loss, 0, "pat");
-	valid_loss = nn_set_input_const_F2(valid_loss, 0, "pat", pat_dom->N, pat_dom->dims, MD_STRIDES(N, pat_dims, CFL_SIZE), true, pat ? pat : &one);
-
-	auto trj_dom = nn_generic_domain(valid_loss, 0, "trj");
-	valid_loss = nn_set_input_const_F2(valid_loss, 0, "trj", trj_dom->N, trj_dom->dims, MD_STRIDES(N, trj_dims, CFL_SIZE), true, trj ? trj : &one);
-
-	auto ref_img_dom = nn_generic_domain(valid_loss, 0, "ref_img");
-	if (NULL != ref_img)
-		valid_loss = nn_set_input_const_F(valid_loss, 0, "ref_img", N, ref_img_dims, false, ref_img);
-	else
-		valid_loss = nn_set_input_const_F2(valid_loss, 0, "ref_img", N, ref_img_dom->dims, MD_SINGLETON_STRS(N), true, &zero);
-
-	auto ref_col_dom = nn_generic_domain(valid_loss, 0, "ref_col");
-	if (NULL != ref_col)
-		valid_loss = nn_set_input_const_F(valid_loss, 0, "ref_col", N, ref_col_dims, false, ref_col);
-	else
-		valid_loss = nn_set_input_const_F2(valid_loss, 0, "ref_col", N, ref_col_dom->dims, MD_SINGLETON_STRS(N), true, &zero);
-
-	for (int i = 0; i < 6; i++)
-		valid_loss = nn_combine_FF(nn_from_nlop_F(nlop_del_out_create(1, MD_SINGLETON_DIMS(1))), valid_loss);
-
-	return valid_loss;
+	return nn_valid_create(valid_loss, valid_data);
 }
 
 
@@ -814,58 +796,48 @@ static nn_t nlinvnet_apply_op_create(const struct nlinvnet_s* nlinvnet, enum nli
 {
 	auto nn_apply = nlinvnet_create(nlinvnet, Nb, nlinvnet->models, STAT_TEST, out_type);
 
+	if (!nlinvnet->ref){
+
+		nn_t join = nn_from_nlop_F(
+				nlop_combine_FF(
+					nlop_del_out_create(nlinvnet->models[0]->N, nlinvnet->models[0]->img_dims),
+					nlop_del_out_create(nlinvnet->models[0]->N, nlinvnet->models[0]->col_dims)));
+		join = nn_set_input_name_F(join, 0, "ref_img");
+		join = nn_set_input_name_F(join, 0, "ref_col");
+
+		nn_apply = nn_combine_FF(nn_apply, join);
+
+		nn_apply = nn_set_in_type_F(nn_apply, 0, "ref_img", IN_STATIC);
+		nn_apply = nn_set_in_type_F(nn_apply, 0, "ref_col", IN_STATIC);
+	}
+
+	if (!nn_is_name_in_in_args(nn_apply, "trj")) {
+
+		nn_apply = nn_combine_FF(nn_from_nlop_F(nlop_del_out_create(nlinvnet->models[0]->N, MD_SINGLETON_DIMS(nlinvnet->models[0]->N))), nn_apply);
+		nn_apply = nn_set_input_name_F(nn_apply, 0, "trj");
+	}
+
 	if (nn_is_name_in_out_args(nn_apply, "l1_norm"))
 		nn_apply = nn_del_out_F(nn_apply, 0, "l1_norm");
 	if (nn_is_name_in_out_args(nn_apply, "l2_norm"))
 		nn_apply = nn_del_out_F(nn_apply, 0, "l2_norm");
+
+	nn_apply = nlinvnet_sort_args_F(nn_apply);
 
 	return nn_get_wo_weights_F(nn_apply, nlinvnet->weights, false);
 }
 
 
 
-void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
-			const long ref_dims_trn[N], const complex float* ref_trn, const long ksp_dims_trn[N], const complex float* ksp_trn, const long pat_dims_trn[N], const complex float* pat_trn, const long trj_dims_trn[N], const complex float* trj_trn, const long ref_img_dims_trn[N], const complex float* ref_img_trn, const long ref_col_dims_trn[N], const complex float* ref_col_trn,
-			const long ref_dims_val[N], const complex float* ref_val, const long ksp_dims_val[N], const complex float* ksp_val, const long pat_dims_val[N], const complex float* pat_val, const long trj_dims_val[N], const complex float* trj_val, const long ref_img_dims_val[N], const complex float* ref_img_val, const long ref_col_dims_val[N], const complex float* ref_col_val)
+void train_nlinvnet(struct nlinvnet_s* nlinvnet, int Nb, struct named_data_list_s* train_data, struct named_data_list_s* valid_data)
 {
-
-	assert(DIMS == N);
-	long Nt = ksp_dims_trn[BATCH_DIM]; // number datasets
-	assert(Nt == ref_dims_trn[BATCH_DIM]);
+	auto ref_iov = named_data_list_get_iovec(train_data, "ref");
+	long Nt = ref_iov->dims[BATCH_DIM];
+	iovec_free(ref_iov);
 
 	Nb = MIN(Nb, Nt);
 
-	long ksp_dims_bat[N];
-	long ref_dims_bat[N];
-	long pat_dims_bat[N];
-	long trj_dims_bat[N];
-	long ref_img_dims_bat[N];
-	long ref_col_dims_bat[N];
-	md_copy_dims(N, ksp_dims_bat, ksp_dims_trn);
-	md_copy_dims(N, ref_dims_bat, ref_dims_trn);
-	md_copy_dims(N, pat_dims_bat, pat_dims_trn);
-	md_copy_dims(N, trj_dims_bat, trj_dims_trn ? trj_dims_trn : MD_SINGLETON_DIMS(N));
-	md_copy_dims(N, ref_img_dims_bat, ref_img_dims_trn);
-	md_copy_dims(N, ref_col_dims_bat, ref_col_dims_trn);
-	ksp_dims_bat[BATCH_DIM] = Nb;
-	ref_dims_bat[BATCH_DIM] = Nb;
-	pat_dims_bat[BATCH_DIM] = Nb;
-	trj_dims_bat[BATCH_DIM] = Nb;
-	ref_img_dims_bat[BATCH_DIM] = Nb;
-	ref_col_dims_bat[BATCH_DIM] = Nb;
-
 	auto nn_train = nlinvnet_train_loss_create(nlinvnet);
-	md_copy_dims(N, ref_img_dims_bat, nn_generic_domain(nn_train, 0, "ref_img")->dims);
-	md_copy_dims(N, ref_col_dims_bat, nn_generic_domain(nn_train, 0, "ref_col")->dims);
-
-	nn_export_graph("tmp.dot", nn_train);
-
-	if (nn_is_name_in_in_args(nn_train, "lam")) {
-
-		auto iov = nn_generic_domain(nn_train, 0, "lam");
-		auto prox_conv = operator_project_pos_real_create(iov->N, iov->dims);
-		nn_train = nn_set_prox_op_F(nn_train, 0, "lam", prox_conv);
-	}
 
 	debug_printf(DP_INFO, "Train nlinvnet\n");
 	nn_debug(DP_INFO, nn_train);
@@ -888,17 +860,12 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 	if (nlinvnet->fix_lambda)
 		nn_train = nn_set_in_type_F(nn_train, 0, "lam", IN_STATIC);
 
-	const struct nlop_s* batch_generator = NULL;
-	int N_batch_inputs = 6;
-
 	//create batch generator
-	complex float one = 1;
-	const complex float* train_data[] = {ref_trn, ksp_trn, pat_trn, trj_trn ? trj_trn : &one, ref_img_trn, ref_col_trn};
-	const long* bat_dims[] = { ref_dims_bat, ksp_dims_bat, pat_dims_bat, trj_dims_bat, ref_img_dims_bat, ref_col_dims_bat };
-	const long* tot_dims[] = { ref_dims_trn, ksp_dims_trn, pat_dims_trn, trj_dims_trn, ref_img_dims_trn, ref_col_dims_trn };
-	batch_generator = batch_gen_create_from_iter(nlinvnet->train_conf, nlinvnet->ref ? 6 : 4, (const int[6]){ N, N, N, N, N, N }, bat_dims, tot_dims, train_data, 0);
+	auto batch_generator = nn_batchgen_create(nn_train, train_data, nlinvnet->train_conf->batchgen_type, nlinvnet->train_conf->batch_seed);
+
+	auto ksp_dom = nlop_generic_codomain(batch_generator, 1);
 	if (0 != nlinvnet->ksp_noise)
-		batch_generator = nlop_append_FF(batch_generator, 1, nlop_add_noise_create(N, ksp_dims_bat, nlinvnet->ksp_noise, 0, ~BATCH_FLAG));
+		batch_generator = nlop_append_FF(batch_generator, 1, nlop_add_noise_create(ksp_dom->N, ksp_dom->dims, nlinvnet->ksp_noise, 0, ~BATCH_FLAG));
 
 
 	//setup for iter algorithm
@@ -907,38 +874,49 @@ void train_nlinvnet(	struct nlinvnet_s* nlinvnet, int N, int Nb,
 
 	float* src[NI];
 
-	for (int i = 0; i < nlinvnet->weights->N; i++) {
-
-		auto iov_weight = nlinvnet->weights->iovs[i];
-		auto iov_train_op = nlop_generic_domain(nn_get_nlop(nn_train), i + N_batch_inputs);
-		assert(md_check_equal_dims(iov_weight->N, iov_weight->dims, iov_train_op->dims, ~0));
-		src[i + N_batch_inputs] = (float*)nlinvnet->weights->tensors[i];
-	}
-
 	enum IN_TYPE in_type[NI];
-	const struct operator_p_s* projections[NI];
-	enum OUT_TYPE out_type[NO];
-
 	nn_get_in_types(nn_train, NI, in_type);
+
+	const struct operator_p_s* projections[NI];
+	nn_get_prox_ops(nn_train, NI, projections);
+
+	enum OUT_TYPE out_type[NO];
 	nn_get_out_types(nn_train, NO, out_type);
 
-	for (int i = 0; i < (nlinvnet->ref ? 6 : 4); i++) {
+	int weight_index = 0;
 
-		src[i] = NULL;
-		in_type[i] = IN_BATCH_GENERATOR;
+	for (int i = 0; i < NI; i++) {
+
+		switch (in_type[i]) {
+
+			case IN_BATCH_GENERATOR:
+
+				src[i] = NULL;
+				break;
+
+			case IN_BATCH:
+			case IN_UNDEFINED:
+			case IN_STATIC:
+				assert(0);
+				break;
+
+			case IN_OPTIMIZE:
+			case IN_BATCHNORM:
+			{
+				auto iov_weight = nlinvnet->weights->iovs[weight_index];
+				auto iov_train_op = nlop_generic_domain(nn_get_nlop(nn_train), i);
+				assert(md_check_equal_dims(iov_weight->N, iov_weight->dims, iov_train_op->dims, ~0));
+				src[i] = (float*)nlinvnet->weights->tensors[weight_index];
+				weight_index++;
+			}
+		}
 	}
-
-	for (int i = 0; i < NI; i++)
-		projections[i] = nn_get_prox_op_arg_index(nn_train, i);
-
 	int num_monitors = 0;
 	const struct monitor_value_s* value_monitors[3];
 
-	if (NULL != ref_val) {
+	if (NULL != train_data) {
 
-		assert(NULL != ksp_val);
-
-		auto nn_validation_loss = nlinvnet_valid_create(nlinvnet, N, ref_dims_val, ref_val, ksp_dims_val, ksp_val, pat_dims_val, pat_val, trj_dims_val, trj_val, ref_img_dims_val, ref_img_val, ref_col_dims_val, ref_col_val);
+		auto nn_validation_loss = nlinvnet_valid_create(nlinvnet, valid_data);
 		const char* val_names[nn_get_nr_out_args(nn_validation_loss)];
 		for (int i = 0; i < nn_get_nr_out_args(nn_validation_loss); i++)
 			val_names[i] = nn_get_out_name_from_arg_index(nn_validation_loss, i, false);
