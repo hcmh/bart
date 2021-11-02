@@ -1086,7 +1086,9 @@ void apply_nlinvnet(struct nlinvnet_s* nlinvnet, int N,
 
 	nn_debug(DP_INFO, nn_apply);
 
-	nlop_generic_apply_loop_sameplace(nn_get_nlop(nn_apply), BATCH_FLAG, 2, DO, odims, dst, 5, DI, idims, src, nlinvnet->weights->tensors[0]);
+	unsigned long batch_flags = md_nontriv_dims(N, img_dims) & (~(md_nontriv_dims(N, nn_generic_codomain(nn_apply, 0, "img")->dims)));
+
+	nlop_generic_apply_loop_sameplace(nn_get_nlop(nn_apply), batch_flags, 2, DO, odims, dst, 5, DI, idims, src, nlinvnet->weights->tensors[0]);
 
 	nn_free(nn_apply);
 

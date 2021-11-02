@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <complex.h>
 #include <math.h>
@@ -86,6 +87,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 	bool apply = false;
 	bool eval = false;
 
+	unsigned long batch_flags = BATCH_FLAG;
 	long Nb = 0;
 
 	char* filename_weights_load = NULL;
@@ -183,6 +185,8 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_FLOAT(0, "ss-ksp-noise", &(nlinvnet.ksp_noise), "var", "Add noise to input kspace. Negative variance will draw variance of noise from gaussian distribution."),
 		OPTL_FLOAT(0, "ss-l1-norm", &(nlinvnet.l1_norm), "", "Add l1 norm of coil image to loss"),
 		OPTL_FLOAT(0, "ss-l2-norm", &(nlinvnet.l2_norm), "", "Add l2 norm of coil image to loss"),
+
+		OPT_ULONG('L', &batch_flags, "flags", "loop over dims (apply only)"),
 	};
 
 	struct opt_s opts[ARRAY_SIZE(opts_net) + ARRAY_SIZE(opts_trn)];
@@ -310,16 +314,19 @@ int main_nlinvnet(int argc, char* argv[argc])
 	long pat_dims_s[DIMS];
 	long trj_dims_s[DIMS];
 
-	md_select_dims(DIMS, ~BATCH_FLAG, col_dims_s, sens_dims);
-	md_select_dims(DIMS, ~BATCH_FLAG, img_dims_s, img_dims);
-	md_select_dims(DIMS, ~BATCH_FLAG, cim_dims_s, cim_dims);
-	md_select_dims(DIMS, ~BATCH_FLAG, msk_dims_s, msk_dims);
-	md_select_dims(DIMS, ~BATCH_FLAG, ksp_dims_s, ksp_dims);
-	md_select_dims(DIMS, ~BATCH_FLAG, pat_dims_s, pat_dims);
-	md_select_dims(DIMS, ~BATCH_FLAG, trj_dims_s, trj_dims);
+	if (train)
+		assert(BATCH_FLAG == batch_flags);
+
+	md_select_dims(DIMS, ~batch_flags, col_dims_s, sens_dims);
+	md_select_dims(DIMS, ~batch_flags, img_dims_s, img_dims);
+	md_select_dims(DIMS, ~batch_flags, cim_dims_s, cim_dims);
+	md_select_dims(DIMS, ~batch_flags, msk_dims_s, msk_dims);
+	md_select_dims(DIMS, ~batch_flags, ksp_dims_s, ksp_dims);
+	md_select_dims(DIMS, ~batch_flags, pat_dims_s, pat_dims);
+	md_select_dims(DIMS, ~batch_flags, trj_dims_s, trj_dims);
 
 	Nb = Nb ? Nb : 10;
-	nlinvnet.Nb = Nb;
+	nlinvnet.Nb = train ? Nb : 1;
 
 	complex float one = 1.;
 
