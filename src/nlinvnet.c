@@ -269,10 +269,11 @@ int main_nlinvnet(int argc, char* argv[argc])
 
 		traj = load_cfl(traj_file, DIMS, trj_dims);
 
-		estimate_im_dims(DIMS, FFT_FLAGS, dims, trj_dims, traj);
-		if (0 == md_calc_size(3, im_vec))
+		if (0 == md_calc_size(3, im_vec)) {
+
+			estimate_im_dims(DIMS, FFT_FLAGS, dims, trj_dims, traj);
 			debug_printf(DP_INFO, "Est. image size: %ld %ld %ld\n", dims[0], dims[1], dims[2]);
-		else
+		} else
 			md_copy_dims(3, dims, im_vec);;
 
 		md_copy_dims(DIMS - 3, dims + 3, ksp_dims + 3);
