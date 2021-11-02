@@ -409,6 +409,15 @@ struct nlop_s* nlop_link(const struct nlop_s* x, int oo, int ii)
 	int II = nlop_get_nr_in_args(x);
 	int OO = nlop_get_nr_out_args(x);
 
+	auto domo = nlop_generic_codomain(x, oo);
+	auto domi = nlop_generic_domain(x, ii);
+
+	if (!iovec_check(domo, domi->N, domi->dims, domi->strs)) {
+
+		nlop_debug(DP_INFO, x);
+		error("Cannot link args %d -> %d!\n", oo, ii);
+	}
+
 	assert(ii < II);
 	assert(oo < OO);
 
