@@ -77,7 +77,7 @@ void nlinvnet_init_model_noncart(struct nlinvnet_s* nlinvnet, int N,
 	const long col_dims[N]);
 
 
-enum nlinvnet_out { NLINVNET_OUT_CIM, NLINVNET_OUT_KSP, NLINVNET_OUT_IMG_COL };
+enum nlinvnet_out { NLINVNET_OUT_CIM, NLINVNET_OUT_KSP, NLINVNET_OUT_IMG_COL, NLINVNET_OUT_REF };
 
 struct named_data_list_s;
 void train_nlinvnet(struct nlinvnet_s* nlinvnet, int Nb, struct named_data_list_s* train_data, struct named_data_list_s* valid_data);
