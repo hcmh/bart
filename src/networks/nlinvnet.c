@@ -1000,7 +1000,7 @@ void train_nlinvnet(struct nlinvnet_s* nlinvnet, int Nb, struct named_data_list_
 	int num_monitors = 0;
 	const struct monitor_value_s* value_monitors[3];
 
-	if (NULL != train_data) {
+	if (NULL != valid_data) {
 
 		auto nn_validation_loss = nlinvnet_valid_create(nlinvnet, valid_data);
 		const char* val_names[nn_get_nr_out_args(nn_validation_loss)];
