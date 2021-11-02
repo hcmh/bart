@@ -592,8 +592,10 @@ static void noir2_recon_noncart_loop(
 
 void noir2_recon_noncart(
 	const struct noir2_conf_s* conf, int N,
-	const long img_dims[N], complex float* img, const complex float* img_ref,
-	const long col_dims[N], complex float* sens, complex float* ksens, const complex float* sens_ref,
+	const long img_dims[N], complex float* img,
+	const long img_ref_dims[N], const complex float* img_ref,
+	const long col_dims[N], complex float* sens, complex float* ksens,
+	const long col_ref_dims[N], const complex float* sens_ref,
 	const long ksp_dims[N], const complex float* kspace,
 	const long trj_dims[N], const complex float* traj,
 	const long wgh_dims[N], const complex float* weights,
@@ -609,6 +611,8 @@ void noir2_recon_noncart(
 	long lbas_dims[N];
 	long lmsk_dims[N];
 	long lcim_dims[N];
+	long limg_ref_dims[N];
+	long lcol_ref_dims[N];
 
 	md_select_dims(N, ~conf->loop_flags, limg_dims, img_dims);
 	md_select_dims(N, ~conf->loop_flags, lcol_dims, col_dims);
@@ -618,6 +622,8 @@ void noir2_recon_noncart(
 	md_select_dims(N, ~conf->loop_flags, lbas_dims, bas_dims);
 	md_select_dims(N, ~conf->loop_flags, lmsk_dims, msk_dims);
 	md_select_dims(N, ~conf->loop_flags, lcim_dims, cim_dims);
+	md_select_dims(N, ~conf->loop_flags, limg_ref_dims, img_ref_dims);
+	md_select_dims(N, ~conf->loop_flags, lcol_ref_dims, col_ref_dims);
 
 	long img_strs[N];
 	long col_strs[N];
@@ -627,6 +633,8 @@ void noir2_recon_noncart(
 	long bas_strs[N];
 	long msk_strs[N];
 	long cim_strs[N];
+	long img_ref_strs[N];
+	long col_ref_strs[N];
 
 	md_calc_strides(N, img_strs, img_dims, CFL_SIZE);
 	md_calc_strides(N, col_strs, col_dims, CFL_SIZE);
@@ -636,6 +644,8 @@ void noir2_recon_noncart(
 	md_calc_strides(N, bas_strs, bas_dims, CFL_SIZE);
 	md_calc_strides(N, msk_strs, msk_dims, CFL_SIZE);
 	md_calc_strides(N, cim_strs, cim_dims, CFL_SIZE);
+	md_calc_strides(N, img_ref_strs, img_ref_dims, CFL_SIZE);
+	md_calc_strides(N, col_ref_strs, col_ref_dims, CFL_SIZE);
 
 	long pos[N];
 	for (int i = 0; i < N; i++)
@@ -644,19 +654,23 @@ void noir2_recon_noncart(
 	do {
 
 		complex float* l_img = &MD_ACCESS(N, img_strs, pos, img);
-		const complex float* l_img_ref = (NULL == img_ref) ? NULL : &MD_ACCESS(N, img_strs, pos, img_ref);
 		complex float* l_sens = (NULL == sens) ? NULL : &MD_ACCESS(N, col_strs, pos, sens);
 		complex float* l_ksens = (NULL == ksens) ? NULL : &MD_ACCESS(N, col_strs, pos, ksens);
-		const complex float* l_sens_ref = (NULL == sens_ref) ? NULL : &MD_ACCESS(N, col_strs, pos, sens_ref);
 		const complex float* l_kspace = &MD_ACCESS(N, ksp_strs, pos, kspace);
 		const complex float* l_traj = &MD_ACCESS(N, trj_strs, pos, traj);
 		const complex float* l_weights = (NULL == weights) ? NULL : &MD_ACCESS(N, wgh_strs, pos, weights);
 		const complex float* l_basis = (NULL == basis) ? NULL : &MD_ACCESS(N, bas_strs, pos, basis);
 		const complex float* l_mask = (NULL == mask) ? NULL : &MD_ACCESS(N, msk_strs, pos, mask);
+		const complex float* l_img_ref = (NULL == mask) ? NULL : &MD_ACCESS(N, img_ref_strs, pos, img_ref);
+		const complex float* l_col_ref = (NULL == mask) ? NULL : &MD_ACCESS(N, col_ref_strs, pos, sens_ref);
 
-		noir2_recon_noncart_loop(conf, N,
-					 limg_dims, l_img, l_img_ref,
-					 lcol_dims, l_sens, l_ksens, l_sens_ref,
+		if (conf->real_time) {
+
+			noir2_rtrecon_noncart(conf, N,
+					 limg_dims, l_img,
+					 limg_ref_dims, l_img_ref,
+					 lcol_dims, l_sens, l_ksens,
+					 lcol_ref_dims, l_col_ref,
 					 lksp_dims, l_kspace,
 					 ltrj_dims, l_traj,
 					 lwgh_dims, l_weights,
@@ -665,6 +679,22 @@ void noir2_recon_noncart(
 					 lcim_dims
 					);
 
+		} else {
+
+			assert(md_check_equal_dims(N, limg_dims, limg_ref_dims, ~0));
+			assert(md_check_equal_dims(N, lcol_dims, lcol_ref_dims, ~0));
+
+			noir2_recon_noncart_loop(conf, N,
+					 limg_dims, l_img, l_img_ref,
+					 lcol_dims, l_sens, l_ksens, l_col_ref,
+					 lksp_dims, l_kspace,
+					 ltrj_dims, l_traj,
+					 lwgh_dims, l_weights,
+					 lbas_dims, l_basis,
+					 lmsk_dims, l_mask,
+					 lcim_dims
+					);
+		}
 
 	} while (md_next(N, ksp_dims, conf->loop_flags, pos));
 }

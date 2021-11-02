@@ -155,7 +155,7 @@ int main_nlinv(int argc, char* argv[argc])
 	// FIXME: SMS option letter (-s) in rtnlinv is already in use in nlinv
 
 	// SMS
-	if (1 != ksp_dims[SLICE_DIM] && !conf.sos) {
+	if (1 != ksp_dims[SLICE_DIM] && !conf.sos && !MD_IS_SET(conf.loop_flags, SLICE_DIM)) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
 		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output (consistency with SMS implementation on scanner)
@@ -165,6 +165,7 @@ int main_nlinv(int argc, char* argv[argc])
 	// SoS
 	if (conf.sos) {
 
+		assert(!MD_IS_SET(conf.loop_flags, SLICE_DIM));
 		debug_printf(DP_INFO, "SoS-NLINV reconstruction. Number of partitions: %d\n", ksp_dims[SLICE_DIM]);
 		assert(1 < ksp_dims[SLICE_DIM]);
 		// fftmod not necessary for SoS
@@ -414,9 +415,7 @@ int main_nlinv(int argc, char* argv[argc])
 			md_zsmul(DIMS, ksp_dims, kspace, kspace, 1. / sqrtf(sc));
 		}
 
-		if (conf.real_time) {
-
-			noir2_rtrecon_noncart(&conf, DIMS,
+		noir2_recon_noncart(&conf, DIMS,
 			img_dims, img,
 			img_ref_dims, ref_img,
 			sens_dims, sens, ksens,
@@ -427,19 +426,6 @@ int main_nlinv(int argc, char* argv[argc])
 			bas_dims, basis,
 			msk_dims, mask,
 			cim_dims);
-
-		} else {
-
-			noir2_recon_noncart(&conf, DIMS,
-				img_dims, img, ref_img,
-				sens_dims, sens, ksens, ref_sens,
-				ksp_dims, kspace,
-				trj_dims, traj,
-				pat_dims, pattern,
-				bas_dims, basis,
-				msk_dims, mask,
-				cim_dims);
-		}
 
 	} else {
 

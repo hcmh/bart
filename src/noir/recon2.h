@@ -45,8 +45,10 @@ extern const struct noir2_conf_s noir2_defaults;
 
 extern void noir2_recon_noncart(
 	const struct noir2_conf_s* conf, int N,
-	const long img_dims[N], complex float* img, const complex float* img_ref,
-	const long col_dims[N], complex float* sens, complex float* ksens, const complex float* sens_ref,
+	const long img_dims[N], complex float* img,
+	const long img_ref_dims[N], const complex float* img_ref,
+	const long col_dims[N], complex float* sens, complex float* ksens,
+	const long col_ref_dims[N], const complex float* sens_ref,
 	const long ksp_dims[N], const complex float* kspace,
 	const long trj_dims[N], const complex float* traj,
 	const long wgh_dims[N], const complex float* weights,
