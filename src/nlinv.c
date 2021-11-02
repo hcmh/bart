@@ -178,6 +178,9 @@ int main_nlinv(int argc, char* argv[argc])
 
 		basis = load_cfl(basis_file, DIMS, bas_dims);
 		assert(!md_check_dimensions(DIMS, bas_dims, COEFF_FLAG | TE_FLAG));
+	} else {
+
+		md_singleton_dims(DIMS, bas_dims);
 	}
 
 	complex float* pattern = NULL;

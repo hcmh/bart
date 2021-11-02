@@ -651,6 +651,25 @@ void noir2_recon_noncart(
 	for (int i = 0; i < N; i++)
 		pos[i] = 0;
 
+	struct noir2_s noir_ops;
+
+	if (!conf->real_time) {
+		struct noir2_model_conf_s mconf = noir2_model_conf_defaults;
+
+		mconf.fft_flags_noncart = FFT_FLAGS;
+		mconf.fft_flags_cart = (conf->sms || conf->sos) ? SLICE_FLAG : 0;
+
+		mconf.rvc = conf->rvc;
+		mconf.sos = conf->sos;
+		mconf.a = conf->a;
+		mconf.b = conf->b;
+		mconf.noncart = conf->noncart;
+
+		mconf.nufft_conf = conf->nufft_conf;
+
+		noir_ops = noir2_noncart_create(N, ltrj_dims, NULL, lwgh_dims, NULL, lbas_dims, NULL, lmsk_dims, mask, lksp_dims, lcim_dims, limg_dims, lcol_dims, &mconf);
+	}
+
 	do {
 
 		complex float* l_img = &MD_ACCESS(N, img_strs, pos, img);
@@ -684,19 +703,14 @@ void noir2_recon_noncart(
 			assert(md_check_equal_dims(N, limg_dims, limg_ref_dims, ~0));
 			assert(md_check_equal_dims(N, lcol_dims, lcol_ref_dims, ~0));
 
-			noir2_recon_noncart_loop(conf, N,
-					 limg_dims, l_img, l_img_ref,
-					 lcol_dims, l_sens, l_ksens, l_col_ref,
-					 lksp_dims, l_kspace,
-					 ltrj_dims, l_traj,
-					 lwgh_dims, l_weights,
-					 lbas_dims, l_basis,
-					 lmsk_dims, l_mask,
-					 lcim_dims
-					);
+			noir2_noncart_update(&noir_ops, N, ltrj_dims, l_traj, lwgh_dims, l_weights, lbas_dims, l_basis);
+			noir2_recon(conf, noir_ops, N, limg_dims, l_img, (complex float*)l_img_ref, lcol_dims, l_sens, l_ksens, (complex float*)l_col_ref, lksp_dims, l_kspace);
 		}
 
 	} while (md_next(N, ksp_dims, conf->loop_flags, pos));
+
+	if (!conf->real_time)
+		noir2_free(&noir_ops);
 }
 
 
