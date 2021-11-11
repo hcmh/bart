@@ -331,8 +331,13 @@ static void fft_apply(const operator_data_t* _plan, unsigned int N, void* args[N
 #endif
 	{
 		#ifdef LAZY_FFTW
-		if ((0u != plan->flags) && (NULL == plan->fftw))
-			plan->fftw = fft_fftwf_plan(plan->D, plan->dims, plan->flags, plan->ostrs, dst, plan->istrs, src, plan->backwards, plan->measure);
+		if ((0u != plan->flags) && (NULL == plan->fftw)) {
+			 #pragma omp critical(fftw_create_plan_in_threads)
+			{
+				if ((0u != plan->flags) && (NULL == plan->fftw))
+					plan->fftw = fft_fftwf_plan(plan->D, plan->dims, plan->flags, plan->ostrs, dst, plan->istrs, src, plan->backwards, plan->measure);
+			}
+		}
 		#endif
 
 		assert(NULL != plan->fftw);
