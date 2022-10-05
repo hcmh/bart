@@ -380,33 +380,10 @@ int main_nlinv(int argc, char* argv[argc])
 
 	unmap_cfl(DIMS, ksp_dims, kspace);
 
-	if (NULL != traj) {
-
-		long dims_os[DIMS];
-		md_copy_dims(DIMS, dims_os, dims);
-
-		for (int i = 0; i < 3; i++)
-			if (1 != dims_os[i])
-				dims_os[i] *= 2;
-
-		long img_dims_os[DIMS];
-		md_select_dims(DIMS, ~COIL_FLAG, img_dims_os, dims_os);
-
-		complex float* tmp = md_alloc(DIMS, img_dims_os, CFL_SIZE);
-		md_resize_center(DIMS, img_dims_os, tmp, img_dims, img, CFL_SIZE);
-
-		postprocess(	dims_os, normalize,
-				MD_STRIDES(DIMS, sens_dims, CFL_SIZE), sens,
-				MD_STRIDES(DIMS, img_dims_os, CFL_SIZE), tmp,
-				img_output_dims, MD_STRIDES(DIMS, img_output_dims, CFL_SIZE), img_output);
-
-		md_free(tmp);
-	} else {
-
-		postprocess(dims, normalize, MD_STRIDES(DIMS, sens_dims, CFL_SIZE), sens, MD_STRIDES(DIMS, img_dims, CFL_SIZE), img,
-			img_output_dims, MD_STRIDES(DIMS, img_output_dims, CFL_SIZE), img_output);
-
-	}
+	postprocess2(normalize,
+		     sens_dims, sens,
+		     img_dims, img,
+		     img_output_dims, img_output);
 
 
 	md_free(mask);
