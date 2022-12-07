@@ -28,6 +28,8 @@ struct noir2_model_conf_s {
 	struct nufft_conf_s* nufft_conf;
 
 	_Bool asymetric;
+
+	_Bool multigpu;
 };
 
 extern struct noir2_model_conf_s noir2_model_conf_defaults;
@@ -65,6 +67,7 @@ struct noir2_s {
 	long* col_dims;
 	long* col_ten_dims;	// col dims as input of tenmul
 	long* trj_dims;
+	long NC;		// number of coils if looped over
 
 	struct multiplace_array_s* basis;
 

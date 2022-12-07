@@ -263,6 +263,8 @@ void noir2_recon_noncart(
 
 	mconf.nufft_conf = conf->nufft_conf;
 
+	mconf.multigpu = conf->multigpu;
+
 	struct noir2_s noir_ops = noir2_noncart_create(N, trj_dims, NULL, wgh_dims, weights, bas_dims, basis, msk_dims, mask, ksp_dims, cim_dims, img_dims, col_dims, &mconf);
 
 	long limg_dims[N];
@@ -418,6 +420,8 @@ void noir2_recon_cart(
 	mconf.noncart = conf->noncart;
 
 	mconf.nufft_conf = conf->nufft_conf;
+
+	mconf.multigpu = conf->multigpu;
 
 	struct noir2_s noir_ops = noir2_cart_create(N, pat_dims, pattern, bas_dims, basis, msk_dims, mask, ksp_dims, cim_dims, img_dims, col_dims, &mconf);
 

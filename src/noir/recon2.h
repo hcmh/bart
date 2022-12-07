@@ -28,6 +28,7 @@ struct noir2_conf_s {
 	struct nufft_conf_s* nufft_conf;
 
 	_Bool gpu;
+	_Bool multigpu;
 
 	int cgiter;
 	float cgtol;

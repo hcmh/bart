@@ -95,6 +95,7 @@ int main_nlinv(int argc, char* argv[argc])
 	float coil_os_dims = -1;
 
 	bool crop_sens = false;
+	int num_gpus = 0;
 
 
 	const struct opt_s opts[] = {
@@ -114,6 +115,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_INFILE('t', &trajectory, "file", "kspace trajectory"),
 		OPT_INFILE('I', &init_file, "file", "File for initialization"),
 		OPT_SET('g', &(conf.gpu), "use gpu"),
+		OPT_INT('G', &(num_gpus), "num", "use multiple gpus (stack along coils)"),
 		OPT_SET('S', &(conf.undo_scaling), "Re-scale image after reconstruction"),
 		OPT_UINT('s', &cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
 		OPT_FLOAT('a', &conf.a, "", "(a in c * (1 + a * \\Laplace^-b/2))"),
@@ -136,8 +138,13 @@ int main_nlinv(int argc, char* argv[argc])
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
 
+	if (0 < num_gpus) {
 
-	(conf.gpu ? num_init_gpu : num_init)();
+		conf.gpu = true;
+		num_init_multigpu(num_gpus);
+		conf.multigpu = true;
+	} else
+		(conf.gpu ? num_init_gpu : num_init)();
 
 	long ksp_dims[DIMS];
 	complex float* kspace = load_cfl(ksp_file, DIMS, ksp_dims);

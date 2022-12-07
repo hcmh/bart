@@ -30,6 +30,7 @@
 #include "nlops/tenmul.h"
 #include "nlops/chain.h"
 #include "nlops/cast.h"
+#include "nlops/stack.h"
 
 #include "num/fft.h"
 #include "num/iovec.h"
@@ -38,6 +39,9 @@
 #include "num/filter.h"
 #include "num/ops.h"
 #include "num/multiplace.h"
+#ifdef USE_CUDA
+#include "num/gpuops.h"
+#endif
 
 #include "noir/utils.h"
 
@@ -67,6 +71,8 @@ struct noir2_model_conf_s noir2_model_conf_defaults = {
 	.nufft_conf = NULL,
 
 	.asymetric = false,
+
+	.multigpu = false,
 };
 
 
@@ -111,6 +117,8 @@ static struct noir2_s noir2_init_create(int N,
 
 		.ffm_dims = *TYPE_ALLOC(long[N]),
 		.nufft_weighting = NULL,
+
+		.NC = col_dims[COIL_DIM],
 	};
 
 	unsigned long loop_flags = conf->loop_flags;
@@ -136,6 +144,18 @@ static struct noir2_s noir2_init_create(int N,
 		}
 
 	ksp_os = conf->oversampling_coils / ksp_os;
+
+#ifdef USE_CUDA
+	if (conf->multigpu) {
+
+		long NC = (0 == ret.NC % cuda_num_devices()) ? ret.NC / cuda_num_devices() : 1;
+
+		ret.ksp_dims[COIL_DIM] = NC;
+		ret.cim_dims[COIL_DIM] = NC;
+		ret.col_dims[COIL_DIM] = NC;
+		ret.col_ten_dims[COIL_DIM] = NC;
+	}
+#endif
 
 
 	ret.lop_coil = linop_noir_weights_create(N, ret.col_ten_dims, ret.col_dims, conf->wght_flags, conf->oversampling_coils, conf->a, conf->b, conf->scaling_coils);
@@ -169,24 +189,54 @@ static struct noir2_s noir2_init_create(int N,
 
 static void noir2_join(struct noir2_s* ret, bool asym)
 {
-	const struct nlop_s* model = nlop_tenmul_create(ret->N, ret->cim_dims, ret->img_dims, ret->col_ten_dims);
-	
-	if (NULL != ret->lop_im)
-		model = nlop_chain2_swap_FF(nlop_from_linop(ret->lop_im), 0, model, 0);
-	
-	model = nlop_chain2_FF(nlop_from_linop(ret->lop_coil), 0, model, 1);
-	
-	if (asym) {
-		struct linop_s* lop_id = linop_identity_create(ret->N, ret->cim_dims);
-		struct linop_s* lop_asym = linop_from_ops(ret->lop_fft->normal, lop_id->adjoint, NULL, NULL);
+	int NS = ret->NC / ret->col_dims[COIL_DIM];
 
-		linop_free(lop_id);
-		ret->model = nlop_chain2_FF(model, 0, nlop_from_linop_F(lop_asym), 0);
-		ret->lop_asym = linop_clone(ret->lop_fft);
+	const struct nlop_s* models[NS];
+	const struct linop_s* lops_asym[NS];
 
+	for (int i = 0; i < NS; i++) {
+
+		const struct nlop_s* model = nlop_tenmul_create(ret->N, ret->cim_dims, ret->img_dims, ret->col_ten_dims);
+	
+		if (NULL != ret->lop_im)
+			model = nlop_chain2_swap_FF(nlop_from_linop(ret->lop_im), 0, model, 0);
+	
+		model = nlop_chain2_FF(nlop_from_linop(ret->lop_coil), 0, model, 1);
+	
+		if (asym) {
+			struct linop_s* lop_id = linop_identity_create(ret->N, ret->cim_dims);
+			struct linop_s* lop_asym = linop_from_ops(ret->lop_fft->normal, lop_id->adjoint, NULL, NULL);
+
+			linop_free(lop_id);
+			models[i] = nlop_chain2_FF(model, 0, nlop_from_linop_F(lop_asym), 0);
+			lops_asym[i] = linop_clone(ret->lop_fft);
+
+		} else {
+			models[i] = nlop_chain2_FF(model, 0, nlop_from_linop(ret->lop_fft), 0);
+			lops_asym[i] = linop_identity_create(ret->N, ret->ksp_dims);
+		}
+	}
+
+	if (1 == NS) {
+
+		ret->model = models[0];
+		ret->lop_asym = lops_asym[0];
 	} else {
-		ret->model = nlop_chain2_FF(model, 0, nlop_from_linop(ret->lop_fft), 0);
-		ret->lop_asym = linop_identity_create(ret->N, ret->ksp_dims);
+
+		ret->model = nlop_stack_multiple_F(NS, models, 2, (int[2]) { -1, COIL_DIM }, 1, (int[1]) { COIL_DIM }, true, ret->model_conf.multigpu);
+		ret->lop_asym = linop_stack_FF(COIL_DIM, COIL_DIM, lops_asym[0], lops_asym[1]);
+
+		auto lop_col_tmp = linop_clone(ret->lop_coil2);
+		ret->lop_coil2 = linop_stack_FF(COIL_DIM, COIL_DIM, ret->lop_coil2, linop_clone(lop_col_tmp));
+		
+		for (int i = 2; i < NS; i++) {
+
+			ret->lop_asym = linop_stack_FF(COIL_DIM, COIL_DIM, ret->lop_asym, lops_asym[i]);
+			ret->lop_coil2 = linop_stack_FF(COIL_DIM, COIL_DIM, ret->lop_coil2, linop_clone(lop_col_tmp));
+		}
+
+		linop_free(lop_col_tmp);
+
 	}
 }
 
