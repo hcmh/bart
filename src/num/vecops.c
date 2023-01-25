@@ -28,6 +28,8 @@
 #include "misc/misc.h"
 #include "misc/debug.h"
 
+#include "num/rand.h"
+
 #include "vecops.h"
 
 
@@ -836,6 +838,8 @@ struct vec_iter_s {
 
 	void (*zmul)(long N, complex float* dst, const complex float* src1, const complex float* src2);
  	void (*zsmax)(long N, complex float val, complex float* dst, const complex float* src1);
+
+	void (*rand)(long N, float* dst);
 };
 
 
@@ -863,4 +867,5 @@ const struct vec_iter_s cpu_iter_ops = {
 	.div = vec_div,
 	.smax = smax,
 	.smin = smin,
+	.rand = gaussian_rand_vec,
 };
