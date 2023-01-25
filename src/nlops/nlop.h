@@ -150,5 +150,7 @@ extern const struct nlop_s* nlop_copy_wrapper_F(int OO, const long* ostrs[OO], i
 
 extern const struct nlop_s* nlop_optimize_graph(const struct nlop_s* op);
 
+extern const struct operator_p_s* op_p_nlop_wrapper_F(const struct nlop_s* nlop);
+
 #endif
 
