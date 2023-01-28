@@ -37,6 +37,10 @@
 
 #include "lowrank/lrthresh.h"
 
+#include "nlops/nlop.h"
+#include "nlops/cast.h"
+#include "nlops/chain.h"
+
 #include "nn/tf_wrapper.h"
 
 #include "misc/mri.h"
@@ -68,6 +72,7 @@ void help_reg(void)
 			"-R L:7:7:.02\tLocally low rank with spatial decimation and 0.02 regularization.\n"
 			"-R M:7:7:.03\tMulti-scale low rank with spatial decimation and 0.03 regularization.\n"
 			"-R TF:{graph_path}:lambda\tTensorFlow loss\n"
+			"-R TFS:{graph_path}\tScore Network TensorFlow-Graph\n"
 	      );
 }
 
@@ -205,6 +210,15 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
 		}
+		else if (strcmp(rt, "TFS") == 0)
+		{
+			regs[r].xform = TENFLS;
+			int ret = sscanf(optarg, "%*[^:]:{%m[^}]}", &regs[r].graph_file);
+			assert(1 == ret);
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
+		}
+
 		else if (strcmp(rt, "h") == 0) {
 
 			help_reg();
@@ -651,6 +665,26 @@ void opt_reg_configure(int N, const long img_dims[N], struct opt_reg_s* ropts, c
 			operator_p_free(prox_op);
 
 			break;
+
+		case TENFLS:
+			
+			debug_printf(DP_INFO, "Score-Network: %s.\n", regs[nr].graph_file);
+			trafos[nr] = linop_identity_create(DIMS, img_dims);
+
+			const struct tf_shared_graph_s* tf_graph = tf_shared_graph_create(regs[nr].graph_file, NULL);
+			tf_shared_graph_set_batch_size(tf_graph, img_dims[AVG_DIM]);
+
+			const struct nlop_s* nlop = nlop_tf_shared_create(tf_graph);
+			nlop = nlop_reshape_in_F(nlop, 0, N, img_dims);
+			nlop = nlop_reshape_out_F(nlop, 0, N, img_dims);
+
+			auto par = nlop_generic_domain(nlop, 1);
+			nlop = nlop_chain2_FF(nlop_from_linop_F(linop_repmat_create(par->N, par->dims, ~0)), 0, nlop, 1);
+			nlop = nlop_reshape_in_F(nlop, 1, 1, (long[1]) { 1 });
+
+			prox_ops[nr] = op_p_nlop_wrapper_F(nlop);
+			break;
+
 		}
 
 		// if there are supporting variables, extract the main variables by default

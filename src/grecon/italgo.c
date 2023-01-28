@@ -53,6 +53,10 @@ enum algo_t italgo_choose(int nr_penalties, const struct reg_s regs[nr_penalties
 			algo = ALGO_ADMM;
 			break;
 
+		case TENFLS:
+			algo = ALGO_MCMC;
+			break;
+
 		default:
 			if (0 == i)
 				algo = ALGO_FISTA;
@@ -67,7 +71,7 @@ enum algo_t italgo_choose(int nr_penalties, const struct reg_s regs[nr_penalties
 }
 
 
-struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s* regs, unsigned int maxiter, float step, bool hogwild, bool fast, const struct admm_conf admm, float scaling, bool warm_start)
+struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s* regs, unsigned int maxiter, float step, bool hogwild, bool fast, const struct admm_conf admm, const struct mcmc_conf mcmc, float scaling, bool warm_start)
 {
 	italgo_fun2_t italgo = NULL;
 	iter_conf* iconf = NULL;
@@ -211,6 +215,30 @@ struct iter italgo_config(enum algo_t algo, int nr_penalties, const struct reg_s
 			italgo = iter2_niht;
 			iconf = CAST_UP(PTR_PASS(ihconf));
 
+			break;
+		}
+
+		case ALGO_MCMC: {
+
+			debug_printf(DP_INFO, "MCMC\n");
+			assert(1 == nr_penalties);
+
+			PTR_ALLOC(struct iter_mcmc_conf, mcconf);
+
+			*mcconf = iter_mcmc_defaults;
+			mcconf->sigma_min = mcmc.sigma_min;
+			mcconf->sigma_max = mcmc.sigma_max;
+			mcconf->end_step = mcmc.end_step;
+			mcconf->start_step = mcmc.start_step;
+			mcconf->inner_iter = mcmc.K;
+			mcconf->lambda = step;
+			mcconf->max_iter = maxiter;
+			mcconf->warmstart = warm_start;
+			mcconf->discrete = mcmc.discrete;
+			mcconf->exclude_zero = mcmc.exclude_zero;
+
+			italgo = iter2_mcmc;
+			iconf = CAST_UP(PTR_PASS(mcconf));
 			break;
 		}
 

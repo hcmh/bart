@@ -272,6 +272,19 @@ int main_pics(int argc, char* argv[argc])
 	const char* basis_file = NULL;
 
 	struct admm_conf admm = { false, false, false, iter_admm_defaults.rho, iter_admm_defaults.maxitercg };
+	struct mcmc_conf mcmc = { .sigma_max = 1, . sigma_min = 0.01, .K = 50, .start_step = -1, .end_step = 0, .discrete = false, .exclude_zero = false };
+
+	struct opt_s mcmc_opts[] = {
+
+		OPTL_FLOAT(0, "sigma-min", &(mcmc.sigma_min), "sigma", "smallest sigma"),
+		OPTL_FLOAT(0, "sigma-max", &(mcmc.sigma_max), "sigma", "largest sigma"),
+		OPTL_INT('K', "langevin-steps", &(mcmc.K), "K", "number of Langevin steps"),
+		OPTL_INT(0, "start-step", &(mcmc.start_step), "", "starting step (default: -1 falls back to max iter)"),
+		OPTL_INT(0, "end-step", &(mcmc.end_step), "", "end step (default: 0)"),
+		OPTL_SET(0, "exclude-zero", &(mcmc.exclude_zero), "just iter to step before last step."),
+		OPTL_SET(0, "discrete-conditioning", &(mcmc.discrete), "use discrete conditioning counting down from maxiter-1 to 0")
+	};
+
 
 	enum algo_t algo = ALGO_DEFAULT;
 
@@ -336,6 +349,7 @@ int main_pics(int argc, char* argv[argc])
 		OPTL_OUTFILE(0, "psf_export", &psf_ofile, "file", "Export PSF to file"),
 		OPTL_INFILE(0, "psf_import", &psf_ifile, "file", "Import PSF from file"),
 		OPTL_STRING(0, "wavelet", &wtype_str, "name", "wavelet type (haar,dau2,cdf44)"),
+		OPTL_SUBOPT(0, "mcmc", "", "Configuration for mcmc", ARRAY_SIZE(mcmc_opts), mcmc_opts),
 	};
 
 
@@ -834,7 +848,7 @@ int main_pics(int argc, char* argv[argc])
 
 	// initialize algorithm
 
-	struct iter it = italgo_config(algo, nr_penalties, ropts.regs, maxiter, step, hogwild, fast, admm, scaling, warm_start);
+	struct iter it = italgo_config(algo, nr_penalties, ropts.regs, maxiter, step, hogwild, fast, admm, mcmc, scaling, warm_start);
 
 	if (eigen && (ALGO_PRIDU == algo))
 		CAST_DOWN(iter_chambolle_pock_conf, it.iconf)->maxeigen_iter = 30;
