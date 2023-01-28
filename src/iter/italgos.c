@@ -395,6 +395,55 @@ cleanup:
 }
 
 
+void mcmc(
+	int T, float sig2[T + 1], int K, float stepsize,
+	int start_i, int end_i,
+	bool discrete,
+	const struct vec_iter_s* vops,
+	struct iter_op_s normal_op,
+	struct iter_op_p_s score_op,
+	long N, float* x, const float* AHy,
+	bool warmstart,
+	struct iter_monitor_s* monitor)
+{
+	UNUSED(monitor);
+
+	float* score = vops->allocate(N);
+	float* tmp = vops->allocate(N);
+
+	if (!warmstart) {
+
+		vops->rand(N, x);
+		vops->smul(N, sqrtf(sig2[T]), x, x);
+	}
+
+	for (int i = start_i; i >= end_i; i--) {
+
+		float tau = sqrtf(sig2[i] / sig2[i + 1] * (sig2[i + 1] - sig2[i]));
+		float dsig = (sig2[i + 1] - sig2[i]);
+		float cond = discrete ? i : 0.01 + (1. - 0.01) * i / (float)T;
+
+		debug_printf(DP_DEBUG1, "Step %d: conditioning=%.2e; sig_i+1=%.2e; sig_i=%.2e; tau=%2e lam=%e \n", i, cond,  sqrtf(sig2[i + 1]), sqrtf(sig2[i]), tau, stepsize);
+
+		for (int k = 0; k < K; k++) {
+
+			iter_op_p_call(score_op, cond, score, x); // call score
+			iter_op_call(normal_op, tmp, x);  // tmp = AHAx
+
+			vops->axpy(N, x, -stepsize * tau, tmp);
+			vops->axpy(N, x, +stepsize * tau, AHy);
+			
+			vops->axpy(N, x, dsig, score);
+
+			vops->rand(N, tmp);
+			vops->axpy(N, x, tau, tmp);
+		}
+	}
+
+	vops->del(score);
+	vops->del(tmp);
+}
+
 
 
 

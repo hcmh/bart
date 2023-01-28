@@ -534,6 +534,52 @@ void iter2_niht(const iter_conf* _conf,
 cleanup:
 	;
 }
+
+void iter2_mcmc(const iter_conf* _conf,
+		const struct operator_s* normaleq_op,
+		unsigned int D,
+		const struct operator_p_s* prox_ops[D],
+		const struct linop_s* ops[D],
+		const float* biases[D],
+		const struct operator_p_s* xupdate_op,
+		long size, float* image, const float* image_adj,
+		struct iter_monitor_s* monitor)
+{
+	assert(D == 1);
+	assert(NULL == biases);
+#if 0
+	assert(NULL == ops);
+#else
+	UNUSED(ops);
+#endif
+	UNUSED(xupdate_op);
+
+	auto conf = CAST_DOWN(iter_mcmc_conf, _conf);
+
+	const struct vec_iter_s *vops = select_vecops(image_adj);
+
+	int T = conf->max_iter;
+	
+
+	assert(conf->sigma_max >= conf->sigma_min);
+	float sig2[T + 1];
+
+	if (conf->exclude_zero) {
+
+		for (int i = 0; i < T + 1; i++)
+			sig2[i] = powf(exp(log(conf->sigma_min) + i * ((log(conf->sigma_max) - log(conf->sigma_min)) / (T))), 2);
+	
+	} else {
+
+		sig2[0] = 0;
+		for (int i = 1; i < T + 1; i++)
+			sig2[i] = powf(exp(log(conf->sigma_min) + (i - 1) * ((log(conf->sigma_max) - log(conf->sigma_min)) / T)), 2);
+	}
+
+	
+	mcmc(T, sig2, conf->inner_iter, conf->lambda, (-1 == conf->start_step) ? T - 1 : conf->start_step, conf->end_step, conf->discrete, vops,
+		OPERATOR2ITOP(normaleq_op), OPERATOR_P2ITOP(prox_ops[0]), size, image, image_adj, conf->warmstart, monitor);
+}
   
 void iter2_call_iter(const iter_conf* _conf,
 		const struct operator_s* normaleq_op,

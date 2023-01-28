@@ -44,6 +44,7 @@ DEF_TYPEID(iter_chambolle_pock_conf);
 DEF_TYPEID(iter_pocs_conf);
 DEF_TYPEID(iter_admm_conf);
 DEF_TYPEID(iter_niht_conf);
+DEF_TYPEID(iter_mcmc_conf);
 DEF_TYPEID(iter_call_s);
 
 const struct iter_conjgrad_conf iter_conjgrad_defaults = {
@@ -153,6 +154,27 @@ const struct iter_chambolle_pock_conf iter_chambolle_pock_defaults = {
 	.decay = 1.,
 	.fast = false,
 	.maxeigen_iter = 0,
+};
+
+const struct iter_mcmc_conf iter_mcmc_defaults = {
+
+	.INTERFACE.TYPEID = &TYPEID2(iter_mcmc_conf),
+	.INTERFACE.alpha = 1.,
+
+	.max_iter = 10,
+	.sigma_max = 1.,
+	.sigma_min = 0.01,
+
+	.lambda = 0.00001,
+	.inner_iter = 50,
+
+	.start_step = -1,
+	.end_step = 0,
+
+	.exclude_zero = false,
+	.discrete = false,
+
+	.warmstart = false,
 };
 
 typedef void (*thresh_fun_t)(void* data, float lambda, float* dst, const float* src);

@@ -173,6 +173,15 @@ void fista(unsigned int maxiter, float epsilon, float tau,
 	float* x, const float* b,
 	struct iter_monitor_s* monitor);
 
+void mcmc(
+	int T, float sig2[T + 1], int K, float stepsize,
+	int start_i, int end_i, _Bool discrete,
+	const struct vec_iter_s* vops,
+	struct iter_op_s normal_op,
+	struct iter_op_p_s score_op,
+	long N, float* x, const float* AHy,
+	_Bool warmstart,
+	struct iter_monitor_s* monitor);
 
 void irgnm(unsigned int iter, float alpha, float alpha_min, float redu,
 	long N, long M,
