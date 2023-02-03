@@ -977,3 +977,36 @@ const struct nlop_s* nlop_flatten_stacked(const struct nlop_s* nlop)
 
 	return PTR_PASS(n);
 }
+
+const struct nlop_s* nlop_loop_generic_F(int N, const struct nlop_s* nlop, int II, int iloop_dim[II], int OO, int oloop_dim[OO])
+{
+	const struct nlop_s* nlops[N];
+
+	for (int i = 0; i < N; i++)
+		nlops[i] = nlop_checkpoint_create(nlop, true, true);
+
+	auto result = nlop_stack_container_internal_create_F(N, nlops, II, iloop_dim, OO, oloop_dim, false, false);
+
+	nlop_free(nlop);
+	
+	return result;
+}
+
+const struct nlop_s* nlop_loop_F(int N, const struct nlop_s* nlop, unsigned long dup_flag, int loop_dim)
+{
+	int II = nlop_get_nr_in_args(nlop);
+	int OO = nlop_get_nr_out_args(nlop);
+
+	assert(8 * (int)sizeof(dup_flag) > II);
+
+	int ildim[II];
+	for(int i = 0; i < II; i++)
+		ildim[i] = MD_IS_SET(dup_flag, i) ? -1 : loop_dim;
+	
+	int oldim[OO];
+	for(int i = 0; i < OO; i++)
+		oldim[i] = loop_dim;
+	
+	return nlop_loop_generic_F(N, nlop, II, ildim, OO, oldim);
+}
+

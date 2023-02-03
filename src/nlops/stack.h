@@ -11,3 +11,6 @@ extern const struct nlop_s* nlop_stack_container_create_F(int N, const struct nl
 extern const struct nlop_s* nlop_stack_multigpu_create_F(int N, const struct nlop_s* nlops[__VLA(N)], int II, int in_stack_dim[__VLA(II)], int OO, int out_stack_dim[__VLA(OO)]);
 
 extern const struct nlop_s* nlop_flatten_stacked(const struct nlop_s* nlop);
+
+extern const struct nlop_s* nlop_loop_generic_F(int N, const struct nlop_s* nlop, int II, int iloop_dim[__VLA(II)], int OO, int oloop_dim[__VLA(OO)]);
+extern const struct nlop_s* nlop_loop_F(int N, const struct nlop_s* nlop, unsigned long dup_flag, int loop_dim);
