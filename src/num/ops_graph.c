@@ -93,19 +93,14 @@ static void node_arg_del(const struct node_s* _node)
 	iovec_free(node->iov);
 }
 
-static const char* print_node_arg(const struct node_s* node)
+static const char* print_node_arg(const struct node_s* _node)
 {
-	return ptr_printf("node_%p [label=\"%s\" shape=diamond];\n", node, (NULL == node->name) ? node->TYPEID->name : node->name);
-}
+	auto node = CAST_DOWN(node_arg_s, _node);
+	auto iov = node->iov;
 
-static node_t node_arg_create(bool output, const struct iovec_s* iov)
-{
-	PTR_ALLOC(struct node_arg_s, node);
-	SET_TYPEID(node_arg_s, node);
+	const char* name = ptr_printf("%s\\n[", node->output ? "Output" : "Input");
 
-	const char* name = ptr_printf("%s\\n[", output ? "Output" : "Input");
-
-	for (int i = 0; i < (int)iov->N; i++) {
+	for (int i = 0; i < (int)(iov->N); i++) {
 
 		auto tmp = name;
 
@@ -115,14 +110,23 @@ static node_t node_arg_create(bool output, const struct iovec_s* iov)
 	}
 
 	const char* name2 = ptr_printf("%s ]", name);
-
 	xfree(name);
+
+	const char* ret = ptr_printf("node_%p [label=\"%s\" shape=diamond];\n", node, name2);
+	xfree(name2);
+
+	return ret;
+}
+
+static node_t node_arg_create(bool output, const struct iovec_s* iov)
+{
+	PTR_ALLOC(struct node_arg_s, node);
+	SET_TYPEID(node_arg_s, node);
 
 	bool io_flags[1] = { !output };
 
-	node_init(&(node->INTERFACE), 1, io_flags, name2, true, NULL);
+	node_init(&(node->INTERFACE), 1, io_flags, NULL, true, NULL);
 
-	xfree(name2);
 
 	node->INTERFACE.node_print = print_node_arg;
 
