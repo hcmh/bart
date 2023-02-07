@@ -843,3 +843,16 @@ nn_t network_unet_create(const struct network_s* _unet, unsigned int NO, const l
 
 	return result;
 }
+
+
+bool unet_is_diagonal(const struct network_s* config)
+{
+	auto unet = CAST_MAYBE(network_unet_s, config);
+
+	if (NULL != unet)
+		return !(unet->use_bn);
+
+	return false;	
+}
+
+

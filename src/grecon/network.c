@@ -28,6 +28,8 @@ struct network_s* get_default_network(enum NETWORK_SELECT net)
 			return CAST_UP(&network_varnet_default);
 		case NETWORK_TENSORFLOW:
 			return CAST_UP(&network_tensorflow_default);
+		case NETWORK_UNET:
+			return CAST_UP(&network_unet_default_reco);
 	}
 
 	assert(0);
