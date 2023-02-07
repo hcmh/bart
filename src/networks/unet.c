@@ -90,7 +90,7 @@ struct network_unet_s network_unet_default_reco = {
 	.real_constraint = false,
 
 	.init_real = false,
-	.init_zeros_residual = false,
+	.init_zeros_residual = true,
 
 	.use_bn = false,
 	.use_bias = true,
