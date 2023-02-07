@@ -7,6 +7,7 @@ enum NETWORK_SELECT {
 	NETWORK_RESBLOCK,
 	NETWORK_VARNET,
 	NETWORK_TENSORFLOW,
+	NETWORK_UNET,
 };
 
 extern struct network_s* get_default_network(enum NETWORK_SELECT net);

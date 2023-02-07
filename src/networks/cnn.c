@@ -37,6 +37,7 @@
 #include "nn/layers_nn.h"
 #include "nn/init.h"
 
+#include "networks/unet.h"
 
 #include  "cnn.h"
 
@@ -580,5 +581,5 @@ bool network_is_diagonal(const struct network_s* config)
 	if (NULL != varnet)
 		return true;
 	
-	return false;
+	return unet_is_diagonal(config);
 }
