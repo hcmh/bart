@@ -42,12 +42,18 @@ TENSORFLOW?=0
 NOEXEC_STACK?=0
 PARALLEL?=0
 PARALLEL_NJOBS?=
+DEBUG_DWARF?=0
 
 LOG_BACKEND?=0
 LOG_SIEMENS_BACKEND?=0
 LOG_ORCHESTRA_BACKEND?=0
 LOG_GADGETRON_BACKEND?=0
 
+# for debug backtraces
+ifeq ($(DEBUG_DWARF),1)
+	LIBS +=-ldw -lunwind
+	CPPFLAGS += -DUSE_DWARF
+endif
 
 DESTDIR ?= /
 PREFIX ?= usr/local/
@@ -490,6 +496,9 @@ PNG_L := -lpng
 
 ifeq ($(SLINK),1)
 	PNG_L += -lz
+	ifeq ($(DEBUG_DWARF),1)
+		LIBS += -lelf -lz -llzma -lbz2
+	endif
 endif
 
 ifeq ($(LINKER),icc)
