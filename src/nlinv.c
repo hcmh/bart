@@ -46,11 +46,12 @@
 #include "misc/opts.h"
 #include "misc/debug.h"
 
+#include "noir/optreg.h"
 #include "noir/recon.h"
 #include "noir/misc.h"
 
-
-
+#include "iter/iter2.h"
+#include "grecon/italgo.h"
 
 
 static const char help_str[] =
@@ -87,16 +88,21 @@ int main_nlinv(int argc, char* argv[argc])
 	bool use_gpu = false;
 	float scaling = -1.;
 	bool nufft_lowmem = false;
+	bool randshift = true;
 
-	long my_img_dims[3] = { 0, 0, 0 };
+	opt_reg_nlinv_init(&conf.ropts);
 
 	const struct opt_s opts[] = {
-
+		{ 'l', NULL, true, OPT_SPECIAL, opt_reg_nlinv, &conf.ropts, "1/-l2\t\ttoggle l1-wavelet or l2 regularization." }, // FIXME: where to init ropts (gluo)
+		OPT_FLOAT('e', &conf.ropts.lambda, "lambda", "regularization parameter"),
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
-		OPT_FLOAT('R', &conf.redu, "", "(reduction factor)"),
+		OPT_FLOAT('r', &conf.redu, "", "(reduction factor)"),
+		{ 'R', NULL, true, OPT_SPECIAL, opt_reg_nlinv, &conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-Rh for help)" },
+		OPT_FLOAT('u', &conf.rho, "rho", "ADMM rho"),
 		OPT_FLOAT('M', &conf.alpha_min, "", "(minimum for regularization)"),
 		OPT_INT('d', &debug_level, "level", "Debug level"),
 		OPT_SET('c', &conf.rvc, "Real-value constraint"),
+		OPT_UINT('C', &conf.inner_iter, "iter", "inner iterations"),
 		OPT_CLEAR('N', &normalize, "Do not normalize image with coil sensitivities"),
 		OPT_UINT('m', &nmaps, "nmaps", "Number of ENLIVE maps to use in reconstruction"),
 		OPT_CLEAR('U', &combine, "Do not combine ENLIVE maps in output"),
@@ -110,26 +116,33 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_FLOAT('a', &conf.a, "", "(a in 1 + a * \\Laplace^-b/2)"),
 		OPT_FLOAT('b', &conf.b, "", "(b in 1 + a * \\Laplace^-b/2)"),
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
-		OPT_SET('n', &conf.noncart, "(non-Cartesian)"),
-		OPT_FLOAT('w', &scaling, "", "(inverse scaling of the data)"),
+		OPTL_SET('n', "noncart", &conf.noncart, "(non-Cartesian)"),
+		OPT_FLOAT('w', &scaling, "val", "inverse scaling of the data"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
-		OPT_VEC3('x', &my_img_dims, "x:y:z", "Explicitly specify image dimensions"),
+		OPT_SELECT('A', enum algo_t, &conf.algo, ALGO_ADMM, "select ADMM"),
+		OPT_CLEAR('K', &randshift, "disable random wavelet cycle spinning"),
+		OPTL_UINT(0, "reg-iter", &conf.reg_iter, "iter", "number of iterations applying regularization on image"),
+		OPTL_STRING(0, "wavelet", &conf.wtype_str, "name", "wavelet type (haar,dau2,cdf44)"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
+	if (!randshift)
+		conf.shift_mode = 0;
 
 
-	(use_gpu ? num_init_gpu : num_init)();
+	(use_gpu ? num_init_gpu_memopt : num_init)();
 
 	long ksp_dims[DIMS];
 	complex float* kspace = load_cfl(ksp_file, DIMS, ksp_dims);
 
 	// FIXME: SMS should not be the default
+	// FIXME: SMS option letter (-s) in rtnlinv is already in use in nlinv
 
+	// SMS
 	if (1 != ksp_dims[SLICE_DIM]) {
 
 		debug_printf(DP_INFO, "SMS-NLINV reconstruction. Multiband factor: %d\n", ksp_dims[SLICE_DIM]);
-		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output
+		fftmod(DIMS, ksp_dims, SLICE_FLAG, kspace, kspace); // fftmod to get correct slice order in output (consistency with SMS implementation on scanner)
 		conf.sms = true;
 	}
 
@@ -142,12 +155,13 @@ int main_nlinv(int argc, char* argv[argc])
 
 	long dims[DIMS];
 	md_copy_dims(DIMS, dims, ksp_dims);
+	dims[MAPS_DIM] = nmaps;
 
 	complex float* traj = NULL;
 	long trj_dims[DIMS];
 
 	if (NULL != trajectory) {
-#if 0
+
 		conf.noncart = true;
 
 		traj = load_cfl(trajectory, DIMS, trj_dims);
@@ -162,38 +176,7 @@ int main_nlinv(int argc, char* argv[argc])
 				dims[i] *= 2;
 
 		md_copy_dims(DIMS - 3, dims + 3, ksp_dims + 3);
-#else
-		conf.noncart = true;
-
-		traj = load_cfl(trajectory, DIMS, trj_dims);
-
-		debug_print_dims(DP_INFO, 3, my_img_dims);
-
-		const float oversampling = 2;
-
-		md_zsmul(DIMS, trj_dims, traj, traj, oversampling);
-
-		if (0 == my_img_dims[0] + my_img_dims[1] + my_img_dims[2]) {
-
-			estimate_fast_sq_im_dims(3, dims, trj_dims, traj);
-		} else {
-
-			md_copy_dims(3, dims, my_img_dims);
-
-			for (int i = 0; i < 3; i++)
-				if (1 != dims[i])
-					dims[i] *= oversampling;
-		}
-
-#endif
-
-
-
-
-	}	
-
-	// for ENLIVE maps
-	dims[MAPS_DIM] = nmaps;
+	}
 
 	long strs[DIMS];
 	md_calc_strides(DIMS, strs, dims, CFL_SIZE);
@@ -254,7 +237,7 @@ int main_nlinv(int argc, char* argv[argc])
 		assert(md_check_bounds(DIMS, 0, img_dims, init_dims));
 
 		md_copy(DIMS, img_dims, img, init, CFL_SIZE);
-		fftmod(DIMS, sens_dims, FFT_FLAGS | (conf.sms ? SLICE_FLAG : 0u), ksens, init + skip);
+		fftmod(DIMS, sens_dims, FFT_FLAGS | ((conf.sms) ? SLICE_FLAG : 0u), ksens, init + skip);
 
 		unmap_cfl(DIMS, init_dims, init);
 

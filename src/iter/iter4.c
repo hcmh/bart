@@ -226,4 +226,48 @@ void iter4_irgnm2(const iter3_conf* _conf,
 }
 
 
+void iter4_irgnm3(const iter3_conf* _conf,
+		struct nlop_s* nlop,
+		long N, float* dst, const float* ref,
+		long M, const float* src,
+		const struct operator_p_s* lsqr,
+		struct iter_op_s cb)
+{
+	struct iter4_nlop_s data = { { &TYPEID(iter4_nlop_s) }, *nlop };
+
+	auto cd = nlop_codomain(nlop);
+	auto dm = nlop_domain(nlop);
+
+	assert(M * sizeof(float) == md_calc_size(cd->N, cd->dims) * cd->size);
+	assert(N * sizeof(float) == md_calc_size(dm->N, dm->dims) * dm->size);
+
+	auto conf = CAST_DOWN(iter3_irgnm_conf, _conf);
+
+	float* tmp = md_alloc_sameplace(1, MD_DIMS(M), FL_SIZE, src);
+
+	struct iter_op_s frw = { nlop_for_iter, CAST_UP(&data) };
+	struct iter_op_s der = { nlop_der_iter, CAST_UP(&data) };
+	struct iter_op_s adj = { nlop_adj_iter, CAST_UP(&data) };
+
+	struct irgnm_s data2 = { { &TYPEID(irgnm_s) }, der, adj, tmp, N, conf->cgiter, conf->cgtol, conf->nlinv_legacy };
+
+	// one limitation is that we currently cannot warm start the inner solver
+
+	struct iter_op_p_s inv = { inverse, CAST_UP(&data2) };
+	
+	irgnm(conf->iter-conf->reg_iter, conf->alpha, conf->alpha_min, conf->redu, N, M, select_vecops(src),
+		frw, adj, inv,
+		dst, ref, src, cb, NULL);
+
+	// alpha continuity
+	for (unsigned int i = 0; i < conf->iter-conf->reg_iter; i++) {
+		conf->alpha = (conf->alpha - conf->alpha_min) / conf->redu + conf->alpha_min;
+	}
+
+	irgnm2(conf->reg_iter, conf->alpha, conf->alpha_min, conf->alpha_min0, conf->redu, N, M, select_vecops(src),
+		frw, der, OPERATOR_P2ITOP(lsqr),
+		dst, ref, src, cb, NULL);
+
+	md_free(tmp);
+}
 
