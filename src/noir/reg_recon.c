@@ -47,7 +47,6 @@ struct reg_nlinv {
 	const long *dims;
 
 	float alpha;
-	unsigned int outer_iter;
 
 	const struct operator_p_s** prox_kernel;
 
@@ -68,25 +67,12 @@ static void normal(iter_op_data* _data, float* dst, const float* src)
 
 	long coil_dims[DIMS];
 	md_copy_dims(DIMS, coil_dims, data->dims);
-	
-	auto dm = nlop_domain(data->nlop);
 
-	if(data->conf->ropts->regs[0].xform == L1WAV)
-		md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
-	else if(data->conf->ropts->regs[0].xform == LOGP && data->outer_iter > data->conf->max_outiter-3)
-		md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
-	else
-		md_axpy(DIMS, dm->dims, dst, data->alpha, src);
+	md_axpy(DIMS, coil_dims, dst + skip, data->alpha, src + skip);
 
 }
 
-static void logp_prox(iter_op_data* _data, float rho, float* dst, const float* src)
-{
-	auto data = CAST_DOWN(reg_nlinv, _data);
-	operator_p_apply_unchecked(data->prox_kernel[0], rho, (_Complex float*)dst, (const complex float*)src);
-}
-
-static void l1_prox(iter_op_data* _data, float rho, float* dst, const float* src)
+static void prox_func(iter_op_data* _data, float rho, float* dst, const float* src)
 {
 	auto data = CAST_DOWN(reg_nlinv, _data);
 	operator_p_apply_unchecked(data->prox_kernel[0], rho, (_Complex float*)dst, (const complex float*)src);
@@ -106,7 +92,6 @@ static void fista_solver(iter_op_data* _data, float alpha,  float* dst, const fl
 	md_free(x);
 	step = step / maxeigen;
 
-	//unsigned int maxiter = MIN(data->conf->maxiter, 3 * (unsigned int)powf(1.5, data->outer_iter));
 	unsigned int maxiter = data->conf->maxiter;
 	debug_printf(DP_DEBUG2, "##reg. alpha = %f iteration %d step size %f \n", alpha, maxiter, step);
 	
@@ -115,24 +100,6 @@ static void fista_solver(iter_op_data* _data, float alpha,  float* dst, const fl
 	linop_adjoint_unchecked(nlop_get_derivative(data->nlop, 0, 0), (complex float*)tmp, (const complex float*)src);
 
 	float eps = md_norm(1, MD_DIMS(data->size_x), tmp);
-	
-	typedef void prox_hooker(iter_op_data* _data, float rho, float* dst, const float* src);
-
-	prox_hooker* prox_ptr = NULL;
-
-	if (data->conf->ropts->r == 1 ){
-		
-		if (data->conf->ropts->regs[0].xform == L1WAV)
-			prox_ptr = &l1_prox;
-
-		if (data->conf->ropts->regs[0].xform == LOGP)
-			prox_ptr = &logp_prox;
-	}
-	else
-	{
-		error("FISTA only supports one regularization term in nlinv!");
-	}
-	
 	
 	NESTED(void, continuation, (struct ist_data* itrdata))
 	{
@@ -147,13 +114,10 @@ static void fista_solver(iter_op_data* _data, float alpha,  float* dst, const fl
 		select_vecops(src),
 		continuation,
 		(struct iter_op_s){ normal, CAST_UP(data) },
-		(struct iter_op_p_s){ prox_ptr, CAST_UP(data) },
+		(struct iter_op_p_s){&prox_func, CAST_UP(data) },
 		dst, tmp, NULL);
 
 	md_free(tmp);
-
-	data->outer_iter++;
-
 }
 
 struct reg_nlinv_s {
@@ -196,7 +160,7 @@ extern const struct operator_p_s* reg_pinv_op_create(struct irgnm_reg_conf* conf
 	    int M = 2 * md_calc_size(cd->N, cd->dims);
 	    int N = 2 * md_calc_size(dm->N, dm->dims);
 	
-		printf("use fista\n");
+		debug_printf(DP_INFO, "Use FISTA\n");
 		long* ndims = *TYPE_ALLOC(long[DIMS]);
 		md_copy_dims(DIMS, ndims, dims);
 
@@ -208,7 +172,6 @@ extern const struct operator_p_s* reg_pinv_op_create(struct irgnm_reg_conf* conf
 			.size_y = M,
 			.dims = ndims,
 			.alpha = 1.0,
-			.outer_iter = 0,
 			.prox_kernel = thresh_ops,
 		};
 		data->ins_reg_nlinv = ins_reg_nlinv;
@@ -218,7 +181,7 @@ extern const struct operator_p_s* reg_pinv_op_create(struct irgnm_reg_conf* conf
 	else
 	{
 		
-		printf("use admm\n");
+		debug_printf(DP_INFO, "Use ADMM\n");
 
 		pinv_op = lsqr2_create(conf->lsqr_conf_reg, 
 								iter2_admm,
