@@ -10,6 +10,7 @@
 
 #include <complex.h>
 #include <assert.h>
+#include <math.h>
 
 #include "misc/types.h"
 #include "misc/misc.h"
@@ -22,6 +23,7 @@
 #include "num/flpmath.h"
 
 #include "iter/iter.h"
+#include "noir/recon.h"
 
 #include "nlops/nlop.h"
 
@@ -278,6 +280,78 @@ extern const struct operator_p_s* prox_nlgrad_create(const struct nlop_s* op, in
 	return operator_p_create(dom->N, dom->dims, dom->N, dom->dims, CAST_UP(PTR_PASS(data)), prox_nlgrad_apply, prox_nlgrad_del);
 }
 
+/*
+ * proximal function with a diffusion prior
+*/
+struct prox_nl_dp_grad_data{
+
+	INTERFACE(operator_data_t);
+
+	const struct operator_p_s* op;
+	const struct dp_conf* conf;
+
+	float lambda;
+	float* sigmas;
+
+	int idx;
+};
+
+DEF_TYPEID(prox_nl_dp_grad_data);
+
+static void prox_nl_dp_grad_apply(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(prox_nl_dp_grad_data, _data);
+
+	mu *= data->lambda;
+
+	auto dom = operator_p_domain(data->op);
+
+	int cur_iter = data->idx%data->conf->iter;
+	float cond_t = (float)data->conf->start_step/(float)data->conf->T - (float)(cur_iter)/(float)data->conf->T;
+	int cur_idx = data->conf->T - data->conf->start_step + cur_iter;
+
+	complex float* score = md_alloc_sameplace(dom->N, dom->dims, dom->size, dst);
+	operator_p_apply_unchecked(data->op, cond_t, score, src);
+
+	float dsig = data->sigmas[cur_idx + 1] - data->sigmas[cur_idx];
+
+	md_zaxpy(dom->N, dom->dims, dst, mu * dsig, score); //dst = dst - mu*dsig*score
+	data->idx = data->idx + 1;
+
+	debug_printf(DP_DEBUG4, "prox iter: %d, t-> %.4f mu -> %.4f \n", cur_iter, cond_t, mu);
+}
+
+static void prox_nl_dp_grad_del(const operator_data_t* _data)
+{
+	auto data = CAST_DOWN(prox_nl_dp_grad_data, _data);
+
+	operator_p_free(data->op);
+
+	xfree(data);
+}
+
+extern const struct operator_p_s* prox_nl_dp_grad_create(const struct operator_p_s* op, const struct dp_conf* conf, float lambda)
+{
+	PTR_ALLOC(struct prox_nl_dp_grad_data, data);
+	SET_TYPEID(prox_nl_dp_grad_data, data);
+
+	auto dom = operator_p_domain(op);
+
+	/*assert(CFL_SIZE == dom->size);
+	assert(CFL_SIZE == cod->size);
+	assert(1 == md_calc_size(cod->N, cod->dims));*/
+
+	data->op = op;
+	data->lambda = lambda;
+	data->conf = conf;
+	data->sigmas = malloc(sizeof(float)* conf->T);
+	data->idx = 0;
+
+	for (int i = 0; i < conf->T + 1; i++)
+		data->sigmas[i] = powf(exp(log(conf->sigma_min) + i * ((log(conf->sigma_max) - log(conf->sigma_min)) / (conf->T))), 2);
+
+	return operator_p_create(dom->N, dom->dims, dom->N, dom->dims, CAST_UP(PTR_PASS(data)), prox_nl_dp_grad_apply, prox_nl_dp_grad_del);
+}
 
 
 

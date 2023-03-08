@@ -7,10 +7,12 @@
 struct operator_p_s;
 struct linop_s;
 struct nlop_s;
+struct dp_conf;
 
 extern const struct operator_p_s* prox_normaleq_create(const struct linop_s* op, const _Complex float* y);
 extern const struct operator_p_s* prox_lineq_create(const struct linop_s* op, const _Complex float* y);
 extern const struct operator_p_s* prox_nlgrad_create(const struct nlop_s* op, int steps, float stepsize, float lambda);
+extern const struct operator_p_s* prox_nl_dp_grad_create(const struct operator_p_s* op, const struct dp_conf* conf, float lambda);
 
 enum norm { NORM_MAX, NORM_L2 };
 extern const struct operator_p_s* op_p_auto_normalize(const struct operator_p_s* op, long flags, enum norm norm);

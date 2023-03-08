@@ -25,6 +25,10 @@
 
 #include "lowrank/lrthresh.h"
 
+#include "nlops/nlop.h"
+#include "nlops/cast.h"
+#include "nlops/chain.h"
+
 #include "nn/tf_wrapper.h"
 
 #include "misc/mri.h"
@@ -45,7 +49,8 @@ void help_reg_nlinv(void)
 			"\t\tof regularization terms.\n\n"
 			"-R W:A:B:C\tl1-wavelet\n"
 			"-R T:A:B:C\ttotal variation\n"
-			"-R LP:{graph_path}:C:p:steps\tpixel-cnn based prior in image domain\n"
+			"-R LP:{graph_path}:lambda:steps\t PixelCNN as image regularization\n"
+			"-R DP:{graph_path}\t diffusion prior as image regularization\n"
 	      );    
 }
 
@@ -83,6 +88,15 @@ bool opt_reg_nlinv(void* ptr, char c, const char* optarg)
 		{
 			
 			regs[r].xform = LOGP;
+			regs[r].graph_file = (char *)malloc(100*sizeof(char));
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].steps);
+			assert(3 == ret);
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
+		}
+		else if (strcmp(rt, "DP") == 0)
+		{
+			regs[r].xform = LOGDP;
 			regs[r].graph_file = (char *)malloc(100*sizeof(char));
 			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].steps);
 			assert(3 == ret);
@@ -168,7 +182,7 @@ static const struct operator_p_s* stack_flatten_prox(const struct operator_p_s* 
 
 
 
-void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int shift_mode, const char* wtype_str)
+void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int shift_mode, const char* wtype_str, const struct dp_conf* dp_conf_)
 {
 
 	bool randshift = shift_mode == 1;
@@ -278,7 +292,7 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 		
 		case LOGP:
 		{
-			debug_printf(DP_INFO, "logp based prior lambda: %f steps: %u\n", regs[nr].lambda, regs[nr].steps);
+			debug_printf(DP_INFO, "PixelCNN as image regularization. lambda: %f steps: %u\n", regs[nr].lambda, regs[nr].steps);
 			
 			trafos[nr] = linop_identity_create(DIMS, x_dims);
 
@@ -290,6 +304,30 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 
 			auto prox_img = op_p_auto_normalize(prox_op, ~0LU, NORM_MAX);
 
+
+			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
+
+			prox_ops[nr] = stack_flatten_prox(prox_img, prox_coil);
+			break;
+		}
+
+		case LOGDP:
+		{
+			debug_printf(DP_INFO, "diffusion prior as image regularization\n");
+
+			const struct tf_shared_graph_s* tf_graph = tf_shared_graph_create(regs[nr].graph_file, NULL);
+			tf_shared_graph_set_batch_size(tf_graph, 1);
+
+			const struct nlop_s* nlop = nlop_tf_shared_create(tf_graph);
+			nlop = nlop_reshape_in_F(nlop, 0, N, img_dims);
+			nlop = nlop_reshape_out_F(nlop, 0, N, img_dims);
+
+			auto par = nlop_generic_domain(nlop, 1);
+			nlop = nlop_chain2_FF(nlop_from_linop_F(linop_repmat_create(par->N, par->dims, ~0)), 0, nlop, 1);
+			nlop = nlop_reshape_in_F(nlop, 1, 1, (long[1]) { 1 });
+
+			auto prox_op = prox_nl_dp_grad_create(op_p_nlop_wrapper_F(nlop), dp_conf_, regs[nr].lambda); 
+			auto prox_img = op_p_auto_normalize(prox_op, ~0LU, NORM_MAX);
 
 			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
 

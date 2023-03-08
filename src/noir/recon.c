@@ -92,15 +92,15 @@ const struct noir_conf_s noir_defaults = {
 	.cnstcoil_flags = 0u,
 	.img_space_coils = false,
 	.algo = ALGO_FISTA,
-	.rho = 0.01,
-	.step = 0.9,
+	.rho = 0.01, // not used
+	.step = 0.9, // compute step size in FISTA?
 	.tol = 0.001,
 	.shift_mode=1,
 	.wtype_str="dau2",
 };
 
 
-void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, complex float* ksens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data)
+void noir_recon(const struct noir_conf_s* conf, const struct dp_conf* dp_conf_, const long dims[DIMS], complex float* img, complex float* sens, complex float* ksens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data)
 {
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = conf->rvc;
@@ -208,7 +208,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
     const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_nlinv_configure(DIMS, irgnm_conf_dims, &ropts, thresh_ops, trafos, conf->shift_mode, conf->wtype_str);
+	opt_reg_nlinv_configure(DIMS, irgnm_conf_dims, &ropts, thresh_ops, trafos, conf->shift_mode, conf->wtype_str, dp_conf_);
 
 	struct iter_admm_conf admm_conf_reg = iter_admm_defaults;
 	
