@@ -318,7 +318,7 @@ static void prox_nl_dp_grad_apply(const operator_data_t* _data, float mu, comple
 	md_zaxpy(dom->N, dom->dims, dst, mu * dsig, score); //dst = dst - mu*dsig*score
 	data->idx = data->idx + 1;
 
-	debug_printf(DP_DEBUG4, "prox iter: %d, t-> %.4f mu -> %.4f \n", cur_iter, cond_t, mu);
+	debug_printf(DP_DEBUG1, "prox iter: %d, t-> %.4f mu -> %.4f \n", cur_iter, cond_t, mu);
 }
 
 static void prox_nl_dp_grad_del(const operator_data_t* _data)
