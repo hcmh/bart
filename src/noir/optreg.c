@@ -319,8 +319,24 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 			tf_shared_graph_set_batch_size(tf_graph, 1);
 
 			const struct nlop_s* nlop = nlop_tf_shared_create(tf_graph);
-			nlop = nlop_reshape_in_F(nlop, 0, N, img_dims);
-			nlop = nlop_reshape_out_F(nlop, 0, N, img_dims);
+
+			auto io_in = operator_p_domain(op_p_nlop_wrapper_F(nlop));
+			long tf_dims[DIMS];
+			md_set_dims(DIMS, tf_dims, 1);
+			md_copy_dims(io_in->N, tf_dims, io_in->dims);
+			nlop = nlop_reshape_in_F(nlop, 0, DIMS, tf_dims);
+			nlop = nlop_reshape_out_F(nlop, 0, DIMS, tf_dims);
+
+			long resize_dims[DIMS];
+			if (img_dims[0] == 1){
+				md_set_dims(DIMS, resize_dims, 1);
+				resize_dims[PHS1_DIM] = tf_dims[READ_DIM];
+				resize_dims[PHS2_DIM] = tf_dims[PHS1_DIM];
+			}
+			else{
+				md_set_dims(DIMS, resize_dims, 1);
+				md_copy_dims(DIMS, resize_dims, tf_dims);
+			}
 
 			auto par = nlop_generic_domain(nlop, 1);
 			nlop = nlop_chain2_FF(nlop_from_linop_F(linop_repmat_create(par->N, par->dims, ~0)), 0, nlop, 1);
@@ -328,10 +344,11 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 
 			auto prox_op = prox_nl_dp_grad_create(op_p_nlop_wrapper_F(nlop), dp_conf_, regs[nr].lambda); 
 			auto prox_img = op_p_auto_normalize(prox_op, ~0LU, NORM_MAX);
+			auto r_prox_img = op_p_auto_resize(prox_img, DIMS, resize_dims, img_dims);
 
 			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
 
-			prox_ops[nr] = stack_flatten_prox(prox_img, prox_coil);
+			prox_ops[nr] = stack_flatten_prox(r_prox_img, prox_coil);
 			break;
 		}
 

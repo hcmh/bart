@@ -430,7 +430,7 @@ int main_nlinv(int argc, char* argv[argc])
 
 	double recosecs = timestamp() - start_time;
 
-	debug_printf(DP_DEBUG2, "Total time: %.2f s\n", recosecs);
+	debug_printf(DP_INFO, "Total time: %.2f s\n", recosecs);
 
 	return 0;
 }

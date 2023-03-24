@@ -21,6 +21,7 @@
 #include "num/iovec.h"
 #include "num/multind.h"
 #include "num/flpmath.h"
+#include "num/rand.h"
 
 #include "iter/iter.h"
 #include "noir/recon.h"
@@ -480,6 +481,126 @@ const struct operator_p_s* op_p_auto_normalize(const struct operator_p_s* op, lo
 }
 
 
+struct auto_resize_s {
+
+	INTERFACE(operator_data_t);
+
+	long resize_dims[DIMS];
+	long img_dims[DIMS];
+	long pat_dims[DIMS];
+	const struct operator_p_s* op;
+};
+
+DEF_TYPEID(auto_resize_s);
+
+static void pad_noise(const operator_data_t* _data, complex float*y, const complex float* x)
+{
+	auto data = CAST_DOWN(auto_resize_s, _data);
+	complex float* tmp1 = md_alloc(DIMS, data->resize_dims, sizeof(complex float));
+	complex float* tmp2 = md_alloc(DIMS, data->resize_dims, sizeof(complex float));
+	complex float* pat = md_alloc(DIMS, data->pat_dims, sizeof(complex float));
+
+	long pos[DIMS];
+	md_set_dims(DIMS, pos, 0);
+
+	md_copy_block(DIMS, pos, data->pat_dims, pat, data->img_dims, x, CFL_SIZE);
+	complex float avg;
+	complex float std;
+
+	md_zavg(DIMS, data->pat_dims, 7, &avg, pat);
+	md_zstd(DIMS, data->pat_dims, 7, &std, pat);
+
+	md_gaussian_rand(DIMS, data->resize_dims, tmp1);
+	md_zsmul(DIMS, data->resize_dims, tmp1, tmp1, std);
+
+	md_zfill(DIMS, data->resize_dims, tmp2, 1.);
+	md_zsmul(DIMS, data->resize_dims, tmp2, tmp2, avg);
+	md_zadd(DIMS, data->resize_dims, y, tmp1, tmp2);
+	
+	md_free(tmp1);
+	md_free(tmp2);
+	md_free(pat);
+}
+
+static bool check_dims(const operator_data_t* _data){
+
+	auto data = CAST_DOWN(auto_resize_s, _data);
+	
+	for (int i=0 ; i<3; i++)
+	{
+		if (data->resize_dims[i] != data->img_dims[i])
+		{
+			debug_printf(DP_DEBUG1, "tf input dims does not match with img dims, will be resized. ");
+			return false;
+		}	
+	}
+	debug_printf(DP_DEBUG1, "tf input dims match with img dims, resizing is not needed. ");
+	return true;
+}
+
+static void auto_resize_apply(const operator_data_t* _data, float mu, complex float* y, const complex float* x)
+{
+	auto data = CAST_DOWN(auto_resize_s, _data);
+
+	if ( !check_dims(_data)) {
+
+	complex float* tmp1 = md_alloc(DIMS, data->resize_dims, sizeof(complex float));
+	
+	long pos[DIMS];
+	pad_noise(_data, tmp1, x);
+
+	for (int i = 0; i < DIMS; i++)
+		pos[i] = labs((data->resize_dims[i] / 2) - (data->img_dims[i] / 2));
+	
+	md_copy_block(DIMS, pos, data->resize_dims, tmp1, data->img_dims, x, CFL_SIZE);
+	operator_p_apply_unchecked(data->op, mu, tmp1, tmp1);
+	md_resize_center(DIMS, data->img_dims, y, data->resize_dims, tmp1, CFL_SIZE);
+
+	}
+
+	else{
+		operator_p_apply_unchecked(data->op, mu, y, x);
+	}
+}
+
+static void auto_resize_del(const operator_data_t* _data)
+{
+	auto data = CAST_DOWN(auto_resize_s, _data);
+
+	operator_p_free(data->op);
+
+	xfree(data);
+}
+
+
+
+/* This functor normalizes data along given dimensions and undoes
+ * the normalization after application of the operator.
+ *
+ */
+const struct operator_p_s* op_p_auto_resize(const struct operator_p_s* op, int N, const long resize_dims[N], const long img_dims[N])
+{
+	PTR_ALLOC(struct auto_resize_s, data);
+	SET_TYPEID(auto_resize_s, data);
+
+	assert(N<=DIMS);
+	md_copy_dims(N, data->resize_dims, resize_dims);
+	md_copy_dims(N, data->img_dims, img_dims);
+	md_set_dims(N, data->pat_dims, 1);
+	
+	if (data->img_dims[0] == 1){
+		data->pat_dims[1] = 25;
+		data->pat_dims[2] = 25;
+	}
+	else{
+		data->pat_dims[0] = 25;
+		data->pat_dims[1] = 25;
+	}
+		
+	data->op = operator_p_ref(op);
+	
+	return operator_p_create(N, img_dims, N, img_dims, CAST_UP(PTR_PASS(data)), auto_resize_apply, auto_resize_del);
+}
 
 
 const struct operator_p_s* op_p_conjugate(const struct operator_p_s* op, const struct linop_s* lop)
