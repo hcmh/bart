@@ -95,6 +95,10 @@ const struct noir2_conf_s noir2_defaults = {
 
 	.cgiter = 100,
 	.cgtol = 0.1,
+
+	.realtime = false,
+	.temp_damp = 0.9,
+
 };
 
 
@@ -206,6 +210,12 @@ static void noir2_recon(const struct noir2_conf_s* conf, struct noir2_s noir_ops
 	md_copy(DIMS, img_dims, img, x, CFL_SIZE);
 	md_copy(DIMS, col_dims, ksens, x + skip, CFL_SIZE);
 
+	if (conf->realtime) {
+
+		md_zsmul(N, img_dims, (complex float*)img_ref, img, conf->temp_damp);
+		md_zsmul(N, col_dims, (complex float*)sens_ref, ksens, conf->temp_damp);
+	}
+
 	linop_forward_unchecked(noir_ops.lop_coil2, x + skip, x + skip);
 	md_copy(DIMS, col_dims, sens, x + skip, CFL_SIZE);	// needed for GPU
 
@@ -231,7 +241,7 @@ void noir2_recon_noncart(
 	assert(0 == (conf->loop_flags & md_nontriv_dims(N, bas_dims)));
 	assert(0 == (conf->loop_flags & md_nontriv_dims(N, msk_dims)));
 
-	unsigned long loop_flags = conf->loop_flags;
+	unsigned long loop_flags = conf->loop_flags | (conf->realtime ? TIME_FLAG : 0);
 
 	struct noir2_model_conf_s mconf = noir2_model_conf_defaults;
 
@@ -286,10 +296,10 @@ void noir2_recon_noncart(
 #endif
 
 	complex float* l_img = 		my_alloc(N, limg_dims, CFL_SIZE);
-	complex float* l_img_ref = 	(NULL == img_ref) ? NULL : my_alloc(N, limg_dims, CFL_SIZE);
+	complex float* l_img_ref = 	(!conf->realtime && (NULL == img_ref)) ? NULL : my_alloc(N, limg_dims, CFL_SIZE);
 	complex float* l_sens = 	my_alloc(N, lcol_dims, CFL_SIZE);
 	complex float* l_ksens = 	my_alloc(N, lcol_dims, CFL_SIZE);
-	complex float* l_sens_ref = 	(NULL == sens_ref) ? NULL : my_alloc(N, lcol_dims, CFL_SIZE);
+	complex float* l_sens_ref = 	(!conf->realtime && (NULL == sens_ref)) ? NULL : my_alloc(N, lcol_dims, CFL_SIZE);
 	complex float* l_kspace = 	my_alloc(N, lksp_dims, CFL_SIZE);
 	complex float* l_wgh = 		(NULL == weights) ? NULL : my_alloc(N, lwgh_dims, CFL_SIZE);
 	complex float* l_trj = 		my_alloc(N, ltrj_dims, CFL_SIZE);
@@ -308,11 +318,38 @@ void noir2_recon_noncart(
 		md_copy_dims(N, pos_trj, pos);
 		md_copy_dims(N, pos_wgh, pos);
 
-		if (NULL != img_ref)
-			md_slice(N, loop_flags, pos, img_dims, l_img_ref, img_ref, CFL_SIZE);
+		if (conf->realtime) {
+
+			pos_trj[TIME_DIM] = pos_trj[TIME_DIM] % trj_dims[TIME_DIM];
 			
-		if (NULL != sens_ref)
-			md_slice(N, loop_flags, pos, col_dims, l_sens_ref, sens_ref, CFL_SIZE);
+			if (NULL != weights)
+				pos_wgh[TIME_DIM] = pos_wgh[TIME_DIM] % wgh_dims[TIME_DIM];
+
+			if (0 == pos[TIME_DIM]) {
+
+				if (NULL == img_ref)
+					md_clear(N, limg_dims, l_img_ref, CFL_SIZE);
+				else
+					md_slice(N, loop_flags, pos, img_dims, l_img_ref, img_ref, CFL_SIZE);
+
+				if (NULL == sens_ref)
+					md_clear(N, lcol_dims, l_sens_ref, CFL_SIZE);
+				else
+					md_slice(N, loop_flags, pos, col_dims, l_sens_ref, sens_ref, CFL_SIZE);
+			} else {
+
+				md_zsmul(N, limg_dims, l_img, l_img_ref, 1. / conf->temp_damp);
+				md_zsmul(N, lcol_dims, l_ksens, l_sens_ref, 1. / conf->temp_damp);
+			}
+
+		} else {
+
+			if (NULL != img_ref)
+				md_slice(N, loop_flags, pos, img_dims, l_img_ref, img_ref, CFL_SIZE);
+			
+			if (NULL != sens_ref)
+				md_slice(N, loop_flags, pos, col_dims, l_sens_ref, sens_ref, CFL_SIZE);
+		}
 
 		md_slice(N, loop_flags, pos_trj, trj_dims, l_trj, traj, CFL_SIZE);
 

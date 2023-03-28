@@ -130,6 +130,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPTL_FLOAT(0, "cgtol", &conf.cgtol, "tol", "(tolerance for linearized problem)"),
 		OPTL_FLOAT(0, "alpha", &conf.alpha, "val", "(alpha in first iteration)"),
 		OPTL_FLOAT(0, "coil-os", &(conf.oversampling_coils), "val", "(over-sampling factor for sensitivities)"),
+		OPTL_SET(0, "real-time", &(conf.realtime), "Use real-time (temporal l2) regularization"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
