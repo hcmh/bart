@@ -31,6 +31,9 @@ struct noir2_conf_s {
 
 	int cgiter;
 	float cgtol;
+
+	_Bool realtime;
+	float temp_damp;
 };
 
 extern const struct noir2_conf_s noir2_defaults;
