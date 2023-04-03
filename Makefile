@@ -211,7 +211,7 @@ TCALIB=ecalib ecaltwo caldir walsh cc ccapply calmat svd estvar whiten rmfreq ss
 TMRI=homodyne poisson twixread fakeksp looklocker upat fovshift
 TSIM=phantom traj signal epg sim
 TIO=toimg
-TNN=reconet nnet onehotenc measure mnist
+TNN=reconet nnet onehotenc measure mnist nlinvnet
 
 
 
@@ -244,7 +244,7 @@ MODULES_tgv = -liter -llinops
 MODULES_ictv = -liter -llinops
 MODULES_bench = -lwavelet -llinops
 MODULES_phantom = -lsimu -lgeom
-MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lnetworks -lnn -liter -lmoba -lgeom -lnn  -lnlops
+MODULES_bart = -lbox -lgrecon -lsense -lnoir -liter -llinops -lwavelet -llowrank -lnoncart -lcalib -lsimu -lsake -ldfwavelet -lnlops -lnetworks -lnoir -lnn -liter -lmoba -lgeom -lnn  -lnlops
 MODULES_sake = -lsake
 MODULES_traj = -lnoncart
 MODULES_wave = -liter -lwavelet -llinops -llowrank
@@ -267,6 +267,8 @@ MODULES_measure = -lgrecon -lnetworks -lnoncart -lnn -lnlops -llinops -liter
 MODULES_onehotenc = -lnn
 MODULES_sim = -lsimu
 MODULES_morphop = -lnlops -llinops -lgeom
+MODULES_nlinvnet = -lnetworks -lnoir -liter -lnn -lnlops -llinops -lnoncart -lgrecon -lnetworks -lsense -liter -llinops -lwavelet -llowrank -lnoncart -lnlops -lnn
+
 
 MAKEFILES = $(wildcard $(root)/Makefiles/Makefile.*)
 ALLMAKEFILES = $(root)/Makefile $(wildcard $(root)/Makefile.* $(root)/*.mk $(root)/rules/*.mk $(root)/Makefiles/Makefile.*)
@@ -590,7 +592,7 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 
 endef
 
-ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops moba lapacke box geom nn networks
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake dfwavelet nlops noncart moba lapacke box geom nn networks noir nn
 
 ifeq ($(ISMRMRD),1)
 ALIBS += ismrm
