@@ -55,6 +55,9 @@ extern inline void iter_nlop_call_select_der(struct iter_nlop_s op, int N, float
 extern inline void iter_op_p_call(struct iter_op_p_s op, float rho, float* dst, const float* src);
 extern inline void iter_op_arr_call(struct iter_op_arr_s op, int NO, unsigned long oflags, float* dst[NO], int NI, unsigned long iflags, const float* src[NI]);
 
+bool update_random_state = true;
+
+
 /**
  * ravine step
  * (Nesterov 1983)
@@ -1259,7 +1262,9 @@ void iPALM(	long NI, long isize[NI], enum IN_TYPE in_type[NI], float* x[NI], flo
 			if (0 != N_batch_gen)
 				iter_nlop_call(nlop_batch_gen, N_batch_gen, x_batch_gen);
 
+			update_random_state = true;
 			float r_old = compute_objective(NO, NI, nlop, args, out_optimize_flag, 0, vops);
+			update_random_state = false;
 
 			float r_i = r_old;
 
