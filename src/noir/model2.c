@@ -158,6 +158,9 @@ static struct noir2_s noir2_init_create(int N,
 			ret.lop_im  = linop_chain_FF(linop_zreal_create(N, ret.img_dims), ret.lop_im );
 	}
 
+	if (NULL == ret.lop_im)
+		ret.lop_im = linop_identity_create(N, ret.img_dims);
+
 	ret.model_conf = *conf;
 
 	return ret;
