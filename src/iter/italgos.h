@@ -11,6 +11,7 @@
 
 enum IN_TYPE { IN_UNDEFINED, IN_STATIC, IN_BATCH, IN_OPTIMIZE, IN_BATCH_GENERATOR, IN_BATCHNORM };
 enum OUT_TYPE { OUT_UNDEFINED, OUT_STATIC, OUT_OPTIMIZE, OUT_BATCHNORM };
+extern _Bool update_random_state;
 
 #ifndef NUM_INTERNAL
 // #warning "Use of private interfaces"
