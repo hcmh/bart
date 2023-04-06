@@ -201,11 +201,9 @@ int main_nlinvnet(int argc, char* argv[argc])
 	if (0 != num_gpus)
 		nlinvnet.gpu = true;
 
-	if (nlinvnet.gpu) {
-
+	if (nlinvnet.gpu)
 		num_init_multigpu(MAX(num_gpus, 1));
-		cuda_use_global_memory();
-	} else 
+	else 
 	#endif
 		num_init();
 
