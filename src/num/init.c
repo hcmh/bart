@@ -99,12 +99,31 @@ void num_init(void)
 	}
 }
 
+#ifdef USE_CUDA
+static void init_gpu_mem(void)
+{
+	const char* mem_str;
+
+	if (NULL != (mem_str = getenv("BART_GPU_GLOBAL_MEMORY"))) {
+		
+		long mem = strtoul(mem_str, NULL, 10);
+
+		if ((1 != mem) && (0 != mem))
+			error("BART_GPU_GLOBAL_MEMORY environment variable must be 0 or 1!\n");
+		
+		if (1 == mem)
+			cuda_use_global_memory();
+	}
+}
+#endif
+
 
 void num_init_gpu(void)
 {
 	num_init();
 
 #ifdef USE_CUDA
+	init_gpu_mem();
 	cuda_init();
 #else
 	error("BART compiled without GPU support.\n");
@@ -121,6 +140,7 @@ void num_init_multigpu_select(unsigned long requested_gpus)
 	num_init();
 
 #ifdef USE_CUDA
+	init_gpu_mem();
 	cuda_init_multigpu_select(requested_gpus);
 #else
 	UNUSED(requested_gpus);
@@ -137,6 +157,7 @@ void num_init_multigpu(int requested_gpus)
 	num_init();
 
 #ifdef USE_CUDA
+	init_gpu_mem();
 	cuda_init_multigpu_number(requested_gpus);
 #else
 	UNUSED(requested_gpus);
@@ -154,6 +175,7 @@ void num_init_gpu_device(int device)
 	num_init();
 
 #ifdef USE_CUDA
+	init_gpu_mem();
 	if (!cuda_try_init(device))
 		error("Could not allocate selected GPU device!");
 #else
@@ -172,6 +194,7 @@ void num_init_gpu_memopt(void)
 	num_init();
 
 #ifdef USE_CUDA
+	init_gpu_mem();
 	cuda_init_memopt();
 #else
 	error("BART compiled without GPU support.\n");
