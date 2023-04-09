@@ -7,6 +7,8 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 #include "num/multiplace.h"
+#include "num/ops.h"
+#include "num/ops_graph.h"
 
 #include "iter/italgos.h"
 #include "iter/iter.h"
@@ -401,7 +403,7 @@ static const struct nlop_s* noir_gauss_newton_iter_create_s(struct noir2_s* mode
 		result = nlop_dup_F(result, 3, 4);
 	}
 
-	return result;
+	return nlop_checkpoint_create_F(result, true, true);
 }
 
 
@@ -465,27 +467,25 @@ static const struct nlop_s* noir_rtnlinv_iter_s_create(int T, struct noir2_s* mo
 
 		auto cod = nlop_generic_codomain(tmp, 0);
 		tmp = nlop_prepend_FF(nlop_from_linop_F(linop_scale_create(cod->N, cod->dims, temp_damp)), tmp, 2);
-		tmp = nlop_dup_F(tmp, 1, 2);
+		tmp = nlop_dup_F(tmp, 1, 2);			// y, x_i-1, lambda; out: x_i
 
-		ret = nlop_chain2_keep_swap_FF(ret, i - 1, tmp, 1);
-		ret = nlop_shift_output_F(ret, i, 0);
-		ret = nlop_dup_F(ret, 3, 4 + i);
+		ret = nlop_chain2_keep_swap_FF(ret, 0, tmp, 1);	// y, xn, x0, lambda y, lambda; out: x_i, x_i-1, x_0:i-2
+		ret = nlop_dup_F(ret, 3, 5);			// y, xn, x0, lambda y; out: x_i, x_i-1, x_0:i-2
+		ret = nlop_stack_inputs_F(ret, 0, 4, TIME_DIM);	// y, xn, x0, lambda; out: x_i, x_i-1, x_0:i-2
+
+		ret = nlop_append_singleton_dim_out_F(ret, 1);
+
+		if (1 < i)
+			ret = nlop_stack_outputs_F(ret, 2, 1, 1);
+
 	}
 
-	int idx[T];
-	idx[0] = 0;
-	for (int i = 1; i < T; i++)
-		idx[i] = i + 3;
+	ret = nlop_append_singleton_dim_out_F(ret, 0);
 
-	ret = nlop_stack_inputs_generic_F(ret, T, idx, TIME_DIM);
+	if (1 < T)
+		ret = nlop_stack_outputs_F(ret, 1, 0, 1);
 
-	for (int i = 0; i < T; i++) {
-
-		idx[i] = i;
-		ret = nlop_append_singleton_dim_out_F(ret, i);
-	}
-
-	ret = nlop_stack_outputs_generic_F(ret, T, idx, 1);
+	ret = nlop_optimize_graph(ret);
 
 	return ret;
 }

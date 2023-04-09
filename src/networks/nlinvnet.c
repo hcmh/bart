@@ -1289,7 +1289,7 @@ void apply_nlinvnet(struct nlinvnet_s* nlinvnet, int N,
 	complex float* dst[2] = { img, col };
 	const complex float* src[5] = { ksp, pat, trj };
 
-	const struct nlop_s* nlop_apply = nlop_clone(nn_apply->nlop); 
+	const struct nlop_s* nlop_apply = nlop_optimize_graph(nlop_clone(nn_apply->nlop));
 
 	nn_debug(DP_INFO, nn_apply);
 	unsigned long batch_flags = md_nontriv_dims(N, img_dims) & (~(md_nontriv_dims(N, nn_generic_codomain(nn_apply, 0, "img")->dims)));
