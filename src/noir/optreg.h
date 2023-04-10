@@ -34,7 +34,7 @@ struct opt_reg_s
 
 extern _Bool opt_reg_nlinv_init(struct opt_reg_s* ropts);
 
-extern void opt_reg_nlinv_configure(unsigned int N, const long img_dims[__VLA(N)], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int shift_mode, const char* wtype_str, const struct dp_conf* dp_conf_);
+extern void opt_reg_nlinv_configure(unsigned int N, const long img_dims[__VLA(N)], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int shift_mode, const char* wtype_str);
 
 extern void opt_reg_nlinv_free(struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS]);
 

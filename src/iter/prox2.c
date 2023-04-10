@@ -281,19 +281,42 @@ extern const struct operator_p_s* prox_nlgrad_create(const struct nlop_s* op, in
 	return operator_p_create(dom->N, dom->dims, dom->N, dom->dims, CAST_UP(PTR_PASS(data)), prox_nlgrad_apply, prox_nlgrad_del);
 }
 
+static void prox_nlgrad_apply_2(const operator_data_t* _data, float mu, complex float* dst, const complex float* src)
+{
+	auto data = CAST_DOWN(prox_nlgrad_data, _data);
+
+	mu *= data->lambda * data->step_size;
+	for (int i = 0; i < data->steps; i++) {
+		nlop_generic_apply_unchecked(data->op, 3, MAKE_ARRAY((void*)dst, (void*)src, (void*)&mu));
+	}
+	
+}
+
+extern const struct operator_p_s* prox_nlgrad_create2(const struct nlop_s* op, int steps, float step_size, float lambda)
+{
+	PTR_ALLOC(struct prox_nlgrad_data, data);
+	SET_TYPEID(prox_nlgrad_data, data);
+
+	auto dom = nlop_generic_domain(op,0);
+
+	data->op = op;
+	data->lambda = lambda;
+	data->step_size = step_size;
+	data->steps = steps;
+
+	return operator_p_create(dom->N, dom->dims, dom->N, dom->dims, CAST_UP(PTR_PASS(data)), prox_nlgrad_apply_2, prox_nlgrad_del);
+}
+
 /*
  * proximal function with a diffusion prior
 */
 struct prox_nl_dp_grad_data{
 
 	INTERFACE(operator_data_t);
-
-	const struct operator_p_s* op;
-	const struct dp_conf* conf;
+	const struct nlop_s* op;
 
 	float lambda;
-	float* sigmas;
-
+	unsigned int iter;
 	int idx;
 };
 
@@ -305,38 +328,31 @@ static void prox_nl_dp_grad_apply(const operator_data_t* _data, float mu, comple
 
 	mu *= data->lambda;
 
-	auto dom = operator_p_domain(data->op);
+	int cur_iter = data->idx%data->iter;
+	float cond_t = (float)(data->iter-cur_iter-1)/(float)data->iter;
+	
+	nlop_generic_apply_unchecked(data->op, 4, MAKE_ARRAY((void*)dst, (void*)src, (void*)&cond_t, (void*)&mu));
 
-	int cur_iter = data->idx%data->conf->iter;
-	float cond_t = (float)data->conf->start_step/(float)data->conf->T - (float)(cur_iter)/(float)data->conf->T;
-	int cur_idx = data->conf->T - data->conf->start_step + cur_iter;
-
-	complex float* score = md_alloc_sameplace(dom->N, dom->dims, dom->size, dst);
-	operator_p_apply_unchecked(data->op, cond_t, score, src);
-
-	float dsig = data->sigmas[cur_idx + 1] - data->sigmas[cur_idx];
-
-	md_zaxpy(dom->N, dom->dims, dst, mu * dsig, score); //dst = dst - mu*dsig*score
 	data->idx = data->idx + 1;
 
-	debug_printf(DP_DEBUG1, "prox iter: %d, t-> %.4f mu -> %.4f \n", cur_iter, cond_t, mu);
+	debug_printf(DP_DEBUG1, "prox iter: %d, t-> %.4f mu -> %.4f\n", cur_iter, cond_t, mu);
 }
 
 static void prox_nl_dp_grad_del(const operator_data_t* _data)
 {
 	auto data = CAST_DOWN(prox_nl_dp_grad_data, _data);
 
-	operator_p_free(data->op);
+	nlop_free(data->op);
 
 	xfree(data);
 }
 
-extern const struct operator_p_s* prox_nl_dp_grad_create(const struct operator_p_s* op, const struct dp_conf* conf, float lambda)
+extern const struct operator_p_s* prox_nl_dp_grad_create(const struct nlop_s* op, unsigned int iter, float lambda)
 {
 	PTR_ALLOC(struct prox_nl_dp_grad_data, data);
 	SET_TYPEID(prox_nl_dp_grad_data, data);
 
-	auto dom = operator_p_domain(op);
+	auto dom = nlop_generic_domain(op,0);
 
 	/*assert(CFL_SIZE == dom->size);
 	assert(CFL_SIZE == cod->size);
@@ -344,12 +360,8 @@ extern const struct operator_p_s* prox_nl_dp_grad_create(const struct operator_p
 
 	data->op = op;
 	data->lambda = lambda;
-	data->conf = conf;
-	data->sigmas = malloc(sizeof(float)* conf->T);
+	data->iter = iter;
 	data->idx = 0;
-
-	for (int i = 0; i < conf->T + 1; i++)
-		data->sigmas[i] = powf(exp(log(conf->sigma_min) + i * ((log(conf->sigma_max) - log(conf->sigma_min)) / (conf->T))), 2);
 
 	return operator_p_create(dom->N, dom->dims, dom->N, dom->dims, CAST_UP(PTR_PASS(data)), prox_nl_dp_grad_apply, prox_nl_dp_grad_del);
 }
@@ -480,6 +492,33 @@ const struct operator_p_s* op_p_auto_normalize(const struct operator_p_s* op, lo
 	return operator_p_create(N, dims, N, dims, CAST_UP(PTR_PASS(data)), auto_norm_apply, auto_norm_del);
 }
 
+const struct operator_p_s* op_p_auto_normalize2(const struct operator_p_s* op, int N, long flags, enum norm norm, const long img_dims[N])
+{
+	PTR_ALLOC(struct auto_norm_s, data);
+	SET_TYPEID(auto_norm_s, data);
+
+	data->flags = flags;
+	data->op = operator_p_ref(op);
+	data->norm = norm;
+
+/*	auto io_in = operator_p_domain(op);
+	auto io_out = operator_p_codomain(op);
+
+	int N = io_in->N;
+	long dims[N];
+	md_copy_dims(N, dims, io_in->dims);
+
+	long strs[N];
+	md_calc_strides(N, strs, dims, CFL_SIZE);
+
+	assert(N == io_out->N);
+	assert(md_check_compat(N, 0L, dims, io_out->dims));
+	assert(md_check_compat(N, 0L, strs, io_in->strs));
+	assert(md_check_compat(N, 0L, strs, io_out->strs)); */
+
+	return operator_p_create(N, img_dims, N, img_dims, CAST_UP(PTR_PASS(data)), auto_norm_apply, auto_norm_del);
+}
+
 
 struct auto_resize_s {
 
@@ -497,7 +536,7 @@ static void pad_noise(const operator_data_t* _data, complex float*y, const compl
 {
 	auto data = CAST_DOWN(auto_resize_s, _data);
 	complex float* tmp1 = md_alloc(DIMS, data->resize_dims, sizeof(complex float));
-	complex float* tmp2 = md_alloc(DIMS, data->resize_dims, sizeof(complex float));
+	//complex float* tmp2 = md_alloc(DIMS, data->resize_dims, sizeof(complex float));
 	complex float* pat = md_alloc(DIMS, data->pat_dims, sizeof(complex float));
 
 	long pos[DIMS];
@@ -511,14 +550,14 @@ static void pad_noise(const operator_data_t* _data, complex float*y, const compl
 	md_zstd(DIMS, data->pat_dims, 7, &std, pat);
 
 	md_gaussian_rand(DIMS, data->resize_dims, tmp1);
-	md_zsmul(DIMS, data->resize_dims, tmp1, tmp1, std);
+	md_zsmul(DIMS, data->resize_dims, y, tmp1, std);
 
-	md_zfill(DIMS, data->resize_dims, tmp2, 1.);
-	md_zsmul(DIMS, data->resize_dims, tmp2, tmp2, avg);
-	md_zadd(DIMS, data->resize_dims, y, tmp1, tmp2);
+	//md_zfill(DIMS, data->resize_dims, tmp2, 1.);
+	//md_zsmul(DIMS, data->resize_dims, tmp2, tmp2, avg);
+	//md_zadd(DIMS, data->resize_dims, y, tmp1, tmp2);
 	
 	md_free(tmp1);
-	md_free(tmp2);
+	//md_free(tmp2);
 	md_free(pat);
 }
 

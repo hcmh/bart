@@ -100,7 +100,7 @@ const struct noir_conf_s noir_defaults = {
 };
 
 
-void noir_recon(const struct noir_conf_s* conf, const struct dp_conf* dp_conf_, const long dims[DIMS], complex float* img, complex float* sens, complex float* ksens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data)
+void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex float* img, complex float* sens, complex float* ksens, const complex float* ref, const complex float* pattern, const complex float* mask, const complex float* kspace_data)
 {
 	struct noir_model_conf_s mconf = noir_model_conf_defaults;
 	mconf.rvc = conf->rvc;
@@ -208,7 +208,7 @@ void noir_recon(const struct noir_conf_s* conf, const struct dp_conf* dp_conf_, 
     const struct operator_p_s* thresh_ops[NUM_REGS] = { NULL };
 	const struct linop_s* trafos[NUM_REGS] = { NULL };
 
-	opt_reg_nlinv_configure(DIMS, irgnm_conf_dims, &ropts, thresh_ops, trafos, conf->shift_mode, conf->wtype_str, dp_conf_);
+	opt_reg_nlinv_configure(DIMS, irgnm_conf_dims, &ropts, thresh_ops, trafos, conf->shift_mode, conf->wtype_str);
 
 	struct iter_admm_conf admm_conf_reg = iter_admm_defaults;
 	

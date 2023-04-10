@@ -493,12 +493,12 @@ int main_rtnlinv(int argc, char* argv[argc])
 			complex float* kgrid1_gpu = md_alloc_gpu(DIMS, kgrid1_dims, CFL_SIZE);
 			md_copy(DIMS, kgrid1_dims, kgrid1_gpu, kgrid1, CFL_SIZE);
 
-			noir_recon(&conf, NULL, sens1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1_gpu);
+			noir_recon(&conf, sens1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1_gpu);
 			md_free(kgrid1_gpu);
 
 		} else
 #endif
-			noir_recon(&conf, NULL, sens1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1);
+			noir_recon(&conf, sens1_dims, img1, sens1, ksens1, ref, pattern1, mask, kgrid1);
 
 
 		// Temporal regularization

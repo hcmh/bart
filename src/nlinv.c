@@ -91,15 +91,6 @@ int main_nlinv(int argc, char* argv[argc])
 	bool randshift = true;
 
 	opt_reg_nlinv_init(&conf.ropts);
-	struct dp_conf dp = { .sigma_max = 1, . sigma_min = 0.01, .K = 1, .T=100, .start_step = -1};
-	struct opt_s dp_opts[] = {
-
-		OPTL_FLOAT(0, "sigma-min", &(dp.sigma_min), "sigma", "smallest sigma"),
-		OPTL_FLOAT(0, "sigma-max", &(dp.sigma_max), "sigma", "largest sigma"),
-		OPTL_INT('K', "steps", &(dp.K), "K", "number of steps for proximal approximation"),
-		OPTL_INT('T', "discrete steps", &(dp.T), "T", "number of discrete steps for diffusion schedule"),
-		OPTL_INT(0, "start-step", &(dp.start_step), "", "starting step (default: -1 falls back to max iter)"),
-	};
 
 	const struct opt_s opts[] = {
 		{ 'l', NULL, true, OPT_SPECIAL, opt_reg_nlinv, &conf.ropts, "1/-l2\t\ttoggle l1-wavelet or l2 regularization." }, // FIXME: where to init ropts (gluo)
@@ -132,11 +123,9 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_CLEAR('K', &randshift, "disable random wavelet cycle spinning"),
 		OPTL_UINT(0, "reg-iter", &conf.reg_iter, "iter", "number of iterations applying regularization on image"),
 		OPTL_STRING(0, "wavelet", &conf.wtype_str, "name", "wavelet type (haar,dau2,cdf44)"),
-		OPTL_SUBOPT(0, "dp", "", "Configuration for diffusion prior", ARRAY_SIZE(dp_opts), dp_opts),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);
-	dp.iter = conf.inner_iter;
 
 	if (!randshift)
 		conf.shift_mode = 0;
@@ -399,13 +388,13 @@ int main_nlinv(int argc, char* argv[argc])
 
 		md_copy(DIMS, kgrid_dims, kspace_gpu, kgrid, CFL_SIZE);
 
-		noir_recon(&conf, &dp, dims, img, sens, ksens, ref, psf, mask, kspace_gpu);
+		noir_recon(&conf, dims, img, sens, ksens, ref, psf, mask, kspace_gpu);
 
 		md_free(kspace_gpu);
 
 	} else
 #endif
-		noir_recon(&conf, &dp, dims, img, sens, ksens, ref, psf, mask, kgrid);
+		noir_recon(&conf, dims, img, sens, ksens, ref, psf, mask, kgrid);
 
 
 	unmap_cfl(DIMS, kgrid_dims, kgrid);

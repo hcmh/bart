@@ -98,7 +98,7 @@ bool opt_reg_nlinv(void* ptr, char c, const char* optarg)
 		{
 			regs[r].xform = LOGDP;
 			regs[r].graph_file = (char *)malloc(100*sizeof(char));
-			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].steps);
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].k);
 			assert(3 == ret);
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
@@ -182,7 +182,7 @@ static const struct operator_p_s* stack_flatten_prox(const struct operator_p_s* 
 
 
 
-void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int shift_mode, const char* wtype_str, const struct dp_conf* dp_conf_)
+void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_s* ropts, const struct operator_p_s* prox_ops[NUM_REGS], const struct linop_s* trafos[NUM_REGS], unsigned int shift_mode, const char* wtype_str)
 {
 
 	bool randshift = shift_mode == 1;
@@ -298,79 +298,30 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 
 			const struct nlop_s * tf_ops = nlop_tf_create(regs[nr].graph_file);
 
-			auto prox_op = prox_nlgrad_create(tf_ops, regs[nr].steps, 1., regs[nr].lambda);
-
-			//auto prox_op_tr = op_p_auto_transform(prox_op, ~0LU);
-
-			auto prox_img = op_p_auto_normalize(prox_op, ~0LU, NORM_MAX);
-
+			auto prox_op = prox_nlgrad_create2(tf_ops, regs[nr].steps, 1., regs[nr].lambda);
 
 			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
 
-			prox_ops[nr] = stack_flatten_prox(prox_img, prox_coil);
+			prox_ops[nr] = stack_flatten_prox(prox_op, prox_coil);
 			break;
 		}
 
 		case LOGDP:
 		{
-			debug_printf(DP_INFO, "diffusion prior as image regularization\n");
+			debug_printf(DP_INFO, "Diffusion prior as image regularization\n");
 
 			const struct tf_shared_graph_s* tf_graph = tf_shared_graph_create(regs[nr].graph_file, NULL);
-			tf_shared_graph_set_batch_size(tf_graph, 1);
+			tf_shared_graph_set_batch_size(tf_graph, img_dims[READ_DIM]);
 
 			const struct nlop_s* nlop = nlop_tf_shared_create(tf_graph);
 
-			auto io_in = operator_p_domain(op_p_nlop_wrapper_F(nlop));
-			long tf_dims[DIMS];
-			md_set_dims(DIMS, tf_dims, 1);
-			md_copy_dims(io_in->N, tf_dims, io_in->dims);
-			nlop = nlop_reshape_in_F(nlop, 0, DIMS, tf_dims);
-			nlop = nlop_reshape_out_F(nlop, 0, DIMS, tf_dims);
-
-			long resize_dims[DIMS];
-			if (img_dims[0] == 1){
-				md_set_dims(DIMS, resize_dims, 1);
-				resize_dims[PHS1_DIM] = tf_dims[READ_DIM];
-				resize_dims[PHS2_DIM] = tf_dims[PHS1_DIM];
-			}
-			else{
-				md_set_dims(DIMS, resize_dims, 1);
-				md_copy_dims(DIMS, resize_dims, tf_dims);
-			}
-
-			auto par = nlop_generic_domain(nlop, 1);
-			nlop = nlop_chain2_FF(nlop_from_linop_F(linop_repmat_create(par->N, par->dims, ~0)), 0, nlop, 1);
-			nlop = nlop_reshape_in_F(nlop, 1, 1, (long[1]) { 1 });
-
-			auto prox_op = prox_nl_dp_grad_create(op_p_nlop_wrapper_F(nlop), dp_conf_, regs[nr].lambda); 
-			auto prox_img = op_p_auto_normalize(prox_op, ~0LU, NORM_MAX);
-			auto r_prox_img = op_p_auto_resize(prox_img, DIMS, resize_dims, img_dims);
+			auto prox_op = prox_nl_dp_grad_create(nlop, regs[nr].k, regs[nr].lambda); 
 
 			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
 
-			prox_ops[nr] = stack_flatten_prox(r_prox_img, prox_coil);
+			prox_ops[nr] = stack_flatten_prox(prox_op, prox_coil);
 			break;
 		}
-
-		case LOGPC:
-		{
-			/*
-			debug_printf(DP_INFO, "apply prior to the image after coil combination: %f steps: %u\n", regs[nr].lambda, regs[nr].steps);
-
-			trafos[nr] = linop_identity_create(DIMS, x_dims);
-
-			const struct nlop_s * tf_ops = nlop_tf_create(1, 1, regs[nr].graph_file, true);
-
-			auto prox_op = prox_nlgrad_create_F(tf_ops, regs[nr].steps, 1., regs[nr].lambda);
-
-			auto prox_img = op_p_auto_normalize(prox_op, ~0LU, NORM_MAX);
-
-			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
-
-			prox_ops[nr] = stack_flatten_prox(prox_img, prox_coil);
-			break;*/
-		}
-
         }        
     }
 }

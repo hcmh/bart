@@ -53,7 +53,7 @@ static bool gpu_peer_accees[MAX_CUDA_DEVICES][MAX_CUDA_DEVICES] = { [0 ... MAX_C
 
 
 bool cuda_memcache = true;
-bool cuda_global_memory = false;
+bool cuda_global_memory = true;
 
 static int num_cuda_devices_internal(void);
 static int cuda_get_device_internal(void);

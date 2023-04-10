@@ -40,18 +40,18 @@ struct dp_conf{
 	float sigma_min;
 	float sigma_max;
 
-	int K;
 	int T;
+	int iter;
+	
 	
 	int start_step;
-
-	int iter;
+	int K;
+	
 };
 
 extern const struct noir_conf_s noir_defaults;
 
 extern void noir_recon(const struct noir_conf_s* conf,
-		       const struct dp_conf* dp_conf_,
 		       const long dims[DIMS],
 		       _Complex float* img,
 		       _Complex float* sens,

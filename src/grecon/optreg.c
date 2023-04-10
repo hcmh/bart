@@ -218,7 +218,15 @@ bool opt_reg(void* ptr, char c, const char* optarg)
 			regs[r].xflags = 0u;
 			regs[r].jflags = 0u;
 		}
-
+		else if (strcmp(rt, "DP") == 0)
+		{
+			regs[r].xform = LOGDP;
+			regs[r].graph_file = (char *)malloc(100*sizeof(char));
+			int ret = sscanf(optarg, "%*[^:]:{%[^}]}:%f:%u", regs[r].graph_file, &regs[r].lambda, &regs[r].k);
+			assert(3 == ret);
+			regs[r].xflags = 0u;
+			regs[r].jflags = 0u;
+		}
 		else if (strcmp(rt, "h") == 0) {
 
 			help_reg();
@@ -649,23 +657,23 @@ void opt_reg_configure(int N, const long img_dims[N], struct opt_reg_s* ropts, c
 			break;
 
 		case TENFL:
-
+{
 			debug_printf(DP_INFO, "TensorFlow Loss: %f %s\n", regs[nr].lambda, regs[nr].graph_file);
 
 			trafos[nr] = linop_identity_create(DIMS, img_dims);
 
-			const struct nlop_s* tf_ops = nlop_tf_create(regs[nr].graph_file);
+			const struct tf_shared_graph_s* tf_graph = tf_shared_graph_create(regs[nr].graph_file, NULL);
+			tf_shared_graph_set_batch_size(tf_graph, img_dims[READ_DIM]);
+
+			const struct nlop_s* tf_ops = nlop_tf_shared_create(tf_graph);
 
 			// with one step, this only does one gradient descent step
 
-			auto prox_op = prox_nlgrad_create(tf_ops, 1, 1., regs[nr].lambda);
+			auto prox_op = prox_nlgrad_create2(tf_ops, 1, 1., regs[nr].lambda);
 
-			prox_ops[nr] = op_p_auto_normalize(prox_op, ~0LU, NORM_MAX);
-
-			operator_p_free(prox_op);
-
+			prox_ops[nr] = prox_op;
 			break;
-
+}
 		case TENFLS:
 			
 			debug_printf(DP_INFO, "Score-Network: %s.\n", regs[nr].graph_file);
@@ -685,6 +693,21 @@ void opt_reg_configure(int N, const long img_dims[N], struct opt_reg_s* ropts, c
 			prox_ops[nr] = op_p_nlop_wrapper_F(nlop);
 			break;
 
+		case LOGDP:
+			{
+
+			debug_printf(DP_INFO, "diffusion prior as image regularization\n");
+			trafos[nr] = linop_identity_create(DIMS, img_dims);
+
+			const struct tf_shared_graph_s* tf_graph = tf_shared_graph_create(regs[nr].graph_file, NULL);
+			tf_shared_graph_set_batch_size(tf_graph, img_dims[READ_DIM]);
+
+			const struct nlop_s* nlop = nlop_tf_shared_create(tf_graph);
+
+			auto prox_op = prox_nl_dp_grad_create(nlop, regs[nr].k, regs[nr].lambda); 
+
+			prox_ops[nr] = prox_op;
+			break;}
 		}
 
 		// if there are supporting variables, extract the main variables by default

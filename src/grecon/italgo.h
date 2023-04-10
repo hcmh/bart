@@ -16,6 +16,7 @@ struct mcmc_conf {
 	float sigma_max;
 
 	int K;
+	int iter;
 	
 	int start_step;
 	int end_step;
