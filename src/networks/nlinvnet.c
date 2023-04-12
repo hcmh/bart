@@ -35,6 +35,7 @@
 #endif
 
 #include "linops/linop.h"
+#include "linops/grad.h"
 #include "linops/someops.h"
 #include "linops/sum.h"
 #include "linops/fmac.h"
@@ -97,6 +98,8 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.l2loss_reco = 0.,
 	.l2loss_data = 0.,
 
+	.tvflags = TIME_FLAG,
+	.tvloss = 0.,
 
 	// Network block
 	.network = NULL,
@@ -731,6 +734,30 @@ static nn_t nlinvnet_create(const struct nlinvnet_s* nlinvnet, int Nb, enum NETW
 				result = nn_link_F(result, 0, "scale", 0, "scale");
 			}
 
+			if (0 < nlinvnet->tvloss) {
+
+				complex float mask[img_dims[TIME_DIM]];
+				for (int i = 0; i < img_dims[TIME_DIM]; i++)
+					mask[i] = ((i >= nlinvnet->ksp_mask_time[0]) && (i < img_dims[TIME_DIM] - nlinvnet->ksp_mask_time[1])) ? nlinvnet->tvloss : 0.;		
+	
+				const struct nlop_s* nlop_tv = nlop_from_linop_F(linop_grad_create(DIMS, cim_dims, DIMS, nlinvnet->tvflags));
+				auto cod = nlop_codomain(nlop_tv);
+				nlop_tv = nlop_chain_FF(nlop_tv, nlop_zabs_create(cod->N, cod->dims));
+				cod = nlop_codomain(nlop_tv);
+				nlop_tv = nlop_chain_FF(nlop_tv, nlop_from_linop_F(linop_cdiag_create(cod->N, cod->dims, TIME_FLAG, mask)));
+				cod = nlop_codomain(nlop_tv);
+				nlop_tv = nlop_chain_FF(nlop_tv, nlop_from_linop_F(linop_sum_create(cod->N, cod->dims, ~BATCH_FLAG)));
+				cod = nlop_codomain(nlop_tv);
+				nlop_tv = nlop_chain_FF(nlop_tv, nlop_from_linop_F(linop_avg_create(cod->N, cod->dims, BATCH_FLAG)));
+				nlop_tv = nlop_reshape_out_F(nlop_tv, 0, 1, MD_DIMS(1));
+
+				nn_t nn_tv = nn_from_nlop_F(nlop_tv);
+				nn_tv = nn_set_output_name_F(nn_tv, 0, "tv_loss");
+				nn_tv = nn_set_out_type_F(nn_tv, 0, "tv_loss", OUT_OPTIMIZE);
+
+				result = nn_chain2_keep_FF(result, 0, "cim", nn_tv, 0, NULL);
+			}
+
 			if (NLINVNET_OUT_KSP == out_type) {
 
 				nn_t fft_ops[M];
@@ -911,6 +938,14 @@ static nn_t nlinvnet_train_loss_create(const struct nlinvnet_s* nlinvnet, int Nb
 
 		train_op = nn_chain2_FF(train_op, 0, loss_name, nn_from_nlop_F(nlop_zaxpbz_create(1, MD_DIMS(1), 1, 1)), 0, NULL);
 		train_op = nn_link_F(train_op, 0, "l2_reg_reco", 0, NULL);
+		train_op = nn_set_out_type_F(train_op, 0, NULL, OUT_OPTIMIZE);
+		train_op = nn_set_output_name_F(train_op, 0, loss_name);
+	}
+
+	if (nn_is_name_in_out_args(train_op, "tv_loss")) {
+
+		train_op = nn_chain2_FF(train_op, 0, loss_name, nn_from_nlop_F(nlop_zaxpbz_create(1, MD_DIMS(1), 1, 1)), 0, NULL);
+		train_op = nn_link_F(train_op, 0, "tv_loss", 0, NULL);
 		train_op = nn_set_out_type_F(train_op, 0, NULL, OUT_OPTIMIZE);
 		train_op = nn_set_output_name_F(train_op, 0, loss_name);
 	}

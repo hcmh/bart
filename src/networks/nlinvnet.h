@@ -21,6 +21,9 @@ struct nlinvnet_s {
 	float l2loss_reco;
 	float l2loss_data;
 
+	unsigned long tvflags;
+	float tvloss;
+
 	// Network block
 	struct network_s* network;
 	struct nn_weights_s* weights;
