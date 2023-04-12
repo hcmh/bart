@@ -95,6 +95,8 @@ struct nlinvnet_s nlinvnet_config_opts = {
 	.fixed_splitting = true,
 	.ksp_mask_time = {0, 0},
 	.l2loss_reco = 0.,
+	.l2loss_data = 0.,
+
 
 	// Network block
 	.network = NULL,
@@ -549,9 +551,9 @@ static nn_t nlinvnet_get_iterations_int(const struct nlinvnet_s* nlinvnet, struc
 	for (int i = nlinvnet->iter_net; i < (int)(nlinvnet->conf->iter); i++)
 		result = nlinvnet_chain_alpha(result, nlinvnet->conf->redu, nlinvnet->conf->alpha_min);
 
-	if (0 < nlinvnet->sense_mean) {
+	if (0 != nlinvnet->sense_mean) {
 
-		auto nlop_avg_coil = noir_rtnlinv_avg_coils_create(model, nlinvnet->sense_mean);
+		auto nlop_avg_coil = noir_rtnlinv_avg_coils_create(model, labs(nlinvnet->sense_mean));
 		result = nn_chain2_FF(nn_from_nlop_F(nlop_avg_coil), 0, NULL, result, 0, NULL);
 	}
 
@@ -807,10 +809,11 @@ static nn_t nlinvnet_train_loss_create(const struct nlinvnet_s* nlinvnet, int Nb
 		loss = nn_dup_F(loss, 1, NULL, 3, NULL);
 		loss = nn_set_input_name_F(loss, 1, "pat_ref");
 
-		if (0. < nlinvnet->l2loss_reco) {
+		if ((0. < nlinvnet->l2loss_reco) || (0. < nlinvnet->l2loss_data)) {
 
+			float l = MAX(nlinvnet->l2loss_reco, nlinvnet->l2loss_data);
 			auto nl_loss = nlop_zss_create(N, out_dims, ~BATCH_FLAG);
-			auto nn_nl_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_zaxpbz_create(N, out_dims, 1, -1), 0, nl_loss, 0));
+			auto nn_nl_loss = nn_from_nlop_F(nlop_chain2_FF(nlop_zaxpbz_create(N, out_dims, l, -l), 0, nl_loss, 0));
 
 			nn_nl_loss = nn_chain2_FF(nn_from_nlop_F(nlop_tenmul_create(N, out_dims, out_dims, pat_dims)), 0, NULL, nn_nl_loss, 1, NULL);
 			nn_nl_loss = nn_chain2_FF(nn_from_nlop_F(nlop_tenmul_create(N, out_dims, out_dims, pat_dims)), 0, NULL, nn_nl_loss, 0, NULL);
@@ -900,7 +903,11 @@ static nn_t nlinvnet_train_loss_create(const struct nlinvnet_s* nlinvnet, int Nb
 
 		train_op = nn_chain2_FF(train_op, 0, loss_name, nn_from_nlop_F(nlop_zaxpbz_create(1, MD_DIMS(1), 1, 1)), 0, NULL);
 		train_op = nn_link_F(train_op, 0, "l2_data", 0, NULL);
+		train_op = nn_set_out_type_F(train_op, 0, NULL, OUT_OPTIMIZE);
 		train_op = nn_set_output_name_F(train_op, 0, loss_name);
+	}
+
+	if (nn_is_name_in_out_args(train_op, "l2_reg_reco")) {
 
 		train_op = nn_chain2_FF(train_op, 0, loss_name, nn_from_nlop_F(nlop_zaxpbz_create(1, MD_DIMS(1), 1, 1)), 0, NULL);
 		train_op = nn_link_F(train_op, 0, "l2_reg_reco", 0, NULL);

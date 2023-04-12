@@ -184,6 +184,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_INFILE('l', "load", (const char**)(&(filename_weights_load)), "<weights-init>", "load weights for continuing training"),
 
 		OPTL_SUBOPT(0, "train-loss", "...", "configure the training loss", N_loss_opts, loss_opts),
+		OPTL_FLOAT(0, "train-loss-l2-data", &(nlinvnet.l2loss_data), "a", "add a times data loss to train loss"),
 		OPTL_FLOAT(0, "train-loss-l2-reco", &(nlinvnet.l2loss_reco), "a", "add a*(||x||^2 + ||Wc||^2) to train loss"),
 
 		OPTL_FLOAT(0, "ss-ksp-split", &(nlinvnet.ksp_split), "p", "use p\% of kspace data as reference"),

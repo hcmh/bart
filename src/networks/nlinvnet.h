@@ -19,6 +19,7 @@ struct nlinvnet_s {
 	_Bool fixed_splitting;
 	long ksp_mask_time[2];
 	float l2loss_reco;
+	float l2loss_data;
 
 	// Network block
 	struct network_s* network;
