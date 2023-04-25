@@ -462,7 +462,7 @@ const struct nlop_s* nlop_checkpoint_create(const struct nlop_s* nlop, bool der_
 	d->clear_mem = clear_mem;
 
 
-	d->nlop = nlop_clone(nlop);
+	d->nlop = nlop_optimize_graph(nlop);
 
 	d->der_once = der_once;
 
