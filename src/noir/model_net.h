@@ -63,7 +63,7 @@ extern const struct nlop_s* noir_fft_create(struct noir2_net_s* model);
 extern const struct nlop_s* noir_nufft_create(struct noir2_net_s* model);
 
 extern const struct nlop_s* noir_gauss_newton_iter_create_create(struct noir2_net_s* model, const struct iter_conjgrad_conf* iter_conf, int iter, float redu, float alpha_min);
-extern const struct nlop_s* noir_rtnlinv_iter_create(struct noir2_net_s* model, const struct iter_conjgrad_conf* iter_conf, int iter, float redu, float alpha_min, float temp_damp);
+extern const struct nlop_s* noir_rtnlinv_iter_create(struct noir2_net_s* model, const struct iter_conjgrad_conf* iter_conf, int iter, int iter_skip, float redu, float alpha_min, float temp_damp);
 
 extern const struct nlop_s* noir_coil_rss_create(struct noir2_net_s* model);
 

@@ -154,6 +154,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_SELECT(0, "conv-time-causal", enum PADDING, &(nlinvnet.conv_padding), PAD_CAUSAL, "use causal convolution"),
 		OPTL_INT(0, "cgiter", &(conf.cgiter), "", "number of cg iterations"),
 		OPTL_SET(0, "init-rtnlinv", &(nlinvnet.real_time_init), "initialize with rtnlinv recon"),
+		OPTL_INT(0, "init-rtnlinv-skip", &(nlinvnet.real_time_skip), "n", "skip first n steps of rtnlinv init-recon"),
 		OPTL_SET(0, "reuse-init", &(nlinvnet.ref_init), "reuse initial recon as reference in network steps"),
 
 		OPTL_VEC3('x', "dims", &im_vec, "x:y:z", "image dimensions"),

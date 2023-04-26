@@ -447,7 +447,7 @@ const struct nlop_s* noir_gauss_newton_iter_create_create(struct noir2_net_s* mo
 	return nlop_reshape2_in_F(ret, 0, model->config->N, model->config->batch_flag, model->config->cim_dims);
 }
 
-static const struct nlop_s* noir_rtnlinv_iter_s_create(int T, struct noir2_s* models[T], const struct iter_conjgrad_conf* iter_conf, int iter, float redu, float alpha_min, float temp_damp)
+static const struct nlop_s* noir_rtnlinv_iter_s_create(int T, struct noir2_s* models[T], const struct iter_conjgrad_conf* iter_conf, int iter, int iter_skip, float redu, float alpha_min, float temp_damp)
 {
 
 	const struct nlop_s* ret = noir_gauss_newton_iter_create_s(models[0], iter_conf, iter, redu, alpha_min);
@@ -458,7 +458,20 @@ static const struct nlop_s* noir_rtnlinv_iter_s_create(int T, struct noir2_s* mo
 
 	for (int i = 1; i < T; i++) {
 
-		auto tmp = noir_gauss_newton_iter_create_s(models[i], iter_conf, iter, redu, alpha_min);
+		assert(iter_skip < iter);
+
+		auto tmp = noir_gauss_newton_iter_create_s(models[i], iter_conf, iter - iter_skip, redu, alpha_min);
+
+		for (int i = 0; i < iter_skip; i++) {
+
+			auto iov = nlop_generic_domain(tmp, 3);
+
+			auto nlop_scale = nlop_from_linop_F(linop_scale_create(iov->N, iov->dims, 1. / redu));
+			nlop_scale = nlop_chain_FF(nlop_zsadd_create(iov->N, iov->dims, -alpha_min), nlop_scale);
+			nlop_scale = nlop_chain_FF(nlop_scale, nlop_zsadd_create(iov->N, iov->dims, alpha_min));
+
+			tmp = nlop_chain2_FF(nlop_scale, 0, tmp, 3);
+		}
 		
 		tmp = nlop_no_der_F(tmp, 0, 0);
 		tmp = nlop_no_der_F(tmp, 0, 1);
@@ -491,7 +504,7 @@ static const struct nlop_s* noir_rtnlinv_iter_s_create(int T, struct noir2_s* mo
 }
 
 
-const struct nlop_s* noir_rtnlinv_iter_create(struct noir2_net_s* model, const struct iter_conjgrad_conf* iter_conf, int iter, float redu, float alpha_min, float temp_damp)
+const struct nlop_s* noir_rtnlinv_iter_create(struct noir2_net_s* model, const struct iter_conjgrad_conf* iter_conf, int iter, int iter_skip, float redu, float alpha_min, float temp_damp)
 {
 	int N = model->config->N;
 	long bat_dims[N];
@@ -516,7 +529,7 @@ const struct nlop_s* noir_rtnlinv_iter_create(struct noir2_net_s* model, const s
 		for (pos[TIME_DIM] = 0; pos[TIME_DIM] < T; pos[TIME_DIM]++)
 			models[pos[TIME_DIM]] = model->models + md_calc_offset(N, MD_STRIDES(N, bat_dims, 1), pos);
 		
-		nlops[b] = noir_rtnlinv_iter_s_create(T, models, iter_conf, iter, redu, alpha_min, temp_damp);
+		nlops[b] = noir_rtnlinv_iter_s_create(T, models, iter_conf, iter, iter_skip, redu, alpha_min, temp_damp);
 		nlops[b] = nlop_append_singleton_dim_in_F(nlops[b], 1);
 		nlops[b] = nlop_append_singleton_dim_in_F(nlops[b], 2);
 		nlops[b] = nlop_append_singleton_dim_in_F(nlops[b], 3);

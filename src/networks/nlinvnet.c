@@ -125,6 +125,7 @@ struct nlinvnet_s nlinvnet_config_opts = {
 
 	.scaling = -100.,
 	.real_time_init = false,
+	.real_time_skip = 0,
 
 	.gpu = false,
 	.normalize_rss = false,
@@ -563,7 +564,7 @@ static nn_t nlinvnet_get_iterations_int(const struct nlinvnet_s* nlinvnet, struc
 	// initialization reco
 	const struct nlop_s* nlop_init_reco;
 	if (nlinvnet->real_time_init)
-		nlop_init_reco = noir_rtnlinv_iter_create(model, nlinvnet->iter_conf, nlinvnet->conf->iter - nlinvnet->iter_net, nlinvnet->conf->redu, nlinvnet->conf->alpha_min, 0.9);
+		nlop_init_reco = noir_rtnlinv_iter_create(model, nlinvnet->iter_conf, nlinvnet->conf->iter - nlinvnet->iter_net, nlinvnet->real_time_skip, nlinvnet->conf->redu, nlinvnet->conf->alpha_min, 0.9);
 	else
 		nlop_init_reco = noir_gauss_newton_iter_create_create(model, nlinvnet->iter_conf, nlinvnet->conf->iter - nlinvnet->iter_net, nlinvnet->conf->redu, nlinvnet->conf->alpha_min);
 	

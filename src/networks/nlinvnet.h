@@ -48,6 +48,7 @@ struct nlinvnet_s {
 
 	float scaling;
 	_Bool real_time_init;
+	int real_time_skip;
 
 	_Bool gpu;
 	_Bool normalize_rss;
