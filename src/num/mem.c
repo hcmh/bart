@@ -229,10 +229,31 @@ int mem_device_num(const void* ptr)
 	return (NULL == p) ? -1 : p->device_id;
 }
 
+int mem_stream_num(const void* ptr)
+{
+	if (NULL == ptr)
+		return -1;
+
+	struct mem_s* p = search(ptr, false);
+	return (NULL == p) ? -1 : p->stream_id;
+}
+
 
 bool mem_ondevice(const void* ptr)
 {
 	return 0 <= mem_device_num(ptr);
+}
+
+const void* mem_base_ptr(const void* ptr)
+{
+	struct mem_s* p = search(ptr, false);
+	return (NULL == p) ? NULL : p->ptr;
+}
+
+unsigned long mem_size(const void* ptr)
+{
+	struct mem_s* p = search(ptr, false);
+	return (NULL == p) ? 0 : p->len_used;
 }
 
 void mem_device_free(void* ptr, void (*device_free)(const void* ptr))
@@ -240,6 +261,7 @@ void mem_device_free(void* ptr, void (*device_free)(const void* ptr))
 	assert(mem_init);
 
 	struct mem_s* nptr = search(ptr, true);
+	nptr->len_used = 0;
 
 	assert(NULL != nptr);
 	assert(nptr->ptr == ptr);

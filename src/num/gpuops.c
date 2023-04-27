@@ -745,6 +745,22 @@ void cuda_free(void* ptr)
 	mem_device_free(ptr, cuda_free_wrapper);
 }
 
+void cuda_prefetch(const void* ptr)
+{
+	if ((NULL == ptr) || !cuda_global_memory || !cuda_ondevice(ptr))
+		return;	
+
+	int device = mem_device_num(ptr);
+	int stream = mem_device_num(ptr);
+	size_t size = mem_size(ptr);
+	ptr = mem_base_ptr(ptr);
+
+	if ((NULL == ptr) || (stream != cuda_get_stream_id()) || (device != cuda_get_device_internal()) || (0 == size))
+		return;
+	
+	CUDA_ERROR(cudaMemPrefetchAsync(ptr, size, device, cuda_get_stream()));
+}
+
 void* cuda_malloc(long size)
 {
 	return mem_device_malloc(cuda_get_device_internal(), cuda_get_stream_id(), size, cuda_malloc_wrapper);

@@ -56,6 +56,7 @@ extern void cuda_sync_devices(void);
 //cuda memory allocations
 extern void* cuda_malloc(long N);
 extern void cuda_free(void*);
+extern void cuda_prefetch(const void* ptr);
 
 extern _Bool cuda_ondevice(const void* ptr);
 extern _Bool cuda_accessible(const void* ptr);

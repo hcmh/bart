@@ -557,6 +557,12 @@ static bool use_gpu(int p, void* ptr[p])
 
 	for (int i = 0; i < p; i++)
 		gpu = gpu || cuda_ondevice(ptr[i]);
+	
+	if (gpu) {
+
+		for (int i = 0; i < p; i++)
+			cuda_prefetch(ptr[i]);
+	}
 
 	for (int i = 0; i < p; i++)
 		gpu = gpu && cuda_accessible(ptr[i]);

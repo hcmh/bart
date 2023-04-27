@@ -10,6 +10,9 @@ extern void memcache_clear(int device, int stream, void (*device_free)(const voi
 
 extern _Bool mem_ondevice(const void* ptr);
 extern int mem_device_num(const void* ptr);
+extern int mem_stream_num(const void* ptr);
+extern const void* mem_base_ptr(const void* ptr);
+extern unsigned long mem_size(const void* ptr);
 
 extern void debug_print_memcache(int dl);
 extern _Bool memcache_is_empty(void);
