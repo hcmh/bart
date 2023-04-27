@@ -109,7 +109,7 @@ static void mobafit_bound(iter_op_data* _data, float* dst, const float* src)
 }
 
 
-static const char help_str[] = "Pixel-wise fitting of physical signal models.\n For a contrast images y, a physical model M and a (temporal-)basis B, this solves:\n p = argmin_p ||y - BHBM(p)||^2";
+static const char help_str[] = "Pixel-wise fitting of physical signal models.\n For a contrast images y, a physical model M, a (temporal-)pattern P and a (temporal-)basis B, this solves:\n p = argmin_p ||y - PBHBM(p)||^2";
 
 int main_mobafit(int argc, char* argv[argc])
 {
@@ -150,6 +150,7 @@ int main_mobafit(int argc, char* argv[argc])
 
 	unsigned int iter = 5;
 
+	const char* pattern_file = NULL;
 	const char* basis_file = NULL;
 
 	const struct opt_s opts[] = {
@@ -167,6 +168,7 @@ int main_mobafit(int argc, char* argv[argc])
 		OPT_UINT('i', &iter, "iter", "Number of IRGNM steps"),
 		OPT_SET('g', &use_gpu, "use gpu"),
 		OPT_INFILE('B', &basis_file, "file", "temporal (or other) basis"),
+		OPT_INFILE('P', &pattern_file, "file", "temporal (or other) pattern"),
 		OPTL_FLVECN(0, "init", _init, "Initial values of parameters in model-based reconstruction"),
 		OPTL_FLVECN(0, "scale", _scale, "Scaling"),
 
@@ -313,6 +315,19 @@ int main_mobafit(int argc, char* argv[argc])
 		break;
 
 	default: ;
+	}
+
+
+	if (NULL != pattern_file) {
+
+		long pat_dims[DIMS];
+		complex float* pattern = NULL;
+
+		pattern = load_cfl(pattern_file, DIMS, pat_dims);
+		assert(md_check_compat(DIMS, md_nontriv_dims(DIMS, y_patch_dims), pat_dims, y_patch_dims));
+
+		nlop = nlop_chain_FF(nlop, nlop_from_linop_F(linop_cdiag_create(DIMS, y_patch_dims, md_nontriv_dims(DIMS, pat_dims), pattern)));
+		unmap_cfl(DIMS, pat_dims, pattern);
 	}
 
 
