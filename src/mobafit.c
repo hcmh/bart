@@ -109,7 +109,7 @@ static void mobafit_bound(iter_op_data* _data, float* dst, const float* src)
 }
 
 
-static const char help_str[] = "Pixel-wise fitting of physical signal models.";
+static const char help_str[] = "Pixel-wise fitting of physical signal models.\n For a contrast images y, a physical model M and a (temporal-)basis B, this solves:\n p = argmin_p ||y - BHBM(p)||^2";
 
 int main_mobafit(int argc, char* argv[argc])
 {
@@ -184,51 +184,38 @@ int main_mobafit(int argc, char* argv[argc])
 	else
 		num_init();
 
-	long bas_dims[DIMS];
-	complex float* basis = NULL;
-
-	if (NULL != basis_file) {
-
-		basis = load_cfl(basis_file, DIMS, bas_dims);
-		md_zconj(DIMS, bas_dims, basis, basis);
-	}
-
 	long enc_dims[DIMS];
 	complex float* enc = load_cfl(enc_file, DIMS, enc_dims);
 
 	long y_dims[DIMS];
 	complex float* y = load_cfl(echo_file, DIMS, y_dims);
 
-	long y_sig_dims[DIMS];
-	md_copy_dims(DIMS, y_sig_dims, y_dims);
+	long bas_dims[DIMS];
+	complex float* basis = NULL;
 
-	if (NULL == basis) {
+	if (NULL != basis_file) {
 
-		assert(y_dims[TE_DIM] == enc_dims[TE_DIM]);
-	} else {
+		basis = load_cfl(basis_file, DIMS, bas_dims);
+		assert(    (md_check_compat(DIMS, (TE_FLAG) | md_nontriv_dims(DIMS, y_dims), bas_dims, y_dims))
+			|| (md_check_compat(DIMS, (COEFF_FLAG) | md_nontriv_dims(DIMS, y_dims), bas_dims, y_dims)));
 
-		assert(bas_dims[TE_DIM] == enc_dims[TE_DIM]);
+		if(1 == y_dims[TE_DIM]) {
 
-		if (1 != y_dims[TE_DIM]) {
+			long y_dims2[DIMS];
+			md_select_dims(DIMS, ~COEFF_FLAG, y_dims2, y_dims);
+			y_dims2[TE_DIM] = bas_dims[TE_DIM];
 
-			assert(y_dims[TE_DIM] == enc_dims[TE_DIM]);
+			complex float* y2 = anon_cfl(NULL, DIMS, y_dims2);
+			md_ztenmul(DIMS, y_dims2, y2, bas_dims, basis, y_dims, y);
 
-			y_dims[COEFF_DIM] = bas_dims[COEFF_DIM];
-			y_dims[TE_DIM] = 1;
-			complex float* ny = anon_cfl(NULL, DIMS, y_dims);
+			unmap_cfl(DIMS, y_dims, y);
 
-			md_ztenmul(DIMS, y_dims, ny, bas_dims, basis, y_sig_dims, y);
-
-			unmap_cfl(DIMS, y_sig_dims, y);
-			y = ny;
-		} else {
-
-			y_sig_dims[TE_DIM] = bas_dims[TE_DIM];
-			y_sig_dims[COEFF_DIM] = 1;
-
-			assert(y_dims[COEFF_DIM] == bas_dims[COEFF_DIM]);
+			md_copy_dims(DIMS, y_dims, y_dims2);
+			y = y2;
 		}
 	}
+
+	assert(y_dims[TE_DIM] == enc_dims[TE_DIM]);
 
 	long x_dims[DIMS];
 	md_select_dims(DIMS, ~(TE_FLAG | COEFF_FLAG), x_dims, y_dims);
@@ -275,10 +262,8 @@ int main_mobafit(int argc, char* argv[argc])
 
 	long y_patch_dims[DIMS];
 	long x_patch_dims[DIMS];
-	long y_patch_sig_dims[DIMS];
 
 	md_select_dims(DIMS, FFT_FLAGS | TE_FLAG | COEFF_FLAG, y_patch_dims, y_dims);
-	md_select_dims(DIMS, FFT_FLAGS | TE_FLAG | COEFF_FLAG, y_patch_sig_dims, y_sig_dims);
 	md_select_dims(DIMS, FFT_FLAGS | TE_FLAG | COEFF_FLAG, x_patch_dims, x_dims);
 
 
@@ -291,28 +276,18 @@ int main_mobafit(int argc, char* argv[argc])
 
 		long map_dims[DIMS];
 		md_select_dims(DIMS, ~(COEFF_FLAG | TE_FLAG), map_dims, x_patch_dims);
-		nlop = nlop_T1_create(DIMS, map_dims, y_patch_sig_dims, x_patch_dims, enc_dims, enc, 1, 1);
+		nlop = nlop_T1_create(DIMS, map_dims, y_patch_dims, x_patch_dims, enc_dims, enc, 1, 1);
 		
 		if (NULL != basis) {
 
 			long max_dims[DIMS];
-			md_max_dims(DIMS, ~0, max_dims, bas_dims, y_patch_sig_dims);
-
-			unsigned long oflags = ~md_nontriv_dims(DIMS, y_patch_dims);
-			unsigned long iflags = ~md_nontriv_dims(DIMS, y_patch_sig_dims);
+			md_max_dims(DIMS, ~0, max_dims, bas_dims, y_patch_dims);
 			unsigned long bflags = ~md_nontriv_dims(DIMS, bas_dims);
-			const struct nlop_s* nlop_bas = nlop_from_linop_F(linop_fmac_create(DIMS, max_dims, oflags, iflags, bflags, basis));
-			nlop = nlop_chain_FF(nlop, nlop_bas);
 
-			long tdims[DIMS];
-			md_transpose_dims(DIMS, 5, 6, tdims, y_patch_dims);
-			nlop = (struct nlop_s*)nlop_reshape_out_F(nlop, 0, DIMS, tdims);
-			nlop = nlop_zrprecomp_jacobian_F(nlop);
-			nlop = (struct nlop_s*)nlop_reshape_out_F(nlop, 0, DIMS, y_patch_dims);
+			const struct linop_s* lop = linop_fmac_create(DIMS, max_dims, COEFF_FLAG, TE_FLAG, bflags, basis);
+			lop = linop_chain_FF(linop_get_adjoint(lop), lop);
 
-			auto tmp = linop_stack_FF(6, 6, linop_identity_create(DIMS, map_dims), linop_identity_create(DIMS, map_dims));
-			tmp = linop_stack_FF(6, 6, tmp, linop_zreal_create(DIMS, map_dims));
-			nlop = nlop_chain_FF(nlop_from_linop_F(tmp), nlop);
+			nlop = nlop_chain_FF(nlop, nlop_from_linop_F(lop));
 		}
 
 		break;
@@ -320,14 +295,14 @@ int main_mobafit(int argc, char* argv[argc])
 	case MGRE: ;
 
 		float scale_fB0[2] = { 0., 1. };
-		assert(md_check_equal_dims(DIMS, y_patch_dims, y_patch_sig_dims, ~0));
+		assert(md_check_equal_dims(DIMS, y_patch_dims, y_patch_dims, ~0));
 		nlop = nlop_meco_create(DIMS, y_patch_dims, x_patch_dims, enc, mgre_model, false, FAT_SPEC_1, scale_fB0, use_gpu);
 		break;
 
 	case TSE:
 	case DIFF: ;
 
-		assert(md_check_equal_dims(DIMS, y_patch_dims, y_patch_sig_dims, ~0));
+		assert(md_check_equal_dims(DIMS, y_patch_dims, y_patch_dims, ~0));
 		long dims[DIMS];
 		md_copy_dims(DIMS, dims, y_patch_dims);
 		dims[COEFF_DIM] = enc_dims[COEFF_DIM];
