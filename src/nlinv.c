@@ -131,6 +131,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPTL_FLOAT(0, "alpha", &conf.alpha, "val", "(alpha in first iteration)"),
 		OPTL_FLOAT(0, "coil-os", &(conf.oversampling_coils), "val", "(over-sampling factor for sensitivities)"),
 		OPTL_SET(0, "real-time", &(conf.realtime), "Use real-time (temporal l2) regularization"),
+		OPTL_INT(0, "real-time-skip", &(conf.realtime_skip), "n", "Skip first n Gauß-Newton steps"),
 	};
 
 	cmdline(&argc, argv, ARRAY_SIZE(args), args, help_str, ARRAY_SIZE(opts), opts);

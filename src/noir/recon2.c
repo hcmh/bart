@@ -97,6 +97,7 @@ const struct noir2_conf_s noir2_defaults = {
 	.cgtol = 0.1,
 
 	.realtime = false,
+	.realtime_skip = 0,
 	.temp_damp = 0.9,
 
 };
@@ -318,6 +319,8 @@ void noir2_recon_noncart(
 		md_copy_dims(N, pos_trj, pos);
 		md_copy_dims(N, pos_wgh, pos);
 
+		struct noir2_conf_s conf_loc = *conf;
+
 		if (conf->realtime) {
 
 			pos_trj[TIME_DIM] = pos_trj[TIME_DIM] % trj_dims[TIME_DIM];
@@ -340,6 +343,11 @@ void noir2_recon_noncart(
 
 				md_zsmul(N, limg_dims, l_img, l_img_ref, 1. / conf->temp_damp);
 				md_zsmul(N, lcol_dims, l_ksens, l_sens_ref, 1. / conf->temp_damp);
+
+				conf_loc.iter -= conf_loc.realtime_skip;
+				
+				for (int i = 0; i < conf_loc.realtime_skip; i++)
+					conf_loc.alpha = (conf_loc.alpha - conf_loc.alpha_min) / conf_loc.redu + conf_loc.alpha_min;		
 			}
 
 		} else {
@@ -358,7 +366,7 @@ void noir2_recon_noncart(
 
 		noir2_noncart_update(&noir_ops, N, ltrj_dims, l_trj, lwgh_dims, l_wgh, bas_dims, basis);
 		
-		noir2_recon(conf, noir_ops, N, limg_dims, l_img, l_img_ref, lcol_dims, l_sens, l_ksens, l_sens_ref, lksp_dims, l_kspace);
+		noir2_recon(&conf_loc, noir_ops, N, limg_dims, l_img, l_img_ref, lcol_dims, l_sens, l_ksens, l_sens_ref, lksp_dims, l_kspace);
 
 		md_copy_block(N, pos, col_dims, sens, lcol_dims, l_sens, CFL_SIZE);
 		md_copy_block(N, pos, col_dims, ksens, lcol_dims, l_ksens, CFL_SIZE);

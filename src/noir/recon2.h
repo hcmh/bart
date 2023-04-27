@@ -33,6 +33,7 @@ struct noir2_conf_s {
 	float cgtol;
 
 	_Bool realtime;
+	int realtime_skip;
 	float temp_damp;
 };
 
