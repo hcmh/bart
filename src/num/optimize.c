@@ -557,7 +557,8 @@ static bool use_gpu(int p, void* ptr[p])
 
 	for (int i = 0; i < p; i++)
 		gpu = gpu || cuda_ondevice(ptr[i]);
-	
+
+#if 0	
 	if (gpu) {
 
 		for (int i = 0; i < p; i++)
@@ -566,6 +567,7 @@ static bool use_gpu(int p, void* ptr[p])
 
 	for (int i = 0; i < p; i++)
 		gpu = gpu && cuda_accessible(ptr[i]);
+#endif
 
 #if 0
 	// FIXME: fails for copy
