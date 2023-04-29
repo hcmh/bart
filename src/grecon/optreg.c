@@ -669,7 +669,7 @@ void opt_reg_configure(int N, const long img_dims[N], struct opt_reg_s* ropts, c
 
 			// with one step, this only does one gradient descent step
 
-			auto prox_op = prox_nlgrad_create2(tf_ops, 1, 1., regs[nr].lambda);
+			auto prox_op = prox_nlgrad_create(tf_ops, 1, 1., regs[nr].lambda);
 
 			prox_ops[nr] = prox_op;
 			break;
