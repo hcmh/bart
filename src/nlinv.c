@@ -87,6 +87,7 @@ int main_nlinv(int argc, char* argv[argc])
 	bool scale_im = false;
 	bool use_gpu = false;
 	float scaling = -1.;
+	float res_norm_s = 100.;
 	bool nufft_lowmem = false;
 	bool randshift = true;
 
@@ -119,6 +120,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPTL_SET('n', "noncart", &conf.noncart, "(non-Cartesian)"),
 		OPT_FLOAT('w', &scaling, "val", "inverse scaling of the data"),
+		OPTL_FLOAT(100., "res_norms", &res_norm_s, "val", "constant for residual norm"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_SELECT('A', enum algo_t, &conf.algo, ALGO_ADMM, "select ADMM"),
 		OPT_CLEAR('K', &randshift, "disable random wavelet cycle spinning"),
@@ -353,7 +355,7 @@ int main_nlinv(int argc, char* argv[argc])
 #if 0
 		scaling = 1. / estimate_scaling(ksp_dims, NULL, kspace);
 #else
-		scaling = 100. / md_znorm(DIMS, kgrid_dims, kgrid);
+		scaling = res_norm_s / md_znorm(DIMS, kgrid_dims, kgrid);
 
 		if (conf.sms)
 			scaling *= sqrt(kgrid_dims[SLICE_DIM]);
