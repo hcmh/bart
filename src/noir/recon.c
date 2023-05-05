@@ -95,6 +95,7 @@ const struct noir_conf_s noir_defaults = {
 	.rho = 0.01, // not used
 	.step = 0.9, // compute step size in FISTA?
 	.tol = 0.001,
+	.cgtol = 0.1f,
 	.shift_mode=1,
 	.wtype_str="dau2",
 };
@@ -178,7 +179,7 @@ void noir_recon(const struct noir_conf_s* conf, const long dims[DIMS], complex f
 	irgnm_conf.alpha = conf->alpha;
 	irgnm_conf.alpha_min = conf->alpha_min;
 	irgnm_conf.redu = conf->redu;
-	irgnm_conf.cgtol = 0.1f;
+	irgnm_conf.cgtol = conf->cgtol;
 	irgnm_conf.cgiter = conf->inner_iter;
 	irgnm_conf.nlinv_legacy = true;
 	irgnm_conf.alpha_min = conf->alpha_min;

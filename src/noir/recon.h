@@ -30,6 +30,7 @@ struct noir_conf_s {
 	float rho;
 	struct opt_reg_s ropts;
 	float tol;
+	float cgtol;
 	unsigned int shift_mode;
 	unsigned int reg_iter;
 	char* wtype_str;

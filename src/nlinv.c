@@ -97,6 +97,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_FLOAT('e', &conf.ropts.lambda, "lambda", "regularization parameter"),
 		OPT_UINT('i', &conf.iter, "iter", "Number of Newton steps"),
 		OPT_FLOAT('r', &conf.redu, "", "(reduction factor)"),
+		OPTL_FLOAT(0.1f, "cgtol", &conf.cgtol, "", "(reduction factor)"),
 		{ 'R', NULL, true, OPT_SPECIAL, opt_reg_nlinv, &conf.ropts, " <T>:A:B:C\tgeneralized regularization options (-Rh for help)" },
 		OPT_FLOAT('u', &conf.rho, "rho", "ADMM rho"),
 		OPT_FLOAT('M', &conf.alpha_min, "", "(minimum for regularization)"),
