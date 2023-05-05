@@ -120,7 +120,7 @@ int main_nlinv(int argc, char* argv[argc])
 		OPT_SET('P', &conf.pattern_for_each_coil, "(supplied psf is different for each coil)"),
 		OPTL_SET('n', "noncart", &conf.noncart, "(non-Cartesian)"),
 		OPT_FLOAT('w', &scaling, "val", "inverse scaling of the data"),
-		OPTL_FLOAT(100., "res_norms", &res_norm_s, "val", "constant for residual norm"),
+		OPT_FLOAT('y', &res_norm_s, "norms", "constant for residual norm"),
 		OPTL_SET(0, "lowmem", &nufft_lowmem, "Use low-mem mode of the nuFFT"),
 		OPT_SELECT('A', enum algo_t, &conf.algo, ALGO_ADMM, "select ADMM"),
 		OPT_CLEAR('K', &randshift, "disable random wavelet cycle spinning"),
