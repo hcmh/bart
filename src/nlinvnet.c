@@ -99,6 +99,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 	int num_gpus = 0;
 
 	unsigned long batch_flags = BATCH_FLAG;
+	unsigned long cnstcoil_flags = 0;
 	long Nb = 0;
 
 	char* filename_weights_load = NULL;
@@ -193,6 +194,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 		OPTL_ULONG(0, "ss-ksp-split-shared", &(nlinvnet.ksp_shared_dims), "flags", "shared dims for mask"),
 		OPTL_VEC2(0, "ss-ksp-time-mask", &(nlinvnet.ksp_mask_time), "s:e", "don't use the first s and last e frames as train loss"),
 		OPTL_FLOAT(0, "ss-ksp-split-exclude-center", &(nlinvnet.exclude_center), "p", "use the center part of spokes always for reco not for loss"),
+		OPT_ULONG('s', &cnstcoil_flags, "", "(dimensions with constant sensitivities)"),
 
 
 		OPT_ULONG('L', &batch_flags, "flags", "loop over dims (apply only)"),
@@ -307,7 +309,7 @@ int main_nlinvnet(int argc, char* argv[argc])
 	dims[MAPS_DIM] = 1;
 
 	long sens_dims[DIMS];
-	md_copy_dims(DIMS, sens_dims, dims);
+	md_select_dims(DIMS, ~cnstcoil_flags, sens_dims, dims);
 
 	if (NULL != basis) {
 
@@ -317,12 +319,12 @@ int main_nlinvnet(int argc, char* argv[argc])
 		dims[COEFF_DIM] = bas_dims[COEFF_DIM];
 		dims[TE_DIM] = 1;
 		md_select_dims(DIMS, ~(COEFF_FLAG | TE_FLAG), sens_dims, dims);
+
+		//FIXME: does it make sense?
+		nlinvnet.scaling *= (md_calc_size(DIMS, dims) / md_calc_size(DIMS, sens_dims));
 	}
 
 	nlinvnet.scaling *= sqrtf(dims[TIME_DIM]);
-
-	//FIXME: does it make sense?
-	nlinvnet.scaling *= (md_calc_size(DIMS, dims) / md_calc_size(DIMS, sens_dims));
 
 	long img_dims[DIMS];
 	long cim_dims[DIMS];
