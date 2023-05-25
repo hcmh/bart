@@ -298,11 +298,13 @@ void opt_reg_nlinv_configure(unsigned int N, const long dims[N], struct opt_reg_
 
 			const struct nlop_s * tf_ops = nlop_tf_create(regs[nr].graph_file);
 
-			auto prox_op = prox_nlgrad_create(tf_ops, regs[nr].steps, 1., regs[nr].lambda);
+			auto prox_op = prox_nlgrad_create2(tf_ops, regs[nr].steps, 1., regs[nr].lambda);
 
 			auto prox_coil = nlinv_sens_prox_create(DIMS, coil_dims);
 
-			prox_ops[nr] = stack_flatten_prox(prox_op, prox_coil);
+			auto prox_img = op_p_auto_normalize(prox_op, ~0LU, NORM_MAX);
+
+			prox_ops[nr] = stack_flatten_prox(prox_img, prox_coil);
 			break;
 		}
 
