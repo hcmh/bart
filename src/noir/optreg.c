@@ -84,7 +84,7 @@ bool opt_reg_nlinv(void* ptr, char c, const char* optarg)
             int ret = sscanf(optarg, "%*[^:]:%d:%d:%f", &regs[r].xflags, &regs[r].jflags, &regs[r].lambda);
 			assert(3 == ret);
         }
-        else if (strcmp(rt, "LP") == 0)
+        else if (strcmp(rt, "TF") == 0)
 		{
 			
 			regs[r].xform = LOGP;
