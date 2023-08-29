@@ -249,7 +249,7 @@ double dgetRotAngle(
 		 case PEMODE_RAD_MINV_GAAL:
 
 			phi = angle_spoke * line
-				+ angle_frame * ( repetition + inversion_repetition * (repetitions_to_measure+1) );
+				+ angle_frame * ( start_pos_GA + repetition + inversion_repetition * (repetitions_to_measure+1) );
 
 			if (!double_angle)
 				phi = fmod(phi, M_PI);
@@ -468,7 +468,7 @@ double dgetRotAngle_ref(
 		 dPhi_IncreSlc = 0.;
 
 		 dPhi = dPhi_IncreSpk * (double)lLine
-		 + dPhi_IncreFrm * (double)( lRepetition + lInvRepet * (m_lRepetitionsToMeasure+1) );
+		 + dPhi_IncreFrm * (double)( lStartPosGA + lRepetition + lInvRepet * (m_lRepetitionsToMeasure+1) );
 
 		 if (!double_angle){
 			 dPhi = fmod(dPhi, M_PI);
