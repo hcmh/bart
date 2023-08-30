@@ -71,7 +71,7 @@ static bool test_angle_calc(void)
 		long repetition = bounded_rand(4096, random_state);
 		long inversion_repetition = bounded_rand(192, random_state);
 		long slice = bounded_rand(192, random_state);
-		enum ePEMode mode = 1+bounded_rand(12, random_state);
+		enum ePEMode mode = 1+bounded_rand(13, random_state);
 		long num_slices = slice + bounded_rand(192, random_state);
 		long num_turns = 1+bounded_rand(50, random_state);
 		long start_pos_GA = bounded_rand(128, random_state);
@@ -81,15 +81,17 @@ static bool test_angle_calc(void)
 		long lines_to_measure = 1 + excitation + bounded_rand(2048, random_state);
 		long repetitions_to_measure = 1 + repetition + bounded_rand(4096, random_state);
 		bool double_angle = bounded_rand(2, random_state);
+		bool double_base = bounded_rand(2, random_state);
+		bool half_incr = bounded_rand(2, random_state);
 
 
 		double ph_ref = dgetRotAngle_ref(excitation, echo, repetition, inversion_repetition, slice, mode,
 			num_slices, num_turns, start_pos_GA, mb_factor, num_echoes, num_inv_repets, lines_to_measure,
-			repetitions_to_measure, double_angle);
+			repetitions_to_measure, double_angle, double_base, half_incr);
 
 		double ph = dgetRotAngle(excitation, echo, repetition, inversion_repetition, slice, mode,
 			num_slices, num_turns, start_pos_GA, mb_factor, num_echoes, num_inv_repets, lines_to_measure,
-			repetitions_to_measure, double_angle);
+			repetitions_to_measure, double_angle, double_base, half_incr);
 
 		if (!safe_isfinite(fabs(ph_ref - ph))) {
 

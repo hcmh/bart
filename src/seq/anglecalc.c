@@ -9,6 +9,47 @@
 #define M_GR    (double) (sqrt(5.)+1)/2
 #endif
 
+static void fib_next(int f[2])
+{
+	int t = f[0];
+	f[0] = f[1];
+	f[1] += t;
+}
+
+static int gen_fibonacci(int n, int ind)
+{
+	int fib[2] = { 1, n };
+
+	for (int i = 0; i < ind - 1; i++)
+		fib_next(fib);
+
+	return (0 == ind) ? fib[0] : fib[1];
+}
+
+static int raga_find_index(int Y, int n)
+{
+	int i = 0;
+
+	while (Y > gen_fibonacci(n, i))
+		i++;
+
+	return i;
+}
+
+static int raga_increment(int Y, int n)
+{
+	int i = raga_find_index(Y, n);
+
+	return gen_fibonacci(1, i - 1);
+}
+
+static double rational_angle(int Y, int n, bool half_incr)
+{
+	int inc = raga_increment(Y / ((half_incr) ? 2 : 1), n);
+
+	return M_PI / (double)Y * (double)inc;
+}
+
 //  ------------------------------------------------------------------
 /// The following function dReturnRotAngle returns the incremental
 /// Rotation angle phi that is needed for various radial sampling schemes
@@ -17,11 +58,13 @@
 
 bool bcalc_base_angles(double *angle_spoke, double* angle_frame, double* angle_slice,
 			     enum ePEMode mode, long num_turns, int mb_factor, bool double_angle,
-			     long lines_to_measure, long num_slices, long inv_repets)
+			     long lines_to_measure, long num_slices, long inv_repets, bool double_base,
+			     bool half_incr)
 {
 
 	double GA = M_PI/(M_GR + num_turns - 1);
 	double double_angle_factor = double_angle ? 2. : 1.;
+	double base_scaling = double_base ? 2. : 1.;
 
 	bool ret = true;
 	switch (mode)
@@ -67,7 +110,7 @@ bool bcalc_base_angles(double *angle_spoke, double* angle_frame, double* angle_s
 		// Radial | Golden-angle frames | Aligned partitions
 		case PEMODE_RAD_GAAL:
 
-			*angle_spoke = GA;
+			*angle_spoke = base_scaling * GA;
 			*angle_frame = *angle_spoke * lines_to_measure;
 			*angle_slice = 0.;
 
@@ -76,7 +119,7 @@ bool bcalc_base_angles(double *angle_spoke, double* angle_frame, double* angle_s
 		// Radial | Consecutive spokes aquired in GA fashion
 		case PEMODE_RAD_GA:
 
-			*angle_slice = GA;
+			*angle_slice = base_scaling * GA;
 			*angle_spoke = *angle_slice * (double)( num_slices );
 			*angle_frame = *angle_slice * (double)( num_slices * lines_to_measure );
 
@@ -94,7 +137,7 @@ bool bcalc_base_angles(double *angle_spoke, double* angle_frame, double* angle_s
 		// Radial | Multiple inversion recovery | Golden-angle partitions
 		case PEMODE_RAD_MINV_GA:
 
-			*angle_slice = GA;
+			*angle_slice = base_scaling * GA;
 			*angle_spoke = *angle_slice * (double)( num_slices );
 			*angle_frame = *angle_slice * (double)( num_slices * lines_to_measure );
 
@@ -103,7 +146,7 @@ bool bcalc_base_angles(double *angle_spoke, double* angle_frame, double* angle_s
 		// Radial | Multiple inversion recovery | Aligned partitions
 		case PEMODE_RAD_MINV_GAAL:
 
-			*angle_spoke = GA;
+			*angle_spoke = base_scaling * GA;
 			*angle_frame = *angle_spoke * lines_to_measure;;
 			*angle_slice = 0.;
 
@@ -123,7 +166,16 @@ bool bcalc_base_angles(double *angle_spoke, double* angle_frame, double* angle_s
 
 			*angle_spoke = double_angle_factor * M_PI / (double)lines_to_measure;
 			*angle_slice = 0.; // TODO: M_PI / ( M_GR + (double)total_turns - 1. );
-			*angle_frame = GA; // *angle_slice * (double)( total_slices );
+			*angle_frame = base_scaling * GA; // *angle_slice * (double)( total_slices );
+
+			break;
+
+		// Radial | Rational Approximation of Golden Angle
+		case PEMODE_RATION_APPROX_GA:
+
+			*angle_spoke = base_scaling * rational_angle(lines_to_measure, num_turns, half_incr);
+			*angle_slice = 0.;
+			*angle_frame = 0.;
 
 			break;
 
@@ -159,7 +211,9 @@ double dgetRotAngle(
 	long lines_to_measure,
 	long repetitions_to_measure,
 	long start_pos_GA,
-	bool double_angle)
+	bool double_angle,
+	bool double_base,
+	bool half_incr)
 {
 
 	double phi = 0.; // spoke angle to be returned [rad]
@@ -173,7 +227,7 @@ double dgetRotAngle(
 
 	bcalc_base_angles(&angle_spoke, &angle_frame, &angle_slice,
 			mode, num_turns, mb_factor, double_angle,
-		  lines_to_measure, num_slices, num_inv_repets);
+		  lines_to_measure, num_slices, num_inv_repets, double_base, half_incr);
 
 
 
@@ -214,6 +268,8 @@ double dgetRotAngle(
 
 			break;
 
+		// Radial | Rational Approximation of Golden Angle
+		case PEMODE_RATION_APPROX_GA:
 		// Radial | Consecutive spokes aquired in GA fashion
 		case PEMODE_RAD_GA:
 
@@ -329,7 +385,9 @@ double dgetRotAngle_ref(
 	long m_lLinesToMeasure,
 	long m_lRepetitionsToMeasure,
 	long lStartPosGA,
-	bool double_angle)
+	bool double_angle,
+	bool double_base,
+	bool half_incr)
 {
 
 	double dPhi          = 0.; // spoke angle to be returned [rad]
@@ -339,17 +397,14 @@ double dgetRotAngle_ref(
 	double dPhi_IncreSlc = 0.; // increment angle for slice [rad]
 
 	double dScalePhi     = double_angle ? 2. : 1.;
+	double dScaleBase    = double_base ? 2. : 1.;
 
-	long lLine           = get_spoke_index( mode, lExcitation, lEcho, lEchoes);
-
-
-
-
+	long lLine           = get_spoke_index(mode, lExcitation, lEcho, lEchoes);
 
 	switch (mode)
 	{
 
-		// Radial | Aligned frames | Aligned partitions
+	// Radial | Aligned frames | Aligned partitions
 	case PEMODE_RAD_ALAL:
 
 		dPhi_IncreSpk = dScalePhi * M_PI / (double)m_lLinesToMeasure;
@@ -360,7 +415,7 @@ double dgetRotAngle_ref(
 
 		break;
 
-		 // Radial | Turned frames | Aligned partitions
+	// Radial | Turned frames | Aligned partitions
 	 case PEMODE_RAD_TUAL:
 
 		 dPhi_IncreSpk = dScalePhi * M_PI / (double)m_lLinesToMeasure;
@@ -372,7 +427,7 @@ double dgetRotAngle_ref(
 
 		 break;
 
-		 // Radial | Turned frames | (Linear)-turned partitions
+	// Radial | Turned frames | (Linear)-turned partitions
 	 case PEMODE_RAD_TUTU:
 
 		 dPhi_IncreSpk = dScalePhi * M_PI / (double)m_lLinesToMeasure;
@@ -385,7 +440,7 @@ double dgetRotAngle_ref(
 
 		 break;
 
-		 // Radial | Turned frames | Golden-angle partitions
+	// Radial | Turned frames | Golden-angle partitions
 	 case PEMODE_RAD_TUGA:
 
 		 dPhi_IncreSpk = dScalePhi * M_PI / (double)m_lLinesToMeasure;
@@ -402,7 +457,7 @@ double dgetRotAngle_ref(
 	// Radial | Golden-angle frames | Aligned partitions
 	case PEMODE_RAD_GAAL:
 
-		dPhi_IncreSpk = M_PI / ( M_GR + (double)lTotalTurns - 1. );
+		dPhi_IncreSpk = dScaleBase * M_PI / ( M_GR + (double)lTotalTurns - 1. );
 		dPhi_IncreFrm = dPhi_IncreSpk * m_lLinesToMeasure;
 		dPhi_IncreSlc = 0.;
 
@@ -418,7 +473,7 @@ double dgetRotAngle_ref(
 	// Radial | Consecutive spokes aquired in GA fashion
 	case PEMODE_RAD_GA:
 
-		dPhi_IncreSlc = M_PI / ( M_GR + (double)lTotalTurns - 1. );
+		dPhi_IncreSlc = dScaleBase * M_PI / ( M_GR + (double)lTotalTurns - 1. );
 		dPhi_IncreSpk = dPhi_IncreSlc * (double)( lTotalSlices );
 		dPhi_IncreFrm = dPhi_IncreSlc * (double)( lTotalSlices * m_lLinesToMeasure );
 
@@ -443,10 +498,10 @@ double dgetRotAngle_ref(
 
 		 break;
 
-		 // Radial | Multiple inversion recovery | Golden-angle partitions
+	// Radial | Multiple inversion recovery | Golden-angle partitions
 	 case PEMODE_RAD_MINV_GA:
 
-		 dPhi_IncreSlc = M_PI / ( M_GR + (double)lTotalTurns - 1. );
+		 dPhi_IncreSlc = dScaleBase * M_PI / ( M_GR + (double)lTotalTurns - 1. );
 		 dPhi_IncreSpk = dPhi_IncreSlc * (double)( lTotalSlices );
 		 dPhi_IncreFrm = dPhi_IncreSlc * (double)( lTotalSlices * m_lLinesToMeasure );
 
@@ -460,10 +515,10 @@ double dgetRotAngle_ref(
 
 		break;
 
-			 // Radial | Multiple inversion recovery | Aligned partitions
+	// Radial | Multiple inversion recovery | Aligned partitions
 	 case PEMODE_RAD_MINV_GAAL:
 
-		 dPhi_IncreSpk = M_PI / ( M_GR + (double)lTotalTurns - 1. );
+		 dPhi_IncreSpk = dScaleBase * M_PI / ( M_GR + (double)lTotalTurns - 1. );
 		 dPhi_IncreFrm = dPhi_IncreSpk * m_lLinesToMeasure;
 		 dPhi_IncreSlc = 0.;
 
@@ -490,7 +545,7 @@ double dgetRotAngle_ref(
 
 		dPhi_IncreSpk = dScalePhi * M_PI / (double)m_lLinesToMeasure;
 		dPhi_IncreSlc = 0.; // TODO: M_PI / ( M_GR + (double)lTotalTurns - 1. );
-		dPhi_IncreFrm = M_PI / ( M_GR + (double)lTotalTurns - 1. ); // dPhi_IncreSlc * (double)( lTotalSlices );
+		dPhi_IncreFrm = dScaleBase * M_PI / ( M_GR + (double)lTotalTurns - 1. ); // dPhi_IncreSlc * (double)( lTotalSlices );
 
 		dPhi = dPhi_IncreSpk * (double)lLine
 		+ dPhi_IncreSlc * (double)lSlice
@@ -498,6 +553,22 @@ double dgetRotAngle_ref(
 
 		break;
 
+	// Radial | Rational Approximation of Golden Angle
+	case PEMODE_RATION_APPROX_GA:
+
+		dPhi_IncreSpk = dScaleBase * rational_angle(m_lLinesToMeasure, lTotalTurns, half_incr);
+		dPhi_IncreSlc = 0.;
+		dPhi_IncreFrm = 0.;
+
+		dPhi = dPhi_IncreSlc * (double)lSlice
+		 + dPhi_IncreSpk * (double)lLine
+		 + dPhi_IncreFrm * (double)lRepetition;
+
+		if (!double_angle) {
+			 dPhi = fmod(dPhi, M_PI);
+		}
+
+		break;
 
 	case PEMODE_RAD_RAND:
 	case PEMODE_RAD_RANDAL: // No long implemented! // Radial | Randomly aligned

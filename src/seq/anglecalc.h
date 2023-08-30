@@ -18,7 +18,8 @@ enum ePEMode
 	PEMODE_RAD_MINV_ALAL,
 	PEMODE_RAD_MINV_GA,
 	PEMODE_RAD_MINV_GAAL,
-	PEMODE_RAD_MEMS_HYB
+	PEMODE_RAD_MEMS_HYB,
+	PEMODE_RATION_APPROX_GA
 };
 
 #ifndef __cplusplus
@@ -33,7 +34,7 @@ BARTLIB_API long BARTLIB_CALL get_spoke_index( enum ePEMode mode, long lExcitati
 
 BARTLIB_API bool BARTLIB_CALL bcalc_base_angles(double *angle_spoke, double* angle_frame, double* angle_slice,
 		      enum ePEMode mode, long num_turns, int mb_factor, bool double_angle,
-		      long lines_to_measure, long num_slices, long inv_repets);
+		      long lines_to_measure, long num_slices, long inv_repets, bool double_base, bool half_incr);
 
 BARTLIB_API double BARTLIB_CALL dgetRotAngle(
 	long excitation,
@@ -50,7 +51,9 @@ BARTLIB_API double BARTLIB_CALL dgetRotAngle(
 	long lines_to_measure,
 	long repetitions_to_measure,
 	long start_pos_GA,
-	bool double_angle);
+	bool double_angle,
+	bool double_base,
+	bool half_incr);
 
 BARTLIB_API double BARTLIB_CALL dgetRotAngle_ref(
 	long lExcitation,
@@ -67,7 +70,9 @@ BARTLIB_API double BARTLIB_CALL dgetRotAngle_ref(
 	long m_lLinesToMeasure,
 	long m_lRepetitionsToMeasure,
 	long lStartPosGA,
-	bool double_angle);
+	bool double_angle,
+	bool double_base,
+	bool half_incr);
 
 
 #include "misc/cppwrap.h"
