@@ -353,7 +353,7 @@ endif
 
 ifeq ($(MAKESTAGE),1)
 .PHONY: doc/commands.txt bart $(CTARGETS)
-default all clean allclean distclean doc/commands.txt doxygen test utest utest_gpu gputest testslow pythontest testague scripttest shared-lib pkg-config bart $(CTARGETS):
+default all clean allclean distclean doc/commands.txt doxygen test utest utest_gpu gputest testslow pythontest testague scripttest shared-lib pkgconf bart $(CTARGETS):
 	$(MAKE) MAKESTAGE=2 $(MAKECMDGOALS)
 
 tests/test-%: force
@@ -795,10 +795,10 @@ $(UTARGETS_GPU): % : utests/utest_gpu.c utests/%.o $$(MODULES_%) $(MODULES)
 
 BART_VERSION=$(shell $(root)/git-version.sh)
 
-.PHONY:pkg-config
+.PHONY:pkgconf
 .SECONDEXPANSION:
-pkg-config:
-	$(root)/write_pkg_config.sh $(root) "$(LDFLAGS) $(CFLAGS)" "$(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) $(LIBS) -lm $(LIBRT)" $(BART_VERSION) bart.pc
+pkgconf:
+	$(root)/pkg/gen-pkgconf.sh $(root) "$(LDFLAGS) $(CFLAGS)" "$(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) $(LIBS) -lm $(LIBRT)" $(BART_VERSION) bart.pc
 
 
 # linker script version - does not work on MacOS X

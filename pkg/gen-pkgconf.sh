@@ -19,7 +19,7 @@
 
 set -euo pipefail
 
-TOOLBOX_PATH="$1"
+BART_TOOLBOX_PATH="$1"
 shift
 CFLAGS="$1"
 shift
@@ -32,10 +32,10 @@ shift
 
 
 cat << EOF > "$OUT"
-TOOLBOX_PATH=$TOOLBOX_PATH
-exec_prefix=${TOOLBOX_PATH}
-includedir=${TOOLBOX_PATH}/src
-libdir=${TOOLBOX_PATH}/lib
+BART_TOOLBOX_PATH=${BART_TOOLBOX_PATH}
+exec_prefix=${BART_TOOLBOX_PATH}
+includedir=${BART_TOOLBOX_PATH}/src
+libdir=${BART_TOOLBOX_PATH}/lib
 
 Name: bart
 Description: Toolbox for computational magnetic resonance imaging
