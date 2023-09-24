@@ -798,7 +798,7 @@ BART_VERSION=$(shell $(root)/git-version.sh)
 .PHONY:pkgconf
 .SECONDEXPANSION:
 pkgconf:
-	$(root)/pkg/gen-pkgconf.sh $(root) "$(LDFLAGS) $(CFLAGS)" "$(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) $(LIBS) -lm $(LIBRT)" $(BART_VERSION) bart.pc
+	$(root)/pkg/gen-pkgconf.sh REPLACEME "$(LDFLAGS) $(CFLAGS)" "$(FFTW_L) $(CUDA_L) $(BLAS_L) $(PNG_L) $(ISMRM_L) $(LIBS) -lm $(LIBRT)" $(BART_VERSION) bart.pc.in
 
 
 # linker script version - does not work on MacOS X
@@ -913,12 +913,17 @@ shared-lib:
 endif	# MAKESTAGE
 
 
-install: bart
+install: bart pkgconf
 	install -d $(DESTDIR)/$(PREFIX)/bin/
 	install bart $(DESTDIR)/$(PREFIX)/bin/
 	install -d $(DESTDIR)/$(PREFIX)/share/doc/bart/
 	install $(root)/doc/*.txt $(root)/README $(DESTDIR)/$(PREFIX)/share/doc/bart/
 	install -d $(DESTDIR)/$(PREFIX)/lib/bart/commands/
+	install -d $(DESTDIR)/$(PREFIX)/lib/pkgconfig/
+	sed 's|REPLACEME|/$(PREFIX)|' bart.pc.in > bart.pc
+	install bart.pc $(DESTDIR)/$(PREFIX)/lib/pkgconfig/
+
+
 
 
 # generate release tar balls (identical to github)
