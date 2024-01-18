@@ -1,6 +1,8 @@
 #ifndef __ANGLE_CALC_H
 #define __ANGLE_CALC_H
 
+#include "misc/dllspec.h"
+#include "misc/cppwrap.h"
 
 enum ePEMode
 {
@@ -26,14 +28,14 @@ enum { false, true };
 #endif
 #endif
 
-long get_spoke_index( enum ePEMode mode, long lExcitation, long lEcho,long lEchoes);
+BARTLIB_API long BARTLIB_CALL get_spoke_index( enum ePEMode mode, long lExcitation, long lEcho,long lEchoes);
 
 
-bool bcalc_base_angles(double *angle_spoke, double* angle_frame, double* angle_slice,
+BARTLIB_API bool BARTLIB_CALL bcalc_base_angles(double *angle_spoke, double* angle_frame, double* angle_slice,
 		      enum ePEMode mode, long num_turns, int mb_factor, bool double_angle,
 		      long lines_to_measure, long num_slices, long inv_repets);
 
-double dgetRotAngle(
+BARTLIB_API double BARTLIB_CALL dgetRotAngle(
 	long excitation,
 	long echo,
 	long repetition,
@@ -50,7 +52,7 @@ double dgetRotAngle(
 	long start_pos_GA,
 	bool double_angle);
 
-double dgetRotAngle_ref(
+BARTLIB_API double BARTLIB_CALL dgetRotAngle_ref(
 	long lExcitation,
 	long lEcho,
 	long lRepetition,
@@ -68,5 +70,6 @@ double dgetRotAngle_ref(
 	bool double_angle);
 
 
+#include "misc/cppwrap.h"
 
 #endif // __ANGLE_CALC_H

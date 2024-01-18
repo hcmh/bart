@@ -652,7 +652,7 @@ lib/lib$(1).a: lib$(1).a($$($(1)objs))
 
 endef
 
-ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake nlops moba lapacke box geom networks nn
+ALIBS = misc num grecon sense noir iter linops wavelet lowrank noncart calib simu sake nlops moba lapacke box geom networks nn seq
 
 ifeq ($(ISMRMRD),1)
 ALIBS += ismrm
@@ -674,6 +674,23 @@ lib/libismrm.a: CPPFLAGS += $(ISMRM_H)
 
 # additional rules for lib box
 lib/libbox.a: CPPFLAGS += -DMAIN_LIST="$(XTARGETS:%=%,) ()" -include src/main.h
+
+# shared libraries
+define dlllib
+$(1)srcs := $(wildcard $(srcdir)/$(1)/*.c)
+$(1)objs := $$($(1)srcs:.c=.win.o)
+
+.INTERMEDIATE: $$($(1)objs)
+
+lib/$(1).dll: $$($(1)objs)
+
+endef
+
+DLLS=seq
+
+$(eval $(foreach t,$(DLLS),$(eval $(call dlllib,$(t)))))
+
+
 
 # lib linop
 UTARGETS += test_linop_matrix test_linop test_padding
@@ -698,10 +715,13 @@ MODULES_test_nlop += -lnlops -lnoncart -llinops -liter
 MODULES_test_nlop_jacobian += -lnlops -llinops
 
 # lib noncart
-UTARGETS += test_nufft test_fib test_angle_calc
+UTARGETS += test_nufft test_fib
 MODULES_test_nufft += -lnoncart -llinops
 MODULES_test_fib += -lnoncart
-MODULES_test_angle_calc += -lnoncart -llinops
+
+# lib seq
+UTARGETS += test_angle_calc
+MODULES_test_angle_calc += -lseq -llinops
 
 # lib num
 UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_conv test_ode test_nlmeans test_rand
@@ -779,6 +799,27 @@ mat2cfl: $(srcdir)/mat2cfl.c -lnum -lmisc
 	$(CC) $(CFLAGS) $(MATLAB_H) -omat2cfl  $+ $(MATLAB_L) $(CUDA_L)
 
 
+LIBSEQ_NAME = bart_seq_$(shell git diff --quiet && git rev-parse --short HEAD)
+
+.PHONY: libseq
+libseq: lib/seq.dll lib/libseq.a
+
+ifeq (32,$(ARCH))
+MINGWDLLTOOL = i686-w64-mingw32-dlltool
+else
+MINGWDLLTOOL = x86_64-w64-mingw32-dlltool
+endif
+
+.PHONY: libseq_deploy
+libseq_deploy: libseq libseq_check
+	$(MINGWDLLTOOL) -l lib/$(LIBSEQ_NAME).lib --dllname $(LIBSEQ_NAME).dll -d lib/seq.def
+	cp lib/$(LIBSEQ_NAME).lib $(VM_BART_PATH)/lib/$(LIBSEQ_NAME).lib
+	cp lib/libseq.a $(VM_BART_PATH)/lib/lib$(LIBSEQ_NAME).a
+	cp lib/seq.dll $(VM_BIN_PATH)/$(LIBSEQ_NAME).dll
+
+.PHONY: libseq_check
+libseq_check:
+	git diff --quiet
 
 
 
@@ -799,6 +840,22 @@ else
 endif
 
 
+ifeq (32,$(ARCH))
+MINGWCC = i686-w64-mingw32-gcc
+else
+MINGWCC = x86_64-w64-mingw32-gcc
+endif
+
+
+%.win.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+%.dll: CC = $(MINGWCC)
+%.dll: CFLAGS =
+%.dll: CPPFLAGS = -D BARTLIB_EXPORTS -I$(srcdir)/
+%.dll: LDFLAGS = -shared -Wl,--subsystem,windows -Wl,--out-implib,$(subst .dll,.lib,$@) -Wl,--output-def,$(subst .dll,.def,$@)
+%.dll:
+	$(CC) $^ $(LDFLAGS) -o $@
 
 
 .SECONDEXPANSION:
@@ -911,6 +968,9 @@ clean:
 .PHONY: allclean
 allclean: clean
 	rm -f $(libdir)/*.a $(ALLDEPS)
+	rm -f $(libdir)/*.dll
+	rm -f $(libdir)/*.lib
+	rm -f $(libdir)/*.def
 	rm -f bart
 	rm -f $(patsubst commands/%, %, $(CTARGETS))
 	rm -f $(CTARGETS)

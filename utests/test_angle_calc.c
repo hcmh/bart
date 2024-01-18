@@ -7,7 +7,7 @@
 #include "num/multind.h"
 #include "num/flpmath.h"
 
-#include "noncart/anglecalc.h"
+#include "seq/anglecalc.h"
 
 #include "misc/misc.h"
 #include "misc/debug.h"
