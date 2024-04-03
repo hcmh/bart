@@ -24,11 +24,17 @@ struct pulse_sinc {
 	float alpha;		/* windows of pulse (0: normal sinc, 0.5: Hanning, 0.46: Hamming) */
 	float A;		/* amplitude */
 	float bwtp;		/* BWTP=2*n for n=nl=nr */
+	int SMS_multiband; /* multi-band factor for SMS */
+	int SMS_partition; 
+	float SMS_slice_distance; /* center-to-center slice distance defined by phase modulationn */
+	float Gs_amp;	/* amplitude of slice-selective gradient*/
+
 };
 
 extern const struct pulse_sinc pulse_sinc_defaults;
 
-extern void pulse_sinc_init(struct pulse_sinc* ps, float duration, float angle /*[deg]*/, float phase, float bwtp, float alpha);
+extern void pulse_sinc_init(struct pulse_sinc* ps, float duration, float angle /*[deg]*/, float phase, float bwtp, float alpha, 
+int multiband, int partition, float slice_distance, float Gs_amp);
 extern float pulse_sinc_integral(const struct pulse_sinc* ps);
 
 inline complex float pulse_eval(const struct pulse* p, float t)

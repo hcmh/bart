@@ -159,13 +159,14 @@ const struct simdata_pulse simdata_pulse_defaults = {
 	.rf_end = 0.001,
 };
 
-void pulse_init(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle /*[deg]*/, float phase, float bwtp, float alpha)
+void pulse_init(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle /*[deg]*/, float phase, float bwtp, float alpha,
+int multiband, int partition, float slice_distance, float gs_amp)
 {
 	pulse->rf_start = rf_start;	// [s]
 	pulse->rf_end = rf_end;		// [s]
 
 	pulse->sinc = pulse_sinc_defaults;
-	pulse_sinc_init(&pulse->sinc, rf_end - rf_start, angle, phase, bwtp, alpha);
+	pulse_sinc_init(&pulse->sinc, rf_end - rf_start, angle, phase, bwtp, alpha, multiband, partition, slice_distance, gs_amp);
 }
 
 
@@ -277,7 +278,9 @@ static void create_sim_matrix(struct sim_data* data, int N, float matrix[N][N], 
 	if (data->seq.pulse_applied)
 		pulse_init(&data->pulse, data->pulse.rf_start, data->pulse.rf_end,
 				CAST_UP(&data->pulse.sinc)->flipangle, data->pulse.phase,
-				data->pulse.sinc.bwtp, data->pulse.sinc.alpha);
+				data->pulse.sinc.bwtp, data->pulse.sinc.alpha,
+				data->pulse.sinc.SMS_multiband, data->pulse.sinc.SMS_partition,
+				data->pulse.sinc.SMS_slice_distance, data->pulse.sinc.Gs_amp);
 
 	mat_exp_simu(data, r2spoil, N, st, end, matrix);
 }
@@ -712,7 +715,9 @@ static void prepare_sim(struct sim_data* data, int N, int P, float (*mte)[P * N 
                 if (0. != data->pulse.rf_end)
 			pulse_init(&data->pulse, data->pulse.rf_start, data->pulse.rf_end,
 				CAST_UP(&data->pulse.sinc)->flipangle, data->pulse.phase,
-				data->pulse.sinc.bwtp, data->pulse.sinc.alpha);
+				data->pulse.sinc.bwtp, data->pulse.sinc.alpha,
+				data->pulse.sinc.SMS_multiband, data->pulse.sinc.SMS_partition,
+				data->pulse.sinc.SMS_slice_distance, data->pulse.sinc.Gs_amp);
 
                 break;
 

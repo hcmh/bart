@@ -94,7 +94,8 @@ struct simdata_pulse {
         struct pulse_hypsec hs;
 };
 
-extern void pulse_init(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle, float phase, float bwtp, float alpha);
+extern void pulse_init(struct simdata_pulse* pulse, float rf_start, float rf_end, float angle, float phase, float bwtp, float alpha, 
+int multiband, int partition, float slice_distance, float Gs_amp);
 extern const struct simdata_pulse simdata_pulse_defaults;
 
 

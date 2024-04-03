@@ -224,6 +224,10 @@ int main_sim(int argc, char* argv[argc])
 	if (MODEL_BMC == data.seq.model)
 		assert(1 < data.voxel.P);
 
+	if ( 1 < data.pulse.sinc.SMS_multiband)
+		data.pulse.sinc.Gs_amp = data.grad.sl_gradient_strength;
+	assert(data.pulse.sinc.SMS_partition < data.pulse.sinc.SMS_multiband);
+
         // Define output dimensions for signal
 
         long mdims[DIMS] = { [0 ... DIMS - 1] = 1 };

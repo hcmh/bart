@@ -1406,7 +1406,9 @@ static bool test_stm_matrix_creation(void)
 
         // Prepare RF pulse to have correct flip angle
         pulse_sinc_init(&sim_data.pulse.sinc, sim_data.pulse.rf_end - sim_data.pulse.rf_start, sim_data.pulse.sinc.INTERFACE.flipangle, 
-			sim_data.pulse.phase, sim_data.pulse.sinc.bwtp, sim_data.pulse.sinc.alpha);
+			sim_data.pulse.phase, sim_data.pulse.sinc.bwtp, sim_data.pulse.sinc.alpha, 
+			sim_data.pulse.sinc.SMS_multiband, sim_data.pulse.sinc.SMS_partition, sim_data.pulse.sinc.SMS_slice_distance, sim_data.pulse.sinc.Gs_amp);
+
 
 
         // Create STM for Bloch equation only

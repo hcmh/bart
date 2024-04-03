@@ -25,7 +25,7 @@ static bool test_sinc_integral(void)
 {
         struct pulse_sinc ps = pulse_sinc_defaults;
 
-        pulse_sinc_init(&ps, 0.001, 180., 0., 4., 0.46);
+        pulse_sinc_init(&ps, 0.001, 180., 0., 4., 0.46, 1, 1, 1., 1.);
 
         return ((M_PI - pulse_sinc_integral(&ps)) < 1E-6);
 }
@@ -37,7 +37,7 @@ static bool test_sinc_integral2(void)
 {
         struct pulse_sinc pulse = pulse_sinc_defaults;
 
-        pulse_sinc_init(&pulse, 0.001, 180., 0., 4., 0.46);
+        pulse_sinc_init(&pulse, 0.001, 180., 0., 4., 0.46, 1, 1, 1., 1.);
 	struct pulse* ps = CAST_UP(&pulse);
 
 	int N = 50;
@@ -76,7 +76,7 @@ static bool test_sinc_zeros(void)
 {
         struct pulse_sinc pulse = pulse_sinc_defaults;
 
-        pulse_sinc_init(&pulse, 0.001, 180., 0., 4., 0.46);
+        pulse_sinc_init(&pulse, 0.001, 180., 0., 4., 0.46, 1, 1, 1., 1.);
 	struct pulse* ps = CAST_UP(&pulse);
 
 	int O = 10;
@@ -166,7 +166,7 @@ static bool test_rf_pulse_ode(void)
 
 
                         // Prepare pulse
-			pulse_sinc_init(&data.pulse.sinc, trf, angle, 0., 4., 0.46);
+			pulse_sinc_init(&data.pulse.sinc, trf, angle, 0., 4., 0.46, 1, 1, 1., 1.);
 
 			float xp[4][3] = { { 0., 0., 1. }, { 0. }, { 0. }, { 0. } };
 

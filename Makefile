@@ -720,8 +720,9 @@ MODULES_test_nufft += -lnoncart -llinops
 MODULES_test_fib += -lnoncart
 
 # lib seq
-UTARGETS += test_angle_calc
+UTARGETS += test_angle_calc test_sms_rf
 MODULES_test_angle_calc += -lseq -llinops
+MODULES_test_sms_rf += -lseq -lsimu
 
 # lib num
 UTARGETS += test_multind test_flpmath test_splines test_linalg test_polynom test_window test_conv test_ode test_nlmeans test_rand

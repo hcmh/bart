@@ -7,6 +7,7 @@
 #include <assert.h>
 
 #include "misc/misc.h"
+#include "misc/mri.h"
 #include "misc/types.h"
 
 #include "num/specfun.h"
@@ -35,19 +36,42 @@ static float sinc_windowed_antiderivative(float alpha, float t, float n)
 			- 2. * (alpha - 1.) * Si(M_PI * t)) / (2. * M_PI);
 }
 
+/* SMS-multiband phase modulation*/
+static complex float pulse_sinc_phase_modulation(const struct pulse_sinc* ps, float t) 
+{
+	float mid = CAST_UP(ps)->duration / 2.;
+	
+	float phase = 0.;
+	complex float mod = 0. + 0.i;
+
+	for (int i = 0; i < ps->SMS_multiband; i++) {
+		phase = (t - CAST_UP(ps)->duration / 2.) 
+		* (( i - (ps->SMS_multiband - 1.) /2. ) * ps->SMS_slice_distance) 
+		* (-2. * M_PI * GYRO * ps->Gs_amp) * 1e6
+		+ 2 * M_PI * (ps->SMS_partition * i) / ps->SMS_multiband;
+		mod += cosf(phase) + 1.i*sinf(phase);
+	}
+	return mod;
+}	
 
 
 // Analytical definition of windowed sinc pulse
 // 	! centered around 0
 // 	-> Shift by half of pulse length to start pulse at t=0
-static float pulse_sinc(const struct pulse_sinc* ps, float t)
+static complex float pulse_sinc(const struct pulse_sinc* ps, float t)
 {
 	float mid = CAST_UP(ps)->duration / 2.;
 	float t0 = CAST_UP(ps)->duration / ps->bwtp;
 
 	assert((0 <= t) && (t <= CAST_UP(ps)->duration));
 
-	return ps->A * sinc_windowed(ps->alpha, (t - mid) / t0, ps->bwtp / 2.);
+	float rf = ps->A * sinc_windowed(ps->alpha, (t - mid) / t0, ps->bwtp / 2.);
+	complex float pm = 1. + 0.i;
+	
+	if ( 1 != ps->SMS_multiband ) 
+		pm = pulse_sinc_phase_modulation(ps, t);
+
+	return rf * pm;
 }
 
 float pulse_sinc_integral(const struct pulse_sinc* ps)
@@ -79,12 +103,17 @@ const struct pulse_sinc pulse_sinc_defaults = {
 	.alpha = 0.46,
 	.A = 1.,
 	.bwtp = 4.,
+	.SMS_multiband = 1,
+	.SMS_partition = 0,
+	.SMS_slice_distance = 1e-3,
+	.Gs_amp = 1e-3,
 };
 
 
 // Assume symmetric windowed sinc pulses
 // 	- Ensure windowed sinc leads to 90 deg rotation if its integral is pi/2
-void pulse_sinc_init(struct pulse_sinc* ps, float duration, float angle /*[deg]*/, float phase, float bwtp, float alpha)
+void pulse_sinc_init(struct pulse_sinc* ps, float duration, float angle /*[deg]*/, float phase, float bwtp, float alpha, 
+int multiband, int partition, float slice_distance, float Gs_amp)
 {
 	ps->INTERFACE.duration = duration;
 	ps->INTERFACE.flipangle = angle;
@@ -94,6 +123,10 @@ void pulse_sinc_init(struct pulse_sinc* ps, float duration, float angle /*[deg]*
 
 	ps->bwtp = bwtp;
 	ps->alpha = alpha;
+	ps->SMS_multiband = multiband;
+	ps->SMS_partition = partition;
+	ps->SMS_slice_distance = slice_distance;
+	ps->Gs_amp = Gs_amp;
 	ps->A = 1.;
 
 	float integral = pulse_sinc_integral(ps);
