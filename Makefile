@@ -16,13 +16,6 @@ $(error bart requires version 4.0 of GNU make or newer!)
 endif
 
 
-ifeq (4.4,$(firstword $(sort $(MAKE_VERSION) 4.4)))
-AR_LOCK_NEEDED=0
-else
-AR_LOCK_NEEDED=1
-endif
-
-
 # clear out all implicit rules
 MAKEFLAGS += --no-builtin-rules
 # clear out some variables by hand, as we cannot use -R, --no-builtin-variables without recursive make
@@ -88,6 +81,14 @@ LOG_BACKEND?=0
 LOG_SIEMENS_BACKEND?=0
 LOG_ORCHESTRA_BACKEND?=0
 LOG_GADGETRON_BACKEND?=0
+
+
+ifeq (4.4,$(firstword $(sort $(MAKE_VERSION) 4.4)))
+AR_LOCK_NEEDED?=0
+else
+AR_LOCK_NEEDED?=1
+endif
+
 
 
 DESTDIR ?= /
