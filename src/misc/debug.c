@@ -24,7 +24,7 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <time.h>
-#if !defined(__CYGWIN__) && !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(NO_EXECINFO)
 #include <execinfo.h>
 #endif
 
@@ -244,7 +244,7 @@ void debug_printf_trace(const char* func_name,
 
 void debug_backtrace(size_t n)
 {
-#if !defined(__CYGWIN__) && !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(NO_EXECINFO)
 	void* ptrs[n + 1];
 	int l = backtrace(ptrs, n + 1);
 
@@ -262,7 +262,7 @@ enum { BACKTRACE_SIZE = 50 };
 
 static void debug_good_backtrace_file(FILE * stream, int skip)
 {
-#if !defined(__CYGWIN__) && !defined(_WIN32)
+#if !defined(NO_EXECINFO)
 	char* debuginfo_path = NULL;
 
 	Dwfl_Callbacks callbacks = {

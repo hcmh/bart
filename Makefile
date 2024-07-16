@@ -73,6 +73,7 @@ FORTRAN?=1
 PNG?=1
 DEBUG_DWARF?=0
 WERROR?=0
+NO_EXECINFO?=0
 
 LOG_BACKEND?=0
 LOG_SIEMENS_BACKEND?=0
@@ -164,10 +165,32 @@ ifeq ($(BUILDTYPE), MacOSX)
 else
 	CC ?= gcc
 ifneq ($(BUILDTYPE), MSYS)
-# for symbols in backtraces
+ifneq ($(BUILDTYPE), WASM)
+# for symbols in backtraces, not supported on Windows or WASM
 	LDFLAGS += -rdynamic
 endif
 endif
+endif
+
+# no debug possible on WASM, and
+ifeq ($(BUILDTYPE), WASM)
+DEBUG=0
+DEBUG_DWARF=0
+NO_EXECINFO=1
+endif
+
+# no execinfo.h present on cygwin, windows and WASM:
+ifeq ($(BUILDTYPE), MSYS)
+NO_EXECINFO=1
+endif
+ifeq ($(BUILDTYPE), Cygwin)
+NO_EXECINFO=1
+endif
+
+ifeq ($(NO_EXECINFO),1)
+CPPFLAGS += -DNO_EXECINFO
+endif
+
 
 
 # for debug backtraces
