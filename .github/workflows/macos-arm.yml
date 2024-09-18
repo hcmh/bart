@@ -1,0 +1,42 @@
+name: Mac OS ARM
+
+on:
+  push:
+    branches: [ master, github_ci_test ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  OMP_NUM_THREADS: 1
+  CC: gcc-mp-14
+
+jobs:
+  build-and-test:
+
+    runs-on: macos-14
+      
+    steps:
+    - uses: melusina-org/setup-macports@v1.1.4
+    - uses: actions/checkout@v4
+    - name: install dependencies
+      run: |
+        port version
+        port install fftw-3-single
+        port install gcc14
+        port install libpng
+        port install openblas
+        port install flock
+        port install gmake
+    - name: make all
+      run: gmake all
+    - name: make utest
+      run: gmake utest
+      continue-on-error: true
+    - name: make test
+      run: gmake test
+      continue-on-error: true
+    - name: make pythontest
+      run: |
+        port install py312-numpy
+        port select --set python3 python312
+        gmake pythontest
