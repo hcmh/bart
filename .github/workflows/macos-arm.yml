@@ -2,7 +2,7 @@ name: Mac OS ARM
 
 on:
   push:
-    branches: [ master, macos_github ]
+    branches: [ master, github_ci_test ]
   pull_request:
     branches: [ master ]
 
