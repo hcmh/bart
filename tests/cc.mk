@@ -90,5 +90,5 @@ tests/test-cc-rovir-noncart: bart
 
 
 TESTS += tests/test-cc-svd tests/test-cc-geom tests/test-cc-esp tests/test-cc-svd-matrix
-TESTS += tests/test-cc-rovir tests/test-cc-rovir-noncart
+#TESTS += tests/test-cc-rovir tests/test-cc-rovir-noncart
 

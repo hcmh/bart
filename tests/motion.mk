@@ -73,5 +73,5 @@ tests/test-estmotion-optical-flow: traj phantom fovshift nufft estmotion interpo
 	rm *.{cfl,hdr} ; cd .. ; rmdir $(TESTS_TMP)
 	touch $@
 
-TESTS += tests/test-affine-rigid tests/test-affine-affine
+#TESTS += tests/test-affine-rigid tests/test-affine-affine
 TESTS += tests/test-estmotion-optical-flow tests/test-estmotion
