@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 # Copyright 2023. TU Graz. Institute of Biomedical Imaging.
 # Author: Moritz Blumenthal
 #
