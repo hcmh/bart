@@ -2,7 +2,7 @@ name: Linux Test
 
 on:
   push:
-    branches: [ master, github_ci_test ]
+    branches: [ master ]
   pull_request:
     branches: [ master ]
 
