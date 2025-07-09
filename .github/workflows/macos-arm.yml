@@ -27,6 +27,8 @@ jobs:
         port install openblas
         port install flock
         port install gmake
+        port install coreutils
+        export PATH=/opt/local/libexec/gnubin/:"$PATH"
     - name: make all
       run: gmake all
     - name: make utest
