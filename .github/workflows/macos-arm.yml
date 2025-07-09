@@ -37,7 +37,9 @@ jobs:
       run: gmake utest
       continue-on-error: true
     - name: make test
-      run: gmake test
+      run: |
+        export PATH=/opt/local/libexec/gnubin/:"$PATH"
+        gmake test
       continue-on-error: true
     - name: make pythontest
       run: |
