@@ -29,6 +29,8 @@ jobs:
         port install gmake
         port install coreutils
         export PATH=/opt/local/libexec/gnubin/:"$PATH"
+        readlink --help
+        /opt/local/libexec/gnubin/readlink --help
     - name: make all
       run: gmake all
     - name: make utest
