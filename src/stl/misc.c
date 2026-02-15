@@ -438,7 +438,7 @@ static double* stl_read_binary(FILE* fp, long dims[3])
 
 	const int xread_tmp_ret = xread(fd, 80, tmp);
         if (80 != xread_tmp_ret)
-                error("stl file could not be read (1) (%d != %d).\n", 80, xread_tmp_ret);
+                error("stl file could not be read (1) (%d != %d, errno: %d).\n", 80, xread_tmp_ret, errno);
 
         uint32_t Nu;
 
