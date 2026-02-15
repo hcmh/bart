@@ -124,7 +124,7 @@ void stl_shift_model(const long dims[3], double* model, const double shift[3])
 void stl_center_fov(const long dims[3], double* model, double fov_size)
 {
         if (0. >= fov_size)
-                error("fov_size should be positive.");
+                error("fov_size should be positive.\n");
 
         double min_v[3];
 	double max_v[3];
@@ -134,7 +134,7 @@ void stl_center_fov(const long dims[3], double* model, double fov_size)
         double shift[3] = { - min_v[0] - crange[0]/2, - min_v[1] - crange[1]/2, - min_v[2] - crange[2]/2 };
 
         if (TOL > crange[0] || TOL > crange[1] || TOL > crange[2])
-                error("coordinate range of stl in one dimension is almost zero");
+                error("coordinate range of stl in one dimension is almost zero\n");
 
         double m0 = (crange[0] > crange[1]) ? crange[0] : crange[1];
         double m = (crange[2] > m0) ? crange[2] : m0;
@@ -256,8 +256,9 @@ static void stl_write_binary(FILE* fp, const long dims[3], const double* model)
         snprintf(header, 80, "Created by BART %s.\n", bart_version);
 	memcpy(&header[80], &(uint32_t){ (uint32_t)dims[2] }, sizeof(uint32_t));
 
-	if (sizeof(header) != xwrite(fd, sizeof(header), header))
-                error("write stl error");
+	const int xread_ret =xwrite(fd, sizeof(header), header);
+	if (sizeof(header) != xread_ret)
+                error("write stl error (%llu != %d)\n", sizeof(header), xread_ret);
 
 	// write triangles
 
@@ -282,8 +283,9 @@ static void stl_write_binary(FILE* fp, const long dims[3], const double* model)
                                 tri.v[j][k] = MD_ACCESS(3, strs, (pos[0] = k, pos), model);
 		}
 
-		if (TRI_SIZE != xwrite(fd, TRI_SIZE, (void*)&tri))
-			error("write stl error");
+		const int xwrite_ret = xwrite(fd, TRI_SIZE, (void*)&tri);
+		if (TRI_SIZE != xwrite_ret)
+			error("write stl error (%d != %d)\n", TRI_SIZE, xwrite_ret);
         }
 }
 
@@ -433,18 +435,20 @@ static double* stl_read_binary(FILE* fp, long dims[3])
 
         char tmp[80];
 
-        if (80 != xread(fd, 80, tmp))
-                error("stl file could not be read (1).");
+	const int xread_tmp_ret = xread(fd, 80, tmp);
+        if (80 != xread_tmp_ret)
+                error("stl file could not be read (1) (%d != %d).\n", 80, xread_tmp_ret);
 
         uint32_t Nu;
 
 	assert((((union { uint16_t s; uint8_t b; }){ 1 }).b));	// little endian
 
-        if (sizeof(uint32_t) != xread(fd, sizeof(uint32_t), (char* )&Nu))
-                error("stl file could not be read (2).");
+	const int xread_Nu_ret = xread(fd, sizeof(uint32_t), (char* )&Nu);
+        if (sizeof(uint32_t) != xread_Nu_ret)
+                error("stl file could not be read (2) (%llu != %d)\n", sizeof(uint32_t), xread_Nu_ret);
 
 	if (INT_MAX < Nu)
-		error("too many triangles.");
+		error("too many triangles.\n");
 
         int N = (int)Nu;
 
@@ -462,8 +466,9 @@ static double* stl_read_binary(FILE* fp, long dims[3])
 		struct stl_triangle tri = { };
 		_Static_assert(TRI_SIZE <= sizeof(tri), "");
 
-		if (TRI_SIZE != xread(fd, TRI_SIZE, (char*)&tri))
-			error("stl file could not be read (3)\n");
+		const int xread_tri_ret = xread(fd, TRI_SIZE, (char*)&tri);
+		if (TRI_SIZE != xread_tri_ret)
+			error("stl file could not be read (3) (%d != %d)\n", TRI_SIZE, xread_tri_ret);
 
                 long pos[3] = { [2] = i };
                 pos[1] = 3;
