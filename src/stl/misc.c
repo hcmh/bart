@@ -9,6 +9,7 @@
 
 #include <stdbool.h>
 #include <complex.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -445,7 +446,7 @@ static double* stl_read_binary(FILE* fp, long dims[3])
 
 	const int xread_Nu_ret = xread(fd, sizeof(uint32_t), (char* )&Nu);
         if (sizeof(uint32_t) != xread_Nu_ret)
-                error("stl file could not be read (2) (%llu != %d)\n", sizeof(uint32_t), xread_Nu_ret);
+                error("stl file could not be read (2) (%llu != %d, errno: %d)\n", sizeof(uint32_t), xread_Nu_ret, errno);
 
 	if (INT_MAX < Nu)
 		error("too many triangles.\n");
