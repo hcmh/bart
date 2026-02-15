@@ -493,7 +493,11 @@ double* stl_read(FILE* fp, long dims[3])
 {
 	dims[2] = 0;
 	stl_read_ascii(fp, dims, NULL);
+	errno = 0;
 	rewind(fp);
+	if (0 != errno) {
+		error("rewind() failed, errno: %d\n", errno);
+	}
 
 	double* model;
 
