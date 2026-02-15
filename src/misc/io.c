@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <sys/stat.h>
 #ifdef _WIN32
 #include "win/mman.h"
@@ -83,8 +84,12 @@ int xread(int fd, int N, char buf[N])
 
 		int rr = read(fd, buf + r, (size_t)(N - r));
 
-		if (0 >= rr)
+		if (0 > rr) {
+			debug_printf(DP_ERROR, "xread returned %d, errno: %d\n", rr, errno);
 			return -1;
+		} else if (rr == 0) {
+			return -1;
+		}
 
 		r += rr;
 	}
